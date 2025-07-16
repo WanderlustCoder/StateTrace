@@ -1,0 +1,9 @@
+@"
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# VS Code
+.vscode/
+"@ | Set-Content .gitignore

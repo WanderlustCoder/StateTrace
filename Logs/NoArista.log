@@ -1,0 +1,492 @@
+CISCO-01# show running-config
+Building configuration...
+
+Current configuration : 5120 bytes
+!
+! Last configuration change at 10:15:42 UTC Mon Mar 10 2025
+!
+version 17.3
+service timestamps debug datetime msec
+service timestamps log datetime msec
+no service password-encryption
+!
+hostname CISCO-01
+!
+snmp-server location Your-Moms-House
+!
+boot-start-marker
+boot-end-marker
+!
+enable secret 5 $1$zPzD$K9z5E2r3s4T5u6V7w8X9Y0
+!
+username admin privilege 15 secret 5 $1$zPzD$A1b2C3d4E5f6G7h8I9J0K1
+!
+aaa new-model
+!
+aaa authentication login default local
+aaa authorization exec default local
+!
+ip domain-name example.com
+!
+spanning-tree mode rapid-pvst
+spanning-tree extend system-id
+!
+interface GigabitEthernet1/0/1
+ description Uplink to Core Switch
+ switchport mode trunk
+!
+interface GigabitEthernet1/0/2
+ description Office Printer
+ switchport access vlan 20
+!
+interface GigabitEthernet1/0/3
+ description Security Camera in Warehouse Corridor
+ switchport access vlan 30
+ switchport mode access
+ authentication event fail action next-method
+ authentication order mab dot1x
+ authentication priority dot1x mab
+ authentication port-control auto
+ authentication periodic
+ authentication timer restart 30
+ mab
+ dot1x pae authenticator
+ dot1x timeout quiet-period 90
+ dot1x timeout tx-period 5
+!
+interface GigabitEthernet1/0/4
+ description Conference Room Access Point
+ switchport access vlan 40
+ switchport mode access
+ authentication port-control auto
+ authentication periodic
+ authentication timer reauthentication server
+ authentication timer restart 30
+ mab
+!
+interface GigabitEthernet1/0/5
+ description Guest-Workstation-1
+ switchport access vlan 50
+ switchport mode access
+ authentication port-control auto
+ authentication periodic
+ authentication timer restart 30
+ dot1x pae authenticator
+ dot1x timeout quiet-period 30
+!
+interface GigabitEthernet1/0/6
+ description Lobby-TV
+ switchport access vlan 20
+ switchport mode access
+ authentication port-control auto
+ authentication periodic
+ authentication timer reauthentication server
+ authentication timer restart 30
+ mab
+!
+interface GigabitEthernet1/0/7
+ description HR-Laptop
+ switchport access vlan 100
+ switchport mode access
+ authentication event fail action next-method
+ authentication order mab dot1x
+ authentication priority dot1x mab
+ authentication port-control auto
+ authentication periodic
+ authentication timer restart 30
+ mab
+ dot1x pae authenticator
+ dot1x timeout quiet-period 90
+ dot1x timeout tx-period 5
+!
+interface GigabitEthernet1/0/8
+ description SmartSpeaker
+ switchport access vlan 999
+ switchport mode access
+!
+interface Vlan1
+ ip address 192.168.1.1 255.255.255.0
+!
+ip default-gateway 192.168.1.254
+!
+line con 0
+ exec-timeout 0 0
+ privilege level 15
+ logging synchronous
+!
+line vty 0 4
+ transport input ssh
+!
+end
+
+
+CISCO-01# show version
+
+Cisco IOS XE Software, Version 17.03.03
+Cisco IOS Software [Amsterdam], Catalyst L3 Switch Software (CAT9K_IOSXE), Version 17.3.3, RELEASE SOFTWARE (fc2)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2025 by Cisco Systems, Inc.
+Compiled Thu 22-Oct-20 08:12 by mcpre
+
+ROM: IOS-XE ROMMON
+
+CISCO-01 uptime is 2 weeks, 3 days, 4 hours, 22 minutes
+Uptime for this control processor is 2 weeks, 3 days, 4 hours, 24 minutes
+System returned to ROM by PowerOn
+System image file is "flash:packages.conf"
+Last reload reason: PowerOn
+
+This product contains cryptographic features and is subject to United
+States and local country laws governing import, export, transfer and
+use. Delivery of Cisco cryptographic products does not imply
+third-party authority to import, export, distribute or use encryption.
+Importers, exporters, distributors and users are responsible for
+compliance with U.S. and local country laws. By using this product you
+agree to comply with applicable laws and regulations. If you are unable
+to comply with U.S. and local laws, return this product immediately.
+
+License Level: Network-Advantage
+License Type: Permanent
+Next reload license Level: Network-Advantage
+
+cisco C9300-48P (X86) processor with 8192K/6147K bytes of memory.
+Processor board ID FDO2501A1BC
+1 Virtual Ethernet interface
+52 Gigabit Ethernet interfaces
+4 Ten Gigabit Ethernet interfaces
+2048K bytes of non-volatile configuration memory.
+16384000K bytes of physical memory.
+1638400K bytes of Crash Files at crashinfo:.
+11264000K bytes of Flash at flash:.
+0K bytes of WebUI ODM Files at webui:.
+
+Base Ethernet MAC Address          : 70:6D:15:42:8F:00
+Motherboard Assembly Number        : 73-17956-07
+Motherboard Serial Number          : FDO2501A1BC
+Model Revision Number              : A0
+Motherboard Revision Number        : B0
+Model Number                       : C9300-48P
+System Serial Number               : FDO2501A1BC
+
+Switch Ports    Model              SW Version        SW Image              Mode
+------ -----    -----              ----------        ----------            ----
+*    1 52       C9300-48P          17.3.3            CAT9K_IOSXE           INSTALL
+
+Configuration register is 0x102
+
+
+
+CISCO-01# show interface status
+Port      Name               Status       Vlan     Duplex  Speed   Type
+Gi1/0/1   Lobby-Phone          connected    10       full    1000   10/100/1000BaseTX
+Gi1/0/2   Admin-Laptop         connected    10       full    1000   10/100/1000BaseTX
+Gi1/0/3   ConfRoom-TV          connected    20       full    1000   10/100/1000BaseTX
+Gi1/0/4   Finance-Printer      connected    40       full    1000   10/100/1000BaseTX
+Gi1/0/5   Guest-Workstation-1  connected    50       full    1000   10/100/1000BaseTX
+Gi1/0/6   Lobby-TV             connected    20       full    1000   10/100/1000BaseTX
+Gi1/0/7   HR-Laptop            connected    100      full    1000   10/100/1000BaseTX
+Gi1/0/8   SmartSpeaker         notconnect   999      auto    auto   10/100/1000BaseTX
+CISCO-01#
+CISCO-01# show vlan brief
+
+VLAN Name                             Status    Ports
+---- -------------------------------- --------- -------------------------------
+1    default                          active    Gi1/0/1,Gi1/0/2,Gi1/0/3
+10   Management                       active    Gi1/0/4,Gi1/0/5
+20   Sales                            active    Gi1/0/6,Gi1/0/7
+30   Engineering                      active    Gi1/0/8,Gi1/0/9
+40   Guest                            active    Gi1/0/10,Gi1/0/11
+50   VLAN-50                          active    Gi1/0/5
+100  VLAN-100                         active    Gi1/0/7
+999  VLAN-999                         active    Gi1/0/8
+1002 fddi-default                     active    
+1003 token-ring-default               active    
+1004 fddinet-default                  active    
+1005 trnet-default                    active    
+
+CISCO-01# show authentication sessions
+
+Interface    MAC Address     Method  Domain  Status         Session ID
+Gi1/0/4      0011.2233.4406  dot1x   DATA    Authz Success 0A000A0B000002B91FBE82F2
+Gi1/0/5      0011.2233.4407  mab     DATA    Authz Success 0A000A0B000004E53472885B
+Gi1/0/6      0011.2233.4408  dot1x   DATA    Authz Success 0A000A0B000005B146FEBCE8
+Gi1/0/7      0011.2233.4409  mab     DATA    Authc Failed  0A000A0B000005AE44E2BFE9
+Gi1/0/8      0011.2233.4410  N/A     UNKNOWN Auth          0A000A0B0000000E0001A1C0
+
+CISCO-01# show mac address-table
+
+          Mac Address Table
+-------------------------------------------
+
+Vlan    Mac Address       Type        Ports
+----    -----------       --------    -----
+   4    0011.2233.4406    DYNAMIC     Gi1/0/4
+  20    0011.2233.4407    DYNAMIC     Gi1/0/5
+  30    0011.2233.4408    DYNAMIC     Gi1/0/6
+ 999    0011.2233.4409    DYNAMIC     Gi1/0/7
+1002    0011.2233.4410    DYNAMIC     Gi1/0/8
+
+SSH@BROCADE-01# show config
+ver 08.0.30T7f1
+hostname BROCADE-01
+!
+vlan 10 name DEFAULT-VLAN by port
+vlan 20 name VOICE by port
+vlan 30 name STAFF by port
+vlan 40 name WIRELESS by port
+vlan 50 name PRINTERS by port
+!
+Authentication
+ Auth-default-vlan 4
+ reauthentication
+ dot1x enable
+ dot1x enable ethe 1/1/6 to 1/1/12
+ mac-authentication enable
+ mac-authentication enable ethe 1/1/9 to 1/1/15
+ mac-authentication dot1x-override
+!
+interface ethernet 1/1/1
+ port-name DefaultPort1
+ auth-default-vlan 10
+ spanning-tree edge-port
+!
+interface ethernet 1/1/2
+ port-name DefaultPort2
+ auth-default-vlan 10
+ spanning-tree edge-port
+!
+interface ethernet 1/1/3
+ port-name DefaultPort3
+ auth-default-vlan 10
+ spanning-tree edge-port
+!
+interface ethernet 1/1/4
+ port-name DefaultPort4
+ auth-default-vlan 10
+ spanning-tree edge-port
+!
+interface ethernet 1/1/5
+ port-name DefaultPort5
+ auth-default-vlan 10
+ spanning-tree edge-port
+!
+interface ethernet 1/1/6
+ port-name VoiceEndpointProt06
+ auth-default-vlan 20
+ dot1x port-control auto
+ spanning-tree edge-port
+!
+interface ethernet 1/1/7
+ port-name VoiceEndpointProt07
+ auth-default-vlan 20
+ dot1x port-control auto
+ spanning-tree edge-port
+!
+interface ethernet 1/1/8
+ port-name StaffPort8
+ auth-default-vlan 30
+ dot1x port-control auto
+ spanning-tree edge-port
+!
+interface ethernet 1/1/9
+ port-name StaffPort9
+ auth-default-vlan 30
+ dot1x port-control auto
+ spanning-tree edge-port
+!
+interface ethernet 1/1/10
+ port-name StaffPort10
+ auth-default-vlan 30
+ dot1x port-control auto
+ spanning-tree edge-port
+!
+interface ethernet 1/1/11
+ port-name StaffPort11
+ auth-default-vlan 30
+ dot1x port-control auto
+ spanning-tree edge-port
+!
+interface ethernet 1/1/12
+ port-name StaffPort12
+ auth-default-vlan 30
+ dot1x port-control auto
+ spanning-tree edge-port
+!
+interface ethernet 1/1/13
+ port-name AccessPointLong13
+ auth-default-vlan 40
+ spanning-tree edge-port
+!
+interface ethernet 1/1/14
+ port-name AccessPointLong14
+ auth-default-vlan 40
+ spanning-tree edge-port
+!
+interface ethernet 1/1/15
+ port-name PrinterCanonIRADVL
+ auth-default-vlan 50
+ spanning-tree edge-port
+!
+interface ethernet 1/1/16
+ port-name AccessPointLong14
+ auth-default-vlan 40
+ spanning-tree edge-port
+!
+interface ethernet 1/1/17
+ port-name UnusedPort17
+!
+interface ethernet 1/1/18
+ port-name UnusedPort18
+!
+interface ethernet 1/1/19
+ port-name UnusedPort19
+!
+interface ethernet 1/1/20
+ port-name UnusedPort20
+!
+interface ethernet 1/1/21
+ port-name UnusedPort21
+!
+interface ethernet 1/1/22
+ port-name UnusedPort22
+!
+interface ethernet 1/1/23
+ port-name UnusedPort23
+!
+interface ethernet 1/1/24
+ port-name UnusedPort24
+!
+
+SSH@BROCADE-01# show version
+  Copyright (c) 1996-2025 Brocade Communications Systems, Inc. All rights reserved.
+  UNIT 1: compiled on Jan 21 2025 at 23:28:08 labeled as SPR08030
+    (31768772 bytes) from Primary SPR08030.bin
+    SW: Version 08.0.30T7f1
+  Compressed Boot-Monitor Image size = 786944, Version:10.1.06T215 (spz10106)
+  HW: Stackable ICX7450-24
+  Internal USB: Serial #: 9900314061200173
+  Vendor: ATP Electronics, Total size = 1919 MB
+==========================================================================
+UNIT 1: SL 1: ICX7450-24P 24-port Management Module
+  Serial #: CYS3333K006
+  License: ICX7450_L3_SOFT_PACKAGE (LID: eauIIIImFFL)
+  License Compliance: ICX7450-PREM-LIC-SW is Compliant
+==========================================================================
+ 1000 MHz ARM processor ARMv7 88 MHz bus
+ 8192 KB boot flash memory
+ 2048 MB code flash memory
+ 2048 MB DRAM
+STACKID 1 system uptime is 31 day(s) 1 hour(s) 1 minute(s) 5 second(s)
+The system : started=cold start
+
+
+SSH@BROCADE-01# show interfaces brief
+Port      Link    State     Dupl   Speed   Trunk  Tag  Pvid  Pri   MAC               Name
+1/1/1    Up      Forward  Full   1G      None   Yes  10    0     0011.2233.4401 DefaultPort1
+1/1/2    Up      Forward  Full   1G      None   Yes  10    0     0011.2233.4402 DefaultPort2
+1/1/3    Up      Forward  Full   1G      None   Yes  10    0     0011.2233.4403 DefaultPort3
+1/1/4    Up      Forward  Full   1G      None   Yes  10    0     0011.2233.4404 DefaultPort4
+1/1/5    Up      Forward  Full   1G      None   Yes  10    0     0011.2233.4405 DefaultPort5
+1/1/6    Up      Forward  Full   1G      None   Yes  20    0     0011.2233.4406 VoiceEndpointPr
+1/1/7    Up      Forward  Full   1G      None   Yes  20    0     0011.2233.4407 VoiceEndpointPr
+1/1/8    Up      Forward  Full   1G      None   Yes  30    0     0011.2233.4408 StaffPort8
+1/1/9    Up      Forward  Full   1G      None   Yes  30    0     0011.2233.4409 StaffPort9
+1/1/10   Up      Forward  Full   1G      None   Yes  30    0     0011.2233.4410 StaffPort10
+1/1/11   Up      Forward  Full   1G      None   Yes  30    0     0011.2233.4411 StaffPort11
+1/1/12   Up      Forward  Full   1G      None   Yes  30    0     0011.2233.4412 StaffPort12
+1/1/13   Up      Forward  Full   1G      None   Yes  40    0     0011.2233.4413 AccessPointLong
+1/1/14   Up      Forward  Full   1G      None   Yes  40    0     0011.2233.4414 AccessPointLong
+1/1/15   Up      Forward  Full   1G      None   Yes  50    0     0011.2233.4415 PrinterCanonIRA
+1/1/16   Down    Disabled Full   1G      None   No   10    0     0011.2233.4416 UnusedPort16
+1/1/17   Down    Disabled Full   1G      None   No   10    0     0011.2233.4417 UnusedPort17
+1/1/18   Down    Disabled Full   1G      None   No   10    0     0011.2233.4418 UnusedPort18
+1/1/19   Down    Disabled Full   1G      None   No   10    0     0011.2233.4419 UnusedPort19
+1/1/20   Down    Disabled Full   1G      None   No   10    0     0011.2233.4420 UnusedPort20
+1/1/21   Down    Disabled Full   1G      None   No   10    0     0011.2233.4421 UnusedPort21
+1/1/22   Down    Disabled Full   1G      None   No   10    0     0011.2233.4422 UnusedPort22
+1/1/23   Down    Disabled Full   1G      None   No   10    0     0011.2233.4423 UnusedPort23
+1/1/24   Down    Disabled Full   1G      None   No   10    0     0011.2233.4424 UnusedPort24
+
+
+SSH@BROCADE-01# show dot1x sessions all
+----------------------------------------------------------------------------------------------------
+Port     MAC 		  IP		User		Vlan  Auth	ACL	Age	Pae
+	 Addr         	  Addr          Name          	      State  			State
+----------------------------------------------------------------------------------------------------
+1/1/6    0011.2233.4406   N/A		N/A	     	20    Permit    none	   ENA    AUTHENTICATED
+1/1/7    0011.2233.4407   N/A   	N/A	     	20    Permit    none       ENA    AUTHENTICATED
+1/1/8    0011.2233.4408   N/A   	host/Computer1  30    Permit    none       S10    *AUTHENTICATING
+1/1/9    0011.2233.4409   N/A   	host/Computer2  30    Permit    none       S5     *AUTHENTICATING
+1/1/10   0011.2233.4410   N/A   	host/Computer3  30    Permit    none       ENA    AUTHENTICATED
+1/1/11   0011.2233.4411   N/A   	host/Computer4  30    Permit    none       ENA    AUTHENTICATED
+1/1/12   0011.2233.4412   N/A  		host/Computer5  30    Permit    none       ENA    AUTHENTICATED
+
+
+
+SSH@BROCADE-01# show mac-authentication sessions all
+------------------------------------------------------------------
+Port     MAC         	  IP         Vlan  Auth        ACL   Age
+	 Addr		  Addr		   State 
+------------------------------------------------------------------
+1/1/9    0011.2233.4409   N/A        30    No          none   S10
+1/1/10   0011.2233.4410   N/A        30    No          none   S5
+1/1/11   0011.2233.4411   N/A        30    No          none   S5
+1/1/12   0011.2233.4412   N/A        30    No          none   S5
+1/1/13   0011.2233.4413   N/A        40    Yes         none   ENA
+1/1/14   0011.2233.4414   N/A        40    Yes         none   ENA
+1/1/15   0011.2233.4415   N/A        50    Yes         none   ENA
+
+
+SSH@BROCADE-01# show mac-address
+MAC Address       Port       Type       VLAN  Action
+0011.2233.4401    1/1/1      Dynamic    10    Forward
+0011.2233.4402    1/1/2      Dynamic    10    Forward
+0011.2233.4403    1/1/3      Dynamic    10    Forward
+0011.2233.4404    1/1/4      Dynamic    10    Forward
+0011.2233.4405    1/1/5      Dynamic    10    Forward
+0011.2233.4406    1/1/6      Dynamic    20    Forward
+0011.2233.4407    1/1/7      Dynamic    20    Forward
+0011.2233.4408    1/1/8      Dynamic    30    Forward
+0011.2233.4409    1/1/9      Dynamic    30    Forward
+0011.2233.440a    1/1/10     Dynamic    30    Forward
+0011.2233.440b    1/1/11     Dynamic    30    Forward
+0011.2233.440c    1/1/12     Dynamic    30    Forward
+0011.2233.440d    1/1/13     Dynamic    40    Forward
+0011.2233.440e    1/1/14     Dynamic    40    Forward
+0011.2233.440f    1/1/15     Dynamic    50    Forward
+
+SSH@BROCADE-01# show vlan
+PORT-VLAN 10, Name DEFAULT-VLAN, Priority level0
+ Untagged Ports: None
+ Tagged Ports: None
+ Mac-VLAN Ports: None
+ Uplink Ports: None
+ DualMode Ports: None
+
+PORT-VLAN 20, Name VOICE, Priority level0
+ Untagged Ports: None
+ Tagged Ports: None
+ Mac-VLAN Ports: (U1/M1)   6  7
+ Uplink Ports: None
+ DualMode Ports: None
+
+PORT-VLAN 30, Name STAFF, Priority level0
+ Untagged Ports: None
+ Tagged Ports: None
+ Mac-VLAN Ports: (U1/M1)   8  9  10  11  12
+ Uplink Ports: None
+ DualMode Ports: None
+
+PORT-VLAN 40, Name WIRELESS, Priority level0
+ Untagged Ports: None
+ Tagged Ports: None
+ Mac-VLAN Ports: (U1/M1)   13  14
+ Uplink Ports: None
+ DualMode Ports: None
+
+PORT-VLAN 50, Name PRINTERS, Priority level0
+ Untagged Ports: None
+ Tagged Ports: None
+ Mac-VLAN Ports: (U1/M1)   15
+ Uplink Ports: None
+ DualMode Ports: None

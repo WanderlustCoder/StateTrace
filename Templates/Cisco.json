@@ -1,0 +1,97 @@
+{
+  "templates": [
+    {
+      "name": "Dual Authentication Port",
+      "vendor": "Cisco",
+      "os": "IOS",
+      "match_type": "contains_all",
+      "required_commands": [
+        "authentication event fail action next-method",
+        "authentication order mab dot1x",
+        "authentication priority dot1x mab",
+        "authentication port-control auto",
+        "authentication periodic",
+        "authentication timer restart 30",
+        "mab",
+        "dot1x pae authenticator",
+        "dot1x timeout quiet-period 90",
+        "dot1x timeout tx-period 5"
+      ],
+      "excluded_commands": [
+        "authentication timer reauthentication server",
+        "dot1x timeout quiet-period 30"
+      ],
+      "color": "Green",
+      "description": "Cisco access port with MAB and dot1x authentication"
+    },
+    {
+      "name": "MAB Only Port",
+      "vendor": "Cisco",
+      "os": "IOS",
+      "match_type": "contains_all",
+      "required_commands": [
+        "authentication port-control auto",
+        "authentication periodic",
+        "authentication timer reauthentication server",
+        "authentication timer restart 30",
+        "mab"
+      ],
+      "excluded_commands": [
+        "authentication event fail action next-method",
+        "authentication order mab dot1x",
+        "authentication priority dot1x mab",
+        "dot1x pae authenticator",
+        "dot1x timeout quiet-period 90",
+        "dot1x timeout tx-period 5"
+      ],
+      "color": "Blue",
+      "description": "Cisco MAB-only authentication port"
+    },
+    {
+      "name": "Dot1X Only Port",
+      "vendor": "Cisco",
+      "os": "IOS",
+      "match_type": "contains_all",
+      "required_commands": [
+        "authentication port-control auto",
+        "authentication periodic",
+        "authentication timer restart 30",
+        "dot1x pae authenticator",
+        "dot1x timeout quiet-period 30"
+      ],
+      "excluded_commands": [
+        "authentication event fail action next-method",
+        "authentication order mab dot1x",
+        "authentication priority dot1x mab",
+        "mab",
+        "authentication timer reauthentication server",
+        "dot1x timeout quiet-period 90",
+        "dot1x timeout tx-period 5"
+      ],
+      "color": "Purple",
+      "description": "Cisco dot1x-only authentication port"
+    },
+    {
+      "name": "Edge Port No Auth",
+      "vendor": "Cisco",
+      "os": "IOS",
+      "match_type": "contains_any",
+      "excluded_commands": [
+        "authentication event fail action next-method",
+        "authentication order mab dot1x",
+        "authentication priority dot1x mab",
+        "authentication port-control auto",
+        "authentication periodic",
+        "authentication timer restart 30",
+        "mab",
+        "dot1x pae authenticator",
+        "dot1x timeout quiet-period 30",
+        "dot1x timeout quiet-period 90",
+        "dot1x timeout tx-period 5",
+        "authentication timer reauthentication server"
+      ],
+      "color": "Red",
+      "description": "Cisco edge access port with no authentication"
+    }
+  ]
+}

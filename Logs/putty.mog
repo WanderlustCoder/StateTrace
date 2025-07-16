@@ -1,0 +1,1839 @@
+=~=~=~=~=~=~=~=~=~=~=~= PuTTY log 2025.06.06 12:45:08 =~=~=~=~=~=~=~=~=~=~=~=
+
+AR-7010T-1#show hostname | no-more
+show rHostname: AR-7010T-1
+FQDN:     AR-7010T-1.lab.local
+AR-7010T-1#show run | no-more
+w version | no-more
+show inventory | no-more
+show environment all | no-more
+!
+
+show interfaces status | no-more
+show interfaces | no-more
+!
+show vlan | no-more
+show spanning-tree | no-more
+show mac address-table | no-more
+! Command: show running-config
+! device: AR-7010T-1 (DCS-7010T-48, EOS-4.14.9.1M)
+!
+! boot system flash:/EOS-4.14.9.1M.swi
+!
+transceiver qsfp default-mode 4x10G
+!
+logging host 192.168.100.10
+logging facility local7
+!
+hostname AR-7010T-1
+ip name-server vrf default 1.1.1.1
+ip name-server vrf default 8.8.8.8
+ip domain-name lab.local
+!
+ntp server 132.163.96.1
+ntp server 132.163.96.2
+ntp server 132.163.96.3
+!
+snmp-server contact NetOps <netops@example.com>
+snmp-server location Lab Rack A
+snmp-server community public ro
+!
+spanning-tree mode mstp
+!
+no aaa root
+!
+clock timezone US/Central
+!
+vlan 10
+   name Data
+!
+vlan 20
+   name Voice
+!
+interface Ethernet1
+   description 00023-001-001
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+!
+interface Ethernet2
+   description 00023-001-002
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet3
+   description 00023-002-001
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet4
+   description 00023-002-002
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet5
+   description 00023-003-001
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet6
+   description 00023-003-002
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet7
+   description 00023-004-001
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet8
+   description 00023-004-002
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet9
+   description 00023-005-001
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet10
+   description 00023-005-002
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet11
+   description 00023-006-001
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet12
+   description 00023-006-002
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet13
+   description 00023-007-001
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet14
+   description 00023-007-002
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet15
+   description 00023-008-001
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet16
+   description 00023-008-002
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet17
+   description 00023-009-001
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet18
+   description 00023-009-002
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet19
+   description 00023-010-001
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet20
+   description 00023-010-002
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet21
+   description 00023-011-001
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet22
+   description 00023-011-002
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet23
+   description 00023-012-001
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet24
+   description 00023-012-002
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet25
+   description 00023-013-001
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet26
+   description 00023-013-002
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet27
+   description 00023-014-001
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet28
+   description 00023-014-002
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet29
+   description 00023-015-001
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet30
+   description 00023-015-002
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet31
+   description 00023-016-001
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet32
+   description 00023-016-002
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet33
+   description 00023-017-001
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet34
+   description 00023-017-002
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet35
+   description 00023-018-001
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet36
+   description 00023-018-002
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet37
+   description 00023-019-001
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet38
+   description 00023-019-002
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet39
+   description 00023-020-001
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet40
+   description 00023-020-002
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet41
+   description 00023-001-003
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet42
+   description 00023-002-003
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet43
+   description 00023-003-003
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet44
+   description 00023-004-003
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet45
+   description 00023-005-003
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet46
+   description 00023-006-003
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet47
+   description 00023-007-003
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet48
+   description 00023-008-003
+   link-debounce time 10 10
+   speed auto
+   switchport access vlan 10
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+   dot1x pae authenticator
+   dot1x port-control auto
+!
+interface Ethernet49
+   speed auto
+!
+interface Ethernet50
+   speed auto
+!
+interface Ethernet51
+   speed auto
+!
+interface Ethernet52
+   speed auto
+!
+interface Management1
+   ip address 192.168.100.2/24
+!
+ip route 0.0.0.0/0 192.168.100.1
+!
+no ip routing
+!
+dot1x system-auth-control
+!
+!
+end
+AR-7010T-1#show version | no-more
+Arista DCS-7010T-48-R
+Hardware version:    01.01
+Serial number:       HSH16190326
+System MAC address:  444c.a8b5.94db
+
+Software image version: 4.14.9.1M
+Architecture:           i386
+Internal build version: 4.14.9.1M-2714873.41491M
+Internal build ID:      0c909198-32d7-4253-85d6-d0f013b47dbc
+
+Uptime:                 36 minutes
+Total memory:           3907136 kB
+Free memory:            1342640 kB
+
+AR-7010T-1#show inventory | no-more
+System information
+  Model                    Description                                         
+  ------------------------ ----------------------------------------------------
+  DCS-7010T-48             48x 1000BASE-T + 4 SFP+ 1RU                         
+
+  HW Version  Serial Number  Mfg Date  
+  ----------- -------------- ----------
+  01.01       HSH16190326    2016-05-13
+
+System has 2 power supply slots
+  Slot Model            Serial Number   
+  ---- ---------------- ----------------
+  1    PWR-00194-01     N/A             
+  2    PWR-00194-01     N/A             
+
+System has 2 fan modules
+  Module  Number of Fans  Model            Serial Number   
+  ------- --------------- ---------------- ----------------
+  1       1               FAN-7010-R       N/A             
+  2       1               FAN-7010-R       N/A             
+
+System has 53 ports
+  Type             Count
+  ---------------- ----
+  Management       1   
+  Switched         52  
+
+System has 52 transceiver slots
+  Port Manufacturer     Model            Serial Number    Rev 
+  ---- ---------------- ---------------- ---------------- ----
+  1    Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  2    Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  3    Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  4    Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  5    Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  6    Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  7    Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  8    Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  9    Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  10   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  11   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  12   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  13   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  14   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  15   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  16   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  17   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  18   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  19   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  20   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  21   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  22   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  23   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  24   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  25   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  26   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  27   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  28   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  29   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  30   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  31   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  32   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  33   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  34   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  35   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  36   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  37   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  38   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  39   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  40   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  41   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  42   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  43   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  44   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  45   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  46   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  47   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  48   Arista Networks  DCS-7010T-48     HSH16190326      01.01
+  49   CISCO-FINISAR    FTLF1318P2BCL-C3 FNS15250V92      A   
+  50   CISCO-FINISAR    FTLF1318P2BCL-C3 FNS150702YN      A   
+  51   Not Present                                            
+  52   Not Present                                            
+
+AR-7010T-1#show environment all | no-more
+System temperature status is: Ok
+                                                                Alert   Critical
+Sensor  Description                            Temperature  Threshold  Threshold
+------- ------------------------------------ ------------- ---------- ----------
+1       Cpu temp sensor                            34.848C       105C       115C
+2       SCD                                        49.000C       100C       110C
+3       Front internal sensor                      37.000C        75C        85C
+4       Front external sensor                      35.000C        60C        75C
+5       Rear internal sensor                       26.000C        75C        85C
+6       Rear external sensor                       22.000C        60C        75C
+7       Switch ASIC Center                         50.931C       100C       110C
+8       Switch ASIC Lower Left Corner              51.474C       100C       110C
+9       Switch ASIC Upper Right Edge               49.304C       100C       110C
+
+System cooling status is: Ok
+Ambient temperature: 22C
+Airflow: back-to-front
+Fan Tray         Status           Speed 
+---------------- --------------- ------ 
+1                Ok                 40% 
+2                Ok                 40% 
+
+Power                                  Input    Output   Output                
+Supply  Model                Capacity  Current  Current  Power    Status       
+------- -------------------- --------- -------- -------- -------- -------------
+1       PWR-00194-01               65W      N/A      N/A      N/A Power Loss
+2       PWR-00194-01               65W      N/A      N/A      N/A Ok
+
+AR-7010T-1#!
+AR-7010T-1#
+AR-7010T-1#show interfaces status | no-more
+Port       Name              Status       Vlan        Duplex  Speed Type        
+Et1        00023-001-001     connected    10          a-full   a-1G 1000BASE-T  
+Et2        00023-001-002     notconnect   N/A           auto   auto 1000BASE-T  
+Et3        00023-002-001     notconnect   N/A           auto   auto 1000BASE-T  
+Et4        00023-002-002     notconnect   N/A           auto   auto 1000BASE-T  
+Et5        00023-003-001     notconnect   N/A           auto   auto 1000BASE-T  
+Et6        00023-003-002     notconnect   N/A           auto   auto 1000BASE-T  
+Et7        00023-004-001     notconnect   N/A           auto   auto 1000BASE-T  
+Et8        00023-004-002     notconnect   N/A           auto   auto 1000BASE-T  
+Et9        00023-005-001     notconnect   N/A           auto   auto 1000BASE-T  
+Et10       00023-005-002     notconnect   N/A           auto   auto 1000BASE-T  
+Et11       00023-006-001     notconnect   N/A           auto   auto 1000BASE-T  
+Et12       00023-006-002     notconnect   N/A           auto   auto 1000BASE-T  
+Et13       00023-007-001     notconnect   N/A           auto   auto 1000BASE-T  
+Et14       00023-007-002     notconnect   N/A           auto   auto 1000BASE-T  
+Et15       00023-008-001     notconnect   N/A           auto   auto 1000BASE-T  
+Et16       00023-008-002     notconnect   N/A           auto   auto 1000BASE-T  
+Et17       00023-009-001     notconnect   N/A           auto   auto 1000BASE-T  
+Et18       00023-009-002     notconnect   N/A           auto   auto 1000BASE-T  
+Et19       00023-010-001     notconnect   N/A           auto   auto 1000BASE-T  
+Et20       00023-010-002     notconnect   N/A           auto   auto 1000BASE-T  
+Et21       00023-011-001     notconnect   N/A           auto   auto 1000BASE-T  
+Et22       00023-011-002     notconnect   N/A           auto   auto 1000BASE-T  
+Et23       00023-012-001     notconnect   N/A           auto   auto 1000BASE-T  
+Et24       00023-012-002     notconnect   N/A           auto   auto 1000BASE-T  
+Et25       00023-013-001     notconnect   N/A           auto   auto 1000BASE-T  
+Et26       00023-013-002     notconnect   N/A           auto   auto 1000BASE-T  
+Et27       00023-014-001     notconnect   N/A           auto   auto 1000BASE-T  
+Et28       00023-014-002     notconnect   N/A           auto   auto 1000BASE-T  
+Et29       00023-015-001     notconnect   N/A           auto   auto 1000BASE-T  
+Et30       00023-015-002     notconnect   N/A           auto   auto 1000BASE-T  
+Et31       00023-016-001     notconnect   N/A           auto   auto 1000BASE-T  
+Et32       00023-016-002     notconnect   N/A           auto   auto 1000BASE-T  
+Et33       00023-017-001     notconnect   N/A           auto   auto 1000BASE-T  
+Et34       00023-017-002     notconnect   N/A           auto   auto 1000BASE-T  
+Et35       00023-018-001     notconnect   N/A           auto   auto 1000BASE-T  
+Et36       00023-018-002     notconnect   N/A           auto   auto 1000BASE-T  
+Et37       00023-019-001     notconnect   N/A           auto   auto 1000BASE-T  
+Et38       00023-019-002     notconnect   N/A           auto   auto 1000BASE-T  
+Et39       00023-020-001     notconnect   N/A           auto   auto 1000BASE-T  
+Et40       00023-020-002     notconnect   N/A           auto   auto 1000BASE-T  
+Et41       00023-001-003     notconnect   N/A           auto   auto 1000BASE-T  
+Et42       00023-002-003     notconnect   N/A           auto   auto 1000BASE-T  
+Et43       00023-003-003     notconnect   N/A           auto   auto 1000BASE-T  
+Et44       00023-004-003     notconnect   N/A           auto   auto 1000BASE-T  
+Et45       00023-005-003     notconnect   N/A           auto   auto 1000BASE-T  
+Et46       00023-006-003     notconnect   N/A           auto   auto 1000BASE-T  
+Et47       00023-007-003     notconnect   N/A           auto   auto 1000BASE-T  
+Et48       00023-008-003     notconnect   N/A           auto   auto 1000BASE-T  
+Et49                         errdisabled  1           a-full   a-1G 1000BASE-LX 
+Et50                         errdisabled  1           a-full   a-1G 1000BASE-LX 
+Et51                         notconnect   1           a-full  a-10G Not Present 
+Et52                         notconnect   1           a-full  a-10G Not Present 
+Ma1                          notconnect   routed        auto   auto 10/100/1000 
+
+AR-7010T-1#show interfaces | no-more
+Ethernet1 is up, line protocol is up (connected)
+  Hardware is Ethernet, address is 444c.a8b5.94dc (bia 444c.a8b5.94dc)
+  Description: 00023-001-001
+  Ethernet MTU 9214 bytes , BW 1000000 kbit
+  Full-duplex, 1Gb/s, auto negotiation: on, uni-link: unknown
+  Up 31 minutes, 19 seconds
+  3 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 3.89 kbps (0.0% with framing overhead), 2 packets/sec
+  5 minutes output rate 85 bps (0.0% with framing overhead), 0 packets/sec
+     4401 packets input, 875695 bytes
+     Received 75 broadcasts, 4326 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     30 packets output, 3693 bytes
+     Sent 0 broadcasts, 30 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet2 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.94dd (bia 444c.a8b5.94dd)
+  Description: 00023-001-002
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 20 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet3 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.94de (bia 444c.a8b5.94de)
+  Description: 00023-002-001
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 20 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet4 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.94df (bia 444c.a8b5.94df)
+  Description: 00023-002-002
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 20 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet5 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.94e0 (bia 444c.a8b5.94e0)
+  Description: 00023-003-001
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 20 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet6 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.94e1 (bia 444c.a8b5.94e1)
+  Description: 00023-003-002
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 33 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet7 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.94e2 (bia 444c.a8b5.94e2)
+  Description: 00023-004-001
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 33 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet8 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.94e3 (bia 444c.a8b5.94e3)
+  Description: 00023-004-002
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 33 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet9 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.94e4 (bia 444c.a8b5.94e4)
+  Description: 00023-005-001
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 33 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet10 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.94e5 (bia 444c.a8b5.94e5)
+  Description: 00023-005-002
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 33 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet11 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.94e6 (bia 444c.a8b5.94e6)
+  Description: 00023-006-001
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 33 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet12 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.94e7 (bia 444c.a8b5.94e7)
+  Description: 00023-006-002
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 33 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet13 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.94e8 (bia 444c.a8b5.94e8)
+  Description: 00023-007-001
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 33 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet14 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.94e9 (bia 444c.a8b5.94e9)
+  Description: 00023-007-002
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 33 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet15 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.94ea (bia 444c.a8b5.94ea)
+  Description: 00023-008-001
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 33 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet16 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.94eb (bia 444c.a8b5.94eb)
+  Description: 00023-008-002
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 33 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet17 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.94ec (bia 444c.a8b5.94ec)
+  Description: 00023-009-001
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 33 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet18 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.94ed (bia 444c.a8b5.94ed)
+  Description: 00023-009-002
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 33 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet19 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.94ee (bia 444c.a8b5.94ee)
+  Description: 00023-010-001
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 33 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet20 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.94ef (bia 444c.a8b5.94ef)
+  Description: 00023-010-002
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 45 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet21 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.94f0 (bia 444c.a8b5.94f0)
+  Description: 00023-011-001
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 45 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet22 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.94f1 (bia 444c.a8b5.94f1)
+  Description: 00023-011-002
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 45 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet23 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.94f2 (bia 444c.a8b5.94f2)
+  Description: 00023-012-001
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 45 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet24 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.94f3 (bia 444c.a8b5.94f3)
+  Description: 00023-012-002
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 45 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet25 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.94f4 (bia 444c.a8b5.94f4)
+  Description: 00023-013-001
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 45 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet26 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.94f5 (bia 444c.a8b5.94f5)
+  Description: 00023-013-002
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 45 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet27 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.94f6 (bia 444c.a8b5.94f6)
+  Description: 00023-014-001
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 45 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet28 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.94f7 (bia 444c.a8b5.94f7)
+  Description: 00023-014-002
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 45 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet29 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.94f8 (bia 444c.a8b5.94f8)
+  Description: 00023-015-001
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 45 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet30 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.94f9 (bia 444c.a8b5.94f9)
+  Description: 00023-015-002
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 45 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet31 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.94fa (bia 444c.a8b5.94fa)
+  Description: 00023-016-001
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 45 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet32 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.94fb (bia 444c.a8b5.94fb)
+  Description: 00023-016-002
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 45 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters 0:36:35 ago
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet33 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.94fc (bia 444c.a8b5.94fc)
+  Description: 00023-017-001
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 45 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet34 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.94fd (bia 444c.a8b5.94fd)
+  Description: 00023-017-002
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 57 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet35 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.94fe (bia 444c.a8b5.94fe)
+  Description: 00023-018-001
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 57 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet36 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.94ff (bia 444c.a8b5.94ff)
+  Description: 00023-018-002
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 57 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet37 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.9500 (bia 444c.a8b5.9500)
+  Description: 00023-019-001
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 57 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet38 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.9501 (bia 444c.a8b5.9501)
+  Description: 00023-019-002
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 57 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet39 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.9502 (bia 444c.a8b5.9502)
+  Description: 00023-020-001
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 57 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet40 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.9503 (bia 444c.a8b5.9503)
+  Description: 00023-020-002
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 57 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet41 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.9504 (bia 444c.a8b5.9504)
+  Description: 00023-001-003
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 57 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet42 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.9505 (bia 444c.a8b5.9505)
+  Description: 00023-002-003
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 57 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet43 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.9506 (bia 444c.a8b5.9506)
+  Description: 00023-003-003
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 57 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet44 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.9507 (bia 444c.a8b5.9507)
+  Description: 00023-004-003
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 57 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet45 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.9508 (bia 444c.a8b5.9508)
+  Description: 00023-005-003
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 57 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet46 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.9509 (bia 444c.a8b5.9509)
+  Description: 00023-006-003
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 57 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet47 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.950a (bia 444c.a8b5.950a)
+  Description: 00023-007-003
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 31 minutes, 57 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet48 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.950b (bia 444c.a8b5.950b)
+  Description: 00023-008-003
+  Ethernet MTU 9214 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 32 minutes, 9 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet49 is down, line protocol is down (errdisabled)
+  Hardware is Ethernet, address is 444c.a8b5.950c (bia 444c.a8b5.950c)
+  Ethernet MTU 9214 bytes , BW 1000000 kbit
+  Full-duplex, 1Gb/s, auto negotiation: off, uni-link: unknown
+  Down 32 minutes, 9 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (0.0% with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (0.0% with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet50 is down, line protocol is down (errdisabled)
+  Hardware is Ethernet, address is 444c.a8b5.950d (bia 444c.a8b5.950d)
+  Ethernet MTU 9214 bytes , BW 1000000 kbit
+  Full-duplex, 1Gb/s, auto negotiation: off, uni-link: unknown
+  Down 32 minutes, 9 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (0.0% with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (0.0% with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet51 is down, line protocol is notpresent (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.950e (bia 444c.a8b5.950e)
+  Ethernet MTU 9214 bytes , BW 10000000 kbit
+  Full-duplex, 10Gb/s, auto negotiation: off, uni-link: unknown
+  0 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (0.0% with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (0.0% with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Ethernet52 is down, line protocol is notpresent (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.950f (bia 444c.a8b5.950f)
+  Ethernet MTU 9214 bytes , BW 10000000 kbit
+  Full-duplex, 10Gb/s, auto negotiation: off, uni-link: unknown
+  0 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (0.0% with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (0.0% with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+Management1 is down, line protocol is down (notconnect)
+  Hardware is Ethernet, address is 444c.a8b5.94da (bia 444c.a8b5.94da)
+  Internet address is 192.168.100.2/24
+  Broadcast address is 255.255.255.255
+  Address determined by manual configuration
+  IP MTU 1500 bytes
+  Auto-duplex, Auto-speed, auto negotiation: on, uni-link: unknown
+  Down 33 minutes, 12 seconds
+  2 link status changes since last clear
+  Last clearing of "show interface" counters never
+  5 minutes input rate 0 bps (- with framing overhead), 0 packets/sec
+  5 minutes output rate 0 bps (- with framing overhead), 0 packets/sec
+     0 packets input, 0 bytes
+     Received 0 broadcasts, 0 multicast
+     0 runts, 0 giants
+     0 input errors, 0 CRC, 0 alignment, 0 symbol, 0 input discards
+     0 PAUSE input
+     0 packets output, 0 bytes
+     Sent 0 broadcasts, 0 multicast
+     0 output errors, 0 collisions
+     0 late collision, 0 deferred, 0 output discards
+     0 PAUSE output
+AR-7010T-1#!
+AR-7010T-1#show vlan | no-more
+VLAN  Name                             Status    Ports
+----- -------------------------------- --------- -------------------------------
+1     default                          active   
+10    Data                             active    Et1
+20    Voice                            active   
+
+AR-7010T-1#show spanning-tree | no-more
+MST0
+  Spanning tree enabled protocol mstp
+  Root ID    Priority    32768
+             Address     444c.a8b5.94db
+             This bridge is the root
+
+  Bridge ID  Priority    32768  (priority 32768 sys-id-ext 0)
+             Address     444c.a8b5.94db
+             Hello Time  2.000 sec  Max Age 20 sec  Forward Delay 15 sec
+
+Interface        Role       State      Cost      Prio.Nbr Type
+---------------- ---------- ---------- --------- -------- --------------------
+Et1              designated forwarding 20000     128.1    P2p                 
+
+AR-7010T-1#show mac address-table | no-more
+          Mac Address Table
+------------------------------------------------------------------
+
+Vlan    Mac Address       Type        Ports      Moves   Last Move
+----    -----------       ----        -----      -----   ---------
+  10    40c2.ba80.cb96    DYNAMIC     Et1        1       0:01:35 ago
+Total Mac Addresses for this criterion: 1
+
+          Multicast Mac Address Table
+------------------------------------------------------------------
+
+Vlan    Mac Address       Type        Ports
+----    -----------       ----        -----
+Total Mac Addresses for this criterion: 0
+AR-7010T-1#
+Port    Authorized    Mode           MAC Address        Vlan
+-----   ----------    ----           -----------        ----
+Et1     Authorized    Single-Host    40c2.ba80.cb96      10
+Et2     Unauthorized  Multi-Domain

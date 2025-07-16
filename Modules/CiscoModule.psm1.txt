@@ -1,0 +1,335 @@
+function Get-CiscoDeviceFacts {
+    param (
+        [string[]]$Lines
+    )
+
+    function Get-ShowCommandBlocks {
+        param (
+            [string[]]$Lines
+        )
+
+        $blocks = @{}
+        $currentCommand = ""
+        $currentBuffer = @()
+        $recording = $false
+
+        foreach ($line in $Lines) {
+            if ($line -match '^(\S+)#\s*(show .+)$') {
+                # Save previous block
+                if ($currentCommand -ne "" -and $currentBuffer.Count -gt 0) {
+                    $blocks[$currentCommand] = $currentBuffer
+                }
+                # Start new block
+                $currentCommand = $matches[2].Trim()
+                $currentBuffer = @()
+                $recording = $true
+                continue
+            }
+
+            if ($recording -and $line -match '^\S+#') {
+                # Reached a new prompt (end of output)
+                $recording = $false
+                if ($currentCommand -ne "") {
+                    $blocks[$currentCommand] = $currentBuffer
+                }
+                $currentCommand = ""
+                $currentBuffer = @()
+                continue
+            }
+
+            if ($recording) {
+                $currentBuffer += $line
+            }
+        }
+
+        # Edge case: save the last block if still recording
+        if ($recording -and $currentCommand -ne "") {
+            $blocks[$currentCommand] = $currentBuffer
+        }
+
+        return $blocks
+    }
+
+    
+    function Get-Hostname {
+        foreach ($line in $Lines) {
+            if ($line -match "^(\S+)#") {
+                return $matches[1]
+            }
+        }
+        return "Unknown"
+    }
+
+    function Get-ModelAndVersion {
+        $model = "Unknown"; $version = "Unknown"
+        foreach ($line in $Lines) {
+            if ($line -match "Model Number\s+:\s+(\S+)") { $model = $matches[1] }
+            elseif ($line -match "Version\s+([\d\.\(\)A-Z]+)") { $version = $matches[1] }
+        }
+        return @($model, $version)
+    }
+
+    function Get-Uptime {
+        foreach ($line in $Lines) {
+            if ($line -match "uptime is (.+)") { return $matches[1] }
+        }
+        return "Unknown"
+    }
+
+    function Get-Location {
+        foreach ($line in $Lines) {
+            if ($line -match "Location\s+(.+)") { return $matches[1].Trim() }
+        }
+        return "Unspecified"
+    }
+
+    function Get-InterfaceConfigs {
+        $ht = @{}
+        for ($i = 0; $i -lt $Lines.Count; $i++) {
+            $line = $Lines[$i]
+            if ($line -match "^interface\s+\D+?(\d+(?:/\d+)+)") {
+                $id = $matches[1]
+                $configBlock = @($line)
+                $desc = ""
+                $j = $i + 1
+                while ($j -lt $Lines.Count -and $Lines[$j] -notmatch "^interface" -and $Lines[$j] -notmatch "^!") {
+                    $configBlock += $Lines[$j]
+                    if ($Lines[$j] -match "^\s*description\s+(.+)") { $desc = $matches[1].Trim() }
+                    $j++
+                }
+                $ht[$id] = @{ Config = $configBlock -join "`r`n"; Description = $desc }
+                $i = $j - 1
+            }
+        }
+        return $ht
+    }
+
+    function Get-InterfacesStatus {
+        $results = @(); $parsing = $false
+        foreach ($line in $Lines) {
+            if ($line -match "^Port\s+Name\s+Status") { $parsing = $true; continue }
+            if ($parsing) {
+                if ($line -match '^\s*$') { break }
+                $cols = $line -split '\s+', 7
+                if ($cols.Count -ge 7) {
+                    $raw = $cols[0]
+                    if ($raw -match "\D+?(\d+(?:/\d+)+)$") {
+                        $results += [PSCustomObject]@{
+                            RawPort = $raw
+                            Port    = $raw
+                            Name    = $cols[1]
+                            Status  = $cols[2]
+                            VLAN    = $cols[3]
+                            Duplex  = $cols[4]
+                            Speed   = $cols[5]
+                            Type    = $cols[6]
+                        }
+                    }
+                }
+            }
+        }
+        return $results
+    }
+
+    function Get-MacTable {
+        $list = @()
+        $inMacTable = $false
+
+        foreach ($l in $Lines) {
+            if ($l -match '^.*show mac address-table') {
+                $inMacTable = $true
+                continue
+            }
+
+            if ($inMacTable) {
+                if ($l -match '^\S+#') {
+                    break  # End of MAC table output
+                }
+
+                # Match MAC table line
+                if ($l -match '^\s*(\d+)\s+([0-9a-fA-F\.]+)\s+DYNAMIC\s+(\S+)$') {
+                    $list += [PSCustomObject]@{
+                        VLAN = $matches[1]
+                        MAC  = $matches[2]
+                        Port = $matches[3]
+                    }
+                }
+            }
+        }
+
+        return $list
+    }
+
+    function Get-Dot1xStatus {
+        $list = @()
+        $inSection = $false
+
+        foreach ($line in $Lines) {
+            # Start parsing after hitting the header
+            if ($line -match "^Interface\s+MAC Address\s+Method\s+Domain\s+Status\s+Session ID") {
+                $inSection = $true
+                continue
+            }
+
+            # Skip if we haven't hit the auth section yet
+            if (-not $inSection) { continue }
+
+            # End parsing when hitting empty or non-Gi line
+            if ($line -match "^\s*$" -or $line -notmatch "^Gi\d+/\d+/\d+") { break }
+
+            $cols = $line -split '\s+'
+
+            if ($cols.Count -ge 6) {
+                $interface = $cols[0]
+                $mac       = if ($cols[1] -match '^[0-9a-f\.]+$') { $cols[1] } else { "" }
+                $method    = $cols[2]
+                $domain    = $cols[3]
+                $status    = ($cols[4..($cols.Count - 2)] -join ' ').Trim()
+                $sessionId = $cols[-1]
+
+                $authState = switch -Regex ($status.ToLower()) {
+                    'authz success' { 'Authorized' }
+                    'authc failed'  { 'Unauthorized' }
+                    default         { 'Unknown' }
+                }
+
+
+                $authMode = if ($method -match 'dot1x|mab') { $method } else { 'unknown' }
+
+                $list += [PSCustomObject]@{
+                    Interface  = $interface
+                    MAC        = $mac
+                    Status     = $status
+                    AuthState  = $authState
+                    AuthMode   = $authMode
+                    SessionID  = $sessionId
+                }
+            } else {
+                Write-Warning "Skipped malformed auth line: $line"
+            }
+        }
+
+        return $list
+    }
+
+    function Get-PortAuthTemplates {
+        param (
+            [hashtable]$Configs
+        )
+
+        $result = @{}
+
+        $requiredFlexCmds = @(
+            'authentication event fail action next-method',
+            'authentication order mab dot1x',
+            'authentication priority dot1x mab',
+            'authentication port-control auto',
+            'dot1x timeout quiet-period 90',
+            'dot1x timeout tx-period 5'
+        )
+
+        foreach ($key in $Configs.Keys) {
+            $lines = $Configs[$key].Config -split "`r?`n" | ForEach-Object { $_.Trim().ToLower() }
+
+            $hasDot1x   = $lines -contains 'dot1x pae authenticator'
+            $hasMacAuth = $lines -contains 'mab'
+
+            if ($hasDot1x -and $hasMacAuth) {
+                # Candidate for flexible, check missing commands
+                $missing = @()
+                foreach ($cmd in $requiredFlexCmds) {
+                    if (-not ($lines -contains $cmd)) {
+                        $missing += $cmd
+                    }
+                }
+
+                $result[$key] = @{
+                    Template        = 'flexible'
+                    MissingCommands = $missing
+                }
+            }
+            elseif ($hasDot1x) {
+                $result[$key] = @{
+                    Template        = 'dot1x'
+                    MissingCommands = @()
+                }
+            }
+            elseif ($hasMacAuth) {
+                $result[$key] = @{
+                    Template        = 'macauth'
+                    MissingCommands = @()
+                }
+            }
+            else {
+                $result[$key] = @{
+                    Template        = 'openPort'
+                    MissingCommands = @()
+                }
+            }
+        }
+
+        return $result
+    }
+
+
+    # Main
+    $hostname      = Get-Hostname
+    $modelVer      = Get-ModelAndVersion
+    $uptime        = Get-Uptime
+    $location      = Get-Location
+    $configs       = Get-InterfaceConfigs
+    $status        = Get-InterfacesStatus
+    $macs          = Get-MacTable
+    $auth          = Get-Dot1xStatus
+    $authTemplates = Get-PortAuthTemplates -Configs $configs
+
+
+    $combined = @()
+    foreach ($iface in $status) {
+        $raw = $iface.RawPort
+        if ($raw -match "\D+?(\d+(?:/\d+)+)$") { $id = $matches[1] } else { $id = $raw }
+        $cfgEntry = $configs[$id]
+        $cfgText  = if ($cfgEntry) { $cfgEntry.Config } else { "" }
+        $name     = if ($cfgEntry -and $cfgEntry.Description) { $cfgEntry.Description } else { $raw }
+        $macList  = ($macs | Where-Object { $_.Port -eq $raw } | ForEach-Object { $_.MAC }) -join ','
+        
+        $authRow = $auth | Where-Object { $_.Interface.ToLower() -eq $raw.ToLower() } | Select-Object -First 1
+        $macRow  = $macs | Where-Object { $_.Port.ToLower() -eq $raw.ToLower() } | Select-Object -First 1
+        
+        $authState     = if ($authRow) { "$($authRow.AuthState)" } else { "Unknown" }
+        $authMode      = if ($authRow) { "$($authRow.AuthMode)" } else { "unknown" }
+        $authClientMAC = if ($authRow) { "$($authRow.MAC)" } else { "" }
+        $authVLAN      = if ($macRow)  { "$($macRow.VLAN)" } else { "" }
+
+
+        $combined += [PSCustomObject]@{
+            Port            = $raw
+            Name            = $name
+            Status          = $iface.Status
+            VLAN            = $iface.VLAN
+            Duplex          = $iface.Duplex
+            Speed           = $iface.Speed
+            Type            = $iface.Type
+            LearnedMACs     = $macList
+            AuthState       = $authState
+            AuthMode        = $authMode
+            AuthClientMAC   = $authClientMAC
+            AuthVLAN        = $authVLAN
+            Config          = $cfgText
+            AuthTemplate    = if ($authTemplates.ContainsKey($id)) { $authTemplates[$id].Template } else { "openPort" }
+            MissingAuthCmds = if ($authTemplates.ContainsKey($id)) { ($authTemplates[$id].MissingCommands -join ', ') } else { "" }
+        }
+    }
+
+
+    return [PSCustomObject]@{
+        Hostname           = $hostname
+        Make               = 'Cisco'
+        Model              = $modelVer[0]
+        Version            = $modelVer[1]
+        Uptime             = $uptime
+        Location           = $location
+        InterfaceCount     = $combined.Count
+        InterfacesCombined = $combined
+    }
+}
