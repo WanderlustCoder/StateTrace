@@ -16,6 +16,10 @@
       <Label Content="Device:" VerticalAlignment="Center"/>
       <ComboBox Name="HostnameDropdown" Width="180" Margin="5,0"/>
       <Button Name="RefreshButton" Content="Refresh" Margin="5,0"/>
+	  <Label Content="Site:" VerticalAlignment="Center" Margin="15,0,0,0"/>
+      <ComboBox Name="SiteDropdown" Width="80" Margin="5,0"/>
+      <Label Content="Building:" VerticalAlignment="Center"/>
+      <ComboBox Name="BuildingDropdown" Width="140" Margin="5,0"/>
     </StackPanel>
 
     <!-- Device details -->

@@ -204,8 +204,16 @@ function Load-ConfigAndTemplate {
         [ref]$configLines
     )
     $ifaceCsv = Join-Path $PSScriptRoot "ParsedData\${switch}_Interfaces_Combined.csv"
-    if (-not (Test-Path $ifaceCsv)) { goto NotFound }
+    if (-not (Test-Path $ifaceCsv)) {
+        $cmpWin.FindName($configBox).Text       = "Interface $intf not found."
+        $cmpWin.FindName($labelBox).Text        = "Template: N/A"
+        $cmpWin.FindName($labelBox).Foreground = 'Red'
+        $configLines.Value = @()
+        return
+    }
+
     $row = Import-Csv $ifaceCsv | Where-Object Port -eq $intf
+
     if ($row) {
         $ifaceLines  = if ($row.Config) { $row.Config -split "`n" } else { @() }
         $globalLines = Get-GlobalAuthLines -switch $switch
@@ -221,7 +229,7 @@ function Load-ConfigAndTemplate {
         Set-TemplateLabel -Label ($cmpWin.FindName($labelBox)) -Template $tpl
         return
     }
-:NotFound
+
     $cmpWin.FindName($configBox).Text       = "Interface $intf not found."
     $cmpWin.FindName($labelBox).Text        = "Template: N/A"
     $cmpWin.FindName($labelBox).Foreground = 'Red'

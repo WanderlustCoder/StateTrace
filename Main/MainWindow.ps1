@@ -1,5 +1,4 @@
-﻿# main\MainWindow.ps1
-Add-Type -AssemblyName PresentationFramework
+﻿Add-Type -AssemblyName PresentationFramework
 
 # 0) Paths
 $scriptDir           = Split-Path -Parent $MyInvocation.MyCommand.Path
