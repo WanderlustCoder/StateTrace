@@ -2,7 +2,7 @@
 
 # 1) Paths
 $scriptDir           = Split-Path -Parent $MyInvocation.MyCommand.Path
-$parserScript        = Join-Path $scriptDir '..\NetworkReader.ps1'
+$parserScript        = Join-Path $scriptDir '.\NetworkReader.ps1'
 $interfaceModulePath = Join-Path $scriptDir '..\Modules\InterfaceModule.psm1'
 $interfacesViewXaml  = Join-Path $scriptDir '..\Views\InterfacesView.xaml'
 

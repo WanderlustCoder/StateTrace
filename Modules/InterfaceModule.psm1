@@ -120,7 +120,7 @@ function Compare-InterfaceConfigs {
         [Parameter(Mandatory)][string]$Interface1,
         [Parameter(Mandatory)][string]$Switch2,
         [Parameter(Mandatory)][string]$Interface2,
-        [string]$ScriptPath = (Join-Path $PSScriptRoot '..\CompareConfigs.ps1')
+        [string]$ScriptPath = (Join-Path $PSScriptRoot '..\Main\CompareConfigs.ps1')
     )
     if (-not (Test-Path $ScriptPath)) {
         Throw "Compare script not found: $ScriptPath"
