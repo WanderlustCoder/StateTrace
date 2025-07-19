@@ -1,17 +1,11 @@
 ﻿Add-Type -AssemblyName PresentationFramework
 
-# 0) Paths
+# 1) Paths
 $scriptDir           = Split-Path -Parent $MyInvocation.MyCommand.Path
 $parserScript        = Join-Path $scriptDir '..\NetworkReader.ps1'
 $interfaceModulePath = Join-Path $scriptDir '..\Modules\InterfaceModule.psm1'
 $interfacesViewXaml  = Join-Path $scriptDir '..\Views\InterfacesView.xaml'
 
-# 1) Dot-source your parser
-if (-not (Test-Path $parserScript)) {
-    Write-Error "Cannot find parser script at $parserScript"
-    exit 1
-}
-. $parserScript
 
 # 2) Import Interfaces module
 if (-not (Test-Path $interfaceModulePath)) {
@@ -227,7 +221,7 @@ if (Test-Path $interfacesViewXaml) {
 $refreshBtn = $window.FindName('RefreshButton')
 if ($refreshBtn) {
     $refreshBtn.Add_Click({
-        . $parserScript
+        & "$parserScript"
         Load-DeviceSummaries
     })
 }
@@ -241,8 +235,14 @@ if ($hostnameDropdown) {
 }
 
 # 7) Load initial state
-. $parserScript
-Load-DeviceSummaries
+try {
+    & "$parserScript"
+    Load-DeviceSummaries
+} catch {
+    [System.Windows.MessageBox]::Show("Log parsing failed:`n$($_.Exception.Message)", "Error")
+}
+
+
 if ($window.FindName('HostnameDropdown').Items.Count -gt 0) {
     Load-DeviceDetails $window.FindName('HostnameDropdown').Items[0]
 }
