@@ -1,0 +1,8 @@
+"Hostname","Make","Model","Version","Uptime","Location","InterfaceCount","AuthDefaultVLAN","AuthBlock"
+"SSH@ZZZZ-Z00-ZZ-111","Brocade","Stackable ICX7450-24","08.0.30T7f1","31 day(s) 1 hour(s) 1 minute(s) 5 second(s)","Unspecified","24","4","Auth-default-vlan 4
+reauthentication
+dot1x enable
+dot1x enable ethe 1/1/6 to 1/1/12
+mac-authentication enable
+mac-authentication enable ethe 1/1/9 to 1/1/15
+mac-authentication dot1x-override"

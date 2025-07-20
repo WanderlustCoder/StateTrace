@@ -1,0 +1,66 @@
+"Port","Name","Status","VLAN","Duplex","Speed","Type","LearnedMACs","AuthState","AuthMode","AuthClientMAC","AuthVLAN","Config","AuthTemplate","MissingAuthCmds"
+"Gi1/0/1","Uplink to Core Switch","connected","10","full","1000","10/100/1000BaseTX","","Unknown","unknown","","","interface GigabitEthernet1/0/1
+ description Uplink to Core Switch
+ switchport mode trunk","openPort",""
+"Gi1/0/2","Office Printer","connected","10","full","1000","10/100/1000BaseTX","","Unknown","unknown","","","interface GigabitEthernet1/0/2
+ description Office Printer
+ switchport access vlan 20","openPort",""
+"Gi1/0/3","Security Camera in Warehouse Corridor","connected","20","full","1000","10/100/1000BaseTX","","Unknown","unknown","","","interface GigabitEthernet1/0/3
+ description Security Camera in Warehouse Corridor
+ switchport access vlan 30
+ switchport mode access
+ authentication event fail action next-method
+ authentication order mab dot1x
+ authentication priority dot1x mab
+ authentication port-control auto
+ authentication periodic
+ authentication timer restart 30
+ mab
+ dot1x pae authenticator
+ dot1x timeout quiet-period 90
+ dot1x timeout tx-period 5","flexible",""
+"Gi1/0/4","Conference Room Access Point","connected","40","full","1000","10/100/1000BaseTX","0011.2233.4406","Authorized","dot1x","0011.2233.4406","4","interface GigabitEthernet1/0/4
+ description Conference Room Access Point
+ switchport access vlan 40
+ switchport mode access
+ authentication port-control auto
+ authentication periodic
+ authentication timer reauthentication server
+ authentication timer restart 30
+ mab","openPort",""
+"Gi1/0/5","Guest-Workstation-1","connected","50","full","1000","10/100/1000BaseTX","0011.2233.4407","Authorized","mab","0011.2233.4407","20","interface GigabitEthernet1/0/5
+ description Guest-Workstation-1
+ switchport access vlan 50
+ switchport mode access
+ authentication port-control auto
+ authentication periodic
+ authentication timer restart 30
+ dot1x pae authenticator
+ dot1x timeout quiet-period 30","dot1x",""
+"Gi1/0/6","Lobby-TV","connected","20","full","1000","10/100/1000BaseTX","0011.2233.4408","Authorized","dot1x","0011.2233.4408","30","interface GigabitEthernet1/0/6
+ description Lobby-TV
+ switchport access vlan 20
+ switchport mode access
+ authentication port-control auto
+ authentication periodic
+ authentication timer reauthentication server
+ authentication timer restart 30
+ mab","openPort",""
+"Gi1/0/7","HR-Laptop","connected","100","full","1000","10/100/1000BaseTX","0011.2233.4409","Unauthorized","mab","0011.2233.4409","999","interface GigabitEthernet1/0/7
+ description HR-Laptop
+ switchport access vlan 100
+ switchport mode access
+ authentication event fail action next-method
+ authentication order mab dot1x
+ authentication priority dot1x mab
+ authentication port-control auto
+ authentication periodic
+ authentication timer restart 30
+ mab
+ dot1x pae authenticator
+ dot1x timeout quiet-period 90
+ dot1x timeout tx-period 5","flexible",""
+"Gi1/0/8","SmartSpeaker","notconnect","999","auto","auto","10/100/1000BaseTX","0011.2233.4410","Unknown","unknown","0011.2233.4410","1002","interface GigabitEthernet1/0/8
+ description SmartSpeaker
+ switchport access vlan 999
+ switchport mode access","openPort",""

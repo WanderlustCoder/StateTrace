@@ -234,13 +234,18 @@ if ($hostnameDropdown) {
     })
 }
 
-# 7) Load initial state
-try {
-    & "$parserScript"
-    Load-DeviceSummaries
-} catch {
-    [System.Windows.MessageBox]::Show("Log parsing failed:`n$($_.Exception.Message)", "Error")
-}
+# 7) Load initial state after window shows
+$window.Add_Loaded({
+    try {
+        & "$parserScript"
+        Load-DeviceSummaries
+        if ($window.FindName('HostnameDropdown').Items.Count -gt 0) {
+            Load-DeviceDetails $window.FindName('HostnameDropdown').Items[0]
+        }
+    } catch {
+        [System.Windows.MessageBox]::Show("Log parsing failed:`n$($_.Exception.Message)", "Error")
+    }
+})
 
 
 if ($window.FindName('HostnameDropdown').Items.Count -gt 0) {

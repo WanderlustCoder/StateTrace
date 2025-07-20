@@ -1,0 +1,37 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Definition Builder" Height="300" Width="400">
+  <Grid Margin="10">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+    <StackPanel Orientation="Horizontal" Grid.Row="0" Margin="0,0,0,5">
+      <Label Content="Make:" Width="80"/>
+      <ComboBox Name="MakeDropdown" Width="200">
+        <ComboBoxItem Content="Cisco"/>
+        <ComboBoxItem Content="Brocade"/>
+        <ComboBoxItem Content="Arista"/>
+      </ComboBox>
+    </StackPanel>
+    <StackPanel Orientation="Horizontal" Grid.Row="1" Margin="0,0,0,5">
+      <Label Content="Model:" Width="80"/>
+      <TextBox Name="ModelBox" Width="200"/>
+    </StackPanel>
+    <StackPanel Orientation="Horizontal" Grid.Row="2" Margin="0,0,0,5">
+      <Label Content="OS Version:" Width="80"/>
+      <TextBox Name="OSBox" Width="200"/>
+    </StackPanel>
+    <StackPanel Orientation="Horizontal" Grid.Row="3" Margin="0,0,0,5">
+      <Button Name="AddLogButton" Content="Add Logs" Width="80"/>
+      <ListBox Name="LogList" Margin="5,0,0,0" Width="260" Height="120"/>
+    </StackPanel>
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Grid.Row="4">
+      <Button Name="BuildButton" Content="Build" Width="80" Margin="0,0,5,0"/>
+      <Button Name="CancelButton" Content="Cancel" Width="80"/>
+    </StackPanel>
+  </Grid>
+</Window>
