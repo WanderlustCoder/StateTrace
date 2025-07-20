@@ -35,7 +35,7 @@ function Invoke-DeviceLogParsing {
 
     $lines = Get-Content $FilePath
 
-    $make = if ($lines -match "Cisco IOS Software") {
+    $make = if ($lines -match "Cisco") {
         "Cisco"
     } elseif ($lines -match "Brocade") {
         "Brocade"
