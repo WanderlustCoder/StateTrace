@@ -1,7 +1,6 @@
 ﻿# NetworkReader.ps1
 
 # Set script-relative root path
-Add-Type -AssemblyName PresentationFramework
 $scriptRoot     = Split-Path -Parent $MyInvocation.MyCommand.Path
 $projectRoot    = Join-Path $scriptRoot ".." | Resolve-Path
 
@@ -79,7 +78,6 @@ function Import-ParserModules {
     Import-Module (Join-Path $modulesPath "AristaModule.psm1") -Force
     Import-Module (Join-Path $modulesPath "CiscoModule.psm1") -Force
     Import-Module (Join-Path $modulesPath "BrocadeModule.psm1") -Force
-    Import-Module (Join-Path $modulesPath "GeneralizedParser.psm1") -Force
     Import-Module (Join-Path $modulesPath "ParserWorker.psm1") -Force
 }
 
@@ -101,11 +99,9 @@ function Start-ParallelDeviceProcessing {
         $ps.AddScript({
             param($filePath, $modulesPath, $outputPath, $archiveRoot)
 
-            Import-Module "$PSScriptRoot\Modules\DefinitionParser\DefinitionParser.psm1"
             Import-Module (Join-Path $modulesPath "AristaModule.psm1") -Force
             Import-Module (Join-Path $modulesPath "CiscoModule.psm1") -Force
             Import-Module (Join-Path $modulesPath "BrocadeModule.psm1") -Force
-            Import-Module (Join-Path $modulesPath "GeneralizedParser.psm1") -Force
             Import-Module (Join-Path $modulesPath "ParserWorker.psm1") -Force
 
             Invoke-DeviceLogParsing -FilePath $filePath -OutputPath $outputPath -ArchiveRoot $archiveRoot
@@ -130,37 +126,12 @@ function Cleanup-ExtractedLogs {
     Get-ChildItem $extractedPath -File | Remove-Item -Force
 }
 
-function Get-MissingDefinitionLogs {
-    param(
-        [string[]]$DeviceFiles,
-        [string]$DefinitionsPath
-    )
-    $missing = @()
-    foreach ($file in $DeviceFiles) {
-        $lines = Get-Content $file -TotalCount 50
-        $vendor = if ($lines -match 'Cisco') { 'cisco' } elseif ($lines -match 'Brocade') { 'brocade' } elseif ($lines -match 'Arista') { 'arista' } else { 'unknown' }
-        if ($vendor -eq 'unknown') { continue }
-        if (-not (Get-ChildItem $DefinitionsPath -Filter "$vendor*.json" -ErrorAction SilentlyContinue)) {
-            $missing += $file
-        }
-    }
-    return $missing
-}
-
 # --- Entry Point ---
 Initialize-Directories @($logPath, $outputPath, $extractedPath, $archiveRoot)
 Import-ParserModules
 Split-RawLogs
 
 $deviceFiles = Get-ChildItem $extractedPath -File | Select-Object -ExpandProperty FullName
-$definitionPath = Join-Path $projectRoot 'Compainion\Definitions'
-$missing = Get-MissingDefinitionLogs -DeviceFiles $deviceFiles -DefinitionsPath $definitionPath
-foreach ($m in $missing) {
-    $resp = [System.Windows.MessageBox]::Show("No definition found for log $([System.IO.Path]::GetFileName($m)). Build one?","Definition Missing",[System.Windows.MessageBoxButton]::YesNo)
-    if ($resp -eq [System.Windows.MessageBoxResult]::Yes) {
-        Start-Process powershell.exe -ArgumentList '-NoProfile','-File',(Join-Path $projectRoot 'Compainion\DefinitionBuilderWindow.ps1'),'-LogFiles',$m
-    }
-}
 Write-Host "Processing $($deviceFiles.Count) logs in parallel..."
 
 $sw = [System.Diagnostics.Stopwatch]::StartNew()
