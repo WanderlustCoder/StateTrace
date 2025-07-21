@@ -27,24 +27,31 @@ function Split-RawLogs {
         $lines = Get-Content $_.FullName
         $hostMarkers = @()
 
-        # Step 1: Find all hostnames in "hostname <name>"
+        # Step 1: Find all "hostname <name>" entries
         for ($i = 0; $i -lt $lines.Count; $i++) {
-            if ($lines[$i] -match '^\s*hostname\s+(\S+)\s*$') {
+            $line = $lines[$i] -replace "`e\[[\d;]*[A-Za-z]", ""  # Strip ANSI escape sequences
+
+            if ($line -match '^\s*hostname\s+([A-Za-z0-9._:-]+)\b') {
                 $hostname = $Matches[1]
-                $promptPatterns = @("SSH@${hostname}#", "${hostname}#")
 
-                foreach ($pattern in $promptPatterns) {
-                    for ($j = 0; $j -lt $lines.Count; $j++) {
-                        if ($lines[$j] -match "^\s*$([regex]::Escape($pattern))") {
-                            $hostMarkers += [PSCustomObject]@{
-                                Hostname = $hostname
-                                Index    = $j
-                            }
-                            break
+                # Regex: Allow optional SSH@ prefix, optional space before # or >
+                $promptRegex = "^\s*(SSH@)?$([regex]::Escape($hostname))\s*(\(.*\))?[#>]"
+
+                for ($j = 0; $j -lt $lines.Count; $j++) {
+                    $promptLine = $lines[$j] -replace "`e\[[\d;]*[A-Za-z]", ""
+
+                    if ($promptLine -match $promptRegex) {
+                        $hostMarkers += [PSCustomObject]@{
+                            Hostname = $hostname
+                            Index    = $j
                         }
+                        break
                     }
+                }
 
-                    if ($hostMarkers.Count -gt 0 -and $hostMarkers[-1].Hostname -eq $hostname) { break }
+                # Only add first match per hostname
+                if ($hostMarkers.Count -gt 0 -and $hostMarkers[-1].Hostname -eq $hostname) {
+                    break
                 }
             }
         }
@@ -54,7 +61,7 @@ function Split-RawLogs {
             return
         }
 
-        # Step 2: Sort by index and extract
+        # Step 2: Sort and extract each device section
         $hostMarkers = $hostMarkers | Sort-Object Index
 
         for ($k = 0; $k -lt $hostMarkers.Count; $k++) {
@@ -66,12 +73,19 @@ function Split-RawLogs {
             }
 
             $slice = $lines[$start..$end]
+
             $safeHost = $hostMarkers[$k].Hostname -replace '[\\\/:\*\?"<>\|]', '_'
             $outPath = Join-Path $extractedPath "$safeHost.log"
-            $slice | Set-Content $outPath
+            try {
+                $slice | Set-Content $outPath -Encoding UTF8
+                Write-Host "Extracted: $safeHost"
+            } catch {
+                Write-Warning "Failed to write log for $($safeHost): $($_.Exception.Message)"
+            }
         }
     }
 }
+
 
 
 function Import-ParserModules {
