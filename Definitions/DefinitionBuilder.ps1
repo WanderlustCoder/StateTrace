@@ -1,158 +1,208 @@
-﻿# DefinitionBuilder.ps1
-Add-Type -AssemblyName PresentationFramework
+﻿Add-Type -AssemblyName PresentationFramework
+
+<#
+  DefinitionBuilder.ps1
+  GUI for building JSON definitions to parse switch logs.
+#>
+
+function Get-ShowCommandBlocks {
+    param([string[]]$Lines)
+    $blocks = @{}; $current = ''; $buffer = @(); $recording = $false
+    foreach ($l in $Lines) {
+        if ($l -match '^(?:\S+)[#>]+\s*(show .+)$') {
+            if ($recording -and $current) { $blocks[$current] = $buffer }
+            $current   = $matches[1].ToLower().Trim()
+            $buffer    = @(); $recording = $true
+        }
+        elseif ($recording -and $l -match '^(?:\S+)[#>]+\s*$') {
+            $blocks[$current] = $buffer; $buffer = @(); $recording = $false; $current = ''
+        }
+        elseif ($recording) {
+            $buffer += $l
+        }
+    }
+    if ($recording -and $current) { $blocks[$current] = $buffer }
+    return $blocks
+}
+
+function Convert-ToHash {
+    param($o)
+    if ($null -eq $o) { return $null }
+    if ($o -is [PSCustomObject] -or $o -is [System.Collections.IDictionary]) {
+        $ht = [ordered]@{}; foreach ($p in $o.PSObject.Properties) { $ht[$p.Name] = Convert-ToHash $p.Value }
+        return $ht
+    } elseif ($o -is [System.Collections.IEnumerable] -and -not ($o -is [string])) {
+        $arr = @(); foreach ($i in $o) { $arr += Convert-ToHash $i }; return $arr
+    } else { return $o }
+}
+
+function Get-CategoryFromCommand {
+    param($cmd)
+    switch -Regex ($cmd) {
+        '^(show )?interfaces?\b'            { 'interfaces'; break }
+        '\bvlan\b'                         { 'network'; break }
+        '\b(version|config)\b'            { 'system'; break }
+        '\b(dot1x|authentication|mac)\b'  { 'security'; break }
+        default                             { 'other' }
+    }
+}
+
+function Update-CommandList {
+    param($make,$model,$os)
+    if ($json.Contains($make) -and $json[$make].Contains($model) -and $json[$make][$model].Contains($os) -and ($json[$make][$model][$os] -is [System.Collections.IDictionary])) {
+        $CommandListBox.ItemsSource = $json[$make][$model][$os].Keys | Sort-Object
+    } else {
+        $CommandListBox.ItemsSource = @()
+    }
+}
 
 function Start-DefinitionBuilderGui {
-    $xamlPath = Join-Path -Path $PSScriptRoot -ChildPath "DefinitionBuilder.xaml"
-    [xml]$xaml = Get-Content $xamlPath
+    # Load XAML
+    $xaml = [xml](Get-Content (Join-Path $PSScriptRoot 'DefinitionBuilder.xaml'))
+    $form = [Windows.Markup.XamlReader]::Load((New-Object System.Xml.XmlNodeReader $xaml))
 
-    $reader = (New-Object System.Xml.XmlNodeReader $xaml)
-    $form = [Windows.Markup.XamlReader]::Load($reader)
+    # Controls
+    $MakeBox = $form.FindName('MakeBox'); $ModelBox = $form.FindName('ModelBox'); $OSBox = $form.FindName('OSBox')
+    $CategoryBox = $form.FindName('CategoryBox'); $CommandBox = $form.FindName('CommandBox')
+    $ColumnsPreview = $form.FindName('ColumnsPreview'); $OutputPreview = $form.FindName('OutputPreview')
+    $DescriptionBox = $form.FindName('DescriptionBox'); $LogListBox = $form.FindName('LogList')
+    $CommandListBox = $form.FindName('CommandList'); $SaveButton = $form.FindName('SaveButton')
+    $SaveAllButton = $form.FindName('SaveAllButton'); $DetectButton = $form.FindName('DetectButton')
+    $ExportButton = $form.FindName('ExportSelectedButton')
 
-    $MakeBox        = $form.FindName("MakeBox")
-    $ModelBox       = $form.FindName("ModelBox")
-    $OSBox          = $form.FindName("OSBox")
-    $CategoryBox    = $form.FindName("CategoryBox")
-    $RegexBox       = $form.FindName("RegexBox")
-    $CommandBox     = $form.FindName("CommandBox")
-    $SaveButton     = $form.FindName("SaveButton")
-    $OutputPreview  = $form.FindName("OutputPreview")
-    $LogListBox     = $form.FindName("LogList")
-    $CommandListBox = $form.FindName("CommandList")
-    $BulkButton     = $form.FindName("BulkLoadButton")
-    $DetectButton   = $form.FindName("DetectButton")
-    $LoadSelectedButton = $form.FindName("LoadSelectedButton")
-    $DeleteSelectedButton = $form.FindName("DeleteSelectedButton")
-    $ExportSelectedButton = $form.FindName("ExportSelectedButton")
-
+    # Load definitions JSON
     $jsonFile = Join-Path $PSScriptRoot 'definitions.json'
     if (Test-Path $jsonFile) {
-        $json = Get-Content $jsonFile -Raw | ConvertFrom-Json
-        $MakeBox.ItemsSource = $json.PSObject.Properties.Name
-        $ModelBox.ItemsSource = $json.PSObject.Properties.Value | ForEach-Object { $_.PSObject.Properties.Name } | Select-Object -Unique
-        $OSBox.ItemsSource = $json.PSObject.Properties.Value | ForEach-Object { $_.PSObject.Properties.Value | ForEach-Object { $_.PSObject.Properties.Name } } | Select-Object -Unique
+        $json = Convert-ToHash (Get-Content $jsonFile -Raw | ConvertFrom-Json)
     } else {
         $json = [ordered]@{}
     }
 
+    # Populate log list
     $logDir = Join-Path $PSScriptRoot '..\logs'
-    $logFiles = Get-ChildItem -Path $logDir -Filter *.log -ErrorAction SilentlyContinue
-    $LogListBox.ItemsSource = $logFiles.Name
+    $LogListBox.ItemsSource = (Get-ChildItem -Path $logDir -Filter '*.log' -ErrorAction SilentlyContinue).Name
 
-    function Update-CommandList($make, $model, $os) {
-        if (($json.PSObject.Properties.Name -contains $make) -and
-            ($json[$make].PSObject.Properties.Name -contains $model) -and
-            ($json[$make][$model].PSObject.Properties.Name -contains $os)) {
-            $CommandListBox.ItemsSource = $json[$make][$model][$os].PSObject.Properties.Name
+    # Detect logs
+    $DetectButton.Add_Click({
+        if (-not $LogListBox.SelectedItem) { [Windows.MessageBox]::Show('Select a log file.'); return }
+        $MakeBox.Clear(); $ModelBox.Clear(); $OSBox.Clear()
+        $CommandBox.ItemsSource = @(); $CommandListBox.ItemsSource = @()
+        $ColumnsPreview.Clear(); $OutputPreview.Clear(); $DescriptionBox.Clear()
+
+        $lines = Get-Content (Join-Path $logDir $LogListBox.SelectedItem)
+        $blocks = Get-ShowCommandBlocks -Lines $lines
+        $CommandBox.ItemsSource = $blocks.Keys | Sort-Object
+        $CommandListBox.ItemsSource = $blocks.Keys | Sort-Object
+        $form.Tag = @{ blocks = $blocks; cols = @() }
+
+        if ($lines -match '(?i)cisco') { $MakeBox.Text = 'Cisco' }
+        elseif ($lines -match '(?i)brocade') { $MakeBox.Text = 'Brocade' }
+
+        if ($MakeBox.Text -eq 'Cisco') {
+            $v = $lines | Where-Object { $_ -match '^(?i)version\s+([\d\.]+)' } | Select-Object -First 1
+            if ($v -match 'version\s+([\d\.]+)') { $OSBox.Text = $matches[1] }
+            $m = $lines | Where-Object { $_ -match '(?i)model number\s*:\s*(\S+)' } | Select-Object -First 1
+            if ($m -match 'model number\s*:\s*(\S+)') { $ModelBox.Text = $matches[1] }
         } else {
-            $CommandListBox.ItemsSource = @()
+            $s = $lines | Where-Object { $_ -match 'SW:\s+Version\s+(\S+)' } | Select-Object -First 1
+            if ($s -match 'SW:\s+Version\s+(\S+)') { $OSBox.Text = $matches[1] }
+            $r = $lines | Where-Object { $_ -match '^(?i)ver\s+([\w\.\-]+)' } | Select-Object -First 1
+            if ($r -match 'ver\s+([\w\.\-]+)') { $OSBox.Text = $matches[1] }
+            $h = $lines | Where-Object { $_ -match 'HW:\s+(Stackable\s+\S+)' } | Select-Object -First 1
+            if ($h -match 'HW:\s+(Stackable\s+\S+)') { $ModelBox.Text = $matches[1] }
         }
+
+        Update-CommandList $MakeBox.Text.Trim() $ModelBox.Text.Trim() $OSBox.Text.Trim()
+    })
+
+    # Column detection helper
+    function Get-Columns($lines) {
+        $total = $lines.Count
+        $kvCount = ($lines | Where-Object { $_ -match '^\s*\S+?:\s+.+$' } | Measure-Object).Count
+        if ($total -gt 0 -and $kvCount / $total -gt 0.6) {
+            return @('Property','Value')
+        }
+        $hdr = $lines | Where-Object { $_ -match '\S+\s{2,}\S+' } | Select-Object -First 1
+        if ($hdr) {
+            return ($hdr -split '\s{2,}') | ForEach-Object { $_.Trim() }
+        }
+        return @()
     }
 
-    $MakeBox.Add_SelectionChanged({ Update-CommandList $MakeBox.Text.Trim() $ModelBox.Text.Trim() $OSBox.Text.Trim() })
-    $ModelBox.Add_SelectionChanged({ Update-CommandList $MakeBox.Text.Trim() $ModelBox.Text.Trim() $OSBox.Text.Trim() })
-    $OSBox.Add_SelectionChanged({ Update-CommandList $MakeBox.Text.Trim() $ModelBox.Text.Trim() $OSBox.Text.Trim() })
-
+    # Show-command selection
     $CommandBox.Add_SelectionChanged({
-        $selectedCommand = $CommandBox.Text.Trim()
-        $selectedLog = $LogListBox.SelectedItem
-        $OutputPreview.Clear()
-        if ($selectedCommand -and $selectedLog) {
-            $file = Get-ChildItem -Path $logDir -Filter $selectedLog
-            if ($file) {
-                $content = Get-Content $file.FullName -Raw
-                $promptMatch = $content | Select-String -Pattern '^(\S+)#' -AllMatches | Select-Object -First 1
-                $prompt = if ($promptMatch) { [regex]::Escape($promptMatch.Matches[0].Groups[1].Value) } else { '\S+' }
-                $pattern = "(?ms)^\s*${prompt}#\s*" + [regex]::Escape($selectedCommand) + "\s*(.+?)(?=^\s*${prompt}#|\z)"
-                if ($content -match $pattern) {
-                    $outputLines = $matches[1].Trim().Split("`n") | ForEach-Object { $_.Trim() }
-                    $regex = $RegexBox.Text.Trim()
-                    if ($regex) {
-                        $outputLines = $outputLines | Where-Object { $_ -match $regex }
-                    }
-                    $OutputPreview.Text = ($outputLines -join "`r`n")
-                }
+        $ctx = $form.Tag; $cmd = $CommandBox.SelectedItem
+        if ($ctx -and $cmd -and $ctx.blocks.ContainsKey($cmd)) {
+            $lines = $ctx.blocks[$cmd]; $OutputPreview.Text = $lines -join "`r`n"
+            if ($MakeBox.Text -eq 'Brocade' -and $cmd -like 'show vlan*') {
+                $cols = @('ConfigLine')
+            } else {
+                $cols = Get-Columns $lines
             }
+            $ColumnsPreview.Text = $cols -join ', '
+            $ctx.cols = $cols
+            $CategoryBox.Text = Get-CategoryFromCommand $cmd
         }
     })
 
-    $ExportSelectedButton.Add_Click({
-        $make = $MakeBox.Text.Trim()
-        $model = $ModelBox.Text.Trim()
-        $os = $OSBox.Text.Trim()
-        if (-not ($make -and $model -and $os)) {
-            [System.Windows.MessageBox]::Show("Please select Make, Model, and OS to export.")
-            return
-        }
-        $exportData = $json[$make][$model][$os]
-        $exportFile = Join-Path $PSScriptRoot "export_${make}_${model}_${os}.json"
-        $exportData | ConvertTo-Json -Depth 10 | Set-Content -Path $exportFile -Encoding UTF8
-        [System.Windows.MessageBox]::Show("Exported to $exportFile")
-    })
-
+    # Save single definition
     $SaveButton.Add_Click({
-        $make = $MakeBox.Text.Trim()
-        $model = $ModelBox.Text.Trim()
-        $os = $OSBox.Text.Trim()
-        $cmd = $CommandBox.Text.Trim()
-        $category = if ($CategoryBox.SelectedItem -ne $null) { $CategoryBox.Text } else { "other" }
-        if (-not ($make -and $model -and $os -and $cmd)) {
-            [System.Windows.MessageBox]::Show("Please fill in all fields.")
-            return
-        }
-        if (-not $json.PSObject.Properties.Name -contains $make) { $json[$make] = @{} }
-        if (-not $json[$make].PSObject.Properties.Name -contains $model) { $json[$make][$model] = @{} }
-        if (-not $json[$make][$model].PSObject.Properties.Name -contains $os) { $json[$make][$model][$os] = @{} }
-        $sampleOutput = $OutputPreview.Text -split "`r?`n" | ForEach-Object { $_.Trim() }
-        $json[$make][$model][$os][$cmd] = @{ sample = $sampleOutput; category = $category }
-        $json | ConvertTo-Json -Compress | Set-Content -Path $jsonFile -Encoding UTF8
-        [System.Windows.MessageBox]::Show("Definition saved.")
-        $CommandBox.Text = ""
-        $OutputPreview.Clear()
-        Update-CommandList $make $model $os
+        $m = $MakeBox.Text.Trim(); $md = $ModelBox.Text.Trim(); $os = $OSBox.Text.Trim()
+        $cmd = $CommandBox.SelectedItem; $cat = $CategoryBox.Text.Trim(); $desc = $DescriptionBox.Text.Trim()
+        $cols = $form.Tag.cols
+        if (-not ($m -and $md -and $os -and $cmd)) { [Windows.MessageBox]::Show('Complete all fields.'); return }
+        if (-not $json.Contains($m)) { $json[$m] = [ordered]@{} }
+        if (-not $json[$m].Contains($md)) { $json[$m][$md] = [ordered]@{} }
+        if (-not ($json[$m][$md][$os] -is [System.Collections.IDictionary])) { $json[$m][$md][$os] = [ordered]@{} }
+        $json[$m][$md][$os][$cmd] = [ordered]@{ category=$cat; columns=$cols; description=$desc }
+        $json | ConvertTo-Json -Compress | Set-Content $jsonFile -Encoding UTF8
+        [Windows.MessageBox]::Show('Definition saved.')
+        Update-CommandList $m $md $os
     })
 
-    $DetectButton.Add_Click({
-        $selectedLog = $LogListBox.SelectedItem
-        if (-not $selectedLog) {
-            [System.Windows.MessageBox]::Show("Please select a log file first.")
-            return
-        }
-
-        $MakeBox.Text = ""
-        $ModelBox.Text = ""
-        $OSBox.Text = ""
-        $CommandListBox.ItemsSource = @()
-
-        $file = Get-ChildItem -Path $logDir -Filter $selectedLog
-        if ($file) {
-            $content = Get-Content $file.FullName -Raw
-
-            if ($content -match 'Cisco IOS XE Software, Version ([\d\.]+)') {
-                $OSBox.Text = $matches[1]
-            } elseif ($content -match 'SW:\s+Version\s+([\w\.\-]+)') {
-                $OSBox.Text = $matches[1]
-            } elseif ($content -match 'ver\s+([\d\.A-Za-z\-]+)') {
-                $OSBox.Text = $matches[1]
+    # Bulk-save all definitions
+    if ($SaveAllButton) {
+        $SaveAllButton.Add_Click({
+            $m = $MakeBox.Text.Trim(); $md = $ModelBox.Text.Trim(); $os = $OSBox.Text.Trim()
+            if (-not $form.Tag.blocks) { [Windows.MessageBox]::Show('Parse first.'); return }
+            if (-not ($m -and $md -and $os)) { [Windows.MessageBox]::Show('Make/Model/OS missing.'); return }
+            if (-not $json.Contains($m)) { $json[$m] = [ordered]@{} }
+            if (-not $json[$m].Contains($md)) { $json[$m][$md] = [ordered]@{} }
+            if (-not ($json[$m][$md][$os] -is [System.Collections.IDictionary])) { $json[$m][$md][$os] = [ordered]@{} }
+            foreach ($k in $form.Tag.blocks.Keys) {
+                $lines = $form.Tag.blocks[$k]
+                if ($MakeBox.Text -eq 'Brocade' -and $k -like 'show vlan*') {
+                    $cols = @('ConfigLine')
+                } else {
+                    $cols = Get-Columns $lines
+                }
+                $ct = Get-CategoryFromCommand $k
+                $json[$m][$md][$os][$k] = [ordered]@{ category=$ct; columns=$cols; description='' }
             }
+            $json | ConvertTo-Json -Compress | Set-Content $jsonFile -Encoding UTF8
+            [Windows.MessageBox]::Show('All definitions saved.')
+            Update-CommandList $m $md $os
+        })
+    }
 
-            if ($content -match 'Model number\s*:\s*(\S+)') {
-                $ModelBox.Text = $matches[1]
-            } elseif ($content -match 'HW:\s+(?:Stackable\s+)?([A-Za-z0-9\-]+)') {
-                $ModelBox.Text = $matches[1]
+    # Export definitions
+    $ExportButton.Add_Click({
+        $m = $MakeBox.Text.Trim(); $md = $ModelBox.Text.Trim(); $os = $OSBox.Text.Trim()
+        if ($json.Contains($m) -and $json[$m].Contains($md) -and $json[$m][$md].Contains($os)) {
+            $defs = $json[$m][$md][$os]; $out = [ordered]@{}
+            foreach ($c in $defs.Keys) {
+                $d = $defs[$c]
+                $out[$c] = [ordered]@{ category=$d.category; columns=$d.columns; description=$d.description }
             }
-
-            if ($content -match '^(\S+)#') {
-                $MakeBox.Text = $matches[1]
-            }
-
-            $commandMatches = [regex]::Matches($content, "(?m)^\s*\S+#\s*(show\s+.+)$")
-            $uniqueCommands = $commandMatches | ForEach-Object { $_.Groups[1].Value.Trim() } | Sort-Object -Unique
-            $CommandBox.ItemsSource = $uniqueCommands
-
-            Update-CommandList $MakeBox.Text.Trim() $ModelBox.Text.Trim() $OSBox.Text.Trim()
+            $file = "export_${m}_${md}_${os}.json"
+            $out | ConvertTo-Json -Compress | Set-Content (Join-Path $PSScriptRoot $file) -Encoding UTF8
+            [Windows.MessageBox]::Show("Exported to $file")
+        } else {
+            [Windows.MessageBox]::Show('Nothing to export.')
         }
     })
 
+    # Show GUI
     $form.ShowDialog() | Out-Null
 }
 

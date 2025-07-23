@@ -1,4 +1,4 @@
-SSH@BROCADE-01# show config
+SSH@BROCADE-01#show config
 ver 08.0.30T7f1
 hostname BROCADE-01
 !
@@ -127,7 +127,7 @@ interface ethernet 1/1/24
  port-name UnusedPort24
 !
 
-SSH@BROCADE-01# show version
+SSH@BROCADE-01#show version
   Copyright (c) 1996-2025 Brocade Communications Systems, Inc. All rights reserved.
   UNIT 1: compiled on Jan 21 2025 at 23:28:08 labeled as SPR08030
     (31768772 bytes) from Primary SPR08030.bin
@@ -150,7 +150,7 @@ STACKID 1 system uptime is 31 day(s) 1 hour(s) 1 minute(s) 5 second(s)
 The system : started=cold start
 
 
-SSH@BROCADE-01# show interfaces brief
+SSH@BROCADE-01#show interfaces brief
 Port      Link    State     Dupl   Speed   Trunk  Tag  Pvid  Pri   MAC               Name
 1/1/1    Up      Forward  Full   1G      None   Yes  10    0     0011.2233.4401 DefaultPort1
 1/1/2    Up      Forward  Full   1G      None   Yes  10    0     0011.2233.4402 DefaultPort2
@@ -178,7 +178,7 @@ Port      Link    State     Dupl   Speed   Trunk  Tag  Pvid  Pri   MAC          
 1/1/24   Down    Disabled Full   1G      None   No   10    0     0011.2233.4424 UnusedPort24
 
 
-SSH@BROCADE-01# show dot1x sessions all
+SSH@BROCADE-01#show dot1x sessions all
 ----------------------------------------------------------------------------------------------------
 Port     MAC 		  IP		User		Vlan  Auth	ACL	Age	Pae
 	 Addr         	  Addr          Name          	      State  			State
@@ -193,7 +193,7 @@ Port     MAC 		  IP		User		Vlan  Auth	ACL	Age	Pae
 
 
 
-SSH@BROCADE-01# show mac-authentication sessions all
+SSH@BROCADE-01#show mac-authentication sessions all
 ------------------------------------------------------------------
 Port     MAC         	  IP         Vlan  Auth        ACL   Age
 	 Addr		  Addr		   State 
@@ -207,7 +207,7 @@ Port     MAC         	  IP         Vlan  Auth        ACL   Age
 1/1/15   0011.2233.4415   N/A        50    Yes         none   ENA
 
 
-SSH@BROCADE-01# show mac-address
+SSH@BROCADE-01#show mac-address
 MAC Address       Port       Type       VLAN  Action
 0011.2233.4401    1/1/1      Dynamic    10    Forward
 0011.2233.4402    1/1/2      Dynamic    10    Forward
@@ -225,7 +225,7 @@ MAC Address       Port       Type       VLAN  Action
 0011.2233.440e    1/1/14     Dynamic    40    Forward
 0011.2233.440f    1/1/15     Dynamic    50    Forward
 
-SSH@BROCADE-01# show vlan
+SSH@BROCADE-01#show vlan
 PORT-VLAN 10, Name DEFAULT-VLAN, Priority level0
  Untagged Ports: None
  Tagged Ports: None
