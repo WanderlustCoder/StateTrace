@@ -7,11 +7,19 @@
 
 Add-Type -AssemblyName PresentationFramework
 
+# Determine project root and parsed-data path.  `$PSScriptRoot` points to
+# `StateTrace/Main`, so its parent holds `ParsedData` and `Templates`.  We compute
+# these paths once and reuse them throughout this script instead of relying on
+# relative paths that assume ParsedData lives in the Main folder.
+$projectRoot    = Split-Path -Parent $PSScriptRoot
+$parsedDataPath = Join-Path $projectRoot 'ParsedData'
+
 # -- Helpers --
 
 function Get-GlobalAuthLines {
     param([string]$switch)
-    $summaryCsv = Join-Path $PSScriptRoot "ParsedData\${switch}_Summary.csv"
+    # Look up the summary CSV in the project-level ParsedData folder
+    $summaryCsv = Join-Path $parsedDataPath "${switch}_Summary.csv"
     if (Test-Path $summaryCsv) {
         $block = (Import-Csv $summaryCsv | Select-Object -First 1).AuthBlock
         if ($block) { return $block -split "`n" }
@@ -62,8 +70,13 @@ function Test-PortInRange {
 }
 
 # -- Load all JSON templates --
-$templatesFolder = Join-Path $PSScriptRoot 'Templates'
-if (-not (Test-Path $templatesFolder)) { throw "Templates folder not found: $templatesFolder" }
+# The templates folder lives one directory above this script (e.g. StateTrace\Templates),
+# not inside the Main folder.  We use `$projectRoot` computed at the top of the
+# script to construct this path.
+$templatesFolder = Join-Path $projectRoot 'Templates'
+if (-not (Test-Path $templatesFolder)) {
+    throw "Templates folder not found: $templatesFolder"
+}
 $allTemplates = @()
 Get-ChildItem $templatesFolder -Filter '*.json' | ForEach-Object {
     $json = Get-Content $_.FullName -Raw | ConvertFrom-Json
@@ -203,7 +216,8 @@ function Load-ConfigAndTemplate {
         [string]$labelBox,
         [ref]$configLines
     )
-    $ifaceCsv = Join-Path $PSScriptRoot "ParsedData\${switch}_Interfaces_Combined.csv"
+    # Use the project-level ParsedData folder when locating interface CSVs
+    $ifaceCsv = Join-Path $parsedDataPath "${switch}_Interfaces_Combined.csv"
     if (-not (Test-Path $ifaceCsv)) {
         $cmpWin.FindName($configBox).Text       = "Interface $intf not found."
         $cmpWin.FindName($labelBox).Text        = "Template: N/A"
@@ -246,13 +260,17 @@ function Get-ConfigDiff {
 
 # -- GUI Dropdowns & Events --
 function Load-SwitchList {
-    Get-ChildItem (Join-Path $PSScriptRoot 'ParsedData') -Filter '*_Summary.csv' |
+    Get-ChildItem $parsedDataPath -Filter '*_Summary.csv' |
       ForEach-Object { $_.BaseName -replace '_Summary$','' }
 }
 function Load-PortList {
     param([string]$switch)
-    $path = Join-Path $PSScriptRoot "ParsedData\${switch}_Interfaces_Combined.csv"
-    if (Test-Path $path) { return (Import-Csv $path).Port } else { return @() }
+    $path = Join-Path $parsedDataPath "${switch}_Interfaces_Combined.csv"
+    if (Test-Path $path) {
+        return (Import-Csv $path).Port
+    } else {
+        return @()
+    }
 }
 
 $switches = Load-SwitchList

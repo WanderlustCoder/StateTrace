@@ -15,47 +15,123 @@ function Initialize-Directories {
     param ([string[]]$Paths)
     foreach ($path in $Paths) {
         if (-not (Test-Path $path)) {
+            Write-Host "Creating directory '$path'"
             New-Item -ItemType Directory -Path $path | Out-Null
         }
     }
 }
 
 function Split-RawLogs {
-    Get-ChildItem $logPath -File | Where-Object {
-        $_.Extension -in '.log', '.txt'
-    } | ForEach-Object {
-        $lines = Get-Content $_.FullName
+    Write-Host "Split-RawLogs: scanning directory '$logPath' for .log and .txt files..."
+    Write-Host "NetworkReader debug: starting log extraction with detailed tracing"
+    # Gather a list of candidate raw log files first so we can report how many we'll process.
+    # Also report which files are included or skipped based on their extension to aid debugging.
+    $allFiles = Get-ChildItem $logPath -File
+    foreach ($f in $allFiles) {
+        # Normalize extension to lowercase for comparison
+        $ext = $f.Extension.ToLowerInvariant()
+        if ($ext -in '.log', '.txt') {
+            Write-Host "Including file for processing: $($f.FullName)"
+        } else {
+            Write-Host "Skipping file due to unsupported extension '$($f.Extension)': $($f.FullName)"
+        }
+    }
+    $rawFiles = $allFiles | Where-Object {
+        # Only consider plain text log types (.log, .txt), case-insensitive
+        $ext = $_.Extension.ToLowerInvariant()
+        $ext -in '.log', '.txt'
+    }
+    Write-Host "Found $($rawFiles.Count) raw log file(s) to process."
+
+    foreach ($file in $rawFiles) {
+        Write-Host "\n--- Processing file: $($file.FullName) ---"
+        Write-Host "Reading file: $($file.FullName)"
+        $lines = Get-Content $file.FullName
+        Write-Host "Loaded $($lines.Count) lines from '$($file.Name)'"
         $hostMarkers = @()
 
-        # Step 1: Find all hostnames in "hostname <name>"
+        # Step 1: Find all hostnames in the file.  Use a case-insensitive match for the
+        # "hostname <name>" line and search prompts case-insensitively as well.  If no
+        # corresponding prompt is found, fall back to using the beginning of the file.
+        Write-Host "Searching for hostnames in '$($file.Name)'..."
         for ($i = 0; $i -lt $lines.Count; $i++) {
-            if ($lines[$i] -match '^\s*hostname\s+(\S+)\s*$') {
+            # Use case-insensitive matching to capture 'hostname' regardless of case
+            if ($lines[$i] -match '(?i)^\s*hostname\s+(\S+)\s*$') {
                 $hostname = $Matches[1]
+                Write-Host "Detected hostname '$hostname' at line $i"
                 $promptPatterns = @("SSH@${hostname}#", "${hostname}#")
 
-                foreach ($pattern in $promptPatterns) {
-                    for ($j = 0; $j -lt $lines.Count; $j++) {
-                        if ($lines[$j] -match "^\s*$([regex]::Escape($pattern))") {
+                $foundPromptForHost = $false
+                # Search the entire file for the earliest prompt that matches either pattern
+                for ($j = 0; $j -lt $lines.Count; $j++) {
+                    foreach ($pattern in $promptPatterns) {
+                        # Perform case-insensitive match and escape special characters
+                        $regex = "(?i)^\s*$([regex]::Escape($pattern))"
+                        if ($lines[$j] -match $regex) {
+                            Write-Host "    Found prompt '$pattern' at line $j"
                             $hostMarkers += [PSCustomObject]@{
                                 Hostname = $hostname
                                 Index    = $j
                             }
+                            $foundPromptForHost = $true
                             break
                         }
                     }
+                    if ($foundPromptForHost) { break }
+                }
 
-                    if ($hostMarkers.Count -gt 0 -and $hostMarkers[-1].Hostname -eq $hostname) { break }
+                if (-not $foundPromptForHost) {
+                    Write-Host "  No prompt found for hostname '$hostname', defaulting to start of file"
+                    # Default to index 0 if no prompt is found; extract the entire file for this host
+                    $hostMarkers += [PSCustomObject]@{
+                        Hostname = $hostname
+                        Index    = 0
+                    }
                 }
             }
         }
 
         if ($hostMarkers.Count -eq 0) {
-            Write-Warning "No host markers found in $($_.Name)"
-            return
+            # Skip this file but continue processing others if no host markers were found
+            Write-Warning "No host markers found in $($file.Name). Skipping this file."
+            continue
         }
 
-        # Step 2: Sort by index and extract
-        $hostMarkers = $hostMarkers | Sort-Object Index
+        # Output diagnostic information about discovered host markers
+        $markerStrings = $hostMarkers | ForEach-Object { "$($_.Hostname)@$($_.Index)" }
+        $markerSummary = $markerStrings -join ', '
+        Write-Host "Host markers for '$($file.Name)': $markerSummary"
+        Write-Host "Total host markers found in '$($file.Name)': $($hostMarkers.Count)"
+
+        # Step 2: Sort by index and extract.  If there is only one host marker, write the
+        # entire file instead of slicing based on prompt index.  This avoids missing
+        # extraction when the prompt appears before the hostname line or whitespace issues.
+        # Sort the host markers by the index of the prompt.  Use the unary array
+        # operator @() around the pipeline so that when there is only a single
+        # element the result is still an array. Without this, PowerShell will
+        # unwrap a single PSCustomObject and the `.Count` property will refer
+        # to the number of properties on the object (or be `$null`) rather than
+        # the number of elements, causing the single-host branch to never
+        # trigger. Wrapping in @() ensures `$hostMarkers.Count` reflects the
+        # number of markers found.
+        $hostMarkers = @($hostMarkers | Sort-Object Index)
+
+        if ($hostMarkers.Count -eq 1) {
+            $singleHost = $hostMarkers[0].Hostname
+            $safeSingleHost = $singleHost -replace '[\\\/:\*\?"<>\|]', '_'
+            $outPathSingle = Join-Path $extractedPath "$safeSingleHost.log"
+            Write-Host "Single-host file detected. Writing entire file for host '$safeSingleHost' to '$outPathSingle' (total $($lines.Count) lines)"
+            $lines | Set-Content $outPathSingle
+            if (Test-Path $outPathSingle) {
+                Write-Host "Successfully wrote file: $outPathSingle"
+            } else {
+                Write-Warning "Failed to write file: $outPathSingle"
+            }
+            Write-Host "Finished processing single-host file '$($file.Name)'"
+            continue
+        }
+
+        Write-Host "Multi-host file detected. Writing slices for each host."
 
         for ($k = 0; $k -lt $hostMarkers.Count; $k++) {
             $start = $hostMarkers[$k].Index
@@ -68,8 +144,16 @@ function Split-RawLogs {
             $slice = $lines[$start..$end]
             $safeHost = $hostMarkers[$k].Hostname -replace '[\\\/:\*\?"<>\|]', '_'
             $outPath = Join-Path $extractedPath "$safeHost.log"
+            Write-Host "  Preparing slice for host '$safeHost': lines $start..$end (total $($slice.Count))"
+            Write-Host "  Writing to: $outPath"
             $slice | Set-Content $outPath
+            if (Test-Path $outPath) {
+                Write-Host "  Successfully wrote file: $outPath"
+            } else {
+                Write-Warning "  Failed to write file: $outPath"
+            }
         }
+        Write-Host "Finished processing multi-host file '$($file.Name)'"
     }
 }
 
@@ -132,6 +216,14 @@ Import-ParserModules
 Split-RawLogs
 
 $deviceFiles = Get-ChildItem $extractedPath -File | Select-Object -ExpandProperty FullName
+if ($deviceFiles.Count -gt 0) {
+    Write-Host "Extracted $($deviceFiles.Count) device log file(s) to process:"
+    foreach ($dev in $deviceFiles) {
+        Write-Host "  - $dev"
+    }
+} else {
+    Write-Warning "No device logs were extracted; the parser will not run."
+}
 Write-Host "Processing $($deviceFiles.Count) logs in parallel..."
 
 $sw = [System.Diagnostics.Stopwatch]::StartNew()

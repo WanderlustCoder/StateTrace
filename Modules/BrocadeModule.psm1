@@ -231,11 +231,18 @@ function Get-BrocadeDeviceFacts {
         $desc = if ($namesMap.ContainsKey($port)) { $namesMap[$port] } else { $iface.Name }
         $authMode = if ($authRow) { $authRow.Mode } elseif ($dot1xPorts -contains $port) { "dot1x" } elseif ($macauthPorts -contains $port) { "macauth" } else { "open" }
         $authState = if ($authRow) { $authRow.State } elseif ($authMode -eq "open") { "Open" } else { "Unknown" }
+        # Determine the authentication template for the port.  Only ports that
+        # explicitly have dot1x port-control auto configured are considered
+        # "dot1x".  Ports merely covered by a global "dot1x enable" range are
+        # treated as open unless they also appear in the mac-authentication range.
+        $dot1xEnabled      = $dot1xPorts -contains $port
+        $macauthEnabled    = $macauthPorts -contains $port
+        $portHasDot1xAuto  = $cfgText -match '(?i)dot1x\s+port-control\s+auto'
         $authTemplate = switch ($true) {
-            ($dot1xPorts -contains $port -and $macauthPorts -contains $port) { "flexible"; break }
-            ($dot1xPorts -contains $port) { "dot1x"; break }
-            ($macauthPorts -contains $port) { "macauth"; break }
-            default { "open" }
+            ($dot1xEnabled -and $macauthEnabled) { "flexible"; break }
+            ($portHasDot1xAuto)               { "dot1x";    break }
+            ($macauthEnabled)                 { "macauth"; break }
+            default                           { "open" }
         }
         $vlan = ($macs | Where-Object { $_.Port -eq $port } | Select-Object -First 1).VLAN
         $type = if ($desc -match "uplink|trunk") { "Trunk" } elseif ($desc -match "access|user|staff|voice|endpoint|printer") { "Access" } else { "" }

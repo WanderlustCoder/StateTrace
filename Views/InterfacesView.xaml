@@ -79,48 +79,56 @@
       <ColumnDefinition Width="Auto"/>
     </Grid.ColumnDefinitions>
 	
-	<StackPanel Grid.Row="0" Grid.Column="0" Orientation="Vertical" Margin="5">
-		<!-- Search Bar + Clear Button -->
-		<StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-			<TextBox Name="FilterBox"
-				   Width="160"
-				   ToolTip="Type to filter interfaces..."
-				   Margin="0,0,5,0"/>
-			<Button Name="ClearFilterButton"
-				  Content="X"
-				  Width="30"
-				  Height="23"
-				  VerticalAlignment="Center"
-				  ToolTip="Clear filter"/>
-			</StackPanel>
+    <!-- Left-hand panel: filter controls and interfaces table.  Use a Grid to allow the
+         DataGrid to resize and enable built-in scrollbars instead of letting it
+         auto-size within a StackPanel (which prevents scrolling). -->
+    <Grid Grid.Row="0" Grid.Column="0" Margin="5">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <!-- Search Bar + Clear Button -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,5">
+            <TextBox Name="FilterBox"
+                   Width="160"
+                   ToolTip="Type to filter interfaces..."
+                   Margin="0,0,5,0"/>
+            <Button Name="ClearFilterButton"
+                  Content="X"
+                  Width="30"
+                  Height="23"
+                  VerticalAlignment="Center"
+                  ToolTip="Clear filter"/>
+        </StackPanel>
 
-			<!-- Interfaces DataGrid -->
-		<DataGrid Name="InterfacesGrid"
-				  AutoGenerateColumns="False"
-				  SelectionMode="Extended"
-				  Margin="5"
-				  CanUserAddRows="False"
-				  IsReadOnly="False"
-				  ScrollViewer.VerticalScrollBarVisibility="Auto"
-				  ScrollViewer.HorizontalScrollBarVisibility="Auto">
-		  <DataGrid.Columns>
-			<!-- Selection checkbox -->
-			<DataGridTemplateColumn Width="30">
-			  <DataGridTemplateColumn.CellTemplate>
-				<DataTemplate>
-				  <CheckBox
-					IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-					HorizontalAlignment="Center"/>
-				</DataTemplate>
-			  </DataGridTemplateColumn.CellTemplate>
-			  <DataGridTemplateColumn.CellEditingTemplate>
-				<DataTemplate>
-				  <CheckBox
-					IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-					HorizontalAlignment="Center"/>
-				</DataTemplate>
-			  </DataGridTemplateColumn.CellEditingTemplate>
-			</DataGridTemplateColumn>
+        <!-- Interfaces DataGrid -->
+        <DataGrid Name="InterfacesGrid"
+                  Grid.Row="1"
+                  AutoGenerateColumns="False"
+                  SelectionMode="Extended"
+                  Margin="5,0,5,5"
+                  CanUserAddRows="False"
+                  IsReadOnly="False"
+                  ScrollViewer.VerticalScrollBarVisibility="Auto"
+                  ScrollViewer.HorizontalScrollBarVisibility="Auto">
+          <DataGrid.Columns>
+            <!-- Selection checkbox -->
+            <DataGridTemplateColumn Width="30">
+              <DataGridTemplateColumn.CellTemplate>
+                <DataTemplate>
+                  <CheckBox
+                    IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                    HorizontalAlignment="Center"/>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellTemplate>
+              <DataGridTemplateColumn.CellEditingTemplate>
+                <DataTemplate>
+                  <CheckBox
+                    IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                    HorizontalAlignment="Center"/>
+                </DataTemplate>
+              </DataGridTemplateColumn.CellEditingTemplate>
+            </DataGridTemplateColumn>
 
 			<!-- Port Column -->
 			<DataGridTemplateColumn Header="Port">
@@ -180,9 +188,9 @@
 
 			<!-- Auth Client MAC -->
 			<DataGridTextColumn Header="AuthClientMAC" Binding="{Binding AuthClientMAC}"/>
-		  </DataGrid.Columns>
-		</DataGrid>
-	</StackPanel>
+          </DataGrid.Columns>
+        </DataGrid>
+    </Grid>
     <!-- Right‐hand panel: Compare, Configure, and Template dropdown -->
     <StackPanel Grid.Row="0" Grid.Column="1"
                 Orientation="Vertical"

@@ -1,0 +1,386 @@
+SSH@AAAA-A00-AA-00# show version
+
+Brocade Communications Systems, Inc.
+Stackable ICX7450-24-24G-4X1GF-2X10G Management Module
+SW: Version 08.0.30T7f1
+Boot-Monitor: Version 08.0.30T7f1
+HW: Stackable ICX7450-24
+Uptime is 45 day(s) 12 hour(s) 15 minute(s) 20 second(s)
+
+SSH@AAAA-A00-AA-00# show config
+!
+vlan 10 name Users by port
+vlan 20 name Phones by port
+vlan 30 name Guests by port
+vlan 100 name Uplink by port
+!
+hostname AAAA-A00-AA-00
+!
+Authentication
+ auth-default-vlan 4
+ reauthentication
+ dot1x enable
+ dot1x enable ethe 1/1/2 to 1/1/3
+ mac-authentication enable
+ mac-authentication enable ethe 1/1/41 to 1/1/41
+ mac-authentication dot1x-override
+!
+interface ethernet 1/1/1
+ port-name Users1
+ auth-default-vlan 10
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/2
+ port-name Users2
+ auth-default-vlan 10
+ spanning-tree edge-port
+ dot1x port-control auto
+ exit
+interface ethernet 1/1/3
+ port-name Users3
+ auth-default-vlan 10
+ spanning-tree edge-port
+ dot1x port-control auto
+ mac-authentication enable
+ exit
+interface ethernet 1/1/4
+ port-name Users4
+ auth-default-vlan 10
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/5
+ port-name Users5
+ auth-default-vlan 10
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/6
+ port-name Users6
+ auth-default-vlan 10
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/7
+ port-name Users7
+ auth-default-vlan 10
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/8
+ port-name Users8
+ auth-default-vlan 10
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/9
+ port-name Users9
+ auth-default-vlan 10
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/10
+ port-name Users10
+ auth-default-vlan 10
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/11
+ port-name Users11
+ auth-default-vlan 10
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/12
+ port-name Users12
+ auth-default-vlan 10
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/13
+ port-name Users13
+ auth-default-vlan 10
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/14
+ port-name Users14
+ auth-default-vlan 10
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/15
+ port-name Users15
+ auth-default-vlan 10
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/16
+ port-name Users16
+ auth-default-vlan 10
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/17
+ port-name Users17
+ auth-default-vlan 10
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/18
+ port-name Users18
+ auth-default-vlan 10
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/19
+ port-name Users19
+ auth-default-vlan 10
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/20
+ port-name Users20
+ auth-default-vlan 10
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/21
+ port-name Users21
+ auth-default-vlan 10
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/22
+ port-name Users22
+ auth-default-vlan 10
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/23
+ port-name Users23
+ auth-default-vlan 10
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/24
+ port-name Users24
+ auth-default-vlan 10
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/25
+ port-name Phone25
+ auth-default-vlan 20
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/26
+ port-name Phone26
+ auth-default-vlan 20
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/27
+ port-name Phone27
+ auth-default-vlan 20
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/28
+ port-name Phone28
+ auth-default-vlan 20
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/29
+ port-name Phone29
+ auth-default-vlan 20
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/30
+ port-name Phone30
+ auth-default-vlan 20
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/31
+ port-name Phone31
+ auth-default-vlan 20
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/32
+ port-name Phone32
+ auth-default-vlan 20
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/33
+ port-name Phone33
+ auth-default-vlan 20
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/34
+ port-name Phone34
+ auth-default-vlan 20
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/35
+ port-name Phone35
+ auth-default-vlan 20
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/36
+ port-name Phone36
+ auth-default-vlan 20
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/37
+ port-name Phone37
+ auth-default-vlan 20
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/38
+ port-name Phone38
+ auth-default-vlan 20
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/39
+ port-name Phone39
+ auth-default-vlan 20
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/40
+ port-name Phone40
+ auth-default-vlan 20
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/41
+ port-name Guest41
+ auth-default-vlan 30
+ spanning-tree edge-port
+ mac-authentication enable
+ exit
+interface ethernet 1/1/42
+ port-name Guest42
+ auth-default-vlan 30
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/43
+ port-name Guest43
+ auth-default-vlan 30
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/44
+ port-name Guest44
+ auth-default-vlan 30
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/45
+ port-name Guest45
+ auth-default-vlan 30
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/46
+ port-name Guest46
+ auth-default-vlan 30
+ spanning-tree edge-port
+ exit
+interface ethernet 1/1/47
+ port-name Uplink47
+ spanning-tree portfast-trunk
+ exit
+interface ethernet 1/1/48
+ port-name Uplink48
+ spanning-tree portfast-trunk
+ exit
+snmp-server location DataCenter
+!
+SSH@AAAA-A00-AA-00# show interfaces brief
+Port      Link  State     Dupl Speed Trunk Tag Pvid Pri MAC               Name
+1/1/1   Up   Forward   Full 1G   U     n   10   0   001c.58af.5001     Users1
+1/1/2   Up   Forward   Full 1G   U     n   10   0   001c.58af.5002     Users2
+1/1/3   Up   Forward   Full 1G   U     n   10   0   001c.58af.5003     Users3
+1/1/4   Up   Forward   Full 1G   U     n   10   0   001c.58af.5004     Users4
+1/1/5   Up   Forward   Half 1G   U     n   10   0   001c.58af.5005     Users5
+1/1/6   Up   Forward   Full 1G   U     n   10   0   001c.58af.5006     Users6
+1/1/7   Up   Forward   Full 1G   U     n   10   0   001c.58af.5007     Users7
+1/1/8   Down Disabled  Full 1G   U     n   10   0   001c.58af.5008     Users8
+1/1/9   Up   Forward   Full 1G   U     n   10   0   001c.58af.5009     Users9
+1/1/10  Up   Forward   Half 1G   U     n   10   0   001c.58af.500a     Users10
+1/1/11  Up   Forward   Full 1G   U     n   10   0   001c.58af.500b     Users11
+1/1/12  Up   Forward   Full 1G   U     n   10   0   001c.58af.500c     Users12
+1/1/13  Up   Forward   Full 1G   U     n   10   0   001c.58af.500d     Users13
+1/1/14  Up   Forward   Full 1G   U     n   10   0   001c.58af.500e     Users14
+1/1/15  Up   Forward   Half 1G   U     n   10   0   001c.58af.500f     Users15
+1/1/16  Down Disabled  Full 1G   U     n   10   0   001c.58af.5010     Users16
+1/1/17  Up   Forward   Full 1G   U     n   10   0   001c.58af.5011     Users17
+1/1/18  Up   Forward   Full 1G   U     n   10   0   001c.58af.5012     Users18
+1/1/19  Up   Forward   Full 1G   U     n   10   0   001c.58af.5013     Users19
+1/1/20  Up   Forward   Half 1G   U     n   10   0   001c.58af.5014     Users20
+1/1/21  Up   Forward   Full 1G   U     n   10   0   001c.58af.5015     Users21
+1/1/22  Up   Forward   Full 1G   U     n   10   0   001c.58af.5016     Users22
+1/1/23  Up   Forward   Full 1G   U     n   10   0   001c.58af.5017     Users23
+1/1/24  Down Disabled  Full 1G   U     n   10   0   001c.58af.5018     Users24
+1/1/25  Up   Forward   Half 1G   U     n   20   0   001c.58af.5019     Phone25
+1/1/26  Up   Forward   Full 1G   U     n   20   0   001c.58af.501a     Phone26
+1/1/27  Up   Forward   Full 1G   U     n   20   0   001c.58af.501b     Phone27
+1/1/28  Up   Forward   Full 1G   U     n   20   0   001c.58af.501c     Phone28
+1/1/29  Up   Forward   Full 1G   U     n   20   0   001c.58af.501d     Phone29
+1/1/30  Up   Forward   Half 1G   U     n   20   0   001c.58af.501e     Phone30
+1/1/31  Up   Forward   Full 1G   U     n   20   0   001c.58af.501f     Phone31
+1/1/32  Down Disabled  Full 1G   U     n   20   0   001c.58af.5020     Phone32
+1/1/33  Up   Forward   Full 1G   U     n   20   0   001c.58af.5021     Phone33
+1/1/34  Up   Forward   Full 1G   U     n   20   0   001c.58af.5022     Phone34
+1/1/35  Up   Forward   Half 1G   U     n   20   0   001c.58af.5023     Phone35
+1/1/36  Up   Forward   Full 1G   U     n   20   0   001c.58af.5024     Phone36
+1/1/37  Up   Forward   Full 1G   U     n   20   0   001c.58af.5025     Phone37
+1/1/38  Up   Forward   Full 1G   U     n   20   0   001c.58af.5026     Phone38
+1/1/39  Up   Forward   Full 1G   U     n   20   0   001c.58af.5027     Phone39
+1/1/40  Down Disabled  Half 1G   U     n   20   0   001c.58af.5028     Phone40
+1/1/41  Up   Forward   Full 1G   U     n   30   0   001c.58af.5029     Guest41
+1/1/42  Up   Forward   Full 1G   U     n   30   0   001c.58af.502a     Guest42
+1/1/43  Up   Forward   Full 1G   U     n   30   0   001c.58af.502b     Guest43
+1/1/44  Up   Forward   Full 1G   U     n   30   0   001c.58af.502c     Guest44
+1/1/45  Up   Forward   Half 1G   U     n   30   0   001c.58af.502d     Guest45
+1/1/46  Up   Forward   Full 1G   U     n   30   0   001c.58af.502e     Guest46
+1/1/47  Up   Forward   Full 10G  T     n   100  0   001c.58af.502f     Uplink47
+1/1/48  Down Disabled  Full 10G  T     n   100  0   001c.58af.5030     Uplink48
+
+SSH@AAAA-A00-AA-00# show mac-address
+MAC Address        Port       Type      VLAN
+001c.58af.6001    1/1/1     DYNAMIC   10
+001c.58af.6002    1/1/2     DYNAMIC   10
+001c.58af.6003    1/1/3     DYNAMIC   10
+001c.58af.6004    1/1/4     DYNAMIC   10
+001c.58af.6005    1/1/5     DYNAMIC   10
+001c.58af.6006    1/1/6     DYNAMIC   10
+001c.58af.6007    1/1/7     DYNAMIC   10
+001c.58af.6008    1/1/8     DYNAMIC   10
+001c.58af.6019    1/1/25    DYNAMIC   20
+001c.58af.601a    1/1/26    DYNAMIC   20
+001c.58af.601b    1/1/27    DYNAMIC   20
+001c.58af.601c    1/1/28    DYNAMIC   20
+001c.58af.6029    1/1/41    DYNAMIC   30
+001c.58af.602a    1/1/42    DYNAMIC   30
+001c.58af.602b    1/1/43    DYNAMIC   30
+001c.58af.602c    1/1/44    DYNAMIC   30
+0000.0c07.ac03     1/1/47     STATIC    100
+0000.0c07.ac04     1/1/48     STATIC    100
+
+001c.58af.7009    1/1/9    DYNAMIC   10
+001c.58af.700a    1/1/10    DYNAMIC   10
+001c.58af.700b    1/1/11    DYNAMIC   10
+001c.58af.700c    1/1/12    DYNAMIC   10
+001c.58af.700d    1/1/13    DYNAMIC   10
+001c.58af.700e    1/1/14    DYNAMIC   10
+001c.58af.700f    1/1/15    DYNAMIC   10
+001c.58af.7011    1/1/17    DYNAMIC   10
+001c.58af.7012    1/1/18    DYNAMIC   10
+001c.58af.7013    1/1/19    DYNAMIC   10
+001c.58af.7014    1/1/20    DYNAMIC   10
+001c.58af.7015    1/1/21    DYNAMIC   10
+001c.58af.7016    1/1/22    DYNAMIC   10
+001c.58af.7017    1/1/23    DYNAMIC   10
+001c.58af.701d    1/1/29    DYNAMIC   20
+001c.58af.701e    1/1/30    DYNAMIC   20
+001c.58af.701f    1/1/31    DYNAMIC   20
+001c.58af.7021    1/1/33    DYNAMIC   20
+001c.58af.7022    1/1/34    DYNAMIC   20
+001c.58af.7023    1/1/35    DYNAMIC   20
+001c.58af.7024    1/1/36    DYNAMIC   20
+001c.58af.7025    1/1/37    DYNAMIC   20
+001c.58af.7026    1/1/38    DYNAMIC   20
+001c.58af.7027    1/1/39    DYNAMIC   20
+001c.58af.702d    1/1/45    DYNAMIC   30
+001c.58af.702e    1/1/46    DYNAMIC   30
+SSH@AAAA-A00-AA-00# show dot1x sessions all
+Port     MAC               Auth Time     State
+1/1/2   001c.58af.7002     00:12:02     AUTHENTICATING
+1/1/3   001c.58af.7033     00:13:00     AUTHENTICATING
+
+SSH@AAAA-A00-AA-00# show mac-authentication sessions all
+Port     MAC               VLAN Age(s) Authorized
+1/1/41  001c.58af.8029     30   62     Yes
+1/1/3   001c.58af.8033     30   90     Yes
+
+SSH@AAAA-A00-AA-00# show run
+! running configuration trimmed for brevity
+!
+SSH@AAAA-A00-AA-00# show access-lists
+access-list 200 permit ip any any
+
+SSH@AAAA-A00-AA-00#

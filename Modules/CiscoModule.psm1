@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Parses Cisco show command outputs into structured data.
 #>
@@ -87,6 +87,52 @@ function Get-CiscoDeviceFacts {
             }
         }
         return $ht
+    }
+
+    #-----------------------------------------
+    # Retrieve a default authentication VLAN from the running config.  Some
+    # vendors like Brocade provide a global ``auth-default-vlan`` command.  Cisco
+    # does not have an identical concept, but there are a few similar
+    # statements (e.g. guest VLAN for 802.1X) that can be used as a hint.  This
+    # helper scans the top‑level configuration for any lines that look like
+    # ``auth-default-vlan <vlan>`` or ``guest-vlan <vlan>`` and returns the
+    # associated VLAN number if found.  Otherwise it returns an empty string.
+    function Get-AuthDefaultVLAN {
+        param([string[]]$Lines)
+        foreach ($line in $Lines) {
+            # Brocade uses the exact ``auth-default-vlan <vlan>`` syntax.  Cisco
+            # 802.1X guest VLANs are configured with ``guest-vlan <vlan>`` under
+            # interface configuration, so we look for that too.
+            if ($line -match 'auth-default-vlan\s+(\d+)') {
+                return $matches[1]
+            }
+            elseif ($line -match '\bguest-vlan\s+(\d+)') {
+                return $matches[1]
+            }
+        }
+        return ''
+    }
+
+    #-----------------------------------------
+    # Build an authentication configuration block similar to what is returned
+    # from Brocade devices.  Brocade switches provide a concise summary of
+    # global authentication settings (e.g. ``Auth-default-vlan``, ``dot1x enable``).
+    # To mirror this, we extract any top‑level lines from the running
+    # configuration that begin with keywords related to authentication or
+    # 802.1X.  These include ``authentication``, ``dot1x``, ``mab`` and
+    # ``reauthentication``.  The function concatenates those lines using
+    # Windows style CRLF separators.  If no such lines are found, an empty
+    # string is returned.
+    function Get-AuthBlock {
+        param([string[]]$Lines)
+        $blockLines = @()
+        foreach ($line in $Lines) {
+            $trim = $line.Trim()
+            if ($trim -match '^(authentication|dot1x|mab|reauthentication)\b') {
+                $blockLines += $trim
+            }
+        }
+        return $blockLines -join "`r`n"
     }
 
     function Get-InterfacesStatus { param([string[]]$Lines)
@@ -179,6 +225,13 @@ function Get-CiscoDeviceFacts {
     $auth = Get-Dot1xStatus -Lines $authSes
     $authTemplates = Get-PortAuthTemplates -Configs $configs
 
+    # Determine any global authentication defaults and build a human‑readable
+    # authentication block.  These help align Cisco output with Brocade
+    # devices, which expose an ``AuthDefaultVLAN`` value and an ``AuthBlock``
+    # summarising authentication configuration.
+    $authDefaultVLAN = Get-AuthDefaultVLAN -Lines $runCfg
+    $authBlock       = Get-AuthBlock       -Lines $runCfg
+
     $combined=@()
     foreach ($iface in $status) {
         $raw=$iface.RawPort
@@ -189,21 +242,44 @@ function Get-CiscoDeviceFacts {
         $authRow = $auth | Where-Object Interface -ieq $raw | Select-Object -First 1
         $macRow = $macs | Where-Object Port -eq $raw | Select-Object -First 1
 
+        # Use the first learned MAC as the interface's own MAC address where possible.  If
+        # no learned MAC is present, default to an empty string.  Brocade exports
+        # both ``InterfaceMAC`` (the port's burned‑in address) and ``LearnedMACs`` (the
+        # list of dynamically learnt addresses); without access to the burned‑in
+        # address on Cisco via ``show interfaces`` we reuse the first learned MAC as
+        # the interface MAC to align with Brocade structure.
+        $interfaceMac = if ($macRow){ $macRow.MAC } else { '' }
+
         $combined+=[PSCustomObject]@{
-            Port=$raw; Name=$name; Status=$iface.Status; VLAN=$iface.VLAN; Duplex=$iface.Duplex; Speed=$iface.Speed; Type=$iface.Type;
-            LearnedMACs=$macList;
-            AuthState=if ($authRow){ $authRow.AuthState } else { 'Unknown' };
-            AuthMode=if ($authRow){ $authRow.AuthMode } else { 'unknown' };
-            AuthClientMAC=if ($authRow){ $authRow.MAC } else { '' };
-            AuthVLAN=if ($macRow){ $macRow.VLAN } else { '' };
-            Config=$cfgText;
-            AuthTemplate=if ($authTemplates[$raw]){ $authTemplates[$raw].Template } else { 'openPort' };
-            MissingAuthCmds=if ($authTemplates[$raw]){ ($authTemplates[$raw].MissingCommands -join ',') } else { '' }
+            Port            = $raw
+            Name            = $name
+            Status          = $iface.Status
+            VLAN            = $iface.VLAN
+            Duplex          = $iface.Duplex
+            Speed           = $iface.Speed
+            Type            = $iface.Type
+            InterfaceMAC    = $interfaceMac
+            LearnedMACs     = $macList
+            AuthState       = if ($authRow){ $authRow.AuthState } else { 'Unknown' }
+            AuthMode        = if ($authRow){ $authRow.AuthMode } else { 'unknown' }
+            AuthClientMAC   = if ($authRow){ $authRow.MAC } else { '' }
+            AuthVLAN        = if ($macRow){ $macRow.VLAN } else { '' }
+            Config          = $cfgText
+            AuthTemplate    = if ($authTemplates[$raw]){ $authTemplates[$raw].Template } else { 'openPort' }
+            MissingAuthCmds = if ($authTemplates[$raw]){ ($authTemplates[$raw].MissingCommands -join ',') } else { '' }
         }
     }
 
     return [PSCustomObject]@{
-        Hostname=$hostname; Make='Cisco'; Model=$modelVer[0]; Version=$modelVer[1]; Uptime=$uptime;
-        Location=$location; InterfaceCount=$combined.Count; InterfacesCombined=$combined
+        Hostname        = $hostname
+        Make            = 'Cisco'
+        Model           = $modelVer[0]
+        Version         = $modelVer[1]
+        Uptime          = $uptime
+        Location        = $location
+        InterfaceCount  = $combined.Count
+        AuthDefaultVLAN = $authDefaultVLAN
+        AuthBlock       = $authBlock
+        InterfacesCombined = $combined
     }
 }
