@@ -11,7 +11,69 @@ $outputPath     = Join-Path $projectRoot "ParsedData"
 $modulesPath    = Join-Path $projectRoot "Modules"
 $archiveRoot    = Join-Path ([Environment]::GetFolderPath("MyDocuments")) "SwitchArchives"
 
-function Initialize-Directories {
+# -----------------------------------------------------------------------------
+# Import archive data from previously parsed logs.
+# When requested via environment variables, this helper copies data from
+# $ArchiveRoot into the current $outputPath.  By default only the most
+# recent archive per device is imported; when IncludeHistorical is true,
+# multiple dated archives are copied, each with the date appended to the
+# filename so they can be distinguished.  Existing files in $outputPath
+# will be overwritten.
+function Import-ArchiveData {
+    param(
+        [string]$ArchiveRoot,
+        [string]$OutputPath,
+        [bool]$IncludeHistorical
+    )
+    if (-not (Test-Path $ArchiveRoot)) { return }
+    foreach ($deviceDir in Get-ChildItem $ArchiveRoot -Directory) {
+        $hostname = $deviceDir.Name
+        # Each subfolder name is expected to be a date in yyyy-MM-dd format.  Sort
+        # descending so the most recent comes first.
+        $dateDirs = Get-ChildItem $deviceDir.FullName -Directory | Sort-Object Name -Descending
+        if ($dateDirs.Count -eq 0) { continue }
+        $datesToProcess = $null
+        if ($IncludeHistorical) {
+            $datesToProcess = $dateDirs
+        } else {
+            $datesToProcess = @($dateDirs[0])
+        }
+        foreach ($dd in $datesToProcess) {
+            # Copy the latest summary for this date.  Summaries are named
+            # 'Summary_HHMMZ.csv'; sort by name descending to get the most recent
+            $summaryFiles = Get-ChildItem -Path $dd.FullName -Filter 'Summary_*.csv' -File | Sort-Object Name -Descending
+            if ($summaryFiles.Count -gt 0) {
+                $src = $summaryFiles[0].FullName
+                $destName = if ($IncludeHistorical) {
+                    "$hostname`_${dd.Name}_Summary.csv"
+                } else {
+                    "$hostname`_Summary.csv"
+                }
+                $dest = Join-Path $OutputPath $destName
+                Copy-Item -Path $src -Destination $dest -Force
+            }
+            # Copy the latest interface combined file for this date.  Files may
+            # be named 'Interfaces_Combined_HHMMZ.csv' or fall back to
+            # 'Interfaces.csv' if combined format isn't available.
+            $ifcFiles = Get-ChildItem -Path $dd.FullName -Filter 'Interfaces_Combined*.csv' -File | Sort-Object Name -Descending
+            if ($ifcFiles.Count -eq 0) {
+                $ifcFiles = Get-ChildItem -Path $dd.FullName -Filter 'Interfaces*.csv' -File | Sort-Object Name -Descending
+            }
+            if ($ifcFiles.Count -gt 0) {
+                $srcIfc = $ifcFiles[0].FullName
+                $destName = if ($IncludeHistorical) {
+                    "$hostname`_${dd.Name}_Interfaces_Combined.csv"
+                } else {
+                    "$hostname`_Interfaces_Combined.csv"
+                }
+                $dest = Join-Path $OutputPath $destName
+                Copy-Item -Path $srcIfc -Destination $dest -Force
+            }
+        }
+    }
+}
+
+function New-Directories {
     param ([string[]]$Paths)
     foreach ($path in $Paths) {
         if (-not (Test-Path $path)) {
@@ -206,12 +268,12 @@ function Start-ParallelDeviceProcessing {
     $runspacePool.Dispose()
 }
 
-function Cleanup-ExtractedLogs {
+function Clear-ExtractedLogs {
     Get-ChildItem $extractedPath -File | Remove-Item -Force
 }
 
 # --- Entry Point ---
-Initialize-Directories @($logPath, $outputPath, $extractedPath, $archiveRoot)
+New-Directories @($logPath, $outputPath, $extractedPath, $archiveRoot)
 Import-ParserModules
 Split-RawLogs
 
@@ -232,4 +294,19 @@ Start-ParallelDeviceProcessing -DeviceFiles $deviceFiles -MaxThreads $threadCoun
 $sw.Stop()
 
 Write-Host "Processing complete in $($sw.Elapsed.TotalSeconds) seconds."
-Cleanup-ExtractedLogs
+Clear-ExtractedLogs
+
+# Optionally import archive data.  Use environment variables set by the
+# calling process (MainWindow) to determine whether to import the most
+# recent archive or include historical archives.  These variables are
+# expected to be simple strings (e.g. 'true' or empty).
+if ($env:IncludeArchive -and $env:IncludeArchive -ne '') {
+    $includeHistFlag = $false
+    if ($env:IncludeHistorical -and $env:IncludeHistorical -ne '') { $includeHistFlag = $true }
+    try {
+        Write-Host "Importing archive data (Historical: $includeHistFlag) from $archiveRoot"
+        Import-ArchiveData -ArchiveRoot $archiveRoot -OutputPath $outputPath -IncludeHistorical:$includeHistFlag
+    } catch {
+        Write-Warning "Failed to import archive data: $($_.Exception.Message)"
+    }
+}

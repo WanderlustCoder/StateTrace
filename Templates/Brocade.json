@@ -2,6 +2,7 @@
   "templates": [
     {
       "name": "Dual Authentication Port",
+      "aliases": ["flexible"],
       "vendor": "Brocade",
       "match_type": "contains_all",
       "required_commands": [
@@ -14,6 +15,7 @@
     },
     {
       "name": "Dot1X Only Port",
+      "aliases": ["dot1x"],
       "vendor": "Brocade",
       "match_type": "contains_all",
       "required_commands": [
@@ -27,6 +29,7 @@
     },
     {
       "name": "MAB Only Port",
+      "aliases": ["macauth"],
       "vendor": "Brocade",
       "match_type": "contains_all",
       "required_commands": [
@@ -40,6 +43,7 @@
     },
     {
       "name": "Edge Port No Auth",
+      "aliases": ["open"],
       "vendor": "Brocade",
       "match_type": "contains_any",
       "required_commands": [

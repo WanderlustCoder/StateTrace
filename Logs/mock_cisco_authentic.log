@@ -1,11 +1,11 @@
-sample-sw# show version
+WLLS-A01-AS-01# show version
 Cisco IOS XE Software, Version 17.03.03
 Cisco IOS Software [Everest], C9300 Software (C9300-UNIVERSALK9-M), Version 17.3.3, RELEASE SOFTWARE (fc3)
 Compiled Mon 15-Mar-21 13:21 by mcpre
 
 ROM: IOS-XE ROMMON
 
-sample-sw uptime is 2 weeks, 4 days, 6 hours, 18 minutes
+WLLS-A01-AS-01 uptime is 2 weeks, 4 days, 6 hours, 18 minutes
 Uptime for this control processor is 2 weeks, 4 days, 6 hours, 19 minutes
 System image file is "flash:packages.conf"
 Last reload reason: PowerOn
@@ -17,9 +17,9 @@ Switch Ports Model              SW Version        SW Image              Mode
 Model Number : C9300-48P
 System serial number : FCW2142L0PG
 
-sample-sw# show running-config
-hostname sample-sw
-snmp-server location Building 2
+WLLS-A01-AS-01# show running-config
+hostname WLLS-A01-AS-01
+snmp-server location Bldg_25_Floor_1_Room_44_Row_1_Rack_1
 !
 ip access-list extended ACL-USER
  permit ip any any
@@ -584,7 +584,7 @@ interface GigabitEthernet1/0/48
 !
 !
 end
-sample-sw# show interface status
+WLLS-A01-AS-01# show interface status
 Port      Name               Status       Vlan       Duplex  Speed Type
 Gi1/0/1    Users1           connected    10         a-full  a-100  10/100/1000BaseTX
 Gi1/0/2    Users2           connected    10         auto    a-100  10/100/1000BaseTX
@@ -635,7 +635,7 @@ Gi1/0/46   Guest46          connected    30         auto    a-100  10/100/1000Ba
 Gi1/0/47   Uplink47         connected    trunk      a-full  a-100  10GBaseSX
 Gi1/0/48   Uplink48         notconnect   trunk      auto    a-1000 10GBaseSX
 
-sample-sw# show mac address-table
+WLLS-A01-AS-01# show mac address-table
 Mac Address Table
 -------------------------------------------
 
@@ -668,14 +668,14 @@ Vlan    Mac Address       Type        Ports
  100    0000.0c07.ac01    STATIC      Gi1/0/47
  100    0000.0c07.ac02    STATIC      Gi1/0/48
 
-sample-sw# show authentication sessions
+WLLS-A01-AS-01# show authentication sessions
 Interface    MAC Address     Method  Domain  Status           Session ID
 Gi1/0/1      001c.58af.0000  dot1x  DATA   Authorized      0A1111111111
 Gi1/0/2      001c.58af.0001  mab    DATA   Authc Success   0A2222222222
 Gi1/0/3      001c.58af.0002  mab    DATA   Authc Failed    0A3333333333
 Gi1/0/5      001c.58af.0003  dot1x  DATA   Connecting      0A4444444444
 
-sample-sw# show ip interface brief
+WLLS-A01-AS-01# show ip interface brief
 Interface              IP-Address      OK? Method Status                Protocol
 Vlan1                  unassigned      YES unset  administratively down down
 GigabitEthernet1/0/1  unassigned      YES unset  up                    up
@@ -687,8 +687,20 @@ GigabitEthernet1/0/6  unassigned      YES unset  up                    up
 GigabitEthernet1/0/7  unassigned      YES unset  up                    up
 GigabitEthernet1/0/8  unassigned      YES unset  up                    up
 
-sample-sw# show access-lists
+WLLS-A01-AS-01# show access-lists
 Extended IP access list ACL-USER
     permit ip any any (hitcnt=0)
 
-sample-sw#
+WLLS-A01-AS-01#
+WLLS-A01-AS-01# show spanning-tree
+VLAN0010
+  Spanning tree enabled protocol rstp
+  Root ID    Priority    32769
+             Address     5254.001b.1c58
+             This bridge is the root
+WLLS-A01-AS-01# show lldp neighbors
+Device ID        Local Intf  Hold-time Capability  Port ID
+core-sw          Gi1/0/48    120       B           Gi1/0/1
+WLLS-A01-AS-01# show cdp neighbors
+Device ID        Local Intrfce     Holdtme Capability Platform Port ID
+core-sw          Gig1/0/48         153     S I       C9500    Gig1/0/1

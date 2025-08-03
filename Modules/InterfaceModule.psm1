@@ -72,9 +72,21 @@ function Get-InterfaceInfo {
     if (-not (Test-Path $jsonFile)) {
         Throw "Template file missing: $jsonFile"
     }
-    $templates = (Get-Content $jsonFile -Raw | ConvertFrom-Json).templates
+
+    # Load templates and alias arrays from JSON
+    $templateJson = Get-Content $jsonFile -Raw | ConvertFrom-Json
+    if (-not $templateJson.templates) {
+        Throw "No templates found in $vendorFile — check JSON structure"
+    }
+    $templates = $templateJson.templates
+
+    # For debugging, uncomment:
+    # Write-Host "`n[DEBUG] Loaded Templates from ${vendorFile}:"
+    # $templates | ForEach-Object { Write-Host "  - $($_.name) (aliases: $($_.aliases -join ', '))" }
 
     Import-Csv $ifsFile | ForEach-Object {
+        $authTemplate = $_.AuthTemplate
+
         $obj = [PSCustomObject]@{
             Hostname       = $Hostname
             Port           = $_.Port
@@ -88,25 +100,22 @@ function Get-InterfaceInfo {
             AuthState      = $_.AuthState
             AuthMode       = $_.AuthMode
             AuthClientMAC  = $_.AuthClientMAC
-            ToolTip        = "AuthTemplate: $($_.AuthTemplate)`n`n$($_.Config)"
+            ToolTip        = "AuthTemplate: $authTemplate`n`n$($_.Config)"
             IsSelected     = $false
         }
 
-        if ($isCisco) {
-            $lines = ($_.Config -split "`n")
-            $comp  = Get-ConfigCompliance -ConfigLines $lines -Templates $templates
-            $obj | Add-Member -NotePropertyName ConfigStatus -NotePropertyValue $comp.ConfigStatus
-            $obj | Add-Member -NotePropertyName PortColor    -NotePropertyValue $comp.PortColor
-        } else {
-            switch ($_.AuthTemplate) {
-                'open'     { $color = 'Red' }
-                'dot1x'    { $color = 'Green' }
-                'macauth'  { $color = 'Purple' }
-                'flexible' { $color = 'Blue' }
-                default    { $color = 'Gray' }
-            }
+        # Match either name or any alias
+        $match = $templates | Where-Object {
+            $_.name -ieq $authTemplate -or
+            ($_.aliases -and ($_.aliases -contains $authTemplate))
+        }
+
+        if ($match) {
             $obj | Add-Member -NotePropertyName ConfigStatus -NotePropertyValue 'Match'
-            $obj | Add-Member -NotePropertyName PortColor     -NotePropertyValue $color
+            $obj | Add-Member -NotePropertyName PortColor     -NotePropertyValue $match.color
+        } else {
+            $obj | Add-Member -NotePropertyName ConfigStatus -NotePropertyValue 'Mismatch'
+            $obj | Add-Member -NotePropertyName PortColor     -NotePropertyValue 'Gray'
         }
 
         $obj
@@ -139,6 +148,8 @@ function Get-InterfaceConfiguration {
         [Parameter(Mandatory)][string]  $Hostname,
         [Parameter(Mandatory)][string[]]$Interfaces,
         [Parameter(Mandatory)][string]  $TemplateName,
+        [hashtable]$NewNames,
+        [hashtable]$NewVlans,
         [string]$ParsedDataPath = (Join-Path $PSScriptRoot '..\ParsedData'),
         [string]$TemplatesPath  = (Join-Path $PSScriptRoot '..\Templates')
     )
@@ -159,13 +170,102 @@ function Get-InterfaceConfiguration {
         Throw "Template '$TemplateName' not found in $vendor.json"
     }
 
+    # Load existing configs to generate removal commands
+    $ifsPath    = Join-Path $ParsedDataPath "$($Hostname)_Interfaces_Combined.csv"
+    $oldConfigs = @{}
+    if (Test-Path $ifsPath) {
+        try {
+            $csvData = Import-Csv $ifsPath
+            foreach ($row in $csvData) {
+                if ($Interfaces -contains $row.Port) {
+                    $oldConfigs[$row.Port] = $row.Config -split "`n"
+                }
+            }
+        } catch {
+            # ignore read errors
+        }
+    }
+
     $lines = foreach ($port in $Interfaces) {
         "interface $port"
-        $tmpl.required_commands
+
+        # Build pending commands
+        $pendingCmds = @()
+        $nameOverride = $null
+        $vlanOverride = $null
+        if ($NewNames.ContainsKey($port)) { $nameOverride = $NewNames[$port] }
+        if ($NewVlans.ContainsKey($port)) { $vlanOverride = $NewVlans[$port] }
+
+        if ($nameOverride) {
+            $pendingCmds += $(if ($vendor -eq 'Cisco') { "description $nameOverride" } else { "port-name $nameOverride" })
+        }
+        if ($vlanOverride) {
+            $pendingCmds += $(if ($vendor -eq 'Cisco') { "switchport access vlan $vlanOverride" } else { "auth-default-vlan $vlanOverride" })
+        }
+        foreach ($cmd in $tmpl.required_commands) {
+            $pendingCmds += $cmd.Trim()
+        }
+
+        # Removal logic
+        if ($oldConfigs.ContainsKey($port)) {
+            foreach ($oldLine in $oldConfigs[$port]) {
+                $trimOld  = $oldLine.Trim()
+                if (-not $trimOld) { continue }
+                $lowerOld = $trimOld.ToLower()
+                if ($lowerOld.StartsWith('interface') -or $lowerOld -eq 'exit') { continue }
+
+                $shouldRemove = $true
+                foreach ($newCmd in $pendingCmds) {
+                    if ($lowerOld -like ("$($newCmd.ToLower())*")) {
+                        $shouldRemove = $false; break
+                    }
+                }
+                if (-not $shouldRemove) { continue }
+
+                if ($vendor -eq 'Cisco') {
+                    if ($lowerOld.StartsWith('authentication') -or $lowerOld.StartsWith('dot1x') -or $lowerOld -eq 'mab') {
+                        " no $trimOld"
+                    }
+                } else {
+                    if ($lowerOld -match 'dot1x\s+port-control\s+auto' -or $lowerOld -match 'mac-authentication\s+enable') {
+                        " no $trimOld"
+                    }
+                }
+            }
+        }
+
+        # Apply overrides & template
+        if ($nameOverride) {
+            $(if ($vendor -eq 'Cisco') { " description $nameOverride" } else { " port-name $nameOverride" })
+        }
+        if ($vlanOverride) {
+            $(if ($vendor -eq 'Cisco') { " switchport access vlan $vlanOverride" } else { " auth-default-vlan $vlanOverride" })
+        }
+        foreach ($cmd in $tmpl.required_commands) {
+            $cmd
+        }
         'exit'
         ''
     }
+
     return $lines
+}
+
+function Get-SpanningTreeInfo {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Hostname,
+        [string]$ParsedDataPath = (Join-Path $PSScriptRoot '..\ParsedData')
+    )
+    $spanFile = Join-Path $ParsedDataPath "$Hostname`_Span.csv"
+    if (Test-Path $spanFile) {
+        try {
+            return Import-Csv $spanFile
+        } catch {
+            return @()
+        }
+    }
+    return @()
 }
 
 function Get-ConfigurationTemplates {
@@ -198,4 +298,5 @@ Export-ModuleMember -Function `
     Get-InterfaceInfo, `
     Compare-InterfaceConfigs, `
     Get-InterfaceConfiguration, `
-    Get-ConfigurationTemplates
+    Get-ConfigurationTemplates, `
+    Get-SpanningTreeInfo

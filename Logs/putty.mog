@@ -1,12 +1,12 @@
 =~=~=~=~=~=~=~=~=~=~=~= PuTTY log 2025.06.06 12:45:08 =~=~=~=~=~=~=~=~=~=~=~=
 
-AR-7010T-1#show hostname | no-more
-show rHostname: AR-7010T-1
-FQDN:     AR-7010T-1.lab.local
-AR-7010T-1#show run | no-more
-w version | no-more
-show inventory | no-more
-show environment all | no-more
+WLLS-A04-AS-04#show hostname | no-more
+show rHostname: WLLS-A04-AS-04
+FQDN:     WLLS-A04-AS-04.lab.local
+WLLS-A04-AS-04#show run | no-more
+WLLS-A04-AS-04#show version | no-more
+WLLS-A04-AS-04#show inventory | no-more
+WLLS-A04-AS-04#show environment all | no-more
 !
 
 show interfaces status | no-more
@@ -16,7 +16,7 @@ show vlan | no-more
 show spanning-tree | no-more
 show mac address-table | no-more
 ! Command: show running-config
-! device: AR-7010T-1 (DCS-7010T-48, EOS-4.14.9.1M)
+! device: WLLS-A04-AS-04 (DCS-7010T-48, EOS-4.14.9.1M)
 !
 ! boot system flash:/EOS-4.14.9.1M.swi
 !
@@ -25,7 +25,7 @@ transceiver qsfp default-mode 4x10G
 logging host 192.168.100.10
 logging facility local7
 !
-hostname AR-7010T-1
+hostname WLLS-A04-AS-04
 ip name-server vrf default 1.1.1.1
 ip name-server vrf default 8.8.8.8
 ip domain-name lab.local
@@ -35,7 +35,7 @@ ntp server 132.163.96.2
 ntp server 132.163.96.3
 !
 snmp-server contact NetOps <netops@example.com>
-snmp-server location Lab Rack A
+snmp-server location Bldg_25_Floor_1_Room_45_Row_2_Rack_1
 snmp-server community public ro
 !
 spanning-tree mode mstp
@@ -551,7 +551,7 @@ dot1x system-auth-control
 !
 !
 end
-AR-7010T-1#show version | no-more
+WLLS-A04-AS-04#show version | no-more
 Arista DCS-7010T-48-R
 Hardware version:    01.01
 Serial number:       HSH16190326
@@ -566,7 +566,7 @@ Uptime:                 36 minutes
 Total memory:           3907136 kB
 Free memory:            1342640 kB
 
-AR-7010T-1#show inventory | no-more
+WLLS-A04-AS-04#show inventory | no-more
 System information
   Model                    Description                                         
   ------------------------ ----------------------------------------------------
@@ -650,7 +650,7 @@ System has 52 transceiver slots
   51   Not Present                                            
   52   Not Present                                            
 
-AR-7010T-1#show environment all | no-more
+WLLS-A04-AS-04#show environment all | no-more
 System temperature status is: Ok
                                                                 Alert   Critical
 Sensor  Description                            Temperature  Threshold  Threshold
@@ -679,9 +679,9 @@ Supply  Model                Capacity  Current  Current  Power    Status
 1       PWR-00194-01               65W      N/A      N/A      N/A Power Loss
 2       PWR-00194-01               65W      N/A      N/A      N/A Ok
 
-AR-7010T-1#!
-AR-7010T-1#
-AR-7010T-1#show interfaces status | no-more
+WLLS-A04-AS-04#!
+WLLS-A04-AS-04#
+WLLS-A04-AS-04#show interfaces status | no-more
 Port       Name              Status       Vlan        Duplex  Speed Type        
 Et1        00023-001-001     connected    10          a-full   a-1G 1000BASE-T  
 Et2        00023-001-002     notconnect   N/A           auto   auto 1000BASE-T  
@@ -737,7 +737,7 @@ Et51                         notconnect   1           a-full  a-10G Not Present
 Et52                         notconnect   1           a-full  a-10G Not Present 
 Ma1                          notconnect   routed        auto   auto 10/100/1000 
 
-AR-7010T-1#show interfaces | no-more
+WLLS-A04-AS-04#show interfaces | no-more
 Ethernet1 is up, line protocol is up (connected)
   Hardware is Ethernet, address is 444c.a8b5.94dc (bia 444c.a8b5.94dc)
   Description: 00023-001-001
@@ -1794,15 +1794,15 @@ Management1 is down, line protocol is down (notconnect)
      0 output errors, 0 collisions
      0 late collision, 0 deferred, 0 output discards
      0 PAUSE output
-AR-7010T-1#!
-AR-7010T-1#show vlan | no-more
+WLLS-A04-AS-04#!
+WLLS-A04-AS-04#show vlan | no-more
 VLAN  Name                             Status    Ports
 ----- -------------------------------- --------- -------------------------------
 1     default                          active   
 10    Data                             active    Et1
 20    Voice                            active   
 
-AR-7010T-1#show spanning-tree | no-more
+WLLS-A04-AS-04#show spanning-tree | no-more
 MST0
   Spanning tree enabled protocol mstp
   Root ID    Priority    32768
@@ -1817,7 +1817,7 @@ Interface        Role       State      Cost      Prio.Nbr Type
 ---------------- ---------- ---------- --------- -------- --------------------
 Et1              designated forwarding 20000     128.1    P2p                 
 
-AR-7010T-1#show mac address-table | no-more
+WLLS-A04-AS-04#show mac address-table | no-more
           Mac Address Table
 ------------------------------------------------------------------
 
@@ -1832,8 +1832,16 @@ Total Mac Addresses for this criterion: 1
 Vlan    Mac Address       Type        Ports
 ----    -----------       ----        -----
 Total Mac Addresses for this criterion: 0
-AR-7010T-1#
+WLLS-A04-AS-04#
 Port    Authorized    Mode           MAC Address        Vlan
 -----   ----------    ----           -----------        ----
 Et1     Authorized    Single-Host    40c2.ba80.cb96      10
 Et2     Unauthorized  Multi-Domain
+
+WLLS-A04-AS-04# show lldp neighbors | no-more
+Local Intf    Chassis Id        Port Id       System Name
+Et48          00:11:22:33:44:55 Et1           upstream-sw
+
+WLLS-A04-AS-04# show cdp neighbors | no-more
+Local Intrfce  Device ID       Port ID       Platform
+Et48           upstream-sw     Gi1/0/1       C9500

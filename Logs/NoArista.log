@@ -1,4 +1,4 @@
-ZZZZ-Z00-ZZ-00#show running-config
+WLLS-A03-AS-03#show running-config
 Building configuration...
 
 Current configuration : 5120 bytes
@@ -10,9 +10,9 @@ service timestamps debug datetime msec
 service timestamps log datetime msec
 no service password-encryption
 !
-hostname ZZZZ-Z00-ZZ-00
+hostname WLLS-A03-AS-03
 !
-snmp-server location Your-Moms-House
+snmp-server location Bldg_25_Floor_1_Room_45_Row_1_Rack_1
 !
 boot-start-marker
 boot-end-marker
@@ -120,7 +120,7 @@ line vty 0 4
 end
 
 
-ZZZZ-Z00-ZZ-00#show version
+WLLS-A03-AS-03#show version
 
 Cisco IOS XE Software, Version 17.03.03
 Cisco IOS Software [Amsterdam], Catalyst L3 Switch Software (CAT9K_IOSXE), Version 17.3.3, RELEASE SOFTWARE (fc2)
@@ -130,7 +130,7 @@ Compiled Thu 22-Oct-20 08:12 by mcpre
 
 ROM: IOS-XE ROMMON
 
-ZZZZ-Z00-ZZ-00 uptime is 2 weeks, 3 days, 4 hours, 22 minutes
+WLLS-A03-AS-03 uptime is 2 weeks, 3 days, 4 hours, 22 minutes
 Uptime for this control processor is 2 weeks, 3 days, 4 hours, 24 minutes
 System returned to ROM by PowerOn
 System image file is "flash:packages.conf"
@@ -176,7 +176,7 @@ Configuration register is 0x102
 
 
 
-ZZZZ-Z00-ZZ-00#show interface status
+WLLS-A03-AS-03#show interface status
 Port      Name               Status       Vlan     Duplex  Speed   Type
 Gi1/0/1   Lobby-Phone          connected    10       full    1000   10/100/1000BaseTX
 Gi1/0/2   Admin-Laptop         connected    10       full    1000   10/100/1000BaseTX
@@ -186,8 +186,8 @@ Gi1/0/5   Guest-Workstation-1  connected    50       full    1000   10/100/1000B
 Gi1/0/6   Lobby-TV             connected    20       full    1000   10/100/1000BaseTX
 Gi1/0/7   HR-Laptop            connected    100      full    1000   10/100/1000BaseTX
 Gi1/0/8   SmartSpeaker         notconnect   999      auto    auto   10/100/1000BaseTX
-ZZZZ-Z00-ZZ-00#
-ZZZZ-Z00-ZZ-00#show vlan brief
+WLLS-A03-AS-03#
+WLLS-A03-AS-03#show vlan brief
 
 VLAN Name                             Status    Ports
 ---- -------------------------------- --------- -------------------------------
@@ -204,7 +204,7 @@ VLAN Name                             Status    Ports
 1004 fddinet-default                  active    
 1005 trnet-default                    active    
 
-ZZZZ-Z00-ZZ-00#show authentication sessions
+WLLS-A03-AS-03#show authentication sessions
 
 Interface    MAC Address     Method  Domain  Status         Session ID
 Gi1/0/4      0011.2233.4406  dot1x   DATA    Authz Success 0A000A0B000002B91FBE82F2
@@ -213,7 +213,7 @@ Gi1/0/6      0011.2233.4408  dot1x   DATA    Authz Success 0A000A0B000005B146FEB
 Gi1/0/7      0011.2233.4409  mab     DATA    Authc Failed  0A000A0B000005AE44E2BFE9
 Gi1/0/8      0011.2233.4410  N/A     UNKNOWN Auth          0A000A0B0000000E0001A1C0
 
-ZZZZ-Z00-ZZ-00#show mac address-table
+WLLS-A03-AS-03#show mac address-table
 
           Mac Address Table
 -------------------------------------------
@@ -226,9 +226,9 @@ Vlan    Mac Address       Type        Ports
  999    0011.2233.4409    DYNAMIC     Gi1/0/7
 1002    0011.2233.4410    DYNAMIC     Gi1/0/8
 
-SSH@ZZZZ-Z00-ZZ-111#show config
+SSH@WLLS-A03-AS-03#show config
 ver 08.0.30T7f1
-hostname ZZZZ-Z00-ZZ-111
+hostname WLLS-A03-AS-03
 !
 vlan 10 name DEFAULT-VLAN by port
 vlan 20 name VOICE by port
@@ -356,8 +356,10 @@ interface ethernet 1/1/23
 interface ethernet 1/1/24
  port-name UnusedPort24
 !
+snmp-server location Bldg_25_Floor_1_Room_45_Row_1_Rack_1
+!
 
-SSH@ZZZZ-Z00-ZZ-111#show version
+SSH@WLLS-A03-AS-03#show version
   Copyright (c) 1996-2025 Brocade Communications Systems, Inc. All rights reserved.
   UNIT 1: compiled on Jan 21 2025 at 23:28:08 labeled as SPR08030
     (31768772 bytes) from Primary SPR08030.bin
@@ -380,7 +382,7 @@ STACKID 1 system uptime is 31 day(s) 1 hour(s) 1 minute(s) 5 second(s)
 The system : started=cold start
 
 
-SSH@ZZZZ-Z00-ZZ-111#show interfaces brief
+SSH@WLLS-A03-AS-03#show interfaces brief
 Port      Link    State     Dupl   Speed   Trunk  Tag  Pvid  Pri   MAC               Name
 1/1/1    Up      Forward  Full   1G      None   Yes  10    0     0011.2233.4401 DefaultPort1
 1/1/2    Up      Forward  Full   1G      None   Yes  10    0     0011.2233.4402 DefaultPort2
@@ -408,7 +410,7 @@ Port      Link    State     Dupl   Speed   Trunk  Tag  Pvid  Pri   MAC          
 1/1/24   Down    Disabled Full   1G      None   No   10    0     0011.2233.4424 UnusedPort24
 
 
-SSH@ZZZZ-Z00-ZZ-111#show dot1x sessions all
+SSH@WLLS-A03-AS-03#show dot1x sessions all
 ----------------------------------------------------------------------------------------------------
 Port     MAC 		  IP		User		Vlan  Auth	ACL	Age	Pae
 	 Addr         	  Addr          Name          	      State  			State
@@ -423,7 +425,7 @@ Port     MAC 		  IP		User		Vlan  Auth	ACL	Age	Pae
 
 
 
-SSH@ZZZZ-Z00-ZZ-111#show mac-authentication sessions all
+SSH@WLLS-A03-AS-03#show mac-authentication sessions all
 ------------------------------------------------------------------
 Port     MAC         	  IP         Vlan  Auth        ACL   Age
 	 Addr		  Addr		   State 
@@ -437,7 +439,7 @@ Port     MAC         	  IP         Vlan  Auth        ACL   Age
 1/1/15   0011.2233.4415   N/A        50    Yes         none   ENA
 
 
-SSH@ZZZZ-Z00-ZZ-111#show mac-address
+SSH@WLLS-A03-AS-03#show mac-address
 MAC Address       Port       Type       VLAN  Action
 0011.2233.4401    1/1/1      Dynamic    10    Forward
 0011.2233.4402    1/1/2      Dynamic    10    Forward
@@ -455,13 +457,26 @@ MAC Address       Port       Type       VLAN  Action
 0011.2233.440e    1/1/14     Dynamic    40    Forward
 0011.2233.440f    1/1/15     Dynamic    50    Forward
 
-SSH@ZZZZ-Z00-ZZ-111#show vlan
+SSH@WLLS-A03-AS-03#show vlan
 PORT-VLAN 10, Name DEFAULT-VLAN, Priority level0
  Untagged Ports: None
  Tagged Ports: None
  Mac-VLAN Ports: None
  Uplink Ports: None
  DualMode Ports: None
+!
+WLLS-A03-AS-03# show spanning-tree
+MST0
+  Spanning tree enabled protocol rstp
+  Root ID    Priority    32768
+             Address     3333.aaaa.bbbb
+             This bridge is the root
+WLLS-A03-AS-03# show lldp neighbors
+Device ID           Local Intf    Hold-time Capability Port ID
+core-arista         Gi1/0/1       120      BR         Gi1/0/1
+WLLS-A03-AS-03# show cdp neighbors
+Device ID           Local Intrfce     Holdtme Capability Platform Port ID
+core-arista         Gig1/0/1         153     S I       DCS-7050    Gig1/0/1
 
 PORT-VLAN 20, Name VOICE, Priority level0
  Untagged Ports: None

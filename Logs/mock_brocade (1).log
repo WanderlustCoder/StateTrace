@@ -1,4 +1,4 @@
-SSH@AAAA-A00-AA-00# show version
+SSH@WLLS-A02-AS-02# show version
 
 Brocade Communications Systems, Inc.
 Stackable ICX7450-24-24G-4X1GF-2X10G Management Module
@@ -7,14 +7,15 @@ Boot-Monitor: Version 08.0.30T7f1
 HW: Stackable ICX7450-24
 Uptime is 45 day(s) 12 hour(s) 15 minute(s) 20 second(s)
 
-SSH@AAAA-A00-AA-00# show config
+SSH@WLLS-A02-AS-02# show config
 !
 vlan 10 name Users by port
 vlan 20 name Phones by port
 vlan 30 name Guests by port
 vlan 100 name Uplink by port
 !
-hostname AAAA-A00-AA-00
+hostname WLLS-A02-AS-02
+ snmp-server location Bldg_25_Floor_1_Room_44_Row_1_Rack_2
 !
 Authentication
  auth-default-vlan 4
@@ -267,9 +268,9 @@ interface ethernet 1/1/48
  port-name Uplink48
  spanning-tree portfast-trunk
  exit
-snmp-server location DataCenter
+snmp-server location Bldg_25_Floor_1_Room_44_Row_1_Rack_2
 !
-SSH@AAAA-A00-AA-00# show interfaces brief
+SSH@WLLS-A02-AS-02# show interfaces brief
 Port      Link  State     Dupl Speed Trunk Tag Pvid Pri MAC               Name
 1/1/1   Up   Forward   Full 1G   U     n   10   0   001c.58af.5001     Users1
 1/1/2   Up   Forward   Full 1G   U     n   10   0   001c.58af.5002     Users2
@@ -320,7 +321,7 @@ Port      Link  State     Dupl Speed Trunk Tag Pvid Pri MAC               Name
 1/1/47  Up   Forward   Full 10G  T     n   100  0   001c.58af.502f     Uplink47
 1/1/48  Down Disabled  Full 10G  T     n   100  0   001c.58af.5030     Uplink48
 
-SSH@AAAA-A00-AA-00# show mac-address
+SSH@WLLS-A02-AS-02# show mac-address
 MAC Address        Port       Type      VLAN
 001c.58af.6001    1/1/1     DYNAMIC   10
 001c.58af.6002    1/1/2     DYNAMIC   10
@@ -367,20 +368,32 @@ MAC Address        Port       Type      VLAN
 001c.58af.7027    1/1/39    DYNAMIC   20
 001c.58af.702d    1/1/45    DYNAMIC   30
 001c.58af.702e    1/1/46    DYNAMIC   30
-SSH@AAAA-A00-AA-00# show dot1x sessions all
+SSH@WLLS-A02-AS-02# show dot1x sessions all
 Port     MAC               Auth Time     State
 1/1/2   001c.58af.7002     00:12:02     AUTHENTICATING
 1/1/3   001c.58af.7033     00:13:00     AUTHENTICATING
 
-SSH@AAAA-A00-AA-00# show mac-authentication sessions all
+SSH@WLLS-A02-AS-02# show mac-authentication sessions all
 Port     MAC               VLAN Age(s) Authorized
 1/1/41  001c.58af.8029     30   62     Yes
 1/1/3   001c.58af.8033     30   90     Yes
 
-SSH@AAAA-A00-AA-00# show run
+SSH@WLLS-A02-AS-02# show run
 ! running configuration trimmed for brevity
 !
-SSH@AAAA-A00-AA-00# show access-lists
+SSH@WLLS-A02-AS-02# show access-lists
 access-list 200 permit ip any any
 
-SSH@AAAA-A00-AA-00#
+SSH@WLLS-A02-AS-02#
+SSH@WLLS-A02-AS-02# show spanning-tree
+MST0
+  Spanning tree enabled protocol mstp
+  Root ID    Priority    32768
+             Address     444c.a8b5.94db
+             This bridge is the root
+SSH@WLLS-A02-AS-02# show lldp neighbors
+Device ID            Local Intf      Hold-time Capability Port ID
+upstream-sw          1/1/24          120       BR         1/0/1
+SSH@WLLS-A02-AS-02# show cdp neighbors
+Device ID            Local Intf      Holdtme Capability Platform Port ID
+upstream-sw          1/1/24          153     S I       ICX7750    1/0/1

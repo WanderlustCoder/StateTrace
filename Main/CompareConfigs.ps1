@@ -291,12 +291,25 @@ if ($Switch2 -and $switches -contains $Switch2) {
 $cmpWin.FindName('Switch1Dropdown').Add_SelectionChanged({
     $sw = $_.Source.SelectedItem
     $cmpWin.FindName('Port1Dropdown').ItemsSource  = Load-PortList $sw
-    $cmpWin.FindName('Port1Dropdown').SelectedIndex = 0
+    # Select the first port safely via SelectedItem rather than SelectedIndex.  This
+    # avoids unintentionally assigning to the built‑in $Host variable.
+    $portDD = $cmpWin.FindName('Port1Dropdown')
+    if ($portDD.ItemsSource -and $portDD.ItemsSource.Count -gt 0) {
+        $portDD.SelectedItem = $portDD.ItemsSource[0]
+    } else {
+        $portDD.SelectedItem = $null
+    }
 })
 $cmpWin.FindName('Switch2Dropdown').Add_SelectionChanged({
     $sw = $_.Source.SelectedItem
     $cmpWin.FindName('Port2Dropdown').ItemsSource  = Load-PortList $sw
-    $cmpWin.FindName('Port2Dropdown').SelectedIndex = 0
+    # Select the first port safely via SelectedItem rather than SelectedIndex.
+    $portDD2 = $cmpWin.FindName('Port2Dropdown')
+    if ($portDD2.ItemsSource -and $portDD2.ItemsSource.Count -gt 0) {
+        $portDD2.SelectedItem = $portDD2.ItemsSource[0]
+    } else {
+        $portDD2.SelectedItem = $null
+    }
 })
 $cmpWin.FindName('Port1Dropdown').Add_SelectionChanged({ Refresh-ConfigState })
 $cmpWin.FindName('Port2Dropdown').Add_SelectionChanged({ Refresh-ConfigState })

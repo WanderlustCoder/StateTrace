@@ -2,6 +2,7 @@
   "templates": [
     {
       "name": "Dual Authentication Port",
+      "aliases": ["flexible"],
       "vendor": "Cisco",
       "os": "IOS",
       "match_type": "contains_all",
@@ -26,6 +27,7 @@
     },
     {
       "name": "MAB Only Port",
+      "aliases": ["macauth"],
       "vendor": "Cisco",
       "os": "IOS",
       "match_type": "contains_all",
@@ -49,6 +51,7 @@
     },
     {
       "name": "Dot1X Only Port",
+      "aliases": ["dot1x"],
       "vendor": "Cisco",
       "os": "IOS",
       "match_type": "contains_all",
@@ -73,6 +76,7 @@
     },
     {
       "name": "Edge Port No Auth",
+      "aliases": ["open"],
       "vendor": "Cisco",
       "os": "IOS",
       "match_type": "contains_any",
