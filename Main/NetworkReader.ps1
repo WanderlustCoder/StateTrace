@@ -20,57 +20,32 @@ $archiveRoot    = Join-Path ([Environment]::GetFolderPath("MyDocuments")) "Switc
 # filename so they can be distinguished.  Existing files in $outputPath
 # will be overwritten.
 function Import-ArchiveData {
+    <#
+        This helper previously copied CSV archives from past parsed runs into the
+        ParsedData folder.  With the migration away from CSV files toward a
+        database back‑end, importing CSV archives is no longer necessary.  The
+        function is retained for backward compatibility but now performs no
+        actions beyond logging a debug message.  The parameters are still
+        accepted to avoid breaking callers, but they are ignored.
+
+        .PARAMETER ArchiveRoot
+            Ignored.  Previously the root directory containing per‑device
+            subfolders of archived CSVs.
+
+        .PARAMETER OutputPath
+            Ignored.  Previously the destination folder for imported CSVs.
+
+        .PARAMETER IncludeHistorical
+            Ignored.  Whether to import all dated archives or only the most
+            recent one.  Has no effect now that CSV imports are disabled.
+    #>
     param(
         [string]$ArchiveRoot,
         [string]$OutputPath,
         [bool]$IncludeHistorical
     )
-    if (-not (Test-Path $ArchiveRoot)) { return }
-    foreach ($deviceDir in Get-ChildItem $ArchiveRoot -Directory) {
-        $hostname = $deviceDir.Name
-        # Each subfolder name is expected to be a date in yyyy-MM-dd format.  Sort
-        # descending so the most recent comes first.
-        $dateDirs = Get-ChildItem $deviceDir.FullName -Directory | Sort-Object Name -Descending
-        if ($dateDirs.Count -eq 0) { continue }
-        $datesToProcess = $null
-        if ($IncludeHistorical) {
-            $datesToProcess = $dateDirs
-        } else {
-            $datesToProcess = @($dateDirs[0])
-        }
-        foreach ($dd in $datesToProcess) {
-            # Copy the latest summary for this date.  Summaries are named
-            # 'Summary_HHMMZ.csv'; sort by name descending to get the most recent
-            $summaryFiles = Get-ChildItem -Path $dd.FullName -Filter 'Summary_*.csv' -File | Sort-Object Name -Descending
-            if ($summaryFiles.Count -gt 0) {
-                $src = $summaryFiles[0].FullName
-                $destName = if ($IncludeHistorical) {
-                    "$hostname`_${dd.Name}_Summary.csv"
-                } else {
-                    "$hostname`_Summary.csv"
-                }
-                $dest = Join-Path $OutputPath $destName
-                Copy-Item -Path $src -Destination $dest -Force
-            }
-            # Copy the latest interface combined file for this date.  Files may
-            # be named 'Interfaces_Combined_HHMMZ.csv' or fall back to
-            # 'Interfaces.csv' if combined format isn't available.
-            $ifcFiles = Get-ChildItem -Path $dd.FullName -Filter 'Interfaces_Combined*.csv' -File | Sort-Object Name -Descending
-            if ($ifcFiles.Count -eq 0) {
-                $ifcFiles = Get-ChildItem -Path $dd.FullName -Filter 'Interfaces*.csv' -File | Sort-Object Name -Descending
-            }
-            if ($ifcFiles.Count -gt 0) {
-                $srcIfc = $ifcFiles[0].FullName
-                $destName = if ($IncludeHistorical) {
-                    "$hostname`_${dd.Name}_Interfaces_Combined.csv"
-                } else {
-                    "$hostname`_Interfaces_Combined.csv"
-                }
-                $dest = Join-Path $OutputPath $destName
-                Copy-Item -Path $srcIfc -Destination $dest -Force
-            }
-        }
-    }
+    Write-Host "[DEBUG] Import-ArchiveData called – CSV archive import has been disabled. Using database storage instead." -ForegroundColor DarkYellow
+    return
 }
 
 function New-Directories {
@@ -230,7 +205,8 @@ function Import-ParserModules {
 function Start-ParallelDeviceProcessing {
     param (
         [string[]]$DeviceFiles,
-        [int]$MaxThreads = 20
+        [int]$MaxThreads = 20,
+        [string]$DatabasePath
     )
 
     $sessionState = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
@@ -243,15 +219,19 @@ function Start-ParallelDeviceProcessing {
         $ps.RunspacePool = $runspacePool
 
         $ps.AddScript({
-            param($filePath, $modulesPath, $outputPath, $archiveRoot)
+            param($filePath, $modulesPath, $outputPath, $archiveRoot, $dbPath)
 
             Import-Module (Join-Path $modulesPath "AristaModule.psm1") -Force
             Import-Module (Join-Path $modulesPath "CiscoModule.psm1") -Force
             Import-Module (Join-Path $modulesPath "BrocadeModule.psm1") -Force
             Import-Module (Join-Path $modulesPath "ParserWorker.psm1") -Force
-
-            Invoke-DeviceLogParsing -FilePath $filePath -OutputPath $outputPath -ArchiveRoot $archiveRoot
-        }).AddArgument($file).AddArgument($modulesPath).AddArgument($outputPath).AddArgument($archiveRoot)
+            # Import the database module if a path was provided.  Use -Global so
+            # that its commands (Invoke-DbQuery/Invoke-DbNonQuery) are visible in this runspace.
+            if ($dbPath -and (Test-Path (Join-Path $modulesPath "DatabaseModule.psm1"))) {
+                Import-Module (Join-Path $modulesPath "DatabaseModule.psm1") -Force -Global
+            }
+            Invoke-DeviceLogParsing -FilePath $filePath -OutputPath $outputPath -ArchiveRoot $archiveRoot -DatabasePath $dbPath
+        }).AddArgument($file).AddArgument($modulesPath).AddArgument($outputPath).AddArgument($archiveRoot).AddArgument($DatabasePath)
 
         $runspaces += [PSCustomObject]@{
             Pipe = $ps
@@ -289,8 +269,25 @@ if ($deviceFiles.Count -gt 0) {
 Write-Host "Processing $($deviceFiles.Count) logs in parallel..."
 
 $sw = [System.Diagnostics.Stopwatch]::StartNew()
-$threadCount = [Math]::Min(20, [Environment]::ProcessorCount * 2)
-Start-ParallelDeviceProcessing -DeviceFiles $deviceFiles -MaxThreads $threadCount
+<#
+Throttle the number of runspaces used for parallel parsing.  While the system
+could theoretically spawn many runspaces (ProcessorCount*2), doing so can
+oversubscribe CPU cores and degrade I/O performance.  Use a conservative
+upper bound of 8 runspaces or the number of available cores, whichever is
+smaller.  This aligns with the performance plan guidance to limit
+concurrency to around 4–8 threads.
+#>
+$threadCount = [Math]::Min(8, [Environment]::ProcessorCount)
+# Pass along the database path if available via environment variable or global variable.  When
+# invoked from the GUI, $env:StateTraceDbPath may be set; otherwise fall back to the
+# globally defined StateTraceDb variable from MainWindow.
+$dbPath = $null
+if ($env:StateTraceDbPath -and $env:StateTraceDbPath -ne '') {
+    $dbPath = $env:StateTraceDbPath
+} elseif ($global:StateTraceDb) {
+    $dbPath = $global:StateTraceDb
+}
+Start-ParallelDeviceProcessing -DeviceFiles $deviceFiles -MaxThreads $threadCount -DatabasePath $dbPath
 $sw.Stop()
 
 Write-Host "Processing complete in $($sw.Elapsed.TotalSeconds) seconds."

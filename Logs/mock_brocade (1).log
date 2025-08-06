@@ -15,7 +15,7 @@ vlan 30 name Guests by port
 vlan 100 name Uplink by port
 !
 hostname WLLS-A02-AS-02
- snmp-server location Bldg_25_Floor_1_Room_44_Row_1_Rack_2
+ snmp-server location Bldg_22_Floor_3_Room_102_Row_1_Rack_2
 !
 Authentication
  auth-default-vlan 4
@@ -268,7 +268,7 @@ interface ethernet 1/1/48
  port-name Uplink48
  spanning-tree portfast-trunk
  exit
-snmp-server location Bldg_25_Floor_1_Room_44_Row_1_Rack_2
+snmp-server location Bldg_22_Floor_3_Room_102_Row_1_Rack_2
 !
 SSH@WLLS-A02-AS-02# show interfaces brief
 Port      Link  State     Dupl Speed Trunk Tag Pvid Pri MAC               Name

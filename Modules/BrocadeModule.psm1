@@ -4,6 +4,17 @@ function Get-BrocadeDeviceFacts {
         [string[]]$Lines
     )
 
+    #
+    # A helper that splits the log into blocks based on prompts and show commands.
+    # This legacy implementation recorded the output of each `show` command as it
+    # appeared in the log.  However, some logs may have commands out of the
+    # expected order (e.g. `show version` later in the file).  To better
+    # accommodate such cases, we no longer rely solely on this method to
+    # retrieve command output.  Instead, we provide a more flexible
+    # `Get-CommandBlock` function (see below) which searches for a given
+    # command pattern anywhere in the log and returns its output up to the
+    # next prompt.  The original `Get-ShowCommandBlocks` function is retained
+    # to support older parsing logic that expects a dictionary of show outputs.
     function Get-ShowCommandBlocks {
         param([string[]]$Lines)
         $blocks = @{}
@@ -25,6 +36,49 @@ function Get-BrocadeDeviceFacts {
         }
         if ($recording -and $currentCmd) { $blocks[$currentCmd] = $buffer }
         return $blocks
+    }
+
+    #
+    # Extract the output of a specific show command anywhere in the log.
+    #
+    # Parameters:
+    #   -Lines: the entire contents of the log file as an array of strings.
+    #   -CommandRegex: a regex pattern that matches the desired command line.
+    #
+    # This helper searches for the first occurrence of the command in the
+    # provided lines.  Once found, it captures the following lines until the
+    # next device prompt (identified by `<something>#`) or end of file.  The
+    # captured lines are returned as an array.  If the command cannot be
+    # located, an empty array is returned.  Matching is case-insensitive.
+    function Get-CommandBlock {
+        param(
+            [string[]]$Lines,
+            [string]$CommandRegex
+        )
+        $startIndex = -1
+        # Locate the command line.  Escape any regex meta characters in the
+        # hostname portion of the prompt to avoid spurious matches.  A device
+        # prompt typically ends with a `#` character.  We include a wildcard
+        # match prior to the command to allow for variations like `SSH@` or
+        # additional whitespace.  Example pattern: `(?i)#\s*show version`.
+        $pattern = "(?i)$CommandRegex"
+        for ($i = 0; $i -lt $Lines.Count; $i++) {
+            if ($Lines[$i] -match $pattern) {
+                $startIndex = $i
+                break
+            }
+        }
+        if ($startIndex -lt 0) { return @() }
+        $buffer = @()
+        # Capture lines after the command until the next prompt or end of file
+        for ($j = $startIndex + 1; $j -lt $Lines.Count; $j++) {
+            $nl = $Lines[$j]
+            if ($nl -match '^[^\s]*#') {
+                break
+            }
+            $buffer += $nl
+        }
+        return $buffer
     }
 
     function Normalize-PortName { param ($raw) return "Et$raw" }
@@ -323,32 +377,45 @@ function Get-BrocadeDeviceFacts {
         return $entries
     }
 
-    $hostname = Get-Hostname
-    $modelVer = Get-ModelAndVersion $blocks['show version']
-    $uptime = Get-Uptime $blocks['show version']
-    $location = Get-Location $blocks['show config']
-    $vlanMap = Get-VlanMap $blocks['show config']
-    $authBlockRaw = Get-AuthenticationBlock $blocks['show config']
+    #
+    # Extract command outputs individually using the flexible helper defined above.
+    # Each extraction locates the first occurrence of the command and captures
+    # lines until the next prompt.  If a command is not present, the
+    # corresponding block will be an empty array which downstream functions
+    # tolerate by returning default values.
+    $versionBlock    = Get-CommandBlock -Lines $Lines -CommandRegex '#\s*show\s+version'
+    $configBlock     = Get-CommandBlock -Lines $Lines -CommandRegex '#\s*show\s+config'
+    $interfacesBlock = Get-CommandBlock -Lines $Lines -CommandRegex '#\s*show\s+interfaces\s+brief'
+    $macTableBlock   = Get-CommandBlock -Lines $Lines -CommandRegex '#\s*show\s+mac\s*-?address'
+    $dot1xSessions   = Get-CommandBlock -Lines $Lines -CommandRegex '#\s*show\s+dot1x\s+sessions\s+all'
+    $macAuthSessions = Get-CommandBlock -Lines $Lines -CommandRegex '#\s*show\s+mac\s*-?authentication\s+sessions\s+all'
+    $authSessionsAll = Get-CommandBlock -Lines $Lines -CommandRegex '#\s*show\s+authentication\s+sessions'
+
+    $hostname   = Get-Hostname
+    $modelVer   = Get-ModelAndVersion $versionBlock
+    $uptime     = Get-Uptime $versionBlock
+    $location   = Get-Location $configBlock
+    $vlanMap    = Get-VlanMap $configBlock
+    $authBlockRaw   = Get-AuthenticationBlock $configBlock
     $authDefaultVlan = Get-AuthDefaultVlan $authBlockRaw
-    $authModes = Get-AuthModes $blocks['show config']
+    $authModes  = Get-AuthModes $configBlock
     $dot1xPorts = $authModes[0]; $macauthPorts = $authModes[1]
     # Determine which authentication session output is available.  Starting in
     # FastIron 08.0.90, the separate "show dot1x sessions all" and
     # "show mac-authentication sessions all" commands were deprecated in favour
     # of a unified "show authentication sessions" command.  If the unified
     # command is present we parse it using a specialised helper; otherwise we
-    # fall back to the legacy separate commands.  This ensures the parser
-    # continues to work across different software releases.
+    # fall back to the legacy separate commands.
     $auth = @()
-    if ($blocks.ContainsKey('show authentication sessions all')) {
-        $auth = Get-AuthStatusUnified $blocks['show authentication sessions all']
+    if ($authSessionsAll.Count -gt 0) {
+        $auth = Get-AuthStatusUnified $authSessionsAll
     } else {
-        $auth = Get-AuthStatus $blocks['show dot1x sessions all'] $blocks['show mac-authentication sessions all']
+        $auth = Get-AuthStatus $dot1xSessions $macAuthSessions
     }
-    $cfgResults = Get-InterfaceConfigsAndNames $blocks['show config']
-    $configs = $cfgResults[0]; $namesMap = $cfgResults[1]
-    $interfaces = Get-InterfacesBrief $blocks['show interfaces brief']
-    $macs = Get-MacTable $blocks['show mac-address']
+    $cfgResults = Get-InterfaceConfigsAndNames $configBlock
+    $configs  = $cfgResults[0]; $namesMap = $cfgResults[1]
+    $interfaces = Get-InterfacesBrief $interfacesBlock
+    $macs       = Get-MacTable $macTableBlock
 
     $combined = foreach ($iface in $interfaces) {
         $port = $iface.Port
@@ -359,18 +426,23 @@ function Get-BrocadeDeviceFacts {
         $desc = if ($namesMap.ContainsKey($port)) { $namesMap[$port] } else { $iface.Name }
         $authMode = if ($authRow) { $authRow.Mode } elseif ($dot1xPorts -contains $port) { "dot1x" } elseif ($macauthPorts -contains $port) { "macauth" } else { "open" }
         $authState = if ($authRow) { $authRow.State } elseif ($authMode -eq "open") { "Open" } else { "Unknown" }
-        # Determine the authentication template for the port.  Only ports that
-        # explicitly have dot1x port-control auto configured are considered
-        # "dot1x".  Ports merely covered by a global "dot1x enable" range are
-        # treated as open unless they also appear in the mac-authentication range.
-        $dot1xEnabled      = $dot1xPorts -contains $port
-        $macauthEnabled    = $macauthPorts -contains $port
-        $portHasDot1xAuto  = $cfgText -match '(?i)dot1x\s+port-control\s+auto'
+        # Determine the authentication template for the port.  Beginning with
+        # FastIron 08.0.90 the recommended way to enable 802.1X on a set of
+        # interfaces is via the global "dot1x port-control auto" command inside
+        # the Authentication block.  Previous versions relied on per‑interface
+        # configuration.  Because the Authentication block can specify ranges
+        # of ports, we treat any port appearing in the expanded dot1x range as
+        # dot1x enabled even if the per‑port configuration text does not contain
+        # a dot1x statement.  Flexible authentication applies when both dot1x
+        # and macauth are enabled on the same port.  Otherwise we assign
+        # dot1x, macauth or open based on the enabled lists.
+        $dot1xEnabled   = $dot1xPorts -contains $port
+        $macauthEnabled = $macauthPorts -contains $port
         $authTemplate = switch ($true) {
             ($dot1xEnabled -and $macauthEnabled) { "flexible"; break }
-            ($portHasDot1xAuto)               { "dot1x";    break }
-            ($macauthEnabled)                 { "macauth"; break }
-            default                           { "open" }
+            ($dot1xEnabled)                      { "dot1x";    break }
+            ($macauthEnabled)                    { "macauth";  break }
+            default                              { "open" }
         }
         $vlan = ($macs | Where-Object { $_.Port -eq $port } | Select-Object -First 1).VLAN
         $type = if ($desc -match "uplink|trunk") { "Trunk" } elseif ($desc -match "access|user|staff|voice|endpoint|printer") { "Access" } else { "" }
@@ -384,15 +456,13 @@ function Get-BrocadeDeviceFacts {
         }
     }
 
-    # Attempt to parse spanning-tree information if present.  Use either
-    # 'show spanning-tree' or 'show span'.  Empty list if not found.
-    $spanLines = @()
-    if ($blocks.ContainsKey('show spanning-tree')) {
-        $spanLines = $blocks['show spanning-tree']
-    } elseif ($blocks.ContainsKey('show span')) {
-        $spanLines = $blocks['show span']
+    # Attempt to parse spanning-tree information if present.  Locate the
+    # spanning-tree or span command using the flexible command extractor.
+    $spanBlock = Get-CommandBlock -Lines $Lines -CommandRegex '#\s*show\s+spanning-tree'
+    if ($spanBlock.Count -eq 0) {
+        $spanBlock = Get-CommandBlock -Lines $Lines -CommandRegex '#\s*show\s+span'
     }
-    $spanInfo = if ($spanLines.Count -gt 0) { Parse-SpanningTree -SpanLines $spanLines } else { @() }
+    $spanInfo = if ($spanBlock.Count -gt 0) { Parse-SpanningTree -SpanLines $spanBlock } else { @() }
 
     return [PSCustomObject]@{
         Hostname = $hostname; 

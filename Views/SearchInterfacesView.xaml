@@ -5,15 +5,40 @@
        Users can filter by arbitrary text (matching port names, descriptions or
        MAC addresses) and quickly identify which switch and port a particular
        client is connected to.  The results table is read-only. -->
-  <Grid>
+  <!-- Set a navy blue background on the outer grid so that the margin area
+       around the DataGrid appears navy.  The DataGrid itself uses a light
+       background, so the contrast highlights the table against the dark
+       surrounding space. -->
+  <Grid Background="#001F3F">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="*"/>
     </Grid.RowDefinitions>
     <!-- Search controls -->
+    <!-- Use a yellow background on the search panel so that the controls
+         remain readable against the navy surroundings.  A small padding
+         provides visual breathing room around the input and button. -->
     <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5">
       <TextBox Name="SearchBox" Width="200" Margin="0,0,5,0" Background="#F7F9FC" BorderBrush="#C0C0C0" BorderThickness="1" ToolTip="Enter description or MAC to search"/>
-      <Button Name="SearchClearButton" Content="X" Width="25" Height="23" Background="#FFD700" Foreground="Black" ToolTip="Clear search"/>
+      <Button Name="SearchClearButton" Content="X" Width="25" Height="23" Background="#FFD700" Foreground="Black" ToolTip="Clear search" Margin="0,0,5,0"/>
+      <!-- Regex checkbox enables regular expression search mode -->
+      <CheckBox Name="RegexCheckbox" Content="Regex" VerticalAlignment="Center" Margin="0,0,5,0" Foreground="White"/>
+      <!-- Status filter dropdown: allows user to filter results by port status -->
+      <Label Content="Status:" VerticalAlignment="Center" Margin="5,0,0,0" Foreground="White"/>
+      <ComboBox Name="StatusFilter" Width="70" Margin="0,0,5,0" SelectedIndex="0">
+        <ComboBoxItem Content="All"/>
+        <ComboBoxItem Content="Up"/>
+        <ComboBoxItem Content="Down"/>
+      </ComboBox>
+      <!-- Auth filter dropdown: allows filtering by authorization state -->
+      <Label Content="Auth:" VerticalAlignment="Center" Margin="0,0,0,0" Foreground="White"/>
+      <ComboBox Name="AuthFilter" Width="100" Margin="0,0,5,0" SelectedIndex="0">
+        <ComboBoxItem Content="All"/>
+        <ComboBoxItem Content="Authorized"/>
+        <ComboBoxItem Content="Unauthorized"/>
+      </ComboBox>
+      <!-- Export button allows exporting the current search results to CSV -->
+      <Button Name="ExportSearchButton" Content="Export" Width="60" Height="23" Background="#FFD700" Foreground="Black" ToolTip="Export search results to CSV"/>
     </StackPanel>
     <!-- Results table -->
     <DataGrid Name="SearchInterfacesGrid"

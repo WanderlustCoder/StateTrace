@@ -19,7 +19,7 @@ System serial number : FCW2142L0PG
 
 WLLS-A01-AS-01# show running-config
 hostname WLLS-A01-AS-01
-snmp-server location Bldg_25_Floor_1_Room_44_Row_1_Rack_1
+snmp-server location Bldg_21_Floor_2_Room_101_Row_1_Rack_1
 !
 ip access-list extended ACL-USER
  permit ip any any
@@ -670,10 +670,10 @@ Vlan    Mac Address       Type        Ports
 
 WLLS-A01-AS-01# show authentication sessions
 Interface    MAC Address     Method  Domain  Status           Session ID
-Gi1/0/1      001c.58af.0000  dot1x  DATA   Authorized      0A1111111111
-Gi1/0/2      001c.58af.0001  mab    DATA   Authc Success   0A2222222222
-Gi1/0/3      001c.58af.0002  mab    DATA   Authc Failed    0A3333333333
-Gi1/0/5      001c.58af.0003  dot1x  DATA   Connecting      0A4444444444
+Gi1/0/1      001c.58af.0000  dot1x  DATA     Auth	      0A1111111111
+Gi1/0/2      001c.58af.0001  mab    DATA     Auth	      0A2222222222
+Gi1/0/3      001c.58af.0002  mab    DATA     Unauth    	      0A3333333333
+Gi1/0/5      001c.58af.0003  dot1x  DATA     Unauth           0A4444444444
 
 WLLS-A01-AS-01# show ip interface brief
 Interface              IP-Address      OK? Method Status                Protocol

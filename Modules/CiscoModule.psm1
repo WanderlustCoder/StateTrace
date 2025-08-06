@@ -147,8 +147,18 @@ function Get-CiscoDeviceFacts {
                 $mac    = if ($cols[1] -match '^[0-9a-f\.]+$') { $cols[1] } else { '' }
                 $method = $cols[2]
                 $status = ($cols[4..($cols.Count-2)] -join ' ').Trim()
-                $authState = if ($status -match 'success') {'Authorized'} elseif ($status -match 'failed') {'Unauthorized'} else {'Unknown'}
-                $authMode  = if ($method -match 'dot1x|mab') { $method } else { 'unknown' }
+                # Determine authorization state.  Status values in logs may be
+                # abbreviated (e.g. Auth, Unauth) or verbose (Authz Success, Authc Failed).
+                # Treat any status containing 'auth' or 'success' as Authorized.  Treat
+                # statuses containing 'unauth', 'fail' or 'failed' as Unauthorized.
+                if ($status -match '(?i)auth' -and -not ($status -match '(?i)unauth|fail')) {
+                    $authState = 'Authorized'
+                } elseif ($status -match '(?i)unauth|fail') {
+                    $authState = 'Unauthorized'
+                } else {
+                    $authState = 'Unknown'
+                }
+                $authMode  = if ($method -match '(?i)dot1x|mab') { $method } else { 'unknown' }
                 $list += [PSCustomObject]@{ Interface=$iface; MAC=$mac; Status=$status; AuthState=$authState; AuthMode=$authMode; SessionID=$cols[-1] }
             }
         }

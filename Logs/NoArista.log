@@ -12,7 +12,7 @@ no service password-encryption
 !
 hostname WLLS-A03-AS-03
 !
-snmp-server location Bldg_25_Floor_1_Room_45_Row_1_Rack_1
+snmp-server location Bldg_23_Floor_1_Room_103_Row_1_Rack_1
 !
 boot-start-marker
 boot-end-marker
@@ -207,10 +207,10 @@ VLAN Name                             Status    Ports
 WLLS-A03-AS-03#show authentication sessions
 
 Interface    MAC Address     Method  Domain  Status         Session ID
-Gi1/0/4      0011.2233.4406  dot1x   DATA    Authz Success 0A000A0B000002B91FBE82F2
-Gi1/0/5      0011.2233.4407  mab     DATA    Authz Success 0A000A0B000004E53472885B
-Gi1/0/6      0011.2233.4408  dot1x   DATA    Authz Success 0A000A0B000005B146FEBCE8
-Gi1/0/7      0011.2233.4409  mab     DATA    Authc Failed  0A000A0B000005AE44E2BFE9
+Gi1/0/4      0011.2233.4406  dot1x   DATA    Auth          0A000A0B000002B91FBE82F2
+Gi1/0/5      0011.2233.4407  mab     DATA    Auth          0A000A0B000004E53472885B
+Gi1/0/6      0011.2233.4408  dot1x   DATA    Auth          0A000A0B000005B146FEBCE8
+Gi1/0/7      0011.2233.4409  mab     DATA    Unauth        0A000A0B000005AE44E2BFE9
 Gi1/0/8      0011.2233.4410  N/A     UNKNOWN Auth          0A000A0B0000000E0001A1C0
 
 WLLS-A03-AS-03#show mac address-table
@@ -356,7 +356,7 @@ interface ethernet 1/1/23
 interface ethernet 1/1/24
  port-name UnusedPort24
 !
-snmp-server location Bldg_25_Floor_1_Room_45_Row_1_Rack_1
+snmp-server location Bldg_23_Floor_1_Room_103_Row_1_Rack_1
 !
 
 SSH@WLLS-A03-AS-03#show version

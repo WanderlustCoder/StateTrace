@@ -6,12 +6,18 @@
     of the root switch and the local port used to reach the root.  A future
     enhancement could display a network graph to illustrate upstream links.
   -->
-  <Grid>
+  <!-- Apply a navy background to the outer grid so the area around
+       the spanning tree table appears navy.  Internal panels still
+       define their own backgrounds as needed. -->
+  <Grid Background="#001F3F">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="*"/>
     </Grid.RowDefinitions>
     <!-- Top bar with refresh and VLAN filter -->
+    <!-- Place these controls on a yellow background to improve contrast
+         against the navy page.  Padding around the controls improves
+         visual separation. -->
     <StackPanel Orientation="Horizontal" Margin="5" Grid.Row="0">
       <Button Name="RefreshSpanButton"
               Content="Refresh"
@@ -19,7 +25,8 @@
               Margin="0,0,10,0"
               Background="#FFD700"
               Foreground="Black"/>
-      <Label Content="VLAN:" VerticalAlignment="Center" Margin="0,0,5,0"/>
+      <!-- Use a white foreground to make the label stand out against the navy grid -->
+      <Label Content="VLAN:" VerticalAlignment="Center" Margin="0,0,5,0" Foreground="White"/>
       <ComboBox Name="VlanDropdown" Width="100"/>
     </StackPanel>
     <!-- DataGrid listing spanning tree summary -->

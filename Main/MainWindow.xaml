@@ -15,7 +15,10 @@
     <!-- Top toolbar: device selector, refresh and filtering controls -->
     <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5" Background="#001F3F">
       <Label Content="Device:" VerticalAlignment="Center" Foreground="White"/>
-      <ComboBox Name="HostnameDropdown" Width="180" Margin="5,0"/>
+      <!-- Allow the hostname dropdown to be searchable by enabling text editing
+           and text search.  Users can start typing a switch name to quickly
+           locate it. -->
+      <ComboBox Name="HostnameDropdown" Width="180" Margin="5,0" IsEditable="True" IsTextSearchEnabled="True"/>
       <Button Name="RefreshButton" Content="Scan Logs" Margin="5,0" Background="#FFD700" Foreground="Black"/>
       <!-- Checkbox to include archive data (most recent) -->
       <CheckBox Name="IncludeArchiveCheckbox" Content="Include archives" VerticalAlignment="Center" Margin="10,0" Foreground="White"/>
@@ -23,11 +26,14 @@
       <CheckBox Name="IncludeHistoricalCheckbox" Content="Include history" VerticalAlignment="Center" Margin="5,0" Foreground="White"/>
 
       <Label Content="Site:" VerticalAlignment="Center" Margin="15,0,0,0" Foreground="White"/>
-      <ComboBox Name="SiteDropdown" Width="80" Margin="5,0"/>
+      <!-- Make the site dropdown editable so users can type to filter sites. -->
+      <ComboBox Name="SiteDropdown" Width="80" Margin="5,0" IsEditable="True" IsTextSearchEnabled="True"/>
       <Label Content="Building:" VerticalAlignment="Center" Foreground="White"/>
-      <ComboBox Name="BuildingDropdown" Width="100" Margin="5,0"/>
+      <!-- Building dropdown with search capability -->
+      <ComboBox Name="BuildingDropdown" Width="100" Margin="5,0" IsEditable="True" IsTextSearchEnabled="True"/>
       <Label Content="Room:" VerticalAlignment="Center" Foreground="White"/>
-      <ComboBox Name="RoomDropdown" Width="80" Margin="5,0"/>
+      <!-- Room dropdown with search capability -->
+      <ComboBox Name="RoomDropdown" Width="80" Margin="5,0" IsEditable="True" IsTextSearchEnabled="True"/>
 
       <!-- Show command buttons moved to their own row -->
     </StackPanel>
@@ -40,15 +46,20 @@
         <Label Content="Show Commands:" VerticalAlignment="Center" Foreground="White" Margin="0,0,10,0"/>
         <Button Name="ShowCiscoButton" Content="Cisco" Width="90" Margin="0,0,5,0" Background="#FFD700" Foreground="Black" ToolTip="Copy Cisco show commands to clipboard"/>
         <Button Name="ShowBrocadeButton" Content="Brocade" Width="100" Margin="0,0,5,0" Background="#FFD700" Foreground="Black" ToolTip="Copy Brocade show commands to clipboard"/>
-        <ComboBox Name="BrocadeOSDropdown" Width="80" Margin="0,0,0,0">
+        <ComboBox Name="BrocadeOSDropdown" Width="80" Margin="0,0,5,0">
           <ComboBoxItem Content="v8.0.30"/>
           <ComboBoxItem Content="v8.0.95"/>
         </ComboBox>
+        <!-- Help button opens a window containing documentation for each section of the GUI -->
+        <Button Name="HelpButton" Content="Help" Width="60" Margin="0,0,0,0" Background="#FFD700" Foreground="Black" ToolTip="Open help documentation"/>
       </StackPanel>
     </Grid>
 
     <!-- Main tabs -->
     <TabControl Grid.Row="2" Margin="5">
+      <TabItem Header="Summary">
+        <ContentControl Name="SummaryHost"/>
+      </TabItem>
       <TabItem Header="Interfaces">
         <ContentControl Name="InterfacesHost"/>
       </TabItem>
@@ -57,6 +68,14 @@
       </TabItem>
       <TabItem Header="Search Interfaces">
         <ContentControl Name="SearchInterfacesHost"/>
+      </TabItem>
+      <!-- Templates management tab allows viewing and editing configuration templates -->
+      <TabItem Header="Templates">
+        <ContentControl Name="TemplatesHost"/>
+      </TabItem>
+      <!-- Alerts tab displays detected issues or anomalies across all interfaces -->
+      <TabItem Header="Alerts">
+        <ContentControl Name="AlertsHost"/>
       </TabItem>
       <!-- Add more tabs here -->
     </TabControl>

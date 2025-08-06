@@ -35,7 +35,7 @@ ntp server 132.163.96.2
 ntp server 132.163.96.3
 !
 snmp-server contact NetOps <netops@example.com>
-snmp-server location Bldg_25_Floor_1_Room_45_Row_2_Rack_1
+snmp-server location Bldg_24_Floor_1_Room_104_Row_2_Rack_1
 snmp-server community public ro
 !
 spanning-tree mode mstp

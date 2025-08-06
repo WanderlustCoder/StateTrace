@@ -1,0 +1,45 @@
+<UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- AlertsView displays potential issues detected in the parsed data.
+       A DataGrid lists anomalies such as down ports, unauthorized
+       authentication states or non‑optimal duplex modes.  An export
+       button allows saving the current list to CSV. -->
+  <Grid Background="#001F3F">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+    </Grid.RowDefinitions>
+    <!-- Header and export button -->
+    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5" Background="#001F3F">
+      <TextBlock Text="Alerts and Anomalies" FontSize="16" FontWeight="Bold" Foreground="White" Margin="0,0,10,0"/>
+      <Button Name="ExportAlertsButton" Content="Export" Width="70" Background="#FFD700" Foreground="Black" ToolTip="Export alerts to CSV"/>
+    </StackPanel>
+    <!-- Alerts table -->
+    <DataGrid Name="AlertsGrid" Grid.Row="1" Margin="5" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+              Background="#F7F9FC" RowBackground="#E7ECF5" AlternatingRowBackground="#F1F5FA"
+              BorderBrush="#C0C0C0" BorderThickness="1" SelectionMode="Extended"
+              ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Auto">
+      <DataGrid.RowStyle>
+        <Style TargetType="DataGridRow">
+          <Setter Property="Foreground" Value="Black"/>
+          <Style.Triggers>
+            <Trigger Property="IsSelected" Value="True">
+              <Setter Property="Background" Value="#FFF4BA"/>
+              <Setter Property="Foreground" Value="Black"/>
+            </Trigger>
+          </Style.Triggers>
+        </Style>
+      </DataGrid.RowStyle>
+      <DataGrid.Columns>
+        <DataGridTextColumn Header="Switch" Binding="{Binding Hostname}" Width="120"/>
+        <DataGridTextColumn Header="Port" Binding="{Binding Port}" Width="80"/>
+        <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="150"/>
+        <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="80"/>
+        <DataGridTextColumn Header="VLAN" Binding="{Binding VLAN}" Width="60"/>
+        <DataGridTextColumn Header="Duplex" Binding="{Binding Duplex}" Width="60"/>
+        <DataGridTextColumn Header="AuthState" Binding="{Binding AuthState}" Width="100"/>
+        <DataGridTextColumn Header="Reason" Binding="{Binding Reason}" Width="250"/>
+      </DataGrid.Columns>
+    </DataGrid>
+  </Grid>
+</UserControl>
