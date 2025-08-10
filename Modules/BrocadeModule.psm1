@@ -5,38 +5,9 @@ function Get-BrocadeDeviceFacts {
     )
 
     #
-    # A helper that splits the log into blocks based on prompts and show commands.
-    # This legacy implementation recorded the output of each `show` command as it
-    # appeared in the log.  However, some logs may have commands out of the
-    # expected order (e.g. `show version` later in the file).  To better
-    # accommodate such cases, we no longer rely solely on this method to
-    # retrieve command output.  Instead, we provide a more flexible
-    # `Get-CommandBlock` function (see below) which searches for a given
-    # command pattern anywhere in the log and returns its output up to the
-    # next prompt.  The original `Get-ShowCommandBlocks` function is retained
-    # to support older parsing logic that expects a dictionary of show outputs.
-    function Get-ShowCommandBlocks {
-        param([string[]]$Lines)
-        $blocks = @{}
-        $currentCmd = ''
-        $buffer = @()
-        $recording = $false
-
-        foreach ($line in $Lines) {
-            if ($line -match '^[^\s]+#\s*(show .+)$') {
-                if ($recording -and $currentCmd) { $blocks[$currentCmd] = $buffer }
-                $currentCmd = $matches[1].Trim().ToLower()
-                $buffer = @(); $recording = $true; continue
-            }
-            if ($recording -and $line -match '^[^\s]+#') {
-                $blocks[$currentCmd] = $buffer
-                $currentCmd = ''; $buffer = @(); $recording = $false; continue
-            }
-            if ($recording) { $buffer += $line }
-        }
-        if ($recording -and $currentCmd) { $blocks[$currentCmd] = $buffer }
-        return $blocks
-    }
+    # NOTE: The legacy Get-ShowCommandBlocks helper has been removed. A shared helper
+    # Get-ShowCommandBlocks (defined in ParserWorker.psm1) now provides this functionality.
+    # It extracts each 'show' command section into a dictionary keyed by the normalized command.
 
     #
     # Extract the output of a specific show command anywhere in the log.
@@ -81,7 +52,23 @@ function Get-BrocadeDeviceFacts {
         return $buffer
     }
 
-    function Normalize-PortName { param ($raw) return "Et$raw" }
+    # Convert a raw port identifier into the canonical Brocade Ethernet port name.
+    # The raw input may or may not include the 'Et' prefix.  If the prefix is
+    # absent, prepend it.  If the prefix is already present, return the value
+    # unchanged.  This ensures that port names are not inadvertently
+    # double-prefixed (e.g. 'EtEt1/1/3').
+    function ConvertTo-StandardPortName {
+        param ($raw)
+        if (-not $raw) { return $null }
+        if ($raw -is [string]) {
+            if ($raw -match '^(?i)Et\d+/\d+/\d+$') {
+                return $raw
+            } else {
+                return "Et$raw"
+            }
+        }
+        return $null
+    }
 
     function Expand-PortRange {
         param ($start, $end)
@@ -96,6 +83,8 @@ function Get-BrocadeDeviceFacts {
         return $ports
     }
 
+    # Retrieve all show command blocks using the shared helper. This returns a hashtable
+    # mapping command names to arrays of output lines.
     $blocks = Get-ShowCommandBlocks -Lines $Lines
 
     function Get-Hostname {
@@ -134,10 +123,8 @@ function Get-BrocadeDeviceFacts {
 
     function Get-Location {
         param ($Block)
-        foreach ($line in $Block) {
-            if ($line -match "snmp-server location (.+)$") { return $matches[1].Trim() }
-        }
-        return "Unspecified"
+        # Delegate to the shared helper that handles vendor-specific keywords
+        return Get-SnmpLocationFromLines -Lines $Block
     }
 
     function Get-VlanMap {
@@ -197,7 +184,7 @@ function Get-BrocadeDeviceFacts {
             # the "State" column to be any non‑whitespace token (e.g. Forward, None).
             if ($line -match '^(\d+/\d+/\d+)\s+(Up|Down)\s+(\S+)\s+(Full|Half)\s+(\S+)\s+(?:\S+\s+){3,6}([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4,6})\s+(.*?)\s*$') {
                 $results += [PSCustomObject]@{
-                    RawPort = $matches[1]; Port = Normalize-PortName $matches[1]; Status = $matches[2]
+                    RawPort = $matches[1]; Port = ConvertTo-StandardPortName $matches[1]; Status = $matches[2]
                     State = $matches[3]; Duplex = $matches[4]; Speed = $matches[5]
                     MAC = $matches[6]; Name = $matches[7].Trim()
                 }
@@ -212,7 +199,7 @@ function Get-BrocadeDeviceFacts {
         foreach ($line in $Block) {
             if ($line -match '^([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})\s+(\d+/\d+/\d+)\s+\S+\s+(\d+)') {
                 $results += [PSCustomObject]@{
-                    MAC = $matches[1]; Port = Normalize-PortName $matches[2]; VLAN = $matches[3]
+                    MAC = $matches[1]; Port = ConvertTo-StandardPortName $matches[2]; VLAN = $matches[3]
                 }
             }
         }
@@ -225,7 +212,7 @@ function Get-BrocadeDeviceFacts {
 
         foreach ($line in $Dot1xBlock) {
             if ($line -match '^(\d+/\d+/\d+)\s+([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4}).*(AUTHENTICATED|AUTHENTICATING)$') {
-                $port = Normalize-PortName $matches[1]
+                $port = ConvertTo-StandardPortName $matches[1]
                 $mac = $matches[2]
                 $state = if ($matches[3] -eq 'AUTHENTICATED') { 'Authorized' } else { 'Authenticating' }
                 $dot1x[$port] = [PSCustomObject]@{ Port = $port; MAC = $mac; State = $state; Mode = 'dot1x' }
@@ -234,7 +221,7 @@ function Get-BrocadeDeviceFacts {
 
         foreach ($line in $MacAuthBlock) {
             if ($line -match '^(\d+/\d+/\d+)\s+([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})\s+\S+\s+\d+\s+(Yes|No)') {
-                $port = Normalize-PortName $matches[1]
+                $port = ConvertTo-StandardPortName $matches[1]
                 $mac = $matches[2]
                 $auth = $matches[3]
                 $state = if ($auth -eq 'Yes') { 'Authorized' } else { 'Unauthorized' }
@@ -268,7 +255,7 @@ function Get-BrocadeDeviceFacts {
             if ($trimmed -match '^-+$' -or $trimmed -match '^Port\s+MAC') { continue }
             if ($trimmed -match '^(\d+/\d+/\d+)\s+([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})\s+\S+\s+\S+\s+\d+\s+(MAUTH|8021\.X)\s+\S+\s+(Yes|No)\s+\d+\s+\S+\s+(AUTHENTICATED|AUTHENTICATING|UNAUTHENTICATED|N/A)') {
                 $rawPort = $matches[1]
-                $port = Normalize-PortName $rawPort
+                $port = ConvertTo-StandardPortName $rawPort
                 $mac  = $matches[2]
                 $method = $matches[3]
                 $auth = $matches[4]
@@ -317,7 +304,7 @@ function Get-BrocadeDeviceFacts {
         foreach ($line in $Block) {
             if ($line -match '^interface ethernet (\d+/\d+/\d+)$') {
                 if ($current) { $configs[$current] = ($buffer -join "`n") }
-                $current = Normalize-PortName $matches[1]; $buffer = @()
+                $current = ConvertTo-StandardPortName $matches[1]; $buffer = @()
             }
             elseif ($line -match 'port-name (.+)') {
                 $names[$current] = $matches[1].Trim()
@@ -328,54 +315,8 @@ function Get-BrocadeDeviceFacts {
         return @($configs, $names)
     }
 
-    # Parse spanning tree output for Brocade switches.  Brocade MST output
-    # resembles Cisco, with sections such as "MST0".  We reuse the same
-    # parsing logic as Cisco for simplicity.  Extract the root switch
-    # identifier (Address) and root port.  Additional fields can be added
-    # later.
-    function Parse-SpanningTree {
-        param([string[]]$SpanLines)
-        $entries = @()
-        $current = ''
-        $rootSwitch = ''
-        $rootPort = ''
-        foreach ($ln in $SpanLines) {
-            $line = $ln.Trim()
-            if ($line -match '^(MST\d+|VLAN\d+)') {
-                if ($current -ne '') {
-                    $entries += [PSCustomObject]@{
-                        VLAN       = $current
-                        RootSwitch = $rootSwitch
-                        RootPort   = $rootPort
-                        Role       = ''
-                        Upstream   = ''
-                    }
-                }
-                $current = $matches[1]
-                $rootSwitch = ''
-                $rootPort = ''
-                continue
-            }
-            if (-not $rootSwitch -and $line -match 'Address\s+(\S+)') {
-                $rootSwitch = $matches[1]
-                continue
-            }
-            if (-not $rootPort -and $line -match 'Root port\s+(\S+),') {
-                $rootPort = $matches[1]
-                continue
-            }
-        }
-        if ($current -ne '') {
-            $entries += [PSCustomObject]@{
-                VLAN       = $current
-                RootSwitch = $rootSwitch
-                RootPort   = $rootPort
-                Role       = ''
-                Upstream   = ''
-            }
-        }
-        return $entries
-    }
+    # The spanning-tree parsing helper has been moved to ParserWorker.psm1.
+    # Use the shared ConvertFrom-SpanningTree function provided by ParserWorker instead of a local copy.
 
     #
     # Extract command outputs individually using the flexible helper defined above.
@@ -398,8 +339,92 @@ function Get-BrocadeDeviceFacts {
     $vlanMap    = Get-VlanMap $configBlock
     $authBlockRaw   = Get-AuthenticationBlock $configBlock
     $authDefaultVlan = Get-AuthDefaultVlan $authBlockRaw
-    $authModes  = Get-AuthModes $configBlock
-    $dot1xPorts = $authModes[0]; $macauthPorts = $authModes[1]
+        $authModes  = Get-AuthModes $configBlock
+        $dot1xPorts = $authModes[0]; $macauthPorts = $authModes[1]
+        # Convert dot1x/macauth port lists to standard names (Et...).  This ensures
+        # comparisons against interface Port names succeed.  Expand-PortRange
+        # returns raw port numbers without the 'Et' prefix.
+        $dot1xPorts = @($dot1xPorts | ForEach-Object {
+            try { ConvertTo-StandardPortName $_ } catch { $_ }
+        })
+        $macauthPorts = @($macauthPorts | ForEach-Object {
+            try { ConvertTo-StandardPortName $_ } catch { $_ }
+        })
+        
+        # Build explicit lists of ports that are enabled for dot1x port-control auto
+        # and mac-authentication enable.  These lists are derived from the global
+        # Authentication block rather than the per-port configurations.  To
+        # improve accuracy on releases like 08.0.95, we track whether any range
+        # patterns are present for mac-authentication enable commands and defer
+        # adding a blanket set of ports until after the interface list has been
+        # built.  Dot1x detection uses only the 'port-control auto' form;
+        # plain 'dot1x enable' lines simply enable 802.1X globally and do not
+        # affect port-level templates.
+        $dot1xAutoPorts     = @()
+        $macControlPorts    = @()
+        $macRangesFound     = $false
+        $hasGlobalMacEnable = $false
+        foreach ($line in $authBlockRaw) {
+            $trim = $line.Trim()
+            # Process dot1x port-control auto ranges.  Starting with 08.0.95,
+            # multiple ranges may be provided without commas, separated by
+            # additional 'ethe' keywords.  Search the entire line for every
+            # "<port> to <port>" pattern and expand each range.
+            if ($trim -match '(?i)^dot1x\s+port-control\s+auto') {
+                try {
+                    $matchesRange = [regex]::Matches($trim, '(\d+/\d+/\d+)\s+to\s+(\d+/\d+/\d+)')
+                    foreach ($m in $matchesRange) {
+                        $start = $m.Groups[1].Value
+                        $end   = $m.Groups[2].Value
+                        $rawRange = Expand-PortRange $start $end
+                        foreach ($rp in $rawRange) {
+                            try {
+                                $std = ConvertTo-StandardPortName $rp
+                                if ($std) { $dot1xAutoPorts += $std }
+                            } catch { }
+                        }
+                    }
+                } catch {
+                    # If regex fails, skip parsing
+                }
+            }
+            # Process mac-authentication enable lines.  If the line specifies
+            # ranges, extract all ranges.  If a line contains no range
+            # patterns and no additional tokens after 'enable', record that a
+            # blanket enable was seen.  Blanket enables are applied only if no
+            # ranged mac-authentication enable lines are present in the block.
+            if ($trim -match '(?i)^mac-authentication\s+enable') {
+                $lineMatches = @()
+                try {
+                    $lineMatches = [regex]::Matches($trim, '(\d+/\d+/\d+)\s+to\s+(\d+/\d+/\d+)')
+                } catch { }
+                if ($lineMatches.Count -gt 0) {
+                    $macRangesFound = $true
+                    foreach ($m in $lineMatches) {
+                        $start = $m.Groups[1].Value
+                        $end   = $m.Groups[2].Value
+                        $rawRange = Expand-PortRange $start $end
+                        foreach ($rp in $rawRange) {
+                            try {
+                                $std = ConvertTo-StandardPortName $rp
+                                if ($std) { $macControlPorts += $std }
+                            } catch { }
+                        }
+                    }
+                } else {
+                    # No range patterns on this line; if it has no additional
+                    # arguments, note a potential blanket enable.
+                    if ($trim -match '(?i)^mac-authentication\s+enable\s*$') {
+                        $hasGlobalMacEnable = $true
+                    }
+                }
+            }
+        }
+        # Remove duplicates from the dot1x auto list
+        $dot1xAutoPorts = $dot1xAutoPorts | Sort-Object -Unique
+        # Note: do not finalise $macControlPorts here.  If no ranges were
+        # encountered but a blanket enable was seen, we will expand $macControlPorts
+        # after $interfaces has been built below.
     # Determine which authentication session output is available.  Starting in
     # FastIron 08.0.90, the separate "show dot1x sessions all" and
     # "show mac-authentication sessions all" commands were deprecated in favour
@@ -415,6 +440,31 @@ function Get-BrocadeDeviceFacts {
     $cfgResults = Get-InterfaceConfigsAndNames $configBlock
     $configs  = $cfgResults[0]; $namesMap = $cfgResults[1]
     $interfaces = Get-InterfacesBrief $interfacesBlock
+        # Now that we have the list of interfaces, finalise MAC control ports.  If
+        # no mac-authentication enable ranges were encountered but a blanket
+        # enable command was present in the authentication block, treat all
+        # interfaces as mac-enabled.  Otherwise use only the range-derived
+        # $macControlPorts.  This logic avoids incorrectly applying a blanket
+        # enable when the configuration includes specific ranges (as is common
+        # in FastIron 08.0.95 and later).
+        # If no mac-authentication enable ranges were found but a blanket
+        # mac-authentication enable command was seen, do not add all
+        # interfaces to the mac control list for template classification.
+        # Blanket global MAC authentication should not force ports into the
+        # macauth or flexible templates, as some FastIron versions (e.g.
+        # 08.0.30) require per-port or ranged commands to enable MAC
+        # authentication on individual ports.  We still honour explicit
+        # ranged mac‑authentication enable commands above.
+        if (-not $macRangesFound -and $hasGlobalMacEnable) {
+            # Do not expand $macControlPorts here.  Leave it empty so that
+            # per-port classification only considers explicit ranges or
+            # per-port commands.  The $macauthPorts list (used for session
+            # state) will still reflect global enablement via Get-AuthModes.
+            $macControlPorts = @()
+        }
+        # Remove duplicates and sort the mac control list.  This must be done
+        # after any blanket enable expansion to avoid duplicating ports.
+        $macControlPorts = $macControlPorts | Sort-Object -Unique
     $macs       = Get-MacTable $macTableBlock
 
     $combined = foreach ($iface in $interfaces) {
@@ -424,25 +474,97 @@ function Get-BrocadeDeviceFacts {
         $authRow = $auth | Where-Object { $_.Port -eq $port }
         $cfgText = if ($configs.ContainsKey($port)) { $configs[$port] } else { "" }
         $desc = if ($namesMap.ContainsKey($port)) { $namesMap[$port] } else { $iface.Name }
-        $authMode = if ($authRow) { $authRow.Mode } elseif ($dot1xPorts -contains $port) { "dot1x" } elseif ($macauthPorts -contains $port) { "macauth" } else { "open" }
+        # Determine the authentication mode for session reporting.  This uses
+        # the authentication sessions parsed above.  If no session is active,
+        # assign a mode based on the ranged port lists returned from
+        # Get‑AuthModes.  Note: this does not affect the template classification
+        # below; it is used only for displaying the current state (dot1x,
+        # macauth or open) when a session is present or inferred from the
+        # configuration.
+        $authMode = if ($authRow) {
+            $authRow.Mode
+        } elseif ($dot1xPorts -contains $port) {
+            "dot1x"
+        } elseif ($macauthPorts -contains $port) {
+            "macauth"
+        } else {
+            "open"
+        }
         $authState = if ($authRow) { $authRow.State } elseif ($authMode -eq "open") { "Open" } else { "Unknown" }
-        # Determine the authentication template for the port.  Beginning with
-        # FastIron 08.0.90 the recommended way to enable 802.1X on a set of
-        # interfaces is via the global "dot1x port-control auto" command inside
-        # the Authentication block.  Previous versions relied on per‑interface
-        # configuration.  Because the Authentication block can specify ranges
-        # of ports, we treat any port appearing in the expanded dot1x range as
-        # dot1x enabled even if the per‑port configuration text does not contain
-        # a dot1x statement.  Flexible authentication applies when both dot1x
-        # and macauth are enabled on the same port.  Otherwise we assign
-        # dot1x, macauth or open based on the enabled lists.
-        $dot1xEnabled   = $dot1xPorts -contains $port
-        $macauthEnabled = $macauthPorts -contains $port
-        $authTemplate = switch ($true) {
-            ($dot1xEnabled -and $macauthEnabled) { "flexible"; break }
-            ($dot1xEnabled)                      { "dot1x";    break }
-            ($macauthEnabled)                    { "macauth";  break }
-            default                              { "open" }
+        # Determine the authentication template for the port by combining
+        # per‑port configuration lines with global enablement ranges.  Only
+        # 'dot1x port-control auto' directives (not plain 'dot1x enable') are
+        # considered sufficient to classify a port as dot1x in the template
+        # sense.  For MAC authentication, only ranged or per‑port
+        # 'mac-authentication enable' directives are considered; a blanket
+        # 'mac-authentication enable' line is only honoured when no ranges
+        # appear in the auth block.  We do not use the $dot1xPorts or
+        # $macauthPorts lists for template classification.
+        $authTemplate = 'open'
+        # Normalize and lower-case per-port config lines for matching
+        $lcLines = @()
+        if ($cfgText -and $cfgText.Length -gt 0) {
+            try {
+                $lcLines = ($cfgText -split "`r?`n") | ForEach-Object { $_.Trim().ToLower() } | Where-Object { $_ }
+            } catch {
+                $lcLines = @()
+            }
+        }
+        $hasDot1x = $false
+        $hasMac   = $false
+        # Check per-port config lines for dot1x port-control auto and
+        # mac‑authentication enable statements.  We intentionally ignore
+        # plain 'dot1x enable' here because it does not enforce port-level
+        # authentication and should not classify the port as dot1x for
+        # template purposes.
+        foreach ($ln in $lcLines) {
+            if (-not $hasDot1x) {
+                if ($ln -like 'dot1x port-control auto*') {
+                    $hasDot1x = $true
+                }
+            }
+            if (-not $hasMac) {
+                if ($ln -like 'mac-authentication enable*') {
+                    $hasMac = $true
+                }
+            }
+            if ($hasDot1x -and $hasMac) { break }
+        }
+        # If neither directive is found in the interface config, consult the
+        # global enablement lists.  Ports present in the dot1x port-control
+        # auto list are considered dot1x; ports present in the MAC control
+        # list are considered macauth.  Note: we do not consult $dot1xPorts
+        # or $macauthPorts here so that plain 'dot1x enable' ranges do not
+        # classify a port as dot1x for template purposes.
+        if (-not $hasDot1x) {
+            if ($dot1xAutoPorts -contains $port) {
+                $hasDot1x = $true
+            }
+        }
+        if (-not $hasMac) {
+            # A port is considered MAB-enabled if it appears in the explicit
+            # mac-authentication enable ranges ($macControlPorts) or, in
+            # releases prior to 08.0.90, when a blanket 'mac-authentication
+            # enable' is present without any ranges in the auth block.  On
+            # earlier firmware (e.g. 08.0.30) a global enable applies to
+            # all ports.  For later releases (08.0.95 and beyond) we only
+            # honour per-port or ranged MAC authentication commands.  We
+            # detect the blanket case by checking the $macRangesFound and
+            # $hasGlobalMacEnable flags.  When no ranges were found and
+            # a global enable was seen, treat the port as MAB-enabled.
+            if ($macControlPorts -contains $port) {
+                $hasMac = $true
+            } elseif (-not $macRangesFound -and $hasGlobalMacEnable) {
+                $hasMac = $true
+            }
+        }
+        # Assign the template alias based on detected authentication methods.
+        if ($hasDot1x -and $hasMac) {
+            $authTemplate = 'flexible'
+        } elseif ($hasDot1x) {
+            $authTemplate = 'dot1x'
+        } elseif ($hasMac) {
+            $authTemplate = 'macauth'
         }
         $vlan = ($macs | Where-Object { $_.Port -eq $port } | Select-Object -First 1).VLAN
         $type = if ($desc -match "uplink|trunk") { "Trunk" } elseif ($desc -match "access|user|staff|voice|endpoint|printer") { "Access" } else { "" }
@@ -462,7 +584,8 @@ function Get-BrocadeDeviceFacts {
     if ($spanBlock.Count -eq 0) {
         $spanBlock = Get-CommandBlock -Lines $Lines -CommandRegex '#\s*show\s+span'
     }
-    $spanInfo = if ($spanBlock.Count -gt 0) { Parse-SpanningTree -SpanLines $spanBlock } else { @() }
+    # Parse spanning tree information using the shared ConvertFrom‑SpanningTree helper
+    $spanInfo = if ($spanBlock.Count -gt 0) { ConvertFrom-SpanningTree -SpanLines $spanBlock } else { @() }
 
     return [PSCustomObject]@{
         Hostname = $hostname; 

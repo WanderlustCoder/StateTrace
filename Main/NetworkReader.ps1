@@ -7,46 +7,12 @@ $projectRoot    = Join-Path $scriptRoot ".." | Resolve-Path
 # Paths
 $logPath        = Join-Path $projectRoot "Logs"
 $extractedPath  = Join-Path $logPath "Extracted"
-$outputPath     = Join-Path $projectRoot "ParsedData"
 $modulesPath    = Join-Path $projectRoot "Modules"
 $archiveRoot    = Join-Path ([Environment]::GetFolderPath("MyDocuments")) "SwitchArchives"
 
 # -----------------------------------------------------------------------------
-# Import archive data from previously parsed logs.
-# When requested via environment variables, this helper copies data from
-# $ArchiveRoot into the current $outputPath.  By default only the most
-# recent archive per device is imported; when IncludeHistorical is true,
-# multiple dated archives are copied, each with the date appended to the
-# filename so they can be distinguished.  Existing files in $outputPath
-# will be overwritten.
-function Import-ArchiveData {
-    <#
-        This helper previously copied CSV archives from past parsed runs into the
-        ParsedData folder.  With the migration away from CSV files toward a
-        database back‑end, importing CSV archives is no longer necessary.  The
-        function is retained for backward compatibility but now performs no
-        actions beyond logging a debug message.  The parameters are still
-        accepted to avoid breaking callers, but they are ignored.
-
-        .PARAMETER ArchiveRoot
-            Ignored.  Previously the root directory containing per‑device
-            subfolders of archived CSVs.
-
-        .PARAMETER OutputPath
-            Ignored.  Previously the destination folder for imported CSVs.
-
-        .PARAMETER IncludeHistorical
-            Ignored.  Whether to import all dated archives or only the most
-            recent one.  Has no effect now that CSV imports are disabled.
-    #>
-    param(
-        [string]$ArchiveRoot,
-        [string]$OutputPath,
-        [bool]$IncludeHistorical
-    )
-    Write-Host "[DEBUG] Import-ArchiveData called – CSV archive import has been disabled. Using database storage instead." -ForegroundColor DarkYellow
-    return
-}
+# Importing archived CSV data has been deprecated.  Parsed device history is now
+# stored exclusively in the database, so no archive import function is needed.
 
 function New-Directories {
     param ([string[]]$Paths)
@@ -219,7 +185,7 @@ function Start-ParallelDeviceProcessing {
         $ps.RunspacePool = $runspacePool
 
         $ps.AddScript({
-            param($filePath, $modulesPath, $outputPath, $archiveRoot, $dbPath)
+            param($filePath, $modulesPath, $archiveRoot, $dbPath)
 
             Import-Module (Join-Path $modulesPath "AristaModule.psm1") -Force
             Import-Module (Join-Path $modulesPath "CiscoModule.psm1") -Force
@@ -230,8 +196,8 @@ function Start-ParallelDeviceProcessing {
             if ($dbPath -and (Test-Path (Join-Path $modulesPath "DatabaseModule.psm1"))) {
                 Import-Module (Join-Path $modulesPath "DatabaseModule.psm1") -Force -Global
             }
-            Invoke-DeviceLogParsing -FilePath $filePath -OutputPath $outputPath -ArchiveRoot $archiveRoot -DatabasePath $dbPath
-        }).AddArgument($file).AddArgument($modulesPath).AddArgument($outputPath).AddArgument($archiveRoot).AddArgument($DatabasePath)
+            Invoke-DeviceLogParsing -FilePath $filePath -ArchiveRoot $archiveRoot -DatabasePath $dbPath
+        }).AddArgument($file).AddArgument($modulesPath).AddArgument($archiveRoot).AddArgument($DatabasePath)
 
         $runspaces += [PSCustomObject]@{
             Pipe = $ps
@@ -253,7 +219,7 @@ function Clear-ExtractedLogs {
 }
 
 # --- Entry Point ---
-New-Directories @($logPath, $outputPath, $extractedPath, $archiveRoot)
+New-Directories @($logPath, $extractedPath, $archiveRoot)
 Import-ParserModules
 Split-RawLogs
 
@@ -292,18 +258,3 @@ $sw.Stop()
 
 Write-Host "Processing complete in $($sw.Elapsed.TotalSeconds) seconds."
 Clear-ExtractedLogs
-
-# Optionally import archive data.  Use environment variables set by the
-# calling process (MainWindow) to determine whether to import the most
-# recent archive or include historical archives.  These variables are
-# expected to be simple strings (e.g. 'true' or empty).
-if ($env:IncludeArchive -and $env:IncludeArchive -ne '') {
-    $includeHistFlag = $false
-    if ($env:IncludeHistorical -and $env:IncludeHistorical -ne '') { $includeHistFlag = $true }
-    try {
-        Write-Host "Importing archive data (Historical: $includeHistFlag) from $archiveRoot"
-        Import-ArchiveData -ArchiveRoot $archiveRoot -OutputPath $outputPath -IncludeHistorical:$includeHistFlag
-    } catch {
-        Write-Warning "Failed to import archive data: $($_.Exception.Message)"
-    }
-}

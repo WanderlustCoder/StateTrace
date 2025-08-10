@@ -9,32 +9,9 @@ function Get-CiscoDeviceFacts {
     )
 
     #-----------------------------------------
-    # Extract each "show ..." output as a separate block
-    function Get-ShowCommandBlocks {
-        param([string[]]$Lines)
-        $blocks     = @{}
-        $currentCmd = ''
-        $buffer     = @()
-        $recording  = $false
-
-        foreach ($line in $Lines) {
-            if ($line -match '^\S+#\s*(show .+)$') {
-                if ($recording -and $currentCmd) { $blocks[$currentCmd] = $buffer }
-                $currentCmd = $matches[1].Trim().ToLower()
-                $buffer     = @()
-                $recording  = $true
-                continue
-            }
-            if ($recording -and $line -match '^\S+#') {
-                $blocks[$currentCmd] = $buffer
-                $currentCmd = ''; $buffer = @(); $recording = $false
-                continue
-            }
-            if ($recording) { $buffer += $line }
-        }
-        if ($recording -and $currentCmd) { $blocks[$currentCmd] = $buffer }
-        return $blocks
-    }
+    # Note: The per-module Get-ShowCommandBlocks helper has been removed.
+    # A shared helper Get-ShowCommandBlocks provided by ParserWorker.psm1 is
+    # used instead to extract show command outputs.
 
     #-----------------------------------------
     function Get-Hostname      { param([string[]]$Lines) foreach ($l in $Lines) { if ($l -match '^hostname\s+(.+)$') { return $matches[1] } }; return 'Unknown' }
@@ -47,7 +24,11 @@ function Get-CiscoDeviceFacts {
         return @($model,$version)
     }
     function Get-Uptime        { param([string[]]$Lines) foreach ($l in $Lines) { if ($l -match 'uptime is (.+)$') { return $matches[1].Trim() } }; return 'Unknown' }
-    function Get-Location      { param([string[]]$Lines) foreach ($l in $Lines) { if ($l -match 'snmp-server location\s+(.+)$') { return $matches[1].Trim() } }; return 'Unspecified' }
+    function Get-Location {
+        param([string[]]$Lines)
+        # Delegate to the shared helper that handles vendor-specific keywords
+        return Get-SnmpLocationFromLines -Lines $Lines
+    }
 
     function Get-InterfaceConfigs {
         param([string[]]$Lines)
@@ -166,63 +147,8 @@ function Get-CiscoDeviceFacts {
     }
 
     # Parse show spanning-tree output into a collection of summary rows.  Each
-    # row corresponds to a VLAN or MST instance and captures the root switch
-    # MAC address and the local port used to reach the root.  This is a
-    # simplistic parser that looks for headers like "VLANxxxx" or
-    # "MST<number>" to identify the section, then grabs the first "Address"
-    # line (for root switch) and "Root port" line (for root port) that
-    # follows.  Additional fields (such as role or upstream device) can be
-    # added later.
-    function Parse-SpanningTree {
-        param([string[]]$SpanLines)
-        $entries = @()
-        $current = ''
-        $rootSwitch = ''
-        $rootPort = ''
-        foreach ($ln in $SpanLines) {
-            $line = $ln.Trim()
-            # Identify new section headers.  Cisco typically prints
-            # "VLAN0001" or "MST0".  Use a case-insensitive match.
-            if ($line -match '^(VLAN\d+|MST\d+)') {
-                # If we have an existing context, flush it before starting a
-                # new one.
-                if ($current -ne '') {
-                    $entries += [PSCustomObject]@{
-                        VLAN      = $current
-                        RootSwitch= $rootSwitch
-                        RootPort  = $rootPort
-                        Role      = ''
-                        Upstream  = ''
-                    }
-                }
-                $current = $matches[1]
-                $rootSwitch = ''
-                $rootPort = ''
-                continue
-            }
-            # Capture root switch MAC from "Address" line (under Root ID)
-            if (-not $rootSwitch -and $line -match 'Address\s+(\S+)') {
-                $rootSwitch = $matches[1]
-                continue
-            }
-            # Capture root port from a line like "Root port Fa0/1, cost 4".
-            if (-not $rootPort -and $line -match 'Root port\s+(\S+),') {
-                $rootPort = $matches[1]
-                continue
-            }
-        }
-        # Flush last entry
-        if ($current -ne '') {
-            $entries += [PSCustomObject]@{
-                VLAN      = $current
-                RootSwitch= $rootSwitch
-                RootPort  = $rootPort
-                Role      = ''
-                Upstream  = ''
-            }
-        }
-        return $entries
-    }
+    # The Parse-SpanningTree helper has been consolidated into ParserWorker.psm1.
+    # Use the shared Parse-SpanningTree defined in ParserWorker instead of a local implementation.
 
     #
     # === Updated helper: Detect MAB via the standalone 'mab' line ===
@@ -273,6 +199,10 @@ function Get-CiscoDeviceFacts {
     }
 
     #-----------------------------------------
+    # Retrieve blocks for each show command using the shared helper.  This
+    # helper captures each "show ..." section in the log and returns a
+    # dictionary keyed by the command string.
+    # Use the shared Get‑ShowCommandBlocks helper from ParserWorker to extract show command output blocks
     $blocks    = Get-ShowCommandBlocks -Lines $Lines
     $runCfg    = $blocks['show running-config']
     $verBlk    = $blocks['show version']
@@ -336,7 +266,8 @@ function Get-CiscoDeviceFacts {
     } elseif ($blocks.ContainsKey('show span')) {
         $spanLines = $blocks['show span']
     }
-    $spanInfo = if ($spanLines.Count -gt 0) { Parse-SpanningTree -SpanLines $spanLines } else { @() }
+    # Parse spanning tree information using the shared ConvertFrom-SpanningTree helper
+    $spanInfo = if ($spanLines.Count -gt 0) { ConvertFrom-SpanningTree -SpanLines $spanLines } else { @() }
 
     return [PSCustomObject]@{
         Hostname           = $hostname

@@ -12,14 +12,14 @@
 
         The following functions are exported:
 
-        * Load-DeviceSummaries     – builds the list of available devices
+        * Get-DeviceSummaries     – builds the list of available devices
         * Update-DeviceFilter      – filters devices by site/building/room
-        * Load-DeviceDetails       – loads interface details for a device
-        * Rebuild-GlobalInterfaceList – constructs the global interface list
-        * Filter-SearchResults     – performs searching and filtering
+        * Get-DeviceDetails       – loads interface details for a device
+        * Update-GlobalInterfaceList – constructs the global interface list
+        * Update-SearchResults     – performs searching and filtering
         * Update-Summary           – updates summary metrics
-        * Compute-Alerts           – builds the alerts list
-        * Refresh-SearchGrid       – refreshes the search grid contents
+        * Update-Alerts           – builds the alerts list
+        * Update-SearchGrid       – refreshes the search grid contents
 
         Because these functions reference variables from the main script
         (such as `$window` and `$scriptDir`), the main script must define
@@ -36,38 +36,45 @@
 ##>
 
 function Load-DeviceSummaries {
-    # Determine whether to use the database or legacy CSV files.  When the
-    # global StateTraceDb variable is set (by MainWindow.ps1), we query
-    # DeviceSummary directly.  Otherwise, we fall back to reading summary
-    # CSVs from the ParsedData folder.  Build the DeviceMetadata map to
-    # support location-based filtering (Site/Building/Room) regardless of
-    # the data source.
+    <#
+        Build the list of available devices by querying the database.  The
+        database is treated as the single source of truth for all device
+        metadata.  If the database is not configured or the query fails,
+        the device list will remain empty and no legacy CSV fallback is
+        attempted.  This enforces a consistent data model across the
+        application.
+    #>
+    # Immediately forward to the new helper and exit.  This preserves backwards
+    # compatibility while ensuring the updated Get-DeviceSummaries implementation
+    # is used.  All legacy logic below will not be executed.
+    if (Get-Command Get-DeviceSummaries -ErrorAction SilentlyContinue) {
+        return & Get-DeviceSummaries
+    }
 
     $names = @()
     $global:DeviceMetadata = @{}
-    $useDb = $false
-    if ($global:StateTraceDb) { $useDb = $true }
-    if ($useDb) {
-        # Attempt to import the DatabaseModule and query all device summaries
+    if ($global:StateTraceDb) {
         try {
-            # Import DatabaseModule relative to the project root.  $scriptDir is
-            # defined in MainWindow.ps1, so resolve the root accordingly.
-            $rootDir   = if ($scriptDir) { (Join-Path $scriptDir '..') } else { (Join-Path $PSScriptRoot '..') }
-            $dbModule  = Join-Path (Join-Path $rootDir 'Modules') 'DatabaseModule.psm1'
+            # Import the database module relative to the project root.  Resolve
+            # root via $scriptDir if available, otherwise relative to this module.
+            $rootDir  = if ($scriptDir) { (Join-Path $scriptDir '..') } else { (Join-Path $PSScriptRoot '..') }
+            $dbModule = Join-Path (Join-Path $rootDir 'Modules') 'DatabaseModule.psm1'
             if (Test-Path $dbModule) {
-                # Import DatabaseModule globally so Invoke-DbQuery is visible to all modules and functions.
                 Import-Module $dbModule -Force -Global -ErrorAction Stop | Out-Null
             }
-            # Query Hostname, Site, Building and Room from the DeviceSummary table
+            # Query device metadata from DeviceSummary.  Select fields needed for
+            # building location filters.
             $dt = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT Hostname, Site, Building, Room FROM DeviceSummary ORDER BY Hostname"
-            # Convert each row to a PSObject and populate the DeviceMetadata dictionary
             foreach ($row in ($dt | Select-Object Hostname, Site, Building, Room)) {
                 $name = $row.Hostname
                 if (-not [string]::IsNullOrWhiteSpace($name)) {
                     $names += $name
-                    $siteVal     = if ($row.Site     -eq $null -or $row.Site     -eq [System.DBNull]::Value) { '' } else { [string]$row.Site }
-                    $buildingVal = if ($row.Building -eq $null -or $row.Building -eq [System.DBNull]::Value) { '' } else { [string]$row.Building }
-                    $roomVal     = if ($row.Room     -eq $null -or $row.Room     -eq [System.DBNull]::Value) { '' } else { [string]$row.Room }
+                    $siteRaw     = $row.Site
+                    $buildingRaw = $row.Building
+                    $roomRaw     = $row.Room
+                    $siteVal     = if ($siteRaw     -eq $null -or $siteRaw     -eq [System.DBNull]::Value) { '' } else { [string]$siteRaw }
+                    $buildingVal = if ($buildingRaw -eq $null -or $buildingRaw -eq [System.DBNull]::Value) { '' } else { [string]$buildingRaw }
+                    $roomVal     = if ($roomRaw     -eq $null -or $roomRaw     -eq [System.DBNull]::Value) { '' } else { [string]$roomRaw }
                     $meta = [PSCustomObject]@{
                         Site     = $siteVal
                         Building = $buildingVal
@@ -76,41 +83,22 @@ function Load-DeviceSummaries {
                     $global:DeviceMetadata[$name] = $meta
                 }
             }
+            Write-Host "[DEBUG] Loaded $($names.Count) device(s) from DB" -ForegroundColor DarkGray
         } catch {
-            Write-Warning "Failed to query device summaries from database: $($_.Exception.Message). Falling back to CSV."
-            $useDb = $false
+            Write-Warning "Failed to query device summaries from database: $($_.Exception.Message)"
         }
-    }
-    if (-not $useDb) {
-        # Legacy CSV fallback.  Enumerate summary files in ParsedData and build metadata.
-        $names = Get-DeviceSummaries | Where-Object { $_ -ne '' }
-        foreach ($name in $names) {
-            # Resolve summary path relative to ParsedData
-            $rootDir = if ($scriptDir) { (Join-Path $scriptDir '..') } else { (Join-Path $PSScriptRoot '..') }
-            $summaryPath = Join-Path (Join-Path $rootDir 'ParsedData') "${name}_Summary.csv"
-            if (Test-Path $summaryPath) {
-                try {
-                    $rec = @(Import-Csv $summaryPath)[0]
-                    $meta = [PSCustomObject]@{
-                        Site     = if ($rec.PSObject.Properties.Match('Site'))     { $rec.Site }     else { '' }
-                        Building = if ($rec.PSObject.Properties.Match('Building')) { $rec.Building } else { '' }
-                        Room     = if ($rec.PSObject.Properties.Match('Room'))     { $rec.Room }     else { '' }
-                    }
-                    $global:DeviceMetadata[$name] = $meta
-                } catch {
-                    # Skip devices that fail to load metadata
-                }
-            }
-        }
+    } else {
+        Write-Warning "Database not configured. Device list will be empty."
     }
 
     # Populate the host dropdown with all hostnames
     $hostnameDD = $global:window.FindName('HostnameDropdown')
     $hostnameDD.ItemsSource = $names
     if ($names -and $names.Count -gt 0) {
-        $hostnameDD.SelectedItem = $names[0]
+        # select first item via index to avoid SelectedItem exceptions
+        $hostnameDD.SelectedIndex = 0
     } else {
-        $hostnameDD.SelectedItem = $null
+        $hostnameDD.SelectedIndex = -1
     }
 
     # Populate the site dropdown with unique site codes (include blank for All)
@@ -121,18 +109,18 @@ function Load-DeviceSummaries {
     }
     $siteDD.ItemsSource = @('') + $uniqueSites
     if ($siteDD.ItemsSource -and $siteDD.ItemsSource.Count -gt 0) {
-        $siteDD.SelectedItem = $siteDD.ItemsSource[0]
+        $siteDD.SelectedIndex = 0
     } else {
-        $siteDD.SelectedItem = $null
+        $siteDD.SelectedIndex = -1
     }
 
     # Initialize building dropdown and disable until site selected
     $buildingDD = $global:window.FindName('BuildingDropdown')
     $buildingDD.ItemsSource = @('')
     if ($buildingDD.ItemsSource -and $buildingDD.ItemsSource.Count -gt 0) {
-        $buildingDD.SelectedItem = $buildingDD.ItemsSource[0]
+        $buildingDD.SelectedIndex = 0
     } else {
-        $buildingDD.SelectedItem = $null
+        $buildingDD.SelectedIndex = -1
     }
     $buildingDD.IsEnabled = $false
 
@@ -140,13 +128,17 @@ function Load-DeviceSummaries {
     $roomDD = $global:window.FindName('RoomDropdown')
     if ($roomDD) {
         $roomDD.ItemsSource = @('')
-        $roomDD.SelectedItem = ''
+        if ($roomDD.ItemsSource -and $roomDD.ItemsSource.Count -gt 0) {
+            $roomDD.SelectedIndex = 0
+        } else {
+            $roomDD.SelectedIndex = -1
+        }
         $roomDD.IsEnabled = $false
     }
 
     # Refresh the global interface list used by the search tab (if defined)
-    if (Get-Command Rebuild-GlobalInterfaceList -ErrorAction SilentlyContinue) {
-        Rebuild-GlobalInterfaceList
+    if (Get-Command Update-GlobalInterfaceList -ErrorAction SilentlyContinue) {
+        Update-GlobalInterfaceList
         # Update the search grid if it has been initialised
         $searchHostCtrl = $global:window.FindName('SearchInterfacesHost')
         if ($searchHostCtrl -is [System.Windows.Controls.ContentControl]) {
@@ -176,15 +168,18 @@ function Update-DeviceFilter {
         $filteredNames += $name
     }
 
-    # Repopulate hostname dropdown
+    # Repopulate hostname dropdown but preserve the previous host if possible
     $hostnameDD = $global:window.FindName('HostnameDropdown')
     $hostnameDD.ItemsSource = $filteredNames
-    # Assign selection using SelectedItem to avoid modifying the read-only
-    # PowerShell $Host variable
-    if ($filteredNames.Count -gt 0) {
-        $hostnameDD.SelectedItem = $filteredNames[0]
+    $prevHost = $hostnameDD.SelectedItem
+    if ($prevHost -and ($filteredNames -contains $prevHost)) {
+        try { $hostnameDD.SelectedItem = $prevHost } catch { try { $hostnameDD.SelectedIndex = ($filteredNames.IndexOf($prevHost)) } catch { $hostnameDD.SelectedIndex = 0 } }
     } else {
-        $hostnameDD.SelectedItem = $null
+        if ($filteredNames.Count -gt 0) {
+            $hostnameDD.SelectedIndex = 0
+        } else {
+            $hostnameDD.SelectedIndex = -1
+        }
     }
 
     # Rebuild building dropdown options based on the selected site
@@ -196,19 +191,27 @@ function Update-DeviceFilter {
     }
     $availableBuildings = $availableBuildings | Sort-Object -Unique
     $buildingDD = $global:window.FindName('BuildingDropdown')
+    # Preserve the old building selection if it is still valid in the new list
+    $oldBuilding = $bldSel
+    # Populate the Building dropdown.  Always include a blank entry as the
+    # first element so users can clear the filter.  Preserve the old
+    # building selection whenever possible.  If the old selection is not
+    # present in the new list, default to the blank entry (index 0) so
+    # that all devices remain visible.  Do not automatically select a
+    # specific building when the previous selection is invalid.
     $buildingDD.ItemsSource = @('') + $availableBuildings
-    # Preserve previously selected building if still valid
-    if ($bldSel -and ($availableBuildings -contains $bldSel)) {
-        $buildingDD.SelectedItem = $bldSel
+    if ($oldBuilding -and $oldBuilding -ne '' -and ($buildingDD.ItemsSource -contains $oldBuilding)) {
+        try { $buildingDD.SelectedItem = $oldBuilding } catch { $buildingDD.SelectedIndex = 0 }
     } else {
-        # Default to blank when nothing matches
-        if ($buildingDD.ItemsSource.Count -gt 0) {
-            $buildingDD.SelectedItem = $buildingDD.ItemsSource[0]
+        # Select the blank (all) option when no previous selection is valid
+        if ($buildingDD.ItemsSource -and $buildingDD.ItemsSource.Count -gt 0) {
+            $buildingDD.SelectedIndex = 0
         } else {
-            $buildingDD.SelectedItem = $null
+            $buildingDD.SelectedIndex = -1
         }
-        $bldSel = ''
     }
+    # Update local copy of the building selection for subsequent room filtering
+    $bldSel = $buildingDD.SelectedItem
 
     # Enable or disable the Building dropdown based on the current site
     # selection.  A blank site selection means the user has not chosen a
@@ -232,21 +235,18 @@ function Update-DeviceFilter {
     $roomDD = $global:window.FindName('RoomDropdown')
     if ($roomDD) {
         $roomDD.ItemsSource = @('') + $availableRooms
-        if ($roomSel -and ($availableRooms -contains $roomSel)) {
-            $roomDD.SelectedItem = $roomSel
+        # Always select first entry via index
+        if ($roomDD.ItemsSource -and $roomDD.ItemsSource.Count -gt 0) {
+            $roomDD.SelectedIndex = 0
         } else {
-            if ($roomDD.ItemsSource.Count -gt 0) {
-                $roomDD.SelectedItem = $roomDD.ItemsSource[0]
-            } else {
-                $roomDD.SelectedItem = $null
-            }
+            $roomDD.SelectedIndex = -1
         }
 
         # Enable or disable the Room dropdown.  The Room selection
         # should only be possible once both a site and a building have
         # been chosen.  If either the site or building is blank, the
         # Room dropdown is disabled; otherwise it is enabled.
-        if (($siteSel -and $siteSel -ne '') -and ($buildingDD.SelectedItem -and $buildingDD.SelectedItem -ne '')) {
+        if (($siteSel -and $siteSel -ne '') -and ($buildingDD.SelectedIndex -gt 0)) {
             $roomDD.IsEnabled = $true
         } else {
             $roomDD.IsEnabled = $false
@@ -258,8 +258,8 @@ function Update-DeviceFilter {
     # interface search respects the same filtering criteria as the
     # device selector.  Only call this function if it exists (it is
     # defined in the search tab injection logic).
-    if (Get-Command Refresh-SearchGrid -ErrorAction SilentlyContinue) {
-        Refresh-SearchGrid
+    if (Get-Command Update-SearchGrid -ErrorAction SilentlyContinue) {
+        Update-SearchGrid
     }
 
     # Update summary and alerts when the location filters change.  This allows
@@ -268,13 +268,19 @@ function Update-DeviceFilter {
     if (Get-Command Update-Summary -ErrorAction SilentlyContinue) {
         Update-Summary
     }
-    if (Get-Command Compute-Alerts -ErrorAction SilentlyContinue) {
-        Compute-Alerts
+    if (Get-Command Update-Alerts -ErrorAction SilentlyContinue) {
+        Update-Alerts
     }
 }
 
 function Load-DeviceDetails {
     param($hostname)
+    # Forward to the new helper and exit.  This stub maintains backwards
+    # compatibility while delegating to Get-DeviceDetails.  The original
+    # implementation below will not execute.
+    if (Get-Command Get-DeviceDetails -ErrorAction SilentlyContinue) {
+        return & Get-DeviceDetails $hostname
+    }
     # Do not attempt to load details for a blank or null hostname.  Instead clear
     # the interface view fields and return early.  This prevents attempts to
     # open files like "_Summary.csv" when no device is selected.
@@ -454,39 +460,34 @@ function Load-DeviceDetails {
             $comboCtrl = $iview.FindName('ConfigOptionsDropdown')
             $comboCtrl.ItemsSource = Get-ConfigurationTemplates -Hostname $hostname
             if ($comboCtrl -and $comboCtrl.Items.Count -gt 0) {
-                $comboCtrl.SelectedItem = $comboCtrl.Items[0]
+                # select first template via index to avoid SelectedItem exceptions
+                $comboCtrl.SelectedIndex = 0
             } else {
-                if ($comboCtrl) { $comboCtrl.SelectedItem = $null }
+                if ($comboCtrl) { $comboCtrl.SelectedIndex = -1 }
             }
         } else {
-            # CSV fallback path
-            # Resolve the parsed data directory relative to either $scriptDir or this module.
-            $rootDir  = if ($scriptDir) { (Join-Path $scriptDir '..') } else { (Join-Path $PSScriptRoot '..') }
-            $base     = Join-Path (Join-Path $rootDir 'ParsedData') $hostname
-            $summary  = @(Import-Csv "${base}_Summary.csv")[0]
-
-            # Populate device detail controls within the Interfaces view.
+            # When the database is unavailable, do not attempt to load legacy CSV
+            # files.  Simply clear the detail fields and populate the interface
+            # grid and configuration dropdown with empty data.  This enforces
+            # the database as the single source of truth for all device
+            # information.
             $iview = $global:interfacesView
-            $iview.FindName('HostnameBox').Text        = $summary.Hostname
-            $iview.FindName('MakeBox').Text            = $summary.Make
-            $iview.FindName('ModelBox').Text           = $summary.Model
-            $iview.FindName('UptimeBox').Text          = $summary.Uptime
-            $iview.FindName('PortCountBox').Text       = $summary.InterfaceCount
-            $iview.FindName('AuthDefaultVLANBox').Text = $summary.AuthDefaultVLAN
-            $iview.FindName('BuildingBox').Text        = if ($summary.PSObject.Properties.Name -contains 'Building') { $summary.Building } else { '' }
-            $iview.FindName('RoomBox').Text            = if ($summary.PSObject.Properties.Name -contains 'Room')     { $summary.Room     } else { '' }
-
-            # Populate the interfaces grid with interface records for this device.
-            $gridCtrl = $iview.FindName('InterfacesGrid')
-            $gridCtrl.ItemsSource = Get-InterfaceInfo -Hostname $hostname
-
-            # Populate the configuration dropdown with available templates for this host.
-            $comboCtrl = $iview.FindName('ConfigOptionsDropdown')
-            $comboCtrl.ItemsSource = Get-ConfigurationTemplates -Hostname $hostname
-            if ($comboCtrl -and $comboCtrl.Items.Count -gt 0) {
-                $comboCtrl.SelectedItem = $comboCtrl.Items[0]
-            } else {
-                if ($comboCtrl) { $comboCtrl.SelectedItem = $null }
+            if ($iview) {
+                $iview.FindName('HostnameBox').Text        = $hostname
+                $iview.FindName('MakeBox').Text            = ''
+                $iview.FindName('ModelBox').Text           = ''
+                $iview.FindName('UptimeBox').Text          = ''
+                $iview.FindName('PortCountBox').Text       = ''
+                $iview.FindName('AuthDefaultVLANBox').Text = ''
+                $iview.FindName('BuildingBox').Text        = ''
+                $iview.FindName('RoomBox').Text            = ''
+                $gridCtrl = $iview.FindName('InterfacesGrid')
+                if ($gridCtrl) { $gridCtrl.ItemsSource = @() }
+                $comboCtrl = $iview.FindName('ConfigOptionsDropdown')
+                if ($comboCtrl) {
+                    $comboCtrl.ItemsSource = @()
+                    $comboCtrl.SelectedIndex = -1
+                }
             }
         }
     } catch {
@@ -494,16 +495,17 @@ function Load-DeviceDetails {
     }
 }
 
-function Rebuild-GlobalInterfaceList {
+function Update-GlobalInterfaceList {
     # Populate the global interface list either from the database (when available)
     # or from legacy CSV files.  When using the database, join Interfaces
     # with DeviceSummary to retrieve site/building/room metadata.  When the
     # database is unavailable or the query fails, fall back to reading
     # interface CSVs in ParsedData.
-    $list  = @()
-    $useDb = $false
-    if ($global:StateTraceDb) { $useDb = $true }
-    if ($useDb) {
+    # Reset the global interface list.  Always rely on the database as the single
+    # source of truth.  Legacy CSV fallbacks have been removed.  If the
+    # database path is unset or the query fails, the list will remain empty.
+    $list = @()
+    if ($global:StateTraceDb) {
         try {
             # Import DatabaseModule relative to project root
             $rootDir   = if ($scriptDir) { (Join-Path $scriptDir '..') } else { (Join-Path $PSScriptRoot '..') }
@@ -542,66 +544,22 @@ ORDER BY i.Hostname, i.Port
                 }
             }
         } catch {
-            Write-Warning "Failed to rebuild interface list from database: $($_.Exception.Message). Falling back to CSV."
-            $useDb = $false
+            Write-Warning "Failed to rebuild interface list from database: $($_.Exception.Message)"
         }
-    }
-    if (-not $useDb) {
-        # Legacy CSV fallback
-        # Determine the parsed data directory relative to either the main script ($scriptDir) or this module.
-        $rootDir  = if ($scriptDir) { (Join-Path $scriptDir '..') } else { (Join-Path $PSScriptRoot '..') }
-        $parsedDir = Join-Path $rootDir 'ParsedData'
-        if (-not (Test-Path $parsedDir)) {
-            $global:AllInterfaces = @()
-            return
-        }
-        # Enumerate all interface CSVs, including those with dated suffixes
-        $files = Get-ChildItem -Path $parsedDir -Filter '*_Interfaces_Combined*.csv' -File
-        foreach ($f in $files) {
-            # Extract hostname by splitting on the first underscore
-            $baseName = [System.IO.Path]::GetFileNameWithoutExtension($f.Name)
-            $parts = $baseName -split '_'
-            $hostName = $parts[0]
-            # Load summary data for this host to obtain site/building/room
-            $summaryPath = Join-Path $parsedDir "$hostName`_Summary.csv"
-            $site = ''; $building=''; $room=''
-            if (Test-Path $summaryPath) {
-                try {
-                    $summary = @(Import-Csv $summaryPath)[0]
-                    if ($summary.PSObject.Properties.Name -contains 'Site')     { $site     = [string]$summary.Site }
-                    if ($summary.PSObject.Properties.Name -contains 'Building') { $building = [string]$summary.Building }
-                    if ($summary.PSObject.Properties.Name -contains 'Room')     { $room     = [string]$summary.Room }
-                } catch {}
-            }
-            try {
-                $csvData = Import-Csv $f.FullName
-                foreach ($row in $csvData) {
-                    $obj = [PSCustomObject]@{}
-                    foreach ($prop in $row.PSObject.Properties) {
-                        $obj | Add-Member -NotePropertyName $prop.Name -NotePropertyValue $prop.Value -Force
-                    }
-                    $obj | Add-Member -NotePropertyName Hostname -NotePropertyValue $hostName -Force
-                    $obj | Add-Member -NotePropertyName Site     -NotePropertyValue ([string]$site)     -Force
-                    $obj | Add-Member -NotePropertyName Building -NotePropertyValue ([string]$building) -Force
-                    $obj | Add-Member -NotePropertyName Room     -NotePropertyValue ([string]$room)     -Force
-                    $list += $obj
-                }
-            } catch {
-                # Skip files that cannot be imported
-            }
-        }
+    } else {
+        Write-Warning "Database not configured. Interface list will be empty."
     }
     $global:AllInterfaces = $list
     # After rebuilding the interface list, update summary metrics and alerts.
     if (Get-Command Update-Summary -ErrorAction SilentlyContinue) {
         Update-Summary
     }
-    if (Get-Command Compute-Alerts -ErrorAction SilentlyContinue) {
-        Compute-Alerts
+    if (Get-Command Update-Alerts -ErrorAction SilentlyContinue) {
+        Update-Alerts
     }
 }
 
-function Filter-SearchResults {
+function Update-SearchResults {
     param([string]$Term)
     $t = $Term.ToLower()
     # Always honour the location (site/building/room) filters, even when
@@ -780,7 +738,7 @@ function Update-Summary {
     }
 }
 
-function Compute-Alerts {
+function Update-Alerts {
     $alerts = @()
     foreach ($row in $global:AllInterfaces) {
         $reasons = @()
@@ -827,7 +785,7 @@ function Compute-Alerts {
     }
 }
 
-function Refresh-SearchGrid {
+function Update-SearchGrid {
     # Access controls within the search view
     $searchHostCtrl = $global:window.FindName('SearchInterfacesHost')
     if (-not $searchHostCtrl) { return }
@@ -837,10 +795,10 @@ function Refresh-SearchGrid {
     $boxCtrl   = $view.FindName('SearchBox')
     if (-not $gridCtrl -or -not $boxCtrl) { return }
     $term = $boxCtrl.Text
-    $gridCtrl.ItemsSource = Filter-SearchResults -Term $term
+    $gridCtrl.ItemsSource = Update-SearchResults -Term $term
 }
 
 # Export the functions defined in this module.  Specify them on a single line
 # to avoid parsing issues caused by line continuations.  Backticks are not
 # necessary when listing multiple function names separated by commas.
-Export-ModuleMember -Function Load-DeviceSummaries, Update-DeviceFilter, Load-DeviceDetails, Rebuild-GlobalInterfaceList, Filter-SearchResults, Update-Summary, Compute-Alerts, Refresh-SearchGrid
+Export-ModuleMember -Function Get-DeviceSummaries, Update-DeviceFilter, Get-DeviceDetails, Update-GlobalInterfaceList, Update-SearchResults, Update-Summary, Update-Alerts, Update-SearchGrid

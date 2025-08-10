@@ -45,17 +45,9 @@
     }
 
     function Get-SnmpLocation {
-        foreach ($line in $Lines) {
-            if ($line -match "SNMP\s+location:\s*(.+)$") {
-                return $matches[1].Trim()
-            }
-        }
-        foreach ($line in $Lines) {
-            if ($line -match "^\s*Location:\s*(.+)$") {
-                return $matches[1].Trim()
-            }
-        }
-        return "Unspecified"
+        param([string[]]$Lines)
+        # Delegate to the shared helper that handles vendor-specific keywords
+        return Get-SnmpLocationFromLines -Lines $Lines
     }
 
     function Get-Interfaces {
@@ -163,7 +155,7 @@
     $hostname   = Get-Hostname
     $modelInfo  = Get-ModelAndVersion
     $uptime     = Get-Uptime
-    $location   = Get-SnmpLocation
+    $location   = Get-SnmpLocation -Lines $Lines
 
     $interfaces = Get-Interfaces
     $macs       = Get-MacTable

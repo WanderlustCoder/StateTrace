@@ -1,0 +1,349 @@
+SSH@WLLS-A08-AS-08# show version
+Brocade Communications Systems, Inc.
+Stackable ICX7750-48F-48G-4X40G Management Module
+SW: Version 08.0.95jufi
+Boot-Monitor: Version 08.0.95jufi
+HW: Stackable ICX7750-48
+Uptime is 3 day(s) 1 hour(s) 2 minute(s) 3 second(s)
+
+SSH@WLLS-A08-AS-08# show config
+!
+vlan 10 name Users by port
+vlan 20 name Phones by port
+vlan 30 name Guests by port
+vlan 100 name Uplink by port
+!
+hostname WLLS-A08-AS-08
+!
+snmp-server location Bldg_25_Floor_2_Room_105_Row_1_Rack_1
+!
+Authentication
+ auth-default-vlan10
+ re-authentication
+ dot1x enable
+ dot1x enable ethe 1/1/1 to 1/1/48
+ dot1x port-control auto ethe 1/1/1 to 1/1/24
+ mac-authentication enable
+ mac-authentication enable ethe 1/1/13 to 1/1/48
+ mac-authentication dot1x override
+!
+interface ethernet 1/1/1
+ port-name Users1
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/2
+ port-name Users2
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/3
+ port-name Users3
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/4
+ port-name Users4
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/5
+ port-name Users5
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/6
+ port-name Users6
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/7
+ port-name Users7
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/8
+ port-name Users8
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/9
+ port-name Users9
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/10
+ port-name Users10
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/11
+ port-name Users11
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/12
+ port-name Users12
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/13
+ port-name Users13
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/14
+ port-name Users14
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/15
+ port-name Users15
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/16
+ port-name Users16
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/17
+ port-name Users17
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/18
+ port-name Users18
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/19
+ port-name Users19
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/20
+ port-name Users20
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/21
+ port-name Users21
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/22
+ port-name Users22
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/23
+ port-name Users23
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/24
+ port-name Users24
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/25
+ port-name Users25
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/26
+ port-name Users26
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/27
+ port-name Users27
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/28
+ port-name Users28
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/29
+ port-name Users29
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/30
+ port-name Users30
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/31
+ port-name Users31
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/32
+ port-name Users32
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/33
+ port-name Users33
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/34
+ port-name Users34
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/35
+ port-name Users35
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/36
+ port-name Users36
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/37
+ port-name Users37
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/38
+ port-name Users38
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/39
+ port-name Users39
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/40
+ port-name Users40
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/41
+ port-name Users41
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/42
+ port-name Users42
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/43
+ port-name Users43
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/44
+ port-name Users44
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/45
+ port-name Users45
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/46
+ port-name Users46
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/47
+ port-name Users47
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+interface ethernet 1/1/48
+ port-name Users48
+ authentication auth-default-vlan 20
+ stp-bpdu-guard
+ exit
+!
+SSH@WLLS-A08-AS-08# show interfaces brief
+Port       Link    State    Dupl Speed Trunk Tag Pvid Pri MAC            Name
+1/1/1      Up      Forward Full  1G    None   None Yes 10   0   0011.2233.0001 Users1
+1/1/2      Down    None    Full  1G    None   None Yes 10   0   0011.2233.0002 Users2
+1/1/3      Up      Forward Full  1G    None   None Yes 10   0   0011.2233.0003 Users3
+1/1/4      Down    None    Full  1G    None   None Yes 10   0   0011.2233.0004 Users4
+1/1/5      Up      Forward Full  1G    None   None Yes 10   0   0011.2233.0005 Users5
+1/1/6      Down    None    Full  1G    None   None Yes 10   0   0011.2233.0006 Users6
+1/1/7      Up      Forward Full  1G    None   None Yes 10   0   0011.2233.0007 Users7
+1/1/8      Down    None    Full  1G    None   None Yes 10   0   0011.2233.0008 Users8
+1/1/9      Up      Forward Full  1G    None   None Yes 10   0   0011.2233.0009 Users9
+1/1/10     Down    None    Full  1G    None   None Yes 10   0   0011.2233.000a Users10
+1/1/11     Up      Forward Full  1G    None   None Yes 10   0   0011.2233.000b Users11
+1/1/12     Down    None    Full  1G    None   None Yes 10   0   0011.2233.000c Users12
+1/1/13     Up      Forward Full  1G    None   None Yes 10   0   0011.2233.000d Users13
+1/1/14     Down    None    Full  1G    None   None Yes 10   0   0011.2233.000e Users14
+1/1/15     Up      Forward Full  1G    None   None Yes 10   0   0011.2233.000f Users15
+1/1/16     Down    None    Full  1G    None   None Yes 10   0   0011.2233.0010 Users16
+1/1/17     Up      Forward Full  1G    None   None Yes 20   0   0011.2233.0011 Users17
+1/1/18     Down    None    Full  1G    None   None Yes 20   0   0011.2233.0012 Users18
+1/1/19     Up      Forward Full  1G    None   None Yes 20   0   0011.2233.0013 Users19
+1/1/20     Down    None    Full  1G    None   None Yes 20   0   0011.2233.0014 Users20
+1/1/21     Up      Forward Full  1G    None   None Yes 20   0   0011.2233.0015 Users21
+1/1/22     Down    None    Full  1G    None   None Yes 20   0   0011.2233.0016 Users22
+1/1/23     Up      Forward Full  1G    None   None Yes 20   0   0011.2233.0017 Users23
+1/1/24     Down    None    Full  1G    None   None Yes 20   0   0011.2233.0018 Users24
+1/1/25     Up      Forward Full  1G    None   None Yes 20   0   0011.2233.0019 Users25
+1/1/26     Down    None    Full  1G    None   None Yes 20   0   0011.2233.001a Users26
+1/1/27     Up      Forward Full  1G    None   None Yes 20   0   0011.2233.001b Users27
+1/1/28     Down    None    Full  1G    None   None Yes 20   0   0011.2233.001c Users28
+1/1/29     Up      Forward Full  1G    None   None Yes 20   0   0011.2233.001d Users29
+1/1/30     Down    None    Full  1G    None   None Yes 20   0   0011.2233.001e Users30
+1/1/31     Up      Forward Full  1G    None   None Yes 20   0   0011.2233.001f Users31
+1/1/32     Down    None    Full  1G    None   None Yes 20   0   0011.2233.0020 Users32
+1/1/33     Up      Forward Full  1G    None   None Yes 30   0   0011.2233.0021 Users33
+1/1/34     Down    None    Full  1G    None   None Yes 30   0   0011.2233.0022 Users34
+1/1/35     Up      Forward Full  1G    None   None Yes 30   0   0011.2233.0023 Users35
+1/1/36     Down    None    Full  1G    None   None Yes 30   0   0011.2233.0024 Users36
+1/1/37     Up      Forward Full  1G    None   None Yes 30   0   0011.2233.0025 Users37
+1/1/38     Down    None    Full  1G    None   None Yes 30   0   0011.2233.0026 Users38
+1/1/39     Up      Forward Full  1G    None   None Yes 30   0   0011.2233.0027 Users39
+1/1/40     Down    None    Full  1G    None   None Yes 30   0   0011.2233.0028 Users40
+1/1/41     Up      Forward Full  1G    None   None Yes 30   0   0011.2233.0029 Users41
+1/1/42     Down    None    Full  1G    None   None Yes 30   0   0011.2233.002a Users42
+1/1/43     Up      Forward Full  1G    None   None Yes 30   0   0011.2233.002b Users43
+1/1/44     Down    None    Full  1G    None   None Yes 30   0   0011.2233.002c Users44
+1/1/45     Up      Forward Full  1G    None   None Yes 30   0   0011.2233.002d Users45
+1/1/46     Down    None    Full  1G    None   None Yes 30   0   0011.2233.002e Users46
+1/1/47     Up      Forward Full  1G    None   None Yes 30   0   0011.2233.002f Users47
+1/1/48     Down    None    Full  1G    None   None Yes 30   0   0011.2233.0030 Users48
+
+SSH@WLLS-A08-AS-08# show authentication sessions all
+Port    MAC             IP(v4/v6)          User   VLAN Auth    Auth   ACL   Session Age PAE
+        Addr            Addr               Name        Method  State         Time        State
+-------------------------------------------------------------------------------------------------------
+1/1/1     00aa.aaaa.0001 N/A               DOT1     130  8021.X permit Yes   201     Ena   AUTHENTICATED
+1/1/3     00aa.aaaa.0003 N/A               DOT3     130  8021.X permit Yes   203     Ena   AUTHENTICATED
+1/1/5     00aa.aaaa.0005 N/A               DOT5     130  8021.X permit Yes   205     Ena   AUTHENTICATED
+1/1/7     00aa.aaaa.0007 N/A               DOT7     130  8021.X permit Yes   207     Ena   AUTHENTICATED
+1/1/9     00aa.aaaa.0009 N/A               DOT9     130  8021.X permit Yes   209     Ena   AUTHENTICATED
+1/1/11    00aa.aaaa.000b N/A               DOT11    130  8021.X permit Yes   211     Ena   AUTHENTICATED
+1/1/13    00bb.bbbb.000d N/A               MAB13    130  MAUTH  permit Yes   113     Ena   N/A
+1/1/13    00cc.cccc.000d N/A               DOT13    130  8021.X permit Yes   153     Ena   AUTHENTICATED
+1/1/15    00bb.bbbb.000f N/A               MAB15    130  MAUTH  permit Yes   115     Ena   N/A
+1/1/15    00cc.cccc.000f N/A               DOT15    130  8021.X permit Yes   155     Ena   AUTHENTICATED
+1/1/17    00bb.bbbb.0011 N/A               MAB17    130  MAUTH  permit Yes   117     Ena   N/A
+1/1/17    00cc.cccc.0011 N/A               DOT17    130  8021.X permit Yes   157     Ena   AUTHENTICATED
+1/1/19    00bb.bbbb.0013 N/A               MAB19    130  MAUTH  permit Yes   119     Ena   N/A
+1/1/19    00cc.cccc.0013 N/A               DOT19    130  8021.X permit Yes   159     Ena   AUTHENTICATED
+1/1/21    00bb.bbbb.0015 N/A               MAB21    130  MAUTH  permit Yes   121     Ena   N/A
+1/1/21    00cc.cccc.0015 N/A               DOT21    130  8021.X permit Yes   161     Ena   AUTHENTICATED
+1/1/23    00bb.bbbb.0017 N/A               MAB23    130  MAUTH  permit Yes   123     Ena   N/A
+1/1/23    00cc.cccc.0017 N/A               DOT23    130  8021.X permit Yes   163     Ena   AUTHENTICATED
+1/1/26    00dd.dddd.001a N/A               MAB26    130  MAUTH  permit Yes   106      Ena   AUTHENTICATED
+1/1/28    00dd.dddd.001c N/A               MAB28    130  MAUTH  permit Yes   108      Ena   AUTHENTICATED
+1/1/30    00dd.dddd.001e N/A               MAB30    130  MAUTH  permit Yes   110      Ena   AUTHENTICATED
+1/1/32    00dd.dddd.0020 N/A               MAB32    130  MAUTH  permit Yes   112      Ena   AUTHENTICATED
+1/1/34    00dd.dddd.0022 N/A               MAB34    130  MAUTH  permit Yes   114      Ena   AUTHENTICATED
+1/1/36    00dd.dddd.0024 N/A               MAB36    130  MAUTH  permit Yes   116      Ena   AUTHENTICATED
