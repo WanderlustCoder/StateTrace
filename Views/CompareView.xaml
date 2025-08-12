@@ -1,0 +1,214 @@
+<UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!-- Shared styles -->
+  <UserControl.Resources>
+    <!-- Section card look for config/diff boxes -->
+    <Style x:Key="CardBorder" TargetType="Border">
+      <Setter Property="BorderBrush" Value="#C0C0C0"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="4"/>
+      <Setter Property="Background" Value="White"/>
+      <Setter Property="Padding" Value="6"/>
+    </Style>
+
+    <!-- Small field label -->
+    <Style x:Key="FieldLabel" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="Foreground" Value="#001F3F"/>
+      <Setter Property="Margin" Value="0,0,0,2"/>
+      <Setter Property="FontWeight" Value="Bold"/>
+    </Style>
+
+    <!-- Section title (e.g., Config 1 / Config 2 / Diff headings) -->
+    <Style x:Key="SectionTitle" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="12"/>
+      <Setter Property="Foreground" Value="#001F3F"/>
+      <Setter Property="FontWeight" Value="Bold"/>
+      <Setter Property="Margin" Value="0,6,0,4"/>
+    </Style>
+
+    <!-- Small combo box baseline -->
+    <Style x:Key="SlimCombo" TargetType="ComboBox">
+      <Setter Property="Margin" Value="0,0,0,6"/>
+      <Setter Property="MinWidth" Value="160"/>
+      <Setter Property="IsEditable" Value="True"/>
+      <Setter Property="IsTextSearchEnabled" Value="True"/>
+    </Style>
+
+  </UserControl.Resources>
+
+  <!-- Layout -->
+  <Grid Background="#F7F9FC">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>  <!-- Header -->
+      <RowDefinition Height="*"/>     <!-- Body -->
+    </Grid.RowDefinitions>
+
+    <!-- Header bar with title and close button pinned right -->
+    <DockPanel Grid.Row="0" LastChildFill="False" Background="#001F3F" Height="34">
+      <TextBlock Text="Compare Configs"
+                 DockPanel.Dock="Left"
+                 VerticalAlignment="Center"
+                 Margin="8,0,0,0"
+                 Foreground="White"
+                 FontWeight="Bold"/>
+      <Button Name="CloseCompareButton"
+              DockPanel.Dock="Right"
+              Content="X"
+              Width="26"
+              Height="22"
+              VerticalAlignment="Center"
+              Margin="0,0,6,0"
+              Background="#FFD700"
+              Foreground="Black"
+              ToolTip="Close compare sidebar"/>
+    </DockPanel>
+
+    <!-- Body scroll -->
+    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+      <Grid Margin="8">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto"/>  <!-- Switch/Port selectors -->
+          <RowDefinition Height="8"/>     <!-- Spacer -->
+          <RowDefinition Height="Auto"/>  <!-- Auth + Configs -->
+          <RowDefinition Height="8"/>     <!-- Spacer -->
+          <RowDefinition Height="Auto"/>  <!-- Diffs -->
+        </Grid.RowDefinitions>
+
+        <!-- Selection area: Switches above Ports (per side) -->
+        <Grid Grid.Row="0">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+
+          <!-- LEFT SIDE: Switch 1 above Port 1 -->
+          <StackPanel Grid.Column="0" Orientation="Vertical" Margin="4,0,8,0">
+            <TextBlock Text="Switch 1" Style="{StaticResource FieldLabel}"/>
+            <ComboBox Name="Switch1Dropdown" Style="{StaticResource SlimCombo}"/>
+
+            <TextBlock Text="Port 1" Style="{StaticResource FieldLabel}"/>
+            <ComboBox Name="Port1Dropdown" Style="{StaticResource SlimCombo}"/>
+          </StackPanel>
+
+          <!-- RIGHT SIDE: Switch 2 above Port 2 -->
+          <StackPanel Grid.Column="1" Orientation="Vertical" Margin="8,0,4,0">
+            <TextBlock Text="Switch 2" Style="{StaticResource FieldLabel}"/>
+            <ComboBox Name="Switch2Dropdown" Style="{StaticResource SlimCombo}"/>
+
+            <TextBlock Text="Port 2" Style="{StaticResource FieldLabel}"/>
+            <ComboBox Name="Port2Dropdown" Style="{StaticResource SlimCombo}"/>
+          </StackPanel>
+        </Grid>
+
+        <!-- Spacer -->
+        <Border Grid.Row="1" Height="1" Background="#E0E6F0" Margin="0,4,0,4" Opacity="0.5"/>
+
+        <!-- Auth + Configs -->
+        <Grid Grid.Row="2">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+
+          <!-- LEFT: AuthTemplate bold above Config 1 -->
+          <StackPanel Grid.Column="0" Orientation="Vertical" Margin="4,0,8,0">
+            <TextBlock Name="AuthTemplate1Text"
+                       Text=""
+                       FontSize="12"
+                       FontWeight="Bold"
+                       Foreground="#001F3F"
+                       Margin="0,0,0,2"/>
+            <TextBlock Text="Config 1" Style="{StaticResource SectionTitle}"/>
+
+            <Border Style="{StaticResource CardBorder}">
+              <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <TextBox Name="Config1Box"
+                         TextWrapping="Wrap"
+                         AcceptsReturn="True"
+                         IsReadOnly="True"
+                         Background="White"
+                         BorderThickness="0"
+                         FontFamily="Consolas"
+                         FontSize="12"/>
+              </ScrollViewer>
+            </Border>
+          </StackPanel>
+
+          <!-- RIGHT: AuthTemplate bold above Config 2 -->
+          <StackPanel Grid.Column="1" Orientation="Vertical" Margin="8,0,4,0">
+            <TextBlock Name="AuthTemplate2Text"
+                       Text=""
+                       FontSize="12"
+                       FontWeight="Bold"
+                       Foreground="#001F3F"
+                       Margin="0,0,0,2"/>
+            <TextBlock Text="Config 2" Style="{StaticResource SectionTitle}"/>
+
+            <Border Style="{StaticResource CardBorder}">
+              <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <TextBox Name="Config2Box"
+                         TextWrapping="Wrap"
+                         AcceptsReturn="True"
+                         IsReadOnly="True"
+                         Background="White"
+                         BorderThickness="0"
+                         FontFamily="Consolas"
+                         FontSize="12"/>
+              </ScrollViewer>
+            </Border>
+          </StackPanel>
+        </Grid>
+
+        <!-- Spacer -->
+        <Border Grid.Row="3" Height="1" Background="#E0E6F0" Margin="0,4,0,4" Opacity="0.5"/>
+
+        <!-- Diffs -->
+        <Grid Grid.Row="4">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="*" />
+          </Grid.ColumnDefinitions>
+
+          <!-- LEFT: Differences from Config 1 -->
+          <StackPanel Grid.Column="0" Orientation="Vertical" Margin="4,0,8,0">
+            <TextBlock Text="Commands only in Config 1" Style="{StaticResource SectionTitle}"/>
+            <Border Style="{StaticResource CardBorder}">
+              <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <TextBox Name="Diff1Box"
+                         TextWrapping="Wrap"
+                         AcceptsReturn="True"
+                         IsReadOnly="True"
+                         Background="White"
+                         BorderThickness="0"
+                         FontFamily="Consolas"
+                         FontSize="12"
+                         Foreground="Red"/>
+              </ScrollViewer>
+            </Border>
+          </StackPanel>
+
+          <!-- RIGHT: Differences from Config 2 -->
+          <StackPanel Grid.Column="1" Orientation="Vertical" Margin="8,0,4,0">
+            <TextBlock Text="Commands only in Config 2" Style="{StaticResource SectionTitle}"/>
+            <Border Style="{StaticResource CardBorder}">
+              <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <TextBox Name="Diff2Box"
+                         TextWrapping="Wrap"
+                         AcceptsReturn="True"
+                         IsReadOnly="True"
+                         Background="White"
+                         BorderThickness="0"
+                         FontFamily="Consolas"
+                         FontSize="12"
+                         Foreground="Red"/>
+              </ScrollViewer>
+            </Border>
+          </StackPanel>
+        </Grid>
+
+      </Grid>
+    </ScrollViewer>
+  </Grid>
+</UserControl>

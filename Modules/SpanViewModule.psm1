@@ -1,0 +1,114 @@
+function New-SpanView {
+    <#
+        .SYNOPSIS
+            Load and initialise the Span view.
+
+        .DESCRIPTION
+            This function resolves the SpanView.xaml file relative to the provided
+            script directory, loads it into a WPF object and injects it into the
+            host window.  It also defines a global helper function, Load-SpanInfo,
+            and wires up event handlers for the VLAN dropdown and refresh button.
+
+        .PARAMETER Window
+            The main WPF window created by MainWindow.ps1.
+
+        .PARAMETER ScriptDir
+            The directory containing the Main scripts.  SpanView.xaml is
+            expected to reside in a ../Views folder relative to this path.
+
+        .PARAMETER ParserScript
+            Path to the NetworkReader.ps1 script used to refresh parsed data.
+            If omitted, the parser is not invoked on refresh.
+    #>
+    param(
+        [Parameter(Mandatory=$true)][Windows.Window]$Window,
+        [Parameter(Mandatory=$true)][string]$ScriptDir,
+        [string]$ParserScript = (Join-Path $ScriptDir 'NetworkReader.ps1')
+    )
+    $spanViewPath = Join-Path $ScriptDir '..\Views\SpanView.xaml'
+    if (-not (Test-Path $spanViewPath)) {
+        Write-Warning "SpanView.xaml not found at $spanViewPath"
+        return
+    }
+    $spanXaml = Get-Content $spanViewPath -Raw
+    $reader   = New-Object System.Xml.XmlTextReader (New-Object System.IO.StringReader($spanXaml))
+    $spanView = [Windows.Markup.XamlReader]::Load($reader)
+    $spanHost = $Window.FindName('SpanHost')
+    if ($spanHost -is [System.Windows.Controls.ContentControl]) {
+        $spanHost.Content = $spanView
+    } else {
+        Write-Warning "Could not find ContentControl 'SpanHost'"
+    }
+    # Expose span view globally for other modules
+    $global:spanView = $spanView
+    # Acquire controls
+    $spanGrid     = $spanView.FindName('SpanGrid')
+    $vlanDropdown = $spanView.FindName('VlanDropdown')
+    $spanRefresh  = $spanView.FindName('RefreshSpanButton')
+    # Helper to load spanning tree information for a device
+    function Global:Load-SpanInfo {
+        param([string]$Hostname)
+        if (-not $spanGrid) { return }
+        # Clear when no hostname provided
+        if (-not $Hostname) {
+        $spanGrid.ItemsSource = @()
+        if ($vlanDropdown) {
+            $vlanDropdown.ItemsSource = @('')
+            # Always select the blank entry via SelectedIndex rather than SelectedItem
+            if ($vlanDropdown.ItemsSource.Count -gt 0) {
+                $vlanDropdown.SelectedIndex = 0
+            } else {
+                $vlanDropdown.SelectedIndex = -1
+            }
+        }
+            return
+        }
+        # Retrieve data
+        try {
+            $data = Get-SpanningTreeInfo -Hostname $Hostname
+        } catch {
+            $data = @()
+        }
+        $spanGrid.ItemsSource = $data
+        if ($vlanDropdown) {
+            $instances = ($data | ForEach-Object { $_.VLAN }) | Sort-Object -Unique
+            $vlanDropdown.ItemsSource = @('') + $instances
+            # Always select the first (blank) entry via SelectedIndex to avoid SelectedItem exceptions
+            if ($vlanDropdown.ItemsSource -and $vlanDropdown.ItemsSource.Count -gt 0) {
+                $vlanDropdown.SelectedIndex = 0
+            } else {
+                $vlanDropdown.SelectedIndex = -1
+            }
+        }
+    }
+    # VLAN dropdown filtering
+    if ($vlanDropdown) {
+        $vlanDropdown.Add_SelectionChanged({
+            $sel = $vlanDropdown.SelectedItem
+            if (-not $spanGrid) { return }
+            $selectedHost = $Window.FindName('HostnameDropdown').SelectedItem
+            if (-not $selectedHost) { return }
+            $all = Get-SpanningTreeInfo -Hostname $selectedHost
+            if (-not $sel -or $sel -eq '') {
+                $spanGrid.ItemsSource = $all
+            } else {
+                $spanGrid.ItemsSource = $all | Where-Object { $_.VLAN -eq $sel }
+            }
+        })
+    }
+    # Refresh button re-runs parser and updates summaries
+    if ($spanRefresh) {
+        $spanRefresh.Add_Click({
+            if ($global:StateTraceDb) { $env:StateTraceDbPath = $global:StateTraceDb }
+            if ($ParserScript -and (Test-Path $ParserScript)) {
+                & "$ParserScript"
+            }
+            if (Get-Command Get-DeviceSummaries -ErrorAction SilentlyContinue) { Get-DeviceSummaries }
+            if (Get-Command Update-DeviceFilter -ErrorAction SilentlyContinue) { Update-DeviceFilter }
+            $currentHost = $Window.FindName('HostnameDropdown').SelectedItem
+            if ($currentHost) { Load-SpanInfo $currentHost }
+        })
+    }
+}
+
+Export-ModuleMember -Function New-SpanView, Load-SpanInfo

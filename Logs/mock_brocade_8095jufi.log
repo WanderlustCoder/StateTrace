@@ -19,13 +19,14 @@ hostname WLLS-A05-AS-05
 snmp-server location Bldg_25_Floor_2_Room_105_Row_1_Rack_1
 !
 Authentication
- auth-default-vlan 10
- reauthentication
- dot1x enable ethe 1/1/1 to 1/1/48
- dot1x port-control auto ethe 1/1/1 to 1/1/48 ethe 2/1/25 to 2/1/48
- mac-authentication enable ethe 2/1/1 to 2/1/24
- authentication order dot1x mac
- authentication priority dot1x mac
+ auth-default-vlan10
+ re-authentication
+ dot1x enable
+ dot1x enable ethe 1/1/1 to 1/1/48 ethe 2/1/1 to 2/1/48
+ dot1x port-control auto ethe 1/1/1 to 1/1/48 ethe 2/1/1 to 2/1/48
+ mac-authentication enable
+ mac-authentication enable ethe 1/1/1 to 1/1/48 ethe 2/1/1 to 2/1/48
+ mac-authentication dot1x override
 !
 ! Define interfaces for a 2‑stack system (units 1 and 2 with 48 ports each)
 interface ethernet 1/1/1
@@ -648,3 +649,5 @@ core-switch         2/1/48          120       BR         1/0/1
 SSH@WLLS-A05-AS-05# show cdp neighbors
 Device ID            Local Intf      Holdtme Capability Platform Port ID
 core-switch         2/1/48          153     S I       ICX7850    1/0/1
+
+cisco

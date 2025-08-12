@@ -226,9 +226,9 @@ Vlan    Mac Address       Type        Ports
  999    0011.2233.4409    DYNAMIC     Gi1/0/7
 1002    0011.2233.4410    DYNAMIC     Gi1/0/8
 
-SSH@WLLS-A03-AS-03#show config
+SSH@WLLS-A07-AS-07#show config
 ver 08.0.30T7f1
-hostname WLLS-A03-AS-03
+hostname WLLS-A07-AS-07
 !
 vlan 10 name DEFAULT-VLAN by port
 vlan 20 name VOICE by port
@@ -237,13 +237,13 @@ vlan 40 name WIRELESS by port
 vlan 50 name PRINTERS by port
 !
 Authentication
- Auth-default-vlan 4
- reauthentication
+ auth-default-vlan10
+ re-authentication
  dot1x enable
- dot1x enable ethe 1/1/6 to 1/1/12
+ dot1x enable ethe 1/1/1 to 1/1/48 ethe 2/1/1 to 2/1/48
  mac-authentication enable
- mac-authentication enable ethe 1/1/9 to 1/1/15
- mac-authentication dot1x-override
+ mac-authentication enable ethe 1/1/1 to 1/1/48 ethe 2/1/1 to 2/1/48
+ mac-authentication dot1x override
 !
 interface ethernet 1/1/1
  port-name DefaultPort1
@@ -356,10 +356,152 @@ interface ethernet 1/1/23
 interface ethernet 1/1/24
  port-name UnusedPort24
 !
+interface ethernet 1/1/25
+ port-name DefaultPort25
+ auth-default-vlan 10
+ dot1x port-control auto
+ spanning-tree edge-port
+!
+interface ethernet 1/1/26
+ port-name DefaultPort26
+ auth-default-vlan 10
+ dot1x port-control auto
+ spanning-tree edge-port
+!
+interface ethernet 1/1/27
+ port-name DefaultPort27
+ auth-default-vlan 10
+ dot1x port-control auto
+ spanning-tree edge-port
+!
+interface ethernet 1/1/28
+ port-name DefaultPort28
+ auth-default-vlan 10
+ dot1x port-control auto
+ spanning-tree edge-port
+!
+interface ethernet 1/1/29
+ port-name DefaultPort29
+ auth-default-vlan 10
+ dot1x port-control auto
+ spanning-tree edge-port
+!
+interface ethernet 1/1/30
+ port-name DefaultPort30
+ auth-default-vlan 10
+ dot1x port-control auto
+ spanning-tree edge-port
+!
+interface ethernet 1/1/31
+ port-name DefaultPort31
+ auth-default-vlan 10
+ dot1x port-control auto
+ spanning-tree edge-port
+!
+interface ethernet 1/1/32
+ port-name DefaultPort32
+ auth-default-vlan 10
+ dot1x port-control auto
+ spanning-tree edge-port
+!
+interface ethernet 1/1/33
+ port-name DefaultPort33
+ auth-default-vlan 10
+ dot1x port-control auto
+ spanning-tree edge-port
+!
+interface ethernet 1/1/34
+ port-name DefaultPort34
+ auth-default-vlan 10
+ dot1x port-control auto
+ spanning-tree edge-port
+!
+interface ethernet 1/1/35
+ port-name DefaultPort35
+ auth-default-vlan 10
+ dot1x port-control auto
+ spanning-tree edge-port
+!
+interface ethernet 1/1/36
+ port-name DefaultPort36
+ auth-default-vlan 10
+ dot1x port-control auto
+ spanning-tree edge-port
+!
+interface ethernet 1/1/37
+ port-name DefaultPort37
+ auth-default-vlan 10
+ dot1x port-control auto
+ spanning-tree edge-port
+!
+interface ethernet 1/1/38
+ port-name DefaultPort38
+ auth-default-vlan 10
+ dot1x port-control auto
+ spanning-tree edge-port
+!
+interface ethernet 1/1/39
+ port-name DefaultPort39
+ auth-default-vlan 10
+ dot1x port-control auto
+ spanning-tree edge-port
+!
+interface ethernet 1/1/40
+ port-name DefaultPort40
+ auth-default-vlan 10
+ dot1x port-control auto
+ spanning-tree edge-port
+!
+interface ethernet 1/1/41
+ port-name DefaultPort41
+ auth-default-vlan 10
+ dot1x port-control auto
+ spanning-tree edge-port
+!
+interface ethernet 1/1/42
+ port-name DefaultPort42
+ auth-default-vlan 10
+ dot1x port-control auto
+ spanning-tree edge-port
+!
+interface ethernet 1/1/43
+ port-name DefaultPort43
+ auth-default-vlan 10
+ dot1x port-control auto
+ spanning-tree edge-port
+!
+interface ethernet 1/1/44
+ port-name DefaultPort44
+ auth-default-vlan 10
+ dot1x port-control auto
+ spanning-tree edge-port
+!
+interface ethernet 1/1/45
+ port-name DefaultPort45
+ auth-default-vlan 10
+ dot1x port-control auto
+ spanning-tree edge-port
+!
+interface ethernet 1/1/46
+ port-name DefaultPort46
+ auth-default-vlan 10
+ dot1x port-control auto
+ spanning-tree edge-port
+!
+interface ethernet 1/1/47
+ port-name DefaultPort47
+ auth-default-vlan 10
+ spanning-tree edge-port
+!
+interface ethernet 1/1/48
+ port-name DefaultPort48
+ auth-default-vlan 10
+ spanning-tree edge-port
+!
 snmp-server location Bldg_23_Floor_1_Room_103_Row_1_Rack_1
 !
 
-SSH@WLLS-A03-AS-03#show version
+SSH@WLLS-A07-AS-07#show version
   Copyright (c) 1996-2025 Brocade Communications Systems, Inc. All rights reserved.
   UNIT 1: compiled on Jan 21 2025 at 23:28:08 labeled as SPR08030
     (31768772 bytes) from Primary SPR08030.bin
@@ -382,7 +524,7 @@ STACKID 1 system uptime is 31 day(s) 1 hour(s) 1 minute(s) 5 second(s)
 The system : started=cold start
 
 
-SSH@WLLS-A03-AS-03#show interfaces brief
+SSH@WLLS-A07-AS-07#show interfaces brief
 Port      Link    State     Dupl   Speed   Trunk  Tag  Pvid  Pri   MAC               Name
 1/1/1    Up      Forward  Full   1G      None   Yes  10    0     0011.2233.4401 DefaultPort1
 1/1/2    Up      Forward  Full   1G      None   Yes  10    0     0011.2233.4402 DefaultPort2
@@ -410,7 +552,7 @@ Port      Link    State     Dupl   Speed   Trunk  Tag  Pvid  Pri   MAC          
 1/1/24   Down    Disabled Full   1G      None   No   10    0     0011.2233.4424 UnusedPort24
 
 
-SSH@WLLS-A03-AS-03#show dot1x sessions all
+SSH@WLLS-A07-AS-07#show dot1x sessions all
 ----------------------------------------------------------------------------------------------------
 Port     MAC 		  IP		User		Vlan  Auth	ACL	Age	Pae
 	 Addr         	  Addr          Name          	      State  			State
@@ -425,7 +567,7 @@ Port     MAC 		  IP		User		Vlan  Auth	ACL	Age	Pae
 
 
 
-SSH@WLLS-A03-AS-03#show mac-authentication sessions all
+SSH@WLLS-A07-AS-07#show mac-authentication sessions all
 ------------------------------------------------------------------
 Port     MAC         	  IP         Vlan  Auth        ACL   Age
 	 Addr		  Addr		   State 
@@ -439,7 +581,7 @@ Port     MAC         	  IP         Vlan  Auth        ACL   Age
 1/1/15   0011.2233.4415   N/A        50    Yes         none   ENA
 
 
-SSH@WLLS-A03-AS-03#show mac-address
+SSH@WLLS-A07-AS-07#show mac-address
 MAC Address       Port       Type       VLAN  Action
 0011.2233.4401    1/1/1      Dynamic    10    Forward
 0011.2233.4402    1/1/2      Dynamic    10    Forward
@@ -457,7 +599,7 @@ MAC Address       Port       Type       VLAN  Action
 0011.2233.440e    1/1/14     Dynamic    40    Forward
 0011.2233.440f    1/1/15     Dynamic    50    Forward
 
-SSH@WLLS-A03-AS-03#show vlan
+SSH@WLLS-A07-AS-07#show vlan
 PORT-VLAN 10, Name DEFAULT-VLAN, Priority level0
  Untagged Ports: None
  Tagged Ports: None

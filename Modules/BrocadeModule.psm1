@@ -1,42 +1,14 @@
 ﻿# Brocade Device Parsing Module
 function Get-BrocadeDeviceFacts {
     param (
-        [string[]]$Lines
+        [string[]]$Lines,
+        [hashtable]$Blocks
     )
 
     #
-    # A helper that splits the log into blocks based on prompts and show commands.
-    # This legacy implementation recorded the output of each `show` command as it
-    # appeared in the log.  However, some logs may have commands out of the
-    # expected order (e.g. `show version` later in the file).  To better
-    # accommodate such cases, we no longer rely solely on this method to
-    # retrieve command output.  Instead, we provide a more flexible
-    # `Get-CommandBlock` function (see below) which searches for a given
-    # command pattern anywhere in the log and returns its output up to the
-    # next prompt.  The original `Get-ShowCommandBlocks` function is retained
-    # to support older parsing logic that expects a dictionary of show outputs.
-    function Get-ShowCommandBlocks {
-        param([string[]]$Lines)
-        $blocks = @{}
-        $currentCmd = ''
-        $buffer = @()
-        $recording = $false
-
-        foreach ($line in $Lines) {
-            if ($line -match '^[^\s]+#\s*(show .+)$') {
-                if ($recording -and $currentCmd) { $blocks[$currentCmd] = $buffer }
-                $currentCmd = $matches[1].Trim().ToLower()
-                $buffer = @(); $recording = $true; continue
-            }
-            if ($recording -and $line -match '^[^\s]+#') {
-                $blocks[$currentCmd] = $buffer
-                $currentCmd = ''; $buffer = @(); $recording = $false; continue
-            }
-            if ($recording) { $buffer += $line }
-        }
-        if ($recording -and $currentCmd) { $blocks[$currentCmd] = $buffer }
-        return $blocks
-    }
+    # NOTE: The legacy Get-ShowCommandBlocks helper has been removed. A shared helper
+    # Get-ShowCommandBlocks (defined in ParserWorker.psm1) now provides this functionality.
+    # It extracts each 'show' command section into a dictionary keyed by the normalized command.
 
     #
     # Extract the output of a specific show command anywhere in the log.
@@ -81,7 +53,7 @@ function Get-BrocadeDeviceFacts {
         return $buffer
     }
 
-    function Normalize-PortName { param ($raw) return "Et$raw" }
+    function ConvertTo-StandardPortName { param ($raw) return "Et$raw" }
 
     function Expand-PortRange {
         param ($start, $end)
@@ -96,7 +68,16 @@ function Get-BrocadeDeviceFacts {
         return $ports
     }
 
-    $blocks = Get-ShowCommandBlocks -Lines $Lines
+    # Retrieve all show command blocks using the shared helper.  If a Blocks
+    # argument was provided (precomputed by ParserWorker), use it directly
+    # to avoid recomputing.  Otherwise call the helper on the provided
+    # Lines array.  The hashtable maps command names to arrays of output
+    # lines.
+    if ($Blocks -and $Blocks.Count -gt 0) {
+        $blocks = $Blocks
+    } else {
+        $blocks = Get-ShowCommandBlocks -Lines $Lines
+    }
 
     function Get-Hostname {
         foreach ($line in $Lines) {
@@ -134,10 +115,8 @@ function Get-BrocadeDeviceFacts {
 
     function Get-Location {
         param ($Block)
-        foreach ($line in $Block) {
-            if ($line -match "snmp-server location (.+)$") { return $matches[1].Trim() }
-        }
-        return "Unspecified"
+        # Delegate to the shared helper that handles vendor-specific keywords
+        return Get-SnmpLocationFromLines -Lines $Block
     }
 
     function Get-VlanMap {
@@ -197,7 +176,7 @@ function Get-BrocadeDeviceFacts {
             # the "State" column to be any non‑whitespace token (e.g. Forward, None).
             if ($line -match '^(\d+/\d+/\d+)\s+(Up|Down)\s+(\S+)\s+(Full|Half)\s+(\S+)\s+(?:\S+\s+){3,6}([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4,6})\s+(.*?)\s*$') {
                 $results += [PSCustomObject]@{
-                    RawPort = $matches[1]; Port = Normalize-PortName $matches[1]; Status = $matches[2]
+                    RawPort = $matches[1]; Port = ConvertTo-StandardPortName $matches[1]; Status = $matches[2]
                     State = $matches[3]; Duplex = $matches[4]; Speed = $matches[5]
                     MAC = $matches[6]; Name = $matches[7].Trim()
                 }
@@ -212,7 +191,7 @@ function Get-BrocadeDeviceFacts {
         foreach ($line in $Block) {
             if ($line -match '^([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})\s+(\d+/\d+/\d+)\s+\S+\s+(\d+)') {
                 $results += [PSCustomObject]@{
-                    MAC = $matches[1]; Port = Normalize-PortName $matches[2]; VLAN = $matches[3]
+                    MAC = $matches[1]; Port = ConvertTo-StandardPortName $matches[2]; VLAN = $matches[3]
                 }
             }
         }
@@ -225,7 +204,7 @@ function Get-BrocadeDeviceFacts {
 
         foreach ($line in $Dot1xBlock) {
             if ($line -match '^(\d+/\d+/\d+)\s+([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4}).*(AUTHENTICATED|AUTHENTICATING)$') {
-                $port = Normalize-PortName $matches[1]
+                $port = ConvertTo-StandardPortName $matches[1]
                 $mac = $matches[2]
                 $state = if ($matches[3] -eq 'AUTHENTICATED') { 'Authorized' } else { 'Authenticating' }
                 $dot1x[$port] = [PSCustomObject]@{ Port = $port; MAC = $mac; State = $state; Mode = 'dot1x' }
@@ -234,7 +213,7 @@ function Get-BrocadeDeviceFacts {
 
         foreach ($line in $MacAuthBlock) {
             if ($line -match '^(\d+/\d+/\d+)\s+([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})\s+\S+\s+\d+\s+(Yes|No)') {
-                $port = Normalize-PortName $matches[1]
+                $port = ConvertTo-StandardPortName $matches[1]
                 $mac = $matches[2]
                 $auth = $matches[3]
                 $state = if ($auth -eq 'Yes') { 'Authorized' } else { 'Unauthorized' }
@@ -268,7 +247,7 @@ function Get-BrocadeDeviceFacts {
             if ($trimmed -match '^-+$' -or $trimmed -match '^Port\s+MAC') { continue }
             if ($trimmed -match '^(\d+/\d+/\d+)\s+([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})\s+\S+\s+\S+\s+\d+\s+(MAUTH|8021\.X)\s+\S+\s+(Yes|No)\s+\d+\s+\S+\s+(AUTHENTICATED|AUTHENTICATING|UNAUTHENTICATED|N/A)') {
                 $rawPort = $matches[1]
-                $port = Normalize-PortName $rawPort
+                $port = ConvertTo-StandardPortName $rawPort
                 $mac  = $matches[2]
                 $method = $matches[3]
                 $auth = $matches[4]
@@ -317,7 +296,7 @@ function Get-BrocadeDeviceFacts {
         foreach ($line in $Block) {
             if ($line -match '^interface ethernet (\d+/\d+/\d+)$') {
                 if ($current) { $configs[$current] = ($buffer -join "`n") }
-                $current = Normalize-PortName $matches[1]; $buffer = @()
+                $current = ConvertTo-StandardPortName $matches[1]; $buffer = @()
             }
             elseif ($line -match 'port-name (.+)') {
                 $names[$current] = $matches[1].Trim()
@@ -328,54 +307,8 @@ function Get-BrocadeDeviceFacts {
         return @($configs, $names)
     }
 
-    # Parse spanning tree output for Brocade switches.  Brocade MST output
-    # resembles Cisco, with sections such as "MST0".  We reuse the same
-    # parsing logic as Cisco for simplicity.  Extract the root switch
-    # identifier (Address) and root port.  Additional fields can be added
-    # later.
-    function Parse-SpanningTree {
-        param([string[]]$SpanLines)
-        $entries = @()
-        $current = ''
-        $rootSwitch = ''
-        $rootPort = ''
-        foreach ($ln in $SpanLines) {
-            $line = $ln.Trim()
-            if ($line -match '^(MST\d+|VLAN\d+)') {
-                if ($current -ne '') {
-                    $entries += [PSCustomObject]@{
-                        VLAN       = $current
-                        RootSwitch = $rootSwitch
-                        RootPort   = $rootPort
-                        Role       = ''
-                        Upstream   = ''
-                    }
-                }
-                $current = $matches[1]
-                $rootSwitch = ''
-                $rootPort = ''
-                continue
-            }
-            if (-not $rootSwitch -and $line -match 'Address\s+(\S+)') {
-                $rootSwitch = $matches[1]
-                continue
-            }
-            if (-not $rootPort -and $line -match 'Root port\s+(\S+),') {
-                $rootPort = $matches[1]
-                continue
-            }
-        }
-        if ($current -ne '') {
-            $entries += [PSCustomObject]@{
-                VLAN       = $current
-                RootSwitch = $rootSwitch
-                RootPort   = $rootPort
-                Role       = ''
-                Upstream   = ''
-            }
-        }
-        return $entries
-    }
+    # The spanning-tree parsing helper has been moved to ParserWorker.psm1.
+    # Use the shared ConvertFrom-SpanningTree function provided by ParserWorker instead of a local copy.
 
     #
     # Extract command outputs individually using the flexible helper defined above.
@@ -462,7 +395,8 @@ function Get-BrocadeDeviceFacts {
     if ($spanBlock.Count -eq 0) {
         $spanBlock = Get-CommandBlock -Lines $Lines -CommandRegex '#\s*show\s+span'
     }
-    $spanInfo = if ($spanBlock.Count -gt 0) { Parse-SpanningTree -SpanLines $spanBlock } else { @() }
+    # Parse spanning tree information using the shared ConvertFrom‑SpanningTree helper
+    $spanInfo = if ($spanBlock.Count -gt 0) { ConvertFrom-SpanningTree -SpanLines $spanBlock } else { @() }
 
     return [PSCustomObject]@{
         Hostname = $hostname; 

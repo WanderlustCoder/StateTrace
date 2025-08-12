@@ -18,13 +18,13 @@ hostname WLLS-A02-AS-02
  snmp-server location Bldg_22_Floor_3_Room_102_Row_1_Rack_2
 !
 Authentication
- auth-default-vlan 4
- reauthentication
+ auth-default-vlan10
+ re-authentication
  dot1x enable
- dot1x enable ethe 1/1/2 to 1/1/3
+ dot1x enable ethe 1/1/1 to 1/1/48 ethe 2/1/1 to 2/1/48
  mac-authentication enable
- mac-authentication enable ethe 1/1/41 to 1/1/41
- mac-authentication dot1x-override
+ mac-authentication enable ethe 1/1/1 to 1/1/48 ethe 2/1/1 to 2/1/48
+ mac-authentication dot1x override
 !
 interface ethernet 1/1/1
  port-name Users1

@@ -1,3 +1,5 @@
+brocade
+
 WLLS-A01-AS-01# show version
 Cisco IOS XE Software, Version 17.03.03
 Cisco IOS Software [Everest], C9300 Software (C9300-UNIVERSALK9-M), Version 17.3.3, RELEASE SOFTWARE (fc3)
@@ -704,3 +706,5 @@ core-sw          Gi1/0/48    120       B           Gi1/0/1
 WLLS-A01-AS-01# show cdp neighbors
 Device ID        Local Intrfce     Holdtme Capability Platform Port ID
 core-sw          Gig1/0/48         153     S I       C9500    Gig1/0/1
+
+brocade

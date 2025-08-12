@@ -140,7 +140,8 @@ CREATE TABLE DeviceSummary (
     Building           TEXT(64),
     Room               TEXT(64),
     Ports              INTEGER,
-    AuthDefaultVLAN    TEXT(32)
+    AuthDefaultVLAN    TEXT(32),
+    AuthBlock          MEMO
 );
 '@
 
@@ -189,7 +190,8 @@ CREATE TABLE DeviceHistory (
     Building         TEXT(64),
     Room             TEXT(64),
     Ports            INTEGER,
-    AuthDefaultVLAN  TEXT(32)
+    AuthDefaultVLAN  TEXT(32),
+    AuthBlock        MEMO
 );
 '@
 
@@ -257,7 +259,9 @@ CREATE TABLE InterfaceHistory (
             "ALTER TABLE Interfaces ADD COLUMN Config MEMO",
             "ALTER TABLE Interfaces ADD COLUMN PortColor TEXT(32)",
             "ALTER TABLE Interfaces ADD COLUMN ConfigStatus TEXT(32)",
-            "ALTER TABLE Interfaces ADD COLUMN ToolTip MEMO"
+            "ALTER TABLE Interfaces ADD COLUMN ToolTip MEMO",
+            "ALTER TABLE DeviceSummary ADD COLUMN AuthBlock MEMO",
+            "ALTER TABLE DeviceHistory ADD COLUMN AuthBlock MEMO"
         )
         foreach ($stmt in $alterStmts) {
             try {
