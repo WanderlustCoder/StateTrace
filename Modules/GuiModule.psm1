@@ -59,9 +59,6 @@ function Load-DeviceSummaries {
             # root via $scriptDir if available, otherwise relative to this module.
             $rootDir  = if ($scriptDir) { (Join-Path $scriptDir '..') } else { (Join-Path $PSScriptRoot '..') }
             $dbModule = Join-Path (Join-Path $rootDir 'Modules') 'DatabaseModule.psm1'
-            if (Test-Path $dbModule) {
-                Import-Module $dbModule -Force -Global -ErrorAction Stop | Out-Null
-            }
             # Query device metadata from DeviceSummary.  Select fields needed for
             # building location filters.
             $dt = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT Hostname, Site, Building, Room FROM DeviceSummary ORDER BY Hostname"
@@ -302,7 +299,6 @@ function Load-DeviceDetails {
                 $dbModule = Join-Path (Join-Path $rootDir 'Modules') 'DatabaseModule.psm1'
                 if (Test-Path $dbModule) {
                     # Import DatabaseModule globally so Invoke-DbQuery is visible across modules
-                    Import-Module $dbModule -Force -Global -ErrorAction Stop | Out-Null
                 }
             } catch {
                 Write-Warning "Failed to import DatabaseModule: $($_.Exception.Message). Falling back to CSV."
@@ -493,10 +489,6 @@ function Update-GlobalInterfaceList {
             # Import DatabaseModule relative to project root
             $rootDir   = if ($scriptDir) { (Join-Path $scriptDir '..') } else { (Join-Path $PSScriptRoot '..') }
             $dbModule  = Join-Path (Join-Path $rootDir 'Modules') 'DatabaseModule.psm1'
-            if (Test-Path $dbModule) {
-                # Import DatabaseModule globally so Invoke-DbQuery is visible across modules
-                Import-Module $dbModule -Force -Global -ErrorAction Stop | Out-Null
-            }
             # Query all interfaces with site/building/room via a LEFT JOIN
             $sql = @"
 SELECT i.Hostname, i.Port, i.Name, i.Status, i.VLAN, i.Duplex, i.Speed, i.Type, i.LearnedMACs,

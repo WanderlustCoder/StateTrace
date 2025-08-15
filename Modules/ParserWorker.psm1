@@ -7,6 +7,264 @@ function New-Directories {
     }
 }
 
+#
+# Split raw log files into per-host files.
+#
+# Given a directory containing raw .log or .txt files, this helper scans each
+# file for device hostnames and associated prompt indices, then writes out
+# separate log files per host into a specified extraction directory.  It
+# accepts the input and output directories as parameters so it can be used
+# independently of script‑level variables.  The logic is derived from
+# NetworkReader.ps1, but refactored here to allow background processing in
+# the ParserWorker module.  All diagnostic messages use Write‑Host for
+# consistency with the original implementation.
+function Split-RawLogs {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$LogPath,
+        [Parameter(Mandatory=$true)][string]$ExtractedPath
+    )
+    Write-Host "Split-RawLogs: scanning directory '$LogPath' for .log and .txt files..."
+    # Gather all files in the log directory and classify by extension.  Report
+    # which files will be included or skipped to aid debugging.  Normalize
+    # extensions to lowercase for comparison.
+    $allFiles = Get-ChildItem $LogPath -File
+    foreach ($f in $allFiles) {
+        $ext = $f.Extension.ToLowerInvariant()
+        if ($ext -in '.log', '.txt') {
+            Write-Host "Including file for processing: $($f.FullName)"
+        } else {
+            Write-Host "Skipping file due to unsupported extension '$($f.Extension)': $($f.FullName)"
+        }
+    }
+    $rawFiles = $allFiles | Where-Object {
+        $ext = $_.Extension.ToLowerInvariant()
+        $ext -in '.log', '.txt'
+    }
+    Write-Host "Found $($rawFiles.Count) raw log file(s) to process."
+
+    foreach ($file in $rawFiles) {
+        Write-Host "\n--- Processing file: $($file.FullName) ---"
+        Write-Host "Reading file: $($file.FullName)"
+        $lines = Get-Content $file.FullName
+        Write-Host "Loaded $($lines.Count) lines from '$($file.Name)'"
+        $hostMarkers = @()
+
+        # Find hostnames in the file.  A hostname line looks like "hostname <name>".
+        # For each hostname, search the file for the earliest prompt matching
+        # either "SSH@<hostname>#" or "<hostname>#".  If no prompt is found,
+        # default to index 0 so the entire file is extracted for that host.
+        Write-Host "Searching for hostnames in '$($file.Name)'..."
+        for ($i = 0; $i -lt $lines.Count; $i++) {
+            if ($lines[$i] -match '(?i)^\s*hostname\s+(\S+)\s*$') {
+                $hostname = $Matches[1]
+                Write-Host "Detected hostname '$hostname' at line $i"
+                $promptPatterns = @("SSH@${hostname}#", "${hostname}#")
+                $foundPromptForHost = $false
+                for ($j = 0; $j -lt $lines.Count; $j++) {
+                    foreach ($pattern in $promptPatterns) {
+                        $regex = "(?i)^\s*$([regex]::Escape($pattern))"
+                        if ($lines[$j] -match $regex) {
+                            Write-Host "    Found prompt '$pattern' at line $j"
+                            $hostMarkers += [PSCustomObject]@{
+                                Hostname = $hostname
+                                Index    = $j
+                            }
+                            $foundPromptForHost = $true
+                            break
+                        }
+                    }
+                    if ($foundPromptForHost) { break }
+                }
+                if (-not $foundPromptForHost) {
+                    Write-Host "  No prompt found for hostname '$hostname', defaulting to start of file"
+                    $hostMarkers += [PSCustomObject]@{
+                        Hostname = $hostname
+                        Index    = 0
+                    }
+                }
+            }
+        }
+
+        if ($hostMarkers.Count -eq 0) {
+            Write-Warning "No host markers found in $($file.Name). Skipping this file."
+            continue
+        }
+
+        # Sort markers by index.  Wrap in array syntax to preserve Count when
+        # only one marker exists.  Report summary to aid debugging.
+        $hostMarkers = @($hostMarkers | Sort-Object Index)
+        $markerStrings = $hostMarkers | ForEach-Object { "$($_.Hostname)@$($_.Index)" }
+        $markerSummary = $markerStrings -join ', '
+        Write-Host "Host markers for '$($file.Name)': $markerSummary"
+        Write-Host "Total host markers found in '$($file.Name)': $($hostMarkers.Count)"
+
+        if ($hostMarkers.Count -eq 1) {
+            $singleHost = $hostMarkers[0].Hostname
+            $safeSingleHost = $singleHost -replace '[\\/:*?"<>|]', '_'
+            $outPathSingle = Join-Path $ExtractedPath "$safeSingleHost.log"
+            Write-Host "Single-host file detected. Writing entire file for host '$safeSingleHost' to '$outPathSingle' (total $($lines.Count) lines)"
+            $lines | Set-Content $outPathSingle
+            if (Test-Path $outPathSingle) {
+                Write-Host "Successfully wrote file: $outPathSingle"
+            } else {
+                Write-Warning "Failed to write file: $outPathSingle"
+            }
+            Write-Host "Finished processing single-host file '$($file.Name)'"
+            continue
+        }
+
+        Write-Host "Multi-host file detected. Writing slices for each host."
+        for ($k = 0; $k -lt $hostMarkers.Count; $k++) {
+            $start = $hostMarkers[$k].Index
+            $end   = if ($k -lt $hostMarkers.Count - 1) {
+                $hostMarkers[$k + 1].Index - 1
+            } else {
+                $lines.Count - 1
+            }
+            $slice = $lines[$start..$end]
+            $safeHost = $hostMarkers[$k].Hostname -replace '[\\/:*?"<>|]', '_'
+            $outPath = Join-Path $ExtractedPath "$safeHost.log"
+            Write-Host "  Preparing slice for host '$safeHost': lines $start..$end (total $($slice.Count))"
+            Write-Host "  Writing to: $outPath"
+            $slice | Set-Content $outPath
+            if (Test-Path $outPath) {
+                Write-Host "  Successfully wrote file: $outPath"
+            } else {
+                Write-Warning "  Failed to write file: $outPath"
+            }
+        }
+        Write-Host "Finished processing multi-host file '$($file.Name)'"
+    }
+}
+
+#
+# Start parsing each extracted device log file in parallel.  Uses a runspace
+# pool to limit concurrency.  Each runspace imports the necessary vendor
+# modules and this ParserWorker module, then calls Invoke-DeviceLogParsing
+# for the given file.  The caller can specify the maximum number of threads
+# and optionally a database path.  ModulesPath and ArchiveRoot are passed
+# through so that runspaces can locate vendor modules and archival
+# directories consistently with the main thread.  This function mirrors
+# Start-ParallelDeviceProcessing in NetworkReader.ps1 but accepts explicit
+# parameters instead of relying on script‑level variables.
+function Start-ParallelDeviceProcessing {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string[]]$DeviceFiles,
+        [int]$MaxThreads = 20,
+        [string]$DatabasePath,
+        [Parameter(Mandatory=$true)][string]$ModulesPath,
+        [Parameter(Mandatory=$true)][string]$ArchiveRoot
+    )
+    # Create a runspace pool with a maximum thread count.  The minimum is
+    # always 1; the maximum is user specified.  Using an InitialSessionState
+    # allows import of modules in each runspace.  Pass $Host to ensure
+    # host-specific variables (e.g. progress) are available.
+    $sessionState = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
+    $runspacePool = [runspacefactory]::CreateRunspacePool(1, $MaxThreads, $sessionState, $Host)
+    $runspacePool.Open()
+    $runspaces = @()
+    foreach ($file in $DeviceFiles) {
+        $ps = [powershell]::Create()
+        $ps.RunspacePool = $runspacePool
+        # Build the script block to execute in each runspace.  Import the vendor
+        # modules and the ParserWorker module itself.  If a database path
+        # exists, import the DatabaseModule globally so its functions are
+        # available for invoking SQL commands.  Then call Invoke-DeviceLogParsing.
+        $ps.AddScript({
+            param($filePath, $modulesPath, $archiveRoot, $dbPath)
+            Import-Module (Join-Path $modulesPath 'AristaModule.psm1') -Force
+            Import-Module (Join-Path $modulesPath 'CiscoModule.psm1') -Force
+            Import-Module (Join-Path $modulesPath 'BrocadeModule.psm1') -Force
+            Import-Module (Join-Path $modulesPath 'ParserWorker.psm1') -Force
+            if ($dbPath -and (Test-Path (Join-Path $modulesPath 'DatabaseModule.psm1'))) {
+                Import-Module (Join-Path $modulesPath 'DatabaseModule.psm1') -Force -Global
+            }
+            # Invoke the parser.  Pass ArchiveRoot and DatabasePath so that
+            # Invoke-DeviceLogParsing can archive logs and write to the DB.
+            Invoke-DeviceLogParsing -FilePath $filePath -ArchiveRoot $archiveRoot -DatabasePath $dbPath
+        }).AddArgument($file).AddArgument($ModulesPath).AddArgument($ArchiveRoot).AddArgument($DatabasePath)
+        $runspaces += [PSCustomObject]@{
+            Pipe = $ps
+            AsyncResult = $ps.BeginInvoke()
+        }
+    }
+    foreach ($r in $runspaces) {
+        $r.Pipe.EndInvoke($r.AsyncResult)
+        $r.Pipe.Dispose()
+    }
+    $runspacePool.Close()
+    $runspacePool.Dispose()
+}
+
+#
+# Clear all files from the extracted log directory.  This helper accepts
+# an explicit path rather than relying on module-level variables so that
+# callers can control where extracted files are located.  Removing the
+# extracted files prevents stale data from persisting between runs.
+function Clear-ExtractedLogs {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$ExtractedPath
+    )
+    Get-ChildItem $ExtractedPath -File | Remove-Item -Force -ErrorAction SilentlyContinue
+}
+
+#
+# Entry point for full parsing from the GUI.  This function encapsulates
+# the entire processing pipeline previously defined in NetworkReader.ps1.
+# It computes project paths relative to the module location, creates
+# necessary directories, splits raw logs, invokes per‑device parsing in
+# parallel and finally cleans up temporary files.  An optional
+# DatabasePath parameter allows callers to override the database path or
+# rely on the StateTraceDb environment/global variables.  The caller
+# should import this module before invoking the function.
+function Invoke-StateTraceParsing {
+    [CmdletBinding()]
+    param(
+        [string]$DatabasePath
+    )
+    # Determine project root based on the module's location.  $PSScriptRoot is
+    # the Modules directory; its parent is the project root.
+    $projectRoot = Join-Path $PSScriptRoot '..' | Resolve-Path | Select-Object -ExpandProperty Path
+    $logPath      = Join-Path $projectRoot 'Logs'
+    $extractedPath= Join-Path $logPath 'Extracted'
+    $modulesPath  = Join-Path $projectRoot 'Modules'
+    $archiveRoot  = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'SwitchArchives'
+    # Ensure directories exist.
+    New-Directories @($logPath, $extractedPath, $archiveRoot)
+    # Split raw logs into per‑device logs.
+    Split-RawLogs -LogPath $logPath -ExtractedPath $extractedPath
+    # Gather the extracted device files.
+    $deviceFiles = Get-ChildItem $extractedPath -File | Select-Object -ExpandProperty FullName
+    if ($deviceFiles.Count -gt 0) {
+        Write-Host "Extracted $($deviceFiles.Count) device log file(s) to process:" -ForegroundColor Yellow
+        foreach ($dev in $deviceFiles) { Write-Host "  - $dev" -ForegroundColor Yellow }
+    } else {
+        Write-Warning "No device logs were extracted; the parser will not run."
+    }
+    # Determine thread count up to 8 for concurrency.
+    $threadCount = [Math]::Min(8, [Environment]::ProcessorCount)
+    # Determine database path precedence: explicit parameter, environment variable, then global.
+    $dbPath = $null
+    if ($PSBoundParameters.ContainsKey('DatabasePath') -and $DatabasePath) {
+        $dbPath = $DatabasePath
+    } elseif ($env:StateTraceDbPath -and $env:StateTraceDbPath -ne '') {
+        $dbPath = $env:StateTraceDbPath
+    } elseif ($global:StateTraceDb) {
+        $dbPath = $global:StateTraceDb
+    }
+    # Process each device file using parallel runspaces.
+    if ($deviceFiles.Count -gt 0) {
+        Write-Host "Processing $($deviceFiles.Count) logs in parallel..." -ForegroundColor Yellow
+        Start-ParallelDeviceProcessing -DeviceFiles $deviceFiles -MaxThreads $threadCount -DatabasePath $dbPath -ModulesPath $modulesPath -ArchiveRoot $archiveRoot
+    }
+    # Cleanup extracted logs.
+    Clear-ExtractedLogs -ExtractedPath $extractedPath
+    Write-Host "Processing complete." -ForegroundColor Yellow
+}
+
 # Extract structured details from an SNMP location string.  Cisco and Brocade devices
 # allow arbitrary strings for the `snmp-server location` configuration; a common
 # convention in this environment is to separate fields with underscores.  For
@@ -913,4 +1171,482 @@ function Invoke-DeviceLogParsing {
     }
 
     Remove-OldArchiveFolder -DeviceArchivePath $devicePath -RetentionDays 30
+}
+
+#
+# Split raw log files into per-host files.
+#
+# Given a directory containing raw .log or .txt files, this helper scans each
+# file for device hostnames and associated prompt indices, then writes out
+# separate log files per host into a specified extraction directory.  It
+# accepts the input and output directories as parameters so it can be used
+# independently of script‑level variables.  The logic is derived from
+# NetworkReader.ps1, but refactored here to allow background processing in
+# the ParserWorker module.  All diagnostic messages use Write‑Host for
+# consistency with the original implementation.
+function Split-RawLogs {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$LogPath,
+        [Parameter(Mandatory=$true)][string]$ExtractedPath
+    )
+    Write-Host "Split-RawLogs: scanning directory '$LogPath' for .log and .txt files..."
+    # Gather all files in the log directory and classify by extension.  Report
+    # which files will be included or skipped to aid debugging.  Normalize
+    # extensions to lowercase for comparison.
+    $allFiles = Get-ChildItem $LogPath -File
+    foreach ($f in $allFiles) {
+        $ext = $f.Extension.ToLowerInvariant()
+        if ($ext -in '.log', '.txt') {
+            Write-Host "Including file for processing: $($f.FullName)"
+        } else {
+            Write-Host "Skipping file due to unsupported extension '$($f.Extension)': $($f.FullName)"
+        }
+    }
+    $rawFiles = $allFiles | Where-Object {
+        $ext = $_.Extension.ToLowerInvariant()
+        $ext -in '.log', '.txt'
+    }
+    Write-Host "Found $($rawFiles.Count) raw log file(s) to process."
+
+    foreach ($file in $rawFiles) {
+        Write-Host "\n--- Processing file: $($file.FullName) ---"
+        Write-Host "Reading file: $($file.FullName)"
+        $lines = Get-Content $file.FullName
+        Write-Host "Loaded $($lines.Count) lines from '$($file.Name)'"
+        $hostMarkers = @()
+
+        # Find hostnames in the file.  A hostname line looks like "hostname <name>".
+        # For each hostname, search the file for the earliest prompt matching
+        # either "SSH@<hostname>#" or "<hostname>#".  If no prompt is found,
+        # default to index 0 so the entire file is extracted for that host.
+        Write-Host "Searching for hostnames in '$($file.Name)'..."
+        for ($i = 0; $i -lt $lines.Count; $i++) {
+            if ($lines[$i] -match '(?i)^\s*hostname\s+(\S+)\s*$') {
+                $hostname = $Matches[1]
+                Write-Host "Detected hostname '$hostname' at line $i"
+                $promptPatterns = @("SSH@${hostname}#", "${hostname}#")
+                $foundPromptForHost = $false
+                for ($j = 0; $j -lt $lines.Count; $j++) {
+                    foreach ($pattern in $promptPatterns) {
+                        $regex = "(?i)^\s*$([regex]::Escape($pattern))"
+                        if ($lines[$j] -match $regex) {
+                            Write-Host "    Found prompt '$pattern' at line $j"
+                            $hostMarkers += [PSCustomObject]@{
+                                Hostname = $hostname
+                                Index    = $j
+                            }
+                            $foundPromptForHost = $true
+                            break
+                        }
+                    }
+                    if ($foundPromptForHost) { break }
+                }
+                if (-not $foundPromptForHost) {
+                    Write-Host "  No prompt found for hostname '$hostname', defaulting to start of file"
+                    $hostMarkers += [PSCustomObject]@{
+                        Hostname = $hostname
+                        Index    = 0
+                    }
+                }
+            }
+        }
+
+        if ($hostMarkers.Count -eq 0) {
+            Write-Warning "No host markers found in $($file.Name). Skipping this file."
+            continue
+        }
+
+        # Sort markers by index.  Wrap in array syntax to preserve Count when
+        # only one marker exists.  Report summary to aid debugging.
+        $hostMarkers = @($hostMarkers | Sort-Object Index)
+        $markerStrings = $hostMarkers | ForEach-Object { "$($_.Hostname)@$($_.Index)" }
+        $markerSummary = $markerStrings -join ', '
+        Write-Host "Host markers for '$($file.Name)': $markerSummary"
+        Write-Host "Total host markers found in '$($file.Name)': $($hostMarkers.Count)"
+
+        if ($hostMarkers.Count -eq 1) {
+            $singleHost = $hostMarkers[0].Hostname
+            $safeSingleHost = $singleHost -replace '[\\/:*?"<>|]', '_'
+            $outPathSingle = Join-Path $ExtractedPath "$safeSingleHost.log"
+            Write-Host "Single-host file detected. Writing entire file for host '$safeSingleHost' to '$outPathSingle' (total $($lines.Count) lines)"
+            $lines | Set-Content $outPathSingle
+            if (Test-Path $outPathSingle) {
+                Write-Host "Successfully wrote file: $outPathSingle"
+            } else {
+                Write-Warning "Failed to write file: $outPathSingle"
+            }
+            Write-Host "Finished processing single-host file '$($file.Name)'"
+            continue
+        }
+
+        Write-Host "Multi-host file detected. Writing slices for each host."
+        for ($k = 0; $k -lt $hostMarkers.Count; $k++) {
+            $start = $hostMarkers[$k].Index
+            $end   = if ($k -lt $hostMarkers.Count - 1) {
+                $hostMarkers[$k + 1].Index - 1
+            } else {
+                $lines.Count - 1
+            }
+            $slice = $lines[$start..$end]
+            $safeHost = $hostMarkers[$k].Hostname -replace '[\\/:*?"<>|]', '_'
+            $outPath = Join-Path $ExtractedPath "$safeHost.log"
+            Write-Host "  Preparing slice for host '$safeHost': lines $start..$end (total $($slice.Count))"
+            Write-Host "  Writing to: $outPath"
+            $slice | Set-Content $outPath
+            if (Test-Path $outPath) {
+                Write-Host "  Successfully wrote file: $outPath"
+            } else {
+                Write-Warning "  Failed to write file: $outPath"
+            }
+        }
+        Write-Host "Finished processing multi-host file '$($file.Name)'"
+    }
+}
+
+#
+# Start parsing each extracted device log file in parallel.  Uses a runspace
+# pool to limit concurrency.  Each runspace imports the necessary vendor
+# modules and this ParserWorker module, then calls Invoke-DeviceLogParsing
+# for the given file.  The caller can specify the maximum number of threads
+# and optionally a database path.  ModulesPath and ArchiveRoot are passed
+# through so that runspaces can locate vendor modules and archival
+# directories consistently with the main thread.  This function mirrors
+# Start-ParallelDeviceProcessing in NetworkReader.ps1 but accepts explicit
+# parameters instead of relying on script‑level variables.
+function Start-ParallelDeviceProcessing {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string[]]$DeviceFiles,
+        [int]$MaxThreads = 20,
+        [string]$DatabasePath,
+        [Parameter(Mandatory=$true)][string]$ModulesPath,
+        [Parameter(Mandatory=$true)][string]$ArchiveRoot
+    )
+    $sessionState = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
+    $runspacePool = [runspacefactory]::CreateRunspacePool(1, $MaxThreads, $sessionState, $Host)
+    $runspacePool.Open()
+    $runspaces = @()
+    foreach ($file in $DeviceFiles) {
+        $ps = [powershell]::Create()
+        $ps.RunspacePool = $runspacePool
+        $ps.AddScript({
+            param($filePath, $modulesPath, $archiveRoot, $dbPath)
+            Import-Module (Join-Path $modulesPath 'AristaModule.psm1') -Force
+            Import-Module (Join-Path $modulesPath 'CiscoModule.psm1') -Force
+            Import-Module (Join-Path $modulesPath 'BrocadeModule.psm1') -Force
+            Import-Module (Join-Path $modulesPath 'ParserWorker.psm1') -Force
+            if ($dbPath -and (Test-Path (Join-Path $modulesPath 'DatabaseModule.psm1'))) {
+                Import-Module (Join-Path $modulesPath 'DatabaseModule.psm1') -Force -Global
+            }
+            Invoke-DeviceLogParsing -FilePath $filePath -ArchiveRoot $archiveRoot -DatabasePath $dbPath
+        }).AddArgument($file).AddArgument($ModulesPath).AddArgument($ArchiveRoot).AddArgument($DatabasePath)
+        $runspaces += [PSCustomObject]@{
+            Pipe = $ps
+            AsyncResult = $ps.BeginInvoke()
+        }
+    }
+    foreach ($r in $runspaces) {
+        $r.Pipe.EndInvoke($r.AsyncResult)
+        $r.Pipe.Dispose()
+    }
+    $runspacePool.Close()
+    $runspacePool.Dispose()
+}
+
+#
+# Clear all files from the extracted log directory.  This helper accepts
+# an explicit path rather than relying on module-level variables so that
+# callers can control where extracted files are located.  Removing the
+# extracted files prevents stale data from persisting between runs.
+function Clear-ExtractedLogs {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$ExtractedPath
+    )
+    Get-ChildItem $ExtractedPath -File | Remove-Item -Force -ErrorAction SilentlyContinue
+}
+
+#
+# Entry point for full parsing from the GUI.  This function encapsulates
+# the entire processing pipeline previously defined in NetworkReader.ps1.
+# It computes project paths relative to the module location, creates
+# necessary directories, splits raw logs, invokes per‑device parsing in
+# parallel and finally cleans up temporary files.  An optional
+# DatabasePath parameter allows callers to override the database path or
+# rely on the StateTraceDb environment/global variables.  The caller
+# should import this module before invoking the function.
+function Invoke-StateTraceParsing {
+    [CmdletBinding()]
+    param(
+        [string]$DatabasePath
+    )
+    $projectRoot = Join-Path $PSScriptRoot '..' | Resolve-Path | Select-Object -ExpandProperty Path
+    $logPath       = Join-Path $projectRoot 'Logs'
+    $extractedPath = Join-Path $logPath 'Extracted'
+    $modulesPath   = Join-Path $projectRoot 'Modules'
+    $archiveRoot   = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'SwitchArchives'
+    New-Directories @($logPath, $extractedPath, $archiveRoot)
+    Split-RawLogs -LogPath $logPath -ExtractedPath $extractedPath
+    $deviceFiles = Get-ChildItem $extractedPath -File | Select-Object -ExpandProperty FullName
+    if ($deviceFiles.Count -gt 0) {
+        Write-Host "Extracted $($deviceFiles.Count) device log file(s) to process:" -ForegroundColor Yellow
+        foreach ($dev in $deviceFiles) { Write-Host "  - $dev" -ForegroundColor Yellow }
+    } else {
+        Write-Warning "No device logs were extracted; the parser will not run."
+    }
+    $threadCount = [Math]::Min(8, [Environment]::ProcessorCount)
+    $dbPath = $null
+    if ($PSBoundParameters.ContainsKey('DatabasePath') -and $DatabasePath) {
+        $dbPath = $DatabasePath
+    } elseif ($env:StateTraceDbPath -and $env:StateTraceDbPath -ne '') {
+        $dbPath = $env:StateTraceDbPath
+    } elseif ($global:StateTraceDb) {
+        $dbPath = $global:StateTraceDb
+    }
+    if ($deviceFiles.Count -gt 0) {
+        Write-Host "Processing $($deviceFiles.Count) logs in parallel..." -ForegroundColor Yellow
+        Start-ParallelDeviceProcessing -DeviceFiles $deviceFiles -MaxThreads $threadCount -DatabasePath $dbPath -ModulesPath $modulesPath -ArchiveRoot $archiveRoot
+    }
+    Clear-ExtractedLogs -ExtractedPath $extractedPath
+    Write-Host "Processing complete." -ForegroundColor Yellow
+}
+
+#
+# Split raw log files into per-host files.
+#
+# Given a directory containing raw .log or .txt files, this helper scans each
+# file for device hostnames and associated prompt indices, then writes out
+# separate log files per host into a specified extraction directory.  It
+# accepts the input and output directories as parameters so it can be used
+# independently of script‑level variables.  The logic is derived from
+# NetworkReader.ps1, but refactored here to allow background processing in
+# the ParserWorker module.  All diagnostic messages use Write‑Host for
+# consistency with the original implementation.
+function Split-RawLogs {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$LogPath,
+        [Parameter(Mandatory=$true)][string]$ExtractedPath
+    )
+    Write-Host "Split-RawLogs: scanning directory '$LogPath' for .log and .txt files..."
+    # Gather all files in the log directory and classify by extension.  Report
+    # which files will be included or skipped to aid debugging.  Normalize
+    # extensions to lowercase for comparison.
+    $allFiles = Get-ChildItem $LogPath -File
+    foreach ($f in $allFiles) {
+        $ext = $f.Extension.ToLowerInvariant()
+        if ($ext -in '.log', '.txt') {
+            Write-Host "Including file for processing: $($f.FullName)"
+        } else {
+            Write-Host "Skipping file due to unsupported extension '$($f.Extension)': $($f.FullName)"
+        }
+    }
+    $rawFiles = $allFiles | Where-Object {
+        $ext = $_.Extension.ToLowerInvariant()
+        $ext -in '.log', '.txt'
+    }
+    Write-Host "Found $($rawFiles.Count) raw log file(s) to process."
+
+    foreach ($file in $rawFiles) {
+        Write-Host "\n--- Processing file: $($file.FullName) ---"
+        Write-Host "Reading file: $($file.FullName)"
+        $lines = Get-Content $file.FullName
+        Write-Host "Loaded $($lines.Count) lines from '$($file.Name)'"
+        $hostMarkers = @()
+
+        # Find hostnames in the file.  A hostname line looks like "hostname <name>".
+        # For each hostname, search the file for the earliest prompt matching
+        # either "SSH@<hostname>#" or "<hostname>#".  If no prompt is found,
+        # default to index 0 so the entire file is extracted for that host.
+        Write-Host "Searching for hostnames in '$($file.Name)'..."
+        for ($i = 0; $i -lt $lines.Count; $i++) {
+            if ($lines[$i] -match '(?i)^\s*hostname\s+(\S+)\s*$') {
+                $hostname = $Matches[1]
+                Write-Host "Detected hostname '$hostname' at line $i"
+                $promptPatterns = @("SSH@${hostname}#", "${hostname}#")
+                $foundPromptForHost = $false
+                for ($j = 0; $j -lt $lines.Count; $j++) {
+                    foreach ($pattern in $promptPatterns) {
+                        $regex = "(?i)^\s*$([regex]::Escape($pattern))"
+                        if ($lines[$j] -match $regex) {
+                            Write-Host "    Found prompt '$pattern' at line $j"
+                            $hostMarkers += [PSCustomObject]@{
+                                Hostname = $hostname
+                                Index    = $j
+                            }
+                            $foundPromptForHost = $true
+                            break
+                        }
+                    }
+                    if ($foundPromptForHost) { break }
+                }
+                if (-not $foundPromptForHost) {
+                    Write-Host "  No prompt found for hostname '$hostname', defaulting to start of file"
+                    $hostMarkers += [PSCustomObject]@{
+                        Hostname = $hostname
+                        Index    = 0
+                    }
+                }
+            }
+        }
+
+        if ($hostMarkers.Count -eq 0) {
+            Write-Warning "No host markers found in $($file.Name). Skipping this file."
+            continue
+        }
+
+        # Sort markers by index.  Wrap in array syntax to preserve Count when
+        # only one marker exists.  Report summary to aid debugging.
+        $hostMarkers = @($hostMarkers | Sort-Object Index)
+        $markerStrings = $hostMarkers | ForEach-Object { "$($_.Hostname)@$($_.Index)" }
+        $markerSummary = $markerStrings -join ', '
+        Write-Host "Host markers for '$($file.Name)': $markerSummary"
+        Write-Host "Total host markers found in '$($file.Name)': $($hostMarkers.Count)"
+
+        if ($hostMarkers.Count -eq 1) {
+            $singleHost = $hostMarkers[0].Hostname
+            $safeSingleHost = $singleHost -replace '[\\/:*?"<>|]', '_'
+            $outPathSingle = Join-Path $ExtractedPath "$safeSingleHost.log"
+            Write-Host "Single-host file detected. Writing entire file for host '$safeSingleHost' to '$outPathSingle' (total $($lines.Count) lines)"
+            $lines | Set-Content $outPathSingle
+            if (Test-Path $outPathSingle) {
+                Write-Host "Successfully wrote file: $outPathSingle"
+            } else {
+                Write-Warning "Failed to write file: $outPathSingle"
+            }
+            Write-Host "Finished processing single-host file '$($file.Name)'"
+            continue
+        }
+
+        Write-Host "Multi-host file detected. Writing slices for each host."
+        for ($k = 0; $k -lt $hostMarkers.Count; $k++) {
+            $start = $hostMarkers[$k].Index
+            $end   = if ($k -lt $hostMarkers.Count - 1) {
+                $hostMarkers[$k + 1].Index - 1
+            } else {
+                $lines.Count - 1
+            }
+            $slice = $lines[$start..$end]
+            $safeHost = $hostMarkers[$k].Hostname -replace '[\\/:*?"<>|]', '_'
+            $outPath = Join-Path $ExtractedPath "$safeHost.log"
+            Write-Host "  Preparing slice for host '$safeHost': lines $start..$end (total $($slice.Count))"
+            Write-Host "  Writing to: $outPath"
+            $slice | Set-Content $outPath
+            if (Test-Path $outPath) {
+                Write-Host "  Successfully wrote file: $outPath"
+            } else {
+                Write-Warning "  Failed to write file: $outPath"
+            }
+        }
+        Write-Host "Finished processing multi-host file '$($file.Name)'"
+    }
+}
+
+#
+# Start parsing each extracted device log file in parallel.  Uses a runspace
+# pool to limit concurrency.  Each runspace imports the necessary vendor
+# modules and this ParserWorker module, then calls Invoke-DeviceLogParsing
+# for the given file.  The caller can specify the maximum number of threads
+# and optionally a database path.  ModulesPath and ArchiveRoot are passed
+# through so that runspaces can locate vendor modules and archival
+# directories consistently with the main thread.  This function mirrors
+# Start-ParallelDeviceProcessing in NetworkReader.ps1 but accepts explicit
+# parameters instead of relying on script‑level variables.
+function Start-ParallelDeviceProcessing {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string[]]$DeviceFiles,
+        [int]$MaxThreads = 20,
+        [string]$DatabasePath,
+        [Parameter(Mandatory=$true)][string]$ModulesPath,
+        [Parameter(Mandatory=$true)][string]$ArchiveRoot
+    )
+    $sessionState = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
+    $runspacePool = [runspacefactory]::CreateRunspacePool(1, $MaxThreads, $sessionState, $Host)
+    $runspacePool.Open()
+    $runspaces = @()
+    foreach ($file in $DeviceFiles) {
+        $ps = [powershell]::Create()
+        $ps.RunspacePool = $runspacePool
+        $ps.AddScript({
+            param($filePath, $modulesPath, $archiveRoot, $dbPath)
+            Import-Module (Join-Path $modulesPath 'AristaModule.psm1') -Force
+            Import-Module (Join-Path $modulesPath 'CiscoModule.psm1') -Force
+            Import-Module (Join-Path $modulesPath 'BrocadeModule.psm1') -Force
+            Import-Module (Join-Path $modulesPath 'ParserWorker.psm1') -Force
+            if ($dbPath -and (Test-Path (Join-Path $modulesPath 'DatabaseModule.psm1'))) {
+                Import-Module (Join-Path $modulesPath 'DatabaseModule.psm1') -Force -Global
+            }
+            Invoke-DeviceLogParsing -FilePath $filePath -ArchiveRoot $archiveRoot -DatabasePath $dbPath
+        }).AddArgument($file).AddArgument($ModulesPath).AddArgument($ArchiveRoot).AddArgument($DatabasePath)
+        $runspaces += [PSCustomObject]@{
+            Pipe = $ps
+            AsyncResult = $ps.BeginInvoke()
+        }
+    }
+    foreach ($r in $runspaces) {
+        $r.Pipe.EndInvoke($r.AsyncResult)
+        $r.Pipe.Dispose()
+    }
+    $runspacePool.Close()
+    $runspacePool.Dispose()
+}
+
+#
+# Clear all files from the extracted log directory.  This helper accepts
+# an explicit path rather than relying on module-level variables so that
+# callers can control where extracted files are located.  Removing the
+# extracted files prevents stale data from persisting between runs.
+function Clear-ExtractedLogs {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$ExtractedPath
+    )
+    Get-ChildItem $ExtractedPath -File | Remove-Item -Force -ErrorAction SilentlyContinue
+}
+
+#
+# Entry point for full parsing from the GUI.  This function encapsulates
+# the entire processing pipeline previously defined in NetworkReader.ps1.
+# It computes project paths relative to the module location, creates
+# necessary directories, splits raw logs, invokes per‑device parsing in
+# parallel and finally cleans up temporary files.  An optional
+# DatabasePath parameter allows callers to override the database path or
+# rely on the StateTraceDb environment/global variables.  The caller
+# should import this module before invoking the function.
+function Invoke-StateTraceParsing {
+    [CmdletBinding()]
+    param(
+        [string]$DatabasePath
+    )
+    $projectRoot = Join-Path $PSScriptRoot '..' | Resolve-Path | Select-Object -ExpandProperty Path
+    $logPath       = Join-Path $projectRoot 'Logs'
+    $extractedPath = Join-Path $logPath 'Extracted'
+    $modulesPath   = Join-Path $projectRoot 'Modules'
+    $archiveRoot   = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'SwitchArchives'
+    New-Directories @($logPath, $extractedPath, $archiveRoot)
+    Split-RawLogs -LogPath $logPath -ExtractedPath $extractedPath
+    $deviceFiles = Get-ChildItem $extractedPath -File | Select-Object -ExpandProperty FullName
+    if ($deviceFiles.Count -gt 0) {
+        Write-Host "Extracted $($deviceFiles.Count) device log file(s) to process:" -ForegroundColor Yellow
+        foreach ($dev in $deviceFiles) { Write-Host "  - $dev" -ForegroundColor Yellow }
+    } else {
+        Write-Warning "No device logs were extracted; the parser will not run."
+    }
+    $threadCount = [Math]::Min(8, [Environment]::ProcessorCount)
+    $dbPath = $null
+    if ($PSBoundParameters.ContainsKey('DatabasePath') -and $DatabasePath) {
+        $dbPath = $DatabasePath
+    } elseif ($env:StateTraceDbPath -and $env:StateTraceDbPath -ne '') {
+        $dbPath = $env:StateTraceDbPath
+    } elseif ($global:StateTraceDb) {
+        $dbPath = $global:StateTraceDb
+    }
+    if ($deviceFiles.Count -gt 0) {
+        Write-Host "Processing $($deviceFiles.Count) logs in parallel..." -ForegroundColor Yellow
+        Start-ParallelDeviceProcessing -DeviceFiles $deviceFiles -MaxThreads $threadCount -DatabasePath $dbPath -ModulesPath $modulesPath -ArchiveRoot $archiveRoot
+    }
+    Clear-ExtractedLogs -ExtractedPath $extractedPath
+    Write-Host "Processing complete." -ForegroundColor Yellow
 }

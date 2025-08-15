@@ -34,6 +34,66 @@
 
 Set-StrictMode -Version Latest
 
+# === BEGIN Initialize-StateTraceDatabase (DatabaseModule.psm1) ===
+function Initialize-StateTraceDatabase {
+    [CmdletBinding()]
+    param(
+        # Allow override, but default to project Data folder relative to this module.
+        [string]$DataDir = (Join-Path $PSScriptRoot '..\Data')
+    )
+    begin {
+        try {
+            [void][IO.Directory]::CreateDirectory($DataDir)
+        } catch {
+            throw ("Unable to access or create Data directory at {0}: {1}" -f $DataDir, $_.Exception.Message)
+        }
+    }
+    process {
+        $accdbPath = Join-Path $DataDir 'StateTrace.accdb'
+        $mdbPath   = Join-Path $DataDir 'StateTrace.mdb'
+        $dbPath    = $null
+
+        # Prefer existing DBs to avoid noisy “create” attempts.
+        if (Test-Path $accdbPath -PathType Leaf) {
+            $dbPath = $accdbPath
+        } elseif (Test-Path $mdbPath -PathType Leaf) {
+            $dbPath = $mdbPath
+        } else {
+            # Try modern .accdb first, then fall back to .mdb
+            try {
+                $null = New-AccessDatabase -Path $accdbPath
+            } catch {
+                Write-Warning ("Failed to create .accdb at {0}: {1}" -f $accdbPath, $_.Exception.Message)
+            }
+
+            if (Test-Path $accdbPath -PathType Leaf) {
+                $dbPath = $accdbPath
+            } else {
+                try {
+                    $null = New-AccessDatabase -Path $mdbPath
+                } catch {
+                    Write-Error ("Failed to create .mdb at {0}: {1}" -f $mdbPath, $_.Exception.Message)
+                }
+                if (Test-Path $mdbPath -PathType Leaf) {
+                    $dbPath = $mdbPath
+                }
+            }
+        }
+
+        if (-not $dbPath) {
+            throw ("Database initialization failed — no usable database in {0}" -f $DataDir)
+        }
+
+        # Publish locations for the rest of the app (and child processes).
+        $global:StateTraceDb   = $dbPath
+        $env:StateTraceDbPath  = $dbPath
+
+        # Return the chosen path for callers that want it.
+        return $dbPath
+    }
+}
+# === END Initialize-StateTraceDatabase (DatabaseModule.psm1) ===
+
 function New-AccessDatabase {
     <#
         .SYNOPSIS
@@ -411,4 +471,4 @@ function Invoke-DbQuery {
     }
 }
 
-Export-ModuleMember -Function New-AccessDatabase, Invoke-DbNonQuery, Invoke-DbQuery
+Export-ModuleMember -Function New-AccessDatabase, Invoke-DbNonQuery, Invoke-DbQuery, Initialize-StateTraceDatabase

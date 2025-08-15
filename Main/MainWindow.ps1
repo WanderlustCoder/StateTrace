@@ -1,292 +1,332 @@
-﻿Add-Type -AssemblyName PresentationFramework
+﻿# === MainWindow.ps1 :: Bootstrap (WPF + Paths + Module Manifest) ===
 
-# 1) Paths
-$scriptDir           = Split-Path -Parent $MyInvocation.MyCommand.Path
-$parserScript        = Join-Path $scriptDir '.\NetworkReader.ps1'
-$interfaceModulePath = Join-Path $scriptDir '..\Modules\InterfaceModule.psm1'
-$interfacesViewXaml  = Join-Path $scriptDir '..\Views\InterfacesView.xaml'
+# Load WPF once (PresentationFramework pulls in PresentationCore & WindowsBase).
+Add-Type -AssemblyName PresentationFramework
 
+# Paths
+$scriptDir    = $PSScriptRoot
+# Ensure global debug flag initialized
+if ($null -eq $Global:StateTraceDebug) { $Global:StateTraceDebug = $false }
 
-# 2) Import Interfaces module
-if (-not (Test-Path $interfaceModulePath)) {
-    Write-Error "Cannot find InterfaceModule at $interfaceModulePath"
-    exit 1
-}
-Import-Module $interfaceModulePath -Force
+# Load modules from the manifest (single source of truth)
+$manifestPath = Join-Path $scriptDir '..\Modules\ModulesManifest.psd1'
 
-# 2a) Import Database module and ensure the database exists
-$dbModulePath = Join-Path $scriptDir '..\Modules\DatabaseModule.psm1'
-if (Test-Path $dbModulePath) {
-    # Import the DatabaseModule globally so that its functions (e.g. Invoke-DbQuery) are available to all modules
-    Import-Module $dbModulePath -Force -Global
-        try {
-            # Attempt to create a modern .accdb database first.  This will use the
-            # ACE OLEDB provider if installed.  If the provider is unavailable
-            # or creation fails, fall back to creating a .mdb using the Jet
-            # provider.  Store the resulting path globally for later use.
-            $dataDir = Join-Path $scriptDir '..\Data'
-            if (-not (Test-Path $dataDir)) { New-Item -ItemType Directory -Path $dataDir -Force | Out-Null }
-            $accdbPath = Join-Path $dataDir 'StateTrace.accdb'
-            try {
-                $global:StateTraceDb = New-AccessDatabase -Path $accdbPath
-            } catch {
-                Write-Warning "Failed to create .accdb database: $($_.Exception.Message). Falling back to .mdb."
-                $mdbPath = Join-Path $dataDir 'StateTrace.mdb'
-                $global:StateTraceDb = New-AccessDatabase -Path $mdbPath
-            }
-        } catch {
-            Write-Warning "Database initialization failed: $_"
+try {
+    if (-not (Test-Path $manifestPath)) {
+        throw "Module manifest not found at ${manifestPath}"
+    }
+
+    $manifest =
+        if (Get-Command Import-PowerShellDataFile -ErrorAction SilentlyContinue) {
+            Import-PowerShellDataFile -Path $manifestPath
+        } else {
+            # PowerShell <5.0 fallback – use .psd1 as a ps1
+            . $manifestPath
         }
-} else {
-    Write-Warning "Database module not found at $dbModulePath. Parsed results will continue to use CSV files."
-}
 
-# 2b) Import Gui module to provide helper functions used by the view modules
-$guiModulePath = Join-Path $scriptDir '..\Modules\GuiModule.psm1'
-if (Test-Path $guiModulePath) {
-    try {
-        # Import globally so that helpers like Update-Summary, Update-Alerts, Update-SearchResults, etc. are available
-        Import-Module $guiModulePath -Force -Global -DisableNameChecking
-    } catch {
-        Write-Warning "Failed to import GuiModule from ${guiModulePath}: $($_.Exception.Message)"
+    # The manifest should contain a ModulesToImport list.
+    $modulesToImport = @()
+    if ($manifest.ModulesToImport) {
+        $modulesToImport = $manifest.ModulesToImport
+    } elseif ($manifest.Modules) {
+        # Fallback if a non-standard key is used
+        $modulesToImport = $manifest.Modules
+    } else {
+        throw "No ModulesToImport defined in manifest."
     }
-} else {
-    Write-Warning "GuiModule not found at $guiModulePath. Some features may not function correctly."
-}
 
-# 2c) Import Device functions module to provide Get‑DeviceSummaries,
-# Update‑DeviceFilter and Get‑DeviceDetails helpers.  These helpers were
-# moved out of this file into DeviceFunctionsModule.psm1 for better
-# modularity.
-$deviceFunctionsPath = Join-Path $scriptDir '..\Modules\DeviceFunctionsModule.psm1'
-if (Test-Path $deviceFunctionsPath) {
-    try {
-        Import-Module $deviceFunctionsPath -Force -Global -DisableNameChecking
-    } catch {
-        Write-Warning "Failed to import DeviceFunctionsModule from ${deviceFunctionsPath}: $($_.Exception.Message)"
+    # Import each module listed in the manifest
+    foreach ($mod in $modulesToImport) {
+        Write-Host "Loading module: $mod"
+        Import-Module -Name (Join-Path $scriptDir "..\Modules\$mod")
     }
-} else {
-    Write-Warning "DeviceFunctionsModule not found at $deviceFunctionsPath"
+}
+catch {
+    Write-Error "Failed to load modules from manifest: $($_.Exception.Message)"
+    return
 }
 
-# 3) Load MainWindow.xaml
+## ---------------------------------------------------------------------
+## Database initialization
+# === BEGIN Database Initialization (MainWindow.ps1) ===
+# Uses DatabaseModule’s Initialize-StateTraceDatabase; sets $global:StateTraceDb and $env:StateTraceDbPath.
+$null = Initialize-StateTraceDatabase -DataDir (Join-Path $scriptDir '..\Data')
+# === END Database Initialization (MainWindow.ps1) ===
+
+
+# === BEGIN Load MainWindow.xaml (MainWindow.ps1) ===
 $xamlPath = Join-Path $scriptDir 'MainWindow.xaml'
-if (-not (Test-Path $xamlPath)) {
-    Write-Error "Cannot find MainWindow.xaml at $xamlPath"
-    exit 1
+if (-not (Test-Path -LiteralPath $xamlPath)) {
+    throw ("Cannot find MainWindow.xaml at {0}" -f $xamlPath)
 }
-$xamlContent = Get-Content $xamlPath -Raw
-$reader      = New-Object System.Xml.XmlTextReader (New-Object System.IO.StringReader($xamlContent))
-$window      = [Windows.Markup.XamlReader]::Load($reader)
+
+# Load XAML directly from a filestream (fewer allocations than StringReader+XmlTextReader)
+$window = $null
+$fs = [System.IO.File]::Open($xamlPath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
+try {
+    $window = [Windows.Markup.XamlReader]::Load($fs)
+} finally {
+    $fs.Dispose()
+}
 
 Set-Variable -Name window -Value $window -Scope Global
 
-# 4) Helpers
+# === BEGIN Show Commands UI binders (MainWindow.ps1) ===
+function Set-ShowCommandsOSVersions {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][System.Windows.Controls.ComboBox]$Combo,
+        [Parameter(Mandatory)][string]$Vendor
+    )
 
-# Initialize the views via modular imports
-try {
-    # Initialise the Interfaces view using the combined InterfaceModule.
-    # The view initialisation function is now exported from InterfaceModule.psm1,
-    # which was imported above.  Simply invoke it here.  Wrap in a try/catch
-    # to ensure other views still load if it fails.
-    try {
-        New-InterfacesView -Window $window -ScriptDir $scriptDir
-    } catch {
-        Write-Warning "Failed to initialise Interfaces view: $($_.Exception.Message)"
-    }
-
-    $spanModulePath = Join-Path $scriptDir '..\Modules\SpanViewModule.psm1'
-    if (Test-Path $spanModulePath) {
-        Import-Module $spanModulePath -Force -Global
-        New-SpanView -Window $window -ScriptDir $scriptDir -ParserScript $parserScript
-    } else {
-        Write-Warning "SpanViewModule not found at $spanModulePath"
-    }
-
-    $searchModulePath = Join-Path $scriptDir '..\Modules\SearchInterfacesViewModule.psm1'
-    if (Test-Path $searchModulePath) {
-        Import-Module $searchModulePath -Force -Global
-        New-SearchInterfacesView -Window $window -ScriptDir $scriptDir
-    } else {
-        Write-Warning "SearchInterfacesViewModule not found at $searchModulePath"
-    }
-
-    $summaryModulePath = Join-Path $scriptDir '..\Modules\SummaryViewModule.psm1'
-    if (Test-Path $summaryModulePath) {
-        Import-Module $summaryModulePath -Force -Global
-        New-SummaryView -Window $window -ScriptDir $scriptDir
-    } else {
-        Write-Warning "SummaryViewModule not found at $summaryModulePath"
-    }
-
-    $templatesModulePath = Join-Path $scriptDir '..\Modules\TemplatesViewModule.psm1'
-    if (Test-Path $templatesModulePath) {
-        Import-Module $templatesModulePath -Force -Global
-        New-TemplatesView -Window $window -ScriptDir $scriptDir
-    } else {
-        Write-Warning "TemplatesViewModule not found at $templatesModulePath"
-    }
-
-    $alertsModulePath = Join-Path $scriptDir '..\Modules\AlertsViewModule.psm1'
-    if (Test-Path $alertsModulePath) {
-        Import-Module $alertsModulePath -Force -Global
-        New-AlertsView -Window $window -ScriptDir $scriptDir
-    } else {
-        Write-Warning "AlertsViewModule not found at $alertsModulePath"
-    }
-} catch {
-    Write-Warning "Failed to initialize view modules: $($_.Exception.Message)"
+    $versions = Get-ShowCommandsVersions -Vendor $Vendor
+    $Combo.ItemsSource = $null
+    $Combo.Items.Clear()
+    $Combo.ItemsSource = $versions
+    $Combo.SelectedIndex = if ($Combo.Items.Count -gt 0) { 0 } else { -1 }
 }
 
-# 6) Hook up main window controls
-$refreshBtn = $window.FindName('RefreshButton')
-if ($refreshBtn) {
-    $refreshBtn.Add_Click({
-        # Capture archive inclusion settings from the checkboxes.  Blank/unset
-        # values indicate that archives should not be processed.  Use strings
-        # instead of booleans so the downstream script can detect them via
-        # $env variables.
-        $includeArchiveCB = $window.FindName('IncludeArchiveCheckbox')
-        $includeHistoricalCB = $window.FindName('IncludeHistoricalCheckbox')
-        if ($includeArchiveCB) {
-            if ($includeArchiveCB.IsChecked) { $env:IncludeArchive = 'true' } else { $env:IncludeArchive = '' }
-        }
-        if ($includeHistoricalCB) {
-            if ($includeHistoricalCB.IsChecked) { $env:IncludeHistorical = 'true' } else { $env:IncludeHistorical = '' }
-        }
-        # Set the database path environment variable if defined
+# Back-compat wrapper if other code calls this name:
+function Populate-BrocadeOSFromConfig {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][System.Windows.Controls.ComboBox]$Dropdown)
+    try { Set-ShowCommandsOSVersions -Combo $Dropdown -Vendor 'Brocade' }
+    catch { Write-Warning ("Brocade OS populate failed: {0}" -f $_.Exception.Message) }
+}
+
+# === BEGIN View initialization helpers (MainWindow.ps1) ===
+function Initialize-View {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$CommandName,
+        [Parameter(Mandatory)][Windows.Window]$Window,
+        [Parameter(Mandatory)][string]$ScriptDir
+    )
+
+    $viewName = ((($CommandName -replace '^New-','') -replace 'View$',''))
+    $cmd = Get-Command -Name $CommandName -ErrorAction SilentlyContinue
+    if (-not $cmd) {
+        Write-Warning ("{0} view module not loaded or {1} unavailable." -f $viewName, $CommandName)
+        return
+    }
+
+    # Splat only what the command actually supports
+    $params = @{ Window = $Window }
+    if ($cmd.Parameters.ContainsKey('ScriptDir')) { $params.ScriptDir = $ScriptDir }
+
+    try { & $CommandName @params | Out-Null }
+    catch { Write-Warning ("Failed to initialize {0} view: {1}" -f $viewName, $_.Exception.Message) }
+}
+
+# Initialize all views EXCEPT Compare on the first pass
+if (-not $script:ViewsInitialized) {
+    $viewsInOrder = @(
+        'New-InterfacesView',
+        'New-SpanView',
+        'New-SearchInterfacesView',
+        'New-SummaryView',
+        'New-TemplatesView',
+        'New-AlertsView'
+        # 'New-CompareView'  # deferred until after Update-DeviceFilter
+    )
+
+    # Auto-discover any additional New-*View commands, excluding Compare for now
+    $excludeInitially = @('New-CompareView')
+    $discovered = Get-Command -Name 'New-*View' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name
+    if ($discovered) {
+        $extra = $discovered | Where-Object { ($viewsInOrder -notcontains $_) -and ($_ -notin $excludeInitially) }
+        foreach ($v in ($extra | Sort-Object)) { $viewsInOrder += $v }
+    }
+
+    foreach ($v in $viewsInOrder) {
+        Initialize-View -CommandName $v -Window $window -ScriptDir $scriptDir
+    }
+
+    $script:ViewsInitialized = $true
+}
+# === END View initialization helpers (MainWindow.ps1) ===
+
+# === BEGIN Main window control hooks (MainWindow.ps1) ===
+
+function Set-EnvToggle {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter(Mandatory)][bool]$Checked
+    )
+    # Strings by design: downstream reads env flags, not booleans.
+    $new = if ($Checked) { 'true' } else { '' }
+    # Avoid needless writes
+    $current = (Get-Item -Path ("Env:\{0}" -f $Name) -ErrorAction SilentlyContinue).Value
+    if ($current -ne $new) {
+        Set-Item -Path ("Env:\{0}" -f $Name) -Value $new
+    }
+}
+
+function Invoke-StateTraceRefresh {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][Windows.Window]$Window)
+
+    try {
+        # Read checkboxes fresh each time (safe if UI is rebuilt)
+        $includeArchiveCB    = $Window.FindName('IncludeArchiveCheckbox')
+        $includeHistoricalCB = $Window.FindName('IncludeHistoricalCheckbox')
+
+        if ($includeArchiveCB)    { Set-EnvToggle -Name 'IncludeArchive'    -Checked ([bool]$includeArchiveCB.IsChecked) }
+        if ($includeHistoricalCB) { Set-EnvToggle -Name 'IncludeHistorical' -Checked ([bool]$includeHistoricalCB.IsChecked) }
+
         if ($global:StateTraceDb) { $env:StateTraceDbPath = $global:StateTraceDb }
-        # Run the parser script.  It will inspect the environment variables
-        # defined above to determine whether to include archive data.  After
-        # completion, reload the device summaries and refresh the filters.
-        & "$parserScript"
-        Get-DeviceSummaries
-        Update-DeviceFilter
-    })
+
+        $parseCmd = Get-Command Invoke-StateTraceParsing -ErrorAction SilentlyContinue
+        if ($parseCmd) {
+            Invoke-StateTraceParsing
+        } else {
+            Write-Error ("Invoke-StateTraceParsing not found (module load failed).")
+        }
+
+        DeviceFunctionsModule\Get-DeviceSummaries
+        DeviceFunctionsModule\Update-DeviceFilter
+        # Rebuild Compare view so its host list reflects the new parse
+        if (Get-Command -Name New-CompareView -ErrorAction SilentlyContinue) {
+            try { New-CompareView -Window $window | Out-Null }
+            catch { Write-Warning ("Failed to refresh Compare view: {0}" -f $_.Exception.Message) }
+        }
+
+    } catch {
+        Write-Warning ("Refresh failed: {0}" -f $_.Exception.Message)
+    }
 }
 
-$hostnameDropdown = $window.FindName('HostnameDropdown')
-if ($hostnameDropdown) {
-    $hostnameDropdown.Add_SelectionChanged({
-        $sel = $hostnameDropdown.SelectedItem
-        if ($sel) {
-            Get-DeviceDetails $sel
-            # If the Span tab is loaded and helper exists, load span info
-            if (Get-Command Load-SpanInfo -ErrorAction SilentlyContinue) {
-                Load-SpanInfo $sel
-            }
+function On-HostnameChanged {
+    [CmdletBinding()]
+    param([string]$Hostname)
+
+    try {
+        if ($Hostname) {
+            DeviceFunctionsModule\Get-DeviceDetails $Hostname
+            if (Get-Command Load-SpanInfo -ErrorAction SilentlyContinue) { Load-SpanInfo $Hostname }
         } else {
-            # Clear span grid when nothing selected
-            if (Get-Command Load-SpanInfo -ErrorAction SilentlyContinue) {
-                Load-SpanInfo ''
+            if (Get-Command Load-SpanInfo -ErrorAction SilentlyContinue) { Load-SpanInfo '' }
+        }
+    } catch {
+        Write-Warning ("Hostname change handler failed: {0}" -f $_.Exception.Message)
+    }
+}
+
+# Wire events exactly once
+$refreshBtn       = $window.FindName('RefreshButton')
+$hostnameDropdown = $window.FindName('HostnameDropdown')
+
+if ($refreshBtn -and -not $script:RefreshHandlerAttached) {
+    $refreshBtn.Add_Click({ param($sender,$e) Invoke-StateTraceRefresh -Window $window })
+    $script:RefreshHandlerAttached = $true
+}
+
+if ($hostnameDropdown -and -not $script:HostnameHandlerAttached) {
+    $hostnameDropdown.Add_SelectionChanged({
+        param($sender,$e)
+        $sel = [string]$sender.SelectedItem
+        On-HostnameChanged -Hostname $sel
+    })
+    $script:HostnameHandlerAttached = $true
+}
+
+# === END Main window control hooks (MainWindow.ps1) ===
+
+
+# === BEGIN Filter dropdown hooks (MainWindow.ps1) ===
+
+# Debounced updater so cascaded changes trigger a single refresh.
+if (-not $script:FilterUpdateTimer) {
+    $script:FilterUpdateTimer = New-Object System.Windows.Threading.DispatcherTimer
+    $script:FilterUpdateTimer.Interval = [TimeSpan]::FromMilliseconds(120)
+    $script:FilterUpdateTimer.add_Tick({
+        $script:FilterUpdateTimer.Stop()
+        try {
+            DeviceFunctionsModule\Update-DeviceFilter
+
+            # Keep Compare in sync with current filters/hosts
+            if (Get-Command -Name New-CompareView -ErrorAction SilentlyContinue) {
+                try { New-CompareView -Window $window | Out-Null } catch {}
             }
+        } catch {
+            Write-Warning ("Device filter update failed: {0}" -f $_.Exception.Message)
         }
     })
 }
 
-# Hook site/building/room dropdowns to update filtering
-$siteDropdown = $window.FindName('SiteDropdown')
-if ($siteDropdown) {
-    $siteDropdown.Add_SelectionChanged({
-        Update-DeviceFilter
-    })
+function Request-DeviceFilterUpdate {
+    # restart the timer; successive calls coalesce into one update
+    $script:FilterUpdateTimer.Stop()
+    $script:FilterUpdateTimer.Start()
 }
 
-$buildingDropdown = $window.FindName('BuildingDropdown')
-if ($buildingDropdown) {
-    $buildingDropdown.Add_SelectionChanged({
-        Update-DeviceFilter
-    })
-}
+# Track which controls we’ve already wired to avoid duplicate subscriptions.
+if (-not $script:FilterHandlers) { $script:FilterHandlers = @{} }
 
-$roomDropdown = $window.FindName('RoomDropdown')
-if ($roomDropdown) {
-    $roomDropdown.Add_SelectionChanged({
-        Update-DeviceFilter
-    })
-}
+function Hook-FilterDropdowns {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][Windows.Window]$Window)
 
-# -------------------------------------------------------------------------
-# Compare sidebar initialization
-#
-# Load the compare view module and initialize the compare pane.  The sidebar is
-# controlled by the Interfaces tab when a comparison is initiated, so there
-# is no toggle button in the main window.  The CompareViewModule is imported
-# globally to make its Update-CompareView function available.
-$compareModulePath = Join-Path $scriptDir '..\Modules\CompareViewModule.psm1'
-if (Test-Path $compareModulePath) {
-    try {
-        Import-Module $compareModulePath -Force -Global
-        # Initialize the compare view.  The module computes its own view path
-        # relative to its location, so only the window needs to be provided.
-        New-CompareView -Window $window
-    } catch {
-        Write-Warning "Failed to load compare module: $($_.Exception.Message)"
+    foreach ($name in 'SiteDropdown','BuildingDropdown','RoomDropdown') {
+        if ($script:FilterHandlers.ContainsKey($name)) { continue }
+        $ctrl = $Window.FindName($name)
+        if ($ctrl) {
+            $ctrl.Add_SelectionChanged({ Request-DeviceFilterUpdate })
+            $script:FilterHandlers[$name] = $true
+        }
     }
-} else {
-    Write-Warning "CompareViewModule not found at $compareModulePath"
 }
+
+# Wire them now (safe to call multiple times; wiring is idempotent)
+Hook-FilterDropdowns -Window $window
+
+# === END Filter dropdown hooks (MainWindow.ps1) ===
+
 
 # Hook up ShowCisco and ShowBrocade buttons to copy show command sequences
 $showCiscoBtn   = $window.FindName('ShowCiscoButton')
 $showBrocadeBtn = $window.FindName('ShowBrocadeButton')
 $brocadeOSDD    = $window.FindName('BrocadeOSDropdown')
+if ($brocadeOSDD) { Populate-BrocadeOSFromConfig -Dropdown $brocadeOSDD }
+
 
 if ($showCiscoBtn) {
     $showCiscoBtn.Add_Click({
-        # Build a list of Cisco show commands.  Prepend a command to
-        # disable pagination so the output is not interrupted.  Adjust
-        # commands as needed to collect all relevant information.
-        $cmds = @(
-            'terminal length 0',
-            'show version',
-            'show running-config',
-            'show interfaces status',
-            'show mac address-table',
-            'show spanning-tree',
-            'show lldp neighbors',
-            'show cdp neighbors',
-            'show dot1x all',
-            'show access-lists'
-        )
-        $text = $cmds -join "`r`n"
-        Set-Clipboard -Value $text
-        [System.Windows.MessageBox]::Show("Cisco show commands copied to clipboard.")
-    })
+        try {
+            $cmds = Get-ShowCommands -Vendor 'Cisco'
+            if (-not $cmds -or $cmds.Count -eq 0) {
+                [System.Windows.MessageBox]::Show("No Cisco show commands found in ShowCommands.json.")
+                return
+            }
+            Set-Clipboard -Value ($cmds -join "`r`n")
+            [System.Windows.MessageBox]::Show(("Copied {0} Cisco command(s) to clipboard." -f $cmds.Count))
+        } catch {
+            [System.Windows.MessageBox]::Show("Show commands configuration error:`n$($_.Exception.Message)")
+        }
+})
 }
 
 if ($showBrocadeBtn) {
     $showBrocadeBtn.Add_Click({
-        # Determine the selected OS version from dropdown; default to first item
-        $osVersion = 'v8.0.30'
-        if ($brocadeOSDD -and $brocadeOSDD.SelectedItem) {
-            $osVersion = $brocadeOSDD.SelectedItem.Content
+        try {
+            # Determine the selected OS version from dropdown; default to first item
+            $osVersion = 'v8.0.30'
+            if ($brocadeOSDD -and $brocadeOSDD.SelectedItem) {
+                $sel = $brocadeOSDD.SelectedItem
+                if ($sel -is [System.Windows.Controls.ComboBoxItem]) { $osVersion = '' + $sel.Content } else { $osVersion = '' + $sel }
+            }
+            $cmds = Get-ShowCommands -Vendor 'Brocade' -OSVersion $osVersion
+            if (-not $cmds -or $cmds.Count -eq 0) {
+                [System.Windows.MessageBox]::Show(("No Brocade show commands found for OS {0} in ShowCommands.json." -f $osVersion))
+                return
+            }
+            Set-Clipboard -Value ($cmds -join "`r`n")
+            [System.Windows.MessageBox]::Show(("Copied {0} Brocade command(s) to clipboard for {1}." -f $cmds.Count, $osVersion))
+        } catch {
+            [System.Windows.MessageBox]::Show("Show commands configuration error:`n$($_.Exception.Message)")
         }
-        # Build common Brocade commands.  Use skip-page to disable paging.
-        $cmds = @(
-            'skip-page',
-            'show version',
-            'show config',
-            'show interfaces brief',
-            'show mac-address',
-            'show spanning-tree',
-            'show lldp neighbors',
-            'show cdp neighbors',
-            'show dot1x sessions all',
-            'show mac-authentication sessions all',
-            'show access-lists'
-        )
-        # Some OS versions might require variant commands.  For example, version
-        # 8.0.95 (jufi) may include stack information.  Add extra commands
-        # when that version is selected.
-        if ($osVersion -eq 'v8.0.95') {
-            $cmds += 'show stacking',
-                     'show vlan'
-        }
-        $text = $cmds -join "`r`n"
-        Set-Clipboard -Value $text
-        [System.Windows.MessageBox]::Show("Brocade show commands for $osVersion copied to clipboard.")
-    })
+})
 }
 
 # Help button: open the help window when clicked.
@@ -311,29 +351,48 @@ if ($helpBtn) {
     })
 }
 
-# 7) Load initial state after window shows
+# === BEGIN Window Loaded handler (patched) ===
 $window.Add_Loaded({
     try {
-        # Set the database path environment variable before running the parser
+        # Make DB path visible to child code
         if ($global:StateTraceDb) { $env:StateTraceDbPath = $global:StateTraceDb }
-        & "$parserScript"
-        Get-DeviceSummaries
-        if ($window.FindName('HostnameDropdown').Items.Count -gt 0) {
-            $first = $window.FindName('HostnameDropdown').Items[0]
-            Get-DeviceDetails $first
-            if (Get-Command Load-SpanInfo -ErrorAction SilentlyContinue) {
-                Load-SpanInfo $first
-            }
+
+        # Parse logs
+        if (Get-Command Invoke-StateTraceParsing -ErrorAction SilentlyContinue) {
+            Invoke-StateTraceParsing
+        } else {
+            Write-Error "Invoke-StateTraceParsing not found (module load failed)"
+        }
+
+        # Bind summaries and filters (this populates HostnameDropdown)
+        DeviceFunctionsModule\Get-DeviceSummaries
+        DeviceFunctionsModule\Update-DeviceFilter   # <-- critical
+
+        # Now build Compare so it can read the host list
+        if (Get-Command -Name New-CompareView -ErrorAction SilentlyContinue) {
+            try { New-CompareView -Window $window | Out-Null }
+            catch { Write-Warning ("Failed to initialize Compare view after parsing: {0}" -f $_.Exception.Message) }
+        }
+
+        # Seed details for the first host (optional)
+        $hostDD = $window.FindName('HostnameDropdown')
+        if ($hostDD -and $hostDD.Items.Count -gt 0) {
+            $first = $hostDD.Items[0]
+            DeviceFunctionsModule\Get-DeviceDetails $first
+            if (Get-Command Load-SpanInfo -ErrorAction SilentlyContinue) { Load-SpanInfo $first }
         }
     } catch {
-        [System.Windows.MessageBox]::Show("Log parsing failed:`n$($_.Exception.Message)", "Error")
+        [System.Windows.MessageBox]::Show(("Log parsing failed:`n{0}" -f $_.Exception.Message), "Error")
     }
 })
+# === END Window Loaded handler (patched) ===
+
+
 
 
 if ($window.FindName('HostnameDropdown').Items.Count -gt 0) {
     $first = $window.FindName('HostnameDropdown').Items[0]
-    Get-DeviceDetails $first
+    DeviceFunctionsModule\Get-DeviceDetails $first
     if (Get-Command Load-SpanInfo -ErrorAction SilentlyContinue) {
         Load-SpanInfo $first
     }

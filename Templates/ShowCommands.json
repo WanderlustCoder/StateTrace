@@ -1,0 +1,38 @@
+{
+  "Cisco": {
+    "common": [
+      "terminal length 0",
+      "show version",
+      "show running-config",
+      "show interfaces status",
+      "show mac address-table",
+      "show spanning-tree",
+      "show lldp neighbors",
+      "show cdp neighbors",
+      "show dot1x all",
+      "show access-lists"
+    ]
+  },
+  "Brocade": {
+    "common": [
+      "skip-page",
+      "show version",
+      "show config",
+      "show interfaces brief",
+      "show mac-address",
+      "show spanning-tree",
+      "show lldp neighbors",
+      "show cdp neighbors",
+      "show dot1x sessions all",
+      "show mac-authentication sessions all",
+      "show access-lists"
+    ],
+    "versions": {
+      "v8.0.95": [
+        "show stacking",
+        "show vlan"
+      ],
+      "v8.0.30": []
+    }
+  }
+}

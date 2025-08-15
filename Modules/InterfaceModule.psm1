@@ -27,7 +27,14 @@
 
 Set-StrictMode -Version Latest
 
-function Get-DeviceSummaries {
+# Define a default path to the Interfaces view XAML.  This allows the
+# module to locate its own view definition relative to its installation
+# directory without relying on external variables such as `$ScriptDir`.
+# Consumers may override this by passing the `-InterfacesViewXaml` parameter
+# when calling `New-InterfacesView`.  See function definition below.
+$script:InterfacesViewXamlDefault = Join-Path $PSScriptRoot '..\Views\InterfacesView.xaml'
+
+function Get-InterfaceHostnames {
     <#
         .SYNOPSIS
             Return a list of all device hostnames known to the database.
@@ -47,7 +54,7 @@ function Get-DeviceSummaries {
             System.String[]
 
         .EXAMPLE
-            $hosts = Get-DeviceSummaries
+            $hosts = Get-InterfaceHostnames
     #>
     [CmdletBinding()]
     param([string]$ParsedDataPath)
@@ -541,14 +548,32 @@ function Get-ConfigurationTemplates {
 function New-InterfacesView {
     [CmdletBinding()]
     param(
+        # Parent window into which the Interfaces view will be loaded.
         [Parameter(Mandatory=$true)]
         [System.Windows.Window]$Window,
-        [Parameter(Mandatory=$true)]
-        [string]$ScriptDir
+        # Optional script directory.  When provided, the view XAML will be
+        # resolved relative to this path (../Views/InterfacesView.xaml).
+        [string]$ScriptDir,
+        # Optional explicit path to the Interfaces view XAML.  When
+        # specified, this overrides both the ScriptDir and the module's
+        # default view path.  Use this to load a custom view definition.
+        [string]$InterfacesViewXaml
     )
 
-    # Load InterfacesView.xaml
-    $interfacesViewXamlPath = Join-Path $ScriptDir '..\Views\InterfacesView.xaml'
+    # Determine the XAML path to load.  Priority order:
+    # 1) caller provided -InterfacesViewXaml argument
+    # 2) caller provided -ScriptDir argument
+    # 3) module default ($script:InterfacesViewXamlDefault)
+    $interfacesViewXamlPath = $null
+    if ($PSBoundParameters.ContainsKey('InterfacesViewXaml') -and $InterfacesViewXaml) {
+        $interfacesViewXamlPath = $InterfacesViewXaml
+    } elseif ($ScriptDir) {
+        $interfacesViewXamlPath = Join-Path $ScriptDir '..\Views\InterfacesView.xaml'
+    } else {
+        $interfacesViewXamlPath = $script:InterfacesViewXamlDefault
+    }
+
+    # Validate that the XAML file exists before proceeding.
     if (-not (Test-Path $interfacesViewXamlPath)) {
         Write-Warning "Missing InterfacesView.xaml at $interfacesViewXamlPath"
         return
@@ -778,4 +803,4 @@ function New-InterfacesView {
     $global:interfacesView = $interfacesView
 }
 
-Export-ModuleMember -Function Get-DeviceSummaries,Get-InterfaceInfo,Compare-InterfaceConfigs,Get-InterfaceConfiguration,Get-ConfigurationTemplates,Get-SpanningTreeInfo,New-InterfacesView
+Export-ModuleMember -Function Get-InterfaceInfo,Compare-InterfaceConfigs,Get-InterfaceConfiguration,Get-ConfigurationTemplates,Get-SpanningTreeInfo,New-InterfacesView

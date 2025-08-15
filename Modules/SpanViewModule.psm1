@@ -22,9 +22,9 @@ function New-SpanView {
     #>
     param(
         [Parameter(Mandatory=$true)][Windows.Window]$Window,
-        [Parameter(Mandatory=$true)][string]$ScriptDir,
-        [string]$ParserScript = (Join-Path $ScriptDir 'NetworkReader.ps1')
+        [Parameter(Mandatory=$true)][string]$ScriptDir
     )
+
     $spanViewPath = Join-Path $ScriptDir '..\Views\SpanView.xaml'
     if (-not (Test-Path $spanViewPath)) {
         Write-Warning "SpanView.xaml not found at $spanViewPath"
@@ -99,12 +99,21 @@ function New-SpanView {
     # Refresh button re-runs parser and updates summaries
     if ($spanRefresh) {
         $spanRefresh.Add_Click({
+            # Update the database path env var if available
             if ($global:StateTraceDb) { $env:StateTraceDbPath = $global:StateTraceDb }
-            if ($ParserScript -and (Test-Path $ParserScript)) {
-                & "$ParserScript"
+
+            # Call the exported parser function
+            if (Get-Command Invoke-StateTraceParsing -ErrorAction SilentlyContinue) {
+                Invoke-StateTraceParsing
+            } else {
+                Write-Error "Invoke-StateTraceParsing not found (module load failed)"
             }
+
+            # Refresh summaries and filters
             if (Get-Command Get-DeviceSummaries -ErrorAction SilentlyContinue) { Get-DeviceSummaries }
             if (Get-Command Update-DeviceFilter -ErrorAction SilentlyContinue) { Update-DeviceFilter }
+
+            # Reload spanning tree info for current host
             $currentHost = $Window.FindName('HostnameDropdown').SelectedItem
             if ($currentHost) { Load-SpanInfo $currentHost }
         })
