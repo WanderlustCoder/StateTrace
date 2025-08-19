@@ -196,7 +196,13 @@
                   ScrollViewer.VerticalScrollBarVisibility="Auto"
                   ScrollViewer.HorizontalScrollBarVisibility="Auto"
                   BorderBrush="#C0C0C0"
-                  BorderThickness="1">
+                  BorderThickness="1"
+																		VirtualizingPanel.IsVirtualizing="True"
+																		VirtualizingPanel.VirtualizationMode="Recycling"
+																		EnableRowVirtualization="True"
+																		EnableColumnVirtualization="True"
+																		ScrollViewer.CanContentScroll="True"
+																		VirtualizingPanel.ScrollUnit="Pixel">
           <!-- Override the default selection colour so coloured text remains readable -->
           <DataGrid.RowStyle>
             <Style TargetType="DataGridRow">

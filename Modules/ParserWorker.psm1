@@ -337,7 +337,7 @@ function Get-ShowCommandBlocks {
     foreach ($line in $Lines) {
         # Match a prompt followed by a show command.  Accept both '#' and '>'
         # as prompt terminators and capture the command text.
-        if ($line -match '^[^\s]+[>#]\s*(show\s+.+)$') {
+        if ($line -match '^[^\s]+[>#]\s*(?:do\s+)?(show\s+.+)$') {
             # If we were recording a previous command, save its buffer
             if ($recording -and $currentCmd) {
                 $blocks[$currentCmd] = $buffer

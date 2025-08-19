@@ -47,8 +47,8 @@ function Get-ShowVendors {
     param()
     $cfg = Get-ShowConfig
     if (-not $cfg) { return @() }
-    if ($cfg -is [hashtable]) { return ,@($cfg.Keys) }
-    return ,@($cfg.PSObject.Properties.Name)
+    if ($cfg -is [hashtable]) { return @($cfg.Keys) }
+    return @($cfg.PSObject.Properties.Name)
 }
 
 function Get-ShowCommandsVersions {

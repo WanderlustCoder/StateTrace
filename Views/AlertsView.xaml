@@ -18,7 +18,13 @@
     <DataGrid Name="AlertsGrid" Grid.Row="1" Margin="5" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
               Background="#F7F9FC" RowBackground="#E7ECF5" AlternatingRowBackground="#F1F5FA"
               BorderBrush="#C0C0C0" BorderThickness="1" SelectionMode="Extended"
-              ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Auto">
+              ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Auto"
+														VirtualizingPanel.IsVirtualizing="True"
+														VirtualizingPanel.VirtualizationMode="Recycling"
+														EnableRowVirtualization="True"
+														EnableColumnVirtualization="True"
+														ScrollViewer.CanContentScroll="True"
+														VirtualizingPanel.ScrollUnit="Pixel">
       <DataGrid.RowStyle>
         <Style TargetType="DataGridRow">
           <Setter Property="Foreground" Value="Black"/>

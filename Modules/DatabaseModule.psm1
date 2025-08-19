@@ -309,6 +309,15 @@ CREATE TABLE InterfaceHistory (
         try { $connection.Execute($createDeviceHistoryTable) | Out-Null } catch { }
         try { $connection.Execute($createInterfaceHistoryTable) | Out-Null } catch { }
 
+        # Helpful indexes (ignore if they already exist)
+        $createIndexes = @(
+            "CREATE INDEX idx_devicesummary_host ON DeviceSummary (Hostname)",
+            "CREATE INDEX idx_interfaces_host_port ON Interfaces (Hostname, Port)"
+        )
+        foreach ($stmt in $createIndexes) {
+            try { $connection.Execute($stmt) | Out-Null } catch { }
+        }
+
         # Ensure new compliance columns exist on the Interfaces table.  Earlier
         # versions of the database may not have included these columns.  Attempt
         # to add each column individually; ignore errors if the column already
@@ -339,54 +348,26 @@ CREATE TABLE InterfaceHistory (
 }
 
 function Invoke-DbNonQuery {
-    <#
-        .SYNOPSIS
-            Executes a non‑query SQL statement (INSERT/UPDATE/DELETE/DDL).
-
-        .DESCRIPTION
-            Opens a connection to the specified Access database file using
-            the Jet provider and executes the provided SQL statement.  The
-            connection is closed automatically afterwards.  Any exception
-            thrown by ADO will propagate to the caller.  This wrapper
-            simplifies repeated database operations and centralizes error
-            handling.
-
-        .PARAMETER DatabasePath
-            The full path to the `.mdb` database file.  This file must
-            already exist.
-
-        .PARAMETER Sql
-            The SQL statement to execute.  Use parameterized queries if
-            possible to avoid SQL injection vulnerabilities.  For simple
-            insertions where the values are trusted (e.g., parsed log
-            entries), string concatenation is acceptable.
-
-        .EXAMPLE
-            Invoke-DbNonQuery -DatabasePath $db -Sql "INSERT INTO DeviceSummary (Hostname, Make) VALUES ('SW1','Cisco')"
-#>
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory=$true)]
-        [string]$DatabasePath,
-        [Parameter(Mandatory=$true)]
-        [string]$Sql
+        [Parameter(Mandatory)][string]$DatabasePath,
+        [Parameter(Mandatory)][string]$Sql
     )
-    $connection = New-Object -ComObject ADODB.Connection
+    $conn = New-Object System.Data.OleDb.OleDbConnection
+    $opened = $false
+    foreach ($prov in @('Microsoft.ACE.OLEDB.12.0','Microsoft.Jet.OLEDB.4.0')) {
+        try {
+            $conn.ConnectionString = "Provider=$prov;Data Source=$DatabasePath"
+            $conn.Open(); $opened = $true; break
+        } catch { }
+    }
+    if (-not $opened) { throw "No suitable OLE DB provider found." }
     try {
-        $opened = $false
-        foreach ($prov in @('Microsoft.ACE.OLEDB.12.0','Microsoft.Jet.OLEDB.4.0')) {
-            try {
-                $connection.Open("Provider=$prov;Data Source=$DatabasePath")
-                $opened = $true
-                break
-            } catch {
-                # ignore and try next
-            }
-        }
-        if (-not $opened) { throw "No suitable OLEDB provider found." }
-        $connection.Execute($Sql) | Out-Null
+        $cmd = $conn.CreateCommand()
+        $cmd.CommandText = $Sql
+        [void]$cmd.ExecuteNonQuery()
     } finally {
-        if ($connection -and $connection.State -ne 0) { $connection.Close() }
+        if ($conn.State -ne [System.Data.ConnectionState]::Closed) { $conn.Close() }
     }
 }
 
