@@ -1,4 +1,4 @@
-<##
+﻿<##
     .SYNOPSIS
         Provides helper functions for the Network Reader GUI.
 
@@ -12,14 +12,14 @@
 
         The following functions are exported:
 
-        * Get-DeviceSummaries     – builds the list of available devices
-        * Update-DeviceFilter      – filters devices by site/building/room
-        * Get-DeviceDetails       – loads interface details for a device
-        * Update-GlobalInterfaceList – constructs the global interface list
-        * Update-SearchResults     – performs searching and filtering
-        * Update-Summary           – updates summary metrics
-        * Update-Alerts           – builds the alerts list
-        * Update-SearchGrid       – refreshes the search grid contents
+        * Get-DeviceSummaries     â€“ builds the list of available devices
+        * Update-DeviceFilter      â€“ filters devices by site/building/room
+        * Get-DeviceDetails       â€“ loads interface details for a device
+        * Update-GlobalInterfaceList â€“ constructs the global interface list
+        * Update-SearchResults     â€“ performs searching and filtering
+        * Update-Summary           â€“ updates summary metrics
+        * Update-Alerts           â€“ builds the alerts list
+        * Update-SearchGrid       â€“ refreshes the search grid contents
 
         Because these functions reference variables from the main script
         (such as `$window` and `$scriptDir`), the main script must define
@@ -269,7 +269,7 @@ function Load-DeviceDetails {
         # inside the InterfacesView UserControl, not directly on the main
         # window.  Therefore look up each control from the global interfaces
         # view rather than the main window.  This avoids errors when the
-        # controls cannot be found on the window’s namescope.
+        # controls cannot be found on the windowâ€™s namescope.
         if ($global:interfacesView) {
             $iview = $global:interfacesView
             $iview.FindName('HostnameBox').Text        = ''
@@ -306,7 +306,7 @@ function Load-DeviceDetails {
             }
         }
         if ($useDb) {
-            # Query summary information for the selected device using a robust SQL query.  Perform a case‑insensitive comparison
+            # Query summary information for the selected device using a robust SQL query.  Perform a caseâ€‘insensitive comparison
             # on the trimmed hostname and allow for trailing characters by also using a LIKE predicate.  This avoids
             # retrieving the entire table and filtering in PowerShell, and accommodates rows that may contain
             # extraneous whitespace or control characters after the hostname.
@@ -317,8 +317,8 @@ function Load-DeviceDetails {
             # and the numeric character codes to detect hidden characters that Trim() may not remove.
             $charCodes = ($hostTrim.ToCharArray() | ForEach-Object { [int]$_ }) -join ','
             Write-Host "[DEBUG] hostTrim='$hostTrim' (Len=$($hostTrim.Length)) Codes=[$charCodes]" -ForegroundColor Yellow
-            # Build a summary query that avoids provider‑specific functions.  Use explicit LIKE predicates and Trim() where supported.
-            # Access databases are generally case‑insensitive, so comparing without UCASE should still match regardless of case.
+            # Build a summary query that avoids providerâ€‘specific functions.  Use explicit LIKE predicates and Trim() where supported.
+            # Access databases are generally caseâ€‘insensitive, so comparing without UCASE should still match regardless of case.
         # Jet/ACE providers use '*' and '?' as wildcards in LIKE expressions.  Using
         # '%' and '_' will return no rows.  Compose the query to find an exact
         # match and, failing that, a substring match using '*'.  See:
@@ -372,7 +372,7 @@ function Load-DeviceDetails {
                 # ignore history fallback failures
             }
             try {
-                # Use a named alias for the count to avoid provider‑generated column names
+                # Use a named alias for the count to avoid providerâ€‘generated column names
                 $cntFb = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT COUNT(*) AS PortCount FROM Interfaces WHERE Trim(Hostname) = '$escHost'"
                 if ($cntFb -and $cntFb.Rows.Count -gt 0) {
                     $fbPorts = ($cntFb | Select-Object -ExpandProperty PortCount)[0]
@@ -503,6 +503,7 @@ ORDER BY i.Hostname, i.Port
                 $list += [PSCustomObject]@{
                     Hostname      = $row.Hostname
                     Port          = $row.Port
+                    PortSort      = (Get-PortSortKey ($row.Port -as [string]))
                     Name          = $row.Name
                     Status        = $row.Status
                     VLAN          = $row.VLAN
@@ -524,7 +525,7 @@ ORDER BY i.Hostname, i.Port
     } else {
         Write-Warning "Database not configured. Interface list will be empty."
     }
-    $global:AllInterfaces = $list
+    $global:AllInterfaces = $list | Sort-Object Hostname, PortSort
     # After rebuilding the interface list, update summary metrics and alerts.
     if (Get-Command Update-Summary -ErrorAction SilentlyContinue) {
         Update-Summary
@@ -619,7 +620,7 @@ function Update-SearchResults {
                         return $false
                     }
                 } catch {
-                    # If the regex is invalid, fall back to case‑insensitive substring search
+                    # If the regex is invalid, fall back to caseâ€‘insensitive substring search
                     $t = $Term.ToLower()
                     if (-not (($row.Port        -as [string]).ToLower().Contains($t) -or
                               ($row.Name        -as [string]).ToLower().Contains($t) -or
@@ -773,7 +774,41 @@ function Update-SearchGrid {
     $gridCtrl.ItemsSource = Update-SearchResults -Term $term
 }
 
-# Export the functions defined in this module.  Specify them on a single line
-# to avoid parsing issues caused by line continuations.  Backticks are not
-# necessary when listing multiple function names separated by commas.
+function Get-PortSortKey {
+    param([Parameter(Mandatory)][string]$Port)
+    if ([string]::IsNullOrWhiteSpace($Port)) { return '99-UNK-99999-99999-99999-99999-99999' }
+
+    $u = $Port.Trim().ToUpperInvariant()
+    # Normalize common long/varied forms → short codes
+    $u = $u `
+      -replace 'HUNDRED\s*GIG(?:ABIT\s*ETHERNET|E)?','HU' `
+      -replace 'FOUR\s*HUNDRED\s*GIG(?:ABIT\s*ETHERNET|E)?','TH' `
+      -replace 'FORTY\s*GIG(?:ABIT\s*ETHERNET|E)?','FO' `
+      -replace 'TWENTY\s*FIVE\s*GIG(?:ABIT\s*ETHERNET|E|IGE)?','TW' `
+      -replace 'TEN\s*GIG(?:ABIT\s*ETHERNET|E)?','TE' `
+      -replace 'GIGABIT\s*ETHERNET','GI' `
+      -replace 'FAST\s*ETHERNET','FA' `
+      -replace 'ETHERNET','ET' `
+      -replace 'MANAGEMENT','MGMT' `
+      -replace 'PORT-?\s*CHANNEL','PO' `
+      -replace 'LOOPBACK','LO' `
+      -replace 'VLAN','VL'
+
+    $m = [regex]::Match($u, '^(?<type>[A-Z\-]+)?\s*(?<nums>[\d/.:]+)')
+    $type = if ($m.Success -and $m.Groups['type'].Value) { $m.Groups['type'].Value } else {
+        if ($u -match '^\d') { 'ET' } else { ($u -creplace '[^A-Z]','') }
+    }
+
+    # Type weights: lower sorts first (bundles/hi‑speed first, mgmt low)
+    $weights = @{ 'MGMT'=5; 'PO'=10; 'TH'=22; 'HU'=23; 'FO'=24; 'TE'=25; 'TW'=26; 'ET'=30; 'GI'=40; 'FA'=50; 'VL'=97; 'LO'=98 }
+    $w = if ($weights.ContainsKey($type)) { $weights[$type] } else { 60 }
+
+    $numsPart = if ($m.Success) { $m.Groups['nums'].Value } else { $u }
+    $nums = [regex]::Matches($numsPart, '\d+') | ForEach-Object { [int]$_.Value }
+    while ($nums.Count -lt 4) { $nums += 0 }        # pad
+    $segments = ($nums | Select-Object -First 6 | ForEach-Object { '{0:00000}' -f $_ })
+
+    return ('{0:00}-{1}-{2}' -f $w, $type, ($segments -join '-'))
+}
+
 Export-ModuleMember -Function Get-DeviceSummaries, Update-DeviceFilter, Get-DeviceDetails, Update-GlobalInterfaceList, Update-SearchResults, Update-Summary, Update-Alerts, Update-SearchGrid

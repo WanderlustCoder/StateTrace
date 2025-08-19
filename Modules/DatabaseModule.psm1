@@ -173,11 +173,6 @@ function New-AccessDatabase {
             # property controls the file format.  See https://support.microsoft.com/kb/271246
             $cat = New-Object -ComObject ADOX.Catalog
             $connStr = "Provider=$provider;Data Source=$Path;Jet OLEDB:Engine Type=$engine;"
-            # The Create method returns a COM object representing the connection.
-            # If we do not discard the return value, it will be emitted to the
-            # pipeline and inadvertently become part of the function's return
-            # value.  Assign the return to $null to suppress it, ensuring only
-            # the database path is returned from this function.
             $null = $cat.Create($connStr)
             # Release COM object
             [System.Runtime.Interopservices.Marshal]::ReleaseComObject($cat) | Out-Null
@@ -187,9 +182,6 @@ function New-AccessDatabase {
         }
     }
 
-    # Build the DDL statements to create the tables.  Note that Jet SQL
-    # requires the use of square brackets around field names that are
-    # reserved words or contain special characters.
     $createSummaryTable = @'
 CREATE TABLE DeviceSummary (
     Hostname           TEXT(64)    PRIMARY KEY,
@@ -205,12 +197,6 @@ CREATE TABLE DeviceSummary (
 );
 '@
 
-    # Define the Interfaces table with additional columns for configuration
-    # compliance.  AuthTemplate and Config store the template name and raw
-    # interface configuration, respectively.  PortColor and ConfigStatus
-    # capture the compliance result (e.g. green for match).  ToolTip stores
-    # helpful descriptive text for UI hover.  MEMO is used for potentially
-    # lengthy text values.
     $createInterfacesTable = @'
 CREATE TABLE Interfaces (
     ID                COUNTER      PRIMARY KEY,
@@ -235,9 +221,6 @@ CREATE TABLE Interfaces (
 );
 '@
 
-    # History tables allow storing all parsed runs.  DeviceHistory mirrors
-    # DeviceSummary but includes a RunDate column.  InterfaceHistory mirrors
-    # Interfaces but includes RunDate.  RunDate is stored as a DATETIME.
     $createDeviceHistoryTable = @'
 CREATE TABLE DeviceHistory (
     ID               COUNTER PRIMARY KEY,
@@ -279,11 +262,6 @@ CREATE TABLE InterfaceHistory (
 );
 '@
 
-    # Ensure the tables exist using ADO.  We attempt to create the tables
-    # regardless of whether the database was freshly created.  If a table
-    # already exists, the CREATE TABLE statement will fail; we catch and
-    # ignore the specific error.  This ensures that missing tables are
-    # created while preserving existing data.
     try {
         $connection = New-Object -ComObject ADODB.Connection
         $opened = $false
@@ -317,12 +295,6 @@ CREATE TABLE InterfaceHistory (
         foreach ($stmt in $createIndexes) {
             try { $connection.Execute($stmt) | Out-Null } catch { }
         }
-
-        # Ensure new compliance columns exist on the Interfaces table.  Earlier
-        # versions of the database may not have included these columns.  Attempt
-        # to add each column individually; ignore errors if the column already
-        # exists.  These ALTER statements will succeed on Jet/ACE and will
-        # gracefully no-op when the column is present.
         $alterStmts = @(
             "ALTER TABLE Interfaces ADD COLUMN AuthTemplate TEXT(64)",
             "ALTER TABLE Interfaces ADD COLUMN Config MEMO",
