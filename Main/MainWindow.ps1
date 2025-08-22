@@ -184,8 +184,9 @@ function Invoke-StateTraceRefresh {
             Write-Error ("Invoke-StateTraceParsing not found (module load failed).")
         }
 
-        DeviceFunctionsModule\Get-DeviceSummaries
-        DeviceFunctionsModule\Update-DeviceFilter
+        # Call the unified device helper functions directly (no module qualifier).
+        Get-DeviceSummaries
+        Update-DeviceFilter
         # Rebuild Compare view so its host list reflects the new parse
         if (Get-Command -Name New-CompareView -ErrorAction SilentlyContinue) {
             try { New-CompareView -Window $window | Out-Null }
@@ -203,7 +204,8 @@ function On-HostnameChanged {
 
     try {
         if ($Hostname) {
-            DeviceFunctionsModule\Get-DeviceDetails $Hostname
+            # Load device details using the unified module (no qualifier)
+            Get-DeviceDetails $Hostname
             if (Get-Command Load-SpanInfo -ErrorAction SilentlyContinue) { Load-SpanInfo $Hostname }
         } else {
             if (Get-Command Load-SpanInfo -ErrorAction SilentlyContinue) { Load-SpanInfo '' }
@@ -243,7 +245,8 @@ if (-not $script:FilterUpdateTimer) {
     $script:FilterUpdateTimer.add_Tick({
         $script:FilterUpdateTimer.Stop()
         try {
-            DeviceFunctionsModule\Update-DeviceFilter
+            # Refresh device filter using the unified helper
+            Update-DeviceFilter
 
             # Keep Compare in sync with current filters/hosts
             if (Get-Command -Name New-CompareView -ErrorAction SilentlyContinue) {
@@ -365,8 +368,9 @@ $window.Add_Loaded({
         }
 
         # Bind summaries and filters (this populates HostnameDropdown)
-        DeviceFunctionsModule\Get-DeviceSummaries
-        DeviceFunctionsModule\Update-DeviceFilter   # <-- critical
+        # Populate hostnames and apply location filters using unified helper functions
+        Get-DeviceSummaries
+        Update-DeviceFilter   # <-- critical
 
         # Now build Compare so it can read the host list
         if (Get-Command -Name New-CompareView -ErrorAction SilentlyContinue) {
@@ -378,7 +382,8 @@ $window.Add_Loaded({
         $hostDD = $window.FindName('HostnameDropdown')
         if ($hostDD -and $hostDD.Items.Count -gt 0) {
             $first = $hostDD.Items[0]
-            DeviceFunctionsModule\Get-DeviceDetails $first
+            # Load details for the first host via the unified helper
+            Get-DeviceDetails $first
             if (Get-Command Load-SpanInfo -ErrorAction SilentlyContinue) { Load-SpanInfo $first }
         }
     } catch {
@@ -392,7 +397,8 @@ $window.Add_Loaded({
 
 if ($window.FindName('HostnameDropdown').Items.Count -gt 0) {
     $first = $window.FindName('HostnameDropdown').Items[0]
-    DeviceFunctionsModule\Get-DeviceDetails $first
+    # Load details for the first host using the unified helper
+    Get-DeviceDetails $first
     if (Get-Command Load-SpanInfo -ErrorAction SilentlyContinue) {
         Load-SpanInfo $first
     }

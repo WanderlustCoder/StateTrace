@@ -52,189 +52,102 @@ function Get-HostString {
 }
 
 function Get-HostsFromMain {
-    [CmdletBinding()]
-    param([Parameter(Mandatory)][Windows.Window]$Window)
+    <#
+        Retrieves the list of device hostnames.  Historically this function
+        attempted to read the HostnameDropdown from the main window and then
+        fell back to the database via Get-DeviceSummaries.  To decouple the
+        compare view from the main UI and ensure a single source of truth,
+        this implementation now always queries the database through
+        DeviceDataModule.  Any passed Window parameter is ignored.
 
-    # Attempt to get host list from main window's HostnameDropdown control
+        Returns an array of unique, trimmed hostname strings.
+    #>
+    [CmdletBinding()]
+    param([Windows.Window]$Window)
+
     $hosts = @()
-    $dd = $Window.FindName('HostnameDropdown')
-    if ($dd) {
-        if ($dd.ItemsSource) {
-            $hosts = @($dd.ItemsSource | ForEach-Object { Get-HostString $_ })
-            Write-Verbose "[CompareView] Retrieved $($hosts.Count) host(s) from main window HostnameDropdown (ItemsSource)."
+    try {
+        # Prefer using DeviceDataModule\Get-InterfaceHostnames which reads
+        # directly from the database without manipulating any UI elements.
+        if (Get-Command -Name 'Get-InterfaceHostnames' -ErrorAction SilentlyContinue) {
+            $raw = @(DeviceDataModule\Get-InterfaceHostnames)
+            $hosts = @($raw | ForEach-Object { Get-HostString $_ })
+            Write-Verbose "[CompareView] Retrieved $($hosts.Count) host(s) from Get-InterfaceHostnames (database)."
         }
-        elseif ($dd.Items -and $dd.Items.Count -gt 0) {
-            $hosts = @($dd.Items | ForEach-Object { Get-HostString $_ })
-            Write-Verbose "[CompareView] Retrieved $($hosts.Count) host(s) from main window HostnameDropdown (Items list)."
-        }
+    } catch {
+        $hosts = @()
+        Write-Warning "[CompareView] Failed to retrieve host list from database: $($_.Exception.Message)"
     }
-    if (-not $hosts -or $hosts.Count -eq 0) {
-        # If main view has no hosts listed (or control not found), fallback to DB
-        if (Get-Command Get-DeviceSummaries -ErrorAction SilentlyContinue) {
-            try {
-                $raw = @(Get-DeviceSummaries)
-                $hosts = @($raw | ForEach-Object { Get-HostString $_ })
-                Write-Verbose "[CompareView] Main view had no hosts; retrieved $($hosts.Count) host(s) from Get-DeviceSummaries (database)."
-            }
-            catch {
-                $hosts = @()
-                Write-Warning "[CompareView] Failed to get host list from main view or DB: $($_.Exception.Message)"
-            }
-        }
-    }
-    # Clean up host list (trim and unique)
-    $hosts = $hosts | ForEach-Object { ('' + $_).Trim() } | Where-Object { $_ } | Select-Object -Unique
+    # Clean up host list: trim whitespace, remove blanks, deduplicate
+    $hosts = $hosts |
+        ForEach-Object { ('' + $_).Trim() } |
+        Where-Object { $_ -ne '' } |
+        Select-Object -Unique
     return $hosts
 }
 
 function Get-PortSortKey {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$Port)
-    # Computes a sort key for interface names to achieve natural sort (e.g., Gi1/0/2 comes before Gi1/0/10).
-    $t = ('' + $Port).Trim()
-    if (-not $t) { return '999|zz|999999|zz' }
-    $lower = $t.ToLowerInvariant()
-    # Prefix weight map (to order by interface type)
-    $rankMap = @{
-        'mgmt' = 05; 'me' = 05;
-        'fa' = 10; 'fastethernet' = 10; 'fe' = 10;
-        'gi' = 20; 'gigabitethernet' = 20; 'ge' = 20;
-        'eth' = 25; 'ethernet' = 25;
-        'te' = 30; 'tengigabitethernet' = 30; 'xe' = 30; 'xge' = 30;
-        'et' = 40;  # e.g., 100G Ethernet prefixes
-        'po' = 90; 'port-channel' = 90; 'portchannel' = 90; 'ae' = 90; 'be' = 90; 'bundle-ether' = 90
-    }
-    # Extract prefix and numeric segments
-    $m    = [regex]::Match($lower, '^(?<pre>[a-z\-]+)?(?<rest>.*)$')
-    $pre  = $m.Groups['pre'].Value
-    $rank = if ($rankMap.ContainsKey($pre)) { $rankMap[$pre] } else { 60 }
-    # Extract all numbers in the string for natural sorting
-    $nums = @([regex]::Matches($lower, '\d+') | ForEach-Object { [int]$_.Value })
-    $segCount = $nums.Count
-    # Pad each numeric segment to fixed width (6) for correct lexicographical comparison
-    $segments = foreach ($n in $nums) { '{0:D6}' -f $n }
-    while ($segments.Count -lt 5) { $segments += '000000' }  # shorter names rank before longer ones
-    # Compose sort key: [prefix rank]|[segment count]|[zero-padded segments]|[full name as tiebreaker]
-    return ('{0:D3}|{1:D2}|{2}|{3}' -f $rank, [Math]::Min($segCount,99), ($segments -join '|'), $lower)
+    # Delegate sorting to the central Get-PortSortKey implementation defined in
+    # DeviceDataModule.  Passing through the bound parameters preserves
+    # compatibility while eliminating duplicated logic.
+    return DeviceDataModule\Get-PortSortKey @PSBoundParameters
 }
 
 function Get-PortsForHost {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$Hostname)
 
-    # Retrieve all interface names for the given host from DB (preferred) or fallback to main grid.
+    # Fetch all interface names for the given host from the database.  This revised
+    # implementation eliminates any fallback to the main Interfaces grid and
+    # relies solely on the centralised DeviceDataModule functions.  It first
+    # attempts to call Get-InterfaceList, which returns an array of port strings;
+    # if no ports are returned, it falls back to Get-InterfaceInfo to extract
+    # port names from full interface objects.
     Write-Verbose "[CompareView] Fetching ports for host '$Hostname'..."
     $ports = @()
-    $raw   = @()
-
-    # 1) Try primary DB function: Get-InterfaceList (if available)
-    $ErrorActionPreference = 'Stop'   # ensure exceptions are caught in catch blocks
-    if (Get-Command Get-InterfaceList -ErrorAction SilentlyContinue) {
+    try {
+        if (Get-Command -Name 'Get-InterfaceList' -ErrorAction SilentlyContinue) {
+            $list = @(DeviceDataModule\Get-InterfaceList -Hostname $Hostname)
+            if ($list -and $list.Count -gt 0) {
+                $ports = @($list | ForEach-Object { '' + $_ })
+                Write-Verbose "[CompareView] Get-InterfaceList returned $($ports.Count) port(s) for '$Hostname'."
+            }
+        }
+    } catch {
+        Write-Warning "[CompareView] Error calling Get-InterfaceList for '$Hostname': $($_.Exception.Message)"
+        $ports = @()
+    }
+    if (-not $ports -or $ports.Count -eq 0) {
         try {
-            # Determine parameter name expected by Get-InterfaceList
-            $p = @{}
-            $cmd = Get-Command Get-InterfaceList
-            foreach ($k in 'Hostname','HostName','Device','Switch','Name') {
-                if ($cmd.Parameters.ContainsKey($k)) { 
-                    $p[$k] = $Hostname
-                    break 
+            if (Get-Command -Name 'Get-InterfaceInfo' -ErrorAction SilentlyContinue) {
+                $info = @(DeviceDataModule\Get-InterfaceInfo -Hostname $Hostname)
+                if ($info -and $info.Count -gt 0) {
+                    $ports = @(
+                        foreach ($r in $info) {
+                            if     ($r -is [string])                                { '' + $r }
+                            elseif ($r.PSObject.Properties['Port'])                 { '' + $r.Port }
+                            elseif ($r.PSObject.Properties['Interface'])            { '' + $r.Interface }
+                            elseif ($r.PSObject.Properties['IfName'])               { '' + $r.IfName }
+                            elseif ($r.PSObject.Properties['Name'])                 { '' + $r.Name }
+                            else                                                    { '' + $r }
+                        }
+                    )
+                    Write-Verbose "[CompareView] Get-InterfaceInfo returned $($ports.Count) port(s) for '$Hostname'."
                 }
             }
-            if ($p.Keys.Count -gt 0) {
-                $raw = @( & Get-InterfaceList @p )
-            }
-            else {
-                # If no matching parameter name found, try passing hostname directly (assuming positional or default)
-                $raw = @(Get-InterfaceList $Hostname)
-            }
-            Write-Verbose "[CompareView] Get-InterfaceList returned $($raw.Count) record(s) for '$Hostname'."
-        }
-        catch {
-            Write-Warning "[CompareView] Get-InterfaceList call failed for '$Hostname': $($_.Exception.Message)"
-            $raw = @()
-        }
-    }
-    else {
-        Write-Verbose "[CompareView] Get-InterfaceList cmdlet not found. Will try Get-InterfaceInfo for '$Hostname'."
-    }
-
-    # 2) If no results from Get-InterfaceList, try alternate DB function: Get-InterfaceInfo
-    if ((-not $raw -or $raw.Count -eq 0) -and (Get-Command Get-InterfaceInfo -ErrorAction SilentlyContinue)) {
-        try {
-            $p = @{}
-            $cmd = Get-Command Get-InterfaceInfo
-            foreach ($k in 'Hostname','HostName','Device','Switch','Name') {
-                if ($cmd.Parameters.ContainsKey($k)) { 
-                    $p[$k] = $Hostname
-                    break 
-                }
-            }
-            if ($p.Keys.Count -gt 0) {
-                $raw = @( & Get-InterfaceInfo @p )
-            }
-            else {
-                $raw = @(Get-InterfaceInfo $Hostname)
-            }
-            Write-Verbose "[CompareView] Get-InterfaceInfo returned $($raw.Count) record(s) for '$Hostname'."
-        }
-        catch {
-            Write-Warning "[CompareView] Get-InterfaceInfo call failed for '$Hostname': $($_.Exception.Message)"
-            $raw = @()
-        }
-    }
-    $ErrorActionPreference = 'Continue'  # reset to default
-
-    # Process raw interface objects to extract port names (strings)
-    if ($raw -and $raw.Count -gt 0) {
-        $ports = @(
-            foreach ($r in $raw) {
-                if     ($r -is [string])                                { $r }
-                elseif ($r.PSObject.Properties['Port'])                 { [string]$r.Port }
-                elseif ($r.PSObject.Properties['Interface'])            { [string]$r.Interface }
-                elseif ($r.PSObject.Properties['IfName'])               { [string]$r.IfName }
-                elseif ($r.PSObject.Properties['Name'])                 { [string]$r.Name }
-                else                                                    { '' + $r }
-            }
-        )
-        Write-Verbose "[CompareView] Extracted $($ports.Count) port name(s) for '$Hostname' from DB result."
-    }
-    else {
-        Write-Verbose "[CompareView] No interface records retrieved from DB for '$Hostname'."
-    }
-
-    # 3) Fallback: if still no ports, use main interface grid data (if that grid has data for this host)
-    if ((-not $ports -or $ports.Count -eq 0) -and $global:interfacesGrid -and $global:interfacesGrid.ItemsSource) {
-        try {
-            $ports = @(
-                $global:interfacesGrid.ItemsSource |
-                Where-Object {
-                    (('' + $_.Hostname) -eq $Hostname) -or
-                    ($_.PSObject.Properties['HostName'] -and ('' + $_.HostName) -eq $Hostname) -or
-                    ($_.PSObject.Properties['Device']   -and ('' + $_.Device)  -eq $Hostname)
-                } |
-                ForEach-Object {
-                    if     ($_.PSObject.Properties['Port'])      { '' + $_.Port }
-                    elseif ($_.PSObject.Properties['Interface']) { '' + $_.Interface }
-                    elseif ($_.PSObject.Properties['IfName'])    { '' + $_.IfName }
-                    elseif ($_.PSObject.Properties['Name'])      { '' + $_.Name }
-                    else { '' + $_ }
-                }
-            )
-            Write-Verbose "[CompareView] Fallback: Found $($ports.Count) port(s) for '$Hostname' from global interfacesGrid."
-        }
-        catch {
+        } catch {
+            Write-Warning "[CompareView] Error calling Get-InterfaceInfo for '$Hostname': $($_.Exception.Message)"
             $ports = @()
-            Write-Warning "[CompareView] Fallback to interfacesGrid failed for '$Hostname': $($_.Exception.Message)"
         }
     }
-
-    # Normalize, sort naturally, and deduplicate the port list
+    # Normalize, natural-sort, and deduplicate the list
     $ports = $ports |
         ForEach-Object { ('' + $_).Trim() } |
         Where-Object   { $_ -ne '' } |
         Sort-Object    { Get-PortSortKey $_ }
-
-    $ports = $ports | Select-Object -Unique   # remove any duplicates (case-insensitive handled by sort key)
+    $ports = $ports | Select-Object -Unique
     Write-Verbose "[CompareView] Final port list for '$Hostname': $($ports.Count) port(s)."
     return $ports
 }
@@ -285,33 +198,13 @@ function Get-GridRowFor {
         [Parameter(Mandatory)][string]$Hostname, 
         [Parameter(Mandatory)][string]$Port
     )
-    # Finds the data object (row) for the given Hostname and Port from the global interfaces grid (if available).
-    if ($global:interfacesGrid -and $global:interfacesGrid.ItemsSource) {
-        try {
-            $match = @(
-                $global:interfacesGrid.ItemsSource |
-                Where-Object {
-                    ((('' + $_.Hostname) -eq $Hostname) -or 
-                     ($_.PSObject.Properties['HostName'] -and ('' + $_.HostName) -eq $Hostname)) -and
-                    ((('' + $_.Port) -eq $Port) -or 
-                     ($_.PSObject.Properties['Interface'] -and ('' + $_.Interface) -eq $Port) -or
-                     ($_.PSObject.Properties['Name'] -and ('' + $_.Name) -eq $Port))
-                } |
-                Select-Object -First 1
-            )[0]
-            if ($match) { return $match }
-        }
-        catch {
-            Write-Verbose "[CompareView] Exception in Get-GridRowFor: $($_.Exception.Message)"
-            # fall through to DB lookup
-        }
-    }
-    # Fallback: if the row is not in the grid, attempt to query the database via InterfaceModule\Get-InterfaceInfo.
+    # Find the data object (row) for the given Hostname and Port by querying the
+    # database via DeviceDataModule.  Any reliance on the global Interfaces
+    # grid has been removed to decouple the compare view from other views.
     try {
-        # Only attempt if the database is initialized and the InterfaceModule function is available
-        if ($global:StateTraceDb -and (Get-Command InterfaceModule\Get-InterfaceInfo -ErrorAction SilentlyContinue)) {
+        if (Get-Command -Name 'Get-InterfaceInfo' -ErrorAction SilentlyContinue) {
             # Retrieve all interface objects for the specified host
-            $ifaceList = InterfaceModule\Get-InterfaceInfo -Hostname $Hostname
+            $ifaceList = DeviceDataModule\Get-InterfaceInfo -Hostname $Hostname
             if ($ifaceList) {
                 # Normalize the requested port by trimming and uppercasing for comparison
                 $tgt = ('' + $Port).Trim().ToUpperInvariant()
@@ -324,7 +217,7 @@ function Get-GridRowFor {
             }
         }
     } catch {
-        Write-Verbose "[CompareView] Fallback DB lookup failed in Get-GridRowFor: $($_.Exception.Message)"
+        Write-Verbose "[CompareView] Exception in Get-GridRowFor DB lookup: $($_.Exception.Message)"
     }
     return $null
 }

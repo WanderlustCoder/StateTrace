@@ -65,18 +65,7 @@ function New-SearchInterfacesView {
     # Text changed triggers live search filtering
     if ($searchBox) {
         $searchBox.Add_TextChanged({
-            # On each keypress, apply the search term immediately.  Pass the
-            # current text into Update-SearchResults so that the filtering
-            # function knows what to match against.  Then refresh the grid
-            # to display the updated results.  $global:searchBox is used
-            # here rather than $searchBox because the local variable is out
-            # of scope when this scriptblock executes.
-            if (Get-Command Update-SearchResults -ErrorAction SilentlyContinue) {
-                Update-SearchResults $global:searchBox.Text | Out-Null
-            }
-            if (Get-Command Update-SearchGrid -ErrorAction SilentlyContinue) {
-                Update-SearchGrid
-            }
+                Update-SearchGrid            
         })
     }
     # Regex checkbox toggles global flag and refreshes
@@ -124,10 +113,8 @@ function New-SearchInterfacesView {
             if (Get-Command Update-SearchGrid -ErrorAction SilentlyContinue) { Update-SearchGrid }
         })
     }
-    # Build initial global interface list
-    if (Get-Command Update-GlobalInterfaceList -ErrorAction SilentlyContinue) {
-        Update-GlobalInterfaceList
-    }
+    # Delay heavy site-wide load until the user searches.
+    if ($searchGrid) { $searchGrid.ItemsSource = @() }
 }
 
 Export-ModuleMember -Function New-SearchInterfacesView

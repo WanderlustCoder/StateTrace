@@ -58,22 +58,11 @@ function Get-InterfaceHostnames {
     #>
     [CmdletBinding()]
     param([string]$ParsedDataPath)
-
-    if (-not $global:StateTraceDb) {
-        # Without a database there is nothing to query; return empty list
-        return @()
-    }
-    try {
-        $dbModule = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
-        if (Test-Path $dbModule) {
-            Import-Module $dbModule -Force -Global -ErrorAction SilentlyContinue | Out-Null
-        }
-        $dtHosts = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql 'SELECT Hostname FROM DeviceSummary ORDER BY Hostname'
-        return ($dtHosts | ForEach-Object { $_.Hostname })
-    } catch {
-        Write-Warning "Failed to query hostnames from database: $($_.Exception.Message)"
-        return @()
-    }
+    # Delegate to DeviceDataModule implementation.  The central module defines
+    # Get-InterfaceHostnames which reads from the StateTrace database.  Pass
+    # through all bound parameters to preserve backwards compatibility.  This
+    # wrapper prevents duplicated logic in this module.
+    return DeviceDataModule\Get-InterfaceHostnames @PSBoundParameters
 }
 
 function Get-InterfaceInfo {
@@ -106,134 +95,22 @@ function Get-InterfaceInfo {
         [Parameter(Mandatory)][string]$Hostname,
         [string]$TemplatesPath = (Join-Path $PSScriptRoot '..\Templates')
     )
-    if (-not $global:StateTraceDb) { return @() }
-    # Debug flag: set $Global:StateTraceDebug = $true in your session to enable verbose debugging
-    $debug = ($Global:StateTraceDebug -eq $true)
-    try {
-        $dbModule = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
-        if (Test-Path $dbModule) {
-            Import-Module $dbModule -Force -Global -ErrorAction SilentlyContinue | Out-Null
-        }
-        $escHost = $Hostname -replace "'", "''"
-        # Load interface rows
-        $sql = "SELECT Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, PortColor, ConfigStatus, ToolTip FROM Interfaces WHERE Hostname = '$escHost' ORDER BY Port"
-        $dt = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql $sql
-        # Determine vendor from device summary
-        $vendor = 'Cisco'
-        try {
-            $mkDt = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT Make FROM DeviceSummary WHERE Hostname = '$escHost'"
-            if ($mkDt) {
-                if ($mkDt -is [System.Data.DataTable]) {
-                    if ($mkDt.Rows.Count -gt 0) {
-                        $mk = $mkDt.Rows[0].Make
-                        if ($mk -match '(?i)brocade') { $vendor = 'Brocade' }
-                    }
-                } else {
-                    $mkRow = $mkDt | Select-Object -First 1
-                    if ($mkRow -and $mkRow.PSObject.Properties['Make']) {
-                        $mk = $mkRow.Make
-                        if ($mk -match '(?i)brocade') { $vendor = 'Brocade' }
-                    }
-                }
-            }
-        } catch {}
-        # Load device-level AuthBlock from database for Brocade devices.  Append to tooltips later.
-        $authBlockLines = @()
-        if ($vendor -eq 'Brocade') {
-            try {
-                $abDt = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT AuthBlock FROM DeviceSummary WHERE Hostname = '$escHost'"
-                if ($abDt) {
-                    $abText = $null
-                    if ($abDt -is [System.Data.DataTable]) {
-                        if ($abDt.Rows.Count -gt 0) { $abText = '' + $abDt.Rows[0].AuthBlock }
-                    } else {
-                        $abRow = $abDt | Select-Object -First 1
-                        if ($abRow -and $abRow.PSObject.Properties['AuthBlock']) { $abText = '' + $abRow.AuthBlock }
-                    }
-                    if ($abText -and $abText.Trim() -ne '') {
-                        $authBlockLines = $abText -split "`r?`n"
-                    }
-                }
-            } catch {
-                if ($debug) { Write-Host "[Get-InterfaceInfo] Failed to load AuthBlock for ${Hostname}: $($_.Exception.Message)" -ForegroundColor Yellow }
-            }
-        }
-        if ($debug) {
-            $cnt = 0
-            try {
-                if ($dt -is [System.Data.DataTable]) { $cnt = $dt.Rows.Count } else { $cnt = @($dt).Count }
-            } catch {}
-            Write-Host "[Get-InterfaceInfo] Host=$Hostname Vendor=$vendor Rows=$cnt AuthBlockLines=$($authBlockLines.Count)" -ForegroundColor Cyan
-            if ($authBlockLines.Count -gt 0) { Write-Host "[Get-InterfaceInfo] AuthBlock first line: $($authBlockLines[0])" -ForegroundColor DarkCyan }
-        }
-
-        $vendorFile = if ($vendor -eq 'Cisco') { 'Cisco.json' } else { 'Brocade.json' }
-        $jsonFile   = Join-Path $TemplatesPath $vendorFile
-        $templates  = $null
-        if (Test-Path $jsonFile) {
-            $tmplJson = Get-Content $jsonFile -Raw | ConvertFrom-Json
-            $templates = $tmplJson.templates
-        }
-        $results = @()
-        foreach ($row in ($dt | Select-Object Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, PortColor, ConfigStatus, ToolTip)) {
-            $authTemplate = $row.AuthTemplate
-            $match = $null
-            if ($templates) {
-                $match = $templates | Where-Object {
-                    $_.name -ieq $authTemplate -or
-                    ($_.aliases -and ($_.aliases -contains $authTemplate))
-                } | Select-Object -First 1
-            }
-            $portColor    = if ($row.PortColor) { $row.PortColor } elseif ($match) { $match.color } else { 'Gray' }
-            $configStatus = if ($row.ConfigStatus) { $row.ConfigStatus } elseif ($match) { 'Match' } else { 'Mismatch' }
-            # Build tooltip and append device-level AuthBlock when appropriate
-            $toolTipCore = if ($row.ToolTip) {
-                ('' + $row.ToolTip).TrimEnd()
-            } else {
-                $cfg = '' + $row.Config
-                if ($cfg -and $cfg.Trim() -ne '') {
-                    "AuthTemplate: $authTemplate`r`n`r`n$cfg"
-                } else {
-                    "AuthTemplate: $authTemplate"
-                }
-            }
-            $toolTip = $toolTipCore
-            if ($vendor -eq 'Brocade' -and $authBlockLines.Count -gt 0 -and ($toolTipCore -notmatch '(?i)GLOBAL AUTH BLOCK')) {
-                # Append global auth block without the DB annotation
-                $toolTip = $toolTipCore + "`r`n`r`n! GLOBAL AUTH BLOCK`r`n" + ($authBlockLines -join "`r`n")
-            }
-            if ($debug) {
-                $hasCfg = $false
-                try { $hasCfg = ($row.Config) -and ((('' + $row.Config).Trim()) -ne '') } catch {}
-                $added = ($toolTip -match 'GLOBAL AUTH BLOCK')
-                Write-Host ([string]::Format("[Get-InterfaceInfo] Port={0} HasPerPort={1} AddedGlobal={2}", $row.Port, $hasCfg, $added)) -ForegroundColor Gray
-            }
-            $results += [PSCustomObject]@{
-                Hostname      = $Hostname
-                Port          = $row.Port
-                Name          = $row.Name
-                Status        = $row.Status
-                VLAN          = $row.VLAN
-                Duplex        = $row.Duplex
-                Speed         = $row.Speed
-                Type          = $row.Type
-                LearnedMACs   = $row.LearnedMACs
-                AuthState     = $row.AuthState
-                AuthMode      = $row.AuthMode
-                AuthClientMAC = $row.AuthClientMAC
-                ToolTip       = $toolTip
-                IsSelected    = $false
-                ConfigStatus  = $configStatus
-                PortColor     = $portColor
-            }
-        }
-        return $results
-    } catch {
-        Write-Warning (
-            "Failed to load interface information from database for {0}: {1}" -f $Hostname, $_.Exception.Message
-        )
-        return @()
-    }
+    # Delegate to DeviceDataModule implementation.  This wrapper calls the
+    # central Get-InterfaceInfo function defined in DeviceDataModule to
+    # retrieve interface details and perform vendor-specific enrichment.  It
+    # preserves the existing parameter set by passing through all bound
+    # parameters via $PSBoundParameters.  By returning immediately, the
+    # remainder of this function (legacy implementation) is bypassed.
+    return DeviceDataModule\Get-InterfaceInfo @PSBoundParameters
+    <#
+        The legacy implementation that followed this return statement
+        has been removed.  The logic to query the database, enrich
+        results with template metadata and append Brocade authentication
+        blocks now lives exclusively in DeviceDataModule.  This wrapper
+        delegates to the central function and exits early, ensuring
+        there is no duplicated or unreachable code in this module.  Any
+        code appearing after this comment is intentionally disabled.
+    #>
 }
 
 function Compare-InterfaceConfigs {
@@ -272,15 +149,17 @@ function Compare-InterfaceConfigs {
         [Parameter(Mandatory)][string]$Interface2,
         [string]$ScriptPath = (Join-Path $PSScriptRoot '..\Main\CompareConfigs.ps1')
     )
-    if (-not (Test-Path $ScriptPath)) {
-        throw "Compare script not found: $ScriptPath"
-    }
-    Start-Process -FilePath 'powershell.exe' -ArgumentList @(
-        '-NoProfile','-WindowStyle','Hidden',
-        '-File', $ScriptPath,
-        '-Switch1',$Switch1,'-Interface1',$Interface1,
-        '-Switch2',$Switch2,'-Interface2',$Interface2
-    ) -Wait -NoNewWindow
+    <#
+        Prior to the refactor this function launched an external PowerShell
+        script to render a side‑by‑side comparison of two interfaces' configurations.
+        The in‑application Compare view now implements its own diff logic and
+        obtains all necessary configuration data from DeviceDataModule.  To avoid
+        confusion and unintended external process launches the legacy behaviour
+        has been disabled.  Should external comparisons be required in the
+        future, implement a suitable helper in DeviceDataModule and call it
+        from the Compare view instead.
+    #>
+    throw "External compare script invocation has been removed. Please use the Compare sidebar to view diffs."
 }
 
 function Get-InterfaceConfiguration {
@@ -330,113 +209,21 @@ function Get-InterfaceConfiguration {
         [hashtable]$NewVlans,
         [string]$TemplatesPath = (Join-Path $PSScriptRoot '..\Templates')
     )
-    if (-not $global:StateTraceDb) { return @() }
-    # Debug flag: set $Global:StateTraceDebug = $true in your session to enable verbose debugging
-    $debug = ($Global:StateTraceDebug -eq $true)
-    try {
-        $dbModule = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
-        if (Test-Path $dbModule) {
-            Import-Module $dbModule -Force -Global -ErrorAction SilentlyContinue | Out-Null
-        }
-        $escHost = $Hostname -replace "'", "''"
-        # Determine vendor
-        $vendor = 'Cisco'
-        try {
-            $mkDt = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT Make FROM DeviceSummary WHERE Hostname = '$escHost'"
-            if ($mkDt) {
-                if ($mkDt -is [System.Data.DataTable]) {
-                    if ($mkDt.Rows.Count -gt 0) {
-                        $mk = $mkDt.Rows[0].Make
-                        if ($mk -match '(?i)brocade') { $vendor = 'Brocade' }
-                    }
-                } else {
-                    $mkRow = $mkDt | Select-Object -First 1
-                    if ($mkRow -and $mkRow.PSObject.Properties['Make']) {
-                        $mk = $mkRow.Make
-                        if ($mk -match '(?i)brocade') { $vendor = 'Brocade' }
-                    }
-                }
-            }
-        } catch {}
-        $jsonFile = Join-Path $TemplatesPath "${vendor}.json"
-        if (-not (Test-Path $jsonFile)) { throw "Template file missing: $jsonFile" }
-        $templates = (Get-Content $jsonFile -Raw | ConvertFrom-Json).templates
-        $tmpl = $templates | Where-Object { $_.name -eq $TemplateName } | Select-Object -First 1
-        if (-not $tmpl) { throw "Template '$TemplateName' not found in ${vendor}.json" }
-        # Load existing config per port
-        $oldConfigs = @{}
-        foreach ($p in $Interfaces) {
-            $pEsc = $p -replace "'", "''"
-            $sqlCfg = "SELECT Config FROM Interfaces WHERE Hostname = '$escHost' AND Port = '$pEsc'"
-            $dtCfg  = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql $sqlCfg
-            if ($dtCfg) {
-                if ($dtCfg -is [System.Data.DataTable]) {
-                    if ($dtCfg.Rows.Count -gt 0) {
-                        $cfgText = $dtCfg.Rows[0].Config
-                        $oldConfigs[$p] = if ($cfgText) { $cfgText -split "`n" } else { @() }
-                    }
-                } else {
-                    $rowCfg = $dtCfg | Select-Object -First 1
-                    if ($rowCfg -and $rowCfg.PSObject.Properties['Config']) {
-                        $cfgText = $rowCfg.Config
-                        $oldConfigs[$p] = if ($cfgText) { $cfgText -split "`n" } else { @() }
-                    }
-                }
-            }
-        }
-        $outLines = foreach ($port in $Interfaces) {
-            "interface $port"
-            $pending = @()
-            $nameOverride = if ($NewNames.ContainsKey($port)) { $NewNames[$port] } else { $null }
-            $vlanOverride = if ($NewVlans.ContainsKey($port)) { $NewVlans[$port] } else { $null }
-            if ($nameOverride) {
-                $pending += $(if ($vendor -eq 'Cisco') { "description $nameOverride" } else { "port-name $nameOverride" })
-            }
-            if ($vlanOverride) {
-                $pending += $(if ($vendor -eq 'Cisco') { "switchport access vlan $vlanOverride" } else { "auth-default-vlan $vlanOverride" })
-            }
-            foreach ($cmd in $tmpl.required_commands) { $pending += $cmd.Trim() }
-            if ($oldConfigs.ContainsKey($port)) {
-                foreach ($oldLine in $oldConfigs[$port]) {
-                    $trimOld  = $oldLine.Trim()
-                    if (-not $trimOld) { continue }
-                    $lowerOld = $trimOld.ToLower()
-                    if ($lowerOld.StartsWith('interface') -or $lowerOld -eq 'exit') { continue }
-                    $existsInNew = $false
-                    foreach ($newCmd in $pending) {
-                        if ($lowerOld -like ("$($newCmd.ToLower())*")) { $existsInNew = $true; break }
-                    }
-                    if ($existsInNew) { continue }
-                    # Remove stale auth commands
-                    if ($vendor -eq 'Cisco') {
-                        if ($lowerOld.StartsWith('authentication') -or $lowerOld.StartsWith('dot1x') -or $lowerOld -eq 'mab') {
-                            " no $trimOld"
-                        }
-                    } else {
-                        if ($lowerOld -match 'dot1x\s+port-control\s+auto' -or $lowerOld -match 'mac-authentication\s+enable') {
-                            " no $trimOld"
-                        }
-                    }
-                }
-            }
-            # Append overrides and template commands again for readability
-            if ($nameOverride) {
-                $(if ($vendor -eq 'Cisco') { " description $nameOverride" } else { " port-name $nameOverride" })
-            }
-            if ($vlanOverride) {
-                $(if ($vendor -eq 'Cisco') { " switchport access vlan $vlanOverride" } else { " auth-default-vlan $vlanOverride" })
-            }
-            foreach ($cmd in $tmpl.required_commands) { $cmd }
-            'exit'
-            ''
-        }
-        return $outLines
-    } catch {
-        Write-Warning (
-            "Failed to build interface configuration from database for {0}: {1}" -f $Hostname, $_.Exception.Message
-        )
-        return @()
-    }
+    # Delegate to DeviceDataModule implementation.  This wrapper calls the
+    # central Get-InterfaceConfiguration function defined in DeviceDataModule
+    # to build port configuration snippets based on the selected template.
+    # It passes through all bound parameters, ensuring that name and VLAN
+    # overrides remain supported.
+    return DeviceDataModule\Get-InterfaceConfiguration @PSBoundParameters
+    <#
+        The original implementation that followed this return statement
+        has been removed.  The logic for assembling interface
+        configuration snippets now resides in DeviceDataModule, so
+        InterfaceModule simply forwards the call.  Retaining the
+        legacy code here would serve no purpose and might cause
+        confusion if accidentally executed.  Any code that previously
+        existed below this comment is intentionally disabled.
+    #>
 }
 
 function Get-SpanningTreeInfo {
@@ -510,39 +297,19 @@ function Get-ConfigurationTemplates {
         [Parameter(Mandatory)][string]$Hostname,
         [string]$TemplatesPath = (Join-Path $PSScriptRoot '..\Templates')
     )
-    if (-not $global:StateTraceDb) { return @() }
-    try {
-        $dbModulePath = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
-        if (Test-Path $dbModulePath) {
-            Import-Module $dbModulePath -Force -Global -ErrorAction SilentlyContinue | Out-Null
-        }
-        $escHost = $Hostname -replace "'", "''"
-        $dt = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT Make FROM DeviceSummary WHERE Hostname = '$escHost'"
-        # Determine the device make.  Invoke-DbQuery may return a DataTable or an array of objects.
-        $make = ''
-        if ($dt) {
-            # If a DataTable is returned, use its Rows collection
-            if ($dt -is [System.Data.DataTable]) {
-                if ($dt.Rows.Count -gt 0) { $make = $dt.Rows[0].Make }
-            } else {
-                # Otherwise, treat it as an enumerable and grab the first object
-                $firstRow = $dt | Select-Object -First 1
-                if ($firstRow -and $firstRow.PSObject.Properties['Make']) {
-                    $make = $firstRow.Make
-                }
-            }
-        }
-        $vendorFile = if ($make -match '(?i)brocade') { 'Brocade.json' } else { 'Cisco.json' }
-        $jsonFile = Join-Path $TemplatesPath $vendorFile
-        if (-not (Test-Path $jsonFile)) { throw "Template file missing: $jsonFile" }
-        $templates = (Get-Content $jsonFile -Raw | ConvertFrom-Json).templates
-        return $templates | Select-Object -ExpandProperty name
-    } catch {
-        Write-Warning (
-            "Failed to determine configuration templates from database for {0}: {1}" -f $Hostname, $_.Exception.Message
-        )
-        return @()
-    }
+    # Delegate to DeviceDataModule implementation.  This wrapper calls the
+    # central Get-ConfigurationTemplates function defined in DeviceDataModule
+    # which determines the vendor, loads the appropriate JSON and returns
+    # available template names.  Pass through all bound parameters.
+    return DeviceDataModule\Get-ConfigurationTemplates @PSBoundParameters
+    <#
+        The legacy implementation that queried the DeviceSummary table and
+        manually loaded template JSON files has been removed.  All
+        template retrieval logic now lives in DeviceDataModule.  This
+        function simply proxies the call and exits immediately.  Any
+        code that was previously present below this comment is intentionally
+        disabled.
+    #>
 }
 
 function New-InterfacesView {

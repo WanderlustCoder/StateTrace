@@ -6,8 +6,7 @@
         # Core parser and helper modules
         'ParserWorker.psm1',
         'DatabaseModule.psm1',
-        'GuiModule.psm1',
-        'DeviceFunctionsModule.psm1',
+        'DeviceDataModule.psm1',
         # Vendor-specific modules
         'AristaModule.psm1',
         'BrocadeModule.psm1',
