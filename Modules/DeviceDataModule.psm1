@@ -41,6 +41,294 @@ if (-not $global:DeviceInterfaceCache) {
     $global:DeviceInterfaceCache = @{}
 }
 
+<#
+    Retrieve the currently selected site, building and room from the main
+    window.  This helper centralises the lookup of dropdown selections so
+    callers do not need to repeatedly reference FindName on the window.  When
+    invoked without parameters it defaults to using the global `$window`
+    variable.  The return value is a hashtable containing the keys
+    `Site`, `Building` and `Room`.  Any missing dropdowns or errors
+    encountered during lookup will result in `$null` values for the
+    corresponding fields.
+#>
+function Get-SelectedLocation {
+    [CmdletBinding()]
+    param([object]$Window = $global:window)
+    $siteSel = $null
+    $bldSel  = $null
+    $roomSel = $null
+    try {
+        if ($Window) {
+            $siteCtrl = $Window.FindName('SiteDropdown')
+            $bldCtrl  = $Window.FindName('BuildingDropdown')
+            $roomCtrl = $Window.FindName('RoomDropdown')
+            if ($siteCtrl) { $siteSel = $siteCtrl.SelectedItem }
+            if ($bldCtrl)  { $bldSel  = $bldCtrl.SelectedItem }
+            if ($roomCtrl){ $roomSel = $roomCtrl.SelectedItem }
+        }
+    } catch {
+        # ignore lookup errors
+    }
+    return @{ Site = $siteSel; Building = $bldSel; Room = $roomSel }
+}
+
+<#
+    Filter a collection of interface-like objects by location.  Given a list
+    of items and optional site, building and room selectors, this helper
+    returns only those objects whose `Site`, `Building` and `Room` properties
+    match the provided values.  Blank or `$null` selectors are treated as
+    wildcards (i.e. all values are accepted).  The function tolerates
+    arbitrary object types by attempting to read properties via the
+    PSObject accessor.  It returns a new array and does not mutate the
+    original list.
+#>
+function Filter-ByLocation {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][object[]]$List,
+        [string]$Site,
+        [string]$Building,
+        [string]$Room
+    )
+    $outList = @()
+    foreach ($item in $List) {
+        $rowSite     = ''
+        $rowBuilding = ''
+        $rowRoom     = ''
+        try {
+            if ($item -and $item.PSObject) {
+                if ($item.PSObject.Properties['Site'])     { $rowSite     = '' + $item.Site }
+                if ($item.PSObject.Properties['Building']) { $rowBuilding = '' + $item.Building }
+                if ($item.PSObject.Properties['Room'])     { $rowRoom     = '' + $item.Room }
+            }
+        } catch {}
+        if ($Site     -and $Site     -ne '' -and $rowSite     -ne $Site)     { continue }
+        if ($Building -and $Building -ne '' -and $rowBuilding -ne $Building) { continue }
+        if ($Room     -and $Room     -ne '' -and $rowRoom     -ne $Room)     { continue }
+        $outList += $item
+    }
+    return $outList
+}
+
+<#
+    Initialise a dropdown or other ItemsControl with a list of items and
+    select an appropriate default.  This helper centralises the common
+    pattern of assigning the ItemsSource on a WPF control and setting
+    SelectedIndex to either the first item (index 0) when items are
+    available or to -1 when the list is empty.  Without this helper
+    developers repeatedly wrote nearly identical code across multiple
+    functions and views, which obscured the intent and made future
+    changes more error‑prone.  By encapsulating the logic here we
+    eliminate duplication and ensure consistent behaviour across the
+    application.
+
+    .PARAMETER Control
+        A WPF ItemsControl such as a ComboBox, ListBox or DataGrid on
+        which the ItemsSource and SelectedIndex properties will be set.
+
+    .PARAMETER Items
+        The list or array of items to assign to the control's ItemsSource.
+        The helper will treat `$null` or an empty array as no items and
+        select index -1 accordingly.
+#>
+function Set-DropdownItems {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][System.Windows.Controls.ItemsControl]$Control,
+        [Parameter(Mandatory)][object[]]$Items
+    )
+    # Assign the ItemsSource and select the first item (index 0) when
+    # available, otherwise clear the selection (index -1).  Wrap the
+    # SelectedIndex assignment in try/catch to swallow WPF exceptions
+    # that can occur if the control has not yet been fully initialised.
+    $Control.ItemsSource = $Items
+    if ($Items -and $Items.Count -gt 0) {
+        try { $Control.SelectedIndex = 0 } catch { $null = $null }
+    } else {
+        try { $Control.SelectedIndex = -1 } catch { $null = $null }
+    }
+}
+
+<#
+    Construct interface PSCustomObject instances from database results.  This helper
+    centralises the vendor detection, authentication block augmentation and
+    JSON template handling previously duplicated across Get‑DeviceDetails and
+    Get‑InterfaceInfo.  Given a set of rows returned from the Interfaces table,
+    it determines the device vendor based on the DeviceSummary.Make field,
+    loads the appropriate compliance templates from the Templates folder, builds
+    per‑row tooltips including any global Brocade authentication block, and
+    computes the PortColor and ConfigStatus fields by combining existing
+    database values with template defaults.  The resulting array of
+    [PSCustomObject] is returned to the caller.  This function is internal to
+    this module and is not exported.
+#>
+function Build-InterfaceObjectsFromDbRow {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][object]$Data,
+        [Parameter(Mandatory)][string]$Hostname,
+        [string]$TemplatesPath = (Join-Path $PSScriptRoot '..\Templates')
+    )
+    # If the database is unavailable return an empty array immediately.
+    if (-not $global:StateTraceDb) { return @() }
+    # Escape the hostname once for reuse in SQL queries.  Doubling single quotes
+    # prevents SQL injection and ensures proper matching in Access queries.
+    $escHost = $Hostname -replace "'", "''"
+    # Attempt to determine the vendor from the DeviceSummary table.  Default to Cisco
+    # when no make is found or an error occurs.
+    $vendor = 'Cisco'
+    try {
+        $mkDt = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT Make FROM DeviceSummary WHERE Hostname = '$escHost'"
+        if ($mkDt) {
+            if ($mkDt -is [System.Data.DataTable]) {
+                if ($mkDt.Rows.Count -gt 0) {
+                    $mk = $mkDt.Rows[0].Make
+                    if ($mk -and ($mk -match '(?i)brocade')) { $vendor = 'Brocade' }
+                }
+            } else {
+                $mkRow = $mkDt | Select-Object -First 1
+                if ($mkRow -and $mkRow.PSObject.Properties['Make']) {
+                    $mk = $mkRow.Make
+                    if ($mk -and ($mk -match '(?i)brocade')) { $vendor = 'Brocade' }
+                }
+            }
+        }
+    } catch {}
+    # For Brocade devices, retrieve the device-level AuthBlock from DeviceSummary.
+    $authBlockLines = @()
+    if ($vendor -eq 'Brocade') {
+        try {
+            $abDt = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT AuthBlock FROM DeviceSummary WHERE Hostname = '$escHost'"
+            if ($abDt) {
+                $abText = $null
+                if ($abDt -is [System.Data.DataTable]) {
+                    if ($abDt.Rows.Count -gt 0) { $abText = '' + $abDt.Rows[0].AuthBlock }
+                } else {
+                    $abRow = $abDt | Select-Object -First 1
+                    if ($abRow -and $abRow.PSObject.Properties['AuthBlock']) { $abText = '' + $abRow.AuthBlock }
+                }
+                if ($abText -and $abText.Trim() -ne '') {
+                    $authBlockLines = $abText -split "`r?`n"
+                }
+            }
+        } catch {}
+    }
+    # Load compliance templates based on vendor.  If the JSON file is missing the
+    # Templates array will be $null and matches will fail, resulting in defaults.
+    $templates = $null
+    try {
+        $vendorFile = if ($vendor -eq 'Cisco') { 'Cisco.json' } else { 'Brocade.json' }
+        $jsonFile   = Join-Path $TemplatesPath $vendorFile
+        if (Test-Path $jsonFile) {
+            $tmplJson = Get-Content $jsonFile -Raw | ConvertFrom-Json
+            if ($tmplJson -and $tmplJson.PSObject.Properties['templates']) {
+                $templates = $tmplJson.templates
+            }
+        }
+    } catch {}
+    # Normalise $Data into an enumerable collection of rows.  Support DataTable,
+    # DataView and any IEnumerable.  If an unsupported type is passed, return an empty list.
+    $rows = @()
+    if ($Data -is [System.Data.DataTable]) {
+        $rows = $Data.Rows
+    } elseif ($Data -is [System.Data.DataView]) {
+        $rows = $Data
+    } elseif ($Data -is [System.Collections.IEnumerable]) {
+        $rows = $Data
+    } else {
+        return @()
+    }
+    $resultList = @()
+    foreach ($row in $rows) {
+        if (-not $row) { continue }
+        # Safely extract fields; some properties may not exist on all row types.
+        $authTemplate = $null
+        if ($row.PSObject.Properties['AuthTemplate']) { $authTemplate = $row.AuthTemplate }
+        $cfg          = $null
+        if ($row.PSObject.Properties['Config'])       { $cfg = '' + $row.Config }
+        $existingTip  = ''
+        if ($row.PSObject.Properties['ToolTip'] -and $row.ToolTip) {
+            $existingTip = ('' + $row.ToolTip).TrimEnd()
+        }
+        # Determine the base tooltip: use existing tooltip when present; otherwise synthesise from AuthTemplate and Config.
+        $toolTipCore = $existingTip
+        if (-not $toolTipCore) {
+            if ($cfg -and $cfg.Trim() -ne '') {
+                $toolTipCore = "AuthTemplate: $authTemplate`r`n`r`n$cfg"
+            } elseif ($authTemplate) {
+                $toolTipCore = "AuthTemplate: $authTemplate"
+            } else {
+                $toolTipCore = ''
+            }
+        }
+        # Determine PortColor and ConfigStatus by combining row values with template defaults.
+        $portColorVal = $null
+        $cfgStatusVal = $null
+        $hasPortColor    = $false
+        $hasConfigStatus = $false
+        if ($row.PSObject.Properties['PortColor'] -and $row.PortColor) {
+            $portColorVal = $row.PortColor
+            $hasPortColor = $true
+        }
+        if ($row.PSObject.Properties['ConfigStatus'] -and $row.ConfigStatus) {
+            $cfgStatusVal = $row.ConfigStatus
+            $hasConfigStatus = $true
+        }
+        # If no explicit values were provided, look up the template colour and status.
+        if (-not $hasPortColor -or -not $hasConfigStatus) {
+            $match = $null
+            if ($templates -and $authTemplate) {
+                $match = $templates | Where-Object {
+                    $_.name -ieq $authTemplate -or
+                    ($_.aliases -and ($_.aliases -contains $authTemplate))
+                } | Select-Object -First 1
+            }
+            if (-not $hasPortColor) {
+                if ($match) { $portColorVal = $match.color } else { $portColorVal = 'Gray' }
+            }
+            if (-not $hasConfigStatus) {
+                if ($match) {
+                    $cfgStatusVal = 'Match'
+                } elseif ($authTemplate) {
+                    $cfgStatusVal = 'Mismatch'
+                } else {
+                    # When no template information exists, fall back to Unknown for consistency with Get‑DeviceDetails.
+                    $cfgStatusVal = 'Unknown'
+                }
+            }
+        }
+        # Append global authentication block lines to the tooltip for Brocade devices.
+        $finalTip = $toolTipCore
+        if ($vendor -eq 'Brocade' -and $authBlockLines.Count -gt 0 -and ($finalTip -notmatch '(?i)GLOBAL AUTH BLOCK')) {
+            if ($finalTip -and $finalTip.Trim() -ne '') {
+                $finalTip = $finalTip.TrimEnd() + "`r`n`r`n! GLOBAL AUTH BLOCK`r`n" + ($authBlockLines -join "`r`n")
+            } else {
+                $finalTip = "! GLOBAL AUTH BLOCK`r`n" + ($authBlockLines -join "`r`n")
+            }
+        }
+        # Build the PSCustomObject for this interface.  Use the provided Hostname for all entries.
+        $resultList += [PSCustomObject]@{
+            Hostname      = $Hostname
+            Port          = $(if ($row.PSObject.Properties['Port']) { $row.Port } else { $null })
+            Name          = $(if ($row.PSObject.Properties['Name']) { $row.Name } else { $null })
+            Status        = $(if ($row.PSObject.Properties['Status']) { $row.Status } else { $null })
+            VLAN          = $(if ($row.PSObject.Properties['VLAN']) { $row.VLAN } else { $null })
+            Duplex        = $(if ($row.PSObject.Properties['Duplex']) { $row.Duplex } else { $null })
+            Speed         = $(if ($row.PSObject.Properties['Speed']) { $row.Speed } else { $null })
+            Type          = $(if ($row.PSObject.Properties['Type']) { $row.Type } else { $null })
+            LearnedMACs   = $(if ($row.PSObject.Properties['LearnedMACs']) { $row.LearnedMACs } else { $null })
+            AuthState     = $(if ($row.PSObject.Properties['AuthState']) { $row.AuthState } else { $null })
+            AuthMode      = $(if ($row.PSObject.Properties['AuthMode']) { $row.AuthMode } else { $null })
+            AuthClientMAC = $(if ($row.PSObject.Properties['AuthClientMAC']) { $row.AuthClientMAC } else { $null })
+            ToolTip       = $finalTip
+            IsSelected    = $false
+            ConfigStatus  = $cfgStatusVal
+            PortColor     = $portColorVal
+        }
+    }
+    return $resultList
+}
+
 function Get-DeviceSummaries {
     # Always prefer loading device summaries from the database.  If the database
     # is unavailable or the query fails, the list will remain empty and the
@@ -70,7 +358,7 @@ function Get-DeviceSummaries {
                     $global:DeviceMetadata[$name] = $meta
                 }
             }
-            Write-Host "[DEBUG] Loaded $($names.Count) device(s) from DB" -ForegroundColor DarkGray
+            # Removed debug output about number of devices loaded
         } catch {
             Write-Warning "Failed to query device summaries from database: $($_.Exception.Message)"
         }
@@ -80,47 +368,27 @@ function Get-DeviceSummaries {
 
     # Update the host dropdown and location filters based on the loaded device metadata.
     $hostnameDD = $window.FindName('HostnameDropdown')
-    $hostnameDD.ItemsSource = $names
-    # Safely select the first hostname via SelectedIndex; avoid SelectedItem exceptions
-    if ($names -and $names.Count -gt 0) {
-        try { $hostnameDD.SelectedIndex = 0 } catch { $null = $null }
-    } else {
-        try { $hostnameDD.SelectedIndex = -1 } catch { $null = $null }
-    }
+    # Initialise the hostname dropdown with the loaded list of names.  This helper
+    # sets ItemsSource and safely selects the first item when available.
+    Set-DropdownItems -Control $hostnameDD -Items $names
 
     $siteDD = $window.FindName('SiteDropdown')
     $uniqueSites = @()
     if ($DeviceMetadata.Count -gt 0) {
         $uniqueSites = $DeviceMetadata.Values | ForEach-Object { $_.Site } | Where-Object { $_ -ne '' } | Sort-Object -Unique
     }
-    $siteDD.ItemsSource = @('') + $uniqueSites
-    # Always select the first site via index.  Avoid using SelectedItem on primitive
-    # strings to prevent WPF style-binding exceptions.
-    if ($siteDD.ItemsSource -and $siteDD.ItemsSource.Count -gt 0) {
-        $siteDD.SelectedIndex = 0
-    } else {
-        $siteDD.SelectedIndex = -1
-    }
+    # Prepend a blank entry to the list of unique sites so the first item is always blank.
+    Set-DropdownItems -Control $siteDD -Items (@('') + $uniqueSites)
 
     $buildingDD = $window.FindName('BuildingDropdown')
-    $buildingDD.ItemsSource = @('')
-    # Select the blank entry via index and disable until a site is chosen.
-    if ($buildingDD.ItemsSource -and $buildingDD.ItemsSource.Count -gt 0) {
-        $buildingDD.SelectedIndex = 0
-    } else {
-        $buildingDD.SelectedIndex = -1
-    }
+    # Initialise building dropdown with a single blank option and disable until a site is chosen.
+    Set-DropdownItems -Control $buildingDD -Items @('')
     $buildingDD.IsEnabled = $false
 
     $roomDD = $window.FindName('RoomDropdown')
     if ($roomDD) {
-        $roomDD.ItemsSource = @('')
-        # Select blank entry via index and disable initially.
-        if ($roomDD.ItemsSource -and $roomDD.ItemsSource.Count -gt 0) {
-            $roomDD.SelectedIndex = 0
-        } else {
-            $roomDD.SelectedIndex = -1
-        }
+        # Initialise room dropdown with a blank entry and disable initially.
+        Set-DropdownItems -Control $roomDD -Items @('')
         $roomDD.IsEnabled = $false
     }
 
@@ -142,31 +410,18 @@ function Get-DeviceSummaries {
 function Update-DeviceFilter {
     if (-not $global:DeviceMetadata) { return }
 
-    $siteSel = $window.FindName('SiteDropdown').SelectedItem
-    $bldSel  = $window.FindName('BuildingDropdown').SelectedItem
-    $roomSel = $window.FindName('RoomDropdown').SelectedItem
+    # Determine the currently selected site (we intentionally ignore building
+    # and room at this stage so that we can update those lists first).  We
+    # defer host filtering until after the building dropdown has been
+    # repopulated to ensure we use the final building selection rather than
+    # whatever value happened to be selected prior to updating the list.
+    $loc    = Get-SelectedLocation
+    $siteSel = $loc.Site
 
-    Write-Host "[DEBUG] Filtering devices by site='$siteSel', building='$bldSel', room='$roomSel'" -ForegroundColor DarkGray
-
-    $filteredNames = @()
-    foreach ($name in $DeviceMetadata.Keys) {
-        $meta = $DeviceMetadata[$name]
-        if ($siteSel -and $siteSel -ne '' -and $meta.Site -ne $siteSel) { continue }
-        if ($bldSel  -and $bldSel  -ne '' -and $meta.Building -ne $bldSel) { continue }
-        if ($roomSel -and $roomSel -ne '' -and $meta.Room     -ne $roomSel) { continue }
-        $filteredNames += $name
-    }
-    Write-Host "[DEBUG] Device filter matched $($filteredNames.Count) host(s)" -ForegroundColor DarkGray
-
-    $hostnameDD = $window.FindName('HostnameDropdown')
-    $hostnameDD.ItemsSource = $filteredNames
-    # Safely select the first filtered hostname via index to avoid SelectedItem exceptions
-    if ($filteredNames.Count -gt 0) {
-        try { $hostnameDD.SelectedIndex = 0 } catch { $null = $null }
-    } else {
-        try { $hostnameDD.SelectedIndex = -1 } catch { $null = $null }
-    }
-
+    # ---------------------------------------------------------------------
+    # Step 1: Build and refresh the list of available buildings for the
+    # currently selected site.  Capture the user's current building
+    # selection so it can be restored after repopulating the dropdown.
     $availableBuildings = @()
     foreach ($name in $DeviceMetadata.Keys) {
         $meta = $DeviceMetadata[$name]
@@ -175,21 +430,50 @@ function Update-DeviceFilter {
     }
     $availableBuildings = $availableBuildings | Sort-Object -Unique
     $buildingDD = $window.FindName('BuildingDropdown')
-    $buildingDD.ItemsSource = @('') + $availableBuildings
-    # Always select first entry via index; avoid SelectedItem exceptions
-    if ($buildingDD.ItemsSource -and $buildingDD.ItemsSource.Count -gt 0) {
-        try { $buildingDD.SelectedIndex = 0 } catch { $null = $null }
-    } else {
-        try { $buildingDD.SelectedIndex = -1 } catch { $null = $null }
+    $prevBuildingSel = $buildingDD.SelectedItem
+    # Populate building dropdown with a blank entry plus all available buildings.
+    Set-DropdownItems -Control $buildingDD -Items (@('') + $availableBuildings)
+    # Restore prior selection if it still exists in the list (ignoring the
+    # leading blank).  Otherwise leave the selection on the blank entry.
+    if ($prevBuildingSel -and $prevBuildingSel -ne '' -and ($availableBuildings -contains $prevBuildingSel)) {
+        try { $buildingDD.SelectedItem = $prevBuildingSel } catch { }
     }
-    $bldSel = ''
-
+    # Enable or disable the building dropdown based solely on site selection.
     if ($siteSel -and $siteSel -ne '') {
         $buildingDD.IsEnabled = $true
     } else {
         $buildingDD.IsEnabled = $false
     }
 
+    # Capture the now-finalised building and room selections after the dropdown
+    # has been repopulated.  We retrieve them directly from the controls rather
+    # than relying on earlier variables so they reflect the restored value.
+    $bldSel  = $buildingDD.SelectedItem
+    $roomDD  = $window.FindName('RoomDropdown')
+    $roomSel = if ($roomDD) { $roomDD.SelectedItem } else { $null }
+
+    # ---------------------------------------------------------------------
+    # Step 2: Filter hostnames based on the selected site, building and room.
+    $filteredNames = @()
+    foreach ($name in $DeviceMetadata.Keys) {
+        $meta = $DeviceMetadata[$name]
+        if ($siteSel -and $siteSel -ne '' -and $meta.Site     -ne $siteSel) { continue }
+        if ($bldSel  -and $bldSel  -ne '' -and $meta.Building -ne $bldSel)  { continue }
+        if ($roomSel -and $roomSel -ne '' -and $meta.Room     -ne $roomSel) { continue }
+        $filteredNames += $name
+    }
+    $hostnameDD = $window.FindName('HostnameDropdown')
+    # Populate the hostname dropdown with the filtered list.  Selecting the
+    # first item ensures a host is always chosen when the list is non-empty.
+    Set-DropdownItems -Control $hostnameDD -Items $filteredNames
+
+    # ---------------------------------------------------------------------
+    # Step 3: Refresh the list of available rooms based on the final site and
+    # building selections.  A leading blank entry is included when one or
+    # more rooms exist.  Enable the room dropdown only when a non-blank
+    # building has been chosen (SelectedIndex > 0 refers to the first real
+    # value after the blank).  The user's room selection is not preserved
+    # because building changes typically invalidate the previous room.
     $availableRooms = @()
     foreach ($name in $DeviceMetadata.Keys) {
         $meta = $DeviceMetadata[$name]
@@ -198,16 +482,8 @@ function Update-DeviceFilter {
         if ($meta.Room -ne '') { $availableRooms += $meta.Room }
     }
     $availableRooms = $availableRooms | Sort-Object -Unique
-    $roomDD = $window.FindName('RoomDropdown')
     if ($roomDD) {
-        $roomDD.ItemsSource = @('') + $availableRooms
-        # Always select first room via index
-        if ($roomDD.ItemsSource -and $roomDD.ItemsSource.Count -gt 0) {
-            try { $roomDD.SelectedIndex = 0 } catch { $null = $null }
-        } else {
-            try { $roomDD.SelectedIndex = -1 } catch { $null = $null }
-        }
-        # Enable room dropdown only if site selected and building index > 0
+        Set-DropdownItems -Control $roomDD -Items (@('') + $availableRooms)
         if (($siteSel -and $siteSel -ne '') -and ($buildingDD.SelectedIndex -gt 0)) {
             $roomDD.IsEnabled = $true
         } else {
@@ -215,6 +491,8 @@ function Update-DeviceFilter {
         }
     }
 
+    # ---------------------------------------------------------------------
+    # Step 4: Notify dependent views to refresh using the updated filters.
     if (Get-Command Update-SearchGrid -ErrorAction SilentlyContinue) {
         Update-SearchGrid
     }
@@ -229,29 +507,27 @@ function Update-DeviceFilter {
 function Get-DeviceDetails {
     param($hostname)
     try {
-        Write-Host "[DEBUG] Loading details for host '$hostname'" -ForegroundColor DarkGray
+        # Loading details for host; removed debug output
         $useDb = $false
         if ($global:StateTraceDb) { $useDb = $true }
-        Write-Host "[DEBUG] Using database: $useDb" -ForegroundColor DarkGray
+        # Removed debug output about database usage
 
         if ($useDb) {
             $hostTrim = ($hostname -as [string]).Trim()
             $escHost   = $hostTrim -replace "'", "''"
             $charCodes = ($hostTrim.ToCharArray() | ForEach-Object { [int]$_ }) -join ','
-            Write-Host "[DEBUG] hostTrim='$hostTrim' (Len=$($hostTrim.Length)) Codes=[$charCodes]" -ForegroundColor Yellow
+            # Removed debug output for hostTrim
             $summarySql = "SELECT Hostname, Make, Model, Uptime, Ports, AuthDefaultVLAN, Building, Room " +
                           "FROM DeviceSummary " +
                           "WHERE Hostname = '$escHost' " +
                           "   OR Hostname LIKE '*$escHost*'"
             $dtSummary = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql $summarySql
-            Write-Host "[DEBUG] summarySql=$summarySql" -ForegroundColor Yellow
+            # Removed debug output for summarySql
             if ($dtSummary) {
-                Write-Host "[DEBUG] dtSummary.Rows.Count=$($dtSummary.Rows.Count)" -ForegroundColor Yellow
+                # Iterate through summary rows (debug output removed)
                 foreach ($rowTmp in ($dtSummary | Select-Object Hostname, Make, Model, Uptime, Ports, AuthDefaultVLAN, Building, Room)) {
-                    $hnRaw  = '' + $rowTmp.Hostname
-                    $hnTrim = $hnRaw.Trim()
-                    $codes  = ($hnRaw.ToCharArray() | ForEach-Object { [int]$_ }) -join ','
-                    Write-Host "[DEBUG] dtSummary HostnameRaw='$hnRaw' Trimmed='$hnTrim' Codes=[$codes]" -ForegroundColor Yellow
+                    # no-op; loop exists solely to assign variables if needed
+                    $null = $rowTmp
                 }
             }
             $summaryObjects = @()
@@ -259,7 +535,7 @@ function Get-DeviceDetails {
                 $summaryObjects = @($dtSummary | Select-Object Hostname, Make, Model, Uptime, Ports, AuthDefaultVLAN, Building, Room)
             }
             $dtSummaryAll = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT Hostname, Make, Model, Uptime, Ports, AuthDefaultVLAN, Building, Room FROM DeviceSummary"
-            Write-Host "[DEBUG] Summary rows returned: $($summaryObjects.Count)" -ForegroundColor DarkGray
+            # Removed debug output for summary row count
             $esc = $hostTrim -replace "'", "''"
             $fbMake = ''
             $fbModel = ''
@@ -311,8 +587,7 @@ function Get-DeviceDetails {
                 $interfacesView.FindName('AuthDefaultVLANBox').Text = $authDefVal
                 $interfacesView.FindName('BuildingBox').Text        = $buildingVal
                 $interfacesView.FindName('RoomBox').Text            = $roomVal
-                Write-Host "[DEBUG] Summary values for ${hostname}: Make='$($row.Make)', Model='$($row.Model)', Uptime='$($row.Uptime)', Ports='$($row.Ports)', AuthDefaultVLAN='$($row.AuthDefaultVLAN)', Building='$($row.Building)', Room='$($row.Room)'" -ForegroundColor DarkCyan
-                Write-Host "[DEBUG] Fallback values: Make='$fbMake', Model='$fbModel', Uptime='$fbUptime', Ports='$fbPorts', AuthDefaultVLAN='$fbAuthDef', Building='$fbBuilding', Room='$fbRoom'" -ForegroundColor DarkMagenta
+                # Removed debug output for summary and fallback values
             } else {
                 $interfacesView.FindName('HostnameBox').Text        = $hostname
                 $interfacesView.FindName('MakeBox').Text            = $fbMake
@@ -322,15 +597,11 @@ function Get-DeviceDetails {
                 $interfacesView.FindName('AuthDefaultVLANBox').Text = $fbAuthDef
                 $interfacesView.FindName('BuildingBox').Text        = $fbBuilding
                 $interfacesView.FindName('RoomBox').Text            = $fbRoom
-                Write-Host "[DEBUG] No summary row found for ${hostname}. Using fallback values: Make='$fbMake', Model='$fbModel', Uptime='$fbUptime', Ports='$fbPorts', AuthDefaultVLAN='$fbAuthDef', Building='$fbBuilding', Room='$fbRoom'" -ForegroundColor DarkMagenta
+                # Removed debug output when no summary row found
                 if ($dtSummaryAll) {
-                    Write-Host "[DEBUG] DeviceSummary table contents:" -ForegroundColor Yellow
+                    # iterate rows silently
                     foreach ($rowAll in ($dtSummaryAll | Select-Object Hostname, Make, Model, Uptime, Ports, AuthDefaultVLAN, Building, Room)) {
-                        $hnRaw   = '' + $rowAll.Hostname
-                        $hnTrim  = $hnRaw.Trim()
-                        $lenRaw  = if ($hnRaw) { $hnRaw.Length } else { 0 }
-                        $lenTrim = if ($hnTrim) { $hnTrim.Length } else { 0 }
-                        Write-Host "[DEBUG] HostnameRaw='$hnRaw' (Len=$lenRaw) Trimmed='$hnTrim' (Len=$lenTrim) -> Make='$($rowAll.Make)', Model='$($rowAll.Model)', Ports='$($rowAll.Ports)', AuthVLAN='$($rowAll.AuthDefaultVLAN)', Building='$($rowAll.Building)', Room='$($rowAll.Room)'" -ForegroundColor Yellow
+                        $null = $rowAll
                     }
                 }
             }
@@ -344,91 +615,23 @@ function Get-DeviceDetails {
                     $gridCached = $interfacesView.FindName('InterfacesGrid')
                     $gridCached.ItemsSource = $cachedList
                     $comboCached = $interfacesView.FindName('ConfigOptionsDropdown')
-                    $comboCached.ItemsSource = Get-ConfigurationTemplates -Hostname $hostname
-                    if ($comboCached.Items.Count -gt 0) {
-                        try { $comboCached.SelectedIndex = 0 } catch { $null = $null }
-                    } else {
-                        try { $comboCached.SelectedIndex = -1 } catch { $null = $null }
-                    }
+                    # Retrieve configuration templates and populate the combo using
+                    # the dropdown helper.  The helper sets ItemsSource and selects
+                    # the first template when available.
+                    $tmplList = Get-ConfigurationTemplates -Hostname $hostname
+                    Set-DropdownItems -Control $comboCached -Items $tmplList
                     return
                 }
             } catch {}
 
-            $dtIfs = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT Hostname, Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, ConfigStatus, PortColor, ToolTip FROM Interfaces WHERE Hostname = '$($hostname -replace "'", "''")'"
-            $ifObjects = $dtIfs | Select-Object Hostname, Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, ConfigStatus, PortColor, ToolTip
-            Write-Host "[DEBUG] Interface rows returned: $($ifObjects.Count)" -ForegroundColor DarkGray
-            # Determine device vendor and load global authentication block from the summary table.  When a device is
-            # Brocade and the per-port Config doesn’t include the individual port-auth lines (common on 8.x firmware),
-            # append the global AuthBlock to each row’s tooltip so administrators can see the complete
-            # authentication configuration in the hover tooltip.
-            $mkVal = ''
-            try {
-                # Use summary values if available, otherwise fallback values captured above
-                if ($summaryObjects -and $summaryObjects.Count -gt 0) {
-                    $mkVal = $summaryObjects[0].Make
-                }
-                if (-not $mkVal -or $mkVal -eq [System.DBNull]::Value -or $mkVal -eq '') {
-                    $mkVal = $fbMake
-                }
-            } catch {}
-            $deviceVendor = ''
-            if ($mkVal -and ($mkVal -match '(?i)brocade')) { $deviceVendor = 'Brocade' }
-            # Retrieve the device-level AuthBlock lines from the DeviceSummary table for Brocade devices
-            $globalAuthLines = @()
-            if ($deviceVendor -eq 'Brocade') {
-                try {
-                    $qryAb = "SELECT AuthBlock FROM DeviceSummary WHERE Hostname = '$esc'"
-                    $abDt  = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql $qryAb
-                    if ($abDt) {
-                        $abRaw = $null
-                        if ($abDt -is [System.Data.DataTable]) {
-                            if ($abDt.Rows.Count -gt 0) { $abRaw = '' + $abDt.Rows[0].AuthBlock }
-                        } else {
-                            $rowAb = $abDt | Select-Object -First 1
-                            if ($rowAb -and $rowAb.PSObject.Properties['AuthBlock']) { $abRaw = '' + $rowAb.AuthBlock }
-                        }
-                        if ($abRaw -and $abRaw.Trim() -ne '') {
-                            $globalAuthLines = $abRaw -split '\r?\n'
-                        }
-                    }
-                } catch {}
-            }
-            $list = @()
-            foreach ($r in $ifObjects) {
-                # Build the tooltip; if this device is Brocade and a global auth block exists, append it once per row.
-                $tp = ''
-                if ($r.ToolTip) { $tp = '' + $r.ToolTip }
-                if ($deviceVendor -eq 'Brocade' -and $globalAuthLines.Count -gt 0 -and ($tp -notmatch '(?i)GLOBAL AUTH BLOCK')) {
-                    # Append a header without database annotation. Handle empty or existing tooltip gracefully.
-                    if ($tp -and $tp.Trim() -ne '') {
-                        $tp = $tp.TrimEnd() + "`r`n`r`n! GLOBAL AUTH BLOCK`r`n" + ($globalAuthLines -join "`r`n")
-                    } else {
-                        $tp = "! GLOBAL AUTH BLOCK`r`n" + ($globalAuthLines -join "`r`n")
-                    }
-                }
-                $obj = [PSCustomObject]@{
-                    Hostname      = $r.Hostname
-                    Port          = $r.Port
-                    Name          = $r.Name
-                    Status        = $r.Status
-                    VLAN          = $r.VLAN
-                    Duplex        = $r.Duplex
-                    Speed         = $r.Speed
-                    Type          = $r.Type
-                    LearnedMACs   = $r.LearnedMACs
-                    AuthState     = $r.AuthState
-                    AuthMode      = $r.AuthMode
-                    AuthClientMAC = $r.AuthClientMAC
-                    ToolTip       = $tp
-                    IsSelected    = $false
-                    ConfigStatus  = if ($r.ConfigStatus) { $r.ConfigStatus } else { 'Unknown' }
-                    PortColor     = if ($r.PortColor) { $r.PortColor } else { 'Gray' }
-                }
-                $list += $obj
-            }
-            # Cache this device's interface list for future visits.  The cache stores the
-            # final PSCustomObject list keyed by hostname.  Subsequent calls to
-            # Get-DeviceDetails can reuse this list instead of requerying the database.
+            # Query interface details for the specified host from the database.  Include
+            # AuthTemplate and Config so the helper can derive colour and compliance
+            # information directly when not provided by the row.
+            $dtIfs = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT Hostname, Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, ConfigStatus, PortColor, ToolTip FROM Interfaces WHERE Hostname = '$($hostname -replace "'", "''")'"
+            # Use a shared helper to build the interface PSCustomObject list.  This centralises vendor detection,
+            # tooltip augmentation and JSON‑based colour/status logic for both Get‑DeviceDetails and Get‑InterfaceInfo.
+            $list = Build-InterfaceObjectsFromDbRow -Data $dtIfs -Hostname $hostname -TemplatesPath (Join-Path $PSScriptRoot '..\Templates')
+            # Cache this device's interface list for future visits.  The cache stores the final PSCustomObject list keyed by hostname.
             try {
                 $global:DeviceInterfaceCache[$hostname] = $list
             } catch {}
@@ -437,13 +640,9 @@ function Get-DeviceDetails {
             $grid.ItemsSource = $list
             # Bind available configuration templates for this device.
             $combo = $interfacesView.FindName('ConfigOptionsDropdown')
-            $combo.ItemsSource = Get-ConfigurationTemplates -Hostname $hostname
-            # Safely select the first configuration item via index if available
-            if ($combo.Items.Count -gt 0) {
-                try { $combo.SelectedIndex = 0 } catch { $null = $null }
-            } else {
-                try { $combo.SelectedIndex = -1 } catch { $null = $null }
-            }
+            # Retrieve configuration templates and populate the combo using the helper.
+            $tmplList2 = Get-ConfigurationTemplates -Hostname $hostname
+            Set-DropdownItems -Control $combo -Items $tmplList2
         } else {
             $base     = Join-Path (Join-Path $scriptDir '..\ParsedData') $hostname
             $summary  = @(Import-Csv "${base}_Summary.csv")[0]
@@ -459,13 +658,9 @@ function Get-DeviceDetails {
             $grid = $interfacesView.FindName('InterfacesGrid')
             $grid.ItemsSource = Get-InterfaceInfo -Hostname $hostname
             $combo = $interfacesView.FindName('ConfigOptionsDropdown')
-            $combo.ItemsSource = Get-ConfigurationTemplates -Hostname $hostname
-            # Safely select first template via index if available
-            if ($combo.Items.Count -gt 0) {
-                try { $combo.SelectedIndex = 0 } catch { $null = $null }
-            } else {
-                try { $combo.SelectedIndex = -1 } catch { $null = $null }
-            }
+            # Retrieve configuration templates and populate the combo using the helper.
+            $tmplList3 = Get-ConfigurationTemplates -Hostname $hostname
+            Set-DropdownItems -Control $combo -Items $tmplList3
         }
     } catch {
         [System.Windows.MessageBox]::Show("Error loading ${hostname}:`n$($_.Exception.Message)")
@@ -489,7 +684,7 @@ function Update-GlobalInterfaceList {
         process to abort.
     #>
 
-    Write-Host "DBG: Starting Update-GlobalInterfaceList" -ForegroundColor Yellow
+    # Begin building the global interface list (debug output removed)
     # Use a strongly-typed list for efficient accumulation of objects
     $list = New-Object 'System.Collections.Generic.List[object]'
 
@@ -509,12 +704,8 @@ LEFT JOIN DeviceSummary AS ds ON i.Hostname = ds.Hostname
 ORDER BY i.Hostname, i.Port
 "@
         $dt = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql $sql
-        # Log the result of Invoke-DbQuery for debugging
-        if ($dt) {
-            Write-Host ("DBG: Invoke-DbQuery returned object of type {0}" -f $dt.GetType().FullName) -ForegroundColor Yellow
-        } else {
-            Write-Host "DBG: Invoke-DbQuery returned null or empty" -ForegroundColor Yellow
-        }
+        # The returned query result may be a DataTable, DataView or other enumerable
+        # (previous debug logging removed)
 
         # Prepare an enumerable of rows depending on the type of $dt.  Only
         # System.Data.DataTable is currently supported; other types will be
@@ -530,10 +721,9 @@ ORDER BY i.Hostname, i.Port
             Write-Warning "DBG: Unexpected query result type; skipping row enumeration."
         }
 
-        # Debug: report row count if available
+        # Determine row count if available (removed debug output)
         $rowCount = 0
         try { $rowCount = $rows.Count } catch { }
-        Write-Host "DBG: Number of rows to process: $rowCount" -ForegroundColor Yellow
 
         $addedCount  = 0
         $skippedNull = 0
@@ -545,9 +735,7 @@ ORDER BY i.Hostname, i.Port
             # Skip any null entries
             if ($r -eq $null) {
                 $skippedNull++
-                if ($skippedNull -le 5) {
-                    Write-Host ("DBG: Row {0} is null; skipping." -f $rowIndex) -ForegroundColor Yellow
-                }
+                # skip null entries silently
                 continue
             }
             # Support both DataRow and DataRowView.  Convert DataRowView to DataRow.
@@ -557,11 +745,8 @@ ORDER BY i.Hostname, i.Port
             } elseif ($r -is [System.Data.DataRowView]) {
                 $dataRow = $r.Row
             } else {
-                # Unexpected row type; skip it and log for the first few occurrences
+                # Unexpected row type; skip it silently
                 $skippedType++
-                if ($skippedType -le 5) {
-                    Write-Host ("DBG: Row {0} of type {1} is unsupported; skipping." -f $rowIndex, $r.GetType().FullName) -ForegroundColor Yellow
-                }
                 continue
             }
             # Safely extract each column.  Use $dataRow['ColumnName'] indexer.
@@ -604,10 +789,7 @@ ORDER BY i.Hostname, i.Port
                 '99-UNK-99999-99999-99999-99999-99999'
             }
 
-            # Debug: log first few processed rows for verification
-            if ($addedCount -lt 5) {
-                Write-Host ("DBG: Adding interface {0}:{1} (PortSort {2})" -f $hn, $port, $portSort) -ForegroundColor Yellow
-            }
+            # Optionally log first few processed rows (debug removed)
 
             # Construct object and add to list
             $obj = [PSCustomObject]@{
@@ -632,7 +814,7 @@ ORDER BY i.Hostname, i.Port
             $addedCount++
         }
 
-        Write-Host ("DBG: Completed interface list build. Added {0} rows, skipped {1} null and {2} unsupported rows." -f $addedCount, $skippedNull, $skippedType) -ForegroundColor Yellow
+        # Completed interface list build; debug output removed
     } catch {
         Write-Warning "Failed to rebuild interface list from database: $($_.Exception.Message)"
     }
@@ -641,7 +823,7 @@ ORDER BY i.Hostname, i.Port
     # stable ordering so that UI controls do not refresh unpredictably when
     # underlying enumeration order changes.
     $global:AllInterfaces = $list | Sort-Object Hostname, PortSort
-    Write-Host "DBG: $($global:AllInterfaces.Count) total interfaces available in global list after sorting." -ForegroundColor Yellow
+    # Provide final count of interfaces (debug output removed)
 
     # If available, update summary and alerts to reflect new interface data
     if (Get-Command Update-Summary -ErrorAction SilentlyContinue) {
@@ -656,12 +838,13 @@ function Update-SearchResults {
     param([string]$Term)
     $t = $Term.ToLower()
     # Always honour the location (site/building/room) filters, even when
-    # the search term is blank.  Retrieve the currently selected Site,
-    # Building and Room from the dropdowns on the main window.  An
-    # empty selection represents "All" so we do not apply that filter.
-    $siteSel = $global:window.FindName('SiteDropdown').SelectedItem
-    $bldSel  = $global:window.FindName('BuildingDropdown').SelectedItem
-    $roomSel = $global:window.FindName('RoomDropdown').SelectedItem
+    # the search term is blank.  Use the helper to retrieve the current
+    # selections from the main window.  An empty selection represents
+    # "All" so we do not apply that filter.
+    $loc = Get-SelectedLocation
+    $siteSel = $loc.Site
+    $bldSel  = $loc.Building
+    $roomSel = $loc.Room
 
     return $global:AllInterfaces | Where-Object {
         $row = $_
@@ -766,9 +949,11 @@ function Update-Summary {
     # the filter is treated as "All" and no restriction is applied.
     $siteSel = $null; $bldSel = $null; $roomSel = $null
     try {
-        $siteSel  = $global:window.FindName('SiteDropdown').SelectedItem
-        $bldSel   = $global:window.FindName('BuildingDropdown').SelectedItem
-        $roomSel  = $global:window.FindName('RoomDropdown').SelectedItem
+        # Retrieve location selections via helper
+        $loc = Get-SelectedLocation
+        $siteSel = $loc.Site
+        $bldSel  = $loc.Building
+        $roomSel = $loc.Room
     } catch {}
     # Compute device count under location filters
     $devKeys = if ($global:DeviceMetadata) { $global:DeviceMetadata.Keys } else { @() }
@@ -905,9 +1090,9 @@ function Update-SearchGrid {
     $results = Update-SearchResults -Term $term
     try {
         $resCount = if ($results) { $results.Count } else { 0 }
-        Write-Host ("DBG: Update-SearchGrid: term='{0}' yielded {1} results." -f $term, $resCount) -ForegroundColor Yellow
+        # debug output removed
     } catch {
-        Write-Host "DBG: Update-SearchGrid: unable to determine result count." -ForegroundColor Yellow
+        # ignore errors determining result count
     }
     $gridCtrl.ItemsSource = $results
 }
@@ -1016,115 +1201,21 @@ function Get-InterfaceInfo {
         [Parameter(Mandatory)][string]$Hostname,
         [string]$TemplatesPath = (Join-Path $PSScriptRoot '..\Templates')
     )
+    # Always use the consolidated helper to build interface details.  By delegating
+    # to Build‑InterfaceObjectsFromDbRow we avoid duplicating vendor detection,
+    # template loading, tooltip augmentation and per‑row logic.  We only need
+    # to query the Interfaces table for the specified host and pass the result.
     if (-not $global:StateTraceDb) { return @() }
-    $debug = ($Global:StateTraceDebug -eq $true)
     try {
         $dbModule = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
         if (Test-Path $dbModule) {
             Import-Module $dbModule -Force -Global -ErrorAction SilentlyContinue | Out-Null
         }
         $escHost = $Hostname -replace "'", "''"
-        $sql = "SELECT Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, PortColor, ConfigStatus, ToolTip FROM Interfaces WHERE Hostname = '$escHost' ORDER BY Port"
+        $sql = "SELECT Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, ConfigStatus, PortColor, ToolTip FROM Interfaces WHERE Hostname = '$escHost' ORDER BY Port"
         $dt = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql $sql
-        $vendor = 'Cisco'
-        try {
-            $mkDt = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT Make FROM DeviceSummary WHERE Hostname = '$escHost'"
-            if ($mkDt) {
-                if ($mkDt -is [System.Data.DataTable]) {
-                    if ($mkDt.Rows.Count -gt 0) {
-                        $mk = $mkDt.Rows[0].Make
-                        if ($mk -match '(?i)brocade') { $vendor = 'Brocade' }
-                    }
-                } else {
-                    $mkRow = $mkDt | Select-Object -First 1
-                    if ($mkRow -and $mkRow.PSObject.Properties['Make']) {
-                        $mk = $mkRow.Make
-                        if ($mk -match '(?i)brocade') { $vendor = 'Brocade' }
-                    }
-                }
-            }
-        } catch {}
-        $authBlockLines = @()
-        if ($vendor -eq 'Brocade') {
-            try {
-                $abDt = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT AuthBlock FROM DeviceSummary WHERE Hostname = '$escHost'"
-                if ($abDt) {
-                    $abText = $null
-                    if ($abDt -is [System.Data.DataTable]) {
-                        if ($abDt.Rows.Count -gt 0) { $abText = '' + $abDt.Rows[0].AuthBlock }
-                    } else {
-                        $abRow = $abDt | Select-Object -First 1
-                        if ($abRow -and $abRow.PSObject.Properties['AuthBlock']) { $abText = '' + $abRow.AuthBlock }
-                    }
-                    if ($abText -and $abText.Trim() -ne '') {
-                        $authBlockLines = $abText -split "`r?`n"
-                    }
-                }
-            } catch {
-                if ($debug) { Write-Host "[Get-InterfaceInfo] Failed to load AuthBlock for ${Hostname}: $($_.Exception.Message)" -ForegroundColor Yellow }
-            }
-        }
-        if ($debug) {
-            $cnt = 0
-            try {
-                if ($dt -is [System.Data.DataTable]) { $cnt = $dt.Rows.Count } else { $cnt = @($dt).Count }
-            } catch {}
-            Write-Host "[Get-InterfaceInfo] Host=$Hostname Vendor=$vendor Rows=$cnt AuthBlockLines=$($authBlockLines.Count)" -ForegroundColor Cyan
-            if ($authBlockLines.Count -gt 0) { Write-Host "[Get-InterfaceInfo] AuthBlock first line: $($authBlockLines[0])" -ForegroundColor DarkCyan }
-        }
-        $vendorFile = if ($vendor -eq 'Cisco') { 'Cisco.json' } else { 'Brocade.json' }
-        $jsonFile   = Join-Path $TemplatesPath $vendorFile
-        $templates  = $null
-        if (Test-Path $jsonFile) {
-            $tmplJson = Get-Content $jsonFile -Raw | ConvertFrom-Json
-            $templates = $tmplJson.templates
-        }
-        $results = @()
-        foreach ($row in ($dt | Select-Object Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, PortColor, ConfigStatus, ToolTip)) {
-            $authTemplate = $row.AuthTemplate
-            $match = $null
-            if ($templates) {
-                $match = $templates | Where-Object {
-                    $_.name -ieq $authTemplate -or
-                    ($_.aliases -and ($_.aliases -contains $authTemplate))
-                } | Select-Object -First 1
-            }
-            $portColor    = if ($row.PortColor) { $row.PortColor } elseif ($match) { $match.color } else { 'Gray' }
-            $configStatus = if ($row.ConfigStatus) { $row.ConfigStatus } elseif ($match) { 'Match' } else { 'Mismatch' }
-            $toolTipCore = if ($row.ToolTip) {
-                ('' + $row.ToolTip).TrimEnd()
-            } else {
-                $cfg = '' + $row.Config
-                if ($cfg -and $cfg.Trim() -ne '') {
-                    "AuthTemplate: $authTemplate`r`n`r`n$cfg"
-                } else {
-                    "AuthTemplate: $authTemplate"
-                }
-            }
-            $toolTip = $toolTipCore
-            if ($vendor -eq 'Brocade' -and $authBlockLines.Count -gt 0 -and ($toolTipCore -notmatch '(?i)GLOBAL AUTH BLOCK')) {
-                $toolTip = $toolTipCore + "`r`n`r`n! GLOBAL AUTH BLOCK`r`n" + ($authBlockLines -join "`r`n")
-            }
-            $results += [PSCustomObject]@{
-                Hostname      = $Hostname
-                Port          = $row.Port
-                Name          = $row.Name
-                Status        = $row.Status
-                VLAN          = $row.VLAN
-                Duplex        = $row.Duplex
-                Speed         = $row.Speed
-                Type          = $row.Type
-                LearnedMACs   = $row.LearnedMACs
-                AuthState     = $row.AuthState
-                AuthMode      = $row.AuthMode
-                AuthClientMAC = $row.AuthClientMAC
-                ToolTip       = $toolTip
-                IsSelected    = $false
-                ConfigStatus  = $configStatus
-                PortColor     = $portColor
-            }
-        }
-        return $results
+        # Delegate to the shared helper which returns an array of PSCustomObject.
+        return Build-InterfaceObjectsFromDbRow -Data $dt -Hostname $Hostname -TemplatesPath $TemplatesPath
     } catch {
         Write-Warning ("Failed to load interface information from database for {0}: {1}" -f $Hostname, $_.Exception.Message)
         return @()
@@ -1280,4 +1371,5 @@ Export-ModuleMember -Function `
     Get-ConfigurationTemplates, `
     Get-InterfaceInfo, `
     Get-InterfaceConfiguration, `
-    Get-InterfaceList
+    Get-InterfaceList, `
+    Set-DropdownItems

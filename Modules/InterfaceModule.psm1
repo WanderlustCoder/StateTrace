@@ -437,7 +437,10 @@ function New-InterfacesView {
             # Expand compare sidebar if collapsed
             $col = $Window.FindName('CompareColumn')
             if ($col -is [System.Windows.Controls.ColumnDefinition]) {
-                if ($col.Width.Value -eq 0) { $col.Width = [System.Windows.GridLength]::new(400) }
+                # Expand the Compare sidebar to a wider width.  A 600 pixel width
+                # provides enough room for long authentication commands to be displayed
+                # without wrapping inside the config text boxes.
+                if ($col.Width.Value -eq 0) { $col.Width = [System.Windows.GridLength]::new(600) }
             }
         } catch {
             [System.Windows.MessageBox]::Show("Compare failed:`n$($_.Exception.Message)")
@@ -457,8 +460,26 @@ function New-InterfacesView {
     if ($configureButton -and $interfacesGrid -and $templateDropdown) {
         $configureButton.Add_Click({
             # Use globally scoped grid and dropdown to avoid out-of-scope errors
-            $selected = @($global:interfacesGrid.SelectedItems)
-            if (-not $selected -or $selected.Count -eq 0) {
+            $grid = $global:interfacesGrid
+            # Collect currently selected rows from the grid
+            $selectedRows = @($grid.SelectedItems)
+            # Also consider any rows checked via the IsSelected property in the checkbox column
+            $checkedRows = @()
+            try {
+                $itemsEnum = @()
+                if ($grid.ItemsSource -is [System.Collections.IEnumerable]) {
+                    $itemsEnum = @($grid.ItemsSource)
+                }
+                foreach ($item in $itemsEnum) {
+                    $prop = $item.PSObject.Properties['IsSelected']
+                    if ($prop -and $prop.Value) { $checkedRows += $item }
+                }
+            } catch {}
+            # Prefer checked rows when present; otherwise fall back to selected rows
+            if ($checkedRows.Count -gt 0) {
+                $selectedRows = $checkedRows
+            }
+            if (-not $selectedRows -or $selectedRows.Count -eq 0) {
                 [System.Windows.MessageBox]::Show("No interfaces selected.")
                 return
             }
@@ -471,11 +492,11 @@ function New-InterfacesView {
             try {
                 $namesMap = @{}
                 $vlansMap = @{}
-                foreach ($int in $selected) {
+                foreach ($int in $selectedRows) {
                     if ($int.Name -and $int.Name -ne '') { $namesMap[$int.Port] = $int.Name }
                     if ($int.VLAN -and $int.VLAN -ne '') { $vlansMap[$int.Port] = $int.VLAN }
                 }
-                $ports = $selected | ForEach-Object { $_.Port }
+                $ports = $selectedRows | ForEach-Object { $_.Port }
                 $lines = Get-InterfaceConfiguration -Hostname $hostname -Interfaces $ports -TemplateName $template -NewNames $namesMap -NewVlans $vlansMap
                 Set-Clipboard -Value ($lines -join "`r`n")
                 [System.Windows.MessageBox]::Show(($lines -join "`n"), "Generated Config")
@@ -519,14 +540,30 @@ function New-InterfacesView {
     if ($copyDetailsButton -and $interfacesGrid) {
         $copyDetailsButton.Add_Click({
             # Use global interfaces grid to read selected items
-            $selected = @($global:interfacesGrid.SelectedItems)
-            if (-not $selected -or $selected.Count -eq 0) {
+            $grid = $global:interfacesGrid
+            # Gather selected rows and any rows checked via IsSelected
+            $selectedRows = @($grid.SelectedItems)
+            $checkedRows  = @()
+            try {
+                $itemsEnum = @()
+                if ($grid.ItemsSource -is [System.Collections.IEnumerable]) {
+                    $itemsEnum = @($grid.ItemsSource)
+                }
+                foreach ($item in $itemsEnum) {
+                    $prop = $item.PSObject.Properties['IsSelected']
+                    if ($prop -and $prop.Value) { $checkedRows += $item }
+                }
+            } catch {}
+            if ($checkedRows.Count -gt 0) {
+                $selectedRows = $checkedRows
+            }
+            if (-not $selectedRows -or $selectedRows.Count -eq 0) {
                 [System.Windows.MessageBox]::Show("No interfaces selected.")
                 return
             }
             $hostname = $interfacesView.FindName('HostnameBox').Text
             $header = @("Hostname: $hostname", "------------------------------", "")
-            $output = foreach ($int in $selected) {
+            $output = foreach ($int in $selectedRows) {
                 @(
                     "Port:        $($int.Port)",
                     "Name:        $($int.Name)",
@@ -546,7 +583,7 @@ function New-InterfacesView {
             }
             $final = $header + $output
             Set-Clipboard -Value ($final -join "`r`n")
-            [System.Windows.MessageBox]::Show("Copied $($selected.Count) interface(s) to clipboard.")
+            [System.Windows.MessageBox]::Show("Copied $($selectedRows.Count) interface(s) to clipboard.")
         })
     }
 

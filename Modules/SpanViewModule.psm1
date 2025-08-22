@@ -51,15 +51,13 @@ function New-SpanView {
         if (-not $spanGrid) { return }
         # Clear when no hostname provided
         if (-not $Hostname) {
+        # Clear the spanning tree grid and initialise the VLAN dropdown
         $spanGrid.ItemsSource = @()
         if ($vlanDropdown) {
-            $vlanDropdown.ItemsSource = @('')
-            # Always select the blank entry via SelectedIndex rather than SelectedItem
-            if ($vlanDropdown.ItemsSource.Count -gt 0) {
-                $vlanDropdown.SelectedIndex = 0
-            } else {
-                $vlanDropdown.SelectedIndex = -1
-            }
+            # Use the shared dropdown helper from DeviceDataModule to populate
+            # the VLAN dropdown with a single blank entry.  This helper
+            # handles both ItemsSource assignment and index selection.
+            DeviceDataModule\Set-DropdownItems -Control $vlanDropdown -Items @('')
         }
             return
         }
@@ -72,13 +70,9 @@ function New-SpanView {
         $spanGrid.ItemsSource = $data
         if ($vlanDropdown) {
             $instances = ($data | ForEach-Object { $_.VLAN }) | Sort-Object -Unique
-            $vlanDropdown.ItemsSource = @('') + $instances
-            # Always select the first (blank) entry via SelectedIndex to avoid SelectedItem exceptions
-            if ($vlanDropdown.ItemsSource -and $vlanDropdown.ItemsSource.Count -gt 0) {
-                $vlanDropdown.SelectedIndex = 0
-            } else {
-                $vlanDropdown.SelectedIndex = -1
-            }
+            # Use the shared dropdown helper to populate the VLAN dropdown with
+            # a blank entry plus all VLAN instances.
+            DeviceDataModule\Set-DropdownItems -Control $vlanDropdown -Items (@('') + $instances)
         }
     }
     # VLAN dropdown filtering

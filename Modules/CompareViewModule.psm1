@@ -564,9 +564,22 @@ function New-CompareView {
         $script:compareHostCtl = $compareHost
         $closeBtn = $viewCtrl.FindName('CloseCompareButton')
         if ($closeBtn -and ($script:closeWiredViewId -ne $viewCtrl.GetHashCode())) {
+            # Attach a single click handler to collapse the Compare sidebar instead of removing its content.
+            # When the user clicks the 'X' button the Compare column width is set to zero, effectively hiding
+            # the sidebar while keeping the view loaded.  This allows the sidebar to be reopened later
+            # without reloading the XAML or losing event handlers.  The handler is only wired once per view
+            # instance based on the viewCtrl hash code.
             $closeBtn.Add_Click({
                 if ($script:compareHostCtl -is [System.Windows.Controls.ContentControl]) {
-                    $script:compareHostCtl.Content = $null
+                    # Attempt to collapse the Compare column on the main window
+                    try {
+                        if ($script:windowRef) {
+                            $col = $script:windowRef.FindName('CompareColumn')
+                            if ($col -is [System.Windows.Controls.ColumnDefinition]) {
+                                $col.Width = [System.Windows.GridLength]::new(0)
+                            }
+                        }
+                    } catch { }
                 }
             })
             $script:closeWiredViewId = $viewCtrl.GetHashCode()
