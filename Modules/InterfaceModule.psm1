@@ -27,6 +27,14 @@
 
 Set-StrictMode -Version Latest
 
+# Ensure that the debounce timer variable exists in script scope.  Under
+# StrictMode, referencing an undefined variable throws an exception, so we
+# predefine it to $null here.  It will be initialised later when the
+# Interfaces view is created.
+if (-not (Get-Variable -Name InterfacesFilterTimer -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:InterfacesFilterTimer = $null
+}
+
 # Define a default path to the Interfaces view XAML.  This allows the
 # module to locate its own view definition relative to its installation
 # directory without relying on external variables such as `$ScriptDir`.
@@ -516,22 +524,52 @@ function New-InterfacesView {
         })
     }
     if ($filterBox -and $interfacesGrid) {
+        # Initialise a debounce timer for the filter box if it does not exist.  This
+        # prevents the expensive view filtering from running on every key press.
+        if (-not $script:InterfacesFilterTimer) {
+            $script:InterfacesFilterTimer = New-Object System.Windows.Threading.DispatcherTimer
+            # Use a 300ms interval to match the search debounce and allow the user
+            # to finish typing before the filter executes.
+            $script:InterfacesFilterTimer.Interval = [TimeSpan]::FromMilliseconds(300)
+            $script:InterfacesFilterTimer.add_Tick({
+                # Stop the timer so it can be restarted by the next key press
+                $script:InterfacesFilterTimer.Stop()
+                try {
+                    # Safely coerce the filter box text to a string before calling
+                    # ToLower().  Concatenating with an empty string ensures that
+                    # null values become an empty string rather than throwing.
+                    $txt  = ('' + $global:filterBox.Text).ToLower()
+                    $view = [System.Windows.Data.CollectionViewSource]::GetDefaultView($global:interfacesGrid.ItemsSource)
+                    if ($null -eq $view) { return }
+                    $view.Filter = {
+                        param($item)
+                        # Coerce each field to a string to avoid calling methods on $null.  Casting
+                        # with [string] or concatenating with an empty string guarantees a
+                        # non-null string (empty when the source is null).  Without this,
+                        # accessing .ToLower() on a null property would throw.
+                        return (
+                            ('' + $item.Port).ToLower().Contains($txt) -or
+                            ('' + $item.Name).ToLower().Contains($txt) -or
+                            ('' + $item.Status).ToLower().Contains($txt) -or
+                            ('' + $item.VLAN).ToLower().Contains($txt) -or
+                            ('' + $item.AuthState).ToLower().Contains($txt)
+                        )
+                    }
+                    $view.Refresh()
+                } catch {
+                    # Swallow exceptions to avoid crashing the UI on bad filter values
+                }
+            })
+        }
+        # On every key press, restart the debounce timer; the filter will
+        # execute when the user pauses typing.  Guard against the timer
+        # not being initialised (e.g. if initialisation failed) by
+        # checking for its existence before invoking methods on it.
         $filterBox.Add_TextChanged({
-            # Capture text from globally scoped filter box
-            $text = $global:filterBox.Text.ToLower()
-            $view = [System.Windows.Data.CollectionViewSource]::GetDefaultView($global:interfacesGrid.ItemsSource)
-            if ($null -eq $view) { return }
-            $view.Filter = {
-                param($item)
-                return (
-                    ($item.Port      -as [string]).ToLower().Contains($text) -or
-                    ($item.Name      -as [string]).ToLower().Contains($text) -or
-                    ($item.Status    -as [string]).ToLower().Contains($text) -or
-                    ($item.VLAN      -as [string]).ToLower().Contains($text) -or
-                    ($item.AuthState -as [string]).ToLower().Contains($text)
-                )
+            if ($script:InterfacesFilterTimer) {
+                $script:InterfacesFilterTimer.Stop()
+                $script:InterfacesFilterTimer.Start()
             }
-            $view.Refresh()
         })
     }
 

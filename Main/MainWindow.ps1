@@ -240,8 +240,13 @@ if ($hostnameDropdown -and -not $script:HostnameHandlerAttached) {
 
 # Debounced updater so cascaded changes trigger a single refresh.
 if (-not $script:FilterUpdateTimer) {
+    # Create a debounced timer for device filter updates.  The interval was
+    # previously set to 120ms which could trigger frequent refreshes on rapid
+    # changes.  Increase this to 300ms to allow the user to finish typing or
+    # selecting before the filter logic runs, reducing unnecessary work and
+    # improving responsiveness.  See performance plan phase 1.
     $script:FilterUpdateTimer = New-Object System.Windows.Threading.DispatcherTimer
-    $script:FilterUpdateTimer.Interval = [TimeSpan]::FromMilliseconds(120)
+    $script:FilterUpdateTimer.Interval = [TimeSpan]::FromMilliseconds(300)
     $script:FilterUpdateTimer.add_Tick({
         $script:FilterUpdateTimer.Stop()
         try {

@@ -1,3 +1,11 @@
+##
+# Predefine the search debounce timer variable so that StrictMode does not
+# throw when it is referenced before initialisation.  The timer is
+# initialised later in New-SearchInterfacesView if needed.
+if (-not (Get-Variable -Name SearchUpdateTimer -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:SearchUpdateTimer = $null
+}
+
 function New-SearchInterfacesView {
     <#
         .SYNOPSIS
@@ -62,10 +70,29 @@ function New-SearchInterfacesView {
             if (Get-Command Update-SearchGrid -ErrorAction SilentlyContinue) { Update-SearchGrid }
         })
     }
-    # Text changed triggers live search filtering
+    # Text changed triggers debounced search filtering.  A DispatcherTimer is
+    # used to coalesce rapid keystrokes into a single update after the user
+    # pauses typing.  Without debouncing, Update-SearchGrid would execute on
+    # every key press which can noticeably slow the UI when searching large
+    # data sets.  The timer is created once and reused across calls.
     if ($searchBox) {
+        # Initialise the debounce timer only once per module load
+        if (-not $script:SearchUpdateTimer) {
+            $script:SearchUpdateTimer = New-Object System.Windows.Threading.DispatcherTimer
+            # 300ms delay to allow user input to settle before filtering
+            $script:SearchUpdateTimer.Interval = [TimeSpan]::FromMilliseconds(300)
+            $script:SearchUpdateTimer.add_Tick({
+                # Stop the timer until the next request
+                $script:SearchUpdateTimer.Stop()
+                # Perform the actual grid update
+                if (Get-Command Update-SearchGrid -ErrorAction SilentlyContinue) { Update-SearchGrid }
+            })
+        }
         $searchBox.Add_TextChanged({
-                Update-SearchGrid            
+            # Each keystroke resets the debounce timer.  Use script scope
+            # variables so that the timer persists across calls.
+            $script:SearchUpdateTimer.Stop()
+            $script:SearchUpdateTimer.Start()
         })
     }
     # Regex checkbox toggles global flag and refreshes
@@ -102,15 +129,19 @@ function New-SearchInterfacesView {
             }
         })
     }
-    # Status and Auth filter dropdowns refresh the grid
+    # Status and Auth filter dropdowns refresh the grid.  Use the same
+    # debouncing mechanism as the search box so that multiple rapid
+    # selection changes coalesce into one update.
     if ($statusFilter) {
         $statusFilter.Add_SelectionChanged({
-            if (Get-Command Update-SearchGrid -ErrorAction SilentlyContinue) { Update-SearchGrid }
+            $script:SearchUpdateTimer.Stop()
+            $script:SearchUpdateTimer.Start()
         })
     }
     if ($authFilter) {
         $authFilter.Add_SelectionChanged({
-            if (Get-Command Update-SearchGrid -ErrorAction SilentlyContinue) { Update-SearchGrid }
+            $script:SearchUpdateTimer.Stop()
+            $script:SearchUpdateTimer.Start()
         })
     }
     # Delay heavy site-wide load until the user searches.

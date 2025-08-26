@@ -9,7 +9,6 @@
     #
 
     function Get-Hostname {
-        param([string[]]$Lines)
         foreach ($line in $Lines) {
             if ($line -match "^([^(]+?)(?:\([^)]*\))?#") {
                 return $matches[1]
@@ -19,7 +18,6 @@
     }
 
     function Get-ModelAndVersion {
-        param([string[]]$Lines)
         $model   = "Unknown"
         $version = "Unknown"
         foreach ($line in $Lines) {
@@ -39,7 +37,6 @@
     }
 
     function Get-Uptime {
-        param([string[]]$Lines)
         foreach ($line in $Lines) {
             if ($line -match "Uptime:\s*(.+)$") {
                 return $matches[1].Trim()
@@ -50,11 +47,11 @@
 
     function Get-SnmpLocation {
         param([string[]]$Lines)
+        # Delegate to the shared helper that handles vendor-specific keywords
         return Get-SnmpLocationFromLines -Lines $Lines
     }
 
     function Get-Interfaces {
-        param([string[]]$Lines)
         $results = @()
         $parsing = $false
         foreach ($line in $Lines) {
@@ -81,7 +78,6 @@
     }
 
     function Get-MacTable {
-        param([string[]]$Lines)
         $results      = @()
         $inMacSection = $false
         foreach ($line in $Lines) {
@@ -105,7 +101,6 @@
     }
 
     function Get-Dot1xStatus {
-        param([string[]]$Lines)
         $results = @()
         $parsing = $false
         foreach ($line in $Lines) {
@@ -129,42 +124,92 @@
         return $results
     }
 
+    #
+    # 2) New helper: extract each interface's full config block
+    #
     function Get-InterfaceConfigs {
-        param([string[]]$Lines)
-        $ht = @{}
-        for ($i = 0; $i -lt $Lines.Count; $i++) {
-            $line = $Lines[$i]
-            if ($line -imatch "^\s*interface\s+(?:Et|Ethernet)(\d+(?:/\d+)*)\b") {
-                $portName    = "Et" + $matches[1]
-                $configLines = @($line)
-                $j           = $i + 1
-                while ($j -lt $Lines.Count) {
-                    $next = $Lines[$j]
-                    if ($next -match "^\s*$" -or $next -imatch "^\s*interface\s+") {
-                        break
-                    }
-                    $configLines += $next
-                    $j++
+    $ht = @{}
+    for ($i = 0; $i -lt $Lines.Count; $i++) {
+        $line = $Lines[$i]
+        if ($line -imatch "^\s*interface\s+(?:Et|Ethernet)(\d+(?:/\d+)*)\b") {
+            $portName    = "Et" + $matches[1]
+            $configLines = @($line)
+            $j           = $i + 1
+            while ($j -lt $Lines.Count) {
+                $next = $Lines[$j]
+                if ($next -match "^\s*$" -or $next -imatch "^\s*interface\s+") {
+                    break
                 }
-                $ht[$portName] = $configLines -join "`r`n"
-                $i              = $j - 1
+                $configLines += $next
+                $j++
             }
+            $ht[$portName] = $configLines -join "`r`n"
+            $i              = $j - 1
         }
-        return $ht
     }
+    return $ht
+}
 
     #
     # 3) Gather all pieces
     #
-    $hostname   = Get-Hostname
-    $modelInfo  = Get-ModelAndVersion
-    $uptime     = Get-Uptime
-    $location   = Get-SnmpLocation -Lines $Lines
+    # When Blocks are provided, use them to limit parsing to specific command outputs.
+    # Otherwise attempt to generate Blocks on the fly using the helper function.
+    if (-not $Blocks) {
+        try {
+            $Blocks = Get-ShowCommandBlocks -Lines $Lines
+        } catch {
+            $Blocks = @{}
+        }
+    }
+    # Determine targeted blocks for each category of information.  Fallback to the full
+    # input when a particular command block is unavailable.  This reduces the amount
+    # of scanning performed by each helper function.
+    $versionLines = if ($Blocks.ContainsKey('show version')) { $Blocks['show version'] } else { $Lines }
+    $runCfgLines  = if ($Blocks.ContainsKey('show running-config')) { $Blocks['show running-config'] } else { $Lines }
+    $intStatusLines = $null
+    foreach ($key in 'show interfaces status','show interface status','show interfaces brief','show interfaces') {
+        if (-not $intStatusLines -and $Blocks.ContainsKey($key)) {
+            $intStatusLines = $Blocks[$key]
+        }
+    }
+    if (-not $intStatusLines) { $intStatusLines = $Lines }
+    $macLines  = if ($Blocks.ContainsKey('show mac address-table')) { $Blocks['show mac address-table'] } else { @() }
+    $authLines = if ($Blocks.ContainsKey('show authentication sessions')) { $Blocks['show authentication sessions'] } else { @() }
 
+    # Preserve the original Lines value so it can be restored after targeted parsing.
+    $origLines = $Lines
+
+    # Hostname may appear in prompts or config; search the full lines for it.
+    $hostname = Get-Hostname
+
+    # Use the version block for model, version and uptime parsing.
+    $Lines = $versionLines
+    $modelInfo = Get-ModelAndVersion
+    $uptime    = Get-Uptime
+
+    # Use the running-config block for SNMP location and interface configs
+    $Lines = $runCfgLines
+    $location = Get-SnmpLocation -Lines $runCfgLines
+
+    # Use the interface status block for interface properties such as Status, VLAN, Duplex, Speed
+    $Lines = $intStatusLines
     $interfaces = Get-Interfaces
-    $macs       = Get-MacTable
-    $auth       = Get-Dot1xStatus
-    $configs    = Get-InterfaceConfigs
+
+    # Parse the MAC table only when the corresponding block is present
+    $Lines = $macLines
+    $macs = if ($macLines.Count -gt 0) { Get-MacTable } else { @() }
+
+    # Parse dot1x status only when that section exists
+    $Lines = $authLines
+    $auth = if ($authLines.Count -gt 0) { Get-Dot1xStatus } else { @() }
+
+    # Interface configuration blocks come from the running-config
+    $Lines = $runCfgLines
+    $configs = Get-InterfaceConfigs
+
+    # Restore the original Lines array for any remaining operations.
+    $Lines = $origLines
 
     #
     # 4) Build CombinedInterfaces array with an extra Config property

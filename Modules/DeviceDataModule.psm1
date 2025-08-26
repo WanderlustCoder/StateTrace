@@ -886,7 +886,10 @@ function Update-SearchResults {
         } catch {}
         # Evaluate status filter
         if ($statusFilterVal -ne 'All') {
-            $stLower = ($row.Status -as [string]).ToLower()
+            # Convert status to a string safely; concatenation with an empty
+            # string returns an empty string for null values, preventing null
+            # method calls.
+            $stLower = ('' + $row.Status).ToLower()
             if ($statusFilterVal -eq 'Up') {
                 if ($stLower -ne 'up' -and $stLower -ne 'connected') { return $false }
             } elseif ($statusFilterVal -eq 'Down') {
@@ -895,7 +898,7 @@ function Update-SearchResults {
         }
         # Evaluate authorization filter
         if ($authFilterVal -ne 'All') {
-            $asLower = ($row.AuthState -as [string]).ToLower()
+            $asLower = ('' + $row.AuthState).ToLower()
             if ($authFilterVal -eq 'Authorized') {
                 if ($asLower -ne 'authorized') { return $false }
             } elseif ($authFilterVal -eq 'Unauthorized') {
@@ -922,19 +925,19 @@ function Update-SearchResults {
                 } catch {
                     # If the regex is invalid, fall back to case-insensitive substring search
                     $t = $Term.ToLower()
-                    if (-not (($row.Port        -as [string]).ToLower().Contains($t) -or
-                              ($row.Name        -as [string]).ToLower().Contains($t) -or
-                              ($row.LearnedMACs -as [string]).ToLower().Contains($t) -or
-                              ($row.AuthClientMAC -as [string]).ToLower().Contains($t))) {
+                    if (-not ((('' + $row.Port).ToLower().Contains($t)) -or
+                              (('' + $row.Name).ToLower().Contains($t)) -or
+                              (('' + $row.LearnedMACs).ToLower().Contains($t)) -or
+                              (('' + $row.AuthClientMAC).ToLower().Contains($t)))) {
                         return $false
                     }
                 }
             } else {
                 $t = $Term.ToLower()
-                if (-not (($row.Port        -as [string]).ToLower().Contains($t) -or
-                          ($row.Name        -as [string]).ToLower().Contains($t) -or
-                          ($row.LearnedMACs -as [string]).ToLower().Contains($t) -or
-                          ($row.AuthClientMAC -as [string]).ToLower().Contains($t))) {
+                if (-not ((('' + $row.Port).ToLower().Contains($t)) -or
+                          (('' + $row.Name).ToLower().Contains($t)) -or
+                          (('' + $row.LearnedMACs).ToLower().Contains($t)) -or
+                          (('' + $row.AuthClientMAC).ToLower().Contains($t)))) {
                     return $false
                 }
             }
