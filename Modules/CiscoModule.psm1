@@ -221,8 +221,15 @@ function Get-CiscoDeviceFacts {
     $auth      = Get-Dot1xStatus      -Lines $authSes
     $authTemplates = Get-PortAuthTemplates -Configs $configs
 
-    $authDefaultVLAN = Get-AuthDefaultVLAN -Lines $runCfg
-    $authBlock       = Get-AuthBlock       -Lines $runCfg
+    # Only compute auth-related values when the running config contains relevant keywords.
+    $authDefaultVLAN = ''
+    if ($runCfg -match '(?i)auth-default-vlan|guest-vlan') {
+        $authDefaultVLAN = Get-AuthDefaultVLAN -Lines $runCfg
+    }
+    $authBlock = ''
+    if ($runCfg -match '(?i)(authentication|dot1x|mab|reauthentication)') {
+        $authBlock = Get-AuthBlock -Lines $runCfg
+    }
 
     $combined = @()
     foreach ($iface in $status) {

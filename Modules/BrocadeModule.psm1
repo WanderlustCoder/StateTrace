@@ -356,7 +356,17 @@ function Get-BrocadeDeviceFacts {
         $macList = ($macs | Where-Object { $_.Port -eq $port } | ForEach-Object { $_.MAC }) -join ','
         $authRow = $auth | Where-Object { $_.Port -eq $port }
         $cfgText = if ($configs.ContainsKey($port)) { $configs[$port] } else { "" }
-        $desc = if ($namesMap.ContainsKey($port)) { $namesMap[$port] } else { $iface.Name }
+        # Prefer the alias/name from the brief output when present; fall back to the
+        # description parsed from the config.  Older firmware may not include a
+        # Name column in the brief output, so only use the config description
+        # when the brief name is blank or missing.
+        $desc = if ($iface.Name -and $iface.Name -ne '') {
+            $iface.Name
+        } elseif ($namesMap.ContainsKey($port)) {
+            $namesMap[$port]
+        } else {
+            $port
+        }
         $authMode = if ($authRow) { $authRow.Mode } elseif ($dot1xPorts -contains $port) { "dot1x" } elseif ($macauthPorts -contains $port) { "macauth" } else { "open" }
         $authState = if ($authRow) { $authRow.State } elseif ($authMode -eq "open") { "Open" } else { "Unknown" }
         # Determine the authentication template for the port.  Beginning with

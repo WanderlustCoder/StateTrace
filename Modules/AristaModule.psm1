@@ -9,6 +9,7 @@
     #
 
     function Get-Hostname {
+        param([string[]]$Lines)
         foreach ($line in $Lines) {
             if ($line -match "^([^(]+?)(?:\([^)]*\))?#") {
                 return $matches[1]
@@ -18,6 +19,7 @@
     }
 
     function Get-ModelAndVersion {
+        param([string[]]$Lines)
         $model   = "Unknown"
         $version = "Unknown"
         foreach ($line in $Lines) {
@@ -37,6 +39,7 @@
     }
 
     function Get-Uptime {
+        param([string[]]$Lines)
         foreach ($line in $Lines) {
             if ($line -match "Uptime:\s*(.+)$") {
                 return $matches[1].Trim()
@@ -47,11 +50,11 @@
 
     function Get-SnmpLocation {
         param([string[]]$Lines)
-        # Delegate to the shared helper that handles vendor-specific keywords
         return Get-SnmpLocationFromLines -Lines $Lines
     }
 
     function Get-Interfaces {
+        param([string[]]$Lines)
         $results = @()
         $parsing = $false
         foreach ($line in $Lines) {
@@ -78,6 +81,7 @@
     }
 
     function Get-MacTable {
+        param([string[]]$Lines)
         $results      = @()
         $inMacSection = $false
         foreach ($line in $Lines) {
@@ -101,6 +105,7 @@
     }
 
     function Get-Dot1xStatus {
+        param([string[]]$Lines)
         $results = @()
         $parsing = $false
         foreach ($line in $Lines) {
@@ -124,31 +129,29 @@
         return $results
     }
 
-    #
-    # 2) New helper: extract each interface's full config block
-    #
     function Get-InterfaceConfigs {
-    $ht = @{}
-    for ($i = 0; $i -lt $Lines.Count; $i++) {
-        $line = $Lines[$i]
-        if ($line -imatch "^\s*interface\s+(?:Et|Ethernet)(\d+(?:/\d+)*)\b") {
-            $portName    = "Et" + $matches[1]
-            $configLines = @($line)
-            $j           = $i + 1
-            while ($j -lt $Lines.Count) {
-                $next = $Lines[$j]
-                if ($next -match "^\s*$" -or $next -imatch "^\s*interface\s+") {
-                    break
+        param([string[]]$Lines)
+        $ht = @{}
+        for ($i = 0; $i -lt $Lines.Count; $i++) {
+            $line = $Lines[$i]
+            if ($line -imatch "^\s*interface\s+(?:Et|Ethernet)(\d+(?:/\d+)*)\b") {
+                $portName    = "Et" + $matches[1]
+                $configLines = @($line)
+                $j           = $i + 1
+                while ($j -lt $Lines.Count) {
+                    $next = $Lines[$j]
+                    if ($next -match "^\s*$" -or $next -imatch "^\s*interface\s+") {
+                        break
+                    }
+                    $configLines += $next
+                    $j++
                 }
-                $configLines += $next
-                $j++
+                $ht[$portName] = $configLines -join "`r`n"
+                $i              = $j - 1
             }
-            $ht[$portName] = $configLines -join "`r`n"
-            $i              = $j - 1
         }
+        return $ht
     }
-    return $ht
-}
 
     #
     # 3) Gather all pieces
