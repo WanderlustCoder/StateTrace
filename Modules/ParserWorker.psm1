@@ -925,20 +925,34 @@ function Invoke-DeviceLogParsing {
             # Some parsers may set an empty string or zero; treat these as missing
             if ($val -and ($val -ne '')) { $needVlan = $false }
         }
-        if ($needVlan) {
-            $authLine = $lines | Where-Object { $_ -match 'auth-?default-?vlan\s*(\d+)' } | Select-Object -First 1
-            if ($authLine) {
-                $match = [regex]::Match($authLine, '\d+')
-                if ($match.Success) {
-                    $v = $match.Value
-                    if ($facts.PSObject.Properties.Name -contains 'AuthDefaultVLAN') {
-                        $facts.AuthDefaultVLAN = $v
-                    } else {
-                        Add-Member -InputObject $facts -NotePropertyName AuthDefaultVLAN -NotePropertyValue $v -Force
-                    }
+    if ($needVlan) {
+        $authLine = $lines | Where-Object { $_ -match 'auth-?default-?vlan\s*(\d+)' } | Select-Object -First 1
+        if ($authLine) {
+            $match = [regex]::Match($authLine, '\d+')
+            if ($match.Success) {
+                $v = $match.Value
+                if ($facts.PSObject.Properties.Name -contains 'AuthDefaultVLAN') {
+                    $facts.AuthDefaultVLAN = $v
+                } else {
+                    Add-Member -InputObject $facts -NotePropertyName AuthDefaultVLAN -NotePropertyValue $v -Force
                 }
             }
         }
+    }
+
+    # At this point we have extracted all necessary information from the raw log
+    # lines and show command blocks.  Free these large arrays to release memory
+    # back to the garbage collector.  Without explicitly nulling these
+    # references, they may persist on the heap until the end of the function
+    # scope which can significantly increase memory usage when processing many
+    # devices.  See the Phase 1 performance audit recommendations.
+    $lines = $null
+    $blocks = $null
+    try {
+        [System.GC]::Collect()
+    } catch {
+        # Ignore GC exceptions; not all hosts permit explicit collection
+    }
     }
 
     if (-not $facts -or -not $facts.Hostname) {

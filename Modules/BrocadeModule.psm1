@@ -221,7 +221,16 @@ function Get-BrocadeDeviceFacts {
             }
         }
 
-        $ports = $dot1x.Keys + $macauth.Keys | Sort-Object -Unique
+        # Build a unique sorted list of ports without piping through Sort-Object -Unique.  HashSet
+        # deduplicates in O(1) per insert and a single List.Sort performs an efficient O(n log n)
+        # sort.  Use OrdinalIgnoreCase to mirror the default case-insensitive behaviour of
+        # Sort-Object.  This avoids pipeline overhead and unnecessary allocations on large
+        # collections of ports.
+        $portSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+        foreach ($p in $dot1x.Keys) { [void]$portSet.Add($p) }
+        foreach ($p in $macauth.Keys) { [void]$portSet.Add($p) }
+        $ports = [System.Collections.Generic.List[string]]::new($portSet)
+        $ports.Sort([System.StringComparer]::OrdinalIgnoreCase)
         $result = foreach ($p in $ports) {
             if ($dot1x.ContainsKey($p)) { $dot1x[$p] }
             elseif ($macauth.ContainsKey($p)) { $macauth[$p] }

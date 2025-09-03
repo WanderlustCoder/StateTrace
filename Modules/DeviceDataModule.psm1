@@ -1,3 +1,26 @@
+# ----------------------------------------------------------------------------
+# Reentrancy/refresh guard for filter updates. When repopulating dropdowns,
+# SelectionChanged can fire repeatedly; this guard prevents re-entry and
+# visible flicker/refresh while the list is open.
+if (-not (Get-Variable -Name DeviceFilterUpdating -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:DeviceFilterUpdating = $false
+}
+
+# Track previous selections for site and building so dependent lists can be reset.
+if (-not (Get-Variable -Name LastSiteSel -Scope Script -ErrorAction SilentlyContinue)) { $script:LastSiteSel = '' }
+if (-not (Get-Variable -Name LastBuildingSel -Scope Script -ErrorAction SilentlyContinue)) { $script:LastBuildingSel = '' }
+
+function Test-StringListEqualCI {
+    param([System.Collections.IEnumerable]$A, [System.Collections.IEnumerable]$B)
+    $la = @($A); $lb = @($B)
+    if ($la.Count -ne $lb.Count) { return $false }
+    for ($i = 0; $i -lt $la.Count; $i++) {
+        $sa = '' + $la[$i]; $sb = '' + $lb[$i]
+        if ([System.StringComparer]::OrdinalIgnoreCase.Compare($sa, $sb) -ne 0) { return $false }
+    }
+    return $true
+}
+
 <#
     DeviceDataModule.psm1
 
@@ -375,7 +398,14 @@ function Get-DeviceSummaries {
     $siteDD = $window.FindName('SiteDropdown')
     $uniqueSites = @()
     if ($DeviceMetadata.Count -gt 0) {
-        $uniqueSites = $DeviceMetadata.Values | ForEach-Object { $_.Site } | Where-Object { $_ -ne '' } | Sort-Object -Unique
+        # Build unique site list using a HashSet for better performance on large metadata sets.
+        $siteSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+        foreach ($meta in $DeviceMetadata.Values) {
+            $s = $meta.Site
+            if (-not [string]::IsNullOrWhiteSpace($s)) { [void]$siteSet.Add($s) }
+        }
+        $uniqueSites = [System.Collections.Generic.List[string]]::new($siteSet)
+        $uniqueSites.Sort([System.StringComparer]::OrdinalIgnoreCase)
     }
     # Prepend a blank entry to the list of unique sites so the first item is always blank.
     Set-DropdownItems -Control $siteDD -Items (@('') + $uniqueSites)
@@ -408,7 +438,38 @@ function Get-DeviceSummaries {
 }
 
 function Update-DeviceFilter {
-    if (-not $global:DeviceMetadata) { return }
+    if ($script:DeviceFilterUpdating) { return }
+    $script:DeviceFilterUpdating = $true
+    try {
+        # Detect changes in site and building selections from the last invocation.  When the
+        # parent (site) changes, the dependent building and room dropdowns should reset.
+        # When the building changes, the room dropdown should reset.  This prevents stale
+        # selections from being applied to new lists and eliminates the need for the user
+        # to manually clear a room when changing location.
+        $loc0 = Get-SelectedLocation
+        $currentSiteSel = $loc0.Site
+        $currentBldSel  = $loc0.Building
+        $siteChanged = ([System.StringComparer]::OrdinalIgnoreCase.Compare(('' + $currentSiteSel), ('' + $script:LastSiteSel)) -ne 0)
+        $bldChanged  = ([System.StringComparer]::OrdinalIgnoreCase.Compare(('' + $currentBldSel),  ('' + $script:LastBuildingSel)) -ne 0)
+
+        # Reset dependent dropdowns when parent selections change.
+        $buildingDD = $window.FindName('BuildingDropdown')
+        $roomDD     = $window.FindName('RoomDropdown')
+        if ($siteChanged -and $buildingDD) {
+            # Site changed: clear building and room lists and disable room until a building is selected.
+            DeviceDataModule\Set-DropdownItems -Control $buildingDD -Items @('')
+            $buildingDD.IsEnabled = if ($currentSiteSel -and $currentSiteSel -ne '') { $true } else { $false }
+            if ($roomDD) {
+                DeviceDataModule\Set-DropdownItems -Control $roomDD -Items @('')
+                $roomDD.IsEnabled = $false
+            }
+        } elseif ($bldChanged -and $roomDD) {
+            # Building changed: clear the room list and update its enabled state.
+            DeviceDataModule\Set-DropdownItems -Control $roomDD -Items @('')
+            $roomDD.IsEnabled = if ($currentBldSel -and $currentBldSel -ne '') { $true } else { $false }
+        }
+
+        if (-not $global:DeviceMetadata) { return }
 
     # Determine the currently selected site (we intentionally ignore building
     # and room at this stage so that we can update those lists first).  We
@@ -428,11 +489,25 @@ function Update-DeviceFilter {
         if ($siteSel -and $siteSel -ne '' -and $meta.Site -ne $siteSel) { continue }
         if ($meta.Building -ne '') { $availableBuildings += $meta.Building }
     }
-    $availableBuildings = $availableBuildings | Sort-Object -Unique
+    # Remove duplicates from the building list using a HashSet before sorting.
+    $buildingSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($b in $availableBuildings) {
+        if (-not [string]::IsNullOrWhiteSpace($b)) { [void]$buildingSet.Add($b) }
+    }
+    $availableBuildings = [System.Collections.Generic.List[string]]::new($buildingSet)
+    $availableBuildings.Sort([System.StringComparer]::OrdinalIgnoreCase)
     $buildingDD = $window.FindName('BuildingDropdown')
     $prevBuildingSel = $buildingDD.SelectedItem
     # Populate building dropdown with a blank entry plus all available buildings.
+    $currentBuildings = @()
+try { $currentBuildings = @($buildingDD.ItemsSource) } catch {}
+if ($currentBuildings.Count -gt 0 -and ('' + $currentBuildings[0]) -eq '') {
+    if ($currentBuildings.Count -gt 1) { $currentBuildings = $currentBuildings[1..($currentBuildings.Count-1)] } else { $currentBuildings = @() }
+}
+if (-not (Test-StringListEqualCI $currentBuildings $availableBuildings)) {
     Set-DropdownItems -Control $buildingDD -Items (@('') + $availableBuildings)
+}
+
     # Restore prior selection if it still exists in the list (ignoring the
     # leading blank).  Otherwise leave the selection on the blank entry.
     if ($prevBuildingSel -and $prevBuildingSel -ne '' -and ($availableBuildings -contains $prevBuildingSel)) {
@@ -470,10 +545,12 @@ function Update-DeviceFilter {
     # ---------------------------------------------------------------------
     # Step 3: Refresh the list of available rooms based on the final site and
     # building selections.  A leading blank entry is included when one or
-    # more rooms exist.  Enable the room dropdown only when a non-blank
+    # more rooms exist.  Enable the room dropdown only when a non‑blank
     # building has been chosen (SelectedIndex > 0 refers to the first real
-    # value after the blank).  The user's room selection is not preserved
-    # because building changes typically invalidate the previous room.
+    # value after the blank).  The user's room selection is cleared when
+    # either the site or building has changed to prevent a stale room from
+    # remaining selected.  When neither parent changed, preserve the room
+    # selection if the list of available rooms is identical.
     $availableRooms = @()
     foreach ($name in $DeviceMetadata.Keys) {
         $meta = $DeviceMetadata[$name]
@@ -481,9 +558,39 @@ function Update-DeviceFilter {
         if ($bldSel  -and $bldSel  -ne '' -and $meta.Building -ne $bldSel) { continue }
         if ($meta.Room -ne '') { $availableRooms += $meta.Room }
     }
-    $availableRooms = $availableRooms | Sort-Object -Unique
+    # Remove duplicates from the rooms list using a HashSet before sorting.
+    $roomSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($r in $availableRooms) {
+        if (-not [string]::IsNullOrWhiteSpace($r)) { [void]$roomSet.Add($r) }
+    }
+    $availableRooms = [System.Collections.Generic.List[string]]::new($roomSet)
+    $availableRooms.Sort([System.StringComparer]::OrdinalIgnoreCase)
     if ($roomDD) {
-        Set-DropdownItems -Control $roomDD -Items (@('') + $availableRooms)
+        $currentRooms = @()
+        try { $currentRooms = @($roomDD.ItemsSource) } catch {}
+        # Remove any leading blank from the current ItemsSource so only the
+        # actual room values are compared.  We intentionally avoid mutating
+        # ItemsSource here; $currentRooms is a copy used solely for comparison.
+        if ($currentRooms.Count -gt 0 -and ('' + $currentRooms[0]) -eq '') {
+            if ($currentRooms.Count -gt 1) {
+                $currentRooms = $currentRooms[1..($currentRooms.Count - 1)]
+            } else {
+                $currentRooms = @()
+            }
+        }
+        # Determine whether we need to force a reset of the room list.  When
+        # either the site or building has changed since the last update,
+        # previously selected rooms are invalid and should be cleared even if
+        # the underlying list of rooms is identical (for example when two
+        # buildings happen to offer the same set of rooms).
+        $forceRoomReset = $siteChanged -or $bldChanged
+        if ($forceRoomReset -or -not (Test-StringListEqualCI $currentRooms $availableRooms)) {
+            Set-DropdownItems -Control $roomDD -Items (@('') + $availableRooms)
+        }
+        # Enable the room dropdown only when a non‑blank site and building are
+        # selected.  We evaluate the building dropdown's SelectedIndex rather
+        # than the possibly stale $bldSel variable to reflect the final state
+        # after any previous Set-DropdownItems call.
         if (($siteSel -and $siteSel -ne '') -and ($buildingDD.SelectedIndex -gt 0)) {
             $roomDD.IsEnabled = $true
         } else {
@@ -502,6 +609,15 @@ function Update-DeviceFilter {
     if (Get-Command Update-Alerts -ErrorAction SilentlyContinue) {
         Update-Alerts
     }
+        # Record the current site and building selections for the next invocation.  Storing
+        # these values allows us to detect changes on the next call and reset dependent
+        # dropdowns appropriately.
+        try {
+            $locFinal = Get-SelectedLocation
+            $script:LastSiteSel = $locFinal.Site
+            $script:LastBuildingSel = $locFinal.Building
+        } catch {}
+    } finally { $script:DeviceFilterUpdating = $false }
 }
 
 function Get-DeviceDetails {
@@ -667,6 +783,201 @@ function Get-DeviceDetails {
     }
 }
 
+<#
+    Retrieve device details and interface list without updating any UI controls.  This helper is
+    intended for asynchronous use (e.g. in background tasks) so that the heavy database queries
+    and interface list construction do not block the UI thread.  It mirrors the logic of
+    Get‑DeviceDetails: it pulls summary information from DeviceSummary and DeviceHistory tables,
+    computes fallback values when necessary, queries the Interfaces table, builds a list of
+    interface objects via Build‑InterfaceObjectsFromDbRow, and retrieves configuration template
+    options via Get‑ConfigurationTemplates.  The result is returned as a single PSCustomObject
+    with properties Summary, Interfaces and Templates.  UI modules can consume this object to
+    populate controls on the dispatcher thread.
+
+    .PARAMETER Hostname
+        The hostname of the device to load.
+
+    .OUTPUTS
+        A PSCustomObject with the following properties:
+            Summary    – a hashtable of top‑level fields (Hostname, Make, Model, Uptime, Ports,
+                         AuthDefaultVLAN, Building, Room)
+            Interfaces – an array of PSCustomObject instances representing each interface
+            Templates  – an array of strings representing available configuration templates
+#>
+function Get-DeviceDetailsData {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$Hostname
+    )
+    # Coerce hostname to trimmed string
+    $hostTrim = ('' + $Hostname).Trim()
+    # Result object to populate
+    $result = [PSCustomObject]@{
+        Summary    = $null
+        Interfaces = @()
+        Templates  = @()
+    }
+    try {
+        # Determine whether database is configured
+        $useDb = $false
+        if ($global:StateTraceDb) { $useDb = $true }
+        if (-not $useDb) {
+            # Fallback to CSV import when no database is available
+            # Determine the module directory; PSScriptRoot points to the Modules directory
+            $scriptDir = $PSScriptRoot
+            $base  = Join-Path (Join-Path $scriptDir '..\ParsedData') $hostTrim
+            # Attempt to import summary CSV
+            $summary  = $null
+            try {
+                $summary  = @(Import-Csv "${base}_Summary.csv")[0]
+            } catch {}
+            # Build summary hashtable
+            $sumHash = @{}
+            if ($summary) {
+                $sumHash.Hostname        = $summary.Hostname
+                $sumHash.Make            = $summary.Make
+                $sumHash.Model           = $summary.Model
+                $sumHash.Uptime          = $summary.Uptime
+                $sumHash.Ports           = $summary.InterfaceCount
+                $sumHash.AuthDefaultVLAN = $summary.AuthDefaultVLAN
+                $sumHash.Building        = if ($summary.PSObject.Properties.Name -contains 'Building') { $summary.Building } else { '' }
+                $sumHash.Room            = if ($summary.PSObject.Properties.Name -contains 'Room')     { $summary.Room     } else { '' }
+            } else {
+                # Provide minimal summary with hostname only
+                $sumHash.Hostname        = $hostTrim
+                $sumHash.Make            = ''
+                $sumHash.Model           = ''
+                $sumHash.Uptime          = ''
+                $sumHash.Ports           = ''
+                $sumHash.AuthDefaultVLAN = ''
+                $sumHash.Building        = ''
+                $sumHash.Room            = ''
+            }
+            $result.Summary = $sumHash
+            # Interfaces via Get‑InterfaceInfo (from CSV) if available
+            try {
+                $list = Get-InterfaceInfo -Hostname $hostTrim
+                if ($list) { $result.Interfaces = $list }
+            } catch {}
+            # Configuration templates
+            try {
+                $tmpl = Get-ConfigurationTemplates -Hostname $hostTrim
+                if ($tmpl) { $result.Templates = $tmpl }
+            } catch {}
+            return $result
+        }
+        # Escaped host for SQL
+        $escHost   = $hostTrim -replace "'", "''"
+        # Query summary row(s)
+        $summarySql = "SELECT Hostname, Make, Model, Uptime, Ports, AuthDefaultVLAN, Building, Room FROM DeviceSummary WHERE Hostname = '$escHost' OR Hostname LIKE '*$escHost*'"
+        $dtSummary = $null
+        try { $dtSummary = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql $summarySql } catch {}
+        # Gather summary fields from the first matching row, if any
+        $makeVal     = ''
+        $modelVal    = ''
+        $uptimeVal   = ''
+        $portsVal    = ''
+        $authDefVal  = ''
+        $buildingVal = ''
+        $roomVal     = ''
+        if ($dtSummary) {
+            # Support DataTable/DataView or enumerable rows
+            $rowObj = $null
+            if ($dtSummary -is [System.Data.DataTable]) {
+                if ($dtSummary.Rows.Count -gt 0) { $rowObj = $dtSummary.Rows[0] }
+            } elseif ($dtSummary -is [System.Collections.IEnumerable]) {
+                try { $rowObj = ($dtSummary | Select-Object -First 1) } catch {}
+            }
+            if ($rowObj) {
+                $makeVal    = $rowObj.Make
+                $modelVal   = $rowObj.Model
+                $uptimeVal  = $rowObj.Uptime
+                $portsVal   = $rowObj.Ports
+                $authDefVal = $rowObj.AuthDefaultVLAN
+                $buildingVal= $rowObj.Building
+                $roomVal    = $rowObj.Room
+            }
+        }
+        # Retrieve fallback values from DeviceHistory and Interfaces count
+        $fbMake     = ''
+        $fbModel    = ''
+        $fbUptime   = ''
+        $fbAuthDef  = ''
+        $fbBuilding = ''
+        $fbRoom     = ''
+        $fbPorts    = ''
+        try {
+            $hist = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT TOP 1 Make, Model, Uptime, AuthDefaultVLAN, Building, Room FROM DeviceHistory WHERE Trim(Hostname) = '$escHost' ORDER BY RunDate DESC"
+            if ($hist -and $hist.Rows.Count -gt 0) {
+                $hrow = $hist.Rows[0]
+                $fbMake     = $hrow.Make
+                $fbModel    = $hrow.Model
+                $fbUptime   = $hrow.Uptime
+                $fbAuthDef  = $hrow.AuthDefaultVLAN
+                $fbBuilding = $hrow.Building
+                $fbRoom     = $hrow.Room
+            }
+        } catch {}
+        try {
+            $cntDt = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT COUNT(*) AS PortCount FROM Interfaces WHERE Trim(Hostname) = '$escHost'"
+            if ($cntDt -and $cntDt.Rows.Count -gt 0) {
+                $fbPorts = ($cntDt | Select-Object -ExpandProperty PortCount)[0]
+            }
+        } catch {}
+        # Choose fallback values when summary values are missing
+        if (-not $makeVal -or $makeVal -eq [System.DBNull]::Value -or $makeVal -eq '') { $makeVal = $fbMake }
+        if (-not $modelVal -or $modelVal -eq [System.DBNull]::Value -or $modelVal -eq '') { $modelVal = $fbModel }
+        if (-not $uptimeVal -or $uptimeVal -eq [System.DBNull]::Value -or $uptimeVal -eq '') { $uptimeVal = $fbUptime }
+        if (-not $portsVal  -or $portsVal  -eq [System.DBNull]::Value -or $portsVal  -eq 0  -or $portsVal -eq '') { $portsVal  = $fbPorts }
+        if (-not $authDefVal -or $authDefVal -eq [System.DBNull]::Value -or $authDefVal -eq '') { $authDefVal = $fbAuthDef }
+        if (-not $buildingVal -or $buildingVal -eq [System.DBNull]::Value -or $buildingVal -eq '') { $buildingVal = $fbBuilding }
+        if (-not $roomVal    -or $roomVal    -eq [System.DBNull]::Value -or $roomVal    -eq '') { $roomVal    = $fbRoom }
+        # Build summary hashtable
+        $result.Summary = @{
+            Hostname        = $hostTrim
+            Make            = $makeVal
+            Model           = $modelVal
+            Uptime          = $uptimeVal
+            Ports           = $portsVal
+            AuthDefaultVLAN = $authDefVal
+            Building        = $buildingVal
+            Room            = $roomVal
+        }
+        # Check for cached interface list
+        $listIfs = @()
+        $cacheHit = $false
+        try {
+            if ($global:DeviceInterfaceCache -and $global:DeviceInterfaceCache.ContainsKey($hostTrim)) {
+                $listIfs = $global:DeviceInterfaceCache[$hostTrim]
+                $cacheHit = $true
+            }
+        } catch {}
+        if (-not $cacheHit) {
+            # Query interfaces and build list
+            $sqlIf = "SELECT Hostname, Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, ConfigStatus, PortColor, ToolTip FROM Interfaces WHERE Hostname = '$escHost'"
+            $dtIfs = $null
+            try { $dtIfs = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql $sqlIf } catch {}
+            if ($dtIfs) {
+                try { $listIfs = Build-InterfaceObjectsFromDbRow -Data $dtIfs -Hostname $hostTrim -TemplatesPath (Join-Path $PSScriptRoot '..\Templates') } catch {}
+            }
+            # Cache list for future use
+            try {
+                if (-not $global:DeviceInterfaceCache) { $global:DeviceInterfaceCache = @{} }
+                $global:DeviceInterfaceCache[$hostTrim] = $listIfs
+            } catch {}
+        }
+        $result.Interfaces = $listIfs
+        # Retrieve configuration templates
+        $tmplList = @()
+        try { $tmplList = Get-ConfigurationTemplates -Hostname $hostTrim } catch {}
+        if ($tmplList) { $result.Templates = $tmplList }
+        return $result
+    } catch {
+        # On error, return null to indicate failure
+        return $null
+    }
+}
+
 # === GUI helper functions (merged from GuiModule) ===
 
 function Update-GlobalInterfaceList {
@@ -822,7 +1133,24 @@ ORDER BY i.Hostname, i.Port
     # Publish the interface list globally (sorted by Hostname and PortSort).  Use a
     # stable ordering so that UI controls do not refresh unpredictably when
     # underlying enumeration order changes.
-    $global:AllInterfaces = $list | Sort-Object Hostname, PortSort
+    #
+    # Instead of piping through Sort-Object (which can be slow on large
+    # collections due to pipeline overhead and repeated allocations), perform
+    # an in-place sort on the strongly typed list using a .NET comparison
+    # delegate.  This avoids unnecessary copies and provides a noticeable
+    # performance improvement when processing tens of thousands of rows.
+    $comparison = [System.Comparison[object]]{
+        param($a, $b)
+        # Compare hostnames using a case-insensitive ordinal comparison first
+        $hnc = [System.StringComparer]::OrdinalIgnoreCase.Compare($a.Hostname, $b.Hostname)
+        if ($hnc -ne 0) { return $hnc }
+        # When hostnames match, compare the PortSort values using an ordinal comparison
+        return [System.StringComparer]::Ordinal.Compare($a.PortSort, $b.PortSort)
+    }
+    # Perform the sort in-place on the list
+    $list.Sort($comparison)
+    # Assign the now-sorted list to the global AllInterfaces variable
+    $global:AllInterfaces = $list
     # Provide final count of interfaces (debug output removed)
 
     # If available, update summary and alerts to reflect new interface data
@@ -1002,7 +1330,19 @@ function Update-Summary {
         }
         if ($row.VLAN -and $row.VLAN -ne '') { $vlans += $row.VLAN }
     }
-    $uniqueVlans = ($vlans | Sort-Object -Unique)
+    # Build a unique set of VLANs using a HashSet.  Using Sort-Object -Unique on large
+    # collections performs an O(n log n) sort before deduplication, which can be
+    # expensive when there are thousands of VLAN values.  A HashSet provides
+    # O(1) average-time insertions and avoids intermediary pipeline overhead.  After
+    # deduplication, sort the unique list once using a case-insensitive ordinal
+    # comparer.  This preserves the previous behaviour of sorting strings in a
+    # culture-invariant manner.
+    $vlanSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($v in $vlans) {
+        if (-not [string]::IsNullOrWhiteSpace($v)) { [void]$vlanSet.Add($v) }
+    }
+    $uniqueVlans = [System.Collections.Generic.List[string]]::new($vlanSet)
+    $uniqueVlans.Sort([System.StringComparer]::OrdinalIgnoreCase)
     $uniqueCount = $uniqueVlans.Count
     try {
         $sv = $global:summaryView

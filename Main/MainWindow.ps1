@@ -203,15 +203,219 @@ function On-HostnameChanged {
     param([string]$Hostname)
 
     try {
+        # Load device details synchronously.  Asynchronous invocation via
+        # Load-DeviceDetailsAsync has been disabled due to stability issues on
+        # PowerShell 5.1.  Using the synchronous helper ensures reliability
+        # when selecting a new host from the dropdown.
         if ($Hostname) {
-            # Load device details using the unified module (no qualifier)
             Get-DeviceDetails $Hostname
-            if (Get-Command Load-SpanInfo -ErrorAction SilentlyContinue) { Load-SpanInfo $Hostname }
+            if (Get-Command Load-SpanInfo -ErrorAction SilentlyContinue) {
+                Load-SpanInfo $Hostname
+            }
         } else {
-            if (Get-Command Load-SpanInfo -ErrorAction SilentlyContinue) { Load-SpanInfo '' }
+            # Clear span info when hostname is empty
+            if (Get-Command Load-SpanInfo -ErrorAction SilentlyContinue) {
+                Load-SpanInfo ''
+            }
         }
     } catch {
         Write-Warning ("Hostname change handler failed: {0}" -f $_.Exception.Message)
+    }
+}
+
+<#
+    Load device details asynchronously.  This wrapper uses .NET tasks to run
+    Get‑DeviceDetailsData on a background thread.  When the task completes, it
+    marshals the result back to the UI thread via the WPF dispatcher.  It then
+    populates the appropriate controls in the Interfaces view (HostnameBox,
+    MakeBox, ModelBox, etc.), binds the interface list to the InterfacesGrid,
+    and populates the configuration templates dropdown using Set‑DropdownItems.
+    If no hostname is provided, the function clears the span info via
+    Load‑SpanInfo when defined.  Any exceptions are silently swallowed to
+    preserve UI stability.
+#>
+function Load-DeviceDetailsAsync {
+    <#
+        Retrieve device details on a background thread to avoid blocking the UI thread.  This
+        implementation has been rewritten for PowerShell 5.1 compatibility.  It no longer
+        passes script blocks or untyped delegates to .NET methods which do not support
+        them.  Instead, the code constructs an explicit script string and executes it on
+        a dedicated background thread using a synchronous Invoke() call rather than
+        BeginInvoke().  The dispatcher is invoked via [System.Action] to marshal updates
+        back to the UI.
+
+        When asynchronous invocation fails for any reason, the function writes a warning
+        and does not throw.  Callers should fall back to a synchronous Get‑DeviceDetails
+        invocation if desired.
+    #>
+    [CmdletBinding()]
+    param(
+        [string]$Hostname
+    )
+    # Determine if debug output is enabled
+    $debug = ($Global:StateTraceDebug -eq $true)
+    if ($debug) {
+        Write-Verbose ("Load-DeviceDetailsAsync: called with Hostname='{0}'" -f ($Hostname -as [string]))
+    }
+    # If no host is provided, clear span info and return
+    if (-not $Hostname) {
+        if (Get-Command Load-SpanInfo -ErrorAction SilentlyContinue) {
+            try { [System.Windows.Application]::Current.Dispatcher.Invoke([System.Action]{ Load-SpanInfo '' }) } catch {}
+        }
+        return
+    }
+
+    # Resolve the module path to an absolute path.  Join-Path with '..' segments may
+    # yield a relative string; Resolve-Path expands it to a full filesystem path.
+    try {
+        $modulePath = (Resolve-Path -LiteralPath (Join-Path $scriptDir "..\Modules\DeviceDataModule.psm1")).Path
+    } catch {
+        # Fallback to direct join if Resolve-Path fails
+        $modulePath = Join-Path $scriptDir "..\Modules\DeviceDataModule.psm1"
+    }
+    try {
+        # Create a dedicated STA runspace for background processing.  Running the
+        # device data retrieval in a separate runspace avoids blocking the UI
+        # thread and does not rely on .NET Tasks which are not always available.
+        $rs = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace()
+        $rs.ApartmentState = [System.Threading.ApartmentState]::STA
+        $rs.ThreadOptions  = [System.Management.Automation.Runspaces.PSThreadOptions]::ReuseThread
+        $rs.Open()
+        if ($debug) {
+            Write-Verbose ("Load-DeviceDetailsAsync: runspace created (Id={0})" -f $rs.Id)
+        }
+
+        # Create a PowerShell instance bound to the new runspace
+        $ps = [System.Management.Automation.PowerShell]::Create()
+        $ps.Runspace = $rs
+        if ($debug) {
+            Write-Verbose "Load-DeviceDetailsAsync: PowerShell instance created for background runspace"
+        }
+
+        # Build a script string instead of passing a ScriptBlock.  Passing a string
+        # ensures the AddScript method binds to the correct overload in PowerShell 5.1.
+        $scriptText = @"
+param(\$hn, \$modPath)
+Import-Module -LiteralPath \$modPath -ErrorAction Stop
+\$res = \$null
+try {
+    \$res = Get-DeviceDetailsData -Hostname \$hn
+} catch {
+    # Return the error record to be handled on the UI thread
+    \$res = \$_
+}
+return \$res
+"@
+        # Add the script and arguments to the PowerShell instance
+        [void]$ps.AddScript($scriptText)
+        [void]$ps.AddArgument($Hostname)
+        [void]$ps.AddArgument($modulePath)
+        if ($debug) {
+            Write-Verbose "Load-DeviceDetailsAsync: script and arguments added to PowerShell instance"
+        }
+
+        # Execute the device details retrieval on a dedicated background thread instead of using
+        # PowerShell.BeginInvoke(), which has limited overloads in PowerShell 5.1.  We create a
+        # [Thread] object to run the synchronous Invoke() call on our background runspace and
+        # marshal results back to the UI thread via the WPF Dispatcher.  This avoids the
+        # overload issues encountered with BeginInvoke().
+        if ($Global:StateTraceDebug -eq $true) {
+            Write-Verbose ("Load-DeviceDetailsAsync: starting background thread for '{0}'" -f $Hostname)
+        }
+        $threadScript = {
+            param([System.Management.Automation.PowerShell]$psCmd)
+            try {
+                # Invoke the script synchronously in the background thread
+                $results = $psCmd.Invoke()
+                # Take the first result if multiple were returned
+                if ($results -is [System.Collections.IEnumerable]) {
+                    $data = $results | Select-Object -First 1
+                } else {
+                    $data = $results
+                }
+                # Emit verbose output when debug is enabled
+                if ($Global:StateTraceDebug -eq $true) {
+                    try {
+                        $typeName = if ($null -ne $data) { $data.GetType().FullName } else { 'null' }
+                        Write-Verbose ("Load-DeviceDetailsAsync: thread received result of type '{0}'" -f $typeName)
+                    } catch {}
+                }
+                # Marshal UI updates back to the dispatcher thread.  Passing the result as
+                # an argument avoids capturing variables from the background runspace,
+                # which can lead to crashes when selecting a host.  Dispatcher.Invoke
+                # can take a scriptblock and an argument array; the scriptblock declares
+                # a parameter to receive the result object.
+                $uiAction = {
+                    param($dto)
+                    try {
+                        # If an error record or null result was returned, display a warning and exit
+                        if (-not $dto -or ($dto -is [System.Management.Automation.ErrorRecord])) {
+                            if ($dto -and $dto.Exception) {
+                                Write-Warning ("Load-DeviceDetailsAsync error: {0}" -f $dto.Exception.Message)
+                            }
+                            # Clear the interfaces grid on failure
+                            if ($global:interfacesView) {
+                                $view = $global:interfacesView
+                                $grid = $view.FindName('InterfacesGrid')
+                                if ($grid) { $grid.ItemsSource = $null }
+                            }
+                            return
+                        }
+                        # Extract summary, interfaces and templates from the returned object
+                        $summary    = $dto.Summary
+                        $interfaces = $dto.Interfaces
+                        $templates  = $dto.Templates
+                        # Update the Interfaces view controls if available
+                        if ($global:interfacesView) {
+                            $view = $global:interfacesView
+                            # Update summary fields safely
+                            $view.FindName('HostnameBox').Text        = $summary.Hostname
+                            $view.FindName('MakeBox').Text            = $summary.Make
+                            $view.FindName('ModelBox').Text           = $summary.Model
+                            $view.FindName('UptimeBox').Text          = $summary.Uptime
+                            $view.FindName('PortCountBox').Text       = $summary.Ports
+                            $view.FindName('AuthDefaultVLANBox').Text = $summary.AuthDefaultVLAN
+                            $view.FindName('BuildingBox').Text        = $summary.Building
+                            $view.FindName('RoomBox').Text            = $summary.Room
+                            # Bind interfaces list to grid
+                            $grid = $view.FindName('InterfacesGrid')
+                            if ($grid) { $grid.ItemsSource = $interfaces }
+                            # Populate configuration template dropdown
+                            $combo = $view.FindName('ConfigOptionsDropdown')
+                            if ($combo) { Set-DropdownItems -Control $combo -Items $templates }
+                        }
+                        # Load span info using vendor-specific helper if present
+                        if (Get-Command Load-SpanInfo -ErrorAction SilentlyContinue) {
+                            try { Load-SpanInfo $summary.Hostname } catch {}
+                        }
+                    } catch {
+                        # Swallow UI update exceptions to prevent crashes
+                    }
+                }
+                # Invoke the UI action with the result.  Wrap in try/catch to handle dispatcher errors.
+                try {
+                    [System.Windows.Application]::Current.Dispatcher.Invoke($uiAction, @($data))
+                } catch {
+                    # Log any dispatcher invocation errors but do not crash
+                    Write-Warning ("Load-DeviceDetailsAsync dispatcher invocation failed: {0}" -f $_.Exception.Message)
+                }
+            } catch {
+                # Log any exceptions thrown during Invoke
+                Write-Warning ("Load-DeviceDetailsAsync thread encountered an exception: {0}" -f $_.Exception.Message)
+            } finally {
+                # Clean up the runspace and PowerShell instance
+                try { $psCmd.Runspace.Close() } catch {}
+                $psCmd.Dispose()
+            }
+        }
+        # Build the thread start delegate and launch the background thread
+        $threadStart = [System.Threading.ThreadStart]{ $threadScript.Invoke($ps) }
+        $workerThread = [System.Threading.Thread]::new($threadStart)
+        $workerThread.ApartmentState = [System.Threading.ApartmentState]::STA
+        $workerThread.Start()
+    } catch {
+        # On failure to create runspace or begin invocation, log and return
+        Write-Warning ("Load-DeviceDetailsAsync failed to start: {0}" -f $_.Exception.Message)
     }
 }
 
