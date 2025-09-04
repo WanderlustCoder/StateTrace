@@ -21,35 +21,7 @@ function Test-StringListEqualCI {
     return $true
 }
 
-<#
-    DeviceDataModule.psm1
-
-    This module consolidates all device-centric and GUI helper functions
-    previously spread across DeviceFunctionsModule.psm1 and GuiModule.psm1.
-    The intent of this unified module is to provide a single source of
-    truth for retrieving device metadata, applying location filters,
-    loading interface details, building the global interface list and
-    computing summary/alert metrics.  By merging the two modules we
-    eliminate duplicated implementations and simplify the startup
-    sequence (only one module needs to be loaded).
-
-    Functions exported by this module:
-
-      * Get-DeviceSummaries     – build the list of available devices
-      * Update-DeviceFilter      – filter devices by site/building/room
-      * Get-DeviceDetails       – load interface details for a device
-      * Update-GlobalInterfaceList – build the global interface list
-      * Update-SearchResults     – perform searching and filtering
-      * Update-Summary           – update summary metrics
-      * Update-Alerts           – build the alerts list
-      * Update-SearchGrid       – refresh the search grid contents
-      * Get-PortSortKey         – compute a sortable key for port strings
-
-    IMPORTANT: This module relies on several global variables defined by
-    MainWindow.ps1 (for example $window, $scriptDir, $global:StateTraceDb,
-    $global:DeviceMetadata, $global:interfacesView, etc.).  The main
-    script must define these globals before importing this module.
-#>
+# DeviceDataModule.psm1
 
 # Initialise a simple in‑memory cache for per‑device interface lists.  When a
 # device has been viewed once in the Interfaces tab, its port list will be
@@ -64,16 +36,8 @@ if (-not $global:DeviceInterfaceCache) {
     $global:DeviceInterfaceCache = @{}
 }
 
-<#
-    Retrieve the currently selected site, building and room from the main
-    window.  This helper centralises the lookup of dropdown selections so
-    callers do not need to repeatedly reference FindName on the window.  When
-    invoked without parameters it defaults to using the global `$window`
-    variable.  The return value is a hashtable containing the keys
-    `Site`, `Building` and `Room`.  Any missing dropdowns or errors
-    encountered during lookup will result in `$null` values for the
-    corresponding fields.
-#>
+# Retrieve the currently selected site, building and room from the main
+
 function Get-SelectedLocation {
     [CmdletBinding()]
     param([object]$Window = $global:window)
@@ -95,65 +59,11 @@ function Get-SelectedLocation {
     return @{ Site = $siteSel; Building = $bldSel; Room = $roomSel }
 }
 
-<#
-    Filter a collection of interface-like objects by location.  Given a list
-    of items and optional site, building and room selectors, this helper
-    returns only those objects whose `Site`, `Building` and `Room` properties
-    match the provided values.  Blank or `$null` selectors are treated as
-    wildcards (i.e. all values are accepted).  The function tolerates
-    arbitrary object types by attempting to read properties via the
-    PSObject accessor.  It returns a new array and does not mutate the
-    original list.
-#>
-function Filter-ByLocation {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][object[]]$List,
-        [string]$Site,
-        [string]$Building,
-        [string]$Room
-    )
-    $outList = @()
-    foreach ($item in $List) {
-        $rowSite     = ''
-        $rowBuilding = ''
-        $rowRoom     = ''
-        try {
-            if ($item -and $item.PSObject) {
-                if ($item.PSObject.Properties['Site'])     { $rowSite     = '' + $item.Site }
-                if ($item.PSObject.Properties['Building']) { $rowBuilding = '' + $item.Building }
-                if ($item.PSObject.Properties['Room'])     { $rowRoom     = '' + $item.Room }
-            }
-        } catch {}
-        if ($Site     -and $Site     -ne '' -and $rowSite     -ne $Site)     { continue }
-        if ($Building -and $Building -ne '' -and $rowBuilding -ne $Building) { continue }
-        if ($Room     -and $Room     -ne '' -and $rowRoom     -ne $Room)     { continue }
-        $outList += $item
-    }
-    return $outList
-}
+# Filter a collection of interface-like objects by location.  Given a list
 
-<#
-    Initialise a dropdown or other ItemsControl with a list of items and
-    select an appropriate default.  This helper centralises the common
-    pattern of assigning the ItemsSource on a WPF control and setting
-    SelectedIndex to either the first item (index 0) when items are
-    available or to -1 when the list is empty.  Without this helper
-    developers repeatedly wrote nearly identical code across multiple
-    functions and views, which obscured the intent and made future
-    changes more error‑prone.  By encapsulating the logic here we
-    eliminate duplication and ensure consistent behaviour across the
-    application.
 
-    .PARAMETER Control
-        A WPF ItemsControl such as a ComboBox, ListBox or DataGrid on
-        which the ItemsSource and SelectedIndex properties will be set.
+# Initialise a dropdown or other ItemsControl with a list of items and
 
-    .PARAMETER Items
-        The list or array of items to assign to the control's ItemsSource.
-        The helper will treat `$null` or an empty array as no items and
-        select index -1 accordingly.
-#>
 function Set-DropdownItems {
     [CmdletBinding()]
     param(
@@ -172,19 +82,8 @@ function Set-DropdownItems {
     }
 }
 
-<#
-    Construct interface PSCustomObject instances from database results.  This helper
-    centralises the vendor detection, authentication block augmentation and
-    JSON template handling previously duplicated across Get‑DeviceDetails and
-    Get‑InterfaceInfo.  Given a set of rows returned from the Interfaces table,
-    it determines the device vendor based on the DeviceSummary.Make field,
-    loads the appropriate compliance templates from the Templates folder, builds
-    per‑row tooltips including any global Brocade authentication block, and
-    computes the PortColor and ConfigStatus fields by combining existing
-    database values with template defaults.  The resulting array of
-    [PSCustomObject] is returned to the caller.  This function is internal to
-    this module and is not exported.
-#>
+# Construct interface PSCustomObject instances from database results.  This helper
+
 function Build-InterfaceObjectsFromDbRow {
     [CmdletBinding()]
     param(
@@ -357,7 +256,11 @@ function Get-DeviceSummaries {
     # is unavailable or the query fails, the list will remain empty and the
     # UI will reflect this.  Legacy CSV fallbacks have been removed to
     # enforce the database as the single source of truth.
-    $names = @()
+    # Use a typed List[string] instead of PowerShell array to avoid costly
+    # array copies when appending.  PowerShell arrays use copy-on-append
+    # semantics (`+=`) which become O(n^2) with many hosts.  A .NET
+    # List grows amortised O(1) and can be assigned directly to ItemsSource.
+    $names = New-Object 'System.Collections.Generic.List[string]'
     $global:DeviceMetadata = @{}
     if ($global:StateTraceDb) {
         try {
@@ -366,7 +269,9 @@ function Get-DeviceSummaries {
             foreach ($row in $rows) {
                 $name = $row.Hostname
                 if (-not [string]::IsNullOrWhiteSpace($name)) {
-                    $names += $name
+                    # Add the hostname to the list.  Casting to void
+                    # suppresses any output from Add() in the pipeline.
+                    [void]$names.Add($name)
                     $siteRaw     = $row.Site
                     $buildingRaw = $row.Building
                     $roomRaw     = $row.Room
@@ -381,7 +286,7 @@ function Get-DeviceSummaries {
                     $global:DeviceMetadata[$name] = $meta
                 }
             }
-            # Removed debug output about number of devices loaded
+
         } catch {
             Write-Warning "Failed to query device summaries from database: $($_.Exception.Message)"
         }
@@ -393,6 +298,8 @@ function Get-DeviceSummaries {
     $hostnameDD = $window.FindName('HostnameDropdown')
     # Initialise the hostname dropdown with the loaded list of names.  This helper
     # sets ItemsSource and safely selects the first item when available.
+    # The hostname list is a typed List[string]; ItemsControl can bind to
+    # any IEnumerable.  Pass the list directly to avoid converting to an array.
     Set-DropdownItems -Control $hostnameDD -Items $names
 
     $siteDD = $window.FindName('SiteDropdown')
@@ -529,13 +436,16 @@ if (-not (Test-StringListEqualCI $currentBuildings $availableBuildings)) {
 
     # ---------------------------------------------------------------------
     # Step 2: Filter hostnames based on the selected site, building and room.
-    $filteredNames = @()
+    # Use a typed List[string] to build the filtered list efficiently.  Avoid
+    # using the '+=' operator on PowerShell arrays because each append
+    # produces a new array copy, which is O(n^2) for large device counts.
+    $filteredNames = New-Object 'System.Collections.Generic.List[string]'
     foreach ($name in $DeviceMetadata.Keys) {
         $meta = $DeviceMetadata[$name]
         if ($siteSel -and $siteSel -ne '' -and $meta.Site     -ne $siteSel) { continue }
         if ($bldSel  -and $bldSel  -ne '' -and $meta.Building -ne $bldSel)  { continue }
         if ($roomSel -and $roomSel -ne '' -and $meta.Room     -ne $roomSel) { continue }
-        $filteredNames += $name
+        [void]$filteredNames.Add($name)
     }
     $hostnameDD = $window.FindName('HostnameDropdown')
     # Populate the hostname dropdown with the filtered list.  Selecting the
@@ -626,19 +536,18 @@ function Get-DeviceDetails {
         # Loading details for host; removed debug output
         $useDb = $false
         if ($global:StateTraceDb) { $useDb = $true }
-        # Removed debug output about database usage
 
         if ($useDb) {
             $hostTrim = ($hostname -as [string]).Trim()
             $escHost   = $hostTrim -replace "'", "''"
             $charCodes = ($hostTrim.ToCharArray() | ForEach-Object { [int]$_ }) -join ','
-            # Removed debug output for hostTrim
+
             $summarySql = "SELECT Hostname, Make, Model, Uptime, Ports, AuthDefaultVLAN, Building, Room " +
                           "FROM DeviceSummary " +
                           "WHERE Hostname = '$escHost' " +
                           "   OR Hostname LIKE '*$escHost*'"
             $dtSummary = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql $summarySql
-            # Removed debug output for summarySql
+
             if ($dtSummary) {
                 # Iterate through summary rows (debug output removed)
                 foreach ($rowTmp in ($dtSummary | Select-Object Hostname, Make, Model, Uptime, Ports, AuthDefaultVLAN, Building, Room)) {
@@ -651,7 +560,7 @@ function Get-DeviceDetails {
                 $summaryObjects = @($dtSummary | Select-Object Hostname, Make, Model, Uptime, Ports, AuthDefaultVLAN, Building, Room)
             }
             $dtSummaryAll = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT Hostname, Make, Model, Uptime, Ports, AuthDefaultVLAN, Building, Room FROM DeviceSummary"
-            # Removed debug output for summary row count
+
             $esc = $hostTrim -replace "'", "''"
             $fbMake = ''
             $fbModel = ''
@@ -703,7 +612,7 @@ function Get-DeviceDetails {
                 $interfacesView.FindName('AuthDefaultVLANBox').Text = $authDefVal
                 $interfacesView.FindName('BuildingBox').Text        = $buildingVal
                 $interfacesView.FindName('RoomBox').Text            = $roomVal
-                # Removed debug output for summary and fallback values
+
             } else {
                 $interfacesView.FindName('HostnameBox').Text        = $hostname
                 $interfacesView.FindName('MakeBox').Text            = $fbMake
@@ -713,7 +622,7 @@ function Get-DeviceDetails {
                 $interfacesView.FindName('AuthDefaultVLANBox').Text = $fbAuthDef
                 $interfacesView.FindName('BuildingBox').Text        = $fbBuilding
                 $interfacesView.FindName('RoomBox').Text            = $fbRoom
-                # Removed debug output when no summary row found
+
                 if ($dtSummaryAll) {
                     # iterate rows silently
                     foreach ($rowAll in ($dtSummaryAll | Select-Object Hostname, Make, Model, Uptime, Ports, AuthDefaultVLAN, Building, Room)) {
@@ -783,27 +692,8 @@ function Get-DeviceDetails {
     }
 }
 
-<#
-    Retrieve device details and interface list without updating any UI controls.  This helper is
-    intended for asynchronous use (e.g. in background tasks) so that the heavy database queries
-    and interface list construction do not block the UI thread.  It mirrors the logic of
-    Get‑DeviceDetails: it pulls summary information from DeviceSummary and DeviceHistory tables,
-    computes fallback values when necessary, queries the Interfaces table, builds a list of
-    interface objects via Build‑InterfaceObjectsFromDbRow, and retrieves configuration template
-    options via Get‑ConfigurationTemplates.  The result is returned as a single PSCustomObject
-    with properties Summary, Interfaces and Templates.  UI modules can consume this object to
-    populate controls on the dispatcher thread.
+# Retrieve device details and interface list without updating any UI controls.  This helper is
 
-    .PARAMETER Hostname
-        The hostname of the device to load.
-
-    .OUTPUTS
-        A PSCustomObject with the following properties:
-            Summary    – a hashtable of top‑level fields (Hostname, Make, Model, Uptime, Ports,
-                         AuthDefaultVLAN, Building, Room)
-            Interfaces – an array of PSCustomObject instances representing each interface
-            Templates  – an array of strings representing available configuration templates
-#>
 function Get-DeviceDetailsData {
     [CmdletBinding()]
     param(
@@ -981,19 +871,7 @@ function Get-DeviceDetailsData {
 # === GUI helper functions (merged from GuiModule) ===
 
 function Update-GlobalInterfaceList {
-    <#
-        Build a comprehensive list of all interfaces by querying the database and
-        joining with the DeviceSummary table to include location metadata.  This
-        implementation adds extensive debugging statements to aid in diagnosis
-        should the list fail to populate.  It validates each row returned from
-        Invoke-DbQuery, extracts all expected columns via the DataRow indexer,
-        converts $null/DBNull values to empty strings, computes a sortable key
-        for the port, and constructs a PSCustomObject for each interface.  The
-        resulting list is stored in $global:AllInterfaces sorted by Hostname
-        and PortSort.  If any anomalies arise (null rows or unexpected
-        object types), they are logged and skipped rather than causing the
-        process to abort.
-    #>
+    # Build a comprehensive list of all interfaces by querying the database and
 
     # Begin building the global interface list (debug output removed)
     # Use a strongly-typed list for efficient accumulation of objects
@@ -1164,7 +1042,10 @@ ORDER BY i.Hostname, i.Port
 
 function Update-SearchResults {
     param([string]$Term)
-    $t = $Term.ToLower()
+    # Do not pre-normalize the search term to lowercase.  Case-insensitive
+    # comparisons are handled via StringComparison.OrdinalIgnoreCase in the
+    # filters below.  Assign the term directly.
+    $t = $Term
     # Always honour the location (site/building/room) filters, even when
     # the search term is blank.  Use the helper to retrieve the current
     # selections from the main window.  An empty selection represents
@@ -1214,23 +1095,28 @@ function Update-SearchResults {
         } catch {}
         # Evaluate status filter
         if ($statusFilterVal -ne 'All') {
-            # Convert status to a string safely; concatenation with an empty
-            # string returns an empty string for null values, preventing null
-            # method calls.
-            $stLower = ('' + $row.Status).ToLower()
+            # Safely convert the status to a string.  Avoid normalizing to lowercase;
+            # instead use StringComparer.OrdinalIgnoreCase for comparisons.
+            $st = '' + $row.Status
             if ($statusFilterVal -eq 'Up') {
-                if ($stLower -ne 'up' -and $stLower -ne 'connected') { return $false }
+                if (-not ([System.StringComparer]::OrdinalIgnoreCase.Equals($st, 'up') -or
+                          [System.StringComparer]::OrdinalIgnoreCase.Equals($st, 'connected'))) {
+                    return $false
+                }
             } elseif ($statusFilterVal -eq 'Down') {
-                if ($stLower -ne 'down' -and $stLower -ne 'notconnect') { return $false }
+                if (-not ([System.StringComparer]::OrdinalIgnoreCase.Equals($st, 'down') -or
+                          [System.StringComparer]::OrdinalIgnoreCase.Equals($st, 'notconnect'))) {
+                    return $false
+                }
             }
         }
         # Evaluate authorization filter
         if ($authFilterVal -ne 'All') {
-            $asLower = ('' + $row.AuthState).ToLower()
+            $as = '' + $row.AuthState
             if ($authFilterVal -eq 'Authorized') {
-                if ($asLower -ne 'authorized') { return $false }
+                if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals($as, 'authorized')) { return $false }
             } elseif ($authFilterVal -eq 'Unauthorized') {
-                if ($asLower -eq 'authorized') { return $false }
+                if ([System.StringComparer]::OrdinalIgnoreCase.Equals($as, 'authorized')) { return $false }
             }
         }
 
@@ -1252,20 +1138,26 @@ function Update-SearchResults {
                     }
                 } catch {
                     # If the regex is invalid, fall back to case-insensitive substring search
-                    $t = $Term.ToLower()
-                    if (-not ((('' + $row.Port).ToLower().Contains($t)) -or
-                              (('' + $row.Name).ToLower().Contains($t)) -or
-                              (('' + $row.LearnedMACs).ToLower().Contains($t)) -or
-                              (('' + $row.AuthClientMAC).ToLower().Contains($t)))) {
+                    # Fall back to a case-insensitive substring check without allocating
+                    # lowercase copies for every field.  OrdinalIgnoreCase performs a
+                    # culture-invariant, case-insensitive search directly on the original
+                    # strings and avoids repeated ToLower() calls.
+                    $t = $Term
+                    if (-not ((('' + $row.Port).IndexOf($t, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
+                              (('' + $row.Name).IndexOf($t, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
+                              (('' + $row.LearnedMACs).IndexOf($t, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
+                              (('' + $row.AuthClientMAC).IndexOf($t, [System.StringComparison]::OrdinalIgnoreCase) -ge 0))) {
                         return $false
                     }
                 }
             } else {
-                $t = $Term.ToLower()
-                if (-not ((('' + $row.Port).ToLower().Contains($t)) -or
-                          (('' + $row.Name).ToLower().Contains($t)) -or
-                          (('' + $row.LearnedMACs).ToLower().Contains($t)) -or
-                          (('' + $row.AuthClientMAC).ToLower().Contains($t)))) {
+                # Perform a case-insensitive substring search without allocating new strings
+                # for every ToLower() call.  OrdinalIgnoreCase yields the same semantics.
+                $t = $Term
+                if (-not ((('' + $row.Port).IndexOf($t, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
+                          (('' + $row.Name).IndexOf($t, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
+                          (('' + $row.LearnedMACs).IndexOf($t, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
+                          (('' + $row.AuthClientMAC).IndexOf($t, [System.StringComparison]::OrdinalIgnoreCase) -ge 0))) {
                     return $false
                 }
             }
@@ -1288,20 +1180,23 @@ function Update-Summary {
     } catch {}
     # Compute device count under location filters
     $devKeys = if ($global:DeviceMetadata) { $global:DeviceMetadata.Keys } else { @() }
-    $filteredDevices = @()
+    # Use a typed List to accumulate filtered device keys.  List.Add has amortized O(1) growth and
+    # avoids repeatedly copying arrays when hundreds or thousands of devices are present.
+    $filteredDevices = [System.Collections.Generic.List[string]]::new()
     foreach ($k in $devKeys) {
         $meta = $global:DeviceMetadata[$k]
         if ($meta) {
             if ($siteSel -and $siteSel -ne '' -and $meta.Site -ne $siteSel) { continue }
             if ($bldSel  -and $bldSel  -ne '' -and $meta.Building -ne $bldSel) { continue }
             if ($roomSel -and $roomSel -ne '' -and $meta.Room     -ne $roomSel) { continue }
-            $filteredDevices += $k
+            [void]$filteredDevices.Add($k)
         }
     }
     $devCount = $filteredDevices.Count
     # Filter interface rows according to location
     $rows = if ($global:AllInterfaces) { $global:AllInterfaces } else { @() }
-    $filteredRows = @()
+    # Use a typed List for filtered rows to avoid O(n^2) growth
+    $filteredRows = [System.Collections.Generic.List[object]]::new()
     foreach ($row in $rows) {
         $rSite = '' + $row.Site
         $rBld  = '' + $row.Building
@@ -1309,26 +1204,29 @@ function Update-Summary {
         if ($siteSel -and $siteSel -ne '' -and $rSite -ne $siteSel) { continue }
         if ($bldSel  -and $bldSel  -ne '' -and $rBld  -ne $bldSel)  { continue }
         if ($roomSel -and $roomSel -ne '' -and $rRoom -ne $roomSel) { continue }
-        $filteredRows += $row
+        [void]$filteredRows.Add($row)
     }
     $intCount = $filteredRows.Count
-    $upCount = 0; $downCount = 0; $authCount = 0; $unauthCount = 0; $vlans = @()
+    $upCount = 0; $downCount = 0; $authCount = 0; $unauthCount = 0;
+    # Gather VLANs using a typed List to avoid repeated array copies
+    $vlans = [System.Collections.Generic.List[string]]::new()
     foreach ($row in $filteredRows) {
         $status = '' + $row.Status
         if ($status) {
-            switch -Regex ($status.ToLower()) {
-                '^(up|connected)$' { $upCount++; break }
-                '^(down|notconnect)$' { $downCount++; break }
+            # Use case-insensitive regex patterns via (?i) instead of lowering
+            switch -Regex ($status) {
+                '(?i)^(up|connected)$' { $upCount++; break }
+                '(?i)^(down|notconnect)$' { $downCount++; break }
                 default { }
             }
         }
         $authState = '' + $row.AuthState
         if ($authState) {
-            if ($authState.ToLower() -eq 'authorized') { $authCount++ } else { $unauthCount++ }
+            if ([System.StringComparer]::OrdinalIgnoreCase.Equals($authState, 'authorized')) { $authCount++ } else { $unauthCount++ }
         } else {
             $unauthCount++
         }
-        if ($row.VLAN -and $row.VLAN -ne '') { $vlans += $row.VLAN }
+        if ($row.VLAN -and $row.VLAN -ne '') { [void]$vlans.Add($row.VLAN) }
     }
     # Build a unique set of VLANs using a HashSet.  Using Sort-Object -Unique on large
     # collections performs an O(n log n) sort before deduplication, which can be
@@ -1365,21 +1263,23 @@ function Update-Alerts {
         $reasons = @()
         $status = '' + $row.Status
         if ($status) {
-            $statusLow = $status.ToLower()
-            if ($statusLow -eq 'down' -or $statusLow -eq 'notconnect') { $reasons += 'Port down' }
+            # Flag ports that are down or notconnect using case-insensitive comparison
+            if ([System.StringComparer]::OrdinalIgnoreCase.Equals($status, 'down') -or
+                [System.StringComparer]::OrdinalIgnoreCase.Equals($status, 'notconnect')) {
+                $reasons += 'Port down'
+            }
         }
         $duplex = '' + $row.Duplex
         if ($duplex) {
-            $dx = $duplex.ToLower()
-            # Consider both "full" and auto/adaptive full modes as acceptable.  Only flag
-            # duplex values containing "half" as non-full duplex.
-            if ($dx -match 'half') {
+            # Only flag duplex values containing "half" as non-full duplex; perform
+            # a case-insensitive regex match to avoid allocating lowercase strings.
+            if ($duplex -match '(?i)half') {
                 $reasons += 'Half duplex'
             }
         }
         $authState = '' + $row.AuthState
         if ($authState) {
-            if ($authState.ToLower() -ne 'authorized') { $reasons += 'Unauthorized' }
+            if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals($authState, 'authorized')) { $reasons += 'Unauthorized' }
         } else {
             $reasons += 'Unauthorized'
         }
@@ -1642,19 +1542,30 @@ function Get-InterfaceConfiguration {
                 foreach ($oldLine in $oldConfigs[$port]) {
                     $trimOld  = $oldLine.Trim()
                     if (-not $trimOld) { continue }
-                    $lowerOld = $trimOld.ToLower()
-                    if ($lowerOld.StartsWith('interface') -or $lowerOld -eq 'exit') { continue }
+                    # Skip interface and exit lines using case-insensitive comparisons
+                    if ($trimOld.StartsWith('interface', [System.StringComparison]::OrdinalIgnoreCase) -or
+                        $trimOld.Equals('exit', [System.StringComparison]::OrdinalIgnoreCase)) { continue }
                     $existsInNew = $false
                     foreach ($newCmd in $pending) {
-                        if ($lowerOld -like ("$($newCmd.ToLower())*")) { $existsInNew = $true; break }
+                        # Check if the existing command matches any pending command using
+                        # case-insensitive prefix comparison.  Using StartsWith with
+                        # StringComparison avoids converting either string to lowercase.
+                        $cmdTrim = $newCmd.Trim()
+                        if ($trimOld.StartsWith($cmdTrim, [System.StringComparison]::OrdinalIgnoreCase)) { $existsInNew = $true; break }
                     }
                     if ($existsInNew) { continue }
                     if ($vendor -eq 'Cisco') {
-                        if ($lowerOld.StartsWith('authentication') -or $lowerOld.StartsWith('dot1x') -or $lowerOld -eq 'mab') {
+                        # Remove legacy authentication commands.  Compare prefixes
+                        # case-insensitively instead of lowercasing the entire line.
+                        if ($trimOld.StartsWith('authentication', [System.StringComparison]::OrdinalIgnoreCase) -or
+                            $trimOld.StartsWith('dot1x',        [System.StringComparison]::OrdinalIgnoreCase) -or
+                            $trimOld.Equals('mab',             [System.StringComparison]::OrdinalIgnoreCase)) {
                             " no $trimOld"
                         }
                     } else {
-                        if ($lowerOld -match 'dot1x\s+port-control\s+auto' -or $lowerOld -match 'mac-authentication\s+enable') {
+                        # For non-Cisco vendors, remove specific dot1x/mac-authentication lines.
+                        if ($trimOld -match '(?i)^dot1x\s+port-control\s+auto' -or
+                            $trimOld -match '(?i)^mac-authentication\s+enable') {
                             " no $trimOld"
                         }
                     }

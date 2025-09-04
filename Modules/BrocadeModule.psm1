@@ -61,11 +61,13 @@ function Get-BrocadeDeviceFacts {
         $endParts = $end -split '/'
         $stack = $startParts[0]; $slot = $startParts[1]
         $startPort = [int]$startParts[2]; $endPort = [int]$endParts[2]
-        $ports = @()
+        # Use a typed list to avoid repeated array copying when expanding large port ranges.
+        $ports = New-Object 'System.Collections.Generic.List[string]'
         for ($i = $startPort; $i -le $endPort; $i++) {
-            $ports += "Et$stack/$slot/$i"
+            [void]$ports.Add("Et$stack/$slot/$i")
         }
-        return $ports
+        # Return an array for compatibility with callers expecting enumerable strings
+        return $ports.ToArray()
     }
 
     # Retrieve all show command blocks using the shared helper.  If a Blocks
@@ -132,15 +134,17 @@ function Get-BrocadeDeviceFacts {
 
     function Get-AuthModes {
         param ($Block)
-        $dot1x = @(); $macauth = @()
+        # Use typed lists for port collections to avoid O(n^2) growth when expanding port ranges
+        $dot1x = New-Object 'System.Collections.Generic.List[string]'
+        $macauth = New-Object 'System.Collections.Generic.List[string]'
         foreach ($line in $Block) {
             # Capture ranges for dot1x enable lines.  These specify stacks/slots/ports.
             if ($line -match 'dot1x enable ethe (\d+/\d+/\d+) to (\d+/\d+/\d+)') {
-                $dot1x += Expand-PortRange $matches[1] $matches[2]
+                [void]$dot1x.AddRange((Expand-PortRange $matches[1] $matches[2]))
             }
             # Capture ranges for MAC authentication enable lines.
             if ($line -match 'mac-authentication enable ethe (\d+/\d+/\d+) to (\d+/\d+/\d+)') {
-                $macauth += Expand-PortRange $matches[1] $matches[2]
+                [void]$macauth.AddRange((Expand-PortRange $matches[1] $matches[2]))
             }
             # Beginning with FastIron 08.0.90, per‑port 802.1X enablement is achieved via
             # `dot1x port-control auto ethe <start> to <end>[, <start> to <end>]`.  Multiple
@@ -156,17 +160,18 @@ function Get-BrocadeDeviceFacts {
                     if ($m.Success) {
                         $start = $m.Groups[1].Value
                         $end   = $m.Groups[2].Value
-                        $dot1x += Expand-PortRange $start $end
+                        [void]$dot1x.AddRange((Expand-PortRange $start $end))
                     }
                 }
             }
         }
-        return @($dot1x, $macauth)
+        return @($dot1x.ToArray(), $macauth.ToArray())
     }
 
     function Get-InterfacesBrief {
         param ($Block)
-        $results = @()
+        # Use a typed list for interface summaries to avoid repeated array resizing.
+        $results = New-Object 'System.Collections.Generic.List[psobject]'
         foreach ($line in $Block) {
             # Brocade "show interfaces brief" output can vary by release.  Some versions
             # include separate columns for Trunk, Tag, PVID, PRI and Age, while others
@@ -175,11 +180,11 @@ function Get-BrocadeDeviceFacts {
             # tolerate 3–6 intermediate columns between the speed and MAC.  Allow
             # the "State" column to be any non‑whitespace token (e.g. Forward, None).
             if ($line -match '^(\d+/\d+/\d+)\s+(Up|Down)\s+(\S+)\s+(Full|Half)\s+(\S+)\s+(?:\S+\s+){3,6}([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4,6})\s+(.*?)\s*$') {
-                $results += [PSCustomObject]@{
+                [void]$results.Add([PSCustomObject]@{
                     RawPort = $matches[1]; Port = ConvertTo-StandardPortName $matches[1]; Status = $matches[2]
                     State = $matches[3]; Duplex = $matches[4]; Speed = $matches[5]
                     MAC = $matches[6]; Name = $matches[7].Trim()
-                }
+                })
             }
         }
         return $results
@@ -187,12 +192,16 @@ function Get-BrocadeDeviceFacts {
 
     function Get-MacTable {
         param ($Block)
-        $results = @()
+        # Use a typed list to accumulate MAC table entries.  This avoids array duplication
+        # when many lines are present.
+        $results = New-Object 'System.Collections.Generic.List[psobject]'
         foreach ($line in $Block) {
             if ($line -match '^([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})\s+(\d+/\d+/\d+)\s+\S+\s+(\d+)') {
-                $results += [PSCustomObject]@{
-                    MAC = $matches[1]; Port = ConvertTo-StandardPortName $matches[2]; VLAN = $matches[3]
-                }
+                [void]$results.Add([PSCustomObject]@{
+                    MAC  = $matches[1]
+                    Port = ConvertTo-StandardPortName $matches[2]
+                    VLAN = $matches[3]
+                })
             }
         }
         return $results
@@ -249,7 +258,8 @@ function Get-BrocadeDeviceFacts {
     # AUTHENTICATED/UNAUTHENTICATED are mapped to Authorized/Unauthorized.
     function Get-AuthStatusUnified {
         param([string[]]$Block)
-        $results = @()
+        # Use a typed list to avoid repeated array copying when aggregating auth status entries.
+        $results = New-Object 'System.Collections.Generic.List[psobject]'
         foreach ($line in $Block) {
             $trimmed = $line.Trim()
             # Skip headers or separators
@@ -263,7 +273,12 @@ function Get-BrocadeDeviceFacts {
                 $pae  = $matches[5]
                 $mode = if ($method -eq 'MAUTH') { 'macauth' } else { 'dot1x' }
                 $state = if ($pae -match 'AUTHENTICATED') { 'Authorized' } elseif ($auth -eq 'Yes') { 'Authorized' } else { 'Unauthorized' }
-                $results += [PSCustomObject]@{ Port = $port; MAC = $mac; State = $state; Mode = $mode }
+                [void]$results.Add([PSCustomObject]@{
+                    Port  = $port
+                    MAC   = $mac
+                    State = $state
+                    Mode  = $mode
+                })
             }
         }
         return $results
@@ -271,7 +286,8 @@ function Get-BrocadeDeviceFacts {
 
     function Get-AuthenticationBlock {
         param ([string[]]$ConfigBlock)
-        $buffer = @()
+        # Use a typed list for the auth config buffer to avoid array copying.
+        $buffer = New-Object 'System.Collections.Generic.List[string]'
         $inside = $false
         foreach ($line in $ConfigBlock) {
             if ($line -match '^Authentication\s*$') {
@@ -282,7 +298,7 @@ function Get-BrocadeDeviceFacts {
                 break
             }
             elseif ($inside) {
-                $buffer += $line.Trim()
+                [void]$buffer.Add($line.Trim())
             }
         }
         return $buffer

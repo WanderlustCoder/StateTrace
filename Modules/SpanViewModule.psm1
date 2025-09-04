@@ -1,25 +1,6 @@
 function New-SpanView {
-    <#
-        .SYNOPSIS
-            Load and initialise the Span view.
+    # .SYNOPSIS
 
-        .DESCRIPTION
-            This function resolves the SpanView.xaml file relative to the provided
-            script directory, loads it into a WPF object and injects it into the
-            host window.  It also defines a global helper function, Load-SpanInfo,
-            and wires up event handlers for the VLAN dropdown and refresh button.
-
-        .PARAMETER Window
-            The main WPF window created by MainWindow.ps1.
-
-        .PARAMETER ScriptDir
-            The directory containing the Main scripts.  SpanView.xaml is
-            expected to reside in a ../Views folder relative to this path.
-
-        .PARAMETER ParserScript
-            Path to the NetworkReader.ps1 script used to refresh parsed data.
-            If omitted, the parser is not invoked on refresh.
-    #>
     param(
         [Parameter(Mandatory=$true)][Windows.Window]$Window,
         [Parameter(Mandatory=$true)][string]$ScriptDir

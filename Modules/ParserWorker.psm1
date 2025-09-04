@@ -48,7 +48,9 @@ function Split-RawLogs {
         Write-Host "Reading file: $($file.FullName)"
         $lines = Get-Content $file.FullName
         Write-Host "Loaded $($lines.Count) lines from '$($file.Name)'"
-        $hostMarkers = @()
+        # Use a typed List[object] to collect host markers efficiently. Avoid
+        # repeatedly copying arrays when appending new markers (O(n^2)).
+        $hostMarkers = New-Object 'System.Collections.Generic.List[object]'
 
         # Find hostnames in the file.  A hostname line looks like "hostname <name>".
         # For each hostname, search the file for the earliest prompt matching
@@ -66,10 +68,10 @@ function Split-RawLogs {
                         $regex = "(?i)^\s*$([regex]::Escape($pattern))"
                         if ($lines[$j] -match $regex) {
                             Write-Host "    Found prompt '$pattern' at line $j"
-                            $hostMarkers += [PSCustomObject]@{
+                            [void]$hostMarkers.Add([PSCustomObject]@{
                                 Hostname = $hostname
                                 Index    = $j
-                            }
+                            })
                             $foundPromptForHost = $true
                             break
                         }
@@ -78,10 +80,10 @@ function Split-RawLogs {
                 }
                 if (-not $foundPromptForHost) {
                     Write-Host "  No prompt found for hostname '$hostname', defaulting to start of file"
-                    $hostMarkers += [PSCustomObject]@{
+                    [void]$hostMarkers.Add([PSCustomObject]@{
                         Hostname = $hostname
                         Index    = 0
-                    }
+                    })
                 }
             }
         }
@@ -93,7 +95,8 @@ function Split-RawLogs {
 
         # Sort markers by index.  Wrap in array syntax to preserve Count when
         # only one marker exists.  Report summary to aid debugging.
-        $hostMarkers = @($hostMarkers | Sort-Object Index)
+        # Convert sorted array back into a List[object] to maintain type consistency
+        $hostMarkers = [System.Collections.Generic.List[object]]::new(($hostMarkers | Sort-Object Index))
         $markerStrings = $hostMarkers | ForEach-Object { "$($_.Hostname)@$($_.Index)" }
         $markerSummary = $markerStrings -join ', '
         Write-Host "Host markers for '$($file.Name)': $markerSummary"
@@ -164,7 +167,9 @@ function Start-ParallelDeviceProcessing {
     $sessionState = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
     $runspacePool = [runspacefactory]::CreateRunspacePool(1, $MaxThreads, $sessionState, $Host)
     $runspacePool.Open()
-    $runspaces = @()
+    # Use a typed List[object] to collect runspaces efficiently, avoiding
+    # O(n^2) behaviour when appending items to arrays.
+    $runspaces = New-Object 'System.Collections.Generic.List[object]'
     foreach ($file in $DeviceFiles) {
         $ps = [powershell]::Create()
         $ps.RunspacePool = $runspacePool
@@ -185,10 +190,10 @@ function Start-ParallelDeviceProcessing {
             # Invoke-DeviceLogParsing can archive logs and write to the DB.
             Invoke-DeviceLogParsing -FilePath $filePath -ArchiveRoot $archiveRoot -DatabasePath $dbPath
         }).AddArgument($file).AddArgument($ModulesPath).AddArgument($ArchiveRoot).AddArgument($DatabasePath)
-        $runspaces += [PSCustomObject]@{
+        [void]$runspaces.Add([PSCustomObject]@{
             Pipe = $ps
             AsyncResult = $ps.BeginInvoke()
-        }
+        })
     }
     foreach ($r in $runspaces) {
         $r.Pipe.EndInvoke($r.AsyncResult)
@@ -293,12 +298,17 @@ function Get-LocationDetails {
         for ($i = 0; $i -lt $tokens.Count - 1; $i++) {
             $key = $tokens[$i].Trim()
             $value = $tokens[$i + 1].Trim()
-            switch -regex ($key.ToLower()) {
-                '^(bldg|building)$' { $details['Building'] = $value; continue }
-                '^floor$'          { $details['Floor']    = $value; continue }
-                '^room$'           { $details['Room']     = $value; continue }
-                '^row$'            { $details['Row']      = $value; continue }
-                '^rack$'           { $details['Rack']     = $value; continue }
+            # Perform case-insensitive matching using inline regex option instead of
+            # converting the key to lowercase.  The (?i) prefix in each pattern
+            # instructs PowerShell's regex engine to ignore case, which avoids
+            # allocating a new lowercase string for every token while preserving
+            # the original semantics.
+            switch -regex ($key) {
+                '(?i)^(bldg|building)$' { $details['Building'] = $value; continue }
+                '(?i)^floor$'          { $details['Floor']    = $value; continue }
+                '(?i)^room$'           { $details['Room']     = $value; continue }
+                '(?i)^row$'            { $details['Row']      = $value; continue }
+                '(?i)^rack$'           { $details['Rack']     = $value; continue }
             }
         }
     }
@@ -331,7 +341,8 @@ function Get-ShowCommandBlocks {
     # Initialize tracking variables for the current command and buffer
     $blocks     = @{}
     $currentCmd = ''
-    $buffer     = @()
+    # Use a typed List[string] for the buffer to accumulate lines efficiently.
+    $buffer     = New-Object 'System.Collections.Generic.List[string]'
     $recording  = $false
 
     foreach ($line in $Lines) {
@@ -344,7 +355,7 @@ function Get-ShowCommandBlocks {
             }
             # Set new current command, normalize to lowercase, reset buffer
             $currentCmd = $matches[1].Trim().ToLower()
-            $buffer     = @()
+            $buffer     = New-Object 'System.Collections.Generic.List[string]'
             $recording  = $true
             continue
         }
@@ -352,18 +363,18 @@ function Get-ShowCommandBlocks {
         if ($recording -and $line -match '^[^\s]+[>#]') {
             $blocks[$currentCmd] = $buffer
             $currentCmd = ''
-            $buffer     = @()
+            $buffer     = New-Object 'System.Collections.Generic.List[string]'
             $recording  = $false
             continue
         }
         # Append lines to the current buffer if we are within a block
         if ($recording) {
-            $buffer += $line
+            [void]$buffer.Add($line)
         }
     }
     # Flush the final block if still recording
     if ($recording -and $currentCmd) {
-        $blocks[$currentCmd] = $buffer
+            $blocks[$currentCmd] = $buffer
     }
     return $blocks
 }
@@ -451,7 +462,9 @@ function ConvertFrom-SpanningTree {
     param(
         [string[]]$SpanLines
     )
-    $entries = @()
+    # Use a typed List[object] to accumulate spanning tree entries to avoid
+    # repeated array copies when appending objects.
+    $entries = New-Object 'System.Collections.Generic.List[object]'
     $current    = ''
     $rootSwitch = ''
     $rootPort   = ''
@@ -462,13 +475,13 @@ function ConvertFrom-SpanningTree {
         # existing context into the results.
         if ($line -match '(?i)^(vlan\d+|mst\d+)') {
             if ($current -ne '') {
-                $entries += [PSCustomObject]@{
+                [void]$entries.Add([PSCustomObject]@{
                     VLAN       = $current
                     RootSwitch = $rootSwitch
                     RootPort   = $rootPort
                     Role       = ''
                     Upstream   = ''
-                }
+                })
             }
             $current    = $matches[1]
             $rootSwitch = ''
@@ -488,13 +501,13 @@ function ConvertFrom-SpanningTree {
     }
     # Flush the final entry if any context remains
     if ($current -ne '') {
-        $entries += [PSCustomObject]@{
+        [void]$entries.Add([PSCustomObject]@{
             VLAN       = $current
             RootSwitch = $rootSwitch
             RootPort   = $rootPort
             Role       = ''
             Upstream   = ''
-        }
+        })
     }
     return $entries
 }
@@ -1054,9 +1067,11 @@ function Invoke-DeviceLogParsing {
             try {
                 $vendor = 'Cisco'
                 if ($facts.Make) {
-                    $mk = $facts.Make.ToLower()
-                    if ($mk -match 'brocade') { $vendor = 'Brocade' }
-                    elseif ($mk -match 'arista') { $vendor = 'Brocade' }
+                    # Match known vendors in a case-insensitive manner without
+                    # converting the entire Make string to lowercase.  The (?i)
+                    # inline option performs a case-insensitive regex match.
+                    if ($facts.Make -match '(?i)brocade') { $vendor = 'Brocade' }
+                    elseif ($facts.Make -match '(?i)arista') { $vendor = 'Brocade' }
                 }
                 $tplDir = Join-Path $PSScriptRoot '..\Templates'
                 $jsonFile = Join-Path $tplDir "$vendor.json"
@@ -1340,7 +1355,8 @@ function Start-ParallelDeviceProcessing {
     $sessionState = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
     $runspacePool = [runspacefactory]::CreateRunspacePool(1, $MaxThreads, $sessionState, $Host)
     $runspacePool.Open()
-    $runspaces = @()
+    # Use a typed List[object] for runspaces to avoid O(n^2) array copies
+    $runspaces = New-Object 'System.Collections.Generic.List[object]'
     foreach ($file in $DeviceFiles) {
         $ps = [powershell]::Create()
         $ps.RunspacePool = $runspacePool
@@ -1355,10 +1371,10 @@ function Start-ParallelDeviceProcessing {
             }
             Invoke-DeviceLogParsing -FilePath $filePath -ArchiveRoot $archiveRoot -DatabasePath $dbPath
         }).AddArgument($file).AddArgument($ModulesPath).AddArgument($ArchiveRoot).AddArgument($DatabasePath)
-        $runspaces += [PSCustomObject]@{
+        [void]$runspaces.Add([PSCustomObject]@{
             Pipe = $ps
             AsyncResult = $ps.BeginInvoke()
-        }
+        })
     }
     foreach ($r in $runspaces) {
         $r.Pipe.EndInvoke($r.AsyncResult)
@@ -1579,7 +1595,9 @@ function Start-ParallelDeviceProcessing {
     $sessionState = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
     $runspacePool = [runspacefactory]::CreateRunspacePool(1, $MaxThreads, $sessionState, $Host)
     $runspacePool.Open()
-    $runspaces = @()
+    # Use a typed List[object] to collect runspaces efficiently, avoiding
+    # O(n^2) behaviour when appending items to arrays.
+    $runspaces = New-Object 'System.Collections.Generic.List[object]'
     foreach ($file in $DeviceFiles) {
         $ps = [powershell]::Create()
         $ps.RunspacePool = $runspacePool
@@ -1594,10 +1612,10 @@ function Start-ParallelDeviceProcessing {
             }
             Invoke-DeviceLogParsing -FilePath $filePath -ArchiveRoot $archiveRoot -DatabasePath $dbPath
         }).AddArgument($file).AddArgument($ModulesPath).AddArgument($ArchiveRoot).AddArgument($DatabasePath)
-        $runspaces += [PSCustomObject]@{
+        [void]$runspaces.Add([PSCustomObject]@{
             Pipe = $ps
             AsyncResult = $ps.BeginInvoke()
-        }
+        })
     }
     foreach ($r in $runspaces) {
         $r.Pipe.EndInvoke($r.AsyncResult)
