@@ -64,6 +64,8 @@ interface GigabitEthernet1/0/3
  dot1x pae authenticator
  dot1x timeout quiet-period 90
  dot1x timeout tx-period 5
+ shutdown
+
 !
 interface GigabitEthernet1/0/4
  description Users4
@@ -385,6 +387,8 @@ interface GigabitEthernet1/0/28
  mab
  dot1x pae authenticator
  switchport voice vlan 100
+ shutdown
+
 !
 interface GigabitEthernet1/0/29
  description Phone29
@@ -557,6 +561,8 @@ interface GigabitEthernet1/0/44
  spanning-tree portfast
  authentication order mab dot1x
  mab
+ shutdown
+
 !
 interface GigabitEthernet1/0/45
  description Guest45
@@ -590,7 +596,7 @@ WLLS-A01-AS-01# show interface status
 Port      Name               Status       Vlan       Duplex  Speed Type
 Gi1/0/1    Users1           connected    10         a-full  a-100  10/100/1000BaseTX
 Gi1/0/2    Users2           connected    10         auto    a-100  10/100/1000BaseTX
-Gi1/0/3    Users3           notconnect   10         a-full  a-1000 10/100/1000BaseTX
+Gi1/0/3    Users3           disabled     10         a-full  a-1000 10/100/1000BaseTX
 Gi1/0/4    Users4           connected    10         auto    a-100  10/100/1000BaseTX
 Gi1/0/5    Users5           connected    10         a-full  a-100  10/100/1000BaseTX
 Gi1/0/6    Users6           connected    10         auto    a-1000 10/100/1000BaseTX
@@ -615,7 +621,7 @@ Gi1/0/24   Users24          connected    10         auto    a-1000 10/100/1000Ba
 Gi1/0/25   Phone25          connected    20         a-full  a-100  10/100/1000BaseTX
 Gi1/0/26   Phone26          connected    20         auto    a-100  10/100/1000BaseTX
 Gi1/0/27   Phone27          connected    20         a-full  a-1000 10/100/1000BaseTX
-Gi1/0/28   Phone28          notconnect   20         auto    a-100  10/100/1000BaseTX
+Gi1/0/28   Phone28          disabled     20         auto    a-100  10/100/1000BaseTX
 Gi1/0/29   Phone29          connected    20         a-full  a-100  10/100/1000BaseTX
 Gi1/0/30   Phone30          err-disabled 20         auto    a-1000 10/100/1000BaseTX
 Gi1/0/31   Phone31          connected    20         a-full  a-100  10/100/1000BaseTX
@@ -631,7 +637,7 @@ Gi1/0/40   Phone40          err-disabled 20         auto    a-100  10/100/1000Ba
 Gi1/0/41   Guest41          connected    30         a-full  a-100  10/100/1000BaseTX
 Gi1/0/42   Guest42          connected    30         auto    a-1000 10/100/1000BaseTX
 Gi1/0/43   Guest43          notconnect   30         a-full  a-100  10/100/1000BaseTX
-Gi1/0/44   Guest44          connected    30         auto    a-100  10/100/1000BaseTX
+Gi1/0/44   Guest44          disabled     30         auto    a-100  10/100/1000BaseTX
 Gi1/0/45   Guest45          connected    30         a-full  a-1000 10/100/1000BaseTX
 Gi1/0/46   Guest46          connected    30         auto    a-100  10/100/1000BaseTX
 Gi1/0/47   Uplink47         connected    trunk      a-full  a-100  10GBaseSX
@@ -674,7 +680,7 @@ WLLS-A01-AS-01# show authentication sessions
 Interface    MAC Address     Method  Domain  Status           Session ID
 Gi1/0/1      001c.58af.0000  dot1x  DATA     Auth	      0A1111111111
 Gi1/0/2      001c.58af.0001  mab    DATA     Auth	      0A2222222222
-Gi1/0/3      001c.58af.0002  mab    DATA     Unauth    	      0A3333333333
+Gi1/0/3      001c.58af.0002  disabled    DATA     Unauth    	      0A3333333333
 Gi1/0/5      001c.58af.0003  dot1x  DATA     Unauth           0A4444444444
 
 WLLS-A01-AS-01# show ip interface brief
@@ -687,7 +693,10 @@ GigabitEthernet1/0/4  unassigned      YES unset  up                    up
 GigabitEthernet1/0/5  unassigned      YES unset  up                    up
 GigabitEthernet1/0/6  unassigned      YES unset  up                    up
 GigabitEthernet1/0/7  unassigned      YES unset  up                    up
-GigabitEthernet1/0/8  unassigned      YES unset  up                    up
+GigabitEthernet1/0/8  unassigned      YES unset  up                    upGigabitEthernet1/0/3   unassigned      YES unset  administratively down down
+GigabitEthernet1/0/28  unassigned      YES unset  administratively down down
+GigabitEthernet1/0/44  unassigned      YES unset  administratively down down
+
 
 WLLS-A01-AS-01# show access-lists
 Extended IP access list ACL-USER

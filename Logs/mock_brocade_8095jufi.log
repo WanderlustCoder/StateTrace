@@ -139,6 +139,7 @@ interface ethernet 1/1/22
  authentication auth-default-vlan 20
  stp-bpdu-guard
  exit
+ disable
 interface ethernet 1/1/23
  port-name Users23
  authentication auth-default-vlan 20
@@ -169,6 +170,7 @@ interface ethernet 1/1/28
  authentication auth-default-vlan 20
  stp-bpdu-guard
  exit
+ disable
 interface ethernet 1/1/29
  port-name Users29
  authentication auth-default-vlan 20
@@ -319,6 +321,7 @@ interface ethernet 2/1/10
  authentication auth-default-vlan 20
  stp-bpdu-guard
  exit
+ disable
 interface ethernet 2/1/11
  port-name Users59
  authentication auth-default-vlan 20
@@ -533,13 +536,13 @@ Port       Link    State    Dupl Speed Trunk Tag Pvid Pri MAC            Name
 1/1/19     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.0013  Users19
 1/1/20     Down    None     Full  1G    None   None Yes 10   0   0011.2233.0014  Users20
 1/1/21     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.0015  Users21
-1/1/22     Down    None     Full  1G    None   None Yes 10   0   0011.2233.0016  Users22
+1/1/22     Down    Disabled Full  1G    None   None Yes 10   0   0011.2233.0016  Users22
 1/1/23     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.0017  Users23
 1/1/24     Down    None     Full  1G    None   None Yes 10   0   0011.2233.0018  Users24
 1/1/25     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.0019  Users25
 1/1/26     Down    None     Full  1G    None   None Yes 10   0   0011.2233.001a  Users26
 1/1/27     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.001b  Users27
-1/1/28     Down    None     Full  1G    None   None Yes 10   0   0011.2233.001c  Users28
+1/1/28     Down    Disabled Full  1G    None   None Yes 10   0   0011.2233.001c  Users28
 1/1/29     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.001d  Users29
 1/1/30     Down    None     Full  1G    None   None Yes 10   0   0011.2233.001e  Users30
 1/1/31     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.001f  Users31
@@ -569,7 +572,7 @@ Port       Link    State    Dupl Speed Trunk Tag Pvid Pri MAC            Name
 2/1/7      Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.0037  Users55
 2/1/8      Down    None     Full  1G    None   None Yes 10   0   0011.2233.0038  Users56
 2/1/9      Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.0039  Users57
-2/1/10     Down    None     Full  1G    None   None Yes 10   0   0011.2233.003a  Users58
+2/1/10     Down    Disabled Full  1G    None   None Yes 10   0   0011.2233.003a  Users58
 2/1/11     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.003b  Users59
 2/1/12     Down    None     Full  1G    None   None Yes 10   0   0011.2233.003c  Users60
 2/1/13     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.003d  Users61

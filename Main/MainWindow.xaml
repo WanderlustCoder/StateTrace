@@ -46,10 +46,12 @@
         <Label Content="Show Commands:" VerticalAlignment="Center" Foreground="White" Margin="0,0,10,0"/>
         <Button Name="ShowCiscoButton" Content="Cisco" Width="90" Margin="0,0,5,0" Background="#FFD700" Foreground="Black" ToolTip="Copy Cisco show commands to clipboard"/>
         <Button Name="ShowBrocadeButton" Content="Brocade" Width="100" Margin="0,0,5,0" Background="#FFD700" Foreground="Black" ToolTip="Copy Brocade show commands to clipboard"/>
+        <!--
         <ComboBox Name="BrocadeOSDropdown" Width="80" Margin="0,0,5,0">
           <ComboBoxItem Content="v8.0.30"/>
           <ComboBoxItem Content="v8.0.95"/>
         </ComboBox>
+        -->
         <!-- Help button opens a window containing documentation for each section of the GUI -->
         <Button Name="HelpButton" Content="Help" Width="60" Margin="0,0,0,0" Background="#FFD700" Foreground="Black" ToolTip="Open help documentation"/>
         <!-- Compare configs button removed; comparison is launched from the Interfaces tab -->

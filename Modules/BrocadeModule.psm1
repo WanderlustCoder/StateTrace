@@ -140,11 +140,11 @@ function Get-BrocadeDeviceFacts {
         foreach ($line in $Block) {
             # Capture ranges for dot1x enable lines.  These specify stacks/slots/ports.
             if ($line -match 'dot1x enable ethe (\d+/\d+/\d+) to (\d+/\d+/\d+)') {
-                [void]$dot1x.AddRange((Expand-PortRange $matches[1] $matches[2]))
+                [void]$dot1x.AddRange([string[]](Expand-PortRange $matches[1] $matches[2]))
             }
             # Capture ranges for MAC authentication enable lines.
             if ($line -match 'mac-authentication enable ethe (\d+/\d+/\d+) to (\d+/\d+/\d+)') {
-                [void]$macauth.AddRange((Expand-PortRange $matches[1] $matches[2]))
+                [void]$macauth.AddRange([string[]](Expand-PortRange $matches[1] $matches[2]))
             }
             # Beginning with FastIron 08.0.90, per‑port 802.1X enablement is achieved via
             # `dot1x port-control auto ethe <start> to <end>[, <start> to <end>]`.  Multiple
@@ -160,7 +160,7 @@ function Get-BrocadeDeviceFacts {
                     if ($m.Success) {
                         $start = $m.Groups[1].Value
                         $end   = $m.Groups[2].Value
-                        [void]$dot1x.AddRange((Expand-PortRange $start $end))
+                        [void]$dot1x.AddRange([string[]](Expand-PortRange $start $end))
                     }
                 }
             }
@@ -179,11 +179,33 @@ function Get-BrocadeDeviceFacts {
             # essential fields (port, link, state, duplex, speed, MAC and name) and
             # tolerate 3–6 intermediate columns between the speed and MAC.  Allow
             # the "State" column to be any non‑whitespace token (e.g. Forward, None).
-            if ($line -match '^(\d+/\d+/\d+)\s+(Up|Down)\s+(\S+)\s+(Full|Half)\s+(\S+)\s+(?:\S+\s+){3,6}([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4,6})\s+(.*?)\s*$') {
+            #
+            # Extend the link token to include Disabled/Admin‑Down/None so that
+            # administratively disabled ports are captured instead of being silently
+            # skipped.  Normalize the Status to 'Up' or 'Down' while retaining the
+            # original link token in a separate field for future reference.
+            if ($line -match '^(\d+/\d+/\d+)\s+(Up|Down|Disable(?:d)?|Admin-?Down|None)\s+(\S+)\s+(Full|Half|Auto(?:/Full)?|N/A)\s+(\S+)\s+(?:\S+\s+){3,6}([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4,6})\s+(.*?)\s*$') {
+                $rawPort   = $matches[1]
+                $linkToken = $matches[2]
+                $stateTok  = $matches[3]
+                $duplexTok = $matches[4]
+                $speedTok  = $matches[5]
+                $macTok    = $matches[6]
+                $nameTok   = $matches[7].Trim()
+
+                # Normalize the Status: treat anything other than 'Up' as 'Down'
+                $normalizedStatus = if ($linkToken -match '^(?i)up$') { 'Up' } else { 'Down' }
+
                 [void]$results.Add([PSCustomObject]@{
-                    RawPort = $matches[1]; Port = ConvertTo-StandardPortName $matches[1]; Status = $matches[2]
-                    State = $matches[3]; Duplex = $matches[4]; Speed = $matches[5]
-                    MAC = $matches[6]; Name = $matches[7].Trim()
+                    RawPort = $rawPort
+                    Port    = ConvertTo-StandardPortName $rawPort
+                    Status  = $normalizedStatus
+                    Link    = $linkToken
+                    State   = $stateTok
+                    Duplex  = $duplexTok
+                    Speed   = $speedTok
+                    MAC     = $macTok
+                    Name    = $nameTok
                 })
             }
         }
