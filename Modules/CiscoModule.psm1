@@ -54,15 +54,21 @@ function Get-CiscoDeviceFacts {
             $l = $Lines[$i]
             if ($l -match '^interface\s+(\S+)') {
                 $fullName = $matches[1]
-                $block    = @($l)
+                # Use a strongly typed List[string] instead of a PowerShell array.  Using
+                # array '+=' repeatedly leads to O(n^2) behaviour.  A .NET List grows
+                # amortised O(1) and avoids repeated reallocations when building up
+                # the configuration lines.
+                $block    = New-Object 'System.Collections.Generic.List[string]'
+                [void]$block.Add($l)
                 $desc     = ''
                 $j        = $i+1
                 while ($j -lt $Lines.Count -and $Lines[$j] -notmatch '^interface' -and $Lines[$j] -notmatch '^!') {
-                    $block += $Lines[$j]
+                    [void]$block.Add($Lines[$j])
                     if ($Lines[$j] -match '^\s*description\s+(.+)$') { $desc=$matches[1].Trim() }
                     $j++
                 }
-                $cfgObj = @{ Config=$block -join "`r`n"; Description=$desc }
+                # Convert the typed list to a single string using Join instead of array -join
+                $cfgObj = @{ Config=[string]::Join("`r`n", $block); Description=$desc }
                 $ht[$fullName] = $cfgObj
                 if ($fullName -match '^(GigabitEthernet|FastEthernet|TenGigabitEthernet)(\S+)$') {
                     $shortType = switch ($matches[1]) {
@@ -91,14 +97,15 @@ function Get-CiscoDeviceFacts {
 
     function Get-AuthBlock {
         param([string[]]$Lines)
-        $blk=@()
+        # Use a typed List[string] to avoid O(n^2) behaviour from array '+='
+        $blk = New-Object 'System.Collections.Generic.List[string]'
         foreach ($line in $Lines) {
             $trim = $line.Trim()
             if ($trim -match '^(authentication|dot1x|mab|reauthentication)\b') {
-                $blk += $trim
+                [void]$blk.Add($trim)
             }
         }
-        return $blk -join "`r`n"
+        return [string]::Join("`r`n", $blk)
     }
 
     function Get-InterfacesStatus {
@@ -255,20 +262,85 @@ function Get-CiscoDeviceFacts {
         $authBlock = Get-AuthBlock -Lines $runCfg
     }
 
-    $combined = @()
-    foreach ($iface in $status) {
-        $raw     = $iface.RawPort
-        $cfgEntry= $configs[$raw]
-        $cfgText = if ($cfgEntry) { $cfgEntry.Config } else { '' }
-        $name    = if ($cfgEntry -and $cfgEntry.Description) { $cfgEntry.Description } else { $raw }
-        $macList = ($macs | Where-Object Port -eq $raw | ForEach-Object MAC) -join ','
-        $authRow = $auth | Where-Object Interface -ieq $raw | Select-Object -First 1
-        $macRow  = $macs | Where-Object Port -eq $raw | Select-Object -First 1
+    # ----------------------------------------------------------------------
+    # Large performance optimization: avoid repeatedly scanning the MAC table
+    # and authentication lists for each interface.  Build lookup tables once
+    # up front so that retrieving per-port information is O(1) instead of
+    # O(N) per interface.  Also, use a strongly typed list for the final
+    # combined collection to avoid quadratic array growth.
 
-        $interfaceMac = if ($macRow) { $macRow.MAC } else { '' }
+    # Build a lookup of port -> list of MAC addresses (strings) and a
+    # lookup of port -> first MAC record.  Using a HashTable keyed by the
+    # raw port string allows us to retrieve all MAC entries or the first
+    # one in constant time rather than scanning the entire $macs collection
+    # for each interface.  The per-port list uses a typed List[string] to
+    # avoid expensive array concatenations.
+    $macsByPort      = @{}
+    $firstMacByPort  = @{}
+    foreach ($entry in $macs) {
+        $p = $entry.Port
+        if (-not $macsByPort.ContainsKey($p)) {
+            $macsByPort[$p]     = New-Object 'System.Collections.Generic.List[string]'
+            # also record the first MAC row for this port
+            $firstMacByPort[$p] = $entry
+        }
+        [void]$macsByPort[$p].Add([string]$entry.MAC)
+    }
+
+    # Build a lookup of interface -> first authentication session row.  Using
+    # a dictionary keyed by the interface name avoids repeatedly invoking
+    # Where-Object and Select-Object for each interface.  Only the first
+    # session row is relevant for most summary statistics, so we capture the
+    # first occurrence.
+    $authByPort = @{}
+    foreach ($session in $auth) {
+        $p = $session.Interface
+        if (-not $authByPort.ContainsKey($p)) {
+            $authByPort[$p] = $session
+        }
+    }
+
+    # Use a typed list to accumulate interface summary objects.  Using
+    # PowerShell array '+=' causes O(n^2) behaviour due to repeated
+    # reallocation.  A typed List[object] grows amortised O(1) and has a
+    # Count property compatible with the array used previously.  At the
+    # end, we return this list directly as the InterfacesCombined property.
+    $combinedList = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($iface in $status) {
+        $raw      = $iface.RawPort
+        $cfgEntry = $configs[$raw]
+        $cfgText  = if ($cfgEntry) { $cfgEntry.Config } else { '' }
+        $name     = if ($cfgEntry -and $cfgEntry.Description) { $cfgEntry.Description } else { $raw }
+
+        # Retrieve MACs and first MAC row via lookup.  If no entry exists,
+        # default to empty list / null.
+        $macListRef = $null
+        $macEntry   = $null
+        if ($macsByPort.ContainsKey($raw)) {
+            $macListRef = $macsByPort[$raw]
+            $macEntry   = $firstMacByPort[$raw]
+        }
+        # Join MAC addresses into a comma-separated string.  Avoid using
+        # '-join' on a PowerShell array; use the typed list directly via
+        # [string]::Join for efficiency.  Handle null by returning empty
+        # string when there are no learned MACs.
+        $macListStr = if ($macListRef) { [string]::Join(',', $macListRef) } else { '' }
+
+        # Retrieve the first authentication row via the lookup.  If none
+        # exists, $authRow will be $null.
+        $authRow = if ($authByPort.ContainsKey($raw)) { $authByPort[$raw] } else { $null }
+
+        # Determine interface MAC and VLAN information from the first MAC
+        # entry when present.
+        $interfaceMac = if ($macEntry) { $macEntry.MAC } else { '' }
+        $authVlan     = if ($macEntry) { $macEntry.VLAN } else { '' }
+
+        # Retrieve the precomputed authentication template information.
         $templateInfo = $authTemplates[$raw]
 
-        $combined += [PSCustomObject]@{
+        # Build the summary object and add to the typed list.  All
+        # properties remain consistent with the previous implementation.
+        $obj = [PSCustomObject]@{
             Port            = $raw
             Name            = $name
             Status          = $iface.Status
@@ -277,16 +349,21 @@ function Get-CiscoDeviceFacts {
             Speed           = $iface.Speed
             Type            = $iface.Type
             InterfaceMAC    = $interfaceMac
-            LearnedMACs     = $macList
+            LearnedMACs     = $macListStr
             AuthState       = if ($authRow) { $authRow.AuthState } else { 'Unknown' }
             AuthMode        = if ($authRow) { $authRow.AuthMode }  else { 'unknown' }
             AuthClientMAC   = if ($authRow) { $authRow.MAC }       else { '' }
-            AuthVLAN        = if ($macRow)   { $macRow.VLAN }      else { '' }
+            AuthVLAN        = $authVlan
             Config          = $cfgText
             AuthTemplate    = $templateInfo.Template
             MissingAuthCmds = $templateInfo.MissingCommands -join ','
         }
+        [void]$combinedList.Add($obj)
     }
+    # Assign the combined list to a variable with the original name for
+    # compatibility.  Consumers of this function expect a collection with a
+    # Count property; List[object] satisfies this requirement.
+    $combined = $combinedList
 
     # Gather spanning tree information if the log included a 'show spanning-tree'
     # section.  Some devices may use the abbreviated command 'show span'; try

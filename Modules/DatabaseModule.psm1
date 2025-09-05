@@ -34,6 +34,9 @@
 
 Set-StrictMode -Version Latest
 
+# Cache the last time we forced a Jet/ACE cache refresh
+if (-not (Get-Variable -Name LastCacheRefresh -Scope Script -ErrorAction SilentlyContinue)) { $script:LastCacheRefresh = Get-Date '2000-01-01' }
+
 # === BEGIN Initialize-StateTraceDatabase (DatabaseModule.psm1) ===
 function Initialize-StateTraceDatabase {
     [CmdletBinding()]
@@ -53,7 +56,7 @@ function Initialize-StateTraceDatabase {
         $mdbPath   = Join-Path $DataDir 'StateTrace.mdb'
         $dbPath    = $null
 
-        # Prefer existing DBs to avoid noisy “create” attempts.
+        # Prefer existing DBs to avoid noisy create attempts.
         if (Test-Path $accdbPath -PathType Leaf) {
             $dbPath = $accdbPath
         } elseif (Test-Path $mdbPath -PathType Leaf) {
@@ -81,7 +84,7 @@ function Initialize-StateTraceDatabase {
         }
 
         if (-not $dbPath) {
-            throw ("Database initialization failed — no usable database in {0}" -f $DataDir)
+            throw ("Database initialization failed  no usable database in {0}" -f $DataDir)
         }
 
         # Publish locations for the rest of the app (and child processes).
@@ -389,11 +392,9 @@ function Invoke-DbQuery {
         }
         if (-not $provider) { throw "No suitable OLEDB provider found." }
         # Debug output removed to reduce verbosity
-        # Force Jet/ACE to flush writes and refresh its cache by opening a
-        # lightweight ADODB connection and calling RefreshCache.  We do
-        # this on a separate connection rather than the one used to fill
-        # the DataTable.  If the provider does not support the method,
-        # silently ignore the error.
+        # Force Jet/ACE to flush writes occasionally (not on every query) to cut COM overhead.
+        # Only refresh if at least 5 seconds have elapsed since the last refresh.
+        if (((Get-Date) - $script:LastCacheRefresh).TotalSeconds -gt 5) {
         try {
             $cacheConn = New-Object -ComObject ADODB.Connection
             $cacheConn.Open("Provider=$provider;Data Source=$DatabasePath")
@@ -402,7 +403,9 @@ function Invoke-DbQuery {
                 $jet.RefreshCache($cacheConn)
             } catch {}
             $cacheConn.Close()
+            $script:LastCacheRefresh = Get-Date
         } catch {}
+        }
         # Now open a purely managed OleDbConnection to execute the query and
         # fill a DataTable.  This avoids issues with COM DataRow objects
         # exposing unexpected members in PowerShell.

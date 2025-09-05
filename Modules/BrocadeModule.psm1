@@ -41,16 +41,19 @@ function Get-BrocadeDeviceFacts {
             }
         }
         if ($startIndex -lt 0) { return @() }
-        $buffer = @()
+        # Use a typed List[string] instead of a PowerShell array.  Using '+=' on an array
+        # causes O(n^2) behaviour due to array reallocation.  A List[string] grows
+        # efficiently and can be converted back to an array for the return value.
+        $buffer = New-Object 'System.Collections.Generic.List[string]'
         # Capture lines after the command until the next prompt or end of file
         for ($j = $startIndex + 1; $j -lt $Lines.Count; $j++) {
             $nl = $Lines[$j]
             if ($nl -match '^[^\s]*#') {
                 break
             }
-            $buffer += $nl
+            [void]$buffer.Add($nl)
         }
-        return $buffer
+        return $buffer.ToArray()
     }
 
     function ConvertTo-StandardPortName { param ($raw) return "Et$raw" }
@@ -152,10 +155,13 @@ function Get-BrocadeDeviceFacts {
             # as dot1x enabled so the port will be considered dot1x for AuthMode purposes.
             if ($line -match 'dot1x port-control auto ethe (.+)$') {
                 $rangesPart = $matches[1]
-                # Split on commas to handle multiple ranges.  Trim each segment and
-                # extract the start/end if the "to" keyword is present.
-                $ranges = $rangesPart -split ',' | ForEach-Object { $_.Trim() }
-                foreach ($range in $ranges) {
+                # Split on commas using the .NET Split method rather than piping
+                # through ForEach-Object.  Trim each segment inline in the loop
+                # to avoid creating a pipeline and anonymous script block for
+                # each element.  This reduces overhead when many ranges are present.
+                $rangesArr = $rangesPart.Split(',')  # returns an array of strings
+                foreach ($r in $rangesArr) {
+                    $range = $r.Trim()
                     $m = [regex]::Match($range, '(\d+/\d+/\d+) to (\d+/\d+/\d+)')
                     if ($m.Success) {
                         $start = $m.Groups[1].Value
@@ -339,18 +345,30 @@ function Get-BrocadeDeviceFacts {
 
     function Get-InterfaceConfigsAndNames {
         param ($Block)
-        $configs = @{}; $names = @{}; $current = ""; $buffer = @()
+        # Build per-interface configuration text using a typed list rather than
+        # repeatedly using "+=" on a PowerShell array.  Array concatenation in a
+        # loop results in O(n^2) behaviour.  A .NET List grows efficiently and
+        # can be converted into a single string with Join when needed.
+        $configs = @{}; $names = @{}; $current = ""
+        $bufferList = New-Object 'System.Collections.Generic.List[string]'
         foreach ($line in $Block) {
             if ($line -match '^interface ethernet (\d+/\d+/\d+)$') {
-                if ($current) { $configs[$current] = ($buffer -join "`n") }
-                $current = ConvertTo-StandardPortName $matches[1]; $buffer = @()
-            }
-            elseif ($line -match 'port-name (.+)') {
+                if ($current) {
+                    $configs[$current] = [string]::Join("`n", $bufferList)
+                }
+                $current = ConvertTo-StandardPortName $matches[1]
+                $bufferList.Clear()
+                continue
+            } elseif ($line -match 'port-name (.+)') {
                 $names[$current] = $matches[1].Trim()
             }
-            if ($current) { $buffer += $line }
+            if ($current) {
+                [void]$bufferList.Add($line)
+            }
         }
-        if ($current) { $configs[$current] = ($buffer -join "`n") }
+        if ($current) {
+            $configs[$current] = [string]::Join("`n", $bufferList)
+        }
         return @($configs, $names)
     }
 
@@ -397,12 +415,41 @@ function Get-BrocadeDeviceFacts {
     $interfaces = Get-InterfacesBrief $interfacesBlock
     $macs       = Get-MacTable $macTableBlock
 
+    # Pre-index the MAC table and authentication rows by port to avoid pipeline
+    # scanning inside the per-interface loop below. Without this, the code
+    # uses Where-Object and ForEach-Object pipelines to filter and project
+    # values for each interface, incurring significant overhead on large
+    # datasets.  Using hash tables and typed lists allows O(1) lookups.
+    $macsByPort = @{}
+    foreach ($m in $macs) {
+        $p = $m.Port
+        if (-not $macsByPort.ContainsKey($p)) {
+            $macsByPort[$p] = New-Object 'System.Collections.Generic.List[string]'
+        }
+        [void]$macsByPort[$p].Add([string]$m.MAC)
+    }
+    $authByPort = @{}
+    foreach ($a in $auth) {
+        # In case multiple auth rows are present for a port, prefer the first
+        if (-not $authByPort.ContainsKey($a.Port)) {
+            $authByPort[$a.Port] = $a
+        }
+    }
+
     $combined = foreach ($iface in $interfaces) {
         $port = $iface.Port
         $interfaceMAC = $iface.MAC
-        $macList = ($macs | Where-Object { $_.Port -eq $port } | ForEach-Object { $_.MAC }) -join ','
-        $authRow = $auth | Where-Object { $_.Port -eq $port }
-        $cfgText = if ($configs.ContainsKey($port)) { $configs[$port] } else { "" }
+        # Use the precomputed lookup to retrieve the list of MAC addresses for this port.
+        # If no entries exist, return an empty string.  Join the typed list into a single comma-separated string.
+        $macList = if ($macsByPort.ContainsKey($port)) {
+            [string]::Join(',', $macsByPort[$port])
+        } else {
+            ''
+        }
+        # Retrieve the auth row for this port, if present, via the pre-indexed dictionary.
+        $authRow = if ($authByPort.ContainsKey($port)) { $authByPort[$port] } else { $null }
+        # Lookup the configuration text for this port or default to an empty string.
+        $cfgText = if ($configs.ContainsKey($port)) { $configs[$port] } else { '' }
         # Prefer the alias/name from the brief output when present; fall back to the
         # description parsed from the config.  Older firmware may not include a
         # Name column in the brief output, so only use the config description

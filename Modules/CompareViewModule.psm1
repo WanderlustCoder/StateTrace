@@ -379,24 +379,40 @@ function Set-CompareFromRows {
         }
     }
 
-    # Compute differences between the two config texts line by line.  Use the cleaned
-    # configuration strings (without the template header) so that the diff reflects
-    # only the interface configuration and not the template label.
-    $lines1 = @(); if ($clean1) { $lines1 = ($clean1 -split "`r?`n" | ForEach-Object { $_.Trim() }) | Where-Object { $_ -ne '' } }
-    $lines2 = @(); if ($clean2) { $lines2 = ($clean2 -split "`r?`n" | ForEach-Object { $_.Trim() }) | Where-Object { $_ -ne '' } }
-    $diff1 = @(); $diff2 = @()
+    # Compute differences between the two config texts line by line using
+    # typed lists instead of ForEach-Object/Where-Object pipelines.  This
+    # avoids per-line script block invocation overhead when trimming and
+    # filtering empty lines, and reduces array reallocation when building
+    # the diff lists.
+    $lines1 = New-Object 'System.Collections.Generic.List[string]'
+    if ($clean1) {
+        foreach ($ln in ($clean1 -split "`r?`n")) {
+            $t = $ln.Trim()
+            if ($t -ne '') { [void]$lines1.Add($t) }
+        }
+    }
+    $lines2 = New-Object 'System.Collections.Generic.List[string]'
+    if ($clean2) {
+        foreach ($ln in ($clean2 -split "`r?`n")) {
+            $t = $ln.Trim()
+            if ($t -ne '') { [void]$lines2.Add($t) }
+        }
+    }
+    $diff1 = New-Object 'System.Collections.Generic.List[string]'
+    $diff2 = New-Object 'System.Collections.Generic.List[string]'
     try {
         $comp = Compare-Object -ReferenceObject $lines1 -DifferenceObject $lines2
         if ($comp) {
-            $diff1 = @($comp | Where-Object { $_.SideIndicator -eq '<=' } | Select-Object -ExpandProperty InputObject)
-            $diff2 = @($comp | Where-Object { $_.SideIndicator -eq '=>' } | Select-Object -ExpandProperty InputObject)
+            foreach ($entry in $comp) {
+                if ($entry.SideIndicator -eq '<=') { [void]$diff1.Add([string]$entry.InputObject) }
+                elseif ($entry.SideIndicator -eq '=>') { [void]$diff2.Add([string]$entry.InputObject) }
+            }
         }
-    }
-    catch {
+    } catch {
         Write-Verbose "[CompareView] Exception during diff computation: $($_.Exception.Message)"
     }
-    if ($script:diff1Box) { $script:diff1Box.Text = ($diff1 -join "`r`n") }
-    if ($script:diff2Box) { $script:diff2Box.Text = ($diff2 -join "`r`n") }
+    if ($script:diff1Box) { $script:diff1Box.Text = ([string]::Join("`r`n", $diff1)) }
+    if ($script:diff2Box) { $script:diff2Box.Text = ([string]::Join("`r`n", $diff2)) }
 }
 
 function Show-CurrentComparison {

@@ -619,6 +619,11 @@ $window.ShowDialog() | Out-Null
 # 9) Cleanup
 $parsedDir = Join-Path $scriptDir '..\ParsedData'
 if (Test-Path $parsedDir) {
-    try { Get-ChildItem $parsedDir -Recurse | Remove-Item -Force -Recurse }
-    catch { Write-Warning "Failed to clear ParsedData: $_" }
+    try {
+        # Faster: remove the directory and recreate it, avoiding an expensive recursive enumeration.
+        Remove-Item -LiteralPath $parsedDir -Recurse -Force -ErrorAction Stop
+        New-Item -ItemType Directory -Path $parsedDir | Out-Null
+    } catch {
+        Write-Warning "Failed to reset ParsedData: $_"
+    }
 }

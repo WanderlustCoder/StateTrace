@@ -170,18 +170,21 @@ function Build-InterfaceObjectsFromDbRow {
     # populating many interface rows, repeatedly scanning the $templates list
     # via Where-Object results in O(n*m) behaviour.  Instead, build a
     # case-insensitive dictionary mapping template names and aliases to their
-    # template object.  Use the lowercase form of each name/alias as the key.
-    $templateLookup = @{}
+    # template object.  Using a .NET Dictionary with an OrdinalIgnoreCase
+    # comparer eliminates the need to call .ToLower() on every key and
+    # provides O(1) lookups.
+    $templateLookup = New-Object 'System.Collections.Generic.Dictionary[string,object]' ([System.StringComparer]::OrdinalIgnoreCase)
     if ($templates) {
         foreach ($tmpl in $templates) {
-            # Normalise the primary name to lower-case and add if not present.
-            $n = ('' + $tmpl.name).ToLower()
-            if (-not $templateLookup.ContainsKey($n)) { $templateLookup[$n] = $tmpl }
+            # Add the primary name as-is.  The dictionary key comparer will treat
+            # different casings as equal.
+            $key = ('' + $tmpl.name)
+            if (-not $templateLookup.ContainsKey($key)) { $templateLookup[$key] = $tmpl }
             # Add each alias as a separate key.  Guard against null alias lists.
             if ($tmpl.aliases) {
                 foreach ($a in $tmpl.aliases) {
-                    $al = ('' + $a).ToLower()
-                    if (-not $templateLookup.ContainsKey($al)) { $templateLookup[$al] = $tmpl }
+                    $aliasKey = ('' + $a)
+                    if (-not $templateLookup.ContainsKey($aliasKey)) { $templateLookup[$aliasKey] = $tmpl }
                 }
             }
         }
@@ -473,6 +476,18 @@ if (-not (Test-StringListEqualCI $currentBuildings $availableBuildings)) {
         if ($bldSel  -and $bldSel  -ne '' -and $meta.Building -ne $bldSel)  { continue }
         if ($roomSel -and $roomSel -ne '' -and $meta.Room     -ne $roomSel) { continue }
         [void]$filteredNames.Add($name)
+    }
+    # Sort the filtered hostnames alphabetically (ascending) using OrdinalIgnoreCase.  This ensures
+    # devices like WLLS-A01-AS-01 appear before WLLS-A07-AS-07 in the drop-down.  After sorting,
+    # move the 'Unknown' entry (if present) to the top of the list for better visibility.
+    if ($filteredNames -and $filteredNames.Count -gt 1) {
+        $filteredNames.Sort([System.StringComparer]::OrdinalIgnoreCase)
+        $unknownIndex = $filteredNames.IndexOf('Unknown')
+        if ($unknownIndex -gt 0) {
+            $tmp = $filteredNames[0]
+            $filteredNames[0] = $filteredNames[$unknownIndex]
+            $filteredNames[$unknownIndex] = $tmp
+        }
     }
     $hostnameDD = $window.FindName('HostnameDropdown')
     # Populate the hostname dropdown with the filtered list.  Selecting the
@@ -1437,7 +1452,15 @@ function Get-InterfaceHostnames {
             Import-Module $dbModule -Force -Global -ErrorAction SilentlyContinue | Out-Null
         }
         $dtHosts = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql 'SELECT Hostname FROM DeviceSummary ORDER BY Hostname'
-        return ($dtHosts | ForEach-Object { $_.Hostname })
+        # Build the list of hostnames using a typed list rather than piping through
+        # ForEach-Object.  Typed lists avoid per-item script block invocation and
+        # repeated array reallocations, improving performance when many hostnames
+        # are returned.  Return the list as an array to preserve original semantics.
+        $hostList = New-Object 'System.Collections.Generic.List[string]'
+        foreach ($row in $dtHosts) {
+            [void]$hostList.Add([string]$row.Hostname)
+        }
+        return ,$hostList.ToArray()
     } catch {
         Write-Warning "Failed to query hostnames from database: $($_.Exception.Message)"
         return @()
@@ -1644,8 +1667,14 @@ function Get-InterfaceList {
         }
         $escHost = $Hostname -replace "'", "''"
         $dt = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT Port FROM Interfaces WHERE Hostname = '$escHost' ORDER BY Port"
-        $ports = $dt | ForEach-Object { $_.Port }
-        return $ports
+        # Build the list of ports using a typed list instead of piping through
+        # ForEach-Object.  This avoids script block invocation per row and
+        # prevents array reallocations when assembling large port lists.
+        $portList = New-Object 'System.Collections.Generic.List[string]'
+        foreach ($row in $dt) {
+            [void]$portList.Add([string]$row.Port)
+        }
+        return ,$portList.ToArray()
     } catch {
         Write-Warning ("Failed to get interface list for {0}: {1}" -f $Hostname, $_.Exception.Message)
         return @()
