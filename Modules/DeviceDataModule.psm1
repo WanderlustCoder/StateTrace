@@ -1460,7 +1460,11 @@ function Get-InterfaceHostnames {
         foreach ($row in $dtHosts) {
             [void]$hostList.Add([string]$row.Hostname)
         }
-        return ,$hostList.ToArray()
+        # Return the array directly.  Using a leading comma would wrap the
+        # array in another array, causing callers to receive a single element
+        # containing all hostnames rather than a flat list.  Returning the
+        # array directly preserves the expected enumerability.
+        return $hostList.ToArray()
     } catch {
         Write-Warning "Failed to query hostnames from database: $($_.Exception.Message)"
         return @()
@@ -1674,7 +1678,11 @@ function Get-InterfaceList {
         foreach ($row in $dt) {
             [void]$portList.Add([string]$row.Port)
         }
-        return ,$portList.ToArray()
+        # Return the port list array directly rather than prefixing a comma.  A
+        # leading comma forces PowerShell to wrap the array in another array,
+        # which can cause callers to receive a single element containing all
+        # ports.  Returning the array directly preserves the expected flat list.
+        return $portList.ToArray()
     } catch {
         Write-Warning ("Failed to get interface list for {0}: {1}" -f $Hostname, $_.Exception.Message)
         return @()
