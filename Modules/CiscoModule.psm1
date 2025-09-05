@@ -15,7 +15,23 @@ function Get-CiscoDeviceFacts {
     # used instead to extract show command outputs.
 
     #-----------------------------------------
-    function Get-Hostname      { param([string[]]$Lines) foreach ($l in $Lines) { if ($l -match '^hostname\s+(.+)$') { return $matches[1] } }; return 'Unknown' }
+    # Updated hostname detection to prefer prompts and then fallback to running-config
+    function Get-Hostname      {
+        param([string[]]$Lines)
+        # Prefer prompt-derived hostname (supports "SSH@host#", "host#", or "host>")
+        foreach ($l in $Lines) {
+            if ($l -match '^(?:SSH@)?(\S+?)[#>]') {
+                return ($matches[1])
+            }
+        }
+        # Fallback to running-config 'hostname <name>'
+        foreach ($l in $Lines) {
+            if ($l -match '^(?i)\s*hostname\s+(.+)$') {
+                return $matches[1]
+            }
+        }
+        return 'Unknown'
+    }
     function Get-ModelAndVersion { param([string[]]$Lines)
         $model='Unknown'; $version='Unknown'
         foreach ($l in $Lines) {
@@ -87,7 +103,10 @@ function Get-CiscoDeviceFacts {
 
     function Get-InterfacesStatus {
         param([string[]]$Lines)
-        $res=@(); $parsing=$false
+        # Use a strongly typed list instead of repeatedly using += on a PowerShell
+        # array.  Array += causes O(n^2) behaviour as the collection grows.
+        $res = New-Object 'System.Collections.Generic.List[object]'
+        $parsing=$false
         foreach ($l in $Lines) {
             if ($l -match '^Port\s+Name\s+Status') { $parsing=$true; continue }
             if ($parsing) {
@@ -95,10 +114,10 @@ function Get-CiscoDeviceFacts {
                 $cols = $l -split '\s+',7
                 if ($cols.Count -ge 7) {
                     $raw = $cols[0]
-                    $res += [PSCustomObject]@{
+                    [void]$res.Add([PSCustomObject]@{
                         RawPort=$raw; Port=$raw; Name=$cols[1]; Status=$cols[2];
                         VLAN=$cols[3]; Duplex=$cols[4]; Speed=$cols[5]; Type=$cols[6]
-                    }
+                    })
                 }
             }
         }
@@ -107,10 +126,11 @@ function Get-CiscoDeviceFacts {
 
     function Get-MacTable {
         param([string[]]$Lines)
-        $list=@()
+        # Use a strongly typed list to avoid O(n^2) growth when appending items.
+        $list = New-Object 'System.Collections.Generic.List[object]'
         foreach ($l in $Lines) {
             if ($l -match '^\s*(\d+)\s+([0-9a-fA-F\.]+)\s+DYNAMIC\s+(\S+)$') {
-                $list += [PSCustomObject]@{ VLAN=$matches[1]; MAC=$matches[2]; Port=$matches[3] }
+                [void]$list.Add([PSCustomObject]@{ VLAN=$matches[1]; MAC=$matches[2]; Port=$matches[3] })
             }
         }
         return $list
@@ -118,7 +138,10 @@ function Get-CiscoDeviceFacts {
 
     function Get-Dot1xStatus {
         param([string[]]$Lines)
-        $list=@(); $inSection=$false
+        # Accumulate dot1x status entries in a strongly typed list rather than
+        # repeatedly reallocating a PowerShell array via '+='.  This improves
+        # performance on large tables.
+        $list = New-Object 'System.Collections.Generic.List[object]'; $inSection=$false
         foreach ($l in $Lines) {
             if ($l -match '^Interface\s+MAC Address') { $inSection=$true; continue }
             if (-not $inSection) { continue }
@@ -141,7 +164,7 @@ function Get-CiscoDeviceFacts {
                     $authState = 'Unknown'
                 }
                 $authMode  = if ($method -match '(?i)dot1x|mab') { $method } else { 'unknown' }
-                $list += [PSCustomObject]@{ Interface=$iface; MAC=$mac; Status=$status; AuthState=$authState; AuthMode=$authMode; SessionID=$cols[-1] }
+                [void]$list.Add([PSCustomObject]@{ Interface=$iface; MAC=$mac; Status=$status; AuthState=$authState; AuthMode=$authMode; SessionID=$cols[-1] })
             }
         }
         return $list
@@ -211,7 +234,8 @@ function Get-CiscoDeviceFacts {
     $macTbl    = $blocks['show mac address-table']
     $authSes   = $blocks['show authentication sessions']
 
-    $hostname  = Get-Hostname      -Lines $runCfg
+    # Use the full original lines to derive the hostname rather than just the running-config
+    $hostname  = Get-Hostname      -Lines $Lines
     $modelVer  = Get-ModelAndVersion -Lines $verBlk
     $uptime    = Get-Uptime        -Lines $verBlk
     $location  = Get-Location      -Lines $runCfg

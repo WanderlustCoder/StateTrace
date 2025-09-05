@@ -78,12 +78,26 @@ function Get-HostsFromMain {
         $hosts = @()
         Write-Warning "[CompareView] Failed to retrieve host list from database: $($_.Exception.Message)"
     }
-    # Clean up host list: trim whitespace, remove blanks, deduplicate
-    $hosts = $hosts |
-        ForEach-Object { ('' + $_).Trim() } |
-        Where-Object { $_ -ne '' } |
-        Select-Object -Unique
-    return $hosts
+    # Clean up host list: trim whitespace, remove blanks and deduplicate.
+    # Use a typed list and a case‑insensitive HashSet to avoid repeated
+    # pipeline passes and array copying.  Typed lists grow amortised O(1).
+    # After deduplication, sort the list alphabetically (case-insensitive) to
+    # provide a consistent ordering in the compare dropdowns.
+    $hostSet  = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    $hostList = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($h in $hosts) {
+        $t = ('' + $h).Trim()
+        if ($t -and $t -ne '' -and $hostSet.Add($t)) {
+            [void]$hostList.Add($t)
+        }
+    }
+    # Sort hostnames alphabetically once all unique names have been collected.  Sorting here
+    # ensures both switch dropdowns in the Compare view are ordered consistently regardless of
+    # the order returned from the database or prior selections.
+    if ($hostList -and $hostList.Count -gt 1) {
+        $hostList.Sort([System.StringComparer]::OrdinalIgnoreCase)
+    }
+    return ,$hostList.ToArray()
 }
 
 function Get-PortSortKey {
@@ -106,50 +120,66 @@ function Get-PortsForHost {
     # if no ports are returned, it falls back to Get-InterfaceInfo to extract
     # port names from full interface objects.
     Write-Verbose "[CompareView] Fetching ports for host '$Hostname'..."
-    $ports = @()
+    # Use typed lists to accumulate and normalise port names.  Avoid
+    # pipeline-based trimming, sorting and deduplication to reduce overhead
+    # when many ports are present.
+    $portsList = New-Object 'System.Collections.Generic.List[string]'
     try {
         if (Get-Command -Name 'Get-InterfaceList' -ErrorAction SilentlyContinue) {
             $list = @(DeviceDataModule\Get-InterfaceList -Hostname $Hostname)
             if ($list -and $list.Count -gt 0) {
-                $ports = @($list | ForEach-Object { '' + $_ })
-                Write-Verbose "[CompareView] Get-InterfaceList returned $($ports.Count) port(s) for '$Hostname'."
+                foreach ($it in $list) {
+                    [void]$portsList.Add(('' + $it))
+                }
+                Write-Verbose "[CompareView] Get-InterfaceList returned $($portsList.Count) port(s) for '$Hostname'."
             }
         }
     } catch {
         Write-Warning "[CompareView] Error calling Get-InterfaceList for '$Hostname': $($_.Exception.Message)"
-        $ports = @()
     }
-    if (-not $ports -or $ports.Count -eq 0) {
+    if ($portsList.Count -eq 0) {
         try {
             if (Get-Command -Name 'Get-InterfaceInfo' -ErrorAction SilentlyContinue) {
                 $info = @(DeviceDataModule\Get-InterfaceInfo -Hostname $Hostname)
                 if ($info -and $info.Count -gt 0) {
-                    $ports = @(
-                        foreach ($r in $info) {
-                            if     ($r -is [string])                                { '' + $r }
-                            elseif ($r.PSObject.Properties['Port'])                 { '' + $r.Port }
-                            elseif ($r.PSObject.Properties['Interface'])            { '' + $r.Interface }
-                            elseif ($r.PSObject.Properties['IfName'])               { '' + $r.IfName }
-                            elseif ($r.PSObject.Properties['Name'])                 { '' + $r.Name }
-                            else                                                    { '' + $r }
-                        }
-                    )
-                    Write-Verbose "[CompareView] Get-InterfaceInfo returned $($ports.Count) port(s) for '$Hostname'."
+                    foreach ($r in $info) {
+                        $val = $null
+                        if     ($r -is [string])                                { $val = '' + $r }
+                        elseif ($r.PSObject.Properties['Port'])                 { $val = '' + $r.Port }
+                        elseif ($r.PSObject.Properties['Interface'])            { $val = '' + $r.Interface }
+                        elseif ($r.PSObject.Properties['IfName'])               { $val = '' + $r.IfName }
+                        elseif ($r.PSObject.Properties['Name'])                 { $val = '' + $r.Name }
+                        else                                                    { $val = '' + $r }
+                        if ($val) { [void]$portsList.Add($val) }
+                    }
+                    Write-Verbose "[CompareView] Get-InterfaceInfo returned $($portsList.Count) port(s) for '$Hostname'."
                 }
             }
         } catch {
             Write-Warning "[CompareView] Error calling Get-InterfaceInfo for '$Hostname': $($_.Exception.Message)"
-            $ports = @()
         }
     }
-    # Normalize, natural-sort, and deduplicate the list
-    $ports = $ports |
-        ForEach-Object { ('' + $_).Trim() } |
-        Where-Object   { $_ -ne '' } |
-        Sort-Object    { Get-PortSortKey $_ }
-    $ports = $ports | Select-Object -Unique
-    Write-Verbose "[CompareView] Final port list for '$Hostname': $($ports.Count) port(s)."
-    return $ports
+    # Normalise, deduplicate and sort using a HashSet and typed list.  Use a
+    # case‑insensitive set for uniqueness and stable insertion order.  Sort
+    # using the port sort key for natural ordering.
+    $set = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    $finalList = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($p in $portsList) {
+        $t = ('' + $p).Trim()
+        if ($t -and $t -ne '' -and $set.Add($t)) {
+            [void]$finalList.Add($t)
+        }
+    }
+    # Define a comparison delegate that uses the port sort key for ordering
+    $comp = [System.Comparison[string]]{
+        param($a,$b)
+        $k1 = DeviceDataModule\Get-PortSortKey -Port $a
+        $k2 = DeviceDataModule\Get-PortSortKey -Port $b
+        return [System.StringComparer]::OrdinalIgnoreCase.Compare($k1, $k2)
+    }
+    $finalList.Sort($comp)
+    Write-Verbose "[CompareView] Final port list for '$Hostname': $($finalList.Count) port(s)."
+    return ,$finalList.ToArray()
 }
 
 function Set-PortsForCombo {

@@ -93,12 +93,23 @@ function Split-RawLogs {
             continue
         }
 
-        # Sort markers by index.  Wrap in array syntax to preserve Count when
-        # only one marker exists.  Report summary to aid debugging.
-        # Convert sorted array back into a List[object] to maintain type consistency
-        $hostMarkers = [System.Collections.Generic.List[object]]::new(($hostMarkers | Sort-Object Index))
-        $markerStrings = $hostMarkers | ForEach-Object { "$($_.Hostname)@$($_.Index)" }
-        $markerSummary = $markerStrings -join ', '
+        # Sort markers by index using an in-place .NET sort rather than the
+        # Sort-Object pipeline.  Define a comparison delegate that compares
+        # the Index property numerically.  In-place sorting avoids creating
+        # a new array and eliminates pipeline overhead.
+        $comp = [System.Comparison[object]]{
+            param($a, $b)
+            return [System.Int32]::Compare($a.Index, $b.Index)
+        }
+        $hostMarkers.Sort($comp)
+        # Build a comma-separated summary of markers using a typed list
+        # instead of piping through ForEach-Object.  This reduces
+        # allocations and improves performance when many hosts are present.
+        $markerList = New-Object 'System.Collections.Generic.List[string]'
+        foreach ($m in $hostMarkers) {
+            [void]$markerList.Add("$($m.Hostname)@$($m.Index)")
+        }
+        $markerSummary = $markerList -join ', '
         Write-Host "Host markers for '$($file.Name)': $markerSummary"
         Write-Host "Total host markers found in '$($file.Name)': $($hostMarkers.Count)"
 
@@ -516,17 +527,30 @@ function Remove-OldArchiveFolder {
         [string]$DeviceArchivePath,
         [int]$RetentionDays = 30
     )
+    # If the archive path does not exist, do nothing.
     if (-not (Test-Path $DeviceArchivePath)) { return }
 
-    Get-ChildItem $DeviceArchivePath -Directory | Where-Object {
+    # Precompute the cutoff date once.  Any archive folder with a date older
+    # than this will be deleted.  Using a foreach loop instead of piping
+    # through Where-Object and ForEach-Object avoids the overhead of the
+    # PowerShell pipeline and yields linear performance on large numbers
+    # of archive folders.
+    $cutoff = (Get-Date).AddDays(-$RetentionDays)
+    foreach ($folder in (Get-ChildItem -Path $DeviceArchivePath -Directory)) {
         $folderDate = $null
         try {
-            $folderDate = [datetime]::ParseExact($_.Name, 'yyyy-MM-dd', [System.Globalization.CultureInfo]::InvariantCulture)
-        } catch { return $false }
-        return $folderDate -lt (Get-Date).AddDays(-$RetentionDays)
-    } | ForEach-Object {
-        try { Remove-Item $_.FullName -Recurse -Force }
-        catch { Write-Warning "Failed to delete archive '$_': $($_.Exception.Message)" }
+            $folderDate = [datetime]::ParseExact($folder.Name, 'yyyy-MM-dd', [System.Globalization.CultureInfo]::InvariantCulture)
+        } catch {
+            # Skip folders whose names do not match the expected date format
+            continue
+        }
+        if ($folderDate -lt $cutoff) {
+            try {
+                Remove-Item $folder.FullName -Recurse -Force
+            } catch {
+                Write-Warning "Failed to delete archive '$($folder.FullName)': $($_.Exception.Message)"
+            }
+        }
     }
 }
 
@@ -759,13 +783,15 @@ function Update-InterfacesInDb {
     $runDateLiteral = "#$RunDateString#"
     foreach ($iface in $ifaceRecords) {
         # Extract scalar fields safely
-        $port   = ($iface.PSObject.Properties['Port']   | ForEach-Object { $_.Value }) -join ''
-        $name   = ($iface.PSObject.Properties['Name']   | ForEach-Object { $_.Value }) -join ''
-        $status = ($iface.PSObject.Properties['Status'] | ForEach-Object { $_.Value }) -join ''
-        $vlan   = ($iface.PSObject.Properties['VLAN']   | ForEach-Object { $_.Value }) -join ''
-        $duplex = ($iface.PSObject.Properties['Duplex'] | ForEach-Object { $_.Value }) -join ''
-        $speed  = ($iface.PSObject.Properties['Speed']  | ForEach-Object { $_.Value }) -join ''
-        $type   = ($iface.PSObject.Properties['Type']   | ForEach-Object { $_.Value }) -join ''
+        # Avoid the ForEach-Object pipeline here; directly access the property values.
+        # Casting to string via ''+ ensures nulls become empty strings without additional allocations.
+        $port   = '' + $iface.Port
+        $name   = '' + $iface.Name
+        $status = '' + $iface.Status
+        $vlan   = '' + $iface.VLAN
+        $duplex = '' + $iface.Duplex
+        $speed  = '' + $iface.Speed
+        $type   = '' + $iface.Type
         $learned = ''
         if ($iface.PSObject.Properties.Name -contains 'LearnedMACs') {
             $learned = $iface.LearnedMACs -join ','
@@ -1243,7 +1269,11 @@ function Split-RawLogs {
         Write-Host "Reading file: $($file.FullName)"
         $lines = Get-Content $file.FullName
         Write-Host "Loaded $($lines.Count) lines from '$($file.Name)'"
-        $hostMarkers = @()
+        # Collect host markers using a typed list.  A List[psobject] grows
+        # amortised O(1) and avoids O(n^2) array reallocation when
+        # appending many markers.  A typed list also retains indexing
+        # semantics used later in this loop.
+        $hostMarkers = New-Object 'System.Collections.Generic.List[psobject]'
 
         # Find hostnames in the file.  A hostname line looks like "hostname <name>".
         # For each hostname, search the file for the earliest prompt matching
@@ -1261,10 +1291,10 @@ function Split-RawLogs {
                         $regex = "(?i)^\s*$([regex]::Escape($pattern))"
                         if ($lines[$j] -match $regex) {
                             Write-Host "    Found prompt '$pattern' at line $j"
-                            $hostMarkers += [PSCustomObject]@{
+                            [void]$hostMarkers.Add([PSCustomObject]@{
                                 Hostname = $hostname
                                 Index    = $j
-                            }
+                            })
                             $foundPromptForHost = $true
                             break
                         }
@@ -1273,10 +1303,10 @@ function Split-RawLogs {
                 }
                 if (-not $foundPromptForHost) {
                     Write-Host "  No prompt found for hostname '$hostname', defaulting to start of file"
-                    $hostMarkers += [PSCustomObject]@{
+                    [void]$hostMarkers.Add([PSCustomObject]@{
                         Hostname = $hostname
                         Index    = 0
-                    }
+                    })
                 }
             }
         }
@@ -1286,11 +1316,20 @@ function Split-RawLogs {
             continue
         }
 
-        # Sort markers by index.  Wrap in array syntax to preserve Count when
-        # only one marker exists.  Report summary to aid debugging.
-        $hostMarkers = @($hostMarkers | Sort-Object Index)
-        $markerStrings = $hostMarkers | ForEach-Object { "$($_.Hostname)@$($_.Index)" }
-        $markerSummary = $markerStrings -join ', '
+        # Sort markers by index in place.  Avoid the Sort-Object pipeline
+        # which creates a new array and boxes/unboxes objects.  A
+        # Comparison delegate sorts the typed list efficiently.
+        $cmpHostMarkers = [System.Comparison[psobject]]{
+            param($a, $b)
+            return $a.Index.CompareTo($b.Index)
+        }
+        $hostMarkers.Sort($cmpHostMarkers)
+        # Build a comma-separated summary of host markers without pipelines.
+        $markerStrList = New-Object 'System.Collections.Generic.List[string]'
+        foreach ($m in $hostMarkers) {
+            [void]$markerStrList.Add("$($m.Hostname)@$($m.Index)")
+        }
+        $markerSummary = $markerStrList -join ', '
         Write-Host "Host markers for '$($file.Name)': $markerSummary"
         Write-Host "Total host markers found in '$($file.Name)': $($hostMarkers.Count)"
 
@@ -1483,7 +1522,9 @@ function Split-RawLogs {
         Write-Host "Reading file: $($file.FullName)"
         $lines = Get-Content $file.FullName
         Write-Host "Loaded $($lines.Count) lines from '$($file.Name)'"
-        $hostMarkers = @()
+        # Initialise hostMarkers as a typed list for this pass as well.  A
+        # List[psobject] avoids O(n^2) reallocations when appending markers.
+        $hostMarkers = New-Object 'System.Collections.Generic.List[psobject]'
 
         # Find hostnames in the file.  A hostname line looks like "hostname <name>".
         # For each hostname, search the file for the earliest prompt matching
@@ -1501,10 +1542,10 @@ function Split-RawLogs {
                         $regex = "(?i)^\s*$([regex]::Escape($pattern))"
                         if ($lines[$j] -match $regex) {
                             Write-Host "    Found prompt '$pattern' at line $j"
-                            $hostMarkers += [PSCustomObject]@{
+                            [void]$hostMarkers.Add([PSCustomObject]@{
                                 Hostname = $hostname
                                 Index    = $j
-                            }
+                            })
                             $foundPromptForHost = $true
                             break
                         }
@@ -1513,10 +1554,10 @@ function Split-RawLogs {
                 }
                 if (-not $foundPromptForHost) {
                     Write-Host "  No prompt found for hostname '$hostname', defaulting to start of file"
-                    $hostMarkers += [PSCustomObject]@{
+                    [void]$hostMarkers.Add([PSCustomObject]@{
                         Hostname = $hostname
                         Index    = 0
-                    }
+                    })
                 }
             }
         }
@@ -1526,11 +1567,18 @@ function Split-RawLogs {
             continue
         }
 
-        # Sort markers by index.  Wrap in array syntax to preserve Count when
-        # only one marker exists.  Report summary to aid debugging.
-        $hostMarkers = @($hostMarkers | Sort-Object Index)
-        $markerStrings = $hostMarkers | ForEach-Object { "$($_.Hostname)@$($_.Index)" }
-        $markerSummary = $markerStrings -join ', '
+        # Sort markers by index in place.  Avoid Sort-Object pipeline overhead.
+        $cmpHostMarkers2 = [System.Comparison[psobject]]{
+            param($a, $b)
+            return $a.Index.CompareTo($b.Index)
+        }
+        $hostMarkers.Sort($cmpHostMarkers2)
+        # Build marker summary without ForEach-Object pipeline.
+        $markerStrList2 = New-Object 'System.Collections.Generic.List[string]'
+        foreach ($m in $hostMarkers) {
+            [void]$markerStrList2.Add("$($m.Hostname)@$($m.Index)")
+        }
+        $markerSummary = $markerStrList2 -join ', '
         Write-Host "Host markers for '$($file.Name)': $markerSummary"
         Write-Host "Total host markers found in '$($file.Name)': $($hostMarkers.Count)"
 

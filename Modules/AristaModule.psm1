@@ -52,7 +52,10 @@
     }
 
     function Get-Interfaces {
-        $results = @()
+        # Use a typed List[object] for accumulating interface records.  Avoid
+        # using the '+=' operator on arrays because it reallocates the array
+        # for every append, resulting in O(n^2) behaviour on large tables.
+        $results = New-Object 'System.Collections.Generic.List[object]'
         $parsing = $false
         foreach ($line in $Lines) {
             if ($line -match "^\s*Port\s+Name\s+Status\s+Vlan\s+Duplex\s+Speed\s+Type") {
@@ -60,7 +63,7 @@
                 continue
             }
             if ($parsing -and $line -match "^\s*(Et\d+(?:/\d+)*|Po\d+|Ma\d*)\s+(.*?)\s+(connected|notconnect|errdisabled|disabled)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+.*)$") {
-                $results += [PSCustomObject]@{
+                $ifaceObj = [PSCustomObject]@{
                     Port   = $matches[1]
                     Name   = $matches[2].Trim()
                     Status = $matches[3]
@@ -69,6 +72,7 @@
                     Speed  = $matches[6]
                     Type   = $matches[7]
                 }
+                [void]$results.Add($ifaceObj)
             }
             if ($parsing -and $line -match "^\s*$") {
                 break
@@ -78,7 +82,8 @@
     }
 
     function Get-MacTable {
-        $results      = @()
+        # Use a typed List[object] to accumulate MAC table entries efficiently.
+        $results      = New-Object 'System.Collections.Generic.List[object]'
         $inMacSection = $false
         foreach ($line in $Lines) {
             if ($line -match "^\s*Vlan\s+Mac\s+Address\s+Type\s+Ports") {
@@ -89,19 +94,21 @@
                 break
             }
             if ($inMacSection -and $line -match "^\s*(\d+)\s+([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})\s+(\S+)\s+(\S+)\b") {
-                $results += [PSCustomObject]@{
+                $entry = [PSCustomObject]@{
                     VLAN = $matches[1]
                     MAC  = $matches[2]
                     Type = $matches[3]
                     Port = $matches[4]
                 }
+                [void]$results.Add($entry)
             }
         }
         return $results
     }
 
     function Get-Dot1xStatus {
-        $results = @()
+        # Use a typed List[object] to accumulate dot1x status entries.
+        $results = New-Object 'System.Collections.Generic.List[object]'
         $parsing = $false
         foreach ($line in $Lines) {
             if ($line -match "^\s*Port\s+Authorized\s+Mode\s+MAC\s+Address\s+Vlan") {
@@ -112,13 +119,14 @@
                 break
             }
             if ($parsing -and $line -match "^\s*(Et\d+(?:/\d+)*|Po\d+|Ma\d*)\s+(\S+)\s+(\S+)(?:\s+([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4}))?(?:\s+(\d+))?") {
-                $results += [PSCustomObject]@{
-                    Port = $matches[1]
+                $entry = [PSCustomObject]@{
+                    Port  = $matches[1]
                     State = $matches[2]
                     Mode  = $matches[3]
                     MAC   = if ($matches[4]) { $matches[4] } else { "" }
                     VLAN  = if ($matches[5]) { $matches[5] } else { "" }
                 }
+                [void]$results.Add($entry)
             }
         }
         return $results
@@ -133,14 +141,16 @@
         $line = $Lines[$i]
         if ($line -imatch "^\s*interface\s+(?:Et|Ethernet)(\d+(?:/\d+)*)\b") {
             $portName    = "Et" + $matches[1]
-            $configLines = @($line)
+            # Accumulate config lines in a typed List[string] for efficiency
+            $configLines = New-Object 'System.Collections.Generic.List[string]'
+            [void]$configLines.Add($line)
             $j           = $i + 1
             while ($j -lt $Lines.Count) {
                 $next = $Lines[$j]
                 if ($next -match "^\s*$" -or $next -imatch "^\s*interface\s+") {
                     break
                 }
-                $configLines += $next
+                [void]$configLines.Add($next)
                 $j++
             }
             $ht[$portName] = $configLines -join "`r`n"
@@ -214,7 +224,9 @@
     #
     # 4) Build CombinedInterfaces array with an extra Config property
     #
-    $combinedInterfaces = @()
+    # Use a typed List[object] to accumulate combined interface objects to
+    # avoid repeated array copying via '+=' which leads to O(n^2) growth.
+    $combinedInterfaces = New-Object 'System.Collections.Generic.List[object]'
     foreach ($iface in $interfaces) {
         # a) All learned MACs for this port
         $learnedMACs = $macs | Where-Object { $_.Port -eq $iface.Port } | ForEach-Object { $_.MAC }
@@ -239,7 +251,7 @@
         $cfgText = if ($configs.ContainsKey($iface.Port)) { $configs[$iface.Port] } else { "" }
 
         # d) Combine into one PSCustomObject
-        $combinedInterfaces += [PSCustomObject]@{
+        $ciObj = [PSCustomObject]@{
             Port          = $iface.Port
             Name          = $iface.Name
             Status        = $iface.Status
@@ -259,6 +271,7 @@
             # (Optional) Template property can be added here if you parse it from the log:
             # Template     = $someLookupFunction($iface.Port)
         }
+        [void]$combinedInterfaces.Add($ciObj)
     }
 
     #

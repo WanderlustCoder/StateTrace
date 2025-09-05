@@ -10,6 +10,34 @@ if (-not (Get-Variable -Name InterfacesFilterTimer -Scope Script -ErrorAction Si
     $script:InterfacesFilterTimer = $null
 }
 
+# Helper: Gather selected or checked interface rows using typed lists.  This function
+# returns a List[object] to avoid O(n^2) growth seen with PowerShell array +=.
+function Get-SelectedInterfaceRows {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Windows.Controls.DataGrid]$Grid
+    )
+    # Collect rows explicitly selected in the grid
+    $selected = [System.Collections.Generic.List[object]]::new()
+    foreach ($r in @($Grid.SelectedItems)) {
+        [void]$selected.Add($r)
+    }
+    # Collect rows that have the IsSelected checkbox set
+    $checked = [System.Collections.Generic.List[object]]::new()
+    if ($Grid.ItemsSource -is [System.Collections.IEnumerable]) {
+        foreach ($it in $Grid.ItemsSource) {
+            $prop = $it.PSObject.Properties['IsSelected']
+            if ($prop -and $prop.Value) {
+                [void]$checked.Add($it)
+            }
+        }
+    }
+    # Prefer checked rows when present
+    if ($checked.Count -gt 0) { return $checked }
+    return $selected
+}
+
 # Define a default path to the Interfaces view XAML.  This allows the
 # module to locate its own view definition relative to its installation
 # directory without relying on external variables such as `$ScriptDir`.
@@ -203,34 +231,16 @@ function New-InterfacesView {
             [System.Windows.MessageBox]::Show("Interfaces grid not found.")
             return
         }
-
-        # Commit any pending edits before we read selections
+        # Commit any pending edits before reading selections
         [void]$grid.CommitEdit([System.Windows.Controls.DataGridEditingUnit]::Cell, $true)
         [void]$grid.CommitEdit([System.Windows.Controls.DataGridEditingUnit]::Row,  $true)
-
-        # 1) Rows explicitly highlighted/selected in the grid
-        $selectedRows = @($grid.SelectedItems)
-
-        # 2) Rows checked via the checkbox column (robust to items w/o IsSelected)
-        $itemsEnum = @()
-        if ($grid.ItemsSource -is [System.Collections.IEnumerable]) {
-            $itemsEnum = @($grid.ItemsSource)
-        }
-        $checkedRows = @()
-        foreach ($item in $itemsEnum) {
-            $prop = $item.PSObject.Properties['IsSelected']  # safe under StrictMode
-            if ($prop -and $prop.Value) {
-                $checkedRows += $item
-            }
-        }
-
-        # Prefer checked boxes; fall back to selected rows
-        if     ($checkedRows.Count  -eq 2) { $int1,$int2 = $checkedRows }
-        elseif ($selectedRows.Count -eq 2) { $int1,$int2 = $selectedRows }
-        else {
+        # Gather checked or selected rows using typed-list helper
+        $rows = Get-SelectedInterfaceRows -Grid $grid
+        if ($rows.Count -ne 2) {
             [System.Windows.MessageBox]::Show("Select (or check) exactly two interfaces to compare.")
             return
         }
+        $int1,$int2 = $rows
 
         # Validate we have needed fields
         foreach ($int in @($int1,$int2)) {
@@ -274,25 +284,9 @@ function New-InterfacesView {
         $configureButton.Add_Click({
             # Use globally scoped grid and dropdown to avoid out-of-scope errors
             $grid = $global:interfacesGrid
-            # Collect currently selected rows from the grid
-            $selectedRows = @($grid.SelectedItems)
-            # Also consider any rows checked via the IsSelected property in the checkbox column
-            $checkedRows = @()
-            try {
-                $itemsEnum = @()
-                if ($grid.ItemsSource -is [System.Collections.IEnumerable]) {
-                    $itemsEnum = @($grid.ItemsSource)
-                }
-                foreach ($item in $itemsEnum) {
-                    $prop = $item.PSObject.Properties['IsSelected']
-                    if ($prop -and $prop.Value) { $checkedRows += $item }
-                }
-            } catch {}
-            # Prefer checked rows when present; otherwise fall back to selected rows
-            if ($checkedRows.Count -gt 0) {
-                $selectedRows = $checkedRows
-            }
-            if (-not $selectedRows -or $selectedRows.Count -eq 0) {
+            # Gather rows using helper; prefer checked rows
+            $selectedRows = Get-SelectedInterfaceRows -Grid $grid
+            if ($selectedRows.Count -eq 0) {
                 [System.Windows.MessageBox]::Show("No interfaces selected.")
                 return
             }
@@ -385,23 +379,9 @@ function New-InterfacesView {
         $copyDetailsButton.Add_Click({
             # Use global interfaces grid to read selected items
             $grid = $global:interfacesGrid
-            # Gather selected rows and any rows checked via IsSelected
-            $selectedRows = @($grid.SelectedItems)
-            $checkedRows  = @()
-            try {
-                $itemsEnum = @()
-                if ($grid.ItemsSource -is [System.Collections.IEnumerable]) {
-                    $itemsEnum = @($grid.ItemsSource)
-                }
-                foreach ($item in $itemsEnum) {
-                    $prop = $item.PSObject.Properties['IsSelected']
-                    if ($prop -and $prop.Value) { $checkedRows += $item }
-                }
-            } catch {}
-            if ($checkedRows.Count -gt 0) {
-                $selectedRows = $checkedRows
-            }
-            if (-not $selectedRows -or $selectedRows.Count -eq 0) {
+            # Gather selected or checked rows using helper
+            $selectedRows = Get-SelectedInterfaceRows -Grid $grid
+            if ($selectedRows.Count -eq 0) {
                 [System.Windows.MessageBox]::Show("No interfaces selected.")
                 return
             }

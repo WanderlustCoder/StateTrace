@@ -160,7 +160,32 @@ function Build-InterfaceObjectsFromDbRow {
     } else {
         return @()
     }
-    $resultList = @()
+    # Use a strongly typed List[object] instead of a PowerShell array.  Using
+    # the array '+=' operator repeatedly allocates a new array on every append,
+    # resulting in O(n^2) behaviour as the list grows.  A .NET List grows
+    # amortised O(1) and can be enumerated the same way as a normal array.
+    $resultList = New-Object 'System.Collections.Generic.List[object]'
+
+    # Precompute a lookup table for compliance templates when available.  When
+    # populating many interface rows, repeatedly scanning the $templates list
+    # via Where-Object results in O(n*m) behaviour.  Instead, build a
+    # case-insensitive dictionary mapping template names and aliases to their
+    # template object.  Use the lowercase form of each name/alias as the key.
+    $templateLookup = @{}
+    if ($templates) {
+        foreach ($tmpl in $templates) {
+            # Normalise the primary name to lower-case and add if not present.
+            $n = ('' + $tmpl.name).ToLower()
+            if (-not $templateLookup.ContainsKey($n)) { $templateLookup[$n] = $tmpl }
+            # Add each alias as a separate key.  Guard against null alias lists.
+            if ($tmpl.aliases) {
+                foreach ($a in $tmpl.aliases) {
+                    $al = ('' + $a).ToLower()
+                    if (-not $templateLookup.ContainsKey($al)) { $templateLookup[$al] = $tmpl }
+                }
+            }
+        }
+    }
     foreach ($row in $rows) {
         if (-not $row) { continue }
         # Safely extract fields; some properties may not exist on all row types.
@@ -199,11 +224,12 @@ function Build-InterfaceObjectsFromDbRow {
         # If no explicit values were provided, look up the template colour and status.
         if (-not $hasPortColor -or -not $hasConfigStatus) {
             $match = $null
-            if ($templates -and $authTemplate) {
-                $match = $templates | Where-Object {
-                    $_.name -ieq $authTemplate -or
-                    ($_.aliases -and ($_.aliases -contains $authTemplate))
-                } | Select-Object -First 1
+            if ($authTemplate) {
+                # Perform a case-insensitive lookup in the prebuilt template map.  The keys
+                # are normalised to lower-case.  Avoid scanning the entire templates
+                # array on every interface row.
+                $key = ('' + $authTemplate).ToLower()
+                if ($templateLookup.ContainsKey($key)) { $match = $templateLookup[$key] }
             }
             if (-not $hasPortColor) {
                 if ($match) { $portColorVal = $match.color } else { $portColorVal = 'Gray' }
@@ -229,7 +255,7 @@ function Build-InterfaceObjectsFromDbRow {
             }
         }
         # Build the PSCustomObject for this interface.  Use the provided Hostname for all entries.
-        $resultList += [PSCustomObject]@{
+        [void]$resultList.Add([PSCustomObject]@{
             Hostname      = $Hostname
             Port          = $(if ($row.PSObject.Properties['Port']) { $row.Port } else { $null })
             Name          = $(if ($row.PSObject.Properties['Name']) { $row.Name } else { $null })
@@ -246,7 +272,7 @@ function Build-InterfaceObjectsFromDbRow {
             IsSelected    = $false
             ConfigStatus  = $cfgStatusVal
             PortColor     = $portColorVal
-        }
+        })
     }
     return $resultList
 }
@@ -390,15 +416,16 @@ function Update-DeviceFilter {
     # Step 1: Build and refresh the list of available buildings for the
     # currently selected site.  Capture the user's current building
     # selection so it can be restored after repopulating the dropdown.
-    $availableBuildings = @()
-    foreach ($name in $DeviceMetadata.Keys) {
-        $meta = $DeviceMetadata[$name]
-        if ($siteSel -and $siteSel -ne '' -and $meta.Site -ne $siteSel) { continue }
-        if ($meta.Building -ne '') { $availableBuildings += $meta.Building }
-    }
-    # Remove duplicates from the building list using a HashSet before sorting.
+    #
+    # Instead of building an intermediate PowerShell array via '+=' (which
+    # grows O(n^2) for large inventories), accumulate unique buildings
+    # directly into a HashSet.  This eliminates repeated array copies and
+    # duplicates up front.  After the loop, convert the set to a typed
+    # List[string] and sort it once.
     $buildingSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
-    foreach ($b in $availableBuildings) {
+    foreach ($meta in $DeviceMetadata.Values) {
+        if ($siteSel -and $siteSel -ne '' -and $meta.Site -ne $siteSel) { continue }
+        $b = $meta.Building
         if (-not [string]::IsNullOrWhiteSpace($b)) { [void]$buildingSet.Add($b) }
     }
     $availableBuildings = [System.Collections.Generic.List[string]]::new($buildingSet)
@@ -461,16 +488,15 @@ if (-not (Test-StringListEqualCI $currentBuildings $availableBuildings)) {
     # either the site or building has changed to prevent a stale room from
     # remaining selected.  When neither parent changed, preserve the room
     # selection if the list of available rooms is identical.
-    $availableRooms = @()
-    foreach ($name in $DeviceMetadata.Keys) {
-        $meta = $DeviceMetadata[$name]
+    #
+    # Build the set of unique room values directly rather than using array
+    # '+=' semantics.  This avoids O(n^2) array growth and removes
+    # duplicates up front.  Convert to a typed List[string] and sort.
+    $roomSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($meta in $DeviceMetadata.Values) {
         if ($siteSel -and $siteSel -ne '' -and $meta.Site -ne $siteSel) { continue }
         if ($bldSel  -and $bldSel  -ne '' -and $meta.Building -ne $bldSel) { continue }
-        if ($meta.Room -ne '') { $availableRooms += $meta.Room }
-    }
-    # Remove duplicates from the rooms list using a HashSet before sorting.
-    $roomSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
-    foreach ($r in $availableRooms) {
+        $r = $meta.Room
         if (-not [string]::IsNullOrWhiteSpace($r)) { [void]$roomSet.Add($r) }
     }
     $availableRooms = [System.Collections.Generic.List[string]]::new($roomSet)
@@ -540,7 +566,11 @@ function Get-DeviceDetails {
         if ($useDb) {
             $hostTrim = ($hostname -as [string]).Trim()
             $escHost   = $hostTrim -replace "'", "''"
-            $charCodes = ($hostTrim.ToCharArray() | ForEach-Object { [int]$_ }) -join ','
+            # Build a comma-separated list of character codes using a typed list
+            # to avoid the overhead of piping each character through ForEach-Object.
+            $charCodesList = New-Object 'System.Collections.Generic.List[int]'
+            foreach ($ch in $hostTrim.ToCharArray()) { [void]$charCodesList.Add([int]$ch) }
+            $charCodes = [string]::Join(',', $charCodesList)
 
             $summarySql = "SELECT Hostname, Make, Model, Uptime, Ports, AuthDefaultVLAN, Building, Room " +
                           "FROM DeviceSummary " +
@@ -1042,128 +1072,118 @@ ORDER BY i.Hostname, i.Port
 
 function Update-SearchResults {
     param([string]$Term)
-    # Do not pre-normalize the search term to lowercase.  Case-insensitive
-    # comparisons are handled via StringComparison.OrdinalIgnoreCase in the
-    # filters below.  Assign the term directly.
+    # Do not pre-normalize the search term to lowercase.  Case-insensitive comparisons
+    # are handled via StringComparison.OrdinalIgnoreCase in the filters below.  Assign
+    # the term directly.
     $t = $Term
-    # Always honour the location (site/building/room) filters, even when
-    # the search term is blank.  Use the helper to retrieve the current
-    # selections from the main window.  An empty selection represents
-    # "All" so we do not apply that filter.
+    # Always honour the location (site/building/room) filters, even when the search
+    # term is blank.  Retrieve selections once and reuse for each row.
     $loc = Get-SelectedLocation
     $siteSel = $loc.Site
     $bldSel  = $loc.Building
     $roomSel = $loc.Room
-
-    return $global:AllInterfaces | Where-Object {
-        $row = $_
+    # Acquire status and authorization filter selections once.  Lookup via the
+    # search view controls is potentially expensive, so avoid repeating it for
+    # every row.
+    $statusFilterVal = 'All'
+    $authFilterVal   = 'All'
+    try {
+        $searchHostCtrl = $global:window.FindName('SearchInterfacesHost')
+        if ($searchHostCtrl) {
+            $view = $searchHostCtrl.Content
+            if ($view) {
+                $statusCtrl = $view.FindName('StatusFilter')
+                $authCtrl   = $view.FindName('AuthFilter')
+                if ($statusCtrl -and $statusCtrl.SelectedItem) {
+                    $statusFilterVal = $statusCtrl.SelectedItem.Content
+                }
+                if ($authCtrl -and $authCtrl.SelectedItem) {
+                    $authFilterVal = $authCtrl.SelectedItem.Content
+                }
+            }
+        }
+    } catch {
+    }
+    # Create a typed list for results.  Using a .NET List avoids O(n^2) array growth
+    # when appending many matching rows.
+    $results = New-Object 'System.Collections.Generic.List[object]'
+    # Determine if term is empty once
+    $termEmpty = [string]::IsNullOrWhiteSpace($Term)
+    foreach ($row in $global:AllInterfaces) {
+        if (-not $row) { continue }
         # Cast row metadata to strings to ensure comparisons succeed.  When
         # the CSV values are numeric, the cast prevents mismatches when
         # comparing against the dropdown selections (which are strings).
-        $rowSite     = [string]$row.Site
-        $rowBuilding = [string]$row.Building
-        $rowRoom     = [string]$row.Room
-        # Apply site/building/room filtering first.  Skip rows that
-        # don't match the selected values.  If the selection is blank
-        # ("All"), then all values are permitted for that field.
-        if ($siteSel -and $siteSel -ne '' -and ($rowSite -ne $siteSel)) { return $false }
-        if ($bldSel  -and $bldSel  -ne '' -and ($rowBuilding -ne $bldSel)) { return $false }
-        if ($roomSel -and $roomSel -ne '' -and ($rowRoom     -ne $roomSel)) { return $false }
-        # Apply status and authorization filters.  Retrieve the selections
-        # from the search view's StatusFilter and AuthFilter combo boxes.
-        # Default to 'All' when no selection is present.  Treat 'Up'
-        # equivalently to both 'Up' and 'connected', and 'Down' as both
-        # 'Down' and 'notconnect'.  Authorisation filter matches exactly
-        # 'Authorized' or everything else.
-        $statusFilterVal = 'All'
-        $authFilterVal   = 'All'
-        try {
-            $searchHostCtrl = $global:window.FindName('SearchInterfacesHost')
-            if ($searchHostCtrl) {
-                $view = $searchHostCtrl.Content
-                if ($view) {
-                    $statusCtrl = $view.FindName('StatusFilter')
-                    $authCtrl   = $view.FindName('AuthFilter')
-                    if ($statusCtrl -and $statusCtrl.SelectedItem) {
-                        $statusFilterVal = $statusCtrl.SelectedItem.Content
-                    }
-                    if ($authCtrl -and $authCtrl.SelectedItem) {
-                        $authFilterVal = $authCtrl.SelectedItem.Content
-                    }
-                }
-            }
-        } catch {}
-        # Evaluate status filter
+        $rowSite     = '' + $row.Site
+        $rowBuilding = '' + $row.Building
+        $rowRoom     = '' + $row.Room
+        # Apply location filtering
+        if ($siteSel -and $siteSel -ne '' -and ($rowSite -ne $siteSel)) { continue }
+        if ($bldSel  -and $bldSel  -ne '' -and ($rowBuilding -ne $bldSel))  { continue }
+        if ($roomSel -and $roomSel -ne '' -and ($rowRoom     -ne $roomSel)) { continue }
+        # Apply status filter
         if ($statusFilterVal -ne 'All') {
-            # Safely convert the status to a string.  Avoid normalizing to lowercase;
-            # instead use StringComparer.OrdinalIgnoreCase for comparisons.
             $st = '' + $row.Status
             if ($statusFilterVal -eq 'Up') {
                 if (-not ([System.StringComparer]::OrdinalIgnoreCase.Equals($st, 'up') -or
                           [System.StringComparer]::OrdinalIgnoreCase.Equals($st, 'connected'))) {
-                    return $false
+                    continue
                 }
             } elseif ($statusFilterVal -eq 'Down') {
                 if (-not ([System.StringComparer]::OrdinalIgnoreCase.Equals($st, 'down') -or
                           [System.StringComparer]::OrdinalIgnoreCase.Equals($st, 'notconnect'))) {
-                    return $false
+                    continue
                 }
             }
         }
-        # Evaluate authorization filter
+        # Apply authorization filter
         if ($authFilterVal -ne 'All') {
             $as = '' + $row.AuthState
             if ($authFilterVal -eq 'Authorized') {
-                if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals($as, 'authorized')) { return $false }
+                if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals($as, 'authorized')) { continue }
             } elseif ($authFilterVal -eq 'Unauthorized') {
-                if ([System.StringComparer]::OrdinalIgnoreCase.Equals($as, 'authorized')) { return $false }
+                if ([System.StringComparer]::OrdinalIgnoreCase.Equals($as, 'authorized')) { continue }
             }
         }
-
-        # Apply the textual search filter only when a term is provided.  Match
-        # against port, name, learned MACs and auth client MAC.  If the
-        # search term is empty or whitespace, skip this check and allow
-        # the row to pass based solely on location filtering.
-        if (-not [string]::IsNullOrWhiteSpace($Term)) {
+        # Apply textual search filter
+        if (-not $termEmpty) {
             if ($script:SearchRegexEnabled) {
-                # When regex mode is enabled, treat the term as a regular expression.
+                $matched = $false
                 try {
-                    if ( ($row.Port        -as [string]) -match $Term -or
-                         ($row.Name        -as [string]) -match $Term -or
-                         ($row.LearnedMACs -as [string]) -match $Term -or
-                         ($row.AuthClientMAC -as [string]) -match $Term ) {
-                        # matched; continue
-                    } else {
-                        return $false
+                    if ( ('' + $row.Port)        -match $Term -or
+                         ('' + $row.Name)        -match $Term -or
+                         ('' + $row.LearnedMACs) -match $Term -or
+                         ('' + $row.AuthClientMAC) -match $Term ) {
+                        $matched = $true
                     }
                 } catch {
-                    # If the regex is invalid, fall back to case-insensitive substring search
-                    # Fall back to a case-insensitive substring check without allocating
-                    # lowercase copies for every field.  OrdinalIgnoreCase performs a
-                    # culture-invariant, case-insensitive search directly on the original
-                    # strings and avoids repeated ToLower() calls.
-                    $t = $Term
-                    if (-not ((('' + $row.Port).IndexOf($t, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
-                              (('' + $row.Name).IndexOf($t, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
-                              (('' + $row.LearnedMACs).IndexOf($t, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
-                              (('' + $row.AuthClientMAC).IndexOf($t, [System.StringComparison]::OrdinalIgnoreCase) -ge 0))) {
-                        return $false
+                    # fall back to substring search
+                }
+                if (-not $matched) {
+                    # fallback using case-insensitive substring search
+                    $q = $Term
+                    if (-not ((('' + $row.Port).IndexOf($q, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
+                              (('' + $row.Name).IndexOf($q, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
+                              (('' + $row.LearnedMACs).IndexOf($q, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
+                              (('' + $row.AuthClientMAC).IndexOf($q, [System.StringComparison]::OrdinalIgnoreCase) -ge 0))) {
+                        continue
                     }
                 }
             } else {
-                # Perform a case-insensitive substring search without allocating new strings
-                # for every ToLower() call.  OrdinalIgnoreCase yields the same semantics.
-                $t = $Term
-                if (-not ((('' + $row.Port).IndexOf($t, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
-                          (('' + $row.Name).IndexOf($t, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
-                          (('' + $row.LearnedMACs).IndexOf($t, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
-                          (('' + $row.AuthClientMAC).IndexOf($t, [System.StringComparison]::OrdinalIgnoreCase) -ge 0))) {
-                    return $false
+                # substring search
+                $q = $Term
+                if (-not ((('' + $row.Port).IndexOf($q, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
+                          (('' + $row.Name).IndexOf($q, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
+                          (('' + $row.LearnedMACs).IndexOf($q, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
+                          (('' + $row.AuthClientMAC).IndexOf($q, [System.StringComparison]::OrdinalIgnoreCase) -ge 0))) {
+                    continue
                 }
             }
         }
-        return $true
+        # If all filters pass, add to result
+        [void]$results.Add($row)
     }
+    return ,$results
 }
 
 function Update-Summary {
@@ -1258,15 +1278,19 @@ function Update-Summary {
 }
 
 function Update-Alerts {
-    $alerts = @()
+    # Build the list of alerts using a typed List[object] to avoid O(n^2)
+    # behaviour from repeatedly using '+=' on PowerShell arrays.  Build the
+    # reasons as a List[string] for each row.  When reasons exist, create
+    # a PSCustomObject and add it to the alerts list.
+    $alerts = New-Object 'System.Collections.Generic.List[object]'
     foreach ($row in $global:AllInterfaces) {
-        $reasons = @()
+        $reasons = New-Object 'System.Collections.Generic.List[string]'
         $status = '' + $row.Status
         if ($status) {
             # Flag ports that are down or notconnect using case-insensitive comparison
             if ([System.StringComparer]::OrdinalIgnoreCase.Equals($status, 'down') -or
                 [System.StringComparer]::OrdinalIgnoreCase.Equals($status, 'notconnect')) {
-                $reasons += 'Port down'
+                [void]$reasons.Add('Port down')
             }
         }
         $duplex = '' + $row.Duplex
@@ -1274,17 +1298,17 @@ function Update-Alerts {
             # Only flag duplex values containing "half" as non-full duplex; perform
             # a case-insensitive regex match to avoid allocating lowercase strings.
             if ($duplex -match '(?i)half') {
-                $reasons += 'Half duplex'
+                [void]$reasons.Add('Half duplex')
             }
         }
         $authState = '' + $row.AuthState
         if ($authState) {
-            if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals($authState, 'authorized')) { $reasons += 'Unauthorized' }
+            if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals($authState, 'authorized')) { [void]$reasons.Add('Unauthorized') }
         } else {
-            $reasons += 'Unauthorized'
+            [void]$reasons.Add('Unauthorized')
         }
         if ($reasons.Count -gt 0) {
-            $alerts += [PSCustomObject]@{
+            $alert = [PSCustomObject]@{
                 Hostname  = $row.Hostname
                 Port      = $row.Port
                 Name      = $row.Name
@@ -1294,6 +1318,7 @@ function Update-Alerts {
                 AuthState = $row.AuthState
                 Reason    = ($reasons -join '; ')
             }
+            [void]$alerts.Add($alert)
         }
     }
     $global:AlertsList = $alerts
@@ -1370,9 +1395,24 @@ function Get-PortSortKey {
     $w = if ($weights.ContainsKey($type)) { $weights[$type] } else { 60 }
 
     $numsPart = if ($m.Success) { $m.Groups['nums'].Value } else { $u }
-    $nums = [regex]::Matches($numsPart, '\d+') | ForEach-Object { [int]$_.Value }
-    while ($nums.Count -lt 4) { $nums += 0 }        # pad
-    $segments = ($nums | Select-Object -First 6 | ForEach-Object { '{0:00000}' -f $_ })
+    # Build a typed list of numeric segments.  Using a .NET List[int] avoids the
+    # O(n^2) array reallocation cost of the '+=' operator when padding.
+    $matchesInts = [regex]::Matches($numsPart, '\d+')
+    $numsList = New-Object 'System.Collections.Generic.List[int]'
+    foreach ($mnum in $matchesInts) {
+        [void]$numsList.Add([int]$mnum.Value)
+    }
+    # Pad with zeros until we have at least four segments.
+    while ($numsList.Count -lt 4) { [void]$numsList.Add(0) }
+    # Convert the first six segments into zero‑padded strings.  Build this list
+    # explicitly instead of piping through Select-Object/ForEach-Object to avoid
+    # per-item pipeline overhead.
+    $segmentsList = New-Object 'System.Collections.Generic.List[string]'
+    $limit = [Math]::Min(6, $numsList.Count)
+    for ($i = 0; $i -lt $limit; $i++) {
+        [void]$segmentsList.Add('{0:00000}' -f $numsList[$i])
+    }
+    $segments = $segmentsList
 
     return ('{0:00}-{1}-{2}' -f $w, $type, ($segments -join '-'))
 }
@@ -1528,16 +1568,21 @@ function Get-InterfaceConfiguration {
         }
         $outLines = foreach ($port in $Interfaces) {
             "interface $port"
-            $pending = @()
+            # Use a typed list instead of a PowerShell array when building the set of
+            # pending commands.  PowerShell arrays reallocate on every '+=' which
+            # becomes O(n^2) with many commands; List[string] grows amortized O(1).
+            $pending = New-Object 'System.Collections.Generic.List[string]'
             $nameOverride = if ($NewNames.ContainsKey($port)) { $NewNames[$port] } else { $null }
             $vlanOverride = if ($NewVlans.ContainsKey($port)) { $NewVlans[$port] } else { $null }
             if ($nameOverride) {
-                $pending += $(if ($vendor -eq 'Cisco') { "description $nameOverride" } else { "port-name $nameOverride" })
+                $val = if ($vendor -eq 'Cisco') { "description $nameOverride" } else { "port-name $nameOverride" }
+                [void]$pending.Add($val)
             }
             if ($vlanOverride) {
-                $pending += $(if ($vendor -eq 'Cisco') { "switchport access vlan $vlanOverride" } else { "auth-default-vlan $vlanOverride" })
+                $val2 = if ($vendor -eq 'Cisco') { "switchport access vlan $vlanOverride" } else { "auth-default-vlan $vlanOverride" }
+                [void]$pending.Add($val2)
             }
-            foreach ($cmd in $tmpl.required_commands) { $pending += $cmd.Trim() }
+            foreach ($cmd in $tmpl.required_commands) { [void]$pending.Add($cmd.Trim()) }
             if ($oldConfigs.ContainsKey($port)) {
                 foreach ($oldLine in $oldConfigs[$port]) {
                     $trimOld  = $oldLine.Trim()

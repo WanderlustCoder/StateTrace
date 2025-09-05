@@ -89,18 +89,35 @@ function Get-ShowCommands {
     $common   = if ($vendorNode -is [hashtable]) { $vendorNode['common'] }   else { $vendorNode.common }
     $versions = if ($vendorNode -is [hashtable]) { $vendorNode['versions'] } else { $vendorNode.versions }
 
-    $list = @()
-    if ($common) { $list += $common }
+    # Build the list of commands using a typed list.  Avoid array += and pipeline normalization.
+    $list = [System.Collections.Generic.List[string]]::new()
+    if ($common) {
+        if ($common -is [System.Collections.IEnumerable]) {
+            foreach ($c in $common) {
+                if ($null -ne $c) { [void]$list.Add(('' + $c).TrimEnd()) }
+            }
+        } else {
+            [void]$list.Add(('' + $common).TrimEnd())
+        }
+    }
     if ($OSVersion -and $versions) {
         $osList = if ($versions -is [hashtable]) { $versions[$OSVersion] } else { $versions.$OSVersion }
-        if ($osList) { $list += $osList }
+        if ($osList) {
+            if ($osList -is [System.Collections.IEnumerable]) {
+                foreach ($c in $osList) {
+                    if ($null -ne $c) { [void]$list.Add(('' + $c).TrimEnd()) }
+                }
+            } else {
+                [void]$list.Add(('' + $osList).TrimEnd())
+            }
+        }
     }
-
-    # Normalize + dedupe (order preserved, case-insensitive)
-    $list = $list | ForEach-Object { [string]$_ } | Where-Object { $_ } | ForEach-Object { $_.TrimEnd() }
+    # Dedupe and preserve order (case-insensitive)
     $seen = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
     $out  = [System.Collections.Generic.List[string]]::new()
-    foreach ($c in $list) { if ($seen.Add($c)) { [void]$out.Add($c) } }
+    foreach ($cmd in $list) {
+        if ($seen.Add($cmd)) { [void]$out.Add($cmd) }
+    }
     return ,$out.ToArray()
 }
 

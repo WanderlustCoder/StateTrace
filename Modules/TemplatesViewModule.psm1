@@ -51,7 +51,13 @@ function New-TemplatesView {
             if (-not $templatesList) { return }
             if (-not (Test-Path $script:TemplatesDir)) { return }
             $files = Get-ChildItem -Path $script:TemplatesDir -Filter '*.json' -File
-            $items = $files | ForEach-Object { $_.Name }
+            # Build the list of file names using a .NET List instead of piping
+            # through ForEach-Object.  This avoids pipeline overhead and
+            # repeated array allocations when many template files exist.
+            $items = New-Object 'System.Collections.Generic.List[string]'
+            foreach ($f in $files) {
+                [void]$items.Add($f.Name)
+            }
             $templatesList.ItemsSource = $items
         }
         # Load list on startup

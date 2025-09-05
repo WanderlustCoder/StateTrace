@@ -50,7 +50,16 @@ function New-SpanView {
         }
         $spanGrid.ItemsSource = $data
         if ($vlanDropdown) {
-            $instances = ($data | ForEach-Object { $_.VLAN }) | Sort-Object -Unique
+            # Build a unique sorted list of VLAN instances using a HashSet and typed list.
+            $vset = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+            foreach ($row in $data) {
+                $v = $row.VLAN
+                if ($null -ne $v -and ('' + $v).Trim() -ne '') {
+                    [void]$vset.Add(('' + $v))
+                }
+            }
+            $instances = [System.Collections.Generic.List[string]]::new($vset)
+            $instances.Sort([System.StringComparer]::OrdinalIgnoreCase)
             # Use the shared dropdown helper to populate the VLAN dropdown with
             # a blank entry plus all VLAN instances.
             DeviceDataModule\Set-DropdownItems -Control $vlanDropdown -Items (@('') + $instances)
