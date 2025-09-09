@@ -82,9 +82,108 @@ function Set-DropdownItems {
     }
 }
 
+###
+### [PERF-BATCH] Helpers for batched interface queries
+###
+
+function Get-SqlLiteral {
+    <#
+        .SYNOPSIS
+            Escapes a string for safe inclusion in a SQL literal.
+
+        .DESCRIPTION
+            Doubles single quotes in the input value to prevent SQL
+            injection and ensure proper matching when constructing queries
+            that embed hostnames or other user-controlled strings.  Use
+            this helper when building the IN clause for batch queries.
+
+        .PARAMETER Value
+            The string value to escape.
+
+        .OUTPUTS
+            System.String
+    #>
+    param([Parameter(Mandatory)][string]$Value)
+    # Replace single quotes with doubled single quotes
+    return $Value -replace "'", "''"
+}
+
+function Get-InterfacesForHostsBatch {
+    <#
+        .SYNOPSIS
+            Retrieves interface rows for multiple hostnames in a single query.
+
+        .DESCRIPTION
+            Accepts an array of hostnames and constructs a single SELECT
+            statement using an IN clause.  This consolidates what would
+            otherwise be multiple per-host queries into one, reducing
+            overhead and eliminating N+1 query patterns.  A short-lived
+            read session is used internally to perform the query.
+
+        .PARAMETER DatabasePath
+            Path to the Access database file.
+
+        .PARAMETER Hostnames
+            Array of hostnames for which interface rows should be retrieved.
+
+        .OUTPUTS
+            System.Data.DataTable containing the results.  Returns an
+            empty DataTable when Hostnames is null or empty.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$DatabasePath,
+        [Parameter(Mandatory)][string[]]$Hostnames
+    )
+    # If no hostnames were provided, return an empty table immediately.
+    if (-not $Hostnames -or $Hostnames.Count -eq 0) {
+        return (New-Object System.Data.DataTable)
+    }
+    # Sanitize and de-duplicate hostnames.  Filter out null/empty values.
+    $cleanHosts = $Hostnames | Where-Object { $_ -and $_.Trim() } | Select-Object -Unique
+    if (-not $cleanHosts -or $cleanHosts.Count -eq 0) {
+        return (New-Object System.Data.DataTable)
+    }
+    # Build an IN clause from the sanitized hostnames.  Escape each name.
+    $inList = ($cleanHosts | ForEach-Object { "'" + (Get-SqlLiteral $_) + "'" }) -join ","
+    if ([string]::IsNullOrWhiteSpace($inList)) {
+        return (New-Object System.Data.DataTable)
+    }
+    $sql = @"
+SELECT
+    i.Hostname,
+    i.Port,
+    i.Name,
+    i.Status,
+    i.VLAN,
+    i.Duplex,
+    i.Speed,
+    i.Type,
+    i.LearnedMACs,
+    i.AuthState,
+    i.AuthMode,
+    i.AuthClientMAC,
+    ds.Site,
+    ds.Building,
+    ds.Room
+FROM Interfaces AS i
+LEFT JOIN DeviceSummary AS ds ON i.Hostname = ds.Hostname
+WHERE i.Hostname IN ($inList)
+ORDER BY i.Hostname, i.Port
+"@
+    # Perform the query using a short-lived read session to benefit
+    # from connection pooling across this call.  Dispose session after use.
+    $session = Close-DbReadSession -DatabasePath $DatabasePath
+    try {
+        return Invoke-DbQuery -DatabasePath $DatabasePath -Sql $sql -Session $session
+    } finally {
+        Close-DbReadSession -Session $session
+    }
+}
+
 # Construct interface PSCustomObject instances from database results.  This helper
 
-function Build-InterfaceObjectsFromDbRow {
+function New-InterfaceObjectsFromDbRow {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][object]$Data,
@@ -579,6 +678,7 @@ function Get-DeviceDetails {
         if ($global:StateTraceDb) { $useDb = $true }
 
         if ($useDb) {
+            # Prepare for database operations.  (No explicit session reuse at this level.)
             $hostTrim = ($hostname -as [string]).Trim()
             $escHost   = $hostTrim -replace "'", "''"
             # Build a comma-separated list of character codes using a typed list
@@ -700,7 +800,7 @@ function Get-DeviceDetails {
             $dtIfs = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT Hostname, Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, ConfigStatus, PortColor, ToolTip FROM Interfaces WHERE Hostname = '$($hostname -replace "'", "''")'"
             # Use a shared helper to build the interface PSCustomObject list.  This centralises vendor detection,
             # tooltip augmentation and JSON‑based colour/status logic for both Get‑DeviceDetails and Get‑InterfaceInfo.
-            $list = Build-InterfaceObjectsFromDbRow -Data $dtIfs -Hostname $hostname -TemplatesPath (Join-Path $PSScriptRoot '..\Templates')
+            $list = New-InterfaceObjectsFromDbRow -Data $dtIfs -Hostname $hostname -TemplatesPath (Join-Path $PSScriptRoot '..\Templates')
             # Cache this device's interface list for future visits.  The cache stores the final PSCustomObject list keyed by hostname.
             try {
                 $global:DeviceInterfaceCache[$hostname] = $list
@@ -893,7 +993,7 @@ function Get-DeviceDetailsData {
             $dtIfs = $null
             try { $dtIfs = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql $sqlIf } catch {}
             if ($dtIfs) {
-                try { $listIfs = Build-InterfaceObjectsFromDbRow -Data $dtIfs -Hostname $hostTrim -TemplatesPath (Join-Path $PSScriptRoot '..\Templates') } catch {}
+                try { $listIfs = New-InterfaceObjectsFromDbRow -Data $dtIfs -Hostname $hostTrim -TemplatesPath (Join-Path $PSScriptRoot '..\Templates') } catch {}
             }
             # Cache list for future use
             try {
@@ -1525,7 +1625,7 @@ function Get-InterfaceInfo {
         $sql = "SELECT Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, ConfigStatus, PortColor, ToolTip FROM Interfaces WHERE Hostname = '$escHost' ORDER BY Port"
         $dt = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql $sql
         # Delegate to the shared helper which returns an array of PSCustomObject.
-        return Build-InterfaceObjectsFromDbRow -Data $dt -Hostname $Hostname -TemplatesPath $TemplatesPath
+        return New-InterfaceObjectsFromDbRow -Data $dt -Hostname $Hostname -TemplatesPath $TemplatesPath
     } catch {
         Write-Warning ("Failed to load interface information from database for {0}: {1}" -f $Hostname, $_.Exception.Message)
         return @()
@@ -1573,26 +1673,42 @@ function Get-InterfaceConfiguration {
         $templates = (Get-Content $jsonFile -Raw | ConvertFrom-Json).templates
         $tmpl = $templates | Where-Object { $_.name -eq $TemplateName } | Select-Object -First 1
         if (-not $tmpl) { throw "Template '$TemplateName' not found in ${vendor}.json" }
+        # --- Batched query instead of N+1 per-port lookups ---
         $oldConfigs = @{}
-        foreach ($p in $Interfaces) {
-            $pEsc = $p -replace "'", "''"
-            $sqlCfg = "SELECT Config FROM Interfaces WHERE Hostname = '$escHost' AND Port = '$pEsc'"
-            $dtCfg  = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql $sqlCfg
-            if ($dtCfg) {
-                if ($dtCfg -is [System.Data.DataTable]) {
-                    if ($dtCfg.Rows.Count -gt 0) {
-                        $cfgText = $dtCfg.Rows[0].Config
-                        $oldConfigs[$p] = if ($cfgText) { $cfgText -split "`n" } else { @() }
-                    }
+        $ports = @($Interfaces | Where-Object { $_ -ne $null } | ForEach-Object { $_.ToString() })
+        if ($ports.Count -gt 0) {
+            # Escape single quotes and build IN list
+            $escapedPorts = $ports | ForEach-Object { ($_ -replace "'", "''") }
+            $inList = ($escapedPorts | ForEach-Object { "'$_'" }) -join ", "
+            $sqlCfgAll = "SELECT Hostname, Port, Config FROM Interfaces WHERE Hostname = '$escHost' AND Port IN ($inList)"
+            $session = $null
+            try {
+                if ($global:StateTraceDb) { $session = Open-DbReadSession -DatabasePath $global:StateTraceDb }
+            } catch {}
+            try {
+                $dtAll = if ($session) {
+                    Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql $sqlCfgAll -Session $session
                 } else {
-                    $rowCfg = $dtCfg | Select-Object -First 1
-                    if ($rowCfg -and $rowCfg.PSObject.Properties['Config']) {
-                        $cfgText = $rowCfg.Config
-                        $oldConfigs[$p] = if ($cfgText) { $cfgText -split "`n" } else { @() }
+                    Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql $sqlCfgAll
+                }
+                if ($dtAll) {
+                    $rows = @()
+                    if ($dtAll -is [System.Data.DataTable]) { $rows = $dtAll.Rows }
+                    elseif ($dtAll -is [System.Collections.IEnumerable]) { $rows = $dtAll }
+                    foreach ($row in $rows) {
+                        $portVal = $row.Port
+                        $cfgText = $row.Config
+                        $oldConfigs[$portVal] = if ($cfgText) { $cfgText -split "`n" } else { @() }
                     }
                 }
+            } finally {
+                if ($session) { Close-DbReadSession -Session $session }
             }
         }
+        foreach ($p in $Interfaces) {
+            if (-not $oldConfigs.ContainsKey($p)) { $oldConfigs[$p] = @() }
+        }
+        # --- End batched lookup ---
         $outLines = foreach ($port in $Interfaces) {
             "interface $port"
             # Use a typed list instead of a PowerShell array when building the set of
@@ -1708,4 +1824,6 @@ Export-ModuleMember -Function `
     Get-InterfaceInfo, `
     Get-InterfaceConfiguration, `
     Get-InterfaceList, `
-    Set-DropdownItems
+    Set-DropdownItems,
+    Get-SqlLiteral,
+    Get-InterfacesForHostsBatch

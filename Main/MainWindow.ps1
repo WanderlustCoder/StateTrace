@@ -87,7 +87,7 @@ function Set-ShowCommandsOSVersions {
 }
 
 # Back-compat wrapper if other code calls this name:
-function Populate-BrocadeOSFromConfig {
+function Set-BrocadeOSFromConfig {
     [CmdletBinding()]
     param([Parameter(Mandatory)][System.Windows.Controls.ComboBox]$Dropdown)
     try { Set-ShowCommandsOSVersions -Combo $Dropdown -Vendor 'Brocade' }
@@ -127,11 +127,11 @@ if (-not $script:ViewsInitialized) {
         'New-SummaryView',
         'New-TemplatesView',
         'New-AlertsView'
-        # 'New-CompareView'  # deferred until after Update-DeviceFilter
+        # 'Update-CompareView'  # deferred until after Update-DeviceFilter
     )
 
     # Auto-discover any additional New-*View commands, excluding Compare for now
-    $excludeInitially = @('New-CompareView')
+    $excludeInitially = @('Update-CompareView')
     $discovered = Get-Command -Name 'New-*View' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name
     if ($discovered) {
         $extra = $discovered | Where-Object { ($viewsInOrder -notcontains $_) -and ($_ -notin $excludeInitially) }
@@ -188,8 +188,8 @@ function Invoke-StateTraceRefresh {
         Get-DeviceSummaries
         Update-DeviceFilter
         # Rebuild Compare view so its host list reflects the new parse
-        if (Get-Command -Name New-CompareView -ErrorAction SilentlyContinue) {
-            try { New-CompareView -Window $window | Out-Null }
+        if (Get-Command -Name Update-CompareView -ErrorAction SilentlyContinue) {
+            try { Update-CompareView -Window $window | Out-Null }
             catch { Write-Warning ("Failed to refresh Compare view: {0}" -f $_.Exception.Message) }
         }
 
@@ -198,13 +198,13 @@ function Invoke-StateTraceRefresh {
     }
 }
 
-function On-HostnameChanged {
+function Get-HostnameChanged {
     [CmdletBinding()]
     param([string]$Hostname)
 
     try {
         # Load device details synchronously.  Asynchronous invocation via
-        # Load-DeviceDetailsAsync has been disabled due to stability issues on
+        # Import-DeviceDetailsAsync has been disabled due to stability issues on
         # PowerShell 5.1.  Using the synchronous helper ensures reliability
         # when selecting a new host from the dropdown.
         if ($Hostname) {
@@ -234,7 +234,7 @@ function On-HostnameChanged {
     Load‑SpanInfo when defined.  Any exceptions are silently swallowed to
     preserve UI stability.
 #>
-function Load-DeviceDetailsAsync {
+function Import-DeviceDetailsAsync {
     <#
         Retrieve device details on a background thread to avoid blocking the UI thread.  This
         implementation has been rewritten for PowerShell 5.1 compatibility.  It no longer
@@ -255,7 +255,7 @@ function Load-DeviceDetailsAsync {
     # Determine if debug output is enabled
     $debug = ($Global:StateTraceDebug -eq $true)
     if ($debug) {
-        Write-Verbose ("Load-DeviceDetailsAsync: called with Hostname='{0}'" -f ($Hostname -as [string]))
+        Write-Verbose ("Import-DeviceDetailsAsync: called with Hostname='{0}'" -f ($Hostname -as [string]))
     }
     # If no host is provided, clear span info and return
     if (-not $Hostname) {
@@ -282,14 +282,14 @@ function Load-DeviceDetailsAsync {
         $rs.ThreadOptions  = [System.Management.Automation.Runspaces.PSThreadOptions]::ReuseThread
         $rs.Open()
         if ($debug) {
-            Write-Verbose ("Load-DeviceDetailsAsync: runspace created (Id={0})" -f $rs.Id)
+            Write-Verbose ("Import-DeviceDetailsAsync: runspace created (Id={0})" -f $rs.Id)
         }
 
         # Create a PowerShell instance bound to the new runspace
         $ps = [System.Management.Automation.PowerShell]::Create()
         $ps.Runspace = $rs
         if ($debug) {
-            Write-Verbose "Load-DeviceDetailsAsync: PowerShell instance created for background runspace"
+            Write-Verbose "Import-DeviceDetailsAsync: PowerShell instance created for background runspace"
         }
 
         # Build a script string instead of passing a ScriptBlock.  Passing a string
@@ -311,7 +311,7 @@ return \$res
         [void]$ps.AddArgument($Hostname)
         [void]$ps.AddArgument($modulePath)
         if ($debug) {
-            Write-Verbose "Load-DeviceDetailsAsync: script and arguments added to PowerShell instance"
+            Write-Verbose "Import-DeviceDetailsAsync: script and arguments added to PowerShell instance"
         }
 
         # Execute the device details retrieval on a dedicated background thread instead of using
@@ -320,7 +320,7 @@ return \$res
         # marshal results back to the UI thread via the WPF Dispatcher.  This avoids the
         # overload issues encountered with BeginInvoke().
         if ($Global:StateTraceDebug -eq $true) {
-            Write-Verbose ("Load-DeviceDetailsAsync: starting background thread for '{0}'" -f $Hostname)
+            Write-Verbose ("Import-DeviceDetailsAsync: starting background thread for '{0}'" -f $Hostname)
         }
         $threadScript = {
             param([System.Management.Automation.PowerShell]$psCmd)
@@ -337,7 +337,7 @@ return \$res
                 if ($Global:StateTraceDebug -eq $true) {
                     try {
                         $typeName = if ($null -ne $data) { $data.GetType().FullName } else { 'null' }
-                        Write-Verbose ("Load-DeviceDetailsAsync: thread received result of type '{0}'" -f $typeName)
+                        Write-Verbose ("Import-DeviceDetailsAsync: thread received result of type '{0}'" -f $typeName)
                     } catch {}
                 }
                 # Marshal UI updates back to the dispatcher thread.  Passing the result as
@@ -351,7 +351,7 @@ return \$res
                         # If an error record or null result was returned, display a warning and exit
                         if (-not $dto -or ($dto -is [System.Management.Automation.ErrorRecord])) {
                             if ($dto -and $dto.Exception) {
-                                Write-Warning ("Load-DeviceDetailsAsync error: {0}" -f $dto.Exception.Message)
+                                Write-Warning ("Import-DeviceDetailsAsync error: {0}" -f $dto.Exception.Message)
                             }
                             # Clear the interfaces grid on failure
                             if ($global:interfacesView) {
@@ -397,11 +397,11 @@ return \$res
                     [System.Windows.Application]::Current.Dispatcher.Invoke($uiAction, @($data))
                 } catch {
                     # Log any dispatcher invocation errors but do not crash
-                    Write-Warning ("Load-DeviceDetailsAsync dispatcher invocation failed: {0}" -f $_.Exception.Message)
+                    Write-Warning ("Import-DeviceDetailsAsync dispatcher invocation failed: {0}" -f $_.Exception.Message)
                 }
             } catch {
                 # Log any exceptions thrown during Invoke
-                Write-Warning ("Load-DeviceDetailsAsync thread encountered an exception: {0}" -f $_.Exception.Message)
+                Write-Warning ("Import-DeviceDetailsAsync thread encountered an exception: {0}" -f $_.Exception.Message)
             } finally {
                 # Clean up the runspace and PowerShell instance
                 try { $psCmd.Runspace.Close() } catch {}
@@ -415,7 +415,7 @@ return \$res
         $workerThread.Start()
     } catch {
         # On failure to create runspace or begin invocation, log and return
-        Write-Warning ("Load-DeviceDetailsAsync failed to start: {0}" -f $_.Exception.Message)
+        Write-Warning ("Import-DeviceDetailsAsync failed to start: {0}" -f $_.Exception.Message)
     }
 }
 
@@ -432,7 +432,7 @@ if ($hostnameDropdown -and -not $script:HostnameHandlerAttached) {
     $hostnameDropdown.Add_SelectionChanged({
         param($sender,$e)
         $sel = [string]$sender.SelectedItem
-        On-HostnameChanged -Hostname $sel
+        Get-HostnameChanged -Hostname $sel
     })
     $script:HostnameHandlerAttached = $true
 }
@@ -458,8 +458,8 @@ if (-not $script:FilterUpdateTimer) {
             Update-DeviceFilter
 
             # Keep Compare in sync with current filters/hosts
-            if (Get-Command -Name New-CompareView -ErrorAction SilentlyContinue) {
-                try { New-CompareView -Window $window | Out-Null } catch {}
+            if (Get-Command -Name Update-CompareView -ErrorAction SilentlyContinue) {
+                try { Update-CompareView -Window $window | Out-Null } catch {}
             }
         } catch {
             Write-Warning ("Device filter update failed: {0}" -f $_.Exception.Message)
@@ -476,7 +476,7 @@ function Request-DeviceFilterUpdate {
 # Track which controls we’ve already wired to avoid duplicate subscriptions.
 if (-not $script:FilterHandlers) { $script:FilterHandlers = @{} }
 
-function Hook-FilterDropdowns {
+function Get-FilterDropdowns {
     [CmdletBinding()]
     param([Parameter(Mandatory)][Windows.Window]$Window)
 
@@ -491,7 +491,7 @@ function Hook-FilterDropdowns {
 }
 
 # Wire them now (safe to call multiple times; wiring is idempotent)
-Hook-FilterDropdowns -Window $window
+Get-FilterDropdowns -Window $window
 
 # === END Filter dropdown hooks (MainWindow.ps1) ===
 
@@ -500,7 +500,7 @@ Hook-FilterDropdowns -Window $window
 $showCiscoBtn   = $window.FindName('ShowCiscoButton')
 $showBrocadeBtn = $window.FindName('ShowBrocadeButton')
 $brocadeOSDD    = $window.FindName('BrocadeOSDropdown')
-if ($brocadeOSDD) { Populate-BrocadeOSFromConfig -Dropdown $brocadeOSDD }
+if ($brocadeOSDD) { Set-BrocadeOSFromConfig -Dropdown $brocadeOSDD }
 
 
 if ($showCiscoBtn) {
@@ -582,8 +582,8 @@ $window.Add_Loaded({
         Update-DeviceFilter   # <-- critical
 
         # Now build Compare so it can read the host list
-        if (Get-Command -Name New-CompareView -ErrorAction SilentlyContinue) {
-            try { New-CompareView -Window $window | Out-Null }
+        if (Get-Command -Name Update-CompareView -ErrorAction SilentlyContinue) {
+            try { Update-CompareView -Window $window | Out-Null }
             catch { Write-Warning ("Failed to initialize Compare view after parsing: {0}" -f $_.Exception.Message) }
         }
 

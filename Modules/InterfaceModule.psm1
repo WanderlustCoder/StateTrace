@@ -253,7 +253,7 @@ function New-InterfacesView {
         }
 
         try {
-            Update-CompareView -Switch1 $int1.Hostname -Interface1 $int1.Port `
+            Set-CompareSelection -Switch1 $int1.Hostname -Interface1 $int1.Port `
                                -Switch2 $int2.Hostname -Interface2 $int2.Port `
                                -Row1 $int1 -Row2 $int2
 

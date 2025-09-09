@@ -97,6 +97,96 @@ function Initialize-StateTraceDatabase {
 }
 # === END Initialize-StateTraceDatabase (DatabaseModule.psm1) ===
 
+###
+### [PERF-BURST-SESSION] Helper functions for reusable read sessions
+###
+
+function Open-DbReadSession {
+    <#
+        .SYNOPSIS
+            Opens a reusable OLE DB connection for a burst of read queries.
+
+        .DESCRIPTION
+            Creates an OleDbConnection using the first available provider and returns
+            a PSCustomObject representing the session.  Callers can pass this object
+            to Invoke-DbQuery via -Session to reuse the open connection.  Once the
+            burst of reads is complete, use Close-DbReadSession to dispose the
+            session and underlying connection.
+
+        .PARAMETER DatabasePath
+            Path to the Access database file.
+
+        .OUTPUTS
+            A custom object with a Connection property and Dispose/Close methods.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$DatabasePath
+    )
+    $conn = $null
+    $opened = $false
+    try {
+        $conn = New-Object System.Data.OleDb.OleDbConnection
+        foreach ($prov in @('Microsoft.ACE.OLEDB.12.0','Microsoft.Jet.OLEDB.4.0')) {
+            try {
+                $conn.ConnectionString = "Provider=$prov;Data Source=$DatabasePath"
+                $conn.Open()
+                $opened = $true
+                break
+            } catch {
+                # try next provider
+            }
+        }
+        if (-not $opened) { throw "No suitable OLE DB provider found." }
+
+        # Construct a disposable session object.  The Close and Dispose
+        # script methods ensure the underlying connection is closed exactly once.
+        $session = [PSCustomObject]@{
+            PSTypeName = 'StateTrace.DbReadSession'
+            Connection = $conn
+            Close = {
+                param()
+                try {
+                    if ($this.Connection -and $this.Connection.State -ne [System.Data.ConnectionState]::Closed) {
+                        $this.Connection.Close()
+                    }
+                } catch {}
+                if ($this.Connection) {
+                    try { $this.Connection.Dispose() } catch {}
+                }
+                $this.Connection = $null
+            }
+            Dispose = { $this.Close.Invoke() }
+        }
+        return $session
+    } catch {
+        if ($conn) { try { $conn.Dispose() } catch {} }
+        throw
+    }
+}
+
+function Close-DbReadSession {
+    <#
+        .SYNOPSIS
+            Disposes a session returned by Open-DbReadSession.
+
+        .DESCRIPTION
+            Calls Dispose() on a valid StateTrace.DbReadSession object. Does nothing
+            if the object is null or of an unexpected type. Any errors during dispose
+            are suppressed.
+
+        .PARAMETER Session
+            The session object previously returned by Open-DbReadSession.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][object]$Session
+    )
+    if ($Session -and ($Session.PSTypeName -eq 'StateTrace.DbReadSession')) {
+        try { $Session.Dispose() } catch {}
+    }
+}
+
 function New-AccessDatabase {
     <#
         .SYNOPSIS
@@ -352,79 +442,59 @@ function Invoke-DbQuery {
             Executes a SELECT statement against the Access database and returns a DataTable.
 
         .DESCRIPTION
-            This function opens a connection to the specified database and
-            executes the given SELECT statement.  The results are loaded
-            into a .NET DataTable, which can be bound directly to WPF data
-            grids or further manipulated in PowerShell.  The caller is
-            responsible for disposing of the returned DataTable when it is
-            no longer needed.
-
-        .PARAMETER DatabasePath
-            The path to the `.mdb` file.
-
-        .PARAMETER Sql
-            The SELECT statement to execute.  Use WHERE clauses to limit
-            returned rows and improve performance.
-
-        .EXAMPLE
-            $dt = Invoke-DbQuery -DatabasePath $db -Sql "SELECT * FROM DeviceSummary"
-#>
+            Refactored to use a single .NET OLE DB connection path. This removes the
+            redundant ADODB COM connection and any JRO cache refresh from the read path.
+            The function loops providers ('Microsoft.ACE.OLEDB.12.0', then 'Microsoft.Jet.OLEDB.4.0'),
+            opens one connection, executes the query with OleDbDataAdapter, and fills a DataTable.
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)]
         [string]$DatabasePath,
         [Parameter(Mandatory=$true)]
-        [string]$Sql
+        [string]$Sql,
+        [Parameter()][object]$Session
     )
-    $connection = New-Object -ComObject ADODB.Connection
-    $recordset  = $null
-    $provider   = $null
+
+    # Use the provided session connection if available and valid, otherwise
+    # open a new connection just for this invocation.
+    $mustClose = $false
+    $conn = $null
     try {
-        # Attempt to open the connection with available providers
-        foreach ($prov in @('Microsoft.ACE.OLEDB.12.0','Microsoft.Jet.OLEDB.4.0')) {
-            try {
-                $connection.Open("Provider=$prov;Data Source=$DatabasePath")
-                $provider = $prov
-                break
-            } catch {
-                # try next provider
+        if ($Session -and $Session.PSTypeName -eq 'StateTrace.DbReadSession' -and $Session.Connection) {
+            $conn = $Session.Connection
+        } else {
+            # Open a one‑shot connection
+            $conn = New-Object System.Data.OleDb.OleDbConnection
+            $opened = $false
+            foreach ($prov in @('Microsoft.ACE.OLEDB.12.0','Microsoft.Jet.OLEDB.4.0')) {
+                try {
+                    $conn.ConnectionString = "Provider=$prov;Data Source=$DatabasePath"
+                    $conn.Open()
+                    $opened = $true
+                    break
+                } catch {
+                    # try next provider
+                }
             }
+            if (-not $opened) { throw "No suitable OLE DB provider found." }
+            $mustClose = $true
         }
-        if (-not $provider) { throw "No suitable OLEDB provider found." }
-        # Debug output removed to reduce verbosity
-        # Force Jet/ACE to flush writes occasionally (not on every query) to cut COM overhead.
-        # Only refresh if at least 5 seconds have elapsed since the last refresh.
-        if (((Get-Date) - $script:LastCacheRefresh).TotalSeconds -gt 5) {
-        try {
-            $cacheConn = New-Object -ComObject ADODB.Connection
-            $cacheConn.Open("Provider=$provider;Data Source=$DatabasePath")
-            try {
-                $jet = New-Object -ComObject JRO.JetEngine
-                $jet.RefreshCache($cacheConn)
-            } catch {}
-            $cacheConn.Close()
-            $script:LastCacheRefresh = Get-Date
-        } catch {}
-        }
-        # Now open a purely managed OleDbConnection to execute the query and
-        # fill a DataTable.  This avoids issues with COM DataRow objects
-        # exposing unexpected members in PowerShell.
+
         $dataTable = New-Object System.Data.DataTable
-        $oledbConnection = New-Object System.Data.OleDb.OleDbConnection("Provider=$provider;Data Source=$DatabasePath")
-        try {
-            $adapter = New-Object System.Data.OleDb.OleDbDataAdapter($Sql, $oledbConnection)
-            [void]$adapter.Fill($dataTable)
-        } finally {
-            if ($oledbConnection) { $oledbConnection.Close() }
-        }
-        # Debug output removed to reduce verbosity
+        $adapter = New-Object System.Data.OleDb.OleDbDataAdapter($Sql, $conn)
+        [void]$adapter.Fill($dataTable)
         return $dataTable
     } finally {
-        if ($recordset -ne $null) {
-            try { $recordset.Close() } catch {}
+        # Close and dispose connection only if we opened it (mustClose=true).
+        if ($mustClose -and $conn) {
+            try {
+                if ($conn.State -ne [System.Data.ConnectionState]::Closed) { $conn.Close() }
+            } catch {}
+            try { $conn.Dispose() } catch {}
         }
-        if ($connection -and $connection.State -ne 0) { $connection.Close() }
     }
 }
 
-Export-ModuleMember -Function New-AccessDatabase, Invoke-DbNonQuery, Invoke-DbQuery, Initialize-StateTraceDatabase
+
+Export-ModuleMember -Function New-AccessDatabase, Invoke-DbNonQuery, Invoke-DbQuery, Initialize-StateTraceDatabase, Open-DbReadSession, Close-DbReadSession

@@ -451,7 +451,7 @@ function Show-CurrentComparison {
     }
 }
 
-function Wire-CompareHandlers {
+function Get-CompareHandlers {
     # Attach event handlers for the compare view controls (ensure we don't attach twice for the same view instance)
     $viewId = if ($script:compareView) { $script:compareView.GetHashCode() } else { 0 }
     if ($script:lastWiredViewId -eq $viewId) { return }
@@ -574,7 +574,7 @@ function Wire-CompareHandlers {
     }
 }
 
-function New-CompareView {
+function Update-CompareView {
     [CmdletBinding()]
     param([Parameter(Mandatory=$true)][System.Windows.Window]$Window)
 
@@ -673,13 +673,13 @@ function New-CompareView {
     }
 
     # Wire up event handlers and show the initial comparison (if both sides have selection)
-    Wire-CompareHandlers
+    Get-CompareHandlers
     Show-CurrentComparison
 
     Write-Verbose "[CompareView] New Compare view setup complete."
 }
 
-function Update-CompareView {
+function Set-CompareSelection {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$Switch1,
@@ -697,7 +697,7 @@ function Update-CompareView {
 
     Resolve-CompareControls | Out-Null
     # Ensure event handlers are attached (if Update is called first without New)
-    Wire-CompareHandlers
+    Get-CompareHandlers
 
     # Refresh host lists in case of any changes
     $hosts = if ($script:windowRef) { Get-HostsFromMain -Window $script:windowRef } else { @() }
