@@ -436,13 +436,15 @@ function Show-CurrentComparison {
         $row1 = Get-GridRowFor -Hostname $s1 -Port $p1
         $row2 = Get-GridRowFor -Hostname $s2 -Port $p2
         if ($row1 -and $row2) {
+            # Both rows are available – pass them directly to the comparison helper
             Set-CompareFromRows -Row1 $row1 -Row2 $row2
             Write-Verbose "[CompareView] Comparison updated for $s1/$p1 vs $s2/$p2."
         }
         else {
-            # If either row is not found (e.g., not present in global grid), just clear or show what we have
-            Set-CompareFromRows -Row1 (if ($row1) { $row1 } else { [pscustomobject]@{ToolTip = ''; PortColor = $null} }) `
-                                 -Row2 (if ($row2) { $row2 } else { [pscustomobject]@{ToolTip = ''; PortColor = $null} })
+            # One or both sides are missing – construct placeholder objects for missing rows
+            $resolvedRow1 = if ($row1) { $row1 } else { [pscustomobject]@{ ToolTip = ''; PortColor = $null } }
+            $resolvedRow2 = if ($row2) { $row2 } else { [pscustomobject]@{ ToolTip = ''; PortColor = $null } }
+            Set-CompareFromRows -Row1 $resolvedRow1 -Row2 $resolvedRow2
             Write-Verbose "[CompareView] Partial data: one or both rows not found in grid for $s1/$p1 vs $s2/$p2."
         }
     }

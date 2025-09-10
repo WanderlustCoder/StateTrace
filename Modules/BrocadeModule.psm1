@@ -200,13 +200,13 @@ function Get-BrocadeDeviceFacts {
                 $nameTok   = $matches[7].Trim()
 
                 # Normalize the Status: treat anything other than 'Up' as 'Down'
-                $normalizedStatus = if ($linkToken -match '^(?i)up$') { 'Up' } else { 'Down' }
+                #$normalizedStatus = if ($linkToken -match '^(?i)up$') { 'Up' } else { 'Down' }
 
                 [void]$results.Add([PSCustomObject]@{
                     RawPort = $rawPort
                     Port    = ConvertTo-StandardPortName $rawPort
-                    Status  = $normalizedStatus
-                    Link    = $linkToken
+                    Status  = $linkToken
+                    #Link    = $linkToken
                     State   = $stateTok
                     Duplex  = $duplexTok
                     Speed   = $speedTok
