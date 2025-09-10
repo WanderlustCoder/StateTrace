@@ -1,23 +1,5 @@
 function New-TemplatesView {
-    <#
-        .SYNOPSIS
-            Load and initialise the Templates view.
-
-        .DESCRIPTION
-            This function loads the TemplatesView.xaml file, inserts it into
-            the main window and provides handlers for selecting, reloading,
-            saving and creating configuration templates.  It maintains a
-            script-scoped TemplatesDir variable pointing to the ../Templates
-            directory and exposes the view globally via $templatesView.
-
-        .PARAMETER Window
-            The main WPF window created by MainWindow.ps1.
-
-        .PARAMETER ScriptDir
-            The directory containing the Main scripts.  TemplatesView.xaml
-            resides in a ../Views folder relative to this path and templates
-            themselves reside in ../Templates.
-    #>
+    
     param(
         [Parameter(Mandatory=$true)][Windows.Window]$Window,
         [Parameter(Mandatory=$true)][string]$ScriptDir
@@ -52,8 +34,6 @@ function New-TemplatesView {
             if (-not (Test-Path $script:TemplatesDir)) { return }
             $files = Get-ChildItem -Path $script:TemplatesDir -Filter '*.json' -File
             # Build the list of file names using a .NET List instead of piping
-            # through ForEach-Object.  This avoids pipeline overhead and
-            # repeated array allocations when many template files exist.
             $items = New-Object 'System.Collections.Generic.List[string]'
             foreach ($f in $files) {
                 [void]$items.Add($f.Name)

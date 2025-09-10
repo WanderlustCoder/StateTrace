@@ -6,22 +6,8 @@ function Get-BrocadeDeviceFacts {
     )
 
     #
-    # NOTE: The legacy Get-ShowCommandBlocks helper has been removed. A shared helper
-    # Get-ShowCommandBlocks (defined in ParserWorker.psm1) now provides this functionality.
-    # It extracts each 'show' command section into a dictionary keyed by the normalized command.
 
     #
-    # Extract the output of a specific show command anywhere in the log.
-    #
-    # Parameters:
-    #   -Lines: the entire contents of the log file as an array of strings.
-    #   -CommandRegex: a regex pattern that matches the desired command line.
-    #
-    # This helper searches for the first occurrence of the command in the
-    # provided lines.  Once found, it captures the following lines until the
-    # next device prompt (identified by `<something>#`) or end of file.  The
-    # captured lines are returned as an array.  If the command cannot be
-    # located, an empty array is returned.  Matching is case-insensitive.
     function Get-CommandBlock {
         param(
             [string[]]$Lines,
@@ -29,10 +15,6 @@ function Get-BrocadeDeviceFacts {
         )
         $startIndex = -1
         # Locate the command line.  Escape any regex meta characters in the
-        # hostname portion of the prompt to avoid spurious matches.  A device
-        # prompt typically ends with a `#` character.  We include a wildcard
-        # match prior to the command to allow for variations like `SSH@` or
-        # additional whitespace.  Example pattern: `(?i)#\s*show version`.
         $pattern = "(?i)$CommandRegex"
         for ($i = 0; $i -lt $Lines.Count; $i++) {
             if ($Lines[$i] -match $pattern) {
@@ -42,8 +24,6 @@ function Get-BrocadeDeviceFacts {
         }
         if ($startIndex -lt 0) { return @() }
         # Use a typed List[string] instead of a PowerShell array.  Using '+=' on an array
-        # causes O(n^2) behaviour due to array reallocation.  A List[string] grows
-        # efficiently and can be converted back to an array for the return value.
         $buffer = New-Object 'System.Collections.Generic.List[string]'
         # Capture lines after the command until the next prompt or end of file
         for ($j = $startIndex + 1; $j -lt $Lines.Count; $j++) {
@@ -74,10 +54,6 @@ function Get-BrocadeDeviceFacts {
     }
 
     # Retrieve all show command blocks using the shared helper.  If a Blocks
-    # argument was provided (precomputed by ParserWorker), use it directly
-    # to avoid recomputing.  Otherwise call the helper on the provided
-    # Lines array.  The hashtable maps command names to arrays of output
-    # lines.
     if ($Blocks -and $Blocks.Count -gt 0) {
         $blocks = $Blocks
     } else {
@@ -89,8 +65,6 @@ function Get-BrocadeDeviceFacts {
             if ($line -match "^(\S+)[>#]") {
                 $rawHost = $matches[1]
                 # Strip any SSH@ prefix.  Logs captured via SSH often include
-                # the username followed by '@' (e.g. SSH@hostname).  Only the
-                # hostname should be used for identification.
                 if ($rawHost -like 'SSH@*') {
                     return $rawHost.Substring(4)
                 }
@@ -150,15 +124,9 @@ function Get-BrocadeDeviceFacts {
                 [void]$macauth.AddRange([string[]](Expand-PortRange $matches[1] $matches[2]))
             }
             # Beginning with FastIron 08.0.90, per‑port 802.1X enablement is achieved via
-            # `dot1x port-control auto ethe <start> to <end>[, <start> to <end>]`.  Multiple
-            # comma‑separated ranges may be present on a single line.  Treat these ranges
-            # as dot1x enabled so the port will be considered dot1x for AuthMode purposes.
             if ($line -match 'dot1x port-control auto ethe (.+)$') {
                 $rangesPart = $matches[1]
                 # Split on commas using the .NET Split method rather than piping
-                # through ForEach-Object.  Trim each segment inline in the loop
-                # to avoid creating a pipeline and anonymous script block for
-                # each element.  This reduces overhead when many ranges are present.
                 $rangesArr = $rangesPart.Split(',')  # returns an array of strings
                 foreach ($r in $rangesArr) {
                     $range = $r.Trim()
@@ -180,27 +148,21 @@ function Get-BrocadeDeviceFacts {
         $results = New-Object 'System.Collections.Generic.List[psobject]'
         foreach ($line in $Block) {
             # Brocade "show interfaces brief" output can vary by release.  Some versions
-            # include separate columns for Trunk, Tag, PVID, PRI and Age, while others
-            # include only Tag, PVID and PRI.  To be resilient, capture the
-            # essential fields (port, link, state, duplex, speed, MAC and name) and
-            # tolerate 3–6 intermediate columns between the speed and MAC.  Allow
-            # the "State" column to be any non‑whitespace token (e.g. Forward, None).
-            #
-            # Extend the link token to include Disabled/Admin‑Down/None so that
-            # administratively disabled ports are captured instead of being silently
-            # skipped.  Normalize the Status to 'Up' or 'Down' while retaining the
-            # original link token in a separate field for future reference.
-            if ($line -match '^(\d+/\d+/\d+)\s+(Up|Down|Disable(?:d)?|Admin-?Down|None)\s+(\S+)\s+(Full|Half|Auto(?:/Full)?|N/A)\s+(\S+)\s+(?:\S+\s+){3,6}([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4,6})\s+(.*?)\s*$') {
+            # Updated regex to allow "None" in the duplex column.  When a port is disabled or down,
+            # the device outputs "None" for duplex and speed fields.  Without "None" in the
+            # enumerated values, those lines would not match and therefore be skipped.
+            if ($line -match '^(\d+/\d+/\d+)\s+(Up|Down|Disable(?:d)?|Admin-?Down|None)\s+(\S+)\s+(Full|Half|Auto(?:/Full)?|N/A|None)\s+(\S+)\s+(?:\S+\s+){3,6}([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4,6})\s+(.*?)\s*$') {
                 $rawPort   = $matches[1]
                 $linkToken = $matches[2]
                 $stateTok  = $matches[3]
                 $duplexTok = $matches[4]
                 $speedTok  = $matches[5]
+                # Keep "None" values as literal strings rather than converting to $null.  This preserves
+                # the original device output (e.g., "None") for duplex and speed fields.
                 $macTok    = $matches[6]
                 $nameTok   = $matches[7].Trim()
 
                 # Normalize the Status: treat anything other than 'Up' as 'Down'
-                #$normalizedStatus = if ($linkToken -match '^(?i)up$') { 'Up' } else { 'Down' }
 
                 [void]$results.Add([PSCustomObject]@{
                     RawPort = $rawPort
@@ -221,7 +183,6 @@ function Get-BrocadeDeviceFacts {
     function Get-MacTable {
         param ($Block)
         # Use a typed list to accumulate MAC table entries.  This avoids array duplication
-        # when many lines are present.
         $results = New-Object 'System.Collections.Generic.List[psobject]'
         foreach ($line in $Block) {
             if ($line -match '^([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})\s+(\d+/\d+/\d+)\s+\S+\s+(\d+)') {
@@ -259,10 +220,6 @@ function Get-BrocadeDeviceFacts {
         }
 
         # Build a unique sorted list of ports without piping through Sort-Object -Unique.  HashSet
-        # deduplicates in O(1) per insert and a single List.Sort performs an efficient O(n log n)
-        # sort.  Use OrdinalIgnoreCase to mirror the default case-insensitive behaviour of
-        # Sort-Object.  This avoids pipeline overhead and unnecessary allocations on large
-        # collections of ports.
         $portSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
         foreach ($p in $dot1x.Keys) { [void]$portSet.Add($p) }
         foreach ($p in $macauth.Keys) { [void]$portSet.Add($p) }
@@ -275,15 +232,7 @@ function Get-BrocadeDeviceFacts {
         return $result
     }
 
-    # Parse unified authentication session output.  In 08.0.90 and later the
     # "show authentication sessions all" command displays both 802.1X and MAC
-    # authentication sessions in a single table.  Each entry includes the
-    # port, MAC address, IP addresses, username, VLAN, method (MAUTH or
-    # 8021.X), authorization state, ACL applied, session age and PAE state.
-    # We capture the port, MAC, mode and derive an authorization state.  The
-    # regex below tolerates optional IPv4/IPv6 fields and interprets the
-    # method column to distinguish dot1x versus macauth.  PAE states such as
-    # AUTHENTICATED/UNAUTHENTICATED are mapped to Authorized/Unauthorized.
     function Get-AuthStatusUnified {
         param([string[]]$Block)
         # Use a typed list to avoid repeated array copying when aggregating auth status entries.
@@ -346,9 +295,6 @@ function Get-BrocadeDeviceFacts {
     function Get-InterfaceConfigsAndNames {
         param ($Block)
         # Build per-interface configuration text using a typed list rather than
-        # repeatedly using "+=" on a PowerShell array.  Array concatenation in a
-        # loop results in O(n^2) behaviour.  A .NET List grows efficiently and
-        # can be converted into a single string with Join when needed.
         $configs = @{}; $names = @{}; $current = ""
         $bufferList = New-Object 'System.Collections.Generic.List[string]'
         foreach ($line in $Block) {
@@ -373,14 +319,8 @@ function Get-BrocadeDeviceFacts {
     }
 
     # The spanning-tree parsing helper has been moved to ParserWorker.psm1.
-    # Use the shared ConvertFrom-SpanningTree function provided by ParserWorker instead of a local copy.
 
     #
-    # Extract command outputs individually using the flexible helper defined above.
-    # Each extraction locates the first occurrence of the command and captures
-    # lines until the next prompt.  If a command is not present, the
-    # corresponding block will be an empty array which downstream functions
-    # tolerate by returning default values.
     $versionBlock    = Get-CommandBlock -Lines $Lines -CommandRegex '#\s*show\s+version'
     $configBlock     = Get-CommandBlock -Lines $Lines -CommandRegex '#\s*show\s+config'
     $interfacesBlock = Get-CommandBlock -Lines $Lines -CommandRegex '#\s*show\s+interfaces\s+brief'
@@ -399,11 +339,6 @@ function Get-BrocadeDeviceFacts {
     $authModes  = Get-AuthModes $configBlock
     $dot1xPorts = $authModes[0]; $macauthPorts = $authModes[1]
     # Determine which authentication session output is available.  Starting in
-    # FastIron 08.0.90, the separate "show dot1x sessions all" and
-    # "show mac-authentication sessions all" commands were deprecated in favour
-    # of a unified "show authentication sessions" command.  If the unified
-    # command is present we parse it using a specialised helper; otherwise we
-    # fall back to the legacy separate commands.
     $auth = @()
     if ($authSessionsAll.Count -gt 0) {
         $auth = Get-AuthStatusUnified $authSessionsAll
@@ -416,10 +351,6 @@ function Get-BrocadeDeviceFacts {
     $macs       = Get-MacTable $macTableBlock
 
     # Pre-index the MAC table and authentication rows by port to avoid pipeline
-    # scanning inside the per-interface loop below. Without this, the code
-    # uses Where-Object and ForEach-Object pipelines to filter and project
-    # values for each interface, incurring significant overhead on large
-    # datasets.  Using hash tables and typed lists allows O(1) lookups.
     $macsByPort = @{}
     foreach ($m in $macs) {
         $p = $m.Port
@@ -440,7 +371,6 @@ function Get-BrocadeDeviceFacts {
         $port = $iface.Port
         $interfaceMAC = $iface.MAC
         # Use the precomputed lookup to retrieve the list of MAC addresses for this port.
-        # If no entries exist, return an empty string.  Join the typed list into a single comma-separated string.
         $macList = if ($macsByPort.ContainsKey($port)) {
             [string]::Join(',', $macsByPort[$port])
         } else {
@@ -451,9 +381,6 @@ function Get-BrocadeDeviceFacts {
         # Lookup the configuration text for this port or default to an empty string.
         $cfgText = if ($configs.ContainsKey($port)) { $configs[$port] } else { '' }
         # Prefer the alias/name from the brief output when present; fall back to the
-        # description parsed from the config.  Older firmware may not include a
-        # Name column in the brief output, so only use the config description
-        # when the brief name is blank or missing.
         $desc = if ($iface.Name -and $iface.Name -ne '') {
             $iface.Name
         } elseif ($namesMap.ContainsKey($port)) {
@@ -464,15 +391,6 @@ function Get-BrocadeDeviceFacts {
         $authMode = if ($authRow) { $authRow.Mode } elseif ($dot1xPorts -contains $port) { "dot1x" } elseif ($macauthPorts -contains $port) { "macauth" } else { "open" }
         $authState = if ($authRow) { $authRow.State } elseif ($authMode -eq "open") { "Open" } else { "Unknown" }
         # Determine the authentication template for the port.  Beginning with
-        # FastIron 08.0.90 the recommended way to enable 802.1X on a set of
-        # interfaces is via the global "dot1x port-control auto" command inside
-        # the Authentication block.  Previous versions relied on per‑interface
-        # configuration.  Because the Authentication block can specify ranges
-        # of ports, we treat any port appearing in the expanded dot1x range as
-        # dot1x enabled even if the per‑port configuration text does not contain
-        # a dot1x statement.  Flexible authentication applies when both dot1x
-        # and macauth are enabled on the same port.  Otherwise we assign
-        # dot1x, macauth or open based on the enabled lists.
         $dot1xEnabled   = $dot1xPorts -contains $port
         $macauthEnabled = $macauthPorts -contains $port
         $authTemplate = switch ($true) {
@@ -494,7 +412,6 @@ function Get-BrocadeDeviceFacts {
     }
 
     # Attempt to parse spanning-tree information if present.  Locate the
-    # spanning-tree or span command using the flexible command extractor.
     $spanBlock = Get-CommandBlock -Lines $Lines -CommandRegex '#\s*show\s+spanning-tree'
     if ($spanBlock.Count -eq 0) {
         $spanBlock = Get-CommandBlock -Lines $Lines -CommandRegex '#\s*show\s+span'

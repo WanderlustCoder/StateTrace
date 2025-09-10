@@ -1,6 +1,5 @@
 ﻿# === BEGIN TemplatesModule.psm1 ===
 # Purpose: Load ShowCommands.json and expose simple query functions.
-# Caching auto-invalidates on file mtime. Works on PS 5.1 and PS 7+.
 
 # Default path: ..\Templates\ShowCommands.json (relative to this module)
 $script:ShowCfgPath  = Join-Path $PSScriptRoot '..\Templates\ShowCommands.json'

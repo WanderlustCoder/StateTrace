@@ -1,21 +1,5 @@
 function New-AlertsView {
-    <#
-        .SYNOPSIS
-            Load and initialise the Alerts view.
-
-        .DESCRIPTION
-            This function loads the AlertsView.xaml file and injects it into the
-            main window.  After loading, it executes the Update-Alerts helper
-            (if available) to populate current alerts.  It also wires up the
-            export button to allow saving alert data to CSV.
-
-        .PARAMETER Window
-            The main WPF window created by MainWindow.ps1.
-
-        .PARAMETER ScriptDir
-            The directory containing the Main scripts.  AlertsView.xaml is
-            expected to reside in a ../Views folder relative to this path.
-    #>
+    
     param(
         [Parameter(Mandatory=$true)][Windows.Window]$Window,
         [Parameter(Mandatory=$true)][string]$ScriptDir

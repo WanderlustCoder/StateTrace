@@ -5,7 +5,6 @@ Add-Type -AssemblyName PresentationFramework
 
 # Paths
 $scriptDir    = $PSScriptRoot
-# Ensure global debug flag initialized
 if ($null -eq $Global:StateTraceDebug) { $Global:StateTraceDebug = $false }
 
 # Load modules from the manifest (single source of truth)
@@ -47,9 +46,6 @@ catch {
 }
 
 ## ---------------------------------------------------------------------
-## Database initialization
-# === BEGIN Database Initialization (MainWindow.ps1) ===
-# Uses DatabaseModule’s Initialize-StateTraceDatabase; sets $global:StateTraceDb and $env:StateTraceDbPath.
 $null = Initialize-StateTraceDatabase -DataDir (Join-Path $scriptDir '..\Data')
 # === END Database Initialization (MainWindow.ps1) ===
 
@@ -204,9 +200,6 @@ function Get-HostnameChanged {
 
     try {
         # Load device details synchronously.  Asynchronous invocation via
-        # Import-DeviceDetailsAsync has been disabled due to stability issues on
-        # PowerShell 5.1.  Using the synchronous helper ensures reliability
-        # when selecting a new host from the dropdown.
         if ($Hostname) {
             Get-DeviceDetails $Hostname
             if (Get-Command Load-SpanInfo -ErrorAction SilentlyContinue) {
@@ -223,36 +216,13 @@ function Get-HostnameChanged {
     }
 }
 
-<#
-    Load device details asynchronously.  This wrapper uses .NET tasks to run
-    Get‑DeviceDetailsData on a background thread.  When the task completes, it
-    marshals the result back to the UI thread via the WPF dispatcher.  It then
-    populates the appropriate controls in the Interfaces view (HostnameBox,
-    MakeBox, ModelBox, etc.), binds the interface list to the InterfacesGrid,
-    and populates the configuration templates dropdown using Set‑DropdownItems.
-    If no hostname is provided, the function clears the span info via
-    Load‑SpanInfo when defined.  Any exceptions are silently swallowed to
-    preserve UI stability.
-#>
-function Import-DeviceDetailsAsync {
-    <#
-        Retrieve device details on a background thread to avoid blocking the UI thread.  This
-        implementation has been rewritten for PowerShell 5.1 compatibility.  It no longer
-        passes script blocks or untyped delegates to .NET methods which do not support
-        them.  Instead, the code constructs an explicit script string and executes it on
-        a dedicated background thread using a synchronous Invoke() call rather than
-        BeginInvoke().  The dispatcher is invoked via [System.Action] to marshal updates
-        back to the UI.
 
-        When asynchronous invocation fails for any reason, the function writes a warning
-        and does not throw.  Callers should fall back to a synchronous Get‑DeviceDetails
-        invocation if desired.
-    #>
+function Import-DeviceDetailsAsync {
+    
     [CmdletBinding()]
     param(
         [string]$Hostname
     )
-    # Determine if debug output is enabled
     $debug = ($Global:StateTraceDebug -eq $true)
     if ($debug) {
         Write-Verbose ("Import-DeviceDetailsAsync: called with Hostname='{0}'" -f ($Hostname -as [string]))
@@ -266,7 +236,6 @@ function Import-DeviceDetailsAsync {
     }
 
     # Resolve the module path to an absolute path.  Join-Path with '..' segments may
-    # yield a relative string; Resolve-Path expands it to a full filesystem path.
     try {
         $modulePath = (Resolve-Path -LiteralPath (Join-Path $scriptDir "..\Modules\DeviceDataModule.psm1")).Path
     } catch {
@@ -275,8 +244,6 @@ function Import-DeviceDetailsAsync {
     }
     try {
         # Create a dedicated STA runspace for background processing.  Running the
-        # device data retrieval in a separate runspace avoids blocking the UI
-        # thread and does not rely on .NET Tasks which are not always available.
         $rs = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace()
         $rs.ApartmentState = [System.Threading.ApartmentState]::STA
         $rs.ThreadOptions  = [System.Management.Automation.Runspaces.PSThreadOptions]::ReuseThread
@@ -293,7 +260,6 @@ function Import-DeviceDetailsAsync {
         }
 
         # Build a script string instead of passing a ScriptBlock.  Passing a string
-        # ensures the AddScript method binds to the correct overload in PowerShell 5.1.
         $scriptText = @"
 param(\$hn, \$modPath)
 Import-Module -LiteralPath \$modPath -ErrorAction Stop
@@ -315,10 +281,6 @@ return \$res
         }
 
         # Execute the device details retrieval on a dedicated background thread instead of using
-        # PowerShell.BeginInvoke(), which has limited overloads in PowerShell 5.1.  We create a
-        # [Thread] object to run the synchronous Invoke() call on our background runspace and
-        # marshal results back to the UI thread via the WPF Dispatcher.  This avoids the
-        # overload issues encountered with BeginInvoke().
         if ($Global:StateTraceDebug -eq $true) {
             Write-Verbose ("Import-DeviceDetailsAsync: starting background thread for '{0}'" -f $Hostname)
         }
@@ -333,7 +295,6 @@ return \$res
                 } else {
                     $data = $results
                 }
-                # Emit verbose output when debug is enabled
                 if ($Global:StateTraceDebug -eq $true) {
                     try {
                         $typeName = if ($null -ne $data) { $data.GetType().FullName } else { 'null' }
@@ -341,10 +302,6 @@ return \$res
                     } catch {}
                 }
                 # Marshal UI updates back to the dispatcher thread.  Passing the result as
-                # an argument avoids capturing variables from the background runspace,
-                # which can lead to crashes when selecting a host.  Dispatcher.Invoke
-                # can take a scriptblock and an argument array; the scriptblock declares
-                # a parameter to receive the result object.
                 $uiAction = {
                     param($dto)
                     try {
@@ -445,10 +402,6 @@ if ($hostnameDropdown -and -not $script:HostnameHandlerAttached) {
 # Debounced updater so cascaded changes trigger a single refresh.
 if (-not $script:FilterUpdateTimer) {
     # Create a debounced timer for device filter updates.  The interval was
-    # previously set to 120ms which could trigger frequent refreshes on rapid
-    # changes.  Increase this to 300ms to allow the user to finish typing or
-    # selecting before the filter logic runs, reducing unnecessary work and
-    # improving responsiveness.  See performance plan phase 1.
     $script:FilterUpdateTimer = New-Object System.Windows.Threading.DispatcherTimer
     $script:FilterUpdateTimer.Interval = [TimeSpan]::FromMilliseconds(300)
     $script:FilterUpdateTimer.add_Tick({
@@ -577,7 +530,6 @@ $window.Add_Loaded({
         }
 
         # Bind summaries and filters (this populates HostnameDropdown)
-        # Populate hostnames and apply location filters using unified helper functions
         Get-DeviceSummaries
         Update-DeviceFilter   # <-- critical
 

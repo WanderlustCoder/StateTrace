@@ -3,15 +3,11 @@
 Set-StrictMode -Version Latest
 
 # Ensure that the debounce timer variable exists in script scope.  Under
-# StrictMode, referencing an undefined variable throws an exception, so we
-# predefine it to $null here.  It will be initialised later when the
-# Interfaces view is created.
 if (-not (Get-Variable -Name InterfacesFilterTimer -Scope Script -ErrorAction SilentlyContinue)) {
     $script:InterfacesFilterTimer = $null
 }
 
 # Helper: Gather selected or checked interface rows using typed lists.  This function
-# returns a List[object] to avoid O(n^2) growth seen with PowerShell array +=.
 function Get-SelectedInterfaceRows {
     [CmdletBinding()]
     param(
@@ -39,10 +35,6 @@ function Get-SelectedInterfaceRows {
 }
 
 # Define a default path to the Interfaces view XAML.  This allows the
-# module to locate its own view definition relative to its installation
-# directory without relying on external variables such as `$ScriptDir`.
-# Consumers may override this by passing the `-InterfacesViewXaml` parameter
-# when calling `New-InterfacesView`.  See function definition below.
 $script:InterfacesViewXamlDefault = Join-Path $PSScriptRoot '..\Views\InterfacesView.xaml'
 
 function Get-InterfaceHostnames {
@@ -51,9 +43,6 @@ function Get-InterfaceHostnames {
     [CmdletBinding()]
     param([string]$ParsedDataPath)
     # Delegate to DeviceDataModule implementation.  The central module defines
-    # Get-InterfaceHostnames which reads from the StateTrace database.  Pass
-    # through all bound parameters to preserve backwards compatibility.  This
-    # wrapper prevents duplicated logic in this module.
     return DeviceDataModule\Get-InterfaceHostnames @PSBoundParameters
 }
 
@@ -66,11 +55,6 @@ function Get-InterfaceInfo {
         [string]$TemplatesPath = (Join-Path $PSScriptRoot '..\Templates')
     )
     # Delegate to DeviceDataModule implementation.  This wrapper calls the
-    # central Get-InterfaceInfo function defined in DeviceDataModule to
-    # retrieve interface details and perform vendor-specific enrichment.  It
-    # preserves the existing parameter set by passing through all bound
-    # parameters via $PSBoundParameters.  By returning immediately, the
-    # remainder of this function (legacy implementation) is bypassed.
     return DeviceDataModule\Get-InterfaceInfo @PSBoundParameters
     # The legacy implementation that followed this return statement
 
@@ -105,10 +89,6 @@ function Get-InterfaceConfiguration {
         [string]$TemplatesPath = (Join-Path $PSScriptRoot '..\Templates')
     )
     # Delegate to DeviceDataModule implementation.  This wrapper calls the
-    # central Get-InterfaceConfiguration function defined in DeviceDataModule
-    # to build port configuration snippets based on the selected template.
-    # It passes through all bound parameters, ensuring that name and VLAN
-    # overrides remain supported.
     return DeviceDataModule\Get-InterfaceConfiguration @PSBoundParameters
     # The original implementation that followed this return statement
 
@@ -146,9 +126,6 @@ function Get-ConfigurationTemplates {
         [string]$TemplatesPath = (Join-Path $PSScriptRoot '..\Templates')
     )
     # Delegate to DeviceDataModule implementation.  This wrapper calls the
-    # central Get-ConfigurationTemplates function defined in DeviceDataModule
-    # which determines the vendor, loads the appropriate JSON and returns
-    # available template names.  Pass through all bound parameters.
     return DeviceDataModule\Get-ConfigurationTemplates @PSBoundParameters
     # The legacy implementation that queried the DeviceSummary table and
 
@@ -161,18 +138,12 @@ function New-InterfacesView {
         [Parameter(Mandatory=$true)]
         [System.Windows.Window]$Window,
         # Optional script directory.  When provided, the view XAML will be
-        # resolved relative to this path (../Views/InterfacesView.xaml).
         [string]$ScriptDir,
         # Optional explicit path to the Interfaces view XAML.  When
-        # specified, this overrides both the ScriptDir and the module's
-        # default view path.  Use this to load a custom view definition.
         [string]$InterfacesViewXaml
     )
 
     # Determine the XAML path to load.  Priority order:
-    # 1) caller provided -InterfacesViewXaml argument
-    # 2) caller provided -ScriptDir argument
-    # 3) module default ($script:InterfacesViewXamlDefault)
     $interfacesViewXamlPath = $null
     if ($PSBoundParameters.ContainsKey('InterfacesViewXaml') -and $InterfacesViewXaml) {
         $interfacesViewXamlPath = $InterfacesViewXaml
@@ -209,19 +180,11 @@ function New-InterfacesView {
     $copyDetailsButton = $interfacesView.FindName('CopyDetailsButton')
 
     #
-    # Promote frequently used controls to the global scope.  When this function
-    # completes, its local variables go out of scope and any scriptblocks
-    # attached to UI events will no longer be able to access them.  Assigning
-    # the controls to global variables ensures they remain available when
-    # invoked later (for example, by the Copy Details button or filter box
-    # handlers).  See FurtherFixes.docx step 1 for details.
-    #
     if ($interfacesGrid)    { $global:interfacesGrid   = $interfacesGrid }
     if ($templateDropdown)  { $global:templateDropdown = $templateDropdown }
     if ($filterBox)         { $global:filterBox        = $filterBox }
 
     # ------------------------------
-    # Compare button
     if ($compareButton) {
         $compareButton.Add_Click({
         # Prefer globally-scoped grid if we promoted it; fall back to find by name
@@ -261,8 +224,6 @@ function New-InterfacesView {
             $col = $Window.FindName('CompareColumn')
             if ($col -is [System.Windows.Controls.ColumnDefinition]) {
                 # Expand the Compare sidebar to a wider width.  A 600 pixel width
-                # provides enough room for long authentication commands to be displayed
-                # without wrapping inside the config text boxes.
                 if ($col.Width.Value -eq 0) { $col.Width = [System.Windows.GridLength]::new(600) }
             }
         } catch {
@@ -274,12 +235,9 @@ function New-InterfacesView {
 
     if ($interfacesGrid) {
         # With SelectionUnit="CellOrRowHeader" and a two-way checkbox binding defined in the XAML, DataGrid checkboxes
-        # update the IsSelected property immediately on click without any code-behind.  Therefore we no longer attach
-        # preview click handlers or extra Checked/Unchecked handlers here.
     }
 
     # ------------------------------
-    # Configure button (unchanged)
     if ($configureButton -and $interfacesGrid -and $templateDropdown) {
         $configureButton.Add_Click({
             # Use globally scoped grid and dropdown to avoid out-of-scope errors
@@ -314,7 +272,6 @@ function New-InterfacesView {
     }
 
     # ------------------------------
-    # Filter box
     if ($clearBtn -and $filterBox) {
         $clearBtn.Add_Click({
             # Access filter box via global scope to avoid missing variable errors
@@ -324,29 +281,21 @@ function New-InterfacesView {
     }
     if ($filterBox -and $interfacesGrid) {
         # Initialise a debounce timer for the filter box if it does not exist.  This
-        # prevents the expensive view filtering from running on every key press.
         if (-not $script:InterfacesFilterTimer) {
             $script:InterfacesFilterTimer = New-Object System.Windows.Threading.DispatcherTimer
             # Use a 300ms interval to match the search debounce and allow the user
-            # to finish typing before the filter executes.
             $script:InterfacesFilterTimer.Interval = [TimeSpan]::FromMilliseconds(300)
             $script:InterfacesFilterTimer.add_Tick({
                 # Stop the timer so it can be restarted by the next key press
                 $script:InterfacesFilterTimer.Stop()
                 try {
                     # Safely coerce the filter box text to a string.  Avoid calling
-                    # ToLower() on every field; instead use IndexOf with
-                    # OrdinalIgnoreCase for case-insensitive substring search.
                     $txt  = ('' + $global:filterBox.Text)
                     $view = [System.Windows.Data.CollectionViewSource]::GetDefaultView($global:interfacesGrid.ItemsSource)
                     if ($null -eq $view) { return }
                     $view.Filter = {
                         param($item)
                         # Coerce each field to a string to avoid calling methods on $null.  Casting
-                        # with [string] or concatenating with an empty string guarantees a
-                        # non-null string (empty when the source is null).  Use IndexOf with
-                        # OrdinalIgnoreCase to perform case-insensitive substring search
-                        # without allocating new strings via ToLower().
                         return (
                             (('' + $item.Port      ).IndexOf($txt, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
                             (('' + $item.Name      ).IndexOf($txt, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
@@ -362,9 +311,6 @@ function New-InterfacesView {
             })
         }
         # On every key press, restart the debounce timer; the filter will
-        # execute when the user pauses typing.  Guard against the timer
-        # not being initialised (e.g. if initialisation failed) by
-        # checking for its existence before invoking methods on it.
         $filterBox.Add_TextChanged({
             if ($script:InterfacesFilterTimer) {
                 $script:InterfacesFilterTimer.Stop()
@@ -374,7 +320,6 @@ function New-InterfacesView {
     }
 
     # ------------------------------
-    # Copy Details button
     if ($copyDetailsButton -and $interfacesGrid) {
         $copyDetailsButton.Add_Click({
             # Use global interfaces grid to read selected items
@@ -412,17 +357,12 @@ function New-InterfacesView {
     }
 
     # ------------------------------
-    # Template dropdown color hint
-    # Use global scope to ensure the control remains available when this event fires.
     if ($templateDropdown) {
         $templateDropdown.Add_SelectionChanged({
             $sel = $global:templateDropdown.SelectedItem
             $brush = [System.Windows.Media.Brushes]::Black
             if ($sel) {
                 # Perform case-insensitive substring checks without converting
-                # the selected item to lowercase.  Using -match with the (?i)
-                # inline option avoids allocating a new string for each vendor
-                # check and yields the same semantics as the previous ToLower().
                 $text = '' + $sel
                 if     ($text -match '(?i)cisco')   { $brush = [System.Windows.Media.Brushes]::DodgerBlue }
                 elseif ($text -match '(?i)brocade') { $brush = [System.Windows.Media.Brushes]::Goldenrod }

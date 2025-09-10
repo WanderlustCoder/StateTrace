@@ -1,7 +1,4 @@
-﻿<#
-.SYNOPSIS
-    Parses Cisco show command outputs into structured data.
-#>
+﻿
 function Get-CiscoDeviceFacts {
     [CmdletBinding()]
     param (
@@ -10,12 +7,8 @@ function Get-CiscoDeviceFacts {
     )
 
     #-----------------------------------------
-    # Note: The per-module Get-ShowCommandBlocks helper has been removed.
-    # A shared helper Get-ShowCommandBlocks provided by ParserWorker.psm1 is
-    # used instead to extract show command outputs.
 
     #-----------------------------------------
-    # Updated hostname detection to prefer prompts and then fallback to running-config
     function Get-Hostname      {
         param([string[]]$Lines)
         # Prefer prompt-derived hostname (supports "SSH@host#", "host#", or "host>")
@@ -55,9 +48,6 @@ function Get-CiscoDeviceFacts {
             if ($l -match '^interface\s+(\S+)') {
                 $fullName = $matches[1]
                 # Use a strongly typed List[string] instead of a PowerShell array.  Using
-                # array '+=' repeatedly leads to O(n^2) behaviour.  A .NET List grows
-                # amortised O(1) and avoids repeated reallocations when building up
-                # the configuration lines.
                 $block    = New-Object 'System.Collections.Generic.List[string]'
                 [void]$block.Add($l)
                 $desc     = ''
@@ -111,7 +101,6 @@ function Get-CiscoDeviceFacts {
     function Get-InterfacesStatus {
         param([string[]]$Lines)
         # Use a strongly typed list instead of repeatedly using += on a PowerShell
-        # array.  Array += causes O(n^2) behaviour as the collection grows.
         $res = New-Object 'System.Collections.Generic.List[object]'
         $parsing=$false
         foreach ($l in $Lines) {
@@ -146,8 +135,6 @@ function Get-CiscoDeviceFacts {
     function Get-Dot1xStatus {
         param([string[]]$Lines)
         # Accumulate dot1x status entries in a strongly typed list rather than
-        # repeatedly reallocating a PowerShell array via '+='.  This improves
-        # performance on large tables.
         $list = New-Object 'System.Collections.Generic.List[object]'; $inSection=$false
         foreach ($l in $Lines) {
             if ($l -match '^Interface\s+MAC Address') { $inSection=$true; continue }
@@ -160,9 +147,6 @@ function Get-CiscoDeviceFacts {
                 $method = $cols[2]
                 $status = ($cols[4..($cols.Count-2)] -join ' ').Trim()
                 # Determine authorization state.  Status values in logs may be
-                # abbreviated (e.g. Auth, Unauth) or verbose (Authz Success, Authc Failed).
-                # Treat any status containing 'auth' or 'success' as Authorized.  Treat
-                # statuses containing 'unauth', 'fail' or 'failed' as Unauthorized.
                 if ($status -match '(?i)auth' -and -not ($status -match '(?i)unauth|fail')) {
                     $authState = 'Authorized'
                 } elseif ($status -match '(?i)unauth|fail') {
@@ -178,11 +162,7 @@ function Get-CiscoDeviceFacts {
     }
 
     # Parse show spanning-tree output into a collection of summary rows.  Each
-    # The Parse-SpanningTree helper has been consolidated into ParserWorker.psm1.
-    # Use the shared Parse-SpanningTree defined in ParserWorker instead of a local implementation.
 
-    #
-    # === Updated helper: Detect MAB via the standalone 'mab' line ===
     #
     function Get-PortAuthTemplates {
         param([hashtable]$Configs)
@@ -203,7 +183,6 @@ function Get-CiscoDeviceFacts {
             $lines = $Configs[$key].Config -split "`r?`n" | ForEach-Object { $_.Trim().ToLower() }
 
             # Was originally only checking the 'authentication order ... mab' line:
-            # now detect any standalone 'mab'
             $hasDot1x = $lines -contains 'dot1x pae authenticator'
             $hasMab   = $lines -contains 'mab'
 
@@ -230,10 +209,6 @@ function Get-CiscoDeviceFacts {
     }
 
     #-----------------------------------------
-    # Retrieve blocks for each show command using the shared helper.  This
-    # helper captures each "show ..." section in the log and returns a
-    # dictionary keyed by the command string.
-    # Use the shared Get‑ShowCommandBlocks helper from ParserWorker to extract show command output blocks
     $blocks    = Get-ShowCommandBlocks -Lines $Lines
     $runCfg    = $blocks['show running-config']
     $verBlk    = $blocks['show version']
@@ -263,18 +238,8 @@ function Get-CiscoDeviceFacts {
     }
 
     # ----------------------------------------------------------------------
-    # Large performance optimization: avoid repeatedly scanning the MAC table
-    # and authentication lists for each interface.  Build lookup tables once
-    # up front so that retrieving per-port information is O(1) instead of
-    # O(N) per interface.  Also, use a strongly typed list for the final
-    # combined collection to avoid quadratic array growth.
 
     # Build a lookup of port -> list of MAC addresses (strings) and a
-    # lookup of port -> first MAC record.  Using a HashTable keyed by the
-    # raw port string allows us to retrieve all MAC entries or the first
-    # one in constant time rather than scanning the entire $macs collection
-    # for each interface.  The per-port list uses a typed List[string] to
-    # avoid expensive array concatenations.
     $macsByPort      = @{}
     $firstMacByPort  = @{}
     foreach ($entry in $macs) {
@@ -288,10 +253,6 @@ function Get-CiscoDeviceFacts {
     }
 
     # Build a lookup of interface -> first authentication session row.  Using
-    # a dictionary keyed by the interface name avoids repeatedly invoking
-    # Where-Object and Select-Object for each interface.  Only the first
-    # session row is relevant for most summary statistics, so we capture the
-    # first occurrence.
     $authByPort = @{}
     foreach ($session in $auth) {
         $p = $session.Interface
@@ -301,10 +262,6 @@ function Get-CiscoDeviceFacts {
     }
 
     # Use a typed list to accumulate interface summary objects.  Using
-    # PowerShell array '+=' causes O(n^2) behaviour due to repeated
-    # reallocation.  A typed List[object] grows amortised O(1) and has a
-    # Count property compatible with the array used previously.  At the
-    # end, we return this list directly as the InterfacesCombined property.
     $combinedList = New-Object 'System.Collections.Generic.List[object]'
     foreach ($iface in $status) {
         $raw      = $iface.RawPort
@@ -313,7 +270,6 @@ function Get-CiscoDeviceFacts {
         $name     = if ($cfgEntry -and $cfgEntry.Description) { $cfgEntry.Description } else { $raw }
 
         # Retrieve MACs and first MAC row via lookup.  If no entry exists,
-        # default to empty list / null.
         $macListRef = $null
         $macEntry   = $null
         if ($macsByPort.ContainsKey($raw)) {
@@ -321,17 +277,12 @@ function Get-CiscoDeviceFacts {
             $macEntry   = $firstMacByPort[$raw]
         }
         # Join MAC addresses into a comma-separated string.  Avoid using
-        # '-join' on a PowerShell array; use the typed list directly via
-        # [string]::Join for efficiency.  Handle null by returning empty
-        # string when there are no learned MACs.
         $macListStr = if ($macListRef) { [string]::Join(',', $macListRef) } else { '' }
 
         # Retrieve the first authentication row via the lookup.  If none
-        # exists, $authRow will be $null.
         $authRow = if ($authByPort.ContainsKey($raw)) { $authByPort[$raw] } else { $null }
 
         # Determine interface MAC and VLAN information from the first MAC
-        # entry when present.
         $interfaceMac = if ($macEntry) { $macEntry.MAC } else { '' }
         $authVlan     = if ($macEntry) { $macEntry.VLAN } else { '' }
 
@@ -339,7 +290,6 @@ function Get-CiscoDeviceFacts {
         $templateInfo = $authTemplates[$raw]
 
         # Build the summary object and add to the typed list.  All
-        # properties remain consistent with the previous implementation.
         $obj = [PSCustomObject]@{
             Port            = $raw
             Name            = $name
@@ -361,14 +311,9 @@ function Get-CiscoDeviceFacts {
         [void]$combinedList.Add($obj)
     }
     # Assign the combined list to a variable with the original name for
-    # compatibility.  Consumers of this function expect a collection with a
-    # Count property; List[object] satisfies this requirement.
     $combined = $combinedList
 
     # Gather spanning tree information if the log included a 'show spanning-tree'
-    # section.  Some devices may use the abbreviated command 'show span'; try
-    # both keys.  If no output is found, the SpanInfo collection will be
-    # empty.  When present, parse the output into a list of records.
     $spanLines = @()
     if ($blocks.ContainsKey('show spanning-tree')) {
         $spanLines = $blocks['show spanning-tree']

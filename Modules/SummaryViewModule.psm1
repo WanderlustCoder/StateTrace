@@ -1,22 +1,5 @@
 function New-SummaryView {
-    <#
-        .SYNOPSIS
-            Load and initialise the Summary view.
-
-        .DESCRIPTION
-            Loads SummaryView.xaml from the Views folder and sets it as the
-            content of the SummaryHost control in the main window.  It
-            exposes the view globally via $summaryView and triggers the
-            Update-Summary helper (if available) to populate the initial
-            metrics.
-
-        .PARAMETER Window
-            The main WPF window created by MainWindow.ps1.
-
-        .PARAMETER ScriptDir
-            The directory containing the Main scripts.  SummaryView.xaml is
-            expected to reside in a ../Views folder relative to this path.
-    #>
+    
     param(
         [Parameter(Mandatory=$true)][Windows.Window]$Window,
         [Parameter(Mandatory=$true)][string]$ScriptDir

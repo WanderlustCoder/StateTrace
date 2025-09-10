@@ -5,8 +5,6 @@
     )
 
     #
-    # 1) Extract Hostname, Model/Version, Uptime, Location, Interfaces, MacTable, Dot1xStatus
-    #
 
     function Get-Hostname {
         foreach ($line in $Lines) {
@@ -53,8 +51,6 @@
 
     function Get-Interfaces {
         # Use a typed List[object] for accumulating interface records.  Avoid
-        # using the '+=' operator on arrays because it reallocates the array
-        # for every append, resulting in O(n^2) behaviour on large tables.
         $results = New-Object 'System.Collections.Generic.List[object]'
         $parsing = $false
         foreach ($line in $Lines) {
@@ -133,8 +129,6 @@
     }
 
     #
-    # 2) New helper: extract each interface's full config block
-    #
     function Get-InterfaceConfigs {
     $ht = @{}
     for ($i = 0; $i -lt $Lines.Count; $i++) {
@@ -161,10 +155,6 @@
 }
 
     #
-    # 3) Gather all pieces
-    #
-    # When Blocks are provided, use them to limit parsing to specific command outputs.
-    # Otherwise attempt to generate Blocks on the fly using the helper function.
     if (-not $Blocks) {
         try {
             $Blocks = Get-ShowCommandBlocks -Lines $Lines
@@ -173,8 +163,6 @@
         }
     }
     # Determine targeted blocks for each category of information.  Fallback to the full
-    # input when a particular command block is unavailable.  This reduces the amount
-    # of scanning performed by each helper function.
     $versionLines = if ($Blocks.ContainsKey('show version')) { $Blocks['show version'] } else { $Lines }
     $runCfgLines  = if ($Blocks.ContainsKey('show running-config')) { $Blocks['show running-config'] } else { $Lines }
     $intStatusLines = $null
@@ -222,10 +210,6 @@
     $Lines = $origLines
 
     #
-    # 4) Build CombinedInterfaces array with an extra Config property
-    #
-    # Use a typed List[object] to accumulate combined interface objects to
-    # avoid repeated array copying via '+=' which leads to O(n^2) growth.
     $combinedInterfaces = New-Object 'System.Collections.Generic.List[object]'
     foreach ($iface in $interfaces) {
         # a) All learned MACs for this port
@@ -269,13 +253,10 @@
             Config        = $cfgText
 
             # (Optional) Template property can be added here if you parse it from the log:
-            # Template     = $someLookupFunction($iface.Port)
         }
         [void]$combinedInterfaces.Add($ciObj)
     }
 
-    #
-    # 5) Return the summary object
     #
     return [PSCustomObject]@{
         Hostname           = $hostname

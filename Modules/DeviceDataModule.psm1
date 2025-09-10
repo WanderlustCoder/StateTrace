@@ -1,7 +1,4 @@
 # ----------------------------------------------------------------------------
-# Reentrancy/refresh guard for filter updates. When repopulating dropdowns,
-# SelectionChanged can fire repeatedly; this guard prevents re-entry and
-# visible flicker/refresh while the list is open.
 if (-not (Get-Variable -Name DeviceFilterUpdating -Scope Script -ErrorAction SilentlyContinue)) {
     $script:DeviceFilterUpdating = $false
 }
@@ -24,14 +21,6 @@ function Test-StringListEqualCI {
 # DeviceDataModule.psm1
 
 # Initialise a simple in‑memory cache for per‑device interface lists.  When a
-# device has been viewed once in the Interfaces tab, its port list will be
-# stored in this dictionary keyed by hostname.  Subsequent visits to the same
-# device can reuse the cached list rather than issuing another query and
-# rebuilding PSCustomObjects.  The cache persists for the lifetime of the
-# session and is cleared only when the module is reloaded.  See
-# Get-DeviceDetails for usage.  Note that this cache does not implement
-# invalidation when underlying data changes; it is intended for read‑only
-# scenarios typical of log analysis.
 if (-not $global:DeviceInterfaceCache) {
     $global:DeviceInterfaceCache = @{}
 }
@@ -71,9 +60,6 @@ function Set-DropdownItems {
         [Parameter(Mandatory)][object[]]$Items
     )
     # Assign the ItemsSource and select the first item (index 0) when
-    # available, otherwise clear the selection (index -1).  Wrap the
-    # SelectedIndex assignment in try/catch to swallow WPF exceptions
-    # that can occur if the control has not yet been fully initialised.
     $Control.ItemsSource = $Items
     if ($Items -and $Items.Count -gt 0) {
         try { $Control.SelectedIndex = 0 } catch { $null = $null }
@@ -83,53 +69,16 @@ function Set-DropdownItems {
 }
 
 ###
-### [PERF-BATCH] Helpers for batched interface queries
-###
 
 function Get-SqlLiteral {
-    <#
-        .SYNOPSIS
-            Escapes a string for safe inclusion in a SQL literal.
-
-        .DESCRIPTION
-            Doubles single quotes in the input value to prevent SQL
-            injection and ensure proper matching when constructing queries
-            that embed hostnames or other user-controlled strings.  Use
-            this helper when building the IN clause for batch queries.
-
-        .PARAMETER Value
-            The string value to escape.
-
-        .OUTPUTS
-            System.String
-    #>
+    
     param([Parameter(Mandatory)][string]$Value)
     # Replace single quotes with doubled single quotes
     return $Value -replace "'", "''"
 }
 
 function Get-InterfacesForHostsBatch {
-    <#
-        .SYNOPSIS
-            Retrieves interface rows for multiple hostnames in a single query.
-
-        .DESCRIPTION
-            Accepts an array of hostnames and constructs a single SELECT
-            statement using an IN clause.  This consolidates what would
-            otherwise be multiple per-host queries into one, reducing
-            overhead and eliminating N+1 query patterns.  A short-lived
-            read session is used internally to perform the query.
-
-        .PARAMETER DatabasePath
-            Path to the Access database file.
-
-        .PARAMETER Hostnames
-            Array of hostnames for which interface rows should be retrieved.
-
-        .OUTPUTS
-            System.Data.DataTable containing the results.  Returns an
-            empty DataTable when Hostnames is null or empty.
-    #>
+    
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$DatabasePath,
@@ -174,7 +123,6 @@ WHERE i.Hostname IN ($inList)
 ORDER BY i.Hostname, i.Port
 "@
     # Perform the query using a short‑lived read session to benefit
-    # from connection pooling across this call.  Dispose the session after use.
     $session = $null
     try {
         $session = Open-DbReadSession -DatabasePath $DatabasePath
@@ -204,13 +152,9 @@ function New-InterfaceObjectsFromDbRow {
     # If the database is unavailable return an empty array immediately.
     if (-not $global:StateTraceDb) { return @() }
     # Escape the hostname once for reuse in SQL queries.  Doubling single quotes
-    # prevents SQL injection and ensures proper matching in Access queries.
     $escHost = $Hostname -replace "'", "''"
 
     # Determine vendor (Cisco vs Brocade) and global auth block using any joined
-    # columns present on the first data row.  Fallback to a single DeviceSummary
-    # lookup only when necessary.  This avoids N+1 queries and safely handles
-    # different row types without relying on PSTypeName.
     $vendor = 'Cisco'
     $authBlockLines = @()
     $firstRow = $null
@@ -228,7 +172,6 @@ function New-InterfaceObjectsFromDbRow {
     # Attempt to determine vendor from joined Make column
     try {
         # Check if the first row exposes a 'Make' property.  Avoid specifying
-        # MemberType so the call succeeds for note and alias properties.
         if ($firstRow -and ($firstRow | Get-Member -Name 'Make' -ErrorAction SilentlyContinue)) {
             $mk = '' + $firstRow.Make
             if ($mk -match '(?i)brocade') { $vendor = 'Brocade' }
@@ -282,7 +225,6 @@ function New-InterfaceObjectsFromDbRow {
         }
     }
     # Load compliance templates based on vendor.  If the JSON file is missing the
-    # Templates array will be $null and matches will fail, resulting in defaults.
     $templates = $null
     try {
         $vendorFile = if ($vendor -eq 'Cisco') { 'Cisco.json' } else { 'Brocade.json' }
@@ -295,7 +237,6 @@ function New-InterfaceObjectsFromDbRow {
         }
     } catch {}
     # Normalise $Data into an enumerable collection of rows.  Support DataTable,
-    # DataView and any IEnumerable.  If an unsupported type is passed, return an empty list.
     $rows = @()
     if ($Data -is [System.Data.DataTable]) {
         $rows = $Data.Rows
@@ -307,23 +248,13 @@ function New-InterfaceObjectsFromDbRow {
         return @()
     }
     # Use a strongly typed List[object] instead of a PowerShell array.  Using
-    # the array '+=' operator repeatedly allocates a new array on every append,
-    # resulting in O(n^2) behaviour as the list grows.  A .NET List grows
-    # amortised O(1) and can be enumerated the same way as a normal array.
     $resultList = New-Object 'System.Collections.Generic.List[object]'
 
     # Precompute a lookup table for compliance templates when available.  When
-    # populating many interface rows, repeatedly scanning the $templates list
-    # via Where-Object results in O(n*m) behaviour.  Instead, build a
-    # case-insensitive dictionary mapping template names and aliases to their
-    # template object.  Using a .NET Dictionary with an OrdinalIgnoreCase
-    # comparer eliminates the need to call .ToLower() on every key and
-    # provides O(1) lookups.
     $templateLookup = New-Object 'System.Collections.Generic.Dictionary[string,object]' ([System.StringComparer]::OrdinalIgnoreCase)
     if ($templates) {
         foreach ($tmpl in $templates) {
             # Add the primary name as-is.  The dictionary key comparer will treat
-            # different casings as equal.
             $key = ('' + $tmpl.name)
             if (-not $templateLookup.ContainsKey($key)) { $templateLookup[$key] = $tmpl }
             # Add each alias as a separate key.  Guard against null alias lists.
@@ -375,8 +306,6 @@ function New-InterfaceObjectsFromDbRow {
             $match = $null
             if ($authTemplate) {
                 # Perform a case-insensitive lookup in the prebuilt template map.  The keys
-                # are normalised to lower-case.  Avoid scanning the entire templates
-                # array on every interface row.
                 $key = ('' + $authTemplate).ToLower()
                 if ($templateLookup.ContainsKey($key)) { $match = $templateLookup[$key] }
             }
@@ -428,13 +357,6 @@ function New-InterfaceObjectsFromDbRow {
 
 function Get-DeviceSummaries {
     # Always prefer loading device summaries from the database.  If the database
-    # is unavailable or the query fails, the list will remain empty and the
-    # UI will reflect this.  Legacy CSV fallbacks have been removed to
-    # enforce the database as the single source of truth.
-    # Use a typed List[string] instead of PowerShell array to avoid costly
-    # array copies when appending.  PowerShell arrays use copy-on-append
-    # semantics (`+=`) which become O(n^2) with many hosts.  A .NET
-    # List grows amortised O(1) and can be assigned directly to ItemsSource.
     $names = New-Object 'System.Collections.Generic.List[string]'
     $global:DeviceMetadata = @{}
     if ($global:StateTraceDb) {
@@ -445,7 +367,6 @@ function Get-DeviceSummaries {
                 $name = $row.Hostname
                 if (-not [string]::IsNullOrWhiteSpace($name)) {
                     # Add the hostname to the list.  Casting to void
-                    # suppresses any output from Add() in the pipeline.
                     [void]$names.Add($name)
                     $siteRaw     = $row.Site
                     $buildingRaw = $row.Building
@@ -472,9 +393,6 @@ function Get-DeviceSummaries {
     # Update the host dropdown and location filters based on the loaded device metadata.
     $hostnameDD = $window.FindName('HostnameDropdown')
     # Initialise the hostname dropdown with the loaded list of names.  This helper
-    # sets ItemsSource and safely selects the first item when available.
-    # The hostname list is a typed List[string]; ItemsControl can bind to
-    # any IEnumerable.  Pass the list directly to avoid converting to an array.
     Set-DropdownItems -Control $hostnameDD -Items $names
 
     $siteDD = $window.FindName('SiteDropdown')
@@ -505,7 +423,6 @@ function Get-DeviceSummaries {
     }
 
     # Rebuild the global interface list and update the search grid.  Without the
-    # database, this list will remain empty.
     if (Get-Command Update-GlobalInterfaceList -ErrorAction SilentlyContinue) {
         Update-GlobalInterfaceList
         $searchHostCtrl = $window.FindName('SearchInterfacesHost')
@@ -524,10 +441,6 @@ function Update-DeviceFilter {
     $script:DeviceFilterUpdating = $true
     try {
         # Detect changes in site and building selections from the last invocation.  When the
-        # parent (site) changes, the dependent building and room dropdowns should reset.
-        # When the building changes, the room dropdown should reset.  This prevents stale
-        # selections from being applied to new lists and eliminates the need for the user
-        # to manually clear a room when changing location.
         $loc0 = Get-SelectedLocation
         $currentSiteSel = $loc0.Site
         $currentBldSel  = $loc0.Building
@@ -554,23 +467,10 @@ function Update-DeviceFilter {
         if (-not $global:DeviceMetadata) { return }
 
     # Determine the currently selected site (we intentionally ignore building
-    # and room at this stage so that we can update those lists first).  We
-    # defer host filtering until after the building dropdown has been
-    # repopulated to ensure we use the final building selection rather than
-    # whatever value happened to be selected prior to updating the list.
     $loc    = Get-SelectedLocation
     $siteSel = $loc.Site
 
     # ---------------------------------------------------------------------
-    # Step 1: Build and refresh the list of available buildings for the
-    # currently selected site.  Capture the user's current building
-    # selection so it can be restored after repopulating the dropdown.
-    #
-    # Instead of building an intermediate PowerShell array via '+=' (which
-    # grows O(n^2) for large inventories), accumulate unique buildings
-    # directly into a HashSet.  This eliminates repeated array copies and
-    # duplicates up front.  After the loop, convert the set to a typed
-    # List[string] and sort it once.
     $buildingSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
     foreach ($meta in $DeviceMetadata.Values) {
         if ($siteSel -and $siteSel -ne '' -and $meta.Site -ne $siteSel) { continue }
@@ -592,7 +492,6 @@ if (-not (Test-StringListEqualCI $currentBuildings $availableBuildings)) {
 }
 
     # Restore prior selection if it still exists in the list (ignoring the
-    # leading blank).  Otherwise leave the selection on the blank entry.
     if ($prevBuildingSel -and $prevBuildingSel -ne '' -and ($availableBuildings -contains $prevBuildingSel)) {
         try { $buildingDD.SelectedItem = $prevBuildingSel } catch { }
     }
@@ -604,17 +503,11 @@ if (-not (Test-StringListEqualCI $currentBuildings $availableBuildings)) {
     }
 
     # Capture the now-finalised building and room selections after the dropdown
-    # has been repopulated.  We retrieve them directly from the controls rather
-    # than relying on earlier variables so they reflect the restored value.
     $bldSel  = $buildingDD.SelectedItem
     $roomDD  = $window.FindName('RoomDropdown')
     $roomSel = if ($roomDD) { $roomDD.SelectedItem } else { $null }
 
     # ---------------------------------------------------------------------
-    # Step 2: Filter hostnames based on the selected site, building and room.
-    # Use a typed List[string] to build the filtered list efficiently.  Avoid
-    # using the '+=' operator on PowerShell arrays because each append
-    # produces a new array copy, which is O(n^2) for large device counts.
     $filteredNames = New-Object 'System.Collections.Generic.List[string]'
     foreach ($name in $DeviceMetadata.Keys) {
         $meta = $DeviceMetadata[$name]
@@ -624,8 +517,6 @@ if (-not (Test-StringListEqualCI $currentBuildings $availableBuildings)) {
         [void]$filteredNames.Add($name)
     }
     # Sort the filtered hostnames alphabetically (ascending) using OrdinalIgnoreCase.  This ensures
-    # devices like WLLS-A01-AS-01 appear before WLLS-A07-AS-07 in the drop-down.  After sorting,
-    # move the 'Unknown' entry (if present) to the top of the list for better visibility.
     if ($filteredNames -and $filteredNames.Count -gt 1) {
         $filteredNames.Sort([System.StringComparer]::OrdinalIgnoreCase)
         $unknownIndex = $filteredNames.IndexOf('Unknown')
@@ -637,22 +528,9 @@ if (-not (Test-StringListEqualCI $currentBuildings $availableBuildings)) {
     }
     $hostnameDD = $window.FindName('HostnameDropdown')
     # Populate the hostname dropdown with the filtered list.  Selecting the
-    # first item ensures a host is always chosen when the list is non-empty.
     Set-DropdownItems -Control $hostnameDD -Items $filteredNames
 
     # ---------------------------------------------------------------------
-    # Step 3: Refresh the list of available rooms based on the final site and
-    # building selections.  A leading blank entry is included when one or
-    # more rooms exist.  Enable the room dropdown only when a non‑blank
-    # building has been chosen (SelectedIndex > 0 refers to the first real
-    # value after the blank).  The user's room selection is cleared when
-    # either the site or building has changed to prevent a stale room from
-    # remaining selected.  When neither parent changed, preserve the room
-    # selection if the list of available rooms is identical.
-    #
-    # Build the set of unique room values directly rather than using array
-    # '+=' semantics.  This avoids O(n^2) array growth and removes
-    # duplicates up front.  Convert to a typed List[string] and sort.
     $roomSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
     foreach ($meta in $DeviceMetadata.Values) {
         if ($siteSel -and $siteSel -ne '' -and $meta.Site -ne $siteSel) { continue }
@@ -666,8 +544,6 @@ if (-not (Test-StringListEqualCI $currentBuildings $availableBuildings)) {
         $currentRooms = @()
         try { $currentRooms = @($roomDD.ItemsSource) } catch {}
         # Remove any leading blank from the current ItemsSource so only the
-        # actual room values are compared.  We intentionally avoid mutating
-        # ItemsSource here; $currentRooms is a copy used solely for comparison.
         if ($currentRooms.Count -gt 0 -and ('' + $currentRooms[0]) -eq '') {
             if ($currentRooms.Count -gt 1) {
                 $currentRooms = $currentRooms[1..($currentRooms.Count - 1)]
@@ -676,18 +552,11 @@ if (-not (Test-StringListEqualCI $currentBuildings $availableBuildings)) {
             }
         }
         # Determine whether we need to force a reset of the room list.  When
-        # either the site or building has changed since the last update,
-        # previously selected rooms are invalid and should be cleared even if
-        # the underlying list of rooms is identical (for example when two
-        # buildings happen to offer the same set of rooms).
         $forceRoomReset = $siteChanged -or $bldChanged
         if ($forceRoomReset -or -not (Test-StringListEqualCI $currentRooms $availableRooms)) {
             Set-DropdownItems -Control $roomDD -Items (@('') + $availableRooms)
         }
         # Enable the room dropdown only when a non‑blank site and building are
-        # selected.  We evaluate the building dropdown's SelectedIndex rather
-        # than the possibly stale $bldSel variable to reflect the final state
-        # after any previous Set-DropdownItems call.
         if (($siteSel -and $siteSel -ne '') -and ($buildingDD.SelectedIndex -gt 0)) {
             $roomDD.IsEnabled = $true
         } else {
@@ -696,7 +565,6 @@ if (-not (Test-StringListEqualCI $currentBuildings $availableBuildings)) {
     }
 
     # ---------------------------------------------------------------------
-    # Step 4: Notify dependent views to refresh using the updated filters.
     if (Get-Command Update-SearchGrid -ErrorAction SilentlyContinue) {
         Update-SearchGrid
     }
@@ -707,8 +575,6 @@ if (-not (Test-StringListEqualCI $currentBuildings $availableBuildings)) {
         Update-Alerts
     }
         # Record the current site and building selections for the next invocation.  Storing
-        # these values allows us to detect changes on the next call and reset dependent
-        # dropdowns appropriately.
         try {
             $locFinal = Get-SelectedLocation
             $script:LastSiteSel = $locFinal.Site
@@ -720,7 +586,6 @@ if (-not (Test-StringListEqualCI $currentBuildings $availableBuildings)) {
 function Get-DeviceDetails {
     param($hostname)
     try {
-        # Loading details for host; removed debug output
         $useDb = $false
         if ($global:StateTraceDb) { $useDb = $true }
 
@@ -729,7 +594,6 @@ function Get-DeviceDetails {
             $hostTrim = ($hostname -as [string]).Trim()
             $escHost   = $hostTrim -replace "'", "''"
             # Build a comma-separated list of character codes using a typed list
-            # to avoid the overhead of piping each character through ForEach-Object.
             $charCodesList = New-Object 'System.Collections.Generic.List[int]'
             foreach ($ch in $hostTrim.ToCharArray()) { [void]$charCodesList.Add([int]$ch) }
             $charCodes = [string]::Join(',', $charCodesList)
@@ -741,7 +605,6 @@ function Get-DeviceDetails {
             $dtSummary = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql $summarySql
 
             if ($dtSummary) {
-                # Iterate through summary rows (debug output removed)
                 foreach ($rowTmp in ($dtSummary | Select-Object Hostname, Make, Model, Uptime, Ports, AuthDefaultVLAN, Building, Room)) {
                     # no-op; loop exists solely to assign variables if needed
                     $null = $rowTmp
@@ -823,9 +686,6 @@ function Get-DeviceDetails {
                 }
             }
             # If a cached interface list exists for this device, reuse it to avoid re-querying
-            # the database.  The summary fields above have already been updated.  We still
-            # need to refresh the configuration templates for the current device.  If a
-            # cached list is found, bind it to the Interfaces grid and return early.
             try {
                 if ($global:DeviceInterfaceCache.ContainsKey($hostname)) {
                     $cachedList = $global:DeviceInterfaceCache[$hostname]
@@ -833,8 +693,6 @@ function Get-DeviceDetails {
                     $gridCached.ItemsSource = $cachedList
                     $comboCached = $interfacesView.FindName('ConfigOptionsDropdown')
                     # Retrieve configuration templates and populate the combo using
-                    # the dropdown helper.  The helper sets ItemsSource and selects
-                    # the first template when available.
                     $tmplList = Get-ConfigurationTemplates -Hostname $hostname
                     Set-DropdownItems -Control $comboCached -Items $tmplList
                     return
@@ -842,11 +700,8 @@ function Get-DeviceDetails {
             } catch {}
 
             # Query interface details for the specified host from the database.  Include
-            # AuthTemplate and Config so the helper can derive colour and compliance
-            # information directly when not provided by the row.
             $dtIfs = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT Hostname, Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, ConfigStatus, PortColor, ToolTip FROM Interfaces WHERE Hostname = '$($hostname -replace "'", "''")'"
             # Use a shared helper to build the interface PSCustomObject list.  This centralises vendor detection,
-            # tooltip augmentation and JSON‑based colour/status logic for both Get‑DeviceDetails and Get‑InterfaceInfo.
             $list = New-InterfaceObjectsFromDbRow -Data $dtIfs -Hostname $hostname -TemplatesPath (Join-Path $PSScriptRoot '..\Templates')
             # Cache this device's interface list for future visits.  The cache stores the final PSCustomObject list keyed by hostname.
             try {
@@ -905,7 +760,6 @@ function Get-DeviceDetailsData {
         if ($global:StateTraceDb) { $useDb = $true }
         if (-not $useDb) {
             # Fallback to CSV import when no database is available
-            # Determine the module directory; PSScriptRoot points to the Modules directory
             $scriptDir = $PSScriptRoot
             $base  = Join-Path (Join-Path $scriptDir '..\ParsedData') $hostTrim
             # Attempt to import summary CSV
@@ -1065,7 +919,6 @@ function Get-DeviceDetailsData {
 function Update-GlobalInterfaceList {
     # Build a comprehensive list of all interfaces by querying the database and
 
-    # Begin building the global interface list (debug output removed)
     # Use a strongly-typed list for efficient accumulation of objects
     $list = New-Object 'System.Collections.Generic.List[object]'
 
@@ -1086,11 +939,8 @@ ORDER BY i.Hostname, i.Port
 "@
         $dt = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql $sql
         # The returned query result may be a DataTable, DataView or other enumerable
-        # (previous debug logging removed)
 
         # Prepare an enumerable of rows depending on the type of $dt.  Only
-        # System.Data.DataTable is currently supported; other types will be
-        # skipped entirely.  This avoids indexing into unexpected structures.
         $rows = @()
         if ($dt -is [System.Data.DataTable]) {
             $rows = $dt.Rows
@@ -1102,7 +952,6 @@ ORDER BY i.Hostname, i.Port
             Write-Warning "DBG: Unexpected query result type; skipping row enumeration."
         }
 
-        # Determine row count if available (removed debug output)
         $rowCount = 0
         try { $rowCount = $rows.Count } catch { }
 
@@ -1170,7 +1019,6 @@ ORDER BY i.Hostname, i.Port
                 '99-UNK-99999-99999-99999-99999-99999'
             }
 
-            # Optionally log first few processed rows (debug removed)
 
             # Construct object and add to list
             $obj = [PSCustomObject]@{
@@ -1195,20 +1043,11 @@ ORDER BY i.Hostname, i.Port
             $addedCount++
         }
 
-        # Completed interface list build; debug output removed
     } catch {
         Write-Warning "Failed to rebuild interface list from database: $($_.Exception.Message)"
     }
 
     # Publish the interface list globally (sorted by Hostname and PortSort).  Use a
-    # stable ordering so that UI controls do not refresh unpredictably when
-    # underlying enumeration order changes.
-    #
-    # Instead of piping through Sort-Object (which can be slow on large
-    # collections due to pipeline overhead and repeated allocations), perform
-    # an in-place sort on the strongly typed list using a .NET comparison
-    # delegate.  This avoids unnecessary copies and provides a noticeable
-    # performance improvement when processing tens of thousands of rows.
     $comparison = [System.Comparison[object]]{
         param($a, $b)
         # Compare hostnames using a case-insensitive ordinal comparison first
@@ -1221,7 +1060,6 @@ ORDER BY i.Hostname, i.Port
     $list.Sort($comparison)
     # Assign the now-sorted list to the global AllInterfaces variable
     $global:AllInterfaces = $list
-    # Provide final count of interfaces (debug output removed)
 
     # If available, update summary and alerts to reflect new interface data
     if (Get-Command Update-Summary -ErrorAction SilentlyContinue) {
@@ -1235,18 +1073,13 @@ ORDER BY i.Hostname, i.Port
 function Update-SearchResults {
     param([string]$Term)
     # Do not pre-normalize the search term to lowercase.  Case-insensitive comparisons
-    # are handled via StringComparison.OrdinalIgnoreCase in the filters below.  Assign
-    # the term directly.
     $t = $Term
     # Always honour the location (site/building/room) filters, even when the search
-    # term is blank.  Retrieve selections once and reuse for each row.
     $loc = Get-SelectedLocation
     $siteSel = $loc.Site
     $bldSel  = $loc.Building
     $roomSel = $loc.Room
     # Acquire status and authorization filter selections once.  Lookup via the
-    # search view controls is potentially expensive, so avoid repeating it for
-    # every row.
     $statusFilterVal = 'All'
     $authFilterVal   = 'All'
     try {
@@ -1267,15 +1100,12 @@ function Update-SearchResults {
     } catch {
     }
     # Create a typed list for results.  Using a .NET List avoids O(n^2) array growth
-    # when appending many matching rows.
     $results = New-Object 'System.Collections.Generic.List[object]'
     # Determine if term is empty once
     $termEmpty = [string]::IsNullOrWhiteSpace($Term)
     foreach ($row in $global:AllInterfaces) {
         if (-not $row) { continue }
         # Cast row metadata to strings to ensure comparisons succeed.  When
-        # the CSV values are numeric, the cast prevents mismatches when
-        # comparing against the dropdown selections (which are strings).
         $rowSite     = '' + $row.Site
         $rowBuilding = '' + $row.Building
         $rowRoom     = '' + $row.Room
@@ -1351,7 +1181,6 @@ function Update-SearchResults {
 function Update-Summary {
     if (-not $global:summaryView) { return }
     # Determine location filters from the main window.  When blank,
-    # the filter is treated as "All" and no restriction is applied.
     $siteSel = $null; $bldSel = $null; $roomSel = $null
     try {
         # Retrieve location selections via helper
@@ -1363,7 +1192,6 @@ function Update-Summary {
     # Compute device count under location filters
     $devKeys = if ($global:DeviceMetadata) { $global:DeviceMetadata.Keys } else { @() }
     # Use a typed List to accumulate filtered device keys.  List.Add has amortized O(1) growth and
-    # avoids repeatedly copying arrays when hundreds or thousands of devices are present.
     $filteredDevices = [System.Collections.Generic.List[string]]::new()
     foreach ($k in $devKeys) {
         $meta = $global:DeviceMetadata[$k]
@@ -1411,12 +1239,6 @@ function Update-Summary {
         if ($row.VLAN -and $row.VLAN -ne '') { [void]$vlans.Add($row.VLAN) }
     }
     # Build a unique set of VLANs using a HashSet.  Using Sort-Object -Unique on large
-    # collections performs an O(n log n) sort before deduplication, which can be
-    # expensive when there are thousands of VLAN values.  A HashSet provides
-    # O(1) average-time insertions and avoids intermediary pipeline overhead.  After
-    # deduplication, sort the unique list once using a case-insensitive ordinal
-    # comparer.  This preserves the previous behaviour of sorting strings in a
-    # culture-invariant manner.
     $vlanSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
     foreach ($v in $vlans) {
         if (-not [string]::IsNullOrWhiteSpace($v)) { [void]$vlanSet.Add($v) }
@@ -1441,9 +1263,6 @@ function Update-Summary {
 
 function Update-Alerts {
     # Build the list of alerts using a typed List[object] to avoid O(n^2)
-    # behaviour from repeatedly using '+=' on PowerShell arrays.  Build the
-    # reasons as a List[string] for each row.  When reasons exist, create
-    # a PSCustomObject and add it to the alerts list.
     $alerts = New-Object 'System.Collections.Generic.List[object]'
     foreach ($row in $global:AllInterfaces) {
         $reasons = New-Object 'System.Collections.Generic.List[string]'
@@ -1458,7 +1277,6 @@ function Update-Alerts {
         $duplex = '' + $row.Duplex
         if ($duplex) {
             # Only flag duplex values containing "half" as non-full duplex; perform
-            # a case-insensitive regex match to avoid allocating lowercase strings.
             if ($duplex -match '(?i)half') {
                 [void]$reasons.Add('Half duplex')
             }
@@ -1504,11 +1322,6 @@ function Update-SearchGrid {
     if (-not $gridCtrl -or -not $boxCtrl) { return }
     $term = $boxCtrl.Text
     # If the global interface list has not yet been built (e.g. on first
-    # visit to the Search tab), trigger a rebuild now.  Without this
-    # call, $global:AllInterfaces remains empty because the initial load
-    # is deferred until the user performs a search.  This ensures that
-    # Update-SearchResults has data to work with.  The check guards
-    # against unnecessary reloads after the list has been populated.
     try {
         if (-not $global:AllInterfaces -or $global:AllInterfaces.Count -eq 0) {
             if (Get-Command Update-GlobalInterfaceList -ErrorAction SilentlyContinue) {
@@ -1520,7 +1333,6 @@ function Update-SearchGrid {
     $results = Update-SearchResults -Term $term
     try {
         $resCount = if ($results) { $results.Count } else { 0 }
-        # debug output removed
     } catch {
         # ignore errors determining result count
     }
@@ -1558,7 +1370,6 @@ function Get-PortSortKey {
 
     $numsPart = if ($m.Success) { $m.Groups['nums'].Value } else { $u }
     # Build a typed list of numeric segments.  Using a .NET List[int] avoids the
-    # O(n^2) array reallocation cost of the '+=' operator when padding.
     $matchesInts = [regex]::Matches($numsPart, '\d+')
     $numsList = New-Object 'System.Collections.Generic.List[int]'
     foreach ($mnum in $matchesInts) {
@@ -1567,8 +1378,6 @@ function Get-PortSortKey {
     # Pad with zeros until we have at least four segments.
     while ($numsList.Count -lt 4) { [void]$numsList.Add(0) }
     # Convert the first six segments into zero‑padded strings.  Build this list
-    # explicitly instead of piping through Select-Object/ForEach-Object to avoid
-    # per-item pipeline overhead.
     $segmentsList = New-Object 'System.Collections.Generic.List[string]'
     $limit = [Math]::Min(6, $numsList.Count)
     for ($i = 0; $i -lt $limit; $i++) {
@@ -1580,11 +1389,6 @@ function Get-PortSortKey {
 }
 
 ##
-# Centralised data-access helper functions moved from InterfaceModule.
-# These functions provide a single point of access for interface hostnames,
-# interface information, configuration templates and configuration generation.
-# By defining them here, all view modules can call into DeviceDataModule for
-# backend data without importing InterfaceModule.
 
 function Get-InterfaceHostnames {
     [CmdletBinding()]
@@ -1600,17 +1404,11 @@ function Get-InterfaceHostnames {
         }
         $dtHosts = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql 'SELECT Hostname FROM DeviceSummary ORDER BY Hostname'
         # Build the list of hostnames using a typed list rather than piping through
-        # ForEach-Object.  Typed lists avoid per-item script block invocation and
-        # repeated array reallocations, improving performance when many hostnames
-        # are returned.  Return the list as an array to preserve original semantics.
         $hostList = New-Object 'System.Collections.Generic.List[string]'
         foreach ($row in $dtHosts) {
             [void]$hostList.Add([string]$row.Hostname)
         }
         # Return the array directly.  Using a leading comma would wrap the
-        # array in another array, causing callers to receive a single element
-        # containing all hostnames rather than a flat list.  Returning the
-        # array directly preserves the expected enumerability.
         return $hostList.ToArray()
     } catch {
         Write-Warning "Failed to query hostnames from database: $($_.Exception.Message)"
@@ -1659,9 +1457,6 @@ function Get-InterfaceInfo {
         [string]$TemplatesPath = (Join-Path $PSScriptRoot '..\Templates')
     )
     # Always use the consolidated helper to build interface details.  By delegating
-    # to Build‑InterfaceObjectsFromDbRow we avoid duplicating vendor detection,
-    # template loading, tooltip augmentation and per‑row logic.  We only need
-    # to query the Interfaces table for the specified host and pass the result.
     if (-not $global:StateTraceDb) { return @() }
     try {
         $dbModule = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
@@ -1759,8 +1554,6 @@ function Get-InterfaceConfiguration {
         $outLines = foreach ($port in $Interfaces) {
             "interface $port"
             # Use a typed list instead of a PowerShell array when building the set of
-            # pending commands.  PowerShell arrays reallocate on every '+=' which
-            # becomes O(n^2) with many commands; List[string] grows amortized O(1).
             $pending = New-Object 'System.Collections.Generic.List[string]'
             $nameOverride = if ($NewNames.ContainsKey($port)) { $NewNames[$port] } else { $null }
             $vlanOverride = if ($NewVlans.ContainsKey($port)) { $NewVlans[$port] } else { $null }
@@ -1783,15 +1576,12 @@ function Get-InterfaceConfiguration {
                     $existsInNew = $false
                     foreach ($newCmd in $pending) {
                         # Check if the existing command matches any pending command using
-                        # case-insensitive prefix comparison.  Using StartsWith with
-                        # StringComparison avoids converting either string to lowercase.
                         $cmdTrim = $newCmd.Trim()
                         if ($trimOld.StartsWith($cmdTrim, [System.StringComparison]::OrdinalIgnoreCase)) { $existsInNew = $true; break }
                     }
                     if ($existsInNew) { continue }
                     if ($vendor -eq 'Cisco') {
                         # Remove legacy authentication commands.  Compare prefixes
-                        # case-insensitively instead of lowercasing the entire line.
                         if ($trimOld.StartsWith('authentication', [System.StringComparison]::OrdinalIgnoreCase) -or
                             $trimOld.StartsWith('dot1x',        [System.StringComparison]::OrdinalIgnoreCase) -or
                             $trimOld.Equals('mab',             [System.StringComparison]::OrdinalIgnoreCase)) {
@@ -1835,16 +1625,11 @@ function Get-InterfaceList {
         $escHost = $Hostname -replace "'", "''"
         $dt = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT Port FROM Interfaces WHERE Hostname = '$escHost' ORDER BY Port"
         # Build the list of ports using a typed list instead of piping through
-        # ForEach-Object.  This avoids script block invocation per row and
-        # prevents array reallocations when assembling large port lists.
         $portList = New-Object 'System.Collections.Generic.List[string]'
         foreach ($row in $dt) {
             [void]$portList.Add([string]$row.Port)
         }
         # Return the port list array directly rather than prefixing a comma.  A
-        # leading comma forces PowerShell to wrap the array in another array,
-        # which can cause callers to receive a single element containing all
-        # ports.  Returning the array directly preserves the expected flat list.
         return $portList.ToArray()
     } catch {
         Write-Warning ("Failed to get interface list for {0}: {1}" -f $Hostname, $_.Exception.Message)
@@ -1853,9 +1638,6 @@ function Get-InterfaceList {
 }
 
 # Export all helper functions.  When this module is imported with -Global,
-# these names will be added to the global scope and callable without
-# qualification.  Exporting explicitly helps prevent private helper
-# functions from leaking unintentionally.
 Export-ModuleMember -Function `
     Get-DeviceSummaries, `
     Update-DeviceFilter, `

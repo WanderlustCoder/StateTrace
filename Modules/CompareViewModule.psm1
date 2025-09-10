@@ -18,7 +18,6 @@ $script:lastWiredViewId   = 0
 $script:closeWiredViewId  = 0
 $script:compareHostCtl    = $null
 
-# Ensure debug verbose output is configured
 if ($null -eq $Global:StateTraceDebug) { $Global:StateTraceDebug = $false }
 if ($Global:StateTraceDebug) { $VerbosePreference = 'Continue' }
 
@@ -52,23 +51,13 @@ function Get-HostString {
 }
 
 function Get-HostsFromMain {
-    <#
-        Retrieves the list of device hostnames.  Historically this function
-        attempted to read the HostnameDropdown from the main window and then
-        fell back to the database via Get-DeviceSummaries.  To decouple the
-        compare view from the main UI and ensure a single source of truth,
-        this implementation now always queries the database through
-        DeviceDataModule.  Any passed Window parameter is ignored.
-
-        Returns an array of unique, trimmed hostname strings.
-    #>
+    
     [CmdletBinding()]
     param([Windows.Window]$Window)
 
     $hosts = @()
     try {
         # Prefer using DeviceDataModule\Get-InterfaceHostnames which reads
-        # directly from the database without manipulating any UI elements.
         if (Get-Command -Name 'Get-InterfaceHostnames' -ErrorAction SilentlyContinue) {
             $raw = @(DeviceDataModule\Get-InterfaceHostnames)
             $hosts = @($raw | ForEach-Object { Get-HostString $_ })
@@ -79,10 +68,6 @@ function Get-HostsFromMain {
         Write-Warning "[CompareView] Failed to retrieve host list from database: $($_.Exception.Message)"
     }
     # Clean up host list: trim whitespace, remove blanks and deduplicate.
-    # Use a typed list and a case‑insensitive HashSet to avoid repeated
-    # pipeline passes and array copying.  Typed lists grow amortised O(1).
-    # After deduplication, sort the list alphabetically (case-insensitive) to
-    # provide a consistent ordering in the compare dropdowns.
     $hostSet  = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
     $hostList = New-Object 'System.Collections.Generic.List[string]'
     foreach ($h in $hosts) {
@@ -92,8 +77,6 @@ function Get-HostsFromMain {
         }
     }
     # Sort hostnames alphabetically once all unique names have been collected.  Sorting here
-    # ensures both switch dropdowns in the Compare view are ordered consistently regardless of
-    # the order returned from the database or prior selections.
     if ($hostList -and $hostList.Count -gt 1) {
         $hostList.Sort([System.StringComparer]::OrdinalIgnoreCase)
     }
@@ -104,8 +87,6 @@ function Get-PortSortKey {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$Port)
     # Delegate sorting to the central Get-PortSortKey implementation defined in
-    # DeviceDataModule.  Passing through the bound parameters preserves
-    # compatibility while eliminating duplicated logic.
     return DeviceDataModule\Get-PortSortKey @PSBoundParameters
 }
 
@@ -114,15 +95,8 @@ function Get-PortsForHost {
     param([Parameter(Mandatory)][string]$Hostname)
 
     # Fetch all interface names for the given host from the database.  This revised
-    # implementation eliminates any fallback to the main Interfaces grid and
-    # relies solely on the centralised DeviceDataModule functions.  It first
-    # attempts to call Get-InterfaceList, which returns an array of port strings;
-    # if no ports are returned, it falls back to Get-InterfaceInfo to extract
-    # port names from full interface objects.
     Write-Verbose "[CompareView] Fetching ports for host '$Hostname'..."
     # Use typed lists to accumulate and normalise port names.  Avoid
-    # pipeline-based trimming, sorting and deduplication to reduce overhead
-    # when many ports are present.
     $portsList = New-Object 'System.Collections.Generic.List[string]'
     try {
         if (Get-Command -Name 'Get-InterfaceList' -ErrorAction SilentlyContinue) {
@@ -160,8 +134,6 @@ function Get-PortsForHost {
         }
     }
     # Normalise, deduplicate and sort using a HashSet and typed list.  Use a
-    # case‑insensitive set for uniqueness and stable insertion order.  Sort
-    # using the port sort key for natural ordering.
     $set = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
     $finalList = New-Object 'System.Collections.Generic.List[string]'
     foreach ($p in $portsList) {
@@ -189,7 +161,6 @@ function Set-PortsForCombo {
         [Parameter(Mandatory)][string]$Hostname
     )
     # Populates the given ComboBox with the list of ports for the specified Hostname.
-    # If Hostname is empty, clears the combo. Ensures first port is selected on new list.
     if ([string]::IsNullOrWhiteSpace($Hostname)) {
         # No host specified – clear the combo box
         $Combo.ItemsSource = @()
@@ -229,8 +200,6 @@ function Get-GridRowFor {
         [Parameter(Mandatory)][string]$Port
     )
     # Find the data object (row) for the given Hostname and Port by querying the
-    # database via DeviceDataModule.  Any reliance on the global Interfaces
-    # grid has been removed to decouple the compare view from other views.
     try {
         if (Get-Command -Name 'Get-InterfaceInfo' -ErrorAction SilentlyContinue) {
             # Retrieve all interface objects for the specified host
@@ -256,9 +225,6 @@ function Get-AuthTemplateFromTooltip {
     param([string]$Text)
     if (-not $Text) { return '' }
     # Match a variety of prefixes including "AuthTemplate", "auth template",
-    # "authentication template" and the more generic "template".  Accept
-    # optional colon and quotes around the name.  This allows both
-    # "AuthTemplate: XYZ", "auth template XYZ" and "Template: XYZ" to be parsed.
     $pattern = '(?im)^\s*(?:auth(?:entication)?\s*template|authtemplate|template)\s*:?' +
                '\s*"?(?<name>[^"\r\n]+)"?'
     $m = [regex]::Match($Text, $pattern)
@@ -278,15 +244,10 @@ function Set-CompareFromRows {
     $tooltip1 = '' + ($Row1.ToolTip)
     $tooltip2 = '' + ($Row2.ToolTip)
     # Determine the colour for each side.  When the PortColor property is not
-    # available or empty, fall back to a neutral 'Gray' instead of Black.  Gray
-    # communicates an undefined or unknown compliance state and avoids
-    # implying compliance (Black can be interpreted as an OK state).  The
-    # returned colour names must correspond to valid WPF brush names.
     $color1   = if ($Row1.PSObject.Properties['PortColor'] -and $Row1.PortColor) { '' + $Row1.PortColor } else { 'Gray' }
     $color2   = if ($Row2.PSObject.Properties['PortColor'] -and $Row2.PortColor) { '' + $Row2.PortColor } else { 'Gray' }
 
     # Display Auth Template name if present
-    # Prefer the AuthTemplate property on the row if available; fall back to parsing the tooltip.
     $auth1 = ''
     try {
         if ($Row1.PSObject.Properties['AuthTemplate'] -and $Row1.AuthTemplate) {
@@ -306,13 +267,6 @@ function Set-CompareFromRows {
         $auth2 = Get-AuthTemplateFromTooltip -Text $tooltip2
     }
     # Update the auth template text and colour it using the same port colour.  If the colour
-    # name is invalid, fallback to Black.  Colour-coding the template label helps
-    # indicate compliance (e.g., red for mismatch, green/black for match).
-    # Display only the template name (e.g., "flexible", "dot1x", "open") without
-    # prefixing it with "AuthTemplate:".  The surrounding UI already conveys the
-    # meaning of this field, so adding the prefix is redundant.  Set the
-    # Foreground brush based on the computed colour; if an invalid colour is
-    # supplied, fall back to Black as a safe default.
     if ($script:auth1Text) {
         $script:auth1Text.Text = $auth1
         try {
@@ -331,7 +285,6 @@ function Set-CompareFromRows {
     }
 
     # Prepare cleaned config texts before assigning to text boxes.  Initialise with the full
-    # tooltip and then strip any leading template line if an auth template is present.
     $clean1 = $tooltip1
     $clean2 = $tooltip2
     try {
@@ -380,10 +333,6 @@ function Set-CompareFromRows {
     }
 
     # Compute differences between the two config texts line by line using
-    # typed lists instead of ForEach-Object/Where-Object pipelines.  This
-    # avoids per-line script block invocation overhead when trimming and
-    # filtering empty lines, and reduces array reallocation when building
-    # the diff lists.
     $lines1 = New-Object 'System.Collections.Generic.List[string]'
     if ($clean1) {
         foreach ($ln in ($clean1 -split "`r?`n")) {
@@ -613,10 +562,6 @@ function Update-CompareView {
         $closeBtn = $viewCtrl.FindName('CloseCompareButton')
         if ($closeBtn -and ($script:closeWiredViewId -ne $viewCtrl.GetHashCode())) {
             # Attach a single click handler to collapse the Compare sidebar instead of removing its content.
-            # When the user clicks the 'X' button the Compare column width is set to zero, effectively hiding
-            # the sidebar while keeping the view loaded.  This allows the sidebar to be reopened later
-            # without reloading the XAML or losing event handlers.  The handler is only wired once per view
-            # instance based on the viewCtrl hash code.
             $closeBtn.Add_Click({
                 if ($script:compareHostCtl -is [System.Windows.Controls.ContentControl]) {
                     # Attempt to collapse the Compare column on the main window

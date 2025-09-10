@@ -1,7 +1,5 @@
 @{
     # List of module filenames to import at startup.  The order of the modules
-    # controls the load order.  Core and utility modules should be loaded
-    # before view modules to ensure all dependent functions are available.
     Modules = @(
         # Core parser and helper modules
         'ParserWorker.psm1',

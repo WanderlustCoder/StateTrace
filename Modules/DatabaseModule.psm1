@@ -1,36 +1,4 @@
-<#
-    .SYNOPSIS
-    Helper module for working with a Microsoft Access database.
 
-    This module encapsulates the logic required to create and work with an
-    Access database using ADO via the COM interfaces available in Windows.
-
-    The primary purpose of this module is to provide the network log reader
-    application with a light‑weight database backend.  Storing parsed
-    information in a database instead of memory or CSV files reduces
-    memory pressure and enables much more efficient querying of the data
-    when the user interacts with the GUI.
-
-    The module exposes the following public functions:
-
-        * New-AccessDatabase      – Creates a new Access database file and
-                                     populates it with the required tables
-                                     if it does not already exist.
-        * Invoke-DbNonQuery        – Executes an INSERT/UPDATE/DELETE or
-                                     DDL statement against the database.
-        * Invoke-DbQuery           – Executes a SELECT statement and
-                                     returns the results as a DataTable.
-
-    You can import this module from your main script using
-
-        Import-Module (Join-Path $scriptDir '..\Modules\DatabaseModule.psm1')
-
-    Note that this module relies on the presence of the Microsoft Jet or
-    ACE OLEDB providers.  On a 64‑bit system, the ACE provider
-    (`Microsoft.ACE.OLEDB.12.0`) is required for `.accdb` files.  For
-    simplicity, this module uses the Jet provider (`Microsoft.Jet.OLEDB.4.0`)
-    and creates an Access 2002/2003 format `.mdb` file.
-#>
 
 Set-StrictMode -Version Latest
 
@@ -98,27 +66,9 @@ function Initialize-StateTraceDatabase {
 # === END Initialize-StateTraceDatabase (DatabaseModule.psm1) ===
 
 ###
-### [PERF-BURST-SESSION] Helper functions for reusable read sessions
-###
 
 function Open-DbReadSession {
-    <#
-        .SYNOPSIS
-            Opens a reusable OLE DB connection for a burst of read queries.
-
-        .DESCRIPTION
-            Creates an OleDbConnection using the first available provider and returns
-            a PSCustomObject representing the session.  Callers can pass this object
-            to Invoke-DbQuery via -Session to reuse the open connection.  Once the
-            burst of reads is complete, use Close-DbReadSession to dispose the
-            session and underlying connection.
-
-        .PARAMETER DatabasePath
-            Path to the Access database file.
-
-        .OUTPUTS
-            A custom object with a Connection property and Dispose/Close methods.
-    #>
+    
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$DatabasePath
@@ -140,7 +90,6 @@ function Open-DbReadSession {
         if (-not $opened) { throw "No suitable OLE DB provider found." }
 
         # Construct a disposable session object.  The Close and Dispose
-        # script methods ensure the underlying connection is closed exactly once.
         $session = [PSCustomObject]@{
             PSTypeName = 'StateTrace.DbReadSession'
             Connection = $conn
@@ -166,18 +115,7 @@ function Open-DbReadSession {
 }
 
 function Close-DbReadSession {
-    <#
-        .SYNOPSIS
-            Disposes a session returned by Open-DbReadSession.
-
-        .DESCRIPTION
-            Calls Dispose() on a valid StateTrace.DbReadSession object. Does nothing
-            if the object is null or of an unexpected type. Any errors during dispose
-            are suppressed.
-
-        .PARAMETER Session
-            The session object previously returned by Open-DbReadSession.
-    #>
+    
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][object]$Session
@@ -188,35 +126,7 @@ function Close-DbReadSession {
 }
 
 function New-AccessDatabase {
-    <#
-        .SYNOPSIS
-            Creates the StateTrace Access database and tables if they do not exist.
-
-        .DESCRIPTION
-            This function checks for the presence of the StateTrace database at
-            the provided path.  If the file is not present, it uses the
-            Access.Application COM automation object to create a new database in
-            the Access 2002/2003 format.  It then opens a connection to the
-            database using ADO and creates two tables: DeviceSummary and
-            Interfaces.  The DeviceSummary table stores per‑device metadata
-            such as hostname, make, model and location; the Interfaces table
-            stores per‑interface information including port, VLAN, duplex,
-            authentication state and learned MAC addresses.  If the database
-            already exists, the function simply returns without modifying
-            anything.
-
-        .PARAMETER Path
-            The filesystem path where the `.mdb` file should be located.  If
-            omitted, the database will be created in the `Data` folder under
-            the project's root directory.  The caller is responsible for
-            ensuring that the directory exists.
-
-        .EXAMPLE
-            New-AccessDatabase -Path "C:\Temp\StateTrace.mdb"
-
-            Creates a new Access database at the specified location if it
-            doesn't already exist and populates it with the required tables.
-#>
+    
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$false)]
@@ -224,10 +134,6 @@ function New-AccessDatabase {
     )
 
     # Resolve default path if none was supplied.  The default is a
-    # 'StateTrace.mdb' file in a 'Data' subfolder relative to the module
-    # location.  We rely on $PSScriptRoot here rather than $scriptDir from
-    # the main script because this module may be imported from multiple
-    # contexts.
     if (-not $Path) {
         $dataDir = Join-Path $PSScriptRoot '..\Data'
         if (-not (Test-Path $dataDir)) {
@@ -243,11 +149,6 @@ function New-AccessDatabase {
     }
 
     # If the database does not exist, create it using ADOX.  The provider and engine
-    # type depend on the file extension.  An .accdb file uses the ACE provider and
-    # engine type 6 (Access 2007 format).  A .mdb file uses the Jet provider and
-    # engine type 5 (Jet 4.0).  Falling back to Access.Application complicates
-    # deployment because Access may not be installed.  Using ADOX avoids that
-    # dependency and allows creation of either format solely via the data engine.
     $needsCreate = -not (Test-Path $Path)
     if ($needsCreate) {
         Write-Host "[DEBUG] Creating new Access database at '$Path'" -ForegroundColor Cyan
@@ -261,9 +162,6 @@ function New-AccessDatabase {
         }
         try {
             # Use ADOX Catalog to create the database.  ADOX is part of the
-            # Microsoft Office data access components and is available on systems
-            # with the ACE/Jet providers installed.  The Jet OLEDB:Engine Type
-            # property controls the file format.  See https://support.microsoft.com/kb/271246
             $cat = New-Object -ComObject ADOX.Catalog
             $connStr = "Provider=$provider;Data Source=$Path;Jet OLEDB:Engine Type=$engine;"
             $null = $cat.Create($connStr)
@@ -359,7 +257,6 @@ CREATE TABLE InterfaceHistory (
         $connection = New-Object -ComObject ADODB.Connection
         $opened = $false
         # Try the ACE provider first as it supports both .accdb and .mdb.  Fall
-        # back to the older Jet provider if ACE is unavailable.
         foreach ($prov in @('Microsoft.ACE.OLEDB.12.0','Microsoft.Jet.OLEDB.4.0')) {
             try {
                 $connection.Open("Provider=$prov;Data Source=$Path")
@@ -437,16 +334,7 @@ function Invoke-DbNonQuery {
 }
 
 function Invoke-DbQuery {
-    <#
-        .SYNOPSIS
-            Executes a SELECT statement against the Access database and returns a DataTable.
-
-        .DESCRIPTION
-            Refactored to use a single .NET OLE DB connection path. This removes the
-            redundant ADODB COM connection and any JRO cache refresh from the read path.
-            The function loops providers ('Microsoft.ACE.OLEDB.12.0', then 'Microsoft.Jet.OLEDB.4.0'),
-            opens one connection, executes the query with OleDbDataAdapter, and fills a DataTable.
-    #>
+    
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)]
@@ -457,7 +345,6 @@ function Invoke-DbQuery {
     )
 
     # Use the provided session connection if available and valid, otherwise
-    # open a new connection just for this invocation.
     $mustClose = $false
     $conn = $null
     try {

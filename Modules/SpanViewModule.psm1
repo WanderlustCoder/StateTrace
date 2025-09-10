@@ -36,8 +36,6 @@ function New-SpanView {
         $spanGrid.ItemsSource = @()
         if ($vlanDropdown) {
             # Use the shared dropdown helper from DeviceDataModule to populate
-            # the VLAN dropdown with a single blank entry.  This helper
-            # handles both ItemsSource assignment and index selection.
             DeviceDataModule\Set-DropdownItems -Control $vlanDropdown -Items @('')
         }
             return
@@ -61,7 +59,6 @@ function New-SpanView {
             $instances = [System.Collections.Generic.List[string]]::new($vset)
             $instances.Sort([System.StringComparer]::OrdinalIgnoreCase)
             # Use the shared dropdown helper to populate the VLAN dropdown with
-            # a blank entry plus all VLAN instances.
             DeviceDataModule\Set-DropdownItems -Control $vlanDropdown -Items (@('') + $instances)
         }
     }

@@ -515,103 +515,103 @@ interface ethernet 2/1/48
  exit
 !
 SSH@WLLS-A05-AS-05# show interfaces brief
-Port       Link    State    Dupl Speed Trunk Tag Pvid Pri MAC            Name
-1/1/1      Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.0001  Users1
-1/1/2      Disable None     Full  1G    None   None Yes 10   0   0011.2233.0002  Users2
-1/1/3      Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.0003  Users3
-1/1/4      Down    None     Full  1G    None   None Yes 10   0   0011.2233.0004  Users4
-1/1/5      Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.0005  Users5
-1/1/6      Down    None     Full  1G    None   None Yes 10   0   0011.2233.0006  Users6
-1/1/7      Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.0007  Users7
-1/1/8      Down    None     Full  1G    None   None Yes 10   0   0011.2233.0008  Users8
-1/1/9      Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.0009  Users9
-1/1/10     Down    None     Full  1G    None   None Yes 10   0   0011.2233.000a  Users10
-1/1/11     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.000b  Users11
-1/1/12     Down    None     Full  1G    None   None Yes 10   0   0011.2233.000c  Users12
-1/1/13     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.000d  Users13
-1/1/14     Down    None     Full  1G    None   None Yes 10   0   0011.2233.000e  Users14
-1/1/15     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.000f  Users15
-1/1/16     Down    None     Full  1G    None   None Yes 10   0   0011.2233.0010  Users16
-1/1/17     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.0011  Users17
-1/1/18     Down    None     Full  1G    None   None Yes 10   0   0011.2233.0012  Users18
-1/1/19     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.0013  Users19
-1/1/20     Down    None     Full  1G    None   None Yes 10   0   0011.2233.0014  Users20
-1/1/21     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.0015  Users21
-1/1/22     Down    Disabled Full  1G    None   None Yes 10   0   0011.2233.0016  Users22
-1/1/23     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.0017  Users23
-1/1/24     Down    None     Full  1G    None   None Yes 10   0   0011.2233.0018  Users24
-1/1/25     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.0019  Users25
-1/1/26     Down    None     Full  1G    None   None Yes 10   0   0011.2233.001a  Users26
-1/1/27     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.001b  Users27
-1/1/28     Down    Disabled Full  1G    None   None Yes 10   0   0011.2233.001c  Users28
-1/1/29     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.001d  Users29
-1/1/30     Down    None     Full  1G    None   None Yes 10   0   0011.2233.001e  Users30
-1/1/31     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.001f  Users31
-1/1/32     Down    None     Full  1G    None   None Yes 10   0   0011.2233.0020  Users32
-1/1/33     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.0021  Users33
-1/1/34     Down    None     Full  1G    None   None Yes 10   0   0011.2233.0022  Users34
-1/1/35     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.0023  Users35
-1/1/36     Down    None     Full  1G    None   None Yes 10   0   0011.2233.0024  Users36
-1/1/37     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.0025  Users37
-1/1/38     Down    None     Full  1G    None   None Yes 10   0   0011.2233.0026  Users38
-1/1/39     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.0027  Users39
-1/1/40     Down    None     Full  1G    None   None Yes 10   0   0011.2233.0028  Users40
-1/1/41     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.0029  Users41
-1/1/42     Down    None     Full  1G    None   None Yes 10   0   0011.2233.002a  Users42
-1/1/43     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.002b  Users43
-1/1/44     Down    None     Full  1G    None   None Yes 10   0   0011.2233.002c  Users44
-1/1/45     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.002d  Users45
-1/1/46     Down    None     Full  1G    None   None Yes 10   0   0011.2233.002e  Users46
-1/1/47     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.002f  Users47
-1/1/48     Down    None     Full  1G    None   None Yes 10   0   0011.2233.0030  Users48
-2/1/1      Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.0031  Users49
-2/1/2      Down    None     Full  1G    None   None Yes 10   0   0011.2233.0032  Users50
-2/1/3      Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.0033  Users51
-2/1/4      Down    None     Full  1G    None   None Yes 10   0   0011.2233.0034  Users52
-2/1/5      Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.0035  Users53
-2/1/6      Down    None     Full  1G    None   None Yes 10   0   0011.2233.0036  Users54
-2/1/7      Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.0037  Users55
-2/1/8      Down    None     Full  1G    None   None Yes 10   0   0011.2233.0038  Users56
-2/1/9      Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.0039  Users57
-2/1/10     Down    Disabled Full  1G    None   None Yes 10   0   0011.2233.003a  Users58
-2/1/11     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.003b  Users59
-2/1/12     Down    None     Full  1G    None   None Yes 10   0   0011.2233.003c  Users60
-2/1/13     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.003d  Users61
-2/1/14     Down    None     Full  1G    None   None Yes 10   0   0011.2233.003e  Users62
-2/1/15     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.003f  Users63
-2/1/16     Down    None     Full  1G    None   None Yes 10   0   0011.2233.0040  Users64
-2/1/17     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.0041  Users65
-2/1/18     Down    None     Full  1G    None   None Yes 10   0   0011.2233.0042  Users66
-2/1/19     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.0043  Users67
-2/1/20     Down    None     Full  1G    None   None Yes 10   0   0011.2233.0044  Users68
-2/1/21     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.0045  Users69
-2/1/22     Down    None     Full  1G    None   None Yes 10   0   0011.2233.0046  Users70
-2/1/23     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.0047  Users71
-2/1/24     Down    None     Full  1G    None   None Yes 10   0   0011.2233.0048  Users72
-2/1/25     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.0049  Users73
-2/1/26     Down    None     Full  1G    None   None Yes 10   0   0011.2233.004a  Users74
-2/1/27     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.004b  Users75
-2/1/28     Down    None     Full  1G    None   None Yes 10   0   0011.2233.004c  Users76
-2/1/29     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.004d  Users77
-2/1/30     Down    None     Full  1G    None   None Yes 10   0   0011.2233.004e  Users78
-2/1/31     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.004f  Users79
-2/1/32     Down    None     Full  1G    None   None Yes 10   0   0011.2233.0050  Users80
-2/1/33     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.0051  Users81
-2/1/34     Down    None     Full  1G    None   None Yes 10   0   0011.2233.0052  Users82
-2/1/35     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.0053  Users83
-2/1/36     Down    None     Full  1G    None   None Yes 10   0   0011.2233.0054  Users84
-2/1/37     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.0055  Users85
-2/1/38     Down    None     Full  1G    None   None Yes 10   0   0011.2233.0056  Users86
-2/1/39     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.0057  Users87
-2/1/40     Down    None     Full  1G    None   None Yes 10   0   0011.2233.0058  Users88
-2/1/41     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.0059  Users89
-2/1/42     Down    None     Full  1G    None   None Yes 10   0   0011.2233.005a  Users90
-2/1/43     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.005b  Users91
-2/1/44     Down    None     Full  1G    None   None Yes 10   0   0011.2233.005c  Users92
-2/1/45     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.005d  Users93
-2/1/46     Down    None     Full  1G    None   None Yes 10   0   0011.2233.005e  Users94
-2/1/47     Up      Forward  Full  1G    None   None Yes 10   0   0011.2233.005f  Users95
-2/1/48     Down    None     Full  1G    None   None Yes 10   0   0011.2233.0060  Users96
+Port       Link    State    Dupl Speed Trunk   Tag Pvid Pri MAC            Name
+1/1/1      Up      Forward  Full  1G    None   Yes 10   0   0011.2233.0001  Users1
+1/1/2      Disable None     None  None  None   Yes 10   0   0011.2233.0002  Users2
+1/1/3      Up      Forward  Full  1G    None   Yes 10   0   0011.2233.0003  Users3
+1/1/4      Down    None     Full  1G    None   Yes 10   0   0011.2233.0004  Users4
+1/1/5      Up      Forward  Full  1G    None   Yes 10   0   0011.2233.0005  Users5
+1/1/6      Down    None     Full  1G    None   Yes 10   0   0011.2233.0006  Users6
+1/1/7      Up      Forward  Full  1G    None   Yes 10   0   0011.2233.0007  Users7
+1/1/8      Down    None     Full  1G    None   Yes 10   0   0011.2233.0008  Users8
+1/1/9      Up      Forward  Full  1G    None   Yes 10   0   0011.2233.0009  Users9
+1/1/10     Down    None     Full  1G    None   Yes 10   0   0011.2233.000a  Users10
+1/1/11     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.000b  Users11
+1/1/12     Down    None     Full  1G    None   Yes 10   0   0011.2233.000c  Users12
+1/1/13     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.000d  Users13
+1/1/14     Down    None     Full  1G    None   Yes 10   0   0011.2233.000e  Users14
+1/1/15     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.000f  Users15
+1/1/16     Down    None     Full  1G    None   Yes 10   0   0011.2233.0010  Users16
+1/1/17     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.0011  Users17
+1/1/18     Down    None     Full  1G    None   Yes 10   0   0011.2233.0012  Users18
+1/1/19     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.0013  Users19
+1/1/20     Down    None     Full  1G    None   Yes 10   0   0011.2233.0014  Users20
+1/1/21     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.0015  Users21
+1/1/22     Down    Disabled Full  1G    None   Yes 10   0   0011.2233.0016  Users22
+1/1/23     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.0017  Users23
+1/1/24     Down    None     Full  1G    None   Yes 10   0   0011.2233.0018  Users24
+1/1/25     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.0019  Users25
+1/1/26     Down    None     Full  1G    None   Yes 10   0   0011.2233.001a  Users26
+1/1/27     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.001b  Users27
+1/1/28     Down    Disabled Full  1G    None   Yes 10   0   0011.2233.001c  Users28
+1/1/29     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.001d  Users29
+1/1/30     Down    None     Full  1G    None   Yes 10   0   0011.2233.001e  Users30
+1/1/31     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.001f  Users31
+1/1/32     Down    None     Full  1G    None   Yes 10   0   0011.2233.0020  Users32
+1/1/33     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.0021  Users33
+1/1/34     Down    None     Full  1G    None   Yes 10   0   0011.2233.0022  Users34
+1/1/35     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.0023  Users35
+1/1/36     Down    None     Full  1G    None   Yes 10   0   0011.2233.0024  Users36
+1/1/37     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.0025  Users37
+1/1/38     Down    None     Full  1G    None   Yes 10   0   0011.2233.0026  Users38
+1/1/39     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.0027  Users39
+1/1/40     Down    None     Full  1G    None   Yes 10   0   0011.2233.0028  Users40
+1/1/41     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.0029  Users41
+1/1/42     Down    None     Full  1G    None   Yes 10   0   0011.2233.002a  Users42
+1/1/43     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.002b  Users43
+1/1/44     Down    None     Full  1G    None   Yes 10   0   0011.2233.002c  Users44
+1/1/45     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.002d  Users45
+1/1/46     Down    None     Full  1G    None   Yes 10   0   0011.2233.002e  Users46
+1/1/47     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.002f  Users47
+1/1/48     Down    None     Full  1G    None   Yes 10   0   0011.2233.0030  Users48
+2/1/1      Up      Forward  Full  1G    None   Yes 10   0   0011.2233.0031  Users49
+2/1/2      Down    None     Full  1G    None   Yes 10   0   0011.2233.0032  Users50
+2/1/3      Up      Forward  Full  1G    None   Yes 10   0   0011.2233.0033  Users51
+2/1/4      Down    None     Full  1G    None   Yes 10   0   0011.2233.0034  Users52
+2/1/5      Up      Forward  Full  1G    None   Yes 10   0   0011.2233.0035  Users53
+2/1/6      Down    None     Full  1G    None   Yes 10   0   0011.2233.0036  Users54
+2/1/7      Up      Forward  Full  1G    None   Yes 10   0   0011.2233.0037  Users55
+2/1/8      Down    None     Full  1G    None   Yes 10   0   0011.2233.0038  Users56
+2/1/9      Up      Forward  Full  1G    None   Yes 10   0   0011.2233.0039  Users57
+2/1/10     Down    Disabled Full  1G    None   Yes 10   0   0011.2233.003a  Users58
+2/1/11     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.003b  Users59
+2/1/12     Down    None     Full  1G    None   Yes 10   0   0011.2233.003c  Users60
+2/1/13     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.003d  Users61
+2/1/14     Down    None     Full  1G    None   Yes 10   0   0011.2233.003e  Users62
+2/1/15     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.003f  Users63
+2/1/16     Down    None     Full  1G    None   Yes 10   0   0011.2233.0040  Users64
+2/1/17     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.0041  Users65
+2/1/18     Down    None     Full  1G    None   Yes 10   0   0011.2233.0042  Users66
+2/1/19     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.0043  Users67
+2/1/20     Down    None     Full  1G    None   Yes 10   0   0011.2233.0044  Users68
+2/1/21     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.0045  Users69
+2/1/22     Down    None     Full  1G    None   Yes 10   0   0011.2233.0046  Users70
+2/1/23     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.0047  Users71
+2/1/24     Down    None     Full  1G    None   Yes 10   0   0011.2233.0048  Users72
+2/1/25     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.0049  Users73
+2/1/26     Down    None     Full  1G    None   Yes 10   0   0011.2233.004a  Users74
+2/1/27     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.004b  Users75
+2/1/28     Down    None     Full  1G    None   Yes 10   0   0011.2233.004c  Users76
+2/1/29     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.004d  Users77
+2/1/30     Down    None     Full  1G    None   Yes 10   0   0011.2233.004e  Users78
+2/1/31     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.004f  Users79
+2/1/32     Down    None     Full  1G    None   Yes 10   0   0011.2233.0050  Users80
+2/1/33     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.0051  Users81
+2/1/34     Down    None     Full  1G    None   Yes 10   0   0011.2233.0052  Users82
+2/1/35     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.0053  Users83
+2/1/36     Down    None     Full  1G    None   Yes 10   0   0011.2233.0054  Users84
+2/1/37     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.0055  Users85
+2/1/38     Down    None     Full  1G    None   Yes 10   0   0011.2233.0056  Users86
+2/1/39     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.0057  Users87
+2/1/40     Down    None     Full  1G    None   Yes 10   0   0011.2233.0058  Users88
+2/1/41     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.0059  Users89
+2/1/42     Down    None     Full  1G    None   Yes 10   0   0011.2233.005a  Users90
+2/1/43     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.005b  Users91
+2/1/44     Down    None     Full  1G    None   Yes 10   0   0011.2233.005c  Users92
+2/1/45     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.005d  Users93
+2/1/46     Down    None     Full  1G    None   Yes 10   0   0011.2233.005e  Users94
+2/1/47     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.005f  Users95
+2/1/48     Down    None     Full  1G    None   Yes 10   0   0011.2233.0060  Users96
 
 SSH@WLLS-A05-AS-05# show mac-address
 MAC Address        Port      VLAN

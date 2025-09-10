@@ -1,30 +1,10 @@
 ##
-# Predefine the search debounce timer variable so that StrictMode does not
-# throw when it is referenced before initialisation.  The timer is
-# initialised later in New-SearchInterfacesView if needed.
 if (-not (Get-Variable -Name SearchUpdateTimer -Scope Script -ErrorAction SilentlyContinue)) {
     $script:SearchUpdateTimer = $null
 }
 
 function New-SearchInterfacesView {
-    <#
-        .SYNOPSIS
-            Load and initialise the SearchInterfaces view.
-
-        .DESCRIPTION
-            This function loads the SearchInterfacesView.xaml file, inserts it into
-            the host window and wires up event handlers for search filtering,
-            regex toggling, exporting and status/auth filtering.  It relies on
-            helper functions such as Update-SearchResults, Update-SearchGrid
-            and Update-GlobalInterfaceList provided by GuiModule.psm1.
-
-        .PARAMETER Window
-            The main WPF window created by MainWindow.ps1.
-
-        .PARAMETER ScriptDir
-            The directory containing the Main scripts.  The view XAML is
-            expected to reside in a ../Views folder relative to this path.
-    #>
+    
     param(
         [Parameter(Mandatory=$true)][Windows.Window]$Window,
         [Parameter(Mandatory=$true)][string]$ScriptDir
@@ -56,9 +36,6 @@ function New-SearchInterfacesView {
     $authFilter     = $searchView.FindName('AuthFilter')
 
     # Promote search box to the global scope so that its Text property can be
-    # referenced from event handlers after this function completes.  See
-    # FurtherFixes.docx step 2 – without this, the $searchBox variable goes
-    # out of scope and the TextChanged scriptblock cannot access it.
     if ($searchBox) { $global:searchBox = $searchBox }
     # Initialise regex flag
     $script:SearchRegexEnabled = $false
@@ -71,10 +48,6 @@ function New-SearchInterfacesView {
         })
     }
     # Text changed triggers debounced search filtering.  A DispatcherTimer is
-    # used to coalesce rapid keystrokes into a single update after the user
-    # pauses typing.  Without debouncing, Update-SearchGrid would execute on
-    # every key press which can noticeably slow the UI when searching large
-    # data sets.  The timer is created once and reused across calls.
     if ($searchBox) {
         # Initialise the debounce timer only once per module load
         if (-not $script:SearchUpdateTimer) {
@@ -90,7 +63,6 @@ function New-SearchInterfacesView {
         }
         $searchBox.Add_TextChanged({
             # Each keystroke resets the debounce timer.  Use script scope
-            # variables so that the timer persists across calls.
             $script:SearchUpdateTimer.Stop()
             $script:SearchUpdateTimer.Start()
         })
@@ -130,8 +102,6 @@ function New-SearchInterfacesView {
         })
     }
     # Status and Auth filter dropdowns refresh the grid.  Use the same
-    # debouncing mechanism as the search box so that multiple rapid
-    # selection changes coalesce into one update.
     if ($statusFilter) {
         $statusFilter.Add_SelectionChanged({
             $script:SearchUpdateTimer.Stop()
