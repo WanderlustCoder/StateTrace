@@ -165,19 +165,30 @@ SELECT
     i.AuthClientMAC,
     ds.Site,
     ds.Building,
-    ds.Room
+    ds.Room,
+    ds.Make,
+    ds.AuthBlock
 FROM Interfaces AS i
 LEFT JOIN DeviceSummary AS ds ON i.Hostname = ds.Hostname
 WHERE i.Hostname IN ($inList)
 ORDER BY i.Hostname, i.Port
 "@
-    # Perform the query using a short-lived read session to benefit
-    # from connection pooling across this call.  Dispose session after use.
-    $session = Close-DbReadSession -DatabasePath $DatabasePath
+    # Perform the query using a short‑lived read session to benefit
+    # from connection pooling across this call.  Dispose the session after use.
+    $session = $null
     try {
-        return Invoke-DbQuery -DatabasePath $DatabasePath -Sql $sql -Session $session
+        $session = Open-DbReadSession -DatabasePath $DatabasePath
+    } catch {
+        $session = $null
+    }
+    try {
+        if ($session) {
+            return Invoke-DbQuery -DatabasePath $DatabasePath -Sql $sql -Session $session
+        } else {
+            return Invoke-DbQuery -DatabasePath $DatabasePath -Sql $sql
+        }
     } finally {
-        Close-DbReadSession -Session $session
+        if ($session) { Close-DbReadSession -Session $session }
     }
 }
 
@@ -195,44 +206,80 @@ function New-InterfaceObjectsFromDbRow {
     # Escape the hostname once for reuse in SQL queries.  Doubling single quotes
     # prevents SQL injection and ensures proper matching in Access queries.
     $escHost = $Hostname -replace "'", "''"
-    # Attempt to determine the vendor from the DeviceSummary table.  Default to Cisco
-    # when no make is found or an error occurs.
+
+    # Determine vendor (Cisco vs Brocade) and global auth block using any joined
+    # columns present on the first data row.  Fallback to a single DeviceSummary
+    # lookup only when necessary.  This avoids N+1 queries and safely handles
+    # different row types without relying on PSTypeName.
     $vendor = 'Cisco'
+    $authBlockLines = @()
+    $firstRow = $null
+    # Try to extract a representative row from the provided data
     try {
-        $mkDt = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT Make FROM DeviceSummary WHERE Hostname = '$escHost'"
-        if ($mkDt) {
-            if ($mkDt -is [System.Data.DataTable]) {
-                if ($mkDt.Rows.Count -gt 0) {
-                    $mk = $mkDt.Rows[0].Make
-                    if ($mk -and ($mk -match '(?i)brocade')) { $vendor = 'Brocade' }
-                }
-            } else {
-                $mkRow = $mkDt | Select-Object -First 1
-                if ($mkRow -and $mkRow.PSObject.Properties['Make']) {
-                    $mk = $mkRow.Make
-                    if ($mk -and ($mk -match '(?i)brocade')) { $vendor = 'Brocade' }
-                }
-            }
+        if ($Data -is [System.Data.DataTable]) {
+            if ($Data.Rows.Count -gt 0) { $firstRow = $Data.Rows[0] }
+        } elseif ($Data -is [System.Data.DataView]) {
+            if ($Data.Count -gt 0) { $firstRow = $Data[0].Row }
+        } elseif ($Data -is [System.Collections.IEnumerable]) {
+            $enum = $Data.GetEnumerator()
+            if ($enum -and $enum.MoveNext()) { $firstRow = $enum.Current }
         }
     } catch {}
-    # For Brocade devices, retrieve the device-level AuthBlock from DeviceSummary.
-    $authBlockLines = @()
-    if ($vendor -eq 'Brocade') {
+    # Attempt to determine vendor from joined Make column
+    try {
+        # Check if the first row exposes a 'Make' property.  Avoid specifying
+        # MemberType so the call succeeds for note and alias properties.
+        if ($firstRow -and ($firstRow | Get-Member -Name 'Make' -ErrorAction SilentlyContinue)) {
+            $mk = '' + $firstRow.Make
+            if ($mk -match '(?i)brocade') { $vendor = 'Brocade' }
+        }
+    } catch {}
+    # Fallback to query DeviceSummary if vendor still Cisco
+    if ($vendor -eq 'Cisco') {
         try {
-            $abDt = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT AuthBlock FROM DeviceSummary WHERE Hostname = '$escHost'"
-            if ($abDt) {
-                $abText = $null
-                if ($abDt -is [System.Data.DataTable]) {
-                    if ($abDt.Rows.Count -gt 0) { $abText = '' + $abDt.Rows[0].AuthBlock }
+            $mkDt = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT Make FROM DeviceSummary WHERE Hostname = '$escHost'"
+            if ($mkDt) {
+                if ($mkDt -is [System.Data.DataTable]) {
+                    if ($mkDt.Rows.Count -gt 0) {
+                        $mk = '' + $mkDt.Rows[0].Make
+                        if ($mk -match '(?i)brocade') { $vendor = 'Brocade' }
+                    }
                 } else {
-                    $abRow = $abDt | Select-Object -First 1
-                    if ($abRow -and $abRow.PSObject.Properties['AuthBlock']) { $abText = '' + $abRow.AuthBlock }
-                }
-                if ($abText -and $abText.Trim() -ne '') {
-                    $authBlockLines = $abText -split "`r?`n"
+                    $mkRow = $mkDt | Select-Object -First 1
+                    if ($mkRow -and $mkRow.PSObject.Properties['Make']) {
+                        $mk = '' + $mkRow.Make
+                        if ($mk -match '(?i)brocade') { $vendor = 'Brocade' }
+                    }
                 }
             }
         } catch {}
+    }
+    # For Brocade devices, try to fetch the AuthBlock from the joined column; fallback to DB
+    if ($vendor -eq 'Brocade') {
+        $abText = $null
+        try {
+            # Check if the first row exposes an 'AuthBlock' property without constraining MemberType
+            if ($firstRow -and ($firstRow | Get-Member -Name 'AuthBlock' -ErrorAction SilentlyContinue)) {
+                $abText = '' + $firstRow.AuthBlock
+            }
+        } catch {}
+        if (-not $abText) {
+            try {
+                $abDt = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT AuthBlock FROM DeviceSummary WHERE Hostname = '$escHost'"
+                if ($abDt) {
+                    if ($abDt -is [System.Data.DataTable]) {
+                        if ($abDt.Rows.Count -gt 0) { $abText = '' + $abDt.Rows[0].AuthBlock }
+                    } else {
+                        $abRow = $abDt | Select-Object -First 1
+                        if ($abRow -and $abRow.PSObject.Properties['AuthBlock']) { $abText = '' + $abRow.AuthBlock }
+                    }
+                }
+            } catch {}
+        }
+        if ($abText) {
+            # Split into non‑empty trimmed lines
+            $authBlockLines = $abText -split "`r?`n" | ForEach-Object { ('' + $_).Trim() } | Where-Object { $_ -ne '' }
+        }
     }
     # Load compliance templates based on vendor.  If the JSON file is missing the
     # Templates array will be $null and matches will fail, resulting in defaults.
