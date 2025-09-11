@@ -110,52 +110,103 @@ function Get-BrocadeDeviceFacts {
     }
 
     function Get-AuthModes {
-        param ($Block)
-        # Use typed lists for port collections to avoid O(n^2) growth when expanding port ranges
-        $dot1x  = New-Object 'System.Collections.Generic.List[string]'
-        $macauth = New-Object 'System.Collections.Generic.List[string]'
+        param ($Block, $Configs)
+        # Build typed lists for port collections to avoid O(n^2) growth when expanding port ranges
+        # Separate dot1x "port-control auto" and global "dot1x enable" directives.  Only the
+        # port-control auto list is used for authentication template classification; the
+        # enable list is informational and may be surfaced in the UI if needed.
+        $dot1xAuto   = New-Object 'System.Collections.Generic.List[string]'
+        $dot1xEnable = New-Object 'System.Collections.Generic.List[string]'
+        $macauth     = New-Object 'System.Collections.Generic.List[string]'
+
+        # Helper regexes for tokenizing port ranges in authentication block lines.  Accept both
+        # "eth" and "ethe" prefixes, optional "to" ranges, and ignore surrounding text.  A
+        # single port (no "to") will be expanded via Expand-PortRange with identical start/end.
+        $reToken = [regex]::new('(?i)eth(?:e)?\s+(\d+/\d+/\d+)(?:\s+to\s+(\d+/\d+/\d+))?')
 
         foreach ($line in $Block) {
-            # Normalize case for easier matching
+            # Normalize case and trim for easier matching
             $l = $line.Trim()
 
-            # Dot1x enable lines may specify multiple ranges on one line.  Capture all
-            # occurrences of "ethe X/X/X to X/X/X" rather than only the first.  Ignore
-            # plain "dot1x enable" without per-port ranges, as a global enable does not
-            # indicate which ports are controlled by 802.1X.
-            if ($l -match '(?i)^\s*dot1x enable') {
-                $mAll = [regex]::Matches($l, '(?i)ethe\s+(\d+/\d+/\d+)\s+to\s+(\d+/\d+/\d+)')
+            # MAC authentication enable lines may specify multiple ranges or single ports.
+            if ($l -match '(?i)^\s*mac-authentication\s+enable') {
+                $mAll = $reToken.Matches($l)
                 foreach ($m in $mAll) {
                     $start = $m.Groups[1].Value
                     $end   = $m.Groups[2].Value
-                    [void]$dot1x.AddRange([string[]](Expand-PortRange $start $end))
+                    if ($end -and $end -ne '') {
+                        [void]$macauth.AddRange([string[]](Expand-PortRange $start $end))
+                    } else {
+                        [void]$macauth.AddRange([string[]](Expand-PortRange $start $start))
+                    }
                 }
             }
 
-            # MAC authentication enable lines can also list multiple ranges separated by spaces
-            if ($l -match '(?i)^\s*mac-authentication enable') {
-                $mAll = [regex]::Matches($l, '(?i)ethe\s+(\d+/\d+/\d+)\s+to\s+(\d+/\d+/\d+)')
+            # Only "dot1x port-control auto" lines contribute to the per-port dot1x set used
+            # for classification.  "dot1x enable" lines are treated as global enablement and
+            # stored separately in $dot1xEnable for optional informational use.
+            if ($l -match '(?i)^\s*dot1x\s+port-control\s+auto') {
+                $mAll = $reToken.Matches($l)
                 foreach ($m in $mAll) {
                     $start = $m.Groups[1].Value
                     $end   = $m.Groups[2].Value
-                    [void]$macauth.AddRange([string[]](Expand-PortRange $start $end))
+                    if ($end -and $end -ne '') {
+                        [void]$dot1xAuto.AddRange([string[]](Expand-PortRange $start $end))
+                    } else {
+                        [void]$dot1xAuto.AddRange([string[]](Expand-PortRange $start $start))
+                    }
                 }
-            }
-
-            # Beginning with FastIron 08.0.90, per‑port 802.1X enablement is achieved via
-            # "dot1x port-control auto".  These lines may contain multiple ranges on a
-            # single line, separated by spaces or commas.  Capture all "ethe X/X/X to X/X/X"
-            # substrings and add them to the dot1x list.
-            if ($l -match '(?i)^\s*dot1x port-control auto') {
-                $mAll = [regex]::Matches($l, '(?i)ethe\s+(\d+/\d+/\d+)\s+to\s+(\d+/\d+/\d+)')
+            } elseif ($l -match '(?i)^\s*dot1x\s+enable') {
+                $mAll = $reToken.Matches($l)
                 foreach ($m in $mAll) {
                     $start = $m.Groups[1].Value
                     $end   = $m.Groups[2].Value
-                    [void]$dot1x.AddRange([string[]](Expand-PortRange $start $end))
+                    if ($end -and $end -ne '') {
+                        [void]$dot1xEnable.AddRange([string[]](Expand-PortRange $start $end))
+                    } else {
+                        [void]$dot1xEnable.AddRange([string[]](Expand-PortRange $start $start))
+                    }
                 }
             }
         }
-        return @($dot1x.ToArray(), $macauth.ToArray())
+
+        # Also parse per-interface configurations: each entry in $Configs is the config text for
+        # a single interface.  If the config contains "mac-authentication enable", add that
+        # interface to the macauth set.  If it contains "dot1x port-control auto", add it to
+        # the dot1x set.  Note that configs may include newline-separated commands.
+        if ($Configs) {
+            foreach ($kvp in $Configs.GetEnumerator()) {
+                $portName = $kvp.Key
+                $cfgText  = $kvp.Value
+                if ($cfgText -and $cfgText -match '(?i)mac-authentication\s+enable') {
+                    # Add the specific port (EtX/Y/Z) directly
+                    [void]$macauth.Add($portName)
+                }
+                if ($cfgText -and $cfgText -match '(?i)dot1x\s+port-control\s+auto') {
+                    [void]$dot1xAuto.Add($portName)
+                }
+            }
+        }
+
+        # Dedupe while preserving order.  Use hashtables as sets.
+        # Dedupe while preserving order.  Use hashtables as sets.
+        $dotSeen = @{}
+        $dotUniq = New-Object 'System.Collections.Generic.List[string]'
+        foreach ($p in $dot1xAuto) {
+            if (-not $dotSeen.ContainsKey($p)) {
+                $dotSeen[$p] = $true
+                [void]$dotUniq.Add($p)
+            }
+        }
+        $macSeen = @{}
+        $macUniq = New-Object 'System.Collections.Generic.List[string]'
+        foreach ($p in $macauth) {
+            if (-not $macSeen.ContainsKey($p)) {
+                $macSeen[$p] = $true
+                [void]$macUniq.Add($p)
+            }
+        }
+        return @($dotUniq.ToArray(), $macUniq.ToArray())
     }
 
     function Get-InterfacesBrief {
@@ -300,11 +351,35 @@ function Get-BrocadeDeviceFacts {
     function Get-AuthDefaultVlan {
         param([string[]]$AuthConfig)
         foreach ($line in $AuthConfig) {
-            if ($line -match 'auth-default-vlan\s+(\d+)') {
+            # Accept optional whitespace between the keyword and VLAN number.  Some devices emit
+            # 'auth-default-vlan10' without a space while others include a space.  Use a case-
+            # insensitive match to capture either form.
+            if ($line -match '(?i)auth-default-vlan\s*(\d+)') {
                 return [int]$matches[1]
             }
         }
         return $null
+    }
+
+    function Get-AuthDefaultVlans {
+        param([string[]]$AuthConfig)
+        # Collect all auth-default-vlan statements in the Authentication block.  Normalize case
+        # and whitespace, dedupe the VLAN IDs, and return an array of integer values in
+        # discovered order.  This is useful when a configuration contains multiple default
+        # VLAN commands, which often indicates a misconfiguration.  The first element of
+        # the returned array should be treated as the primary default VLAN.
+        $seen = @{}
+        $vals = New-Object 'System.Collections.Generic.List[int]'
+        foreach ($line in $AuthConfig) {
+            if ($line -match '(?i)auth-default-vlan\s*(\d+)') {
+                $v = [int]$matches[1]
+                if (-not $seen.ContainsKey($v)) {
+                    $seen[$v] = $true
+                    [void]$vals.Add($v)
+                }
+            }
+        }
+        return $vals.ToArray()
     }
 
 
@@ -314,20 +389,40 @@ function Get-BrocadeDeviceFacts {
         $configs = @{}; $names = @{}; $current = ""
         $bufferList = New-Object 'System.Collections.Generic.List[string]'
         foreach ($line in $Block) {
-            if ($line -match '^interface ethernet (\d+/\d+/\d+)$') {
+            # End of an interface configuration is typically indicated by a standalone
+            # exclamation mark.  When we encounter such a line and are currently
+            # collecting a block, flush the accumulated lines and reset the state.
+            if ($line -match '(?i)^\s*!') {
                 if ($current) {
                     $configs[$current] = [string]::Join("`n", $bufferList)
+                    $current = ""
+                    $bufferList.Clear()
+                }
+                # Always skip processing the '!' line itself.
+                continue
+            }
+            # Detect the start of an interface block.  Allow leading whitespace and trailing whitespace,
+            # and be case-insensitive on the keyword.  Use a word boundary after the port to avoid
+            # matching additional text on the same line.  If we were collecting a previous block,
+            # flush it before starting a new one.
+            if ($line -match '(?i)^\s*interface\s+ethernet\s+(\d+/\d+/\d+)\b') {
+                if ($current) {
+                    $configs[$current] = [string]::Join("`n", $bufferList)
+                    $bufferList.Clear()
                 }
                 $current = ConvertTo-StandardPortName $matches[1]
-                $bufferList.Clear()
                 continue
-            } elseif ($line -match 'port-name (.+)') {
+            }
+            # Capture the friendly port name, if present, for the current interface.  Trim trailing whitespace.
+            if ($line -match '(?i)^\s*port-name\s+(.+)') {
                 $names[$current] = $matches[1].Trim()
             }
+            # Accumulate all lines within the current interface block for later parsing.
             if ($current) {
                 [void]$bufferList.Add($line)
             }
         }
+        # Flush any remaining buffered block at the end of the config.
         if ($current) {
             $configs[$current] = [string]::Join("`n", $bufferList)
         }
@@ -351,9 +446,59 @@ function Get-BrocadeDeviceFacts {
     $location   = Get-Location $configBlock
     $vlanMap    = Get-VlanMap $configBlock
     $authBlockRaw   = Get-AuthenticationBlock $configBlock
-    $authDefaultVlan = Get-AuthDefaultVlan $authBlockRaw
-    $authModes  = Get-AuthModes $configBlock
+    # Collect all configured default VLANs from the authentication block.  This allows
+    # detection of multiple conflicting defaults and ensures that devices that omit the
+    # space between the keyword and number are still recognized.  Pick the first VLAN
+    # discovered as the primary default.  When no default is specified, $authDefaultVlan
+    # will remain $null.
+    $authDefaultVlans = Get-AuthDefaultVlans $authBlockRaw
+    $authDefaultVlan  = if ($authDefaultVlans -and $authDefaultVlans.Count -gt 0) { $authDefaultVlans[0] } else { $null }
+
+    # Normalize and deduplicate lines in the authentication block for display.  Trim
+    # whitespace, standardize spacing for auth-default-vlan statements, and drop
+    # duplicate lines while preserving order.  This prevents repeated blocks from
+    # appearing verbatim in the output while leaving the underlying parsing logic
+    # unaffected.
+    $authBlockClean  = New-Object 'System.Collections.Generic.List[string]'
+    $seenAuthLines   = @{}
+    foreach ($line in $authBlockRaw) {
+        # Standardize the spacing in auth-default-vlan lines to 'auth-default-vlan <num>'
+        $normalized = ($line -replace '(?i)auth-default-vlan\s*(\d+)', 'auth-default-vlan $1').Trim()
+        if (-not $seenAuthLines.ContainsKey($normalized)) {
+            $seenAuthLines[$normalized] = $true
+            [void]$authBlockClean.Add($normalized)
+        }
+    }
+    # Brocade FCX platforms (8.0.80+ and later) support a global "mac-authentication dot1x override"
+    # command which forces MAC authentication to take precedence over 802.1X when both are
+    # enabled on a port.  If present, ports that appear in both the dot1x and macauth lists
+    # should be classified as macauth rather than flexible.  Scan the configuration block
+    # for this command once and store the result for use in the per‑interface loop below.
+    $macOverridesDot1x = $false
+    foreach ($line in $configBlock) {
+        if ($line -match '(?i)^\s*mac-authentication\s+dot1x\s+override') {
+            $macOverridesDot1x = $true
+            break
+        }
+    }
+    # Retrieve interface configs and names before determining auth modes.  The per-interface
+    # config text is required to detect dot1x/mac-auth enable lines on older software.
+    $cfgResults = Get-InterfaceConfigsAndNames $configBlock
+    $configs    = $cfgResults[0]; $namesMap = $cfgResults[1]
+    # Compute authentication modes using both the run-config block and per-interface configs.
+    $authModes  = Get-AuthModes $configBlock $configs
     $dot1xPorts = $authModes[0]; $macauthPorts = $authModes[1]
+
+    # Precompute membership sets for authentication port lists to avoid repeated `-contains` scans
+    $dot1xSet = @{}
+    foreach ($p in $dot1xPorts) {
+        # Directly assign the key to `$true`; duplicates simply overwrite the value
+        $dot1xSet[$p] = $true
+    }
+    $macauthSet = @{}
+    foreach ($p in $macauthPorts) {
+        $macauthSet[$p] = $true
+    }
     # Determine which authentication session output is available.  Starting in
     $auth = @()
     if ($authSessionsAll.Count -gt 0) {
@@ -361,10 +506,17 @@ function Get-BrocadeDeviceFacts {
     } else {
         $auth = Get-AuthStatus $dot1xSessions $macAuthSessions
     }
-    $cfgResults = Get-InterfaceConfigsAndNames $configBlock
-    $configs  = $cfgResults[0]; $namesMap = $cfgResults[1]
+    # $cfgResults and $configs are now computed above prior to calling Get-AuthModes.
+    # NamesMap was also derived above; reuse here instead of recomputing.
     $interfaces = Get-InterfacesBrief $interfacesBlock
     $macs       = Get-MacTable $macTableBlock
+
+    # Precompile regex patterns used for interface type determination.  These
+    # compiled expressions are reused for each port in the per-interface loop,
+    # avoiding repeated parsing of pattern strings on every iteration.  The
+    # match is case-insensitive.
+    $reTypeTrunk  = [regex]::new('uplink|trunk',  [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+    $reTypeAccess = [regex]::new('access|user|staff|voice|endpoint|printer', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
 
     # Pre-index the MAC table and authentication rows by port to avoid pipeline
     $macsByPort = @{}
@@ -413,11 +565,25 @@ function Get-BrocadeDeviceFacts {
         } else {
             $port
         }
-        $authMode = if ($authRow) { $authRow.Mode } elseif ($dot1xPorts -contains $port) { "dot1x" } elseif ($macauthPorts -contains $port) { "macauth" } else { "open" }
+        $authMode = if ($authRow) {
+            $authRow.Mode
+        } elseif ($dot1xSet.ContainsKey($port)) {
+            "dot1x"
+        } elseif ($macauthSet.ContainsKey($port)) {
+            "macauth"
+        } else {
+            "open"
+        }
         $authState = if ($authRow) { $authRow.State } elseif ($authMode -eq "open") { "Open" } else { "Unknown" }
         # Determine the authentication template for the port.  Beginning with
-        $dot1xEnabled   = $dot1xPorts -contains $port
-        $macauthEnabled = $macauthPorts -contains $port
+        $dot1xEnabled   = $dot1xSet.ContainsKey($port)
+        $macauthEnabled = $macauthSet.ContainsKey($port)
+        # Determine the recommended authentication template for this port.  When both
+        # MAC authentication and 802.1X are enabled on the same port, classify it
+        # as "flexible".  The global "mac-authentication dot1x override" command
+        # changes the order of attempts (MAC first) but does not alter the fact
+        # that both modes are enabled.  Therefore we ignore the override when
+        # determining the template.
         $authTemplate = switch ($true) {
             ($dot1xEnabled -and $macauthEnabled) { "flexible"; break }
             ($dot1xEnabled)                      { "dot1x";    break }
@@ -430,7 +596,15 @@ function Get-BrocadeDeviceFacts {
         } else {
             ''
         }
-        $type = if ($desc -match "uplink|trunk") { "Trunk" } elseif ($desc -match "access|user|staff|voice|endpoint|printer") { "Access" } else { "" }
+        # Determine port type via precompiled regular expressions rather than
+        # matching inline patterns each time.  Use IsMatch() for efficiency.
+        $type = if ($reTypeTrunk.IsMatch($desc)) {
+            "Trunk"
+        } elseif ($reTypeAccess.IsMatch($desc)) {
+            "Access"
+        } else {
+            ""
+        }
 
         [PSCustomObject]@{
             Port = $port; Name = $desc; Status = $iface.Status; VLAN = $vlan; Duplex = $iface.Duplex;
@@ -456,10 +630,18 @@ function Get-BrocadeDeviceFacts {
         Version = $modelVer[1];
         Uptime = $uptime; 
         Location = $location;
-        AuthDefaultVLAN  = $authDefaultVlan;
+        # The primary default VLAN discovered from the authentication block.  If multiple
+        # default VLAN statements are present, this will contain the first one.  When no
+        # default is configured, this field will be $null.
+        AuthDefaultVLAN   = $authDefaultVlan;
+        # A list of all distinct default VLAN IDs found in the authentication block, in order
+        # of appearance.  Useful for diagnostic purposes when multiple defaults appear.
+        AuthDefaultVLANs  = $authDefaultVlans;
         InterfaceCount = $combined.Count;
         InterfacesCombined = $combined
-        AuthenticationBlock = ($authBlockRaw -join "`n")
+        # Present a normalized, deduplicated authentication block for display.  Underlying
+        # parsing uses $authBlockRaw, but users benefit from a concise view.
+        AuthenticationBlock = ($authBlockClean -join "`n")
         SpanInfo = $spanInfo
     }
 }

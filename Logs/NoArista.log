@@ -247,89 +247,89 @@ Authentication
 !
 interface ethernet 1/1/1
  port-name DefaultPort1
- auth-default-vlan 10
+ authentication auth-default-vlan 10
  spanning-tree edge-port
 !
 interface ethernet 1/1/2
  port-name DefaultPort2
- auth-default-vlan 10
+ authentication auth-default-vlan 10
  spanning-tree edge-port
 !
 interface ethernet 1/1/3
  port-name DefaultPort3
- auth-default-vlan 10
+ authentication auth-default-vlan 10
  spanning-tree edge-port
 !
 interface ethernet 1/1/4
  port-name DefaultPort4
- auth-default-vlan 10
+ authentication auth-default-vlan 10
  spanning-tree edge-port
 !
 interface ethernet 1/1/5
  port-name DefaultPort5
- auth-default-vlan 10
+ authentication auth-default-vlan 10
  spanning-tree edge-port
 !
 interface ethernet 1/1/6
  port-name VoiceEndpointProt06
- auth-default-vlan 20
+ authentication auth-default-vlan 20
  dot1x port-control auto
  spanning-tree edge-port
 !
 interface ethernet 1/1/7
  port-name VoiceEndpointProt07
- auth-default-vlan 20
+ authentication auth-default-vlan 20
  dot1x port-control auto
  spanning-tree edge-port
 !
 interface ethernet 1/1/8
  port-name StaffPort8
- auth-default-vlan 30
+ authentication auth-default-vlan 30
  dot1x port-control auto
  spanning-tree edge-port
 !
 interface ethernet 1/1/9
  port-name StaffPort9
- auth-default-vlan 30
+ authentication auth-default-vlan 30
  dot1x port-control auto
  spanning-tree edge-port
 !
 interface ethernet 1/1/10
  port-name StaffPort10
- auth-default-vlan 30
+ authentication auth-default-vlan 30
  dot1x port-control auto
  spanning-tree edge-port
 !
 interface ethernet 1/1/11
  port-name StaffPort11
- auth-default-vlan 30
+ authentication auth-default-vlan 30
  dot1x port-control auto
  spanning-tree edge-port
 !
 interface ethernet 1/1/12
  port-name StaffPort12
- auth-default-vlan 30
+ authentication auth-default-vlan 30
  dot1x port-control auto
  spanning-tree edge-port
 !
 interface ethernet 1/1/13
  port-name AccessPointLong13
- auth-default-vlan 40
+ authentication auth-default-vlan 40
  spanning-tree edge-port
 !
 interface ethernet 1/1/14
  port-name AccessPointLong14
- auth-default-vlan 40
+ authentication auth-default-vlan 40
  spanning-tree edge-port
 !
 interface ethernet 1/1/15
  port-name PrinterCanonIRADVL
- auth-default-vlan 50
+ authentication auth-default-vlan 50
  spanning-tree edge-port
 !
 interface ethernet 1/1/16
  port-name AccessPointLong14
- auth-default-vlan 40
+ authentication auth-default-vlan 40
  spanning-tree edge-port
 !
 interface ethernet 1/1/17
@@ -358,144 +358,144 @@ interface ethernet 1/1/24
 !
 interface ethernet 1/1/25
  port-name DefaultPort25
- auth-default-vlan 10
+ authentication auth-default-vlan 10
  dot1x port-control auto
  spanning-tree edge-port
 !
 interface ethernet 1/1/26
  port-name DefaultPort26
- auth-default-vlan 10
+ authentication auth-default-vlan 10
  dot1x port-control auto
  spanning-tree edge-port
 !
 interface ethernet 1/1/27
  port-name DefaultPort27
- auth-default-vlan 10
+ authentication auth-default-vlan 10
  dot1x port-control auto
  spanning-tree edge-port
 !
 interface ethernet 1/1/28
  port-name DefaultPort28
- auth-default-vlan 10
+ authentication auth-default-vlan 10
  dot1x port-control auto
  spanning-tree edge-port
 !
 interface ethernet 1/1/29
  port-name DefaultPort29
- auth-default-vlan 10
+ authentication auth-default-vlan 10
  dot1x port-control auto
  spanning-tree edge-port
 !
 interface ethernet 1/1/30
  port-name DefaultPort30
- auth-default-vlan 10
+ authentication auth-default-vlan 10
  dot1x port-control auto
  spanning-tree edge-port
 !
 interface ethernet 1/1/31
  port-name DefaultPort31
- auth-default-vlan 10
+ authentication auth-default-vlan 10
  dot1x port-control auto
  spanning-tree edge-port
 !
 interface ethernet 1/1/32
  port-name DefaultPort32
- auth-default-vlan 10
+ authentication auth-default-vlan 10
  dot1x port-control auto
  spanning-tree edge-port
 !
 interface ethernet 1/1/33
  port-name DefaultPort33
- auth-default-vlan 10
+ authentication auth-default-vlan 10
  dot1x port-control auto
  spanning-tree edge-port
 !
 interface ethernet 1/1/34
  port-name DefaultPort34
- auth-default-vlan 10
+ authentication auth-default-vlan 10
  dot1x port-control auto
  spanning-tree edge-port
 !
 interface ethernet 1/1/35
  port-name DefaultPort35
- auth-default-vlan 10
+ authentication auth-default-vlan 10
  dot1x port-control auto
  spanning-tree edge-port
 !
 interface ethernet 1/1/36
  port-name DefaultPort36
- auth-default-vlan 10
+ authentication auth-default-vlan 10
  dot1x port-control auto
  spanning-tree edge-port
 !
 interface ethernet 1/1/37
  port-name DefaultPort37
- auth-default-vlan 10
+ authentication auth-default-vlan 10
  dot1x port-control auto
  spanning-tree edge-port
 !
 interface ethernet 1/1/38
  port-name DefaultPort38
- auth-default-vlan 10
+ authentication auth-default-vlan 10
  dot1x port-control auto
  spanning-tree edge-port
 !
 interface ethernet 1/1/39
  port-name DefaultPort39
- auth-default-vlan 10
+ authentication auth-default-vlan 10
  dot1x port-control auto
  spanning-tree edge-port
 !
 interface ethernet 1/1/40
  port-name DefaultPort40
- auth-default-vlan 10
+ authentication auth-default-vlan 10
  dot1x port-control auto
  spanning-tree edge-port
 !
 interface ethernet 1/1/41
  port-name DefaultPort41
- auth-default-vlan 10
+ authentication auth-default-vlan 10
  dot1x port-control auto
  spanning-tree edge-port
 !
 interface ethernet 1/1/42
  port-name DefaultPort42
- auth-default-vlan 10
+ authentication auth-default-vlan 10
  dot1x port-control auto
  spanning-tree edge-port
 !
 interface ethernet 1/1/43
  port-name DefaultPort43
- auth-default-vlan 10
+ authentication auth-default-vlan 10
  dot1x port-control auto
  spanning-tree edge-port
 !
 interface ethernet 1/1/44
  port-name DefaultPort44
- auth-default-vlan 10
+ authentication auth-default-vlan 10
  dot1x port-control auto
  spanning-tree edge-port
 !
 interface ethernet 1/1/45
  port-name DefaultPort45
- auth-default-vlan 10
+ authentication auth-default-vlan 10
  dot1x port-control auto
  spanning-tree edge-port
 !
 interface ethernet 1/1/46
  port-name DefaultPort46
- auth-default-vlan 10
+ authentication auth-default-vlan 10
  dot1x port-control auto
  spanning-tree edge-port
 !
 interface ethernet 1/1/47
  port-name DefaultPort47
- auth-default-vlan 10
+ authentication auth-default-vlan 10
  spanning-tree edge-port
 !
 interface ethernet 1/1/48
  port-name DefaultPort48
- auth-default-vlan 10
+ authentication auth-default-vlan 10
  spanning-tree edge-port
 !
 snmp-server location Bldg_23_Floor_1_Room_103_Row_1_Rack_1
@@ -522,7 +522,6 @@ UNIT 1: SL 1: ICX7450-24P 24-port Management Module
  2048 MB DRAM
 STACKID 1 system uptime is 31 day(s) 1 hour(s) 1 minute(s) 5 second(s)
 The system : started=cold start
-
 
 SSH@WLLS-A07-AS-07#show interfaces brief
 Port      Link    State     Dupl   Speed   Trunk  Tag  Pvid  Pri   MAC               Name

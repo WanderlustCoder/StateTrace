@@ -325,13 +325,18 @@ function New-InterfacesView {
             # Use global interfaces grid to read selected items
             $grid = $global:interfacesGrid
             # Gather selected or checked rows using helper
-            $selectedRows = Get-SelectedInterfaceRows -Grid $grid
+            # Retrieve selected rows.  Do not assume the result exposes a .Count property on
+            # the object itself; instead wrap it as an array to ensure Count always exists.
+            $rawSelected = Get-SelectedInterfaceRows -Grid $grid
+            $selectedRows = @($rawSelected)
             if ($selectedRows.Count -eq 0) {
                 [System.Windows.MessageBox]::Show("No interfaces selected.")
                 return
             }
             $hostname = $interfacesView.FindName('HostnameBox').Text
             $header = @("Hostname: $hostname", "------------------------------", "")
+            # Build output for each selected interface.  Use the array version of selectedRows
+            # to iterate reliably even when only one row is selected.
             $output = foreach ($int in $selectedRows) {
                 @(
                     "Port:        $($int.Port)",
@@ -352,6 +357,7 @@ function New-InterfacesView {
             }
             $final = $header + $output
             Set-Clipboard -Value ($final -join "`r`n")
+            # Use the count of the array to report how many interfaces were copied
             [System.Windows.MessageBox]::Show("Copied $($selectedRows.Count) interface(s) to clipboard.")
         })
     }

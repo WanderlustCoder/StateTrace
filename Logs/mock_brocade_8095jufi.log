@@ -25,7 +25,7 @@ Authentication
  dot1x enable ethe 1/1/1 to 1/1/48 ethe 2/1/1 to 2/1/48
  dot1x port-control auto ethe 1/1/1 to 1/1/9 ethe 1/1/11 to 1/1/48 ethe 2/1/1 to 2/1/48
  mac-authentication enable
- mac-authentication enable ethe 1/1/1 to 1/1/48 ethe 2/1/1 to 2/1/48
+ mac-authentication enable ethe 1/1/1 to 1/1/10 ethe 1/1/12 to 1/1/48 ethe 2/1/1 to 2/1/48
  mac-authentication dot1x override
 !
 ! Define interfaces for a 2‑stack system (units 1 and 2 with 48 ports each)
@@ -624,10 +624,10 @@ SSH@WLLS-A05-AS-05# show authentication sessions all
 Port    MAC             IP(v4/v6)          User   VLAN Auth    Auth   ACL   Session Age PAE
         Addr            Addr               Name        Method  State         Time        State
 -------------------------------------------------------------------------------------------------------
-2/1/25  00aa.aaaa.0000   198.1.1.2         MVDI_1 130 MAUTH    permit Yes   210     Ena   N/A
+2/1/25  00aa.aaaa.0000   198.1.1.2         MVDI_1   130 MAUTH    permit Yes   210     Ena   N/A
 2/1/25  00aa.aaaa.0001   fe80::2aa:aaff:feaa DVDI_1 130 8021.X permit Yes   210     Ena   AUTHENTICATED
-1/1/15  00bb.bbbb.0001   N/A               DVDI_2 230 8021.X permit None 500       Ena    AUTHENTICATED
-1/1/10  0010.9400.1101   N/A               MVDI_2 330 MAUTH    permit None 410     Ena    N/A
+1/1/15  00bb.bbbb.0001   N/A               DVDI_2   230 8021.X permit None 500       Ena    AUTHENTICATED
+1/1/10  0010.9400.1101   N/A               MVDI_2   330 MAUTH    permit None 410     Ena    N/A
 1/1/11  00cc.cccc.0001   N/A               Users1   130 8021.X permit Yes   100     Ena   AUTHENTICATED
 1/1/12  00cc.cccc.0002   N/A               Users2   130 MAUTH    permit No    120     Ena   UNAUTHENTICATED
 1/1/13  00cc.cccc.0003   N/A               Users3   130 MAUTH    permit Yes   130     Ena   AUTHENTICATED

@@ -7,7 +7,7 @@
       "match_type": "contains_all",
       "required_commands": [
         "dot1x port-control auto",
-        "mac-authentication enable ethe"
+        "mac-authentication enable"
       ],
       "excluded_commands": [],
       "color": "Green",
@@ -22,7 +22,7 @@
         "dot1x port-control auto"
       ],
       "excluded_commands": [
-        "mac-authentication enable ethe"
+        "mac-authentication enable"
       ],
       "color": "Purple",
       "description": "Brocade dot1x-only authentication port"
@@ -33,7 +33,7 @@
       "vendor": "Brocade",
       "match_type": "contains_all",
       "required_commands": [
-        "mac-authentication enable ethe"
+        "mac-authentication enable"
       ],
       "excluded_commands": [
         "dot1x port-control auto"
@@ -51,7 +51,7 @@
       ],
       "excluded_commands": [
         "dot1x port-control auto",
-        "mac-authentication enable ethe"
+        "mac-authentication enable"
       ],
       "color": "Red",
       "description": "Edge access port with no authentication"

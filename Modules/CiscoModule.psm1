@@ -103,16 +103,35 @@ function Get-CiscoDeviceFacts {
         # Use a strongly typed list instead of repeatedly using += on a PowerShell
         $res = New-Object 'System.Collections.Generic.List[object]'
         $parsing=$false
+
+        # Precompile patterns used repeatedly in the loop to avoid recompiling
+        # regular expressions on each iteration.  Splitting on whitespace uses a
+        # Regex with a specified maximum count for efficiency.
+        $reHeader = [regex]::new('^Port\s+Name\s+Status')
+        $reBlank  = [regex]::new('^\s*$')
+        # Note: compiled option is implied when using .new() with no options; passing
+        # RegexOptions.Compiled explicitly would require different .NET versions.
+        $reWs     = [regex]::new('\s+')
+
         foreach ($l in $Lines) {
-            if ($l -match '^Port\s+Name\s+Status') { $parsing=$true; continue }
+            if ($reHeader.IsMatch($l)) { $parsing = $true; continue }
             if ($parsing) {
-                if ($l -match '^\s*$') { break }
-                $cols = $l -split '\s+',7
+                if ($reBlank.IsMatch($l)) { break }
+                # Split the line into at most 7 columns on whitespace.  Regex.Split
+                # returns an array with a maximum length specified; the final
+                # element contains the remainder of the string.
+                $cols = $reWs.Split($l, 7)
                 if ($cols.Count -ge 7) {
                     $raw = $cols[0]
                     [void]$res.Add([PSCustomObject]@{
-                        RawPort=$raw; Port=$raw; Name=$cols[1]; Status=$cols[2];
-                        VLAN=$cols[3]; Duplex=$cols[4]; Speed=$cols[5]; Type=$cols[6]
+                        RawPort = $raw
+                        Port    = $raw
+                        Name    = $cols[1]
+                        Status  = $cols[2]
+                        VLAN    = $cols[3]
+                        Duplex  = $cols[4]
+                        Speed   = $cols[5]
+                        Type    = $cols[6]
                     })
                 }
             }
@@ -135,26 +154,42 @@ function Get-CiscoDeviceFacts {
     function Get-Dot1xStatus {
         param([string[]]$Lines)
         # Accumulate dot1x status entries in a strongly typed list rather than
-        $list = New-Object 'System.Collections.Generic.List[object]'; $inSection=$false
+        $list = New-Object 'System.Collections.Generic.List[object]'
+        $inSection=$false
+
+        # Precompile patterns used repeatedly in the loop.  Precompiling
+        # improves performance when processing large numbers of lines.
+        $reHeader = [regex]::new('^Interface\s+MAC Address')
+        $reBlank  = [regex]::new('^\s*$')
+        $reWs     = [regex]::new('\s+')
+        $reMac    = [regex]::new('^[0-9a-fA-F\.]+$')
+        $reAuth   = [regex]::new('auth', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+        $reUnauth = [regex]::new('unauth|fail', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+        $reMode   = [regex]::new('dot1x|mab', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+
         foreach ($l in $Lines) {
-            if ($l -match '^Interface\s+MAC Address') { $inSection=$true; continue }
+            if ($reHeader.IsMatch($l)) { $inSection=$true; continue }
             if (-not $inSection) { continue }
-            if ($l -match '^\s*$') { break }
-            $cols = $l -split '\s+'
+            if ($reBlank.IsMatch($l)) { break }
+            $cols = $reWs.Split($l)
             if ($cols.Count -ge 6) {
                 $iface  = $cols[0]
-                $mac    = if ($cols[1] -match '^[0-9a-f\.]+$') { $cols[1] } else { '' }
+                $mac    = if ($reMac.IsMatch($cols[1])) { $cols[1] } else { '' }
                 $method = $cols[2]
+                # Join columns 4 through (Count-2) to reconstruct the status field.  Splitting on
+                # whitespace may break phrases containing spaces (e.g., "auth-fail").  We preserve
+                # the original semantics by joining these columns and trimming.
                 $status = ($cols[4..($cols.Count-2)] -join ' ').Trim()
-                # Determine authorization state.  Status values in logs may be
-                if ($status -match '(?i)auth' -and -not ($status -match '(?i)unauth|fail')) {
+                # Determine authorization state based on the presence of keywords in the status.
+                if ($reAuth.IsMatch($status) -and -not $reUnauth.IsMatch($status)) {
                     $authState = 'Authorized'
-                } elseif ($status -match '(?i)unauth|fail') {
+                } elseif ($reUnauth.IsMatch($status)) {
                     $authState = 'Unauthorized'
                 } else {
                     $authState = 'Unknown'
                 }
-                $authMode  = if ($method -match '(?i)dot1x|mab') { $method } else { 'unknown' }
+                # Determine the authentication mode based on the method column.
+                $authMode  = if ($reMode.IsMatch($method)) { $method } else { 'unknown' }
                 [void]$list.Add([PSCustomObject]@{ Interface=$iface; MAC=$mac; Status=$status; AuthState=$authState; AuthMode=$authMode; SessionID=$cols[-1] })
             }
         }
@@ -168,15 +203,19 @@ function Get-CiscoDeviceFacts {
         param([hashtable]$Configs)
 
         $result   = @{}
-        # list of commands considered part of dual-auth (for compliance)
-        $required = @(
+        # list of commands considered part of dual-auth (for compliance).  Use
+        # a strongly typed list to avoid array reallocations when appending.
+        $required = New-Object 'System.Collections.Generic.List[string]'
+        foreach ($r in @(
             'authentication event fail action next-method',
             'authentication order mab dot1x',
             'authentication priority dot1x mab',
             'authentication port-control auto',
             'dot1x timeout quiet-period 90',
             'dot1x timeout tx-period 5'
-        )
+        )) {
+            [void]$required.Add($r)
+        }
 
         foreach ($key in $Configs.Keys) {
             # normalize to lower-case trimmed lines
@@ -187,12 +226,14 @@ function Get-CiscoDeviceFacts {
             $hasMab   = $lines -contains 'mab'
 
             if ($hasDot1x -and $hasMab) {
-                # dual (flexible) auth
-                $missing = @()
+                # dual (flexible) auth.  Accumulate missing commands using a
+                # strongly typed list to avoid array reallocation.  Convert
+                # the list to an array when storing in the result.
+                $missing = New-Object 'System.Collections.Generic.List[string]'
                 foreach ($cmd in $required) {
-                    if (-not ($lines -contains $cmd)) { $missing += $cmd }
+                    if (-not ($lines -contains $cmd)) { [void]$missing.Add($cmd) }
                 }
-                $result[$key] = @{ Template='flexible'; MissingCommands=$missing }
+                $result[$key] = @{ Template='flexible'; MissingCommands = $missing.ToArray() }
             }
             elseif ($hasDot1x) {
                 $result[$key] = @{ Template='dot1x'; MissingCommands=@() }

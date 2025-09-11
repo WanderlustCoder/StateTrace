@@ -25,6 +25,19 @@ if (-not $global:DeviceInterfaceCache) {
     $global:DeviceInterfaceCache = @{}
 }
 
+# Initialise an in‑memory cache for vendor configuration templates.  This cache
+# prevents repeated disk reads and JSON parsing of Cisco.json/Brocade.json on
+# every call.  The cache is keyed by the vendor name (e.g. 'Cisco', 'Brocade')
+# and holds the array of template objects for that vendor.  A companion
+# $script:TemplatesByName hash table will be populated from these cached
+# arrays when needed for O(1) name lookups.
+if (-not (Get-Variable -Name TemplatesCache -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:TemplatesCache = @{}
+}
+if (-not (Get-Variable -Name TemplatesByName -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:TemplatesByName = @{}
+}
+
 # Retrieve the currently selected site, building and room from the main
 
 function Get-SelectedLocation {
@@ -88,8 +101,22 @@ function Get-InterfacesForHostsBatch {
     if (-not $Hostnames -or $Hostnames.Count -eq 0) {
         return (New-Object System.Data.DataTable)
     }
-    # Sanitize and de-duplicate hostnames.  Filter out null/empty values.
-    $cleanHosts = $Hostnames | Where-Object { $_ -and $_.Trim() } | Select-Object -Unique
+    # Sanitize and de-duplicate hostnames.  Filter out null/empty values using a
+    # hash-set approach instead of Select-Object -Unique to avoid pipeline
+    # overhead in hot paths.  Preserve the first occurrence of each
+    # hostname (case-sensitive) in order.
+    $seen = @{}
+    $cleanList = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($h in $Hostnames) {
+        if ($null -ne $h) {
+            $t = ('' + $h).Trim()
+            if ($t -and -not $seen.ContainsKey($t)) {
+                $seen[$t] = $true
+                [void]$cleanList.Add($t)
+            }
+        }
+    }
+    $cleanHosts = $cleanList.ToArray()
     if (-not $cleanHosts -or $cleanHosts.Count -eq 0) {
         return (New-Object System.Data.DataTable)
     }
@@ -1450,10 +1477,45 @@ function Get-ConfigurationTemplates {
                 if ($firstRow -and $firstRow.PSObject.Properties['Make']) { $make = $firstRow.Make }
             }
         }
-        $vendorFile = if ($make -match '(?i)brocade') { 'Brocade.json' } else { 'Cisco.json' }
-        $jsonFile = Join-Path $TemplatesPath $vendorFile
+        # Determine the vendor based on the device make.  Normalize to a capitalized
+        # vendor name without the .json extension (e.g. 'Cisco' or 'Brocade').
+        $vendor = if ($make -match '(?i)brocade') { 'Brocade' } else { 'Cisco' }
+        $jsonFile = Join-Path $TemplatesPath "${vendor}.json"
         if (-not (Test-Path $jsonFile)) { throw "Template file missing: $jsonFile" }
-        $templates = (Get-Content $jsonFile -Raw | ConvertFrom-Json).templates
+
+        # Ensure the templates cache exists.  Use a script‑scoped cache keyed by vendor.
+        if (-not $script:TemplatesCache) { $script:TemplatesCache = @{} }
+
+        # Retrieve the templates from the cache when available, otherwise load
+        # from disk and update the cache.  Avoid repeated disk I/O and JSON
+        # parsing on subsequent calls.
+        $templates = $null
+        if ($script:TemplatesCache.ContainsKey($vendor)) {
+            $templates = $script:TemplatesCache[$vendor]
+        } else {
+            $tmplJson = Get-Content $jsonFile -Raw | ConvertFrom-Json
+            if ($tmplJson -and $tmplJson.PSObject.Properties['templates']) {
+                $templates = $tmplJson.templates
+            } else {
+                $templates = @()
+            }
+            $script:TemplatesCache[$vendor] = $templates
+        }
+
+        # Build or update the name→template index for this vendor.  Although
+        # Get‑ConfigurationTemplates only needs the names, updating
+        # $script:TemplatesByName here keeps the index fresh for consumers
+        # like Get‑InterfaceConfiguration.
+        try {
+            if ($templates) {
+                $script:TemplatesByName = $templates | Group-Object -Property name -AsHashTable -AsString
+            } else {
+                $script:TemplatesByName = @{}
+            }
+        } catch {
+            $script:TemplatesByName = @{}
+        }
+
         return $templates | Select-Object -ExpandProperty name
     } catch {
         Write-Warning ("Failed to determine configuration templates from database for {0}: {1}" -f $Hostname, $_.Exception.Message)
@@ -1523,7 +1585,41 @@ function Get-InterfaceConfiguration {
         } catch {}
         $jsonFile = Join-Path $TemplatesPath "${vendor}.json"
         if (-not (Test-Path $jsonFile)) { throw "Template file missing: $jsonFile" }
-        $templates = (Get-Content $jsonFile -Raw | ConvertFrom-Json).templates
+
+        # Ensure the templates cache exists.  Use a script‑scoped cache keyed by vendor.
+        if (-not $script:TemplatesCache) { $script:TemplatesCache = @{} }
+
+        # Retrieve the templates from the cache when available; otherwise
+        # read from disk and update the cache.  This avoids repeated JSON
+        # parsing and file I/O.
+        $templates = $null
+        if ($script:TemplatesCache.ContainsKey($vendor)) {
+            $templates = $script:TemplatesCache[$vendor]
+        } else {
+            $tmplJson = Get-Content $jsonFile -Raw | ConvertFrom-Json
+            if ($tmplJson -and $tmplJson.PSObject.Properties['templates']) {
+                $templates = $tmplJson.templates
+            } else {
+                $templates = @()
+            }
+            $script:TemplatesCache[$vendor] = $templates
+        }
+
+        # Build or update the name→template index for this vendor.  This
+        # ensures that lookups by template name are O(1).  If an error
+        # occurs, reset the index to an empty hash table.
+        try {
+            if ($templates) {
+                $script:TemplatesByName = $templates | Group-Object -Property name -AsHashTable -AsString
+            } else {
+                $script:TemplatesByName = @{}
+            }
+        } catch {
+            $script:TemplatesByName = @{}
+        }
+
+        # Look up the requested template using the prebuilt index.  If not
+        # found, throw an informative error.
         $tmpl = if ($script:TemplatesByName -and $script:TemplatesByName.ContainsKey($TemplateName)) {
             $script:TemplatesByName[$TemplateName] | Select-Object -First 1
         } else {

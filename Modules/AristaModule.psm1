@@ -53,25 +53,40 @@
         # Use a typed List[object] for accumulating interface records.  Avoid
         $results = New-Object 'System.Collections.Generic.List[object]'
         $parsing = $false
+
+        # Precompile regex patterns used repeatedly in the parsing loop.  This
+        # avoids recompiling identical patterns on each iteration and can
+        # provide a measurable speedup when processing large outputs.
+        $reHeader = [regex]::new('^\s*Port\s+Name\s+Status\s+Vlan\s+Duplex\s+Speed\s+Type')
+        $reBlank  = [regex]::new('^\s*$')
+        $reRow    = [regex]::new('^\s*(Et\d+(?:/\d+)*|Po\d+|Ma\d*)\s+(.*?)\s+(connected|notconnect|errdisabled|disabled)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+.*)$')
+
         foreach ($line in $Lines) {
-            if ($line -match "^\s*Port\s+Name\s+Status\s+Vlan\s+Duplex\s+Speed\s+Type") {
+            # Detect the header line that signals the start of the interface table.
+            if ($reHeader.IsMatch($line)) {
                 $parsing = $true
                 continue
             }
-            if ($parsing -and $line -match "^\s*(Et\d+(?:/\d+)*|Po\d+|Ma\d*)\s+(.*?)\s+(connected|notconnect|errdisabled|disabled)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+.*)$") {
-                $ifaceObj = [PSCustomObject]@{
-                    Port   = $matches[1]
-                    Name   = $matches[2].Trim()
-                    Status = $matches[3]
-                    VLAN   = $matches[4]
-                    Duplex = $matches[5]
-                    Speed  = $matches[6]
-                    Type   = $matches[7]
+            if ($parsing) {
+                # A blank line marks the end of the table.
+                if ($reBlank.IsMatch($line)) { break }
+                # Match interface rows using the precompiled pattern.  If the line
+                # matches, extract the captured groups from the Match object
+                # instead of relying on the automatic $matches variable.  This
+                # ensures thread safety and clarity.
+                $m = $reRow.Match($line)
+                if ($m.Success) {
+                    $ifaceObj = [PSCustomObject]@{
+                        Port   = $m.Groups[1].Value
+                        Name   = $m.Groups[2].Value.Trim()
+                        Status = $m.Groups[3].Value
+                        VLAN   = $m.Groups[4].Value
+                        Duplex = $m.Groups[5].Value
+                        Speed  = $m.Groups[6].Value
+                        Type   = $m.Groups[7].Value
+                    }
+                    [void]$results.Add($ifaceObj)
                 }
-                [void]$results.Add($ifaceObj)
-            }
-            if ($parsing -and $line -match "^\s*$") {
-                break
             }
         }
         return $results
@@ -81,22 +96,31 @@
         # Use a typed List[object] to accumulate MAC table entries efficiently.
         $results      = New-Object 'System.Collections.Generic.List[object]'
         $inMacSection = $false
+
+        # Precompile regex patterns used for detecting the MAC table header, blank lines
+        # and individual MAC table rows.  Precompiling improves performance when
+        # processing large tables by eliminating repeated parsing of pattern strings.
+        $reHeader = [regex]::new('^\s*Vlan\s+Mac\s+Address\s+Type\s+Ports')
+        $reBlank  = [regex]::new('^\s*$')
+        $reRow    = [regex]::new('^\s*(\d+)\s+([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})\s+(\S+)\s+(\S+)\b')
+
         foreach ($line in $Lines) {
-            if ($line -match "^\s*Vlan\s+Mac\s+Address\s+Type\s+Ports") {
+            if ($reHeader.IsMatch($line)) {
                 $inMacSection = $true
                 continue
             }
-            if ($inMacSection -and $line -match "^\s*$") {
-                break
-            }
-            if ($inMacSection -and $line -match "^\s*(\d+)\s+([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})\s+(\S+)\s+(\S+)\b") {
-                $entry = [PSCustomObject]@{
-                    VLAN = $matches[1]
-                    MAC  = $matches[2]
-                    Type = $matches[3]
-                    Port = $matches[4]
+            if ($inMacSection) {
+                if ($reBlank.IsMatch($line)) { break }
+                $m = $reRow.Match($line)
+                if ($m.Success) {
+                    $entry = [PSCustomObject]@{
+                        VLAN = $m.Groups[1].Value
+                        MAC  = $m.Groups[2].Value
+                        Type = $m.Groups[3].Value
+                        Port = $m.Groups[4].Value
+                    }
+                    [void]$results.Add($entry)
                 }
-                [void]$results.Add($entry)
             }
         }
         return $results
@@ -106,23 +130,31 @@
         # Use a typed List[object] to accumulate dot1x status entries.
         $results = New-Object 'System.Collections.Generic.List[object]'
         $parsing = $false
+
+        # Precompile regex patterns used for parsing dot1x status lines.  This
+        # avoids recompiling patterns on each iteration of the loop.
+        $reHeader = [regex]::new('^\s*Port\s+Authorized\s+Mode\s+MAC\s+Address\s+Vlan')
+        $reBlank  = [regex]::new('^\s*$')
+        $reRow    = [regex]::new('^\s*(Et\d+(?:/\d+)*|Po\d+|Ma\d*)\s+(\S+)\s+(\S+)(?:\s+([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4}))?(?:\s+(\d+))?')
+
         foreach ($line in $Lines) {
-            if ($line -match "^\s*Port\s+Authorized\s+Mode\s+MAC\s+Address\s+Vlan") {
+            if ($reHeader.IsMatch($line)) {
                 $parsing = $true
                 continue
             }
-            if ($parsing -and $line -match "^\s*$") {
-                break
-            }
-            if ($parsing -and $line -match "^\s*(Et\d+(?:/\d+)*|Po\d+|Ma\d*)\s+(\S+)\s+(\S+)(?:\s+([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4}))?(?:\s+(\d+))?") {
-                $entry = [PSCustomObject]@{
-                    Port  = $matches[1]
-                    State = $matches[2]
-                    Mode  = $matches[3]
-                    MAC   = if ($matches[4]) { $matches[4] } else { "" }
-                    VLAN  = if ($matches[5]) { $matches[5] } else { "" }
+            if ($parsing) {
+                if ($reBlank.IsMatch($line)) { break }
+                $m = $reRow.Match($line)
+                if ($m.Success) {
+                    $entry = [PSCustomObject]@{
+                        Port  = $m.Groups[1].Value
+                        State = $m.Groups[2].Value
+                        Mode  = $m.Groups[3].Value
+                        MAC   = if ($m.Groups[4].Success) { $m.Groups[4].Value } else { "" }
+                        VLAN  = if ($m.Groups[5].Success) { $m.Groups[5].Value } else { "" }
+                    }
+                    [void]$results.Add($entry)
                 }
-                [void]$results.Add($entry)
             }
         }
         return $results
