@@ -1,31 +1,6 @@
 ﻿# Brocade Device Parsing Module
 
-# Debug toggle for parser output.  The $script:BrocadeParserDebug variable controls
-# whether verbose parsing messages are written to the console via Write-Host.
-# It defaults to $true to make debugging visible without additional steps.
-if (-not (Get-Variable -Name 'BrocadeParserDebug' -Scope Script -ErrorAction SilentlyContinue)) {
-    $script:BrocadeParserDebug = $true
-}
-
-function Set-BrocadeParserDebug {
-    <#
-    .SYNOPSIS
-        Enable or disable debug messages for Brocade parser functions.
-    .PARAMETER Enabled
-        Set to $true to see Write-Host debug output during parsing, or $false to suppress it.
-    #>
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory=$true)]
-        [bool]$Enabled
-    )
-    $script:BrocadeParserDebug = $Enabled
-    if ($Enabled) {
-        Write-Host "[BrocadeParser] Debug is now ENABLED"
-    } else {
-        Write-Host "[BrocadeParser] Debug is now DISABLED"
-    }
-}
+# (Debug code removed)
 function Get-BrocadeDeviceFacts {
     param (
         [string[]]$Lines,
@@ -296,27 +271,19 @@ function Get-MacTable {
         # separate columns with spaces or tabs.  We trim each line before matching to
         # eliminate trailing carriage returns or excess whitespace that would otherwise
         # prevent a match.  Header lines (starting with "MAC Address") are skipped.
-        # Initialize the result collection and counters for debugging.  When
-        # $script:BrocadeParserDebug is $true (see Set-BrocadeParserDebug below),
-        # these counters will be reported at the end of the parse.  We default
-        # BrocadeParserDebug to $true so messages are visible without any
-        # additional user action.
+        # Create a collection for the parsed MAC table entries.
         $results = New-Object 'System.Collections.Generic.List[psobject]'
+        # Initialize internal counters that may be useful for future logging or statistics.
+        # These counters are not emitted to the user.
         $matched = 0; $skipped = 0; $candidates = 0
-        if ($script:BrocadeParserDebug) {
-            Write-Host "[BrocadeParser] Parsing show mac-address block..."
-        }
         foreach ($line in $Block) {
-            if ($script:BrocadeParserDebug) { $candidates++ }
+            $candidates++
             if (-not $line) { continue }
             $t = $line.Trim()
             if (-not $t) { continue }
             # Skip the table header.  A header starts with 'MAC Address' followed by the other column names.
             if ($t -match '^MAC\s+Address\b') {
                 $skipped++
-                if ($script:BrocadeParserDebug) {
-                    Write-Host "[BrocadeParser] Skipping header: $t"
-                }
                 continue
             }
             # Match a row containing: MAC, Port, any characters (Type and optional index), then VLAN.
@@ -324,24 +291,14 @@ function Get-MacTable {
             # regardless of intermediate columns, and allows an optional trailing column (e.g., Action/Forward).
             if ($t -match '^(?<mac>(?:[0-9A-Fa-f]{4}\.){2}[0-9A-Fa-f]{4})\s+(?<port>\d+/\d+/\d+)\s+.*?\s+(?<vlan>\d+)(?:\s+\S+)?\s*$') {
                 $matched++
-                if ($script:BrocadeParserDebug) {
-                    Write-Host ("[BrocadeParser] MATCH mac={0} port={1} vlan={2}" -f $matches['mac'], $matches['port'], $matches['vlan'])
-                }
                 [void]$results.Add([PSCustomObject]@{
                     MAC  = $matches['mac']
                     Port = ConvertTo-StandardPortName $matches['port']
                     VLAN = [int]$matches['vlan']
                 })
             } else {
-                if ($script:BrocadeParserDebug) {
-                    $raw = $t
-                    if ($raw.Length -gt 160) { $raw = $raw.Substring(0,160) + '…' }
-                    Write-Host ("[BrocadeParser] NO MATCH: {0}" -f $raw)
-                }
+                # unmatched lines are ignored without logging when debugging is disabled
             }
-        }
-        if ($script:BrocadeParserDebug) {
-            Write-Host ("[BrocadeParser] Summary: total={0} matched={1} skipped={2}" -f $candidates, $matched, $skipped)
         }
         return $results
     }

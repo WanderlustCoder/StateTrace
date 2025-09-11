@@ -285,7 +285,19 @@
             <DataGridTextColumn Header="Type" Binding="{Binding Type}"/>
 
             <!-- Learned MACs -->
-            <DataGridTextColumn Header="LearnedMACs" Binding="{Binding LearnedMACs}"/>
+            <!-- Fix column width and prevent long lists from stretching the grid.  Use a fixed
+                 width and ellipsis trimming so that a long string of MAC addresses does not
+                 expand the DataGrid column.  The full list of MACs remains available in
+                 the LearnedMACsFull property, and the LearnedMACCount can be bound to
+                 another column if needed. -->
+            <DataGridTextColumn Header="LearnedMACs" Binding="{Binding LearnedMACs}" Width="160">
+              <DataGridTextColumn.ElementStyle>
+                <Style TargetType="TextBlock">
+                  <Setter Property="TextWrapping" Value="NoWrap"/>
+                  <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                </Style>
+              </DataGridTextColumn.ElementStyle>
+            </DataGridTextColumn>
 
             <!-- Auth State -->
             <DataGridTextColumn Header="AuthState" Binding="{Binding AuthState}">

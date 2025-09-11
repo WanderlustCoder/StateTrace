@@ -82,7 +82,16 @@
         <DataGridTextColumn Header="Duplex" Binding="{Binding Duplex}" Width="60"/>
         <DataGridTextColumn Header="Speed" Binding="{Binding Speed}" Width="60"/>
         <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="100"/>
-        <DataGridTextColumn Header="LearnedMACs" Binding="{Binding LearnedMACs}" Width="160"/>
+        <DataGridTextColumn Header="LearnedMACs" Binding="{Binding LearnedMACs}" Width="160">
+          <!-- Prevent the LearnedMACs column from expanding when multiple MACs are present.
+               Apply ellipsis trimming and disable wrapping. -->
+          <DataGridTextColumn.ElementStyle>
+            <Style TargetType="TextBlock">
+              <Setter Property="TextWrapping" Value="NoWrap"/>
+              <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+            </Style>
+          </DataGridTextColumn.ElementStyle>
+        </DataGridTextColumn>
         <DataGridTextColumn Header="AuthState" Binding="{Binding AuthState}" Width="100"/>
         <DataGridTextColumn Header="AuthMode" Binding="{Binding AuthMode}" Width="80"/>
         <DataGridTextColumn Header="Client MAC" Binding="{Binding AuthClientMAC}" Width="120"/>
