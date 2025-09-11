@@ -202,6 +202,21 @@
     $Lines = $authLines
     $auth = if ($authLines.Count -gt 0) { Get-Dot1xStatus } else { @() }
 
+    # Build per-port lookup tables for MAC addresses and dot1x status
+    $macsByPort = @{}
+    foreach ($m in $macs) {
+        if (-not $macsByPort.ContainsKey($m.Port)) {
+            $macsByPort[$m.Port] = New-Object 'System.Collections.Generic.List[string]'
+        }
+        [void]$macsByPort[$m.Port].Add([string]$m.MAC)
+    }
+    $authByPort = @{}
+    foreach ($a in $auth) {
+        if (-not $authByPort.ContainsKey($a.Port)) {
+            $authByPort[$a.Port] = $a
+        }
+    }
+
     # Interface configuration blocks come from the running-config
     $Lines = $runCfgLines
     $configs = Get-InterfaceConfigs
@@ -212,12 +227,13 @@
     #
     $combinedInterfaces = New-Object 'System.Collections.Generic.List[object]'
     foreach ($iface in $interfaces) {
-        # a) All learned MACs for this port
-        $learnedMACs = $macs | Where-Object { $_.Port -eq $iface.Port } | ForEach-Object { $_.MAC }
-        $macList = if ($learnedMACs.Count -gt 0) { $learnedMACs -join "," } else { "" }
+        # a) All learned MACs for this port using the precomputed lookup
+        $learnedMACs = if ($macsByPort.ContainsKey($iface.Port)) { $macsByPort[$iface.Port] } else { @() }
+        # Convert to array when joining to avoid joining individual characters of the string list
+        $macList = if ($learnedMACs.Count -gt 0) { @($learnedMACs) -join "," } else { "" }
 
-        # b) 802.1X details
-        $dot1xRow = $auth | Where-Object { $_.Port -eq $iface.Port }
+        # b) 802.1X details using the pre-indexed lookup
+        $dot1xRow = if ($authByPort.ContainsKey($iface.Port)) { $authByPort[$iface.Port] } else { $null }
         if ($dot1xRow) {
             $authState     = $dot1xRow.State
             $authMode      = $dot1xRow.Mode

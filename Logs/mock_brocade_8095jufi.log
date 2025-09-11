@@ -23,7 +23,7 @@ Authentication
  re-authentication
  dot1x enable
  dot1x enable ethe 1/1/1 to 1/1/48 ethe 2/1/1 to 2/1/48
- dot1x port-control auto ethe 1/1/1 to 1/1/48 ethe 2/1/1 to 2/1/48
+ dot1x port-control auto ethe 1/1/1 to 1/1/9 ethe 1/1/11 to 1/1/48 ethe 2/1/1 to 2/1/48
  mac-authentication enable
  mac-authentication enable ethe 1/1/1 to 1/1/48 ethe 2/1/1 to 2/1/48
  mac-authentication dot1x override

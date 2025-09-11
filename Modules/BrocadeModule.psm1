@@ -112,30 +112,46 @@ function Get-BrocadeDeviceFacts {
     function Get-AuthModes {
         param ($Block)
         # Use typed lists for port collections to avoid O(n^2) growth when expanding port ranges
-        $dot1x = New-Object 'System.Collections.Generic.List[string]'
+        $dot1x  = New-Object 'System.Collections.Generic.List[string]'
         $macauth = New-Object 'System.Collections.Generic.List[string]'
+
         foreach ($line in $Block) {
-            # Capture ranges for dot1x enable lines.  These specify stacks/slots/ports.
-            if ($line -match 'dot1x enable ethe (\d+/\d+/\d+) to (\d+/\d+/\d+)') {
-                [void]$dot1x.AddRange([string[]](Expand-PortRange $matches[1] $matches[2]))
+            # Normalize case for easier matching
+            $l = $line.Trim()
+
+            # Dot1x enable lines may specify multiple ranges on one line.  Capture all
+            # occurrences of "ethe X/X/X to X/X/X" rather than only the first.  Ignore
+            # plain "dot1x enable" without per-port ranges, as a global enable does not
+            # indicate which ports are controlled by 802.1X.
+            if ($l -match '(?i)^\s*dot1x enable') {
+                $mAll = [regex]::Matches($l, '(?i)ethe\s+(\d+/\d+/\d+)\s+to\s+(\d+/\d+/\d+)')
+                foreach ($m in $mAll) {
+                    $start = $m.Groups[1].Value
+                    $end   = $m.Groups[2].Value
+                    [void]$dot1x.AddRange([string[]](Expand-PortRange $start $end))
+                }
             }
-            # Capture ranges for MAC authentication enable lines.
-            if ($line -match 'mac-authentication enable ethe (\d+/\d+/\d+) to (\d+/\d+/\d+)') {
-                [void]$macauth.AddRange([string[]](Expand-PortRange $matches[1] $matches[2]))
+
+            # MAC authentication enable lines can also list multiple ranges separated by spaces
+            if ($l -match '(?i)^\s*mac-authentication enable') {
+                $mAll = [regex]::Matches($l, '(?i)ethe\s+(\d+/\d+/\d+)\s+to\s+(\d+/\d+/\d+)')
+                foreach ($m in $mAll) {
+                    $start = $m.Groups[1].Value
+                    $end   = $m.Groups[2].Value
+                    [void]$macauth.AddRange([string[]](Expand-PortRange $start $end))
+                }
             }
+
             # Beginning with FastIron 08.0.90, per‑port 802.1X enablement is achieved via
-            if ($line -match 'dot1x port-control auto ethe (.+)$') {
-                $rangesPart = $matches[1]
-                # Split on commas using the .NET Split method rather than piping
-                $rangesArr = $rangesPart.Split(',')  # returns an array of strings
-                foreach ($r in $rangesArr) {
-                    $range = $r.Trim()
-                    $m = [regex]::Match($range, '(\d+/\d+/\d+) to (\d+/\d+/\d+)')
-                    if ($m.Success) {
-                        $start = $m.Groups[1].Value
-                        $end   = $m.Groups[2].Value
-                        [void]$dot1x.AddRange([string[]](Expand-PortRange $start $end))
-                    }
+            # "dot1x port-control auto".  These lines may contain multiple ranges on a
+            # single line, separated by spaces or commas.  Capture all "ethe X/X/X to X/X/X"
+            # substrings and add them to the dot1x list.
+            if ($l -match '(?i)^\s*dot1x port-control auto') {
+                $mAll = [regex]::Matches($l, '(?i)ethe\s+(\d+/\d+/\d+)\s+to\s+(\d+/\d+/\d+)')
+                foreach ($m in $mAll) {
+                    $start = $m.Groups[1].Value
+                    $end   = $m.Groups[2].Value
+                    [void]$dot1x.AddRange([string[]](Expand-PortRange $start $end))
                 }
             }
         }
@@ -367,6 +383,15 @@ function Get-BrocadeDeviceFacts {
         }
     }
 
+    # Build a per-port MAC row lookup to retrieve VLANs without scanning
+    $macRowByPort = @{}
+    foreach ($m in $macs) {
+        # Keep the first MAC table row per port; later rows are ignored
+        if (-not $macRowByPort.ContainsKey($m.Port)) {
+            $macRowByPort[$m.Port] = $m
+        }
+    }
+
     $combined = foreach ($iface in $interfaces) {
         $port = $iface.Port
         $interfaceMAC = $iface.MAC
@@ -399,7 +424,12 @@ function Get-BrocadeDeviceFacts {
             ($macauthEnabled)                    { "macauth";  break }
             default                              { "open" }
         }
-        $vlan = ($macs | Where-Object { $_.Port -eq $port } | Select-Object -First 1).VLAN
+        # Use the precomputed MAC row lookup to retrieve the VLAN without scanning
+        $vlan = if ($macRowByPort.ContainsKey($port)) {
+            $macRowByPort[$port].VLAN
+        } else {
+            ''
+        }
         $type = if ($desc -match "uplink|trunk") { "Trunk" } elseif ($desc -match "access|user|staff|voice|endpoint|printer") { "Access" } else { "" }
 
         [PSCustomObject]@{

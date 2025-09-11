@@ -233,6 +233,17 @@ function New-InterfaceObjectsFromDbRow {
             $tmplJson = Get-Content $jsonFile -Raw | ConvertFrom-Json
             if ($tmplJson -and $tmplJson.PSObject.Properties['templates']) {
                 $templates = $tmplJson.templates
+                # Build name -> template(s) index for O(1) lookups
+                try {
+                    if ($templates) {
+                        # `-AsString` ensures string keys are used even if the property is not strictly typed as [string]
+                        $script:TemplatesByName = $templates | Group-Object -Property name -AsHashTable -AsString
+                    } else {
+                        $script:TemplatesByName = @{}
+                    }
+                } catch {
+                    $script:TemplatesByName = @{}
+                }
             }
         }
     } catch {}
@@ -1513,7 +1524,11 @@ function Get-InterfaceConfiguration {
         $jsonFile = Join-Path $TemplatesPath "${vendor}.json"
         if (-not (Test-Path $jsonFile)) { throw "Template file missing: $jsonFile" }
         $templates = (Get-Content $jsonFile -Raw | ConvertFrom-Json).templates
-        $tmpl = $templates | Where-Object { $_.name -eq $TemplateName } | Select-Object -First 1
+        $tmpl = if ($script:TemplatesByName -and $script:TemplatesByName.ContainsKey($TemplateName)) {
+            $script:TemplatesByName[$TemplateName] | Select-Object -First 1
+        } else {
+            $null
+        }
         if (-not $tmpl) { throw "Template '$TemplateName' not found in ${vendor}.json" }
         # --- Batched query instead of N+1 per-port lookups ---
         $oldConfigs = @{}
