@@ -317,8 +317,17 @@ function Get-CiscoDeviceFacts {
             $macListRef = $macsByPort[$raw]
             $macEntry   = $firstMacByPort[$raw]
         }
-        # Join MAC addresses into a comma-separated string.  Avoid using
-        $macListStr = if ($macListRef) { [string]::Join(',', $macListRef) } else { '' }
+        # Join MAC addresses into a comma-separated string and capture the first MAC
+        # separately.  Display only the first MAC in the grid to prevent column bloat,
+        # while preserving the full list for downstream use.
+        $macListDisplay = ''
+        $macListFull    = ''
+        if ($macListRef) {
+            $macListFull = [string]::Join(',', $macListRef)
+            if ($macListRef.Count -gt 0) {
+                $macListDisplay = $macListRef[0]
+            }
+        }
 
         # Retrieve the first authentication row via the lookup.  If none
         $authRow = if ($authByPort.ContainsKey($raw)) { $authByPort[$raw] } else { $null }
@@ -340,7 +349,8 @@ function Get-CiscoDeviceFacts {
             Speed           = $iface.Speed
             Type            = $iface.Type
             InterfaceMAC    = $interfaceMac
-            LearnedMACs     = $macListStr
+            LearnedMACs     = $macListDisplay
+            LearnedMACsFull = $macListFull
             AuthState       = if ($authRow) { $authRow.AuthState } else { 'Unknown' }
             AuthMode        = if ($authRow) { $authRow.AuthMode }  else { 'unknown' }
             AuthClientMAC   = if ($authRow) { $authRow.MAC }       else { '' }

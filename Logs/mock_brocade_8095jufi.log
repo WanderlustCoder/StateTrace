@@ -614,18 +614,17 @@ Port       Link    State    Dupl Speed Trunk   Tag Pvid Pri MAC            Name
 2/1/48     Down    None     Full  1G    None   Yes 10   0   0011.2233.0060  Users96
 
 SSH@WLLS-A05-AS-05# show mac-address
-MAC Address        Port      VLAN
-0011.2233.aa01     1/1/1    10
-0011.2233.aa02     1/1/2    10
-0011.2233.ab01     2/1/1    10
-0011.2233.ab30     2/1/48   20
+MAC Address        Port     Type	Index	 VLAN
+0011.2233.aa01     1/1/1    Dynamic	25	 10
+0011.2233.aa02     1/1/2    Dynamic	99	 10
+0011.2233.ab01     2/1/1    Dynamic	101	 10
+0011.2233.ab30     2/1/48   Dynamic	18	 20
 
 SSH@WLLS-A05-AS-05# show authentication sessions all
 Port    MAC             IP(v4/v6)          User   VLAN Auth    Auth   ACL   Session Age PAE
         Addr            Addr               Name        Method  State         Time        State
 -------------------------------------------------------------------------------------------------------
-2/1/25  00aa.aaaa.0000   198.1.1.2         MVDI_1   130 MAUTH    permit Yes   210     Ena   N/A
-2/1/25  00aa.aaaa.0001   fe80::2aa:aaff:feaa DVDI_1 130 8021.X permit Yes   210     Ena   AUTHENTICATED
+
 1/1/15  00bb.bbbb.0001   N/A               DVDI_2   230 8021.X permit None 500       Ena    AUTHENTICATED
 1/1/10  0010.9400.1101   N/A               MVDI_2   330 MAUTH    permit None 410     Ena    N/A
 1/1/11  00cc.cccc.0001   N/A               Users1   130 8021.X permit Yes   100     Ena   AUTHENTICATED
@@ -633,6 +632,8 @@ Port    MAC             IP(v4/v6)          User   VLAN Auth    Auth   ACL   Sess
 1/1/13  00cc.cccc.0003   N/A               Users3   130 MAUTH    permit Yes   130     Ena   AUTHENTICATED
 1/1/14  00cc.cccc.0004   N/A               Users4   130 8021.X permit Yes   140     Ena   AUTHENTICATED
 1/1/16  00cc.cccc.0005   N/A               Users5   130 MAUTH    permit No    150     Ena   UNAUTHENTICATED
+2/1/25  00aa.aaaa.0000   198.1.1.2         MVDI_1   130 MAUTH    permit Yes   210     Ena   N/A
+2/1/25  00aa.aaaa.0001   fe80::2aa:aaff:feaa DVDI_1 130 8021.X permit Yes   210     Ena   AUTHENTICATED
 2/1/26  00dd.dddd.0001   N/A               Users6   130 8021.X permit Yes   160     Ena   AUTHENTICATED
 2/1/27  00dd.dddd.0002   N/A               Users7   130 MAUTH    permit No    170     Ena   UNAUTHENTICATED
 2/1/28  00dd.dddd.0003   N/A               Users8   130 8021.X permit Yes   180     Ena   AUTHENTICATED

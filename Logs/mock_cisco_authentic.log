@@ -650,6 +650,9 @@ Mac Address Table
 Vlan    Mac Address       Type        Ports
 ----    -----------       --------    -----
  10      001c.58af.0000    DYNAMIC     Gi1/0/1
+ 10      001c.58af.0000    DYNAMIC     Gi1/0/1
+ 10      001c.58af.0000    DYNAMIC     Gi1/0/1
+ 10      001c.58af.0000    DYNAMIC     Gi1/0/1
  10      001c.58af.0001    DYNAMIC     Gi1/0/2
  10      001c.58af.0002    DYNAMIC     Gi1/0/3
  10      001c.58af.0003    DYNAMIC     Gi1/0/4

@@ -259,10 +259,18 @@
     #
     $combinedInterfaces = New-Object 'System.Collections.Generic.List[object]'
     foreach ($iface in $interfaces) {
-        # a) All learned MACs for this port using the precomputed lookup
+        # a) All learned MACs for this port using the precomputed lookup.  Display only
+        # the first MAC in the grid to avoid excessively wide columns; store the full
+        # list separately for downstream use.
         $learnedMACs = if ($macsByPort.ContainsKey($iface.Port)) { $macsByPort[$iface.Port] } else { @() }
-        # Convert to array when joining to avoid joining individual characters of the string list
-        $macList = if ($learnedMACs.Count -gt 0) { @($learnedMACs) -join "," } else { "" }
+        if ($learnedMACs.Count -gt 0) {
+            # $learnedMACs is already a list of strings
+            $macList     = $learnedMACs[0]
+            $macListFull = [string]::Join(',', $learnedMACs)
+        } else {
+            $macList     = ""
+            $macListFull = ""
+        }
 
         # b) 802.1X details using the pre-indexed lookup
         $dot1xRow = if ($authByPort.ContainsKey($iface.Port)) { $authByPort[$iface.Port] } else { $null }
@@ -293,6 +301,7 @@
             Type          = $iface.Type
 
             LearnedMACs   = $macList
+            LearnedMACsFull = $macListFull
             AuthState     = $authState
             AuthMode      = $authMode
             AuthClientMAC = $authClientMAC

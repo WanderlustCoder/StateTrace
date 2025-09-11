@@ -586,9 +586,24 @@ function Update-InterfacesInDb {
         $duplex = '' + $iface.Duplex
         $speed  = '' + $iface.Speed
         $type   = '' + $iface.Type
+        # Normalize LearnedMACs handling so that both strings and arrays
+        # are written correctly.  Prefer the full list property when
+        # provided; otherwise join array elements or accept the string as-is.
         $learned = ''
-        if ($iface.PSObject.Properties.Name -contains 'LearnedMACs') {
-            $learned = $iface.LearnedMACs -join ','
+        if ($iface.PSObject.Properties.Name -contains 'LearnedMACsFull' -and ($iface.LearnedMACsFull)) {
+            # The vendor module provided an explicit comma-separated string of
+            # all learned MACs; use it directly.
+            $learned = '' + $iface.LearnedMACsFull
+        } elseif ($iface.PSObject.Properties.Name -contains 'LearnedMACs') {
+            $lm = $iface.LearnedMACs
+            if ($lm -is [string]) {
+                # Already a single MAC string; assign as-is
+                $learned = $lm
+            } elseif ($lm -ne $null) {
+                # Join a list of MACs into a comma-separated string.  Filter out
+                # null or empty entries to avoid extraneous commas.
+                $learned = ($lm | Where-Object { $_ -and $_ -ne '' }) -join ','
+            }
         }
         $authState = ''
         if ($iface.PSObject.Properties.Name -contains 'AuthState') {

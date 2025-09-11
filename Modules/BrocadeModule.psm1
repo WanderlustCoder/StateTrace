@@ -1,4 +1,31 @@
 ﻿# Brocade Device Parsing Module
+
+# Debug toggle for parser output.  The $script:BrocadeParserDebug variable controls
+# whether verbose parsing messages are written to the console via Write-Host.
+# It defaults to $true to make debugging visible without additional steps.
+if (-not (Get-Variable -Name 'BrocadeParserDebug' -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:BrocadeParserDebug = $true
+}
+
+function Set-BrocadeParserDebug {
+    <#
+    .SYNOPSIS
+        Enable or disable debug messages for Brocade parser functions.
+    .PARAMETER Enabled
+        Set to $true to see Write-Host debug output during parsing, or $false to suppress it.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [bool]$Enabled
+    )
+    $script:BrocadeParserDebug = $Enabled
+    if ($Enabled) {
+        Write-Host "[BrocadeParser] Debug is now ENABLED"
+    } else {
+        Write-Host "[BrocadeParser] Debug is now DISABLED"
+    }
+}
 function Get-BrocadeDeviceFacts {
     param (
         [string[]]$Lines,
@@ -37,6 +64,21 @@ function Get-BrocadeDeviceFacts {
     }
 
     function ConvertTo-StandardPortName { param ($raw) return "Et$raw" }
+
+    # Normalize a port key by stripping any leading 'Et', 'Eth' or 'Ethernet' prefixes.
+    # Some Brocade outputs may omit the 'Et' prefix (e.g. '1/1/1') while others include
+    # longer forms such as 'Ethernet1/1/1'.  Use this helper to produce a canonical
+    # representation for dictionary lookups.  The returned string preserves the
+    # underlying numeric stack/slot/port but removes vendor‑specific prefixes.
+    function Normalize-PortKey {
+        param([string]$p)
+        if (-not $p) { return $p }
+        # Remove any leading 'Et', 'Eth' or 'Ethernet' (case‑insensitive).  The
+        # replacement operates only on the prefix to avoid altering the numeric
+        # portions of the port identifier.  Trim any resulting whitespace.
+        $normalized = $p -replace '^(?i)eth(?:ernet)?', ''
+        return $normalized.Trim()
+    }
 
     function Expand-PortRange {
         param ($start, $end)
@@ -247,18 +289,59 @@ function Get-BrocadeDeviceFacts {
         return $results
     }
 
-    function Get-MacTable {
+function Get-MacTable {
         param ($Block)
-        # Use a typed list to accumulate MAC table entries.  This avoids array duplication
+        # Parse MAC address table lines.  Allow either a simple "MAC Port Type VLAN" format or
+        # the more common "MAC Port Type Index VLAN" variant.  The Brocade output may
+        # separate columns with spaces or tabs.  We trim each line before matching to
+        # eliminate trailing carriage returns or excess whitespace that would otherwise
+        # prevent a match.  Header lines (starting with "MAC Address") are skipped.
+        # Initialize the result collection and counters for debugging.  When
+        # $script:BrocadeParserDebug is $true (see Set-BrocadeParserDebug below),
+        # these counters will be reported at the end of the parse.  We default
+        # BrocadeParserDebug to $true so messages are visible without any
+        # additional user action.
         $results = New-Object 'System.Collections.Generic.List[psobject]'
+        $matched = 0; $skipped = 0; $candidates = 0
+        if ($script:BrocadeParserDebug) {
+            Write-Host "[BrocadeParser] Parsing show mac-address block..."
+        }
         foreach ($line in $Block) {
-            if ($line -match '^([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})\s+(\d+/\d+/\d+)\s+\S+\s+(\d+)') {
-                [void]$results.Add([PSCustomObject]@{
-                    MAC  = $matches[1]
-                    Port = ConvertTo-StandardPortName $matches[2]
-                    VLAN = $matches[3]
-                })
+            if ($script:BrocadeParserDebug) { $candidates++ }
+            if (-not $line) { continue }
+            $t = $line.Trim()
+            if (-not $t) { continue }
+            # Skip the table header.  A header starts with 'MAC Address' followed by the other column names.
+            if ($t -match '^MAC\s+Address\b') {
+                $skipped++
+                if ($script:BrocadeParserDebug) {
+                    Write-Host "[BrocadeParser] Skipping header: $t"
+                }
+                continue
             }
+            # Match a row containing: MAC, Port, any characters (Type and optional index), then VLAN.
+            # Brocade MAC address tables vary; this pattern captures the MAC, port and final VLAN
+            # regardless of intermediate columns, and allows an optional trailing column (e.g., Action/Forward).
+            if ($t -match '^(?<mac>(?:[0-9A-Fa-f]{4}\.){2}[0-9A-Fa-f]{4})\s+(?<port>\d+/\d+/\d+)\s+.*?\s+(?<vlan>\d+)(?:\s+\S+)?\s*$') {
+                $matched++
+                if ($script:BrocadeParserDebug) {
+                    Write-Host ("[BrocadeParser] MATCH mac={0} port={1} vlan={2}" -f $matches['mac'], $matches['port'], $matches['vlan'])
+                }
+                [void]$results.Add([PSCustomObject]@{
+                    MAC  = $matches['mac']
+                    Port = ConvertTo-StandardPortName $matches['port']
+                    VLAN = [int]$matches['vlan']
+                })
+            } else {
+                if ($script:BrocadeParserDebug) {
+                    $raw = $t
+                    if ($raw.Length -gt 160) { $raw = $raw.Substring(0,160) + '…' }
+                    Write-Host ("[BrocadeParser] NO MATCH: {0}" -f $raw)
+                }
+            }
+        }
+        if ($script:BrocadeParserDebug) {
+            Write-Host ("[BrocadeParser] Summary: total={0} matched={1} skipped={2}" -f $candidates, $matched, $skipped)
         }
         return $results
     }
@@ -351,35 +434,11 @@ function Get-BrocadeDeviceFacts {
     function Get-AuthDefaultVlan {
         param([string[]]$AuthConfig)
         foreach ($line in $AuthConfig) {
-            # Accept optional whitespace between the keyword and VLAN number.  Some devices emit
-            # 'auth-default-vlan10' without a space while others include a space.  Use a case-
-            # insensitive match to capture either form.
-            if ($line -match '(?i)auth-default-vlan\s*(\d+)') {
+            if ($line -match 'auth-default-vlan\s+(\d+)') {
                 return [int]$matches[1]
             }
         }
         return $null
-    }
-
-    function Get-AuthDefaultVlans {
-        param([string[]]$AuthConfig)
-        # Collect all auth-default-vlan statements in the Authentication block.  Normalize case
-        # and whitespace, dedupe the VLAN IDs, and return an array of integer values in
-        # discovered order.  This is useful when a configuration contains multiple default
-        # VLAN commands, which often indicates a misconfiguration.  The first element of
-        # the returned array should be treated as the primary default VLAN.
-        $seen = @{}
-        $vals = New-Object 'System.Collections.Generic.List[int]'
-        foreach ($line in $AuthConfig) {
-            if ($line -match '(?i)auth-default-vlan\s*(\d+)') {
-                $v = [int]$matches[1]
-                if (-not $seen.ContainsKey($v)) {
-                    $seen[$v] = $true
-                    [void]$vals.Add($v)
-                }
-            }
-        }
-        return $vals.ToArray()
     }
 
 
@@ -446,29 +505,7 @@ function Get-BrocadeDeviceFacts {
     $location   = Get-Location $configBlock
     $vlanMap    = Get-VlanMap $configBlock
     $authBlockRaw   = Get-AuthenticationBlock $configBlock
-    # Collect all configured default VLANs from the authentication block.  This allows
-    # detection of multiple conflicting defaults and ensures that devices that omit the
-    # space between the keyword and number are still recognized.  Pick the first VLAN
-    # discovered as the primary default.  When no default is specified, $authDefaultVlan
-    # will remain $null.
-    $authDefaultVlans = Get-AuthDefaultVlans $authBlockRaw
-    $authDefaultVlan  = if ($authDefaultVlans -and $authDefaultVlans.Count -gt 0) { $authDefaultVlans[0] } else { $null }
-
-    # Normalize and deduplicate lines in the authentication block for display.  Trim
-    # whitespace, standardize spacing for auth-default-vlan statements, and drop
-    # duplicate lines while preserving order.  This prevents repeated blocks from
-    # appearing verbatim in the output while leaving the underlying parsing logic
-    # unaffected.
-    $authBlockClean  = New-Object 'System.Collections.Generic.List[string]'
-    $seenAuthLines   = @{}
-    foreach ($line in $authBlockRaw) {
-        # Standardize the spacing in auth-default-vlan lines to 'auth-default-vlan <num>'
-        $normalized = ($line -replace '(?i)auth-default-vlan\s*(\d+)', 'auth-default-vlan $1').Trim()
-        if (-not $seenAuthLines.ContainsKey($normalized)) {
-            $seenAuthLines[$normalized] = $true
-            [void]$authBlockClean.Add($normalized)
-        }
-    }
+    $authDefaultVlan = Get-AuthDefaultVlan $authBlockRaw
     # Brocade FCX platforms (8.0.80+ and later) support a global "mac-authentication dot1x override"
     # command which forces MAC authentication to take precedence over 802.1X when both are
     # enabled on a port.  If present, ports that appear in both the dot1x and macauth lists
@@ -489,15 +526,18 @@ function Get-BrocadeDeviceFacts {
     $authModes  = Get-AuthModes $configBlock $configs
     $dot1xPorts = $authModes[0]; $macauthPorts = $authModes[1]
 
-    # Precompute membership sets for authentication port lists to avoid repeated `-contains` scans
+    # Precompute membership sets for authentication port lists to avoid repeated `-contains` scans.
+    # Normalize each port key so that ports listed with different prefixes collide into the same set.
     $dot1xSet = @{}
     foreach ($p in $dot1xPorts) {
+        $norm = Normalize-PortKey $p
         # Directly assign the key to `$true`; duplicates simply overwrite the value
-        $dot1xSet[$p] = $true
+        $dot1xSet[$norm] = $true
     }
     $macauthSet = @{}
     foreach ($p in $macauthPorts) {
-        $macauthSet[$p] = $true
+        $norm = Normalize-PortKey $p
+        $macauthSet[$norm] = $true
     }
     # Determine which authentication session output is available.  Starting in
     $auth = @()
@@ -519,28 +559,36 @@ function Get-BrocadeDeviceFacts {
     $reTypeAccess = [regex]::new('access|user|staff|voice|endpoint|printer', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
 
     # Pre-index the MAC table and authentication rows by port to avoid pipeline
+    # scans in the per-interface loop.  Normalize each port key to ensure that
+    # ports specified with different prefixes (e.g. "Ethernet1/1/1" vs "Et1/1/1")
+    # collide into the same entry.
     $macsByPort = @{}
     foreach ($m in $macs) {
-        $p = $m.Port
-        if (-not $macsByPort.ContainsKey($p)) {
-            $macsByPort[$p] = New-Object 'System.Collections.Generic.List[string]'
+        $p    = $m.Port
+        $norm = Normalize-PortKey $p
+        if (-not $macsByPort.ContainsKey($norm)) {
+            $macsByPort[$norm] = New-Object 'System.Collections.Generic.List[string]'
         }
-        [void]$macsByPort[$p].Add([string]$m.MAC)
+        [void]$macsByPort[$norm].Add([string]$m.MAC)
     }
     $authByPort = @{}
     foreach ($a in $auth) {
         # In case multiple auth rows are present for a port, prefer the first
-        if (-not $authByPort.ContainsKey($a.Port)) {
-            $authByPort[$a.Port] = $a
+        $norm = Normalize-PortKey $a.Port
+        if (-not $authByPort.ContainsKey($norm)) {
+            $authByPort[$norm] = $a
         }
     }
 
-    # Build a per-port MAC row lookup to retrieve VLANs without scanning
+    # Build a per-port MAC row lookup to retrieve VLANs without scanning.  Use
+    # normalized keys here as well so that a port is represented consistently
+    # regardless of how its name appears in different command outputs.
     $macRowByPort = @{}
     foreach ($m in $macs) {
+        $norm = Normalize-PortKey $m.Port
         # Keep the first MAC table row per port; later rows are ignored
-        if (-not $macRowByPort.ContainsKey($m.Port)) {
-            $macRowByPort[$m.Port] = $m
+        if (-not $macRowByPort.ContainsKey($norm)) {
+            $macRowByPort[$norm] = $m
         }
     }
 
@@ -548,15 +596,33 @@ function Get-BrocadeDeviceFacts {
         $port = $iface.Port
         $interfaceMAC = $iface.MAC
         # Use the precomputed lookup to retrieve the list of MAC addresses for this port.
-        $macList = if ($macsByPort.ContainsKey($port)) {
-            [string]::Join(',', $macsByPort[$port])
+        # Show only the first MAC in the grid to prevent excessively wide columns.  Keep
+        # the full comma‑separated list in a separate variable for downstream use
+        # (e.g., tooltips or exports).
+        # Look up the list of MAC addresses learned on this port.  Use a normalized
+        # key for dictionary access to handle minor variations in port prefixes.
+        $normPort = Normalize-PortKey $port
+        $macArr = if ($macsByPort.ContainsKey($normPort)) {
+            $macsByPort[$normPort]
         } else {
-            ''
+            @()
+        }
+        # Capture the number of learned MAC addresses so that the UI can display a
+        # count instead of interpreting a MAC string as a numeric value.  When
+        # no MACs are present, the count defaults to 0.
+        $macCount = $macArr.Count
+        if ($macCount -gt 0) {
+            $macList     = $macArr[0]                 # display just the first MAC
+            $macListFull = [string]::Join(',', $macArr)  # full comma‑separated list
+        } else {
+            $macList     = ''
+            $macListFull = ''
         }
         # Retrieve the auth row for this port, if present, via the pre-indexed dictionary.
-        $authRow = if ($authByPort.ContainsKey($port)) { $authByPort[$port] } else { $null }
+        # Use the normalized key so that ports with or without an 'Et' prefix resolve the same.
+        $authRow = if ($authByPort.ContainsKey($normPort)) { $authByPort[$normPort] } else { $null }
         # Lookup the configuration text for this port or default to an empty string.
-        $cfgText = if ($configs.ContainsKey($port)) { $configs[$port] } else { '' }
+        $cfgText = if ($configs.ContainsKey($port)) { $configs[$port] } elseif ($configs.ContainsKey($normPort)) { $configs[$normPort] } else { '' }
         # Prefer the alias/name from the brief output when present; fall back to the
         $desc = if ($iface.Name -and $iface.Name -ne '') {
             $iface.Name
@@ -567,17 +633,17 @@ function Get-BrocadeDeviceFacts {
         }
         $authMode = if ($authRow) {
             $authRow.Mode
-        } elseif ($dot1xSet.ContainsKey($port)) {
+        } elseif ($dot1xSet.ContainsKey($normPort)) {
             "dot1x"
-        } elseif ($macauthSet.ContainsKey($port)) {
+        } elseif ($macauthSet.ContainsKey($normPort)) {
             "macauth"
         } else {
             "open"
         }
         $authState = if ($authRow) { $authRow.State } elseif ($authMode -eq "open") { "Open" } else { "Unknown" }
         # Determine the authentication template for the port.  Beginning with
-        $dot1xEnabled   = $dot1xSet.ContainsKey($port)
-        $macauthEnabled = $macauthSet.ContainsKey($port)
+        $dot1xEnabled   = $dot1xSet.ContainsKey($normPort)
+        $macauthEnabled = $macauthSet.ContainsKey($normPort)
         # Determine the recommended authentication template for this port.  When both
         # MAC authentication and 802.1X are enabled on the same port, classify it
         # as "flexible".  The global "mac-authentication dot1x override" command
@@ -591,8 +657,8 @@ function Get-BrocadeDeviceFacts {
             default                              { "open" }
         }
         # Use the precomputed MAC row lookup to retrieve the VLAN without scanning
-        $vlan = if ($macRowByPort.ContainsKey($port)) {
-            $macRowByPort[$port].VLAN
+        $vlan = if ($macRowByPort.ContainsKey($normPort)) {
+            $macRowByPort[$normPort].VLAN
         } else {
             ''
         }
@@ -608,7 +674,8 @@ function Get-BrocadeDeviceFacts {
 
         [PSCustomObject]@{
             Port = $port; Name = $desc; Status = $iface.Status; VLAN = $vlan; Duplex = $iface.Duplex;
-            Speed = $iface.Speed; Type = $type; InterfaceMAC = $interfaceMAC; LearnedMACs = $macList;
+            Speed = $iface.Speed; Type = $type; InterfaceMAC = $interfaceMAC;
+            LearnedMACs = $macList; LearnedMACsFull = $macListFull; LearnedMACCount = $macCount;
             AuthState = $authState;
             AuthMode = $authMode; AuthClientMAC = if ($authRow) { $authRow.MAC } else { "" };
             Config = $cfgText; AuthTemplate = $authTemplate
@@ -630,18 +697,10 @@ function Get-BrocadeDeviceFacts {
         Version = $modelVer[1];
         Uptime = $uptime; 
         Location = $location;
-        # The primary default VLAN discovered from the authentication block.  If multiple
-        # default VLAN statements are present, this will contain the first one.  When no
-        # default is configured, this field will be $null.
-        AuthDefaultVLAN   = $authDefaultVlan;
-        # A list of all distinct default VLAN IDs found in the authentication block, in order
-        # of appearance.  Useful for diagnostic purposes when multiple defaults appear.
-        AuthDefaultVLANs  = $authDefaultVlans;
+        AuthDefaultVLAN  = $authDefaultVlan;
         InterfaceCount = $combined.Count;
         InterfacesCombined = $combined
-        # Present a normalized, deduplicated authentication block for display.  Underlying
-        # parsing uses $authBlockRaw, but users benefit from a concise view.
-        AuthenticationBlock = ($authBlockClean -join "`n")
+        AuthenticationBlock = ($authBlockRaw -join "`n")
         SpanInfo = $spanInfo
     }
 }
