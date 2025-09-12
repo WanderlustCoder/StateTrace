@@ -80,8 +80,7 @@ function New-SpanView {
     # Refresh button re-runs parser and updates summaries
     if ($spanRefresh) {
         $spanRefresh.Add_Click({
-            # Update the database path env var if available
-            if ($global:StateTraceDb) { $env:StateTraceDbPath = $global:StateTraceDb }
+            # Per-site databases are computed within the parser; do not set a global database path
 
             # Call the exported parser function
             if (Get-Command Invoke-StateTraceParsing -ErrorAction SilentlyContinue) {

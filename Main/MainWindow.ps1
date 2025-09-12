@@ -46,7 +46,20 @@ catch {
 }
 
 ## ---------------------------------------------------------------------
-$null = Initialize-StateTraceDatabase -DataDir (Join-Path $scriptDir '..\Data')
+# Prior to implementing per-site databases, the application would create a single
+# StateTrace.accdb database here via Initialize-StateTraceDatabase. With the
+# introduction of per-site databases, we no longer create a global database at
+# startup. Instead, each site-specific database will be created on demand by
+# the parser when processing logs. We still ensure the Data directory exists
+# here to avoid errors when saving databases later on.
+try {
+    $dataDir = Join-Path $scriptDir '..\Data'
+    if (-not (Test-Path $dataDir)) {
+        New-Item -ItemType Directory -Path $dataDir -Force | Out-Null
+    }
+} catch {
+    Write-Warning ("Failed to ensure Data directory exists: {0}" -f $_.Exception.Message)
+}
 # === END Database Initialization (MainWindow.ps1) ===
 
 

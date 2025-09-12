@@ -151,9 +151,10 @@ function Start-ParallelDeviceProcessing {
             Import-Module (Join-Path $modulesPath 'CiscoModule.psm1') -Force
             Import-Module (Join-Path $modulesPath 'BrocadeModule.psm1') -Force
             Import-Module (Join-Path $modulesPath 'ParserWorker.psm1') -Force
-            if ($dbPath -and (Test-Path (Join-Path $modulesPath 'DatabaseModule.psm1'))) {
-                Import-Module (Join-Path $modulesPath 'DatabaseModule.psm1') -Force -Global
-            }
+            # Always import the database module so that helper functions such as
+            # New-DatabaseIfMissing and New-AccessDatabase are available.  Do not
+            # conditionally load it based on $dbPath or path existence.
+            Import-Module (Join-Path $modulesPath 'DatabaseModule.psm1') -Force -Global
             # Invoke the parser.  Pass ArchiveRoot and DatabasePath so that
             Invoke-DeviceLogParsing -FilePath $filePath -ArchiveRoot $archiveRoot -DatabasePath $dbPath
         }).AddArgument($file).AddArgument($ModulesPath).AddArgument($ArchiveRoot).AddArgument($DatabasePath)
@@ -177,6 +178,27 @@ function Clear-ExtractedLogs {
         [Parameter(Mandatory=$true)][string]$ExtractedPath
     )
     Get-ChildItem $ExtractedPath -File | Remove-Item -Force -ErrorAction SilentlyContinue
+}
+
+# Extract the site identifier from a hostname.  Sites are defined
+# by the substring before the first dash ("-") in the host name.  If no dash
+# is present, this helper returns the first four characters of the hostname.
+# If the hostname is shorter than four characters, the full hostname is returned.
+function Get-SiteFromHostname {
+    param([string]$Hostname)
+    if (-not $Hostname) { return 'Unknown' }
+    # Remove any SSH@ prefix and trim whitespace
+    $clean = $Hostname -replace '^SSH@',''
+    $clean = $clean.Trim()
+    # Extract the part before the first dash
+    if ($clean -match '^(?<site>[^-]+)-') {
+        return $matches['site']
+    }
+    # Fallback: use the first 4 characters if possible
+    if ($clean.Length -ge 4) {
+        return $clean.Substring(0,4)
+    }
+    return $clean
 }
 
 #
@@ -205,14 +227,11 @@ function Invoke-StateTraceParsing {
     }
     # Determine thread count up to 8 for concurrency.
     $threadCount = [Math]::Min(8, [Environment]::ProcessorCount)
-    # Determine database path precedence: explicit parameter, environment variable, then global.
+    # Determine database path precedence: use explicit parameter only.  All
+    # per-site database paths are computed inside the parser worker.
     $dbPath = $null
     if ($PSBoundParameters.ContainsKey('DatabasePath') -and $DatabasePath) {
         $dbPath = $DatabasePath
-    } elseif ($env:StateTraceDbPath -and $env:StateTraceDbPath -ne '') {
-        $dbPath = $env:StateTraceDbPath
-    } elseif ($global:StateTraceDb) {
-        $dbPath = $global:StateTraceDb
     }
     # Process each device file using parallel runspaces.
     if ($deviceFiles.Count -gt 0) {
@@ -789,6 +808,33 @@ function Invoke-DeviceLogParsing {
     if (-not $facts -or -not $facts.Hostname) {
         Write-Warning "No valid facts returned for $FilePath"
         return
+    }
+
+    # Determine a per-site database path using the device hostname.  Sites
+    # correspond to the portion of the hostname before the first dash.  Override
+    # the incoming DatabasePath parameter so that each site writes into its own
+    # Access database under the project's Data folder.
+    try {
+        $siteCode = Get-SiteFromHostname $facts.Hostname
+        # Compute the absolute project root for constructing the Data directory.
+        $projectRoot = Join-Path $PSScriptRoot '..' | Resolve-Path | Select-Object -ExpandProperty Path
+        $dbDir = Join-Path $projectRoot 'Data'
+        if (-not (Test-Path $dbDir)) {
+            # Create the Data directory if it doesn't exist
+            New-Item -ItemType Directory -Force -Path $dbDir | Out-Null
+        }
+        # Compose a file name for the site database; always use .accdb extension
+        $DatabasePath = Join-Path $dbDir ("$siteCode.accdb")
+        # Ensure the database exists and has the required schema.  This helper
+        # is idempotent, so calling it from multiple runspaces is safe.
+        if (Get-Command -Name New-DatabaseIfMissing -ErrorAction SilentlyContinue) {
+            New-DatabaseIfMissing -Path $DatabasePath
+        } elseif (-not (Test-Path $DatabasePath) -and (Get-Command -Name New-AccessDatabase -ErrorAction SilentlyContinue)) {
+            New-AccessDatabase -Path $DatabasePath | Out-Null
+        }
+    } catch {
+        # If any error occurs deriving or creating the per-site database, emit a warning
+        Write-Warning ("Failed to set up per-site database for host {0}: {1}" -f $facts.Hostname, $_.Exception.Message)
     }
 
     $hostname     = $facts.Hostname -replace '[\\\/:\*\?"<>\|]', '_'

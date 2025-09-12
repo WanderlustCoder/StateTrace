@@ -25,6 +25,40 @@ if (-not $global:DeviceInterfaceCache) {
     $global:DeviceInterfaceCache = @{}
 }
 
+# -----------------------------------------------------------------------------
+# Helper functions to locate the appropriate Access database.  Rather than
+# relying on a single global database path, each device's hostname encodes a
+# site identifier in the portion before the first dash (e.g. "WLLS" in
+# "WLLS-A05-AS-05").  The database for a given device is stored under
+# Data/<SITE>.accdb relative to the project root.  The helpers below extract
+# the site code from a hostname, build a database path for that host, and
+# enumerate all site databases for global queries.
+
+function Get-SiteFromHostname {
+    param([string]$Hostname)
+    if (-not $Hostname) { return 'Unknown' }
+    if ($Hostname -match '^(?<site>[^-]+)-') { return $matches['site'] }
+    return $Hostname
+}
+
+function Get-DbPathForHost {
+    param([Parameter(Mandatory)][string]$Hostname)
+    $site   = Get-SiteFromHostname $Hostname
+    # Resolve the module root (Modules/.. -> project root)
+    $root   = Join-Path $PSScriptRoot '..' | Resolve-Path | Select-Object -ExpandProperty Path
+    $data   = Join-Path $root 'Data'
+    return (Join-Path $data ("{0}.accdb" -f $site))
+}
+
+function Get-AllSiteDbPaths {
+    # Enumerate all *.accdb files in the Data folder.  If the folder does not
+    # exist, return an empty array.
+    $root = Join-Path $PSScriptRoot '..' | Resolve-Path | Select-Object -ExpandProperty Path
+    $data = Join-Path $root 'Data'
+    if (-not (Test-Path $data)) { return @() }
+    return Get-ChildItem -Path $data -Filter '*.accdb' -File | Select-Object -ExpandProperty FullName
+}
+
 # Initialise an in‑memory cache for vendor configuration templates.  This cache
 # prevents repeated disk reads and JSON parsing of Cisco.json/Brocade.json on
 # every call.  The cache is keyed by the vendor name (e.g. 'Cisco', 'Brocade')
@@ -176,8 +210,12 @@ function New-InterfaceObjectsFromDbRow {
         [Parameter(Mandatory)][string]$Hostname,
         [string]$TemplatesPath = (Join-Path $PSScriptRoot '..\Templates')
     )
-    # If the database is unavailable return an empty array immediately.
-    if (-not $global:StateTraceDb) { return @() }
+    # Determine the per-site database path for this host.  We no longer rely
+    # on a single global database; instead each host's data resides in
+    # Data/<SITE>.accdb.  Compute this upfront for vendor and auth block
+    # lookups.  If the file does not exist, queries will simply return no
+    # results and the fallback logic below will infer defaults.
+    $dbPath  = Get-DbPathForHost $Hostname
     # Escape the hostname once for reuse in SQL queries.  Doubling single quotes
     $escHost = $Hostname -replace "'", "''"
 
@@ -207,7 +245,7 @@ function New-InterfaceObjectsFromDbRow {
     # Fallback to query DeviceSummary if vendor still Cisco
     if ($vendor -eq 'Cisco') {
         try {
-            $mkDt = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT Make FROM DeviceSummary WHERE Hostname = '$escHost'"
+            $mkDt = Invoke-DbQuery -DatabasePath $dbPath -Sql "SELECT Make FROM DeviceSummary WHERE Hostname = '$escHost'"
             if ($mkDt) {
                 if ($mkDt -is [System.Data.DataTable]) {
                     if ($mkDt.Rows.Count -gt 0) {
@@ -235,7 +273,7 @@ function New-InterfaceObjectsFromDbRow {
         } catch {}
         if (-not $abText) {
             try {
-                $abDt = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT AuthBlock FROM DeviceSummary WHERE Hostname = '$escHost'"
+                $abDt = Invoke-DbQuery -DatabasePath $dbPath -Sql "SELECT AuthBlock FROM DeviceSummary WHERE Hostname = '$escHost'"
                 if ($abDt) {
                     if ($abDt -is [System.Data.DataTable]) {
                         if ($abDt.Rows.Count -gt 0) { $abText = '' + $abDt.Rows[0].AuthBlock }
@@ -397,34 +435,41 @@ function Get-DeviceSummaries {
     # Always prefer loading device summaries from the database.  If the database
     $names = New-Object 'System.Collections.Generic.List[string]'
     $global:DeviceMetadata = @{}
-    if ($global:StateTraceDb) {
+    # Populate the global DeviceMetadata hash and list of hostnames by reading
+    # all site databases.  Iterate through every *.accdb file in the Data
+    # directory, querying the DeviceSummary table.  If no site databases are
+    # present, the $names list remains empty and a warning is issued.
+    $hasData = $false
+    foreach ($dbPath in (Get-AllSiteDbPaths)) {
         try {
-            $dt = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT Hostname, Site, Building, Room FROM DeviceSummary ORDER BY Hostname"
-            $rows = $dt | Select-Object Hostname, Site, Building, Room
-            foreach ($row in $rows) {
-                $name = $row.Hostname
-                if (-not [string]::IsNullOrWhiteSpace($name)) {
-                    # Add the hostname to the list.  Casting to void
-                    [void]$names.Add($name)
-                    $siteRaw     = $row.Site
-                    $buildingRaw = $row.Building
-                    $roomRaw     = $row.Room
-                    $siteVal     = if ($siteRaw -eq $null -or $siteRaw -eq [System.DBNull]::Value) { '' } else { [string]$siteRaw }
-                    $buildingVal = if ($buildingRaw -eq $null -or $buildingRaw -eq [System.DBNull]::Value) { '' } else { [string]$buildingRaw }
-                    $roomVal     = if ($roomRaw -eq $null -or $roomRaw -eq [System.DBNull]::Value) { '' } else { [string]$roomRaw }
-                    $meta = [PSCustomObject]@{
-                        Site     = $siteVal
-                        Building = $buildingVal
-                        Room     = $roomVal
+            $dt = Invoke-DbQuery -DatabasePath $dbPath -Sql "SELECT Hostname, Site, Building, Room FROM DeviceSummary"
+            if ($dt) {
+                $hasData = $true
+                $rows = $dt | Select-Object Hostname, Site, Building, Room
+                foreach ($row in $rows) {
+                    $name = $row.Hostname
+                    if (-not [string]::IsNullOrWhiteSpace($name)) {
+                        [void]$names.Add($name)
+                        $siteRaw     = $row.Site
+                        $buildingRaw = $row.Building
+                        $roomRaw     = $row.Room
+                        $siteVal     = if ($siteRaw -eq $null -or $siteRaw -eq [System.DBNull]::Value) { '' } else { [string]$siteRaw }
+                        $buildingVal = if ($buildingRaw -eq $null -or $buildingRaw -eq [System.DBNull]::Value) { '' } else { [string]$buildingRaw }
+                        $roomVal     = if ($roomRaw -eq $null -or $roomRaw -eq [System.DBNull]::Value) { '' } else { [string]$roomRaw }
+                        $meta = [PSCustomObject]@{
+                            Site     = $siteVal
+                            Building = $buildingVal
+                            Room     = $roomVal
+                        }
+                        $global:DeviceMetadata[$name] = $meta
                     }
-                    $global:DeviceMetadata[$name] = $meta
                 }
             }
-
         } catch {
-            Write-Warning "Failed to query device summaries from database: $($_.Exception.Message)"
+            Write-Warning ("Failed to query device summaries from {0}: {1}" -f $dbPath, $_.Exception.Message)
         }
-    } else {
+    }
+    if (-not $hasData) {
         Write-Warning "Database not configured. Device list will be empty."
     }
 
@@ -624,12 +669,15 @@ if (-not (Test-StringListEqualCI $currentBuildings $availableBuildings)) {
 function Get-DeviceDetails {
     param($hostname)
     try {
+        # Compute the per-site database path for this host.  If the file does not
+        # exist, $useDb remains false and fallback values will be used exclusively.
         $useDb = $false
-        if ($global:StateTraceDb) { $useDb = $true }
+        $hostTrim = ($hostname -as [string]).Trim()
+        $dbPath  = Get-DbPathForHost $hostTrim
+        if (Test-Path $dbPath) { $useDb = $true }
 
         if ($useDb) {
             # Prepare for database operations.  (No explicit session reuse at this level.)
-            $hostTrim = ($hostname -as [string]).Trim()
             $escHost   = $hostTrim -replace "'", "''"
             # Build a comma-separated list of character codes using a typed list
             $charCodesList = New-Object 'System.Collections.Generic.List[int]'
@@ -640,7 +688,7 @@ function Get-DeviceDetails {
                           "FROM DeviceSummary " +
                           "WHERE Hostname = '$escHost' " +
                           "   OR Hostname LIKE '*$escHost*'"
-            $dtSummary = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql $summarySql
+            $dtSummary = Invoke-DbQuery -DatabasePath $dbPath -Sql $summarySql
 
             if ($dtSummary) {
                 foreach ($rowTmp in ($dtSummary | Select-Object Hostname, Make, Model, Uptime, Ports, AuthDefaultVLAN, Building, Room)) {
@@ -652,7 +700,7 @@ function Get-DeviceDetails {
             if ($dtSummary) {
                 $summaryObjects = @($dtSummary | Select-Object Hostname, Make, Model, Uptime, Ports, AuthDefaultVLAN, Building, Room)
             }
-            $dtSummaryAll = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT Hostname, Make, Model, Uptime, Ports, AuthDefaultVLAN, Building, Room FROM DeviceSummary"
+            $dtSummaryAll = Invoke-DbQuery -DatabasePath $dbPath -Sql "SELECT Hostname, Make, Model, Uptime, Ports, AuthDefaultVLAN, Building, Room FROM DeviceSummary"
 
             $esc = $hostTrim -replace "'", "''"
             $fbMake = ''
@@ -663,7 +711,7 @@ function Get-DeviceDetails {
             $fbRoom = ''
             $fbPorts = ''
             try {
-                $hist = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT TOP 1 Make, Model, Uptime, AuthDefaultVLAN, Building, Room FROM DeviceHistory WHERE Trim(Hostname) = '$esc' ORDER BY RunDate DESC"
+                $hist = Invoke-DbQuery -DatabasePath $dbPath -Sql "SELECT TOP 1 Make, Model, Uptime, AuthDefaultVLAN, Building, Room FROM DeviceHistory WHERE Trim(Hostname) = '$esc' ORDER BY RunDate DESC"
                 if ($hist -and $hist.Rows.Count -gt 0) {
                     $hrow = ($hist | Select-Object Make, Model, Uptime, AuthDefaultVLAN, Building, Room)[0]
                     $fbMake    = $hrow.Make
@@ -675,7 +723,7 @@ function Get-DeviceDetails {
                 }
             } catch {}
             try {
-                $cntDt = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT COUNT(*) AS PortCount FROM Interfaces WHERE Trim(Hostname) = '$esc'"
+                $cntDt = Invoke-DbQuery -DatabasePath $dbPath -Sql "SELECT COUNT(*) AS PortCount FROM Interfaces WHERE Trim(Hostname) = '$esc'"
                 if ($cntDt -and $cntDt.Rows.Count -gt 0) {
                     $fbPorts = ($cntDt | Select-Object -ExpandProperty PortCount)[0]
                 }
@@ -737,8 +785,8 @@ function Get-DeviceDetails {
                 }
             } catch {}
 
-            # Query interface details for the specified host from the database.  Include
-            $dtIfs = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT Hostname, Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, ConfigStatus, PortColor, ToolTip FROM Interfaces WHERE Hostname = '$($hostname -replace "'", "''")'"
+            # Query interface details for the specified host from the per-site database.  Include
+            $dtIfs = Invoke-DbQuery -DatabasePath $dbPath -Sql "SELECT Hostname, Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, ConfigStatus, PortColor, ToolTip FROM Interfaces WHERE Hostname = '$($hostname -replace "'", "''")'"
             # Use a shared helper to build the interface PSCustomObject list.  This centralises vendor detection,
             $list = New-InterfaceObjectsFromDbRow -Data $dtIfs -Hostname $hostname -TemplatesPath (Join-Path $PSScriptRoot '..\Templates')
             # Cache this device's interface list for future visits.  The cache stores the final PSCustomObject list keyed by hostname.
@@ -793,9 +841,11 @@ function Get-DeviceDetailsData {
         Templates  = @()
     }
     try {
-        # Determine whether database is configured
+        # Determine the per-site database path for this host.  Use database
+        # only if the per-site file exists; otherwise fall back to CSV import.
         $useDb = $false
-        if ($global:StateTraceDb) { $useDb = $true }
+        $dbPath = Get-DbPathForHost $hostTrim
+        if (Test-Path $dbPath) { $useDb = $true }
         if (-not $useDb) {
             # Fallback to CSV import when no database is available
             $scriptDir = $PSScriptRoot
@@ -845,7 +895,7 @@ function Get-DeviceDetailsData {
         # Query summary row(s)
         $summarySql = "SELECT Hostname, Make, Model, Uptime, Ports, AuthDefaultVLAN, Building, Room FROM DeviceSummary WHERE Hostname = '$escHost' OR Hostname LIKE '*$escHost*'"
         $dtSummary = $null
-        try { $dtSummary = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql $summarySql } catch {}
+        try { $dtSummary = Invoke-DbQuery -DatabasePath $dbPath -Sql $summarySql } catch {}
         # Gather summary fields from the first matching row, if any
         $makeVal     = ''
         $modelVal    = ''
@@ -881,7 +931,7 @@ function Get-DeviceDetailsData {
         $fbRoom     = ''
         $fbPorts    = ''
         try {
-            $hist = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT TOP 1 Make, Model, Uptime, AuthDefaultVLAN, Building, Room FROM DeviceHistory WHERE Trim(Hostname) = '$escHost' ORDER BY RunDate DESC"
+            $hist = Invoke-DbQuery -DatabasePath $dbPath -Sql "SELECT TOP 1 Make, Model, Uptime, AuthDefaultVLAN, Building, Room FROM DeviceHistory WHERE Trim(Hostname) = '$escHost' ORDER BY RunDate DESC"
             if ($hist -and $hist.Rows.Count -gt 0) {
                 $hrow = $hist.Rows[0]
                 $fbMake     = $hrow.Make
@@ -893,7 +943,7 @@ function Get-DeviceDetailsData {
             }
         } catch {}
         try {
-            $cntDt = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT COUNT(*) AS PortCount FROM Interfaces WHERE Trim(Hostname) = '$escHost'"
+            $cntDt = Invoke-DbQuery -DatabasePath $dbPath -Sql "SELECT COUNT(*) AS PortCount FROM Interfaces WHERE Trim(Hostname) = '$escHost'"
             if ($cntDt -and $cntDt.Rows.Count -gt 0) {
                 $fbPorts = ($cntDt | Select-Object -ExpandProperty PortCount)[0]
             }
@@ -930,7 +980,7 @@ function Get-DeviceDetailsData {
             # Query interfaces and build list
             $sqlIf = "SELECT Hostname, Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, ConfigStatus, PortColor, ToolTip FROM Interfaces WHERE Hostname = '$escHost'"
             $dtIfs = $null
-            try { $dtIfs = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql $sqlIf } catch {}
+            try { $dtIfs = Invoke-DbQuery -DatabasePath $dbPath -Sql $sqlIf } catch {}
             if ($dtIfs) {
                 try { $listIfs = New-InterfaceObjectsFromDbRow -Data $dtIfs -Hostname $hostTrim -TemplatesPath (Join-Path $PSScriptRoot '..\Templates') } catch {}
             }
@@ -960,32 +1010,53 @@ function Update-GlobalInterfaceList {
     # Use a strongly-typed list for efficient accumulation of objects
     $list = New-Object 'System.Collections.Generic.List[object]'
 
-    if (-not $global:StateTraceDb) {
+    # Build a comprehensive list of all interfaces by querying every site database.
+    $dbPaths = Get-AllSiteDbPaths
+    if (-not $dbPaths -or $dbPaths.Count -eq 0) {
         Write-Warning "Database not configured. Interface list will be empty."
         $global:AllInterfaces = @()
         return
     }
-
     try {
-        $sql = @"
+        $listRows = New-Object 'System.Collections.Generic.List[System.Data.DataRow]'
+        foreach ($path in $dbPaths) {
+            $sql = @"
 SELECT i.Hostname, i.Port, i.Name, i.Status, i.VLAN, i.Duplex, i.Speed, i.Type,
        i.LearnedMACs, i.AuthState, i.AuthMode, i.AuthClientMAC,
        ds.Site, ds.Building, ds.Room
 FROM Interfaces AS i
 LEFT JOIN DeviceSummary AS ds ON i.Hostname = ds.Hostname
-ORDER BY i.Hostname, i.Port
 "@
-        $dt = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql $sql
+            try {
+                $dtLocal = Invoke-DbQuery -DatabasePath $path -Sql $sql
+                if ($dtLocal) {
+                    # Add each DataRow/DataRowView to the list for later enumeration
+                    if ($dtLocal -is [System.Data.DataTable]) {
+                        foreach ($r in $dtLocal.Rows) { [void]$listRows.Add($r) }
+                    } elseif ($dtLocal -is [System.Data.DataView]) {
+                        foreach ($rv in $dtLocal) { [void]$listRows.Add($rv.Row) }
+                    } elseif ($dtLocal -is [System.Collections.IEnumerable]) {
+                        foreach ($row in $dtLocal) { [void]$listRows.Add($row) }
+                    }
+                }
+            } catch {
+                Write-Warning ("Failed to query interfaces from {0}: {1}" -f $path, $_.Exception.Message)
+            }
+        }
+        # Create a DataTable-like enumerable from the collected rows
+        $dt = $listRows
         # The returned query result may be a DataTable, DataView or other enumerable
 
-        # Prepare an enumerable of rows depending on the type of $dt.  Only
+        # Prepare an enumerable of rows depending on the type of $dt.  When
+        # aggregating across databases $dt may be a generic List[DataRow].  In
+        # that case it will satisfy IEnumerable and we can iterate directly.
         $rows = @()
         if ($dt -is [System.Data.DataTable]) {
             $rows = $dt.Rows
         } elseif ($dt -is [System.Data.DataView]) {
             $rows = $dt  # DataView is enumerable of DataRowView
         } elseif ($dt -is [System.Collections.IEnumerable]) {
-            $rows = $dt  # In case Invoke-DbQuery returns DataRow[] or similar
+            $rows = $dt  # Generic list or array of DataRow/DataRowView
         } else {
             Write-Warning "DBG: Unexpected query result type; skipping row enumeration."
         }
@@ -1431,23 +1502,29 @@ function Get-PortSortKey {
 function Get-InterfaceHostnames {
     [CmdletBinding()]
     param([string]$ParsedDataPath)
-    # Ignore ParsedDataPath; always use the database when available.
-    if (-not $global:StateTraceDb) {
-        return @()
-    }
+    # Return all hostnames from every site database.  Ignore ParsedDataPath.
     try {
         $dbModule = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
         if (Test-Path $dbModule) {
             Import-Module $dbModule -Force -Global -ErrorAction SilentlyContinue | Out-Null
         }
-        $dtHosts = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql 'SELECT Hostname FROM DeviceSummary ORDER BY Hostname'
-        # Build the list of hostnames using a typed list rather than piping through
-        $hostList = New-Object 'System.Collections.Generic.List[string]'
-        foreach ($row in $dtHosts) {
-            [void]$hostList.Add([string]$row.Hostname)
+        $hostSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+        foreach ($dbPath in (Get-AllSiteDbPaths)) {
+            try {
+                $dtHosts = Invoke-DbQuery -DatabasePath $dbPath -Sql 'SELECT Hostname FROM DeviceSummary'
+                if ($dtHosts) {
+                    foreach ($row in $dtHosts) {
+                        $hn = '' + $row.Hostname
+                        if ($hn) { [void]$hostSet.Add($hn) }
+                    }
+                }
+            } catch {
+                Write-Warning ("Failed to query hostnames from {0}: {1}" -f $dbPath, $_.Exception.Message)
+            }
         }
-        # Return the array directly.  Using a leading comma would wrap the
-        return $hostList.ToArray()
+        $hosts = [System.Collections.Generic.List[string]]::new($hostSet)
+        $hosts.Sort([System.StringComparer]::OrdinalIgnoreCase)
+        return $hosts.ToArray()
     } catch {
         Write-Warning "Failed to query hostnames from database: $($_.Exception.Message)"
         return @()
@@ -1460,14 +1537,18 @@ function Get-ConfigurationTemplates {
         [Parameter(Mandatory)][string]$Hostname,
         [string]$TemplatesPath = (Join-Path $PSScriptRoot '..\Templates')
     )
-    if (-not $global:StateTraceDb) { return @() }
+    # Retrieve configuration template names for the specified host by reading
+    # the appropriate site database.  Without a database file for the host,
+    # return an empty array.
     try {
         $dbModulePath = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
         if (Test-Path $dbModulePath) {
             Import-Module $dbModulePath -Force -Global -ErrorAction SilentlyContinue | Out-Null
         }
+        $dbPath = Get-DbPathForHost $Hostname
+        if (-not (Test-Path $dbPath)) { return @() }
         $escHost = $Hostname -replace "'", "''"
-        $dt = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT Make FROM DeviceSummary WHERE Hostname = '$escHost'"
+        $dt = Invoke-DbQuery -DatabasePath $dbPath -Sql "SELECT Make FROM DeviceSummary WHERE Hostname = '$escHost'"
         $make = ''
         if ($dt) {
             if ($dt -is [System.Data.DataTable]) {
@@ -1529,16 +1610,17 @@ function Get-InterfaceInfo {
         [Parameter(Mandatory)][string]$Hostname,
         [string]$TemplatesPath = (Join-Path $PSScriptRoot '..\Templates')
     )
-    # Always use the consolidated helper to build interface details.  By delegating
-    if (-not $global:StateTraceDb) { return @() }
+    # Always use the consolidated helper to build interface details for a host.
     try {
         $dbModule = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
         if (Test-Path $dbModule) {
             Import-Module $dbModule -Force -Global -ErrorAction SilentlyContinue | Out-Null
         }
+        $dbPath = Get-DbPathForHost $Hostname
+        if (-not (Test-Path $dbPath)) { return @() }
         $escHost = $Hostname -replace "'", "''"
         $sql = "SELECT Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, ConfigStatus, PortColor, ToolTip FROM Interfaces WHERE Hostname = '$escHost' ORDER BY Port"
-        $dt = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql $sql
+        $dt = Invoke-DbQuery -DatabasePath $dbPath -Sql $sql
         # Delegate to the shared helper which returns an array of PSCustomObject.
         return New-InterfaceObjectsFromDbRow -Data $dt -Hostname $Hostname -TemplatesPath $TemplatesPath
     } catch {
@@ -1557,32 +1639,35 @@ function Get-InterfaceConfiguration {
         [hashtable]$NewVlans,
         [string]$TemplatesPath = (Join-Path $PSScriptRoot '..\Templates')
     )
-    if (-not $global:StateTraceDb) { return @() }
+    # Determine the per-site database path for this host.  Without a
+    # database file, return an empty array.
+    $dbPath = Get-DbPathForHost $Hostname
+    if (-not (Test-Path $dbPath)) { return @() }
     $debug = ($Global:StateTraceDebug -eq $true)
-    try {
-        $dbModule = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
-        if (Test-Path $dbModule) {
-            Import-Module $dbModule -Force -Global -ErrorAction SilentlyContinue | Out-Null
-        }
-        $escHost = $Hostname -replace "'", "''"
-        $vendor = 'Cisco'
         try {
-            $mkDt = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT Make FROM DeviceSummary WHERE Hostname = '$escHost'"
-            if ($mkDt) {
-                if ($mkDt -is [System.Data.DataTable]) {
-                    if ($mkDt.Rows.Count -gt 0) {
-                        $mk = $mkDt.Rows[0].Make
-                        if ($mk -match '(?i)brocade') { $vendor = 'Brocade' }
-                    }
-                } else {
-                    $mkRow = $mkDt | Select-Object -First 1
-                    if ($mkRow -and $mkRow.PSObject.Properties['Make']) {
-                        $mk = $mkRow.Make
-                        if ($mk -match '(?i)brocade') { $vendor = 'Brocade' }
+            $dbModule = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
+            if (Test-Path $dbModule) {
+                Import-Module $dbModule -Force -Global -ErrorAction SilentlyContinue | Out-Null
+            }
+            $escHost = $Hostname -replace "'", "''"
+            $vendor = 'Cisco'
+            try {
+                $mkDt = Invoke-DbQuery -DatabasePath $dbPath -Sql "SELECT Make FROM DeviceSummary WHERE Hostname = '$escHost'"
+                if ($mkDt) {
+                    if ($mkDt -is [System.Data.DataTable]) {
+                        if ($mkDt.Rows.Count -gt 0) {
+                            $mk = $mkDt.Rows[0].Make
+                            if ($mk -match '(?i)brocade') { $vendor = 'Brocade' }
+                        }
+                    } else {
+                        $mkRow = $mkDt | Select-Object -First 1
+                        if ($mkRow -and $mkRow.PSObject.Properties['Make']) {
+                            $mk = $mkRow.Make
+                            if ($mk -match '(?i)brocade') { $vendor = 'Brocade' }
+                        }
                     }
                 }
-            }
-        } catch {}
+            } catch {}
         $jsonFile = Join-Path $TemplatesPath "${vendor}.json"
         if (-not (Test-Path $jsonFile)) { throw "Template file missing: $jsonFile" }
 
@@ -1626,24 +1711,24 @@ function Get-InterfaceConfiguration {
             $null
         }
         if (-not $tmpl) { throw "Template '$TemplateName' not found in ${vendor}.json" }
-        # --- Batched query instead of N+1 per-port lookups ---
+            # --- Batched query instead of N+1 per-port lookups ---
         $oldConfigs = @{}
         $ports = @($Interfaces | Where-Object { $_ -ne $null } | ForEach-Object { $_.ToString() })
-        if ($ports.Count -gt 0) {
-            # Escape single quotes and build IN list
-            $escapedPorts = $ports | ForEach-Object { ($_ -replace "'", "''") }
-            $inList = ($escapedPorts | ForEach-Object { "'$_'" }) -join ", "
-            $sqlCfgAll = "SELECT Hostname, Port, Config FROM Interfaces WHERE Hostname = '$escHost' AND Port IN ($inList)"
-            $session = $null
-            try {
-                if ($global:StateTraceDb) { $session = Open-DbReadSession -DatabasePath $global:StateTraceDb }
-            } catch {}
-            try {
-                $dtAll = if ($session) {
-                    Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql $sqlCfgAll -Session $session
-                } else {
-                    Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql $sqlCfgAll
-                }
+            if ($ports.Count -gt 0) {
+                # Escape single quotes and build IN list
+                $escapedPorts = $ports | ForEach-Object { ($_ -replace "'", "''") }
+                $inList = ($escapedPorts | ForEach-Object { "'$_'" }) -join ", "
+                $sqlCfgAll = "SELECT Hostname, Port, Config FROM Interfaces WHERE Hostname = '$escHost' AND Port IN ($inList)"
+                $session = $null
+                try {
+                    $session = Open-DbReadSession -DatabasePath $dbPath
+                } catch {}
+                try {
+                    $dtAll = if ($session) {
+                        Invoke-DbQuery -DatabasePath $dbPath -Sql $sqlCfgAll -Session $session
+                    } else {
+                        Invoke-DbQuery -DatabasePath $dbPath -Sql $sqlCfgAll
+                    }
                 if ($dtAll) {
                     $rows = @()
                     if ($dtAll -is [System.Data.DataTable]) { $rows = $dtAll.Rows }
@@ -1727,20 +1812,20 @@ function Get-InterfaceConfiguration {
 function Get-InterfaceList {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$Hostname)
-    if (-not $global:StateTraceDb) { return @() }
     try {
         $dbModule = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
         if (Test-Path $dbModule) {
             Import-Module $dbModule -Force -Global -ErrorAction SilentlyContinue | Out-Null
         }
+        $dbPath = Get-DbPathForHost $Hostname
+        if (-not (Test-Path $dbPath)) { return @() }
         $escHost = $Hostname -replace "'", "''"
-        $dt = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT Port FROM Interfaces WHERE Hostname = '$escHost' ORDER BY Port"
+        $dt = Invoke-DbQuery -DatabasePath $dbPath -Sql "SELECT Port FROM Interfaces WHERE Hostname = '$escHost' ORDER BY Port"
         # Build the list of ports using a typed list instead of piping through
         $portList = New-Object 'System.Collections.Generic.List[string]'
         foreach ($row in $dt) {
             [void]$portList.Add([string]$row.Port)
         }
-        # Return the port list array directly rather than prefixing a comma.  A
         return $portList.ToArray()
     } catch {
         Write-Warning ("Failed to get interface list for {0}: {1}" -f $Hostname, $_.Exception.Message)

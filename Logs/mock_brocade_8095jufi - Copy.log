@@ -1,4 +1,4 @@
-SSH@WLLS-A05-AS-05# show version
+SSH@BOYO-A05-AS-05# show version
 
 Brocade Communications Systems, Inc.
 Stackable ICX7750-48F-48G-4X40G Management Module
@@ -7,14 +7,14 @@ Boot-Monitor: Version 08.0.95jufi
 HW: Stackable ICX7750-48
 Uptime is 1 day(s) 2 hour(s) 3 minute(s) 4 second(s)
 
-SSH@WLLS-A05-AS-05# show config
+SSH@BOYO-A05-AS-05# show config
 !
 vlan 10 name Users by port
 vlan 20 name Phones by port
 vlan 30 name Guests by port
 vlan 100 name Uplink by port
 !
-hostname WLLS-A05-AS-05
+hostname BOYO-A05-AS-05
 !
 snmp-server location Bldg_25_Floor_2_Room_105_Row_1_Rack_1
 !
@@ -514,7 +514,7 @@ interface ethernet 2/1/48
  stp-bpdu-guard
  exit
 !
-SSH@WLLS-A05-AS-05# show interfaces brief
+SSH@BOYO-A05-AS-05# show interfaces brief
 Port       Link    State    Dupl Speed Trunk   Tag Pvid Pri MAC            Name
 1/1/1      Up      Forward  Full  1G    None   Yes 10   0   0011.2233.0001  Users1
 1/1/2      Disable None     None  None  None   Yes 10   0   0011.2233.0002  Users2
@@ -613,7 +613,7 @@ Port       Link    State    Dupl Speed Trunk   Tag Pvid Pri MAC            Name
 2/1/47     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.005f  Users95
 2/1/48     Down    None     Full  1G    None   Yes 10   0   0011.2233.0060  Users96
 
-SSH@WLLS-A05-AS-05# show mac-address
+SSH@BOYO-A05-AS-05# show mac-address
 MAC Address        Port     Type	Index	 VLAN
 0011.2233.aa01     1/1/1    Dynamic	25	 10
 0011.2233.aa41     1/1/1    Dynamic	25	 10
@@ -626,7 +626,7 @@ MAC Address        Port     Type	Index	 VLAN
 0011.2233.ab01     2/1/1    Dynamic	101	 10
 0011.2233.ab30     2/1/48   Dynamic	18	 20
 
-SSH@WLLS-A05-AS-05# show authentication sessions all
+SSH@BOYO-A05-AS-05# show authentication sessions all
 Port    MAC             IP(v4/v6)          User   VLAN Auth    Auth   ACL   Session Age PAE
         Addr            Addr               Name        Method  State         Time        State
 -------------------------------------------------------------------------------------------------------
@@ -646,18 +646,18 @@ Port    MAC             IP(v4/v6)          User   VLAN Auth    Auth   ACL   Sess
 2/1/29  00dd.dddd.0004   N/A               Users9   130 MAUTH    permit Yes   190     Ena   AUTHENTICATED
 2/1/30  00dd.dddd.0005   N/A               Users10  130 8021.X permit No    200     Ena   UNAUTHENTICATED
 
-SSH@WLLS-A05-AS-05# show spanning-tree
+SSH@BOYO-A05-AS-05# show spanning-tree
 MST0
   Spanning tree enabled protocol mstp
   Root ID    Priority    32768
              Address     6666.bbbb.cccc
              This bridge is the root
 
-SSH@WLLS-A05-AS-05# show lldp neighbors
+SSH@BOYO-A05-AS-05# show lldp neighbors
 Device ID            Local Intf      Hold-time Capability Port ID
 core-switch         2/1/48          120       BR         1/0/1
 
-SSH@WLLS-A05-AS-05# show cdp neighbors
+SSH@BOYO-A05-AS-05# show cdp neighbors
 Device ID            Local Intf      Holdtme Capability Platform Port ID
 core-switch         2/1/48          153     S I       ICX7850    1/0/1
 
