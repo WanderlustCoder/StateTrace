@@ -454,7 +454,20 @@ function Get-MacTable {
     $macTableBlock   = Get-CommandBlock -Lines $Lines -CommandRegex '#\s*show\s+mac\s*-?address'
     $dot1xSessions   = Get-CommandBlock -Lines $Lines -CommandRegex '#\s*show\s+dot1x\s+sessions\s+all'
     $macAuthSessions = Get-CommandBlock -Lines $Lines -CommandRegex '#\s*show\s+mac\s*-?authentication\s+sessions\s+all'
+    # Retrieve the unified authentication session command if present.  This newer
+    # command reports both 802.1X and MAC authentication state in one table.  When
+    # available it supersedes the separate dot1x/mac-auth session commands.
     $authSessionsAll = Get-CommandBlock -Lines $Lines -CommandRegex '#\s*show\s+authentication\s+sessions'
+
+    # On older Brocade FCX software (e.g. 7.3.x) the session commands differ from
+    # modern releases.  In lieu of "show dot1x sessions all" the command
+    # "show dot1x mac-sessions" is used.  MAC authentication sessions are
+    # retrieved via two commands which separately list authorized and unauthorized
+    # MAC addresses.  Capture these alternate command blocks here so they may be
+    # used as fallbacks later when the standard commands return no output.
+    $dot1xMacSessions    = Get-CommandBlock -Lines $Lines -CommandRegex '#\s*show\s+dot1x\s+mac-?sessions'
+    $authMacAuthorized   = Get-CommandBlock -Lines $Lines -CommandRegex '#\s*show\s+auth-?mac-?addresses\s+authorized-mac'
+    $authMacUnauthorized = Get-CommandBlock -Lines $Lines -CommandRegex '#\s*show\s+auth-?mac-?addresses\s+unauthorized-mac'
 
     $hostname   = Get-Hostname
     $modelVer   = Get-ModelAndVersion $versionBlock
@@ -497,11 +510,93 @@ function Get-MacTable {
         $macauthSet[$norm] = $true
     }
     # Determine which authentication session output is available.  Starting in
+    # newer software releases the unified "show authentication sessions" command
+    # should be preferred.  When that is not present, fall back to the separate
+    # dot1x/mac-auth session commands.  On legacy software (e.g. 7.3.x) the
+    # commands differ; a dot1x MAC session table is produced by
+    # "show dot1x mac-sessions" and MAC authentication state is split between
+    # "show auth-mac-addresses authorized-mac" and "show auth-mac-addresses
+    # unauthorized-mac".  Combine these legacy outputs into a format that the
+    # existing parsing logic understands.
     $auth = @()
     if ($authSessionsAll.Count -gt 0) {
+        # Unified table output
         $auth = Get-AuthStatusUnified $authSessionsAll
     } else {
-        $auth = Get-AuthStatus $dot1xSessions $macAuthSessions
+        # Choose appropriate dot1x session block.  Prefer the modern command when
+        # available, otherwise fall back to the legacy "mac-sessions" command.
+        $dot1xBlockToUse = @()
+        if ($dot1xSessions -and $dot1xSessions.Count -gt 0) {
+            $dot1xBlockToUse = $dot1xSessions
+        } elseif ($dot1xMacSessions -and $dot1xMacSessions.Count -gt 0) {
+            $dot1xBlockToUse = $dot1xMacSessions
+        }
+        # Choose appropriate MAC authentication block.  Prefer the modern session
+        # command when present; otherwise construct a combined list from the
+        # authorized and unauthorized legacy lists.  Append a trailing "Yes" or
+        # "No" token to each line from the legacy lists so that it matches the
+        # regex used by Get-AuthStatus.  The regex expects a final field of
+        # "Yes"/"No" indicating authorization status.
+        $macAuthBlockToUse = @()
+        if ($macAuthSessions -and $macAuthSessions.Count -gt 0) {
+            $macAuthBlockToUse = $macAuthSessions
+        } elseif (($authMacAuthorized -and $authMacAuthorized.Count -gt 0) -or ($authMacUnauthorized -and $authMacUnauthorized.Count -gt 0)) {
+            $combined = New-Object 'System.Collections.Generic.List[string]'
+            # Append authorized entries.  When lines originate from the legacy
+            # "show auth-mac-addresses authorized-mac" command, the format is
+            # "MAC Port Vlan Yes ...".  Normalize each line by reordering
+            # fields to match the expected "Port MAC dynamic Vlan Yes" pattern.
+            if ($authMacAuthorized) {
+                foreach ($ln in $authMacAuthorized) {
+                    $trimmed = $ln.Trim()
+                    if ($trimmed -eq '') { continue }
+                    # Skip header or separator lines
+                    if ($trimmed -match '^-+$' -or $trimmed -match '^(?i)mac\s+addresses' -or $trimmed -match '^(?i)port\s+vlan') { continue }
+                    if ($trimmed -match '([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})\s+(\d+/\d+/\d+)\s+(\d+)\s+(Yes|No)') {
+                        $mac = $matches[1]; $port = $matches[2]; $vlan = $matches[3]; $authState = $matches[4]
+                        $outLine = "$port $mac dynamic $vlan $authState"
+                        [void]$combined.Add($outLine)
+                    } else {
+                        # If the line doesn't match the MAC-first format, append
+                        # "Yes" if not already present.
+                        $parts = $trimmed -split '\s+'
+                        $lastField = $parts[-1]
+                        if ($lastField -notmatch '^(?i)yes|no$') {
+                            [void]$combined.Add(($trimmed + ' Yes'))
+                        } else {
+                            [void]$combined.Add($trimmed)
+                        }
+                    }
+                }
+            }
+            # Append unauthorized entries with similar normalization.  For lines
+            # produced by "show auth-mac-addresses unauthorized-mac", the MAC
+            # address appears before the port.  Rearrange such entries and
+            # append a trailing "No" to indicate unauthorized state.
+            if ($authMacUnauthorized) {
+                foreach ($ln in $authMacUnauthorized) {
+                    $trimmed = $ln.Trim()
+                    if ($trimmed -eq '') { continue }
+                    if ($trimmed -match '^-+$' -or $trimmed -match '^(?i)mac\s+addresses' -or $trimmed -match '^(?i)port\s+vlan') { continue }
+                    if ($trimmed -match '([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4})\s+(\d+/\d+/\d+)\s+(\d+)\s+(Yes|No)') {
+                        $mac = $matches[1]; $port = $matches[2]; $vlan = $matches[3]; $authState = $matches[4]
+                        # Even if the line says "Yes", treat it as unauthorized (No)
+                        $outLine = "$port $mac dynamic $vlan No"
+                        [void]$combined.Add($outLine)
+                    } else {
+                        $parts = $trimmed -split '\s+'
+                        $lastField = $parts[-1]
+                        if ($lastField -notmatch '^(?i)yes|no$') {
+                            [void]$combined.Add(($trimmed + ' No'))
+                        } else {
+                            [void]$combined.Add($trimmed)
+                        }
+                    }
+                }
+            }
+            $macAuthBlockToUse = $combined.ToArray()
+        }
+        $auth = Get-AuthStatus $dot1xBlockToUse $macAuthBlockToUse
     }
     # $cfgResults and $configs are now computed above prior to calling Get-AuthModes.
     # NamesMap was also derived above; reuse here instead of recomputing.

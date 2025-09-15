@@ -3,13 +3,13 @@
     "common": [
       "terminal length 0",
       "show version",
-      "show running-config",
+      "show config",
       "show interfaces status",
       "show mac address-table",
       "show spanning-tree",
       "show lldp neighbors",
       "show cdp neighbors",
-      "show dot1x all",
+      "show authentication sessions",
       "show access-lists"
     ]
   },
