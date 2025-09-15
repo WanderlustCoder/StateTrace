@@ -109,41 +109,82 @@ function Get-CiscoDeviceFacts {
         # Regex with a specified maximum count for efficiency.
         $reHeader = [regex]::new('^Port\s+Name\s+Status')
         $reBlank  = [regex]::new('^\s*$')
-        # Note: compiled option is implied when using .new() with no options; passing
-        # RegexOptions.Compiled explicitly would require different .NET versions.
+        # Note: compiled option is implied when using .new() with no options.  This regex
+        # matches one or more whitespace characters and is used to split each line
+        # into individual tokens.  Splitting rather than matching columns allows
+        # us to reconstruct the Name field even when it contains spaces.
         $reWs     = [regex]::new('\s+')
-        # When parsing interface status lines, use a custom regex that tolerates
-        # spaces within the Name column.  The pattern captures the first
-        # non‑whitespace token as the Port, then greedily captures any text as
-        # the Name up to two or more spaces, and then captures the remaining
-        # columns (Status, VLAN, Duplex, Speed and Type).  Using two or more
-        # spaces as a delimiter ensures that single spaces within the Name are
-        # preserved.  Example: "Gi1/0/10   Users10 10 30    err-disabled 10         auto    a-100  10/100/1000BaseTX"
-        $reIntStatus = [regex]::new('^(?<Port>\S+)\s{2,}(?<Name>.*?)\s{2,}(?<Status>\S+)\s+(?<VLAN>\S+)\s+(?<Duplex>\S+)\s+(?<Speed>\S+)\s+(?<Type>.+)$')
 
         foreach ($l in $Lines) {
             if ($reHeader.IsMatch($l)) { $parsing = $true; continue }
             if ($parsing) {
+                # Stop when we hit a blank line which denotes the end of the status table
                 if ($reBlank.IsMatch($l)) { break }
-                # Use a regex to parse the line instead of splitting on whitespace.  This
-                # approach preserves spaces in the Name column and avoids skewed
-                # columns when descriptions contain spaces.  The regex captures
-                # each column explicitly.  If the line matches, extract the
-                # captured groups; otherwise, fall back to splitting on whitespace.
-                $m = $reIntStatus.Match($l)
-                if ($m.Success) {
-                    $raw = $m.Groups['Port'].Value
-                    [void]$res.Add([PSCustomObject]@{
-                        RawPort = $raw
-                        Port    = $raw
-                        Name    = ($m.Groups['Name'].Value.Trim())
-                        Status  = $m.Groups['Status'].Value
-                        VLAN    = $m.Groups['VLAN'].Value
-                        Duplex  = $m.Groups['Duplex'].Value
-                        Speed   = $m.Groups['Speed'].Value
-                        Type    = ($m.Groups['Type'].Value.Trim())
-                    })
+                # Split the line on whitespace.  The interface status output has
+                # seven logical columns: Port, Name, Status, Vlan, Duplex, Speed, Type.
+                # However, both the Name and Type columns can contain spaces or hyphens.
+                # To robustly parse the line, identify the Status field by scanning
+                # for a known status token and treat everything between Port and Status
+                # as the Name.
+                $tokens = $reWs.Split($l)
+                if ($tokens.Length -lt 2) { continue }
+                $raw        = $tokens[0]
+                $statusIdx  = -1
+                # Define a list of known status values.  These values are taken from
+                # typical 'show interface status' output and may need to be extended
+                # for other IOS versions.  Matching is case-insensitive.
+                $knownStatuses = @('connected','notconnect','disabled','err-disabled','inactive','suspended','sfp-config-mismatch','sfp-mismatch','sfp-not-present','routed','trunk','monitoring')
+                # Search for the first occurrence of a status token after the port.
+                for ($i = 1; $i -lt $tokens.Length; $i++) {
+                    $tok = $tokens[$i]
+                    if ($knownStatuses -contains $tok) {
+                        $statusIdx = $i
+                        break
+                    }
                 }
+                if ($statusIdx -eq -1) {
+                    # If we didn't find a known status, fall back to assuming the
+                    # status field begins five tokens from the end (the legacy logic).
+                    if ($tokens.Length -ge 7) {
+                        $statusIdx = $tokens.Length - 5
+                    } else {
+                        continue
+                    }
+                }
+                # Name consists of all tokens between the port and the status.
+                $nameTokens = @()
+                if ($statusIdx -gt 1) {
+                    $nameTokens = $tokens[1..($statusIdx - 1)]
+                }
+                $name   = ($nameTokens -join ' ').Trim()
+                $status = ''
+                $vlan   = ''
+                $duplex = ''
+                $speed  = ''
+                $type   = ''
+                # Extract Status and subsequent columns if they exist
+                if ($statusIdx -ge 0 -and $statusIdx -lt $tokens.Length) {
+                    $status = $tokens[$statusIdx]
+                    # VLAN, Duplex, Speed follow sequentially if available
+                    if ($statusIdx + 1 -lt $tokens.Length) { $vlan   = $tokens[$statusIdx + 1] }
+                    if ($statusIdx + 2 -lt $tokens.Length) { $duplex = $tokens[$statusIdx + 2] }
+                    if ($statusIdx + 3 -lt $tokens.Length) { $speed  = $tokens[$statusIdx + 3] }
+                    # Type may consist of one or more remaining tokens
+                    if ($statusIdx + 4 -lt $tokens.Length) {
+                        $typeTokens = $tokens[($statusIdx + 4)..($tokens.Length - 1)]
+                        $type = ($typeTokens -join ' ').Trim()
+                    }
+                }
+                [void]$res.Add([PSCustomObject]@{
+                    RawPort = $raw
+                    Port    = $raw
+                    Name    = $name
+                    Status  = $status
+                    VLAN    = $vlan
+                    Duplex  = $duplex
+                    Speed   = $speed
+                    Type    = $type
+                })
             }
         }
         return $res
@@ -318,7 +359,18 @@ function Get-CiscoDeviceFacts {
         $raw      = $iface.RawPort
         $cfgEntry = $configs[$raw]
         $cfgText  = if ($cfgEntry) { $cfgEntry.Config } else { '' }
-        $name     = if ($cfgEntry -and $cfgEntry.Description) { $cfgEntry.Description } else { $raw }
+        # Prefer the configured description when available.  Otherwise, fall back to
+        # the parsed Name from the interface status output, and finally to the raw
+        # port identifier if both are missing.  This preserves user-specified
+        # descriptions (including those with spaces or hyphens) and avoids
+        # empty names when a description is not configured.
+        $name     = if ($cfgEntry -and $cfgEntry.Description) {
+            $cfgEntry.Description
+        } elseif ($iface.Name -and $iface.Name.Trim().Length -gt 0) {
+            $iface.Name.Trim()
+        } else {
+            $raw
+        }
 
         # Retrieve MACs and first MAC row via lookup.  If no entry exists,
         $macListRef = $null

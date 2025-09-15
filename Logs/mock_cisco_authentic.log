@@ -388,10 +388,9 @@ interface GigabitEthernet1/0/28
  dot1x pae authenticator
  switchport voice vlan 100
  shutdown
-
 !
 interface GigabitEthernet1/0/29
- description Phone29
+ description P-ho---ne29-019D1
  switchport access vlan 20
  spanning-tree portfast
  authentication event fail action next-method
@@ -594,54 +593,54 @@ interface GigabitEthernet1/0/48
 end
 WLLS-A01-AS-01# show interface status
 Port      Name               Status       Vlan       Duplex  Speed Type
-Gi1/0/1    Users1           connected    10         a-full  a-100  10/100/1000BaseTX
-Gi1/0/2    Users2           connected    10         auto    a-100  10/100/1000BaseTX
-Gi1/0/3    Users3           disabled     10         a-full  a-1000 10/100/1000BaseTX
-Gi1/0/4    Users4           connected    10         auto    a-100  10/100/1000BaseTX
-Gi1/0/5    Users5           connected    10         a-full  a-100  10/100/1000BaseTX
-Gi1/0/6    Users6           connected    10         auto    a-1000 10/100/1000BaseTX
-Gi1/0/7    Users7           connected    10         a-full  a-100  10/100/1000BaseTX
-Gi1/0/8    Users8           notconnect   10         auto    a-100  10/100/1000BaseTX
-Gi1/0/9    Users9           connected    10         a-full  a-1000 10/100/1000BaseTX
-Gi1/0/10   Users10 10 30    err-disabled 10         auto    a-100  10/100/1000BaseTX
-Gi1/0/11   Users11          connected    10         a-full  a-100  10/100/1000BaseTX
-Gi1/0/12   Users12          connected    10         auto    a-1000 10/100/1000BaseTX
-Gi1/0/13   Users13          notconnect   10         a-full  a-100  10/100/1000BaseTX
-Gi1/0/14   Users14          connected    10         auto    a-100  10/100/1000BaseTX
-Gi1/0/15   Users15          connected    10         a-full  a-1000 10/100/1000BaseTX
-Gi1/0/16   Users16          connected    10         auto    a-100  10/100/1000BaseTX
-Gi1/0/17   Users17          connected    10         a-full  a-100  10/100/1000BaseTX
-Gi1/0/18   Users18          notconnect   10         auto    a-1000 10/100/1000BaseTX
-Gi1/0/19   Users19          connected    10         a-full  a-100  10/100/1000BaseTX
-Gi1/0/20   Users20          err-disabled 10         auto    a-100  10/100/1000BaseTX
-Gi1/0/21   Users21          connected    10         a-full  a-1000 10/100/1000BaseTX
-Gi1/0/22   Users22          connected    10         auto    a-100  10/100/1000BaseTX
-Gi1/0/23   Users23          notconnect   10         a-full  a-100  10/100/1000BaseTX
-Gi1/0/24   Users24          connected    10         auto    a-1000 10/100/1000BaseTX
-Gi1/0/25   Phone25          connected    20         a-full  a-100  10/100/1000BaseTX
-Gi1/0/26   Phone26          connected    20         auto    a-100  10/100/1000BaseTX
-Gi1/0/27   Phone27          connected    20         a-full  a-1000 10/100/1000BaseTX
-Gi1/0/28   Phone28          disabled     20         auto    a-100  10/100/1000BaseTX
-Gi1/0/29   Phone29          connected    20         a-full  a-100  10/100/1000BaseTX
-Gi1/0/30   Phone30          err-disabled 20         auto    a-1000 10/100/1000BaseTX
-Gi1/0/31   Phone31          connected    20         a-full  a-100  10/100/1000BaseTX
-Gi1/0/32   Phone32          connected    20         auto    a-100  10/100/1000BaseTX
-Gi1/0/33   Phone33          notconnect   20         a-full  a-1000 10/100/1000BaseTX
-Gi1/0/34   Phone34          connected    20         auto    a-100  10/100/1000BaseTX
-Gi1/0/35   Phone35          connected    20         a-full  a-100  10/100/1000BaseTX
-Gi1/0/36   Phone36          connected    20         auto    a-1000 10/100/1000BaseTX
-Gi1/0/37   Phone37          connected    20         a-full  a-100  10/100/1000BaseTX
-Gi1/0/38   Phone38          notconnect   20         auto    a-100  10/100/1000BaseTX
-Gi1/0/39   Phone39          connected    20         a-full  a-1000 10/100/1000BaseTX
-Gi1/0/40   Phone40          err-disabled 20         auto    a-100  10/100/1000BaseTX
-Gi1/0/41   Guest41          connected    30         a-full  a-100  10/100/1000BaseTX
-Gi1/0/42   Guest42          connected    30         auto    a-1000 10/100/1000BaseTX
-Gi1/0/43   Guest43          notconnect   30         a-full  a-100  10/100/1000BaseTX
-Gi1/0/44   Guest44          disabled     30         auto    a-100  10/100/1000BaseTX
-Gi1/0/45   Guest45          connected    30         a-full  a-1000 10/100/1000BaseTX
-Gi1/0/46   Guest46          connected    30         auto    a-100  10/100/1000BaseTX
-Gi1/0/47   Uplink47         connected    trunk      a-full  a-100  10GBaseSX
-Gi1/0/48   Uplink48         notconnect   trunk      auto    a-1000 10GBaseSX
+Gi1/0/1    Users1            connected    10         a-full  a-100  10/100/1000BaseTX
+Gi1/0/2    Users2            connected    10         auto    a-100  10/100/1000BaseTX
+Gi1/0/3    Users3            disabled     10         a-full  a-1000 10/100/1000BaseTX
+Gi1/0/4    Users4            connected    10         auto    a-100  10/100/1000BaseTX
+Gi1/0/5    Users5            connected    10         a-full  a-100  10/100/1000BaseTX
+Gi1/0/6    Users6            connected    10         auto    a-1000 10/100/1000BaseTX
+Gi1/0/7    Users7            connected    10         a-full  a-100  10/100/1000BaseTX
+Gi1/0/8    Users8            notconnect   10         auto    a-100  10/100/1000BaseTX
+Gi1/0/9    Users9            connected    10         a-full  a-1000 10/100/1000BaseTX
+Gi1/0/10   Users10 10 30     err-disabled 10         auto    a-100  10/100/1000BaseTX
+Gi1/0/11   Users11           connected    10         a-full  a-100  10/100/1000BaseTX
+Gi1/0/12   Users12           connected    10         auto    a-1000 10/100/1000BaseTX
+Gi1/0/13   Users13           notconnect   10         a-full  a-100  10/100/1000BaseTX
+Gi1/0/14   Users14           connected    10         auto    a-100  10/100/1000BaseTX
+Gi1/0/15   Users15           connected    10         a-full  a-1000 10/100/1000BaseTX
+Gi1/0/16   Users16           connected    10         auto    a-100  10/100/1000BaseTX
+Gi1/0/17   Users17           connected    10         a-full  a-100  10/100/1000BaseTX
+Gi1/0/18   Users18           notconnect   10         auto    a-1000 10/100/1000BaseTX
+Gi1/0/19   Users19           connected    10         a-full  a-100  10/100/1000BaseTX
+Gi1/0/20   Users20           err-disabled 10         auto    a-100  10/100/1000BaseTX
+Gi1/0/21   Users21           connected    10         a-full  a-1000 10/100/1000BaseTX
+Gi1/0/22   Users22           connected    10         auto    a-100  10/100/1000BaseTX
+Gi1/0/23   Users23           notconnect   10         a-full  a-100  10/100/1000BaseTX
+Gi1/0/24   Users24           connected    10         auto    a-1000 10/100/1000BaseTX
+Gi1/0/25   Phone25           connected    20         a-full  a-100  10/100/1000BaseTX
+Gi1/0/26   Phone26           connected    20         auto    a-100  10/100/1000BaseTX
+Gi1/0/27   Phone27           connected    20         a-full  a-1000 10/100/1000BaseTX
+Gi1/0/28   Phone28           disabled     20         auto    a-100  10/100/1000BaseTX
+Gi1/0/29   P-ho---ne29-019D1 connected    20         a-full  a-100  10/100/1000BaseTX
+Gi1/0/30   Phone30           err-disabled 20         auto    a-1000 10/100/1000BaseTX
+Gi1/0/31   Phone31           connected    20         a-full  a-100  10/100/1000BaseTX
+Gi1/0/32   Phone32           connected    20         auto    a-100  10/100/1000BaseTX
+Gi1/0/33   Phone33           notconnect   20         a-full  a-1000 10/100/1000BaseTX
+Gi1/0/34   Phone34           connected    20         auto    a-100  10/100/1000BaseTX
+Gi1/0/35   Phone35           connected    20         a-full  a-100  10/100/1000BaseTX
+Gi1/0/36   Phone36           connected    20         auto    a-1000 10/100/1000BaseTX
+Gi1/0/37   Phone37           connected    20         a-full  a-100  10/100/1000BaseTX
+Gi1/0/38   Phone38           notconnect   20         auto    a-100  10/100/1000BaseTX
+Gi1/0/39   Phone39           connected    20         a-full  a-1000 10/100/1000BaseTX
+Gi1/0/40   Phone40           err-disabled 20         auto    a-100  10/100/1000BaseTX
+Gi1/0/41   Guest41           connected    30         a-full  a-100  10/100/1000BaseTX
+Gi1/0/42   Guest42           connected    30         auto    a-1000 10/100/1000BaseTX
+Gi1/0/43   Guest43           notconnect   30         a-full  a-100  10/100/1000BaseTX
+Gi1/0/44   Guest44           disabled     30         auto    a-100  10/100/1000BaseTX
+Gi1/0/45   Guest45           connected    30         a-full  a-1000 10/100/1000BaseTX
+Gi1/0/46   Guest46           connected    30         auto    a-100  10/100/1000BaseTX
+Gi1/0/47   Uplink47          connected    trunk      a-full  a-100  10GBaseSX
+Gi1/0/48   Uplink48          notconnect   trunk      auto    a-1000 10GBaseSX
 
 WLLS-A01-AS-01# show mac address-table
 Mac Address Table
