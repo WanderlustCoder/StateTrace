@@ -1,0 +1,20 @@
+﻿--- StateTrace diagnostic log ---
+[2025-09-12 15:40:22.610] Logging to: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\StateTrace_Debug_20250912_154022.log
+[2025-09-12 15:40:22.621] Host LanguageMode: FullLanguage
+[2025-09-12 15:40:22.626] Default runspace LanguageMode: FullLanguage
+[2025-09-12 15:40:22.628] Host keyword 'if' ok: True
+[2025-09-12 15:40:33.448] Filter fail | LangMode=FullLanguage | FQEID=ParameterArgumentValidationErrorEmptyArrayNotAllowed,Set-DropdownItems | Cat=InvalidData: (:) [Set-DropdownItems], ParameterBindingValidationException
+[2025-09-12 15:40:33.451] Position: At C:\Users\Werem\OneDrive\Documents\StateTrace\Modules\DeviceDataModule.psm1:679 char:51 | +     Set-DropdownItems -Control $hostnameDD -Items $filteredNames | +                                                   ~~~~~~~~~~~~~~
+[2025-09-12 15:40:33.455] Stack: at Update-DeviceFilter, C:\Users\Werem\OneDrive\Documents\StateTrace\Modules\DeviceDataModule.psm1: line 679 | at <ScriptBlock>, C:\Users\Werem\OneDrive\Documents\StateTrace\Main\MainWindow.ps1: line 506 | at <ScriptBlock>, C:\Users\Werem\OneDrive\Documents\StateTrace\Main\MainWindow.ps1: line 684
+[2025-09-12 15:40:33.797] Request-DeviceFilterUpdate suppressed (faulted)
+[2025-09-12 15:40:33.801] Request-DeviceFilterUpdate suppressed (faulted)
+[2025-09-12 15:40:33.806] Filter fail | LangMode=FullLanguage | FQEID=ParameterArgumentValidationErrorEmptyArrayNotAllowed,Set-DropdownItems | Cat=InvalidData: (:) [Set-DropdownItems], ParameterBindingValidationException
+[2025-09-12 15:40:33.808] Position: At C:\Users\Werem\OneDrive\Documents\StateTrace\Modules\DeviceDataModule.psm1:679 char:51 | +     Set-DropdownItems -Control $hostnameDD -Items $filteredNames | +                                                   ~~~~~~~~~~~~~~
+[2025-09-12 15:40:33.809] Stack: at Update-DeviceFilter, C:\Users\Werem\OneDrive\Documents\StateTrace\Modules\DeviceDataModule.psm1: line 679 | at <ScriptBlock>, C:\Users\Werem\OneDrive\Documents\StateTrace\Main\MainWindow.ps1: line 506 | at <ScriptBlock>, C:\Users\Werem\OneDrive\Documents\StateTrace\Main\MainWindow.ps1: line 684
+[2025-09-12 15:40:48.925] Request-DeviceFilterUpdate suppressed (faulted)
+[2025-09-12 15:40:50.624] Request-DeviceFilterUpdate suppressed (faulted)
+[2025-09-12 15:44:26.197] Request-DeviceFilterUpdate suppressed (faulted)
+[2025-09-12 15:44:30.783] Request-DeviceFilterUpdate suppressed (faulted)
+[2025-09-12 15:44:35.257] Request-DeviceFilterUpdate suppressed (faulted)
+[2025-09-12 15:44:42.034] Request-DeviceFilterUpdate suppressed (faulted)
+[2025-09-12 15:44:44.064] Request-DeviceFilterUpdate suppressed (faulted)

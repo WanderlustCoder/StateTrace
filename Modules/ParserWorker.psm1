@@ -137,6 +137,15 @@ function Start-ParallelDeviceProcessing {
     )
     # Create a runspace pool with a maximum thread count.  The minimum is
     $sessionState = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
+    # Explicitly set the language mode to FullLanguage.  Without this,
+    # worker runspaces may inherit a restricted language mode (such as
+    # NoLanguage or ConstrainedLanguage) from the host, which prevents
+    # fundamental keywords like `if`, `foreach`, and `try` from being
+    # recognized.  This leads to errors such as "The term 'if' is not
+    # recognized as the name of a cmdlet, function, script file, or operable
+    # program" when parsing device logs.  Setting FullLanguage ensures
+    # the parsing script can execute normally in all environments.
+    $sessionState.LanguageMode = [System.Management.Automation.PSLanguageMode]::FullLanguage
     $runspacePool = [runspacefactory]::CreateRunspacePool(1, $MaxThreads, $sessionState, $Host)
     $runspacePool.Open()
     # Use a typed List[object] to collect runspaces efficiently, avoiding
@@ -147,6 +156,42 @@ function Start-ParallelDeviceProcessing {
         # Build the script block to execute in each runspace.  Import the vendor
         $ps.AddScript({
             param($filePath, $modulesPath, $archiveRoot, $dbPath)
+            # Worker diagnostics are enabled by default.  The following preferences
+            # ensure verbose, debug and error streams flow without manual toggling.
+            $VerbosePreference       = 'Continue'
+            $DebugPreference         = 'Continue'
+            $ErrorActionPreference   = 'Stop'
+            # Set up a simple worker log.  Each worker writes to a per-day file under
+            # Documents\StateTrace\Logs.  The log will also output to the verbose stream.
+            $userDocs = [Environment]::GetFolderPath('MyDocuments')
+            $wrLogDir = Join-Path $userDocs 'StateTrace\Logs'
+            try {
+                if (-not (Test-Path $wrLogDir)) { New-Item -ItemType Directory -Path $wrLogDir -Force | Out-Null }
+            } catch { }
+            $wrLog = Join-Path $wrLogDir ('StateTrace_Worker_{0}.log' -f (Get-Date -Format 'yyyyMMdd'))
+            function WLog {
+                param([string]$m)
+                try {
+                    $line = "[{0}] [Worker] {1}" -f (Get-Date -Format 'HH:mm:ss.fff'), $m
+                    Add-Content -LiteralPath $wrLog -Value $line -ErrorAction SilentlyContinue
+                    Write-Verbose $line
+                } catch { Write-Verbose $m }
+            }
+            # Validate the runspace language mode before doing any work.  When a runspace is
+            # created without an explicit InitialSessionState, enterprise policy may
+            # constrain it to NoLanguage or ConstrainedLanguage.  In such cases, keywords
+            # like `if`, `foreach` and `try` will be treated as unknown commands and the
+            # parser will fail with messages like "The term 'if' is not recognized".
+            $lm = $ExecutionContext.SessionState.LanguageMode
+            # Smoke test: verify if/try keywords function in this runspace
+            $kwOK = $false
+            try { if ($true) { $kwOK = $true } } catch { $kwOK = $false }
+            WLog ("LangMode={0} | keyword_if_ok={1}" -f $lm, $kwOK)
+            if ($lm -ne [System.Management.Automation.PSLanguageMode]::FullLanguage) {
+                throw "Worker runspace LanguageMode is $lm (expected FullLanguage)"
+            }
+            # Import vendor and parser modules into the worker runspace.  Use Join-Path to
+            # construct absolute module paths based on the provided ModulesPath parameter.
             Import-Module (Join-Path $modulesPath 'AristaModule.psm1') -Force
             Import-Module (Join-Path $modulesPath 'CiscoModule.psm1') -Force
             Import-Module (Join-Path $modulesPath 'BrocadeModule.psm1') -Force
@@ -156,7 +201,27 @@ function Start-ParallelDeviceProcessing {
             # conditionally load it based on $dbPath or path existence.
             Import-Module (Join-Path $modulesPath 'DatabaseModule.psm1') -Force -Global
             # Invoke the parser.  Pass ArchiveRoot and DatabasePath so that
-            Invoke-DeviceLogParsing -FilePath $filePath -ArchiveRoot $archiveRoot -DatabasePath $dbPath
+            # log output is archived and summarised into the database.  Wrap the
+            # invocation in a try/catch to surface any exceptions with full context.
+            try {
+                WLog ("Parsing: {0}" -f $filePath)
+                Invoke-DeviceLogParsing -FilePath $filePath -ArchiveRoot $archiveRoot -DatabasePath $dbPath
+                WLog ("Parsing complete: {0}" -f $filePath)
+            } catch {
+                $emsg = $_.Exception.Message
+                $pos  = ''
+                try { $pos = $_.InvocationInfo.PositionMessage } catch { }
+                $stk  = ''
+                try { $stk = $_.ScriptStackTrace } catch { }
+                $msg  = "Log parsing failed in worker: $emsg"
+                $msg += "`nWorker LangMode: $lm"
+                if ($_.FullyQualifiedErrorId) { $msg += "`nFQEID: $($_.FullyQualifiedErrorId)" }
+                if ($_.CategoryInfo)         { $msg += "`nCategory: $($_.CategoryInfo)" }
+                if ($pos) { $msg += "`nPosition:`n$pos" }
+                if ($stk) { $msg += "`nStack:`n$stk" }
+                WLog $msg
+                throw $msg
+            }
         }).AddArgument($file).AddArgument($ModulesPath).AddArgument($ArchiveRoot).AddArgument($DatabasePath)
         [void]$runspaces.Add([PSCustomObject]@{
             Pipe = $ps

@@ -28,6 +28,9 @@
       <Label Content="Site:" VerticalAlignment="Center" Margin="15,0,0,0" Foreground="White"/>
       <!-- Make the site dropdown editable so users can type to filter sites. -->
       <ComboBox Name="SiteDropdown" Width="80" Margin="5,0" IsEditable="True" IsTextSearchEnabled="True"/>
+      <Label Content="Zone:" VerticalAlignment="Center" Foreground="White"/>
+      <!-- Zone dropdown with search capability -->
+      <ComboBox Name="ZoneDropdown" Width="80" Margin="5,0" IsEditable="True" IsTextSearchEnabled="True"/>
       <Label Content="Building:" VerticalAlignment="Center" Foreground="White"/>
       <!-- Building dropdown with search capability -->
       <ComboBox Name="BuildingDropdown" Width="100" Margin="5,0" IsEditable="True" IsTextSearchEnabled="True"/>

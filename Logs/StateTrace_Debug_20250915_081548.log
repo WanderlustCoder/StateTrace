@@ -1,0 +1,33 @@
+﻿--- StateTrace diagnostic log ---
+[2025-09-15 08:15:48.886] Logging to: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\StateTrace_Debug_20250915_081548.log
+[2025-09-15 08:15:48.897] Host LanguageMode: FullLanguage
+[2025-09-15 08:15:48.901] Default runspace LanguageMode: FullLanguage
+[2025-09-15 08:15:48.903] Host keyword 'if' ok: True
+[2025-09-15 08:15:52.010] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:15:52.016] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:15:52.020] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:15:53.778] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:15:53.782] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:15:57.741] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:15:57.745] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:15:57.755] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:15:57.760] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:15:57.778] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:15:57.911] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:16:12.480] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:16:12.487] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:16:12.496] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:16:12.502] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:16:12.506] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:16:12.609] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:16:17.743] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:16:17.796] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:16:17.932] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:16:17.942] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:16:17.945] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:16:18.028] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:16:33.530] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:16:33.536] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:16:33.541] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:16:33.549] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:16:33.649] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)

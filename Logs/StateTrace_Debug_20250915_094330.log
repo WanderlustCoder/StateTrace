@@ -1,0 +1,33 @@
+﻿--- StateTrace diagnostic log ---
+[2025-09-15 09:43:30.485] Logging to: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\StateTrace_Debug_20250915_094330.log
+[2025-09-15 09:43:30.497] Host LanguageMode: FullLanguage
+[2025-09-15 09:43:30.502] Default runspace LanguageMode: FullLanguage
+[2025-09-15 09:43:30.504] Host keyword 'if' ok: True
+[2025-09-15 09:43:34.495] Update-DeviceFilter: siteSel='BOYO', zoneSel='All Zones', bldSel='', siteChanged=True, zoneChanged=True, bldChanged=False
+[2025-09-15 09:43:34.504] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 09:43:34.506] ZoneSelection | firstRunOrSiteChange=True, lastZone='', selectIndex=1, selectItem='', finalSelected='A05'
+[2025-09-15 09:43:34.512] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 09:43:34.514] HostFilter | site='BOYO', zone='A05', building='', room='', count=1, sample=[BOYO-A05-AS-05]
+[2025-09-15 09:43:34.518] HostFilter | site='BOYO', zone='A05', building='', room='', count=1, examples=[BOYO-A05-AS-05]
+[2025-09-15 09:43:34.522] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 09:43:34.611] CompareHostFilter | site='', zone='', building='', room='', count=6, sample=[BOYO-A05-AS-05,WLLS-A01-AS-01,WLLS-A02-AS-02,WLLS-A03-AS-03,WLLS-A05-AS-05]
+[2025-09-15 09:43:36.491] Update-DeviceFilter: siteSel='BOYO', zoneSel='A05', bldSel='', siteChanged=False, zoneChanged=False, bldChanged=False
+[2025-09-15 09:43:36.496] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 09:43:36.500] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 09:43:36.502] ZoneSelection | firstRunOrSiteChange=False, lastZone='A05', selectIndex=0, selectItem='A05', finalSelected='A05'
+[2025-09-15 09:43:36.505] HostFilter | site='BOYO', zone='A05', building='', room='', count=1, sample=[BOYO-A05-AS-05]
+[2025-09-15 09:43:36.508] HostFilter | site='BOYO', zone='A05', building='', room='', count=1, examples=[BOYO-A05-AS-05]
+[2025-09-15 09:43:36.573] CompareHostFilter | site='', zone='', building='', room='', count=6, sample=[BOYO-A05-AS-05,WLLS-A01-AS-01,WLLS-A02-AS-02,WLLS-A03-AS-03,WLLS-A05-AS-05]
+[2025-09-15 09:43:43.168] Update-DeviceFilter: siteSel='WLLS', zoneSel='A05', bldSel='', siteChanged=True, zoneChanged=False, bldChanged=False
+[2025-09-15 09:43:43.177] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 09:43:43.180] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 09:43:43.184] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 09:43:43.187] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 09:43:43.191] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 09:43:43.194] ZoneSelection | firstRunOrSiteChange=True, lastZone='', selectIndex=1, selectItem='', finalSelected='A01'
+[2025-09-15 09:43:43.196] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 09:43:43.199] HostFilter | site='WLLS', zone='A01', building='', room='', count=1, sample=[WLLS-A01-AS-01]
+[2025-09-15 09:43:43.275] HostFilter | site='WLLS', zone='A01', building='', room='', count=1, examples=[WLLS-A01-AS-01]
+[2025-09-15 09:43:43.278] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 09:43:43.344] CompareHostFilter | site='', zone='', building='', room='', count=6, sample=[BOYO-A05-AS-05,WLLS-A01-AS-01,WLLS-A02-AS-02,WLLS-A03-AS-03,WLLS-A05-AS-05]
+[2025-09-15 09:44:29.960] CompareHostFilter | site='', zone='', building='', room='', count=6, sample=[BOYO-A05-AS-05,WLLS-A01-AS-01,WLLS-A02-AS-02,WLLS-A03-AS-03,WLLS-A05-AS-05]

@@ -3,6 +3,90 @@
 # Load WPF once (PresentationFramework pulls in PresentationCore & WindowsBase).
 Add-Type -AssemblyName PresentationFramework
 
+# ---- Diagnostics configuration (startup) ----
+# Disable verbose and debug output by default.  Setting StateTraceDebug to
+# $false ensures Write-Diag becomes a no-op.  Verbose and debug streams are
+# suppressed by switching the preferences to SilentlyContinue.  This prevents
+# diagnostic chatter in the console and avoids creating log files unless
+# explicitly re‑enabled.
+$Global:StateTraceDebug     = $false
+$VerbosePreference          = 'SilentlyContinue'
+$DebugPreference            = 'SilentlyContinue'
+$ErrorActionPreference      = 'Continue'
+
+# Define a simple diagnostic logger that writes both to the verbose stream and
+# to a timestamped log file in the user's Documents\StateTrace\Logs directory.
+function Write-Diag {
+    param([string]$Message)
+    # Only emit diagnostics when the global debug flag is enabled.  When
+    # $Global:StateTraceDebug is $false, this function does nothing,
+    # preventing verbose output and log file writes.
+    if (-not $Global:StateTraceDebug) { return }
+    try {
+        $ts = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss.fff')
+        $line = "[$ts] $Message"
+        Write-Verbose $line
+        if ($script:DiagLogPath) {
+            Add-Content -LiteralPath $script:DiagLogPath -Value $line -ErrorAction SilentlyContinue
+        }
+    } catch { }
+}
+
+# Prepare diagnostic log directory and file only when debugging is enabled.
+if ($Global:StateTraceDebug) {
+    try {
+        $userDocs = [Environment]::GetFolderPath('MyDocuments')
+        $logRoot  = Join-Path $userDocs 'StateTrace\Logs'
+        if (-not (Test-Path $logRoot)) {
+            New-Item -ItemType Directory -Force -Path $logRoot | Out-Null
+        }
+        $script:DiagLogPath = Join-Path $logRoot (
+            "StateTrace_Debug_{0}.log" -f (Get-Date -Format 'yyyyMMdd_HHmmss')
+        )
+        '--- StateTrace diagnostic log ---' | Out-File -LiteralPath $script:DiagLogPath -Encoding utf8 -Force
+        Write-Diag ("Logging to: $script:DiagLogPath")
+    } catch { }
+}
+
+# Attempt to set the host runspace to FullLanguage (best effort).  Some enterprise
+# environments default the host runspace to NoLanguage, which prevents
+# PowerShell keywords (if/foreach/try) from functioning in the UI thread.  This
+# try/catch ensures we at least attempt to elevate the LanguageMode; if the
+# policy blocks it, we continue silently.  Verbose output will indicate the
+# result when $Global:StateTraceDebug is enabled.
+try {
+    $ExecutionContext.SessionState.LanguageMode = [System.Management.Automation.PSLanguageMode]::FullLanguage
+    Write-Diag ("Host LanguageMode: {0}" -f $ExecutionContext.SessionState.LanguageMode)
+} catch {
+    Write-Diag ("Host LanguageMode remains: {0}" -f $ExecutionContext.SessionState.LanguageMode)
+}
+
+# In some environments the host runspace's LanguageMode cannot be changed via
+# $ExecutionContext.SessionState.  Attempt to update the default runspace
+# LanguageMode via the SessionStateProxy as an additional best‑effort fallback.
+try {
+    $defaultRs = [System.Management.Automation.Runspaces.Runspace]::DefaultRunspace
+    if ($null -ne $defaultRs) {
+        $defaultRs.SessionStateProxy.LanguageMode = [System.Management.Automation.PSLanguageMode]::FullLanguage
+        Write-Diag (
+            "Default runspace LanguageMode: {0}" -f $defaultRs.SessionStateProxy.LanguageMode
+        )
+    }
+} catch {
+    Write-Diag (
+        "Failed to set default runspace LanguageMode; current: {0}" -f ([System.Management.Automation.Runspaces.Runspace]::DefaultRunspace.SessionStateProxy.LanguageMode)
+    )
+}
+
+# Smoke test the 'if' keyword in the host runspace.  This small test attempts
+# to execute a simple if statement; in NoLanguage mode it will throw and
+# set $HostKeywordOK to false.  Logging helps diagnose LanguageMode issues.
+try {
+    $HostKeywordOK = $false
+    try { if ($true) { $HostKeywordOK = $true } } catch { $HostKeywordOK = $false }
+    Write-Diag ("Host keyword 'if' ok: {0}" -f $HostKeywordOK)
+} catch { }
+
 # Paths
 $scriptDir    = $PSScriptRoot
 if ($null -eq $Global:StateTraceDebug) { $Global:StateTraceDebug = $false }
@@ -153,6 +237,15 @@ if (-not $script:ViewsInitialized) {
 
     $script:ViewsInitialized = $true
 }
+
+# Global flag used to suppress Request-DeviceFilterUpdate while we are programmatically
+# modifying the filter dropdowns inside Update-DeviceFilter.  When this flag is
+# set to $true, calls to Request-DeviceFilterUpdate will be ignored.  The flag is
+# defined on the global scope so it can be accessed by both MainWindow.ps1 and
+# DeviceDataModule.psm1.  Initialise it here if not already present.
+if (-not $global:ProgrammaticFilterUpdate) {
+    $global:ProgrammaticFilterUpdate = $false
+}
 # === END View initialization helpers (MainWindow.ps1) ===
 
 # === BEGIN Main window control hooks (MainWindow.ps1) ===
@@ -256,8 +349,13 @@ function Import-DeviceDetailsAsync {
         $modulePath = Join-Path $scriptDir "..\Modules\DeviceDataModule.psm1"
     }
     try {
-        # Create a dedicated STA runspace for background processing.  Running the
-        $rs = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace()
+        # Create a dedicated STA runspace for background processing.  Use a custom
+        # InitialSessionState with FullLanguage enabled so that script keywords
+        # (`if`, `foreach`, `try`, etc.) and advanced language features work even
+        # when the host or policy would otherwise restrict the language mode.
+        $iss = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
+        $iss.LanguageMode = [System.Management.Automation.PSLanguageMode]::FullLanguage
+        $rs = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace($iss)
         $rs.ApartmentState = [System.Threading.ApartmentState]::STA
         $rs.ThreadOptions  = [System.Management.Automation.Runspaces.PSThreadOptions]::ReuseThread
         $rs.Open()
@@ -428,13 +526,36 @@ if (-not $script:FilterUpdateTimer) {
                 try { Update-CompareView -Window $window | Out-Null } catch {}
             }
         } catch {
-            Write-Warning ("Device filter update failed: {0}" -f $_.Exception.Message)
+            $emsg = $_.Exception.Message
+            $pos  = ''
+            try { $pos = $_.InvocationInfo.PositionMessage } catch { }
+            $stk  = ''
+            try { $stk = $_.ScriptStackTrace } catch { }
+            # Log to UI and diagnostics log
+            Write-Warning ("Device filter update failed: {0}" -f $emsg)
+            Write-Diag ("Filter fail | LangMode={0} | FQEID={1} | Cat={2}" -f $ExecutionContext.SessionState.LanguageMode, $_.FullyQualifiedErrorId, $_.CategoryInfo)
+            if ($pos) { Write-Diag ("Position: " + ($pos -replace "`r?`n", " | ")) }
+            if ($stk) { Write-Diag ("Stack: " + ($stk -replace "`r?`n", " | ")) }
+            # Mark the filter updater as faulted to prevent repeated attempts.  The
+            # DeviceFilterUpdating flag prevents concurrent calls, but a recurrent
+            # failure can still result in an endless loop if we keep retrying.
+            $script:DeviceFilterFaulted = $true
         }
     })
 }
 
 function Request-DeviceFilterUpdate {
-    # restart the timer; successive calls coalesce into one update
+    # Do not re-arm the filter timer if a prior invocation has faulted or if we are
+    # performing a programmatic dropdown update.  When $script:DeviceFilterFaulted
+    # is true (set by the timer catch handler), we suppress all further filter
+    # updates to avoid an endless loop.  When $global:ProgrammaticFilterUpdate
+    # is true (set by Update-DeviceFilter while repopulating dropdowns), we
+    # ignore user-initiated selection events to prevent recursive updates.
+    if ($script:DeviceFilterFaulted -or $global:ProgrammaticFilterUpdate) {
+        Write-Diag "Request-DeviceFilterUpdate suppressed (faulted or programmatic update)"
+        return
+    }
+    # Restart the timer; successive calls coalesce into one update
     $script:FilterUpdateTimer.Stop()
     $script:FilterUpdateTimer.Start()
 }
@@ -446,7 +567,9 @@ function Get-FilterDropdowns {
     [CmdletBinding()]
     param([Parameter(Mandatory)][Windows.Window]$Window)
 
-    foreach ($name in 'SiteDropdown','BuildingDropdown','RoomDropdown') {
+    # Include ZoneDropdown alongside Site, Building and Room so that changing
+    # zone triggers the debounced filter update as well.
+    foreach ($name in 'SiteDropdown','ZoneDropdown','BuildingDropdown','RoomDropdown') {
         if ($script:FilterHandlers.ContainsKey($name)) { continue }
         $ctrl = $Window.FindName($name)
         if ($ctrl) {

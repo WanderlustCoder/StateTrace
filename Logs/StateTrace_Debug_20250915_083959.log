@@ -1,0 +1,65 @@
+﻿--- StateTrace diagnostic log ---
+[2025-09-15 08:39:59.041] Logging to: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\StateTrace_Debug_20250915_083959.log
+[2025-09-15 08:39:59.052] Host LanguageMode: FullLanguage
+[2025-09-15 08:39:59.057] Default runspace LanguageMode: FullLanguage
+[2025-09-15 08:39:59.059] Host keyword 'if' ok: True
+[2025-09-15 08:40:02.647] Update-DeviceFilter: siteSel='BOYO', zoneSel='All Zones', bldSel='', siteChanged=True, zoneChanged=True, bldChanged=False
+[2025-09-15 08:40:02.665] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:40:02.667] ZoneSelection | firstRunOrSiteChange=True, lastZone='', selectIndex=1, selectItem='', finalSelected='A05'
+[2025-09-15 08:40:02.673] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:40:02.675] HostFilter | site='BOYO', zone='A05', building='', room='', count=1, sample=[BOYO-A05-AS-05]
+[2025-09-15 08:40:02.678] HostFilter | site='BOYO', zone='A05', building='', room='', count=1, examples=[BOYO-A05-AS-05]
+[2025-09-15 08:40:02.681] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:40:04.418] Update-DeviceFilter: siteSel='BOYO', zoneSel='A05', bldSel='', siteChanged=False, zoneChanged=False, bldChanged=False
+[2025-09-15 08:40:04.421] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:40:04.425] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:40:04.427] ZoneSelection | firstRunOrSiteChange=False, lastZone='A05', selectIndex=0, selectItem='A05', finalSelected='A05'
+[2025-09-15 08:40:04.430] HostFilter | site='BOYO', zone='A05', building='', room='', count=1, sample=[BOYO-A05-AS-05]
+[2025-09-15 08:40:04.439] HostFilter | site='BOYO', zone='A05', building='', room='', count=1, examples=[BOYO-A05-AS-05]
+[2025-09-15 08:40:10.790] Update-DeviceFilter: siteSel='WLLS', zoneSel='A05', bldSel='', siteChanged=True, zoneChanged=False, bldChanged=False
+[2025-09-15 08:40:10.797] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:40:10.803] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:40:10.808] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:40:10.811] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:40:10.819] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:40:10.822] ZoneSelection | firstRunOrSiteChange=True, lastZone='', selectIndex=1, selectItem='', finalSelected='A01'
+[2025-09-15 08:40:10.824] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:40:10.826] HostFilter | site='WLLS', zone='A01', building='', room='', count=1, sample=[WLLS-A01-AS-01]
+[2025-09-15 08:40:10.897] HostFilter | site='WLLS', zone='A01', building='', room='', count=1, examples=[WLLS-A01-AS-01]
+[2025-09-15 08:40:10.905] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:40:16.321] Update-DeviceFilter: siteSel='WLLS', zoneSel='A07', bldSel='', siteChanged=False, zoneChanged=True, bldChanged=False
+[2025-09-15 08:40:16.326] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:40:16.330] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:40:16.335] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:40:16.337] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:40:16.345] ZoneSelection | firstRunOrSiteChange=False, lastZone='', selectIndex=0, selectItem='A07', finalSelected='A07'
+[2025-09-15 08:40:16.350] HostFilter | site='WLLS', zone='A07', building='', room='', count=1, sample=[WLLS-A07-AS-07]
+[2025-09-15 08:40:16.551] HostFilter | site='WLLS', zone='A07', building='', room='', count=1, examples=[WLLS-A07-AS-07]
+[2025-09-15 08:40:16.558] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:40:20.447] Update-DeviceFilter: siteSel='WLLS', zoneSel='All Zones', bldSel='', siteChanged=False, zoneChanged=True, bldChanged=False
+[2025-09-15 08:40:20.466] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:40:20.474] ZoneSelection | firstRunOrSiteChange=False, lastZone='', selectIndex=0, selectItem='', finalSelected='All Zones'
+[2025-09-15 08:40:20.483] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:40:20.490] HostFilter | site='WLLS', zone='All Zones', building='', room='', count=5, sample=[WLLS-A07-AS-07,WLLS-A05-AS-05,WLLS-A03-AS-03,WLLS-A02-AS-02,WLLS-A01-AS-01]
+[2025-09-15 08:40:20.614] HostFilter | site='WLLS', zone='All Zones', building='', room='', count=5, examples=[WLLS-A01-AS-01, WLLS-A02-AS-02, WLLS-A03-AS-03]
+[2025-09-15 08:40:20.617] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:43:05.949] Update-DeviceFilter: siteSel='BOYO', zoneSel='All Zones', bldSel='', siteChanged=True, zoneChanged=False, bldChanged=False
+[2025-09-15 08:43:05.960] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:43:05.964] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:43:05.971] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:43:05.977] ZoneSelection | firstRunOrSiteChange=True, lastZone='', selectIndex=1, selectItem='', finalSelected='A05'
+[2025-09-15 08:43:05.982] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:43:05.988] HostFilter | site='BOYO', zone='A05', building='', room='', count=1, sample=[BOYO-A05-AS-05]
+[2025-09-15 08:43:06.075] HostFilter | site='BOYO', zone='A05', building='', room='', count=1, examples=[BOYO-A05-AS-05]
+[2025-09-15 08:43:06.079] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:43:15.156] Update-DeviceFilter: siteSel='WLLS', zoneSel='A05', bldSel='', siteChanged=True, zoneChanged=False, bldChanged=False
+[2025-09-15 08:43:15.165] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:43:15.169] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:43:15.171] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:43:15.184] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:43:15.189] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:43:15.193] ZoneSelection | firstRunOrSiteChange=True, lastZone='', selectIndex=1, selectItem='', finalSelected='A01'
+[2025-09-15 08:43:15.195] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)
+[2025-09-15 08:43:15.199] HostFilter | site='WLLS', zone='A01', building='', room='', count=1, sample=[WLLS-A01-AS-01]
+[2025-09-15 08:43:15.256] HostFilter | site='WLLS', zone='A01', building='', room='', count=1, examples=[WLLS-A01-AS-01]
+[2025-09-15 08:43:15.259] Request-DeviceFilterUpdate suppressed (faulted or programmatic update)

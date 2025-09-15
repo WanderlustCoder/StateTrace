@@ -6,6 +6,8 @@ if (-not (Get-Variable -Name DeviceFilterUpdating -Scope Script -ErrorAction Sil
 # Track previous selections for site and building so dependent lists can be reset.
 if (-not (Get-Variable -Name LastSiteSel -Scope Script -ErrorAction SilentlyContinue)) { $script:LastSiteSel = '' }
 if (-not (Get-Variable -Name LastBuildingSel -Scope Script -ErrorAction SilentlyContinue)) { $script:LastBuildingSel = '' }
+# Track previous selection for zone as well so that dependent lists can be restored
+if (-not (Get-Variable -Name LastZoneSel -Scope Script -ErrorAction SilentlyContinue)) { $script:LastZoneSel = '' }
 
 function Test-StringListEqualCI {
     param([System.Collections.IEnumerable]$A, [System.Collections.IEnumerable]$B)
@@ -20,43 +22,43 @@ function Test-StringListEqualCI {
 
 # DeviceDataModule.psm1
 
-# Initialise a simple in‑memory cache for per‑device interface lists.  When a
-if (-not $global:DeviceInterfaceCache) {
-    $global:DeviceInterfaceCache = @{}
-}
-
-# -----------------------------------------------------------------------------
-# Helper functions to locate the appropriate Access database.  Rather than
-# relying on a single global database path, each device's hostname encodes a
-# site identifier in the portion before the first dash (e.g. "WLLS" in
-# "WLLS-A05-AS-05").  The database for a given device is stored under
-# Data/<SITE>.accdb relative to the project root.  The helpers below extract
-# the site code from a hostname, build a database path for that host, and
-# enumerate all site databases for global queries.
+# -------------------------------------------------------------------------
+# Helper functions for per-site database selection.  Sites are determined
+# by the portion of the hostname before the first dash.  These helpers
+# compute the appropriate database path for a given host and enumerate
+# all existing site databases.  Using these functions allows the module
+# to work with multiple per-site databases instead of a single global DB.
 
 function Get-SiteFromHostname {
     param([string]$Hostname)
     if (-not $Hostname) { return 'Unknown' }
+    # Extract the part of the hostname before the first dash
     if ($Hostname -match '^(?<site>[^-]+)-') { return $matches['site'] }
     return $Hostname
 }
 
 function Get-DbPathForHost {
     param([Parameter(Mandatory)][string]$Hostname)
-    $site   = Get-SiteFromHostname $Hostname
-    # Resolve the module root (Modules/.. -> project root)
-    $root   = Join-Path $PSScriptRoot '..' | Resolve-Path | Select-Object -ExpandProperty Path
-    $data   = Join-Path $root 'Data'
-    return (Join-Path $data ("{0}.accdb" -f $site))
+    $site = Get-SiteFromHostname $Hostname
+    # Compute the absolute Data directory under the module's parent
+    $root = Join-Path $PSScriptRoot '..' | Resolve-Path | Select-Object -ExpandProperty Path
+    $dataDir = Join-Path $root 'Data'
+    # Compose the site-specific database file name
+    return (Join-Path $dataDir ("$site.accdb"))
 }
 
 function Get-AllSiteDbPaths {
-    # Enumerate all *.accdb files in the Data folder.  If the folder does not
-    # exist, return an empty array.
+    # Return an array of all .accdb files in the Data directory.  If none exist,
+    # return an empty array.  Resolve-Path normalises relative segments.
     $root = Join-Path $PSScriptRoot '..' | Resolve-Path | Select-Object -ExpandProperty Path
-    $data = Join-Path $root 'Data'
-    if (-not (Test-Path $data)) { return @() }
-    return Get-ChildItem -Path $data -Filter '*.accdb' -File | Select-Object -ExpandProperty FullName
+    $dataDir = Join-Path $root 'Data'
+    if (-not (Test-Path $dataDir)) { return @() }
+    return Get-ChildItem -Path $dataDir -Filter '*.accdb' -File | Select-Object -ExpandProperty FullName
+}
+
+# Initialise a simple in‑memory cache for per‑device interface lists.  When a
+if (-not $global:DeviceInterfaceCache) {
+    $global:DeviceInterfaceCache = @{}
 }
 
 # Initialise an in‑memory cache for vendor configuration templates.  This cache
@@ -78,21 +80,43 @@ function Get-SelectedLocation {
     [CmdletBinding()]
     param([object]$Window = $global:window)
     $siteSel = $null
+    $zoneSel = $null
     $bldSel  = $null
     $roomSel = $null
     try {
         if ($Window) {
             $siteCtrl = $Window.FindName('SiteDropdown')
+            $zoneCtrl = $Window.FindName('ZoneDropdown')
             $bldCtrl  = $Window.FindName('BuildingDropdown')
             $roomCtrl = $Window.FindName('RoomDropdown')
             if ($siteCtrl) { $siteSel = $siteCtrl.SelectedItem }
+            if ($zoneCtrl) { $zoneSel = $zoneCtrl.SelectedItem }
             if ($bldCtrl)  { $bldSel  = $bldCtrl.SelectedItem }
             if ($roomCtrl){ $roomSel = $roomCtrl.SelectedItem }
         }
     } catch {
         # ignore lookup errors
     }
-    return @{ Site = $siteSel; Building = $bldSel; Room = $roomSel }
+    return @{ Site = $siteSel; Zone = $zoneSel; Building = $bldSel; Room = $roomSel }
+}
+
+# Return the last recorded location selections (site, zone, building, room).
+# These values are maintained by Update-DeviceFilter to capture the most
+# recently chosen filters.  Exposing them via a function allows other
+# modules (e.g. CompareViewModule) to query the last known selections
+# without directly accessing script-scoped variables.
+function Get-LastLocation {
+    [CmdletBinding()]
+    param()
+    $site = $null
+    $zone = $null
+    $bld  = $null
+    $room = $null
+    try { $site = $script:LastSiteSel } catch { $site = $null }
+    try { $zone = $script:LastZoneSel } catch { $zone = $null }
+    try { $bld  = $script:LastBuildingSel } catch { $bld  = $null }
+    try { $room = $script:LastRoomSel } catch { $room = $null }
+    return @{ Site = $site; Zone = $zone; Building = $bld; Room = $room }
 }
 
 # Filter a collection of interface-like objects by location.  Given a list
@@ -210,12 +234,10 @@ function New-InterfaceObjectsFromDbRow {
         [Parameter(Mandatory)][string]$Hostname,
         [string]$TemplatesPath = (Join-Path $PSScriptRoot '..\Templates')
     )
-    # Determine the per-site database path for this host.  We no longer rely
-    # on a single global database; instead each host's data resides in
-    # Data/<SITE>.accdb.  Compute this upfront for vendor and auth block
-    # lookups.  If the file does not exist, queries will simply return no
-    # results and the fallback logic below will infer defaults.
-    $dbPath  = Get-DbPathForHost $Hostname
+    # Resolve the per-site database path for this host.  This allows the
+    # module to query the correct database when multiple site databases
+    # exist.  Do not rely on a global database path.
+    $dbPath = Get-DbPathForHost $Hostname
     # Escape the hostname once for reuse in SQL queries.  Doubling single quotes
     $escHost = $Hostname -replace "'", "''"
 
@@ -432,45 +454,49 @@ function New-InterfaceObjectsFromDbRow {
 }
 
 function Get-DeviceSummaries {
-    # Always prefer loading device summaries from the database.  If the database
+    # Always prefer loading device summaries from all available per-site databases.
     $names = New-Object 'System.Collections.Generic.List[string]'
     $global:DeviceMetadata = @{}
-    # Populate the global DeviceMetadata hash and list of hostnames by reading
-    # all site databases.  Iterate through every *.accdb file in the Data
-    # directory, querying the DeviceSummary table.  If no site databases are
-    # present, the $names list remains empty and a warning is issued.
-    $hasData = $false
-    foreach ($dbPath in (Get-AllSiteDbPaths)) {
-        try {
-            $dt = Invoke-DbQuery -DatabasePath $dbPath -Sql "SELECT Hostname, Site, Building, Room FROM DeviceSummary"
-            if ($dt) {
-                $hasData = $true
-                $rows = $dt | Select-Object Hostname, Site, Building, Room
-                foreach ($row in $rows) {
-                    $name = $row.Hostname
-                    if (-not [string]::IsNullOrWhiteSpace($name)) {
-                        [void]$names.Add($name)
-                        $siteRaw     = $row.Site
-                        $buildingRaw = $row.Building
-                        $roomRaw     = $row.Room
-                        $siteVal     = if ($siteRaw -eq $null -or $siteRaw -eq [System.DBNull]::Value) { '' } else { [string]$siteRaw }
-                        $buildingVal = if ($buildingRaw -eq $null -or $buildingRaw -eq [System.DBNull]::Value) { '' } else { [string]$buildingRaw }
-                        $roomVal     = if ($roomRaw -eq $null -or $roomRaw -eq [System.DBNull]::Value) { '' } else { [string]$roomRaw }
-                        $meta = [PSCustomObject]@{
-                            Site     = $siteVal
-                            Building = $buildingVal
-                            Room     = $roomVal
+    $dbPaths = Get-AllSiteDbPaths
+    if ($dbPaths.Count -gt 0) {
+        foreach ($dbPath in $dbPaths) {
+            try {
+                $dt = Invoke-DbQuery -DatabasePath $dbPath -Sql "SELECT Hostname, Site, Building, Room FROM DeviceSummary"
+                if ($dt) {
+                    $rows = $dt | Select-Object Hostname, Site, Building, Room
+                    foreach ($row in $rows) {
+                        $name = $row.Hostname
+                        if (-not [string]::IsNullOrWhiteSpace($name)) {
+                            if (-not $names.Contains($name)) { [void]$names.Add($name) }
+                            $siteRaw     = $row.Site
+                            $buildingRaw = $row.Building
+                            $roomRaw     = $row.Room
+                            $siteVal     = if ($siteRaw -eq $null -or $siteRaw -eq [System.DBNull]::Value) { '' } else { [string]$siteRaw }
+                            $buildingVal = if ($buildingRaw -eq $null -or $buildingRaw -eq [System.DBNull]::Value) { '' } else { [string]$buildingRaw }
+                            $roomVal     = if ($roomRaw -eq $null -or $roomRaw -eq [System.DBNull]::Value) { '' } else { [string]$roomRaw }
+                            # Derive the zone from the hostname.  A zone is defined as the string
+                            # between the first and second hyphen in the device name (e.g. A05 in WLLS-A05-AS-05).
+                            $zoneVal = ''
+                            try {
+                                $parts = $name -split '-', 3
+                                if ($parts.Length -ge 2) { $zoneVal = $parts[1] }
+                            } catch { $zoneVal = '' }
+                            $meta = [PSCustomObject]@{
+                                Site     = $siteVal
+                                Zone     = $zoneVal
+                                Building = $buildingVal
+                                Room     = $roomVal
+                            }
+                            $global:DeviceMetadata[$name] = $meta
                         }
-                        $global:DeviceMetadata[$name] = $meta
                     }
                 }
+            } catch {
+                Write-Warning ("Failed to query device summaries from {0}: {1}" -f $dbPath, $_.Exception.Message)
             }
-        } catch {
-            Write-Warning ("Failed to query device summaries from {0}: {1}" -f $dbPath, $_.Exception.Message)
         }
-    }
-    if (-not $hasData) {
-        Write-Warning "Database not configured. Device list will be empty."
+    } else {
+        Write-Warning "No per-site databases found. Device list will be empty."
     }
 
     # Update the host dropdown and location filters based on the loaded device metadata.
@@ -490,8 +516,20 @@ function Get-DeviceSummaries {
         $uniqueSites = [System.Collections.Generic.List[string]]::new($siteSet)
         $uniqueSites.Sort([System.StringComparer]::OrdinalIgnoreCase)
     }
-    # Prepend a blank entry to the list of unique sites so the first item is always blank.
-    Set-DropdownItems -Control $siteDD -Items (@('') + $uniqueSites)
+    # Prepend an "All Sites" entry to the list of unique sites so users can see all sites at once.
+    Set-DropdownItems -Control $siteDD -Items (@('All Sites') + $uniqueSites)
+    # Default to the first actual site rather than "All Sites" to improve performance.
+    try {
+        if ($uniqueSites.Count -gt 0) { $siteDD.SelectedItem = $uniqueSites[0] }
+    } catch { }
+
+    # Initialise the zone dropdown with "All Zones" and disable until a site is selected.
+    $zoneDD = $window.FindName('ZoneDropdown')
+    if ($zoneDD) {
+        Set-DropdownItems -Control $zoneDD -Items @('All Zones')
+        # Enable the zone dropdown from the outset so that users can select a zone even when "All Sites" is chosen.
+        $zoneDD.IsEnabled = $true
+    }
 
     $buildingDD = $window.FindName('BuildingDropdown')
     # Initialise building dropdown with a single blank option and disable until a site is chosen.
@@ -520,23 +558,57 @@ function Get-DeviceSummaries {
 }
 
 function Update-DeviceFilter {
+    # Abort immediately if a previous filter update threw an error.  The
+    # main timer catch handler will set $script:DeviceFilterFaulted to $true
+    # when an unhandled exception occurs, avoiding a tight retry loop that
+    # spams warnings when the host runspace is constrained (e.g. NoLanguage).
+    if ($script:DeviceFilterFaulted) { return }
     if ($script:DeviceFilterUpdating) { return }
     $script:DeviceFilterUpdating = $true
+    # When repopulating the filter dropdowns, temporarily suppress any
+    # selection-changed events from triggering a new Request-DeviceFilterUpdate.
+    # Set a global flag so that Request-DeviceFilterUpdate can detect programmatic
+    # updates and ignore them.  Preserve the prior state to restore later.
+    $___prevProgFlag = $global:ProgrammaticFilterUpdate
+    $global:ProgrammaticFilterUpdate = $true
     try {
         # Detect changes in site and building selections from the last invocation.  When the
         $loc0 = Get-SelectedLocation
         $currentSiteSel = $loc0.Site
+        $currentZoneSel = $loc0.Zone
         $currentBldSel  = $loc0.Building
+        # Determine which filters have changed since the last invocation.
         $siteChanged = ([System.StringComparer]::OrdinalIgnoreCase.Compare(('' + $currentSiteSel), ('' + $script:LastSiteSel)) -ne 0)
+        $zoneChanged = ([System.StringComparer]::OrdinalIgnoreCase.Compare(('' + $currentZoneSel), ('' + $script:LastZoneSel)) -ne 0)
         $bldChanged  = ([System.StringComparer]::OrdinalIgnoreCase.Compare(('' + $currentBldSel),  ('' + $script:LastBuildingSel)) -ne 0)
 
+        # Emit diagnostics to help track filter update state.  Use the Write-Diag helper if defined;
+        # otherwise fall back to Write-Verbose.  Log current selections and which filters changed.
+        try {
+            $diagMsg = "Update-DeviceFilter: siteSel='{0}', zoneSel='{1}', bldSel='{2}', siteChanged={3}, zoneChanged={4}, bldChanged={5}" -f `
+                ('' + $currentSiteSel), ('' + $currentZoneSel), ('' + $currentBldSel), $siteChanged, $zoneChanged, $bldChanged
+            if (Get-Command -Name Write-Diag -ErrorAction SilentlyContinue) {
+                Write-Diag $diagMsg
+            } else {
+                Write-Verbose $diagMsg
+            }
+        } catch {}
+
         # Reset dependent dropdowns when parent selections change.
+        $zoneDD     = $window.FindName('ZoneDropdown')
         $buildingDD = $window.FindName('BuildingDropdown')
         $roomDD     = $window.FindName('RoomDropdown')
-        if ($siteChanged -and $buildingDD) {
-            # Site changed: clear building and room lists and disable room until a building is selected.
+        if ($siteChanged -and $zoneDD) {
+            # When the site changes, reset the zone list to the sentinel only.  Do not disable the control here.
+            DeviceDataModule\Set-DropdownItems -Control $zoneDD -Items @('All Zones')
+            # Always leave the zone dropdown enabled when a site is selected (including the "All Sites" sentinel).  If no site
+            # selection exists (blank), the zone list will remain enabled so the user can choose a zone across sites later.
+            $zoneDD.IsEnabled = $true
+        }
+        if ( ($siteChanged -or $zoneChanged) -and $buildingDD ) {
+            # When the site or zone changes, clear the building and room lists and disable room until a building is selected.
             DeviceDataModule\Set-DropdownItems -Control $buildingDD -Items @('')
-            $buildingDD.IsEnabled = if ($currentSiteSel -and $currentSiteSel -ne '') { $true } else { $false }
+            $buildingDD.IsEnabled = if ($currentSiteSel -and $currentSiteSel -ne '' -and $currentSiteSel -ne 'All Sites') { $true } else { $false }
             if ($roomDD) {
                 DeviceDataModule\Set-DropdownItems -Control $roomDD -Items @('')
                 $roomDD.IsEnabled = $false
@@ -547,21 +619,123 @@ function Update-DeviceFilter {
             $roomDD.IsEnabled = if ($currentBldSel -and $currentBldSel -ne '') { $true } else { $false }
         }
 
-        if (-not $global:DeviceMetadata) { return }
+        if (-not $global:DeviceMetadata) {
+            Write-Verbose 'DeviceDataModule: DeviceMetadata not yet loaded; skipping device filter update.'
+            return
+        }
 
     # Determine the currently selected site (we intentionally ignore building
     $loc    = Get-SelectedLocation
     $siteSel = $loc.Site
+    $zoneSel = $loc.Zone
 
     # ---------------------------------------------------------------------
     $buildingSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
     foreach ($meta in $DeviceMetadata.Values) {
-        if ($siteSel -and $siteSel -ne '' -and $meta.Site -ne $siteSel) { continue }
+        if ($siteSel -and $siteSel -ne '' -and $siteSel -ne 'All Sites' -and $meta.Site -ne $siteSel) { continue }
+        if ($zoneSel -and $zoneSel -ne '' -and $zoneSel -ne 'All Zones' -and ($meta.PSObject.Properties.Name -contains 'Zone') -and $meta.Zone -ne $zoneSel) { continue }
         $b = $meta.Building
         if (-not [string]::IsNullOrWhiteSpace($b)) { [void]$buildingSet.Add($b) }
     }
     $availableBuildings = [System.Collections.Generic.List[string]]::new($buildingSet)
     $availableBuildings.Sort([System.StringComparer]::OrdinalIgnoreCase)
+    # Build the list of zones for the selected site.  A zone represents the
+    # second hyphen-delimited component in the hostname (e.g. A05 in WLLS-A05-AS-05).
+    $zoneDD = $window.FindName('ZoneDropdown')
+    if ($zoneDD) {
+        $zoneSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+        foreach ($meta in $DeviceMetadata.Values) {
+            if ($siteSel -and $siteSel -ne '' -and $siteSel -ne 'All Sites' -and $meta.Site -ne $siteSel) { continue }
+            $z = ''
+            if ($meta.PSObject.Properties.Name -contains 'Zone') { $z = $meta.Zone }
+            if (-not [string]::IsNullOrWhiteSpace($z)) { [void]$zoneSet.Add($z) }
+        }
+        $zones = [System.Collections.Generic.List[string]]::new($zoneSet)
+        $zones.Sort([System.StringComparer]::OrdinalIgnoreCase)
+        $prevZoneSel = $zoneDD.SelectedItem
+        # Populate zone dropdown with an "All Zones" sentinel plus the zones.
+        Set-DropdownItems -Control $zoneDD -Items (@('All Zones') + $zones)
+        # Always enable the zone dropdown regardless of the site selection.  This allows
+        # users to select a specific zone even when "All Sites" is chosen.  Disabling
+        # the control based on a blank site selection prevented zone filtering from
+        # working when loading all devices.
+        $zoneDD.IsEnabled = $true
+
+        # Determine which zone should be selected in the new list.  The logic prioritizes the user's
+        # current selection (captured in $prevZoneSel) when the zone is changed by the user, falls back
+        # to the first real zone on the first run or when the site changes, and otherwise attempts to
+        # preserve the previously selected zone stored in $script:LastZoneSel.  If the requested zone
+        # does not exist in the new zone list, fall back to the sentinel ("All Zones").
+        $selectIndex = 0
+        $selectItem  = $null
+        # Determine if this is the initial invocation or if the site changed.  When the site changes, we
+        # reset the zone to the first real zone if available to limit the data loaded.
+        $firstRunOrSiteChange = $false
+        try {
+            if (-not ($script:LastSiteSel) -or (-not [string]::IsNullOrEmpty($script:LastSiteSel) -and
+                [System.StringComparer]::OrdinalIgnoreCase.Compare(('' + $script:LastSiteSel), ('' + $siteSel)) -ne 0)) {
+                $firstRunOrSiteChange = $true
+            }
+        } catch { $firstRunOrSiteChange = $true }
+        if ($firstRunOrSiteChange) {
+            # When the site changes (or during the first run), pick a default zone.  For specific
+            # sites, default to the first real zone (index 1) if available.  Otherwise, for
+            # "All Sites" or blank selections, default to the sentinel (index 0) so that all
+            # zones remain visible.
+            # When a specific site (not "All Sites") is selected and there is at least one real zone,
+            # default to the first real zone (index 1).  Treat the site selection as a string for
+            # comparison because SelectedItem may not be a string object.  Otherwise, default to the
+            # sentinel at index 0 so that all zones remain visible.
+            $siteText = '' + $siteSel
+            if ($siteText -ne '' -and $siteText -ne 'All Sites' -and $zoneDD.Items.Count -gt 1) {
+                $selectIndex = 1
+            } else {
+                $selectIndex = 0
+            }
+        } elseif ($zoneChanged) {
+            # User explicitly changed the zone.  Preserve the current selection if it exists in the list.
+            if ($prevZoneSel -and $prevZoneSel -ne '' -and $prevZoneSel -ne 'All Zones' -and ($zones -contains $prevZoneSel)) {
+                $selectItem = $prevZoneSel
+            } elseif ($prevZoneSel -and $prevZoneSel -eq 'All Zones') {
+                $selectIndex = 0
+            } else {
+                # Unknown or invalid zone: fall back to sentinel.
+                $selectIndex = 0
+            }
+        } else {
+            # Neither first run nor user-initiated zone change.  Attempt to restore the last zone.
+            $lastZone = $null
+            try { $lastZone = $script:LastZoneSel } catch { $lastZone = $null }
+            if ($lastZone -and $lastZone -ne '' -and $lastZone -ne 'All Zones' -and ($zones -contains $lastZone)) {
+                $selectItem = $lastZone
+            } else {
+                $selectIndex = 0
+            }
+        }
+        # Apply the computed selection to the zone dropdown.  Prefer SelectedItem when a specific
+        # zone string is requested; otherwise use SelectedIndex.  Wrap in try/catch to avoid throwing.
+        try {
+            if ($selectItem) {
+                $zoneDD.SelectedItem = $selectItem
+            } else {
+                $zoneDD.SelectedIndex = $selectIndex
+            }
+        } catch { }
+
+        # Diagnostic: log how zone selection was determined and what was ultimately selected.
+        try {
+            $finalZone = ''
+            try { $finalZone = '' + $zoneDD.SelectedItem } catch {}
+            $diagZoneMsg = "ZoneSelection | firstRunOrSiteChange={0}, lastZone='{1}', selectIndex={2}, selectItem='{3}', finalSelected='{4}'" -f `
+                $firstRunOrSiteChange, ('' + $lastZone), $selectIndex, ('' + $selectItem), $finalZone
+            if (Get-Command -Name Write-Diag -ErrorAction SilentlyContinue) {
+                Write-Diag $diagZoneMsg
+            } else {
+                Write-Verbose $diagZoneMsg
+            }
+        } catch {}
+    }
+
     $buildingDD = $window.FindName('BuildingDropdown')
     $prevBuildingSel = $buildingDD.SelectedItem
     # Populate building dropdown with a blank entry plus all available buildings.
@@ -578,8 +752,8 @@ if (-not (Test-StringListEqualCI $currentBuildings $availableBuildings)) {
     if ($prevBuildingSel -and $prevBuildingSel -ne '' -and ($availableBuildings -contains $prevBuildingSel)) {
         try { $buildingDD.SelectedItem = $prevBuildingSel } catch { }
     }
-    # Enable or disable the building dropdown based solely on site selection.
-    if ($siteSel -and $siteSel -ne '') {
+    # Enable or disable the building dropdown based on site selection (excluding the "All Sites" sentinel).
+    if ($siteSel -and $siteSel -ne '' -and $siteSel -ne 'All Sites') {
         $buildingDD.IsEnabled = $true
     } else {
         $buildingDD.IsEnabled = $false
@@ -590,15 +764,65 @@ if (-not (Test-StringListEqualCI $currentBuildings $availableBuildings)) {
     $roomDD  = $window.FindName('RoomDropdown')
     $roomSel = if ($roomDD) { $roomDD.SelectedItem } else { $null }
 
+    # Refresh the selected zone for filtering.  The zone may have changed
+    # as a result of resetting the dropdowns above, so retrieve the current
+    # location selections again.  If the call fails, default to null.  We
+    # compute this here instead of using the earlier $currentZoneSel so that
+    # the latest user selection is respected when filtering hostnames.
+    $zoneSel = $null
+    try {
+        $locFinal = Get-SelectedLocation
+        $zoneSel = $locFinal.Zone
+    } catch { $zoneSel = $null }
+
     # ---------------------------------------------------------------------
     $filteredNames = New-Object 'System.Collections.Generic.List[string]'
     foreach ($name in $DeviceMetadata.Keys) {
         $meta = $DeviceMetadata[$name]
-        if ($siteSel -and $siteSel -ne '' -and $meta.Site     -ne $siteSel) { continue }
+        # Apply site filtering only when a specific site (other than the "All Sites" sentinel) is selected.
+        if ($siteSel -and $siteSel -ne '' -and $siteSel -ne 'All Sites' -and $meta.Site -ne $siteSel) { continue }
+        # Apply zone filtering when a specific zone (other than All Zones) is selected.  Determine the
+        # zone from the metadata if available; otherwise parse it from the hostname.  Only include hosts
+        # whose computed zone matches the selected zone.
+        if ($zoneSel -and $zoneSel -ne '' -and $zoneSel -ne 'All Zones') {
+            $metaZone = $null
+            if ($meta.PSObject.Properties['Zone']) {
+                $metaZone = '' + $meta.Zone
+            } else {
+                try {
+                    $parts = ('' + $name) -split '-'
+                    if ($parts.Length -ge 2) { $metaZone = $parts[1] }
+                } catch { $metaZone = $null }
+            }
+            if (-not $metaZone -or $metaZone -ne $zoneSel) { continue }
+        }
         if ($bldSel  -and $bldSel  -ne '' -and $meta.Building -ne $bldSel)  { continue }
         if ($roomSel -and $roomSel -ne '' -and $meta.Room     -ne $roomSel) { continue }
         [void]$filteredNames.Add($name)
     }
+    # Emit diagnostics about the host filtering result: number of hosts and sample names.
+    try {
+        $siteDbg = '' + $siteSel
+        $zoneDbg = '' + $zoneSel
+        $bldDbg  = '' + $bldSel
+        $roomDbg = '' + $roomSel
+        $countDbg = if ($filteredNames) { $filteredNames.Count } else { 0 }
+        $sample = ''
+        try {
+            if ($filteredNames -and $filteredNames.Count -gt 0) {
+                # Capture up to the first 5 hostnames for diagnostics.
+                $sample = ($filteredNames | Select-Object -First 5) -join ','
+            }
+        } catch { $sample = '' }
+        $diagHostMsg = "HostFilter | site='{0}', zone='{1}', building='{2}', room='{3}', count={4}, sample=[{5}]" -f `
+            $siteDbg, $zoneDbg, $bldDbg, $roomDbg, $countDbg, $sample
+        if (Get-Command -Name Write-Diag -ErrorAction SilentlyContinue) {
+            Write-Diag $diagHostMsg
+        } else {
+            Write-Verbose $diagHostMsg
+        }
+    } catch {}
+
     # Sort the filtered hostnames alphabetically (ascending) using OrdinalIgnoreCase.  This ensures
     if ($filteredNames -and $filteredNames.Count -gt 1) {
         $filteredNames.Sort([System.StringComparer]::OrdinalIgnoreCase)
@@ -610,8 +834,34 @@ if (-not (Test-StringListEqualCI $currentBuildings $availableBuildings)) {
         }
     }
     $hostnameDD = $window.FindName('HostnameDropdown')
-    # Populate the hostname dropdown with the filtered list.  Selecting the
-    Set-DropdownItems -Control $hostnameDD -Items $filteredNames
+    # Populate the hostname dropdown with the filtered list.  When no hosts match
+    # the current site/building/room filters, ensure we still pass at least one
+    # entry to satisfy the mandatory object[] parameter for Set-DropdownItems.
+    if (-not $filteredNames -or $filteredNames.Count -eq 0) {
+        # Provide a single blank entry to allow binding and leave the dropdown empty.
+        Set-DropdownItems -Control $hostnameDD -Items @('')
+    } else {
+        Set-DropdownItems -Control $hostnameDD -Items $filteredNames
+    }
+
+    # Diagnostic: log the number of filtered hosts and the current zone selection.  Include
+    # the first few hostnames for inspection.  Use Write-Diag if available.
+    try {
+        $hostCount = if ($filteredNames) { $filteredNames.Count } else { 0 }
+        $exampleHosts = ''
+        if ($hostCount -gt 0) {
+            $take = [System.Math]::Min(3, $hostCount)
+            $exampleHosts = ($filteredNames | Select-Object -First $take) -join ', '
+        }
+        $locCur = Get-SelectedLocation
+        $msgHosts = "HostFilter | site='{0}', zone='{1}', building='{2}', room='{3}', count={4}, examples=[{5}]" -f `
+            ('' + $locCur.Site), ('' + $locCur.Zone), ('' + $locCur.Building), ('' + $locCur.Room), $hostCount, $exampleHosts
+        if (Get-Command -Name Write-Diag -ErrorAction SilentlyContinue) {
+            Write-Diag $msgHosts
+        } else {
+            Write-Verbose $msgHosts
+        }
+    } catch {}
 
     # ---------------------------------------------------------------------
     $roomSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
@@ -660,24 +910,30 @@ if (-not (Test-StringListEqualCI $currentBuildings $availableBuildings)) {
         # Record the current site and building selections for the next invocation.  Storing
         try {
             $locFinal = Get-SelectedLocation
-            $script:LastSiteSel = $locFinal.Site
+            $script:LastSiteSel     = $locFinal.Site
+            $script:LastZoneSel     = $locFinal.Zone
             $script:LastBuildingSel = $locFinal.Building
+            try { $script:LastRoomSel = $locFinal.Room } catch {}
         } catch {}
-    } finally { $script:DeviceFilterUpdating = $false }
+    } finally {
+        # Restore the prior programmatic flag and clear the DeviceFilterUpdating lock.
+        $global:ProgrammaticFilterUpdate = $___prevProgFlag
+        $script:DeviceFilterUpdating = $false
+    }
 }
 
 function Get-DeviceDetails {
     param($hostname)
     try {
-        # Compute the per-site database path for this host.  If the file does not
-        # exist, $useDb remains false and fallback values will be used exclusively.
+        # Determine the per-site database path for this host.  Use database
+        # queries only if the file exists; otherwise fall back to CSV.
+        $dbPath = Get-DbPathForHost $hostname
         $useDb = $false
-        $hostTrim = ($hostname -as [string]).Trim()
-        $dbPath  = Get-DbPathForHost $hostTrim
         if (Test-Path $dbPath) { $useDb = $true }
 
         if ($useDb) {
             # Prepare for database operations.  (No explicit session reuse at this level.)
+            $hostTrim = ($hostname -as [string]).Trim()
             $escHost   = $hostTrim -replace "'", "''"
             # Build a comma-separated list of character codes using a typed list
             $charCodesList = New-Object 'System.Collections.Generic.List[int]'
@@ -785,7 +1041,7 @@ function Get-DeviceDetails {
                 }
             } catch {}
 
-            # Query interface details for the specified host from the per-site database.  Include
+            # Query interface details for the specified host from the database.  Include
             $dtIfs = Invoke-DbQuery -DatabasePath $dbPath -Sql "SELECT Hostname, Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, ConfigStatus, PortColor, ToolTip FROM Interfaces WHERE Hostname = '$($hostname -replace "'", "''")'"
             # Use a shared helper to build the interface PSCustomObject list.  This centralises vendor detection,
             $list = New-InterfaceObjectsFromDbRow -Data $dtIfs -Hostname $hostname -TemplatesPath (Join-Path $PSScriptRoot '..\Templates')
@@ -841,10 +1097,9 @@ function Get-DeviceDetailsData {
         Templates  = @()
     }
     try {
-        # Determine the per-site database path for this host.  Use database
-        # only if the per-site file exists; otherwise fall back to CSV import.
-        $useDb = $false
+        # Determine whether database is configured: use per-site DB if it exists
         $dbPath = Get-DbPathForHost $hostTrim
+        $useDb = $false
         if (Test-Path $dbPath) { $useDb = $true }
         if (-not $useDb) {
             # Fallback to CSV import when no database is available
@@ -1010,53 +1265,41 @@ function Update-GlobalInterfaceList {
     # Use a strongly-typed list for efficient accumulation of objects
     $list = New-Object 'System.Collections.Generic.List[object]'
 
-    # Build a comprehensive list of all interfaces by querying every site database.
-    $dbPaths = Get-AllSiteDbPaths
-    if (-not $dbPaths -or $dbPaths.Count -eq 0) {
-        Write-Warning "Database not configured. Interface list will be empty."
-        $global:AllInterfaces = @()
-        return
-    }
+    # No global database is used.  If no per-site databases exist, the interface list will be empty.
+
     try {
-        $listRows = New-Object 'System.Collections.Generic.List[System.Data.DataRow]'
-        foreach ($path in $dbPaths) {
-            $sql = @"
+        $sql = @"
 SELECT i.Hostname, i.Port, i.Name, i.Status, i.VLAN, i.Duplex, i.Speed, i.Type,
        i.LearnedMACs, i.AuthState, i.AuthMode, i.AuthClientMAC,
        ds.Site, ds.Building, ds.Room
 FROM Interfaces AS i
 LEFT JOIN DeviceSummary AS ds ON i.Hostname = ds.Hostname
+ORDER BY i.Hostname, i.Port
 "@
+        # Query all databases and merge the results into a single list
+        $dtCombined = @()
+        foreach ($dbPath in (Get-AllSiteDbPaths)) {
             try {
-                $dtLocal = Invoke-DbQuery -DatabasePath $path -Sql $sql
-                if ($dtLocal) {
-                    # Add each DataRow/DataRowView to the list for later enumeration
-                    if ($dtLocal -is [System.Data.DataTable]) {
-                        foreach ($r in $dtLocal.Rows) { [void]$listRows.Add($r) }
-                    } elseif ($dtLocal -is [System.Data.DataView]) {
-                        foreach ($rv in $dtLocal) { [void]$listRows.Add($rv.Row) }
-                    } elseif ($dtLocal -is [System.Collections.IEnumerable]) {
-                        foreach ($row in $dtLocal) { [void]$listRows.Add($row) }
-                    }
+                $partial = Invoke-DbQuery -DatabasePath $dbPath -Sql $sql
+                if ($partial) {
+                    # Append rows from this database into the combined list
+                    $dtCombined += $partial
                 }
             } catch {
-                Write-Warning ("Failed to query interfaces from {0}: {1}" -f $path, $_.Exception.Message)
+                Write-Warning ("Failed to query interfaces from {0}: {1}" -f $dbPath, $_.Exception.Message)
             }
         }
-        # Create a DataTable-like enumerable from the collected rows
-        $dt = $listRows
+        $dt = $dtCombined
         # The returned query result may be a DataTable, DataView or other enumerable
 
-        # Prepare an enumerable of rows depending on the type of $dt.  When
-        # aggregating across databases $dt may be a generic List[DataRow].  In
-        # that case it will satisfy IEnumerable and we can iterate directly.
+        # Prepare an enumerable of rows depending on the type of $dt.  Only
         $rows = @()
         if ($dt -is [System.Data.DataTable]) {
             $rows = $dt.Rows
         } elseif ($dt -is [System.Data.DataView]) {
             $rows = $dt  # DataView is enumerable of DataRowView
         } elseif ($dt -is [System.Collections.IEnumerable]) {
-            $rows = $dt  # Generic list or array of DataRow/DataRowView
+            $rows = $dt  # In case Invoke-DbQuery returns DataRow[] or similar
         } else {
             Write-Warning "DBG: Unexpected query result type; skipping row enumeration."
         }
@@ -1129,6 +1372,13 @@ LEFT JOIN DeviceSummary AS ds ON i.Hostname = ds.Hostname
             }
 
 
+            # Derive zone from hostname for interface row.  The zone is the second component
+            # in a hyphen-delimited hostname (e.g. A05 in WLLS-A05-AS-05).
+            $zoneValIf = ''
+            try {
+                $hnParts = $hn -split '-', 3
+                if ($hnParts.Length -ge 2) { $zoneValIf = $hnParts[1] }
+            } catch { $zoneValIf = '' }
             # Construct object and add to list
             $obj = [PSCustomObject]@{
                 Hostname      = $hn
@@ -1147,6 +1397,7 @@ LEFT JOIN DeviceSummary AS ds ON i.Hostname = ds.Hostname
                 Site          = $site
                 Building      = $bld
                 Room          = $room
+                Zone          = $zoneValIf
             }
             [void]$list.Add($obj)
             $addedCount++
@@ -1186,6 +1437,7 @@ function Update-SearchResults {
     # Always honour the location (site/building/room) filters, even when the search
     $loc = Get-SelectedLocation
     $siteSel = $loc.Site
+    $zoneSel = $loc.Zone
     $bldSel  = $loc.Building
     $roomSel = $loc.Room
     # Acquire status and authorization filter selections once.  Lookup via the
@@ -1218,8 +1470,17 @@ function Update-SearchResults {
         $rowSite     = '' + $row.Site
         $rowBuilding = '' + $row.Building
         $rowRoom     = '' + $row.Room
-        # Apply location filtering
-        if ($siteSel -and $siteSel -ne '' -and ($rowSite -ne $siteSel)) { continue }
+        # Use a normal if statement to derive the zone string.  Inline `(if ...)`
+        # inside an expression is invalid in PowerShell and triggers a
+        # CommandNotFoundException, even in FullLanguage.  Assign an empty
+        # string by default, and populate it only if the Zone property exists.
+        $rowZone = ''
+        if ($row.PSObject.Properties['Zone']) {
+            $rowZone = '' + $row.Zone
+        }
+        # Apply location filtering, taking into account "All" sentinels
+        if ($siteSel -and $siteSel -ne '' -and $siteSel -ne 'All Sites' -and ($rowSite -ne $siteSel)) { continue }
+        if ($zoneSel -and $zoneSel -ne '' -and $zoneSel -ne 'All Zones' -and ($rowZone -ne $zoneSel)) { continue }
         if ($bldSel  -and $bldSel  -ne '' -and ($rowBuilding -ne $bldSel))  { continue }
         if ($roomSel -and $roomSel -ne '' -and ($rowRoom     -ne $roomSel)) { continue }
         # Apply status filter
@@ -1290,11 +1551,12 @@ function Update-SearchResults {
 function Update-Summary {
     if (-not $global:summaryView) { return }
     # Determine location filters from the main window.  When blank,
-    $siteSel = $null; $bldSel = $null; $roomSel = $null
+    $siteSel = $null; $zoneSel = $null; $bldSel = $null; $roomSel = $null
     try {
         # Retrieve location selections via helper
         $loc = Get-SelectedLocation
         $siteSel = $loc.Site
+        $zoneSel = $loc.Zone
         $bldSel  = $loc.Building
         $roomSel = $loc.Room
     } catch {}
@@ -1305,7 +1567,8 @@ function Update-Summary {
     foreach ($k in $devKeys) {
         $meta = $global:DeviceMetadata[$k]
         if ($meta) {
-            if ($siteSel -and $siteSel -ne '' -and $meta.Site -ne $siteSel) { continue }
+            if ($siteSel -and $siteSel -ne '' -and $siteSel -ne 'All Sites' -and $meta.Site -ne $siteSel) { continue }
+            if ($zoneSel -and $zoneSel -ne '' -and $zoneSel -ne 'All Zones' -and ($meta.PSObject.Properties['Zone']) -and $meta.Zone -ne $zoneSel) { continue }
             if ($bldSel  -and $bldSel  -ne '' -and $meta.Building -ne $bldSel) { continue }
             if ($roomSel -and $roomSel -ne '' -and $meta.Room     -ne $roomSel) { continue }
             [void]$filteredDevices.Add($k)
@@ -1318,9 +1581,16 @@ function Update-Summary {
     $filteredRows = [System.Collections.Generic.List[object]]::new()
     foreach ($row in $rows) {
         $rSite = '' + $row.Site
+        # Derive zone string without using an inline if expression.  Inline
+        # `if` inside parentheses is invalid.  Assign empty by default.
+        $rZone = ''
+        if ($row.PSObject.Properties['Zone']) {
+            $rZone = '' + $row.Zone
+        }
         $rBld  = '' + $row.Building
         $rRoom = '' + $row.Room
-        if ($siteSel -and $siteSel -ne '' -and $rSite -ne $siteSel) { continue }
+        if ($siteSel -and $siteSel -ne '' -and $siteSel -ne 'All Sites' -and $rSite -ne $siteSel) { continue }
+        if ($zoneSel -and $zoneSel -ne '' -and $zoneSel -ne 'All Zones' -and $rZone -ne $zoneSel) { continue }
         if ($bldSel  -and $bldSel  -ne '' -and $rBld  -ne $bldSel)  { continue }
         if ($roomSel -and $roomSel -ne '' -and $rRoom -ne $roomSel) { continue }
         [void]$filteredRows.Add($row)
@@ -1502,29 +1772,23 @@ function Get-PortSortKey {
 function Get-InterfaceHostnames {
     [CmdletBinding()]
     param([string]$ParsedDataPath)
-    # Return all hostnames from every site database.  Ignore ParsedDataPath.
+    # Ignore ParsedDataPath; always use the database when available.
+    if (-not $global:StateTraceDb) {
+        return @()
+    }
     try {
         $dbModule = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
         if (Test-Path $dbModule) {
             Import-Module $dbModule -Force -Global -ErrorAction SilentlyContinue | Out-Null
         }
-        $hostSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
-        foreach ($dbPath in (Get-AllSiteDbPaths)) {
-            try {
-                $dtHosts = Invoke-DbQuery -DatabasePath $dbPath -Sql 'SELECT Hostname FROM DeviceSummary'
-                if ($dtHosts) {
-                    foreach ($row in $dtHosts) {
-                        $hn = '' + $row.Hostname
-                        if ($hn) { [void]$hostSet.Add($hn) }
-                    }
-                }
-            } catch {
-                Write-Warning ("Failed to query hostnames from {0}: {1}" -f $dbPath, $_.Exception.Message)
-            }
+        $dtHosts = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql 'SELECT Hostname FROM DeviceSummary ORDER BY Hostname'
+        # Build the list of hostnames using a typed list rather than piping through
+        $hostList = New-Object 'System.Collections.Generic.List[string]'
+        foreach ($row in $dtHosts) {
+            [void]$hostList.Add([string]$row.Hostname)
         }
-        $hosts = [System.Collections.Generic.List[string]]::new($hostSet)
-        $hosts.Sort([System.StringComparer]::OrdinalIgnoreCase)
-        return $hosts.ToArray()
+        # Return the array directly.  Using a leading comma would wrap the
+        return $hostList.ToArray()
     } catch {
         Write-Warning "Failed to query hostnames from database: $($_.Exception.Message)"
         return @()
@@ -1537,16 +1801,14 @@ function Get-ConfigurationTemplates {
         [Parameter(Mandatory)][string]$Hostname,
         [string]$TemplatesPath = (Join-Path $PSScriptRoot '..\Templates')
     )
-    # Retrieve configuration template names for the specified host by reading
-    # the appropriate site database.  Without a database file for the host,
-    # return an empty array.
+    # Determine the per-site database path for this host; return empty if it does not exist.
+    $dbPath = Get-DbPathForHost $Hostname
+    if (-not (Test-Path $dbPath)) { return @() }
     try {
         $dbModulePath = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
         if (Test-Path $dbModulePath) {
             Import-Module $dbModulePath -Force -Global -ErrorAction SilentlyContinue | Out-Null
         }
-        $dbPath = Get-DbPathForHost $Hostname
-        if (-not (Test-Path $dbPath)) { return @() }
         $escHost = $Hostname -replace "'", "''"
         $dt = Invoke-DbQuery -DatabasePath $dbPath -Sql "SELECT Make FROM DeviceSummary WHERE Hostname = '$escHost'"
         $make = ''
@@ -1610,14 +1872,15 @@ function Get-InterfaceInfo {
         [Parameter(Mandatory)][string]$Hostname,
         [string]$TemplatesPath = (Join-Path $PSScriptRoot '..\Templates')
     )
-    # Always use the consolidated helper to build interface details for a host.
+    # Always use the consolidated helper to build interface details.  Determine the per-site database
+    # and return an empty list if it does not exist.
+    $dbPath = Get-DbPathForHost $Hostname
+    if (-not (Test-Path $dbPath)) { return @() }
     try {
         $dbModule = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
         if (Test-Path $dbModule) {
             Import-Module $dbModule -Force -Global -ErrorAction SilentlyContinue | Out-Null
         }
-        $dbPath = Get-DbPathForHost $Hostname
-        if (-not (Test-Path $dbPath)) { return @() }
         $escHost = $Hostname -replace "'", "''"
         $sql = "SELECT Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, ConfigStatus, PortColor, ToolTip FROM Interfaces WHERE Hostname = '$escHost' ORDER BY Port"
         $dt = Invoke-DbQuery -DatabasePath $dbPath -Sql $sql
@@ -1639,35 +1902,34 @@ function Get-InterfaceConfiguration {
         [hashtable]$NewVlans,
         [string]$TemplatesPath = (Join-Path $PSScriptRoot '..\Templates')
     )
-    # Determine the per-site database path for this host.  Without a
-    # database file, return an empty array.
+    # Determine the per-site database path for this host; return empty list if missing
     $dbPath = Get-DbPathForHost $Hostname
     if (-not (Test-Path $dbPath)) { return @() }
     $debug = ($Global:StateTraceDebug -eq $true)
+    try {
+        $dbModule = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
+        if (Test-Path $dbModule) {
+            Import-Module $dbModule -Force -Global -ErrorAction SilentlyContinue | Out-Null
+        }
+        $escHost = $Hostname -replace "'", "''"
+        $vendor = 'Cisco'
         try {
-            $dbModule = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
-            if (Test-Path $dbModule) {
-                Import-Module $dbModule -Force -Global -ErrorAction SilentlyContinue | Out-Null
-            }
-            $escHost = $Hostname -replace "'", "''"
-            $vendor = 'Cisco'
-            try {
-                $mkDt = Invoke-DbQuery -DatabasePath $dbPath -Sql "SELECT Make FROM DeviceSummary WHERE Hostname = '$escHost'"
-                if ($mkDt) {
-                    if ($mkDt -is [System.Data.DataTable]) {
-                        if ($mkDt.Rows.Count -gt 0) {
-                            $mk = $mkDt.Rows[0].Make
-                            if ($mk -match '(?i)brocade') { $vendor = 'Brocade' }
-                        }
-                    } else {
-                        $mkRow = $mkDt | Select-Object -First 1
-                        if ($mkRow -and $mkRow.PSObject.Properties['Make']) {
-                            $mk = $mkRow.Make
-                            if ($mk -match '(?i)brocade') { $vendor = 'Brocade' }
-                        }
+            $mkDt = Invoke-DbQuery -DatabasePath $dbPath -Sql "SELECT Make FROM DeviceSummary WHERE Hostname = '$escHost'"
+            if ($mkDt) {
+                if ($mkDt -is [System.Data.DataTable]) {
+                    if ($mkDt.Rows.Count -gt 0) {
+                        $mk = $mkDt.Rows[0].Make
+                        if ($mk -match '(?i)brocade') { $vendor = 'Brocade' }
+                    }
+                } else {
+                    $mkRow = $mkDt | Select-Object -First 1
+                    if ($mkRow -and $mkRow.PSObject.Properties['Make']) {
+                        $mk = $mkRow.Make
+                        if ($mk -match '(?i)brocade') { $vendor = 'Brocade' }
                     }
                 }
-            } catch {}
+            }
+        } catch {}
         $jsonFile = Join-Path $TemplatesPath "${vendor}.json"
         if (-not (Test-Path $jsonFile)) { throw "Template file missing: $jsonFile" }
 
@@ -1711,24 +1973,24 @@ function Get-InterfaceConfiguration {
             $null
         }
         if (-not $tmpl) { throw "Template '$TemplateName' not found in ${vendor}.json" }
-            # --- Batched query instead of N+1 per-port lookups ---
+        # --- Batched query instead of N+1 per-port lookups ---
         $oldConfigs = @{}
         $ports = @($Interfaces | Where-Object { $_ -ne $null } | ForEach-Object { $_.ToString() })
-            if ($ports.Count -gt 0) {
-                # Escape single quotes and build IN list
-                $escapedPorts = $ports | ForEach-Object { ($_ -replace "'", "''") }
-                $inList = ($escapedPorts | ForEach-Object { "'$_'" }) -join ", "
-                $sqlCfgAll = "SELECT Hostname, Port, Config FROM Interfaces WHERE Hostname = '$escHost' AND Port IN ($inList)"
-                $session = $null
-                try {
-                    $session = Open-DbReadSession -DatabasePath $dbPath
-                } catch {}
-                try {
-                    $dtAll = if ($session) {
-                        Invoke-DbQuery -DatabasePath $dbPath -Sql $sqlCfgAll -Session $session
-                    } else {
-                        Invoke-DbQuery -DatabasePath $dbPath -Sql $sqlCfgAll
-                    }
+        if ($ports.Count -gt 0) {
+            # Escape single quotes and build IN list
+            $escapedPorts = $ports | ForEach-Object { ($_ -replace "'", "''") }
+            $inList = ($escapedPorts | ForEach-Object { "'$_'" }) -join ", "
+            $sqlCfgAll = "SELECT Hostname, Port, Config FROM Interfaces WHERE Hostname = '$escHost' AND Port IN ($inList)"
+            $session = $null
+            try {
+                if (Test-Path $dbPath) { $session = Open-DbReadSession -DatabasePath $dbPath }
+            } catch {}
+            try {
+                $dtAll = if ($session) {
+                    Invoke-DbQuery -DatabasePath $dbPath -Sql $sqlCfgAll -Session $session
+                } else {
+                    Invoke-DbQuery -DatabasePath $dbPath -Sql $sqlCfgAll
+                }
                 if ($dtAll) {
                     $rows = @()
                     if ($dtAll -is [System.Data.DataTable]) { $rows = $dtAll.Rows }
@@ -1812,20 +2074,20 @@ function Get-InterfaceConfiguration {
 function Get-InterfaceList {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$Hostname)
+    if (-not $global:StateTraceDb) { return @() }
     try {
         $dbModule = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
         if (Test-Path $dbModule) {
             Import-Module $dbModule -Force -Global -ErrorAction SilentlyContinue | Out-Null
         }
-        $dbPath = Get-DbPathForHost $Hostname
-        if (-not (Test-Path $dbPath)) { return @() }
         $escHost = $Hostname -replace "'", "''"
-        $dt = Invoke-DbQuery -DatabasePath $dbPath -Sql "SELECT Port FROM Interfaces WHERE Hostname = '$escHost' ORDER BY Port"
+        $dt = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT Port FROM Interfaces WHERE Hostname = '$escHost' ORDER BY Port"
         # Build the list of ports using a typed list instead of piping through
         $portList = New-Object 'System.Collections.Generic.List[string]'
         foreach ($row in $dt) {
             [void]$portList.Add([string]$row.Port)
         }
+        # Return the port list array directly rather than prefixing a comma.  A
         return $portList.ToArray()
     } catch {
         Write-Warning ("Failed to get interface list for {0}: {1}" -f $Hostname, $_.Exception.Message)

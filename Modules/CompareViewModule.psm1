@@ -17,6 +17,7 @@ $script:auth2Text         = $null
 $script:lastWiredViewId   = 0
 $script:closeWiredViewId  = 0
 $script:compareHostCtl    = $null
+$script:LastCompareHostList = $null
 
 if ($null -eq $Global:StateTraceDebug) { $Global:StateTraceDebug = $false }
 if ($Global:StateTraceDebug) { $VerbosePreference = 'Continue' }
@@ -51,21 +52,96 @@ function Get-HostString {
 }
 
 function Get-HostsFromMain {
-    
     [CmdletBinding()]
     param([Windows.Window]$Window)
 
+    # Attempt to derive the host list from the in‑memory DeviceMetadata so that
+    # Compare view respects the current site/zone/building/room filters.  If
+    # DeviceMetadata is unavailable, fall back to the database query provided
+    # by Get-InterfaceHostnames.
     $hosts = @()
     try {
-        # Prefer using DeviceDataModule\Get-InterfaceHostnames which reads
-        if (Get-Command -Name 'Get-InterfaceHostnames' -ErrorAction SilentlyContinue) {
-            $raw = @(DeviceDataModule\Get-InterfaceHostnames)
-            $hosts = @($raw | ForEach-Object { Get-HostString $_ })
-            Write-Verbose "[CompareView] Retrieved $($hosts.Count) host(s) from Get-InterfaceHostnames (database)."
+        # Retrieve the last recorded location selections maintained by Update‑DeviceFilter.  These
+        # values (Site, Zone, Building, Room) reflect the current filter state across the UI and
+        # provide a consistent basis for host filtering.  Fallback to Get-SelectedLocation only
+        # when LastLocation is unavailable (e.g., on first launch before any selection is recorded).
+        $siteSel = $null; $zoneSel = $null; $bldSel = $null; $roomSel = $null
+        $lastLoc = $null
+        try { $lastLoc = DeviceDataModule\Get-LastLocation } catch { }
+        if ($lastLoc) {
+            $siteSel = $lastLoc.Site
+            $zoneSel = $lastLoc.Zone
+            $bldSel  = $lastLoc.Building
+            $roomSel = $lastLoc.Room
+        }
+        if (-not $siteSel -or $siteSel -eq '' -or $siteSel -eq $null) {
+            # If no last site exists yet, attempt to read from the UI controls.
+            try {
+                $locSel = DeviceDataModule\Get-SelectedLocation -Window $Window
+                if ($locSel) {
+                    $siteSel = $locSel.Site
+                    $zoneSel = $locSel.Zone
+                    $bldSel  = $locSel.Building
+                    $roomSel = $locSel.Room
+                }
+            } catch { }
+        }
+        # If DeviceMetadata is available, use it to filter hostnames.
+        if ($global:DeviceMetadata -and $global:DeviceMetadata.Count -gt 0) {
+            $tmpList = New-Object 'System.Collections.Generic.List[string]'
+            foreach ($entry in $global:DeviceMetadata.GetEnumerator()) {
+                $name = $entry.Key
+                $meta = $entry.Value
+                # Apply site filter (ignore 'All Sites' sentinel and blank)
+                if ($siteSel -and $siteSel -ne '' -and $siteSel -ne 'All Sites' -and $meta.Site -ne $siteSel) { continue }
+                # Apply zone filter when a specific zone (other than All Zones) is selected.
+                if ($zoneSel -and $zoneSel -ne '' -and $zoneSel -ne 'All Zones') {
+                    # Determine the zone from metadata if available; otherwise parse it from the hostname
+                    $metaZone = $null
+                    if ($meta.PSObject.Properties['Zone']) {
+                        $metaZone = '' + $meta.Zone
+                    } else {
+                        try {
+                            $partsMeta = ('' + $name) -split '-'
+                            if ($partsMeta.Length -ge 2) { $metaZone = $partsMeta[1] }
+                        } catch { $metaZone = $null }
+                    }
+                    if (-not $metaZone -or $metaZone -ne $zoneSel) { continue }
+                }
+                # Apply building filter (ignore blank selection)
+                if ($bldSel -and $bldSel -ne '' -and $meta.Building -ne $bldSel) { continue }
+                # Apply room filter (ignore blank selection)
+                if ($roomSel -and $roomSel -ne '' -and $meta.Room -ne $roomSel) { continue }
+                [void]$tmpList.Add($name)
+            }
+            $hosts = $tmpList.ToArray()
+            Write-Verbose "[CompareView] Retrieved $($hosts.Count) host(s) from DeviceMetadata for current filters."
+        } else {
+            # Fallback: use database helper to retrieve hostnames, but still apply
+            # site and zone filters based on the hostname pattern.  Hostnames have
+            # the format SITE-ZONE-... (e.g., WLLS-A05-AS-05).  When a specific
+            # site or zone is selected, extract the corresponding prefix from the
+            # hostname and filter accordingly.
+            if (Get-Command -Name 'Get-InterfaceHostnames' -ErrorAction SilentlyContinue) {
+                $raw = @(DeviceDataModule\Get-InterfaceHostnames)
+                $tmpList = New-Object 'System.Collections.Generic.List[string]'
+                foreach ($item in $raw) {
+                    $h = Get-HostString $item
+                    $parts = $h -split '-'
+                    $sitePart = if ($parts.Count -ge 1) { $parts[0] } else { '' }
+                    $zonePart = if ($parts.Count -ge 2) { $parts[1] } else { '' }
+                    # Apply the same site and zone filters using the extracted parts
+                    if ($siteSel -and $siteSel -ne '' -and $siteSel -ne 'All Sites' -and $sitePart -ne $siteSel) { continue }
+                    if ($zoneSel -and $zoneSel -ne '' -and $zoneSel -ne 'All Zones' -and $zonePart -ne $zoneSel) { continue }
+                    [void]$tmpList.Add($h)
+                }
+                $hosts = $tmpList.ToArray()
+                Write-Verbose "[CompareView] Retrieved $($hosts.Count) host(s) from Get-InterfaceHostnames (database) with site/zone filtering."
+            }
         }
     } catch {
         $hosts = @()
-        Write-Warning "[CompareView] Failed to retrieve host list from database: $($_.Exception.Message)"
+        Write-Warning "[CompareView] Failed to retrieve host list: $($_.Exception.Message)"
     }
     # Clean up host list: trim whitespace, remove blanks and deduplicate.
     $hostSet  = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
@@ -76,10 +152,33 @@ function Get-HostsFromMain {
             [void]$hostList.Add($t)
         }
     }
-    # Sort hostnames alphabetically once all unique names have been collected.  Sorting here
+    # Sort hostnames alphabetically once all unique names have been collected.
     if ($hostList -and $hostList.Count -gt 1) {
         $hostList.Sort([System.StringComparer]::OrdinalIgnoreCase)
     }
+    # Emit diagnostics about the host filtering used for Compare view.  Log the current selections
+    # (site, zone, building, room), the total count of hosts and a sample of hostnames.  Use
+    # Write-Diag if available, otherwise Write-Verbose.  Wrap in try/catch to avoid breaking UI.
+    try {
+        $siteDbg = '' + $siteSel
+        $zoneDbg = '' + $zoneSel
+        $bldDbg  = '' + $bldSel
+        $roomDbg = '' + $roomSel
+        $hCount = if ($hostList) { $hostList.Count } else { 0 }
+        $hSample = ''
+        try {
+            if ($hostList -and $hostList.Count -gt 0) {
+                $hSample = ($hostList | Select-Object -First 5) -join ','
+            }
+        } catch { $hSample = '' }
+        $msg = "CompareHostFilter | site='{0}', zone='{1}', building='{2}', room='{3}', count={4}, sample=[{5}]" -f `
+            $siteDbg, $zoneDbg, $bldDbg, $roomDbg, $hCount, $hSample
+        if (Get-Command -Name Write-Diag -ErrorAction SilentlyContinue) {
+            Write-Diag $msg
+        } else {
+            Write-Verbose $msg
+        }
+    } catch {}
     return ,$hostList.ToArray()
 }
 
@@ -528,11 +627,64 @@ function Get-CompareHandlers {
 function Update-CompareView {
     [CmdletBinding()]
     param([Parameter(Mandatory=$true)][System.Windows.Window]$Window)
-
+    # Determine the window reference immediately
     Write-Verbose "[CompareView] Initializing new Compare view..."
     $script:windowRef = $Window
+    # Gather the list of hosts based on the current filters before taking further action
+    $hosts = Get-HostsFromMain -Window $Window
+    # If we already have a compare view and the host list has not changed, refresh
+    # the existing host dropdowns and ports and avoid reloading the XAML UI.  This
+    # prevents unnecessary re‑creation of the view and reduces logging.
+    $reuse = $false
+    try {
+        if ($script:compareView -and $script:LastCompareHostList -and $hosts) {
+            if ($script:LastCompareHostList.Count -eq $hosts.Count) {
+                $same = $true
+                for ($i = 0; $i -lt $hosts.Count; $i++) {
+                    if ($script:LastCompareHostList[$i] -ne $hosts[$i]) { $same = $false; break }
+                }
+                if ($same) { $reuse = $true }
+            }
+        }
+    } catch { $reuse = $false }
+    if ($reuse) {
+        Write-Verbose "[CompareView] Host list unchanged; refreshing existing compare view hosts."
+        # Preserve currently selected switches before replacing the ItemsSource
+        $prev1 = ''
+        $prev2 = ''
+        try { if ($script:switch1Dropdown) { $prev1 = Get-HostString $script:switch1Dropdown.SelectedItem } } catch {}
+        try { if ($script:switch2Dropdown) { $prev2 = Get-HostString $script:switch2Dropdown.SelectedItem } } catch {}
+        # Update the host dropdowns with the same list
+        if ($script:switch1Dropdown) { $script:switch1Dropdown.ItemsSource = $hosts }
+        if ($script:switch2Dropdown) { $script:switch2Dropdown.ItemsSource = $hosts }
+        # Restore previous selections if still present in the list; otherwise select the first item
+        if ($script:switch1Dropdown) {
+            if ($prev1 -and $hosts -contains $prev1) { $script:switch1Dropdown.SelectedItem = $prev1 }
+            elseif ($hosts.Count -gt 0) { $script:switch1Dropdown.SelectedIndex = 0 }
+        }
+        if ($script:switch2Dropdown) {
+            if ($prev2 -and $hosts -contains $prev2) { $script:switch2Dropdown.SelectedItem = $prev2 }
+            elseif ($hosts.Count -gt 0) { $script:switch2Dropdown.SelectedIndex = 0 }
+        }
+        # Update ports for the selected switches
+        if ($script:switch1Dropdown -and $script:port1Dropdown -and $script:switch1Dropdown.SelectedItem) {
+            $host1 = Get-HostString $script:switch1Dropdown.SelectedItem
+            Set-PortsForCombo -Combo $script:port1Dropdown -Hostname $host1
+        }
+        if ($script:switch2Dropdown -and $script:port2Dropdown -and $script:switch2Dropdown.SelectedItem) {
+            $host2 = Get-HostString $script:switch2Dropdown.SelectedItem
+            Set-PortsForCombo -Combo $script:port2Dropdown -Hostname $host2
+        }
+        # Show comparison for the refreshed selections
+        Show-CurrentComparison
+        # Update the last host list reference
+        $script:LastCompareHostList = $hosts
+        Write-Verbose "[CompareView] Existing compare view updated without full reload."
+        return
+    }
 
-    # Load the XAML UI for the compare view
+    # At this point we either have no compare view yet or the host list has changed,
+    # so we need to build a fresh view and populate it.
     $xamlPath = Join-Path $PSScriptRoot '..\Views\CompareView.xaml'
     if (-not (Test-Path -LiteralPath $xamlPath)) {
         Write-Warning "[CompareView] Compare view XAML not found at $xamlPath"
@@ -551,20 +703,17 @@ function Update-CompareView {
         Write-Warning "[CompareView] XAML loaded but viewCtrl is null. Aborting."
         return
     }
-
     # Inject the loaded Compare view control into the main window's CompareHost container
     $compareHost = $Window.FindName('CompareHost')
     if ($compareHost -is [System.Windows.Controls.ContentControl]) {
         $compareHost.Content = $viewCtrl
         Write-Verbose "[CompareView] Compare view injected into main window."
-        ### FIX: Wire up Close button to remove Compare view (sidebar) [LANDMARK]
+        # Wire up the Close button to collapse the Compare sidebar
         $script:compareHostCtl = $compareHost
         $closeBtn = $viewCtrl.FindName('CloseCompareButton')
         if ($closeBtn -and ($script:closeWiredViewId -ne $viewCtrl.GetHashCode())) {
-            # Attach a single click handler to collapse the Compare sidebar instead of removing its content.
             $closeBtn.Add_Click({
                 if ($script:compareHostCtl -is [System.Windows.Controls.ContentControl]) {
-                    # Attempt to collapse the Compare column on the main window
                     try {
                         if ($script:windowRef) {
                             $col = $script:windowRef.FindName('CompareColumn')
@@ -577,19 +726,15 @@ function Update-CompareView {
             })
             $script:closeWiredViewId = $viewCtrl.GetHashCode()
         }
-        ### END FIX
     }
     else {
         Write-Warning "[CompareView] Could not find ContentControl 'CompareHost' in the main window."
         return
     }
-
     # Store reference and bind controls
     $script:compareView = $viewCtrl
     Resolve-CompareControls | Out-Null
-
-    # Populate the switches list for both dropdowns
-    $hosts = Get-HostsFromMain -Window $Window
+    # Populate the switches list for both dropdowns with the new host list
     if ($script:switch1Dropdown) {
         $script:switch1Dropdown.ItemsSource = $hosts 
         Write-Verbose "[CompareView] Switch1Dropdown populated with $($hosts.Count) host(s)."
@@ -598,8 +743,7 @@ function Update-CompareView {
         $script:switch2Dropdown.ItemsSource = $hosts 
         Write-Verbose "[CompareView] Switch2Dropdown populated with $($hosts.Count) host(s)."
     }
-
-    # Default selection: select the first host in each dropdown (if not already selected)
+    # Select first host by default if no selection
     if ($script:switch1Dropdown -and -not $script:switch1Dropdown.SelectedItem -and $script:switch1Dropdown.Items.Count -gt 0) {
         $script:switch1Dropdown.SelectedIndex = 0
         Write-Verbose "[CompareView] Switch1 defaulted to '$($script:switch1Dropdown.SelectedItem)'."
@@ -608,8 +752,7 @@ function Update-CompareView {
         $script:switch2Dropdown.SelectedIndex = 0
         Write-Verbose "[CompareView] Switch2 defaulted to '$($script:switch2Dropdown.SelectedItem)'."
     }
-
-    # Populate Port lists for any pre-selected switches
+    # Populate ports for pre-selected switches
     if ($script:switch1Dropdown -and $script:port1Dropdown -and $script:switch1Dropdown.SelectedItem) {
         $host1 = Get-HostString $script:switch1Dropdown.SelectedItem
         Set-PortsForCombo -Combo $script:port1Dropdown -Hostname $host1
@@ -618,11 +761,11 @@ function Update-CompareView {
         $host2 = Get-HostString $script:switch2Dropdown.SelectedItem
         Set-PortsForCombo -Combo $script:port2Dropdown -Hostname $host2
     }
-
-    # Wire up event handlers and show the initial comparison (if both sides have selection)
+    # Wire up event handlers and display initial comparison
     Get-CompareHandlers
     Show-CurrentComparison
-
+    # Record host list for next comparison
+    $script:LastCompareHostList = $hosts
     Write-Verbose "[CompareView] New Compare view setup complete."
 }
 
