@@ -611,8 +611,11 @@ if ($showCiscoBtn) {
 if ($showBrocadeBtn) {
     $showBrocadeBtn.Add_Click({
         try {
-            # Determine the selected OS version from dropdown; default to first item
-            $osVersion = 'v8.0.30'
+            # Determine the selected OS version from dropdown.  Default to the current
+            # Brocade OS group used in ShowCommands.json (8.3 and above) if no selection
+            # is made.  The available versions are dynamically populated into the
+            # BrocadeOSDropdown via Set-ShowCommandsOSVersions.
+            $osVersion = '8.3 and above'
             if ($brocadeOSDD -and $brocadeOSDD.SelectedItem) {
                 $sel = $brocadeOSDD.SelectedItem
                 if ($sel -is [System.Windows.Controls.ComboBoxItem]) { $osVersion = '' + $sel.Content } else { $osVersion = '' + $sel }

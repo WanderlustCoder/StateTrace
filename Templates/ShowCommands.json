@@ -4,13 +4,14 @@
       "terminal length 0",
       "show version",
       "show config",
-      "show interfaces status",
+      "show interface status",
       "show mac address-table",
       "show spanning-tree",
       "show lldp neighbors",
       "show cdp neighbors",
       "show authentication sessions",
-      "show access-lists"
+      "show access-lists",
+      "terminal length 24"
     ]
   },
   "Brocade": {
@@ -22,15 +23,20 @@
       "show mac-address",
       "show span",
       "show lldp neighbors",
-      "show dot1x sessions all",
-      "show mac-authentication sessions all",
-      "show access-list all",
       "show stack",
-      "show vlan"
+      "show vlan",
+      "show access-list all"
     ],
     "versions": {
-      "v8.0.95": [],
-      "v8.0.30": []
+      "7.3": [
+        "show dot1x mac-sessions",
+        "show auth-mac-addresses authorized-mac",
+        "show auth-mac-addresses unauthorized-mac"
+      ],
+      "8.3 and above": [
+        "show dot1x sessions all",
+        "show mac-authentication sessions all"
+      ]
     }
   }
 }
