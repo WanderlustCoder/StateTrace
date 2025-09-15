@@ -1,5 +1,0 @@
-﻿--- StateTrace diagnostic log ---
-[2025-09-12 16:00:05.914] Logging to: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\StateTrace_Debug_20250912_160005.log
-[2025-09-12 16:00:05.925] Host LanguageMode: FullLanguage
-[2025-09-12 16:00:05.930] Default runspace LanguageMode: FullLanguage
-[2025-09-12 16:00:05.932] Host keyword 'if' ok: True
