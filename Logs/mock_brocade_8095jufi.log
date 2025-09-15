@@ -595,7 +595,7 @@ Port       Link    State    Dupl Speed Trunk   Tag Pvid Pri MAC            Name
 2/1/29     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.004d  Users77
 2/1/30     Down    None     Full  1G    None   Yes 10   0   0011.2233.004e  Users78
 2/1/31     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.004f  Users79
-2/1/32     Down    None     Full  1G    None   Yes 10   0   0011.2233.0050  Users80
+2/1/32     Down    None     Full  1G    None   Yes 10   0   0011.2233.0050  Users80 80
 2/1/33     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.0051  Users81
 2/1/34     Down    None     Full  1G    None   Yes 10   0   0011.2233.0052  Users82
 2/1/35     Up      Forward  Full  1G    None   Yes 10   0   0011.2233.0053  Users83

@@ -603,7 +603,7 @@ Gi1/0/6    Users6           connected    10         auto    a-1000 10/100/1000Ba
 Gi1/0/7    Users7           connected    10         a-full  a-100  10/100/1000BaseTX
 Gi1/0/8    Users8           notconnect   10         auto    a-100  10/100/1000BaseTX
 Gi1/0/9    Users9           connected    10         a-full  a-1000 10/100/1000BaseTX
-Gi1/0/10   Users10          err-disabled 10         auto    a-100  10/100/1000BaseTX
+Gi1/0/10   Users10 10 30    err-disabled 10         auto    a-100  10/100/1000BaseTX
 Gi1/0/11   Users11          connected    10         a-full  a-100  10/100/1000BaseTX
 Gi1/0/12   Users12          connected    10         auto    a-1000 10/100/1000BaseTX
 Gi1/0/13   Users13          notconnect   10         a-full  a-100  10/100/1000BaseTX

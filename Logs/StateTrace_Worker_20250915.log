@@ -1,0 +1,46 @@
+[11:15:22.036] [Worker] LangMode=FullLanguage | keyword_if_ok=True
+[11:15:23.032] [Worker] Parsing complete: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\Extracted\WLLS-A07-AS-07.log
+[11:15:23.255] [Worker] Parsing complete: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\Extracted\WLLS-A05-AS-05.log
+[11:15:23.376] [Worker] Parsing complete: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\Extracted\WLLS-A01-AS-01.log
+[11:15:23.580] [Worker] Parsing complete: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\Extracted\BOYO-A05-AS-05.log
+[11:15:23.635] [Worker] Parsing complete: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\Extracted\WLLS-A03-AS-03.log
+[11:15:23.771] [Worker] Parsing complete: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\Extracted\WLLS-A02-AS-02.log
+[11:22:10.394] [Worker] LangMode=FullLanguage | keyword_if_ok=True
+[11:22:10.427] [Worker] LangMode=FullLanguage | keyword_if_ok=True
+[11:22:10.966] [Worker] Parsing: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\Extracted\WLLS-A01-AS-01.log
+[11:22:10.985] [Worker] Parsing complete: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\Extracted\_unknown.log
+[11:22:11.007] [Worker] Parsing: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\Extracted\WLLS-A07-AS-07.log
+[11:22:11.086] [Worker] Parsing: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\Extracted\WLLS-A05-AS-05.log
+[11:22:11.327] [Worker] Parsing complete: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\Extracted\WLLS-A02-AS-02.log
+[11:22:11.385] [Worker] Parsing complete: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\Extracted\WLLS-A03-AS-03.log
+[11:22:11.610] [Worker] Parsing complete: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\Extracted\BOYO-A05-AS-05.log
+[11:22:11.744] [Worker] Parsing complete: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\Extracted\WLLS-A01-AS-01.log
+[11:22:11.823] [Worker] Parsing complete: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\Extracted\WLLS-A07-AS-07.log
+[11:22:12.063] [Worker] Parsing complete: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\Extracted\WLLS-A05-AS-05.log
+[11:22:47.581] [Worker] LangMode=FullLanguage | keyword_if_ok=True
+[11:22:47.589] [Worker] LangMode=FullLanguage | keyword_if_ok=True
+[11:22:47.602] [Worker] LangMode=FullLanguage | keyword_if_ok=True
+[11:22:48.709] [Worker] Parsing complete: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\Extracted\WLLS-A01-AS-01.log
+[11:22:48.815] [Worker] Parsing complete: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\Extracted\WLLS-A02-AS-02.log
+[11:22:48.894] [Worker] Parsing complete: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\Extracted\WLLS-A07-AS-07.log
+[11:22:49.104] [Worker] Parsing complete: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\Extracted\WLLS-A05-AS-05.log
+[11:22:49.145] [Worker] Parsing complete: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\Extracted\WLLS-A03-AS-03.log
+[11:22:49.358] [Worker] Parsing complete: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\Extracted\BOYO-A05-AS-05.log
+[11:33:22.728] [Worker] LangMode=FullLanguage | keyword_if_ok=True
+[11:33:22.734] [Worker] LangMode=FullLanguage | keyword_if_ok=True
+[11:33:22.741] [Worker] LangMode=FullLanguage | keyword_if_ok=True
+[11:33:22.742] [Worker] LangMode=FullLanguage | keyword_if_ok=True
+[11:33:22.833] [Worker] LangMode=FullLanguage | keyword_if_ok=True
+[11:33:22.835] [Worker] LangMode=FullLanguage | keyword_if_ok=True
+[11:33:23.028] [Worker] Parsing: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\Extracted\WLLS-A02-AS-02.log
+[11:33:23.033] [Worker] Parsing: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\Extracted\BOYO-A05-AS-05.log
+[11:33:23.068] [Worker] Parsing: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\Extracted\WLLS-A01-AS-01.log
+[11:33:23.079] [Worker] Parsing: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\Extracted\WLLS-A07-AS-07.log
+[11:33:23.086] [Worker] Parsing: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\Extracted\_unknown.log
+[11:33:23.096] [Worker] Parsing complete: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\Extracted\_unknown.log
+[11:33:23.843] [Worker] Parsing complete: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\Extracted\WLLS-A01-AS-01.log
+[11:33:23.875] [Worker] Parsing complete: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\Extracted\WLLS-A03-AS-03.log
+[11:33:24.092] [Worker] Parsing complete: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\Extracted\WLLS-A05-AS-05.log
+[11:33:24.308] [Worker] Parsing complete: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\Extracted\BOYO-A05-AS-05.log
+[11:33:24.426] [Worker] Parsing complete: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\Extracted\WLLS-A02-AS-02.log
+[11:33:24.504] [Worker] Parsing complete: C:\Users\Werem\OneDrive\Documents\StateTrace\Logs\Extracted\WLLS-A07-AS-07.log

@@ -112,26 +112,36 @@ function Get-CiscoDeviceFacts {
         # Note: compiled option is implied when using .new() with no options; passing
         # RegexOptions.Compiled explicitly would require different .NET versions.
         $reWs     = [regex]::new('\s+')
+        # When parsing interface status lines, use a custom regex that tolerates
+        # spaces within the Name column.  The pattern captures the first
+        # non‑whitespace token as the Port, then greedily captures any text as
+        # the Name up to two or more spaces, and then captures the remaining
+        # columns (Status, VLAN, Duplex, Speed and Type).  Using two or more
+        # spaces as a delimiter ensures that single spaces within the Name are
+        # preserved.  Example: "Gi1/0/10   Users10 10 30    err-disabled 10         auto    a-100  10/100/1000BaseTX"
+        $reIntStatus = [regex]::new('^(?<Port>\S+)\s{2,}(?<Name>.*?)\s{2,}(?<Status>\S+)\s+(?<VLAN>\S+)\s+(?<Duplex>\S+)\s+(?<Speed>\S+)\s+(?<Type>.+)$')
 
         foreach ($l in $Lines) {
             if ($reHeader.IsMatch($l)) { $parsing = $true; continue }
             if ($parsing) {
                 if ($reBlank.IsMatch($l)) { break }
-                # Split the line into at most 7 columns on whitespace.  Regex.Split
-                # returns an array with a maximum length specified; the final
-                # element contains the remainder of the string.
-                $cols = $reWs.Split($l, 7)
-                if ($cols.Count -ge 7) {
-                    $raw = $cols[0]
+                # Use a regex to parse the line instead of splitting on whitespace.  This
+                # approach preserves spaces in the Name column and avoids skewed
+                # columns when descriptions contain spaces.  The regex captures
+                # each column explicitly.  If the line matches, extract the
+                # captured groups; otherwise, fall back to splitting on whitespace.
+                $m = $reIntStatus.Match($l)
+                if ($m.Success) {
+                    $raw = $m.Groups['Port'].Value
                     [void]$res.Add([PSCustomObject]@{
                         RawPort = $raw
                         Port    = $raw
-                        Name    = $cols[1]
-                        Status  = $cols[2]
-                        VLAN    = $cols[3]
-                        Duplex  = $cols[4]
-                        Speed   = $cols[5]
-                        Type    = $cols[6]
+                        Name    = ($m.Groups['Name'].Value.Trim())
+                        Status  = $m.Groups['Status'].Value
+                        VLAN    = $m.Groups['VLAN'].Value
+                        Duplex  = $m.Groups['Duplex'].Value
+                        Speed   = $m.Groups['Speed'].Value
+                        Type    = ($m.Groups['Type'].Value.Trim())
                     })
                 }
             }
