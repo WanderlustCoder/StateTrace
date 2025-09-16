@@ -213,15 +213,18 @@
     }
     if (-not $intStatusLines) { $intStatusLines = $Lines }
     # Retrieve the MAC address table.  Accept variants of the command when
-    # the exact "show mac address-table" key is not present.  Search for
-    # keys beginning with the expected prefix.  Hyphens and spaces are both
-    # tolerated in the pattern.
+    # the exact "show mac address-table" or "show mac-address-table" key is
+    # not present.  Search for keys beginning with the expected prefix.
+    # Hyphens and spaces between "mac" and "address" as well as "address" and
+    # "table" are tolerated in the pattern.
     if ($Blocks.ContainsKey('show mac address-table')) {
         $macLines = $Blocks['show mac address-table']
+    } elseif ($Blocks.ContainsKey('show mac-address-table')) {
+        $macLines = $Blocks['show mac-address-table']
     } else {
         $macLines = @()
         foreach ($k in $Blocks.Keys) {
-            if ($k -match '^show\s+mac\s+address[- ]table') { $macLines = $Blocks[$k]; break }
+            if ($k -match '^show\s+mac[- ]address[- ]table') { $macLines = $Blocks[$k]; break }
         }
     }
     # Retrieve authentication session lines.  Handle singular ("show authentication session")

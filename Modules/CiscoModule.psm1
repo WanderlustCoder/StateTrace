@@ -28,8 +28,25 @@ function Get-CiscoDeviceFacts {
     function Get-ModelAndVersion { param([string[]]$Lines)
         $model='Unknown'; $version='Unknown'
         foreach ($l in $Lines) {
-            if ($l -match 'Model Number\s+:\s+(\S+)')    { $model   = $matches[1] }
-            elseif ($l -match 'Version\s+([\d\.]+)')     { $version = $matches[1] }
+            # Capture model number in a case-insensitive way.  Look for
+            # "Model Number" or "Model number" followed by a colon and a value.
+            if ($l -match '(?i)Model\s+Number\s*:\s*(\S+)') {
+                $model = $matches[1]
+                continue
+            }
+            # Many older routers do not print a "Model Number" line.  They
+            # instead include the model in a line like "Cisco 881 (MPC) processor".
+            # Capture the first word after "Cisco" up to a space or parenthesis.
+            if ($model -eq 'Unknown' -and $l -match '(?i)^Cisco\s+([\w\-]+)\s*\(') {
+                $model = $matches[1]
+                continue
+            }
+            # Capture software version (e.g. "Version 15.1(4)M4").  Accept
+            # alphanumeric versions with parentheses and dots.
+            if ($l -match '(?i)Version\s+([\w\.\(\)-]+)') {
+                $version = $matches[1]
+                continue
+            }
         }
         return @($model,$version)
     }
@@ -237,7 +254,11 @@ function Get-CiscoDeviceFacts {
         $inTable = $false
         # Precompiled regexes for performance
         $reHeader = [regex]::new('^Interface\s+MAC', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
-        $reSep    = [regex]::new('^----')
+        # Match a separator line composed of three or more hyphens.  Some
+        # platforms, such as Cisco Catalyst 9300, insert a line of dashes
+        # after the table headers.  We should skip this line rather than
+        # terminating the parse.
+        $reSep    = [regex]::new('^\s*-{3,}$')
         $reMac    = [regex]::new('^(?:[0-9A-Fa-f]{4}\.){2}[0-9A-Fa-f]{4}$')
         $reMode   = [regex]::new('dot1x|mab', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
         $reAuth   = [regex]::new('auth', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
@@ -250,8 +271,12 @@ function Get-CiscoDeviceFacts {
                 if ($reHeader.IsMatch($t)) { $inTable = $true; continue }
                 else { continue }
             }
-            # Break on separator or blank line
-            if ($reSep.IsMatch($t) -or $t -match '^\s*$') { break }
+            # Skip dashed separator lines, but break on a blank line which
+            # denotes the end of the table.  Cisco 9300 outputs a line of
+            # hyphens after the column headers; we ignore it and continue
+            # parsing subsequent rows.
+            if ($reSep.IsMatch($t)) { continue }
+            if ($t -match '^\s*$') { break }
             $parts = $t -split '\s+'
             # Require at least four columns: Interface, MAC, Method, Status or SessionID
             if ($parts.Length -ge 4) {
@@ -393,15 +418,20 @@ function Get-CiscoDeviceFacts {
             if ($k -match '^show\s+interfaces?\s+status') { $intStat = $blocks[$k]; break }
         }
     }
-    # MAC address table may include hyphens or extra qualifiers.  Look for any
-    # key that starts with "show mac address" followed by "table".  If the
-    # canonical key is absent, search for a matching prefix.
+    # MAC address table commands vary across platforms.  In addition to
+    # "show mac address-table" and "show mac address table", some older
+    # devices (e.g. C880/888) use "show mac-address-table".  Check for
+    # common exact keys first, then search for patterns that match hyphen
+    # or space separated versions.  This captures variants like
+    # "show mac address-table dynamic" and "show mac-address-table".
     if ($blocks.ContainsKey('show mac address-table')) {
         $macTbl = $blocks['show mac address-table']
+    } elseif ($blocks.ContainsKey('show mac-address-table')) {
+        $macTbl = $blocks['show mac-address-table']
     } else {
         $macTbl = @()
         foreach ($k in $blocks.Keys) {
-            if ($k -match '^show\s+mac\s+address[- ]table') { $macTbl = $blocks[$k]; break }
+            if ($k -match '^show\s+mac[- ]address[- ]table') { $macTbl = $blocks[$k]; break }
         }
     }
     # Authentication sessions may be singular ("show authentication session")

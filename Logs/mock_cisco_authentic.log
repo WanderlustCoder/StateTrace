@@ -676,12 +676,13 @@ Unicast Entries
  100    0000.0c07.ac01    STATIC      Gi1/0/47
  100    0000.0c07.ac02    STATIC      Gi1/0/48
 
-WLLS-A01-AS-01# show authentication sessions
-Interface    MAC Address     Method   Domain  Status           Session ID
-Gi1/0/1      001c.58af.0000  dot1x    DATA     Auth	       0A1111111111
-Gi1/0/2      001c.58af.0001  mab      DATA     Auth	       0A2222222222
-Gi1/0/3      001c.58af.0002  disabled DATA     Unauth          0A3333333333
-Gi1/0/5      001c.58af.0003  dot1x    DATA     Unauth          0A4444444444
+WLLS-A01-AS-01# show authentication session
+Interface               MAC Address     Method   Domain   Status         Session ID
+-----------------------------------------------------------------------------------------
+Gi1/0/1                 001c.58af.0000  N/A      Unknown  Unauth	  0A1111111111
+Gi1/0/2                 001c.58af.0001  mab      DATA     Auth	          0A2222222222
+Gi1/0/3                 001c.58af.0002  disabled DATA     Unauth          0A3333333333
+Gi1/0/5                 001c.58af.0003  dot1x    DATA     Unauth          0A4444444444
 
 WLLS-A01-AS-01# show ip interface brief
 Interface              IP-Address      OK? Method Status                Protocol
