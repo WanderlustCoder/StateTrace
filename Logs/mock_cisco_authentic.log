@@ -643,11 +643,9 @@ Gi1/0/47   Uplink47          connected    trunk      a-full  a-100  10GBaseSX
 Gi1/0/48   Uplink48          notconnect   trunk      auto    a-1000 10GBaseSX
 
 WLLS-A01-AS-01# show mac address-table
-Mac Address Table
--------------------------------------------
-
-Vlan    Mac Address       Type        Ports
-----    -----------       --------    -----
+Unicast Entries
+ vlan    mac address       type        port
+--------+-----------------+------------+---------------
  10      001c.58af.0000    DYNAMIC     Gi1/0/1
  10      001c.58af.0000    DYNAMIC     Gi1/0/1
  10      001c.58af.0000    DYNAMIC     Gi1/0/1

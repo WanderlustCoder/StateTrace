@@ -203,9 +203,51 @@
             $intStatusLines = $Blocks[$key]
         }
     }
+    # If no exact key matched, search for any key that begins with
+    # "show interfaces status" or "show interface status" to support
+    # extended variants such as "show interfaces status port-channel".
+    if (-not $intStatusLines) {
+        foreach ($k in $Blocks.Keys) {
+            if ($k -match '^show\s+interfaces?\s+status') { $intStatusLines = $Blocks[$k]; break }
+        }
+    }
     if (-not $intStatusLines) { $intStatusLines = $Lines }
-    $macLines  = if ($Blocks.ContainsKey('show mac address-table')) { $Blocks['show mac address-table'] } else { @() }
-    $authLines = if ($Blocks.ContainsKey('show authentication sessions')) { $Blocks['show authentication sessions'] } else { @() }
+    # Retrieve the MAC address table.  Accept variants of the command when
+    # the exact "show mac address-table" key is not present.  Search for
+    # keys beginning with the expected prefix.  Hyphens and spaces are both
+    # tolerated in the pattern.
+    if ($Blocks.ContainsKey('show mac address-table')) {
+        $macLines = $Blocks['show mac address-table']
+    } else {
+        $macLines = @()
+        foreach ($k in $Blocks.Keys) {
+            if ($k -match '^show\s+mac\s+address[- ]table') { $macLines = $Blocks[$k]; break }
+        }
+    }
+    # Retrieve authentication session lines.  Handle singular ("show authentication session")
+    # and plural ("show authentication sessions") forms, and scan for any key
+    # beginning with those prefixes.  The regex "^show\s+authentication\s+sessions?"
+    # matches both singular and plural and captures extended forms such as
+    # "show authentication sessions interface".  This ensures that data is
+    # captured even when the command string differs from the canonical form.
+    if ($Blocks.ContainsKey('show authentication sessions')) {
+        $authLines = $Blocks['show authentication sessions']
+    } elseif ($Blocks.ContainsKey('show authentication session')) {
+        $authLines = $Blocks['show authentication session']
+    } else {
+        $authLines = @()
+        # First attempt to match keys that begin with "show authentication session[s]" (plural or singular)
+        foreach ($k in $Blocks.Keys) {
+            if ($k -match '^show\s+authentication\s+sessions?') { $authLines = $Blocks[$k]; break }
+        }
+        # If still not found, attempt to match abbreviated commands such as "show auth ses".
+        if (-not $authLines -or $authLines.Count -eq 0) {
+            foreach ($k in $Blocks.Keys) {
+                # Match commands like "show auth ses", "show auth sess", or other abbreviations.
+                if ($k -match '^show\s+auth\w*\s+ses\w*') { $authLines = $Blocks[$k]; break }
+            }
+        }
+    }
 
     # Preserve the original Lines value so it can be restored after targeted parsing.
     $origLines = $Lines

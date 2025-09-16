@@ -192,59 +192,122 @@ function Get-CiscoDeviceFacts {
 
     function Get-MacTable {
         param([string[]]$Lines)
-        # Use a strongly typed list to avoid O(n^2) growth when appending items.
-        $list = New-Object 'System.Collections.Generic.List[object]'
-        foreach ($l in $Lines) {
-            if ($l -match '^\s*(\d+)\s+([0-9a-fA-F\.]+)\s+DYNAMIC\s+(\S+)$') {
-                [void]$list.Add([PSCustomObject]@{ VLAN=$matches[1]; MAC=$matches[2]; Port=$matches[3] })
+        # Parse the MAC address table from "show mac address-table" output.  The previous
+        # implementation only captured dynamic entries with a strict three-column
+        # pattern (VLAN, MAC, DYNAMIC, Port), which missed static or extended
+        # formats.  This revised parser handles any MAC table line that begins
+        # with a VLAN number and MAC address, regardless of the Type column and
+        # intermediate columns.  It collects the VLAN, MAC and final port
+        # column.  Ports like "CPU" or other non-interface values are still
+        # captured; callers can filter them out if needed.
+        $results = New-Object 'System.Collections.Generic.List[object]'
+        foreach ($line in $Lines) {
+            $t = ($line -as [string]).Trim()
+            if (-not $t) { continue }
+            # Skip obvious headers or separators
+            if ($t -match '^(Vlan|----|Mac\s+Address|Total)') { continue }
+            $parts = $t -split '\s+'
+            # Require at least 4 columns: VLAN, MAC, Type, Port
+            if ($parts.Length -ge 4) {
+                $vlan = $parts[0]
+                $mac  = $parts[1]
+                $port = $parts[-1]
+                # Validate VLAN and MAC patterns before adding.  Accept only
+                # numeric VLANs and MAC addresses in xxxx.xxxx.xxxx format.
+                if ($vlan -match '^\d+$' -and $mac -match '^(?:[0-9A-Fa-f]{4}\.){2}[0-9A-Fa-f]{4}$') {
+                    [void]$results.Add([PSCustomObject]@{ VLAN=$vlan; MAC=$mac; Port=$port })
+                }
             }
         }
-        return $list
+        return $results
     }
 
     function Get-Dot1xStatus {
         param([string[]]$Lines)
-        # Accumulate dot1x status entries in a strongly typed list rather than
-        $list = New-Object 'System.Collections.Generic.List[object]'
-        $inSection=$false
+        # Parse the output of "show authentication sessions".  Cisco switches may
+        # format this table with varying numbers of columns.  The original
+        # implementation assumed a fixed six-column format and skipped any
+        # entries that did not exactly match, causing valid session data to be
+        # ignored.  This revised parser accepts any line with at least four
+        # columns and extracts the interface, MAC address, authentication
+        # method, status text and optional session ID.  It uses more
+        # permissive matching to handle lines where some fields are omitted.
 
-        # Precompile patterns used repeatedly in the loop.  Precompiling
-        # improves performance when processing large numbers of lines.
-        $reHeader = [regex]::new('^Interface\s+MAC Address')
-        $reBlank  = [regex]::new('^\s*$')
-        $reWs     = [regex]::new('\s+')
-        $reMac    = [regex]::new('^[0-9a-fA-F\.]+$')
+        $results = New-Object 'System.Collections.Generic.List[object]'
+        $inTable = $false
+        # Precompiled regexes for performance
+        $reHeader = [regex]::new('^Interface\s+MAC', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+        $reSep    = [regex]::new('^----')
+        $reMac    = [regex]::new('^(?:[0-9A-Fa-f]{4}\.){2}[0-9A-Fa-f]{4}$')
+        $reMode   = [regex]::new('dot1x|mab', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
         $reAuth   = [regex]::new('auth', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
         $reUnauth = [regex]::new('unauth|fail', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
-        $reMode   = [regex]::new('dot1x|mab', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
 
-        foreach ($l in $Lines) {
-            if ($reHeader.IsMatch($l)) { $inSection=$true; continue }
-            if (-not $inSection) { continue }
-            if ($reBlank.IsMatch($l)) { break }
-            $cols = $reWs.Split($l)
-            if ($cols.Count -ge 6) {
-                $iface  = $cols[0]
-                $mac    = if ($reMac.IsMatch($cols[1])) { $cols[1] } else { '' }
-                $method = $cols[2]
-                # Join columns 4 through (Count-2) to reconstruct the status field.  Splitting on
-                # whitespace may break phrases containing spaces (e.g., "auth-fail").  We preserve
-                # the original semantics by joining these columns and trimming.
-                $status = ($cols[4..($cols.Count-2)] -join ' ').Trim()
-                # Determine authorization state based on the presence of keywords in the status.
-                if ($reAuth.IsMatch($status) -and -not $reUnauth.IsMatch($status)) {
-                    $authState = 'Authorized'
-                } elseif ($reUnauth.IsMatch($status)) {
-                    $authState = 'Unauthorized'
-                } else {
-                    $authState = 'Unknown'
+        foreach ($line in $Lines) {
+            $t = ($line -as [string]).Trim()
+            if (-not $t) { continue }
+            if (-not $inTable) {
+                if ($reHeader.IsMatch($t)) { $inTable = $true; continue }
+                else { continue }
+            }
+            # Break on separator or blank line
+            if ($reSep.IsMatch($t) -or $t -match '^\s*$') { break }
+            $parts = $t -split '\s+'
+            # Require at least four columns: Interface, MAC, Method, Status or SessionID
+            if ($parts.Length -ge 4) {
+                $iface = $parts[0]
+                $mac   = ''
+                # Find the first token that looks like a MAC address
+                for ($i=1; $i -lt $parts.Length; $i++) {
+                    if ($reMac.IsMatch($parts[$i])) { $mac = $parts[$i]; break }
                 }
-                # Determine the authentication mode based on the method column.
-                $authMode  = if ($reMode.IsMatch($method)) { $method } else { 'unknown' }
-                [void]$list.Add([PSCustomObject]@{ Interface=$iface; MAC=$mac; Status=$status; AuthState=$authState; AuthMode=$authMode; SessionID=$cols[-1] })
+                # Determine the authentication method by searching tokens after the MAC
+                $method = ''
+                for ($i=1; $i -lt $parts.Length; $i++) {
+                    if ($reMode.IsMatch($parts[$i])) { $method = $parts[$i]; break }
+                }
+                # Compute the status string.  If exactly four tokens, treat the fourth
+                # token as the status.  Otherwise, join all tokens between the method
+                # column and the last column (session ID).  If the method cannot be
+                # located, join tokens starting at index 3 up to the second last.
+                $status = ''
+                $sessionId = ''
+                if ($parts.Length -eq 4) {
+                    $status    = $parts[3]
+                    $sessionId = ''
+                } else {
+                    # The last token is assumed to be a Session ID when more than four columns
+                    $sessionId = $parts[-1]
+                    $startIdx = 3
+                    if ($method) {
+                        $mIdx = [Array]::IndexOf($parts, $method)
+                        if ($mIdx -ge 0) { $startIdx = $mIdx + 1 }
+                    }
+                    if ($startIdx -le $parts.Length - 2) {
+                        $status = ($parts[$startIdx..($parts.Length-2)] -join ' ').Trim()
+                    } else {
+                        $status = ''
+                    }
+                }
+                # Derive AuthState from the status text
+                $authState = 'Unknown'
+                if ($status -ne '') {
+                    if ($reAuth.IsMatch($status) -and -not $reUnauth.IsMatch($status)) { $authState = 'Authorized' }
+                    elseif ($reUnauth.IsMatch($status)) { $authState = 'Unauthorized' }
+                }
+                # Normalise method to lower-case; if not found, use 'unknown'
+                $authMode  = if ($method) { $method } else { 'unknown' }
+                [void]$results.Add([PSCustomObject]@{
+                    Interface = $iface
+                    MAC       = $mac
+                    Status    = $status
+                    AuthState = $authState
+                    AuthMode  = $authMode
+                    SessionID = $sessionId
+                })
             }
         }
-        return $list
+        return $results
     }
 
     # Parse show spanning-tree output into a collection of summary rows.  Each
@@ -302,11 +365,72 @@ function Get-CiscoDeviceFacts {
 
     #-----------------------------------------
     $blocks    = Get-ShowCommandBlocks -Lines $Lines
-    $runCfg    = $blocks['show running-config']
-    $verBlk    = $blocks['show version']
-    $intStat   = $blocks['show interface status']
-    $macTbl    = $blocks['show mac address-table']
-    $authSes   = $blocks['show authentication sessions']
+    # Retrieve show command blocks with graceful fallbacks when the exact
+    # command name is not present.  Some devices emit singular variants (e.g.
+    # "show authentication session") or omit hyphens.  We search for the
+    # desired block and, if not found, scan for keys that begin with the
+    # expected prefix.  This prevents missing data when commands are spelled
+    # differently in the logs.
+    $runCfg = if ($blocks.ContainsKey('show running-config')) {
+        $blocks['show running-config']
+    } else { @() }
+    $verBlk = if ($blocks.ContainsKey('show version')) {
+        $blocks['show version']
+    } else { @() }
+    # Interface status may appear in a variety of forms such as
+    # "show interface status", "show interfaces status", or with additional
+    # qualifiers (e.g. "show interfaces status port-channel").  Check the
+    # common exact keys first, then fall back to the first block whose key
+    # matches the pattern "^show\s+interfaces?\s+status".  This regex
+    # tolerates both singular and plural forms of "interface".
+    if ($blocks.ContainsKey('show interface status')) {
+        $intStat = $blocks['show interface status']
+    } elseif ($blocks.ContainsKey('show interfaces status')) {
+        $intStat = $blocks['show interfaces status']
+    } else {
+        $intStat = @()
+        foreach ($k in $blocks.Keys) {
+            if ($k -match '^show\s+interfaces?\s+status') { $intStat = $blocks[$k]; break }
+        }
+    }
+    # MAC address table may include hyphens or extra qualifiers.  Look for any
+    # key that starts with "show mac address" followed by "table".  If the
+    # canonical key is absent, search for a matching prefix.
+    if ($blocks.ContainsKey('show mac address-table')) {
+        $macTbl = $blocks['show mac address-table']
+    } else {
+        $macTbl = @()
+        foreach ($k in $blocks.Keys) {
+            if ($k -match '^show\s+mac\s+address[- ]table') { $macTbl = $blocks[$k]; break }
+        }
+    }
+    # Authentication sessions may be singular ("show authentication session")
+    # or plural ("show authentication sessions"), and devices may append
+    # additional qualifiers such as "interface" or "summary".  Try exact
+    # matches for the plural and singular forms first, then fall back to
+    # any key that begins with "show authentication session" or
+    # "show authentication sessions".  The regex
+    # "^show\s+authentication\s+sessions?" matches both forms and will
+    # capture extended commands like "show authentication sessions interface".
+    if ($blocks.ContainsKey('show authentication sessions')) {
+        $authSes = $blocks['show authentication sessions']
+    } elseif ($blocks.ContainsKey('show authentication session')) {
+        $authSes = $blocks['show authentication session']
+    } else {
+        $authSes = @()
+        # First attempt to match keys that begin with "show authentication session[s]" (plural or singular)
+        foreach ($k in $blocks.Keys) {
+            if ($k -match '^show\s+authentication\s+sessions?') { $authSes = $blocks[$k]; break }
+        }
+        # If still not found, attempt to match abbreviated commands such as "show auth ses".
+        if (-not $authSes -or $authSes.Count -eq 0) {
+            foreach ($k in $blocks.Keys) {
+                # This regex matches commands like "show auth ses", "show auth sess", "show auth se"
+                # by looking for 'show', then any word starting with 'auth', then any word starting with 'se'.
+                if ($k -match '^show\s+auth\w*\s+ses\w*') { $authSes = $blocks[$k]; break }
+            }
+        }
+    }
 
     # Use the full original lines to derive the hostname rather than just the running-config
     $hostname  = Get-Hostname      -Lines $Lines
