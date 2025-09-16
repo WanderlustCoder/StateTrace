@@ -9,6 +9,23 @@ if (-not (Get-Variable -Name LastBuildingSel -Scope Script -ErrorAction Silently
 # Track previous selection for zone as well so that dependent lists can be restored
 if (-not (Get-Variable -Name LastZoneSel -Scope Script -ErrorAction SilentlyContinue)) { $script:LastZoneSel = '' }
 
+# Precompute the module root and Data directory paths once.  Many helpers in
+# this module previously used Resolve‑Path and Select‑Object to derive the
+# module's parent directory and Data folder on every call.  Those pipeline
+# operations are relatively expensive.  Here we compute the absolute parent
+# path using .NET methods and store it in script‑scoped variables.  These
+# values are then reused in Get‑DbPathForHost and Get‑AllSiteDbPaths to avoid
+# repeated path resolution.
+if (-not (Get-Variable -Name ModuleRootPath -Scope Script -ErrorAction SilentlyContinue)) {
+    try {
+        $script:ModuleRootPath = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+    } catch {
+        # Fallback: use the parent directory via Split-Path if GetFullPath fails
+        $script:ModuleRootPath = Split-Path -Parent $PSScriptRoot
+    }
+    $script:DataDirPath = Join-Path $script:ModuleRootPath 'Data'
+}
+
 function Test-StringListEqualCI {
     param([System.Collections.IEnumerable]$A, [System.Collections.IEnumerable]$B)
     $la = @($A); $lb = @($B)
@@ -39,21 +56,25 @@ function Get-SiteFromHostname {
 
 function Get-DbPathForHost {
     param([Parameter(Mandatory)][string]$Hostname)
+    # Determine the site code (substring before the first dash).  We compute the
+    # parent directory and Data folder once at module load time (see below)
+    # rather than resolving it on every invocation.  This avoids the overhead
+    # of Resolve‑Path and pipeline operations.  Join‑Path is used here only
+    # to append the site-specific filename.
     $site = Get-SiteFromHostname $Hostname
-    # Compute the absolute Data directory under the module's parent
-    $root = Join-Path $PSScriptRoot '..' | Resolve-Path | Select-Object -ExpandProperty Path
-    $dataDir = Join-Path $root 'Data'
-    # Compose the site-specific database file name
-    return (Join-Path $dataDir ("$site.accdb"))
+    return (Join-Path $script:DataDirPath ("$site.accdb"))
 }
 
 function Get-AllSiteDbPaths {
     # Return an array of all .accdb files in the Data directory.  If none exist,
-    # return an empty array.  Resolve-Path normalises relative segments.
-    $root = Join-Path $PSScriptRoot '..' | Resolve-Path | Select-Object -ExpandProperty Path
-    $dataDir = Join-Path $root 'Data'
-    if (-not (Test-Path $dataDir)) { return @() }
-    return Get-ChildItem -Path $dataDir -Filter '*.accdb' -File | Select-Object -ExpandProperty FullName
+    # return an empty array.  We avoid Resolve‑Path and Select‑Object to speed
+    # up repeated calls; instead we rely on the precomputed $script:DataDirPath.
+    if (-not (Test-Path $script:DataDirPath)) { return @() }
+    $files = Get-ChildItem -Path $script:DataDirPath -Filter '*.accdb' -File
+    # Build a strongly typed list of strings to collect FullName properties
+    $list = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($f in $files) { [void]$list.Add($f.FullName) }
+    return $list.ToArray()
 }
 
 # Initialise a simple in‑memory cache for per‑device interface lists.  When a
@@ -72,6 +93,33 @@ if (-not (Get-Variable -Name TemplatesCache -Scope Script -ErrorAction SilentlyC
 }
 if (-not (Get-Variable -Name TemplatesByName -Scope Script -ErrorAction SilentlyContinue)) {
     $script:TemplatesByName = @{}
+}
+
+# -----------------------------------------------------------------------------
+# Helper to ensure the database module is imported once.  Several functions in
+# this module previously imported the DatabaseModule on every invocation, which
+# incurs unnecessary overhead and can slow down interface lookups when executed
+# repeatedly.  The following helper checks whether the DatabaseModule is already
+# loaded; if not, it attempts to import it from the same directory as this
+# module.  Errors during import are silently ignored so callers don't need to
+# handle exceptions.  See Get-ConfigurationTemplates/Get-InterfaceInfo/etc.
+function Ensure-DatabaseModule {
+    [CmdletBinding()]
+    param()
+    try {
+        # Check by module name rather than path; avoids multiple loads when
+        # different relative paths point at the same module.  If DatabaseModule
+        # isn't loaded yet, attempt to import it from this folder.  The
+        # Force/Global flags mirror the original behaviour but only run once.
+        if (-not (Get-Module -Name DatabaseModule)) {
+            $dbModulePath = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
+            if (Test-Path $dbModulePath) {
+                Import-Module $dbModulePath -Force -Global -ErrorAction SilentlyContinue | Out-Null
+            }
+        }
+    } catch {
+        # Swallow any import errors; downstream functions will handle missing cmdlets.
+    }
 }
 
 # Retrieve the currently selected site, building and room from the main
@@ -230,7 +278,13 @@ ORDER BY i.Hostname, i.Port
 function New-InterfaceObjectsFromDbRow {
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)][object]$Data,
+        # Accept a null or empty Data argument.  When $Data is null due to missing
+        # interface records in the log or database, return an empty list rather
+        # than throwing a binding error.  Previously this parameter was
+        # mandatory, which caused an error when logs contained no interface
+        # information.  Making it optional allows the function to be called
+        # safely in those situations.
+        [object]$Data = $null,
         [Parameter(Mandatory)][string]$Hostname,
         [string]$TemplatesPath = (Join-Path $PSScriptRoot '..\Templates')
     )
@@ -242,6 +296,11 @@ function New-InterfaceObjectsFromDbRow {
     $escHost = $Hostname -replace "'", "''"
 
     # Determine vendor (Cisco vs Brocade) and global auth block using any joined
+    # If no data was provided, return an empty array immediately.  This
+    # prevents downstream logic from attempting to access properties on a
+    # null reference and avoids binding errors at the caller.
+    if (-not $Data) { return @() }
+
     $vendor = 'Cisco'
     $authBlockLines = @()
     $firstRow = $null
@@ -311,27 +370,45 @@ function New-InterfaceObjectsFromDbRow {
             $authBlockLines = $abText -split "`r?`n" | ForEach-Object { ('' + $_).Trim() } | Where-Object { $_ -ne '' }
         }
     }
-    # Load compliance templates based on vendor.  If the JSON file is missing the
+    # Retrieve compliance templates for this vendor.  Avoid repeatedly reading
+    # JSON from disk by caching the parsed templates per vendor.  When the
+    # cache does not contain an entry, read from the appropriate .json file,
+    # convert it, and store it for future calls.  Afterwards, build the
+    # $script:TemplatesByName index for O(1) lookups by template name.  Use
+    # -AsString to ensure the hash table uses string keys consistently.
     $templates = $null
     try {
         $vendorFile = if ($vendor -eq 'Cisco') { 'Cisco.json' } else { 'Brocade.json' }
         $jsonFile   = Join-Path $TemplatesPath $vendorFile
-        if (Test-Path $jsonFile) {
-            $tmplJson = Get-Content $jsonFile -Raw | ConvertFrom-Json
-            if ($tmplJson -and $tmplJson.PSObject.Properties['templates']) {
-                $templates = $tmplJson.templates
-                # Build name -> template(s) index for O(1) lookups
-                try {
-                    if ($templates) {
-                        # `-AsString` ensures string keys are used even if the property is not strictly typed as [string]
-                        $script:TemplatesByName = $templates | Group-Object -Property name -AsHashTable -AsString
-                    } else {
-                        $script:TemplatesByName = @{}
-                    }
-                } catch {
-                    $script:TemplatesByName = @{}
+        # Ensure the templates cache exists.  Without this, lookups on
+        # $script:TemplatesCache would throw.  Note: the cache lives in
+        # script scope and persists across calls.
+        if (-not $script:TemplatesCache) { $script:TemplatesCache = @{} }
+        if ($script:TemplatesCache.ContainsKey($vendor)) {
+            $templates = $script:TemplatesCache[$vendor]
+        } else {
+            if (Test-Path $jsonFile) {
+                $tmplJson = Get-Content $jsonFile -Raw | ConvertFrom-Json
+                if ($tmplJson -and $tmplJson.PSObject.Properties['templates']) {
+                    $templates = $tmplJson.templates
+                } else {
+                    $templates = @()
                 }
+                $script:TemplatesCache[$vendor] = $templates
+            } else {
+                $templates = @()
             }
+        }
+        # Build name → template(s) index on each call so that
+        # Get-InterfaceConfiguration can look up a template by name in O(1) time.
+        try {
+            if ($templates) {
+                $script:TemplatesByName = $templates | Group-Object -Property name -AsHashTable -AsString
+            } else {
+                $script:TemplatesByName = @{}
+            }
+        } catch {
+            $script:TemplatesByName = @{}
         }
     } catch {}
     # Normalise $Data into an enumerable collection of rows.  Support DataTable,
@@ -1276,33 +1353,34 @@ FROM Interfaces AS i
 LEFT JOIN DeviceSummary AS ds ON i.Hostname = ds.Hostname
 ORDER BY i.Hostname, i.Port
 "@
-        # Query all databases and merge the results into a single list
-        $dtCombined = @()
+        # Query all databases and merge the results into a single list.  Use a
+        # strongly typed List[object] instead of array concatenation (+=) to
+        # avoid O(n^2) behaviour when combining query results from multiple
+        # site databases.
+        $rows = New-Object 'System.Collections.Generic.List[object]'
         foreach ($dbPath in (Get-AllSiteDbPaths)) {
             try {
                 $partial = Invoke-DbQuery -DatabasePath $dbPath -Sql $sql
                 if ($partial) {
-                    # Append rows from this database into the combined list
-                    $dtCombined += $partial
+                    if ($partial -is [System.Data.DataTable]) {
+                        # Add all DataRow objects from the DataTable.
+                        [void]$rows.AddRange([System.Array]$partial.Rows)
+                    } elseif ($partial -is [System.Data.DataView]) {
+                        [void]$rows.AddRange([System.Array]$partial)
+                    } elseif ($partial -is [System.Collections.IEnumerable]) {
+                        foreach ($item in $partial) {
+                            [void]$rows.Add($item)
+                        }
+                    }
                 }
             } catch {
                 Write-Warning ("Failed to query interfaces from {0}: {1}" -f $dbPath, $_.Exception.Message)
             }
         }
-        $dt = $dtCombined
-        # The returned query result may be a DataTable, DataView or other enumerable
-
-        # Prepare an enumerable of rows depending on the type of $dt.  Only
-        $rows = @()
-        if ($dt -is [System.Data.DataTable]) {
-            $rows = $dt.Rows
-        } elseif ($dt -is [System.Data.DataView]) {
-            $rows = $dt  # DataView is enumerable of DataRowView
-        } elseif ($dt -is [System.Collections.IEnumerable]) {
-            $rows = $dt  # In case Invoke-DbQuery returns DataRow[] or similar
-        } else {
-            Write-Warning "DBG: Unexpected query result type; skipping row enumeration."
-        }
+        # At this point $rows is a typed list containing all rows from all site
+        # databases.  The old $dt variable is no longer used.  Capture the
+        # total count once up front for diagnostics.
+        $dt = $null
 
         $rowCount = 0
         try { $rowCount = $rows.Count } catch { }
@@ -1777,10 +1855,10 @@ function Get-InterfaceHostnames {
         return @()
     }
     try {
-        $dbModule = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
-        if (Test-Path $dbModule) {
-            Import-Module $dbModule -Force -Global -ErrorAction SilentlyContinue | Out-Null
-        }
+        # Ensure the database module is loaded only once.  Without this helper
+        # the DatabaseModule was being imported on each call which slows down
+        # repeated invocations of this function.
+        Ensure-DatabaseModule
         $dtHosts = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql 'SELECT Hostname FROM DeviceSummary ORDER BY Hostname'
         # Build the list of hostnames using a typed list rather than piping through
         $hostList = New-Object 'System.Collections.Generic.List[string]'
@@ -1805,10 +1883,10 @@ function Get-ConfigurationTemplates {
     $dbPath = Get-DbPathForHost $Hostname
     if (-not (Test-Path $dbPath)) { return @() }
     try {
-        $dbModulePath = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
-        if (Test-Path $dbModulePath) {
-            Import-Module $dbModulePath -Force -Global -ErrorAction SilentlyContinue | Out-Null
-        }
+        # Load the database module once.  Previously this module was imported on
+        # every call which is inefficient; use the helper to import only when
+        # necessary.
+        Ensure-DatabaseModule
         $escHost = $Hostname -replace "'", "''"
         $dt = Invoke-DbQuery -DatabasePath $dbPath -Sql "SELECT Make FROM DeviceSummary WHERE Hostname = '$escHost'"
         $make = ''
@@ -1877,10 +1955,8 @@ function Get-InterfaceInfo {
     $dbPath = Get-DbPathForHost $Hostname
     if (-not (Test-Path $dbPath)) { return @() }
     try {
-        $dbModule = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
-        if (Test-Path $dbModule) {
-            Import-Module $dbModule -Force -Global -ErrorAction SilentlyContinue | Out-Null
-        }
+        # Ensure the database module is loaded once rather than on every call.
+        Ensure-DatabaseModule
         $escHost = $Hostname -replace "'", "''"
         $sql = "SELECT Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, ConfigStatus, PortColor, ToolTip FROM Interfaces WHERE Hostname = '$escHost' ORDER BY Port"
         $dt = Invoke-DbQuery -DatabasePath $dbPath -Sql $sql
@@ -1907,10 +1983,8 @@ function Get-InterfaceConfiguration {
     if (-not (Test-Path $dbPath)) { return @() }
     $debug = ($Global:StateTraceDebug -eq $true)
     try {
-        $dbModule = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
-        if (Test-Path $dbModule) {
-            Import-Module $dbModule -Force -Global -ErrorAction SilentlyContinue | Out-Null
-        }
+        # Ensure the database module is loaded once rather than on every call.
+        Ensure-DatabaseModule
         $escHost = $Hostname -replace "'", "''"
         $vendor = 'Cisco'
         try {
@@ -2076,10 +2150,9 @@ function Get-InterfaceList {
     param([Parameter(Mandatory)][string]$Hostname)
     if (-not $global:StateTraceDb) { return @() }
     try {
-        $dbModule = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
-        if (Test-Path $dbModule) {
-            Import-Module $dbModule -Force -Global -ErrorAction SilentlyContinue | Out-Null
-        }
+        # Ensure the database module is loaded only once.  Repeatedly importing
+        # DatabaseModule on each call slows down retrieval of port lists.
+        Ensure-DatabaseModule
         $escHost = $Hostname -replace "'", "''"
         $dt = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT Port FROM Interfaces WHERE Hostname = '$escHost' ORDER BY Port"
         # Build the list of ports using a typed list instead of piping through

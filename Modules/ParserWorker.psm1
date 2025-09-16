@@ -7,6 +7,16 @@ function New-Directories {
     }
 }
 
+# -----------------------------------------------------------------------------
+# Maintain a per-runspace cache of vendor configuration templates.  Without
+# caching, each call to Invoke-DeviceLogParsing would read and parse the
+# vendor-specific JSON template file on disk.  Storing the parsed templates
+# by vendor name in a script-scoped dictionary avoids repeated disk I/O and
+# JSON parsing within the same runspace.
+if (-not (Get-Variable -Name VendorTemplatesCache -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:VendorTemplatesCache = @{}
+}
+
 #
 
 function Split-RawLogs {
@@ -150,16 +160,24 @@ function Start-ParallelDeviceProcessing {
     $runspacePool.Open()
     # Use a typed List[object] to collect runspaces efficiently, avoiding
     $runspaces = New-Object 'System.Collections.Generic.List[object]'
+    # Capture the current debug flag once outside the worker loop so that
+    # verbose output can be toggled on/off globally via $Global:StateTraceDebug.
+    $enableVerbose = $false
+    try { $enableVerbose = [bool]$Global:StateTraceDebug } catch { $enableVerbose = $false }
     foreach ($file in $DeviceFiles) {
         $ps = [powershell]::Create()
         $ps.RunspacePool = $runspacePool
         # Build the script block to execute in each runspace.  Import the vendor
         $ps.AddScript({
-            param($filePath, $modulesPath, $archiveRoot, $dbPath)
-            # Worker diagnostics are enabled by default.  The following preferences
-            # ensure verbose, debug and error streams flow without manual toggling.
-            $VerbosePreference       = 'Continue'
-            $DebugPreference         = 'Continue'
+            param($filePath, $modulesPath, $archiveRoot, $dbPath, [bool]$enableVerbose)
+            # Configure verbose and debug preferences based on the passed flag.
+            if ($enableVerbose) {
+                $VerbosePreference     = 'Continue'
+                $DebugPreference       = 'Continue'
+            } else {
+                $VerbosePreference     = 'SilentlyContinue'
+                $DebugPreference       = 'SilentlyContinue'
+            }
             $ErrorActionPreference   = 'Stop'
             # Set up a simple worker log.  Each worker writes to a per-day file under
             # Documents\StateTrace\Logs.  The log will also output to the verbose stream.
@@ -222,7 +240,7 @@ function Start-ParallelDeviceProcessing {
                 WLog $msg
                 throw $msg
             }
-        }).AddArgument($file).AddArgument($ModulesPath).AddArgument($ArchiveRoot).AddArgument($DatabasePath)
+        }).AddArgument($file).AddArgument($ModulesPath).AddArgument($ArchiveRoot).AddArgument($DatabasePath).AddArgument($enableVerbose)
         [void]$runspaces.Add([PSCustomObject]@{
             Pipe = $ps
             AsyncResult = $ps.BeginInvoke()
@@ -273,7 +291,14 @@ function Invoke-StateTraceParsing {
         [string]$DatabasePath
     )
     # Determine project root based on the module's location.  $PSScriptRoot is
-    $projectRoot = Join-Path $PSScriptRoot '..' | Resolve-Path | Select-Object -ExpandProperty Path
+    # Resolve the project root once using .NET methods.  Using Resolve‑Path in a
+    # pipeline can be expensive; GetFullPath computes the absolute path to the
+    # parent directory without invoking the pipeline.
+    try {
+        $projectRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+    } catch {
+        $projectRoot = (Split-Path -Parent $PSScriptRoot)
+    }
     $logPath      = Join-Path $projectRoot 'Logs'
     $extractedPath= Join-Path $logPath 'Extracted'
     $modulesPath  = Join-Path $projectRoot 'Modules'
@@ -882,7 +907,14 @@ function Invoke-DeviceLogParsing {
     try {
         $siteCode = Get-SiteFromHostname $facts.Hostname
         # Compute the absolute project root for constructing the Data directory.
-        $projectRoot = Join-Path $PSScriptRoot '..' | Resolve-Path | Select-Object -ExpandProperty Path
+        # Compute the project root using GetFullPath instead of Resolve‑Path to
+        # avoid pipeline overhead.  This is executed inside each runspace, so
+        # efficiency matters when processing many logs.
+        try {
+            $projectRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+        } catch {
+            $projectRoot = (Split-Path -Parent $PSScriptRoot)
+        }
         $dbDir = Join-Path $projectRoot 'Data'
         if (-not (Test-Path $dbDir)) {
             # Create the Data directory if it doesn't exist
@@ -973,15 +1005,30 @@ function Invoke-DeviceLogParsing {
             try {
                 $vendor = 'Cisco'
                 if ($facts.Make) {
-                    # Match known vendors in a case-insensitive manner without
+                    # Match known vendors in a case-insensitive manner without specifying all vendor strings.
                     if ($facts.Make -match '(?i)brocade') { $vendor = 'Brocade' }
                     elseif ($facts.Make -match '(?i)arista') { $vendor = 'Brocade' }
                 }
-                $tplDir = Join-Path $PSScriptRoot '..\Templates'
+                $tplDir   = Join-Path $PSScriptRoot '..\Templates'
                 $jsonFile = Join-Path $tplDir "$vendor.json"
-                if (Test-Path $jsonFile) {
-                    $json = Get-Content -Path $jsonFile -Raw | ConvertFrom-Json
-                    if ($json.templates) { $templates = $json.templates }
+                # Use the script-scoped cache to avoid repeatedly reading and parsing the same
+                # vendor template file within a single runspace.  Populate the cache on
+                # first use; thereafter reuse the stored templates array.
+                if (-not $script:VendorTemplatesCache) { $script:VendorTemplatesCache = @{} }
+                if ($script:VendorTemplatesCache.ContainsKey($vendor)) {
+                    $templates = $script:VendorTemplatesCache[$vendor]
+                } else {
+                    if (Test-Path $jsonFile) {
+                        $json = Get-Content -Path $jsonFile -Raw | ConvertFrom-Json
+                        if ($json.templates) {
+                            $templates = $json.templates
+                        } else {
+                            $templates = @()
+                        }
+                        $script:VendorTemplatesCache[$vendor] = $templates
+                    } else {
+                        $templates = @()
+                    }
                 }
             } catch {
                 # Ignore template load errors; compliance info will remain default
