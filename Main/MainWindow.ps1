@@ -308,13 +308,13 @@ function Get-HostnameChanged {
         # Load device details synchronously.  Asynchronous invocation via
         if ($Hostname) {
             Get-DeviceDetails $Hostname
-            if (Get-Command Load-SpanInfo -ErrorAction SilentlyContinue) {
-                Load-SpanInfo $Hostname
+            if (Get-Command Get-SpanInfo -ErrorAction SilentlyContinue) {
+                Get-SpanInfo $Hostname
             }
         } else {
             # Clear span info when hostname is empty
-            if (Get-Command Load-SpanInfo -ErrorAction SilentlyContinue) {
-                Load-SpanInfo ''
+            if (Get-Command Get-SpanInfo -ErrorAction SilentlyContinue) {
+                Get-SpanInfo ''
             }
         }
     } catch {
@@ -335,8 +335,8 @@ function Import-DeviceDetailsAsync {
     }
     # If no host is provided, clear span info and return
     if (-not $Hostname) {
-        if (Get-Command Load-SpanInfo -ErrorAction SilentlyContinue) {
-            try { [System.Windows.Application]::Current.Dispatcher.Invoke([System.Action]{ Load-SpanInfo '' }) } catch {}
+        if (Get-Command Get-SpanInfo -ErrorAction SilentlyContinue) {
+            try { [System.Windows.Application]::Current.Dispatcher.Invoke([System.Action]{ Get-SpanInfo '' }) } catch {}
         }
         return
     }
@@ -453,8 +453,8 @@ return \$res
                             if ($combo) { Set-DropdownItems -Control $combo -Items $templates }
                         }
                         # Load span info using vendor-specific helper if present
-                        if (Get-Command Load-SpanInfo -ErrorAction SilentlyContinue) {
-                            try { Load-SpanInfo $summary.Hostname } catch {}
+                        if (Get-Command Get-SpanInfo -ErrorAction SilentlyContinue) {
+                            try { Get-SpanInfo $summary.Hostname } catch {}
                         }
                     } catch {
                         # Swallow UI update exceptions to prevent crashes
@@ -684,7 +684,7 @@ $window.Add_Loaded({
             $first = $hostDD.Items[0]
             # Load details for the first host via the unified helper
             Get-DeviceDetails $first
-            if (Get-Command Load-SpanInfo -ErrorAction SilentlyContinue) { Load-SpanInfo $first }
+            if (Get-Command Get-SpanInfo -ErrorAction SilentlyContinue) { Get-SpanInfo $first }
         }
     } catch {
         [System.Windows.MessageBox]::Show(("Log parsing failed:`n{0}" -f $_.Exception.Message), "Error")
@@ -699,8 +699,8 @@ if ($window.FindName('HostnameDropdown').Items.Count -gt 0) {
     $first = $window.FindName('HostnameDropdown').Items[0]
     # Load details for the first host using the unified helper
     Get-DeviceDetails $first
-    if (Get-Command Load-SpanInfo -ErrorAction SilentlyContinue) {
-        Load-SpanInfo $first
+    if (Get-Command Get-SpanInfo -ErrorAction SilentlyContinue) {
+        Get-SpanInfo $first
     }
 }
 

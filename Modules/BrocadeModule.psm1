@@ -45,7 +45,12 @@ function Get-BrocadeDeviceFacts {
     # longer forms such as 'Ethernet1/1/1'.  Use this helper to produce a canonical
     # representation for dictionary lookups.  The returned string preserves the
     # underlying numeric stack/slot/port but removes vendor‑specific prefixes.
-    function Normalize-PortKey {
+    # Convert a port key to a canonical form by stripping any vendor-specific
+    # prefixes (e.g. 'Ethernet1/1/1' → '1/1/1').  Using the approved verb
+    # 'ConvertTo' conveys that this helper transforms the input to a new
+    # representation.  The previous name 'Normalize-PortKey' used the
+    # unapproved verb 'Normalize'.  Callers have been updated accordingly.
+    function ConvertTo-PortKey {
         param([string]$p)
         if (-not $p) { return $p }
         # Remove any leading 'Et', 'Eth' or 'Ethernet' (case‑insensitive).  The
@@ -500,13 +505,13 @@ function Get-MacTable {
     # Normalize each port key so that ports listed with different prefixes collide into the same set.
     $dot1xSet = @{}
     foreach ($p in $dot1xPorts) {
-        $norm = Normalize-PortKey $p
+        $norm = ConvertTo-PortKey $p
         # Directly assign the key to `$true`; duplicates simply overwrite the value
         $dot1xSet[$norm] = $true
     }
     $macauthSet = @{}
     foreach ($p in $macauthPorts) {
-        $norm = Normalize-PortKey $p
+        $norm = ConvertTo-PortKey $p
         $macauthSet[$norm] = $true
     }
     # Determine which authentication session output is available.  Starting in
@@ -617,7 +622,7 @@ function Get-MacTable {
     $macsByPort = @{}
     foreach ($m in $macs) {
         $p    = $m.Port
-        $norm = Normalize-PortKey $p
+        $norm = ConvertTo-PortKey $p
         if (-not $macsByPort.ContainsKey($norm)) {
             $macsByPort[$norm] = New-Object 'System.Collections.Generic.List[string]'
         }
@@ -626,7 +631,7 @@ function Get-MacTable {
     $authByPort = @{}
     foreach ($a in $auth) {
         # In case multiple auth rows are present for a port, prefer the first
-        $norm = Normalize-PortKey $a.Port
+        $norm = ConvertTo-PortKey $a.Port
         if (-not $authByPort.ContainsKey($norm)) {
             $authByPort[$norm] = $a
         }
@@ -637,7 +642,7 @@ function Get-MacTable {
     # regardless of how its name appears in different command outputs.
     $macRowByPort = @{}
     foreach ($m in $macs) {
-        $norm = Normalize-PortKey $m.Port
+        $norm = ConvertTo-PortKey $m.Port
         # Keep the first MAC table row per port; later rows are ignored
         if (-not $macRowByPort.ContainsKey($norm)) {
             $macRowByPort[$norm] = $m
@@ -653,7 +658,7 @@ function Get-MacTable {
         # (e.g., tooltips or exports).
         # Look up the list of MAC addresses learned on this port.  Use a normalized
         # key for dictionary access to handle minor variations in port prefixes.
-        $normPort = Normalize-PortKey $port
+        $normPort = ConvertTo-PortKey $port
         $macArr = if ($macsByPort.ContainsKey($normPort)) {
             $macsByPort[$normPort]
         } else {

@@ -238,7 +238,13 @@ function Get-CiscoDeviceFacts {
     # "GigabitEthernet 1/0/1").  The status table, however, uses short
     # abbreviations like "Gi" or "Fa".  To ensure MAC entries map back to
     # interface rows, convert long-form names to their abbreviated form.
-    function Normalize-PortName {
+    # Convert a full interface name (e.g. "GigabitEthernet1/0/1")
+    # into its short alias (e.g. "Gi1/0/1").  Using the approved
+    # verb 'ConvertTo' clarifies that this helper transforms one
+    # representation into another.  The previous name 'Normalize-PortName'
+    # used the unapproved verb 'Normalize', which triggered import
+    # warnings.  Calls to the old name have been updated accordingly.
+    function ConvertTo-ShortPortName {
         param([string]$Port)
         if ([string]::IsNullOrWhiteSpace($Port)) { return $Port }
         $p = $Port.Trim()
@@ -308,7 +314,7 @@ function Get-MacTable {
                     # the interface status output (e.g. "Gi1/0/1").  This
                     # enables MAC entries to map correctly back to their
                     # corresponding interface rows during aggregation.
-                    $normPort = Normalize-PortName -Port $port
+                    $normPort = ConvertTo-ShortPortName -Port $port
                     [void]$results.Add([PSCustomObject]@{ VLAN=$vlan; MAC=$mac; Port=$normPort })
                 }
             }

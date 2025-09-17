@@ -210,7 +210,7 @@ function Start-ParallelDeviceProcessing {
             # the worker log file when verbose/debug mode is enabled.  Always
             # write to the verbose stream.
             $logToFile = $enableVerbose
-            function WLog {
+            function Write-WorkerLog {
                 param([string]$m)
                 try {
                     $line = "[{0}] [Worker] {1}" -f (Get-Date -Format 'HH:mm:ss.fff'), $m
@@ -231,7 +231,7 @@ function Start-ParallelDeviceProcessing {
             # Smoke test: verify if/try keywords function in this runspace
             $kwOK = $false
             try { if ($true) { $kwOK = $true } } catch { $kwOK = $false }
-            WLog ("LangMode={0} | keyword_if_ok={1}" -f $lm, $kwOK)
+                Write-WorkerLog ("LangMode={0} | keyword_if_ok={1}" -f $lm, $kwOK)
             if ($lm -ne [System.Management.Automation.PSLanguageMode]::FullLanguage) {
                 throw "Worker runspace LanguageMode is $lm (expected FullLanguage)"
             }
@@ -249,9 +249,9 @@ function Start-ParallelDeviceProcessing {
             # log output is archived and summarised into the database.  Wrap the
             # invocation in a try/catch to surface any exceptions with full context.
             try {
-                WLog ("Parsing: {0}" -f $filePath)
+                Write-WorkerLog ("Parsing: {0}" -f $filePath)
                 Invoke-DeviceLogParsing -FilePath $filePath -ArchiveRoot $archiveRoot -DatabasePath $dbPath
-                WLog ("Parsing complete: {0}" -f $filePath)
+                Write-WorkerLog ("Parsing complete: {0}" -f $filePath)
             } catch {
                 $emsg = $_.Exception.Message
                 $pos  = ''
@@ -267,7 +267,7 @@ function Start-ParallelDeviceProcessing {
                 if ($pos) { [void]$sb.Append("`nPosition:`n$pos") }
                 if ($stk) { [void]$sb.Append("`nStack:`n$stk") }
                 $msg = $sb.ToString()
-                WLog $msg
+                Write-WorkerLog $msg
                 throw $msg
             }
         }).AddArgument($file).AddArgument($ModulesPath).AddArgument($ArchiveRoot).AddArgument($DatabasePath).AddArgument($enableVerbose)

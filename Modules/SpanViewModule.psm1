@@ -26,8 +26,16 @@ function New-SpanView {
     $spanGrid     = $spanView.FindName('SpanGrid')
     $vlanDropdown = $spanView.FindName('VlanDropdown')
     $spanRefresh  = $spanView.FindName('RefreshSpanButton')
-    # Helper to load spanning tree information for a device
-    function Global:Load-SpanInfo {
+    # Helper to get spanning tree information for a device
+    #
+    # NOTE: The original implementation used the verb 'Load'.  According to
+    # PowerShell best practices, cmdlet names should use approved verbs.
+    # 'Load' isn't an approved verb (the recommended verb for obtaining
+    # information is 'Get'), so we've renamed this helper to
+    # 'Get-SpanInfo'.  All references to the old Load-SpanInfo name have
+    # been updated accordingly.  This change eliminates import warnings
+    # about unapproved verbs and makes the command more discoverable.
+    function Global:Get-SpanInfo {
         param([string]$Hostname)
         if (-not $spanGrid) { return }
         # Clear when no hostname provided
@@ -95,9 +103,9 @@ function New-SpanView {
 
             # Reload spanning tree info for current host
             $currentHost = $Window.FindName('HostnameDropdown').SelectedItem
-            if ($currentHost) { Load-SpanInfo $currentHost }
+            if ($currentHost) { Get-SpanInfo $currentHost }
         })
     }
 }
 
-Export-ModuleMember -Function New-SpanView, Load-SpanInfo
+Export-ModuleMember -Function New-SpanView, Get-SpanInfo
