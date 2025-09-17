@@ -151,13 +151,37 @@ function Get-CiscoDeviceFacts {
                 # typical 'show interface status' output and may need to be extended
                 # for other IOS versions.  Matching is case-insensitive.
                 $knownStatuses = @('connected','notconnect','disabled','err-disabled','inactive','suspended','sfp-config-mismatch','sfp-mismatch','sfp-not-present','routed','trunk','monitoring')
-                # Search for the first occurrence of a status token after the port.
+                # Search for status tokens after the port.  Interface names may
+                # include words like 'Disabled' wrapped in markers (e.g. '<== Disabled ==>')
+                # which are not the operational status.  Collect all candidate
+                # status tokens that appear outside marker regions, then
+                # select the last candidate.  This approach ensures that a
+                # status token occurring within the name (such as the word
+                # 'disabled' in a label) does not override a later true
+                # status (e.g. 'connected').  Marker regions begin when a
+                # token contains '<' without '>' and end when a token
+                # contains '>' without '<'.  Tokens inside markers are ignored.
+                $inMarker        = $false
+                $candidateIdxList = New-Object 'System.Collections.Generic.List[int]'
                 for ($i = 1; $i -lt $tokens.Length; $i++) {
                     $tok = $tokens[$i]
-                    if ($knownStatuses -contains $tok) {
-                        $statusIdx = $i
-                        break
+                    # Update marker tracking prior to classification
+                    if ($tok -match '<' -and -not $tok -match '>') { $inMarker = $true }
+                    if ($tok -match '>' -and -not $tok -match '<') { $inMarker = $false; continue }
+                    # Skip tokens while inside markers
+                    if ($inMarker) { continue }
+                    # Compare status tokens case-insensitively by converting token
+                    # to lower-case.  Collect candidate indices rather than
+                    # stopping at the first match to allow later status tokens
+                    # (like 'connected') to override earlier ones (like 'disabled').
+                    $tokLower = $tok.ToLowerInvariant()
+                    if ($knownStatuses -contains $tokLower) {
+                        [void]$candidateIdxList.Add($i)
                     }
+                }
+                if ($candidateIdxList.Count -gt 0) {
+                    # Choose the last candidate as the status index
+                    $statusIdx = $candidateIdxList[$candidateIdxList.Count - 1]
                 }
                 if ($statusIdx -eq -1) {
                     # If we didn't find a known status, fall back to assuming the
@@ -207,7 +231,33 @@ function Get-CiscoDeviceFacts {
         return $res
     }
 
-    function Get-MacTable {
+    # Normalize a full interface name into its short form.  Cisco devices may
+    # report ports in the MAC address table using long prefixes such as
+    # "GigabitEthernet" or "FastEthernet", potentially with or without a space
+    # before the numeric designator (e.g. "GigabitEthernet1/0/1" or
+    # "GigabitEthernet 1/0/1").  The status table, however, uses short
+    # abbreviations like "Gi" or "Fa".  To ensure MAC entries map back to
+    # interface rows, convert long-form names to their abbreviated form.
+    function Normalize-PortName {
+        param([string]$Port)
+        if ([string]::IsNullOrWhiteSpace($Port)) { return $Port }
+        $p = $Port.Trim()
+        # Collapse any embedded whitespace between the prefix and numbers
+        # (e.g. "GigabitEthernet 1/0/1" → "GigabitEthernet1/0/1").  Multiple
+        # spaces or tabs are removed.
+        $p = $p -replace '\s+', ''
+        # Convert common long prefixes to short abbreviations.  If a match
+        # occurs, prepend the abbreviation to the remainder of the port name.
+        switch -Regex ($p) {
+            '^(GigabitEthernet)(.+)$'    { return 'Gi' + $matches[2] }
+            '^(FastEthernet)(.+)$'       { return 'Fa' + $matches[2] }
+            '^(TenGigabitEthernet)(.+)$' { return 'Te' + $matches[2] }
+            '^(HundredGigabitEthernet)(.+)$' { return 'Hu' + $matches[2] }
+            Default { return $Port }
+        }
+    }
+
+function Get-MacTable {
         param([string[]]$Lines)
         # Parse the MAC address table from "show mac address-table" output.  The previous
         # implementation only captured dynamic entries with a strict three-column
@@ -224,15 +274,42 @@ function Get-CiscoDeviceFacts {
             # Skip obvious headers or separators
             if ($t -match '^(Vlan|----|Mac\s+Address|Total)') { continue }
             $parts = $t -split '\s+'
-            # Require at least 4 columns: VLAN, MAC, Type, Port
+            # Require at least 4 columns: VLAN, MAC, Type, Port.  Older IOS
+            # platforms may include an additional "protocols" column before the
+            # port; additionally, some port names (e.g. "GigabitEthernet 1/0/1")
+            # split into two tokens when splitting on whitespace.  Capture the
+            # VLAN as the first token, the MAC as the second, and then
+            # reconstruct the port from the last two tokens when there are
+            # five or more tokens.  Otherwise, use the final token as the port.
             if ($parts.Length -ge 4) {
                 $vlan = $parts[0]
                 $mac  = $parts[1]
-                $port = $parts[-1]
+                # Determine port name.  The port is always the last token, but some
+                # platforms split the interface type and numeric identifier into
+                # separate tokens (e.g., "GigabitEthernet 1/0/1").  When the last
+                # token begins with a digit and the second-to-last token contains
+                # no digits or slashes, treat them as a single port identifier.
+                $port = ''
+                if ($parts.Length -ge 5) {
+                    $last       = $parts[$parts.Length - 1]
+                    $secondLast = $parts[$parts.Length - 2]
+                    if ($last -match '^[0-9]' -and $secondLast -notmatch '[0-9/]') {
+                        $port = ($secondLast + ' ' + $last).Trim()
+                    } else {
+                        $port = $last
+                    }
+                } else {
+                    $port = $parts[-1]
+                }
                 # Validate VLAN and MAC patterns before adding.  Accept only
                 # numeric VLANs and MAC addresses in xxxx.xxxx.xxxx format.
                 if ($vlan -match '^\d+$' -and $mac -match '^(?:[0-9A-Fa-f]{4}\.){2}[0-9A-Fa-f]{4}$') {
-                    [void]$results.Add([PSCustomObject]@{ VLAN=$vlan; MAC=$mac; Port=$port })
+                    # Normalize the port name to use the same abbreviations as
+                    # the interface status output (e.g. "Gi1/0/1").  This
+                    # enables MAC entries to map correctly back to their
+                    # corresponding interface rows during aggregation.
+                    $normPort = Normalize-PortName -Port $port
+                    [void]$results.Add([PSCustomObject]@{ VLAN=$vlan; MAC=$mac; Port=$normPort })
                 }
             }
         }

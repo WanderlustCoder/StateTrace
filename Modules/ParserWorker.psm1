@@ -1,3 +1,13 @@
+<#+
+Ensure a global debug flag exists.  This module may reference
+`$Global:StateTraceDebug` to control verbose output.  Under strict
+mode, referencing an undefined variable causes an error.  Define a
+default `$false` value when the variable is not already set.
+#>
+if (-not (Get-Variable -Name StateTraceDebug -Scope Global -ErrorAction SilentlyContinue)) {
+    Set-Variable -Scope Global -Name StateTraceDebug -Value $false -Option None
+}
+
 function New-Directories {
     param ([string[]]$Paths)
     foreach ($path in $Paths) {
@@ -28,8 +38,17 @@ function Split-RawLogs {
 
     New-Item -ItemType Directory -Force -Path $ExtractedPath | Out-Null
 
-    $rawFiles = Get-ChildItem -Path $LogPath -File | Where-Object {
-        $_.Extension -match '^\.(log|txt)$'
+    # Build a strongly typed list of raw log files.  Avoid the Where-Object
+    # pipeline when filtering by extension to reduce overhead when many files
+    # are present.  Filter in a foreach loop instead of piping into a
+    # Where-Object script block.  This approach also maintains the original
+    # order of files returned by Get-ChildItem.
+    $rawFiles = New-Object 'System.Collections.Generic.List[System.IO.FileInfo]'
+    foreach ($f in Get-ChildItem -Path $LogPath -File) {
+        # Match .log or .txt extensions (case-insensitive) using a compiled regex
+        if ($f.Extension -match '^(?i)\.(log|txt)$') {
+            [void]$rawFiles.Add($f)
+        }
     }
     Write-Host "Split-RawLogs (streaming): found $($rawFiles.Count) file(s) in '$LogPath'."
 
@@ -231,12 +250,15 @@ function Start-ParallelDeviceProcessing {
                 try { $pos = $_.InvocationInfo.PositionMessage } catch { }
                 $stk  = ''
                 try { $stk = $_.ScriptStackTrace } catch { }
-                $msg  = "Log parsing failed in worker: $emsg"
-                $msg += "`nWorker LangMode: $lm"
-                if ($_.FullyQualifiedErrorId) { $msg += "`nFQEID: $($_.FullyQualifiedErrorId)" }
-                if ($_.CategoryInfo)         { $msg += "`nCategory: $($_.CategoryInfo)" }
-                if ($pos) { $msg += "`nPosition:`n$pos" }
-                if ($stk) { $msg += "`nStack:`n$stk" }
+                # Build the error message using a StringBuilder to avoid repeated string concatenation
+                $sb = [System.Text.StringBuilder]::new()
+                [void]$sb.Append("Log parsing failed in worker: $emsg")
+                [void]$sb.Append("`nWorker LangMode: $lm")
+                if ($_.FullyQualifiedErrorId) { [void]$sb.Append("`nFQEID: $($_.FullyQualifiedErrorId)") }
+                if ($_.CategoryInfo)         { [void]$sb.Append("`nCategory: $($_.CategoryInfo)") }
+                if ($pos) { [void]$sb.Append("`nPosition:`n$pos") }
+                if ($stk) { [void]$sb.Append("`nStack:`n$stk") }
+                $msg = $sb.ToString()
                 WLog $msg
                 throw $msg
             }
@@ -348,10 +370,16 @@ function Get-LocationDetails {
     }
     if (-not [string]::IsNullOrWhiteSpace($Location)) {
         # Split on underscores to capture tokens.  Use `-split` to support any
-        $tokens = $Location -split '_+' | Where-Object { $_ -ne '' }
-        for ($i = 0; $i -lt $tokens.Count - 1; $i++) {
-            $key = $tokens[$i].Trim()
-            $value = $tokens[$i + 1].Trim()
+        # number of underscores between tokens.  Avoid the Where-Object pipeline
+        # by manually filtering out empty strings into a strongly typed list.
+        $rawTokens = $Location -split '_+'
+        $tokensList = New-Object 'System.Collections.Generic.List[string]'
+        foreach ($t in $rawTokens) {
+            if ($t -ne '') { [void]$tokensList.Add($t) }
+        }
+        for ($i = 0; $i -lt $tokensList.Count - 1; $i++) {
+            $key = $tokensList[$i].Trim()
+            $value = $tokensList[$i + 1].Trim()
             # Perform case-insensitive matching using inline regex option instead of
             switch -regex ($key) {
                 '(?i)^(bldg|building)$' { $details['Building'] = $value; continue }
@@ -710,8 +738,13 @@ function Update-InterfacesInDb {
                 $learned = $lm
             } elseif ($lm -ne $null) {
                 # Join a list of MACs into a comma-separated string.  Filter out
-                # null or empty entries to avoid extraneous commas.
-                $learned = ($lm | Where-Object { $_ -and $_ -ne '' }) -join ','
+                # null or empty entries to avoid extraneous commas.  Use a
+                # strongly typed list instead of a Where-Object pipeline.
+                $macList = New-Object 'System.Collections.Generic.List[string]'
+                foreach ($mac in $lm) {
+                    if ($mac -and $mac -ne '') { [void]$macList.Add($mac) }
+                }
+                $learned = [string]::Join(',', $macList.ToArray())
             }
         }
         $authState = ''
@@ -809,7 +842,10 @@ function Invoke-DeviceLogParsing {
         [string]$DatabasePath
     )
 
-    Write-Host "[DEBUG] Parsing file '$FilePath'" -ForegroundColor Yellow
+    # Emit debug message only when StateTrace debugging is enabled
+    if ($Global:StateTraceDebug) {
+        Write-Host "[DEBUG] Parsing file '$FilePath'" -ForegroundColor Yellow
+    }
     $lines = Get-Content $FilePath
     # Partition the log into show command blocks once.  These blocks are used
     $blocks = Get-ShowCommandBlocks -Lines $lines
@@ -870,20 +906,26 @@ function Invoke-DeviceLogParsing {
             # Some parsers may set an empty string or zero; treat these as missing
             if ($val -and ($val -ne '')) { $needVlan = $false }
         }
-    if ($needVlan) {
-        $authLine = $lines | Where-Object { $_ -match 'auth-?default-?vlan\s*(\d+)' } | Select-Object -First 1
-        if ($authLine) {
-            $match = [regex]::Match($authLine, '\d+')
-            if ($match.Success) {
-                $v = $match.Value
-                if ($facts.PSObject.Properties.Name -contains 'AuthDefaultVLAN') {
-                    $facts.AuthDefaultVLAN = $v
-                } else {
-                    Add-Member -InputObject $facts -NotePropertyName AuthDefaultVLAN -NotePropertyValue $v -Force
+        if ($needVlan) {
+            # Locate the first line matching auth-default-vlan using a manual loop
+            # instead of Where-Object/Select-Object.  Break immediately on the
+            # first match to avoid enumerating the entire collection.
+            $authLine = $null
+            foreach ($ln in $lines) {
+                if ($ln -match 'auth-?default-?vlan\s*(\d+)') { $authLine = $ln; break }
+            }
+            if ($authLine) {
+                $match = [regex]::Match($authLine, '\d+')
+                if ($match.Success) {
+                    $v = $match.Value
+                    if ($facts.PSObject.Properties.Name -contains 'AuthDefaultVLAN') {
+                        $facts.AuthDefaultVLAN = $v
+                    } else {
+                        Add-Member -InputObject $facts -NotePropertyName AuthDefaultVLAN -NotePropertyValue $v -Force
+                    }
                 }
             }
         }
-    }
 
     # At this point we have extracted all necessary information from the raw log
     $lines = $null
@@ -994,7 +1036,9 @@ function Invoke-DeviceLogParsing {
 
     # If a database path was supplied, insert the summary and interface data
     if ($DatabasePath) {
-        Write-Host "[DEBUG] Writing results for host '$cleanHostname' to database at '$DatabasePath'" -ForegroundColor Yellow
+        if ($Global:StateTraceDebug) {
+            Write-Host "[DEBUG] Writing results for host '$cleanHostname' to database at '$DatabasePath'" -ForegroundColor Yellow
+        }
         try {
             # Capture the current run time for historical records.  Format it
             $runDateString = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
@@ -1038,14 +1082,20 @@ function Invoke-DeviceLogParsing {
             $mutexName = 'StateTraceDbWriteMutex'
             $dbMutex = New-Object System.Threading.Mutex($false, $mutexName)
             try {
-                Write-Host "[DEBUG] Waiting to acquire DB write mutex for host '$cleanHostname'" -ForegroundColor Yellow
+                if ($Global:StateTraceDebug) {
+                    Write-Host "[DEBUG] Waiting to acquire DB write mutex for host '$cleanHostname'" -ForegroundColor Yellow
+                }
                 # Wait until we can acquire the mutex.  This call blocks until
                 $null = $dbMutex.WaitOne()
-                Write-Host "[DEBUG] Acquired DB write mutex for host '$cleanHostname'" -ForegroundColor Yellow
+                if ($Global:StateTraceDebug) {
+                    Write-Host "[DEBUG] Acquired DB write mutex for host '$cleanHostname'" -ForegroundColor Yellow
+                }
 
                 # Establish a single connection to the database for all statements.
                 $__dbProvider = $null
-                Write-Host "[DEBUG] Detecting available OLEDB provider for database" -ForegroundColor Yellow
+                if ($Global:StateTraceDebug) {
+                    Write-Host "[DEBUG] Detecting available OLEDB provider for database" -ForegroundColor Yellow
+                }
                 # Prefer the ACE provider when available; fall back to Jet for .mdb files.
                 foreach ($provCandidate in @('Microsoft.ACE.OLEDB.12.0','Microsoft.Jet.OLEDB.4.0')) {
                     try {
@@ -1060,7 +1110,9 @@ function Invoke-DeviceLogParsing {
                     throw "No suitable OLEDB provider found to open Access database. Install the Microsoft ACE OLEDB provider."
                 }
                 $__dbConn = New-Object -ComObject ADODB.Connection
-                Write-Host "[DEBUG] Opening DB connection to '$DatabasePath' using provider '$__dbProvider'" -ForegroundColor Yellow
+                if ($Global:StateTraceDebug) {
+                    Write-Host "[DEBUG] Opening DB connection to '$DatabasePath' using provider '$__dbProvider'" -ForegroundColor Yellow
+                }
                 # Configure the connection for read/write access and row‑level locking.
                 $__dbConn.Open("Provider=$__dbProvider;Data Source=$DatabasePath;Mode=ReadWrite;Jet OLEDB:Database Locking Mode=1")
                 # When using the Jet OLEDB provider, we can request synchronous
@@ -1078,15 +1130,21 @@ function Invoke-DeviceLogParsing {
                     Update-InterfacesInDb    -Connection $__dbConn -Facts $facts -Hostname $cleanHostname -RunDateString $runDateString -Templates $templates
                     # Commit the transaction after all operations have executed.
                     try {
-                        Write-Host "[DEBUG] Committing transaction for host '$cleanHostname'" -ForegroundColor Yellow
+                        if ($Global:StateTraceDebug) {
+                            Write-Host "[DEBUG] Committing transaction for host '$cleanHostname'" -ForegroundColor Yellow
+                        }
                         $__dbConn.CommitTrans()
                         try {
                             $jet = New-Object -ComObject JRO.JetEngine
                             $jet.RefreshCache($__dbConn)
-                            Write-Host "[DEBUG] Refreshed Jet cache after commit for host '$cleanHostname'" -ForegroundColor Yellow
+                            if ($Global:StateTraceDebug) {
+                                Write-Host "[DEBUG] Refreshed Jet cache after commit for host '$cleanHostname'" -ForegroundColor Yellow
+                            }
                         } catch {}
                     } catch {
-                        Write-Host "[DEBUG] Commit failed for host '$cleanHostname', rolling back" -ForegroundColor Yellow
+                        if ($Global:StateTraceDebug) {
+                            Write-Host "[DEBUG] Commit failed for host '$cleanHostname', rolling back" -ForegroundColor Yellow
+                        }
                         try { $__dbConn.RollbackTrans() } catch {}
                         throw
                     }
@@ -1098,7 +1156,9 @@ function Invoke-DeviceLogParsing {
             } finally {
                 # Release the mutex to allow other runspaces to write.  Always
                 try {
-                    Write-Host "[DEBUG] Releasing DB write mutex for host '$cleanHostname'" -ForegroundColor Yellow
+                    if ($Global:StateTraceDebug) {
+                        Write-Host "[DEBUG] Releasing DB write mutex for host '$cleanHostname'" -ForegroundColor Yellow
+                    }
                     $dbMutex.ReleaseMutex()
                 } catch {}
                 $dbMutex.Dispose()

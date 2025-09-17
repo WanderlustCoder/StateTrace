@@ -593,7 +593,7 @@ interface GigabitEthernet1/0/48
 end
 WLLS-A01-AS-01# show interface status
 Port      Name               Status       Vlan       Duplex  Speed Type
-Gi1/0/1    Users1            connected    10         a-full  a-100  10/100/1000BaseTX
+Gi1/0/1    <== Disabled ==>  connected    10         a-full  a-100  10/100/1000BaseTX
 Gi1/0/2    Users2            connected    10         auto    a-100  10/100/1000BaseTX
 Gi1/0/3    Users3            disabled     10         a-full  a-1000 10/100/1000BaseTX
 Gi1/0/4    Users4            connected    10         auto    a-100  10/100/1000BaseTX
@@ -644,12 +644,12 @@ Gi1/0/48   Uplink48          notconnect   trunk      auto    a-1000 10GBaseSX
 
 WLLS-A01-AS-01# show mac address-table
 Unicast Entries
- vlan    mac address       type        port
---------+-----------------+------------+---------------
- 10      001c.58af.0000    DYNAMIC     Gi1/0/1
- 10      001c.58af.0000    DYNAMIC     Gi1/0/1
- 10      001c.58af.0000    DYNAMIC     Gi1/0/1
- 10      001c.58af.0000    DYNAMIC     Gi1/0/1
+ vlan    mac address       type       protocols   		port
+--------+-----------------+--------+------------------------+---------------
+ 10      001c.58af.0000    DYNAMIC     ip,ipx,assigned,other GigabitEthernet1/0/1
+ 10      001c.58af.0000    DYNAMIC     Gi1/0/20
+ 10      001c.58af.0000    DYNAMIC     Gi1/0/22
+ 10      001c.58af.0000    DYNAMIC     Gi1/0/21
  10      001c.58af.0001    DYNAMIC     Gi1/0/2
  10      001c.58af.0002    DYNAMIC     Gi1/0/3
  10      001c.58af.0003    DYNAMIC     Gi1/0/4
@@ -657,7 +657,7 @@ Unicast Entries
  10      001c.58af.0005    DYNAMIC     Gi1/0/6
  10      001c.58af.0006    DYNAMIC     Gi1/0/7
  10      001c.58af.0007    DYNAMIC     Gi1/0/8
- 20      001c.58af.0008    DYNAMIC     Gi1/0/1
+ 20      001c.58af.0008    DYNAMIC     Gi1/0/19
  20      001c.58af.0009    DYNAMIC     Gi1/0/2
  20      001c.58af.000a    DYNAMIC     Gi1/0/3
  20      001c.58af.000b    DYNAMIC     Gi1/0/4
@@ -665,7 +665,7 @@ Unicast Entries
  20      001c.58af.000d    DYNAMIC     Gi1/0/6
  20      001c.58af.000e    DYNAMIC     Gi1/0/7
  20      001c.58af.000f    DYNAMIC     Gi1/0/8
- 30      001c.58af.0010    DYNAMIC     Gi1/0/1
+ 30      001c.58af.0010    DYNAMIC     Gi1/0/18
  30      001c.58af.0011    DYNAMIC     Gi1/0/2
  30      001c.58af.0012    DYNAMIC     Gi1/0/3
  30      001c.58af.0013    DYNAMIC     Gi1/0/4

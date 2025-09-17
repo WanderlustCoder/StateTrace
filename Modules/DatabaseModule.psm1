@@ -2,6 +2,18 @@
 
 Set-StrictMode -Version Latest
 
+<#+
+Ensure a global debug flag exists.  Under strict mode, referencing an
+undefined variable produces an error.  Some functions in this module
+conditionally emit debug messages based on `$Global:StateTraceDebug`.
+If the variable hasn't been set elsewhere (e.g. by the UI module), it
+will be undefined and strict mode will throw.  Define it here with
+a default value of `$false` when it does not already exist.
+#>
+if (-not (Get-Variable -Name StateTraceDebug -Scope Global -ErrorAction SilentlyContinue)) {
+    Set-Variable -Scope Global -Name StateTraceDebug -Value $false -Option None
+}
+
 # Cache the last time we forced a Jet/ACE cache refresh
 if (-not (Get-Variable -Name LastCacheRefresh -Scope Script -ErrorAction SilentlyContinue)) { $script:LastCacheRefresh = Get-Date '2000-01-01' }
 
@@ -115,7 +127,10 @@ function New-AccessDatabase {
     # If the database does not exist, create it using ADOX.  The provider and engine
     $needsCreate = -not (Test-Path $Path)
     if ($needsCreate) {
-        Write-Host "[DEBUG] Creating new Access database at '$Path'" -ForegroundColor Cyan
+        # Emit a debug message when StateTrace debugging is enabled
+        if ($Global:StateTraceDebug) {
+            Write-Host "[DEBUG] Creating new Access database at '$Path'" -ForegroundColor Cyan
+        }
         # Determine file extension and provider/engine type accordingly.
         $ext = [System.IO.Path]::GetExtension($Path).ToLowerInvariant()
         $provider = 'Microsoft.Jet.OLEDB.4.0'
