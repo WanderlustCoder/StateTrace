@@ -226,8 +226,16 @@ function Get-InterfacesForHostsBatch {
     if (-not $cleanHosts -or $cleanHosts.Count -eq 0) {
         return (New-Object System.Data.DataTable)
     }
-    # Build an IN clause from the sanitized hostnames.  Escape each name.
-    $inList = ($cleanHosts | ForEach-Object { "'" + (Get-SqlLiteral $_) + "'" }) -join ","
+    # Build an IN clause from the sanitized hostnames.  Escape each name.  Use a
+    # typed List[string] to avoid the overhead of the ForEach-Object pipeline.
+    $listItems = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($host in $cleanHosts) {
+        if ($host -ne $null) {
+            $escaped = Get-SqlLiteral $host
+            [void]$listItems.Add("'" + $escaped + "'")
+        }
+    }
+    $inList = [string]::Join(',', $listItems.ToArray())
     if ([string]::IsNullOrWhiteSpace($inList)) {
         return (New-Object System.Data.DataTable)
     }
@@ -366,8 +374,15 @@ function New-InterfaceObjectsFromDbRow {
             } catch {}
         }
         if ($abText) {
-            # Split into non‑empty trimmed lines
-            $authBlockLines = $abText -split "`r?`n" | ForEach-Object { ('' + $_).Trim() } | Where-Object { $_ -ne '' }
+            # Split into non-empty trimmed lines.  Use a typed list instead of ForEach-Object to
+            # avoid pipeline overhead when processing large authentication blocks.
+            $__tmpLines = $abText -split "`r?`n"
+            $__list = New-Object 'System.Collections.Generic.List[string]'
+            foreach ($ln in $__tmpLines) {
+                $s = ('' + $ln).Trim()
+                if ($s -ne '') { [void]$__list.Add($s) }
+            }
+            $authBlockLines = $__list.ToArray()
         }
     }
     # Retrieve compliance templates for this vendor.  Avoid repeatedly reading
@@ -1336,6 +1351,50 @@ function Get-DeviceDetailsData {
 
 # === GUI helper functions (merged from GuiModule) ===
 
+function Invoke-ParallelDbQuery {
+    [CmdletBinding()]
+    param(
+        [string[]]$DbPaths,
+        [string]$Sql
+    )
+    # Determine the path to DatabaseModule.psm1.  Both modules reside in the same
+    # directory, so join the current module directory with the module filename.
+    $modulePath = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
+    # Limit concurrency to the number of logical processors.  At least one thread.
+    $maxThreads = [Math]::Max(1, [Environment]::ProcessorCount)
+    $pool = [runspacefactory]::CreateRunspacePool(1, $maxThreads)
+    $pool.Open()
+    $jobs = @()
+    foreach ($dbPath in $DbPaths) {
+        $ps = [powershell]::Create()
+        $ps.RunspacePool = $pool
+        # Use a script block that imports DatabaseModule and runs Invoke-DbQuery.
+        # Pass all parameters explicitly to avoid relying on parent scope variables.
+        $null = $ps.AddScript({
+            param($dbPathArg, $sqlArg, $modPath)
+            try { Import-Module -Name $modPath -DisableNameChecking -Force } catch {}
+            try {
+                return Invoke-DbQuery -DatabasePath $dbPathArg -Sql $sqlArg
+            } catch {
+                return $null
+            }
+        }).AddArgument($dbPath).AddArgument($Sql).AddArgument($modulePath)
+        $job = [pscustomobject]@{ PS = $ps; AsyncResult = $ps.BeginInvoke() }
+        $jobs += $job
+    }
+    $results = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($job in $jobs) {
+        try {
+            $dt = $job.PS.EndInvoke($job.AsyncResult)
+            if ($dt) { [void]$results.Add($dt) }
+        } catch {} finally {
+            $job.PS.Dispose()
+        }
+    }
+    $pool.Close(); $pool.Dispose()
+    return $results.ToArray()
+}
+
 function Update-GlobalInterfaceList {
     # Build a comprehensive list of all interfaces by querying the database and
 
@@ -1353,28 +1412,64 @@ FROM Interfaces AS i
 LEFT JOIN DeviceSummary AS ds ON i.Hostname = ds.Hostname
 ORDER BY i.Hostname, i.Port
 "@
-        # Query all databases and merge the results into a single list.  Use a
-        # strongly typed List[object] instead of array concatenation (+=) to
-        # avoid O(n^2) behaviour when combining query results from multiple
-        # site databases.
+        # Query all databases and merge the results into a single list.  Use
+        # runspaces to parallelize queries when multiple site databases exist.
+        # Build a strongly typed List[object] to accumulate rows.  Avoid O(n^2)
+        # behaviour by using AddRange on typed lists.
         $rows = New-Object 'System.Collections.Generic.List[object]'
-        foreach ($dbPath in (Get-AllSiteDbPaths)) {
+        $dbPaths = Get-AllSiteDbPaths
+        if ($dbPaths.Count -gt 1) {
+            # Run queries concurrently across site databases using the helper.
             try {
-                $partial = Invoke-DbQuery -DatabasePath $dbPath -Sql $sql
-                if ($partial) {
-                    if ($partial -is [System.Data.DataTable]) {
-                        # Add all DataRow objects from the DataTable.
-                        [void]$rows.AddRange([System.Array]$partial.Rows)
-                    } elseif ($partial -is [System.Data.DataView]) {
-                        [void]$rows.AddRange([System.Array]$partial)
-                    } elseif ($partial -is [System.Collections.IEnumerable]) {
-                        foreach ($item in $partial) {
-                            [void]$rows.Add($item)
+                $partials = Invoke-ParallelDbQuery -DbPaths $dbPaths -Sql $sql
+                foreach ($partial in $partials) {
+                    if ($partial) {
+                        if ($partial -is [System.Data.DataTable]) {
+                            [void]$rows.AddRange([System.Array]$partial.Rows)
+                        } elseif ($partial -is [System.Data.DataView]) {
+                            [void]$rows.AddRange([System.Array]$partial)
+                        } elseif ($partial -is [System.Collections.IEnumerable]) {
+                            foreach ($item in $partial) { [void]$rows.Add($item) }
                         }
                     }
                 }
             } catch {
-                Write-Warning ("Failed to query interfaces from {0}: {1}" -f $dbPath, $_.Exception.Message)
+                # Fallback to sequential querying if parallel invocation fails
+                Write-Warning ("Parallel DB query failed: {0}" -f $_.Exception.Message)
+                foreach ($dbPath in $dbPaths) {
+                    try {
+                        $partial = Invoke-DbQuery -DatabasePath $dbPath -Sql $sql
+                        if ($partial) {
+                            if ($partial -is [System.Data.DataTable]) {
+                                [void]$rows.AddRange([System.Array]$partial.Rows)
+                            } elseif ($partial -is [System.Data.DataView]) {
+                                [void]$rows.AddRange([System.Array]$partial)
+                            } elseif ($partial -is [System.Collections.IEnumerable]) {
+                                foreach ($item in $partial) { [void]$rows.Add($item) }
+                            }
+                        }
+                    } catch {
+                        Write-Warning ("Failed to query interfaces from {0}: {1}" -f $dbPath, $_.Exception.Message)
+                    }
+                }
+            }
+        } else {
+            # Single database path; query sequentially
+            foreach ($dbPath in $dbPaths) {
+                try {
+                    $partial = Invoke-DbQuery -DatabasePath $dbPath -Sql $sql
+                    if ($partial) {
+                        if ($partial -is [System.Data.DataTable]) {
+                            [void]$rows.AddRange([System.Array]$partial.Rows)
+                        } elseif ($partial -is [System.Data.DataView]) {
+                            [void]$rows.AddRange([System.Array]$partial)
+                        } elseif ($partial -is [System.Collections.IEnumerable]) {
+                            foreach ($item in $partial) { [void]$rows.Add($item) }
+                        }
+                    }
+                } catch {
+                    Write-Warning ("Failed to query interfaces from {0}: {1}" -f $dbPath, $_.Exception.Message)
+                }
             }
         }
         # At this point $rows is a typed list containing all rows from all site
@@ -1719,9 +1814,36 @@ function Update-Summary {
 }
 
 function Update-Alerts {
+    # Acquire location filters from the UI.  When site, zone, building or room
+    # selections are specified (and not the "All" sentinel values), alerts
+    # should be restricted to interfaces in the selected location.  Default
+    # values of $null or blank will match all rows.
+    $siteSel = $null; $zoneSel = $null; $bldSel = $null; $roomSel = $null
+    try {
+        $loc = Get-SelectedLocation
+        $siteSel = $loc.Site
+        $zoneSel = $loc.Zone
+        $bldSel  = $loc.Building
+        $roomSel = $loc.Room
+    } catch {}
     # Build the list of alerts using a typed List[object] to avoid O(n^2)
     $alerts = New-Object 'System.Collections.Generic.List[object]'
     foreach ($row in $global:AllInterfaces) {
+        if (-not $row) { continue }
+        # Extract row metadata as strings for comparison
+        $rowSite     = '' + $row.Site
+        $rowBuilding = '' + $row.Building
+        $rowRoom     = '' + $row.Room
+        $rowZone     = ''
+        if ($row.PSObject.Properties['Zone']) { $rowZone = '' + $row.Zone }
+        # Apply location filters, honouring "All" sentinels.  Skip rows that
+        # do not match the current site/zone/building/room selections.
+        if ($siteSel -and $siteSel -ne '' -and $siteSel -ne 'All Sites' -and ($rowSite -ne $siteSel)) { continue }
+        if ($zoneSel -and $zoneSel -ne '' -and $zoneSel -ne 'All Zones' -and ($rowZone -ne $zoneSel)) { continue }
+        if ($bldSel  -and $bldSel  -ne '' -and ($rowBuilding -ne $bldSel)) { continue }
+        if ($roomSel -and $roomSel -ne '' -and ($rowRoom     -ne $roomSel)) { continue }
+        # Derive alert reasons from status, duplex and auth state.  Use a
+        # typed list of strings for efficient accumulation.
         $reasons = New-Object 'System.Collections.Generic.List[string]'
         $status = '' + $row.Status
         if ($status) {
@@ -1733,7 +1855,7 @@ function Update-Alerts {
         }
         $duplex = '' + $row.Duplex
         if ($duplex) {
-            # Only flag duplex values containing "half" as non-full duplex; perform
+            # Only flag duplex values containing "half" as non-full duplex
             if ($duplex -match '(?i)half') {
                 [void]$reasons.Add('Half duplex')
             }
@@ -1745,6 +1867,7 @@ function Update-Alerts {
             [void]$reasons.Add('Unauthorized')
         }
         if ($reasons.Count -gt 0) {
+            # Construct the alert object including selected reason(s)
             $alert = [PSCustomObject]@{
                 Hostname  = $row.Hostname
                 Port      = $row.Port
@@ -1759,7 +1882,9 @@ function Update-Alerts {
         }
     }
     $global:AlertsList = $alerts
-    # Update the Alerts grid if it has been initialised
+    # Update the Alerts grid if it has been initialised.  Assign the new
+    # filtered list as the ItemsSource.  Wrap in try/catch to avoid errors
+    # when the view is not ready.
     if ($global:alertsView) {
         try {
             $grid = $global:alertsView.FindName('AlertsGrid')
@@ -2049,11 +2174,21 @@ function Get-InterfaceConfiguration {
         if (-not $tmpl) { throw "Template '$TemplateName' not found in ${vendor}.json" }
         # --- Batched query instead of N+1 per-port lookups ---
         $oldConfigs = @{}
-        $ports = @($Interfaces | Where-Object { $_ -ne $null } | ForEach-Object { $_.ToString() })
-        if ($ports.Count -gt 0) {
-            # Escape single quotes and build IN list
-            $escapedPorts = $ports | ForEach-Object { ($_ -replace "'", "''") }
-            $inList = ($escapedPorts | ForEach-Object { "'$_'" }) -join ", "
+        # Build a normalized list of ports without using ForEach-Object pipelines for better performance
+        $portsList = New-Object 'System.Collections.Generic.List[string]'
+        foreach ($p in $Interfaces) {
+            if ($p -ne $null) {
+                [void]$portsList.Add($p.ToString())
+            }
+        }
+        if ($portsList.Count -gt 0) {
+            # Escape single quotes and build IN list using typed lists
+            $portItems = New-Object 'System.Collections.Generic.List[string]'
+            foreach ($item in $portsList) {
+                $escaped = $item -replace "'", "''"
+                [void]$portItems.Add("'" + $escaped + "'")
+            }
+            $inList = [string]::Join(", ", $portItems.ToArray())
             $sqlCfgAll = "SELECT Hostname, Port, Config FROM Interfaces WHERE Hostname = '$escHost' AND Port IN ($inList)"
             $session = $null
             try {

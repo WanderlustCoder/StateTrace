@@ -206,13 +206,21 @@ function Start-ParallelDeviceProcessing {
                 if (-not (Test-Path $wrLogDir)) { New-Item -ItemType Directory -Path $wrLogDir -Force | Out-Null }
             } catch { }
             $wrLog = Join-Path $wrLogDir ('StateTrace_Worker_{0}.log' -f (Get-Date -Format 'yyyyMMdd'))
+            # Copy the verbose flag to a local variable.  Only emit log lines to
+            # the worker log file when verbose/debug mode is enabled.  Always
+            # write to the verbose stream.
+            $logToFile = $enableVerbose
             function WLog {
                 param([string]$m)
                 try {
                     $line = "[{0}] [Worker] {1}" -f (Get-Date -Format 'HH:mm:ss.fff'), $m
-                    Add-Content -LiteralPath $wrLog -Value $line -ErrorAction SilentlyContinue
+                    if ($logToFile) {
+                        Add-Content -LiteralPath $wrLog -Value $line -ErrorAction SilentlyContinue
+                    }
                     Write-Verbose $line
-                } catch { Write-Verbose $m }
+                } catch {
+                    Write-Verbose $m
+                }
             }
             # Validate the runspace language mode before doing any work.  When a runspace is
             # created without an explicit InitialSessionState, enterprise policy may
@@ -966,10 +974,37 @@ function Invoke-DeviceLogParsing {
         $DatabasePath = Join-Path $dbDir ("$siteCode.accdb")
         # Ensure the database exists and has the required schema.  This helper
         # is idempotent, so calling it from multiple runspaces is safe.
-        if (Get-Command -Name New-DatabaseIfMissing -ErrorAction SilentlyContinue) {
-            New-DatabaseIfMissing -Path $DatabasePath
-        } elseif (-not (Test-Path $DatabasePath) -and (Get-Command -Name New-AccessDatabase -ErrorAction SilentlyContinue)) {
-            New-AccessDatabase -Path $DatabasePath | Out-Null
+        # Use a named mutex to avoid race conditions when multiple runspaces
+        # attempt to create the same per‑site database concurrently.  The mutex
+        # name is derived from the site code so that only runspaces targeting
+        # the same database will block each other.  Inside the mutex, check
+        # again whether the file exists before creating it.  If the file is
+        # created by another runspace while waiting, the creation call will be
+        # skipped.
+        $createMutexName = "StateTraceDbCreateMutex_${siteCode}"
+        $dbCreateMutex = New-Object System.Threading.Mutex($false, $createMutexName)
+        try {
+            $null = $dbCreateMutex.WaitOne()
+            if (Get-Command -Name New-DatabaseIfMissing -ErrorAction SilentlyContinue) {
+                # Always call New-DatabaseIfMissing, which is expected to be idempotent.
+                try {
+                    New-DatabaseIfMissing -Path $DatabasePath
+                } catch {
+                    # Swallow errors related to existing database to avoid noisy warnings.
+                }
+            } elseif (Get-Command -Name New-AccessDatabase -ErrorAction SilentlyContinue) {
+                # Only create the database if it does not already exist.
+                if (-not (Test-Path $DatabasePath)) {
+                    try {
+                        New-AccessDatabase -Path $DatabasePath | Out-Null
+                    } catch {
+                        # Ignore failures caused by concurrent creation.
+                    }
+                }
+            }
+        } finally {
+            try { $dbCreateMutex.ReleaseMutex() } catch { }
+            $dbCreateMutex.Dispose()
         }
     } catch {
         # If any error occurs deriving or creating the per-site database, emit a warning
