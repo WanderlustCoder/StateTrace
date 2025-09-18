@@ -212,7 +212,8 @@ function Get-InterfacesForSite {
     $sqlSite = @"
 SELECT i.Hostname, i.Port, i.Name, i.Status, i.VLAN, i.Duplex, i.Speed, i.Type,
        i.LearnedMACs, i.AuthState, i.AuthMode, i.AuthClientMAC,
-       ds.Site, ds.Building, ds.Room
+       ds.Site, ds.Building, ds.Room, ds.Make,
+       i.AuthTemplate, i.Config, i.ConfigStatus, i.PortColor, i.ToolTip
 FROM Interfaces AS i
 LEFT JOIN DeviceSummary AS ds ON i.Hostname = ds.Hostname
 WHERE ds.Site = '$siteEsc'
@@ -232,6 +233,50 @@ ORDER BY i.Hostname, i.Port
                 $enum = $dt
             }
             if ($enum) {
+                # Precompute template lookups for Cisco and Brocade once per call.
+                # These dictionaries map template names and aliases to template objects containing colour information.
+                $lookupByVendor = @{}
+                try {
+                    # Ensure the templates cache exists to avoid repeated JSON parsing.
+                    if (-not $script:TemplatesCache) { $script:TemplatesCache = @{} }
+                    foreach ($__vendorName in @('Cisco', 'Brocade')) {
+                        # Retrieve templates list from cache or read from disk if not cached.
+                        $__tmplList = $null
+                        if ($script:TemplatesCache.ContainsKey($__vendorName)) {
+                            $__tmplList = $script:TemplatesCache[$__vendorName]
+                        } else {
+                            $__tmplFile = Join-Path (Join-Path $PSScriptRoot '..\Templates') ("$__vendorName.json")
+                            if (Test-Path $__tmplFile) {
+                                $__tmplJson = Get-Content $__tmplFile -Raw | ConvertFrom-Json
+                                if ($__tmplJson -and $__tmplJson.PSObject.Properties['templates']) {
+                                    $__tmplList = $__tmplJson.templates
+                                } else {
+                                    $__tmplList = @()
+                                }
+                            } else {
+                                $__tmplList = @()
+                            }
+                            $script:TemplatesCache[$__vendorName] = $__tmplList
+                        }
+                        # Build lookup dictionary keyed by name and aliases using case-insensitive keys.
+                        $__lookup = New-Object 'System.Collections.Generic.Dictionary[string,object]' ([System.StringComparer]::OrdinalIgnoreCase)
+                        if ($__tmplList) {
+                            foreach ($__tmpl in $__tmplList) {
+                                $__key0 = '' + $__tmpl.name
+                                if (-not $__lookup.ContainsKey($__key0)) { $__lookup[$__key0] = $__tmpl }
+                                if ($__tmpl.aliases) {
+                                    foreach ($__alias in $__tmpl.aliases) {
+                                        $__ak = '' + $__alias
+                                        if (-not $__lookup.ContainsKey($__ak)) { $__lookup[$__ak] = $__tmpl }
+                                    }
+                                }
+                            }
+                        }
+                        $lookupByVendor[$__vendorName] = $__lookup
+                    }
+                } catch {
+                    $lookupByVendor = @{}
+                }
                 foreach ($r in $enum) {
                     if ($r -eq $null) { continue }
                     $dataRow = $null
@@ -258,6 +303,13 @@ ORDER BY i.Hostname, i.Port
                     $siteRaw   = $dataRow['Site']
                     $bldRaw    = $dataRow['Building']
                     $roomRaw   = $dataRow['Room']
+                    # Additional columns retrieved from SQL
+                    $makeRaw     = $dataRow['Make']
+                    $authTemplateRaw = $dataRow['AuthTemplate']
+                    $cfgRaw      = $dataRow['Config']
+                    $cfgStatusRaw = $dataRow['ConfigStatus']
+                    $portColorRaw = $dataRow['PortColor']
+                    $tooltipRaw   = $dataRow['ToolTip']
                     $hn     = if ($hnRaw    -ne $null -and $hnRaw    -ne [System.DBNull]::Value) { [string]$hnRaw    } else { '' }
                     $port   = if ($portRaw  -ne $null -and $portRaw  -ne [System.DBNull]::Value) { [string]$portRaw  } else { '' }
                     $name   = if ($nameRaw  -ne $null -and $nameRaw  -ne [System.DBNull]::Value) { [string]$nameRaw  } else { '' }
@@ -273,6 +325,13 @@ ORDER BY i.Hostname, i.Port
                     $siteVal= if ($siteRaw  -ne $null -and $siteRaw  -ne [System.DBNull]::Value) { [string]$siteRaw  } else { '' }
                     $bld    = if ($bldRaw   -ne $null -and $bldRaw   -ne [System.DBNull]::Value) { [string]$bldRaw   } else { '' }
                     $room   = if ($roomRaw  -ne $null -and $roomRaw  -ne [System.DBNull]::Value) { [string]$roomRaw  } else { '' }
+                    # Normalize additional fields.  Convert null/DBNull to empty strings.
+                    $makeVal    = if ($makeRaw    -ne $null -and $makeRaw    -ne [System.DBNull]::Value) { [string]$makeRaw    } else { '' }
+                    $authTmpl   = if ($authTemplateRaw -ne $null -and $authTemplateRaw -ne [System.DBNull]::Value) { [string]$authTemplateRaw } else { '' }
+                    $cfgVal     = if ($cfgRaw     -ne $null -and $cfgRaw     -ne [System.DBNull]::Value) { [string]$cfgRaw     } else { '' }
+                    $cfgStatVal = if ($cfgStatusRaw -ne $null -and $cfgStatusRaw -ne [System.DBNull]::Value) { [string]$cfgStatusRaw } else { '' }
+                    $portColorVal = if ($portColorRaw -ne $null -and $portColorRaw -ne [System.DBNull]::Value) { [string]$portColorRaw } else { '' }
+                    $tipVal     = if ($tooltipRaw   -ne $null -and $tooltipRaw   -ne [System.DBNull]::Value) { [string]$tooltipRaw   } else { '' }
                     # Compute PortSort using existing helper.  Use a high sort key
                     # when the port field is empty to ensure unknown ports sort last.
                     $portSort = if (-not [string]::IsNullOrWhiteSpace($port)) {
@@ -286,6 +345,50 @@ ORDER BY i.Hostname, i.Port
                         $hnParts = $hn -split '-', 3
                         if ($hnParts.Length -ge 2) { $zoneValIf = $hnParts[1] }
                     } catch { $zoneValIf = '' }
+                    # Determine vendor based on Make column.  Default to Cisco when unknown.
+                    $vendor = 'Cisco'
+                    if ($makeVal -match '(?i)brocade') { $vendor = 'Brocade' }
+                    # Retrieve the precomputed template lookup for this vendor.
+                    $tmplLookup = $null
+                    if ($lookupByVendor.ContainsKey($vendor)) { $tmplLookup = $lookupByVendor[$vendor] }
+                    # Compute tooltip: if existing tooltip present, trim it; otherwise build from auth template and config.
+                    $tipCore = ($tipVal.TrimEnd())
+                    if (-not $tipCore) {
+                        if ($cfgVal -and ($cfgVal.Trim() -ne '')) {
+                            $tipCore = "AuthTemplate: $authTmpl`r`n`r`n$cfgVal"
+                        } elseif ($authTmpl) {
+                            $tipCore = "AuthTemplate: $authTmpl"
+                        } else {
+                            $tipCore = ''
+                        }
+                    }
+                    # Determine PortColor and ConfigStatus.  Use values from database when present; otherwise derive from template.
+                    $finalPortColor = $portColorVal
+                    $finalCfgStatus = $cfgStatVal
+                    $hasPortColor    = -not [string]::IsNullOrWhiteSpace($finalPortColor)
+                    $hasCfgStatus    = -not [string]::IsNullOrWhiteSpace($finalCfgStatus)
+                    if (-not $hasPortColor -or -not $hasCfgStatus) {
+                        $match = $null
+                        if ($authTmpl -and $tmplLookup -and $tmplLookup.ContainsKey($authTmpl)) {
+                            $match = $tmplLookup[$authTmpl]
+                        }
+                        if (-not $hasPortColor) {
+                            if ($match) { $finalPortColor = $match.color } else { $finalPortColor = 'Gray' }
+                        }
+                        if (-not $hasCfgStatus) {
+                            if ($match) {
+                                $finalCfgStatus = 'Match'
+                            } elseif ($authTmpl) {
+                                $finalCfgStatus = 'Mismatch'
+                            } else {
+                                $finalCfgStatus = 'Unknown'
+                            }
+                        }
+                    }
+                    # Build the PSCustomObject for this interface.  Align with the
+                    # properties used in New-InterfaceObjectsFromDbRow so that
+                    # downstream views (e.g. Interfaces grid) can rely on the
+                    # presence of fields like IsSelected for checkbox binding.
                     $obj = [PSCustomObject]@{
                         Hostname      = $hn
                         Port          = $port
@@ -304,6 +407,15 @@ ORDER BY i.Hostname, i.Port
                         Building      = $bld
                         Room          = $room
                         Zone          = $zoneValIf
+                        AuthTemplate  = $authTmpl
+                        Config        = $cfgVal
+                        ConfigStatus  = $finalCfgStatus
+                        PortColor     = $finalPortColor
+                        ToolTip       = $tipCore
+                        # The Interfaces view binds to this boolean property for the
+                        # checkbox column.  Initialise to false to avoid binding
+                        # errors or uninitialised values.
+                        IsSelected    = $false
                     }
                     [void]$rows.Add($obj)
                 }
@@ -1257,6 +1369,22 @@ if (-not (Test-StringListEqualCI $currentBuildings $availableBuildings)) {
     }
 
     # ---------------------------------------------------------------------
+    # When the site or zone selection changes, the set of devices and interfaces
+    # visible to the user may change dramatically.  Rebuild the global
+    # interface list and the per‑device cache so that subsequent operations
+    # (search, summary, alerts, compare) operate on the correct dataset.
+    try {
+        if (Get-Command -Name 'Update-GlobalInterfaceList' -ErrorAction SilentlyContinue) {
+            # Only refresh the global interface list when the site or zone has changed.
+            # Avoid unnecessary reloads when the user merely tweaks the building or room
+            # filters, which are applied client‑side to the already loaded data.
+            if ($siteChanged -or $zoneChanged) {
+                Update-GlobalInterfaceList
+            }
+        }
+    } catch {
+        # Suppress any errors during refresh; continue to update downstream views.
+    }
     if (Get-Command Update-SearchGrid -ErrorAction SilentlyContinue) {
         Update-SearchGrid
     }
@@ -1703,10 +1831,48 @@ function Update-GlobalInterfaceList {
         Write-Warning "Failed to load interfaces for site '$siteSel': $($_.Exception.Message)"
         $interfaces = New-Object 'System.Collections.Generic.List[object]'
     }
-    # Publish the loaded list globally.  The list is already sorted by
-    # Hostname and PortSort in Get-InterfacesForSite, so no additional sort
-    # is required here.
-    $global:AllInterfaces = $interfaces
+        # Publish the loaded list globally.  The list is already sorted by
+        # Hostname and PortSort in Get-InterfacesForSite, so no additional sort
+        # is required here.  However, ensure that each interface object exposes
+        # the expected properties for UI binding (Hostname, IsSelected, etc.).
+        if ($interfaces) {
+            foreach ($row in $interfaces) {
+                if (-not $row) { continue }
+                try {
+                    if (-not $row.PSObject.Properties['Hostname']) {
+                        # Attempt to derive a hostname from the row if missing; fallback to empty string
+                        $hnVal = ''
+                        try { $hnVal = '' + $row.Hostname } catch {}
+                        $row | Add-Member -NotePropertyName Hostname -NotePropertyValue $hnVal -ErrorAction SilentlyContinue
+                    }
+                } catch {}
+                try {
+                    if (-not $row.PSObject.Properties['IsSelected']) {
+                        $row | Add-Member -NotePropertyName IsSelected -NotePropertyValue $false -ErrorAction SilentlyContinue
+                    }
+                } catch {}
+            }
+        }
+        $global:AllInterfaces = $interfaces
+    # Rebuild the per-device interface cache using the loaded full interface list.
+    try {
+        # Reset the cache to an empty dictionary
+        $global:DeviceInterfaceCache = @{}
+        if ($interfaces) {
+            foreach ($iface in $interfaces) {
+                # Guard against null objects lacking Hostname
+                if (-not $iface) { continue }
+                $hn = $iface.Hostname
+                if ([string]::IsNullOrEmpty($hn)) { continue }
+                if (-not $global:DeviceInterfaceCache.ContainsKey($hn)) {
+                    $global:DeviceInterfaceCache[$hn] = New-Object 'System.Collections.Generic.List[object]'
+                }
+                [void]$global:DeviceInterfaceCache[$hn].Add($iface)
+            }
+        }
+    } catch {
+        # Swallow errors while building cache; if cache rebuild fails, downstream functions will query DB.
+    }
     # Trigger dependent views to refresh if they are available.  These
     # functions honour location filters and will use the updated
     # $global:AllInterfaces list.
@@ -2190,8 +2356,42 @@ function Get-InterfaceInfo {
         [Parameter(Mandatory)][string]$Hostname,
         [string]$TemplatesPath = (Join-Path $PSScriptRoot '..\Templates')
     )
-    # Always use the consolidated helper to build interface details.  Determine the per-site database
-    # and return an empty list if it does not exist.
+        # Check if this host's interface details are already available in the in-memory cache.  When available,
+        # simply return the cached list to avoid re-querying the database.  Ensure that any returned objects
+        # expose the expected properties (Hostname, Port, IsSelected, etc.) by adding them on the fly when
+        # missing.  Without this defensive injection, callers like Get-SelectedInterfaceRows may receive
+        # non-PSCustomObject types (e.g. DataRow) that do not have PSObject.Properties defined, which
+        # manifests as black boxes in the Interfaces grid or errors when accessing the Hostname property.
+        try {
+            if ($global:DeviceInterfaceCache -and $global:DeviceInterfaceCache.ContainsKey($Hostname)) {
+                $cached = $global:DeviceInterfaceCache[$Hostname]
+                if ($cached) {
+                    foreach ($o in $cached) {
+                        if ($null -eq $o) { continue }
+                        # Guarantee that the object exposes a Hostname property.  Some callers may
+                        # accidentally store raw database rows in the cache prior to the full preload, which
+                        # lack our added properties.  Add missing properties using Add-Member.  Skip when
+                        # the property already exists to avoid duplicate definitions.
+                        try {
+                            if (-not $o.PSObject.Properties['Hostname']) {
+                                # Derive the hostname from the current context since all objects in this list
+                                # correspond to the same device.  Store as a string for consistency.
+                                $o | Add-Member -NotePropertyName Hostname -NotePropertyValue ($Hostname) -ErrorAction SilentlyContinue
+                            }
+                        } catch {}
+                        try {
+                            if (-not $o.PSObject.Properties['IsSelected']) {
+                                # Initialise IsSelected to $false so that the DataGrid checkbox has a proper
+                                # binding target.  Do not overwrite existing values.
+                                $o | Add-Member -NotePropertyName IsSelected -NotePropertyValue $false -ErrorAction SilentlyContinue
+                            }
+                        } catch {}
+                    }
+                    return $cached
+                }
+            }
+        } catch {}
+    # Determine the per-site database path and return empty list if missing.
     $dbPath = Get-DbPathForHost $Hostname
     if (-not (Test-Path $dbPath)) { return @() }
     try {
@@ -2201,7 +2401,37 @@ function Get-InterfaceInfo {
         $sql = "SELECT Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, ConfigStatus, PortColor, ToolTip FROM Interfaces WHERE Hostname = '$escHost' ORDER BY Port"
         $dt = Invoke-DbQuery -DatabasePath $dbPath -Sql $sql
         # Delegate to the shared helper which returns an array of PSCustomObject.
-        return New-InterfaceObjectsFromDbRow -Data $dt -Hostname $Hostname -TemplatesPath $TemplatesPath
+            $objs = New-InterfaceObjectsFromDbRow -Data $dt -Hostname $Hostname -TemplatesPath $TemplatesPath
+            # For each returned object ensure expected properties exist.  This is necessary when the
+            # database contains incomplete rows or when New-InterfaceObjectsFromDbRow returns an object
+            # without IsSelected (should not happen, but defensive programming).  Add any missing
+            # Hostname/IsSelected properties before caching.
+            if ($objs) {
+                foreach ($oo in $objs) {
+                    if ($null -ne $oo) {
+                        try {
+                            if (-not $oo.PSObject.Properties['Hostname']) {
+                                $oo | Add-Member -NotePropertyName Hostname -NotePropertyValue ($Hostname) -ErrorAction SilentlyContinue
+                            }
+                        } catch {}
+                        try {
+                            if (-not $oo.PSObject.Properties['IsSelected']) {
+                                $oo | Add-Member -NotePropertyName IsSelected -NotePropertyValue $false -ErrorAction SilentlyContinue
+                            }
+                        } catch {}
+                    }
+                }
+            }
+            # Update the global cache with the loaded objects for this host.
+            try {
+                if (-not $global:DeviceInterfaceCache) { $global:DeviceInterfaceCache = @{} }
+                $listCache = New-Object 'System.Collections.Generic.List[object]'
+                if ($objs) {
+                    foreach ($o in $objs) { [void]$listCache.Add($o) }
+                }
+                $global:DeviceInterfaceCache[$Hostname] = $listCache
+            } catch {}
+            return $objs
     } catch {
         Write-Warning ("Failed to load interface information from database for {0}: {1}" -f $Hostname, $_.Exception.Message)
         return @()
@@ -2398,6 +2628,23 @@ function Get-InterfaceConfiguration {
 function Get-InterfaceList {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$Hostname)
+    # If a cache of interface details exists for this host, return ports from the cache.
+    try {
+        if ($global:DeviceInterfaceCache -and $global:DeviceInterfaceCache.ContainsKey($Hostname)) {
+            $items = $global:DeviceInterfaceCache[$Hostname]
+            if ($items) {
+                $plist = New-Object 'System.Collections.Generic.List[string]'
+                foreach ($it in $items) {
+                    if ($it -and ($it | Get-Member -Name Port -ErrorAction SilentlyContinue)) {
+                        $pVal = '' + $it.Port
+                        if ($pVal -ne $null) { [void]$plist.Add($pVal) }
+                    }
+                }
+                return $plist.ToArray()
+            }
+        }
+    } catch {}
+    # Fallback: query the aggregated database if available.
     if (-not $global:StateTraceDb) { return @() }
     try {
         # Ensure the database module is loaded only once.  Repeatedly importing
@@ -2410,7 +2657,7 @@ function Get-InterfaceList {
         foreach ($row in $dt) {
             [void]$portList.Add([string]$row.Port)
         }
-        # Return the port list array directly rather than prefixing a comma.  A
+        # Return the port list array directly.
         return $portList.ToArray()
     } catch {
         Write-Warning ("Failed to get interface list for {0}: {1}" -f $Hostname, $_.Exception.Message)

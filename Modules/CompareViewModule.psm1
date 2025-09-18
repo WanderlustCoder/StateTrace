@@ -53,7 +53,12 @@ function Get-HostString {
 
 function Get-HostsFromMain {
     [CmdletBinding()]
-    param([Windows.Window]$Window)
+    param(
+        # Use the fully qualified System.Windows.Window type instead of the non‑existent
+        # Windows.Window alias.  The original parameter type used a namespace that
+        # does not exist, which would cause a runtime type resolution error.
+        [System.Windows.Window]$Window
+    )
 
     # Attempt to derive the host list from the in‑memory DeviceMetadata so that
     # Compare view respects the current site/zone/building/room filters.  If
@@ -86,6 +91,12 @@ function Get-HostsFromMain {
                 }
             } catch { }
         }
+        # Ensure interface data for the selected site and zone is loaded.  Calling this helper
+        # triggers lazy loading of per-site/per-zone data in DeviceDataModule.  It is safe to
+        # call repeatedly; subsequent calls for the same site/zone do nothing.
+        if ($siteSel -and $siteSel -ne '' -and $siteSel -ne 'All Sites') {
+            try { DeviceDataModule\Update-SiteZoneCache -Site $siteSel -Zone $zoneSel | Out-Null } catch { }
+        }
         # If DeviceMetadata is available, use it to filter hostnames.
         if ($global:DeviceMetadata -and $global:DeviceMetadata.Count -gt 0) {
             $tmpList = New-Object 'System.Collections.Generic.List[string]'
@@ -117,27 +128,21 @@ function Get-HostsFromMain {
             $hosts = $tmpList.ToArray()
             Write-Verbose "[CompareView] Retrieved $($hosts.Count) host(s) from DeviceMetadata for current filters."
         } else {
-            # Fallback: use database helper to retrieve hostnames, but still apply
-            # site and zone filters based on the hostname pattern.  Hostnames have
-            # the format SITE-ZONE-... (e.g., WLLS-A05-AS-05).  When a specific
-            # site or zone is selected, extract the corresponding prefix from the
-            # hostname and filter accordingly.
-            if (Get-Command -Name 'Get-InterfaceHostnames' -ErrorAction SilentlyContinue) {
-                $raw = @(DeviceDataModule\Get-InterfaceHostnames)
-                $tmpList = New-Object 'System.Collections.Generic.List[string]'
-                foreach ($item in $raw) {
-                    $h = Get-HostString $item
-                    $parts = $h -split '-'
-                    $sitePart = if ($parts.Count -ge 1) { $parts[0] } else { '' }
-                    $zonePart = if ($parts.Count -ge 2) { $parts[1] } else { '' }
-                    # Apply the same site and zone filters using the extracted parts
-                    if ($siteSel -and $siteSel -ne '' -and $siteSel -ne 'All Sites' -and $sitePart -ne $siteSel) { continue }
-                    if ($zoneSel -and $zoneSel -ne '' -and $zoneSel -ne 'All Zones' -and $zonePart -ne $zoneSel) { continue }
-                    [void]$tmpList.Add($h)
-                }
-                $hosts = $tmpList.ToArray()
-                Write-Verbose "[CompareView] Retrieved $($hosts.Count) host(s) from Get-InterfaceHostnames (database) with site/zone filtering."
+            # Fallback: derive hostnames from the per-device interface cache rather than querying
+            # the database.  Hosts in DeviceInterfaceCache represent devices that have already
+            # been loaded into memory via Update-SiteZoneCache or other views.  Parse the
+            # hostname to extract the site and zone and apply the same filters as above.
+            $tmpList = New-Object 'System.Collections.Generic.List[string]'
+            foreach ($hn in $global:DeviceInterfaceCache.Keys) {
+                $parts = ('' + $hn) -split '-'
+                $sitePart = if ($parts.Length -ge 1) { $parts[0] } else { '' }
+                $zonePart = if ($parts.Length -ge 2) { $parts[1] } else { '' }
+                if ($siteSel -and $siteSel -ne '' -and $siteSel -ne 'All Sites' -and $sitePart -ne $siteSel) { continue }
+                if ($zoneSel -and $zoneSel -ne '' -and $zoneSel -ne 'All Zones' -and $zonePart -ne $zoneSel) { continue }
+                [void]$tmpList.Add($hn)
             }
+            $hosts = $tmpList.ToArray()
+            Write-Verbose "[CompareView] Retrieved $($hosts.Count) host(s) from in-memory cache with site/zone filtering."
         }
     } catch {
         $hosts = @()
@@ -307,7 +312,20 @@ function Get-GridRowFor {
                 # Normalize the requested port by trimming and uppercasing for comparison
                 $tgt = ('' + $Port).Trim().ToUpperInvariant()
                 foreach ($iface in $ifaceList) {
-                    $p = ('' + $iface.Port).Trim().ToUpperInvariant()
+                    # Determine the interface's port identifier.  Different data sources
+                    # may expose the port name under different property names (Port,
+                    # Interface, IfName, Name).  Fall back to the object's string
+                    # representation when no explicit property is available.  This
+                    # improves robustness when comparing ports from heterogeneous sources.
+                    $pVal = $null
+                    try {
+                        if ($iface.PSObject.Properties['Port'])          { $pVal = '' + $iface.Port }
+                        elseif ($iface.PSObject.Properties['Interface']) { $pVal = '' + $iface.Interface }
+                        elseif ($iface.PSObject.Properties['IfName'])    { $pVal = '' + $iface.IfName }
+                        elseif ($iface.PSObject.Properties['Name'])      { $pVal = '' + $iface.Name }
+                    } catch {}
+                    if (-not $pVal) { $pVal = '' + $iface }
+                    $p = ('' + $pVal).Trim().ToUpperInvariant()
                     if ($p -eq $tgt) {
                         return $iface
                     }
@@ -780,9 +798,12 @@ function Set-CompareSelection {
         [psobject]$Row2
     )
     # Updates an existing Compare view with given switches and interfaces selected.
-    if (-not $script:compareView) { 
-        Write-Verbose "[CompareView] Update-CompareView called but compareView is not initialized."
-        return 
+    if (-not $script:compareView) {
+        # Emit a message that accurately reflects the calling function.  Previously
+        # this log incorrectly referenced Update-CompareView, which could
+        # confuse debugging.  Use the current function name instead.
+        Write-Verbose "[CompareView] Set-CompareSelection called but compareView is not initialized."
+        return
     }
 
     Resolve-CompareControls | Out-Null
