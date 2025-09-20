@@ -81,6 +81,48 @@ function Ensure-DatabaseModule {
     }
 }
 
+function Get-PortSortKey {
+    param([Parameter(Mandatory)][string]$Port)
+    if ([string]::IsNullOrWhiteSpace($Port)) { return '99-UNK-99999-99999-99999-99999-99999' }
+
+    $u = $Port.Trim().ToUpperInvariant()
+    # Normalize long form interface prefixes to short codes so sorting is consistent.
+    $u = $u -replace 'HUNDRED\s*GIG(?:ABIT\s*ETHERNET|E)?','HU'
+    $u = $u -replace 'FOUR\s*HUNDRED\s*GIG(?:ABIT\s*ETHERNET|E)?','TH'
+    $u = $u -replace 'FORTY\s*GIG(?:ABIT\s*ETHERNET|E)?','FO'
+    $u = $u -replace 'TWENTY\s*FIVE\s*GIG(?:ABIT\s*ETHERNET|E|IGE)?','TW'
+    $u = $u -replace 'TEN\s*GIG(?:ABIT\s*ETHERNET|E)?','TE'
+    $u = $u -replace 'GIGABIT\s*ETHERNET','GI'
+    $u = $u -replace 'FAST\s*ETHERNET','FA'
+    $u = $u -replace 'ETHERNET','ET'
+    $u = $u -replace 'MANAGEMENT','MGMT'
+    $u = $u -replace 'PORT-?\s*CHANNEL','PO'
+    $u = $u -replace 'LOOPBACK','LO'
+    $u = $u -replace 'VLAN','VL'
+
+    $m = [regex]::Match($u, '^(?<type>[A-Z\-]+)?\s*(?<nums>[\d/.:]+)')
+    $type = if ($m.Success -and $m.Groups['type'].Value) { $m.Groups['type'].Value } else {
+        if ($u -match '^\d') { 'ET' } else { $u -creplace '[^A-Z]','' }
+    }
+
+    # Type weights: lower values sort before higher ones.
+    $weights = @{ 'MGMT'=5; 'PO'=10; 'TH'=22; 'HU'=23; 'FO'=24; 'TE'=25; 'TW'=26; 'ET'=30; 'GI'=40; 'FA'=50; 'VL'=97; 'LO'=98 }
+    $w = if ($weights.ContainsKey($type)) { $weights[$type] } else { 60 }
+
+    $numsPart = if ($m.Success) { $m.Groups['nums'].Value } else { $u }
+    # Build a typed list of numeric segments for zero-padded comparison.
+    $matchesInts = [regex]::Matches($numsPart, '\d+')
+    $numsList = New-Object 'System.Collections.Generic.List[int]'
+    foreach ($mnum in $matchesInts) { [void]$numsList.Add([int]$mnum.Value) }
+    while ($numsList.Count -lt 4) { [void]$numsList.Add(0) }
+    $segmentsList = New-Object 'System.Collections.Generic.List[string]'
+    $limit = [Math]::Min(6, $numsList.Count)
+    for ($i = 0; $i -lt $limit; $i++) { [void]$segmentsList.Add('{0:00000}' -f $numsList[$i]) }
+    $segments = $segmentsList
+
+    return ('{0:00}-{1}-{2}' -f $w, $type, ($segments -join '-'))
+}
+
 function Get-InterfaceHostnames {
     # .SYNOPSIS
 
@@ -359,88 +401,8 @@ function Get-InterfaceInfo {
         [Parameter(Mandatory)][string]$Hostname,
         [string]$TemplatesPath = (Join-Path $PSScriptRoot '..\Templates')
     )
-        # Check if this host's interface details are already available in the in-memory cache.  When available,
-        # simply return the cached list to avoid re-querying the database.  Ensure that any returned objects
-        # expose the expected properties (Hostname, Port, IsSelected, etc.) by adding them on the fly when
-        # missing.  Without this defensive injection, callers like Get-SelectedInterfaceRows may receive
-        # non-PSCustomObject types (e.g. DataRow) that do not have PSObject.Properties defined, which
-        # manifests as black boxes in the Interfaces grid or errors when accessing the Hostname property.
-        try {
-            if ($global:DeviceInterfaceCache -and $global:DeviceInterfaceCache.ContainsKey($Hostname)) {
-                $cached = $global:DeviceInterfaceCache[$Hostname]
-                if ($cached) {
-                    foreach ($o in $cached) {
-                        if ($null -eq $o) { continue }
-                        # Guarantee that the object exposes a Hostname property.  Some callers may
-                        # accidentally store raw database rows in the cache prior to the full preload, which
-                        # lack our added properties.  Add missing properties using Add-Member.  Skip when
-                        # the property already exists to avoid duplicate definitions.
-                        try {
-                            if (-not $o.PSObject.Properties['Hostname']) {
-                                # Derive the hostname from the current context since all objects in this list
-                                # correspond to the same device.  Store as a string for consistency.
-                                $o | Add-Member -NotePropertyName Hostname -NotePropertyValue ($Hostname) -ErrorAction SilentlyContinue
-                            }
-                        } catch {}
-                        try {
-                            if (-not $o.PSObject.Properties['IsSelected']) {
-                                # Initialise IsSelected to $false so that the DataGrid checkbox has a proper
-                                # binding target.  Do not overwrite existing values.
-                                $o | Add-Member -NotePropertyName IsSelected -NotePropertyValue $false -ErrorAction SilentlyContinue
-                            }
-                        } catch {}
-                    }
-                    return $cached
-                }
-            }
-        } catch {}
-    # Determine the per-site database path and return empty list if missing.
-    $dbPath = Resolve-InterfaceDatabasePath $Hostname
-    if (-not (Test-Path $dbPath)) { return @() }
-    try {
-        # Ensure the database module is loaded once rather than on every call.
-        Ensure-DatabaseModule
-        $escHost = $Hostname -replace "'", "''"
-        $sql = "SELECT Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, ConfigStatus, PortColor, ToolTip FROM Interfaces WHERE Hostname = '$escHost' ORDER BY Port"
-        $dt = Invoke-DbQuery -DatabasePath $dbPath -Sql $sql
-        # Delegate to the shared helper which returns an array of PSCustomObject.
-            $objs = New-InterfaceObjectsFromDbRow -Data $dt -Hostname $Hostname -TemplatesPath $TemplatesPath
-            # For each returned object ensure expected properties exist.  This is necessary when the
-            # database contains incomplete rows or when New-InterfaceObjectsFromDbRow returns an object
-            # without IsSelected (should not happen, but defensive programming).  Add any missing
-            # Hostname/IsSelected properties before caching.
-            if ($objs) {
-                foreach ($oo in $objs) {
-                    if ($null -ne $oo) {
-                        try {
-                            if (-not $oo.PSObject.Properties['Hostname']) {
-                                $oo | Add-Member -NotePropertyName Hostname -NotePropertyValue ($Hostname) -ErrorAction SilentlyContinue
-                            }
-                        } catch {}
-                        try {
-                            if (-not $oo.PSObject.Properties['IsSelected']) {
-                                $oo | Add-Member -NotePropertyName IsSelected -NotePropertyValue $false -ErrorAction SilentlyContinue
-                            }
-                        } catch {}
-                    }
-                }
-            }
-            # Update the global cache with the loaded objects for this host.
-            try {
-                if (-not $global:DeviceInterfaceCache) { $global:DeviceInterfaceCache = @{} }
-                $listCache = New-Object 'System.Collections.Generic.List[object]'
-                if ($objs) {
-                    foreach ($o in $objs) { [void]$listCache.Add($o) }
-                }
-                $global:DeviceInterfaceCache[$Hostname] = $listCache
-            } catch {}
-            return $objs
-    } catch {
-        Write-Warning ("Failed to load interface information from database for {0}: {1}" -f $Hostname, $_.Exception.Message)
-        return @()
-    }
+    DeviceRepositoryModule\Get-InterfaceInfo @PSBoundParameters
 }
-
 
 function Get-InterfaceList {
     [CmdletBinding()]
@@ -495,8 +457,6 @@ function Compare-InterfaceConfigs {
 }
 
 function Get-InterfaceConfiguration {
-    # .SYNOPSIS
-
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]  $Hostname,
@@ -506,10 +466,7 @@ function Get-InterfaceConfiguration {
         [hashtable]$NewVlans,
         [string]$TemplatesPath = (Join-Path $PSScriptRoot '..\Templates')
     )
-    # Delegate to DeviceDataModule implementation.  This wrapper calls the
-    return DeviceDataModule\Get-InterfaceConfiguration @PSBoundParameters
-    # The original implementation that followed this return statement
-
+    DeviceRepositoryModule\Get-InterfaceConfiguration @PSBoundParameters
 }
 
 function Get-SpanningTreeInfo {
@@ -799,4 +756,4 @@ function New-InterfacesView {
     $global:interfacesView = $interfacesView
 }
 
-Export-ModuleMember -Function Get-InterfaceHostnames,Get-InterfaceInfo,Get-InterfaceList,New-InterfaceObjectsFromDbRow,Compare-InterfaceConfigs,Get-InterfaceConfiguration,Get-ConfigurationTemplates,Get-SpanningTreeInfo,New-InterfacesView
+Export-ModuleMember -Function Get-PortSortKey,Get-InterfaceHostnames,Get-InterfaceInfo,Get-InterfaceList,New-InterfaceObjectsFromDbRow,Compare-InterfaceConfigs,Get-InterfaceConfiguration,Get-ConfigurationTemplates,Get-SpanningTreeInfo,New-InterfacesView

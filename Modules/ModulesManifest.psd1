@@ -4,6 +4,11 @@
         # Core parser and helper modules
         'ParserWorker.psm1',
         'DatabaseModule.psm1',
+        'DeviceRepositoryModule.psm1',
+        'DeviceCatalogModule.psm1',
+        'FilterStateModule.psm1',
+        'DeviceDetailsModule.psm1',
+        'DeviceInsightsModule.psm1',
         'DeviceDataModule.psm1',
         # Vendor-specific modules
         'AristaModule.psm1',

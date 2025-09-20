@@ -17,6 +17,11 @@ if (-not (Get-Variable -Name StateTraceDebug -Scope Global -ErrorAction Silently
 # Cache the last time we forced a Jet/ACE cache refresh
 if (-not (Get-Variable -Name LastCacheRefresh -Scope Script -ErrorAction SilentlyContinue)) { $script:LastCacheRefresh = Get-Date '2000-01-01' }
 
+# Escape single quotes when embedding values into SQL statements.
+function Get-SqlLiteral {
+    param([Parameter(Mandatory)][string]$Value)
+    return $Value.Replace("'", "''")
+}
 # === BEGIN Initialize-StateTraceDatabase (DatabaseModule.psm1) ===
 function Initialize-StateTraceDatabase {
     [CmdletBinding()]
@@ -363,4 +368,4 @@ function Invoke-DbQuery {
 }
 
 
-Export-ModuleMember -Function New-AccessDatabase, Invoke-DbNonQuery, Invoke-DbQuery, Initialize-StateTraceDatabase, Open-DbReadSession, Close-DbReadSession
+Export-ModuleMember -Function Get-SqlLiteral, New-AccessDatabase, Invoke-DbNonQuery, Invoke-DbQuery, Initialize-StateTraceDatabase, Open-DbReadSession, Close-DbReadSession

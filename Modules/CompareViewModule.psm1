@@ -1,4 +1,4 @@
-﻿# CompareViewModule.psm1
+# CompareViewModule.psm1
 # Loads the Compare sidebar, populates switch/port lists, and renders side-by-side config + diffs.
 
 # Script-scoped references to live view controls (re-initialized each view load)
@@ -54,19 +54,19 @@ function Get-HostString {
 function Get-HostsFromMain {
     [CmdletBinding()]
     param(
-        # Use the fully qualified System.Windows.Window type instead of the non‑existent
+        # Use the fully qualified System.Windows.Window type instead of the non-existent
         # Windows.Window alias.  The original parameter type used a namespace that
         # does not exist, which would cause a runtime type resolution error.
         [System.Windows.Window]$Window
     )
 
-    # Attempt to derive the host list from the in‑memory DeviceMetadata so that
+    # Attempt to derive the host list from the in-memory DeviceMetadata so that
     # Compare view respects the current site/zone/building/room filters.  If
     # DeviceMetadata is unavailable, fall back to the database query provided
     # by Get-InterfaceHostnames.
     $hosts = @()
     try {
-        # Retrieve the last recorded location selections maintained by Update‑DeviceFilter.  These
+        # Retrieve the last recorded location selections maintained by Update-DeviceFilter.  These
         # values (Site, Zone, Building, Room) reflect the current filter state across the UI and
         # provide a consistent basis for host filtering.  Fallback to Get-SelectedLocation only
         # when LastLocation is unavailable (e.g., on first launch before any selection is recorded).
@@ -95,55 +95,36 @@ function Get-HostsFromMain {
         # triggers lazy loading of per-site/per-zone data in DeviceDataModule.  It is safe to
         # call repeatedly; subsequent calls for the same site/zone do nothing.
         if ($siteSel -and $siteSel -ne '' -and $siteSel -ne 'All Sites') {
-            try { DeviceDataModule\Update-SiteZoneCache -Site $siteSel -Zone $zoneSel | Out-Null } catch { }
+            try { DeviceRepositoryModule\Update-SiteZoneCache -Site $siteSel -Zone $zoneSel | Out-Null } catch { }
         }
-        # If DeviceMetadata is available, use it to filter hostnames.
-        if ($global:DeviceMetadata -and $global:DeviceMetadata.Count -gt 0) {
-            $tmpList = New-Object 'System.Collections.Generic.List[string]'
-            foreach ($entry in $global:DeviceMetadata.GetEnumerator()) {
-                $name = $entry.Key
-                $meta = $entry.Value
-                # Apply site filter (ignore 'All Sites' sentinel and blank)
-                if ($siteSel -and $siteSel -ne '' -and $siteSel -ne 'All Sites' -and $meta.Site -ne $siteSel) { continue }
-                # Apply zone filter when a specific zone (other than All Zones) is selected.
-                if ($zoneSel -and $zoneSel -ne '' -and $zoneSel -ne 'All Zones') {
-                    # Determine the zone from metadata if available; otherwise parse it from the hostname
-                    $metaZone = $null
-                    if ($meta.PSObject.Properties['Zone']) {
-                        $metaZone = '' + $meta.Zone
-                    } else {
-                        try {
-                            $partsMeta = ('' + $name) -split '-'
-                            if ($partsMeta.Length -ge 2) { $metaZone = $partsMeta[1] }
-                        } catch { $metaZone = $null }
-                    }
-                    if (-not $metaZone -or $metaZone -ne $zoneSel) { continue }
-                }
-                # Apply building filter (ignore blank selection)
+        # Enumerate hostnames exclusively from the per-device interface cache.  Only hosts
+        # that have been loaded into memory via Update-SiteZoneCache are present in this
+        # cache.  This avoids falling back to DeviceMetadata enumeration, which can
+        # include hosts for which interface data has not yet been loaded, thereby
+        # maintaining the lazy-loading behaviour.  DeviceMetadata is still used to
+        # filter on building and room when available.
+        $tmpList = New-Object 'System.Collections.Generic.List[string]'
+        foreach ($hn in $global:DeviceInterfaceCache.Keys) {
+            $parts = ('' + $hn) -split '-'
+            $sitePart = if ($parts.Length -ge 1) { $parts[0] } else { '' }
+            $zonePart = if ($parts.Length -ge 2) { $parts[1] } else { '' }
+            # Apply site filter unless 'All Sites' is selected
+            if ($siteSel -and $siteSel -ne '' -and $siteSel -ne 'All Sites' -and $sitePart -ne $siteSel) { continue }
+            # Apply zone filter when a specific zone (other than All Zones) is selected
+            if ($zoneSel -and $zoneSel -ne '' -and $zoneSel -ne 'All Zones' -and $zonePart -ne $zoneSel) { continue }
+            # Apply building/room filters using DeviceMetadata if available
+            $meta = $null
+            if ($global:DeviceMetadata -and $global:DeviceMetadata.ContainsKey($hn)) {
+                $meta = $global:DeviceMetadata[$hn]
+            }
+            if ($meta) {
                 if ($bldSel -and $bldSel -ne '' -and $meta.Building -ne $bldSel) { continue }
-                # Apply room filter (ignore blank selection)
                 if ($roomSel -and $roomSel -ne '' -and $meta.Room -ne $roomSel) { continue }
-                [void]$tmpList.Add($name)
             }
-            $hosts = $tmpList.ToArray()
-            Write-Verbose "[CompareView] Retrieved $($hosts.Count) host(s) from DeviceMetadata for current filters."
-        } else {
-            # Fallback: derive hostnames from the per-device interface cache rather than querying
-            # the database.  Hosts in DeviceInterfaceCache represent devices that have already
-            # been loaded into memory via Update-SiteZoneCache or other views.  Parse the
-            # hostname to extract the site and zone and apply the same filters as above.
-            $tmpList = New-Object 'System.Collections.Generic.List[string]'
-            foreach ($hn in $global:DeviceInterfaceCache.Keys) {
-                $parts = ('' + $hn) -split '-'
-                $sitePart = if ($parts.Length -ge 1) { $parts[0] } else { '' }
-                $zonePart = if ($parts.Length -ge 2) { $parts[1] } else { '' }
-                if ($siteSel -and $siteSel -ne '' -and $siteSel -ne 'All Sites' -and $sitePart -ne $siteSel) { continue }
-                if ($zoneSel -and $zoneSel -ne '' -and $zoneSel -ne 'All Zones' -and $zonePart -ne $zoneSel) { continue }
-                [void]$tmpList.Add($hn)
-            }
-            $hosts = $tmpList.ToArray()
-            Write-Verbose "[CompareView] Retrieved $($hosts.Count) host(s) from in-memory cache with site/zone filtering."
+            [void]$tmpList.Add($hn)
         }
+        $hosts = $tmpList.ToArray()
+        Write-Verbose "[CompareView] Retrieved $($hosts.Count) host(s) from per-device cache with current filters."
     } catch {
         $hosts = @()
         Write-Warning "[CompareView] Failed to retrieve host list: $($_.Exception.Message)"
@@ -190,8 +171,8 @@ function Get-HostsFromMain {
 function Get-PortSortKey {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$Port)
-    # Delegate sorting to the central Get-PortSortKey implementation defined in
-    return DeviceDataModule\Get-PortSortKey @PSBoundParameters
+    # Delegate to InterfaceModule::Get-PortSortKey to keep the ordering logic centralised.
+    return InterfaceModule\Get-PortSortKey @PSBoundParameters
 }
 
 function Get-PortsForHost {
@@ -249,8 +230,8 @@ function Get-PortsForHost {
     # Define a comparison delegate that uses the port sort key for ordering
     $comp = [System.Comparison[string]]{
         param($a,$b)
-        $k1 = DeviceDataModule\Get-PortSortKey -Port $a
-        $k2 = DeviceDataModule\Get-PortSortKey -Port $b
+        $k1 = InterfaceModule\Get-PortSortKey -Port $a
+        $k2 = InterfaceModule\Get-PortSortKey -Port $b
         return [System.StringComparer]::OrdinalIgnoreCase.Compare($k1, $k2)
     }
     $finalList.Sort($comp)
@@ -266,7 +247,7 @@ function Set-PortsForCombo {
     )
     # Populates the given ComboBox with the list of ports for the specified Hostname.
     if ([string]::IsNullOrWhiteSpace($Hostname)) {
-        # No host specified – clear the combo box
+        # No host specified - clear the combo box
         $Combo.ItemsSource = @()
         try { $Combo.Items.Refresh() } catch { }
         $Combo.SelectedIndex = -1
@@ -493,7 +474,7 @@ function Show-CurrentComparison {
             [string]::IsNullOrWhiteSpace($p1) -or
             [string]::IsNullOrWhiteSpace($s2) -or 
             [string]::IsNullOrWhiteSpace($p2)) {
-            # One of the sides is not fully selected – cannot compare yet
+            # One of the sides is not fully selected - cannot compare yet
             Write-Verbose "[CompareView] Show-CurrentComparison skipped (one or more selections empty: Switch1='$s1', Port1='$p1', Switch2='$s2', Port2='$p2')."
             return
         }
@@ -502,12 +483,12 @@ function Show-CurrentComparison {
         $row1 = Get-GridRowFor -Hostname $s1 -Port $p1
         $row2 = Get-GridRowFor -Hostname $s2 -Port $p2
         if ($row1 -and $row2) {
-            # Both rows are available – pass them directly to the comparison helper
+            # Both rows are available - pass them directly to the comparison helper
             Set-CompareFromRows -Row1 $row1 -Row2 $row2
             Write-Verbose "[CompareView] Comparison updated for $s1/$p1 vs $s2/$p2."
         }
         else {
-            # One or both sides are missing – construct placeholder objects for missing rows
+            # One or both sides are missing - construct placeholder objects for missing rows
             $resolvedRow1 = if ($row1) { $row1 } else { [pscustomobject]@{ ToolTip = ''; PortColor = $null } }
             $resolvedRow2 = if ($row2) { $row2 } else { [pscustomobject]@{ ToolTip = ''; PortColor = $null } }
             Set-CompareFromRows -Row1 $resolvedRow1 -Row2 $resolvedRow2
@@ -652,7 +633,7 @@ function Update-CompareView {
     $hosts = Get-HostsFromMain -Window $Window
     # If we already have a compare view and the host list has not changed, refresh
     # the existing host dropdowns and ports and avoid reloading the XAML UI.  This
-    # prevents unnecessary re‑creation of the view and reduces logging.
+    # prevents unnecessary re-creation of the view and reduces logging.
     $reuse = $false
     try {
         if ($script:compareView -and $script:LastCompareHostList -and $hosts) {
@@ -846,3 +827,4 @@ function Set-CompareSelection {
         Show-CurrentComparison
     }
 }
+
