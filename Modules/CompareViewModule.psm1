@@ -204,7 +204,7 @@ function Get-PortsForHost {
     $portsList = New-Object 'System.Collections.Generic.List[string]'
     try {
         if (Get-Command -Name 'Get-InterfaceList' -ErrorAction SilentlyContinue) {
-            $list = @(DeviceDataModule\Get-InterfaceList -Hostname $Hostname)
+            $list = @(InterfaceModule\Get-InterfaceList -Hostname $Hostname)
             if ($list -and $list.Count -gt 0) {
                 foreach ($it in $list) {
                     [void]$portsList.Add(('' + $it))
@@ -218,7 +218,7 @@ function Get-PortsForHost {
     if ($portsList.Count -eq 0) {
         try {
             if (Get-Command -Name 'Get-InterfaceInfo' -ErrorAction SilentlyContinue) {
-                $info = @(DeviceDataModule\Get-InterfaceInfo -Hostname $Hostname)
+                $info = @(InterfaceModule\Get-InterfaceInfo -Hostname $Hostname)
                 if ($info -and $info.Count -gt 0) {
                     foreach ($r in $info) {
                         $val = $null
@@ -307,7 +307,7 @@ function Get-GridRowFor {
     try {
         if (Get-Command -Name 'Get-InterfaceInfo' -ErrorAction SilentlyContinue) {
             # Retrieve all interface objects for the specified host
-            $ifaceList = DeviceDataModule\Get-InterfaceInfo -Hostname $Hostname
+            $ifaceList = InterfaceModule\Get-InterfaceInfo -Hostname $Hostname
             if ($ifaceList) {
                 # Normalize the requested port by trimming and uppercasing for comparison
                 $tgt = ('' + $Port).Trim().ToUpperInvariant()
