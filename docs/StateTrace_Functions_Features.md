@@ -34,7 +34,7 @@
 - `Main/MainWindow.ps1:268` `Invoke-StateTraceRefresh` - handler for `Scan Logs`; updates env flags, calls `Invoke-StateTraceParsing`, then refreshes summaries, filters, and Compare view.
 - `Main/MainWindow.ps1:303` `Get-HostnameChanged` - synchronous device selection handler; loads device details and SPAN info for the chosen host.
 - `Main/MainWindow.ps1:326` `Import-DeviceDetailsAsync` - background loader that fetches summary/interface/template data via `DeviceDataModule::Get-DeviceDetailsData` and marshals results to the UI thread.
-- `Main/MainWindow.ps1:547` `Request-DeviceFilterUpdate` - debounced filter refresh guarded by `$global:ProgrammaticFilterUpdate` and `$script:DeviceFilterFaulted`.
+- `Main/MainWindow.ps1:547` `Request-DeviceFilterUpdate` - debounced filter refresh guarded by `FilterStateModule::Get-FilterFaulted` and `$global:ProgrammaticFilterUpdate`.
 - `Main/MainWindow.ps1:566` `Get-FilterDropdowns` - resolves site/zone/building/room combo boxes so change handlers can be wired once.
 - Event wiring: refresh button ? `Invoke-StateTraceRefresh`; hostname dropdown ? `Get-HostnameChanged`; filter combos ? `Request-DeviceFilterUpdate`; Show Commands buttons ? clipboard exporters; Help button opens `Views/HelpWindow.xaml`.
 ## Module Reference
@@ -49,7 +49,7 @@
 - Imported lazily by other modules via `Import-DatabaseModule` / `Ensure-DatabaseModule`; keep file path and exported function names stable.
 ### `Modules/DeviceDataModule.psm1`
 - **Path & cache helpers**
-  - `Modules/DeviceDataModule.psm1:29` `Test-StringListEqualCI` - case-insensitive sequence comparison used when checking dropdown contents.
+  - `Modules/FilterStateModule.psm1:25` `Test-StringListEqualCI` - case-insensitive sequence comparison used when checking dropdown contents.
   - Provided via `Modules/DeviceRepositoryModule.psm1` (`Get-SiteFromHostname`, `Get-DbPathForSite`, `Get-DbPathForHost`, `Get-AllSiteDbPaths`).
 - **Lazy loading & caches**
   - Provided via `Modules/DeviceRepositoryModule.psm1:156` `Update-SiteZoneCache` - loads interface lists for a site/zone into `$global:DeviceInterfaceCache` and extends `$global:AllInterfaces`.
@@ -57,8 +57,8 @@
   - `Modules/DeviceRepositoryModule.psm1:143` `Clear-SiteInterfaceCache` - resets per-site cache when downstream modules need a fresh reload.
   - `Modules/DeviceDataModule.psm1:88` `Import-DatabaseModule` - delegates to `DeviceRepositoryModule\Import-DatabaseModule` to keep the guard centralised.
 - **Location state helpers**
-  - `Modules/DeviceDataModule.psm1:635` `Get-SelectedLocation` / `Modules/DeviceDataModule.psm1:664` `Get-LastLocation` - expose current and last-known site/zone/building/room selections for other modules.
-  - `Modules/DeviceDataModule.psm1:683` `Set-DropdownItems` - centralised ItemsControl helper used across views.
+  - `Modules/FilterStateModule.psm1:36` `Get-SelectedLocation` / `Modules/FilterStateModule.psm1:60` `Get-LastLocation` - expose current and last-known site/zone/building/room selections for other modules.
+  - `Modules/FilterStateModule.psm1:74` `Set-DropdownItems` - centralised ItemsControl helper used across views.
 - **Database utilities**
 - **Device catalogue & filters**
   - `Modules/DeviceDataModule.psm1:794` `Get-DeviceSummaries` - populates `$global:DeviceMetadata`, initialises dropdowns, and triggers `Update-GlobalInterfaceList`.
@@ -102,7 +102,7 @@
 ### `Modules/CompareViewModule.psm1`
 - `Modules/CompareViewModule.psm1:25` `Resolve-CompareControls` - caches references to Compare view dropdowns, textboxes, and labels after XAML load.
 - `Modules/CompareViewModule.psm1:43` `Get-HostString` - normalises combo box items into plain hostnames.
-- `Modules/CompareViewModule.psm1:54` `Get-HostsFromMain` - builds the filtered host list from `$global:DeviceInterfaceCache`, honouring site/zone/building/room via `DeviceDataModule::Get-LastLocation` and `DeviceRepositoryModule::Update-SiteZoneCache`.
+- `Modules/CompareViewModule.psm1:54` `Get-HostsFromMain` - builds the filtered host list from `$global:DeviceInterfaceCache`, honouring site/zone/building/room via `FilterStateModule::Get-LastLocation` and `DeviceRepositoryModule::Update-SiteZoneCache`.
 - `Modules/CompareViewModule.psm1:171` `Get-PortSortKey` - delegates to `InterfaceModule::Get-PortSortKey`.
 - `Modules/CompareViewModule.psm1:178` `Get-PortsForHost` - retrieves port names via `InterfaceModule::Get-InterfaceList` with DB fallback.
 - `Modules/CompareViewModule.psm1:242` `Set-PortsForCombo` - populates port dropdowns and preserves selection.
@@ -185,7 +185,7 @@
 ## Global Variables & Environment Flags
 - `$Global:StateTraceDebug` - toggles diagnostic logging and log file creation.
 - `$global:StateTraceDb` / `$env:StateTraceDbPath` - optional aggregation database paths used by parser/UI when set.
-- `$global:ProgrammaticFilterUpdate`, `$script:DeviceFilterUpdating`, `$script:DeviceFilterFaulted` - guard device filter refresh cycles.
+- `$global:ProgrammaticFilterUpdate`, `$script:DeviceFilterUpdating`, and `FilterStateModule::Get-FilterFaulted` guard device filter refresh cycles.
 - `$global:DeviceMetadata`, `$global:DeviceInterfaceCache`, `$global:AllInterfaces`, `$global:AlertsList`, `$global:templatesView`, `$global:interfacesView`, `$global:searchInterfacesView`, `$global:spanView`, `$global:alertsView` - shared state consumed across modules.
 - `$env:IncludeArchive`, `$env:IncludeHistorical` - set by `Set-EnvToggle`; parser reads them to include archive/history folders.
 ## Module Manifest & Tests
@@ -195,6 +195,9 @@
 - Update this directory whenever new modules, functions, or significant behaviours are added.
 - Before modifying a function, review the dependent modules listed above to avoid breaking UI flows or parser pipelines.
 - When refactoring, confirm that caches (`DeviceInterfaceCache`, `DeviceMetadata`, `AllInterfaces`) and event wiring still function end-to-end by running a parser cycle and exercising each tab.
+
+
+
 
 
 

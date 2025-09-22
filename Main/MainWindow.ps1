@@ -1,4 +1,4 @@
-﻿# === MainWindow.ps1 :: Bootstrap (WPF + Paths + Module Manifest) ===
+# === MainWindow.ps1 :: Bootstrap (WPF + Paths + Module Manifest) ===
 
 # Load WPF once (PresentationFramework pulls in PresentationCore & WindowsBase).
 Add-Type -AssemblyName PresentationFramework
@@ -8,7 +8,7 @@ Add-Type -AssemblyName PresentationFramework
 # $false ensures Write-Diag becomes a no-op.  Verbose and debug streams are
 # suppressed by switching the preferences to SilentlyContinue.  This prevents
 # diagnostic chatter in the console and avoids creating log files unless
-# explicitly re‑enabled.
+# explicitly re-enabled.
 $Global:StateTraceDebug     = $false
 $VerbosePreference          = 'SilentlyContinue'
 $DebugPreference            = 'SilentlyContinue'
@@ -63,7 +63,7 @@ try {
 
 # In some environments the host runspace's LanguageMode cannot be changed via
 # $ExecutionContext.SessionState.  Attempt to update the default runspace
-# LanguageMode via the SessionStateProxy as an additional best‑effort fallback.
+# LanguageMode via the SessionStateProxy as an additional best-effort fallback.
 try {
     $defaultRs = [System.Management.Automation.Runspaces.Runspace]::DefaultRunspace
     if ($null -ne $defaultRs) {
@@ -103,7 +103,7 @@ try {
         if (Get-Command Import-PowerShellDataFile -ErrorAction SilentlyContinue) {
             Import-PowerShellDataFile -Path $manifestPath
         } else {
-            # PowerShell <5.0 fallback – use .psd1 as a ps1
+            # PowerShell <5.0 fallback - use .psd1 as a ps1
             . $manifestPath
         }
 
@@ -539,19 +539,19 @@ if (-not $script:FilterUpdateTimer) {
             # Mark the filter updater as faulted to prevent repeated attempts.  The
             # DeviceFilterUpdating flag prevents concurrent calls, but a recurrent
             # failure can still result in an endless loop if we keep retrying.
-            $script:DeviceFilterFaulted = $true
+            FilterStateModule\Set-FilterFaulted -Faulted $true
         }
     })
 }
 
 function Request-DeviceFilterUpdate {
     # Do not re-arm the filter timer if a prior invocation has faulted or if we are
-    # performing a programmatic dropdown update.  When $script:DeviceFilterFaulted
-    # is true (set by the timer catch handler), we suppress all further filter
+    # performing a programmatic dropdown update.  When the filter state is marked
+    # faulted (set by the timer catch handler), we suppress all further filter
     # updates to avoid an endless loop.  When $global:ProgrammaticFilterUpdate
     # is true (set by Update-DeviceFilter while repopulating dropdowns), we
     # ignore user-initiated selection events to prevent recursive updates.
-    if ($script:DeviceFilterFaulted -or $global:ProgrammaticFilterUpdate) {
+    if ((FilterStateModule\Get-FilterFaulted) -or $global:ProgrammaticFilterUpdate) {
         Write-Diag "Request-DeviceFilterUpdate suppressed (faulted or programmatic update)"
         return
     }
@@ -560,7 +560,7 @@ function Request-DeviceFilterUpdate {
     $script:FilterUpdateTimer.Start()
 }
 
-# Track which controls we’ve already wired to avoid duplicate subscriptions.
+# Track which controls we've already wired to avoid duplicate subscriptions.
 if (-not $script:FilterHandlers) { $script:FilterHandlers = @{} }
 
 function Get-FilterDropdowns {
