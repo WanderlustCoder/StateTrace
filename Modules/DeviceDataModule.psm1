@@ -178,49 +178,19 @@ function Get-InterfacesForHostsBatch {
 }
 
 function Get-DeviceSummaries {
-    # Always prefer loading device summaries from all available per-site databases.
+    $catalogResult = $null
+    try { $catalogResult = DeviceCatalogModule\Get-DeviceSummaries } catch { $catalogResult = $null }
     $names = New-Object 'System.Collections.Generic.List[string]'
-    $global:DeviceMetadata = @{}
-    $dbPaths = Get-AllSiteDbPaths
-    if ($dbPaths.Count -gt 0) {
-        foreach ($dbPath in $dbPaths) {
-            try {
-                $dt = Invoke-DbQuery -DatabasePath $dbPath -Sql "SELECT Hostname, Site, Building, Room FROM DeviceSummary"
-                if ($dt) {
-                    $rows = $dt | Select-Object Hostname, Site, Building, Room
-                    foreach ($row in $rows) {
-                        $name = $row.Hostname
-                        if (-not [string]::IsNullOrWhiteSpace($name)) {
-                            if (-not $names.Contains($name)) { [void]$names.Add($name) }
-                            $siteRaw     = $row.Site
-                            $buildingRaw = $row.Building
-                            $roomRaw     = $row.Room
-                            $siteVal     = if ($siteRaw -eq $null -or $siteRaw -eq [System.DBNull]::Value) { '' } else { [string]$siteRaw }
-                            $buildingVal = if ($buildingRaw -eq $null -or $buildingRaw -eq [System.DBNull]::Value) { '' } else { [string]$buildingRaw }
-                            $roomVal     = if ($roomRaw -eq $null -or $roomRaw -eq [System.DBNull]::Value) { '' } else { [string]$roomRaw }
-                            # Derive the zone from the hostname.  A zone is defined as the string
-                            # between the first and second hyphen in the device name (e.g. A05 in WLLS-A05-AS-05).
-                            $zoneVal = ''
-                            try {
-                                $parts = $name -split '-', 3
-                                if ($parts.Length -ge 2) { $zoneVal = $parts[1] }
-                            } catch { $zoneVal = '' }
-                            $meta = [PSCustomObject]@{
-                                Site     = $siteVal
-                                Zone     = $zoneVal
-                                Building = $buildingVal
-                                Room     = $roomVal
-                            }
-                            $global:DeviceMetadata[$name] = $meta
-                        }
-                    }
-                }
-            } catch {
-                Write-Warning ("Failed to query device summaries from {0}: {1}" -f $dbPath, $_.Exception.Message)
-            }
+    if ($catalogResult -and $catalogResult.Hostnames) {
+        foreach ($n in $catalogResult.Hostnames) {
+            if ([string]::IsNullOrWhiteSpace($n)) { continue }
+            if (-not $names.Contains($n)) { [void]$names.Add($n) }
         }
-    } else {
-        Write-Warning "No per-site databases found. Device list will be empty."
+    }
+    $DeviceMetadata = $global:DeviceMetadata
+    if (-not $DeviceMetadata) {
+        $DeviceMetadata = @{}
+        $global:DeviceMetadata = $DeviceMetadata
     }
 
     # Update the host dropdown and location filters based on the loaded device metadata.
@@ -1005,42 +975,7 @@ function Invoke-ParallelDbQuery {
         [string[]]$DbPaths,
         [string]$Sql
     )
-    # Determine the path to DatabaseModule.psm1.  Both modules reside in the same
-    # directory, so join the current module directory with the module filename.
-    $modulePath = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
-    # Limit concurrency to the number of logical processors.  At least one thread.
-    $maxThreads = [Math]::Max(1, [Environment]::ProcessorCount)
-    $pool = [runspacefactory]::CreateRunspacePool(1, $maxThreads)
-    $pool.Open()
-    $jobs = @()
-    foreach ($dbPath in $DbPaths) {
-        $ps = [powershell]::Create()
-        $ps.RunspacePool = $pool
-        # Use a script block that imports DatabaseModule and runs Invoke-DbQuery.
-        # Pass all parameters explicitly to avoid relying on parent scope variables.
-        $null = $ps.AddScript({
-            param($dbPathArg, $sqlArg, $modPath)
-            try { Import-Module -Name $modPath -DisableNameChecking -Force } catch {}
-            try {
-                return Invoke-DbQuery -DatabasePath $dbPathArg -Sql $sqlArg
-            } catch {
-                return $null
-            }
-        }).AddArgument($dbPath).AddArgument($Sql).AddArgument($modulePath)
-        $job = [pscustomobject]@{ PS = $ps; AsyncResult = $ps.BeginInvoke() }
-        $jobs += $job
-    }
-    $results = New-Object 'System.Collections.Generic.List[object]'
-    foreach ($job in $jobs) {
-        try {
-            $dt = $job.PS.EndInvoke($job.AsyncResult)
-            if ($dt) { [void]$results.Add($dt) }
-        } catch {} finally {
-            $job.PS.Dispose()
-        }
-    }
-    $pool.Close(); $pool.Dispose()
-    return $results.ToArray()
+    DeviceRepositoryModule\Invoke-ParallelDbQuery @PSBoundParameters
 }
 
 function Update-GlobalInterfaceList {
@@ -1545,28 +1480,14 @@ function Get-PortSortKey {
 
 function Get-InterfaceHostnames {
     [CmdletBinding()]
-    param([string]$ParsedDataPath)
-    # Ignore ParsedDataPath; always use the database when available.
-    if (-not $global:StateTraceDb) {
-        return @()
-    }
-    try {
-        # Ensure the database module is loaded only once.  Without this helper
-        # the DatabaseModule was being imported on each call which slows down
-        # repeated invocations of this function.
-        Import-DatabaseModule
-        $dtHosts = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql 'SELECT Hostname FROM DeviceSummary ORDER BY Hostname'
-        # Build the list of hostnames using a typed list rather than piping through
-        $hostList = New-Object 'System.Collections.Generic.List[string]'
-        foreach ($row in $dtHosts) {
-            [void]$hostList.Add([string]$row.Hostname)
-        }
-        # Return the array directly.  Using a leading comma would wrap the
-        return $hostList.ToArray()
-    } catch {
-        Write-Warning "Failed to query hostnames from database: $($_.Exception.Message)"
-        return @()
-    }
+    param(
+        [string]$ParsedDataPath,
+        [string]$Site,
+        [string]$Zone,
+        [string]$Building,
+        [string]$Room
+    )
+    DeviceCatalogModule\Get-InterfaceHostnames @PSBoundParameters
 }
 
 function Get-ConfigurationTemplates {
@@ -1682,3 +1603,5 @@ Export-ModuleMember -Function `
     Update-SiteZoneCache, `
     Clear-SiteInterfaceCache, `
     Import-DatabaseModule
+
+

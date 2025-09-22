@@ -40,77 +40,119 @@
   - Host generic helpers (`Get-SqlLiteral`, `Test-StringListEqualCI` if not kept with filters) to avoid circular dependencies.
 
 ## Function Relocation Map
-| Function / Group | Proposed Destination | Notes |
-| --- | --- | --- |
-| `Get-SiteFromHostname`, `Get-DbPathForHost`, `Get-AllSiteDbPaths` | `DeviceRepositoryModule` | Shared across parser, repository, filters. Centralise to avoid duplicates. |
-| `Update-SiteZoneCache`, `Get-InterfacesForSite`, `Clear-SiteInterfaceCache`, `Update-GlobalInterfaceList` | `DeviceRepositoryModule` | Keep cache and global list management together; expose explicit API for consumers. **Status: COMPLETE -- DeviceRepositoryModule now hosts Update-SiteZoneCache, Get-InterfacesForSite, Clear-SiteInterfaceCache, and Update-GlobalInterfaceList (DeviceDataModule now delegates via wrappers).** |
-| `Invoke-ParallelDbQuery` | `DeviceRepositoryModule` | Low-level DB helper; ensure DatabaseModule dependency remains one-directional. |
-| `Get-DeviceSummaries`, `$global:DeviceMetadata` setup | `DeviceCatalogModule` | Catalog module can coordinate repository + parser interactions and surface metadata queries. |
-| `Get-InterfaceHostnames` | `DeviceCatalogModule` | Align host list retrieval with metadata owner. |
-| `Get-SelectedLocation`, `Get-LastLocation`, `Set-DropdownItems`, `Update-DeviceFilter`, guard flags | `FilterStateModule` | Encapsulate selection state, emit events/callbacks for UI without global coupling. |
-| `Test-StringListEqualCI` | `FilterStateModule` or `CommonUtilities` | Utility primarily used by filters; keep near usage. |
-| `Get-DeviceDetails`, `Get-DeviceDetailsData`, `Import-DatabaseModule` guard | `DeviceDetailsModule` | Return pure data; UI modules call into this service to populate controls. |
-| `Get-InterfacesForHostsBatch`, `Get-InterfaceInfo`, `Get-InterfaceConfiguration` | `DeviceRepositoryModule` or `DeviceDetailsModule` | Provide batched data access from repository; details module orchestrates results. **Status: COMPLETE -- Get-InterfacesForHostsBatch, Get-InterfaceInfo, and Get-InterfaceConfiguration now live in DeviceRepositoryModule (DeviceDataModule exposes thin wrappers).** |
-| `Update-SearchResults`, `Update-SearchGrid` | `DeviceInsightsModule` (Search service) | `SearchInterfacesViewModule` consumes service functions. |
-| `Update-Summary` | `DeviceInsightsModule` (Summary service) | Summary view invokes service to compute metrics. |
-| `Update-Alerts` | `DeviceInsightsModule` (Alerts service) | Alerts view owners call service; service returns alert collection. |
-| `Get-PortSortKey` | `InterfaceModule` | Used broadly for interface ordering; move to interface-focused module to avoid DeviceData dependency. |
-| `Get-ConfigurationTemplates` | `TemplatesModule` | Merge with existing template cache to centralise template lookups. |
-| `Get-SqlLiteral` | `CommonUtilities` or `DatabaseModule` | General SQL helper; DatabaseModule already handles DB operations. |
+| Function / Group | Proposed Destination | Status | Notes |
+| --- | --- | --- | --- |
+| `Get-SiteFromHostname`, `Get-DbPathForHost`, `Get-AllSiteDbPaths` | `DeviceRepositoryModule` | Complete | Functions relocated; DeviceDataModule exports wrappers for downstream callers until switch-over finishes. |
+| `Update-SiteZoneCache`, `Get-InterfacesForSite`, `Clear-SiteInterfaceCache`, `Update-GlobalInterfaceList` | `DeviceRepositoryModule` | Complete | Cache lifecycle owned by repository; compatibility wrappers remain in DeviceDataModule. |
+| `Invoke-ParallelDbQuery` | `DeviceRepositoryModule` | Complete | Function now lives in `DeviceRepositoryModule`; DeviceDataModule exposes a delegating wrapper for legacy imports. |
+| `Get-DeviceSummaries`, `$global:DeviceMetadata` setup | `DeviceCatalogModule` | Planned | Catalog module skeleton exists; needs metadata load, refresh orchestration, and cache invalidation APIs. |
+| `Get-InterfaceHostnames` | `DeviceCatalogModule` | Planned | Move host name expansion once catalog pipeline is active and tests cover host list generation. |
+| `Get-SelectedLocation`, `Get-LastLocation`, `Set-DropdownItems`, `Update-DeviceFilter`, guard flags | `FilterStateModule` | Planned | Build cohesive filter API, migrate UI bindings, and expose change notifications to views. |
+| `Test-StringListEqualCI` | `FilterStateModule` or `CommonUtilities` | Planned | Decide final home based on cross-module usage before removing from DeviceDataModule. |
+| `Get-DeviceDetails`, `Get-DeviceDetailsData`, `Import-DatabaseModule` guard | `DeviceDetailsModule` | Planned | DeviceDetailsModule must own DTO creation and database import guard; UI should consume returned objects. |
+| `Get-InterfacesForHostsBatch`, `Get-InterfaceInfo`, `Get-InterfaceConfiguration` | `DeviceRepositoryModule` | Complete | Functions now live in repository; DeviceDataModule delegates through thin wrappers. |
+| `Update-SearchResults`, `Update-SearchGrid` | `DeviceInsightsModule` (Search service) | Planned | Extract analytics logic and return presentation-ready rows without direct UI mutations. |
+| `Update-Summary` | `DeviceInsightsModule` (Summary service) | Planned | Provide side-effect-free summary metrics for `SummaryViewModule`. |
+| `Update-Alerts` | `DeviceInsightsModule` (Alerts service) | Planned | Move alert computation to service; ensure UI binds to returned models. |
+| `Get-PortSortKey` | `InterfaceModule` | In flight | Core logic runs from InterfaceModule; remove DeviceDataModule wrapper once imports update. |
+| `Get-ConfigurationTemplates` | `TemplatesModule` | In flight | Implementation still lives in DeviceDataModule; relocate logic and keep InterfaceModule wrapper as forwarder. |
+| `Get-SqlLiteral` | `DatabaseModule` | In flight | DatabaseModule owns implementation; drop DeviceDataModule wrapper after callers import DatabaseModule directly. |
+| DeviceDataModule export wrappers | Temporary compatibility layer | Planned | Remove wrappers and legacy exports once downstream modules import new services directly. |
 
 ## Migration Plan
 1. **Preparation**
-   - Catalogue all callers for each function (use `rg` + tests) and document expectations in `docs/StateTrace_Functions_Features.md`.
-   - Add regression tests (or extend `InterfaceModule.Tests.ps1`) covering filter behaviour, summary metrics, and alert generation before moving code.
+   - Catalogue all callers for each function (use `rg` and module manifests) and document expectations in `docs/StateTrace_Functions_Features.md`.
+   - Expand regression tests (or extend `InterfaceModule.Tests.ps1`) covering filter behaviour, summary metrics, and alert generation before moving code.
+   - Document current global state initialisation order to replicate in new modules.
 
 2. **Introduce new modules (skeletons only)**
    - Create `Modules/Services` directory (or similar) with empty module shells exported via `ModulesManifest.psd1`.
    - Implement dependency injection pattern (functions returning data objects) without moving logic yet; this allows incremental adoption.
+   - Ensure each new module exports only the intended surface area to prevent tight coupling.
 
 3. **Extract utilities and shared helpers**
-   - Move `Get-PortSortKey` to `InterfaceModule`; update call sites to use the new location.
-   - Move `Get-SqlLiteral` to `DatabaseModule` (as `ConvertTo-SqlLiteral` or similar) and update repository functions.
+   - Move `Get-PortSortKey` to `InterfaceModule` (complete); update DeviceDataModule call sites to rely on the new location and plan wrapper removal.
+   - Move `Get-SqlLiteral` to `DatabaseModule` (complete); migrate remaining callers to import DatabaseModule directly.
+   - Decide final home for `Test-StringListEqualCI` and other cross-cutting helpers before filter migration.
    - Confirm unit/integration tests cover new locations.
 
 4. **Device repository & catalog extraction**
-   - Move site/DB path helpers and interface cache functions into `DeviceRepositoryModule` with the same signatures.
+   - Move site/DB path helpers and interface cache functions into `DeviceRepositoryModule` with the same signatures (complete).
+   - Migrate `Invoke-ParallelDbQuery` next so all DB access funnels through repository.
    - Update `DeviceDataModule` to call into repository (wrapper pattern) and ensure behaviour remains identical.
-   - Gradually update consumers (`ParserWorker`, `InterfaceModule`, `CompareViewModule`, `MainWindow`) to call repository directly; remove wrappers once all consumers switch.
+   - Gradually update consumers (`ParserWorker`, `InterfaceModule`, `CompareViewModule`, `MainWindow`) to call repository or catalog directly; remove wrappers once all consumers switch.
    - Move `Get-DeviceSummaries` and host metadata caching into `DeviceCatalogModule`; adjust `Update-DeviceFilter`/views to use catalog service.
 
 5. **Filter state module**
    - Relocate filter functions into `FilterStateModule`; expose a cohesive API (`Get-FilterSnapshot`, `Update-Filters`, `Register-FilterControls`).
-   - Update `MainWindow` and view modules to consume the new module; ensure global flags remain accessible or encapsulated.
+   - Update `MainWindow` and view modules to consume the new module; ensure global flags remain accessible or encapsulated via exported state object.
    - After adoption, delete filter code from `DeviceDataModule`.
 
 6. **Device details service**
    - Move `Get-DeviceDetails` and `Get-DeviceDetailsData` to `DeviceDetailsModule`; refactor to return DTOs rather than writing to UI, leaving UI updates to `MainWindow`/view modules.
-   - Update `Import-DeviceDetailsAsync` and `Get-HostnameChanged` to use the new service and apply UI bindings locally.
+   - Update `Import-DeviceDetailsAsync` and related callers to use the new service and apply UI bindings locally.
+   - Validate that cached repository calls provide required data without re-querying the database excessively.
 
 7. **Analytics (search/summary/alerts) extraction**
    - Decide between dedicated services or enhancing existing view modules. Recommended: create `DeviceInsightsModule` exposing `Get-SearchResults`, `Get-SummaryMetrics`, `Get-AlertRows`.
-   - Move logic from `DeviceDataModule`; adjust `SearchInterfacesViewModule`, `SummaryViewModule`, `AlertsViewModule` to call new service functions and handle UI updates (e.g., assign ItemsSource).
+   - Move logic from `DeviceDataModule`; adjust `SearchInterfacesViewModule`, `SummaryViewModule`, `AlertsViewModule` to call new service functions and handle UI updates (e.g., assign `ItemsSource`).
    - Ensure global caches remain in repository to avoid duplication.
 
 8. **Templates integration**
-   - Relocate `Get-ConfigurationTemplates` into `TemplatesModule`; update consumers (`InterfaceModule`, `DeviceDetailsModule`).
-   - Remove redundant template caches from multiple modules; centralise in `TemplatesModule`.
+   - Relocate `Get-ConfigurationTemplates` into `TemplatesModule`; consolidate template cache handling and ensure repository helpers are available as needed.
+   - Update `InterfaceModule`, `DeviceDetailsModule`, and any template consumers to use the centralised helper.
+   - Remove redundant template caches from multiple modules.
 
 9. **Decommission DeviceDataModule**
    - After all consumers rely on new modules, shrink `DeviceDataModule` to a thin compatibility layer (temporarily re-exporting relocated functions) to support staged releases.
-   - Once downstream code no longer imports from `DeviceDataModule`, remove the module and update `ModulesManifest.psd1` accordingly.
+   - Remove wrappers and delete legacy exports once all call sites import new modules.
+   - Update `ModulesManifest.psd1`, module load scripts, and tests to exclude DeviceDataModule.
 
 10. **Cleanup & documentation**
    - Update `docs/StateTrace_Functions_Features.md` with new module ownership.
    - Add README/CONTRIBUTING notes covering new architecture.
    - Ensure tests and build scripts reference new modules.
+   - Capture migration outcomes and lessons learned in `docs/` for future refactors.
+
+## Workstreams & Ownership
+| Workstream | Lead | Key Deliverables | Dependencies | Status |
+| --- | --- | --- | --- | --- |
+| Repository extraction | Data services | DeviceRepositoryModule with DB helpers, caches, parallel query wrapper | DatabaseModule, data directory config | In flight |
+| Catalog service | Data services | DeviceCatalogModule loading/refreshing metadata, exposing summaries | Repository functions, metadata schema | In flight |
+| Filter state service | UI platform | FilterStateModule API plus updated UI bindings | Catalog metadata, existing event wiring | Not started |
+| Device details service | Device experience | DeviceDetailsModule DTOs, UI integration, async guard | Repository interface methods, template loading | Not started |
+| Analytics/insights | UI analytics | DeviceInsightsModule (or per-view services) delivering search/summary/alerts data | Repository + catalog outputs | Not started |
+| Templates consolidation | UI platform | TemplatesModule owning configuration template cache & tests | Repository helpers, template assets | Not started |
+| Testing & automation | QA | Extended Pester coverage, smoke test script, regression checklist updates | Module migrations in progress | In flight |
+| DeviceDataModule retirement | Core maintainers | Compatibility wrappers removed, manifest updated, module deleted | All other workstreams complete | Pending |
+
+## Timeline & Milestones
+1. **Phase 0 – Foundations (Complete)**
+   - New module shells created and repository cache/helpers migrated.
+   - Wrapper exports in place to keep UI functioning.
+
+2. **Phase 1 – Data services (Target: Week 1 after plan sign-off)**
+   - `Invoke-ParallelDbQuery` migration, catalog metadata load implemented, basic tests passing.
+
+3. **Phase 2 – UI state & details (Target: Week 2)**
+   - Filter state API adopted by `MainWindow`.
+   - Device details DTOs driving UI without direct DeviceDataModule calls.
+
+4. **Phase 3 – Analytics & templates (Target: Week 3)**
+   - Search/Summary/Alerts logic extracted.
+   - Template consolidation complete with regression validation.
+
+5. **Phase 4 – Decommissioning (Target: Week 4)**
+   - Wrappers removed, module manifest updated, documentation refreshed.
+   - Final regression pass and release communication.
 
 ## Implementation Considerations
 - Preserve global state initialisation (e.g., caches) within the new modules; expose explicit init/reset functions for parser runs.
 - Maintain ordering of side effects triggered during app load (e.g., `Get-DeviceSummaries` -> `Update-DeviceFilter` -> `Update-CompareView`).
 - Each migration step should keep public signatures stable or provide wrappers until all call sites are updated.
 - Avoid circular dependencies: new services should depend only on `DatabaseModule`, `TemplatesModule`, and `DeviceRepositoryModule` as needed.
-- Document any new global variables introduced by the refactor to keep future maintenance manageable.
+- Update module manifests and autoload scripts whenever new exports are required to keep packaging consistent.
+- Track performance metrics (cache hit rate, DB query counts) before and after migration to ensure no regressions.
 
 ## Testing & Validation Strategy
 - Expand Pester tests to cover:
@@ -120,20 +162,56 @@
   - Device detail retrieval for DB-present vs CSV fallback scenarios.
 - Add smoke test script ensuring `Main/MainWindow.ps1` loads all modules without missing exports.
 - Perform manual UI regression: run parser, exercise filters, compare view, search tab, alerts tab.
+- Capture test evidence in `Logs/RefactorValidation/` per phase to support release go/no-go decisions.
+
+## Risks & Mitigations
+- **Risk:** Regression in UI bindings when functions relocate.  
+  **Mitigation:** Maintain wrappers until each consumer updates; run smoke tests after every module switch.
+- **Risk:** Circular dependencies between new services.  
+  **Mitigation:** Keep services layered (repository -> catalog -> UI services) and enforce dependencies via reviews.
+- **Risk:** Cache invalidation bugs after splitting responsibilities.  
+  **Mitigation:** Document cache ownership, add Pester tests covering cache refresh scenarios, and expose explicit reset APIs.
+- **Risk:** Performance degradation from additional module calls.  
+  **Mitigation:** Benchmark key flows before/after moves and co-locate heavy operations with repository services.
+- **Risk:** Template retrieval differences breaking device details view.  
+  **Mitigation:** Migrate templates with dedicated tests and maintain fallback data until parity confirmed.
+
+## Rollback & Contingency Plan
+- Keep DeviceDataModule wrappers for each migrated function until parity is verified.
+- If a module extraction causes regressions, revert only the affected module by re-enabling DeviceDataModule exports in `ModulesManifest.psd1`.
+- Maintain tagged Git snapshots at the end of each phase for rapid restore.
+- Use feature toggles (e.g., `$script:EnableNewDeviceDetails`) during cutover so UI can flip back to legacy paths without redeploy.
+- Document rollback steps in `Logs/RefactorValidation/rollback.md` after each phase.
+
+## Communication Plan
+- Share weekly status in engineering sync with highlights per workstream (blocked/unblocked).
+- Post migration notes and required downstream changes in the team chat channel after each phase completes.
+- Update `docs/StateTrace_Functions_Features.md` and the project README to reflect new ownership before release.
+- Coordinate with support/training to brief them on module changes ahead of production roll-out.
+- Capture final summary and metrics in `AIworkLog.docx` for historical traceability.
 
 ## Open Questions
 - Should view modules own their analytics logic instead of a shared `DeviceInsightsModule`? Decide before extraction to avoid churn.
 - Do we want to introduce a light-weight dependency injection or service locator to pass repository instances into view modules, reducing reliance on globals?
 - Can we deprecate the use of global variables (e.g., replace with module-scoped singletons) as part of the refactor, or should that be a follow-up phase?
 - Is there appetite to rename functions to align with approved verbs once relocation is complete (e.g., `ConvertTo-SqlLiteral`)?
+- Where should cross-cutting validation (e.g., host/site guards) live once responsibilities split across modules?
 
 ## Current Regression Snapshot
 - DeviceRepositoryModule now encapsulates cache refresh, global list coordination, and interface detail helpers; DeviceDataModule simply delegates.
 - Track callers still importing these functions from DeviceDataModule so wrappers can be removed once downstream updates land.
 
-
-## Progress
+## Progress Checklist
 - [x] Data access & site resolution helpers now live in `DeviceRepositoryModule.psm1` (`Get-SiteFromHostname`, `Get-DbPathForSite`/`Get-DbPathForHost`, `Get-AllSiteDbPaths`; DeviceDataModule keeps wrappers only for legacy imports).
 - [x] `Clear-SiteInterfaceCache` moved to `DeviceRepositoryModule.psm1`.
 - [x] `Update-SiteZoneCache` moved to `DeviceRepositoryModule.psm1`.
 - [x] `Get-InterfacesForHostsBatch`, `Get-InterfaceInfo`, and `Get-InterfaceConfiguration` now live in `DeviceRepositoryModule.psm1` (wrappers remain until downstream modules update their imports).
+- [x] `Invoke-ParallelDbQuery` moved to `DeviceRepositoryModule.psm1` and exported for shared use (DeviceDataModule now delegates).
+- [x] `Get-DeviceSummaries` and `$global:DeviceMetadata` lifecycle now bootstrapped via `DeviceCatalogModule.psm1` (DeviceDataModule handles UI wiring).
+- [x] `Get-InterfaceHostnames` served from `DeviceCatalogModule.psm1` (filters pull from catalog metadata).
+- [ ] Filter state API exposed from `FilterStateModule.psm1` with UI consumers updated.
+- [ ] Device details aggregation moved to `DeviceDetailsModule.psm1` with DTO outputs consumed by UI.
+- [ ] Search/Summary/Alerts logic extracted into `DeviceInsightsModule.psm1` (or view modules) with regression coverage.
+- [ ] `Get-ConfigurationTemplates` relocated to `TemplatesModule.psm1` and redundant caches removed.
+- [ ] DeviceDataModule wrappers removed and module retired from `ModulesManifest.psd1`.
+

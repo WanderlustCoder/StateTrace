@@ -193,6 +193,50 @@ function Update-SiteZoneCache {
         }
     }
 }
+function Invoke-ParallelDbQuery {
+    [CmdletBinding()]
+    param(
+        [string[]]$DbPaths,
+        [string]$Sql
+    )
+    if (-not $DbPaths -or $DbPaths.Count -eq 0) {
+        return @()
+    }
+    try { Import-DatabaseModule } catch {}
+    $modulePath = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
+    $maxThreads = [Math]::Max(1, [Environment]::ProcessorCount)
+    $pool = [runspacefactory]::CreateRunspacePool(1, $maxThreads)
+    $pool.Open()
+    $jobs = @()
+    foreach ($dbPath in $DbPaths) {
+        $ps = [powershell]::Create()
+        $ps.RunspacePool = $pool
+        $null = $ps.AddScript({
+            param($dbPathArg, $sqlArg, $modPath)
+            try { Import-Module -Name $modPath -DisableNameChecking -Force } catch {}
+            try {
+                return Invoke-DbQuery -DatabasePath $dbPathArg -Sql $sqlArg
+            } catch {
+                return $null
+            }
+        }).AddArgument($dbPath).AddArgument($Sql).AddArgument($modulePath)
+        $job = [pscustomobject]@{ PS = $ps; AsyncResult = $ps.BeginInvoke() }
+        $jobs += $job
+    }
+    $results = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($job in $jobs) {
+        try {
+            $dt = $job.PS.EndInvoke($job.AsyncResult)
+            if ($dt) { [void]$results.Add($dt) }
+        } catch {}
+        finally {
+            $job.PS.Dispose()
+        }
+    }
+    $pool.Close()
+    $pool.Dispose()
+    return $results.ToArray()
+}
 function Update-GlobalInterfaceList {
     [CmdletBinding()]
     param(
@@ -915,5 +959,6 @@ ORDER BY i.Hostname, i.Port
         if ($session) { Close-DbReadSession -Session $session }
     }
 }
-Export-ModuleMember -Function Get-DataDirectoryPath, Get-SiteFromHostname, Get-DbPathForSite, Get-DbPathForHost, Get-AllSiteDbPaths, Clear-SiteInterfaceCache, Update-SiteZoneCache, Update-GlobalInterfaceList, Get-InterfacesForSite, Get-InterfaceInfo, Get-InterfaceConfiguration, Get-InterfacesForHostsBatch, Import-DatabaseModule
+Export-ModuleMember -Function Get-DataDirectoryPath, Get-SiteFromHostname, Get-DbPathForSite, Get-DbPathForHost, Get-AllSiteDbPaths, Clear-SiteInterfaceCache, Update-SiteZoneCache, Update-GlobalInterfaceList, Get-InterfacesForSite, Get-InterfaceInfo, Get-InterfaceConfiguration, Get-InterfacesForHostsBatch, Invoke-ParallelDbQuery, Import-DatabaseModule
+
 
