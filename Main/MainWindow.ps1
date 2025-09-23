@@ -173,13 +173,33 @@ function Initialize-ThemeSelector {
     $themes = Get-AvailableStateTraceThemes
     if (-not $themes) { $themes = @() }
 
-    $selector.ItemsSource = $themes
     $selector.DisplayMemberPath = 'Display'
     $selector.SelectedValuePath = 'Name'
+    $selector.ItemsSource = $themes
 
     $currentTheme = Get-StateTraceTheme
     if ($currentTheme) {
-        $selector.SelectedValue = $currentTheme
+        $match = $null
+        foreach ($theme in $themes) {
+            if ($null -eq $theme) { continue }
+            if ($theme -is [System.Management.Automation.PSObject] -and $theme.PSObject.Properties['Name']) {
+                if ('' + $theme.PSObject.Properties['Name'].Value -eq $currentTheme) { $match = $theme; break }
+            } elseif ($theme -is [System.Collections.IDictionary] -and $theme.Contains('Name')) {
+                if ('' + $theme['Name'] -eq $currentTheme) { $match = $theme; break }
+            } elseif ($theme -is [string]) {
+                if ($theme -eq $currentTheme) { $match = $theme; break }
+            }
+        }
+
+        if ($match) {
+            $selector.SelectedItem = $match
+        } else {
+            $selector.SelectedValue = $currentTheme
+        }
+    }
+
+    if (-not $selector.SelectedItem -and $selector.Items.Count -gt 0) {
+        $selector.SelectedIndex = 0
     }
 
     $selector.Add_SelectionChanged({

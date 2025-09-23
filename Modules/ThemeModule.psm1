@@ -167,11 +167,36 @@ function Update-ThemeResources {
     }
 
     $app.Resources.MergedDictionaries.Insert(0, $dict)
-    $app.Resources[[System.Windows.SystemColors]::WindowBrushKey] = Get-ThemeBrush -Key 'Theme.Input.Background'
-    $app.Resources[[System.Windows.SystemColors]::ControlBrushKey] = Get-ThemeBrush -Key 'Theme.Input.Background'
-    $app.Resources[[System.Windows.SystemColors]::ControlTextBrushKey] = Get-ThemeBrush -Key 'Theme.Input.Text'
-    $app.Resources[[System.Windows.SystemColors]::HighlightBrushKey] = Get-ThemeBrush -Key 'Theme.Surface.Secondary'
-    $app.Resources[[System.Windows.SystemColors]::HighlightTextBrushKey] = Get-ThemeBrush -Key 'Theme.Text.Primary'
+    $inputBackgroundBrush = Get-ThemeBrush -Key 'Theme.Input.Background'
+    $inputTextBrush = Get-ThemeBrush -Key 'Theme.Input.Text'
+    $highlightBrush = Get-ThemeBrush -Key 'Theme.Surface.Secondary'
+    $highlightTextBrush = Get-ThemeBrush -Key 'Theme.Text.Primary'
+
+    if ($inputBackgroundBrush) {
+        $app.Resources[[System.Windows.SystemColors]::WindowBrushKey] = $inputBackgroundBrush
+        $app.Resources[[System.Windows.SystemColors]::ControlBrushKey] = $inputBackgroundBrush
+    }
+    if ($inputTextBrush) {
+        $app.Resources[[System.Windows.SystemColors]::ControlTextBrushKey] = $inputTextBrush
+        $app.Resources[[System.Windows.SystemColors]::WindowTextBrushKey] = $inputTextBrush
+    }
+    if ($highlightBrush) {
+        $app.Resources[[System.Windows.SystemColors]::HighlightBrushKey] = $highlightBrush
+    }
+    if ($highlightTextBrush) {
+        $app.Resources[[System.Windows.SystemColors]::HighlightTextBrushKey] = $highlightTextBrush
+    }
+
+    $inputBackgroundColor = Get-ThemeColor -Key 'Theme.Input.Background'
+    if ($inputBackgroundColor) {
+        $app.Resources[[System.Windows.SystemColors]::WindowColorKey] = $inputBackgroundColor
+        $app.Resources[[System.Windows.SystemColors]::ControlColorKey] = $inputBackgroundColor
+    }
+    $inputTextColor = Get-ThemeColor -Key 'Theme.Input.Text'
+    if ($inputTextColor) {
+        $app.Resources[[System.Windows.SystemColors]::WindowTextColorKey] = $inputTextColor
+        $app.Resources[[System.Windows.SystemColors]::ControlTextColorKey] = $inputTextColor
+    }
     $script:ThemeResourceDictionary = $dict
     $script:ThemeBrushCache = @{}
 
@@ -285,6 +310,20 @@ function Get-ThemeToken {
     return $script:CurrentThemeTokens[$Key]
 }
 
+function Get-ThemeColor {
+    param(
+        [Parameter(Mandatory=$true)][string]$Key
+    )
+
+    $token = Get-ThemeToken -Key $Key
+    if (-not $token) { return $null }
+
+    try {
+        return [ColorConverter]::ConvertFromString($token)
+    } catch {
+        return $null
+    }
+}
 function Get-ThemeBrush {
     param(
         [Parameter(Mandatory=$true)][string]$Key

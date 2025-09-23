@@ -29,11 +29,8 @@
     </Style>
 
     <!-- Small combo box baseline -->
-    <Style x:Key="SlimCombo" TargetType="ComboBox">
+    <Style x:Key="SlimCombo" TargetType="ComboBox" BasedOn="{StaticResource ToolbarComboBoxStyle}">
       <Setter Property="Margin" Value="0,0,0,6"/>
-      <Setter Property="Background" Value="{DynamicResource Theme.Input.Background}"/>
-      <Setter Property="BorderBrush" Value="{DynamicResource Theme.Input.Border}"/>
-      <Setter Property="Foreground" Value="{DynamicResource Theme.Input.Text}"/>
       <Setter Property="MinWidth" Value="160"/>
       <Setter Property="IsEditable" Value="True"/>
       <Setter Property="IsTextSearchEnabled" Value="True"/>
