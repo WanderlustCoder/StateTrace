@@ -3,7 +3,11 @@
   "extends": "base",
   "inspiration": {
     "group": "US Navy Flight Demonstration Squadron",
-    "palette": ["#001F3F", "#FFD700", "#EAF0F8"],
+    "palette": [
+      "#001F3F",
+      "#FFD700",
+      "#EAF0F8"
+    ],
     "notes": "Deep navy hulls with gold trim; keep high contrast for cockpits and bright skies."
   },
   "contrastTargets": {
@@ -19,6 +23,8 @@
     "Theme.Button.Secondary.PressedBackground": "#001433",
     "Theme.Button.Icon.Foreground": "#FFD700",
     "Theme.Button.Icon.HoverForeground": "#FFEA70",
+    "Theme.DataGrid.HeaderBackground": "#001F3F",
+    "Theme.DataGrid.HeaderText": "#FFFFFF",
     "Theme.Status.Info": "#1E90FF",
     "Theme.Template.Blue": "#1E90FF",
     "Theme.Template.Purple": "#6A0DAD"

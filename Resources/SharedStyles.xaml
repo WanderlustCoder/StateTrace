@@ -242,11 +242,17 @@
     <Setter Property="ItemContainerStyle" Value="{StaticResource ToolbarComboBoxItemStyle}"/>
   </Style>
 
+  <Style x:Key="PrimaryDataGridColumnHeaderStyle" TargetType="DataGridColumnHeader">
+    <Setter Property="Background" Value="{DynamicResource Theme.DataGrid.HeaderBackground}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Theme.DataGrid.HeaderText}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource Theme.DataGrid.Border}"/>
+  </Style>
   <Style x:Key="PrimaryDataGridStyle" TargetType="DataGrid">
     <Setter Property="Background" Value="{DynamicResource Theme.DataGrid.Background}"/>
     <Setter Property="RowBackground" Value="{DynamicResource Theme.DataGrid.Row}"/>
     <Setter Property="AlternatingRowBackground" Value="{DynamicResource Theme.DataGrid.RowAlt}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource Theme.DataGrid.Border}"/>
+    <Setter Property="ColumnHeaderStyle" Value="{StaticResource PrimaryDataGridColumnHeaderStyle}"/>
     <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
     <Setter Property="SelectionMode" Value="Extended"/>
   </Style>

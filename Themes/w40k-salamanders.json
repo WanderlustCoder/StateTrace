@@ -3,7 +3,11 @@
   "extends": "base",
   "inspiration": {
     "group": "Adeptus Astartes Salamanders Chapter",
-    "palette": ["#121A14", "#64DD17", "#FF6F00"],
+    "palette": [
+      "#121A14",
+      "#64DD17",
+      "#FF6F00"
+    ],
     "notes": "Forge-world green plate with volcanic glow accents; must stay readable against soot-dark metals."
   },
   "contrastTargets": {
@@ -43,6 +47,8 @@
     "Theme.DataGrid.Row": "#1F3A28",
     "Theme.DataGrid.RowAlt": "#24442E",
     "Theme.DataGrid.Border": "#2F5B38",
+    "Theme.DataGrid.HeaderBackground": "#12351F",
+    "Theme.DataGrid.HeaderText": "#F2FFE9",
     "Theme.DataGrid.SelectionBackground": "#FF6F00",
     "Theme.DataGrid.SelectionText": "#0D1410",
     "Theme.Text.Primary": "#E6F5E1",

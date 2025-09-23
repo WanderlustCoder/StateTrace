@@ -3,7 +3,11 @@
   "extends": "base",
   "inspiration": {
     "group": "Helldivers Hazard Teams",
-    "palette": ["#161616", "#FFCC00", "#FF5733"],
+    "palette": [
+      "#161616",
+      "#FFCC00",
+      "#FF5733"
+    ],
     "notes": "Industrial hazard black with bright warning accents; prioritize legibility in low-light dropships."
   },
   "contrastTargets": {
@@ -43,6 +47,8 @@
     "Theme.DataGrid.Row": "#1F1F22",
     "Theme.DataGrid.RowAlt": "#26262B",
     "Theme.DataGrid.Border": "#2D2D30",
+    "Theme.DataGrid.HeaderBackground": "#121213",
+    "Theme.DataGrid.HeaderText": "#FFF5C2",
     "Theme.DataGrid.SelectionBackground": "#FF5733",
     "Theme.DataGrid.SelectionText": "#F8F5F1",
     "Theme.Text.Primary": "#F8F5F1",

@@ -32,6 +32,8 @@
     "Theme.DataGrid.Row": "#F7F9FC",
     "Theme.DataGrid.RowAlt": "#F1F5FA",
     "Theme.DataGrid.Border": "#C0C0C0",
+    "Theme.DataGrid.HeaderBackground": "#1F3B63",
+    "Theme.DataGrid.HeaderText": "#FFFFFF",
     "Theme.DataGrid.SelectionBackground": "#FFF4BA",
     "Theme.DataGrid.SelectionText": "#111827",
     "Theme.Text.Primary": "#111827",
