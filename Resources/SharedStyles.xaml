@@ -82,20 +82,7 @@
     <Setter Property="Foreground" Value="{DynamicResource Theme.Input.Text}"/>
     <Setter Property="Background" Value="{DynamicResource Theme.Input.Background}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource Theme.Input.Border}"/>
-    <Setter Property="ItemContainerStyle">
-      <Setter.Value>
-        <Style TargetType="ComboBoxItem">
-          <Setter Property="Foreground" Value="{DynamicResource Theme.Input.Text}"/>
-          <Setter Property="Background" Value="{DynamicResource Theme.Input.Background}"/>
-          <Style.Triggers>
-            <Trigger Property="IsHighlighted" Value="True">
-              <Setter Property="Background" Value="{DynamicResource Theme.Surface.Secondary}"/>
-              <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
-            </Trigger>
-          </Style.Triggers>
-        </Style>
-      </Setter.Value>
-    </Setter>
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource Theme.Input.Text}"/>
   </Style>
 
   <Style x:Key="PrimaryDataGridStyle" TargetType="DataGrid">
@@ -117,4 +104,3 @@
     </Style.Triggers>
   </Style>
 </ResourceDictionary>
-

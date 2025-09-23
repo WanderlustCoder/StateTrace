@@ -1,4 +1,4 @@
-﻿# ThemeModule.psm1
+# ThemeModule.psm1
 # Provides dynamic theming support for StateTrace.
 
 using namespace System.Windows
@@ -167,6 +167,11 @@ function Update-ThemeResources {
     }
 
     $app.Resources.MergedDictionaries.Insert(0, $dict)
+    $app.Resources[[System.Windows.SystemColors]::WindowBrushKey] = Get-ThemeBrush -Key 'Theme.Input.Background'
+    $app.Resources[[System.Windows.SystemColors]::ControlBrushKey] = Get-ThemeBrush -Key 'Theme.Input.Background'
+    $app.Resources[[System.Windows.SystemColors]::ControlTextBrushKey] = Get-ThemeBrush -Key 'Theme.Input.Text'
+    $app.Resources[[System.Windows.SystemColors]::HighlightBrushKey] = Get-ThemeBrush -Key 'Theme.Surface.Secondary'
+    $app.Resources[[System.Windows.SystemColors]::HighlightTextBrushKey] = Get-ThemeBrush -Key 'Theme.Text.Primary'
     $script:ThemeResourceDictionary = $dict
     $script:ThemeBrushCache = @{}
 
