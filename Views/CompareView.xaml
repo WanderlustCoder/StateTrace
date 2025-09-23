@@ -5,17 +5,17 @@
   <UserControl.Resources>
     <!-- Section card look for config/diff boxes -->
     <Style x:Key="CardBorder" TargetType="Border">
-      <Setter Property="BorderBrush" Value="#C0C0C0"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource Theme.Surface.Border}"/>
       <Setter Property="BorderThickness" Value="1"/>
       <Setter Property="CornerRadius" Value="4"/>
-      <Setter Property="Background" Value="White"/>
+      <Setter Property="Background" Value="{DynamicResource Theme.Surface.Secondary}"/>
       <Setter Property="Padding" Value="6"/>
     </Style>
 
     <!-- Small field label -->
     <Style x:Key="FieldLabel" TargetType="TextBlock">
       <Setter Property="FontSize" Value="12"/>
-      <Setter Property="Foreground" Value="#001F3F"/>
+      <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
       <Setter Property="Margin" Value="0,0,0,2"/>
       <Setter Property="FontWeight" Value="Bold"/>
     </Style>
@@ -23,7 +23,7 @@
     <!-- Section title (e.g., Config 1 / Config 2 / Diff headings) -->
     <Style x:Key="SectionTitle" TargetType="TextBlock">
       <Setter Property="FontSize" Value="12"/>
-      <Setter Property="Foreground" Value="#001F3F"/>
+      <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
       <Setter Property="FontWeight" Value="Bold"/>
       <Setter Property="Margin" Value="0,6,0,4"/>
     </Style>
@@ -31,6 +31,9 @@
     <!-- Small combo box baseline -->
     <Style x:Key="SlimCombo" TargetType="ComboBox">
       <Setter Property="Margin" Value="0,0,0,6"/>
+      <Setter Property="Background" Value="{DynamicResource Theme.Input.Background}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource Theme.Input.Border}"/>
+      <Setter Property="Foreground" Value="{DynamicResource Theme.Input.Text}"/>
       <Setter Property="MinWidth" Value="160"/>
       <Setter Property="IsEditable" Value="True"/>
       <Setter Property="IsTextSearchEnabled" Value="True"/>
@@ -39,19 +42,19 @@
   </UserControl.Resources>
 
   <!-- Layout -->
-  <Grid Background="#F7F9FC">
+  <Grid Background="{DynamicResource Theme.Surface.Secondary}">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto"/>  <!-- Header -->
       <RowDefinition Height="*"/>     <!-- Body -->
     </Grid.RowDefinitions>
 
     <!-- Header bar with title and close button pinned right -->
-    <DockPanel Grid.Row="0" LastChildFill="False" Background="#001F3F" Height="34">
+    <DockPanel Grid.Row="0" LastChildFill="False" Background="{DynamicResource Theme.Toolbar.Background}" Height="34">
       <TextBlock Text="Compare Configs"
                  DockPanel.Dock="Left"
                  VerticalAlignment="Center"
                  Margin="8,0,0,0"
-                 Foreground="White"
+                 Foreground="{DynamicResource Theme.Toolbar.Text}"
                  FontWeight="Bold"/>
       <Button Name="CloseCompareButton"
               DockPanel.Dock="Right"
@@ -60,8 +63,7 @@
               Height="22"
               VerticalAlignment="Center"
               Margin="0,0,6,0"
-              Background="#FFD700"
-              Foreground="Black"
+              Style="{DynamicResource IconButtonStyle}"
               ToolTip="Close compare sidebar"/>
     </DockPanel>
 
@@ -103,7 +105,7 @@
         </Grid>
 
         <!-- Spacer -->
-        <Border Grid.Row="1" Height="1" Background="#E0E6F0" Margin="0,4,0,4" Opacity="0.5"/>
+        <Border Grid.Row="1" Height="1" Background="{DynamicResource Theme.Surface.Border}" Margin="0,4,0,4" Opacity="0.5"/>
 
         <!-- Auth + Configs -->
         <Grid Grid.Row="2">
@@ -118,7 +120,7 @@
                        Text=""
                        FontSize="12"
                        FontWeight="Bold"
-                       Foreground="#001F3F"
+                       Foreground="{DynamicResource Theme.Text.Primary}"
                        Margin="0,0,0,2"/>
             <TextBlock Text="Config 1" Style="{StaticResource SectionTitle}"/>
 
@@ -130,7 +132,7 @@
                          TextWrapping="Wrap"
                          AcceptsReturn="True"
                          IsReadOnly="True"
-                         Background="White"
+                         Background="{DynamicResource Theme.Input.Background}"
                          BorderThickness="0"
                          FontFamily="Consolas"
                          FontSize="12"
@@ -146,7 +148,7 @@
                        Text=""
                        FontSize="12"
                        FontWeight="Bold"
-                       Foreground="#001F3F"
+                       Foreground="{DynamicResource Theme.Text.Primary}"
                        Margin="0,0,0,2"/>
             <TextBlock Text="Config 2" Style="{StaticResource SectionTitle}"/>
 
@@ -155,7 +157,7 @@
                          TextWrapping="Wrap"
                          AcceptsReturn="True"
                          IsReadOnly="True"
-                         Background="White"
+                         Background="{DynamicResource Theme.Input.Background}"
                          BorderThickness="0"
                          FontFamily="Consolas"
                          FontSize="12"
@@ -167,7 +169,7 @@
         </Grid>
 
         <!-- Spacer -->
-        <Border Grid.Row="3" Height="1" Background="#E0E6F0" Margin="0,4,0,4" Opacity="0.5"/>
+        <Border Grid.Row="3" Height="1" Background="{DynamicResource Theme.Surface.Border}" Margin="0,4,0,4" Opacity="0.5"/>
 
         <!-- Diffs -->
         <Grid Grid.Row="4">
@@ -184,11 +186,11 @@
                          TextWrapping="Wrap"
                          AcceptsReturn="True"
                          IsReadOnly="True"
-                         Background="White"
+                         Background="{DynamicResource Theme.Input.Background}"
                          BorderThickness="0"
                          FontFamily="Consolas"
                          FontSize="12"
-                         Foreground="Red"
+                         Foreground="{DynamicResource Theme.Status.Danger}"
                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
                          ScrollViewer.VerticalScrollBarVisibility="Auto"
                          MaxHeight="300" />
@@ -203,11 +205,11 @@
                          TextWrapping="Wrap"
                          AcceptsReturn="True"
                          IsReadOnly="True"
-                         Background="White"
+                         Background="{DynamicResource Theme.Input.Background}"
                          BorderThickness="0"
                          FontFamily="Consolas"
                          FontSize="12"
-                         Foreground="Red"
+                         Foreground="{DynamicResource Theme.Status.Danger}"
                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
                          ScrollViewer.VerticalScrollBarVisibility="Auto"
                          MaxHeight="300" />
@@ -219,3 +221,10 @@
     </ScrollViewer>
   </Grid>
 </UserControl>
+
+
+
+
+
+
+

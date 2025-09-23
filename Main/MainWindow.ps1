@@ -146,7 +146,74 @@ try {
 }
 # === END Database Initialization (MainWindow.ps1) ===
 
+# Ensure a WPF Application exists so theme resources can be merged
+try {
+    $app = [System.Windows.Application]::Current
+    if (-not $app) {
+        $app = [System.Windows.Application]::new()
+        $app.ShutdownMode = [System.Windows.ShutdownMode]::OnExplicitShutdown
+    }
+    Initialize-StateTraceTheme
+    Update-StateTraceThemeResources
+} catch {
+    Write-Warning ("Theme initialization failed: {0}" -f $_.Exception.Message)
+}
 
+
+
+function Initialize-ThemeSelector {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][System.Windows.Window]$Window
+    )
+
+    $selector = $Window.FindName('ThemeSelector')
+    if (-not $selector) { return }
+
+    $themes = Get-AvailableStateTraceThemes
+    if (-not $themes) { $themes = @() }
+
+    $selector.ItemsSource = $themes
+    $selector.DisplayMemberPath = 'Display'
+    $selector.SelectedValuePath = 'Name'
+
+    $currentTheme = Get-StateTraceTheme
+    if ($currentTheme) {
+        $selector.SelectedValue = $currentTheme
+    }
+
+    $selector.Add_SelectionChanged({
+        param($sender, $args)
+
+        $selectedValue = $sender.SelectedValue
+        if (-not $selectedValue -and $sender.SelectedItem) {
+            $item = $sender.SelectedItem
+            if ($item -is [System.Management.Automation.PSObject] -and $item.PSObject.Properties['Name']) {
+                $selectedValue = '' + $item.PSObject.Properties['Name'].Value
+            } elseif ($item -is [System.Collections.IDictionary] -and $item.Contains('Name')) {
+                $selectedValue = '' + $item['Name']
+            } elseif ($item -isnot [string]) {
+                $selectedValue = '' + $item
+            } else {
+                $selectedValue = $item
+            }
+        }
+
+        if ([string]::IsNullOrWhiteSpace($selectedValue)) { return }
+
+        $resolvedSelection = '' + $selectedValue
+        $current = Get-StateTraceTheme
+        if ($resolvedSelection -eq $current) { return }
+
+        try {
+            Set-StateTraceTheme -Name $resolvedSelection | Out-Null
+            Update-StateTraceThemeResources
+        } catch {
+            [System.Windows.MessageBox]::Show(("Failed to apply theme: {0}" -f $_.Exception.Message), 'Theme Error') | Out-Null
+            if ($current) { $sender.SelectedValue = $current }
+        }
+    })
+}
 # === BEGIN Load MainWindow.xaml (MainWindow.ps1) ===
 $xamlPath = Join-Path $scriptDir 'MainWindow.xaml'
 if (-not (Test-Path -LiteralPath $xamlPath)) {
@@ -163,6 +230,7 @@ try {
 }
 
 Set-Variable -Name window -Value $window -Scope Global
+Initialize-ThemeSelector -Window $window
 
 # === BEGIN Show Commands UI binders (MainWindow.ps1) ===
 function Set-ShowCommandsOSVersions {
@@ -185,7 +253,7 @@ function Set-BrocadeOSFromConfig {
     param([Parameter(Mandatory)][System.Windows.Controls.ComboBox]$Dropdown)
     try { Set-ShowCommandsOSVersions -Combo $Dropdown -Vendor 'Brocade' }
     catch { Write-Warning ("Brocade OS populate failed: {0}" -f $_.Exception.Message) }
-}
+}
 
 # === BEGIN View initialization helpers (MainWindow.ps1) ===
 function Initialize-View {
@@ -257,7 +325,7 @@ function Set-EnvToggle {
         [Parameter(Mandatory)][bool]$Checked
     )
     # Strings by design: downstream reads env flags, not booleans.
-    $new = if ($Checked) { 'true' } else { '' }
+    $new = if ($Checked) { 'true' } else { 'false' }
     # Avoid needless writes
     $current = (Get-Item -Path ("Env:\{0}" -f $Name) -ErrorAction SilentlyContinue).Value
     if ($current -ne $new) {

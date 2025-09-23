@@ -1,7 +1,7 @@
 function New-TemplatesView {
     
     param(
-        [Parameter(Mandatory=$true)][Windows.Window]$Window,
+        [Parameter(Mandatory=$true)][System.Windows.Window]$Window,
         [Parameter(Mandatory=$true)][string]$ScriptDir
     )
     $templatesViewPath = Join-Path $ScriptDir '..\Views\TemplatesView.xaml'

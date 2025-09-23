@@ -2,39 +2,27 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <!-- AlertsView displays potential issues detected in the parsed data.
        A DataGrid lists anomalies such as down ports, unauthorized
-       authentication states or non‑optimal duplex modes.  An export
+       authentication states or non-optimal duplex modes.  An export
        button allows saving the current list to CSV. -->
-  <Grid Background="#001F3F">
+  <Grid Background="{DynamicResource Theme.Surface.Primary}">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="*"/>
     </Grid.RowDefinitions>
     <!-- Header and export button -->
-    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5" Background="#001F3F">
-      <TextBlock Text="Alerts and Anomalies" FontSize="16" FontWeight="Bold" Foreground="White" Margin="0,0,10,0"/>
-      <Button Name="ExportAlertsButton" Content="Export" Width="70" Background="#FFD700" Foreground="Black" ToolTip="Export alerts to CSV"/>
+    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5" Background="{DynamicResource Theme.Surface.Primary}">
+      <TextBlock Text="Alerts and Anomalies" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Inverse}" Margin="0,0,10,0"/>
+      <Button Name="ExportAlertsButton" Content="Export" Width="70" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Export alerts to CSV"/>
     </StackPanel>
     <!-- Alerts table -->
     <DataGrid Name="AlertsGrid" Grid.Row="1" Margin="5" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
-              Background="#F7F9FC" RowBackground="#E7ECF5" AlternatingRowBackground="#F1F5FA"
-              BorderBrush="#C0C0C0" BorderThickness="1" SelectionMode="Extended"
+              Style="{DynamicResource PrimaryDataGridStyle}"
               ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Auto"
-														VirtualizingPanel.IsVirtualizing="True"
-														VirtualizingPanel.VirtualizationMode="Recycling"
-														EnableRowVirtualization="True"
-														EnableColumnVirtualization="True"
-														ScrollViewer.CanContentScroll="True"
-														VirtualizingPanel.ScrollUnit="Pixel">
+              VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+              EnableRowVirtualization="True" EnableColumnVirtualization="True"
+              ScrollViewer.CanContentScroll="True" VirtualizingPanel.ScrollUnit="Pixel">
       <DataGrid.RowStyle>
-        <Style TargetType="DataGridRow">
-          <Setter Property="Foreground" Value="Black"/>
-          <Style.Triggers>
-            <Trigger Property="IsSelected" Value="True">
-              <Setter Property="Background" Value="#FFF4BA"/>
-              <Setter Property="Foreground" Value="Black"/>
-            </Trigger>
-          </Style.Triggers>
-        </Style>
+        <DynamicResource ResourceKey="PrimaryDataGridRowStyle"/>
       </DataGrid.RowStyle>
       <DataGrid.Columns>
         <DataGridTextColumn Header="Switch" Binding="{Binding Hostname}" Width="120"/>
@@ -49,3 +37,10 @@
     </DataGrid>
   </Grid>
 </UserControl>
+
+
+
+
+
+
+

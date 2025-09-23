@@ -4,49 +4,49 @@
        background ties into the application's theme, while white text ensures
        readability.  Individual metrics are placed in a UniformGrid for a
        clean, compact layout. -->
-  <Grid Background="#001F3F" Margin="5">
+  <Grid Background="{DynamicResource Theme.Surface.Primary}" Margin="5">
     <StackPanel Orientation="Vertical">
-      <TextBlock Text="Branch Summary" FontSize="16" FontWeight="Bold" Foreground="White" Margin="0,0,0,10"/>
+      <TextBlock Text="Branch Summary" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Inverse}" Margin="0,0,0,10"/>
       <UniformGrid Columns="2" Rows="4" Margin="0,0,0,0">
         <!-- Devices count -->
         <StackPanel Margin="5">
-          <TextBlock Text="Devices:" Foreground="White" FontWeight="Bold"/>
-          <TextBlock Name="SummaryDevicesCount" Foreground="White"/>
+          <TextBlock Text="Devices:" Foreground="{DynamicResource Theme.Text.Inverse}" FontWeight="Bold"/>
+          <TextBlock Name="SummaryDevicesCount" Foreground="{DynamicResource Theme.Text.Inverse}"/>
         </StackPanel>
         <!-- Interfaces count -->
         <StackPanel Margin="5">
-          <TextBlock Text="Interfaces:" Foreground="White" FontWeight="Bold"/>
-          <TextBlock Name="SummaryInterfacesCount" Foreground="White"/>
+          <TextBlock Text="Interfaces:" Foreground="{DynamicResource Theme.Text.Inverse}" FontWeight="Bold"/>
+          <TextBlock Name="SummaryInterfacesCount" Foreground="{DynamicResource Theme.Text.Inverse}"/>
         </StackPanel>
         <!-- Ports Up -->
         <StackPanel Margin="5">
-          <TextBlock Text="Ports Up:" Foreground="White" FontWeight="Bold"/>
-          <TextBlock Name="SummaryUpCount" Foreground="White"/>
+          <TextBlock Text="Ports Up:" Foreground="{DynamicResource Theme.Text.Inverse}" FontWeight="Bold"/>
+          <TextBlock Name="SummaryUpCount" Foreground="{DynamicResource Theme.Text.Inverse}"/>
         </StackPanel>
         <!-- Ports Down -->
         <StackPanel Margin="5">
-          <TextBlock Text="Ports Down:" Foreground="White" FontWeight="Bold"/>
-          <TextBlock Name="SummaryDownCount" Foreground="White"/>
+          <TextBlock Text="Ports Down:" Foreground="{DynamicResource Theme.Text.Inverse}" FontWeight="Bold"/>
+          <TextBlock Name="SummaryDownCount" Foreground="{DynamicResource Theme.Text.Inverse}"/>
         </StackPanel>
         <!-- Authorized ports -->
         <StackPanel Margin="5">
-          <TextBlock Text="Authorized:" Foreground="White" FontWeight="Bold"/>
-          <TextBlock Name="SummaryAuthorizedCount" Foreground="White"/>
+          <TextBlock Text="Authorized:" Foreground="{DynamicResource Theme.Text.Inverse}" FontWeight="Bold"/>
+          <TextBlock Name="SummaryAuthorizedCount" Foreground="{DynamicResource Theme.Text.Inverse}"/>
         </StackPanel>
         <!-- Unauthorized ports -->
         <StackPanel Margin="5">
-          <TextBlock Text="Unauthorized:" Foreground="White" FontWeight="Bold"/>
-          <TextBlock Name="SummaryUnauthorizedCount" Foreground="White"/>
+          <TextBlock Text="Unauthorized:" Foreground="{DynamicResource Theme.Text.Inverse}" FontWeight="Bold"/>
+          <TextBlock Name="SummaryUnauthorizedCount" Foreground="{DynamicResource Theme.Text.Inverse}"/>
         </StackPanel>
         <!-- Unique VLANs -->
         <StackPanel Margin="5">
-          <TextBlock Text="Unique VLANs:" Foreground="White" FontWeight="Bold"/>
-          <TextBlock Name="SummaryUniqueVlansCount" Foreground="White"/>
+          <TextBlock Text="Unique VLANs:" Foreground="{DynamicResource Theme.Text.Inverse}" FontWeight="Bold"/>
+          <TextBlock Name="SummaryUniqueVlansCount" Foreground="{DynamicResource Theme.Text.Inverse}"/>
         </StackPanel>
         <!-- Placeholder for additional metrics -->
         <StackPanel Margin="5">
-          <TextBlock Text="Extra:" Foreground="White" FontWeight="Bold"/>
-          <TextBlock Name="SummaryExtra" Foreground="White"/>
+          <TextBlock Text="Extra:" Foreground="{DynamicResource Theme.Text.Inverse}" FontWeight="Bold"/>
+          <TextBlock Name="SummaryExtra" Foreground="{DynamicResource Theme.Text.Inverse}"/>
         </StackPanel>
       </UniformGrid>
     </StackPanel>

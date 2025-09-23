@@ -1,6 +1,7 @@
-@{
+﻿@{
     # List of module filenames to import at startup.  The order of the modules
     Modules = @(
+        'ThemeModule.psm1',
         # Core parser and helper modules
         'ParserWorker.psm1',
         'DatabaseModule.psm1',
@@ -25,3 +26,4 @@
         'TemplatesModule.psm1'
     )
 }
+

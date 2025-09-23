@@ -1,7 +1,7 @@
 function New-AlertsView {
     
     param(
-        [Parameter(Mandatory=$true)][Windows.Window]$Window,
+        [Parameter(Mandatory=$true)][System.Windows.Window]$Window,
         [Parameter(Mandatory=$true)][string]$ScriptDir
     )
     $alertsViewPath = Join-Path $ScriptDir '..\Views\AlertsView.xaml'

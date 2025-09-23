@@ -6,7 +6,7 @@ if (-not (Get-Variable -Name SearchUpdateTimer -Scope Script -ErrorAction Silent
 function New-SearchInterfacesView {
     
     param(
-        [Parameter(Mandatory=$true)][Windows.Window]$Window,
+        [Parameter(Mandatory=$true)][System.Windows.Window]$Window,
         [Parameter(Mandatory=$true)][string]$ScriptDir
     )
     $searchXamlPath = Join-Path $ScriptDir '..\Views\SearchInterfacesView.xaml'

@@ -3,72 +3,74 @@
   <UserControl.Resources>
     <!-- Status Style for interface status -->
     <Style x:Key="StatusTextStyle" TargetType="TextBlock">
-      <Setter Property="Foreground" Value="Black"/>
+      <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
       <Style.Triggers>
         <DataTrigger Binding="{Binding Status}" Value="connected">
-          <Setter Property="Foreground" Value="Green"/>
+          <Setter Property="Foreground" Value="{DynamicResource Theme.Status.Success}"/>
         </DataTrigger>
         <DataTrigger Binding="{Binding Status}" Value="notconnect">
-          <Setter Property="Foreground" Value="Red"/>
+          <Setter Property="Foreground" Value="{DynamicResource Theme.Status.Danger}"/>
         </DataTrigger>
         <DataTrigger Binding="{Binding Status}" Value="Up">
-          <Setter Property="Foreground" Value="Green"/>
+          <Setter Property="Foreground" Value="{DynamicResource Theme.Status.Success}"/>
         </DataTrigger>
         <DataTrigger Binding="{Binding Status}" Value="Down">
-          <Setter Property="Foreground" Value="Red"/>
+          <Setter Property="Foreground" Value="{DynamicResource Theme.Status.Danger}"/>
         </DataTrigger>
       </Style.Triggers>
     </Style>
 
     <!-- Auth State Style -->
     <Style x:Key="AuthStateTextStyle" TargetType="TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
       <Style.Triggers>
         <DataTrigger Binding="{Binding AuthState}" Value="Authorized">
-          <Setter Property="Foreground" Value="Green"/>
+          <Setter Property="Foreground" Value="{DynamicResource Theme.Status.Success}"/>
         </DataTrigger>
         <DataTrigger Binding="{Binding AuthState}" Value="Unauthorized">
-          <Setter Property="Foreground" Value="Red"/>
+          <Setter Property="Foreground" Value="{DynamicResource Theme.Status.Danger}"/>
         </DataTrigger>
       </Style.Triggers>
     </Style>
 
     <!-- Duplex Style -->
     <Style x:Key="DuplexTextStyle" TargetType="TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
       <Style.Triggers>
         <DataTrigger Binding="{Binding Duplex}" Value="full">
-          <Setter Property="Foreground" Value="Green"/>
+          <Setter Property="Foreground" Value="{DynamicResource Theme.Status.Success}"/>
         </DataTrigger>
         <DataTrigger Binding="{Binding Duplex}" Value="half">
-          <Setter Property="Foreground" Value="Goldenrod"/>
+          <Setter Property="Foreground" Value="{DynamicResource Theme.Status.Warning}"/>
         </DataTrigger>
         <DataTrigger Binding="{Binding Duplex}" Value="a-full">
-          <Setter Property="Foreground" Value="Blue"/>
+          <Setter Property="Foreground" Value="{DynamicResource Theme.Status.Info}"/>
         </DataTrigger>
       </Style.Triggers>
     </Style>
 
     <!-- Port Color Style -->
     <Style x:Key="PortTextStyle" TargetType="TextBlock">
-      <Setter Property="Foreground" Value="Gray"/>
+      <Setter Property="Foreground" Value="{DynamicResource Theme.Status.Neutral}"/>
       <Style.Triggers>
         <DataTrigger Binding="{Binding PortColor}" Value="Green">
-          <Setter Property="Foreground" Value="Green"/>
+          <Setter Property="Foreground" Value="{DynamicResource Theme.Template.Green}"/>
         </DataTrigger>
         <DataTrigger Binding="{Binding PortColor}" Value="Blue">
-          <Setter Property="Foreground" Value="Blue"/>
+          <Setter Property="Foreground" Value="{DynamicResource Theme.Template.Blue}"/>
         </DataTrigger>
         <DataTrigger Binding="{Binding PortColor}" Value="Purple">
-          <Setter Property="Foreground" Value="Purple"/>
+          <Setter Property="Foreground" Value="{DynamicResource Theme.Template.Purple}"/>
         </DataTrigger>
         <DataTrigger Binding="{Binding PortColor}" Value="Red">
-          <Setter Property="Foreground" Value="Red"/>
+          <Setter Property="Foreground" Value="{DynamicResource Theme.Template.Red}"/>
         </DataTrigger>
       </Style.Triggers>
     </Style>
   </UserControl.Resources>
 
   <!-- Apply a navy blue background to the outer grid. -->
-  <Grid Background="#001F3F">
+  <Grid Background="{DynamicResource Theme.Surface.Primary}">
     <Grid.RowDefinitions>
       <RowDefinition Height="*"/>
     </Grid.RowDefinitions>
@@ -103,62 +105,62 @@
                     Content="Compare Configs"
                     Width="120"
                     Margin="0,0,10,5"
-                    Background="#FFD700" Foreground="Black"
+                    Style="{DynamicResource PrimaryButtonStyle}"
                     Grid.Row="0" Grid.Column="0"/>
             <Button Name="CopyDetailsButton"
                     Content="Copy Details"
                     Width="120"
                     Margin="0,0,10,0"
-                    Background="#FFD700" Foreground="Black"
+                    Style="{DynamicResource PrimaryButtonStyle}"
                     ToolTip="Copy selected interfaces with all details"
                     Grid.Row="1" Grid.Column="0"/>
             <Button Name="ConfigureButton"
                     Content="Configure"
                     Width="120"
                     Margin="0,0,0,5"
-                    Background="#FFD700" Foreground="Black"
+                    Style="{DynamicResource PrimaryButtonStyle}"
                     Grid.Row="0" Grid.Column="1"/>
             <ComboBox Name="ConfigOptionsDropdown"
                       Width="120"
                       Margin="0"
-                      Grid.Row="1" Grid.Column="1"/>
+                      Grid.Row="1" Grid.Column="1" Style="{DynamicResource ToolbarComboBoxStyle}"/>
           </Grid>
 
           <StackPanel Grid.Column="1" Orientation="Vertical">
             <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
               <StackPanel Margin="0,0,15,0">
-                <TextBlock Text="Hostname:" FontSize="12" Foreground="White"/>
-                <TextBox Name="HostnameBox" IsReadOnly="True" Width="130" Background="#F7F9FC" BorderBrush="#C0C0C0" BorderThickness="1"/>
+                <TextBlock Text="Hostname:" FontSize="12" Foreground="{DynamicResource Theme.Text.Inverse}"/>
+                <TextBox Name="HostnameBox" IsReadOnly="True" Width="130" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
               </StackPanel>
               <StackPanel Margin="0,0,15,0">
-                <TextBlock Text="Make:" FontSize="12" Foreground="White"/>
-                <TextBox Name="MakeBox" IsReadOnly="True" Width="90" Background="#F7F9FC" BorderBrush="#C0C0C0" BorderThickness="1"/>
+                <TextBlock Text="Make:" FontSize="12" Foreground="{DynamicResource Theme.Text.Inverse}"/>
+                <TextBox Name="MakeBox" IsReadOnly="True" Width="90" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
               </StackPanel>
               <StackPanel Margin="0,0,15,0">
-                <TextBlock Text="Model:" FontSize="12" Foreground="White"/>
-                <TextBox Name="ModelBox" IsReadOnly="True" Width="100" Background="#F7F9FC" BorderBrush="#C0C0C0" BorderThickness="1"/>
+                <TextBlock Text="Model:" FontSize="12" Foreground="{DynamicResource Theme.Text.Inverse}"/>
+                <TextBox Name="ModelBox" IsReadOnly="True" Width="100" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
               </StackPanel>
             </StackPanel>
             <StackPanel Orientation="Horizontal">
               <StackPanel Margin="0,0,15,0">
-                <TextBlock Text="Uptime:" FontSize="12" Foreground="White"/>
-                <TextBox Name="UptimeBox" IsReadOnly="True" Width="140" Background="#F7F9FC" BorderBrush="#C0C0C0" BorderThickness="1"/>
+                <TextBlock Text="Uptime:" FontSize="12" Foreground="{DynamicResource Theme.Text.Inverse}"/>
+                <TextBox Name="UptimeBox" IsReadOnly="True" Width="140" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
               </StackPanel>
               <StackPanel Margin="0,0,15,0">
-                <TextBlock Text="Ports:" FontSize="12" Foreground="White"/>
-                <TextBox Name="PortCountBox" IsReadOnly="True" Width="50" Background="#F7F9FC" BorderBrush="#C0C0C0" BorderThickness="1"/>
+                <TextBlock Text="Ports:" FontSize="12" Foreground="{DynamicResource Theme.Text.Inverse}"/>
+                <TextBox Name="PortCountBox" IsReadOnly="True" Width="50" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
               </StackPanel>
               <StackPanel Margin="0,0,15,0">
-                <TextBlock Text="AuthDefaultVLAN:" FontSize="12" Foreground="White"/>
-                <TextBox Name="AuthDefaultVLANBox" IsReadOnly="True" Width="130" Background="#F7F9FC" BorderBrush="#C0C0C0" BorderThickness="1"/>
+                <TextBlock Text="AuthDefaultVLAN:" FontSize="12" Foreground="{DynamicResource Theme.Text.Inverse}"/>
+                <TextBox Name="AuthDefaultVLANBox" IsReadOnly="True" Width="130" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
               </StackPanel>
               <StackPanel Margin="0,0,15,0">
-                <TextBlock Text="Building:" FontSize="12" Foreground="White"/>
-                <TextBox Name="BuildingBox" IsReadOnly="True" Width="60" Background="#F7F9FC" BorderBrush="#C0C0C0" BorderThickness="1"/>
+                <TextBlock Text="Building:" FontSize="12" Foreground="{DynamicResource Theme.Text.Inverse}"/>
+                <TextBox Name="BuildingBox" IsReadOnly="True" Width="60" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
               </StackPanel>
               <StackPanel Margin="0,0,15,0">
-                <TextBlock Text="Room:" FontSize="12" Foreground="White"/>
-                <TextBox Name="RoomBox" IsReadOnly="True" Width="40" Background="#F7F9FC" BorderBrush="#C0C0C0" BorderThickness="1"/>
+                <TextBlock Text="Room:" FontSize="12" Foreground="{DynamicResource Theme.Text.Inverse}"/>
+                <TextBox Name="RoomBox" IsReadOnly="True" Width="40" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
               </StackPanel>
             </StackPanel>
           </StackPanel>
@@ -168,8 +170,8 @@
         <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,5">
             <TextBox Name="FilterBox"
                    Width="160"
-                   Background="#F7F9FC"
-                   BorderBrush="#C0C0C0"
+                   Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}"
+                   BorderBrush="{DynamicResource Theme.Input.Border}"
                    BorderThickness="1"
                    ToolTip="Type to filter interfaces..."
                    Margin="0,0,5,0"/>
@@ -190,30 +192,17 @@
                   Margin="5,0,5,5"
                   CanUserAddRows="False"
                   IsReadOnly="False"
-                  Background="#F7F9FC"
-                  RowBackground="#E7ECF5"
-                  AlternatingRowBackground="#F1F5FA"
+                  Style="{DynamicResource PrimaryDataGridStyle}"
                   ScrollViewer.VerticalScrollBarVisibility="Auto"
                   ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                  BorderBrush="#C0C0C0"
-                  BorderThickness="1"
-																		VirtualizingPanel.IsVirtualizing="True"
-																		VirtualizingPanel.VirtualizationMode="Recycling"
-																		EnableRowVirtualization="True"
-																		EnableColumnVirtualization="True"
-																		ScrollViewer.CanContentScroll="True"
-																		VirtualizingPanel.ScrollUnit="Pixel">
-          <!-- Override the default selection colour so coloured text remains readable -->
+                  VirtualizingPanel.IsVirtualizing="True"
+                  VirtualizingPanel.VirtualizationMode="Recycling"
+                  EnableRowVirtualization="True"
+                  EnableColumnVirtualization="True"
+                  ScrollViewer.CanContentScroll="True"
+                  VirtualizingPanel.ScrollUnit="Pixel">
           <DataGrid.RowStyle>
-            <Style TargetType="DataGridRow">
-              <Setter Property="Foreground" Value="Black"/>
-              <Style.Triggers>
-                <Trigger Property="IsSelected" Value="True">
-                  <Setter Property="Background" Value="#FFF4BA"/>
-                  <Setter Property="Foreground" Value="Black"/>
-                </Trigger>
-              </Style.Triggers>
-            </Style>
+            <DynamicResource ResourceKey="PrimaryDataGridRowStyle"/>
           </DataGrid.RowStyle>
           <DataGrid.Columns>
             <!-- Selection checkbox -->
@@ -316,3 +305,10 @@
     </Grid>
   </Grid>
 </UserControl>
+
+
+
+
+
+
+

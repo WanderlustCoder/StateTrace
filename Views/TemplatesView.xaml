@@ -5,7 +5,7 @@
        maintains consistency with other views.  The left side lists
        template files; the right side displays the JSON content for
        the selected template.  Buttons allow saving edits back to disk. -->
-  <Grid Background="#001F3F">
+  <Grid Background="{DynamicResource Theme.Surface.Primary}">
     <Grid.ColumnDefinitions>
       <ColumnDefinition Width="200"/>
       <ColumnDefinition Width="*"/>
@@ -19,31 +19,34 @@
       <RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
     <!-- Template list -->
-    <StackPanel Grid.Row="0" Grid.Column="0" Margin="5" Background="#001F3F">
-      <TextBlock Text="Templates" FontSize="14" FontWeight="Bold" Foreground="White" Margin="0,0,0,5"/>
-      <ListBox Name="TemplatesList" Background="#F7F9FC" BorderBrush="#C0C0C0" BorderThickness="1"/>
+    <StackPanel Grid.Row="0" Grid.Column="0" Margin="5" Background="{DynamicResource Theme.Surface.Primary}">
+      <TextBlock Text="Templates" FontSize="14" FontWeight="Bold" Margin="0,0,0,5" Foreground="{DynamicResource Theme.Text.Inverse}"/>
+      <ListBox Name="TemplatesList" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
     </StackPanel>
     <!-- Editor -->
-    <StackPanel Grid.Row="0" Grid.Column="1" Margin="5" Background="#001F3F">
-      <TextBlock Text="Template Contents" FontSize="14" FontWeight="Bold" Foreground="White" Margin="0,0,0,5"/>
+    <StackPanel Grid.Row="0" Grid.Column="1" Margin="5" Background="{DynamicResource Theme.Surface.Primary}">
+      <TextBlock Text="Template Contents" FontSize="14" FontWeight="Bold" Margin="0,0,0,5" Foreground="{DynamicResource Theme.Text.Inverse}"/>
       <TextBox Name="TemplateEditor" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" TextWrapping="Wrap"
-               Background="#F7F9FC" BorderBrush="#C0C0C0" BorderThickness="1"/>
+               Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
     </StackPanel>
     <!-- New template creation panel -->
-    <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Margin="5" Background="#001F3F">
-      <TextBlock Text="New Template:" Foreground="White" VerticalAlignment="Center" Margin="0,0,5,0"/>
-      <TextBox Name="NewTemplateNameBox" Width="120" Margin="0,0,5,0" Background="#F7F9FC" BorderBrush="#C0C0C0" BorderThickness="1" ToolTip="Enter template name (without extension)"/>
-      <ComboBox Name="NewTemplateOSType" Width="100" Margin="0,0,5,0" SelectedIndex="0">
+    <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Margin="5" Background="{DynamicResource Theme.Surface.Primary}">
+      <TextBlock Text="New Template:" VerticalAlignment="Center" Margin="0,0,5,0" Foreground="{DynamicResource Theme.Text.Inverse}"/>
+      <TextBox Name="NewTemplateNameBox" Width="120" Margin="0,0,5,0" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1" ToolTip="Enter template name (without extension)"/>
+      <ComboBox Name="NewTemplateOSType" Style="{DynamicResource ToolbarComboBoxStyle}" Width="100" Margin="0,0,5,0" SelectedIndex="0">
         <ComboBoxItem Content="Cisco"/>
         <ComboBoxItem Content="Brocade"/>
         <ComboBoxItem Content="Arista"/>
       </ComboBox>
-      <Button Name="AddTemplateButton" Content="Add" Width="60" Background="#FFD700" Foreground="Black" ToolTip="Create new template"/>
+      <Button Name="AddTemplateButton" Content="Add" Width="60" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Create new template"/>
     </StackPanel>
     <!-- Buttons -->
-    <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="5" Background="#001F3F">
-      <Button Name="ReloadTemplateButton" Content="Reload" Width="70" Margin="0,0,5,0" Background="#FFD700" Foreground="Black" ToolTip="Reload file from disk"/>
-      <Button Name="SaveTemplateButton" Content="Save" Width="70" Background="#FFD700" Foreground="Black" ToolTip="Save changes to file"/>
+    <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="5" Background="{DynamicResource Theme.Surface.Primary}">
+      <Button Name="ReloadTemplateButton" Content="Reload" Width="70" Margin="0,0,5,0" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Reload file from disk"/>
+      <Button Name="SaveTemplateButton" Content="Save" Width="70" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Save changes to file"/>
     </StackPanel>
   </Grid>
 </UserControl>
+
+
+

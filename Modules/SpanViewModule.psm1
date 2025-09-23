@@ -2,7 +2,7 @@ function New-SpanView {
     # .SYNOPSIS
 
     param(
-        [Parameter(Mandatory=$true)][Windows.Window]$Window,
+        [Parameter(Mandatory=$true)][System.Windows.Window]$Window,
         [Parameter(Mandatory=$true)][string]$ScriptDir
     )
 

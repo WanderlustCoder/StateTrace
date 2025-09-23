@@ -1,7 +1,7 @@
 function New-SummaryView {
     
     param(
-        [Parameter(Mandatory=$true)][Windows.Window]$Window,
+        [Parameter(Mandatory=$true)][System.Windows.Window]$Window,
         [Parameter(Mandatory=$true)][string]$ScriptDir
     )
     $summaryViewPath = Join-Path $ScriptDir '..\Views\SummaryView.xaml'

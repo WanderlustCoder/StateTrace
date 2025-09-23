@@ -1,6 +1,9 @@
-# .SYNOPSIS
+﻿# .SYNOPSIS
 
 Set-StrictMode -Version Latest
+$script:lastTemplateVendor = 'default'
+$script:TemplateThemeHandlerRegistered = $false
+
 
 # Ensure that the debounce timer variable exists in script scope.  Under
 if (-not (Get-Variable -Name InterfacesFilterTimer -Scope Script -ErrorAction SilentlyContinue)) {
@@ -78,6 +81,27 @@ function Ensure-DatabaseModule {
         }
     } catch {
         # Swallow import errors; callers handle missing cmdlets gracefully.
+    }
+}
+function Set-TemplateDropdownBrush {
+    param([string]$Vendor)
+    if ([string]::IsNullOrWhiteSpace($Vendor)) { $Vendor = 'default' }
+    $key = 'Theme.Text.Primary'
+    switch ($Vendor.ToLowerInvariant()) {
+        'cisco'   { $key = 'Theme.Vendor.Cisco' }
+        'brocade' { $key = 'Theme.Vendor.Brocade' }
+        'arista'  { $key = 'Theme.Vendor.Arista' }
+        default     { $key = 'Theme.Text.Primary' }
+    }
+    $brush = $null
+    try {
+        $brush = Get-ThemeBrush -Key $key
+    } catch {
+        Write-Verbose "[Interfaces] Failed to resolve theme brush: $($_.Exception.Message)"
+    }
+    if (-not $brush) { $brush = [System.Windows.Media.Brushes]::Black }
+    if ($global:templateDropdown) {
+        try { $global:templateDropdown.Foreground = $brush } catch {}
     }
 }
 
@@ -264,7 +288,7 @@ function New-InterfaceObjectsFromDbRow {
                 $templates = @()
             }
         }
-        # Build name → template(s) index on each call so that
+        # Build name â†’ template(s) index on each call so that
         # Get-InterfaceConfiguration can look up a template by name in O(1) time.
         try {
             if ($templates) {
@@ -358,7 +382,7 @@ function New-InterfaceObjectsFromDbRow {
                 } elseif ($authTemplate) {
                     $cfgStatusVal = 'Mismatch'
                 } else {
-                    # When no template information exists, fall back to Unknown for consistency with Get‑DeviceDetails.
+                    # When no template information exists, fall back to Unknown for consistency with Getâ€‘DeviceDetails.
                     $cfgStatusVal = 'Unknown'
                 }
             }
@@ -738,22 +762,49 @@ function New-InterfacesView {
     }
 
     # ------------------------------
+
+
+
+
+
+    # ------------------------------
     if ($templateDropdown) {
+        if (-not $script:TemplateThemeHandlerRegistered) {
+            try {
+                Register-StateTraceThemeChanged -Handler ([System.Action[string]]{ param($themeName) Set-TemplateDropdownBrush -Vendor $script:lastTemplateVendor })
+                $script:TemplateThemeHandlerRegistered = $true
+            } catch {
+                Write-Verbose "[Interfaces] Failed to register template theme handler: $($_.Exception.Message)"
+            }
+        }
         $templateDropdown.Add_SelectionChanged({
             $sel = $global:templateDropdown.SelectedItem
-            $brush = [System.Windows.Media.Brushes]::Black
+            $vendor = 'default'
             if ($sel) {
-                # Perform case-insensitive substring checks without converting
                 $text = '' + $sel
-                if     ($text -match '(?i)cisco')   { $brush = [System.Windows.Media.Brushes]::DodgerBlue }
-                elseif ($text -match '(?i)brocade') { $brush = [System.Windows.Media.Brushes]::Goldenrod }
-                elseif ($text -match '(?i)arista')  { $brush = [System.Windows.Media.Brushes]::MediumSeaGreen }
+                if     ($text -match '(?i)cisco')   { $vendor = 'cisco' }
+                elseif ($text -match '(?i)brocade') { $vendor = 'brocade' }
+                elseif ($text -match '(?i)arista')  { $vendor = 'arista' }
             }
-            $global:templateDropdown.Foreground = $brush
+            $script:lastTemplateVendor = $vendor
+            Set-TemplateDropdownBrush -Vendor $vendor
         })
+        try {
+            $initialVendor = 'default'
+            if ($templateDropdown.SelectedItem) {
+                $text = '' + $templateDropdown.SelectedItem
+                if     ($text -match '(?i)cisco')   { $initialVendor = 'cisco' }
+                elseif ($text -match '(?i)brocade') { $initialVendor = 'brocade' }
+                elseif ($text -match '(?i)arista')  { $initialVendor = 'arista' }
+            }
+            $script:lastTemplateVendor = $initialVendor
+            Set-TemplateDropdownBrush -Vendor $initialVendor
+        } catch {}
     }
 
     $global:interfacesView = $interfacesView
 }
 
 Export-ModuleMember -Function Get-PortSortKey,Get-InterfaceHostnames,Get-InterfaceInfo,Get-InterfaceList,New-InterfaceObjectsFromDbRow,Compare-InterfaceConfigs,Get-InterfaceConfiguration,Get-ConfigurationTemplates,Get-SpanningTreeInfo,New-InterfacesView
+
+

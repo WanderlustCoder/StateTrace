@@ -9,7 +9,7 @@
   <!-- Apply a navy background to the outer grid so the area around
        the spanning tree table appears navy.  Internal panels still
        define their own backgrounds as needed. -->
-  <Grid Background="#001F3F">
+  <Grid Background="{DynamicResource Theme.Surface.Primary}">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="*"/>
@@ -22,12 +22,10 @@
       <Button Name="RefreshSpanButton"
               Content="Refresh"
               Width="80"
-              Margin="0,0,10,0"
-              Background="#FFD700"
-              Foreground="Black"/>
+              Margin="0,0,10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
       <!-- Use a white foreground to make the label stand out against the navy grid -->
-      <Label Content="VLAN:" VerticalAlignment="Center" Margin="0,0,5,0" Foreground="White"/>
-      <ComboBox Name="VlanDropdown" Width="100"/>
+      <Label Content="VLAN:" VerticalAlignment="Center" Margin="0,0,5,0" Foreground="{DynamicResource Theme.Text.Inverse}"/>
+      <ComboBox Name="VlanDropdown" Width="100" Style="{DynamicResource ToolbarComboBoxStyle}"/>
     </StackPanel>
     <!-- DataGrid listing spanning tree summary -->
     <DataGrid Name="SpanGrid"
@@ -36,29 +34,17 @@
               CanUserAddRows="False"
               IsReadOnly="True"
               Margin="5"
-              Background="#F7F9FC"
-              RowBackground="#E7ECF5"
-              AlternatingRowBackground="#F1F5FA"
+              Style="{DynamicResource PrimaryDataGridStyle}"
               ScrollViewer.VerticalScrollBarVisibility="Auto"
               ScrollViewer.HorizontalScrollBarVisibility="Auto"
-              BorderBrush="#C0C0C0"
-              BorderThickness="1"
-														VirtualizingPanel.IsVirtualizing="True"
-														VirtualizingPanel.VirtualizationMode="Recycling"
-														EnableRowVirtualization="True"
-														EnableColumnVirtualization="True"
-														ScrollViewer.CanContentScroll="True"
-														VirtualizingPanel.ScrollUnit="Pixel">
+              VirtualizingPanel.IsVirtualizing="True"
+              VirtualizingPanel.VirtualizationMode="Recycling"
+              EnableRowVirtualization="True"
+              EnableColumnVirtualization="True"
+              ScrollViewer.CanContentScroll="True"
+              VirtualizingPanel.ScrollUnit="Pixel">
       <DataGrid.RowStyle>
-        <Style TargetType="DataGridRow">
-          <Setter Property="Foreground" Value="Black"/>
-          <Style.Triggers>
-            <Trigger Property="IsSelected" Value="True">
-              <Setter Property="Background" Value="#FFF4BA"/>
-              <Setter Property="Foreground" Value="Black"/>
-            </Trigger>
-          </Style.Triggers>
-        </Style>
+        <DynamicResource ResourceKey="PrimaryDataGridRowStyle"/>
       </DataGrid.RowStyle>
       <DataGrid.Columns>
         <DataGridTextColumn Header="Instance" Binding="{Binding VLAN}" Width="80"/>
@@ -70,3 +56,10 @@
     </DataGrid>
   </Grid>
 </UserControl>
+
+
+
+
+
+
+

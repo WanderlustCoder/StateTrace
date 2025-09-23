@@ -1,10 +1,12 @@
-﻿# Dynamic Theme Refactor Plan
+# Dynamic Theme Refactor Plan
 
 ## Objectives
 - Allow switching among multiple visual themes without code edits or application restarts.
 - Centralize palette and style tokens so every view and module reads from a single source of truth.
 - Preserve existing usability (contrast, accessibility, performance) while enabling future theme additions.
 - Minimize regression risk by refactoring in small, verifiable slices with shared resources and automated checks.
+- Improve theme visibility by validating contrast ratios for text, surfaces, buttons, and icons against WCAG AA.
+- Tune each theme so its palette mirrors the inspiration group (Blue Angels, Helldivers hazard troopers, W40K Salamanders forge world) while keeping controls legible across views.
 
 ## Current Theme Implementation Audit
 ### Primary entry point
@@ -27,6 +29,12 @@
 Hex values in use: `#001F3F`, `#FFD700`, `#F7F9FC`, `#F7FAFC`, `#EAF0F8`, `#E7ECF5`, `#F1F5FA`, `#C0C0C0`, `#E0E6F0`, `#FFF4BA`.
 Named brushes in use: `White`, `Black`, `Green`, `Red`, `Blue`, `Purple`, `Goldenrod`, `Gray`, `DodgerBlue`, `MediumSeaGreen`.
 
+## Visibility & Brand Alignment
+- Conduct a contrast audit for each theme covering surfaces, text, icons, and every button state; adjust token values until they meet WCAG AA (4.5:1 for body text, 3:1 for UI icons).
+- Create theme-specific button palettes so toolbar, primary, secondary, and inline action buttons align with the inspiration group's colors while staying legible on hover, pressed, and disabled states.
+- Document per-theme inspiration cues (e.g., Blue Angels navy/gold, Helldivers hazard black/yellow, Salamanders forge-forged greens) and lock palettes to those references for future updates.
+- Capture findings in a reusable checklist so adding themes requires verifying visibility, contrast metrics, and button coverage before shipping.
+
 ## Target Theme System
 ### Theme tokens
 Define a shared vocabulary that maps UI intent to a key. Proposed initial set:
@@ -36,6 +44,10 @@ Define a shared vocabulary that maps UI intent to a key. Proposed initial set:
 - `Theme.Input.Background`, `Theme.Input.Border`, `Theme.Input.Text`
 - `Theme.Button.Primary.Background`, `Theme.Button.Primary.Text`
 - `Theme.Button.Secondary.Background`, `Theme.Button.Secondary.Text`
+- `Theme.Button.Primary.HoverBackground`, `Theme.Button.Primary.HoverText`, `Theme.Button.Primary.PressedBackground`, `Theme.Button.Primary.PressedText`
+- `Theme.Button.Secondary.HoverBackground`, `Theme.Button.Secondary.HoverText`, `Theme.Button.Secondary.PressedBackground`, `Theme.Button.Secondary.PressedText`
+- `Theme.Button.Disabled.Background`, `Theme.Button.Disabled.Text`
+- `Theme.Button.Icon.Background`, `Theme.Button.Icon.Foreground`, `Theme.Button.Icon.HoverForeground`
 - `Theme.DataGrid.Background`, `Theme.DataGrid.Row`, `Theme.DataGrid.RowAlt`, `Theme.DataGrid.Border`, `Theme.DataGrid.SelectionBackground`, `Theme.DataGrid.SelectionText`
 - `Theme.Text.Primary`, `Theme.Text.Muted`, `Theme.Icon.Accent`
 - Semantic statuses: `Theme.Status.Success`, `Theme.Status.Warning`, `Theme.Status.Info`, `Theme.Status.Danger`, `Theme.Status.Neutral`
@@ -45,11 +57,22 @@ Define a shared vocabulary that maps UI intent to a key. Proposed initial set:
 - Store themes as JSON (e.g., `Themes/blue-angels.json`, `Themes/slate.json`) with key/value pairs for tokens.
 - Allow inheritance or fallback to a base theme for missing keys (e.g., `base.json`).
 - Include metadata (display name, author, created date) for UI listing and future theming doc generation.
+- Capture `inspiration` metadata describing the source group, palette notes, and imagery cues so each theme stays true to its origins.
+- Persist optional `contrastTargets` or stored ratios so automated tooling can warn when visibility degrades.
 - Example skeleton:
   ```json
   {
     "name": "Blue Angels",
     "extends": "base",
+    "inspiration": {
+      "group": "US Navy Flight Demonstration Squadron",
+      "palette": ["#001F3F", "#FFD700", "#EAF0F8"],
+      "notes": "Deep navy hulls with gold trim; keep high contrast for cockpits and sky backdrops."
+    },
+    "contrastTargets": {
+      "Theme.Toolbar.Text|Theme.Toolbar.Background": 4.5,
+      "Theme.Button.Primary.Text|Theme.Button.Primary.Background": 4.5
+    },
     "tokens": {
       "Theme.Window.Background": "#EAF0F8",
       "Theme.Button.Primary.Background": "#FFD700",
