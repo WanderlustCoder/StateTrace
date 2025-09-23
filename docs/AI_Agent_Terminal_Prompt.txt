@@ -1,0 +1,1 @@
+Before editing StateTrace, open docs/StateTrace_AI_Agent_Guide.md and follow its instructions.

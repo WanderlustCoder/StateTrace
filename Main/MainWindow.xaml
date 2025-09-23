@@ -3,7 +3,7 @@
         Title="StateTrace"
         Height="600"
         Width="1350"
-        Background="#EAF0F8">
+        Background="{DynamicResource Theme.Window.Background}">
 
   <Grid>
     <Grid.RowDefinitions>
@@ -13,30 +13,32 @@
     </Grid.RowDefinitions>
 
     <!-- Top toolbar: device selector, refresh and filtering controls -->
-    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5" Background="#001F3F">
-      <Label Content="Device:" VerticalAlignment="Center" Foreground="White"/>
+    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5" Background="{DynamicResource Theme.Toolbar.Background}">
+      <Label Content="Device:" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
       <!-- Allow the hostname dropdown to be searchable by enabling text editing
            and text search.  Users can start typing a switch name to quickly
            locate it. -->
-      <ComboBox Name="HostnameDropdown" Width="180" Margin="5,0" IsEditable="True" IsTextSearchEnabled="True"/>
-      <Button Name="RefreshButton" Content="Scan Logs" Margin="5,0" Background="#FFD700" Foreground="Black"/>
+      <ComboBox Name="HostnameDropdown" Width="180" Margin="5,0" IsEditable="True" IsTextSearchEnabled="True" Style="{DynamicResource ToolbarComboBoxStyle}"/>
+      <Button Name="RefreshButton" Content="Scan Logs" Margin="5,0" Style="{DynamicResource PrimaryButtonStyle}"/>
       <!-- Checkbox to include archive data (most recent) -->
-      <CheckBox Name="IncludeArchiveCheckbox" Content="Include archives" VerticalAlignment="Center" Margin="10,0" Foreground="White"/>
+      <CheckBox Name="IncludeArchiveCheckbox" Content="Include archives" VerticalAlignment="Center" Margin="10,0" Style="{DynamicResource ToolbarCheckBoxStyle}"/>
       <!-- Checkbox to include historical data from archives -->
-      <CheckBox Name="IncludeHistoricalCheckbox" Content="Include history" VerticalAlignment="Center" Margin="5,0" Foreground="White"/>
+      <CheckBox Name="IncludeHistoricalCheckbox" Content="Include history" VerticalAlignment="Center" Margin="5,0" Style="{DynamicResource ToolbarCheckBoxStyle}"/>
 
-      <Label Content="Site:" VerticalAlignment="Center" Margin="15,0,0,0" Foreground="White"/>
+      <Label Content="Site:" VerticalAlignment="Center" Margin="15,0,0,0" Style="{DynamicResource ToolbarLabelStyle}"/>
       <!-- Make the site dropdown editable so users can type to filter sites. -->
-      <ComboBox Name="SiteDropdown" Width="80" Margin="5,0" IsEditable="True" IsTextSearchEnabled="True"/>
-      <Label Content="Zone:" VerticalAlignment="Center" Foreground="White"/>
+      <ComboBox Name="SiteDropdown" Width="80" Margin="5,0" IsEditable="True" IsTextSearchEnabled="True" Style="{DynamicResource ToolbarComboBoxStyle}"/>
+      <Label Content="Zone:" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
       <!-- Zone dropdown with search capability -->
-      <ComboBox Name="ZoneDropdown" Width="80" Margin="5,0" IsEditable="True" IsTextSearchEnabled="True"/>
-      <Label Content="Building:" VerticalAlignment="Center" Foreground="White"/>
+      <ComboBox Name="ZoneDropdown" Width="80" Margin="5,0" IsEditable="True" IsTextSearchEnabled="True" Style="{DynamicResource ToolbarComboBoxStyle}"/>
+      <Label Content="Building:" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
       <!-- Building dropdown with search capability -->
-      <ComboBox Name="BuildingDropdown" Width="100" Margin="5,0" IsEditable="True" IsTextSearchEnabled="True"/>
-      <Label Content="Room:" VerticalAlignment="Center" Foreground="White"/>
+      <ComboBox Name="BuildingDropdown" Width="100" Margin="5,0" IsEditable="True" IsTextSearchEnabled="True" Style="{DynamicResource ToolbarComboBoxStyle}"/>
+      <Label Content="Room:" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
       <!-- Room dropdown with search capability -->
-      <ComboBox Name="RoomDropdown" Width="80" Margin="5,0" IsEditable="True" IsTextSearchEnabled="True"/>
+      <ComboBox Name="RoomDropdown" Width="80" Margin="5,0" IsEditable="True" IsTextSearchEnabled="True" Style="{DynamicResource ToolbarComboBoxStyle}"/>
+      <Label Content="Theme:" VerticalAlignment="Center" Margin="15,0,0,0" Style="{DynamicResource ToolbarLabelStyle}"/>
+      <ComboBox Name="ThemeSelector" Width="170" Margin="5,0" IsEditable="False" Style="{DynamicResource ToolbarComboBoxStyle}"/>
 
       <!-- Show command buttons moved to their own row -->
     </StackPanel>
@@ -45,16 +47,16 @@
     <Grid Grid.Row="1" Margin="5">
       <!-- Use Margin instead of Padding on StackPanel. Padding is not supported on StackPanel in WPF.
            The surrounding Grid already provides margin spacing. -->
-      <StackPanel Orientation="Horizontal" Background="#001F3F" Margin="5,0,5,0">
-        <Label Content="Show Commands:" VerticalAlignment="Center" Foreground="White" Margin="0,0,10,0"/>
-        <Button Name="ShowCiscoButton" Content="Cisco" Width="90" Margin="0,0,5,0" Background="#FFD700" Foreground="Black" ToolTip="Copy Cisco show commands to clipboard"/>
-        <Button Name="ShowBrocadeButton" Content="Brocade" Width="100" Margin="0,0,5,0" Background="#FFD700" Foreground="Black" ToolTip="Copy Brocade show commands to clipboard"/>
+      <StackPanel Orientation="Horizontal" Background="{DynamicResource Theme.Toolbar.Background}" Margin="5,0,5,0">
+        <Label Content="Show Commands:" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}" Margin="0,0,10,0"/>
+        <Button Name="ShowCiscoButton" Content="Cisco" Width="90" Margin="0,0,5,0" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Copy Cisco show commands to clipboard"/>
+        <Button Name="ShowBrocadeButton" Content="Brocade" Width="100" Margin="0,0,5,0" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Copy Brocade show commands to clipboard"/>
         <!-- Dropdown to select the Brocade OS version.  Values are populated at runtime
              from ShowCommands.json via Set-ShowCommandsOSVersions.  Provide a blank
              ComboBox here so the code-behind can bind the list of versions. -->
-        <ComboBox Name="BrocadeOSDropdown" Width="110" Margin="0,0,5,0"/>
+        <ComboBox Name="BrocadeOSDropdown" Width="110" Margin="0,0,5,0" Style="{DynamicResource ToolbarComboBoxStyle}"/>
         <!-- Help button opens a window containing documentation for each section of the GUI -->
-        <Button Name="HelpButton" Content="Help" Width="60" Margin="0,0,0,0" Background="#FFD700" Foreground="Black" ToolTip="Open help documentation"/>
+        <Button Name="HelpButton" Content="Help" Width="60" Margin="0,0,0,0" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Open help documentation"/>
         <!-- Compare configs button removed; comparison is launched from the Interfaces tab -->
       </StackPanel>
     </Grid>
@@ -91,9 +93,16 @@
         <!-- Add more tabs here -->
       </TabControl>
       <!-- Compare sidebar occupies the second column and hosts the compare view.  It is hidden by default by setting the column width to zero. -->
-      <Border Grid.Column="1" Background="#F7FAFC" Padding="5">
+      <Border Grid.Column="1" Background="{DynamicResource Theme.Surface.Secondary}" Padding="5">
         <ContentControl Name="CompareHost"/>
       </Border>
     </Grid>
   </Grid>
 </Window>
+
+
+
+
+
+
+
