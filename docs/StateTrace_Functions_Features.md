@@ -16,7 +16,7 @@
 ## Data Stores & Core Caches
 - `Data/*.accdb`: per-site Access databases with `DeviceSummary`, `Interfaces`, and history tables created/maintained by `DatabaseModule` + `ParserWorker`.
 - `Logs/`: diagnostic log output when `$Global:StateTraceDebug` is set; driven by `Write-Diag`.
-- In-memory globals: `DeviceMetadata` (host -> site/zone/building/room), `DeviceInterfaceCache` (hostname -> interface list), `AllInterfaces` (filtered working set), `AlertsList`, `TemplatesCache`, `TemplatesByName`.
+- In-memory globals: `DeviceMetadata` (host -> site/zone/building/room), `DeviceInterfaceCache` (hostname -> interface list), `AllInterfaces` (filtered working set), `AlertsList`. Template JSON caching now lives inside `TemplatesModule` (`ConfigurationTemplateCache`).
 - `ParsedData/`: transient CSV fallback when a database is missing; cleaned on exit in `Main/MainWindow.ps1`.
 ## Main Application Shell
 
@@ -76,7 +76,7 @@
   - `Modules/DeviceDataModule.psm1:2126` `Update-SearchGrid` - orchestrates search grid refresh after user input.
 - **Interface metadata & templates**
   - `Modules/DeviceDataModule.psm1:2205` `Get-InterfaceHostnames` - returns device names for filters and Compare view (using DB or metadata as available).
-  - `Modules/DeviceDataModule.psm1:2231` `Get-ConfigurationTemplates` - loads vendor template JSON, caches per vendor, and returns user-facing template entries.
+  - `Modules/TemplatesModule.psm1:310` `Get-ConfigurationTemplates` - resolves the active vendor, pulls names from the centralized cache, and returns the available configuration templates for UI dropdowns.
   - `Modules/DeviceDataModule.psm1:1683` `Get-InterfaceInfo` - thin wrapper over `DeviceRepositoryModule\Get-InterfaceInfo` (repo handles enrichment + caching).
   - `Modules/DeviceDataModule.psm1:1692` `Get-InterfaceConfiguration` - forwards to `DeviceRepositoryModule\Get-InterfaceConfiguration`; repository performs template merge while the DeviceData module keeps the public signature.
 ### `Modules/DeviceRepositoryModule.psm1`
@@ -97,7 +97,7 @@
 - `Modules/InterfaceModule.psm1:481` `Compare-InterfaceConfigs` - produces diff output between two port configs for display in Compare view.
 - `Modules/InterfaceModule.psm1:497` `Get-InterfaceConfiguration` - wrapper around `DeviceDataModule::Get-InterfaceConfiguration`.
 - `Modules/InterfaceModule.psm1:515` `Get-SpanningTreeInfo` - fetches parsed spanning tree rows (backed by DB/history) for the SPAN tab.
-- `Modules/InterfaceModule.psm1:538` `Get-ConfigurationTemplates` - re-exposes template retrieval.
+- `Modules/InterfaceModule.psm1:538` `Get-ConfigurationTemplates` - forwards to `TemplatesModule` so the Interfaces view uses the shared cache.
 - `Modules/InterfaceModule.psm1:552` `New-InterfacesView` - loads Interfaces tab XAML, wires filter debounce, config dropdown binding, copy button, and integrates with Compare selection.
 ### `Modules/CompareViewModule.psm1`
 - `Modules/CompareViewModule.psm1:25` `Resolve-CompareControls` - caches references to Compare view dropdowns, textboxes, and labels after XAML load.
@@ -159,6 +159,7 @@
 - `Views/AlertsView.xaml` - Alerts DataGrid and export button for down/unauthorised interfaces.
 - `Views/HelpWindow.xaml` - Modal documentation for UI sections, opened from the main Help button.
 ## Templates & Configuration Assets
+- `Modules/TemplatesModule.psm1:300` `Get-ConfigurationTemplateData` - supplies cached template objects and lookup dictionaries for repository/device modules.
 - `Templates/Cisco.json`, `Templates/Brocade.json` - port configuration templates used by `Get-ConfigurationTemplates` and Interfaces tab suggestions.
 - `Templates/ShowCommands.json` - vendor/OS show command definitions backing clipboard buttons and default Brocade OS selection.
 - Template editing UI in `TemplatesViewModule` writes directly to these files; caches in `DeviceDataModule` and `TemplatesModule` refresh on timestamp changes.
@@ -195,11 +196,4 @@
 - Update this directory whenever new modules, functions, or significant behaviours are added.
 - Before modifying a function, review the dependent modules listed above to avoid breaking UI flows or parser pipelines.
 - When refactoring, confirm that caches (`DeviceInterfaceCache`, `DeviceMetadata`, `AllInterfaces`) and event wiring still function end-to-end by running a parser cycle and exercising each tab.
-
-
-
-
-
-
-
 

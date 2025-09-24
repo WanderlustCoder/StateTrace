@@ -37,6 +37,7 @@
 ## Documentation & Logging Duties
 - Record noteworthy architectural changes in the relevant doc(s) under `docs/` and append migration notes to `AIworkLog.docx` if instructed by the task.
 - When introducing new modules or tokens, extend `docs/StateTrace_Functions_Features.md` and the appropriate refactor plan checklists.
+- When functions or features are created, removed, or moved, update `docs/StateTrace_Functions_Features.md` to stay in sync.
 - Keep log verbosity toggled via `$Global:StateTraceDebug`; do not leave debug logging permanently enabled.
 
 ## When in Doubt

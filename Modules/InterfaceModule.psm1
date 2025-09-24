@@ -41,12 +41,6 @@ function Get-SelectedInterfaceRows {
 $script:InterfacesViewXamlDefault = Join-Path $PSScriptRoot '..\Views\InterfacesView.xaml'
 
 
-if (-not (Get-Variable -Name TemplatesCache -Scope Script -ErrorAction SilentlyContinue)) {
-    $script:TemplatesCache = @{}
-}
-if (-not (Get-Variable -Name TemplatesByName -Scope Script -ErrorAction SilentlyContinue)) {
-    $script:TemplatesByName = @{}
-}
 if (-not (Get-Variable -Name InterfaceDataDir -Scope Script -ErrorAction SilentlyContinue)) {
     try {
         $parentDir = Split-Path -Parent $PSScriptRoot
@@ -260,46 +254,20 @@ function New-InterfaceObjectsFromDbRow {
         }
     }
     # Retrieve compliance templates for this vendor.  Avoid repeatedly reading
-    # JSON from disk by caching the parsed templates per vendor.  When the
-    # cache does not contain an entry, read from the appropriate .json file,
-    # convert it, and store it for future calls.  Afterwards, build the
-    # $script:TemplatesByName index for O(1) lookups by template name.  Use
-    # -AsString to ensure the hash table uses string keys consistently.
-    $templates = $null
+    # Retrieve templates via TemplatesModule so caching stays centralized and per-vendor lookups stay consistent.
+    # The module caches and normalizes names/aliases for downstream dictionary access.
+    $templates = @()
+    $templatesByName = $null
     try {
-        $vendorFile = if ($vendor -eq 'Cisco') { 'Cisco.json' } else { 'Brocade.json' }
-        $jsonFile   = Join-Path $TemplatesPath $vendorFile
-        # Ensure the templates cache exists.  Without this, lookups on
-        # $script:TemplatesCache would throw.  Note: the cache lives in
-        # script scope and persists across calls.
-        if (-not $script:TemplatesCache) { $script:TemplatesCache = @{} }
-        if ($script:TemplatesCache.ContainsKey($vendor)) {
-            $templates = $script:TemplatesCache[$vendor]
-        } else {
-            if (Test-Path $jsonFile) {
-                $tmplJson = Get-Content $jsonFile -Raw | ConvertFrom-Json
-                if ($tmplJson -and $tmplJson.PSObject.Properties['templates']) {
-                    $templates = $tmplJson.templates
-                } else {
-                    $templates = @()
-                }
-                $script:TemplatesCache[$vendor] = $templates
-            } else {
-                $templates = @()
-            }
+        $templateData = TemplatesModule\Get-ConfigurationTemplateData -Vendor $vendor -TemplatesPath $TemplatesPath
+        if ($templateData) {
+            $templates = $templateData.Templates
+            $templatesByName = $templateData.Lookup
         }
-        # Build name â†’ template(s) index on each call so that
-        # Get-InterfaceConfiguration can look up a template by name in O(1) time.
-        try {
-            if ($templates) {
-                $script:TemplatesByName = $templates | Group-Object -Property name -AsHashTable -AsString
-            } else {
-                $script:TemplatesByName = @{}
-            }
-        } catch {
-            $script:TemplatesByName = @{}
-        }
-    } catch {}
+    } catch {
+        $templates = @()
+        $templatesByName = $null
+    }
     # Normalise $Data into an enumerable collection of rows.  Support DataTable,
     $rows = @()
     if ($Data -is [System.Data.DataTable]) {
@@ -315,20 +283,10 @@ function New-InterfaceObjectsFromDbRow {
     $resultList = New-Object 'System.Collections.Generic.List[object]'
 
     # Precompute a lookup table for compliance templates when available.  When
-    $templateLookup = New-Object 'System.Collections.Generic.Dictionary[string,object]' ([System.StringComparer]::OrdinalIgnoreCase)
-    if ($templates) {
-        foreach ($tmpl in $templates) {
-            # Add the primary name as-is.  The dictionary key comparer will treat
-            $key = ('' + $tmpl.name)
-            if (-not $templateLookup.ContainsKey($key)) { $templateLookup[$key] = $tmpl }
-            # Add each alias as a separate key.  Guard against null alias lists.
-            if ($tmpl.aliases) {
-                foreach ($a in $tmpl.aliases) {
-                    $aliasKey = ('' + $a)
-                    if (-not $templateLookup.ContainsKey($aliasKey)) { $templateLookup[$aliasKey] = $tmpl }
-                }
-            }
-        }
+    $templateLookup = if ($templatesByName) {
+        $templatesByName
+    } else {
+        New-Object 'System.Collections.Generic.Dictionary[string,object]' ([System.StringComparer]::OrdinalIgnoreCase)
     }
     foreach ($row in $rows) {
         if (-not $row) { continue }
@@ -382,7 +340,7 @@ function New-InterfaceObjectsFromDbRow {
                 } elseif ($authTemplate) {
                     $cfgStatusVal = 'Mismatch'
                 } else {
-                    # When no template information exists, fall back to Unknown for consistency with Getâ€‘DeviceDetails.
+                    # When no template information exists, fall back to Unknown for consistency with Get-DeviceDetails.
                     $cfgStatusVal = 'Unknown'
                 }
             }
@@ -806,5 +764,7 @@ function New-InterfacesView {
 }
 
 Export-ModuleMember -Function Get-PortSortKey,Get-InterfaceHostnames,Get-InterfaceInfo,Get-InterfaceList,New-InterfaceObjectsFromDbRow,Compare-InterfaceConfigs,Get-InterfaceConfiguration,Get-ConfigurationTemplates,Get-SpanningTreeInfo,New-InterfacesView
+
+
 
 

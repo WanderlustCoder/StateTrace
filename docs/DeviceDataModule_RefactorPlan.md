@@ -55,7 +55,7 @@
 | `Update-Summary` | `DeviceInsightsModule` (Summary service) | Complete | Summary computation delegated to DeviceInsightsModule; existing UI updates continue through wrappers. |
 | `Update-Alerts` | `DeviceInsightsModule` (Alerts service) | Complete | Alerts list now generated in DeviceInsightsModule with DeviceDataModule forwarding results to the view. |
 | `Get-PortSortKey` | `InterfaceModule` | In flight | Core logic runs from InterfaceModule; remove DeviceDataModule wrapper once imports update. |
-| `Get-ConfigurationTemplates` | `TemplatesModule` | In flight | Implementation still lives in DeviceDataModule; relocate logic and keep InterfaceModule wrapper as forwarder. |
+| `Get-ConfigurationTemplates` | `TemplatesModule` | Complete | Function and caching now live in TemplatesModule; DeviceDataModule delegates and shared lookups consume the centralized helper. |
 | `Get-SqlLiteral` | `DatabaseModule` | In flight | DatabaseModule owns implementation; drop DeviceDataModule wrapper after callers import DatabaseModule directly. |
 | DeviceDataModule export wrappers | Temporary compatibility layer | Planned | Remove wrappers and legacy exports once downstream modules import new services directly. |
 
@@ -127,22 +127,22 @@
 | DeviceDataModule retirement | Core maintainers | Compatibility wrappers removed, manifest updated, module deleted | All other workstreams complete | Pending |
 
 ## Timeline & Milestones
-1. **Phase 0 – Foundations (Complete)**
+1. **Phase 0 - Foundations (Complete)**
    - New module shells created and repository cache/helpers migrated.
    - Wrapper exports in place to keep UI functioning.
 
-2. **Phase 1 – Data services (Target: Week 1 after plan sign-off)**
+2. **Phase 1 - Data services (Target: Week 1 after plan sign-off)**
    - `Invoke-ParallelDbQuery` migration, catalog metadata load implemented, basic tests passing.
 
-3. **Phase 2 – UI state & details (Target: Week 2)**
+3. **Phase 2 - UI state & details (Target: Week 2)**
    - Filter state API adopted by `MainWindow`.
    - Device details DTOs driving UI without direct DeviceDataModule calls.
 
-4. **Phase 3 – Analytics & templates (Target: Week 3)**
+4. **Phase 3 - Analytics & templates (Target: Week 3)**
    - Search/Summary/Alerts logic extracted.
    - Template consolidation complete with regression validation.
 
-5. **Phase 4 – Decommissioning (Target: Week 4)**
+5. **Phase 4 - Decommissioning (Target: Week 4)**
    - Wrappers removed, module manifest updated, documentation refreshed.
    - Final regression pass and release communication.
 
@@ -212,7 +212,10 @@
 - [x] Filter state API exposed from `FilterStateModule.psm1`; MainWindow now calls filter fault helpers.
 - [x] Device details aggregation moved to `DeviceDetailsModule.psm1` with DTO outputs consumed by UI (DeviceDataModule now delegates).
 - [x] Search/Summary/Alerts logic extracted into `DeviceInsightsModule.psm1` (DeviceDataModule wrappers delegate; additional regression coverage still pending).
-- [ ] `Get-ConfigurationTemplates` relocated to `TemplatesModule.psm1` and redundant caches removed.
+- [x] `Get-ConfigurationTemplates` relocated to `TemplatesModule.psm1` and redundant caches removed.
 - [ ] DeviceDataModule wrappers removed and module retired from `ModulesManifest.psd1`.
+
+
+
 
 

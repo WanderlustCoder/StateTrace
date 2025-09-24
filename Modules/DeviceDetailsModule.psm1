@@ -1,12 +1,5 @@
 Set-StrictMode -Version Latest
 
-if (-not (Get-Variable -Scope Script -Name TemplatesCache -ErrorAction SilentlyContinue)) {
-    $script:TemplatesCache = @{}
-}
-if (-not (Get-Variable -Scope Script -Name TemplatesByName -ErrorAction SilentlyContinue)) {
-    $script:TemplatesByName = @{}
-}
-
 function Get-DeviceDetailsData {
     [CmdletBinding()]
     param(
@@ -41,7 +34,7 @@ function Get-DeviceDetailsData {
     if (-not $dto.Interfaces) { $dto.Interfaces = @() }
 
     try {
-        $dto.Templates = Get-DeviceConfigurationTemplates -Hostname $hostTrim -DatabasePath $dbPath -TemplatesPath $TemplatesPath
+        $dto.Templates = TemplatesModule\\Get-ConfigurationTemplates -Hostname $hostTrim -DatabasePath $dbPath -TemplatesPath $TemplatesPath
     } catch {
         $dto.Templates = @()
     }
@@ -251,73 +244,9 @@ function Get-DeviceVendorFromSummary {
     return $vendor
 }
 
-function Get-DeviceConfigurationTemplates {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][string]$Hostname,
-        [string]$TemplatesPath = (Join-Path $PSScriptRoot '..\Templates'),
-        [string]$DatabasePath
-    )
 
-    $hostTrim = ('' + $Hostname).Trim()
-    if ([string]::IsNullOrWhiteSpace($hostTrim)) { return @() }
+Export-ModuleMember -Function Get-DeviceDetailsData
 
-    $dbPath = $DatabasePath
-    if (-not $dbPath) {
-        try { $dbPath = DeviceRepositoryModule\Get-DbPathForHost -Hostname $hostTrim } catch { $dbPath = $null }
-    }
-    if (-not $dbPath -or -not (Test-Path -LiteralPath $dbPath)) { return @() }
 
-    try { DeviceRepositoryModule\Import-DatabaseModule } catch {}
 
-    $vendor = Get-DeviceVendorFromSummary -Hostname $hostTrim -DatabasePath $dbPath
-    $jsonFile = Join-Path $TemplatesPath ("{0}.json" -f $vendor)
-    if (-not (Test-Path -LiteralPath $jsonFile)) { return @() }
 
-    if (-not $script:TemplatesCache) { $script:TemplatesCache = @{} }
-    if (-not $script:TemplatesCache.ContainsKey($vendor)) {
-        $templates = @()
-        try {
-            $json = Get-Content -LiteralPath $jsonFile -Raw
-            $parsed = ConvertFrom-Json $json
-            if ($parsed -and $parsed.PSObject.Properties['templates']) {
-                $templates = $parsed.templates
-            }
-        } catch {
-            $templates = @()
-        }
-        $script:TemplatesCache[$vendor] = $templates
-    }
-    $templates = $script:TemplatesCache[$vendor]
-
-    try {
-        if ($templates) {
-            $script:TemplatesByName = $templates | Group-Object -Property name -AsHashTable -AsString
-        } else {
-            $script:TemplatesByName = @{}
-        }
-    } catch {
-        $script:TemplatesByName = @{}
-    }
-
-    if (-not $templates) { return @() }
-
-    $names = New-Object 'System.Collections.Generic.List[object]'
-    foreach ($tmpl in $templates) {
-        if ($null -eq $tmpl) { continue }
-        $nameVal = $null
-        try {
-            if ($tmpl -is [hashtable]) {
-                if ($tmpl.ContainsKey('name')) { $nameVal = '' + $tmpl['name'] }
-            } elseif ($tmpl.PSObject.Properties['name']) {
-                $nameVal = '' + $tmpl.name
-            }
-        } catch { $nameVal = $null }
-        if ([string]::IsNullOrWhiteSpace($nameVal)) { continue }
-        [void]$names.Add($nameVal)
-    }
-
-    return $names.ToArray()
-}
-
-Export-ModuleMember -Function Get-DeviceDetailsData, Get-DeviceConfigurationTemplates

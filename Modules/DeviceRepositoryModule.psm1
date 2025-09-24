@@ -17,14 +17,6 @@ if (-not (Get-Variable -Scope Script -Name SiteInterfaceCache -ErrorAction Silen
     $script:SiteInterfaceCache = @{}
 }
 
-if (-not (Get-Variable -Scope Script -Name TemplatesCache -ErrorAction SilentlyContinue)) {
-    $script:TemplatesCache = @{}
-}
-
-if (-not (Get-Variable -Scope Script -Name TemplatesByName -ErrorAction SilentlyContinue)) {
-    $script:TemplatesByName = @{}
-}
-
 if (-not (Get-Variable -Scope Global -Name DeviceInterfaceCache -ErrorAction SilentlyContinue)) {
     $global:DeviceInterfaceCache = @{}
 }
@@ -387,32 +379,16 @@ ORDER BY i.Hostname, i.Port
             if ($enum) {
                 $lookupByVendor = @{}
                 try {
-                    if (-not $script:TemplatesCache) { $script:TemplatesCache = @{} }
+                    $templatesDir = Join-Path $PSScriptRoot '..\Templates'
                     foreach ($vendorName in @('Cisco', 'Brocade')) {
-                        $tmplList = $null
-                        if ($script:TemplatesCache.ContainsKey($vendorName)) {
-                            $tmplList = $script:TemplatesCache[$vendorName]
-                        } else {
-                            $tmplFile = Join-Path (Join-Path $PSScriptRoot '..\Templates') ("$vendorName.json")
-                            if (Test-Path $tmplFile) {
-                                $tmplJson = Get-Content $tmplFile -Raw | ConvertFrom-Json
-                                if ($tmplJson -and $tmplJson.PSObject.Properties['templates']) {
-                                    $tmplList = $tmplJson.templates
-                                }
-                            }
-                            if ($tmplList) { $script:TemplatesCache[$vendorName] = $tmplList }
+                        $templateData = $null
+                        try {
+                            $templateData = TemplatesModule\Get-ConfigurationTemplateData -Vendor $vendorName -TemplatesPath $templatesDir
+                        } catch {
+                            $templateData = $null
                         }
-                        if ($tmplList) {
-                            $lookup = @{}
-                            foreach ($tmpl in $tmplList) {
-                                if ($tmpl.name) { $lookup[$tmpl.name] = $tmpl }
-                                if ($tmpl.aliases) {
-                                    foreach ($alias in $tmpl.aliases) {
-                                        if ($alias) { $lookup[$alias] = $tmpl }
-                                    }
-                                }
-                            }
-                            $lookupByVendor[$vendorName] = $lookup
+                        if ($templateData -and $templateData.Exists -and $templateData.Lookup) {
+                            $lookupByVendor[$vendorName] = $templateData.Lookup
                         }
                     }
                 } catch {}
@@ -715,47 +691,13 @@ function Get-InterfaceConfiguration {
                 }
             }
         } catch {}
-        $jsonFile = Join-Path $TemplatesPath "${vendor}.json"
-        if (-not (Test-Path $jsonFile)) { throw "Template file missing: $jsonFile" }
-
-        # Ensure the templates cache exists.  Use a script‑scoped cache keyed by vendor.
-        if (-not $script:TemplatesCache) { $script:TemplatesCache = @{} }
-
-        # Retrieve the templates from the cache when available; otherwise
-        # read from disk and update the cache.  This avoids repeated JSON
-        # parsing and file I/O.
-        $templates = $null
-        if ($script:TemplatesCache.ContainsKey($vendor)) {
-            $templates = $script:TemplatesCache[$vendor]
-        } else {
-            $tmplJson = Get-Content $jsonFile -Raw | ConvertFrom-Json
-            if ($tmplJson -and $tmplJson.PSObject.Properties['templates']) {
-                $templates = $tmplJson.templates
-            } else {
-                $templates = @()
-            }
-            $script:TemplatesCache[$vendor] = $templates
-        }
-
-        # Build or update the name→template index for this vendor.  This
-        # ensures that lookups by template name are O(1).  If an error
-        # occurs, reset the index to an empty hash table.
-        try {
-            if ($templates) {
-                $script:TemplatesByName = $templates | Group-Object -Property name -AsHashTable -AsString
-            } else {
-                $script:TemplatesByName = @{}
-            }
-        } catch {
-            $script:TemplatesByName = @{}
-        }
-
-        # Look up the requested template using the prebuilt index.  If not
-        # found, throw an informative error.
-        $tmpl = if ($script:TemplatesByName -and $script:TemplatesByName.ContainsKey($TemplateName)) {
-            $script:TemplatesByName[$TemplateName] | Select-Object -First 1
-        } else {
-            $null
+        $templateData = TemplatesModule\Get-ConfigurationTemplateData -Vendor $vendor -TemplatesPath $TemplatesPath
+        if (-not $templateData.Exists) { throw "Template file missing: $($templateData.Path)" }
+        $templates = $templateData.Templates
+        $templateLookup = $templateData.Lookup
+        $tmpl = $null
+        if ($templateLookup -and $templateLookup.ContainsKey($TemplateName)) {
+            $tmpl = $templateLookup[$TemplateName]
         }
         if (-not $tmpl) { throw "Template '$TemplateName' not found in ${vendor}.json" }
         # --- Batched query instead of N+1 per-port lookups ---
@@ -960,5 +902,6 @@ ORDER BY i.Hostname, i.Port
     }
 }
 Export-ModuleMember -Function Get-DataDirectoryPath, Get-SiteFromHostname, Get-DbPathForSite, Get-DbPathForHost, Get-AllSiteDbPaths, Clear-SiteInterfaceCache, Update-SiteZoneCache, Update-GlobalInterfaceList, Get-InterfacesForSite, Get-InterfaceInfo, Get-InterfaceConfiguration, Get-InterfacesForHostsBatch, Invoke-ParallelDbQuery, Import-DatabaseModule
+
 
 
