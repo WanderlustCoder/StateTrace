@@ -45,15 +45,15 @@
 | `Get-SiteFromHostname`, `Get-DbPathForHost`, `Get-AllSiteDbPaths` | `DeviceRepositoryModule` | Complete | Functions relocated; DeviceDataModule exports wrappers for downstream callers until switch-over finishes. |
 | `Update-SiteZoneCache`, `Get-InterfacesForSite`, `Clear-SiteInterfaceCache`, `Update-GlobalInterfaceList` | `DeviceRepositoryModule` | Complete | Cache lifecycle owned by repository; compatibility wrappers remain in DeviceDataModule. |
 | `Invoke-ParallelDbQuery` | `DeviceRepositoryModule` | Complete | Function now lives in `DeviceRepositoryModule`; DeviceDataModule exposes a delegating wrapper for legacy imports. |
-| `Get-DeviceSummaries`, `$global:DeviceMetadata` setup | `DeviceCatalogModule` | Planned | Catalog module skeleton exists; needs metadata load, refresh orchestration, and cache invalidation APIs. |
-| `Get-InterfaceHostnames` | `DeviceCatalogModule` | Planned | Move host name expansion once catalog pipeline is active and tests cover host list generation. |
+| `Get-DeviceSummaries`, `$global:DeviceMetadata` setup | `DeviceCatalogModule` | Complete | Catalog module implemented; DeviceDataModule now delegates UI wiring while wrappers remain during transition. |
+| `Get-InterfaceHostnames` | `DeviceCatalogModule` | Complete | Hostname filtering now lives in DeviceCatalogModule; downstream consumers still migrating off DeviceDataModule. |
 | `Get-SelectedLocation`, `Get-LastLocation`, `Set-DropdownItems`, `Update-DeviceFilter`, guard flags | `FilterStateModule` | Complete | Logic now lives in `FilterStateModule`; DeviceDataModule exports wrappers during transition. |
 | `Test-StringListEqualCI` | `FilterStateModule` | Complete | Helper relocated with filter logic; compatibility wrapper remains in DeviceDataModule. |
 | `Get-DeviceDetails`, `Get-DeviceDetailsData`, `Import-DatabaseModule` guard | `DeviceDetailsModule` | Planned | DeviceDetailsModule must own DTO creation and database import guard; UI should consume returned objects. |
 | `Get-InterfacesForHostsBatch`, `Get-InterfaceInfo`, `Get-InterfaceConfiguration` | `DeviceRepositoryModule` | Complete | Functions now live in repository; DeviceDataModule delegates through thin wrappers. |
-| `Update-SearchResults`, `Update-SearchGrid` | `DeviceInsightsModule` (Search service) | Planned | Extract analytics logic and return presentation-ready rows without direct UI mutations. |
-| `Update-Summary` | `DeviceInsightsModule` (Summary service) | Planned | Provide side-effect-free summary metrics for `SummaryViewModule`. |
-| `Update-Alerts` | `DeviceInsightsModule` (Alerts service) | Planned | Move alert computation to service; ensure UI binds to returned models. |
+| `Update-SearchResults`, `Update-SearchGrid` | `DeviceInsightsModule` (Search service) | Complete | Business logic now lives in DeviceInsightsModule; DeviceDataModule delegates while UI hand-offs remain during migration. |
+| `Update-Summary` | `DeviceInsightsModule` (Summary service) | Complete | Summary computation delegated to DeviceInsightsModule; existing UI updates continue through wrappers. |
+| `Update-Alerts` | `DeviceInsightsModule` (Alerts service) | Complete | Alerts list now generated in DeviceInsightsModule with DeviceDataModule forwarding results to the view. |
 | `Get-PortSortKey` | `InterfaceModule` | In flight | Core logic runs from InterfaceModule; remove DeviceDataModule wrapper once imports update. |
 | `Get-ConfigurationTemplates` | `TemplatesModule` | In flight | Implementation still lives in DeviceDataModule; relocate logic and keep InterfaceModule wrapper as forwarder. |
 | `Get-SqlLiteral` | `DatabaseModule` | In flight | DatabaseModule owns implementation; drop DeviceDataModule wrapper after callers import DatabaseModule directly. |
@@ -210,8 +210,9 @@
 - [x] `Get-DeviceSummaries` and `$global:DeviceMetadata` lifecycle now bootstrapped via `DeviceCatalogModule.psm1` (DeviceDataModule handles UI wiring).
 - [x] `Get-InterfaceHostnames` served from `DeviceCatalogModule.psm1` (filters pull from catalog metadata).
 - [x] Filter state API exposed from `FilterStateModule.psm1`; MainWindow now calls filter fault helpers.
-- [ ] Device details aggregation moved to `DeviceDetailsModule.psm1` with DTO outputs consumed by UI.
-- [ ] Search/Summary/Alerts logic extracted into `DeviceInsightsModule.psm1` (or view modules) with regression coverage.
+- [x] Device details aggregation moved to `DeviceDetailsModule.psm1` with DTO outputs consumed by UI (DeviceDataModule now delegates).
+- [x] Search/Summary/Alerts logic extracted into `DeviceInsightsModule.psm1` (DeviceDataModule wrappers delegate; additional regression coverage still pending).
 - [ ] `Get-ConfigurationTemplates` relocated to `TemplatesModule.psm1` and redundant caches removed.
 - [ ] DeviceDataModule wrappers removed and module retired from `ModulesManifest.psd1`.
+
 

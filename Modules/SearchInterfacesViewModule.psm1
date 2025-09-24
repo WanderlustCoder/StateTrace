@@ -38,7 +38,7 @@ function New-SearchInterfacesView {
     # Promote search box to the global scope so that its Text property can be
     if ($searchBox) { $global:searchBox = $searchBox }
     # Initialise regex flag
-    $script:SearchRegexEnabled = $false
+    DeviceInsightsModule\Set-SearchRegexEnabled -Enabled:$false
     # Clear button resets the search box and refreshes
     if ($searchClearBtn -and $searchBox) {
         $searchClearBtn.Add_Click({
@@ -70,11 +70,11 @@ function New-SearchInterfacesView {
     # Regex checkbox toggles global flag and refreshes
     if ($regexCheckbox) {
         $regexCheckbox.Add_Checked({
-            $script:SearchRegexEnabled = $true
+            DeviceInsightsModule\Set-SearchRegexEnabled -Enabled:$true
             if (Get-Command Update-SearchGrid -ErrorAction SilentlyContinue) { Update-SearchGrid }
         })
         $regexCheckbox.Add_Unchecked({
-            $script:SearchRegexEnabled = $false
+            DeviceInsightsModule\Set-SearchRegexEnabled -Enabled:$false
             if (Get-Command Update-SearchGrid -ErrorAction SilentlyContinue) { Update-SearchGrid }
         })
     }
