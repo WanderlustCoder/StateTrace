@@ -7,7 +7,7 @@
 ## Workstream 1 – CompareView module cleanup
 1. [x] Diff the duplicate function sets (`Resolve-CompareControls`, `Get-HostString`, `Get-HostsFromMain`, `Set-PortsForCombo`, `Get-GridRowFor`, `Get-PortSortKey`, `Get-PortsForHost`, `Get-AuthTemplateFromTooltip`, `Show-CurrentComparison`, `Update-CompareView`, `Get-CompareHandlers`, `Set-CompareSelection`) to confirm there are no behavioral discrepancies and pick the canonical version (2025-09-24).
 2. [x] Remove the redundant copy and ensure all internal references point to the surviving definitions; consider splitting shared helpers into a dedicated script block for clarity (completed with deduplicated module layout).
-3. [ ] Add focused tests (Pester or integration smoke) that load `CompareViewModule` and exercise the compare workflow to guard against regression when pruning duplicates.
+3. [x] Add focused tests (Pester or integration smoke) that load `CompareViewModule` and exercise the compare workflow to guard against regression when pruning duplicates.
 
 ## Workstream 2 – Shared hostname/site helpers
 1. Promote `Get-SiteFromHostname` in `Modules/DeviceRepositoryModule.psm1` as the canonical helper and extend it to cover the additional cases handled today by `Modules/ParserWorker.psm1` (e.g., `SSH@` prefixes, fallback substring logic).
