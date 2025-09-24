@@ -48,11 +48,28 @@ function Get-DataDirectoryPath {
 
 function Get-SiteFromHostname {
     [CmdletBinding()]
-    param([string]$Hostname)
-    if (-not $Hostname) { return 'Unknown' }
-    if ($Hostname -match '^(?<site>[^-]+)-') { return $matches['site'] }
-    return $Hostname
+    param(
+        [string]$Hostname,
+        [int]$FallbackLength = 0
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Hostname)) { return 'Unknown' }
+
+    $clean = ('' + $Hostname).Trim()
+    if ($clean -like 'SSH@*') { $clean = $clean.Substring(4) }
+    $clean = $clean.Trim()
+
+    if ($clean -match '^(?<site>[^-]+)-') {
+        return $matches['site']
+    }
+
+    if ($FallbackLength -gt 0 -and $clean.Length -ge $FallbackLength) {
+        return $clean.Substring(0, $FallbackLength)
+    }
+
+    return $clean
 }
+
 
 function Get-DbPathForSite {
     [CmdletBinding()]

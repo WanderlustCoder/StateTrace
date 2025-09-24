@@ -74,7 +74,7 @@
 - `Modules/InterfaceModule.psm1:515` `Get-SpanningTreeInfo` - fetches parsed spanning tree rows (backed by DB/history) for the SPAN tab.
 - `Modules/InterfaceModule.psm1:538` `Get-ConfigurationTemplates` - forwards to `TemplatesModule` so the Interfaces view uses the shared cache.
 - `Modules/InterfaceModule.psm1:776` `Set-InterfaceViewData` - applies device detail DTOs to the Interfaces view (summary fields, grid, template dropdown).
-- `Modules/InterfaceModule.psm1:881` `Get-DeviceDetails` - retrieves device details via `DeviceDetailsModule` and calls `Set-InterfaceViewData`, emitting user-friendly errors on failure.
+- `Modules/DeviceDetailsModule.psm1:3` `Get-DeviceDetails` - returns the device detail DTO via repository/templates services; UI callers invoke `InterfaceModule::Set-InterfaceViewData` (see `Main/MainWindow.ps1:402` `Show-DeviceDetails`).
 - `Modules/InterfaceModule.psm1:552` `New-InterfacesView` - loads Interfaces tab XAML, wires filter debounce, config dropdown binding, copy button, and integrates with Compare selection.
 ### `Modules/CompareViewModule.psm1`
 - `Modules/CompareViewModule.psm1:25` `Resolve-CompareControls` - caches references to Compare view dropdowns, textboxes, and labels after XAML load.

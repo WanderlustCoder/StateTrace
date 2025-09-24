@@ -732,9 +732,6 @@ function New-InterfacesView {
     # ------------------------------
 
 
-
-
-
     # ------------------------------
     if ($templateDropdown) {
         if (-not $script:TemplateThemeHandlerRegistered) {
@@ -878,30 +875,6 @@ function Set-InterfaceViewData {
     } catch {}
 }
 
-function Get-DeviceDetails {
-    [CmdletBinding()]
-    param([Parameter()][string]$Hostname)
-
-    $hostTrim = ('' + $Hostname).Trim()
-    if ([string]::IsNullOrWhiteSpace($hostTrim)) { return }
-
-    $dto = $null
-    try {
-        $dto = DeviceDetailsModule\Get-DeviceDetailsData -Hostname $hostTrim
-    } catch {
-        [System.Windows.MessageBox]::Show("Error loading ${hostTrim}:`n$($_.Exception.Message)")
-        return
-    }
-    if (-not $dto) {
-        [System.Windows.MessageBox]::Show("No device details available for ${hostTrim}.")
-        return
-    }
-
-    Set-InterfaceViewData -DeviceDetails $dto -DefaultHostname $hostTrim
-}
-Export-ModuleMember -Function Get-PortSortKey,Get-InterfaceHostnames,Get-InterfaceInfo,Get-InterfaceList,New-InterfaceObjectsFromDbRow,Compare-InterfaceConfigs,Get-InterfaceConfiguration,Get-ConfigurationTemplates,Get-DeviceDetails,Set-InterfaceViewData,Get-SpanningTreeInfo,New-InterfacesView
-
-
-
+Export-ModuleMember -Function Get-PortSortKey,Get-InterfaceHostnames,Get-InterfaceInfo,Get-InterfaceList,New-InterfaceObjectsFromDbRow,Compare-InterfaceConfigs,Get-InterfaceConfiguration,Get-ConfigurationTemplates,Set-InterfaceViewData,Get-SpanningTreeInfo,New-InterfacesView
 
 

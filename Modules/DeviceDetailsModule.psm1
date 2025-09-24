@@ -1,5 +1,15 @@
 Set-StrictMode -Version Latest
 
+function Get-DeviceDetails {
+    [CmdletBinding()]
+    param([Parameter()][string]$Hostname)
+
+    $hostTrim = ('' + $Hostname).Trim()
+    if ([string]::IsNullOrWhiteSpace($hostTrim)) { return $null }
+
+    Get-DeviceDetailsData -Hostname $hostTrim
+}
+
 function Get-DeviceDetailsData {
     [CmdletBinding()]
     param(
@@ -245,7 +255,7 @@ function Get-DeviceVendorFromSummary {
 }
 
 
-Export-ModuleMember -Function Get-DeviceDetailsData
+Export-ModuleMember -Function Get-DeviceDetails, Get-DeviceDetailsData
 
 
 

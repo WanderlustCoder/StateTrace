@@ -50,14 +50,14 @@
 | `Get-InterfaceHostnames` | `DeviceCatalogModule` | Complete | Hostname filtering now lives in DeviceCatalogModule; consumers updated to call the catalog directly. |
 | `Get-SelectedLocation`, `Get-LastLocation`, `Set-DropdownItems`, `Update-DeviceFilter`, guard flags | `FilterStateModule` | Complete | Logic now lives in `FilterStateModule`; DeviceDataModule retired after migration. |
 | `Test-StringListEqualCI` | `FilterStateModule` | Complete | Helper relocated with filter logic; DeviceDataModule wrapper removed. |
-| `Get-DeviceDetails`, `Get-DeviceDetailsData`, `Import-DatabaseModule` guard | `DeviceDetailsModule` | Planned | DeviceDetailsModule must own DTO creation and database import guard; UI should consume returned objects. |
+| `Get-DeviceDetails`, `Get-DeviceDetailsData`, `Import-DatabaseModule` guard | `DeviceDetailsModule` | Complete | Retrieval helpers now live in `DeviceDetailsModule`; `MainWindow::Show-DeviceDetails` applies UI updates using `Set-InterfaceViewData`. |
 | `Get-InterfacesForHostsBatch`, `Get-InterfaceInfo`, `Get-InterfaceConfiguration` | `DeviceRepositoryModule` | Complete | Functions now live in repository; DeviceDataModule retirement removed the compatibility layer. |
 | `Update-SearchResults`, `Update-SearchGrid` | `DeviceInsightsModule` (Search service) | Complete | Business logic now lives in DeviceInsightsModule; UI modules call the service directly post-DeviceDataModule retirement. |
 | `Update-Summary` | `DeviceInsightsModule` (Summary service) | Complete | Summary computation delegated to DeviceInsightsModule; UI updates now call the service directly without wrappers. |
 | `Update-Alerts` | `DeviceInsightsModule` (Alerts service) | Complete | Alerts list now generated in DeviceInsightsModule; UI binds to the returned objects without DeviceDataModule. |
-| `Get-PortSortKey` | `InterfaceModule` | In flight | Core logic runs from InterfaceModule; remove DeviceDataModule wrapper once imports update. |
+| `Get-PortSortKey` | `InterfaceModule` | Complete | Function lives in `InterfaceModule` and callers import it directly; DeviceDataModule wrapper removed with module retirement. |
 | `Get-ConfigurationTemplates` | `TemplatesModule` | Complete | Function and caching now live in TemplatesModule; DeviceDataModule delegates and shared lookups consume the centralized helper. |
-| `Get-SqlLiteral` | `DatabaseModule` | In flight | DatabaseModule owns implementation; drop DeviceDataModule wrapper after callers import DatabaseModule directly. |
+| `Get-SqlLiteral` | `DatabaseModule` | Complete | DatabaseModule exports the helper and callers import it directly; no DeviceDataModule wrapper remains. |
 | DeviceDataModule export wrappers | Temporary compatibility layer | Complete | Module retired; downstream modules call new services directly. |
 
 ## Migration Plan
@@ -90,7 +90,7 @@
    - After adoption, delete filter code from `DeviceDataModule`.
 
 6. **Device details service**
-   - Move `Get-DeviceDetails` and `Get-DeviceDetailsData` to `DeviceDetailsModule`; refactor to return DTOs rather than writing to UI, leaving UI updates to `MainWindow`/view modules.
+   - Move `Get-DeviceDetails` and `Get-DeviceDetailsData` to `DeviceDetailsModule`; refactor to return DTOs rather than writing to UI, leaving UI updates to `MainWindow`/view modules. *Complete: `Get-DeviceDetails` now exports from `DeviceDetailsModule`; `MainWindow::Show-DeviceDetails` calls `Set-InterfaceViewData`.*
    - Update `Import-DeviceDetailsAsync` and related callers to use the new service and apply UI bindings locally.
    - Validate that cached repository calls provide required data without re-querying the database excessively.
 
@@ -118,13 +118,13 @@
 ## Workstreams & Ownership
 | Workstream | Lead | Key Deliverables | Dependencies | Status |
 | --- | --- | --- | --- | --- |
-| Repository extraction | Data services | DeviceRepositoryModule with DB helpers, caches, parallel query wrapper | DatabaseModule, data directory config | In flight |
-| Catalog service | Data services | DeviceCatalogModule loading/refreshing metadata, exposing summaries | Repository functions, metadata schema | In flight |
-| Filter state service | UI platform | FilterStateModule API plus updated UI bindings | Catalog metadata, existing event wiring | In flight |
-| Device details service | Device experience | DeviceDetailsModule DTOs, UI integration, async guard | Repository interface methods, template loading | Not started |
-| Analytics/insights | UI analytics | DeviceInsightsModule (or per-view services) delivering search/summary/alerts data | Repository + catalog outputs | Not started |
-| Templates consolidation | UI platform | TemplatesModule owning configuration template cache & tests | Repository helpers, template assets | Not started |
-| Testing & automation | QA | Extended Pester coverage, smoke test script, regression checklist updates | Module migrations in progress | In flight |
+| Repository extraction | Data services | DeviceRepositoryModule with DB helpers, caches, parallel query wrapper | DatabaseModule, data directory config | Complete |
+| Catalog service | Data services | DeviceCatalogModule loading/refreshing metadata, exposing summaries | Repository functions, metadata schema | Complete |
+| Filter state service | UI platform | FilterStateModule API plus updated UI bindings | Catalog metadata, existing event wiring | Complete |
+| Device details service | Device experience | DeviceDetailsModule DTOs, UI integration, async guard | Repository interface methods, template loading | Complete |
+| Analytics/insights | UI analytics | DeviceInsightsModule (or per-view services) delivering search/summary/alerts data | Repository + catalog outputs | Complete |
+| Templates consolidation | UI platform | TemplatesModule owning configuration template cache & tests | Repository helpers, template assets | Complete |
+| Testing & automation | QA | Extended Pester coverage, smoke test script, regression checklist updates | Module migrations in progress | Not started |
 | DeviceDataModule retirement | Core maintainers | Compatibility wrappers removed, manifest updated, module deleted | All other workstreams complete | Complete |
 
 ## Timeline & Milestones
@@ -203,6 +203,11 @@
 - Callers now reference the new modules directly; monitor for any legacy imports resurfacing.
 - Templates now resolve via `TemplatesModule`; module import order and regression coverage validated as part of DeviceDataModule retirement.
 
+## Outstanding Follow-up
+- [ ] Build out automated coverage called for in the Testing & Validation Strategy (repository/catalog/insights/device detail modules).
+- [ ] Add the MainWindow smoke test script and capture regression evidence under `Logs/RefactorValidation/`.
+- [ ] Update release documentation (`README`, support notes) once testing artifacts exist.
+
 ## Progress Checklist
 - [x] Data access & site resolution helpers now live in `DeviceRepositoryModule.psm1` (`Get-SiteFromHostname`, `Get-DbPathForSite`/`Get-DbPathForHost`, `Get-AllSiteDbPaths`).
 - [x] `Clear-SiteInterfaceCache` moved to `DeviceRepositoryModule.psm1`.
@@ -212,7 +217,8 @@
 - [x] `Get-DeviceSummaries` and `$global:DeviceMetadata` lifecycle now bootstrapped via `DeviceCatalogModule.psm1` (UI wiring handled in FilterState/MainWindow).
 - [x] `Get-InterfaceHostnames` served from `DeviceCatalogModule.psm1` .
 - [x] Filter state API exposed from `FilterStateModule.psm1`; MainWindow now calls filter fault helpers.
-- [x] Device details aggregation moved to `DeviceDetailsModule.psm1` with DTO outputs consumed by UI .
+- [x] Device details aggregation moved to `DeviceDetailsModule.psm1` with DTO outputs consumed by UI (including `Get-DeviceDetails` now exported for synchronous callers).
+- [x] `Show-DeviceDetails` helper in `MainWindow` now consumes `DeviceDetailsModule::Get-DeviceDetails` and applies `Set-InterfaceViewData`.
 - [x] Search/Summary/Alerts logic extracted into `DeviceInsightsModule.psm1` (DeviceDataModule retired; continue regression coverage).
 - [x] `Get-ConfigurationTemplates` relocated to `TemplatesModule.psm1` and redundant caches removed.
 - [x] DeviceDataModule wrappers removed and module retired from `ModulesManifest.psd1`.

@@ -241,6 +241,7 @@ function Start-ParallelDeviceProcessing {
             Import-Module (Join-Path $modulesPath 'CiscoModule.psm1') -Force
             Import-Module (Join-Path $modulesPath 'BrocadeModule.psm1') -Force
             Import-Module (Join-Path $modulesPath 'ParserWorker.psm1') -Force
+            Import-Module (Join-Path $modulesPath 'DeviceRepositoryModule.psm1') -Force
             # Always import the database module so that helper functions such as
             # New-DatabaseIfMissing and New-AccessDatabase are available.  Do not
             # conditionally load it based on $dbPath or path existence.
@@ -291,27 +292,6 @@ function Clear-ExtractedLogs {
         [Parameter(Mandatory=$true)][string]$ExtractedPath
     )
     Get-ChildItem $ExtractedPath -File | Remove-Item -Force -ErrorAction SilentlyContinue
-}
-
-# Extract the site identifier from a hostname.  Sites are defined
-# by the substring before the first dash ("-") in the host name.  If no dash
-# is present, this helper returns the first four characters of the hostname.
-# If the hostname is shorter than four characters, the full hostname is returned.
-function Get-SiteFromHostname {
-    param([string]$Hostname)
-    if (-not $Hostname) { return 'Unknown' }
-    # Remove any SSH@ prefix and trim whitespace
-    $clean = $Hostname -replace '^SSH@',''
-    $clean = $clean.Trim()
-    # Extract the part before the first dash
-    if ($clean -match '^(?<site>[^-]+)-') {
-        return $matches['site']
-    }
-    # Fallback: use the first 4 characters if possible
-    if ($clean.Length -ge 4) {
-        return $clean.Substring(0,4)
-    }
-    return $clean
 }
 
 #
@@ -955,7 +935,7 @@ function Invoke-DeviceLogParsing {
     # the incoming DatabasePath parameter so that each site writes into its own
     # Access database under the project's Data folder.
     try {
-        $siteCode = Get-SiteFromHostname $facts.Hostname
+        $siteCode = DeviceRepositoryModule\Get-SiteFromHostname -Hostname $facts.Hostname -FallbackLength 4
         # Compute the absolute project root for constructing the Data directory.
         # Compute the project root using GetFullPath instead of Resolve‑Path to
         # avoid pipeline overhead.  This is executed inside each runspace, so

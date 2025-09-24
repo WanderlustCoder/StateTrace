@@ -399,6 +399,45 @@ function Invoke-StateTraceRefresh {
     }
 }
 
+function Show-DeviceDetails {
+    [CmdletBinding()]
+    param([Parameter()][string]$Hostname)
+
+    $hostTrim = ('' + $Hostname).Trim()
+    if ([string]::IsNullOrWhiteSpace($hostTrim)) { return }
+
+    if (-not (Get-Command -Name 'DeviceDetailsModule\Get-DeviceDetails' -ErrorAction SilentlyContinue)) {
+        try {
+            $modPath = Join-Path $scriptDir '..\\Modules\\DeviceDetailsModule.psm1'
+            if (Test-Path -LiteralPath $modPath) {
+                Import-Module -LiteralPath $modPath -Force -Global
+            } else {
+                Import-Module DeviceDetailsModule -ErrorAction Stop
+            }
+        } catch {
+            Write-Warning ("Failed to import DeviceDetailsModule: {0}" -f $_.Exception.Message)
+        }
+    }
+
+    $dto = $null
+    try {
+        $dto = DeviceDetailsModule\Get-DeviceDetails -Hostname $hostTrim
+    } catch {
+        [System.Windows.MessageBox]::Show("Error loading ${hostTrim}:`n$($_.Exception.Message)")
+        return
+    }
+    if (-not $dto) {
+        [System.Windows.MessageBox]::Show("No device details available for ${hostTrim}.")
+        return
+    }
+
+    try {
+        InterfaceModule\Set-InterfaceViewData -DeviceDetails $dto -DefaultHostname $hostTrim
+    } catch {
+        Write-Warning ("Failed to apply device details for {0}: {1}" -f $hostTrim, $_.Exception.Message)
+    }
+}
+
 function Get-HostnameChanged {
     [CmdletBinding()]
     param([string]$Hostname)
@@ -406,7 +445,7 @@ function Get-HostnameChanged {
     try {
         # Load device details synchronously.  Asynchronous invocation via
         if ($Hostname) {
-            Get-DeviceDetails $Hostname
+            Show-DeviceDetails $Hostname
             if (Get-Command Get-SpanInfo -ErrorAction SilentlyContinue) {
                 Get-SpanInfo $Hostname
             }
@@ -793,7 +832,7 @@ $window.Add_Loaded({
         if ($hostDD -and $hostDD.Items.Count -gt 0) {
             $first = $hostDD.Items[0]
             # Load details for the first host via the unified helper
-            Get-DeviceDetails $first
+            Show-DeviceDetails $first
             if (Get-Command Get-SpanInfo -ErrorAction SilentlyContinue) { Get-SpanInfo $first }
         }
     } catch {
@@ -808,7 +847,7 @@ $window.Add_Loaded({
 if ($window.FindName('HostnameDropdown').Items.Count -gt 0) {
     $first = $window.FindName('HostnameDropdown').Items[0]
     # Load details for the first host using the unified helper
-    Get-DeviceDetails $first
+    Show-DeviceDetails $first
     if (Get-Command Get-SpanInfo -ErrorAction SilentlyContinue) {
         Get-SpanInfo $first
     }
