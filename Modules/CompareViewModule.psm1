@@ -387,7 +387,6 @@ function Set-CompareFromRows {
         [Parameter(Mandatory)][psobject]$Row1,
         [Parameter(Mandatory)][psobject]$Row2
     )
-
     # Given two data rows (interfaces), update the compare view text boxes and diff boxes.
     $tooltip1 = '' + ($Row1.ToolTip)
     $tooltip2 = '' + ($Row2.ToolTip)
@@ -399,13 +398,21 @@ function Set-CompareFromRows {
     $brush1 = Get-ThemeBrushForPortColor -ColorName $color1
     $brush2 = Get-ThemeBrushForPortColor -ColorName $color2
 
-    # Display Auth Template name if present.  Fall back to parsing the tooltip text when not supplied.
+    # Display Auth Template name if present
     $auth1 = ''
-    try { if ($Row1.PSObject.Properties['AuthTemplate'] -and $Row1.AuthTemplate) { $auth1 = '' + $Row1.AuthTemplate } } catch {}
+    try {
+        if ($Row1.PSObject.Properties['AuthTemplate'] -and $Row1.AuthTemplate) {
+            $auth1 = '' + $Row1.AuthTemplate
+        }
+    } catch {}
     if (-not $auth1) { $auth1 = Get-AuthTemplateFromTooltip -Text $tooltip1 }
 
     $auth2 = ''
-    try { if ($Row2.PSObject.Properties['AuthTemplate'] -and $Row2.AuthTemplate) { $auth2 = '' + $Row2.AuthTemplate } } catch {}
+    try {
+        if ($Row2.PSObject.Properties['AuthTemplate'] -and $Row2.AuthTemplate) {
+            $auth2 = '' + $Row2.AuthTemplate
+        }
+    } catch {}
     if (-not $auth2) { $auth2 = Get-AuthTemplateFromTooltip -Text $tooltip2 }
 
     if ($script:auth1Text) {
@@ -489,6 +496,43 @@ function Set-CompareFromRows {
     if ($script:diff2Box) { $script:diff2Box.Text = ([string]::Join("`r`n", $diff2)) }
 }
 
+function Show-CurrentComparison {
+    # Gathers current selections and displays the comparison in the text boxes
+    try {
+        $s1 = if ($script:switch1Dropdown) { Get-HostString $script:switch1Dropdown.SelectedItem } else { $null }
+        $s2 = if ($script:switch2Dropdown) { Get-HostString $script:switch2Dropdown.SelectedItem } else { $null }
+        $p1 = if ($script:port1Dropdown)   { [string]$script:port1Dropdown.SelectedItem } else { $null }
+        $p2 = if ($script:port2Dropdown)   { [string]$script:port2Dropdown.SelectedItem } else { $null }
+
+        if ([string]::IsNullOrWhiteSpace($s1) -or 
+            [string]::IsNullOrWhiteSpace($p1) -or
+            [string]::IsNullOrWhiteSpace($s2) -or 
+            [string]::IsNullOrWhiteSpace($p2)) {
+            # One of the sides is not fully selected - cannot compare yet
+            Write-Verbose "[CompareView] Show-CurrentComparison skipped (one or more selections empty: Switch1='$s1', Port1='$p1', Switch2='$s2', Port2='$p2')."
+            return
+        }
+
+        # If both sides have selections, retrieve the corresponding data rows (if possible) and show comparison
+        $row1 = Get-GridRowFor -Hostname $s1 -Port $p1
+        $row2 = Get-GridRowFor -Hostname $s2 -Port $p2
+        if ($row1 -and $row2) {
+            # Both rows are available - pass them directly to the comparison helper
+            Set-CompareFromRows -Row1 $row1 -Row2 $row2
+            Write-Verbose "[CompareView] Comparison updated for $s1/$p1 vs $s2/$p2."
+        }
+        else {
+            # One or both sides are missing - construct placeholder objects for missing rows
+            $resolvedRow1 = if ($row1) { $row1 } else { [pscustomobject]@{ ToolTip = ''; PortColor = $null } }
+            $resolvedRow2 = if ($row2) { $row2 } else { [pscustomobject]@{ ToolTip = ''; PortColor = $null } }
+            Set-CompareFromRows -Row1 $resolvedRow1 -Row2 $resolvedRow2
+            Write-Verbose "[CompareView] Partial data: one or both rows not found in grid for $s1/$p1 vs $s2/$p2."
+        }
+    }
+    catch {
+        Write-Warning "[CompareView] Failed to compute comparison: $($_.Exception.Message)"
+    }
+}
 
 function Get-CompareHandlers {
     # Attach event handlers for the compare view controls (ensure we don't attach twice for the same view instance)
@@ -513,7 +557,7 @@ function Get-CompareHandlers {
                 Write-Verbose "[CompareView] Switch1 changed to '$hostname'. Rebuilding Port1 list..."
                 Set-PortsForCombo -Combo $script:port1Dropdown -Hostname $hostname
             }
-            CompareViewModule\Show-CurrentComparison
+            Show-CurrentComparison
         }
         $script:switch1Dropdown.Add_SelectionChanged($rebuildLeft)
         $script:switch1Dropdown.Add_LostFocus($rebuildLeft)
@@ -543,7 +587,7 @@ function Get-CompareHandlers {
                 Write-Verbose "[CompareView] Switch2 changed to '$hostname'. Rebuilding Port2 list..."
                 Set-PortsForCombo -Combo $script:port2Dropdown -Hostname $hostname
             }
-            CompareViewModule\Show-CurrentComparison
+            Show-CurrentComparison
         }
         $script:switch2Dropdown.Add_SelectionChanged($rebuildRight)
         $script:switch2Dropdown.Add_LostFocus($rebuildRight)
@@ -577,7 +621,7 @@ function Get-CompareHandlers {
             }
         })
         $script:port1Dropdown.Add_SelectionChanged({
-            CompareViewModule\Show-CurrentComparison 
+            Show-CurrentComparison 
             if ($script:port1Dropdown.SelectedItem) {
                 Write-Verbose "[CompareView] Port1 changed to '$($script:port1Dropdown.SelectedItem)' (Switch1=$($script:switch1Dropdown.SelectedItem))."
             }
@@ -605,7 +649,7 @@ function Get-CompareHandlers {
             }
         })
         $script:port2Dropdown.Add_SelectionChanged({
-            CompareViewModule\Show-CurrentComparison 
+            Show-CurrentComparison 
             if ($script:port2Dropdown.SelectedItem) {
                 Write-Verbose "[CompareView] Port2 changed to '$($script:port2Dropdown.SelectedItem)' (Switch2=$($script:switch2Dropdown.SelectedItem))."
             }
@@ -665,7 +709,7 @@ function Update-CompareView {
             Set-PortsForCombo -Combo $script:port2Dropdown -Hostname $host2
         }
         # Show comparison for the refreshed selections
-        CompareViewModule\Show-CurrentComparison
+        Show-CurrentComparison
         # Update the last host list reference
         $script:LastCompareHostList = $hosts
         Write-Verbose "[CompareView] Existing compare view updated without full reload."
@@ -752,7 +796,7 @@ function Update-CompareView {
     }
     # Wire up event handlers and display initial comparison
     Get-CompareHandlers
-    CompareViewModule\Show-CurrentComparison
+    Show-CurrentComparison
     # Record host list for next comparison
     $script:LastCompareHostList = $hosts
     Write-Verbose "[CompareView] New Compare view setup complete."
@@ -814,6 +858,8 @@ function Set-CompareSelection {
         Write-Verbose "[CompareView] Comparison set from provided rows (Update-CompareView)."
     }
     else {
-        CompareViewModule\Show-CurrentComparison
+        Show-CurrentComparison
     }
 }
+
+Export-ModuleMember -Function Resolve-CompareControls, Get-HostString, Get-HostsFromMain, Get-PortSortKey, Get-PortsForHost, Set-PortsForCombo, Get-GridRowFor, Get-AuthTemplateFromTooltip, Get-ThemeBrushForPortColor, Update-CompareThemeBrushes, Set-CompareFromRows, Show-CurrentComparison, Get-CompareHandlers, Update-CompareView, Set-CompareSelection
