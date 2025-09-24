@@ -513,7 +513,7 @@ function Get-CompareHandlers {
                 Write-Verbose "[CompareView] Switch1 changed to '$hostname'. Rebuilding Port1 list..."
                 Set-PortsForCombo -Combo $script:port1Dropdown -Hostname $hostname
             }
-            Show-CurrentComparison
+            CompareViewModule\Show-CurrentComparison
         }
         $script:switch1Dropdown.Add_SelectionChanged($rebuildLeft)
         $script:switch1Dropdown.Add_LostFocus($rebuildLeft)
@@ -543,7 +543,7 @@ function Get-CompareHandlers {
                 Write-Verbose "[CompareView] Switch2 changed to '$hostname'. Rebuilding Port2 list..."
                 Set-PortsForCombo -Combo $script:port2Dropdown -Hostname $hostname
             }
-            Show-CurrentComparison
+            CompareViewModule\Show-CurrentComparison
         }
         $script:switch2Dropdown.Add_SelectionChanged($rebuildRight)
         $script:switch2Dropdown.Add_LostFocus($rebuildRight)
@@ -577,7 +577,7 @@ function Get-CompareHandlers {
             }
         })
         $script:port1Dropdown.Add_SelectionChanged({
-            Show-CurrentComparison 
+            CompareViewModule\Show-CurrentComparison 
             if ($script:port1Dropdown.SelectedItem) {
                 Write-Verbose "[CompareView] Port1 changed to '$($script:port1Dropdown.SelectedItem)' (Switch1=$($script:switch1Dropdown.SelectedItem))."
             }
@@ -605,7 +605,7 @@ function Get-CompareHandlers {
             }
         })
         $script:port2Dropdown.Add_SelectionChanged({
-            Show-CurrentComparison 
+            CompareViewModule\Show-CurrentComparison 
             if ($script:port2Dropdown.SelectedItem) {
                 Write-Verbose "[CompareView] Port2 changed to '$($script:port2Dropdown.SelectedItem)' (Switch2=$($script:switch2Dropdown.SelectedItem))."
             }
@@ -665,7 +665,7 @@ function Update-CompareView {
             Set-PortsForCombo -Combo $script:port2Dropdown -Hostname $host2
         }
         # Show comparison for the refreshed selections
-        Show-CurrentComparison
+        CompareViewModule\Show-CurrentComparison
         # Update the last host list reference
         $script:LastCompareHostList = $hosts
         Write-Verbose "[CompareView] Existing compare view updated without full reload."
@@ -752,7 +752,7 @@ function Update-CompareView {
     }
     # Wire up event handlers and display initial comparison
     Get-CompareHandlers
-    Show-CurrentComparison
+    CompareViewModule\Show-CurrentComparison
     # Record host list for next comparison
     $script:LastCompareHostList = $hosts
     Write-Verbose "[CompareView] New Compare view setup complete."
@@ -814,6 +814,6 @@ function Set-CompareSelection {
         Write-Verbose "[CompareView] Comparison set from provided rows (Update-CompareView)."
     }
     else {
-        Show-CurrentComparison
+        CompareViewModule\Show-CurrentComparison
     }
 }
