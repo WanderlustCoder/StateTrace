@@ -43,8 +43,8 @@ function New-SpanView {
         # Clear the spanning tree grid and initialise the VLAN dropdown
         $spanGrid.ItemsSource = @()
         if ($vlanDropdown) {
-            # Use the shared dropdown helper from DeviceDataModule to populate
-            DeviceDataModule\Set-DropdownItems -Control $vlanDropdown -Items @('')
+            # Use the shared dropdown helper from FilterStateModule to populate
+            FilterStateModule\Set-DropdownItems -Control $vlanDropdown -Items @('')
         }
             return
         }
@@ -67,7 +67,7 @@ function New-SpanView {
             $instances = [System.Collections.Generic.List[string]]::new($vset)
             $instances.Sort([System.StringComparer]::OrdinalIgnoreCase)
             # Use the shared dropdown helper to populate the VLAN dropdown with
-            DeviceDataModule\Set-DropdownItems -Control $vlanDropdown -Items (@('') + $instances)
+            FilterStateModule\Set-DropdownItems -Control $vlanDropdown -Items (@('') + $instances)
         }
     }
     # VLAN dropdown filtering
@@ -98,9 +98,21 @@ function New-SpanView {
             }
 
             # Refresh summaries and filters
-            if (Get-Command Get-DeviceSummaries -ErrorAction SilentlyContinue) { Get-DeviceSummaries }
+            $catalog = $null
+            if (Get-Command Get-DeviceSummaries -ErrorAction SilentlyContinue) {
+                try { $catalog = Get-DeviceSummaries } catch { $catalog = $null }
+            }
+            if (Get-Command Initialize-DeviceFilters -ErrorAction SilentlyContinue) {
+                try {
+                    $hostList = if ($catalog -and $catalog.PSObject.Properties['Hostnames']) { $catalog.Hostnames } else { $null }
+                    if ($hostList) {
+                        Initialize-DeviceFilters -Hostnames $hostList -Window $Window
+                    } else {
+                        Initialize-DeviceFilters -Window $Window
+                    }
+                } catch {}
+            }
             if (Get-Command Update-DeviceFilter -ErrorAction SilentlyContinue) { Update-DeviceFilter }
-
             # Reload spanning tree info for current host
             $currentHost = $Window.FindName('HostnameDropdown').SelectedItem
             if ($currentHost) { Get-SpanInfo $currentHost }
@@ -109,3 +121,4 @@ function New-SpanView {
 }
 
 Export-ModuleMember -Function New-SpanView, Get-SpanInfo
+

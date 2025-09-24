@@ -1,4 +1,4 @@
-﻿# .SYNOPSIS
+# .SYNOPSIS
 
 Set-StrictMode -Version Latest
 $script:lastTemplateVendor = 'default'
@@ -146,8 +146,8 @@ function Get-InterfaceHostnames {
 
     [CmdletBinding()]
     param([string]$ParsedDataPath)
-    # Delegate to DeviceDataModule implementation.  The central module defines
-    return DeviceDataModule\Get-InterfaceHostnames @PSBoundParameters
+    # Delegate to DeviceCatalogModule implementation.  The central module defines
+    return DeviceCatalogModule\Get-InterfaceHostnames @PSBoundParameters
 }
 
 function New-InterfaceObjectsFromDbRow {
@@ -492,8 +492,8 @@ function Get-ConfigurationTemplates {
         [Parameter(Mandatory)][string]$Hostname,
         [string]$TemplatesPath = (Join-Path $PSScriptRoot '..\Templates')
     )
-    # Delegate to DeviceDataModule implementation.  This wrapper calls the
-    return DeviceDataModule\Get-ConfigurationTemplates @PSBoundParameters
+    # Delegate to TemplatesModule implementation.  This wrapper calls the
+    return TemplatesModule\Get-ConfigurationTemplates @PSBoundParameters
     # The legacy implementation that queried the DeviceSummary table and
 
 }
@@ -773,7 +773,133 @@ function New-InterfacesView {
     $global:interfacesView = $interfacesView
 }
 
-Export-ModuleMember -Function Get-PortSortKey,Get-InterfaceHostnames,Get-InterfaceInfo,Get-InterfaceList,New-InterfaceObjectsFromDbRow,Compare-InterfaceConfigs,Get-InterfaceConfiguration,Get-ConfigurationTemplates,Get-SpanningTreeInfo,New-InterfacesView
+function Set-InterfaceViewData {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][psobject]$DeviceDetails,
+        [string]$DefaultHostname
+    )
+
+    $interfacesView = $null
+    try { $interfacesView = $global:interfacesView } catch { $interfacesView = $null }
+    if (-not $interfacesView) {
+        try {
+            $interfacesHost = $global:window.FindName('InterfacesHost')
+            if ($interfacesHost -is [System.Windows.Controls.ContentControl]) {
+                $interfacesView = $interfacesHost.Content
+            }
+        } catch {
+            $interfacesView = $null
+        }
+    }
+    if (-not $interfacesView) { return }
+
+    try { $global:interfacesView = $interfacesView } catch {}
+
+    $fallbackHostname = ''
+    if ($PSBoundParameters.ContainsKey('DefaultHostname') -and $DefaultHostname) {
+        $fallbackHostname = '' + $DefaultHostname
+    }
+
+    $summary = $null
+    if ($DeviceDetails -and $DeviceDetails.PSObject.Properties['Summary']) {
+        $summary = $DeviceDetails.Summary
+    }
+    if (-not $summary) {
+        $summary = [PSCustomObject]@{
+            Hostname        = $fallbackHostname
+            Make            = ''
+            Model           = ''
+            Uptime          = ''
+            Ports           = ''
+            AuthDefaultVLAN = ''
+            Building        = ''
+            Room            = ''
+        }
+    }
+
+    $getValue = {
+        param($obj, [string]$name, [string]$defaultValue = '')
+        if (-not $obj) { return $defaultValue }
+        try {
+            $val = $null
+            if ($obj -is [hashtable]) {
+                if ($obj.ContainsKey($name)) { $val = $obj[$name] }
+            } elseif ($obj.PSObject -and $obj.PSObject.Properties[$name]) {
+                $val = $obj.$name
+            }
+            if ($null -eq $val -or $val -eq [System.DBNull]::Value) { return $defaultValue }
+            $text = '' + $val
+            if ([string]::IsNullOrEmpty($text)) { return $defaultValue }
+            return $text
+        } catch {
+            return $defaultValue
+        }
+    }
+
+    $setText = {
+        param($view, [string]$controlName, [string]$value)
+        try {
+            $ctrl = $view.FindName($controlName)
+            if ($ctrl) { $ctrl.Text = $value }
+        } catch {}
+    }
+
+    $hostnameValue = & $getValue $summary 'Hostname' $fallbackHostname
+    & $setText $interfacesView 'HostnameBox'        $hostnameValue
+    & $setText $interfacesView 'MakeBox'            (& $getValue $summary 'Make')
+    & $setText $interfacesView 'ModelBox'           (& $getValue $summary 'Model')
+    & $setText $interfacesView 'UptimeBox'          (& $getValue $summary 'Uptime')
+    & $setText $interfacesView 'PortCountBox'       (& $getValue $summary 'Ports')
+    & $setText $interfacesView 'AuthDefaultVLANBox' (& $getValue $summary 'AuthDefaultVLAN')
+    & $setText $interfacesView 'BuildingBox'        (& $getValue $summary 'Building')
+    & $setText $interfacesView 'RoomBox'            (& $getValue $summary 'Room')
+
+    try {
+        $grid = $interfacesView.FindName('InterfacesGrid')
+        if ($grid) {
+            $grid.ItemsSource = if ($DeviceDetails.Interfaces) { $DeviceDetails.Interfaces } else { @() }
+            try { $global:interfacesGrid = $grid } catch {}
+        }
+    } catch {}
+
+    try {
+        $combo = $interfacesView.FindName('ConfigOptionsDropdown')
+        if ($combo) {
+            $items = New-Object 'System.Collections.Generic.List[object]'
+            if ($DeviceDetails.Templates) {
+                foreach ($item in $DeviceDetails.Templates) {
+                    if ($null -ne $item) { [void]$items.Add(('' + $item)) }
+                }
+            }
+            FilterStateModule\Set-DropdownItems -Control $combo -Items $items.ToArray()
+            try { $global:templateDropdown = $combo } catch {}
+        }
+    } catch {}
+}
+
+function Get-DeviceDetails {
+    [CmdletBinding()]
+    param([Parameter()][string]$Hostname)
+
+    $hostTrim = ('' + $Hostname).Trim()
+    if ([string]::IsNullOrWhiteSpace($hostTrim)) { return }
+
+    $dto = $null
+    try {
+        $dto = DeviceDetailsModule\Get-DeviceDetailsData -Hostname $hostTrim
+    } catch {
+        [System.Windows.MessageBox]::Show("Error loading ${hostTrim}:`n$($_.Exception.Message)")
+        return
+    }
+    if (-not $dto) {
+        [System.Windows.MessageBox]::Show("No device details available for ${hostTrim}.")
+        return
+    }
+
+    Set-InterfaceViewData -DeviceDetails $dto -DefaultHostname $hostTrim
+}
+Export-ModuleMember -Function Get-PortSortKey,Get-InterfaceHostnames,Get-InterfaceInfo,Get-InterfaceList,New-InterfaceObjectsFromDbRow,Compare-InterfaceConfigs,Get-InterfaceConfiguration,Get-ConfigurationTemplates,Get-DeviceDetails,Set-InterfaceViewData,Get-SpanningTreeInfo,New-InterfacesView
 
 
 

@@ -1,4 +1,4 @@
-﻿@{
+@{
     # List of module filenames to import at startup.  The order of the modules
     Modules = @(
         'ThemeModule.psm1',
@@ -10,7 +10,6 @@
         'FilterStateModule.psm1',
         'DeviceDetailsModule.psm1',
         'DeviceInsightsModule.psm1',
-        'DeviceDataModule.psm1',
         # Vendor-specific modules
         'AristaModule.psm1',
         'BrocadeModule.psm1',

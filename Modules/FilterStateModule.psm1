@@ -86,6 +86,95 @@ function Set-DropdownItems {
     }
 }
 
+function Initialize-DeviceFilters {
+    [CmdletBinding()]
+    param(
+        [object[]]$Hostnames,
+        [object]$Window = $global:window
+    )
+
+    if (-not $Window) { return }
+
+    $hostList = New-Object 'System.Collections.Generic.List[string]'
+    if ($Hostnames) {
+        foreach ($raw in $Hostnames) {
+            $name = '' + $raw
+            if ([string]::IsNullOrWhiteSpace($name)) { continue }
+            if (-not $hostList.Contains($name)) { [void]$hostList.Add($name) }
+        }
+    } elseif ($global:DeviceMetadata) {
+        foreach ($entry in $global:DeviceMetadata.GetEnumerator()) {
+            $key = '' + $entry.Key
+            if ([string]::IsNullOrWhiteSpace($key)) { continue }
+            if (-not $hostList.Contains($key)) { [void]$hostList.Add($key) }
+        }
+    }
+
+    $hostnameDD = $Window.FindName('HostnameDropdown')
+    if ($hostnameDD) {
+        Set-DropdownItems -Control $hostnameDD -Items $hostList
+    }
+
+    $metadata = $global:DeviceMetadata
+    if (-not $metadata) { $metadata = @{} }
+
+    $uniqueSites = @()
+    if ($metadata.Count -gt 0) {
+        $siteSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+        foreach ($meta in $metadata.Values) {
+            $site = ''
+            if ($meta -and $meta.PSObject.Properties['Site']) { $site = '' + $meta.Site }
+            if (-not [string]::IsNullOrWhiteSpace($site)) { [void]$siteSet.Add($site) }
+        }
+        $uniqueSites = [System.Collections.Generic.List[string]]::new($siteSet)
+        $uniqueSites.Sort([System.StringComparer]::OrdinalIgnoreCase)
+    }
+
+    $siteDD = $Window.FindName('SiteDropdown')
+    if ($siteDD) {
+        Set-DropdownItems -Control $siteDD -Items (@('All Sites') + $uniqueSites)
+        try {
+            if ($uniqueSites.Count -gt 0) { $siteDD.SelectedItem = $uniqueSites[0] }
+        } catch {}
+    }
+
+    $zoneDD = $Window.FindName('ZoneDropdown')
+    if ($zoneDD) {
+        Set-DropdownItems -Control $zoneDD -Items @('All Zones')
+        $zoneDD.IsEnabled = $true
+    }
+
+    $buildingDD = $Window.FindName('BuildingDropdown')
+    if ($buildingDD) {
+        Set-DropdownItems -Control $buildingDD -Items @('')
+        $buildingDD.IsEnabled = $false
+    }
+
+    $roomDD = $Window.FindName('RoomDropdown')
+    if ($roomDD) {
+        Set-DropdownItems -Control $roomDD -Items @('')
+        $roomDD.IsEnabled = $false
+    }
+
+    try {
+        if (Get-Command -Name Update-GlobalInterfaceList -ErrorAction SilentlyContinue) {
+            Update-GlobalInterfaceList
+        } else {
+            DeviceRepositoryModule\Update-GlobalInterfaceList | Out-Null
+        }
+    } catch {}
+
+    try {
+        $searchHostCtrl = $Window.FindName('SearchInterfacesHost')
+        if ($searchHostCtrl -is [System.Windows.Controls.ContentControl]) {
+            $searchView = $searchHostCtrl.Content
+            if ($searchView) {
+                $searchGrid = $searchView.FindName('SearchInterfacesGrid')
+                if ($searchGrid) { $searchGrid.ItemsSource = $global:AllInterfaces }
+            }
+        }
+    } catch {}
+}
 function Update-DeviceFilter {
     # Abort immediately if a previous filter update threw an error.  The
     # main timer catch handler will set $script:DeviceFilterFaulted to $true
@@ -481,7 +570,7 @@ function Get-FilterFaulted {
     return [bool]$script:DeviceFilterFaulted
 }
 
-Export-ModuleMember -Function Test-StringListEqualCI, Get-SelectedLocation, Get-LastLocation, Set-DropdownItems, Update-DeviceFilter, Set-FilterFaulted, Get-FilterFaulted
+Export-ModuleMember -Function Test-StringListEqualCI, Get-SelectedLocation, Get-LastLocation, Set-DropdownItems, Initialize-DeviceFilters, Update-DeviceFilter, Set-FilterFaulted, Get-FilterFaulted
 
 
 

@@ -10,7 +10,7 @@
 ## Architecture Overview
 - PowerShell 5.x WPF desktop app (`Main/MainWindow.ps1` + XAML) orchestrates view modules listed in `Modules/ModulesManifest.psd1`.
 - Device data is stored per site in Access `.accdb` databases under `Data/`, populated by the parser (`Modules/ParserWorker.psm1`).
-- UI modules share state through globals (e.g. `$global:DeviceMetadata`, `$global:DeviceInterfaceCache`, `$global:AllInterfaces`, `$global:alertsView`) seeded by `DeviceDataModule`.
+- UI modules share state through globals (e.g. `$global:DeviceMetadata`, `$global:DeviceInterfaceCache`, `$global:AllInterfaces`, `$global:alertsView`) populated by `DeviceCatalogModule`/`DeviceRepositoryModule` and initialised for the UI by `FilterStateModule::Initialize-DeviceFilters`.
 - Vendor-specific parsing (`Modules/CiscoModule.psm1`, `Modules/BrocadeModule.psm1`, `Modules/AristaModule.psm1`) produces normalized interface objects consumed across the UI.
 
 ## Data Stores & Core Caches
@@ -33,7 +33,7 @@
 - `Main/MainWindow.ps1:253` `Set-EnvToggle` - writes boolean toggles (`IncludeArchive`, `IncludeHistorical`) into the process environment for the parser to read.
 - `Main/MainWindow.ps1:268` `Invoke-StateTraceRefresh` - handler for `Scan Logs`; updates env flags, calls `Invoke-StateTraceParsing`, then refreshes summaries, filters, and Compare view.
 - `Main/MainWindow.ps1:303` `Get-HostnameChanged` - synchronous device selection handler; loads device details and SPAN info for the chosen host.
-- `Main/MainWindow.ps1:326` `Import-DeviceDetailsAsync` - background loader that fetches summary/interface/template data via `DeviceDataModule::Get-DeviceDetailsData` and marshals results to the UI thread.
+- `Main/MainWindow.ps1:326` `Import-DeviceDetailsAsync` - background loader that fetches summary/interface/template data via `DeviceDetailsModule::Get-DeviceDetailsData` and marshals results to the UI thread through `InterfaceModule::Set-InterfaceViewData`.
 - `Main/MainWindow.ps1:547` `Request-DeviceFilterUpdate` - debounced filter refresh guarded by `FilterStateModule::Get-FilterFaulted` and `$global:ProgrammaticFilterUpdate`.
 - `Main/MainWindow.ps1:566` `Get-FilterDropdowns` - resolves site/zone/building/room combo boxes so change handlers can be wired once.
 - Event wiring: refresh button ? `Invoke-StateTraceRefresh`; hostname dropdown ? `Get-HostnameChanged`; filter combos ? `Request-DeviceFilterUpdate`; Show Commands buttons ? clipboard exporters; Help button opens `Views/HelpWindow.xaml`.
@@ -47,57 +47,34 @@
 - `Modules/DatabaseModule.psm1:315` `Invoke-DbQuery` - runs SELECT statements returning a `DataTable`, optionally reusing an open session.
 - `Modules/DatabaseModule.psm1:21` `Get-SqlLiteral` - escapes single quotes for SQL literals.
 - Imported lazily by other modules via `Import-DatabaseModule` / `Ensure-DatabaseModule`; keep file path and exported function names stable.
-### `Modules/DeviceDataModule.psm1`
-- **Path & cache helpers**
-  - `Modules/FilterStateModule.psm1:25` `Test-StringListEqualCI` - case-insensitive sequence comparison used when checking dropdown contents.
-  - Provided via `Modules/DeviceRepositoryModule.psm1` (`Get-SiteFromHostname`, `Get-DbPathForSite`, `Get-DbPathForHost`, `Get-AllSiteDbPaths`).
-- **Lazy loading & caches**
-  - Provided via `Modules/DeviceRepositoryModule.psm1:156` `Update-SiteZoneCache` - loads interface lists for a site/zone into `$global:DeviceInterfaceCache` and extends `$global:AllInterfaces`.
-  - `Modules/DeviceDataModule.psm1:76` `Get-InterfacesForSite` - wrapper over `DeviceRepositoryModule\Get-InterfacesForSite`; preserves legacy callers while the repository owns the cache logic.
-  - `Modules/DeviceRepositoryModule.psm1:143` `Clear-SiteInterfaceCache` - resets per-site cache when downstream modules need a fresh reload.
-  - `Modules/DeviceDataModule.psm1:88` `Import-DatabaseModule` - delegates to `DeviceRepositoryModule\Import-DatabaseModule` to keep the guard centralised.
-- **Location state helpers**
-  - `Modules/FilterStateModule.psm1:36` `Get-SelectedLocation` / `Modules/FilterStateModule.psm1:60` `Get-LastLocation` - expose current and last-known site/zone/building/room selections for other modules.
-  - `Modules/FilterStateModule.psm1:74` `Set-DropdownItems` - centralised ItemsControl helper used across views.
-- **Database utilities**
-- **Device catalogue & filters**
-  - `Modules/DeviceDataModule.psm1:794` `Get-DeviceSummaries` - populates `$global:DeviceMetadata`, initialises dropdowns, and triggers `Update-GlobalInterfaceList`.
-  - `Modules/DeviceDataModule.psm1:898` `Update-DeviceFilter` - central filter engine updating dropdown contents, refreshing caches, and kicking `Update-SearchGrid`, `Update-Summary`, `Update-Alerts` (also logs diagnostics via `Write-Diag`).
-- **Device detail access**
-  - `Modules/DeviceDataModule.psm1:1279` `Get-DeviceDetails` - updates Interfaces tab UI for a host (prefers DB, falls back to CSV) and caches interface lists.
-  - `Modules/DeviceDataModule.psm1:1440` `Get-DeviceDetailsData` - data-only accessor returning summary, interface list, and templates (used by `Import-DeviceDetailsAsync`).
-- **Parallel query & global interface state**
-  - `Modules/DeviceDataModule.psm1:1616` `Invoke-ParallelDbQuery` - runspace-pool helper for queries across site databases.
-  - `Modules/DeviceDataModule.psm1:1660` `Update-GlobalInterfaceList` - rebuilds `$global:AllInterfaces` based on current filters and ensures each row has Hostname/IsSelected metadata.
-- **Search, summary, alerts**
-  - `Modules/DeviceDataModule.psm1:1799` `Update-SearchResults` - builds filtered search results honouring location, status, auth, and regex filters.
-  - `Modules/DeviceDataModule.psm1:1917` `Update-Summary` - computes device/interface counts, up/down stats, auth counts, VLAN diversity; writes into Summary view.
-  - `Modules/DeviceDataModule.psm1:2046` `Update-Alerts` - produces `$global:AlertsList` of concerning interfaces (down, half-duplex, unauthorized).
-  - `Modules/DeviceDataModule.psm1:2126` `Update-SearchGrid` - orchestrates search grid refresh after user input.
-- **Interface metadata & templates**
-  - `Modules/DeviceDataModule.psm1:2205` `Get-InterfaceHostnames` - returns device names for filters and Compare view (using DB or metadata as available).
-  - `Modules/TemplatesModule.psm1:310` `Get-ConfigurationTemplates` - resolves the active vendor, pulls names from the centralized cache, and returns the available configuration templates for UI dropdowns.
-  - `Modules/DeviceDataModule.psm1:1683` `Get-InterfaceInfo` - thin wrapper over `DeviceRepositoryModule\Get-InterfaceInfo` (repo handles enrichment + caching).
-  - `Modules/DeviceDataModule.psm1:1692` `Get-InterfaceConfiguration` - forwards to `DeviceRepositoryModule\Get-InterfaceConfiguration`; repository performs template merge while the DeviceData module keeps the public signature.
 ### `Modules/DeviceRepositoryModule.psm1`
 - `Modules/DeviceRepositoryModule.psm1:49` `Get-InterfacesForHostsBatch` - single query returning interfaces and summary metadata for a set of hostnames.
 - Manages per-site database paths (`Get-SiteFromHostname`, `Get-DbPathForSite`, `Get-DbPathForHost`).
 - `Get-AllSiteDbPaths` enumerates available per-site Access databases for repository consumers.
 - `Modules/DeviceRepositoryModule.psm1:156` `Update-SiteZoneCache` - loads per-site/per-zone interface data into shared caches.
 - `Get-DataDirectoryPath` returns the resolved `Data/` directory when other modules need the absolute path.
+### `Modules/FilterStateModule.psm1`
+- `Modules/FilterStateModule.psm1:36` `Get-SelectedLocation` - reads the active site/zone/building/room selections from the main window.
+- `Modules/FilterStateModule.psm1:55` `Get-LastLocation` - returns the last recorded filter selections for reuse by other modules.
+- `Modules/FilterStateModule.psm1:67` `Set-DropdownItems` - helper to assign ItemsSource/selection on dropdown controls.
+- `Modules/FilterStateModule.psm1:89` `Initialize-DeviceFilters` - initialises host/site filter controls and refreshes the global interface list.
+- `Modules/FilterStateModule.psm1:147` `Update-DeviceFilter` - core filter engine triggered by UI events; repopulates dropdowns and refreshes search/summary/alerts.
+- `Modules/FilterStateModule.psm1:249` `Set-FilterFaulted` / `Get-FilterFaulted` - toggle and read the guard flag used by the filter debounce timer.
 ### `Modules/InterfaceModule.psm1`
 - `Modules/InterfaceModule.psm1:11` `Get-SelectedInterfaceRows` - returns checked or selected rows from the Interfaces DataGrid (used for copy/export/compare actions).
 - `Modules/InterfaceModule.psm1:56` `Get-InterfaceSiteCode` / `Modules/InterfaceModule.psm1:63` `Resolve-InterfaceDatabasePath` - map hostnames to site database paths.
 - `Modules/InterfaceModule.psm1:69` `Ensure-DatabaseModule` - one-time import guard for `DatabaseModule`.
 - `Modules/InterfaceModule.psm1:84` `Get-PortSortKey` - canonical port sorting key reused by DeviceData and Compare modules.
-- `Modules/InterfaceModule.psm1:130` `Get-InterfaceHostnames` - proxy into `DeviceDataModule::Get-InterfaceHostnames` for backward compatibility.
+- `Modules/InterfaceModule.psm1:130` `Get-InterfaceHostnames` - retrieves catalog data via `DeviceCatalogModule::Get-InterfaceHostnames`. 
 - `Modules/InterfaceModule.psm1:139` `New-InterfaceObjectsFromDbRow` - converts DB rows into PSCustomObjects enriched with template/tooltips, location metadata, and `IsSelected` property.
 - `Modules/InterfaceModule.psm1:356` `Get-InterfaceInfo` - module-level helper returning cached interface objects.
 - `Modules/InterfaceModule.psm1:445` `Get-InterfaceList` - returns sorted port names for a host (used by Compare view dropdowns).
 - `Modules/InterfaceModule.psm1:481` `Compare-InterfaceConfigs` - produces diff output between two port configs for display in Compare view.
-- `Modules/InterfaceModule.psm1:497` `Get-InterfaceConfiguration` - wrapper around `DeviceDataModule::Get-InterfaceConfiguration`.
+- `Modules/InterfaceModule.psm1:497` `Get-InterfaceConfiguration` - delegates to `DeviceRepositoryModule::Get-InterfaceConfiguration`. 
 - `Modules/InterfaceModule.psm1:515` `Get-SpanningTreeInfo` - fetches parsed spanning tree rows (backed by DB/history) for the SPAN tab.
 - `Modules/InterfaceModule.psm1:538` `Get-ConfigurationTemplates` - forwards to `TemplatesModule` so the Interfaces view uses the shared cache.
+- `Modules/InterfaceModule.psm1:776` `Set-InterfaceViewData` - applies device detail DTOs to the Interfaces view (summary fields, grid, template dropdown).
+- `Modules/InterfaceModule.psm1:881` `Get-DeviceDetails` - retrieves device details via `DeviceDetailsModule` and calls `Set-InterfaceViewData`, emitting user-friendly errors on failure.
 - `Modules/InterfaceModule.psm1:552` `New-InterfacesView` - loads Interfaces tab XAML, wires filter debounce, config dropdown binding, copy button, and integrates with Compare selection.
 ### `Modules/CompareViewModule.psm1`
 - `Modules/CompareViewModule.psm1:25` `Resolve-CompareControls` - caches references to Compare view dropdowns, textboxes, and labels after XAML load.
@@ -162,7 +139,7 @@
 - `Modules/TemplatesModule.psm1:300` `Get-ConfigurationTemplateData` - supplies cached template objects and lookup dictionaries for repository/device modules.
 - `Templates/Cisco.json`, `Templates/Brocade.json` - port configuration templates used by `Get-ConfigurationTemplates` and Interfaces tab suggestions.
 - `Templates/ShowCommands.json` - vendor/OS show command definitions backing clipboard buttons and default Brocade OS selection.
-- Template editing UI in `TemplatesViewModule` writes directly to these files; caches in `DeviceDataModule` and `TemplatesModule` refresh on timestamp changes.
+- Template editing UI in `TemplatesViewModule` writes directly to these files; caches in `TemplatesModule` refresh on timestamp changes.
 ## Event & Feature Map
 - `Scan Logs` button ? `Invoke-StateTraceRefresh` ? `Invoke-StateTraceParsing` ? DB updates ? `Get-DeviceSummaries` / `Update-DeviceFilter` / `Update-CompareView`.
 - Hostname dropdown change ? `Get-HostnameChanged` (sync) + `Import-DeviceDetailsAsync` (background) ? updates Interfaces tab and SPAN data.

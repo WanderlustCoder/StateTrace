@@ -34,7 +34,7 @@ function Get-DeviceDetailsData {
     if (-not $dto.Interfaces) { $dto.Interfaces = @() }
 
     try {
-        $dto.Templates = TemplatesModule\\Get-ConfigurationTemplates -Hostname $hostTrim -DatabasePath $dbPath -TemplatesPath $TemplatesPath
+        $dto.Templates = TemplatesModule\Get-ConfigurationTemplates -Hostname $hostTrim -DatabasePath $dbPath -TemplatesPath $TemplatesPath
     } catch {
         $dto.Templates = @()
     }
@@ -246,6 +246,7 @@ function Get-DeviceVendorFromSummary {
 
 
 Export-ModuleMember -Function Get-DeviceDetailsData
+
 
 
 

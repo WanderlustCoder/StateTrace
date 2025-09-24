@@ -273,7 +273,8 @@ function Set-BrocadeOSFromConfig {
     param([Parameter(Mandatory)][System.Windows.Controls.ComboBox]$Dropdown)
     try { Set-ShowCommandsOSVersions -Combo $Dropdown -Vendor 'Brocade' }
     catch { Write-Warning ("Brocade OS populate failed: {0}" -f $_.Exception.Message) }
-}
+}
+
 
 # === BEGIN View initialization helpers (MainWindow.ps1) ===
 function Initialize-View {
@@ -330,7 +331,7 @@ if (-not $script:ViewsInitialized) {
 # modifying the filter dropdowns inside Update-DeviceFilter.  When this flag is
 # set to $true, calls to Request-DeviceFilterUpdate will be ignored.  The flag is
 # defined on the global scope so it can be accessed by both MainWindow.ps1 and
-# DeviceDataModule.psm1.  Initialise it here if not already present.
+# FilterStateModule uses this flag to suppress programmatic filter updates.
 if (-not $global:ProgrammaticFilterUpdate) {
     $global:ProgrammaticFilterUpdate = $false
 }
@@ -375,7 +376,17 @@ function Invoke-StateTraceRefresh {
         }
 
         # Call the unified device helper functions directly (no module qualifier).
-        Get-DeviceSummaries
+        $catalog = $null
+        try { $catalog = Get-DeviceSummaries } catch { $catalog = $null }
+        try {
+            $hostList = $null
+            if ($catalog -and $catalog.PSObject.Properties['Hostnames']) { $hostList = $catalog.Hostnames }
+            if ($hostList) {
+                Initialize-DeviceFilters -Hostnames $hostList -Window $window
+            } else {
+                Initialize-DeviceFilters -Window $window
+            }
+        } catch {}
         Update-DeviceFilter
         # Rebuild Compare view so its host list reflects the new parse
         if (Get-Command -Name Update-CompareView -ErrorAction SilentlyContinue) {
@@ -429,13 +440,12 @@ function Import-DeviceDetailsAsync {
         return
     }
 
-    # Resolve the module path to an absolute path.  Join-Path with '..' segments may
     try {
-        $modulePath = (Resolve-Path -LiteralPath (Join-Path $scriptDir "..\Modules\DeviceDataModule.psm1")).Path
+        $modulesDir = (Resolve-Path -LiteralPath (Join-Path $scriptDir "..\Modules")).Path
     } catch {
-        # Fallback to direct join if Resolve-Path fails
-        $modulePath = Join-Path $scriptDir "..\Modules\DeviceDataModule.psm1"
+        $modulesDir = Join-Path $scriptDir "..\Modules"
     }
+
     try {
         # Create a dedicated STA runspace for background processing.  Use a custom
         # InitialSessionState with FullLanguage enabled so that script keywords
@@ -459,22 +469,33 @@ function Import-DeviceDetailsAsync {
         }
 
         # Build a script string instead of passing a ScriptBlock.  Passing a string
-        $scriptText = @"
-param(\$hn, \$modPath)
-Import-Module -LiteralPath \$modPath -ErrorAction Stop
-\$res = \$null
-try {
-    \$res = Get-DeviceDetailsData -Hostname \$hn
-} catch {
-    # Return the error record to be handled on the UI thread
-    \$res = \$_
+        $scriptText = @'
+param($hn, $modulesDir)
+$modules = @(
+    'DatabaseModule.psm1',
+    'DeviceRepositoryModule.psm1',
+    'TemplatesModule.psm1',
+    'InterfaceModule.psm1',
+    'DeviceDetailsModule.psm1'
+)
+foreach ($name in $modules) {
+    $modulePath = Join-Path $modulesDir $name
+    if (Test-Path -LiteralPath $modulePath) {
+        Import-Module -LiteralPath $modulePath -Force -Global -ErrorAction Stop
+    }
 }
-return \$res
-"@
+$res = $null
+try {
+    $res = Get-DeviceDetailsData -Hostname $hn
+} catch {
+    $res = $_
+}
+return $res
+'@
         # Add the script and arguments to the PowerShell instance
         [void]$ps.AddScript($scriptText)
         [void]$ps.AddArgument($Hostname)
-        [void]$ps.AddArgument($modulePath)
+        [void]$ps.AddArgument($modulesDir)
         if ($debug) {
             Write-Verbose "Import-DeviceDetailsAsync: script and arguments added to PowerShell instance"
         }
@@ -517,32 +538,23 @@ return \$res
                             }
                             return
                         }
-                        # Extract summary, interfaces and templates from the returned object
-                        $summary    = $dto.Summary
-                        $interfaces = $dto.Interfaces
-                        $templates  = $dto.Templates
-                        # Update the Interfaces view controls if available
-                        if ($global:interfacesView) {
-                            $view = $global:interfacesView
-                            # Update summary fields safely
-                            $view.FindName('HostnameBox').Text        = $summary.Hostname
-                            $view.FindName('MakeBox').Text            = $summary.Make
-                            $view.FindName('ModelBox').Text           = $summary.Model
-                            $view.FindName('UptimeBox').Text          = $summary.Uptime
-                            $view.FindName('PortCountBox').Text       = $summary.Ports
-                            $view.FindName('AuthDefaultVLANBox').Text = $summary.AuthDefaultVLAN
-                            $view.FindName('BuildingBox').Text        = $summary.Building
-                            $view.FindName('RoomBox').Text            = $summary.Room
-                            # Bind interfaces list to grid
-                            $grid = $view.FindName('InterfacesGrid')
-                            if ($grid) { $grid.ItemsSource = $interfaces }
-                            # Populate configuration template dropdown
-                            $combo = $view.FindName('ConfigOptionsDropdown')
-                            if ($combo) { Set-DropdownItems -Control $combo -Items $templates }
+                        # Extract summary information for downstream helpers
+                        $summary = $null
+                        if ($dto -and $dto.PSObject.Properties['Summary']) { $summary = $dto.Summary }
+                        $defaultHost = $Hostname
+                        if ($summary -and $summary.PSObject.Properties['Hostname']) {
+                            $defaultHost = [string]$summary.Hostname
+                        }
+                        try {
+                            InterfaceModule\Set-InterfaceViewData -DeviceDetails $dto -DefaultHostname $defaultHost
+                        } catch {
+                            if ($debug) {
+                                Write-Verbose ("Import-DeviceDetailsAsync: failed to apply device details: {0}" -f $_.Exception.Message)
+                            }
                         }
                         # Load span info using vendor-specific helper if present
                         if (Get-Command Get-SpanInfo -ErrorAction SilentlyContinue) {
-                            try { Get-SpanInfo $summary.Hostname } catch {}
+                            try { Get-SpanInfo $defaultHost } catch {}
                         }
                     } catch {
                         # Swallow UI update exceptions to prevent crashes
@@ -757,7 +769,17 @@ $window.Add_Loaded({
         }
 
         # Bind summaries and filters (this populates HostnameDropdown)
-        Get-DeviceSummaries
+        $catalog = $null
+        try { $catalog = Get-DeviceSummaries } catch { $catalog = $null }
+        try {
+            $hostList = $null
+            if ($catalog -and $catalog.PSObject.Properties['Hostnames']) { $hostList = $catalog.Hostnames }
+            if ($hostList) {
+                Initialize-DeviceFilters -Hostnames $hostList -Window $window
+            } else {
+                Initialize-DeviceFilters -Window $window
+            }
+        } catch {}
         Update-DeviceFilter   # <-- critical
 
         # Now build Compare so it can read the host list
@@ -806,3 +828,11 @@ if (Test-Path $parsedDir) {
         Write-Warning "Failed to reset ParsedData: $_"
     }
 }
+
+
+
+
+
+
+
+

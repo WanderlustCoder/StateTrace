@@ -355,7 +355,7 @@ function Invoke-DbQuery {
         $dataTable = New-Object System.Data.DataTable
         $adapter = New-Object System.Data.OleDb.OleDbDataAdapter($Sql, $conn)
         [void]$adapter.Fill($dataTable)
-        return $dataTable
+        return ,$dataTable
     } finally {
         # Close and dispose connection only if we opened it (mustClose=true).
         if ($mustClose -and $conn) {
@@ -369,3 +369,4 @@ function Invoke-DbQuery {
 
 
 Export-ModuleMember -Function Get-SqlLiteral, New-AccessDatabase, Invoke-DbNonQuery, Invoke-DbQuery, Initialize-StateTraceDatabase, Open-DbReadSession, Close-DbReadSession
+

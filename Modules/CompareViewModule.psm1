@@ -74,7 +74,7 @@ function Get-HostsFromMain {
         # when LastLocation is unavailable (e.g., on first launch before any selection is recorded).
         $siteSel = $null; $zoneSel = $null; $bldSel = $null; $roomSel = $null
         $lastLoc = $null
-        try { $lastLoc = DeviceDataModule\Get-LastLocation } catch { }
+        try { $lastLoc = FilterStateModule\Get-LastLocation } catch { }
         if ($lastLoc) {
             $siteSel = $lastLoc.Site
             $zoneSel = $lastLoc.Zone
@@ -84,7 +84,7 @@ function Get-HostsFromMain {
         if (-not $siteSel -or $siteSel -eq '' -or $siteSel -eq $null) {
             # If no last site exists yet, attempt to read from the UI controls.
             try {
-                $locSel = DeviceDataModule\Get-SelectedLocation -Window $Window
+                $locSel = FilterStateModule\Get-SelectedLocation -Window $Window
                 if ($locSel) {
                     $siteSel = $locSel.Site
                     $zoneSel = $locSel.Zone
@@ -94,7 +94,7 @@ function Get-HostsFromMain {
             } catch { }
         }
         # Ensure interface data for the selected site and zone is loaded.  Calling this helper
-        # triggers lazy loading of per-site/per-zone data in DeviceDataModule.  It is safe to
+        # triggers lazy loading of per-site/per-zone data in DeviceRepositoryModule.  It is safe to
         # call repeatedly; subsequent calls for the same site/zone do nothing.
         if ($siteSel -and $siteSel -ne '' -and $siteSel -ne 'All Sites') {
             try { DeviceRepositoryModule\Update-SiteZoneCache -Site $siteSel -Zone $zoneSel | Out-Null } catch { }
@@ -564,7 +564,7 @@ function Get-HostsFromMain {
         # when LastLocation is unavailable (e.g., on first launch before any selection is recorded).
         $siteSel = $null; $zoneSel = $null; $bldSel = $null; $roomSel = $null
         $lastLoc = $null
-        try { $lastLoc = DeviceDataModule\Get-LastLocation } catch { }
+        try { $lastLoc = FilterStateModule\Get-LastLocation } catch { }
         if ($lastLoc) {
             $siteSel = $lastLoc.Site
             $zoneSel = $lastLoc.Zone
@@ -574,7 +574,7 @@ function Get-HostsFromMain {
         if (-not $siteSel -or $siteSel -eq '' -or $siteSel -eq $null) {
             # If no last site exists yet, attempt to read from the UI controls.
             try {
-                $locSel = DeviceDataModule\Get-SelectedLocation -Window $Window
+                $locSel = FilterStateModule\Get-SelectedLocation -Window $Window
                 if ($locSel) {
                     $siteSel = $locSel.Site
                     $zoneSel = $locSel.Zone
@@ -584,7 +584,7 @@ function Get-HostsFromMain {
             } catch { }
         }
         # Ensure interface data for the selected site and zone is loaded.  Calling this helper
-        # triggers lazy loading of per-site/per-zone data in DeviceDataModule.  It is safe to
+        # triggers lazy loading of per-site/per-zone data in DeviceRepositoryModule.  It is safe to
         # call repeatedly; subsequent calls for the same site/zone do nothing.
         if ($siteSel -and $siteSel -ne '' -and $siteSel -ne 'All Sites') {
             try { DeviceRepositoryModule\Update-SiteZoneCache -Site $siteSel -Zone $zoneSel | Out-Null } catch { }

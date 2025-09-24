@@ -14,7 +14,7 @@
 ## Before You Change Anything
 1. Read the task twice, then review the docs above to confirm desired behaviour. If the task intersects DeviceData or view logic, consult the refactor plan tables to see current vs target ownership.
 2. Identify the modules and views involved. Use `rg` to trace function usage instead of guessing.
-3. Check for planned migrations or wrappers (e.g., `DeviceDataModule` delegating to `DeviceRepositoryModule`) so you edit the correct source of truth.
+3. Check for planned migrations or wrappers (e.g., verify the canonical modules such as `DeviceRepositoryModule`, `DeviceCatalogModule`, `FilterStateModule`) so you edit the correct source of truth. so you edit the correct source of truth.
 4. If the change touches themes, load `Modules/ThemeModule.psm1` and `Themes/*.json` to respect the runtime theme system rather than hard-coding colours.
 
 ## Safe Implementation Checklist
@@ -25,7 +25,7 @@
 - **UI bindings:** XAML views bind to specific property names and DataContext members from their modules. Verify bindings remain valid after edits by searching for `x:Name` and matching handler functions.
 - **Theme-aware UI:** Use `ThemeModule` tokens and `DynamicResource` bindings; avoid new literal colours unless you also extend the theme definition and defaults.
 - **Vendor modules:** Keep normalised interface objects consistent (properties like `PortColor`, `AuthTemplate`, `ConfigStatus`). UI modules rely on these fields for styling and alerts.
-- **Compatibility wrappers:** `DeviceDataModule` currently proxies to newer modules; remove wrappers only when all consumers are migrated.
+- **Compatibility wrappers:** `DeviceDataModule` has been retired; ensure new functionality targets the owning modules directly and avoid reintroducing wrapper layers.
 
 ## Validation Expectations
 - Run automated tests whenever you touch parser, repository, or analytics logic: `Invoke-Pester Modules/Tests` from the repo root.
