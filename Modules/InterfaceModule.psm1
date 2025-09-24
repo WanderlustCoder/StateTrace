@@ -355,9 +355,12 @@ function New-InterfaceObjectsFromDbRow {
             }
         }
         # Build the PSCustomObject for this interface.  Use the provided Hostname for all entries.
+        $portValue = if ($row.PSObject.Properties['Port']) { '' + $row.Port } else { $null }
+        $portSortKey = if ($portValue) { Get-PortSortKey -Port $portValue } else { '99-UNK-99999-99999-99999-99999-99999' }
         [void]$resultList.Add([PSCustomObject]@{
             Hostname      = $Hostname
-            Port          = $(if ($row.PSObject.Properties['Port']) { $row.Port } else { $null })
+            Port          = $portValue
+            PortSort      = $portSortKey
             Name          = $(if ($row.PSObject.Properties['Name']) { $row.Name } else { $null })
             Status        = $(if ($row.PSObject.Properties['Status']) { $row.Status } else { $null })
             VLAN          = $(if ($row.PSObject.Properties['VLAN']) { $row.VLAN } else { $null })
@@ -374,6 +377,13 @@ function New-InterfaceObjectsFromDbRow {
             PortColor     = $portColorVal
         })
     }
+    $comparison = [System.Comparison[object]]{
+        param($a, $b)
+        $keyA = if ($a -and $a.PSObject.Properties['PortSort']) { '' + $a.PortSort } else { '99-UNK-99999-99999-99999-99999-99999' }
+        $keyB = if ($b -and $b.PSObject.Properties['PortSort']) { '' + $b.PortSort } else { '99-UNK-99999-99999-99999-99999-99999' }
+        return [System.StringComparer]::Ordinal.Compare($keyA, $keyB)
+    }
+    try { $resultList.Sort($comparison) } catch {}
     return $resultList
 }
 
@@ -764,6 +774,7 @@ function New-InterfacesView {
 }
 
 Export-ModuleMember -Function Get-PortSortKey,Get-InterfaceHostnames,Get-InterfaceInfo,Get-InterfaceList,New-InterfaceObjectsFromDbRow,Compare-InterfaceConfigs,Get-InterfaceConfiguration,Get-ConfigurationTemplates,Get-SpanningTreeInfo,New-InterfacesView
+
 
 
 

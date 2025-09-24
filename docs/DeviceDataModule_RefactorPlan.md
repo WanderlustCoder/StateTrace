@@ -35,6 +35,7 @@
   - Alternative: push logic directly into the respective view modules if we prefer view-owned behaviour; see migration notes.
 - **TemplatesModule / InterfaceModule updates**
   - Move `Get-ConfigurationTemplates` alongside template caching (likely into `TemplatesModule` with shared cache).
+  - Update (2025-09-24): Template retrieval and caching now live in `TemplatesModule` (`Get-ConfigurationTemplateData`, `Get-ConfigurationTemplates`); DeviceDetailsModule and InterfaceModule delegate while DeviceDataModule keeps a wrapper during the cutover.
   - Keep `Get-PortSortKey` with `InterfaceModule` (data ordering concern).
 - **CommonUtilities.psm1 (new)**
   - Host generic helpers (`Get-SqlLiteral`, `Test-StringListEqualCI` if not kept with filters) to avoid circular dependencies.
@@ -200,6 +201,7 @@
 ## Current Regression Snapshot
 - DeviceRepositoryModule now encapsulates cache refresh, global list coordination, and interface detail helpers; DeviceDataModule simply delegates.
 - Track callers still importing these functions from DeviceDataModule so wrappers can be removed once downstream updates land.
+- Templates now resolve via `TemplatesModule`; ensure module import order and regression tests cover the new cache before retiring DeviceDataModule wrappers.
 
 ## Progress Checklist
 - [x] Data access & site resolution helpers now live in `DeviceRepositoryModule.psm1` (`Get-SiteFromHostname`, `Get-DbPathForSite`/`Get-DbPathForHost`, `Get-AllSiteDbPaths`; DeviceDataModule keeps wrappers only for legacy imports).
