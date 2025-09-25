@@ -313,7 +313,8 @@ if (-not $script:ViewsInitialized) {
     )
 
     # Auto-discover any additional New-*View commands, excluding Compare for now
-    $excludeInitially = @('Update-CompareView')
+    # Exclude helper commands that require extra mandatory parameters
+    $excludeInitially = @('Update-CompareView','New-StView')
     $discovered = Get-Command -Name 'New-*View' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name
     if ($discovered) {
         $extra = $discovered | Where-Object { ($viewsInOrder -notcontains $_) -and ($_ -notin $excludeInitially) }

@@ -6,22 +6,9 @@ function New-SpanView {
         [Parameter(Mandatory=$true)][string]$ScriptDir
     )
 
-    $spanViewPath = Join-Path $ScriptDir '..\Views\SpanView.xaml'
-    if (-not (Test-Path $spanViewPath)) {
-        Write-Warning "SpanView.xaml not found at $spanViewPath"
-        return
-    }
-    $spanXaml = Get-Content $spanViewPath -Raw
-    $reader   = New-Object System.Xml.XmlTextReader (New-Object System.IO.StringReader($spanXaml))
-    $spanView = [Windows.Markup.XamlReader]::Load($reader)
-    $spanHost = $Window.FindName('SpanHost')
-    if ($spanHost -is [System.Windows.Controls.ContentControl]) {
-        $spanHost.Content = $spanView
-    } else {
-        Write-Warning "Could not find ContentControl 'SpanHost'"
-    }
-    # Expose span view globally for other modules
-    $global:spanView = $spanView
+    $spanView = New-StView -Window $Window -ScriptDir $ScriptDir -ViewName 'SpanView' -HostControlName 'SpanHost' -GlobalVariableName 'spanView'
+    if (-not $spanView) { return }
+
     # Acquire controls
     $spanGrid     = $spanView.FindName('SpanGrid')
     $vlanDropdown = $spanView.FindName('VlanDropdown')
@@ -121,4 +108,6 @@ function New-SpanView {
 }
 
 Export-ModuleMember -Function New-SpanView, Get-SpanInfo
+
+
 

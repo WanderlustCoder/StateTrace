@@ -4,23 +4,9 @@ function New-TemplatesView {
         [Parameter(Mandatory=$true)][System.Windows.Window]$Window,
         [Parameter(Mandatory=$true)][string]$ScriptDir
     )
-    $templatesViewPath = Join-Path $ScriptDir '..\Views\TemplatesView.xaml'
-    if (-not (Test-Path $templatesViewPath)) {
-        Write-Warning "TemplatesView.xaml not found at $templatesViewPath"
-        return
-    }
-    $tplXaml  = Get-Content $templatesViewPath -Raw
-    $reader   = New-Object System.Xml.XmlTextReader (New-Object System.IO.StringReader($tplXaml))
     try {
-        $templatesView = [Windows.Markup.XamlReader]::Load($reader)
-        $templatesHost = $Window.FindName('TemplatesHost')
-        if ($templatesHost -is [System.Windows.Controls.ContentControl]) {
-            $templatesHost.Content = $templatesView
-        } else {
-            Write-Warning "Could not find ContentControl 'TemplatesHost'"
-        }
-        # Expose globally for access by helper functions
-        $global:templatesView = $templatesView
+        $templatesView = New-StView -Window $Window -ScriptDir $ScriptDir -ViewName 'TemplatesView' -HostControlName 'TemplatesHost' -GlobalVariableName 'templatesView'
+        if (-not $templatesView) { return }
         # Directory containing JSON template files
         $script:TemplatesDir = Join-Path $ScriptDir '..\Templates'
         # Acquire key controls
@@ -167,3 +153,5 @@ function New-TemplatesView {
 }
 
 Export-ModuleMember -Function New-TemplatesView
+
+

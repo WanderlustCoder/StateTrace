@@ -9,23 +9,8 @@ function New-SearchInterfacesView {
         [Parameter(Mandatory=$true)][System.Windows.Window]$Window,
         [Parameter(Mandatory=$true)][string]$ScriptDir
     )
-    $searchXamlPath = Join-Path $ScriptDir '..\Views\SearchInterfacesView.xaml'
-    if (-not (Test-Path $searchXamlPath)) {
-        Write-Warning "SearchInterfacesView.xaml not found at $searchXamlPath"
-        return
-    }
-    $searchXaml   = Get-Content $searchXamlPath -Raw
-    $reader       = New-Object System.Xml.XmlTextReader (New-Object System.IO.StringReader($searchXaml))
-    $searchView   = [Windows.Markup.XamlReader]::Load($reader)
-    # Host injection
-    $searchHost   = $Window.FindName('SearchInterfacesHost')
-    if ($searchHost -is [System.Windows.Controls.ContentControl]) {
-        $searchHost.Content = $searchView
-    } else {
-        Write-Warning "Could not find ContentControl 'SearchInterfacesHost'"
-    }
-    # Expose view globally
-    $global:searchInterfacesView = $searchView
+    $searchView = New-StView -Window $Window -ScriptDir $ScriptDir -ViewName 'SearchInterfacesView' -HostControlName 'SearchInterfacesHost' -GlobalVariableName 'searchInterfacesView'
+    if (-not $searchView) { return }
     # Acquire controls
     $searchBox      = $searchView.FindName('SearchBox')
     $searchClearBtn = $searchView.FindName('SearchClearButton')
@@ -119,3 +104,5 @@ function New-SearchInterfacesView {
 }
 
 Export-ModuleMember -Function New-SearchInterfacesView
+
+

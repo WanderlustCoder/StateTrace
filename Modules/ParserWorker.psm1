@@ -237,6 +237,7 @@ function Start-ParallelDeviceProcessing {
             }
             # Import vendor and parser modules into the worker runspace.  Use Join-Path to
             # construct absolute module paths based on the provided ModulesPath parameter.
+            Import-Module (Join-Path $modulesPath 'DeviceParsingCommon.psm1') -Force
             Import-Module (Join-Path $modulesPath 'AristaModule.psm1') -Force
             Import-Module (Join-Path $modulesPath 'CiscoModule.psm1') -Force
             Import-Module (Join-Path $modulesPath 'BrocadeModule.psm1') -Force

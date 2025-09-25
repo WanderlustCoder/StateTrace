@@ -1,4 +1,4 @@
-﻿# Brocade Device Parsing Module
+# Brocade Device Parsing Module
 
 # (Debug code removed)
 function Get-BrocadeDeviceFacts {
@@ -44,16 +44,16 @@ function Get-BrocadeDeviceFacts {
     # Some Brocade outputs may omit the 'Et' prefix (e.g. '1/1/1') while others include
     # longer forms such as 'Ethernet1/1/1'.  Use this helper to produce a canonical
     # representation for dictionary lookups.  The returned string preserves the
-    # underlying numeric stack/slot/port but removes vendor‑specific prefixes.
+    # underlying numeric stack/slot/port but removes vendor-specific prefixes.
     # Convert a port key to a canonical form by stripping any vendor-specific
-    # prefixes (e.g. 'Ethernet1/1/1' → '1/1/1').  Using the approved verb
+    # prefixes (e.g. 'Ethernet1/1/1' ? '1/1/1').  Using the approved verb
     # 'ConvertTo' conveys that this helper transforms the input to a new
     # representation.  The previous name 'Normalize-PortKey' used the
     # unapproved verb 'Normalize'.  Callers have been updated accordingly.
     function ConvertTo-PortKey {
         param([string]$p)
         if (-not $p) { return $p }
-        # Remove any leading 'Et', 'Eth' or 'Ethernet' (case‑insensitive).  The
+        # Remove any leading 'Et', 'Eth' or 'Ethernet' (case-insensitive).  The
         # replacement operates only on the prefix to avoid altering the numeric
         # portions of the port identifier.  Trim any resulting whitespace.
         $normalized = $p -replace '^(?i)eth(?:ernet)?', ''
@@ -233,79 +233,32 @@ function Get-BrocadeDeviceFacts {
 
     function Get-InterfacesBrief {
         param ($Block)
-        # Use a typed list for interface summaries to avoid repeated array resizing.
-        $results = New-Object 'System.Collections.Generic.List[psobject]'
-        foreach ($line in $Block) {
-            # Brocade "show interfaces brief" output can vary by release.  Some versions
-            # Updated regex to allow "None" in the duplex column.  When a port is disabled or down,
-            # the device outputs "None" for duplex and speed fields.  Without "None" in the
-            # enumerated values, those lines would not match and therefore be skipped.
-            if ($line -match '^(\d+/\d+/\d+)\s+(Up|Down|Disable(?:d)?|Admin-?Down|None)\s+(\S+)\s+(Full|Half|Auto(?:/Full)?|N/A|None)\s+(\S+)\s+(?:\S+\s+){3,6}([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4,6})\s+(.*?)\s*$') {
-                $rawPort   = $matches[1]
-                $linkToken = $matches[2]
-                $stateTok  = $matches[3]
-                $duplexTok = $matches[4]
-                $speedTok  = $matches[5]
-                # Keep "None" values as literal strings rather than converting to $null.  This preserves
-                # the original device output (e.g., "None") for duplex and speed fields.
-                $macTok    = $matches[6]
-                $nameTok   = $matches[7].Trim()
-
-                # Normalize the Status: treat anything other than 'Up' as 'Down'
-
-                [void]$results.Add([PSCustomObject]@{
-                    RawPort = $rawPort
-                    Port    = ConvertTo-StandardPortName $rawPort
-                    Status  = $linkToken
-                    #Link    = $linkToken
-                    State   = $stateTok
-                    Duplex  = $duplexTok
-                    Speed   = $speedTok
-                    MAC     = $macTok
-                    Name    = $nameTok
-                })
-            }
+        $propertyMap = [ordered]@{
+            RawPort = 1
+            Status  = 2
+            State   = 3
+            Duplex  = 4
+            Speed   = 5
+            MAC     = 6
+            Name    = { param($match) $match.Groups[7].Value.Trim() }
         }
-        return $results
+        $postProcess = {
+            param($obj, $match)
+            $raw = $obj.RawPort
+            $obj | Add-Member -NotePropertyName Port -NotePropertyValue (ConvertTo-StandardPortName $raw) -Force
+            return $obj
+        }
+        return DeviceParsingCommon\Invoke-RegexTableParser -Lines $Block -HeaderPattern '^' -RowPattern '^(\d+/\d+/\d+)\s+(Up|Down|Disable(?:d)?|Admin-?Down|None)\s+(\S+)\s+(Full|Half|Auto(?:/Full)?|N/A|None)\s+(\S+)\s+(?:\S+\s+){3,6}([0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4,6})\s+(.*?)\s*$' -PropertyMap $propertyMap -TerminatorPattern '' -PostProcess $postProcess
     }
 
-function Get-MacTable {
+    function Get-MacTable {
         param ($Block)
-        # Parse MAC address table lines.  Allow either a simple "MAC Port Type VLAN" format or
-        # the more common "MAC Port Type Index VLAN" variant.  The Brocade output may
-        # separate columns with spaces or tabs.  We trim each line before matching to
-        # eliminate trailing carriage returns or excess whitespace that would otherwise
-        # prevent a match.  Header lines (starting with "MAC Address") are skipped.
-        # Create a collection for the parsed MAC table entries.
-        $results = New-Object 'System.Collections.Generic.List[psobject]'
-        # Initialize internal counters that may be useful for future logging or statistics.
-        # These counters are not emitted to the user.
-        $matched = 0; $skipped = 0; $candidates = 0
-        foreach ($line in $Block) {
-            $candidates++
-            if (-not $line) { continue }
-            $t = $line.Trim()
-            if (-not $t) { continue }
-            # Skip the table header.  A header starts with 'MAC Address' followed by the other column names.
-            if ($t -match '^MAC\s+Address\b') {
-                $skipped++
-                continue
-            }
-            # Match a row containing: MAC, Port, any characters (Type and optional index), then VLAN.
-            # Brocade MAC address tables vary; this pattern captures the MAC, port and final VLAN
-            # regardless of intermediate columns, and allows an optional trailing column (e.g., Action/Forward).
-            if ($t -match '^(?<mac>(?:[0-9A-Fa-f]{4}\.){2}[0-9A-Fa-f]{4})\s+(?<port>\d+/\d+/\d+)\s+.*?\s+(?<vlan>\d+)(?:\s+\S+)?\s*$') {
-                $matched++
-                [void]$results.Add([PSCustomObject]@{
-                    MAC  = $matches['mac']
-                    Port = ConvertTo-StandardPortName $matches['port']
-                    VLAN = [int]$matches['vlan']
-                })
-            } else {
-                # unmatched lines are ignored without logging when debugging is disabled
-            }
+        $propertyMap = [ordered]@{
+            MAC  = { param($match) $match.Groups['mac'].Value.Trim() }
+            Port = { param($match) ConvertTo-StandardPortName $match.Groups['port'].Value }
+            VLAN = { param($match) [int]$match.Groups['vlan'].Value }
         }
-        return $results
+        return DeviceParsingCommon\Invoke-RegexTableParser -Lines $Block -HeaderPattern '^\s*MAC\s+Address' -RowPattern '^(?<mac>(?:[0-9A-Fa-f]{4}\.){2}[0-9A-Fa-f]{4,6})\s+(?<port>\d+/\d+/\d+)\s+.*?\s+(?<vlan>\d+)(?:\s+\S+)?\s*$' -PropertyMap $propertyMap
     }
 
     function Get-AuthStatus {
@@ -485,7 +438,7 @@ function Get-MacTable {
     # command which forces MAC authentication to take precedence over 802.1X when both are
     # enabled on a port.  If present, ports that appear in both the dot1x and macauth lists
     # should be classified as macauth rather than flexible.  Scan the configuration block
-    # for this command once and store the result for use in the per‑interface loop below.
+    # for this command once and store the result for use in the per-interface loop below.
     $macOverridesDot1x = $false
     foreach ($line in $configBlock) {
         if ($line -match '(?i)^\s*mac-authentication\s+dot1x\s+override') {
@@ -654,7 +607,7 @@ function Get-MacTable {
         $interfaceMAC = $iface.MAC
         # Use the precomputed lookup to retrieve the list of MAC addresses for this port.
         # Show only the first MAC in the grid to prevent excessively wide columns.  Keep
-        # the full comma‑separated list in a separate variable for downstream use
+        # the full comma-separated list in a separate variable for downstream use
         # (e.g., tooltips or exports).
         # Look up the list of MAC addresses learned on this port.  Use a normalized
         # key for dictionary access to handle minor variations in port prefixes.
@@ -670,7 +623,7 @@ function Get-MacTable {
         $macCount = $macArr.Count
         if ($macCount -gt 0) {
             $macList     = $macArr[0]                 # display just the first MAC
-            $macListFull = [string]::Join(',', $macArr)  # full comma‑separated list
+            $macListFull = [string]::Join(',', $macArr)  # full comma-separated list
         } else {
             $macList     = ''
             $macListFull = ''
@@ -744,7 +697,7 @@ function Get-MacTable {
     if ($spanBlock.Count -eq 0) {
         $spanBlock = Get-CommandBlock -Lines $Lines -CommandRegex '#\s*show\s+span'
     }
-    # Parse spanning tree information using the shared ConvertFrom‑SpanningTree helper
+    # Parse spanning tree information using the shared ConvertFrom-SpanningTree helper
     $spanInfo = if ($spanBlock.Count -gt 0) { ConvertFrom-SpanningTree -SpanLines $spanBlock } else { @() }
 
     return [PSCustomObject]@{

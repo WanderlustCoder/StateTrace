@@ -718,53 +718,26 @@ function Update-CompareView {
 
     # At this point we either have no compare view yet or the host list has changed,
     # so we need to build a fresh view and populate it.
-    $xamlPath = Join-Path $PSScriptRoot '..\Views\CompareView.xaml'
-    if (-not (Test-Path -LiteralPath $xamlPath)) {
-        Write-Warning "[CompareView] Compare view XAML not found at $xamlPath"
-        return
-    }
-    try {
-        $xaml   = [System.IO.File]::ReadAllText($xamlPath)
-        $reader = [System.Xml.XmlTextReader]::new([System.IO.StringReader]::new($xaml))
-        $viewCtrl = [System.Windows.Markup.XamlReader]::Load($reader)
-    }
-    catch {
-        Write-Warning "[CompareView] Failed to load compare view XAML from ${xamlPath}: $($_.Exception.Message)"
-        return
-    }
-    if (-not $viewCtrl) {
-        Write-Warning "[CompareView] XAML loaded but viewCtrl is null. Aborting."
-        return
-    }
-    # Inject the loaded Compare view control into the main window's CompareHost container
-    $compareHost = $Window.FindName('CompareHost')
-    if ($compareHost -is [System.Windows.Controls.ContentControl]) {
-        $compareHost.Content = $viewCtrl
-        Write-Verbose "[CompareView] Compare view injected into main window."
-        # Wire up the Close button to collapse the Compare sidebar
-        $script:compareHostCtl = $compareHost
-        $closeBtn = $viewCtrl.FindName('CloseCompareButton')
-        if ($closeBtn -and ($script:closeWiredViewId -ne $viewCtrl.GetHashCode())) {
-            $closeBtn.Add_Click({
-                if ($script:compareHostCtl -is [System.Windows.Controls.ContentControl]) {
-                    try {
-                        if ($script:windowRef) {
-                            $col = $script:windowRef.FindName('CompareColumn')
-                            if ($col -is [System.Windows.Controls.ColumnDefinition]) {
-                                $col.Width = [System.Windows.GridLength]::new(0)
-                            }
+    $viewCtrl = New-StView -Window $Window -ScriptDir $PSScriptRoot -ViewName 'CompareView' -HostControlName 'CompareHost' -GlobalVariableName 'compareView'
+    if (-not $viewCtrl) { return }
+    Write-Verbose "[CompareView] Compare view injected into main window."
+    $script:compareHostCtl = $Window.FindName('CompareHost')
+    $closeBtn = $viewCtrl.FindName('CloseCompareButton')
+    if ($script:compareHostCtl -is [System.Windows.Controls.ContentControl] -and $closeBtn -and ($script:closeWiredViewId -ne $viewCtrl.GetHashCode())) {
+        $closeBtn.Add_Click({
+            if ($script:compareHostCtl -is [System.Windows.Controls.ContentControl]) {
+                try {
+                    if ($script:windowRef) {
+                        $col = $script:windowRef.FindName('CompareColumn')
+                        if ($col -is [System.Windows.Controls.ColumnDefinition]) {
+                            $col.Width = [System.Windows.GridLength]::new(0)
                         }
-                    } catch { }
-                }
-            })
-            $script:closeWiredViewId = $viewCtrl.GetHashCode()
-        }
+                    }
+                } catch { }
+            }
+        })
+        $script:closeWiredViewId = $viewCtrl.GetHashCode()
     }
-    else {
-        Write-Warning "[CompareView] Could not find ContentControl 'CompareHost' in the main window."
-        return
-    }
-    # Store reference and bind controls
     $script:compareView = $viewCtrl
     Resolve-CompareControls | Out-Null
     # Populate the switches list for both dropdowns with the new host list
@@ -863,3 +836,5 @@ function Set-CompareSelection {
 }
 
 Export-ModuleMember -Function Resolve-CompareControls, Get-HostString, Get-HostsFromMain, Get-PortSortKey, Get-PortsForHost, Set-PortsForCombo, Get-GridRowFor, Get-AuthTemplateFromTooltip, Get-ThemeBrushForPortColor, Update-CompareThemeBrushes, Set-CompareFromRows, Show-CurrentComparison, Get-CompareHandlers, Update-CompareView, Set-CompareSelection
+
+

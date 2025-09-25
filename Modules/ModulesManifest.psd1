@@ -11,10 +11,13 @@
         'DeviceDetailsModule.psm1',
         'DeviceInsightsModule.psm1',
         # Vendor-specific modules
+        'DeviceParsingCommon.psm1',
         'AristaModule.psm1',
         'BrocadeModule.psm1',
         'CiscoModule.psm1',
         # Interface and view modules
+        'ViewCompositionModule.psm1',
+        'ViewStateService.psm1',
         'InterfaceModule.psm1',
         'SpanViewModule.psm1',
         'SearchInterfacesViewModule.psm1',
@@ -25,4 +28,3 @@
         'TemplatesModule.psm1'
     )
 }
-

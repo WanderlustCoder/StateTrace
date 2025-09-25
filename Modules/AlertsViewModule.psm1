@@ -4,28 +4,14 @@ function New-AlertsView {
         [Parameter(Mandatory=$true)][System.Windows.Window]$Window,
         [Parameter(Mandatory=$true)][string]$ScriptDir
     )
-    $alertsViewPath = Join-Path $ScriptDir '..\Views\AlertsView.xaml'
-    if (-not (Test-Path $alertsViewPath)) {
-        Write-Warning "AlertsView.xaml not found at $alertsViewPath"
-        return
-    }
-    $alertXaml   = Get-Content $alertsViewPath -Raw
-    $reader      = New-Object System.Xml.XmlTextReader (New-Object System.IO.StringReader($alertXaml))
     try {
-        $alertsView = [Windows.Markup.XamlReader]::Load($reader)
-        $alertsHost = $Window.FindName('AlertsHost')
-        if ($alertsHost -is [System.Windows.Controls.ContentControl]) {
-            $alertsHost.Content = $alertsView
-        } else {
-            Write-Warning "Could not find ContentControl 'AlertsHost'"
-        }
-        # Expose globally
-        $global:alertsView = $alertsView
-        # Compute alerts immediately using GuiModule helper, if available
+        $alertsView = New-StView -Window $Window -ScriptDir $ScriptDir -ViewName 'AlertsView' -HostControlName 'AlertsHost' -GlobalVariableName 'alertsView'
+        if (-not $alertsView) { return }
+
         if (Get-Command Update-Alerts -ErrorAction SilentlyContinue) {
             Update-Alerts
         }
-        # Wire up export button
+
         $expAlertsBtn = $alertsView.FindName('ExportAlertsButton')
         if ($expAlertsBtn) {
             $expAlertsBtn.Add_Click({
@@ -51,8 +37,12 @@ function New-AlertsView {
             })
         }
     } catch {
-        Write-Warning "Failed to load AlertsView: $($_.Exception.Message)"
+        Write-Warning "Failed to initialize Alerts view: $($_.Exception.Message)"
     }
 }
 
 Export-ModuleMember -Function New-AlertsView
+
+
+
+

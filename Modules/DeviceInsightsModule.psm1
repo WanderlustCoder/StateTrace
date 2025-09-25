@@ -48,21 +48,12 @@ function Update-SearchResults {
         }
     } catch {}
 
+    $interfaces = ViewStateService\Get-InterfacesForContext -Site $siteSel -ZoneSelection $zoneSel -ZoneToLoad $zoneSel -Building $bldSel -Room $roomSel
     $results   = New-Object 'System.Collections.Generic.List[object]'
     $termEmpty = [string]::IsNullOrWhiteSpace($Term)
-    foreach ($row in $global:AllInterfaces) {
+
+    foreach ($row in $interfaces) {
         if (-not $row) { continue }
-
-        $rowSite     = '' + $row.Site
-        $rowBuilding = '' + $row.Building
-        $rowRoom     = '' + $row.Room
-        $rowZone     = ''
-        if ($row.PSObject.Properties['Zone']) { $rowZone = '' + $row.Zone }
-
-        if ($siteSel -and $siteSel -ne '' -and $siteSel -ne 'All Sites' -and ($rowSite -ne $siteSel)) { continue }
-        if ($zoneSel -and $zoneSel -ne '' -and $zoneSel -ne 'All Zones' -and ($rowZone -ne $zoneSel)) { continue }
-        if ($bldSel  -and $bldSel  -ne '' -and ($rowBuilding -ne $bldSel))  { continue }
-        if ($roomSel -and $roomSel -ne '' -and ($rowRoom     -ne $roomSel)) { continue }
 
         if ($statusFilterVal -ne 'All') {
             $st = '' + $row.Status
@@ -138,65 +129,17 @@ function Update-Summary {
     $bldSel  = if ($loc) { $loc.Building } else { $null }
     $roomSel = if ($loc) { $loc.Room } else { $null }
 
-    $devKeys = if ($global:DeviceMetadata) { $global:DeviceMetadata.Keys } else { @() }
-    $filteredDevices = [System.Collections.Generic.List[string]]::new()
-    foreach ($k in $devKeys) {
-        $meta = $global:DeviceMetadata[$k]
-        if (-not $meta) { continue }
-        if ($siteSel -and $siteSel -ne '' -and $siteSel -ne 'All Sites' -and ($meta.Site -ne $siteSel)) { continue }
-        if ($zoneSel -and $zoneSel -ne '' -and $zoneSel -ne 'All Zones') {
-            $mZ = $null
-            if ($meta.PSObject.Properties['Zone']) { $mZ = '' + $meta.Zone }
-            if (-not $mZ) {
-                $partsZ = ('' + $k) -split '-'
-                if ($partsZ.Length -ge 2) { $mZ = $partsZ[1] }
-            }
-            if ($mZ -ne $zoneSel) { continue }
-        }
-        if ($bldSel  -and $bldSel  -ne '' -and ($meta.Building -ne $bldSel))  { continue }
-        if ($roomSel -and $roomSel -ne '' -and ($meta.Room     -ne $roomSel)) { continue }
-        [void]$filteredDevices.Add($k)
-    }
-
-    foreach ($d in $filteredDevices) {
-        try {
-            if (-not $global:DeviceInterfaceCache -or -not $global:DeviceInterfaceCache.ContainsKey($d)) {
-                DeviceRepositoryModule\Get-InterfaceInfo -Hostname $d | Out-Null
-                Write-Host ("[Update-Summary] Loaded interface info for {0}" -f $d)
-            }
-        } catch {
-            $msg = $_.Exception.Message
-            Write-Host ("[Update-Summary] Failed to load interface info for {0}: {1}" -f $d, $msg)
-        }
-    }
-
-    $interfaces = [System.Collections.Generic.List[object]]::new()
-    if ($siteSel -and $siteSel -ne '' -and $siteSel -ne 'All Sites') {
+    $zoneToLoad = ''
+    if ($zoneSel -and $zoneSel -ne '' -and $zoneSel -ne 'All Zones') {
         $zoneToLoad = $zoneSel
-        if (-not $zoneToLoad -or $zoneToLoad -eq '' -or $zoneToLoad -eq 'All Zones') {
-            $zList = @()
-            try { $zList = @($filteredDevices | ForEach-Object { ($_ -split '-')[1] } | Sort-Object -Unique) } catch {}
-            if ($zList.Count -gt 0) { $zoneToLoad = $zList[0] }
-        }
-        try { DeviceRepositoryModule\Update-SiteZoneCache -Site $siteSel -Zone $zoneToLoad | Out-Null } catch {}
-        foreach ($kv in $global:DeviceInterfaceCache.GetEnumerator()) {
-            $hn = $kv.Key
-            $parts = ('' + $hn) -split '-'
-            $sitePart = if ($parts.Length -ge 1) { $parts[0] } else { '' }
-            $zonePart = if ($parts.Length -ge 2) { $parts[1] } else { '' }
-            if ($sitePart -ne $siteSel) { continue }
-            if ($zoneSel -and $zoneSel -ne '' -and $zoneSel -ne 'All Zones') {
-                if ($zonePart -ne $zoneSel) { continue }
-            } elseif ($zoneToLoad -and $zoneToLoad -ne '') {
-                if ($zonePart -ne $zoneToLoad) { continue }
-            }
-            foreach ($row in $kv.Value) { [void]$interfaces.Add($row) }
-        }
-    } else {
-        foreach ($kv in $global:DeviceInterfaceCache.GetEnumerator()) {
-            foreach ($row in $kv.Value) { [void]$interfaces.Add($row) }
-        }
     }
+
+    if ($siteSel -and $siteSel -ne '' -and $siteSel -ne 'All Sites') {
+        try { DeviceRepositoryModule\Update-SiteZoneCache -Site $siteSel -Zone $zoneToLoad | Out-Null } catch {}
+    }
+
+    $interfaces = ViewStateService\Get-InterfacesForContext -Site $siteSel -ZoneSelection $zoneSel -ZoneToLoad $zoneToLoad -Building $bldSel -Room $roomSel
+    if (-not $interfaces) { $interfaces = @() }
 
     foreach ($row in $interfaces) {
         if (-not $row) { continue }
@@ -214,35 +157,20 @@ function Update-Summary {
 
     $global:AllInterfaces = $interfaces
 
-    $filteredRows = [System.Collections.Generic.List[object]]::new()
-    foreach ($dev in $filteredDevices) {
-        $rowsForDev = $null
-        try {
-            if ($global:DeviceInterfaceCache -and $global:DeviceInterfaceCache.ContainsKey($dev)) {
-                $rowsForDev = $global:DeviceInterfaceCache[$dev]
-            }
-        } catch {}
-        if (-not $rowsForDev) { continue }
-        foreach ($row in $rowsForDev) {
-            if (-not $row) { continue }
-            $rSite = '' + $row.Site
-            $rZone = ''
-            if ($row.PSObject.Properties['Zone']) { $rZone = '' + $row.Zone }
-            $rBld  = '' + $row.Building
-            $rRoom = '' + $row.Room
-            if ($siteSel -and $siteSel -ne '' -and $siteSel -ne 'All Sites' -and ($rSite -ne $siteSel)) { continue }
-            if ($zoneSel -and $zoneSel -ne '' -and $zoneSel -ne 'All Zones' -and ($rZone -ne $zoneSel)) { continue }
-            if ($bldSel  -and $bldSel  -ne '' -and ($rBld  -ne $bldSel))  { continue }
-            if ($roomSel -and $roomSel -ne '' -and ($rRoom -ne $roomSel)) { continue }
-            [void]$filteredRows.Add($row)
+    $deviceSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($row in $interfaces) {
+        if ($row -and $row.PSObject.Properties['Hostname']) {
+            $hostname = '' + $row.Hostname
+            if (-not [string]::IsNullOrWhiteSpace($hostname)) { [void]$deviceSet.Add($hostname) }
         }
     }
 
-    $devCount = $filteredDevices.Count
-    $intCount = $filteredRows.Count
+    $devCount = $deviceSet.Count
+    $intCount = $interfaces.Count
     $upCount = 0; $downCount = 0; $authCount = 0; $unauthCount = 0
     $vlans = [System.Collections.Generic.List[string]]::new()
-    foreach ($row in $filteredRows) {
+    foreach ($row in $interfaces) {
+        if (-not $row) { continue }
         $status = '' + $row.Status
         if ($status) {
             switch -Regex ($status) {
@@ -295,18 +223,21 @@ function Update-Alerts {
     $bldSel  = if ($loc) { $loc.Building } else { $null }
     $roomSel = if ($loc) { $loc.Room } else { $null }
 
+    $zoneToLoad = ''
+    if ($zoneSel -and $zoneSel -ne '' -and $zoneSel -ne 'All Zones') {
+        $zoneToLoad = $zoneSel
+    }
+
+    if ($siteSel -and $siteSel -ne '' -and $siteSel -ne 'All Sites') {
+        try { DeviceRepositoryModule\Update-SiteZoneCache -Site $siteSel -Zone $zoneToLoad | Out-Null } catch {}
+    }
+
+    $interfaces = ViewStateService\Get-InterfacesForContext -Site $siteSel -ZoneSelection $zoneSel -ZoneToLoad $zoneToLoad -Building $bldSel -Room $roomSel
+    if (-not $interfaces) { $interfaces = @() }
+
     $alerts = New-Object 'System.Collections.Generic.List[object]'
-    foreach ($row in $global:AllInterfaces) {
+    foreach ($row in $interfaces) {
         if (-not $row) { continue }
-        $rowSite     = '' + $row.Site
-        $rowBuilding = '' + $row.Building
-        $rowRoom     = '' + $row.Room
-        $rowZone     = ''
-        if ($row.PSObject.Properties['Zone']) { $rowZone = '' + $row.Zone }
-        if ($siteSel -and $siteSel -ne '' -and $siteSel -ne 'All Sites' -and ($rowSite -ne $siteSel)) { continue }
-        if ($zoneSel -and $zoneSel -ne '' -and $zoneSel -ne 'All Zones' -and ($rowZone -ne $zoneSel)) { continue }
-        if ($bldSel  -and $bldSel  -ne '' -and ($rowBuilding -ne $bldSel)) { continue }
-        if ($roomSel -and $roomSel -ne '' -and ($rowRoom     -ne $roomSel)) { continue }
 
         $reasons = New-Object 'System.Collections.Generic.List[string]'
         $status = '' + $row.Status
@@ -349,6 +280,7 @@ function Update-Alerts {
             if ($grid) { $grid.ItemsSource = $global:AlertsList }
         } catch {}
     }
+
 }
 
 function Update-SearchGrid {
@@ -380,3 +312,4 @@ function Update-SearchGrid {
 }
 
 Export-ModuleMember -Function Update-SearchResults, Update-Summary, Update-Alerts, Update-SearchGrid, Get-SearchRegexEnabled, Set-SearchRegexEnabled
+

@@ -1,4 +1,4 @@
-﻿
+
 function Get-CiscoDeviceFacts {
     [CmdletBinding()]
     param (
@@ -117,118 +117,78 @@ function Get-CiscoDeviceFacts {
 
     function Get-InterfacesStatus {
         param([string[]]$Lines)
-        # Use a strongly typed list instead of repeatedly using += on a PowerShell
-        $res = New-Object 'System.Collections.Generic.List[object]'
-        $parsing=$false
+        $reWs = [regex]::new('\\s+')
+        $statusTokens = @('connected','notconnect','disabled','err-disabled','inactive','suspended','sfp-config-mismatch','sfp-mismatch','sfp-not-present','routed','trunk','monitoring')
+        $propertyMap = [ordered]@{
+            Row = { param($match) $match.Groups['line'].Value.TrimEnd() }
+        }
+        $postProcess = {
+            param($obj, $match)
+            $line = $obj.Row
+            if ([string]::IsNullOrWhiteSpace($line)) { return $null }
+            $tokens = $reWs.Split($line)
+            if ($tokens.Length -lt 2) { return $null }
 
-        # Precompile patterns used repeatedly in the loop to avoid recompiling
-        # regular expressions on each iteration.  Splitting on whitespace uses a
-        # Regex with a specified maximum count for efficiency.
-        $reHeader = [regex]::new('^Port\s+Name\s+Status')
-        $reBlank  = [regex]::new('^\s*$')
-        # Note: compiled option is implied when using .new() with no options.  This regex
-        # matches one or more whitespace characters and is used to split each line
-        # into individual tokens.  Splitting rather than matching columns allows
-        # us to reconstruct the Name field even when it contains spaces.
-        $reWs     = [regex]::new('\s+')
+            $raw = $tokens[0]
+            $statusIdx = -1
+            $inMarker = $false
+            $candidateIdxList = New-Object 'System.Collections.Generic.List[int]'
+            for ($i = 1; $i -lt $tokens.Length; $i++) {
+                $tok = $tokens[$i]
+                if ($tok -match '<' -and -not $tok -match '>') { $inMarker = $true }
+                if ($tok -match '>' -and -not $tok -match '<') { $inMarker = $false; continue }
+                if ($inMarker) { continue }
+                $tokLower = $tok.ToLowerInvariant()
+                if ($statusTokens -contains $tokLower) {
+                    [void]$candidateIdxList.Add($i)
+                }
+            }
+            if ($candidateIdxList.Count -gt 0) {
+                $statusIdx = $candidateIdxList[$candidateIdxList.Count - 1]
+            }
+            if ($statusIdx -eq -1) {
+                if ($tokens.Length -ge 7) {
+                    $statusIdx = $tokens.Length - 5
+                } else {
+                    return $null
+                }
+            }
 
-        foreach ($l in $Lines) {
-            if ($reHeader.IsMatch($l)) { $parsing = $true; continue }
-            if ($parsing) {
-                # Stop when we hit a blank line which denotes the end of the status table
-                if ($reBlank.IsMatch($l)) { break }
-                # Split the line on whitespace.  The interface status output has
-                # seven logical columns: Port, Name, Status, Vlan, Duplex, Speed, Type.
-                # However, both the Name and Type columns can contain spaces or hyphens.
-                # To robustly parse the line, identify the Status field by scanning
-                # for a known status token and treat everything between Port and Status
-                # as the Name.
-                $tokens = $reWs.Split($l)
-                if ($tokens.Length -lt 2) { continue }
-                $raw        = $tokens[0]
-                $statusIdx  = -1
-                # Define a list of known status values.  These values are taken from
-                # typical 'show interface status' output and may need to be extended
-                # for other IOS versions.  Matching is case-insensitive.
-                $knownStatuses = @('connected','notconnect','disabled','err-disabled','inactive','suspended','sfp-config-mismatch','sfp-mismatch','sfp-not-present','routed','trunk','monitoring')
-                # Search for status tokens after the port.  Interface names may
-                # include words like 'Disabled' wrapped in markers (e.g. '<== Disabled ==>')
-                # which are not the operational status.  Collect all candidate
-                # status tokens that appear outside marker regions, then
-                # select the last candidate.  This approach ensures that a
-                # status token occurring within the name (such as the word
-                # 'disabled' in a label) does not override a later true
-                # status (e.g. 'connected').  Marker regions begin when a
-                # token contains '<' without '>' and end when a token
-                # contains '>' without '<'.  Tokens inside markers are ignored.
-                $inMarker        = $false
-                $candidateIdxList = New-Object 'System.Collections.Generic.List[int]'
-                for ($i = 1; $i -lt $tokens.Length; $i++) {
-                    $tok = $tokens[$i]
-                    # Update marker tracking prior to classification
-                    if ($tok -match '<' -and -not $tok -match '>') { $inMarker = $true }
-                    if ($tok -match '>' -and -not $tok -match '<') { $inMarker = $false; continue }
-                    # Skip tokens while inside markers
-                    if ($inMarker) { continue }
-                    # Compare status tokens case-insensitively by converting token
-                    # to lower-case.  Collect candidate indices rather than
-                    # stopping at the first match to allow later status tokens
-                    # (like 'connected') to override earlier ones (like 'disabled').
-                    $tokLower = $tok.ToLowerInvariant()
-                    if ($knownStatuses -contains $tokLower) {
-                        [void]$candidateIdxList.Add($i)
-                    }
+            $nameTokens = @()
+            if ($statusIdx -gt 1) {
+                $nameTokens = $tokens[1..($statusIdx - 1)]
+            }
+            $name   = ($nameTokens -join ' ').Trim()
+
+            $status = ''
+            $vlan   = ''
+            $duplex = ''
+            $speed  = ''
+            $type   = ''
+            if ($statusIdx -ge 0 -and $statusIdx -lt $tokens.Length) {
+                $status = $tokens[$statusIdx]
+                if ($statusIdx + 1 -lt $tokens.Length) { $vlan   = $tokens[$statusIdx + 1] }
+                if ($statusIdx + 2 -lt $tokens.Length) { $duplex = $tokens[$statusIdx + 2] }
+                if ($statusIdx + 3 -lt $tokens.Length) { $speed  = $tokens[$statusIdx + 3] }
+                if ($statusIdx + 4 -lt $tokens.Length) {
+                    $typeTokens = $tokens[($statusIdx + 4)..($tokens.Length - 1)]
+                    $type = ($typeTokens -join ' ').Trim()
                 }
-                if ($candidateIdxList.Count -gt 0) {
-                    # Choose the last candidate as the status index
-                    $statusIdx = $candidateIdxList[$candidateIdxList.Count - 1]
-                }
-                if ($statusIdx -eq -1) {
-                    # If we didn't find a known status, fall back to assuming the
-                    # status field begins five tokens from the end (the legacy logic).
-                    if ($tokens.Length -ge 7) {
-                        $statusIdx = $tokens.Length - 5
-                    } else {
-                        continue
-                    }
-                }
-                # Name consists of all tokens between the port and the status.
-                $nameTokens = @()
-                if ($statusIdx -gt 1) {
-                    $nameTokens = $tokens[1..($statusIdx - 1)]
-                }
-                $name   = ($nameTokens -join ' ').Trim()
-                $status = ''
-                $vlan   = ''
-                $duplex = ''
-                $speed  = ''
-                $type   = ''
-                # Extract Status and subsequent columns if they exist
-                if ($statusIdx -ge 0 -and $statusIdx -lt $tokens.Length) {
-                    $status = $tokens[$statusIdx]
-                    # VLAN, Duplex, Speed follow sequentially if available
-                    if ($statusIdx + 1 -lt $tokens.Length) { $vlan   = $tokens[$statusIdx + 1] }
-                    if ($statusIdx + 2 -lt $tokens.Length) { $duplex = $tokens[$statusIdx + 2] }
-                    if ($statusIdx + 3 -lt $tokens.Length) { $speed  = $tokens[$statusIdx + 3] }
-                    # Type may consist of one or more remaining tokens
-                    if ($statusIdx + 4 -lt $tokens.Length) {
-                        $typeTokens = $tokens[($statusIdx + 4)..($tokens.Length - 1)]
-                        $type = ($typeTokens -join ' ').Trim()
-                    }
-                }
-                [void]$res.Add([PSCustomObject]@{
-                    RawPort = $raw
-                    Port    = $raw
-                    Name    = $name
-                    Status  = $status
-                    VLAN    = $vlan
-                    Duplex  = $duplex
-                    Speed   = $speed
-                    Type    = $type
-                })
+            }
+
+            return [PSCustomObject]@{
+                RawPort = $raw
+                Port    = $raw
+                Name    = $name
+                Status  = $status
+                VLAN    = $vlan
+                Duplex  = $duplex
+                Speed   = $speed
+                Type    = $type
             }
         }
-        return $res
+
+        return DeviceParsingCommon\Invoke-RegexTableParser -Lines $Lines -HeaderPattern '^Port\s+Name\s+Status' -RowPattern '^(?<line>.+)$' -PropertyMap $propertyMap -PostProcess $postProcess
     }
 
     # Normalize a full interface name into its short form.  Cisco devices may
@@ -249,7 +209,7 @@ function Get-CiscoDeviceFacts {
         if ([string]::IsNullOrWhiteSpace($Port)) { return $Port }
         $p = $Port.Trim()
         # Collapse any embedded whitespace between the prefix and numbers
-        # (e.g. "GigabitEthernet 1/0/1" → "GigabitEthernet1/0/1").  Multiple
+        # (e.g. "GigabitEthernet 1/0/1" ? "GigabitEthernet1/0/1").  Multiple
         # spaces or tabs are removed.
         $p = $p -replace '\s+', ''
         # Convert common long prefixes to short abbreviations.  If a match
@@ -265,157 +225,102 @@ function Get-CiscoDeviceFacts {
 
 function Get-MacTable {
         param([string[]]$Lines)
-        # Parse the MAC address table from "show mac address-table" output.  The previous
-        # implementation only captured dynamic entries with a strict three-column
-        # pattern (VLAN, MAC, DYNAMIC, Port), which missed static or extended
-        # formats.  This revised parser handles any MAC table line that begins
-        # with a VLAN number and MAC address, regardless of the Type column and
-        # intermediate columns.  It collects the VLAN, MAC and final port
-        # column.  Ports like "CPU" or other non-interface values are still
-        # captured; callers can filter them out if needed.
-        $results = New-Object 'System.Collections.Generic.List[object]'
-        foreach ($line in $Lines) {
-            $t = ($line -as [string]).Trim()
-            if (-not $t) { continue }
-            # Skip obvious headers or separators
-            if ($t -match '^(Vlan|----|Mac\s+Address|Total)') { continue }
-            $parts = $t -split '\s+'
-            # Require at least 4 columns: VLAN, MAC, Type, Port.  Older IOS
-            # platforms may include an additional "protocols" column before the
-            # port; additionally, some port names (e.g. "GigabitEthernet 1/0/1")
-            # split into two tokens when splitting on whitespace.  Capture the
-            # VLAN as the first token, the MAC as the second, and then
-            # reconstruct the port from the last two tokens when there are
-            # five or more tokens.  Otherwise, use the final token as the port.
-            if ($parts.Length -ge 4) {
-                $vlan = $parts[0]
-                $mac  = $parts[1]
-                # Determine port name.  The port is always the last token, but some
-                # platforms split the interface type and numeric identifier into
-                # separate tokens (e.g., "GigabitEthernet 1/0/1").  When the last
-                # token begins with a digit and the second-to-last token contains
-                # no digits or slashes, treat them as a single port identifier.
-                $port = ''
-                if ($parts.Length -ge 5) {
-                    $last       = $parts[$parts.Length - 1]
-                    $secondLast = $parts[$parts.Length - 2]
-                    if ($last -match '^[0-9]' -and $secondLast -notmatch '[0-9/]') {
-                        $port = ($secondLast + ' ' + $last).Trim()
-                    } else {
-                        $port = $last
-                    }
-                } else {
-                    $port = $parts[-1]
-                }
-                # Validate VLAN and MAC patterns before adding.  Accept only
-                # numeric VLANs and MAC addresses in xxxx.xxxx.xxxx format.
-                if ($vlan -match '^\d+$' -and $mac -match '^(?:[0-9A-Fa-f]{4}\.){2}[0-9A-Fa-f]{4}$') {
-                    # Normalize the port name to use the same abbreviations as
-                    # the interface status output (e.g. "Gi1/0/1").  This
-                    # enables MAC entries to map correctly back to their
-                    # corresponding interface rows during aggregation.
-                    $normPort = ConvertTo-ShortPortName -Port $port
-                    [void]$results.Add([PSCustomObject]@{ VLAN=$vlan; MAC=$mac; Port=$normPort })
+        $splitRegex = [regex]::new('\\s+')
+        $propertyMap = [ordered]@{
+            Row = { param($match) $match.Groups[0].Value.Trim() }
+        }
+        $postProcess = {
+            param($obj, $match)
+            $text = $obj.Row
+            if (-not $text) { return $null }
+            if ($text -match '^(?i)(Vlan|----|Mac\s+Address|Total)') { return $null }
+            $parts = $splitRegex.Split($text)
+            if ($parts.Length -lt 4) { return $null }
+            $vlan = $parts[0]
+            $mac  = $parts[1]
+            $port = $parts[$parts.Length - 1]
+            if ($parts.Length -ge 5) {
+                $last = $parts[$parts.Length - 1]
+                $secondLast = $parts[$parts.Length - 2]
+                if ($last -match '^[0-9]' -and $secondLast -notmatch '[0-9/]') {
+                    $port = ($secondLast + ' ' + $last).Trim()
                 }
             }
+            if ($vlan -notmatch '^\d+$') { return $null }
+            if ($mac -notmatch '^(?:[0-9A-Fa-f]{4}\.){2}[0-9A-Fa-f]{4}$') { return $null }
+            $normPort = ConvertTo-ShortPortName -Port $port
+            return [PSCustomObject]@{
+                VLAN = $vlan
+                MAC  = $mac
+                Port = $normPort
+            }
         }
-        return $results
+        return DeviceParsingCommon\Invoke-RegexTableParser -Lines $Lines -HeaderPattern '^(?i)\s*Vlan\s+Mac\s+Address' -RowPattern '^(?<line>.+)$' -PropertyMap $propertyMap -PostProcess $postProcess
     }
 
     function Get-Dot1xStatus {
         param([string[]]$Lines)
-        # Parse the output of "show authentication sessions".  Cisco switches may
-        # format this table with varying numbers of columns.  The original
-        # implementation assumed a fixed six-column format and skipped any
-        # entries that did not exactly match, causing valid session data to be
-        # ignored.  This revised parser accepts any line with at least four
-        # columns and extracts the interface, MAC address, authentication
-        # method, status text and optional session ID.  It uses more
-        # permissive matching to handle lines where some fields are omitted.
-
-        $results = New-Object 'System.Collections.Generic.List[object]'
-        $inTable = $false
-        # Precompiled regexes for performance
-        $reHeader = [regex]::new('^Interface\s+MAC', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
-        # Match a separator line composed of three or more hyphens.  Some
-        # platforms, such as Cisco Catalyst 9300, insert a line of dashes
-        # after the table headers.  We should skip this line rather than
-        # terminating the parse.
-        $reSep    = [regex]::new('^\s*-{3,}$')
         $reMac    = [regex]::new('^(?:[0-9A-Fa-f]{4}\.){2}[0-9A-Fa-f]{4}$')
         $reMode   = [regex]::new('dot1x|mab', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
         $reAuth   = [regex]::new('auth', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
         $reUnauth = [regex]::new('unauth|fail', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+        $propertyMap = [ordered]@{
+            Row = { param($match) $match.Groups[0].Value.Trim() }
+        }
+        $postProcess = {
+            param($obj, $match)
+            $text = $obj.Row
+            if (-not $text) { return $null }
+            if ($text -match '^-+$') { return $null }
+            $parts = $text -split '\s+'
+            if ($parts.Length -lt 4) { return $null }
 
-        foreach ($line in $Lines) {
-            $t = ($line -as [string]).Trim()
-            if (-not $t) { continue }
-            if (-not $inTable) {
-                if ($reHeader.IsMatch($t)) { $inTable = $true; continue }
-                else { continue }
+            $iface = $parts[0]
+            $mac   = ''
+            for ($i = 1; $i -lt $parts.Length; $i++) {
+                if ($reMac.IsMatch($parts[$i])) { $mac = $parts[$i]; break }
             }
-            # Skip dashed separator lines, but break on a blank line which
-            # denotes the end of the table.  Cisco 9300 outputs a line of
-            # hyphens after the column headers; we ignore it and continue
-            # parsing subsequent rows.
-            if ($reSep.IsMatch($t)) { continue }
-            if ($t -match '^\s*$') { break }
-            $parts = $t -split '\s+'
-            # Require at least four columns: Interface, MAC, Method, Status or SessionID
-            if ($parts.Length -ge 4) {
-                $iface = $parts[0]
-                $mac   = ''
-                # Find the first token that looks like a MAC address
-                for ($i=1; $i -lt $parts.Length; $i++) {
-                    if ($reMac.IsMatch($parts[$i])) { $mac = $parts[$i]; break }
+
+            $method = ''
+            for ($i = 1; $i -lt $parts.Length; $i++) {
+                if ($reMode.IsMatch($parts[$i])) { $method = $parts[$i]; break }
+            }
+
+            $status = ''
+            $sessionId = ''
+            if ($parts.Length -eq 4) {
+                $status = $parts[3]
+            } else {
+                $sessionId = $parts[$parts.Length - 1]
+                $startIdx = 3
+                if ($method) {
+                    $mIdx = [Array]::IndexOf($parts, $method)
+                    if ($mIdx -ge 0) { $startIdx = $mIdx + 1 }
                 }
-                # Determine the authentication method by searching tokens after the MAC
-                $method = ''
-                for ($i=1; $i -lt $parts.Length; $i++) {
-                    if ($reMode.IsMatch($parts[$i])) { $method = $parts[$i]; break }
+                if ($startIdx -le $parts.Length - 2) {
+                    $status = ($parts[$startIdx..($parts.Length - 2)] -join ' ').Trim()
                 }
-                # Compute the status string.  If exactly four tokens, treat the fourth
-                # token as the status.  Otherwise, join all tokens between the method
-                # column and the last column (session ID).  If the method cannot be
-                # located, join tokens starting at index 3 up to the second last.
-                $status = ''
-                $sessionId = ''
-                if ($parts.Length -eq 4) {
-                    $status    = $parts[3]
-                    $sessionId = ''
-                } else {
-                    # The last token is assumed to be a Session ID when more than four columns
-                    $sessionId = $parts[-1]
-                    $startIdx = 3
-                    if ($method) {
-                        $mIdx = [Array]::IndexOf($parts, $method)
-                        if ($mIdx -ge 0) { $startIdx = $mIdx + 1 }
-                    }
-                    if ($startIdx -le $parts.Length - 2) {
-                        $status = ($parts[$startIdx..($parts.Length-2)] -join ' ').Trim()
-                    } else {
-                        $status = ''
-                    }
-                }
-                # Derive AuthState from the status text
-                $authState = 'Unknown'
-                if ($status -ne '') {
-                    if ($reAuth.IsMatch($status) -and -not $reUnauth.IsMatch($status)) { $authState = 'Authorized' }
-                    elseif ($reUnauth.IsMatch($status)) { $authState = 'Unauthorized' }
-                }
-                # Normalise method to lower-case; if not found, use 'unknown'
-                $authMode  = if ($method) { $method } else { 'unknown' }
-                [void]$results.Add([PSCustomObject]@{
-                    Interface = $iface
-                    MAC       = $mac
-                    Status    = $status
-                    AuthState = $authState
-                    AuthMode  = $authMode
-                    SessionID = $sessionId
-                })
+            }
+
+            $authState = 'Unknown'
+            if ($status) {
+                if ($reAuth.IsMatch($status) -and -not $reUnauth.IsMatch($status)) { $authState = 'Authorized' }
+                elseif ($reUnauth.IsMatch($status)) { $authState = 'Unauthorized' }
+            }
+
+            $authMode = if ($method) { $method } else { 'unknown' }
+
+            return [PSCustomObject]@{
+                Interface = $iface
+                MAC       = $mac
+                Status    = $status
+                AuthState = $authState
+                AuthMode  = $authMode
+                SessionID = $sessionId
             }
         }
-        return $results
+
+        return DeviceParsingCommon\Invoke-RegexTableParser -Lines $Lines -HeaderPattern '(?i)^Interface\s+MAC' -RowPattern '^(?<line>.+)$' -PropertyMap $propertyMap -PostProcess $postProcess
     }
 
     # Parse show spanning-tree output into a collection of summary rows.  Each

@@ -157,12 +157,10 @@ function Initialize-DeviceFilters {
     }
 
     try {
-        if (Get-Command -Name Update-GlobalInterfaceList -ErrorAction SilentlyContinue) {
-            Update-GlobalInterfaceList
-        } else {
-            DeviceRepositoryModule\Update-GlobalInterfaceList | Out-Null
-        }
-    } catch {}
+        $global:AllInterfaces = ViewStateService\Get-InterfacesForContext -Site $null -ZoneSelection $null -ZoneToLoad $null -Building $null -Room $null
+    } catch {
+        try { $global:AllInterfaces = DeviceRepositoryModule\Update-GlobalInterfaceList } catch {}
+    }
 
     try {
         $searchHostCtrl = $Window.FindName('SearchInterfacesHost')
@@ -522,17 +520,15 @@ if (-not (Test-StringListEqualCI $currentBuildings $availableBuildings)) {
     # visible to the user may change dramatically.  Rebuild the global
     # interface list and the per-device cache so that subsequent operations
     # (search, summary, alerts, compare) operate on the correct dataset.
-    try {
-        if (Get-Command -Name 'Update-GlobalInterfaceList' -ErrorAction SilentlyContinue) {
-            # Only refresh the global interface list when the site or zone has changed.
-            # Avoid unnecessary reloads when the user merely tweaks the building or room
-            # filters, which are applied client-side to the already loaded data.
-            if ($siteChanged -or $zoneChanged) {
-                Update-GlobalInterfaceList
-            }
+    if ($siteChanged -or $zoneChanged) {
+        $roomContext = $null
+        try { if ($loc0) { $roomContext = $loc0.Room } } catch { $roomContext = $null }
+        try {
+            $global:AllInterfaces = ViewStateService\Get-InterfacesForContext -Site $currentSiteSel -ZoneSelection $currentZoneSel -ZoneToLoad $currentZoneSel -Building $currentBldSel -Room $roomContext
+            if (-not $global:AllInterfaces) { $global:AllInterfaces = @() }
+        } catch {
+            try { $global:AllInterfaces = DeviceRepositoryModule\Update-GlobalInterfaceList } catch {}
         }
-    } catch {
-        # Suppress any errors during refresh; continue to update downstream views.
     }
     if (Get-Command Update-SearchGrid -ErrorAction SilentlyContinue) {
         Update-SearchGrid
@@ -571,6 +567,10 @@ function Get-FilterFaulted {
 }
 
 Export-ModuleMember -Function Test-StringListEqualCI, Get-SelectedLocation, Get-LastLocation, Set-DropdownItems, Initialize-DeviceFilters, Update-DeviceFilter, Set-FilterFaulted, Get-FilterFaulted
+
+
+
+
 
 
 
