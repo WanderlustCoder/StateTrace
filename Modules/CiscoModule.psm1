@@ -117,7 +117,7 @@ function Get-CiscoDeviceFacts {
 
     function Get-InterfacesStatus {
         param([string[]]$Lines)
-        $reWs = [regex]::new('\\s+')
+        $reWs = New-Object System.Text.RegularExpressions.Regex('\s+')
         $statusTokens = @('connected','notconnect','disabled','err-disabled','inactive','suspended','sfp-config-mismatch','sfp-mismatch','sfp-not-present','routed','trunk','monitoring')
         $propertyMap = [ordered]@{
             Row = { param($match) $match.Groups['line'].Value.TrimEnd() }
@@ -225,7 +225,7 @@ function Get-CiscoDeviceFacts {
 
 function Get-MacTable {
         param([string[]]$Lines)
-        $splitRegex = [regex]::new('\\s+')
+        $splitRegex = New-Object System.Text.RegularExpressions.Regex('\s+')
         $propertyMap = [ordered]@{
             Row = { param($match) $match.Groups[0].Value.Trim() }
         }

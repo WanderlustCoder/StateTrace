@@ -1,5 +1,11 @@
 Set-StrictMode -Version Latest
 
+if (-not (Get-Module -Name "ViewStateService" -ErrorAction SilentlyContinue)) {
+    $viewStatePath = Join-Path $PSScriptRoot "ViewStateService.psm1"
+    if (Test-Path -LiteralPath $viewStatePath) {
+        Import-Module -Name $viewStatePath -Force -Global
+    }
+}
 if (-not (Get-Variable -Scope Script -Name SearchRegexEnabled -ErrorAction SilentlyContinue)) {
     $script:SearchRegexEnabled = $false
 }
@@ -312,4 +318,5 @@ function Update-SearchGrid {
 }
 
 Export-ModuleMember -Function Update-SearchResults, Update-Summary, Update-Alerts, Update-SearchGrid, Get-SearchRegexEnabled, Set-SearchRegexEnabled
+
 
