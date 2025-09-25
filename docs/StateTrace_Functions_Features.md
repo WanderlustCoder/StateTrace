@@ -1,8 +1,5 @@
 # StateTrace Function & Feature Directory
 
-
-# StateTrace Function & Feature Directory
-
 ## Purpose
 - Provide a stable map of modules, functions, and cross-module responsibilities so automated edits do not remove core behaviour.
 - Summaries prioritise critical dependencies, data sources, and side effects that the UI relies on.
@@ -27,86 +24,108 @@
 
 ### Script Logic (`Main/MainWindow.ps1`)
 - `Main/MainWindow.ps1:19` `Write-Diag` - gated logger that writes verbose lines and timestamped files when `$Global:StateTraceDebug` is true.
-- `Main/MainWindow.ps1:168` `Set-ShowCommandsOSVersions` - populates the Brocade OS dropdown using `TemplatesModule::Get-ShowCommandsVersions`.
-- `Main/MainWindow.ps1:183` `Set-BrocadeOSFromConfig` - selects the default Brocade OS based on `ShowCommands.json` metadata.
-- `Main/MainWindow.ps1:191` `Initialize-View` - invokes each `New-*View` module with `Window` and `ScriptDir`; drives tab initialisation.
-- `Main/MainWindow.ps1:253` `Set-EnvToggle` - writes boolean toggles (`IncludeArchive`, `IncludeHistorical`) into the process environment for the parser to read.
-- `Main/MainWindow.ps1:268` `Invoke-StateTraceRefresh` - handler for `Scan Logs`; updates env flags, calls `Invoke-StateTraceParsing`, then refreshes summaries, filters, and Compare view.
-- `Main/MainWindow.ps1:303` `Get-HostnameChanged` - synchronous device selection handler; loads device details and SPAN info for the chosen host.
-- `Main/MainWindow.ps1:326` `Import-DeviceDetailsAsync` - background loader that fetches summary/interface/template data via `DeviceDetailsModule::Get-DeviceDetailsData` and marshals results to the UI thread through `InterfaceModule::Set-InterfaceViewData`.
-- `Main/MainWindow.ps1:547` `Request-DeviceFilterUpdate` - debounced filter refresh guarded by `FilterStateModule::Get-FilterFaulted` and `$global:ProgrammaticFilterUpdate`.
-- `Main/MainWindow.ps1:566` `Get-FilterDropdowns` - resolves site/zone/building/room combo boxes so change handlers can be wired once.
+- `Main/MainWindow.ps1:256` `Set-ShowCommandsOSVersions` - populates the Brocade OS dropdown using `TemplatesModule::Get-ShowCommandsVersions`.
+- `Main/MainWindow.ps1:271` `Set-BrocadeOSFromConfig` - selects the default Brocade OS based on `ShowCommands.json` metadata.
+- `Main/MainWindow.ps1:280` `Initialize-View` - invokes each `New-*View` module with `Window` and `ScriptDir`; drives tab initialisation.
+- `Main/MainWindow.ps1:342` `Set-EnvToggle` - writes boolean toggles (`IncludeArchive`, `IncludeHistorical`) into the process environment for the parser to read.
+- `Main/MainWindow.ps1:357` `Invoke-StateTraceRefresh` - handler for `Scan Logs`; updates env flags, calls `Invoke-StateTraceParsing`, then refreshes summaries, filters, and Compare view.
+- `Main/MainWindow.ps1:441` `Get-HostnameChanged` - synchronous device selection handler; loads device details and SPAN info for the chosen host.
+- `Main/MainWindow.ps1:464` `Import-DeviceDetailsAsync` - background loader that fetches summary/interface/template data via `DeviceDetailsModule::Get-DeviceDetailsData` and marshals results to the UI thread through `InterfaceModule::Set-InterfaceViewData`.
+- `Main/MainWindow.ps1:686` `Request-DeviceFilterUpdate` - debounced filter refresh guarded by `FilterStateModule::Get-FilterFaulted` and `$global:ProgrammaticFilterUpdate`.
+- `Main/MainWindow.ps1:705` `Get-FilterDropdowns` - resolves site/zone/building/room combo boxes so change handlers can be wired once.
 - Event wiring: refresh button ? `Invoke-StateTraceRefresh`; hostname dropdown ? `Get-HostnameChanged`; filter combos ? `Request-DeviceFilterUpdate`; Show Commands buttons ? clipboard exporters; Help button opens `Views/HelpWindow.xaml`.
 ## Module Reference
 
 ### `Modules/DatabaseModule.psm1`
-- `Modules/DatabaseModule.psm1:21` `Initialize-StateTraceDatabase` - ensures the `Data/` directory exists; leaves `$global:StateTraceDb` unset so per-site DBs can be selected dynamically.
-- `Modules/DatabaseModule.psm1:46` `Open-DbReadSession` / `Modules/DatabaseModule.psm1:93` `Close-DbReadSession` - wrap an OleDb connection in a disposable session object.
-- `Modules/DatabaseModule.psm1:104` `New-AccessDatabase` - creates Access databases, tables (`DeviceSummary`, `Interfaces`, history), adds indexes, and backfills newer columns (`AuthBlock`, `Config`, `PortColor`, `ConfigStatus`).
-- `Modules/DatabaseModule.psm1:291` `Invoke-DbNonQuery` - executes write statements against a specified `.accdb`.
-- `Modules/DatabaseModule.psm1:315` `Invoke-DbQuery` - runs SELECT statements returning a `DataTable`, optionally reusing an open session.
+- `Modules/DatabaseModule.psm1:26` `Initialize-StateTraceDatabase` - ensures the `Data/` directory exists; leaves `$global:StateTraceDb` unset so per-site DBs can be selected dynamically.
+- `Modules/DatabaseModule.psm1:51` `Open-DbReadSession` / `Modules/DatabaseModule.psm1:98` `Close-DbReadSession` - wrap an OleDb connection in a disposable session object.
+- `Modules/DatabaseModule.psm1:109` `New-AccessDatabase` - creates Access databases, tables (`DeviceSummary`, `Interfaces`, history), adds indexes, and backfills newer columns (`AuthBlock`, `Config`, `PortColor`, `ConfigStatus`).
+- `Modules/DatabaseModule.psm1:296` `Invoke-DbNonQuery` - executes write statements against a specified `.accdb`.
+- `Modules/DatabaseModule.psm1:320` `Invoke-DbQuery` - runs SELECT statements returning a `DataTable`, optionally reusing an open session.
 - `Modules/DatabaseModule.psm1:21` `Get-SqlLiteral` - escapes single quotes for SQL literals.
 - Imported lazily by other modules via `Import-DatabaseModule` / `Ensure-DatabaseModule`; keep file path and exported function names stable.
 ### `Modules/DeviceRepositoryModule.psm1`
-- `Modules/DeviceRepositoryModule.psm1:49` `Get-InterfacesForHostsBatch` - single query returning interfaces and summary metadata for a set of hostnames.
-- Manages per-site database paths (`Get-SiteFromHostname`, `Get-DbPathForSite`, `Get-DbPathForHost`).
-- `Get-AllSiteDbPaths` enumerates available per-site Access databases for repository consumers.
-- `Modules/DeviceRepositoryModule.psm1:156` `Update-SiteZoneCache` - loads per-site/per-zone interface data into shared caches.
-- `Get-DataDirectoryPath` returns the resolved `Data/` directory when other modules need the absolute path.
+- `Modules/DeviceRepositoryModule.psm1:32` `Get-DataDirectoryPath` - resolves the repo `Data/` location so modules share a single Access root.
+- `Modules/DeviceRepositoryModule.psm1:49` `Get-SiteFromHostname` / `Modules/DeviceRepositoryModule.psm1:74` `Get-DbPathForSite` / `Modules/DeviceRepositoryModule.psm1:83` `Get-DbPathForHost` - normalise hostnames into site codes and map them to Access database paths.
+- `Modules/DeviceRepositoryModule.psm1:90` `Get-AllSiteDbPaths` - enumerates available per-site `.accdb` files for catalog refreshes.
+- `Modules/DeviceRepositoryModule.psm1:101` `Clear-SiteInterfaceCache` - resets cached interface data (paired with `Update-SiteZoneCache`).
+- `Modules/DeviceRepositoryModule.psm1:133` `Update-SiteZoneCache` - loads interface data for a site/zone into `$global:DeviceInterfaceCache` and `$global:AllInterfaces`.
+- `Modules/DeviceRepositoryModule.psm1:205` `Invoke-ParallelDbQuery` - executes Access queries across multiple sites using runspace fan-out.
+- `Modules/DeviceRepositoryModule.psm1:249` `Update-GlobalInterfaceList` - builds the active interface list for filter/search/alerts consumers.
+- `Modules/DeviceRepositoryModule.psm1:311` `Get-InterfacesForSite` - fetches all interface rows for a site (optionally filtered by zone) when caches need rebuilding.
+- `Modules/DeviceRepositoryModule.psm1:537` `Get-InterfaceInfo` - returns cached interface objects for a host; falls back to DB queries when the cache misses.
+- `Modules/DeviceRepositoryModule.psm1:670` `Get-InterfaceConfiguration` - assembles configuration text for selected ports (used by Templates and Compare).
+- `Modules/DeviceRepositoryModule.psm1:833` `Get-InterfacesForHostsBatch` - single query returning interfaces and metadata for a host collection (speeds bulk lookups).
+### `Modules/DeviceCatalogModule.psm1`
+- `Modules/DeviceCatalogModule.psm1:7` `Get-DeviceSummaries` - loads per-site metadata, populates `$global:DeviceMetadata`, and returns the host list used to seed filters.
+- `Modules/DeviceCatalogModule.psm1:80` `Get-InterfaceHostnames` - filters cached hostnames by site/zone/building/room selections for Interfaces/Search/Compare views.
+
+### `Modules/DeviceDetailsModule.psm1`
+- `Modules/DeviceDetailsModule.psm1:3` `Get-DeviceDetails` - thin wrapper returning the device details DTO for synchronous callers.
+- `Modules/DeviceDetailsModule.psm1:13` `Get-DeviceDetailsData` - aggregates summary, interfaces, and template lists using repository helpers with CSV fallbacks.
+- `Modules/DeviceDetailsModule.psm1:55` `Get-DatabaseDeviceSummary` - queries Access summaries with history fallback for missing fields.
+- `Modules/DeviceDetailsModule.psm1:105` `Get-DeviceHistoryFallback` - reads the latest history row to backfill make/model/uptime/building/room.
+- `Modules/DeviceDetailsModule.psm1:167` `Get-CsvDeviceSummary` / `Modules/DeviceDetailsModule.psm1:200` `Get-CsvInterfaces` - load summary/interface data from parser CSVs when databases are absent.
+
+### `Modules/DeviceInsightsModule.psm1`
+- `Modules/DeviceInsightsModule.psm1:7` `Get-SearchRegexEnabled` / `Modules/DeviceInsightsModule.psm1:14` `Set-SearchRegexEnabled` - toggle regex mode for the Search tab filter box.
+- `Modules/DeviceInsightsModule.psm1:21` `Update-SearchResults` - filters `$global:AllInterfaces` by search term, status/auth filters, and current location selection before updating the Search view.
+- `Modules/DeviceInsightsModule.psm1:128` `Update-Summary` - recalculates device/interface metrics for the Summary tab and ensures repository caches stay populated.
+- `Modules/DeviceInsightsModule.psm1:287` `Update-Alerts` - rebuilds the alerts dataset (`$global:AlertsList`) using status/auth thresholds and returns view-ready objects.
+
 ### `Modules/FilterStateModule.psm1`
 - `Modules/FilterStateModule.psm1:36` `Get-SelectedLocation` - reads the active site/zone/building/room selections from the main window.
-- `Modules/FilterStateModule.psm1:55` `Get-LastLocation` - returns the last recorded filter selections for reuse by other modules.
-- `Modules/FilterStateModule.psm1:67` `Set-DropdownItems` - helper to assign ItemsSource/selection on dropdown controls.
+- `Modules/FilterStateModule.psm1:60` `Get-LastLocation` - returns the last recorded filter selections for reuse by other modules.
+- `Modules/FilterStateModule.psm1:74` `Set-DropdownItems` - helper to assign ItemsSource/selection on dropdown controls.
 - `Modules/FilterStateModule.psm1:89` `Initialize-DeviceFilters` - initialises host/site filter controls and refreshes the global interface list.
-- `Modules/FilterStateModule.psm1:147` `Update-DeviceFilter` - core filter engine triggered by UI events; repopulates dropdowns and refreshes search/summary/alerts.
-- `Modules/FilterStateModule.psm1:249` `Set-FilterFaulted` / `Get-FilterFaulted` - toggle and read the guard flag used by the filter debounce timer.
+- `Modules/FilterStateModule.psm1:178` `Update-DeviceFilter` - core filter engine triggered by UI events; repopulates dropdowns and refreshes search/summary/alerts.
+- `Modules/FilterStateModule.psm1:561` `Set-FilterFaulted` / `Get-FilterFaulted` - toggle and read the guard flag used by the filter debounce timer.
 ### `Modules/InterfaceModule.psm1`
-- `Modules/InterfaceModule.psm1:11` `Get-SelectedInterfaceRows` - returns checked or selected rows from the Interfaces DataGrid (used for copy/export/compare actions).
-- `Modules/InterfaceModule.psm1:56` `Get-InterfaceSiteCode` / `Modules/InterfaceModule.psm1:63` `Resolve-InterfaceDatabasePath` - map hostnames to site database paths.
-- `Modules/InterfaceModule.psm1:69` `Ensure-DatabaseModule` - one-time import guard for `DatabaseModule`.
-- `Modules/InterfaceModule.psm1:84` `Get-PortSortKey` - canonical port sorting key reused by DeviceData and Compare modules.
-- `Modules/InterfaceModule.psm1:130` `Get-InterfaceHostnames` - retrieves catalog data via `DeviceCatalogModule::Get-InterfaceHostnames`. 
-- `Modules/InterfaceModule.psm1:139` `New-InterfaceObjectsFromDbRow` - converts DB rows into PSCustomObjects enriched with template/tooltips, location metadata, and `IsSelected` property.
-- `Modules/InterfaceModule.psm1:356` `Get-InterfaceInfo` - module-level helper returning cached interface objects.
-- `Modules/InterfaceModule.psm1:445` `Get-InterfaceList` - returns sorted port names for a host (used by Compare view dropdowns).
-- `Modules/InterfaceModule.psm1:481` `Compare-InterfaceConfigs` - produces diff output between two port configs for display in Compare view.
-- `Modules/InterfaceModule.psm1:497` `Get-InterfaceConfiguration` - delegates to `DeviceRepositoryModule::Get-InterfaceConfiguration`. 
-- `Modules/InterfaceModule.psm1:515` `Get-SpanningTreeInfo` - fetches parsed spanning tree rows (backed by DB/history) for the SPAN tab.
-- `Modules/InterfaceModule.psm1:538` `Get-ConfigurationTemplates` - forwards to `TemplatesModule` so the Interfaces view uses the shared cache.
-- `Modules/InterfaceModule.psm1:776` `Set-InterfaceViewData` - applies device detail DTOs to the Interfaces view (summary fields, grid, template dropdown).
-- `Modules/DeviceDetailsModule.psm1:3` `Get-DeviceDetails` - returns the device detail DTO via repository/templates services; UI callers invoke `InterfaceModule::Set-InterfaceViewData` (see `Main/MainWindow.ps1:402` `Show-DeviceDetails`).
-- `Modules/InterfaceModule.psm1:552` `New-InterfacesView` - loads Interfaces tab XAML, wires filter debounce, config dropdown binding, copy button, and integrates with Compare selection.
+- `Modules/InterfaceModule.psm1:14` `Get-SelectedInterfaceRows` - returns checked or selected rows from the Interfaces DataGrid (used for copy/export/compare actions).
+- `Modules/InterfaceModule.psm1:53` `Get-InterfaceSiteCode` / `Modules/InterfaceModule.psm1:60` `Resolve-InterfaceDatabasePath` - map hostnames to site database paths.
+- `Modules/InterfaceModule.psm1:66` `Ensure-DatabaseModule` - one-time import guard for `DatabaseModule`.
+- `Modules/InterfaceModule.psm1:102` `Get-PortSortKey` - canonical port sorting key reused by DeviceData and Compare modules.
+- `Modules/InterfaceModule.psm1:144` `Get-InterfaceHostnames` - retrieves catalog data via `DeviceCatalogModule::Get-InterfaceHostnames`. 
+- `Modules/InterfaceModule.psm1:153` `New-InterfaceObjectsFromDbRow` - converts DB rows into PSCustomObjects enriched with template/tooltips, location metadata, and `IsSelected` property.
+- `Modules/InterfaceModule.psm1:390` `Get-InterfaceInfo` - module-level helper returning cached interface objects.
+- `Modules/InterfaceModule.psm1:399` `Get-InterfaceList` - returns sorted port names for a host (used by Compare view dropdowns).
+- `Modules/InterfaceModule.psm1:435` `Compare-InterfaceConfigs` - produces diff output between two port configs for display in Compare view.
+- `Modules/InterfaceModule.psm1:451` `Get-InterfaceConfiguration` - delegates to `DeviceRepositoryModule::Get-InterfaceConfiguration`. 
+- `Modules/InterfaceModule.psm1:464` `Get-SpanningTreeInfo` - fetches parsed spanning tree rows (backed by DB/history) for the SPAN tab.
+- `Modules/InterfaceModule.psm1:487` `Get-ConfigurationTemplates` - forwards to `TemplatesModule` so the Interfaces view uses the shared cache.
+- `Modules/InterfaceModule.psm1:773` `Set-InterfaceViewData` - applies device detail DTOs to the Interfaces view (summary fields, grid, template dropdown).
+- `Modules/InterfaceModule.psm1:501` `New-InterfacesView` - loads Interfaces tab XAML, wires filter debounce, config dropdown binding, copy button, and integrates with Compare selection.
 ### `Modules/CompareViewModule.psm1`
-- `Modules/CompareViewModule.psm1:25` `Resolve-CompareControls` - caches references to Compare view dropdowns, textboxes, and labels after XAML load.
-- `Modules/CompareViewModule.psm1:43` `Get-HostString` - normalises combo box items into plain hostnames.
-- `Modules/CompareViewModule.psm1:54` `Get-HostsFromMain` - builds the filtered host list from `$global:DeviceInterfaceCache`, honouring site/zone/building/room via `FilterStateModule::Get-LastLocation` and `DeviceRepositoryModule::Update-SiteZoneCache`.
-- `Modules/CompareViewModule.psm1:171` `Get-PortSortKey` - delegates to `InterfaceModule::Get-PortSortKey`.
-- `Modules/CompareViewModule.psm1:178` `Get-PortsForHost` - retrieves port names via `InterfaceModule::Get-InterfaceList` with DB fallback.
-- `Modules/CompareViewModule.psm1:242` `Set-PortsForCombo` - populates port dropdowns and preserves selection.
-- `Modules/CompareViewModule.psm1:281` `Get-GridRowFor` - fetches the interface PSCustomObject for a given host/port (using cache or DB query).
-- `Modules/CompareViewModule.psm1:322` `Get-AuthTemplateFromTooltip` - extracts the auth template name from stored tooltips.
-- `Modules/CompareViewModule.psm1:335` `Set-CompareFromRows` - updates config/diff textboxes and auth template labels for both sides.
-- `Modules/CompareViewModule.psm1:465` `Show-CurrentComparison` - orchestrates retrieving selected ports and rendering diffs.
-- `Modules/CompareViewModule.psm1:503` `Get-CompareHandlers` - returns handlers for host/port `SelectionChanged` events (used by `Update-CompareView`).
-- `Modules/CompareViewModule.psm1:626` `Update-CompareView` - ensures the compare view is loaded, populates host/port combos, wires handlers, and toggles the compare sidebar column.
-- `Modules/CompareViewModule.psm1:771` `Set-CompareSelection` - external hook to programmatically sync compare host/port selections (used by Interfaces view buttons).
+- `Modules/CompareViewModule.psm1:27` `Resolve-CompareControls` - caches references to Compare view dropdowns, textboxes, and labels after XAML load.
+- `Modules/CompareViewModule.psm1:45` `Get-HostString` - normalises combo box items into plain hostnames.
+- `Modules/CompareViewModule.psm1:56` `Get-HostsFromMain` - builds the filtered host list from `$global:DeviceInterfaceCache`, honouring site/zone/building/room via `FilterStateModule::Get-LastLocation` and `DeviceRepositoryModule::Update-SiteZoneCache`.
+- `Modules/CompareViewModule.psm1:173` `Get-PortSortKey` - delegates to `InterfaceModule::Get-PortSortKey`.
+- `Modules/CompareViewModule.psm1:180` `Get-PortsForHost` - retrieves port names via `InterfaceModule::Get-InterfaceList` with DB fallback.
+- `Modules/CompareViewModule.psm1:244` `Set-PortsForCombo` - populates port dropdowns and preserves selection.
+- `Modules/CompareViewModule.psm1:283` `Get-GridRowFor` - fetches the interface PSCustomObject for a given host/port (using cache or DB query).
+- `Modules/CompareViewModule.psm1:324` `Get-AuthTemplateFromTooltip` - extracts the auth template name from stored tooltips.
+- `Modules/CompareViewModule.psm1:384` `Set-CompareFromRows` - updates config/diff textboxes and auth template labels for both sides.
+- `Modules/CompareViewModule.psm1:499` `Show-CurrentComparison` - orchestrates retrieving selected ports and rendering diffs.
+- `Modules/CompareViewModule.psm1:537` `Get-CompareHandlers` - returns handlers for host/port `SelectionChanged` events (used by `Update-CompareView`).
+- `Modules/CompareViewModule.psm1:660` `Update-CompareView` - ensures the compare view is loaded, populates host/port combos, wires handlers, and toggles the compare sidebar column.
+- `Modules/CompareViewModule.psm1:805` `Set-CompareSelection` - external hook to programmatically sync compare host/port selections (used by Interfaces view buttons).
 ### `Modules/ParserWorker.psm1`
 - `Modules/ParserWorker.psm1:11` `New-Directories` - ensures parsing output directories exist.
 - `Modules/ParserWorker.psm1:32` `Split-RawLogs` - streams raw log files, splitting them into per-host slices under `ExtractedLogs`.
 - `Modules/ParserWorker.psm1:158` `Start-ParallelDeviceProcessing` - runspace pool worker that processes device logs concurrently with `FullLanguage` execution mode.
-- `Modules/ParserWorker.psm1:288` `Clear-ExtractedLogs` - removes generated log slices between runs.
+- `Modules/ParserWorker.psm1:289` `Clear-ExtractedLogs` - removes generated log slices between runs.
 - `Modules/ParserWorker.psm1:300` `Get-SiteFromHostname` - parser-side site helper (mirrors DeviceData logic).
-- `Modules/ParserWorker.psm1:318` `Invoke-StateTraceParsing` - high-level orchestrator handling archive/history flags, splitting logs, dispatching parse jobs, and refreshing DBs.
-- `Modules/ParserWorker.psm1:367` `Get-LocationDetails` - extracts building/room metadata from log snippets.
-- `Modules/ParserWorker.psm1:405` `Get-ShowCommandBlocks` - tokenises logs into individual show command outputs consumed by vendor parsers.
-- `Modules/ParserWorker.psm1:451` `Get-DeviceMakeFromBlocks` - detects vendor from command blocks.
-- `Modules/ParserWorker.psm1:470` `Get-SnmpLocationFromLines` - shared SNMP location parser.
-- `Modules/ParserWorker.psm1:493` `ConvertFrom-SpanningTree` - creates structured spanning tree rows for SPAN view.
-- `Modules/ParserWorker.psm1:544` `Remove-OldArchiveFolder` - cleans older archive directories to avoid growth.
-- `Modules/ParserWorker.psm1:573` `Get-BrocadeAuthBlockFromLines` - pulls full Brocade authentication block text for history/storage.
-- `Modules/ParserWorker.psm1:602` `Update-DeviceSummaryInDb` - upserts summary rows and metadata into the per-site DB.
-- `Modules/ParserWorker.psm1:688` `Update-InterfacesInDb` - writes interface rows, history, tooltips, and template hints for each device.
-- `Modules/ParserWorker.psm1:846` `Invoke-DeviceLogParsing` - per-device pipeline: detect vendor, parse via vendor module, update DB, archive log copy.
+- `Modules/ParserWorker.psm1:298` `Invoke-StateTraceParsing` - high-level orchestrator handling archive/history flags, splitting logs, dispatching parse jobs, and refreshing DBs.
+- `Modules/ParserWorker.psm1:347` `Get-LocationDetails` - extracts building/room metadata from log snippets.
+- `Modules/ParserWorker.psm1:385` `Get-ShowCommandBlocks` - tokenises logs into individual show command outputs consumed by vendor parsers.
+- `Modules/ParserWorker.psm1:431` `Get-DeviceMakeFromBlocks` - detects vendor from command blocks.
+- `Modules/ParserWorker.psm1:450` `Get-SnmpLocationFromLines` - shared SNMP location parser.
+- `Modules/ParserWorker.psm1:473` `ConvertFrom-SpanningTree` - creates structured spanning tree rows for SPAN view.
+- `Modules/ParserWorker.psm1:524` `Remove-OldArchiveFolder` - cleans older archive directories to avoid growth.
+- `Modules/ParserWorker.psm1:553` `Get-BrocadeAuthBlockFromLines` - pulls full Brocade authentication block text for history/storage.
+- `Modules/ParserWorker.psm1:582` `Update-DeviceSummaryInDb` - upserts summary rows and metadata into the per-site DB.
+- `Modules/ParserWorker.psm1:668` `Update-InterfacesInDb` - writes interface rows, history, tooltips, and template hints for each device.
+- `Modules/ParserWorker.psm1:826` `Invoke-DeviceLogParsing` - per-device pipeline: detect vendor, parse via vendor module, update DB, archive log copy.
 ### Vendor Parsing Modules
 - `Modules/AristaModule.psm1:1` `Get-AristaDeviceFacts` - parses Arista show outputs (prompt detection, version, uptime, interfaces, MAC table, dot1x, configs) and returns a normalised device object.
 - `Modules/BrocadeModule.psm1:4` `Get-BrocadeDeviceFacts` - processes Brocade logs, normalises port identifiers, aggregates MAC/auth/config data, and returns device facts; helper `Modules/BrocadeModule.psm1:272` `Get-MacTable` feeds MAC lookups.
@@ -117,7 +136,7 @@
 - `Modules/SpanViewModule.psm1:1` `New-SpanView` - loads SPAN tab, exposes `$global:spanView`, defines global `Get-SpanInfo`, wires VLAN filter and refresh button (which reruns parser and refreshes current host data).
 - `Modules/SearchInterfacesViewModule.psm1:6` `New-SearchInterfacesView` - loads Search tab, wires debounced search box, regex toggle, status/auth filters, export button, and seeds `$global:searchInterfacesView`.
 - `Modules/TemplatesViewModule.psm1:1` `New-TemplatesView` - loads Templates tab, lists JSON files, enables reload/save/add operations, and keeps selection/editor in sync.
-- `Modules/InterfaceModule.psm1:552` `New-InterfacesView` - loads Interfaces tab, wires filter debounce, copy button, compare integration, and template dropdown colour coding.
+- `Modules/InterfaceModule.psm1:501` `New-InterfacesView` - loads Interfaces tab, wires filter debounce, copy button, compare integration, and template dropdown colour coding.
 
 ### `Modules/TemplatesModule.psm1`
 - `Modules/TemplatesModule.psm1:9` `Set-ShowCommandsConfigPath` - override default `ShowCommands.json` location and clear caches.
@@ -169,6 +188,7 @@
 ## Module Manifest & Tests
 - `Modules/ModulesManifest.psd1` - authoritative list of modules imported during startup; keep in sync when adding or renaming modules.
 - `Modules/Tests/InterfaceModule.Tests.ps1` - Pester coverage for interface object creation, port sorting, and template handling. Run with `Invoke-Pester Modules\Tests` before shipping parser/interface changes.
+- `Tests/Invoke-MainWindowSmokeTest.ps1` - Non-interactive smoke test that imports the module manifest and validates critical commands; outputs logs to `Logs/RefactorValidation/MainWindowSmokeTest_*.log`.
 ## Usage Notes
 - Update this directory whenever new modules, functions, or significant behaviours are added.
 - Before modifying a function, review the dependent modules listed above to avoid breaking UI flows or parser pipelines.

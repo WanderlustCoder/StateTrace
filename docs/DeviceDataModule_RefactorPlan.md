@@ -35,7 +35,7 @@
   - Alternative: push logic directly into the respective view modules if we prefer view-owned behaviour; see migration notes.
 - **TemplatesModule / InterfaceModule updates**
   - Move `Get-ConfigurationTemplates` alongside template caching (likely into `TemplatesModule` with shared cache).
-  - Update (2025-09-24): Template retrieval and caching now live in `TemplatesModule` (`Get-ConfigurationTemplateData`, `Get-ConfigurationTemplates`); DeviceDetailsModule and InterfaceModule delegate while DeviceDataModule keeps a wrapper during the cutover.
+  - Update (2025-09-24): Template retrieval and caching now live in `TemplatesModule` (`Get-ConfigurationTemplateData`, `Get-ConfigurationTemplates`); DeviceDetailsModule and InterfaceModule delegate; the temporary DeviceDataModule wrapper was removed after the cutover.
   - Keep `Get-PortSortKey` with `InterfaceModule` (data ordering concern).
 - **CommonUtilities.psm1 (new)**
   - Host generic helpers (`Get-SqlLiteral`, `Test-StringListEqualCI` if not kept with filters) to avoid circular dependencies.
@@ -56,7 +56,7 @@
 | `Update-Summary` | `DeviceInsightsModule` (Summary service) | Complete | Summary computation delegated to DeviceInsightsModule; UI updates now call the service directly without wrappers. |
 | `Update-Alerts` | `DeviceInsightsModule` (Alerts service) | Complete | Alerts list now generated in DeviceInsightsModule; UI binds to the returned objects without DeviceDataModule. |
 | `Get-PortSortKey` | `InterfaceModule` | Complete | Function lives in `InterfaceModule` and callers import it directly; DeviceDataModule wrapper removed with module retirement. |
-| `Get-ConfigurationTemplates` | `TemplatesModule` | Complete | Function and caching now live in TemplatesModule; DeviceDataModule delegates and shared lookups consume the centralized helper. |
+| `Get-ConfigurationTemplates` | `TemplatesModule` | Complete | Function and caching now live in TemplatesModule; InterfaceModule now delegates to the shared helper following DeviceDataModule removal. |
 | `Get-SqlLiteral` | `DatabaseModule` | Complete | DatabaseModule exports the helper and callers import it directly; no DeviceDataModule wrapper remains. |
 | DeviceDataModule export wrappers | Temporary compatibility layer | Complete | Module retired; downstream modules call new services directly. |
 
@@ -124,7 +124,7 @@
 | Device details service | Device experience | DeviceDetailsModule DTOs, UI integration, async guard | Repository interface methods, template loading | Complete |
 | Analytics/insights | UI analytics | DeviceInsightsModule (or per-view services) delivering search/summary/alerts data | Repository + catalog outputs | Complete |
 | Templates consolidation | UI platform | TemplatesModule owning configuration template cache & tests | Repository helpers, template assets | Complete |
-| Testing & automation | QA | Extended Pester coverage, smoke test script, regression checklist updates | Module migrations in progress | Not started |
+| Testing & automation | QA | Extended Pester coverage landed; smoke test script in place; regression checklist updates still pending | Module migrations in progress | In progress |
 | DeviceDataModule retirement | Core maintainers | Compatibility wrappers removed, manifest updated, module deleted | All other workstreams complete | Complete |
 
 ## Timeline & Milestones
@@ -161,7 +161,7 @@
   - Filter state transitions (site/zone/building/room) with mocked metadata.
   - Search, summary, and alerts outputs given sample `AllInterfaces` data.
   - Device detail retrieval for DB-present vs CSV fallback scenarios.
-- Add smoke test script ensuring `Main/MainWindow.ps1` loads all modules without missing exports.
+- Run `Tests/Invoke-MainWindowSmokeTest.ps1` to ensure `Main/MainWindow.ps1` loads all modules without missing exports; the script records evidence under `Logs/RefactorValidation/` (e.g., `MainWindowSmokeTest_YYYYMMDD_HHmmss.log`).
 - Perform manual UI regression: run parser, exercise filters, compare view, search tab, alerts tab.
 - Capture test evidence in `Logs/RefactorValidation/` per phase to support release go/no-go decisions.
 
@@ -204,9 +204,9 @@
 - Templates now resolve via `TemplatesModule`; module import order and regression coverage validated as part of DeviceDataModule retirement.
 
 ## Outstanding Follow-up
-- [ ] Build out automated coverage called for in the Testing & Validation Strategy (repository/catalog/insights/device detail modules).
-- [ ] Add the MainWindow smoke test script and capture regression evidence under `Logs/RefactorValidation/`.
-- [ ] Update release documentation (`README`, support notes) once testing artifacts exist.
+- [x] Build out automated coverage called for in the Testing & Validation Strategy (repository/catalog/insights/device detail modules). Pester suites now live under `Modules/Tests/`.
+- [x] MainWindow smoke test script added (`Tests/Invoke-MainWindowSmokeTest.ps1`); latest evidence captured in `Logs/RefactorValidation/MainWindowSmokeTest_20250925_053344.log`.
+- [x] Release documentation updated (`docs/StateTrace_Functions_Features.md`); no root README present.
 
 ## Progress Checklist
 - [x] Data access & site resolution helpers now live in `DeviceRepositoryModule.psm1` (`Get-SiteFromHostname`, `Get-DbPathForSite`/`Get-DbPathForHost`, `Get-AllSiteDbPaths`).
@@ -222,8 +222,3 @@
 - [x] Search/Summary/Alerts logic extracted into `DeviceInsightsModule.psm1` (DeviceDataModule retired; continue regression coverage).
 - [x] `Get-ConfigurationTemplates` relocated to `TemplatesModule.psm1` and redundant caches removed.
 - [x] DeviceDataModule wrappers removed and module retired from `ModulesManifest.psd1`.
-
-
-
-
-
