@@ -76,10 +76,11 @@
 ### `Modules/FilterStateModule.psm1`
 - `Modules/FilterStateModule.psm1:36` `Get-SelectedLocation` - reads the active site/zone/building/room selections from the main window.
 - `Modules/FilterStateModule.psm1:60` `Get-LastLocation` - returns the last recorded filter selections for reuse by other modules.
-- `Modules/FilterStateModule.psm1:74` `Set-DropdownItems` - helper to assign ItemsSource/selection on dropdown controls.
-- `Modules/FilterStateModule.psm1:89` `Initialize-DeviceFilters` - initialises host/site filter controls and refreshes the global interface list.
-- `Modules/FilterStateModule.psm1:178` `Update-DeviceFilter` - core filter engine triggered by UI events; repopulates dropdowns and refreshes search/summary/alerts.
-- `Modules/FilterStateModule.psm1:561` `Set-FilterFaulted` / `Get-FilterFaulted` - toggle and read the guard flag used by the filter debounce timer.
+- `Modules/FilterStateModule.psm1:74` `Resolve-SelectionValue` - normalises UI selections against available options and sentinels.
+- `Modules/FilterStateModule.psm1:100` `Set-DropdownItems` - helper to assign ItemsSource/selection on dropdown controls.
+- `Modules/FilterStateModule.psm1:115` `Initialize-DeviceFilters` - initialises host/site filter controls and refreshes the global interface list.
+- `Modules/FilterStateModule.psm1:212` `Update-DeviceFilter` - core filter engine triggered by UI events; uses ViewStateService snapshots to populate dropdowns and refreshes search/summary/alerts.
+- `Modules/FilterStateModule.psm1:426` `Set-FilterFaulted` / `Get-FilterFaulted` - toggle and read the guard flag used by the filter debounce timer.
 ### `Modules/InterfaceModule.psm1`
 - `Modules/InterfaceModule.psm1:14` `Get-SelectedInterfaceRows` - returns checked or selected rows from the Interfaces DataGrid (used for copy/export/compare actions).
 - `Modules/InterfaceModule.psm1:53` `Get-InterfaceSiteCode` / `Modules/InterfaceModule.psm1:60` `Resolve-InterfaceDatabasePath` - map hostnames to site database paths.
@@ -193,4 +194,3 @@
 - Update this directory whenever new modules, functions, or significant behaviours are added.
 - Before modifying a function, review the dependent modules listed above to avoid breaking UI flows or parser pipelines.
 - When refactoring, confirm that caches (`DeviceInterfaceCache`, `DeviceMetadata`, `AllInterfaces`) and event wiring still function end-to-end by running a parser cycle and exercising each tab.
-
