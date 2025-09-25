@@ -19,7 +19,7 @@
 - Cover helpers with focused unit tests (Fixtures in `Modules/Tests`) using captured CLI samples to prove parity with current output.
 
 ### 2. UI Composition & Filter Service
-- Introduce a reusable `Load-View` helper that accepts a view name, host control, and global slot to eliminate repeated XAML loader boilerplate.
+- Introduce a reusable `Set-StView` helper that accepts a view name, host control, and global slot to eliminate repeated XAML loader boilerplate.
 - Centralise dropdown/filter state management in a dedicated service (e.g. `Modules/ViewStateService.psm1`) that owns `global:AllInterfaces` hydration and exposes query functions consumed by UI modules.
 - Update `FilterStateModule` and `DeviceInsightsModule` to call the shared service instead of duplicating site/zone/building filtering logic.
 - Back new service with smoke tests that assert correct filtering for representative selections.
@@ -31,9 +31,9 @@
 - Add regression tests for parsing edge cases (unknown host, mixed log files) and repository behaviours (site cache invalidation, global list refresh).
 
 ## Suggested Sequence
-1. **Sprint 1 – Device parsing**: build shared helpers, refactor one vendor end-to-end, validate against existing tests/fixtures, then migrate remaining vendors.
-2. **Sprint 2 – UI/service consolidation**: land view loader helper, migrate each view module, then refactor filter logic onto the new service with accompanying tests.
-3. **Sprint 3 – Parser/repository cleanup**: modularise `ParserWorker`, simplify cache handling, and update consumers to use immutable results.
+1. **Sprint 1 - Device parsing** (Completed 2025-09-25): build shared helpers, refactor one vendor end-to-end, validate against existing tests/fixtures, then migrate remaining vendors.
+2. **Sprint 2 - UI/service consolidation**: land view loader helper, migrate each view module, then refactor filter logic onto the new service with accompanying tests.
+3. **Sprint 3 - Parser/repository cleanup**: modularise `ParserWorker`, simplify cache handling, and update consumers to use immutable results.
 
 ## Definition of Done
 - Vendor modules consume shared parsing helpers with no local copies of interface/MAC parsing loops.

@@ -6,7 +6,7 @@ function New-SpanView {
         [Parameter(Mandatory=$true)][string]$ScriptDir
     )
 
-    $spanView = New-StView -Window $Window -ScriptDir $ScriptDir -ViewName 'SpanView' -HostControlName 'SpanHost' -GlobalVariableName 'spanView'
+    $spanView = Set-StView -Window $Window -ScriptDir $ScriptDir -ViewName 'SpanView' -HostControlName 'SpanHost' -GlobalVariableName 'spanView'
     if (-not $spanView) { return }
 
     # Acquire controls
@@ -108,6 +108,7 @@ function New-SpanView {
 }
 
 Export-ModuleMember -Function New-SpanView, Get-SpanInfo
+
 
 
 

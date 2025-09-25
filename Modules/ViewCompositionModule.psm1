@@ -1,6 +1,6 @@
 Set-StrictMode -Version Latest
 
-function New-StView {
+function Set-StView {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][System.Windows.Window]$Window,
@@ -16,7 +16,7 @@ function New-StView {
             $ViewName = ($HostControlName -replace 'Host$', '')
         }
         if ([string]::IsNullOrWhiteSpace($ViewName)) {
-            throw "New-StView requires a ViewName or a HostControlName that ends with 'Host'."
+            throw "Set-StView requires a ViewName or a HostControlName that ends with 'Host'."
         }
     }
 
@@ -58,4 +58,18 @@ function New-StView {
     return $view
 }
 
-Export-ModuleMember -Function New-StView
+function New-StView {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][System.Windows.Window]$Window,
+        [Parameter(Mandatory)][string]$ScriptDir,
+        [string]$ViewName,
+        [Parameter(Mandatory)][string]$HostControlName,
+        [string]$GlobalVariableName,
+        [switch]$PassThruHost
+    )
+
+    return Set-StView @PSBoundParameters
+}
+
+Export-ModuleMember -Function Set-StView, New-StView

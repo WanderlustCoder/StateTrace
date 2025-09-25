@@ -319,7 +319,8 @@ function Invoke-StateTraceParsing {
     # Split raw logs into per‑device logs.
     Split-RawLogs -LogPath $logPath -ExtractedPath $extractedPath
     # Gather the extracted device files.
-    $deviceFiles = Get-ChildItem $extractedPath -File | Select-Object -ExpandProperty FullName
+    # Force an array so .Count behaves when a single file is present.
+    $deviceFiles = @(Get-ChildItem -Path $extractedPath -File | Select-Object -ExpandProperty FullName)
     if ($deviceFiles.Count -gt 0) {
         Write-Host "Extracted $($deviceFiles.Count) device log file(s) to process:" -ForegroundColor Yellow
         foreach ($dev in $deviceFiles) { Write-Host "  - $dev" -ForegroundColor Yellow }

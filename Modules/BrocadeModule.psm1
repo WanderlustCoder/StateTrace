@@ -710,9 +710,10 @@ function Get-BrocadeDeviceFacts {
         AuthDefaultVLAN  = $authDefaultVlan;
         InterfaceCount = $combined.Count;
         InterfacesCombined = $combined
-        AuthenticationBlock = ($authBlockRaw -join "`n")
+        AuthenticationBlock = @($authBlockRaw)
         SpanInfo = $spanInfo
     }
 }
 
 Export-ModuleMember -Function Get-BrocadeDeviceFacts
+

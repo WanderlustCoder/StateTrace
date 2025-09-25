@@ -5,7 +5,7 @@ function New-AlertsView {
         [Parameter(Mandatory=$true)][string]$ScriptDir
     )
     try {
-        $alertsView = New-StView -Window $Window -ScriptDir $ScriptDir -ViewName 'AlertsView' -HostControlName 'AlertsHost' -GlobalVariableName 'alertsView'
+        $alertsView = Set-StView -Window $Window -ScriptDir $ScriptDir -ViewName 'AlertsView' -HostControlName 'AlertsHost' -GlobalVariableName 'alertsView'
         if (-not $alertsView) { return }
 
         if (Get-Command Update-Alerts -ErrorAction SilentlyContinue) {
@@ -42,6 +42,7 @@ function New-AlertsView {
 }
 
 Export-ModuleMember -Function New-AlertsView
+
 
 
 

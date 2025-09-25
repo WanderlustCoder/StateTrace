@@ -718,7 +718,7 @@ function Update-CompareView {
 
     # At this point we either have no compare view yet or the host list has changed,
     # so we need to build a fresh view and populate it.
-    $viewCtrl = New-StView -Window $Window -ScriptDir $PSScriptRoot -ViewName 'CompareView' -HostControlName 'CompareHost' -GlobalVariableName 'compareView'
+    $viewCtrl = Set-StView -Window $Window -ScriptDir $PSScriptRoot -ViewName 'CompareView' -HostControlName 'CompareHost' -GlobalVariableName 'compareView'
     if (-not $viewCtrl) { return }
     Write-Verbose "[CompareView] Compare view injected into main window."
     $script:compareHostCtl = $Window.FindName('CompareHost')
@@ -836,5 +836,6 @@ function Set-CompareSelection {
 }
 
 Export-ModuleMember -Function Resolve-CompareControls, Get-HostString, Get-HostsFromMain, Get-PortSortKey, Get-PortsForHost, Set-PortsForCombo, Get-GridRowFor, Get-AuthTemplateFromTooltip, Get-ThemeBrushForPortColor, Update-CompareThemeBrushes, Set-CompareFromRows, Show-CurrentComparison, Get-CompareHandlers, Update-CompareView, Set-CompareSelection
+
 
 

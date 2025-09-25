@@ -4,7 +4,7 @@ function New-SummaryView {
         [Parameter(Mandatory=$true)][System.Windows.Window]$Window,
         [Parameter(Mandatory=$true)][string]$ScriptDir
     )
-    $summaryView = New-StView -Window $Window -ScriptDir $ScriptDir -ViewName 'SummaryView' -HostControlName 'SummaryHost' -GlobalVariableName 'summaryView'
+    $summaryView = Set-StView -Window $Window -ScriptDir $ScriptDir -ViewName 'SummaryView' -HostControlName 'SummaryHost' -GlobalVariableName 'summaryView'
     if (-not $summaryView) { return }
 
     if (Get-Command Update-Summary -ErrorAction SilentlyContinue) {
@@ -13,5 +13,6 @@ function New-SummaryView {
 }
 
 Export-ModuleMember -Function New-SummaryView
+
 
 

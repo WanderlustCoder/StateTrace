@@ -9,7 +9,7 @@ function New-SearchInterfacesView {
         [Parameter(Mandatory=$true)][System.Windows.Window]$Window,
         [Parameter(Mandatory=$true)][string]$ScriptDir
     )
-    $searchView = New-StView -Window $Window -ScriptDir $ScriptDir -ViewName 'SearchInterfacesView' -HostControlName 'SearchInterfacesHost' -GlobalVariableName 'searchInterfacesView'
+    $searchView = Set-StView -Window $Window -ScriptDir $ScriptDir -ViewName 'SearchInterfacesView' -HostControlName 'SearchInterfacesHost' -GlobalVariableName 'searchInterfacesView'
     if (-not $searchView) { return }
     # Acquire controls
     $searchBox      = $searchView.FindName('SearchBox')
@@ -104,5 +104,6 @@ function New-SearchInterfacesView {
 }
 
 Export-ModuleMember -Function New-SearchInterfacesView
+
 
 

@@ -5,7 +5,7 @@ function New-TemplatesView {
         [Parameter(Mandatory=$true)][string]$ScriptDir
     )
     try {
-        $templatesView = New-StView -Window $Window -ScriptDir $ScriptDir -ViewName 'TemplatesView' -HostControlName 'TemplatesHost' -GlobalVariableName 'templatesView'
+        $templatesView = Set-StView -Window $Window -ScriptDir $ScriptDir -ViewName 'TemplatesView' -HostControlName 'TemplatesHost' -GlobalVariableName 'templatesView'
         if (-not $templatesView) { return }
         # Directory containing JSON template files
         $script:TemplatesDir = Join-Path $ScriptDir '..\Templates'
@@ -153,5 +153,6 @@ function New-TemplatesView {
 }
 
 Export-ModuleMember -Function New-TemplatesView
+
 
 
