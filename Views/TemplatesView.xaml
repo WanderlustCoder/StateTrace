@@ -1,35 +1,31 @@
 <UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <!-- TemplatesView presents the available configuration templates and allows
-       the user to view and modify their contents.  A navy background
-       maintains consistency with other views.  The left side lists
-       template files; the right side displays the JSON content for
-       the selected template.  Buttons allow saving edits back to disk. -->
+
   <Grid Background="{DynamicResource Theme.Surface.Primary}">
     <Grid.ColumnDefinitions>
       <ColumnDefinition Width="200"/>
       <ColumnDefinition Width="*"/>
     </Grid.ColumnDefinitions>
     <Grid.RowDefinitions>
-      <!-- Main area with list and editor -->
+
       <RowDefinition Height="*"/>
-      <!-- New template creation panel -->
+
       <RowDefinition Height="Auto"/>
-      <!-- Buttons for reload/save -->
+
       <RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
-    <!-- Template list -->
+
     <StackPanel Grid.Row="0" Grid.Column="0" Margin="5" Background="{DynamicResource Theme.Surface.Primary}">
       <TextBlock Text="Templates" FontSize="14" FontWeight="Bold" Margin="0,0,0,5" Foreground="{DynamicResource Theme.Text.Inverse}"/>
       <ListBox Name="TemplatesList" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
     </StackPanel>
-    <!-- Editor -->
+
     <StackPanel Grid.Row="0" Grid.Column="1" Margin="5" Background="{DynamicResource Theme.Surface.Primary}">
       <TextBlock Text="Template Contents" FontSize="14" FontWeight="Bold" Margin="0,0,0,5" Foreground="{DynamicResource Theme.Text.Inverse}"/>
       <TextBox Name="TemplateEditor" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" TextWrapping="Wrap"
                Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
     </StackPanel>
-    <!-- New template creation panel -->
+
     <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" Margin="5" Background="{DynamicResource Theme.Surface.Primary}">
       <TextBlock Text="New Template:" VerticalAlignment="Center" Margin="0,0,5,0" Foreground="{DynamicResource Theme.Text.Inverse}"/>
       <TextBox Name="NewTemplateNameBox" Width="120" Margin="0,0,5,0" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1" ToolTip="Enter template name (without extension)"/>
@@ -40,13 +36,10 @@
       </ComboBox>
       <Button Name="AddTemplateButton" Content="Add" Width="60" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Create new template"/>
     </StackPanel>
-    <!-- Buttons -->
+
     <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="5" Background="{DynamicResource Theme.Surface.Primary}">
       <Button Name="ReloadTemplateButton" Content="Reload" Width="70" Margin="0,0,5,0" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Reload file from disk"/>
       <Button Name="SaveTemplateButton" Content="Save" Width="70" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Save changes to file"/>
     </StackPanel>
   </Grid>
 </UserControl>
-
-
-

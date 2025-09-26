@@ -7,7 +7,7 @@
 ## Project Snapshot
 - **Platform:** PowerShell 5.x WPF desktop client (`Main/MainWindow.ps1` + XAML views).
 - **Module manifest:** `Modules/ModulesManifest.psd1` controls load order; module filenames are contracts, so avoid renames unless the manifest and import sites update together.
-- **Data layer:** Per-site Access `.accdb` databases under `Data/`; the parser (`Modules/ParserWorker.psm1`) and vendor modules keep them current. CSV fallbacks live under `ParsedData/` when a database is missing.
+- **Data layer:** Per-site Access `.accdb` databases under `Data/`; the parser (`Modules/ParserWorker.psm1`) and vendor modules keep them current.
 - **Shared state:** UI flows depend on globals seeded by the repository/catalog modules, e.g. `$global:DeviceMetadata`, `$global:DeviceInterfaceCache`, `$global:AllInterfaces`, `$global:alertsView`, `$global:templatesView`. Breaking these names or their shape cascades into runtime failures.
 - **Backups:** Restorable snapshots of the project live at `C:\Users\Werem\StateTraceBackups`. Use them for comparison, not as an editing workspace.
 

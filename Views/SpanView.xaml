@@ -1,33 +1,22 @@
 <UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <!--
-    SpanView provides a visualisation of spanning tree state for the selected
-    switch.  A simple DataGrid lists VLAN or MST instances, the MAC address
-    of the root switch and the local port used to reach the root.  A future
-    enhancement could display a network graph to illustrate upstream links.
-  -->
-  <!-- Apply a navy background to the outer grid so the area around
-       the spanning tree table appears navy.  Internal panels still
-       define their own backgrounds as needed. -->
+
   <Grid Background="{DynamicResource Theme.Surface.Primary}">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="*"/>
     </Grid.RowDefinitions>
-    <!-- Top bar with refresh and VLAN filter -->
-    <!-- Place these controls on a yellow background to improve contrast
-         against the navy page.  Padding around the controls improves
-         visual separation. -->
+
     <StackPanel Orientation="Horizontal" Margin="5" Grid.Row="0">
       <Button Name="RefreshSpanButton"
               Content="Refresh"
               Width="80"
               Margin="0,0,10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
-      <!-- Use a white foreground to make the label stand out against the navy grid -->
+
       <Label Content="VLAN:" VerticalAlignment="Center" Margin="0,0,5,0" Foreground="{DynamicResource Theme.Text.Inverse}"/>
       <ComboBox Name="VlanDropdown" Width="100" Style="{DynamicResource ToolbarComboBoxStyle}"/>
     </StackPanel>
-    <!-- DataGrid listing spanning tree summary -->
+
     <DataGrid Name="SpanGrid"
               Grid.Row="1"
               AutoGenerateColumns="False"
@@ -56,10 +45,3 @@
     </DataGrid>
   </Grid>
 </UserControl>
-
-
-
-
-
-
-

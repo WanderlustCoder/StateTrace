@@ -1,46 +1,36 @@
 <UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Name="SearchInterfacesControl">
-  <!-- This view provides a global search across all interfaces in parsed data.
-       Users can filter by arbitrary text (matching port names, descriptions or
-       MAC addresses) and quickly identify which switch and port a particular
-       client is connected to.  The results table is read-only. -->
-  <!-- Set a navy blue background on the outer grid so that the margin area
-       around the DataGrid appears navy.  The DataGrid itself uses a light
-       background, so the contrast highlights the table against the dark
-       surrounding space. -->
+
   <Grid Background="{DynamicResource Theme.Surface.Primary}">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="*"/>
     </Grid.RowDefinitions>
-    <!-- Search controls -->
-    <!-- Use a yellow background on the search panel so that the controls
-         remain readable against the navy surroundings.  A small padding
-         provides visual breathing room around the input and button. -->
+
     <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5">
       <TextBox Name="SearchBox" Width="200" Margin="0,0,5,0" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1" ToolTip="Enter description or MAC to search"/>
       <Button Name="SearchClearButton" Content="X" Width="25" Height="23" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Clear search" Margin="0,0,5,0"/>
-      <!-- Regex checkbox enables regular expression search mode -->
+
       <CheckBox Name="RegexCheckbox" Content="Regex" VerticalAlignment="Center" Margin="0,0,5,0" Style="{DynamicResource ToolbarCheckBoxStyle}"/>
-      <!-- Status filter dropdown: allows user to filter results by port status -->
+
       <Label Content="Status:" VerticalAlignment="Center" Margin="5,0,0,0" Style="{DynamicResource ToolbarLabelStyle}"/>
       <ComboBox Name="StatusFilter" Style="{DynamicResource ToolbarComboBoxStyle}" Width="70" Margin="0,0,5,0" SelectedIndex="0">
         <ComboBoxItem Content="All"/>
         <ComboBoxItem Content="Up"/>
         <ComboBoxItem Content="Down"/>
       </ComboBox>
-      <!-- Auth filter dropdown: allows filtering by authorization state -->
+
       <Label Content="Auth:" VerticalAlignment="Center" Margin="0,0,0,0" Style="{DynamicResource ToolbarLabelStyle}"/>
       <ComboBox Name="AuthFilter" Style="{DynamicResource ToolbarComboBoxStyle}" Width="100" Margin="0,0,5,0" SelectedIndex="0">
         <ComboBoxItem Content="All"/>
         <ComboBoxItem Content="Authorized"/>
         <ComboBoxItem Content="Unauthorized"/>
       </ComboBox>
-      <!-- Export button allows exporting the current search results to CSV -->
+
       <Button Name="ExportSearchButton" Content="Export" Width="60" Height="23" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Export search results to CSV"/>
     </StackPanel>
-    <!-- Results table -->
+
     <DataGrid Name="SearchInterfacesGrid"
               Grid.Row="1"
               AutoGenerateColumns="False"
@@ -70,8 +60,7 @@
         <DataGridTextColumn Header="Speed" Binding="{Binding Speed}" Width="60"/>
         <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="100"/>
         <DataGridTextColumn Header="LearnedMACs" Binding="{Binding LearnedMACs}" Width="160">
-          <!-- Prevent the LearnedMACs column from expanding when multiple MACs are present.
-               Apply ellipsis trimming and disable wrapping. -->
+
           <DataGridTextColumn.ElementStyle>
             <Style TargetType="TextBlock">
               <Setter Property="TextWrapping" Value="NoWrap"/>
@@ -86,6 +75,3 @@
     </DataGrid>
   </Grid>
 </UserControl>
-
-
-

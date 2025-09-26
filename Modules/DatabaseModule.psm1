@@ -1,5 +1,3 @@
-
-
 Set-StrictMode -Version Latest
 
 <#+
@@ -22,29 +20,6 @@ function Get-SqlLiteral {
     param([Parameter(Mandatory)][string]$Value)
     return $Value.Replace("'", "''")
 }
-# === BEGIN Initialize-StateTraceDatabase (DatabaseModule.psm1) ===
-function Initialize-StateTraceDatabase {
-    [CmdletBinding()]
-    param(
-        [string]$DataDir = (Join-Path $PSScriptRoot '..\Data')
-    )
-    begin {
-        try {
-            # Ensure the Data directory exists but do not create any database.
-            [void][IO.Directory]::CreateDirectory($DataDir)
-        } catch {
-            throw ("Unable to access or create Data directory at {0}: {1}" -f $DataDir, $_.Exception.Message)
-        }
-    }
-    process {
-        # Per-site databases are created on demand by the parser.  Do not
-        # initialize a global StateTrace database or set global variables here.
-        # Leave $global:StateTraceDb and $env:StateTraceDbPath unset so that
-        # each module can determine its own database path based on the host.
-        return $null
-    }
-}
-# === END Initialize-StateTraceDatabase (DatabaseModule.psm1) ===
 
 ###
 
@@ -293,30 +268,6 @@ CREATE TABLE InterfaceHistory (
     return $Path
 }
 
-function Invoke-DbNonQuery {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][string]$DatabasePath,
-        [Parameter(Mandatory)][string]$Sql
-    )
-    $conn = New-Object System.Data.OleDb.OleDbConnection
-    $opened = $false
-    foreach ($prov in @('Microsoft.ACE.OLEDB.12.0','Microsoft.Jet.OLEDB.4.0')) {
-        try {
-            $conn.ConnectionString = "Provider=$prov;Data Source=$DatabasePath"
-            $conn.Open(); $opened = $true; break
-        } catch { }
-    }
-    if (-not $opened) { throw "No suitable OLE DB provider found." }
-    try {
-        $cmd = $conn.CreateCommand()
-        $cmd.CommandText = $Sql
-        [void]$cmd.ExecuteNonQuery()
-    } finally {
-        if ($conn.State -ne [System.Data.ConnectionState]::Closed) { $conn.Close() }
-    }
-}
-
 function Invoke-DbQuery {
     
     [CmdletBinding()]
@@ -367,6 +318,5 @@ function Invoke-DbQuery {
     }
 }
 
-
-Export-ModuleMember -Function Get-SqlLiteral, New-AccessDatabase, Invoke-DbNonQuery, Invoke-DbQuery, Initialize-StateTraceDatabase, Open-DbReadSession, Close-DbReadSession
+Export-ModuleMember -Function Get-SqlLiteral, New-AccessDatabase, Invoke-DbQuery, Open-DbReadSession, Close-DbReadSession
 

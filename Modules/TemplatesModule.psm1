@@ -1,26 +1,7 @@
-# === BEGIN TemplatesModule.psm1 ===
-# Purpose: Load ShowCommands.json and expose simple query functions.
-
-# Default path: ..\Templates\ShowCommands.json (relative to this module)
+﻿# Default path: ..\Templates\ShowCommands.json (relative to this module)
 $script:ShowCfgPath  = Join-Path $PSScriptRoot '..\Templates\ShowCommands.json'
 $script:ShowCfg      = $null
 $script:ShowCfgMtime = [datetime]::MinValue
-
-function Set-ShowCommandsConfigPath {
-    [CmdletBinding()]
-    param([Parameter(Mandatory)][string]$Path)
-    # Accept non-existent path (caller might set then create). Cache will fail gracefully.
-    $script:ShowCfgPath  = $Path
-    $script:ShowCfg      = $null
-    $script:ShowCfgMtime = [datetime]::MinValue
-}
-
-function Clear-ShowCommandsCache {
-    [CmdletBinding()]
-    param()
-    $script:ShowCfg      = $null
-    $script:ShowCfgMtime = [datetime]::MinValue
-}
 
 function script:Get-ShowConfig {
     if (-not (Test-Path -LiteralPath $script:ShowCfgPath)) { return $null }
@@ -39,15 +20,6 @@ function script:Get-ShowConfig {
     } catch {
         throw ("ShowCommands: failed to read {0}: {1}" -f $script:ShowCfgPath, $_.Exception.Message)
     }
-}
-
-function Get-ShowVendors {
-    [CmdletBinding()]
-    param()
-    $cfg = Get-ShowConfig
-    if (-not $cfg) { return @() }
-    if ($cfg -is [hashtable]) { return @($cfg.Keys) }
-    return @($cfg.PSObject.Properties.Name)
 }
 
 function Get-ShowCommandsVersions {
@@ -120,7 +92,7 @@ function Get-ShowCommands {
     return ,$out.ToArray()
 }
 
-# Configuration templates caching -------------------------------------------------
+# Configuration templates caching
 if (-not (Get-Variable -Scope Script -Name ConfigurationTemplateCache -ErrorAction SilentlyContinue)) {
     $script:ConfigurationTemplateCache = @{}
 }
@@ -133,12 +105,6 @@ if (-not (Get-Variable -Scope Script -Name ConfigurationTemplateModuleRoot -Erro
 }
 if (-not (Get-Variable -Scope Script -Name ConfigurationTemplateDataDir -ErrorAction SilentlyContinue)) {
     $script:ConfigurationTemplateDataDir = Join-Path $script:ConfigurationTemplateModuleRoot 'Data'
-}
-
-function Clear-ConfigurationTemplateCache {
-    [CmdletBinding()]
-    param()
-    $script:ConfigurationTemplateCache = @{}
 }
 
 function script:Get-ConfigurationTemplateCacheEntry {
@@ -335,5 +301,4 @@ function Get-ConfigurationTemplates {
     return $entry.Names
 }
 
-Export-ModuleMember -Function Get-ShowVendors, Get-ShowCommandsVersions, Get-ShowCommands, Set-ShowCommandsConfigPath, Clear-ShowCommandsCache, Get-ConfigurationTemplates, Get-ConfigurationTemplateData, Clear-ConfigurationTemplateCache
-# === END TemplatesModule.psm1 ===
+Export-ModuleMember -Function Get-ShowCommandsVersions, Get-ShowCommands, Get-ConfigurationTemplates, Get-ConfigurationTemplateData

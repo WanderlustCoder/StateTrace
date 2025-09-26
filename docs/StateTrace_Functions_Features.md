@@ -14,7 +14,6 @@
 - `Data/*.accdb`: per-site Access databases with `DeviceSummary`, `Interfaces`, and history tables created/maintained by `DatabaseModule` + `ParserWorker`.
 - `Logs/`: diagnostic log output when `$Global:StateTraceDebug` is set; driven by `Write-Diag`.
 - In-memory globals: `DeviceMetadata` (host -> site/zone/building/room), `DeviceInterfaceCache` (hostname -> interface list), `AllInterfaces` (filtered working set), `AlertsList`. Template JSON caching now lives inside `TemplatesModule` (`ConfigurationTemplateCache`).
-- `ParsedData/`: transient CSV fallback when a database is missing; cleaned on exit in `Main/MainWindow.ps1`.
 ## Main Application Shell
 
 ### Layout (`Main/MainWindow.xaml`)
@@ -37,10 +36,8 @@
 ## Module Reference
 
 ### `Modules/DatabaseModule.psm1`
-- `Modules/DatabaseModule.psm1:26` `Initialize-StateTraceDatabase` - ensures the `Data/` directory exists; leaves `$global:StateTraceDb` unset so per-site DBs can be selected dynamically.
 - `Modules/DatabaseModule.psm1:51` `Open-DbReadSession` / `Modules/DatabaseModule.psm1:98` `Close-DbReadSession` - wrap an OleDb connection in a disposable session object.
 - `Modules/DatabaseModule.psm1:109` `New-AccessDatabase` - creates Access databases, tables (`DeviceSummary`, `Interfaces`, history), adds indexes, and backfills newer columns (`AuthBlock`, `Config`, `PortColor`, `ConfigStatus`).
-- `Modules/DatabaseModule.psm1:296` `Invoke-DbNonQuery` - executes write statements against a specified `.accdb`.
 - `Modules/DatabaseModule.psm1:320` `Invoke-DbQuery` - runs SELECT statements returning a `DataTable`, optionally reusing an open session.
 - `Modules/DatabaseModule.psm1:21` `Get-SqlLiteral` - escapes single quotes for SQL literals.
 - Imported lazily by other modules via `Import-DatabaseModule` / `Ensure-DatabaseModule`; keep file path and exported function names stable.
@@ -62,10 +59,9 @@
 
 ### `Modules/DeviceDetailsModule.psm1`
 - `Modules/DeviceDetailsModule.psm1:3` `Get-DeviceDetails` - thin wrapper returning the device details DTO for synchronous callers.
-- `Modules/DeviceDetailsModule.psm1:13` `Get-DeviceDetailsData` - aggregates summary, interfaces, and template lists using repository helpers with CSV fallbacks.
+- `Modules/DeviceDetailsModule.psm1:13` `Get-DeviceDetailsData` - loads summary/interfaces/templates from the per-site database and returns a blank DTO when the database is missing.
 - `Modules/DeviceDetailsModule.psm1:55` `Get-DatabaseDeviceSummary` - queries Access summaries with history fallback for missing fields.
 - `Modules/DeviceDetailsModule.psm1:105` `Get-DeviceHistoryFallback` - reads the latest history row to backfill make/model/uptime/building/room.
-- `Modules/DeviceDetailsModule.psm1:167` `Get-CsvDeviceSummary` / `Modules/DeviceDetailsModule.psm1:200` `Get-CsvInterfaces` - load summary/interface data from parser CSVs when databases are absent.
 
 ### `Modules/DeviceInsightsModule.psm1`
 - `Modules/DeviceInsightsModule.psm1:7` `Get-SearchRegexEnabled` / `Modules/DeviceInsightsModule.psm1:14` `Set-SearchRegexEnabled` - toggle regex mode for the Search tab filter box.
@@ -92,7 +88,7 @@
 - `Modules/InterfaceModule.psm1:411` `Get-InterfaceList` - prefers ViewStateService snapshots for the active site/zone context and falls back to cached or database data to return sorted port names for Compare view dropdowns.
 - `Modules/InterfaceModule.psm1:435` `Compare-InterfaceConfigs` - produces diff output between two port configs for display in Compare view.
 - `Modules/InterfaceModule.psm1:451` `Get-InterfaceConfiguration` - delegates to `DeviceRepositoryModule::Get-InterfaceConfiguration`. 
-- `Modules/InterfaceModule.psm1:464` `Get-SpanningTreeInfo` - fetches parsed spanning tree rows (backed by DB/history) for the SPAN tab.
+- `Modules/InterfaceModule.psm1:464` `Get-SpanningTreeInfo` - currently returns an empty set (CSV exports were retired); SPAN view shows data only when future persistence is added.
 - `Modules/InterfaceModule.psm1:487` `Get-ConfigurationTemplates` - forwards to `TemplatesModule` so the Interfaces view uses the shared cache.
 - `Modules/InterfaceModule.psm1:773` `Set-InterfaceViewData` - applies device detail DTOs to the Interfaces view (summary fields, grid, template dropdown).
 - `Modules/InterfaceModule.psm1:501` `New-InterfacesView` - loads Interfaces tab XAML, wires filter debounce, config dropdown binding, copy button, and integrates with Compare selection.
@@ -149,10 +145,7 @@
 - `Modules/InterfaceModule.psm1:501` `New-InterfacesView` - loads Interfaces tab, wires filter debounce, copy button, compare integration, and template dropdown colour coding.
 
 ### `Modules/TemplatesModule.psm1`
-- `Modules/TemplatesModule.psm1:9` `Set-ShowCommandsConfigPath` - override default `ShowCommands.json` location and clear caches.
-- `Modules/TemplatesModule.psm1:18` `Clear-ShowCommandsCache` - resets cached JSON and timestamp.
 - `Modules/TemplatesModule.psm1:25` `script:Get-ShowConfig` - internal cached loader watching file mtime.
-- `Modules/TemplatesModule.psm1:44` `Get-ShowVendors` - lists vendors defined in `ShowCommands.json`.
 - `Modules/TemplatesModule.psm1:53` `Get-ShowCommandsVersions` - returns available OS version groups for a vendor.
 - `Modules/TemplatesModule.psm1:75` `Get-ShowCommands` - merges common and version-specific commands, deduping while preserving order (used by Show Commands buttons).
 ## View Definitions (`Views/*.xaml`)

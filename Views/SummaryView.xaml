@@ -1,49 +1,46 @@
 <UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-  <!-- SummaryView displays overall metrics about the parsed network data.  A navy
-       background ties into the application's theme, while white text ensures
-       readability.  Individual metrics are placed in a UniformGrid for a
-       clean, compact layout. -->
+
   <Grid Background="{DynamicResource Theme.Surface.Primary}" Margin="5">
     <StackPanel Orientation="Vertical">
       <TextBlock Text="Branch Summary" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Inverse}" Margin="0,0,0,10"/>
       <UniformGrid Columns="2" Rows="4" Margin="0,0,0,0">
-        <!-- Devices count -->
+
         <StackPanel Margin="5">
           <TextBlock Text="Devices:" Foreground="{DynamicResource Theme.Text.Inverse}" FontWeight="Bold"/>
           <TextBlock Name="SummaryDevicesCount" Foreground="{DynamicResource Theme.Text.Inverse}"/>
         </StackPanel>
-        <!-- Interfaces count -->
+
         <StackPanel Margin="5">
           <TextBlock Text="Interfaces:" Foreground="{DynamicResource Theme.Text.Inverse}" FontWeight="Bold"/>
           <TextBlock Name="SummaryInterfacesCount" Foreground="{DynamicResource Theme.Text.Inverse}"/>
         </StackPanel>
-        <!-- Ports Up -->
+
         <StackPanel Margin="5">
           <TextBlock Text="Ports Up:" Foreground="{DynamicResource Theme.Text.Inverse}" FontWeight="Bold"/>
           <TextBlock Name="SummaryUpCount" Foreground="{DynamicResource Theme.Text.Inverse}"/>
         </StackPanel>
-        <!-- Ports Down -->
+
         <StackPanel Margin="5">
           <TextBlock Text="Ports Down:" Foreground="{DynamicResource Theme.Text.Inverse}" FontWeight="Bold"/>
           <TextBlock Name="SummaryDownCount" Foreground="{DynamicResource Theme.Text.Inverse}"/>
         </StackPanel>
-        <!-- Authorized ports -->
+
         <StackPanel Margin="5">
           <TextBlock Text="Authorized:" Foreground="{DynamicResource Theme.Text.Inverse}" FontWeight="Bold"/>
           <TextBlock Name="SummaryAuthorizedCount" Foreground="{DynamicResource Theme.Text.Inverse}"/>
         </StackPanel>
-        <!-- Unauthorized ports -->
+
         <StackPanel Margin="5">
           <TextBlock Text="Unauthorized:" Foreground="{DynamicResource Theme.Text.Inverse}" FontWeight="Bold"/>
           <TextBlock Name="SummaryUnauthorizedCount" Foreground="{DynamicResource Theme.Text.Inverse}"/>
         </StackPanel>
-        <!-- Unique VLANs -->
+
         <StackPanel Margin="5">
           <TextBlock Text="Unique VLANs:" Foreground="{DynamicResource Theme.Text.Inverse}" FontWeight="Bold"/>
           <TextBlock Name="SummaryUniqueVlansCount" Foreground="{DynamicResource Theme.Text.Inverse}"/>
         </StackPanel>
-        <!-- Placeholder for additional metrics -->
+
         <StackPanel Margin="5">
           <TextBlock Text="Extra:" Foreground="{DynamicResource Theme.Text.Inverse}" FontWeight="Bold"/>
           <TextBlock Name="SummaryExtra" Foreground="{DynamicResource Theme.Text.Inverse}"/>

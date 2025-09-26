@@ -19,19 +19,17 @@ Describe "DeviceDetailsModule detail retrieval" {
         DeviceDetailsModule\Get-DeviceDetails -Hostname '   ' | Should Be $null
     }
 
-    It "uses CSV fallbacks when the database file is missing" {
+    It "returns empty details when the database file is missing" {
         Mock -ModuleName DeviceDetailsModule -CommandName 'DeviceRepositoryModule\Get-DbPathForHost' { 'C:\data\missing.accdb' }
         Mock -ModuleName DeviceDetailsModule -CommandName Test-Path { param($Path, $LiteralPath) $false }
-        Mock -ModuleName DeviceDetailsModule -CommandName Get-CsvDeviceSummary { [pscustomobject]@{ Hostname = 'SW1'; Make = 'CSV' } }
-        Mock -ModuleName DeviceDetailsModule -CommandName Get-CsvInterfaces { @([pscustomobject]@{ Port = 'Gi1/0/1' }) }
-        Mock -ModuleName DeviceDetailsModule -CommandName 'DeviceRepositoryModule\Get-InterfaceInfo' { throw 'Should not query repository when CSV paths are used.' }
+        Mock -ModuleName DeviceDetailsModule -CommandName 'DeviceRepositoryModule\Get-InterfaceInfo' { throw 'Should not query repository when no database is available.' }
+        Mock -ModuleName DeviceDetailsModule -CommandName 'TemplatesModule\Get-ConfigurationTemplates' { throw 'Should not load templates when no database is available.' }
 
         $dto = DeviceDetailsModule\Get-DeviceDetailsData -Hostname 'sw1'
 
-        $dto.Summary.Make | Should Be 'CSV'
-        @($dto.Interfaces).Count | Should Be 1
-        $dto.Interfaces[0].Port | Should Be 'Gi1/0/1'
-        (@($dto.Templates).Count) | Should Be 0
+        $dto.Summary.Hostname | Should Be 'sw1'
+        @($dto.Interfaces).Count | Should Be 0
+        @($dto.Templates).Count  | Should Be 0
     }
 
     It "loads database-backed details when the site database exists" {

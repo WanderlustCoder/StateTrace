@@ -1,4 +1,4 @@
-Set-StrictMode -Version Latest
+﻿Set-StrictMode -Version Latest
 
 function Set-StView {
     [CmdletBinding()]
@@ -58,18 +58,4 @@ function Set-StView {
     return $view
 }
 
-function New-StView {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][System.Windows.Window]$Window,
-        [Parameter(Mandatory)][string]$ScriptDir,
-        [string]$ViewName,
-        [Parameter(Mandatory)][string]$HostControlName,
-        [string]$GlobalVariableName,
-        [switch]$PassThruHost
-    )
-
-    return Set-StView @PSBoundParameters
-}
-
-Export-ModuleMember -Function Set-StView, New-StView
+Export-ModuleMember -Function Set-StView

@@ -1,26 +1,12 @@
-# === MainWindow.ps1 :: Bootstrap (WPF + Paths + Module Manifest) ===
-
-# Load WPF once (PresentationFramework pulls in PresentationCore & WindowsBase).
 Add-Type -AssemblyName PresentationFramework
 
-# ---- Diagnostics configuration (startup) ----
-# Disable verbose and debug output by default.  Setting StateTraceDebug to
-# $false ensures Write-Diag becomes a no-op.  Verbose and debug streams are
-# suppressed by switching the preferences to SilentlyContinue.  This prevents
-# diagnostic chatter in the console and avoids creating log files unless
-# explicitly re-enabled.
 $Global:StateTraceDebug     = $false
 $VerbosePreference          = 'SilentlyContinue'
 $DebugPreference            = 'SilentlyContinue'
 $ErrorActionPreference      = 'Continue'
 
-# Define a simple diagnostic logger that writes both to the verbose stream and
-# to a timestamped log file in the user's Documents\StateTrace\Logs directory.
 function Write-Diag {
     param([string]$Message)
-    # Only emit diagnostics when the global debug flag is enabled.  When
-    # $Global:StateTraceDebug is $false, this function does nothing,
-    # preventing verbose output and log file writes.
     if (-not $Global:StateTraceDebug) { return }
     try {
         $ts = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss.fff')
@@ -32,7 +18,6 @@ function Write-Diag {
     } catch { }
 }
 
-# Prepare diagnostic log directory and file only when debugging is enabled.
 if ($Global:StateTraceDebug) {
     try {
         $userDocs = [Environment]::GetFolderPath('MyDocuments')
@@ -48,12 +33,6 @@ if ($Global:StateTraceDebug) {
     } catch { }
 }
 
-# Attempt to set the host runspace to FullLanguage (best effort).  Some enterprise
-# environments default the host runspace to NoLanguage, which prevents
-# PowerShell keywords (if/foreach/try) from functioning in the UI thread.  This
-# try/catch ensures we at least attempt to elevate the LanguageMode; if the
-# policy blocks it, we continue silently.  Verbose output will indicate the
-# result when $Global:StateTraceDebug is enabled.
 try {
     $ExecutionContext.SessionState.LanguageMode = [System.Management.Automation.PSLanguageMode]::FullLanguage
     Write-Diag ("Host LanguageMode: {0}" -f $ExecutionContext.SessionState.LanguageMode)
@@ -61,9 +40,6 @@ try {
     Write-Diag ("Host LanguageMode remains: {0}" -f $ExecutionContext.SessionState.LanguageMode)
 }
 
-# In some environments the host runspace's LanguageMode cannot be changed via
-# $ExecutionContext.SessionState.  Attempt to update the default runspace
-# LanguageMode via the SessionStateProxy as an additional best-effort fallback.
 try {
     $defaultRs = [System.Management.Automation.Runspaces.Runspace]::DefaultRunspace
     if ($null -ne $defaultRs) {
@@ -78,20 +54,15 @@ try {
     )
 }
 
-# Smoke test the 'if' keyword in the host runspace.  This small test attempts
-# to execute a simple if statement; in NoLanguage mode it will throw and
-# set $HostKeywordOK to false.  Logging helps diagnose LanguageMode issues.
 try {
     $HostKeywordOK = $false
     try { if ($true) { $HostKeywordOK = $true } } catch { $HostKeywordOK = $false }
     Write-Diag ("Host keyword 'if' ok: {0}" -f $HostKeywordOK)
 } catch { }
 
-# Paths
 $scriptDir    = $PSScriptRoot
 if ($null -eq $Global:StateTraceDebug) { $Global:StateTraceDebug = $false }
 
-# Load modules from the manifest (single source of truth)
 $manifestPath = Join-Path $scriptDir '..\Modules\ModulesManifest.psd1'
 
 try {
@@ -103,16 +74,13 @@ try {
         if (Get-Command Import-PowerShellDataFile -ErrorAction SilentlyContinue) {
             Import-PowerShellDataFile -Path $manifestPath
         } else {
-            # PowerShell <5.0 fallback - use .psd1 as a ps1
             . $manifestPath
         }
 
-    # The manifest should contain a ModulesToImport list.
     $modulesToImport = @()
     if ($manifest.ModulesToImport) {
         $modulesToImport = $manifest.ModulesToImport
     } elseif ($manifest.Modules) {
-        # Fallback if a non-standard key is used
         $modulesToImport = $manifest.Modules
     } else {
         throw "No ModulesToImport defined in manifest."
@@ -129,13 +97,6 @@ catch {
     return
 }
 
-## ---------------------------------------------------------------------
-# Prior to implementing per-site databases, the application would create a single
-# StateTrace.accdb database here via Initialize-StateTraceDatabase. With the
-# introduction of per-site databases, we no longer create a global database at
-# startup. Instead, each site-specific database will be created on demand by
-# the parser when processing logs. We still ensure the Data directory exists
-# here to avoid errors when saving databases later on.
 try {
     $dataDir = Join-Path $scriptDir '..\Data'
     if (-not (Test-Path $dataDir)) {
@@ -144,7 +105,6 @@ try {
 } catch {
     Write-Warning ("Failed to ensure Data directory exists: {0}" -f $_.Exception.Message)
 }
-# === END Database Initialization (MainWindow.ps1) ===
 
 # Ensure a WPF Application exists so theme resources can be merged
 try {
@@ -158,7 +118,6 @@ try {
 } catch {
     Write-Warning ("Theme initialization failed: {0}" -f $_.Exception.Message)
 }
-
 
 
 function Initialize-ThemeSelector {
@@ -275,7 +234,6 @@ function Set-BrocadeOSFromConfig {
     catch { Write-Warning ("Brocade OS populate failed: {0}" -f $_.Exception.Message) }
 }
 
-
 # === BEGIN View initialization helpers (MainWindow.ps1) ===
 function Initialize-View {
     [CmdletBinding()]
@@ -314,7 +272,7 @@ if (-not $script:ViewsInitialized) {
 
     # Auto-discover any additional New-*View commands, excluding Compare for now
     # Exclude helper commands that require extra mandatory parameters
-    $excludeInitially = @('Update-CompareView','New-StView')
+    $excludeInitially = @('Update-CompareView')
     $discovered = Get-Command -Name 'New-*View' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name
     if ($discovered) {
         $extra = $discovered | Where-Object { ($viewsInOrder -notcontains $_) -and ($_ -notin $excludeInitially) }
@@ -460,7 +418,6 @@ function Get-HostnameChanged {
         Write-Warning ("Hostname change handler failed: {0}" -f $_.Exception.Message)
     }
 }
-
 
 function Import-DeviceDetailsAsync {
     
@@ -647,7 +604,6 @@ if ($hostnameDropdown -and -not $script:HostnameHandlerAttached) {
 
 # === END Main window control hooks (MainWindow.ps1) ===
 
-
 # === BEGIN Filter dropdown hooks (MainWindow.ps1) ===
 
 # Debounced updater so cascaded changes trigger a single refresh.
@@ -724,13 +680,11 @@ Get-FilterDropdowns -Window $window
 
 # === END Filter dropdown hooks (MainWindow.ps1) ===
 
-
 # Hook up ShowCisco and ShowBrocade buttons to copy show command sequences
 $showCiscoBtn   = $window.FindName('ShowCiscoButton')
 $showBrocadeBtn = $window.FindName('ShowBrocadeButton')
 $brocadeOSDD    = $window.FindName('BrocadeOSDropdown')
 if ($brocadeOSDD) { Set-BrocadeOSFromConfig -Dropdown $brocadeOSDD }
-
 
 if ($showCiscoBtn) {
     $showCiscoBtn.Add_Click({
@@ -844,7 +798,6 @@ $window.Add_Loaded({
 
 
 
-
 if ($window.FindName('HostnameDropdown').Items.Count -gt 0) {
     $first = $window.FindName('HostnameDropdown').Items[0]
     # Load details for the first host using the unified helper
@@ -858,21 +811,4 @@ if ($window.FindName('HostnameDropdown').Items.Count -gt 0) {
 $window.ShowDialog() | Out-Null
 
 # 9) Cleanup
-$parsedDir = Join-Path $scriptDir '..\ParsedData'
-if (Test-Path $parsedDir) {
-    try {
-        # Faster: remove the directory and recreate it, avoiding an expensive recursive enumeration.
-        Remove-Item -LiteralPath $parsedDir -Recurse -Force -ErrorAction Stop
-        New-Item -ItemType Directory -Path $parsedDir | Out-Null
-    } catch {
-        Write-Warning "Failed to reset ParsedData: $_"
-    }
-}
-
-
-
-
-
-
-
 

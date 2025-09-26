@@ -1,7 +1,7 @@
 <UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <UserControl.Resources>
-    <!-- Status Style for interface status -->
+
     <Style x:Key="StatusTextStyle" TargetType="TextBlock">
       <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
       <Style.Triggers>
@@ -20,7 +20,6 @@
       </Style.Triggers>
     </Style>
 
-    <!-- Auth State Style -->
     <Style x:Key="AuthStateTextStyle" TargetType="TextBlock">
       <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
       <Style.Triggers>
@@ -33,7 +32,6 @@
       </Style.Triggers>
     </Style>
 
-    <!-- Duplex Style -->
     <Style x:Key="DuplexTextStyle" TargetType="TextBlock">
       <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
       <Style.Triggers>
@@ -49,7 +47,6 @@
       </Style.Triggers>
     </Style>
 
-    <!-- Port Color Style -->
     <Style x:Key="PortTextStyle" TargetType="TextBlock">
       <Setter Property="Foreground" Value="{DynamicResource Theme.Status.Neutral}"/>
       <Style.Triggers>
@@ -69,7 +66,6 @@
     </Style>
   </UserControl.Resources>
 
-  <!-- Apply a navy blue background to the outer grid. -->
   <Grid Background="{DynamicResource Theme.Surface.Primary}">
     <Grid.RowDefinitions>
       <RowDefinition Height="*"/>
@@ -77,7 +73,7 @@
     <Grid.ColumnDefinitions>
       <ColumnDefinition Width="*"/>
     </Grid.ColumnDefinitions>
-	
+
     <Grid Grid.Row="0" Grid.Column="0" Margin="5">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -85,7 +81,6 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- Device details and actions -->
         <Grid Grid.Row="0" Margin="0,0,0,5">
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto"/>
@@ -166,7 +161,6 @@
           </StackPanel>
         </Grid>
 
-        <!-- Search Bar + Clear Button -->
         <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,5">
             <TextBox Name="FilterBox"
                    Width="160"
@@ -183,7 +177,6 @@
                   ToolTip="Clear filter"/>
         </StackPanel>
 
-        <!-- Interfaces DataGrid -->
         <DataGrid Name="InterfacesGrid"
                   Grid.Row="2"
                   AutoGenerateColumns="False"
@@ -205,7 +198,7 @@
             <DynamicResource ResourceKey="PrimaryDataGridRowStyle"/>
           </DataGrid.RowStyle>
           <DataGrid.Columns>
-            <!-- Selection checkbox -->
+
             <DataGridCheckBoxColumn Width="30"
                                     Header=""
                                     IsThreeState="False">
@@ -228,7 +221,6 @@
               </DataGridCheckBoxColumn.EditingElementStyle>
             </DataGridCheckBoxColumn>
 
-            <!-- Port Column -->
             <DataGridTemplateColumn Header="Port">
               <DataGridTemplateColumn.CellTemplate>
                 <DataTemplate>
@@ -242,11 +234,9 @@
               </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
 
-            <!-- Name (editable) -->
             <DataGridTextColumn Header="Name"
                                  Binding="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
 
-            <!-- Status -->
             <DataGridTemplateColumn Header="Status">
               <DataGridTemplateColumn.CellTemplate>
                 <DataTemplate>
@@ -256,29 +246,19 @@
               </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
 
-            <!-- VLAN (editable) -->
             <DataGridTextColumn Header="VLAN"
                                  Binding="{Binding VLAN, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
 
-            <!-- Duplex -->
             <DataGridTextColumn Header="Duplex" Binding="{Binding Duplex}">
               <DataGridTextColumn.ElementStyle>
                 <StaticResource ResourceKey="DuplexTextStyle"/>
               </DataGridTextColumn.ElementStyle>
             </DataGridTextColumn>
 
-            <!-- Speed -->
             <DataGridTextColumn Header="Speed" Binding="{Binding Speed}"/>
 
-            <!-- Type -->
             <DataGridTextColumn Header="Type" Binding="{Binding Type}"/>
 
-            <!-- Learned MACs -->
-            <!-- Fix column width and prevent long lists from stretching the grid.  Use a fixed
-                 width and ellipsis trimming so that a long string of MAC addresses does not
-                 expand the DataGrid column.  The full list of MACs remains available in
-                 the LearnedMACsFull property, and the LearnedMACCount can be bound to
-                 another column if needed. -->
             <DataGridTextColumn Header="LearnedMACs" Binding="{Binding LearnedMACs}" Width="160">
               <DataGridTextColumn.ElementStyle>
                 <Style TargetType="TextBlock">
@@ -288,27 +268,17 @@
               </DataGridTextColumn.ElementStyle>
             </DataGridTextColumn>
 
-            <!-- Auth State -->
             <DataGridTextColumn Header="AuthState" Binding="{Binding AuthState}">
               <DataGridTextColumn.ElementStyle>
                 <StaticResource ResourceKey="AuthStateTextStyle"/>
               </DataGridTextColumn.ElementStyle>
             </DataGridTextColumn>
 
-            <!-- Auth Mode -->
             <DataGridTextColumn Header="AuthMode" Binding="{Binding AuthMode}"/>
 
-            <!-- Auth Client MAC -->
             <DataGridTextColumn Header="AuthClientMAC" Binding="{Binding AuthClientMAC}"/>
           </DataGrid.Columns>
         </DataGrid>
     </Grid>
   </Grid>
 </UserControl>
-
-
-
-
-
-
-

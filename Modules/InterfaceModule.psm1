@@ -157,8 +157,7 @@ function Get-InterfaceHostnames {
     # .SYNOPSIS
 
     [CmdletBinding()]
-    param([string]$ParsedDataPath)
-    # Delegate to DeviceCatalogModule implementation.  The central module defines
+    param()
     return DeviceCatalogModule\Get-InterfaceHostnames @PSBoundParameters
 }
 
@@ -592,22 +591,9 @@ function Get-SpanningTreeInfo {
     # .SYNOPSIS
 
     [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][string]$Hostname,
-        [string]$ParsedDataPath = (Join-Path $PSScriptRoot '..\ParsedData')
-    )
-    $spanFile = Join-Path $ParsedDataPath "${Hostname}_Span.csv"
-    if (Test-Path $spanFile) {
-        try {
-            return Import-Csv $spanFile
-        } catch {
-            # Use formatted string expansion to avoid variable parsing issues with colon
-            Write-Warning (
-                "Failed to parse spanning tree CSV for {0}: {1}" -f $Hostname, $_.Exception.Message
-            )
-            return @()
-        }
-    }
+    param([Parameter(Mandatory)][string]$Hostname)
+
+    Write-Verbose ("[InterfaceModule] No spanning tree data available for ''{0}'' (CSV exports disabled)." -f $Hostname)
     return @()
 }
 

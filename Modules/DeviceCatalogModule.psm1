@@ -80,7 +80,6 @@ function Get-DeviceSummaries {
 function Get-InterfaceHostnames {
     [CmdletBinding()]
     param(
-        [string]$ParsedDataPath,
         [string]$Site,
         [string]$Zone,
         [string]$Building,

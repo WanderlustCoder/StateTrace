@@ -32,8 +32,17 @@ function Get-DeviceDetailsData {
     if ($dbPath -and (Test-Path -LiteralPath $dbPath)) { $useDb = $true }
 
     if (-not $useDb) {
-        $dto.Summary = Get-CsvDeviceSummary -Hostname $hostTrim
-        $dto.Interfaces = Get-CsvInterfaces -Hostname $hostTrim
+        Write-Verbose ("[DeviceDetailsModule] No database found for ''{0}''; returning empty details." -f $hostTrim)
+        $dto.Summary = [PSCustomObject]@{
+            Hostname        = $hostTrim
+            Make            = ''
+            Model           = ''
+            Uptime          = ''
+            Ports           = ''
+            AuthDefaultVLAN = ''
+            Building        = ''
+            Room            = ''
+        }
         return $dto
     }
 
@@ -164,48 +173,6 @@ function Get-DeviceHistoryFallback {
     return $fallback
 }
 
-function Get-CsvDeviceSummary {
-    param([Parameter(Mandatory)][string]$Hostname)
-
-    $scriptDir = $PSScriptRoot
-    $basePath = Join-Path (Join-Path $scriptDir '..\ParsedData') $Hostname
-    $summary = $null
-    try { $summary = @(Import-Csv "${basePath}_Summary.csv")[0] } catch { $summary = $null }
-
-    $result = [PSCustomObject]@{
-        Hostname        = $Hostname
-        Make            = ''
-        Model           = ''
-        Uptime          = ''
-        Ports           = ''
-        AuthDefaultVLAN = ''
-        Building        = ''
-        Room            = ''
-    }
-
-    if ($summary) {
-        try { if ($summary.PSObject.Properties['Hostname']) { $result.Hostname = '' + $summary.Hostname } } catch {}
-        try { if ($summary.PSObject.Properties['Make'])      { $result.Make      = '' + $summary.Make } } catch {}
-        try { if ($summary.PSObject.Properties['Model'])     { $result.Model     = '' + $summary.Model } } catch {}
-        try { if ($summary.PSObject.Properties['Uptime'])    { $result.Uptime    = '' + $summary.Uptime } } catch {}
-        try { if ($summary.PSObject.Properties['InterfaceCount']) { $result.Ports = '' + $summary.InterfaceCount } } catch {}
-        try { if ($summary.PSObject.Properties['AuthDefaultVLAN']) { $result.AuthDefaultVLAN = '' + $summary.AuthDefaultVLAN } } catch {}
-        try { if ($summary.PSObject.Properties['Building']) { $result.Building = '' + $summary.Building } } catch {}
-        try { if ($summary.PSObject.Properties['Room'])     { $result.Room     = '' + $summary.Room } } catch {}
-    }
-
-    return $result
-}
-
-function Get-CsvInterfaces {
-    param([Parameter(Mandatory)][string]$Hostname)
-
-    try {
-        $interfaces = InterfaceModule\Get-InterfaceInfo -Hostname $Hostname
-        if ($interfaces) { return $interfaces }
-    } catch {}
-    return @()
-}
 
 function script:Get-RowValue {
     param(
