@@ -1,6 +1,18 @@
 # .SYNOPSIS
 
 Set-StrictMode -Version Latest
+
+if (-not (Get-Module -Name 'ViewStateService' -ErrorAction SilentlyContinue)) {
+    $viewStateModulePath = Join-Path $PSScriptRoot 'ViewStateService.psm1'
+    if (Test-Path -LiteralPath $viewStateModulePath) {
+        try {
+            Import-Module -Name $viewStateModulePath -Force -Global | Out-Null
+        } catch {
+            Write-Verbose "[InterfaceModule] Failed to import ViewStateService: $($_.Exception.Message)"
+        }
+    }
+}
+
 $script:lastTemplateVendor = 'default'
 $script:TemplateThemeHandlerRegistered = $false
 
@@ -399,7 +411,120 @@ function Get-InterfaceInfo {
 function Get-InterfaceList {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$Hostname)
-    # Return ports from the in-memory cache when available to avoid hitting the database.
+
+    $targetHost = ('' + $Hostname).Trim()
+    if ([string]::IsNullOrWhiteSpace($targetHost)) { return @() }
+
+    try {
+        $viewStateModule = Get-Module -Name 'ViewStateService' -ErrorAction SilentlyContinue
+        if (-not $viewStateModule) {
+            $svcPath = Join-Path $PSScriptRoot 'ViewStateService.psm1'
+            if (Test-Path -LiteralPath $svcPath) {
+                try {
+                    $viewStateModule = Import-Module -Name $svcPath -Force -Global -PassThru
+                } catch {
+                    Write-Verbose "[InterfaceModule] Importing ViewStateService inside Get-InterfaceList failed: $($_.Exception.Message)"
+                }
+            }
+        }
+
+        if ($viewStateModule) {
+            $ports = [System.Collections.Generic.List[string]]::new()
+
+            $site = $null
+            $zone = $null
+            $building = $null
+            $room = $null
+            $meta = $null
+
+            try {
+                if ($global:DeviceMetadata) {
+                    if ($global:DeviceMetadata.ContainsKey($targetHost)) {
+                        $meta = $global:DeviceMetadata[$targetHost]
+                    } else {
+                        foreach ($kv in $global:DeviceMetadata.GetEnumerator()) {
+                            if ([System.StringComparer]::OrdinalIgnoreCase.Equals(('' + $kv.Key), $targetHost)) {
+                                $meta = $kv.Value
+                                break
+                            }
+                        }
+                    }
+                }
+            } catch {
+                $meta = $null
+            }
+
+            if ($meta) {
+                try { if ($meta.PSObject.Properties['Site']) { $site = '' + $meta.Site } } catch { $site = $site }
+                try { if ($meta.PSObject.Properties['Zone']) { $zone = '' + $meta.Zone } } catch { $zone = $zone }
+                try { if ($meta.PSObject.Properties['Building']) { $building = '' + $meta.Building } } catch { $building = $building }
+                try { if ($meta.PSObject.Properties['Room']) { $room = '' + $meta.Room } } catch { $room = $room }
+            }
+
+            if ([string]::IsNullOrWhiteSpace($site)) {
+                try { $site = DeviceRepositoryModule\Get-SiteFromHostname -Hostname $targetHost } catch { $site = $null }
+            }
+
+            if ([string]::IsNullOrWhiteSpace($zone)) {
+                try {
+                    $parts = $targetHost.Split('-', [System.StringSplitOptions]::RemoveEmptyEntries)
+                    if ($parts.Length -ge 2) { $zone = $parts[1] }
+                } catch { $zone = $null }
+            }
+
+            $zoneSelection = if ([string]::IsNullOrWhiteSpace($zone)) { $null } else { $zone }
+            $zoneToLoad = ''
+            if ($zoneSelection -and $zoneSelection -ne 'All Zones') { $zoneToLoad = $zoneSelection }
+
+            $interfaces = @()
+            try {
+                $interfaces = ViewStateService\Get-InterfacesForContext -Site $site -ZoneSelection $zoneSelection -ZoneToLoad $zoneToLoad -Building $building -Room $room
+            } catch {
+                Write-Verbose "[InterfaceModule] ViewStateService Get-InterfacesForContext failed: $($_.Exception.Message)"
+                $interfaces = @()
+            }
+
+            foreach ($iface in $interfaces) {
+                if (-not $iface) { continue }
+
+                $hostValue = ''
+                try {
+                    if ($iface.PSObject.Properties['Hostname']) { $hostValue = '' + $iface.Hostname }
+                    elseif ($iface.PSObject.Properties['HostName']) { $hostValue = '' + $iface.HostName }
+                    elseif ($iface.PSObject.Properties['Device']) { $hostValue = '' + $iface.Device }
+                } catch { $hostValue = '' }
+
+                if ([string]::IsNullOrWhiteSpace($hostValue)) { continue }
+                if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals($hostValue.Trim(), $targetHost)) { continue }
+
+                $portVal = ''
+                try {
+                    if ($iface.PSObject.Properties['Port']) { $portVal = '' + $iface.Port }
+                    elseif ($iface.PSObject.Properties['Interface']) { $portVal = '' + $iface.Interface }
+                    elseif ($iface.PSObject.Properties['IfName']) { $portVal = '' + $iface.IfName }
+                    elseif ($iface.PSObject.Properties['Name']) { $portVal = '' + $iface.Name }
+                } catch { $portVal = '' }
+
+                if (-not [string]::IsNullOrWhiteSpace($portVal)) {
+                    [void]$ports.Add($portVal.Trim())
+                }
+            }
+
+            if ($ports.Count -gt 0) {
+                $comparison = [System.Comparison[string]]{
+                    param($a, $b)
+                    $keyA = Get-PortSortKey -Port $a
+                    $keyB = Get-PortSortKey -Port $b
+                    return [System.StringComparer]::OrdinalIgnoreCase.Compare($keyA, $keyB)
+                }
+                $ports.Sort($comparison)
+                return $ports.ToArray()
+            }
+        }
+    } catch {
+        Write-Verbose "[InterfaceModule] ViewStateService lookup failed: $($_.Exception.Message)"
+    }
+
     try {
         if ($global:DeviceInterfaceCache -and $global:DeviceInterfaceCache.ContainsKey($Hostname)) {
             $items = $global:DeviceInterfaceCache[$Hostname]
@@ -415,7 +540,7 @@ function Get-InterfaceList {
             }
         }
     } catch {}
-    # Fallback: query the aggregated database when no cached interfaces exist for the host.
+
     if (-not $global:StateTraceDb) { return @() }
     try {
         Ensure-DatabaseModule
@@ -431,6 +556,8 @@ function Get-InterfaceList {
         return @()
     }
 }
+
+
 
 function Compare-InterfaceConfigs {
     # .SYNOPSIS

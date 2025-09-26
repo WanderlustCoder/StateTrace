@@ -89,7 +89,7 @@
 - `Modules/InterfaceModule.psm1:144` `Get-InterfaceHostnames` - retrieves catalog data via `DeviceCatalogModule::Get-InterfaceHostnames`. 
 - `Modules/InterfaceModule.psm1:153` `New-InterfaceObjectsFromDbRow` - converts DB rows into PSCustomObjects enriched with template/tooltips, location metadata, and `IsSelected` property.
 - `Modules/InterfaceModule.psm1:390` `Get-InterfaceInfo` - module-level helper returning cached interface objects.
-- `Modules/InterfaceModule.psm1:399` `Get-InterfaceList` - returns sorted port names for a host (used by Compare view dropdowns).
+- `Modules/InterfaceModule.psm1:411` `Get-InterfaceList` - prefers ViewStateService snapshots for the active site/zone context and falls back to cached or database data to return sorted port names for Compare view dropdowns.
 - `Modules/InterfaceModule.psm1:435` `Compare-InterfaceConfigs` - produces diff output between two port configs for display in Compare view.
 - `Modules/InterfaceModule.psm1:451` `Get-InterfaceConfiguration` - delegates to `DeviceRepositoryModule::Get-InterfaceConfiguration`. 
 - `Modules/InterfaceModule.psm1:464` `Get-SpanningTreeInfo` - fetches parsed spanning tree rows (backed by DB/history) for the SPAN tab.
