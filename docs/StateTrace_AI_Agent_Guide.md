@@ -20,7 +20,7 @@
 ## Safe Implementation Checklist
 - **Approved verbs:** When adding or renaming PowerShell functions, use approved verbs (see `Get-Verb`) so exports stay compliant, and never embed `StateTrace` in the verb portion.
 - **Preserve exports:** Ensure any function you move or rename remains exported where consumers expect it. Update both the manifest and downstream imports together.
-- **Maintain caches:** When altering repository/catalog logic, keep cache invalidation (`Clear-SiteInterfaceCache`, `Update-GlobalInterfaceList`) and globals in sync. Never purge globals without repopulation.
+- **Maintain caches:** When altering repository/catalog logic, keep cache invalidation ((`Clear-SiteInterfaceCache`, `Get-GlobalInterfaceSnapshot`/`Update-GlobalInterfaceList`)) and globals in sync. Never purge globals without repopulation.
 - **Respect parser IO:** Parser-worker functions assume Access schema names and environment flags (`$env:IncludeArchive`, `$env:IncludeHistorical`). Do not repurpose these without auditing `ParserWorker` and `MainWindow` handlers.
 - **UI bindings:** XAML views bind to specific property names and DataContext members from their modules. Verify bindings remain valid after edits by searching for `x:Name` and matching handler functions.
 - **Theme-aware UI:** Use `ThemeModule` tokens and `DynamicResource` bindings; avoid new literal colours unless you also extend the theme definition and defaults.

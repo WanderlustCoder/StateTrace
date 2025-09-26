@@ -89,22 +89,27 @@ function Get-InterfacesForContext {
         if ($null -ne $zoneFilter) { $params.ZoneSelection = $zoneFilter }
         if ($null -ne $zoneLoadParam) { $params.ZoneToLoad = $zoneLoadParam }
 
+        $snapshot = @()
         try {
             if ($params.Count -gt 0) {
-                $interfaces = DeviceRepositoryModule\Update-GlobalInterfaceList @params
+                $snapshot = DeviceRepositoryModule\Get-GlobalInterfaceSnapshot @params
             } else {
-                $interfaces = DeviceRepositoryModule\Update-GlobalInterfaceList
+                $snapshot = DeviceRepositoryModule\Get-GlobalInterfaceSnapshot
             }
         } catch {
-            $interfaces = $null
+            $snapshot = @()
         }
 
-        if ($interfaces) {
-            $global:AllInterfaces = $interfaces
-            $script:CachedSite = $siteFilter
-            $script:CachedZoneSelection = $zoneFilter
-            $script:CachedZoneLoad = $zoneLoadParam
+        $interfaces = if ($snapshot -and $snapshot.Length -gt 0) {
+            [System.Collections.Generic.List[object]]::new($snapshot)
+        } else {
+            [System.Collections.Generic.List[object]]::new()
         }
+
+        $global:AllInterfaces = $interfaces
+        $script:CachedSite = $siteFilter
+        $script:CachedZoneSelection = $zoneFilter
+        $script:CachedZoneLoad = $zoneLoadParam
     }
 
     if (-not $interfaces) { return @() }
@@ -146,7 +151,6 @@ function Get-InterfacesForContext {
 
     return $results
 }
-
 function Get-FilterSnapshot {
     [CmdletBinding()]
     param(
@@ -276,6 +280,9 @@ function Get-ZoneLoadHint {
 }
 
 Export-ModuleMember -Function Get-InterfacesForContext, Get-FilterSnapshot, Get-ZoneLoadHint, Get-SequenceCount
+
+
+
 
 
 

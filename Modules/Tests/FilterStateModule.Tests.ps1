@@ -1,4 +1,4 @@
-﻿Set-StrictMode -Version Latest
+Set-StrictMode -Version Latest
 
 Describe "FilterStateModule Update-DeviceFilter" {
     BeforeAll {
@@ -63,8 +63,8 @@ Describe "FilterStateModule Update-DeviceFilter" {
             return ,([pscustomobject]@{ Hostname = 'SITE1-Z1-SW1'; PortSort = '001' })
         }
 
-        Mock -ModuleName ViewStateService -CommandName 'DeviceRepositoryModule\Update-GlobalInterfaceList' -MockWith $mockInterfaces
-        Mock -ModuleName FilterStateModule -CommandName 'DeviceRepositoryModule\Update-GlobalInterfaceList' -MockWith $mockInterfaces
+        Mock -ModuleName ViewStateService -CommandName 'DeviceRepositoryModule\Get-GlobalInterfaceSnapshot' -MockWith $mockInterfaces
+        Mock -ModuleName FilterStateModule -CommandName 'DeviceRepositoryModule\Get-GlobalInterfaceSnapshot' -MockWith $mockInterfaces
 
         FilterStateModule\Initialize-DeviceFilters -Window $global:window
     }
@@ -98,9 +98,10 @@ Describe "FilterStateModule Update-DeviceFilter" {
 
         $script:FilterTestControls['ZoneDropdown'].SelectedItem | Should Be 'Z3'
         ($script:FilterTestControls['HostnameDropdown'].ItemsSource -contains 'SITE2-Z3-SW3') | Should Be $true
-        Assert-MockCalled -ModuleName ViewStateService -CommandName 'DeviceRepositoryModule\Update-GlobalInterfaceList' -ParameterFilter { $Site -eq 'SITE2' } -Times 1
+        Assert-MockCalled -ModuleName ViewStateService -CommandName 'DeviceRepositoryModule\Get-GlobalInterfaceSnapshot' -ParameterFilter { $Site -eq 'SITE2' } -Times 1
     }
 }
+
 
 
 

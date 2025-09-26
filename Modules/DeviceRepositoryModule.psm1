@@ -246,7 +246,7 @@ function Invoke-ParallelDbQuery {
     $pool.Dispose()
     return $results.ToArray()
 }
-function Update-GlobalInterfaceList {
+function Get-GlobalInterfaceSnapshot {
     [CmdletBinding()]
     param(
         [string]$Site,
@@ -304,8 +304,41 @@ function Update-GlobalInterfaceList {
         }
     }
 
-    $global:AllInterfaces = $interfaces
-    return $interfaces
+    return ,($interfaces.ToArray())
+}
+
+function Update-GlobalInterfaceList {
+    [CmdletBinding()]
+    param(
+        [string]$Site,
+        [string]$ZoneSelection,
+        [string]$ZoneToLoad
+    )
+
+    $snapshot = Get-GlobalInterfaceSnapshot @PSBoundParameters
+    if ($snapshot -and $snapshot.Length -gt 0) {
+        $global:AllInterfaces = [System.Collections.Generic.List[object]]::new($snapshot)
+    } else {
+        $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
+    }
+    return $global:AllInterfaces
+}
+
+function Get-InterfacesForSite {
+    [CmdletBinding()]
+    param(
+        [string]$Site,
+        [string]$ZoneSelection,
+        [string]$ZoneToLoad
+    )
+
+    $snapshot = Get-GlobalInterfaceSnapshot @PSBoundParameters
+    if ($snapshot -and $snapshot.Length -gt 0) {
+        $global:AllInterfaces = [System.Collections.Generic.List[object]]::new($snapshot)
+    } else {
+        $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
+    }
+    return $global:AllInterfaces
 }
 
 function Get-InterfacesForSite {
@@ -918,7 +951,9 @@ ORDER BY i.Hostname, i.Port
         if ($session) { Close-DbReadSession -Session $session }
     }
 }
-Export-ModuleMember -Function Get-DataDirectoryPath, Get-SiteFromHostname, Get-DbPathForSite, Get-DbPathForHost, Get-AllSiteDbPaths, Clear-SiteInterfaceCache, Update-SiteZoneCache, Update-GlobalInterfaceList, Get-InterfacesForSite, Get-InterfaceInfo, Get-InterfaceConfiguration, Get-InterfacesForHostsBatch, Invoke-ParallelDbQuery, Import-DatabaseModule
+Export-ModuleMember -Function Get-DataDirectoryPath, Get-SiteFromHostname, Get-DbPathForSite, Get-DbPathForHost, Get-AllSiteDbPaths, Clear-SiteInterfaceCache, Update-SiteZoneCache, Get-GlobalInterfaceSnapshot, Update-GlobalInterfaceList, Get-InterfacesForSite, Get-InterfaceInfo, Get-InterfaceConfiguration, Get-InterfacesForHostsBatch, Invoke-ParallelDbQuery, Import-DatabaseModule
+
+
 
 
 

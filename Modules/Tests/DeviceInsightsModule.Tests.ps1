@@ -1,4 +1,4 @@
-﻿Set-StrictMode -Version Latest
+Set-StrictMode -Version Latest
 
 function New-SearchWindowStub {
     param(
@@ -216,10 +216,13 @@ Describe "DeviceInsightsModule view aggregation" {
         Mock -ModuleName DeviceInsightsModule -CommandName 'FilterStateModule\Get-SelectedLocation' {
             [pscustomobject]@{ Site = 'All Sites'; Zone = 'All Zones'; Building = $null; Room = $null }
         }
-        Mock -ModuleName DeviceInsightsModule -CommandName 'DeviceRepositoryModule\Update-GlobalInterfaceList' {
-            $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
-            $global:AllInterfaces.Add([pscustomobject]@{ Hostname = 'SITE5-Z1-SW5'; Site = 'SITE5'; Zone = 'Z1'; Building = 'B5'; Room = 'R5'; Status = 'up'; AuthState = 'authorized'; Port = 'Gi5'; Name = 'Sensor' }) | Out-Null
-            $global:AllInterfaces
+        $global:SearchGridMockInterface = [pscustomobject]@{ Hostname = 'SITE5-Z1-SW5'; Site = 'SITE5'; Zone = 'Z1'; Building = 'B5'; Room = 'R5'; Status = 'up'; AuthState = 'authorized'; Port = 'Gi5'; Name = 'Sensor' }
+        Mock -ModuleName DeviceInsightsModule -CommandName 'ViewStateService\Get-InterfacesForContext' {
+            param($Site, $ZoneSelection, $ZoneToLoad, $Building, $Room)
+            $list = [System.Collections.Generic.List[object]]::new()
+            $list.Add($global:SearchGridMockInterface) | Out-Null
+            $global:AllInterfaces = $list
+            return $list
         }
 
         $stub = New-SearchWindowStub -StatusSelection 'All' -AuthSelection 'All' -SearchText 'Gi5'
@@ -227,8 +230,9 @@ Describe "DeviceInsightsModule view aggregation" {
 
         DeviceInsightsModule\Update-SearchGrid
 
-        Assert-MockCalled 'DeviceRepositoryModule\Update-GlobalInterfaceList' -ModuleName DeviceInsightsModule -Times 1
-        $stub.Grid.ItemsSource.Count | Should Be 1
+        Assert-MockCalled 'ViewStateService\Get-InterfacesForContext' -ModuleName DeviceInsightsModule -Times 1
+        (ViewStateService\Get-SequenceCount -Value $stub.Grid.ItemsSource) | Should Be 1
         $stub.Grid.ItemsSource[0].Hostname | Should Be 'SITE5-Z1-SW5'
+        Remove-Variable -Name SearchGridMockInterface -Scope Global -ErrorAction SilentlyContinue
     }
 }

@@ -195,7 +195,14 @@ function Initialize-DeviceFilters {
     try {
         $global:AllInterfaces = ViewStateService\Get-InterfacesForContext -Site $null -ZoneSelection $null -ZoneToLoad $null -Building $null -Room $null
     } catch {
-        try { $global:AllInterfaces = DeviceRepositoryModule\Update-GlobalInterfaceList } catch {}
+        try {
+            $snapshot = DeviceRepositoryModule\Get-GlobalInterfaceSnapshot
+            $global:AllInterfaces = if ($snapshot -and $snapshot.Length -gt 0) {
+                [System.Collections.Generic.List[object]]::new($snapshot)
+            } else {
+                [System.Collections.Generic.List[object]]::new()
+            }
+        } catch {}
     }
 
     try {
@@ -398,12 +405,22 @@ function Update-DeviceFilter {
         if ($siteChanged -or $zoneChanged -or $buildingChanged -or $roomChanged) {
             try {
                 $global:AllInterfaces = ViewStateService\Get-InterfacesForContext -Site $finalSite -ZoneSelection $finalZone -ZoneToLoad $zoneToLoad -Building $finalBuilding -Room $finalRoom
-                if (-not $global:AllInterfaces) { $global:AllInterfaces = @() }
+                if (-not $global:AllInterfaces) {
+                    try {
+                        $snapshot = DeviceRepositoryModule\Get-GlobalInterfaceSnapshot -Site $finalSite -ZoneSelection $finalZone -ZoneToLoad $zoneToLoad
+                        $global:AllInterfaces = if ($snapshot -and $snapshot.Length -gt 0) {
+                            [System.Collections.Generic.List[object]]::new($snapshot)
+                        } else {
+                            [System.Collections.Generic.List[object]]::new()
+                        }
+                    } catch {
+                        $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
+                    }
+                }
             } catch {
-                try { $global:AllInterfaces = DeviceRepositoryModule\Update-GlobalInterfaceList } catch {}
+                $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
             }
         }
-
         if (Get-Command Update-SearchGrid -ErrorAction SilentlyContinue) {
             Update-SearchGrid
         }
@@ -439,6 +456,10 @@ function Get-FilterFaulted {
 }
 
 Export-ModuleMember -Function Test-StringListEqualCI, Get-SelectedLocation, Get-LastLocation, Set-DropdownItems, Initialize-DeviceFilters, Update-DeviceFilter, Set-FilterFaulted, Get-FilterFaulted
+
+
+
+
 
 
 

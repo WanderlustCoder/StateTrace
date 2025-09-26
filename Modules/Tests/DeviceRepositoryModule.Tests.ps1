@@ -1,4 +1,4 @@
-﻿Set-StrictMode -Version Latest
+Set-StrictMode -Version Latest
 
 function Set-RepositoryVar {
     param([string]$Name, $Value)
@@ -88,6 +88,18 @@ Describe "DeviceRepositoryModule core helpers" {
         Assert-MockCalled Get-InterfaceInfo -ModuleName DeviceRepositoryModule -Times 1 -ParameterFilter { $Hostname -eq 'SITE1-Z1-SW1' }
     }
 
+    It "returns snapshots without mutating global interface cache" {
+        $global:DeviceInterfaceCache = @{
+            'SITE1-Z1-SW1' = @([pscustomobject]@{ Hostname = 'SITE1-Z1-SW1'; Site = 'SITE1'; Zone = 'Z1'; Port = 'Gi1'; PortSort = '001'; Status = 'up'; AuthState = 'authorized' })
+        }
+
+        $snapshot = DeviceRepositoryModule\Get-GlobalInterfaceSnapshot -Site 'SITE1' -ZoneSelection 'Z1'
+
+        $snapshot | Should Not BeNullOrEmpty
+        $snapshot.Length | Should Be 1
+        $snapshot[0].Hostname | Should Be 'SITE1-Z1-SW1'
+        (Get-Variable -Name AllInterfaces -Scope Global -ValueOnly).Count | Should Be 0
+    }
     It "builds the global interface list for a site/zone selection" {
         $global:DeviceInterfaceCache = @{
             'SITE1-Z1-SW1' = @([pscustomobject]@{ Hostname = 'SITE1-Z1-SW1'; Site = 'SITE1'; Zone = 'Z1'; Port = 'Gi1'; PortSort = '001'; Status = 'up'; AuthState = 'authorized' })
@@ -102,3 +114,4 @@ Describe "DeviceRepositoryModule core helpers" {
         ($result[0].PSObject.Properties.Name -contains 'IsSelected') | Should Be $true
     }
 }
+

@@ -51,7 +51,7 @@
 - `Modules/DeviceRepositoryModule.psm1:101` `Clear-SiteInterfaceCache` - resets cached interface data (paired with `Update-SiteZoneCache`).
 - `Modules/DeviceRepositoryModule.psm1:133` `Update-SiteZoneCache` - loads interface data for a site/zone into `$global:DeviceInterfaceCache` and `$global:AllInterfaces`.
 - `Modules/DeviceRepositoryModule.psm1:205` `Invoke-ParallelDbQuery` - executes Access queries across multiple sites using runspace fan-out.
-- `Modules/DeviceRepositoryModule.psm1:249` `Update-GlobalInterfaceList` - builds the active interface list for filter/search/alerts consumers.
+- `Modules/DeviceRepositoryModule.psm1:249` `Get-GlobalInterfaceSnapshot` - returns snapshot arrays for the requested site/zone filters without mutating globals; `Modules/DeviceRepositoryModule.psm1:310` `Update-GlobalInterfaceList` wraps the snapshot to keep `$global:AllInterfaces` populated for legacy callers.
 - `Modules/DeviceRepositoryModule.psm1:311` `Get-InterfacesForSite` - fetches all interface rows for a site (optionally filtered by zone) when caches need rebuilding.
 - `Modules/DeviceRepositoryModule.psm1:537` `Get-InterfaceInfo` - returns cached interface objects for a host; falls back to DB queries when the cache misses.
 - `Modules/DeviceRepositoryModule.psm1:670` `Get-InterfaceConfiguration` - assembles configuration text for selected ports (used by Templates and Compare).
@@ -172,7 +172,7 @@
 ## Event & Feature Map
 - `Scan Logs` button ? `Invoke-StateTraceRefresh` ? `Invoke-StateTraceParsing` ? DB updates ? `Get-DeviceSummaries` / `Update-DeviceFilter` / `Update-CompareView`.
 - Hostname dropdown change ? `Get-HostnameChanged` (sync) + `Import-DeviceDetailsAsync` (background) ? updates Interfaces tab and SPAN data.
-- Site/zone/building/room dropdowns ? `Request-DeviceFilterUpdate` ? `Update-DeviceFilter` ? cascades to `Update-GlobalInterfaceList`, Summary/Search/Alerts/Compare refreshes.
+- Site/zone/building/room dropdowns ? `Request-DeviceFilterUpdate` ? `Update-DeviceFilter` \? cascades to `Get-GlobalInterfaceSnapshot`/`Update-GlobalInterfaceList`, Summary/Search/Alerts/Compare refreshes.
 - `Include archives` / `Include history` checkboxes ? `Set-EnvToggle` writes env vars consumed by the parser when choosing log folders.
 - Show Commands buttons (`ShowCiscoButton`, `ShowBrocadeButton`) ? `TemplatesModule::Get-ShowCommands` ? clipboard export with success dialogs.
 - Templates tab save/add ? writes JSON files, triggers `Update-TemplatesList`, cached templates refresh when timestamps change.

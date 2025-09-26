@@ -302,21 +302,22 @@ function Update-SearchGrid {
     if (-not $gridCtrl -or -not $boxCtrl) { return }
 
     $term = $boxCtrl.Text
-    try {
-        if (-not $global:AllInterfaces -or $global:AllInterfaces.Count -eq 0) {
-            DeviceRepositoryModule\Update-GlobalInterfaceList
-        }
-    } catch {}
-
     $results = Update-SearchResults -Term $term
+    $resultList = [System.Collections.Generic.List[object]]::new()
+    foreach ($item in $results) {
+        if ($item) { [void]$resultList.Add($item) }
+    }
     try {
-        $resCount = if ($results) { $results.Count } else { 0 }
+        $resCount = $resultList.Count
         $null = $resCount
     } catch {}
 
-    $gridCtrl.ItemsSource = $results
+    $gridCtrl.ItemsSource = $resultList
 }
 
 Export-ModuleMember -Function Update-SearchResults, Update-Summary, Update-Alerts, Update-SearchGrid, Get-SearchRegexEnabled, Set-SearchRegexEnabled
+
+
+
 
 
