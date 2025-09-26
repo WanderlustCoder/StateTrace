@@ -99,7 +99,7 @@
 ### `Modules/CompareViewModule.psm1`
 - `Modules/CompareViewModule.psm1:27` `Resolve-CompareControls` - caches references to Compare view dropdowns, textboxes, and labels after XAML load.
 - `Modules/CompareViewModule.psm1:45` `Get-HostString` - normalises combo box items into plain hostnames.
-- `Modules/CompareViewModule.psm1:56` `Get-HostsFromMain` - builds the filtered host list from `$global:DeviceInterfaceCache`, honouring site/zone/building/room via `FilterStateModule::Get-LastLocation` and `DeviceRepositoryModule::Update-SiteZoneCache`.
+- `Modules/CompareViewModule.psm1:56` `Get-HostsFromMain` - builds the host list using `ViewStateService` snapshots (with `DeviceMetadata` fallback) so Compare view mirrors current site/zone/building selections.
 - `Modules/CompareViewModule.psm1:173` `Get-PortSortKey` - delegates to `InterfaceModule::Get-PortSortKey`.
 - `Modules/CompareViewModule.psm1:180` `Get-PortsForHost` - retrieves port names via `InterfaceModule::Get-InterfaceList` with DB fallback.
 - `Modules/CompareViewModule.psm1:244` `Set-PortsForCombo` - populates port dropdowns and preserves selection.
