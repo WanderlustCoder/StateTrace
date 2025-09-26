@@ -132,4 +132,25 @@ Describe "CompareViewModule compare workflow" {
         Assert-MockCalled Set-PortsForCombo -ModuleName CompareViewModule -Times 2
         Assert-MockCalled Set-CompareFromRows -ModuleName CompareViewModule -Times 1 -ParameterFilter { $Row1 -eq $row1 -and $Row2 -eq $row2 }
     }
-}
+}    It "returns hosts from ViewStateService snapshots" {
+        $global:DeviceMetadata = @{
+            'SITE1-Z1-SW1' = [pscustomobject]@{ Site = 'SITE1'; Zone = 'Z1'; Building = 'B1'; Room = 'R101' }
+            'SITE1-Z2-SW2' = [pscustomobject]@{ Site = 'SITE1'; Zone = 'Z2'; Building = 'B2'; Room = 'R201' }
+        }
+
+        Mock -ModuleName CompareViewModule -CommandName 'FilterStateModule\Get-LastLocation' { @{ Site = 'SITE1'; Zone = 'All Zones'; Building = ''; Room = '' } }
+        Mock -ModuleName CompareViewModule -CommandName 'FilterStateModule\Get-SelectedLocation' { @{ Site = 'SITE1'; Zone = 'All Zones'; Building = ''; Room = '' } }
+        Mock -ModuleName CompareViewModule -CommandName 'ViewStateService\Get-FilterSnapshot' {
+            [pscustomobject]@{ Hostnames = @('SITE1-Z1-SW1','SITE1-Z2-SW2'); ZoneToLoad = 'Z1' }
+        }
+        Mock -ModuleName CompareViewModule -CommandName 'ViewStateService\Get-InterfacesForContext' {
+            @([pscustomobject]@{ Hostname = 'SITE1-Z1-SW1' }, [pscustomobject]@{ Hostname = 'SITE1-Z2-SW2' })
+        }
+
+        $hosts = CompareViewModule\Get-HostsFromMain -Window ([System.Windows.Window]::new())
+
+        $hosts | Should BeExactly @('SITE1-Z1-SW1','SITE1-Z2-SW2')
+        Assert-MockCalled -ModuleName CompareViewModule -CommandName 'ViewStateService\Get-FilterSnapshot' -Times 1
+        Assert-MockCalled -ModuleName CompareViewModule -CommandName 'ViewStateService\Get-InterfacesForContext' -Times 1
+    }
+

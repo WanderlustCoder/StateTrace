@@ -53,122 +53,123 @@ function Get-HostString {
     return ('' + $Item)
 }
 
-function Get-HostsFromMain {
-    [CmdletBinding()]
-    param(
-        # Use the fully qualified System.Windows.Window type instead of the non-existent
-        # Windows.Window alias.  The original parameter type used a namespace that
-        # does not exist, which would cause a runtime type resolution error.
-        [System.Windows.Window]$Window
-    )
-
-    # Attempt to derive the host list from the in-memory DeviceMetadata so that
-    # Compare view respects the current site/zone/building/room filters.  If
-    # DeviceMetadata is unavailable, fall back to the database query provided
-    # by Get-InterfaceHostnames.
-    $hosts = @()
-    try {
-        # Retrieve the last recorded location selections maintained by Update-DeviceFilter.  These
-        # values (Site, Zone, Building, Room) reflect the current filter state across the UI and
-        # provide a consistent basis for host filtering.  Fallback to Get-SelectedLocation only
-        # when LastLocation is unavailable (e.g., on first launch before any selection is recorded).
-        $siteSel = $null; $zoneSel = $null; $bldSel = $null; $roomSel = $null
-        $lastLoc = $null
-        try { $lastLoc = FilterStateModule\Get-LastLocation } catch { }
-        if ($lastLoc) {
-            $siteSel = $lastLoc.Site
-            $zoneSel = $lastLoc.Zone
-            $bldSel  = $lastLoc.Building
-            $roomSel = $lastLoc.Room
-        }
-        if (-not $siteSel -or $siteSel -eq '' -or $siteSel -eq $null) {
-            # If no last site exists yet, attempt to read from the UI controls.
-            try {
-                $locSel = FilterStateModule\Get-SelectedLocation -Window $Window
-                if ($locSel) {
-                    $siteSel = $locSel.Site
-                    $zoneSel = $locSel.Zone
-                    $bldSel  = $locSel.Building
-                    $roomSel = $locSel.Room
-                }
-            } catch { }
-        }
-        # Ensure interface data for the selected site and zone is loaded.  Calling this helper
-        # triggers lazy loading of per-site/per-zone data in DeviceRepositoryModule.  It is safe to
-        # call repeatedly; subsequent calls for the same site/zone do nothing.
-        if ($siteSel -and $siteSel -ne '' -and $siteSel -ne 'All Sites') {
-            try { DeviceRepositoryModule\Update-SiteZoneCache -Site $siteSel -Zone $zoneSel | Out-Null } catch { }
-        }
-        # Enumerate hostnames exclusively from the per-device interface cache.  Only hosts
-        # that have been loaded into memory via Update-SiteZoneCache are present in this
-        # cache.  This avoids falling back to DeviceMetadata enumeration, which can
-        # include hosts for which interface data has not yet been loaded, thereby
-        # maintaining the lazy-loading behaviour.  DeviceMetadata is still used to
-        # filter on building and room when available.
-        $tmpList = New-Object 'System.Collections.Generic.List[string]'
-        foreach ($hn in $global:DeviceInterfaceCache.Keys) {
-            $parts = ('' + $hn) -split '-'
-            $sitePart = if ($parts.Length -ge 1) { $parts[0] } else { '' }
-            $zonePart = if ($parts.Length -ge 2) { $parts[1] } else { '' }
-            # Apply site filter unless 'All Sites' is selected
-            if ($siteSel -and $siteSel -ne '' -and $siteSel -ne 'All Sites' -and $sitePart -ne $siteSel) { continue }
-            # Apply zone filter when a specific zone (other than All Zones) is selected
-            if ($zoneSel -and $zoneSel -ne '' -and $zoneSel -ne 'All Zones' -and $zonePart -ne $zoneSel) { continue }
-            # Apply building/room filters using DeviceMetadata if available
-            $meta = $null
-            if ($global:DeviceMetadata -and $global:DeviceMetadata.ContainsKey($hn)) {
-                $meta = $global:DeviceMetadata[$hn]
-            }
-            if ($meta) {
-                if ($bldSel -and $bldSel -ne '' -and $meta.Building -ne $bldSel) { continue }
-                if ($roomSel -and $roomSel -ne '' -and $meta.Room -ne $roomSel) { continue }
-            }
-            [void]$tmpList.Add($hn)
-        }
-        $hosts = $tmpList.ToArray()
-        Write-Verbose "[CompareView] Retrieved $($hosts.Count) host(s) from per-device cache with current filters."
-    } catch {
-        $hosts = @()
-        Write-Warning "[CompareView] Failed to retrieve host list: $($_.Exception.Message)"
-    }
-    # Clean up host list: trim whitespace, remove blanks and deduplicate.
-    $hostSet  = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
-    $hostList = New-Object 'System.Collections.Generic.List[string]'
-    foreach ($h in $hosts) {
-        $t = ('' + $h).Trim()
-        if ($t -and $t -ne '' -and $hostSet.Add($t)) {
-            [void]$hostList.Add($t)
-        }
-    }
-    # Sort hostnames alphabetically once all unique names have been collected.
-    if ($hostList -and $hostList.Count -gt 1) {
-        $hostList.Sort([System.StringComparer]::OrdinalIgnoreCase)
-    }
-    # Emit diagnostics about the host filtering used for Compare view.  Log the current selections
-    # (site, zone, building, room), the total count of hosts and a sample of hostnames.  Use
-    # Write-Diag if available, otherwise Write-Verbose.  Wrap in try/catch to avoid breaking UI.
-    try {
-        $siteDbg = '' + $siteSel
-        $zoneDbg = '' + $zoneSel
-        $bldDbg  = '' + $bldSel
-        $roomDbg = '' + $roomSel
-        $hCount = if ($hostList) { $hostList.Count } else { 0 }
-        $hSample = ''
-        try {
-            if ($hostList -and $hostList.Count -gt 0) {
-                $hSample = ($hostList | Select-Object -First 5) -join ','
-            }
-        } catch { $hSample = '' }
-        $msg = "CompareHostFilter | site='{0}', zone='{1}', building='{2}', room='{3}', count={4}, sample=[{5}]" -f `
-            $siteDbg, $zoneDbg, $bldDbg, $roomDbg, $hCount, $hSample
-        if (Get-Command -Name Write-Diag -ErrorAction SilentlyContinue) {
-            Write-Diag $msg
-        } else {
-            Write-Verbose $msg
-        }
-    } catch {}
-    return ,$hostList.ToArray()
-}
+function Get-HostsFromMain {
+    [CmdletBinding()]
+    param(
+        [System.Windows.Window]$Window
+    )
+    $siteSel = $null
+    $zoneSel = $null
+    $bldSel  = $null
+    $roomSel = $null
+    try {
+        $lastLoc = $null
+        try { $lastLoc = FilterStateModule\Get-LastLocation } catch { }
+        if ($lastLoc) {
+            $siteSel = $lastLoc.Site
+            $zoneSel = $lastLoc.Zone
+            $bldSel  = $lastLoc.Building
+            $roomSel = $lastLoc.Room
+        }
+        if ([string]::IsNullOrWhiteSpace($siteSel)) {
+            try {
+                $locSel = FilterStateModule\Get-SelectedLocation -Window $Window
+                if ($locSel) {
+                    if ($locSel.Site)     { $siteSel = $locSel.Site }
+                    if ($locSel.Zone)     { $zoneSel = $locSel.Zone }
+                    if ($locSel.Building) { $bldSel  = $locSel.Building }
+                    if ($locSel.Room)     { $roomSel = $locSel.Room }
+                }
+            } catch { }
+        }
+    } catch { }
+    $metadata = $null
+    try { $metadata = $global:DeviceMetadata } catch { }
+    $hostSet  = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    $hostList = New-Object 'System.Collections.Generic.List[string]'
+    $snapshot = $null
+    try {
+        $snapshot = ViewStateService\Get-FilterSnapshot -DeviceMetadata $metadata -Site $siteSel -ZoneSelection $zoneSel -Building $bldSel -Room $roomSel
+    } catch {
+        Write-Verbose "[CompareView] ViewStateService snapshot failed: $($_.Exception.Message)"
+    }
+    if ($snapshot -and $snapshot.Hostnames) {
+        foreach ($candidate in $snapshot.Hostnames) {
+            $name = ('' + $candidate).Trim()
+            if ($name -and $hostSet.Add($name)) { [void]$hostList.Add($name) }
+        }
+    }
+    $zoneToLoad = ''
+    if ($zoneSel -and -not [string]::IsNullOrWhiteSpace($zoneSel) -and -not [System.StringComparer]::OrdinalIgnoreCase.Equals($zoneSel, 'All Zones')) {
+        $zoneToLoad = $zoneSel
+    } elseif ($snapshot -and $snapshot.ZoneToLoad) {
+        $zoneToLoad = '' + $snapshot.ZoneToLoad
+    }
+    try {
+        $interfaces = ViewStateService\Get-InterfacesForContext -Site $siteSel -ZoneSelection $zoneSel -ZoneToLoad $zoneToLoad -Building $bldSel -Room $roomSel
+        if ($interfaces) {
+            foreach ($row in $interfaces) {
+                if (-not $row) { continue }
+                $hostname = ''
+                try {
+                    if ($row.PSObject.Properties['Hostname']) { $hostname = '' + $row.Hostname }
+                    elseif ($row.PSObject.Properties['HostName']) { $hostname = '' + $row.HostName }
+                } catch { $hostname = '' }
+                if ([string]::IsNullOrWhiteSpace($hostname)) { $hostname = '' + $row }
+                $hostname = $hostname.Trim()
+                if ($hostname -and $hostSet.Add($hostname)) { [void]$hostList.Add($hostname) }
+            }
+        }
+    } catch {
+        Write-Verbose "[CompareView] ViewStateService interfaces retrieval failed: $($_.Exception.Message)"
+    }
+    if ($hostList.Count -eq 0 -and $metadata) {
+        foreach ($entry in $metadata.GetEnumerator()) {
+            $hostname = ('' + $entry.Key).Trim()
+            if ([string]::IsNullOrWhiteSpace($hostname)) { continue }
+            $meta = $entry.Value
+            if ($siteSel -and -not [string]::IsNullOrWhiteSpace($siteSel) -and -not [System.StringComparer]::OrdinalIgnoreCase.Equals($siteSel, 'All Sites')) {
+                $siteVal = ''
+                if ($meta -and $meta.PSObject.Properties['Site']) { $siteVal = '' + $meta.Site }
+                if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals($siteVal, $siteSel)) { continue }
+            }
+            if ($zoneSel -and -not [string]::IsNullOrWhiteSpace($zoneSel) -and -not [System.StringComparer]::OrdinalIgnoreCase.Equals($zoneSel, 'All Zones')) {
+                $zoneVal = ''
+                if ($meta -and $meta.PSObject.Properties['Zone']) { $zoneVal = '' + $meta.Zone }
+                if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals($zoneVal, $zoneSel)) { continue }
+            }
+            if ($bldSel -and -not [string]::IsNullOrWhiteSpace($bldSel) -and $meta -and $meta.PSObject.Properties['Building']) {
+                if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals(('' + $meta.Building), $bldSel)) { continue }
+            }
+            if ($roomSel -and -not [string]::IsNullOrWhiteSpace($roomSel) -and $meta -and $meta.PSObject.Properties['Room']) {
+                if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals(('' + $meta.Room), $roomSel)) { continue }
+            }
+            if ($hostSet.Add($hostname)) { [void]$hostList.Add($hostname) }
+        }
+    }
+    if ($hostList.Count -gt 1) {
+        $hostList.Sort([System.StringComparer]::OrdinalIgnoreCase)
+    }
+    try {
+        $siteDbg = '' + $siteSel
+        $zoneDbg = '' + $zoneSel
+        $bldDbg  = '' + $bldSel
+        $roomDbg = '' + $roomSel
+        $hCount  = $hostList.Count
+        $hSample = ''
+        if ($hCount -gt 0) {
+            $sampleItems = $hostList.ToArray() | Select-Object -First ([System.Math]::Min(5, $hCount))
+            $hSample = ($sampleItems -join ', ')
+        }
+        $msg = "CompareHostFilter | site='{0}', zone='{1}', building='{2}', room='{3}', count={4}, sample=[{5}]" -f $siteDbg, $zoneDbg, $bldDbg, $roomDbg, $hCount, $hSample
+        if (Get-Command -Name Write-Diag -ErrorAction SilentlyContinue) {
+            Write-Diag $msg
+        } else {
+            Write-Verbose $msg
+        }
+    } catch { }
+    return ,$hostList.ToArray()
+}
 
 function Get-PortSortKey {
     [CmdletBinding()]
