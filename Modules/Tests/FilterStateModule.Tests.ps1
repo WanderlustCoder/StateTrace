@@ -64,7 +64,9 @@ Describe "FilterStateModule Update-DeviceFilter" {
         }
 
         Mock -ModuleName ViewStateService -CommandName 'DeviceRepositoryModule\Get-GlobalInterfaceSnapshot' -MockWith $mockInterfaces
-        Mock -ModuleName FilterStateModule -CommandName 'DeviceRepositoryModule\Get-GlobalInterfaceSnapshot' -MockWith $mockInterfaces
+        Mock -ModuleName FilterStateModule -CommandName 'DeviceRepositoryModule\Get-GlobalInterfaceSnapshot' {
+            throw 'FilterStateModule should not call DeviceRepositoryModule\Get-GlobalInterfaceSnapshot directly.'
+        }
 
         FilterStateModule\Initialize-DeviceFilters -Window $global:window
     }
@@ -100,6 +102,22 @@ Describe "FilterStateModule Update-DeviceFilter" {
         ($script:FilterTestControls['HostnameDropdown'].ItemsSource -contains 'SITE2-Z3-SW3') | Should Be $true
         Assert-MockCalled -ModuleName ViewStateService -CommandName 'DeviceRepositoryModule\Get-GlobalInterfaceSnapshot' -ParameterFilter { $Site -eq 'SITE2' } -Times 1
     }
+    It "initializes interface cache to empty list when service returns null" {
+        Mock -ModuleName FilterStateModule -CommandName 'ViewStateService\Get-InterfacesForContext' {
+            return $null
+        }
+
+        $global:AllInterfaces = $null
+
+        FilterStateModule\Initialize-DeviceFilters -Window $global:window
+
+        $isNull = [bool]($null -eq $global:AllInterfaces)
+        $isNull | Should Be $false
+        ($global:AllInterfaces -is [System.Collections.Generic.List[object]]) | Should Be $true
+        $global:AllInterfaces.Count | Should Be 0
+    }
+
+
 }
 
 

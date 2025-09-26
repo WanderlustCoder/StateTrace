@@ -194,15 +194,11 @@ function Initialize-DeviceFilters {
 
     try {
         $global:AllInterfaces = ViewStateService\Get-InterfacesForContext -Site $null -ZoneSelection $null -ZoneToLoad $null -Building $null -Room $null
+        if (-not $global:AllInterfaces) {
+            $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
+        }
     } catch {
-        try {
-            $snapshot = DeviceRepositoryModule\Get-GlobalInterfaceSnapshot
-            $global:AllInterfaces = if ($snapshot -and $snapshot.Length -gt 0) {
-                [System.Collections.Generic.List[object]]::new($snapshot)
-            } else {
-                [System.Collections.Generic.List[object]]::new()
-            }
-        } catch {}
+        $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
     }
 
     try {
@@ -406,16 +402,7 @@ function Update-DeviceFilter {
             try {
                 $global:AllInterfaces = ViewStateService\Get-InterfacesForContext -Site $finalSite -ZoneSelection $finalZone -ZoneToLoad $zoneToLoad -Building $finalBuilding -Room $finalRoom
                 if (-not $global:AllInterfaces) {
-                    try {
-                        $snapshot = DeviceRepositoryModule\Get-GlobalInterfaceSnapshot -Site $finalSite -ZoneSelection $finalZone -ZoneToLoad $zoneToLoad
-                        $global:AllInterfaces = if ($snapshot -and $snapshot.Length -gt 0) {
-                            [System.Collections.Generic.List[object]]::new($snapshot)
-                        } else {
-                            [System.Collections.Generic.List[object]]::new()
-                        }
-                    } catch {
-                        $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
-                    }
+                    $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
                 }
             } catch {
                 $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
