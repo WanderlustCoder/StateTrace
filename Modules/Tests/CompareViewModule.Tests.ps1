@@ -39,11 +39,12 @@ Describe "CompareViewModule compare workflow" {
         $moduleRoot = Split-Path $PSCommandPath
         Import-Module (Resolve-Path (Join-Path $moduleRoot "..\FilterStateModule.psm1")) -Force
         Import-Module (Resolve-Path (Join-Path $moduleRoot "..\ViewStateService.psm1")) -Force
+        Import-Module (Resolve-Path (Join-Path $moduleRoot '..\InterfaceModule.psm1')) -Force
         Import-Module (Resolve-Path (Join-Path $moduleRoot "..\CompareViewModule.psm1")) -Force
     }
 
     AfterAll {
-        foreach ($name in 'CompareViewModule','ViewStateService','FilterStateModule') {
+        foreach ($name in 'CompareViewModule','ViewStateService','FilterStateModule','InterfaceModule') {
             if (Get-Module $name) { Remove-Module $name -Force }
         }
     }
@@ -176,4 +177,86 @@ Describe "CompareViewModule compare workflow" {
             }
         }
     }
+
+    Context "Get-PortsForHost" {
+        It "returns ports using ViewStateService data" {
+            Set-CompareModuleVar windowRef ([System.Windows.Window]::new())
+
+            $hadMetadata = $false
+            $previousMetadata = $null
+            if (Get-Variable -Name DeviceMetadata -Scope Global -ErrorAction SilentlyContinue) {
+                $hadMetadata = $true
+                $previousMetadata = $global:DeviceMetadata
+            }
+
+            $global:DeviceMetadata = @{ 'SITE1-Z1-SW1' = [pscustomobject]@{ Site = 'SITE1'; Zone = 'Z1'; Building = ''; Room = '' } }
+
+            Mock -ModuleName CompareViewModule -CommandName 'FilterStateModule\Get-LastLocation' { @{ Site = 'SITE1'; Zone = 'Z1'; Building = ''; Room = '' } }
+            Mock -ModuleName CompareViewModule -CommandName 'FilterStateModule\Get-SelectedLocation' { @{ Site = 'SITE1'; Zone = 'Z1'; Building = ''; Room = '' } }
+            Mock -ModuleName CompareViewModule -CommandName 'ViewStateService\Get-FilterSnapshot' {
+                [pscustomobject]@{ Hostnames = @('SITE1-Z1-SW1'); ZoneToLoad = 'Z1' }
+            }
+            Mock -ModuleName CompareViewModule -CommandName 'ViewStateService\Get-InterfacesForContext' {
+                @(
+                    [pscustomobject]@{ Hostname = 'SITE1-Z1-SW1'; Port = 'Gi2' },
+                    [pscustomobject]@{ Hostname = 'SITE1-Z1-SW1'; Port = 'Gi1' },
+                    [pscustomobject]@{ Hostname = 'SITE1-Z2-SW2'; Port = 'Gi3' }
+                )
+            }
+            Mock -ModuleName CompareViewModule -CommandName 'InterfaceModule\Get-InterfaceList' { throw 'Should not be called' }
+            Mock -ModuleName CompareViewModule -CommandName 'InterfaceModule\Get-InterfaceInfo' { @() }
+
+            try {
+                $ports = CompareViewModule\Get-PortsForHost -Hostname 'SITE1-Z1-SW1'
+            } finally {
+                if ($hadMetadata) {
+                    $global:DeviceMetadata = $previousMetadata
+                } else {
+                    Remove-Variable -Scope Global -Name DeviceMetadata -ErrorAction SilentlyContinue
+                }
+            }
+
+            $ports | Should BeExactly @('Gi1','Gi2')
+
+            Assert-MockCalled -ModuleName CompareViewModule -CommandName 'ViewStateService\Get-InterfacesForContext' -Times 1
+            Assert-MockCalled -ModuleName CompareViewModule -CommandName 'InterfaceModule\Get-InterfaceList' -Times 0
+        }
+
+        It "falls back to InterfaceModule when service returns nothing" {
+            Set-CompareModuleVar windowRef ([System.Windows.Window]::new())
+
+            $hadMetadata = $false
+            $previousMetadata = $null
+            if (Get-Variable -Name DeviceMetadata -Scope Global -ErrorAction SilentlyContinue) {
+                $hadMetadata = $true
+                $previousMetadata = $global:DeviceMetadata
+            }
+
+            $global:DeviceMetadata = @{ 'SITE1-Z1-SW1' = [pscustomobject]@{ Site = 'SITE1'; Zone = 'Z1'; Building = ''; Room = '' } }
+
+            Mock -ModuleName CompareViewModule -CommandName 'FilterStateModule\Get-LastLocation' { @{ Site = 'SITE1'; Zone = 'Z1'; Building = ''; Room = '' } }
+            Mock -ModuleName CompareViewModule -CommandName 'FilterStateModule\Get-SelectedLocation' { @{ Site = 'SITE1'; Zone = 'Z1'; Building = ''; Room = '' } }
+            Mock -ModuleName CompareViewModule -CommandName 'ViewStateService\Get-FilterSnapshot' {
+                [pscustomobject]@{ Hostnames = @('SITE1-Z1-SW1'); ZoneToLoad = 'Z1' }
+            }
+            Mock -ModuleName CompareViewModule -CommandName 'ViewStateService\Get-InterfacesForContext' { @() }
+            Mock -ModuleName CompareViewModule -CommandName 'InterfaceModule\Get-InterfaceList' { @('Gi0/2','Gi0/1') }
+            Mock -ModuleName CompareViewModule -CommandName 'InterfaceModule\Get-InterfaceInfo' { @() }
+
+            try {
+                $ports = CompareViewModule\Get-PortsForHost -Hostname 'SITE1-Z1-SW1'
+            } finally {
+                if ($hadMetadata) {
+                    $global:DeviceMetadata = $previousMetadata
+                } else {
+                    Remove-Variable -Scope Global -Name DeviceMetadata -ErrorAction SilentlyContinue
+                }
+            }
+
+            $ports | Should BeExactly @('Gi0/1','Gi0/2')
+
+            Assert-MockCalled -ModuleName CompareViewModule -CommandName 'InterfaceModule\Get-InterfaceList' -Times 1
+        }
+    }
+
 }

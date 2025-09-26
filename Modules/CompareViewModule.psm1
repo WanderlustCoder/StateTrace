@@ -52,124 +52,237 @@ function Get-HostString {
     if ($Item.PSObject -and $Item.PSObject.Properties['Name'])     { return [string]$Item.Name }
     return ('' + $Item)
 }
+function Get-CompareFilterContext {
+    [CmdletBinding()]
+    param([System.Windows.Window]$Window = $script:windowRef)
 
-function Get-HostsFromMain {
-    [CmdletBinding()]
-    param(
-        [System.Windows.Window]$Window
-    )
-    $siteSel = $null
-    $zoneSel = $null
-    $bldSel  = $null
-    $roomSel = $null
-    try {
-        $lastLoc = $null
-        try { $lastLoc = FilterStateModule\Get-LastLocation } catch { }
-        if ($lastLoc) {
-            $siteSel = $lastLoc.Site
-            $zoneSel = $lastLoc.Zone
-            $bldSel  = $lastLoc.Building
-            $roomSel = $lastLoc.Room
-        }
-        if ([string]::IsNullOrWhiteSpace($siteSel)) {
-            try {
-                $locSel = FilterStateModule\Get-SelectedLocation -Window $Window
-                if ($locSel) {
-                    if ($locSel.Site)     { $siteSel = $locSel.Site }
-                    if ($locSel.Zone)     { $zoneSel = $locSel.Zone }
-                    if ($locSel.Building) { $bldSel  = $locSel.Building }
-                    if ($locSel.Room)     { $roomSel = $locSel.Room }
-                }
-            } catch { }
-        }
-    } catch { }
-    $metadata = $null
-    try { $metadata = $global:DeviceMetadata } catch { }
-    $hostSet  = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
-    $hostList = New-Object 'System.Collections.Generic.List[string]'
-    $snapshot = $null
-    try {
-        $snapshot = ViewStateService\Get-FilterSnapshot -DeviceMetadata $metadata -Site $siteSel -ZoneSelection $zoneSel -Building $bldSel -Room $roomSel
-    } catch {
-        Write-Verbose "[CompareView] ViewStateService snapshot failed: $($_.Exception.Message)"
-    }
-    if ($snapshot -and $snapshot.Hostnames) {
-        foreach ($candidate in $snapshot.Hostnames) {
-            $name = ('' + $candidate).Trim()
-            if ($name -and $hostSet.Add($name)) { [void]$hostList.Add($name) }
-        }
-    }
-    $zoneToLoad = ''
-    if ($zoneSel -and -not [string]::IsNullOrWhiteSpace($zoneSel) -and -not [System.StringComparer]::OrdinalIgnoreCase.Equals($zoneSel, 'All Zones')) {
-        $zoneToLoad = $zoneSel
-    } elseif ($snapshot -and $snapshot.ZoneToLoad) {
-        $zoneToLoad = '' + $snapshot.ZoneToLoad
-    }
-    try {
-        $interfaces = ViewStateService\Get-InterfacesForContext -Site $siteSel -ZoneSelection $zoneSel -ZoneToLoad $zoneToLoad -Building $bldSel -Room $roomSel
-        if ($interfaces) {
-            foreach ($row in $interfaces) {
-                if (-not $row) { continue }
-                $hostname = ''
-                try {
-                    if ($row.PSObject.Properties['Hostname']) { $hostname = '' + $row.Hostname }
-                    elseif ($row.PSObject.Properties['HostName']) { $hostname = '' + $row.HostName }
-                } catch { $hostname = '' }
-                if ([string]::IsNullOrWhiteSpace($hostname)) { $hostname = '' + $row }
-                $hostname = $hostname.Trim()
-                if ($hostname -and $hostSet.Add($hostname)) { [void]$hostList.Add($hostname) }
-            }
-        }
-    } catch {
-        Write-Verbose "[CompareView] ViewStateService interfaces retrieval failed: $($_.Exception.Message)"
-    }
-    if ($hostList.Count -eq 0 -and $metadata) {
-        foreach ($entry in $metadata.GetEnumerator()) {
-            $hostname = ('' + $entry.Key).Trim()
-            if ([string]::IsNullOrWhiteSpace($hostname)) { continue }
-            $meta = $entry.Value
-            if ($siteSel -and -not [string]::IsNullOrWhiteSpace($siteSel) -and -not [System.StringComparer]::OrdinalIgnoreCase.Equals($siteSel, 'All Sites')) {
-                $siteVal = ''
-                if ($meta -and $meta.PSObject.Properties['Site']) { $siteVal = '' + $meta.Site }
-                if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals($siteVal, $siteSel)) { continue }
-            }
-            if ($zoneSel -and -not [string]::IsNullOrWhiteSpace($zoneSel) -and -not [System.StringComparer]::OrdinalIgnoreCase.Equals($zoneSel, 'All Zones')) {
-                $zoneVal = ''
-                if ($meta -and $meta.PSObject.Properties['Zone']) { $zoneVal = '' + $meta.Zone }
-                if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals($zoneVal, $zoneSel)) { continue }
-            }
-            if ($bldSel -and -not [string]::IsNullOrWhiteSpace($bldSel) -and $meta -and $meta.PSObject.Properties['Building']) {
-                if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals(('' + $meta.Building), $bldSel)) { continue }
-            }
-            if ($roomSel -and -not [string]::IsNullOrWhiteSpace($roomSel) -and $meta -and $meta.PSObject.Properties['Room']) {
-                if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals(('' + $meta.Room), $roomSel)) { continue }
-            }
-            if ($hostSet.Add($hostname)) { [void]$hostList.Add($hostname) }
-        }
-    }
-    if ($hostList.Count -gt 1) {
-        $hostList.Sort([System.StringComparer]::OrdinalIgnoreCase)
-    }
-    try {
-        $siteDbg = '' + $siteSel
-        $zoneDbg = '' + $zoneSel
-        $bldDbg  = '' + $bldSel
-        $roomDbg = '' + $roomSel
-        $hCount  = $hostList.Count
-        $hSample = ''
-        if ($hCount -gt 0) {
-            $sampleItems = $hostList.ToArray() | Select-Object -First ([System.Math]::Min(5, $hCount))
-            $hSample = ($sampleItems -join ', ')
-        }
-        $msg = "CompareHostFilter | site='{0}', zone='{1}', building='{2}', room='{3}', count={4}, sample=[{5}]" -f $siteDbg, $zoneDbg, $bldDbg, $roomDbg, $hCount, $hSample
-        if (Get-Command -Name Write-Diag -ErrorAction SilentlyContinue) {
-            Write-Diag $msg
-        } else {
-            Write-Verbose $msg
-        }
-    } catch { }
-    return ,$hostList.ToArray()
-}
+    $siteSel = $null
+    $zoneSel = $null
+    $bldSel  = $null
+    $roomSel = $null
+
+    try {
+        $lastLoc = FilterStateModule\Get-LastLocation
+    } catch {
+        $lastLoc = $null
+    }
+
+    if ($lastLoc) {
+        $siteSel = $lastLoc.Site
+        $zoneSel = $lastLoc.Zone
+        $bldSel  = $lastLoc.Building
+        $roomSel = $lastLoc.Room
+    }
+
+    if ([string]::IsNullOrWhiteSpace($siteSel) -and $Window) {
+        try {
+            $locSel = FilterStateModule\Get-SelectedLocation -Window $Window
+            if ($locSel) {
+                if ($locSel.Site)     { $siteSel = $locSel.Site }
+                if ($locSel.Zone)     { $zoneSel = $locSel.Zone }
+                if ($locSel.Building) { $bldSel  = $locSel.Building }
+                if ($locSel.Room)     { $roomSel = $locSel.Room }
+            }
+        } catch { }
+    }
+
+    try {
+        $metadata = $global:DeviceMetadata
+    } catch {
+        $metadata = $null
+    }
+
+    $snapshot = $null
+    try {
+        $snapshot = ViewStateService\Get-FilterSnapshot -DeviceMetadata $metadata -Site $siteSel -ZoneSelection $zoneSel -Building $bldSel -Room $roomSel
+    } catch {
+        Write-Verbose "[CompareView] ViewStateService snapshot failed: $($_.Exception.Message)"
+    }
+
+    $zoneToLoad = ''
+    if ($zoneSel -and -not [string]::IsNullOrWhiteSpace($zoneSel) -and -not [System.StringComparer]::OrdinalIgnoreCase.Equals($zoneSel, 'All Zones')) {
+        $zoneToLoad = $zoneSel
+    } elseif ($snapshot -and $snapshot.ZoneToLoad) {
+        $zoneToLoad = '' + $snapshot.ZoneToLoad
+    }
+
+    return [pscustomobject]@{
+        Site       = $siteSel
+        Zone       = $zoneSel
+        Building   = $bldSel
+        Room       = $roomSel
+        Metadata   = $metadata
+        Snapshot   = $snapshot
+        ZoneToLoad = $zoneToLoad
+    }
+}
+
+
+function Get-HostsFromMain {
+
+    [CmdletBinding()]
+
+    param(
+
+        [System.Windows.Window]$Window
+
+    )
+
+    $context = Get-CompareFilterContext -Window $Window
+    $siteSel = $context.Site
+    $zoneSel = $context.Zone
+    $bldSel  = $context.Building
+    $roomSel = $context.Room
+    $metadata = $context.Metadata
+    $snapshot = $context.Snapshot
+    $zoneToLoad = $context.ZoneToLoad
+
+    $hostSet  = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+
+    $hostList = New-Object 'System.Collections.Generic.List[string]'
+
+    if ($snapshot -and $snapshot.Hostnames) {
+
+        foreach ($candidate in $snapshot.Hostnames) {
+
+            $name = ('' + $candidate).Trim()
+
+            if ($name -and $hostSet.Add($name)) { [void]$hostList.Add($name) }
+
+        }
+
+    }
+
+    try {
+
+        $interfaces = ViewStateService\Get-InterfacesForContext -Site $siteSel -ZoneSelection $zoneSel -ZoneToLoad $zoneToLoad -Building $bldSel -Room $roomSel
+
+        if ($interfaces) {
+
+            foreach ($row in $interfaces) {
+
+                if (-not $row) { continue }
+
+                $hostname = ''
+
+                try {
+
+                    if ($row.PSObject.Properties['Hostname']) { $hostname = '' + $row.Hostname }
+
+                    elseif ($row.PSObject.Properties['HostName']) { $hostname = '' + $row.HostName }
+
+                } catch { $hostname = '' }
+
+                if ([string]::IsNullOrWhiteSpace($hostname)) { $hostname = '' + $row }
+
+                $hostname = $hostname.Trim()
+
+                if ($hostname -and $hostSet.Add($hostname)) { [void]$hostList.Add($hostname) }
+
+            }
+
+        }
+
+    } catch {
+
+        Write-Verbose "[CompareView] ViewStateService interfaces retrieval failed: $($_.Exception.Message)"
+
+    }
+
+    if ($hostList.Count -eq 0 -and $metadata) {
+
+        foreach ($entry in $metadata.GetEnumerator()) {
+
+            $hostname = ('' + $entry.Key).Trim()
+
+            if ([string]::IsNullOrWhiteSpace($hostname)) { continue }
+
+            $meta = $entry.Value
+
+            if ($siteSel -and -not [string]::IsNullOrWhiteSpace($siteSel) -and -not [System.StringComparer]::OrdinalIgnoreCase.Equals($siteSel, 'All Sites')) {
+
+                $siteVal = ''
+
+                if ($meta -and $meta.PSObject.Properties['Site']) { $siteVal = '' + $meta.Site }
+
+                if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals($siteVal, $siteSel)) { continue }
+
+            }
+
+            if ($zoneSel -and -not [string]::IsNullOrWhiteSpace($zoneSel) -and -not [System.StringComparer]::OrdinalIgnoreCase.Equals($zoneSel, 'All Zones')) {
+
+                $zoneVal = ''
+
+                if ($meta -and $meta.PSObject.Properties['Zone']) { $zoneVal = '' + $meta.Zone }
+
+                if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals($zoneVal, $zoneSel)) { continue }
+
+            }
+
+            if ($bldSel -and -not [string]::IsNullOrWhiteSpace($bldSel) -and $meta -and $meta.PSObject.Properties['Building']) {
+
+                if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals(('' + $meta.Building), $bldSel)) { continue }
+
+            }
+
+            if ($roomSel -and -not [string]::IsNullOrWhiteSpace($roomSel) -and $meta -and $meta.PSObject.Properties['Room']) {
+
+                if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals(('' + $meta.Room), $roomSel)) { continue }
+
+            }
+
+            if ($hostSet.Add($hostname)) { [void]$hostList.Add($hostname) }
+
+        }
+
+    }
+
+    if ($hostList.Count -gt 1) {
+
+        $hostList.Sort([System.StringComparer]::OrdinalIgnoreCase)
+
+    }
+
+    try {
+
+        $siteDbg = '' + $siteSel
+
+        $zoneDbg = '' + $zoneSel
+
+        $bldDbg  = '' + $bldSel
+
+        $roomDbg = '' + $roomSel
+
+        $hCount  = $hostList.Count
+
+        $hSample = ''
+
+        if ($hCount -gt 0) {
+
+            $sampleItems = $hostList.ToArray() | Select-Object -First ([System.Math]::Min(5, $hCount))
+
+            $hSample = ($sampleItems -join ', ')
+
+        }
+
+        $msg = "CompareHostFilter | site='{0}', zone='{1}', building='{2}', room='{3}', count={4}, sample=[{5}]" -f $siteDbg, $zoneDbg, $bldDbg, $roomDbg, $hCount, $hSample
+
+        if (Get-Command -Name Write-Diag -ErrorAction SilentlyContinue) {
+
+            Write-Diag $msg
+
+        } else {
+
+            Write-Verbose $msg
+
+        }
+
+    } catch { }
+
+    return ,$hostList.ToArray()
+
+}
+
 
 function Get-PortSortKey {
     [CmdletBinding()]
@@ -184,21 +297,70 @@ function Get-PortsForHost {
 
     # Fetch all interface names for the given host from the database.  This revised
     Write-Verbose "[CompareView] Fetching ports for host '$Hostname'..."
-    # Use typed lists to accumulate and normalise port names.  Avoid
     $portsList = New-Object 'System.Collections.Generic.List[string]'
+    $targetHost = ('' + $Hostname).Trim()
+    if ([string]::IsNullOrWhiteSpace($targetHost)) {
+        return @()
+    }
+
+    $context = Get-CompareFilterContext
+    if (-not $context) {
+        $context = [pscustomobject]@{ Site = $null; Zone = $null; Building = $null; Room = $null; ZoneToLoad = ''; Metadata = $null }
+    }
+
     try {
-        if (Get-Command -Name 'Get-InterfaceList' -ErrorAction SilentlyContinue) {
-            $list = @(InterfaceModule\Get-InterfaceList -Hostname $Hostname)
-            if ($list -and $list.Count -gt 0) {
-                foreach ($it in $list) {
-                    [void]$portsList.Add(('' + $it))
-                }
-                Write-Verbose "[CompareView] Get-InterfaceList returned $($portsList.Count) port(s) for '$Hostname'."
+        $svcInterfaces = ViewStateService\Get-InterfacesForContext -Site $context.Site -ZoneSelection $context.Zone -ZoneToLoad $context.ZoneToLoad -Building $context.Building -Room $context.Room
+        if ($svcInterfaces) {
+            foreach ($iface in $svcInterfaces) {
+                if (-not $iface) { continue }
+
+                $hostValue = ''
+                try {
+                    if ($iface.PSObject.Properties['Hostname']) { $hostValue = '' + $iface.Hostname }
+                    elseif ($iface.PSObject.Properties['HostName']) { $hostValue = '' + $iface.HostName }
+                } catch { $hostValue = '' }
+
+                if ([string]::IsNullOrWhiteSpace($hostValue)) { $hostValue = '' + $iface }
+                if ([string]::IsNullOrWhiteSpace($hostValue)) { continue }
+
+                if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals($hostValue.Trim(), $targetHost)) { continue }
+
+                $portVal = $null
+                try {
+                    if ($iface.PSObject.Properties['Port'])       { $portVal = '' + $iface.Port }
+                    elseif ($iface.PSObject.Properties['Interface']) { $portVal = '' + $iface.Interface }
+                    elseif ($iface.PSObject.Properties['IfName'])    { $portVal = '' + $iface.IfName }
+                    elseif ($iface.PSObject.Properties['Name'])      { $portVal = '' + $iface.Name }
+                } catch { $portVal = '' }
+
+                if (-not $portVal) { $portVal = '' + $iface }
+                if (-not [string]::IsNullOrWhiteSpace($portVal)) { [void]$portsList.Add($portVal) }
+            }
+
+            if ($portsList.Count -gt 0) {
+                Write-Verbose "[CompareView] ViewStateService returned $($portsList.Count) port(s) for '$Hostname'."
             }
         }
     } catch {
-        Write-Warning "[CompareView] Error calling Get-InterfaceList for '$Hostname': $($_.Exception.Message)"
+        Write-Verbose "[CompareView] ViewStateService interface retrieval failed: $($_.Exception.Message)"
     }
+
+    if ($portsList.Count -eq 0) {
+        try {
+            if (Get-Command -Name 'Get-InterfaceList' -ErrorAction SilentlyContinue) {
+                $list = @(InterfaceModule\Get-InterfaceList -Hostname $Hostname)
+                if ($list -and $list.Count -gt 0) {
+                    foreach ($it in $list) {
+                        [void]$portsList.Add(('' + $it))
+                    }
+                    Write-Verbose "[CompareView] Get-InterfaceList returned $($portsList.Count) port(s) for '$Hostname'."
+                }
+            }
+        } catch {
+            Write-Warning "[CompareView] Error calling Get-InterfaceList for '$Hostname': $($_.Exception.Message)"
+        }
+    }
+
     if ($portsList.Count -eq 0) {
         try {
             if (Get-Command -Name 'Get-InterfaceInfo' -ErrorAction SilentlyContinue) {

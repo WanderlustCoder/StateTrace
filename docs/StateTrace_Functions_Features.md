@@ -101,7 +101,7 @@
 - `Modules/CompareViewModule.psm1:45` `Get-HostString` - normalises combo box items into plain hostnames.
 - `Modules/CompareViewModule.psm1:56` `Get-HostsFromMain` - builds the host list using `ViewStateService` snapshots (with `DeviceMetadata` fallback) so Compare view mirrors current site/zone/building selections.
 - `Modules/CompareViewModule.psm1:173` `Get-PortSortKey` - delegates to `InterfaceModule::Get-PortSortKey`.
-- `Modules/CompareViewModule.psm1:180` `Get-PortsForHost` - retrieves port names via `InterfaceModule::Get-InterfaceList` with DB fallback.
+- `Modules/CompareViewModule.psm1:180` `Get-PortsForHost` - derives port names from `ViewStateService` interface snapshots (falling back to `InterfaceModule` helpers when caches are empty).
 - `Modules/CompareViewModule.psm1:244` `Set-PortsForCombo` - populates port dropdowns and preserves selection.
 - `Modules/CompareViewModule.psm1:283` `Get-GridRowFor` - fetches the interface PSCustomObject for a given host/port (using cache or DB query).
 - `Modules/CompareViewModule.psm1:324` `Get-AuthTemplateFromTooltip` - extracts the auth template name from stored tooltips.
