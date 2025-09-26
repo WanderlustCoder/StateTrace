@@ -111,22 +111,31 @@
 - `Modules/CompareViewModule.psm1:660` `Update-CompareView` - ensures the compare view is loaded, populates host/port combos, wires handlers, and toggles the compare sidebar column.
 - `Modules/CompareViewModule.psm1:805` `Set-CompareSelection` - external hook to programmatically sync compare host/port selections (used by Interfaces view buttons).
 ### `Modules/ParserWorker.psm1`
-- `Modules/ParserWorker.psm1:11` `New-Directories` - ensures parsing output directories exist.
-- `Modules/ParserWorker.psm1:32` `Split-RawLogs` - streams raw log files, splitting them into per-host slices under `ExtractedLogs`.
-- `Modules/ParserWorker.psm1:158` `Start-ParallelDeviceProcessing` - runspace pool worker that processes device logs concurrently with `FullLanguage` execution mode.
-- `Modules/ParserWorker.psm1:289` `Clear-ExtractedLogs` - removes generated log slices between runs.
-- `Modules/ParserWorker.psm1:300` `Get-SiteFromHostname` - parser-side site helper (mirrors DeviceData logic).
-- `Modules/ParserWorker.psm1:298` `Invoke-StateTraceParsing` - high-level orchestrator handling archive/history flags, splitting logs, dispatching parse jobs, and refreshing DBs.
-- `Modules/ParserWorker.psm1:347` `Get-LocationDetails` - extracts building/room metadata from log snippets.
-- `Modules/ParserWorker.psm1:385` `Get-ShowCommandBlocks` - tokenises logs into individual show command outputs consumed by vendor parsers.
-- `Modules/ParserWorker.psm1:431` `Get-DeviceMakeFromBlocks` - detects vendor from command blocks.
-- `Modules/ParserWorker.psm1:450` `Get-SnmpLocationFromLines` - shared SNMP location parser.
-- `Modules/ParserWorker.psm1:473` `ConvertFrom-SpanningTree` - creates structured spanning tree rows for SPAN view.
-- `Modules/ParserWorker.psm1:524` `Remove-OldArchiveFolder` - cleans older archive directories to avoid growth.
-- `Modules/ParserWorker.psm1:553` `Get-BrocadeAuthBlockFromLines` - pulls full Brocade authentication block text for history/storage.
-- `Modules/ParserWorker.psm1:582` `Update-DeviceSummaryInDb` - upserts summary rows and metadata into the per-site DB.
-- `Modules/ParserWorker.psm1:668` `Update-InterfacesInDb` - writes interface rows, history, tooltips, and template hints for each device.
-- `Modules/ParserWorker.psm1:826` `Invoke-DeviceLogParsing` - per-device pipeline: detect vendor, parse via vendor module, update DB, archive log copy.
+- `Modules/ParserWorker.psm1:5` `New-Directories` - ensures parser staging directories exist before log ingestion and archive work.
+- `Modules/ParserWorker.psm1:14` `Invoke-StateTraceParsing` - top-level orchestrator that prepares paths, splits logs, selects execution mode, and cleans extracted slices.
+
+### `Modules/ParserRunspaceModule.psm1`
+- `Modules/ParserRunspaceModule.psm1:3` `Invoke-DeviceParseWorker` - imports vendor modules and parses a single device log with logging and rich error handling.
+- `Modules/ParserRunspaceModule.psm1:86` `Invoke-DeviceParsingJobs` - manages synchronous or runspace-pooled execution of worker jobs with FullLanguage mode enforcement.
+
+### `Modules/LogIngestionModule.psm1`
+- `Modules/LogIngestionModule.psm1:3` `Split-RawLogs` - streams raw log files and writes per-host slices to the Extracted folder (with overflow handling for unknown hosts).
+- `Modules/LogIngestionModule.psm1:127` `Clear-ExtractedLogs` - removes generated device log slices between parser runs.
+
+### `Modules/DeviceLogParserModule.psm1`
+- `Modules/DeviceLogParserModule.psm1:12` `Get-LocationDetails` - parses SNMP location tokens into building/floor/room metadata.
+- `Modules/DeviceLogParserModule.psm1:52` `Get-ShowCommandBlocks` - groups log lines by executed show command for downstream parsing.
+- `Modules/DeviceLogParserModule.psm1:99` `Get-DeviceMakeFromBlocks` - detects vendor from a `show version` block.
+- `Modules/DeviceLogParserModule.psm1:119` `Get-SnmpLocationFromLines` - extracts location strings from log lines.
+- `Modules/DeviceLogParserModule.psm1:143` `ConvertFrom-SpanningTree` - normalises spanning-tree output for SPAN summaries.
+- `Modules/DeviceLogParserModule.psm1:195` `Remove-OldArchiveFolder` - prunes aged archive directories for a device.
+- `Modules/DeviceLogParserModule.psm1:225` `Get-BrocadeAuthBlockFromLines` - captures Brocade authentication block text for historical storage.
+- `Modules/DeviceLogParserModule.psm1:258` `Invoke-DeviceLogParsing` - processes a single device log, populates facts, and orchestrates persistence/archive steps.
+
+### `Modules/ParserPersistenceModule.psm1`
+- `Modules/ParserPersistenceModule.psm1:3` `Update-DeviceSummaryInDb` - upserts summary rows and metadata into the per-site DB.
+- `Modules/ParserPersistenceModule.psm1:88` `Update-InterfacesInDb` - writes interface rows, history, tooltips, and template hints for each device.
+
 ### Vendor Parsing Modules
 - `Modules/AristaModule.psm1:1` `Get-AristaDeviceFacts` - parses Arista show outputs (prompt detection, version, uptime, interfaces, MAC table, dot1x, configs) and returns a normalised device object.
 - `Modules/BrocadeModule.psm1:4` `Get-BrocadeDeviceFacts` - processes Brocade logs, normalises port identifiers, aggregates MAC/auth/config data, and returns device facts; helper `Modules/BrocadeModule.psm1:272` `Get-MacTable` feeds MAC lookups.
@@ -194,3 +203,6 @@
 - Update this directory whenever new modules, functions, or significant behaviours are added.
 - Before modifying a function, review the dependent modules listed above to avoid breaking UI flows or parser pipelines.
 - When refactoring, confirm that caches (`DeviceInterfaceCache`, `DeviceMetadata`, `AllInterfaces`) and event wiring still function end-to-end by running a parser cycle and exercising each tab.
+
+
+

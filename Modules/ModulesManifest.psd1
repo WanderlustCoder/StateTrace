@@ -3,6 +3,10 @@
     Modules = @(
         'ThemeModule.psm1',
         # Core parser and helper modules
+        'LogIngestionModule.psm1',
+        'ParserPersistenceModule.psm1',
+        'ParserRunspaceModule.psm1',
+        'DeviceLogParserModule.psm1',
         'ParserWorker.psm1',
         'DatabaseModule.psm1',
         'DeviceRepositoryModule.psm1',
@@ -28,3 +32,4 @@
         'TemplatesModule.psm1'
     )
 }
+
