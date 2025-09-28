@@ -149,6 +149,8 @@ function Invoke-DeviceParsingJobs {
         [Parameter(Mandatory=$true)][string]$ArchiveRoot,
         [string]$DatabasePath,
         [int]$MaxThreads = 20,
+        [int]$MaxWorkersPerSite = 1,
+        [int]$MaxActiveSites = 0,
         [switch]$Synchronous
     )
 
@@ -171,36 +173,104 @@ function Invoke-DeviceParsingJobs {
     $sessionState.LanguageMode = [System.Management.Automation.PSLanguageMode]::FullLanguage
     $importList = Get-RunspaceModuleImportList -ModulesPath $ModulesPath
     if ($importList -and $importList.Count -gt 0) { $null = $sessionState.ImportPSModule($importList) }
-        $pool = [runspacefactory]::CreateRunspacePool(1, $MaxThreads, $sessionState, $Host)
+    $pool = [runspacefactory]::CreateRunspacePool(1, $MaxThreads, $sessionState, $Host)
     try { $pool.ApartmentState = [System.Threading.ApartmentState]::STA } catch { }
     $pool.Open()
 
-    $runspaces = New-Object 'System.Collections.Generic.List[object]'
+    function Get-HostnameFromPath([string]$PathValue) {
+        if ([string]::IsNullOrWhiteSpace($PathValue)) { return 'Unknown' }
+        try {
+            $name = [System.IO.Path]::GetFileNameWithoutExtension($PathValue)
+            if ([string]::IsNullOrWhiteSpace($name)) { return 'Unknown' }
+            return $name
+        } catch {
+            return 'Unknown'
+        }
+    }
+
+    function Get-SiteKeyFromHostname([string]$Hostname) {
+        if ([string]::IsNullOrWhiteSpace($Hostname)) { return 'Unknown' }
+        try {
+            $cmd = Get-Command -Name 'DeviceRepositoryModule\Get-SiteFromHostname' -ErrorAction Stop
+            $site = & $cmd -Hostname $Hostname
+            if (-not [string]::IsNullOrWhiteSpace($site)) { return $site }
+        } catch { }
+        return $Hostname
+    }
+
+    $siteQueues = [ordered]@{}
+    foreach ($file in $DeviceFiles) {
+        $host = Get-HostnameFromPath -PathValue $file
+        $siteKey = Get-SiteKeyFromHostname -Hostname $host
+        if (-not $siteQueues.Contains($siteKey)) {
+            $siteQueues[$siteKey] = New-Object 'System.Collections.Generic.Queue[string]'
+        }
+        $siteQueues[$siteKey].Enqueue($file)
+    }
+
     $workerScript = {
         param($filePath, $modulesPath, $archiveRoot, $dbPath, [bool]$enableVerbose)
         ParserRunspaceModule\Invoke-DeviceParseWorker -FilePath $filePath -ModulesPath $modulesPath -ArchiveRoot $archiveRoot -DatabasePath $dbPath -EnableVerbose:$enableVerbose
     }
 
-    foreach ($file in $DeviceFiles) {
-        $ps = [powershell]::Create()
-        $ps.RunspacePool = $pool
-        $null = $ps.AddScript($workerScript).AddArgument($file).AddArgument($ModulesPath).AddArgument($ArchiveRoot).AddArgument($DatabasePath).AddArgument($enableVerbose)
-        [void]$runspaces.Add([PSCustomObject]@{
-            Pipe = $ps
-            AsyncResult = $ps.BeginInvoke()
-        })
-    }
+    $active = New-Object 'System.Collections.Generic.List[object]'
+    try {
+        while ($true) {
+            $pending = $false
+            foreach ($queue in $siteQueues.Values) {
+                if ($queue.Count -gt 0) { $pending = $true; break }
+            }
+            if (-not $pending -and $active.Count -eq 0) { break }
 
-    foreach ($r in $runspaces) {
-        try {
-            $r.Pipe.EndInvoke($r.AsyncResult)
-        } finally {
-            $r.Pipe.Dispose()
+            $launched = $false
+            if ($active.Count -lt $MaxThreads) {
+                $activeSites = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+                foreach ($entry in $active) { [void]$activeSites.Add($entry.Site) }
+
+                foreach ($siteKey in $siteQueues.Keys) {
+                    $queue = $siteQueues[$siteKey]
+                    if ($queue.Count -eq 0) { continue }
+
+                    $perSiteActive = 0
+                    foreach ($entry in $active) { if ([System.StringComparer]::OrdinalIgnoreCase.Equals($entry.Site, $siteKey)) { $perSiteActive++ } }
+                    if ($MaxWorkersPerSite -gt 0 -and $perSiteActive -ge $MaxWorkersPerSite) { continue }
+                    if ($MaxActiveSites -gt 0 -and $perSiteActive -eq 0 -and $activeSites.Count -ge $MaxActiveSites) { continue }
+
+                    $file = $queue.Dequeue()
+                    $ps = [powershell]::Create()
+                    $ps.RunspacePool = $pool
+                    $null = $ps.AddScript($workerScript).AddArgument($file).AddArgument($ModulesPath).AddArgument($ArchiveRoot).AddArgument($DatabasePath).AddArgument($enableVerbose)
+                    $async = $ps.BeginInvoke()
+                    $active.Add([PSCustomObject]@{ Pipe = $ps; AsyncResult = $async; Site = $siteKey })
+                    [void]$activeSites.Add($siteKey)
+                    $launched = $true
+
+                    if ($active.Count -ge $MaxThreads) { break }
+                }
+            }
+
+            $completed = @()
+            foreach ($entry in @($active)) {
+                if ($entry.AsyncResult.IsCompleted) {
+                    try { $entry.Pipe.EndInvoke($entry.AsyncResult) } catch { } finally { $entry.Pipe.Dispose() }
+                    $completed += $entry
+                }
+            }
+            if ($completed.Count -gt 0) {
+                foreach ($entry in $completed) { [void]$active.Remove($entry) }
+                continue
+            }
+
+            if (-not $launched) { Start-Sleep -Milliseconds 25 }
         }
+    } finally {
+        foreach ($entry in @($active)) {
+            try { $entry.Pipe.EndInvoke($entry.AsyncResult) } catch { }
+            $entry.Pipe.Dispose()
+        }
+        $pool.Close()
+        $pool.Dispose()
     }
-
-    $pool.Close()
-    $pool.Dispose()
 }
 
 Export-ModuleMember -Function Invoke-DeviceParseWorker, Invoke-DeviceParsingJobs
