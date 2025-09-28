@@ -1,9 +1,50 @@
-Add-Type -AssemblyName PresentationFramework
+﻿Add-Type -AssemblyName PresentationFramework
 
 $Global:StateTraceDebug     = $false
 $VerbosePreference          = 'SilentlyContinue'
 $DebugPreference            = 'SilentlyContinue'
 $ErrorActionPreference      = 'Continue'
+
+
+$scriptDir    = $PSScriptRoot
+$script:StateTraceSettingsPath = Join-Path $scriptDir '..\Data\StateTraceSettings.json'
+
+function Load-StateTraceSettings {
+    $settings = @{}
+    if (Test-Path $script:StateTraceSettingsPath) {
+        try {
+            $json = Get-Content -LiteralPath $script:StateTraceSettingsPath -Raw
+            if (-not [string]::IsNullOrWhiteSpace($json)) {
+                $parsed = $json | ConvertFrom-Json
+                if ($parsed) {
+                    foreach ($prop in $parsed.PSObject.Properties) {
+                        $settings[$prop.Name] = $prop.Value
+                    }
+                }
+            }
+        } catch {
+            $settings = @{}
+        }
+    }
+    $script:StateTraceSettings = $settings
+    return $script:StateTraceSettings
+}
+
+function Save-StateTraceSettings {
+    param([hashtable]$Settings)
+    if (-not $Settings) { $Settings = @{} }
+    try {
+        $json = $Settings | ConvertTo-Json -Depth 5
+        $settingsDir = Split-Path -Parent $script:StateTraceSettingsPath
+        if (-not (Test-Path $settingsDir)) { New-Item -ItemType Directory -Path $settingsDir -Force | Out-Null }
+        $json | Out-File -LiteralPath $script:StateTraceSettingsPath -Encoding utf8
+    } catch { }
+}
+
+$script:StateTraceSettings = Load-StateTraceSettings
+if ($script:StateTraceSettings.ContainsKey('DebugOnNextLaunch') -and $script:StateTraceSettings['DebugOnNextLaunch']) {
+    $Global:StateTraceDebug = $true
+}
 
 function Write-Diag {
     param([string]$Message)
@@ -60,7 +101,6 @@ try {
     Write-Diag ("Host keyword 'if' ok: {0}" -f $HostKeywordOK)
 } catch { }
 
-$scriptDir    = $PSScriptRoot
 if ($null -eq $Global:StateTraceDebug) { $Global:StateTraceDebug = $false }
 
 $manifestPath = Join-Path $scriptDir '..\Modules\ModulesManifest.psd1'
@@ -749,6 +789,29 @@ if ($helpBtn) {
     })
 }
 
+$debugNextToggle = $window.FindName('DebugNextLaunchCheckbox')
+if ($debugNextToggle) {
+    $initialDebug = $false
+    if ($script:StateTraceSettings.ContainsKey('DebugOnNextLaunch')) {
+        $initialDebug = [bool]$script:StateTraceSettings['DebugOnNextLaunch']
+    }
+    $debugNextToggle.IsChecked = $initialDebug
+
+    $updateDebugPreference = {
+        param($sender, $eventArgs)
+        try {
+            $checked = $sender.IsChecked -eq $true
+            if (-not $script:StateTraceSettings) { $script:StateTraceSettings = @{} }
+            $script:StateTraceSettings['DebugOnNextLaunch'] = $checked
+            Save-StateTraceSettings -Settings $script:StateTraceSettings
+            $Global:StateTraceDebug = $checked
+        } catch { }
+    }
+
+    $debugNextToggle.Add_Checked($updateDebugPreference)
+    $debugNextToggle.Add_Unchecked($updateDebugPreference)
+}
+
 # === BEGIN Window Loaded handler (patched) ===
 $window.Add_Loaded({
     try {
@@ -811,4 +874,3 @@ if ($window.FindName('HostnameDropdown').Items.Count -gt 0) {
 $window.ShowDialog() | Out-Null
 
 # 9) Cleanup
-

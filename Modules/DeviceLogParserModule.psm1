@@ -544,27 +544,57 @@ function Invoke-DeviceLogParsing {
 
                 # Establish a single connection to the database for all statements.
                 $__dbProvider = $null
+                $providerErrors = [System.Collections.Generic.List[object]]::new()
                 if ($Global:StateTraceDebug) {
                     Write-Host "[DEBUG] Detecting available OLEDB provider for database" -ForegroundColor Yellow
                 }
                 # Prefer the ACE provider when available; fall back to Jet for .mdb files.
                 foreach ($provCandidate in @('Microsoft.ACE.OLEDB.12.0','Microsoft.Jet.OLEDB.4.0')) {
+                    $testConn = $null
                     try {
                         $testConn = New-Object -ComObject ADODB.Connection
                         $testConn.Open("Provider=$provCandidate;Data Source=$DatabasePath")
                         $testConn.Close()
                         $__dbProvider = $provCandidate
+                        if ($Global:StateTraceDebug) {
+                            Write-Host ("[DEBUG] Provider '{0}' validated for database '{1}'" -f $__dbProvider, $DatabasePath) -ForegroundColor Yellow
+                        }
                         break
-                    } catch { }
+                    } catch {
+                        $errorMessage = $_.Exception.Message
+                        $hresult = $null
+                        try { $hresult = ('0x{0:X8}' -f $_.Exception.HResult) } catch { }
+                        $providerErrors.Add([PSCustomObject]@{
+                            Provider = $provCandidate
+                            Message  = $errorMessage
+                            HResult  = $hresult
+                        })
+                        if ($Global:StateTraceDebug) {
+                            Write-Host ("[DEBUG] Provider '{0}' test failed: {1}" -f $provCandidate, $errorMessage) -ForegroundColor Yellow
+                        }
+                    } finally {
+                        if ($testConn) {
+                            try { $testConn.Close() } catch { }
+                            try { [System.Runtime.InteropServices.Marshal]::FinalReleaseComObject($testConn) | Out-Null } catch { }
+                        }
+                    }
                 }
                 if (-not $__dbProvider) {
-                    throw "No suitable OLEDB provider found to open Access database. Install the Microsoft ACE OLEDB provider."
+                    $candidateList = 'Microsoft.ACE.OLEDB.12.0, Microsoft.Jet.OLEDB.4.0'
+                    $detailText = 'No provider-specific diagnostics were captured.'
+                    if ($providerErrors.Count -gt 0) {
+                        $detailLines = foreach ($entry in $providerErrors) {
+                            $hrNote = if ($entry.HResult) { " (HRESULT=$($entry.HResult))" } else { '' }
+                            "- Provider '{0}': {1}{2}" -f $entry.Provider, $entry.Message, $hrNote
+                        }
+                        $detailText = [string]::Join([System.Environment]::NewLine, $detailLines)
+                    }
+                    throw "Failed to open Access database '$DatabasePath'. Tried providers: $candidateList.`n$detailText"
                 }
                 $__dbConn = New-Object -ComObject ADODB.Connection
                 if ($Global:StateTraceDebug) {
                     Write-Host "[DEBUG] Opening DB connection to '$DatabasePath' using provider '$__dbProvider'" -ForegroundColor Yellow
                 }
-                # Configure the connection for read/write access and row‑level locking.
                 $__dbConn.Open("Provider=$__dbProvider;Data Source=$DatabasePath;Mode=ReadWrite;Jet OLEDB:Database Locking Mode=1")
                 # When using the Jet OLEDB provider, we can request synchronous
                 try {
@@ -649,6 +679,7 @@ function Invoke-DeviceLogParsing {
 
 
 Export-ModuleMember -Function Get-LocationDetails, Get-ShowCommandBlocks, Get-DeviceMakeFromBlocks, Get-SnmpLocationFromLines, ConvertFrom-SpanningTree, Remove-OldArchiveFolder, Get-BrocadeAuthBlockFromLines, Invoke-DeviceLogParsing
+
 
 
 

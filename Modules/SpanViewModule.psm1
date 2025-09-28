@@ -37,11 +37,37 @@ function New-SpanView {
         }
         # Retrieve data
         try {
+
             $data = Get-SpanningTreeInfo -Hostname $Hostname
+
+            try {
+
+                $spanDebugPath = Join-Path $env:TEMP 'StateTrace_SpanDebug.log'
+
+                $entryCount = (Measure-Object -InputObject $data).Count
+
+                $logLine = "{0} Host={1} Rows={2}" -f (Get-Date).ToString('s'), $Hostname, $entryCount
+
+                Add-Content -Path $spanDebugPath -Value $logLine -Encoding UTF8
+
+            } catch { }
+
         } catch {
+
             $data = @()
+
         }
+
         $spanGrid.ItemsSource = $data
+        try {
+            $projectRoot = Split-Path -Parent $PSScriptRoot
+            $debugDir = Join-Path $projectRoot 'Logs\Debug'
+            if (-not (Test-Path $debugDir)) { New-Item -ItemType Directory -Path $debugDir -Force | Out-Null }
+            $logPath = Join-Path $debugDir 'SpanDebug.log'
+            $count = (Measure-Object -InputObject $data).Count
+            $uiLine = ('{0} UI Host={1} Rows={2}' -f (Get-Date).ToString('yyyy-MM-ddTHH:mm:ss'), $Hostname, $count)
+            Add-Content -Path $logPath -Value $uiLine -Encoding UTF8
+        } catch { }
         if ($vlanDropdown) {
             # Build a unique sorted list of VLAN instances using a HashSet and typed list.
             $vset = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)

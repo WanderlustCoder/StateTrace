@@ -1,0 +1,32 @@
+- signature: "No suitable OLE DB provider found"
+  classification: DataLayer.ProviderMissing
+  summary: Access database provider is unavailable so repository and parser calls fail.
+  remediation:
+    - Install the Microsoft Access Database Engine redistributable matching the host architecture.
+    - Re-run the Environment phase to confirm provider availability.
+  follow_up:
+    - Troubleshooting/Invoke-StateTraceDiagnostics.ps1 -Phases DataLayer
+
+- signature: "Module file missing"
+  classification: SourceIntegrity.MissingFile
+  summary: Module manifest references a file that is absent in C:\\StateTrace\\Modules.
+  remediation:
+    - Restore the missing module from backups or source control.
+    - Update Modules/ModulesManifest.psd1 if the file was intentionally renamed.
+  follow_up:
+    - Invoke-Pester Modules/Tests -TestName "manifest"
+
+- signature: "MainWindow.ps1 contains syntax errors"
+  classification: UIShell.SyntaxError
+  summary: The main WPF shell failed to parse which blocks application startup.
+  remediation:
+    - Run Tests/Invoke-MainWindowSmokeTest.ps1 to reproduce and capture the failing lines.
+    - Fix the syntax regression and re-run Environment + UI phases.
+  follow_up:
+    - powershell -File Tests/Invoke-MainWindowSmokeTest.ps1
+
+- signature: "Verified command" # placeholder for success patterns AI can detect
+  classification: Meta.Information
+  summary: Informational entry confirming a required command export is available.
+  remediation: []
+  follow_up: []

@@ -8,7 +8,8 @@
 - PowerShell 5.x WPF desktop app (`Main/MainWindow.ps1` + XAML) orchestrates view modules listed in `Modules/ModulesManifest.psd1`.
 - Device data is stored per site in Access `.accdb` databases under `Data/`, populated by the parser (`Modules/ParserWorker.psm1`).
 - UI modules share state through globals (e.g. `$global:DeviceMetadata`, `$global:DeviceInterfaceCache`, `$global:AllInterfaces`, `$global:alertsView`) populated by `DeviceCatalogModule`/`DeviceRepositoryModule` and initialised for the UI by `FilterStateModule::Initialize-DeviceFilters`.
-- Vendor-specific parsing (`Modules/CiscoModule.psm1`, `Modules/BrocadeModule.psm1`, `Modules/AristaModule.psm1`) produces normalized interface objects consumed across the UI.
+- Vendor-specific parsing (`Modules/CiscoModule.psm1`, `Modules/BrocadeModule.psm1`, `Modules/AristaModule.psm1`) uses helpers from `Modules/DeviceParsingCommon.psm1` (e.g. `Invoke-RegexTableParser`) and produces normalized interface objects consumed across the UI.
+- Theming infrastructure (`Themes/*.json` via `Modules/ThemeModule.psm1`) supplies brushes/styles merged into WPF resources at startup.
 
 ## Data Stores & Core Caches
 - `Data/*.accdb`: per-site Access databases with `DeviceSummary`, `Interfaces`, and history tables created/maintained by `DatabaseModule` + `ParserWorker`.
@@ -66,8 +67,9 @@
 ### `Modules/DeviceInsightsModule.psm1`
 - `Modules/DeviceInsightsModule.psm1:7` `Get-SearchRegexEnabled` / `Modules/DeviceInsightsModule.psm1:14` `Set-SearchRegexEnabled` - toggle regex mode for the Search tab filter box.
 - `Modules/DeviceInsightsModule.psm1:21` `Update-SearchResults` - filters `$global:AllInterfaces` by search term, status/auth filters, and current location selection before updating the Search view.
-- `Modules/DeviceInsightsModule.psm1:128` `Update-Summary` - recalculates device/interface metrics for the Summary tab and ensures repository caches stay populated.
-- `Modules/DeviceInsightsModule.psm1:287` `Update-Alerts` - rebuilds the alerts dataset (`$global:AlertsList`) using status/auth thresholds and returns view-ready objects.
+- `Modules/DeviceInsightsModule.psm1:125` `Update-Summary` - recalculates device/interface metrics for the Summary tab and ensures repository caches stay populated.
+- `Modules/DeviceInsightsModule.psm1:226` `Update-Alerts` - rebuilds the alerts dataset (`$global:AlertsList`) using status/auth thresholds and returns view-ready objects.
+- `Modules/DeviceInsightsModule.psm1:297` `Update-SearchGrid` - redraws the Search grid after state changes, wiring column formats and totals.
 
 ### `Modules/FilterStateModule.psm1`
 - `Modules/FilterStateModule.psm1:36` `Get-SelectedLocation` - reads the active site/zone/building/room selections from the main window.
@@ -92,6 +94,22 @@
 - `Modules/InterfaceModule.psm1:487` `Get-ConfigurationTemplates` - forwards to `TemplatesModule` so the Interfaces view uses the shared cache.
 - `Modules/InterfaceModule.psm1:773` `Set-InterfaceViewData` - applies device detail DTOs to the Interfaces view (summary fields, grid, template dropdown).
 - `Modules/InterfaceModule.psm1:501` `New-InterfacesView` - loads Interfaces tab XAML, wires filter debounce, config dropdown binding, copy button, and integrates with Compare selection.
+### `Modules/ThemeModule.psm1`
+- `Modules/ThemeModule.psm1:34` `Get-ThemeDirectory` / `Modules/ThemeModule.psm1:54` `Get-ThemeFile` - resolve theme asset locations under `Themes/` and `Resources/SharedStyles.xaml`.
+- `Modules/ThemeModule.psm1:89` `Read-ThemeDefinition` / `Modules/ThemeModule.psm1:123` `Resolve-ThemeTokens` - load theme JSON, apply inheritance, and build token dictionaries cached for reuse.
+- `Modules/ThemeModule.psm1:213` `Set-StateTraceTheme` - applies a theme, updates resource dictionaries, and triggers registered change handlers.
+- `Modules/ThemeModule.psm1:283` `Initialize-StateTraceTheme` - selects a default theme on startup and ensures resources are merged into the application.
+- `Modules/ThemeModule.psm1:341` `Get-AvailableStateTraceThemes` / `Modules/ThemeModule.psm1:367` `Register-StateTraceThemeChanged` - enumerate installed themes and register callbacks for dynamic updates.
+
+### `Modules/ViewCompositionModule.psm1`
+- `Modules/ViewCompositionModule.psm1:3` `Set-StView` - loads a XAML view into a host `ContentControl`, optionally storing the instance in a global for cross-module access.
+
+### `Modules/ViewStateService.psm1`
+- `Modules/ViewStateService.psm1:8` `Get-SequenceCount` / `Modules/ViewStateService.psm1:24` `ConvertTo-FilterValue` - shared helpers used when building filter dropdowns and counts.
+- `Modules/ViewStateService.psm1:59` `Get-InterfacesForContext` - hydrates `$global:AllInterfaces`, caches site/zone selections, and returns filtered interface lists for downstream consumers.
+- `Modules/ViewStateService.psm1:154` `Get-FilterSnapshot` - produces sorted site/zone/building/room collections and determines the suggested `ZoneToLoad` value.
+- `Modules/ViewStateService.psm1:260` `Get-ZoneLoadHint` - resolves the default zone when filters or data are ambiguous.
+
 ### `Modules/CompareViewModule.psm1`
 - `Modules/CompareViewModule.psm1:27` `Resolve-CompareControls` - caches references to Compare view dropdowns, textboxes, and labels after XAML load.
 - `Modules/CompareViewModule.psm1:45` `Get-HostString` - normalises combo box items into plain hostnames.
@@ -113,6 +131,9 @@
 ### `Modules/ParserRunspaceModule.psm1`
 - `Modules/ParserRunspaceModule.psm1:3` `Invoke-DeviceParseWorker` - imports vendor modules and parses a single device log with logging and rich error handling.
 - `Modules/ParserRunspaceModule.psm1:86` `Invoke-DeviceParsingJobs` - manages synchronous or runspace-pooled execution of worker jobs with FullLanguage mode enforcement.
+
+### `Modules/DeviceParsingCommon.psm1`
+- `Modules/DeviceParsingCommon.psm1:3` `Invoke-RegexTableParser` - shared regex-table extractor used by vendor parsers to convert show-command blocks into strongly typed objects with optional post-processing.
 
 ### `Modules/LogIngestionModule.psm1`
 - `Modules/LogIngestionModule.psm1:3` `Split-RawLogs` - streams raw log files and writes per-host slices to the Extracted folder (with overflow handling for unknown hosts).
@@ -176,6 +197,7 @@
 ## Core Feature Safeguards
 - Preserve the per-site Access database workflow (`Get-DbPathForHost`, `Invoke-DbQuery`, parser updates); many modules assume that structure when loading data.
 - Do not remove or rename global caches (`DeviceInterfaceCache`, `DeviceMetadata`, `AllInterfaces`, `AlertsList`, `templatesView`, `interfacesView`, `spanView`, `searchInterfacesView`). Other modules read them directly.
+- Preserve ThemeModule resource merges (e.g. `Set-StateTraceTheme`, `Initialize-StateTraceTheme`) so view modules continue to resolve shared brushes and colours.
 - Keep `Update-DeviceFilter` side effects intact (resetting dropdowns, refreshing search/summary/alerts/compare) when altering filter logic.
 - Maintain Compare view plumbing (`Update-CompareView`, `Get-CompareHandlers`, `Set-CompareSelection`, `Get-GridRowFor`); the sidebar depends on these hooks to stay in sync with filters.
 - Retain Show Commands clipboard functionality backed by `TemplatesModule`; operators rely on the generated command lists.
@@ -196,6 +218,12 @@
 - Update this directory whenever new modules, functions, or significant behaviours are added.
 - Before modifying a function, review the dependent modules listed above to avoid breaking UI flows or parser pipelines.
 - When refactoring, confirm that caches (`DeviceInterfaceCache`, `DeviceMetadata`, `AllInterfaces`) and event wiring still function end-to-end by running a parser cycle and exercising each tab.
+
+
+
+
+
+
 
 
 

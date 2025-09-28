@@ -70,7 +70,7 @@ function Get-InterfaceSiteCode {
 }
 
 function Resolve-InterfaceDatabasePath {
-    param([Parameter(Mandatory)][string]$Hostname)
+    param([Parameter()][AllowEmptyString()][string]$Hostname)
     $site = Get-InterfaceSiteCode $Hostname
     return (Join-Path $script:InterfaceDataDir ("{0}.accdb" -f $site))
 }
@@ -409,7 +409,7 @@ function Get-InterfaceInfo {
 
 function Get-InterfaceList {
     [CmdletBinding()]
-    param([Parameter(Mandatory)][string]$Hostname)
+    param([Parameter()][AllowEmptyString()][string]$Hostname)
 
     $targetHost = ('' + $Hostname).Trim()
     if ([string]::IsNullOrWhiteSpace($targetHost)) { return @() }
@@ -588,13 +588,18 @@ function Get-InterfaceConfiguration {
 }
 
 function Get-SpanningTreeInfo {
-    # .SYNOPSIS
-
     [CmdletBinding()]
-    param([Parameter(Mandatory)][string]$Hostname)
+    param([Parameter()][AllowEmptyString()][string]$Hostname)
 
-    Write-Verbose ("[InterfaceModule] No spanning tree data available for ''{0}'' (CSV exports disabled)." -f $Hostname)
-    return @()
+    $hostTrim = ('' + $Hostname).Trim()
+    if ([string]::IsNullOrWhiteSpace($hostTrim)) { return @() }
+
+    try {
+        return DeviceRepositoryModule\Get-SpanningTreeInfo -Hostname $hostTrim
+    } catch {
+        Write-Verbose ("[InterfaceModule] Failed to load spanning tree data for '{0}': {1}" -f $hostTrim, $_.Exception.Message)
+        return @()
+    }
 }
 
 function Get-ConfigurationTemplates {

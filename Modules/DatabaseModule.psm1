@@ -33,17 +33,42 @@ function Open-DbReadSession {
     $opened = $false
     try {
         $conn = New-Object System.Data.OleDb.OleDbConnection
+        $providerErrors = [System.Collections.Generic.List[object]]::new()
         foreach ($prov in @('Microsoft.ACE.OLEDB.12.0','Microsoft.Jet.OLEDB.4.0')) {
             try {
                 $conn.ConnectionString = "Provider=$prov;Data Source=$DatabasePath"
                 $conn.Open()
                 $opened = $true
+                if ($Global:StateTraceDebug) {
+                    Write-Host ("[DEBUG] Opened read session using provider '{0}'" -f $prov) -ForegroundColor Cyan
+                }
                 break
             } catch {
-                # try next provider
+                $errorMessage = $_.Exception.Message
+                $hresult = $null
+                try { $hresult = ('0x{0:X8}' -f $_.Exception.HResult) } catch { }
+                $providerErrors.Add([PSCustomObject]@{
+                    Provider = $prov
+                    Message  = $errorMessage
+                    HResult  = $hresult
+                })
+                if ($Global:StateTraceDebug) {
+                    Write-Host ("[DEBUG] Provider '{0}' failed to open read session: {1}" -f $prov, $errorMessage) -ForegroundColor Cyan
+                }
             }
         }
-        if (-not $opened) { throw "No suitable OLE DB provider found." }
+        if (-not $opened) {
+            $candidateList = 'Microsoft.ACE.OLEDB.12.0, Microsoft.Jet.OLEDB.4.0'
+            $detailText = 'No provider-specific diagnostics were captured.'
+            if ($providerErrors.Count -gt 0) {
+                $detailLines = foreach ($entry in $providerErrors) {
+                    $hrNote = if ($entry.HResult) { " (HRESULT=$($entry.HResult))" } else { '' }
+                    "- Provider '{0}': {1}{2}" -f $entry.Provider, $entry.Message, $hrNote
+                }
+                $detailText = [string]::Join([System.Environment]::NewLine, $detailLines)
+            }
+            throw "Failed to open Access database '$DatabasePath' for read operations. Tried providers: $candidateList.`n$detailText"
+        }
 
         # Construct a disposable session object.  The Close and Dispose
         $session = [PSCustomObject]@{
@@ -216,17 +241,41 @@ CREATE TABLE InterfaceHistory (
         $connection = New-Object -ComObject ADODB.Connection
         $opened = $false
         # Try the ACE provider first as it supports both .accdb and .mdb.  Fall
+        $providerErrors = [System.Collections.Generic.List[object]]::new()
         foreach ($prov in @('Microsoft.ACE.OLEDB.12.0','Microsoft.Jet.OLEDB.4.0')) {
             try {
                 $connection.Open("Provider=$prov;Data Source=$Path")
                 $opened = $true
+                if ($Global:StateTraceDebug) {
+                    Write-Host ("[DEBUG] Opened Access database '{0}' using provider '{1}'" -f $Path, $prov) -ForegroundColor Cyan
+                }
                 break
             } catch {
-                # try next provider
+                $errorMessage = $_.Exception.Message
+                $hresult = $null
+                try { $hresult = ('0x{0:X8}' -f $_.Exception.HResult) } catch { }
+                $providerErrors.Add([PSCustomObject]@{
+                    Provider = $prov
+                    Message  = $errorMessage
+                    HResult  = $hresult
+                })
+                if ($Global:StateTraceDebug) {
+                    Write-Host ("[DEBUG] Provider '{0}' failed to open '{1}': {2}" -f $prov, $Path, $errorMessage) -ForegroundColor Cyan
+                }
+                try { $connection.Close() } catch { }
             }
         }
         if (-not $opened) {
-            throw "No suitable OLEDB provider found to open Access database. Install the Microsoft ACE OLEDB provider."
+            $candidateList = 'Microsoft.ACE.OLEDB.12.0, Microsoft.Jet.OLEDB.4.0'
+            $detailText = 'No provider-specific diagnostics were captured.'
+            if ($providerErrors.Count -gt 0) {
+                $detailLines = foreach ($entry in $providerErrors) {
+                    $hrNote = if ($entry.HResult) { " (HRESULT=$($entry.HResult))" } else { '' }
+                    "- Provider '{0}': {1}{2}" -f $entry.Provider, $entry.Message, $hrNote
+                }
+                $detailText = [string]::Join([System.Environment]::NewLine, $detailLines)
+            }
+            throw "Failed to open Access database '$Path'. Tried providers: $candidateList.`n$detailText"
         }
         # Attempt to create DeviceSummary table if it doesn't exist
         try { $connection.Execute($createSummaryTable) | Out-Null } catch { }
@@ -289,17 +338,42 @@ function Invoke-DbQuery {
             # Open a one‑shot connection
             $conn = New-Object System.Data.OleDb.OleDbConnection
             $opened = $false
+            $providerErrors = [System.Collections.Generic.List[object]]::new()
             foreach ($prov in @('Microsoft.ACE.OLEDB.12.0','Microsoft.Jet.OLEDB.4.0')) {
                 try {
                     $conn.ConnectionString = "Provider=$prov;Data Source=$DatabasePath"
                     $conn.Open()
                     $opened = $true
+                    if ($Global:StateTraceDebug) {
+                        Write-Host ("[DEBUG] Opened ad-hoc query connection using provider '{0}'" -f $prov) -ForegroundColor Cyan
+                    }
                     break
                 } catch {
-                    # try next provider
+                    $errorMessage = $_.Exception.Message
+                    $hresult = $null
+                    try { $hresult = ('0x{0:X8}' -f $_.Exception.HResult) } catch { }
+                    $providerErrors.Add([PSCustomObject]@{
+                        Provider = $prov
+                        Message  = $errorMessage
+                        HResult  = $hresult
+                    })
+                    if ($Global:StateTraceDebug) {
+                        Write-Host ("[DEBUG] Provider '{0}' failed to open ad-hoc query connection: {1}" -f $prov, $errorMessage) -ForegroundColor Cyan
+                    }
                 }
             }
-            if (-not $opened) { throw "No suitable OLE DB provider found." }
+            if (-not $opened) {
+                $candidateList = 'Microsoft.ACE.OLEDB.12.0, Microsoft.Jet.OLEDB.4.0'
+                $detailText = 'No provider-specific diagnostics were captured.'
+                if ($providerErrors.Count -gt 0) {
+                    $detailLines = foreach ($entry in $providerErrors) {
+                        $hrNote = if ($entry.HResult) { " (HRESULT=$($entry.HResult))" } else { '' }
+                        "- Provider '{0}': {1}{2}" -f $entry.Provider, $entry.Message, $hrNote
+                    }
+                    $detailText = [string]::Join([System.Environment]::NewLine, $detailLines)
+                }
+                throw "Failed to open Access database '$DatabasePath' for query execution. Tried providers: $candidateList.`n$detailText"
+            }
             $mustClose = $true
         }
 

@@ -1,4 +1,4 @@
-﻿Set-StrictMode -Version Latest
+Set-StrictMode -Version Latest
 
 function Update-DeviceSummaryInDb {
     [CmdletBinding()]
@@ -243,4 +243,63 @@ function Update-InterfacesInDb {
     }
 }
 
-Export-ModuleMember -Function Update-DeviceSummaryInDb, Update-InterfacesInDb
+function Update-SpanInfoInDb {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][object]$Connection,
+        [Parameter(Mandatory=$true)][string]$Hostname,
+        [Parameter(Mandatory=$true)][string]$RunDateString,
+        [Parameter()][object[]]$SpanInfo
+    )
+
+    $escHostname = $Hostname -replace "'", "''"
+    $runDateLiteral = "#$RunDateString#"
+
+    try {
+        $Connection.Execute("DELETE FROM SpanInfo WHERE Hostname = '$escHostname'") | Out-Null
+    } catch {
+        Write-Warning "Failed to clear span data for host ${Hostname}: $($_.Exception.Message)"
+    }
+
+    if (-not $SpanInfo) { return }
+
+    foreach ($item in $SpanInfo) {
+        if ($null -eq $item) { continue }
+
+        $vlan = ''
+        if ($item.PSObject.Properties['VLAN']) { $vlan = '' + $item.VLAN }
+
+        $rootSwitch = ''
+        if ($item.PSObject.Properties['RootSwitch']) { $rootSwitch = '' + $item.RootSwitch }
+
+        $rootPort = ''
+        if ($item.PSObject.Properties['RootPort']) { $rootPort = '' + $item.RootPort }
+
+        $role = ''
+        if ($item.PSObject.Properties['Role']) { $role = '' + $item.Role }
+
+        $upstream = ''
+        if ($item.PSObject.Properties['Upstream']) { $upstream = '' + $item.Upstream }
+
+        $escVlan     = $vlan -replace "'", "''"
+        $escRoot     = $rootSwitch -replace "'", "''"
+        $escPort     = $rootPort -replace "'", "''"
+        $escRole     = $role -replace "'", "''"
+        $escUpstream = $upstream -replace "'", "''"
+
+        $insertSql = "INSERT INTO SpanInfo (Hostname, Vlan, RootSwitch, RootPort, Role, Upstream, LastUpdated) VALUES ('$escHostname', '$escVlan', '$escRoot', '$escPort', '$escRole', '$escUpstream', $runDateLiteral)"
+        try {
+            $Connection.Execute($insertSql) | Out-Null
+        } catch {
+            Write-Warning "Failed to insert span info for host ${Hostname}: $($_.Exception.Message)"
+        }
+
+        $histSql = "INSERT INTO SpanHistory (Hostname, RunDate, Vlan, RootSwitch, RootPort, Role, Upstream) VALUES ('$escHostname', $runDateLiteral, '$escVlan', '$escRoot', '$escPort', '$escRole', '$escUpstream')"
+        try {
+            $Connection.Execute($histSql) | Out-Null
+        } catch {
+            Write-Warning "Failed to insert span history for host ${Hostname}: $($_.Exception.Message)"
+        }
+    }
+}
+Export-ModuleMember -Function Update-DeviceSummaryInDb, Update-InterfacesInDb, Update-SpanInfoInDb

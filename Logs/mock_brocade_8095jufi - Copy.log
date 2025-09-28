@@ -28,7 +28,7 @@ Authentication
  mac-authentication enable ethe 1/1/1 to 1/1/10 ethe 1/1/12 to 1/1/48 ethe 2/1/1 to 2/1/48
  mac-authentication dot1x override
 !
-! Define interfaces for a 2‑stack system (units 1 and 2 with 48 ports each)
+! Define interfaces for a 2ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“stack system (units 1 and 2 with 48 ports each)
 interface ethernet 1/1/1
  port-name Users1
  authentication auth-default-vlan 20
@@ -646,13 +646,24 @@ Port    MAC             IP(v4/v6)          User   VLAN Auth    Auth   ACL   Sess
 2/1/29  00dd.dddd.0004   N/A               Users9   130 MAUTH    permit Yes   190     Ena   AUTHENTICATED
 2/1/30  00dd.dddd.0005   N/A               Users10  130 8021.X permit No    200     Ena   UNAUTHENTICATED
 
-SSH@BOYO-A05-AS-05# show spanning-tree
-MST0
-  Spanning tree enabled protocol mstp
-  Root ID    Priority    32768
-             Address     6666.bbbb.cccc
-             This bridge is the root
+SSH@BOYO-A05-AS-05# show span
+Vlan Root		Root Root	Prio Max He- ho- Fwd Last     Chg Bridge
+ ID   ID		Cost Port	rity Age llo ld  dly Chang    cnt Address
+					Hex  sec sec sec sec sec      
+ 20  10d25555ccccaaaa 20000 2/1/48	8000 20  2   1   15   65412   1   80006666ccccdeee
 
+Port STP Parameters:
+
+Port	  Prio Path	  State		Fwd    Design  Designated	Designated
+Num	  rity Cost			Trans  Cost    Root		Bridge
+	  Hex
+1/1/2	  80   2	  FORWARDING	3	2      10d25555ccccaaaa 80006666ccccdeee
+1/1/4	  80   2	  FORWARDING	3	2      10d25555ccccaaaa 80006666ccccdeee
+1/1/12	  80   2	  FORWARDING	3	2      10d25555ccccaaaa 80006666ccccdeee
+2/1/2	  80   4	  FORWARDING	3	4      10d25555ccccaaaa 80006666ccccdeee
+2/1/24	  80   4	  BLOCKING	0	4      10d25555ccccaaaa 80006666ccccdeee
+2/1/48	  80   4	  FORWARDING	5	4      10d25555ccccaaaa 80006666ccccdeee
+2/2/2	  80   4	  BLOCKING	0	4      10d25555ccccaaaa 80006666ccccdeee
 SSH@BOYO-A05-AS-05# show lldp neighbors
 Device ID            Local Intf      Hold-time Capability Port ID
 core-switch         2/1/48          120       BR         1/0/1

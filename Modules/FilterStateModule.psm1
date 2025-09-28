@@ -411,7 +411,14 @@ function Update-DeviceFilter {
         if (Get-Command Update-SearchGrid -ErrorAction SilentlyContinue) {
             Update-SearchGrid
         }
+        $canUpdateSummary = $false
         if (Get-Command Update-Summary -ErrorAction SilentlyContinue) {
+            try {
+                $summaryVar = Get-Variable -Name summaryView -Scope Global -ErrorAction Stop
+                if ($summaryVar.Value) { $canUpdateSummary = $true }
+            } catch { $canUpdateSummary = $false }
+        }
+        if ($canUpdateSummary) {
             Update-Summary
         }
         if (Get-Command Update-Alerts -ErrorAction SilentlyContinue) {
@@ -443,15 +450,3 @@ function Get-FilterFaulted {
 }
 
 Export-ModuleMember -Function Test-StringListEqualCI, Get-SelectedLocation, Get-LastLocation, Set-DropdownItems, Initialize-DeviceFilters, Update-DeviceFilter, Set-FilterFaulted, Get-FilterFaulted
-
-
-
-
-
-
-
-
-
-
-
-

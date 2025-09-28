@@ -126,7 +126,6 @@ function Update-Summary {
     [CmdletBinding()]
     param()
 
-    if (-not $global:summaryView) { return }
 
     $loc = $null
     try { $loc = FilterStateModule\Get-SelectedLocation } catch { $loc = $null }
@@ -202,19 +201,25 @@ function Update-Summary {
     $uniqueCount = $uniqueVlans.Count
 
     try {
-        $sv = $global:summaryView
-        if ($sv) {
-            ($sv.FindName('SummaryDevicesCount')).Text      = $devCount.ToString()
-            ($sv.FindName('SummaryInterfacesCount')).Text   = $intCount.ToString()
-            ($sv.FindName('SummaryUpCount')).Text           = $upCount.ToString()
-            ($sv.FindName('SummaryDownCount')).Text         = $downCount.ToString()
-            ($sv.FindName('SummaryAuthorizedCount')).Text   = $authCount.ToString()
-            ($sv.FindName('SummaryUnauthorizedCount')).Text = $unauthCount.ToString()
-            ($sv.FindName('SummaryUniqueVlansCount')).Text  = $uniqueCount.ToString()
-            $ratio = if ($intCount -gt 0) { [math]::Round(($upCount / $intCount) * 100, 1) } else { 0 }
-            ($sv.FindName('SummaryExtra')).Text = "Up %: $ratio%"
-            Write-Host "[Update-Summary] Devices=$devCount, Interfaces=$intCount, Up=$upCount, Down=$downCount, Auth=$authCount, Unauth=$unauthCount, UniqueVlans=$uniqueCount, Up%=$ratio%"
-        }
+        $summaryVar = Get-Variable -Name summaryView -Scope Global -ErrorAction Stop
+    } catch {
+        return
+    }
+
+    $sv = $summaryVar.Value
+    if (-not $sv) { return }
+
+    try {
+        ($sv.FindName("SummaryDevicesCount")).Text      = $devCount.ToString()
+        ($sv.FindName("SummaryInterfacesCount")).Text   = $intCount.ToString()
+        ($sv.FindName("SummaryUpCount")).Text           = $upCount.ToString()
+        ($sv.FindName("SummaryDownCount")).Text         = $downCount.ToString()
+        ($sv.FindName("SummaryAuthorizedCount")).Text   = $authCount.ToString()
+        ($sv.FindName("SummaryUnauthorizedCount")).Text = $unauthCount.ToString()
+        ($sv.FindName("SummaryUniqueVlansCount")).Text  = $uniqueCount.ToString()
+        $ratio = if ($intCount -gt 0) { [math]::Round(($upCount / $intCount) * 100, 1) } else { 0 }
+        ($sv.FindName("SummaryExtra")).Text = "Up %: $ratio%"
+        Write-Host "[Update-Summary] Devices=$devCount, Interfaces=$intCount, Up=$upCount, Down=$downCount, Auth=$authCount, Unauth=$unauthCount, UniqueVlans=$uniqueCount, Up%=$ratio%"
     } catch {}
 }
 
@@ -316,8 +321,3 @@ function Update-SearchGrid {
 }
 
 Export-ModuleMember -Function Update-SearchResults, Update-Summary, Update-Alerts, Update-SearchGrid, Get-SearchRegexEnabled, Set-SearchRegexEnabled
-
-
-
-
-

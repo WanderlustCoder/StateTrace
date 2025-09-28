@@ -1,4 +1,4 @@
-﻿Set-StrictMode -Version Latest
+Set-StrictMode -Version Latest
 
 Describe "InterfaceModule Get-InterfaceList" {
     BeforeAll {
@@ -7,6 +7,9 @@ Describe "InterfaceModule Get-InterfaceList" {
 
         $dbModulePath = Join-Path (Split-Path $PSCommandPath) "..\DatabaseModule.psm1"
         Import-Module (Resolve-Path $dbModulePath).Path -Force
+
+        $repoPath = Join-Path (Split-Path $PSCommandPath) "..\DeviceRepositoryModule.psm1"
+        Import-Module (Resolve-Path $repoPath).Path -Force
 
         $viewStatePath = Join-Path (Split-Path $PSCommandPath) "..\ViewStateService.psm1"
         Import-Module (Resolve-Path $viewStatePath).Path -Force
@@ -117,5 +120,30 @@ Describe "InterfaceModule Get-InterfaceList" {
         Assert-MockCalled 'ViewStateService\Get-InterfacesForContext' -ModuleName InterfaceModule -Times 1
         Assert-MockCalled Ensure-DatabaseModule -ModuleName InterfaceModule -Times 1
         Assert-MockCalled Invoke-DbQuery -ModuleName InterfaceModule -Times 1 -ParameterFilter { $Sql -like "*Hostname = 'sw2'*" }
+    }
+
+    Context "Get-SpanningTreeInfo" {
+        It "returns empty when hostname is blank" {
+            Mock -ModuleName InterfaceModule -CommandName 'DeviceRepositoryModule\Get-SpanningTreeInfo' { @() }
+
+            $result = InterfaceModule\Get-SpanningTreeInfo -Hostname ''
+
+            @($result).Count | Should Be 0
+            Assert-MockCalled 'DeviceRepositoryModule\Get-SpanningTreeInfo' -ModuleName InterfaceModule -Times 0
+        }
+
+        It "delegates to DeviceRepositoryModule" {
+            Mock -ModuleName InterfaceModule -CommandName 'DeviceRepositoryModule\Get-SpanningTreeInfo' {
+                param([string]$Hostname)
+                @([pscustomobject]@{ VLAN = 'VLAN0010'; RootPort = 'Gi1/0/48' })
+            }
+
+            $result = InterfaceModule\Get-SpanningTreeInfo -Hostname 'SW1'
+
+            $rows = @($result)
+            $rows.Count | Should Be 1
+            $rows[0].VLAN | Should Be 'VLAN0010'
+            Assert-MockCalled 'DeviceRepositoryModule\Get-SpanningTreeInfo' -ModuleName InterfaceModule -Times 1 -ParameterFilter { $Hostname -eq 'SW1' }
+        }
     }
 }

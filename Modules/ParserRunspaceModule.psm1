@@ -1,5 +1,70 @@
 Set-StrictMode -Version Latest
 
+if (-not (Get-Variable -Scope Script -Name WorkerModulesInitialized -ErrorAction SilentlyContinue)) {
+    $script:WorkerModulesInitialized = $false
+}
+
+if (-not (Get-Variable -Scope Script -Name ParserModuleNames -ErrorAction SilentlyContinue)) {
+    $script:ParserModuleNames = @(
+        'DeviceParsingCommon.psm1',
+        'AristaModule.psm1',
+        'CiscoModule.psm1',
+        'BrocadeModule.psm1',
+        'DeviceRepositoryModule.psm1',
+        'ParserPersistenceModule.psm1',
+        'DeviceLogParserModule.psm1',
+        'DatabaseModule.psm1'
+    )
+}
+
+function Get-ParserModulePaths {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$ModulesPath
+    )
+
+    $paths = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($name in $script:ParserModuleNames) {
+        $combined = Join-Path $ModulesPath $name
+        try {
+            $full = [System.IO.Path]::GetFullPath($combined)
+        } catch {
+            $full = $combined
+        }
+        if (Test-Path -LiteralPath $full) { [void]$paths.Add($full) }
+    }
+    return $paths.ToArray()
+}
+
+function Get-RunspaceModuleImportList {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$ModulesPath
+    )
+
+    $set = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($path in (Get-ParserModulePaths -ModulesPath $ModulesPath)) { [void]$set.Add($path) }
+
+    $selfPath = Join-Path $ModulesPath 'ParserRunspaceModule.psm1'
+    try { $selfPath = [System.IO.Path]::GetFullPath($selfPath) } catch { }
+    if (Test-Path -LiteralPath $selfPath) { [void]$set.Add($selfPath) }
+    return [string[]]$set
+}
+
+function Initialize-WorkerModules {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$ModulesPath
+    )
+
+    if ($script:WorkerModulesInitialized) { return }
+
+    foreach ($path in (Get-ParserModulePaths -ModulesPath $ModulesPath)) {
+        Import-Module -Name $path -ErrorAction Stop -Global | Out-Null
+    }
+    $script:WorkerModulesInitialized = $true
+}
+
 function Invoke-DeviceParseWorker {
     [CmdletBinding()]
     param(
@@ -50,14 +115,7 @@ function Invoke-DeviceParseWorker {
         throw "Worker runspace LanguageMode is $langMode (expected FullLanguage)"
     }
 
-    Import-Module (Join-Path $ModulesPath 'DeviceParsingCommon.psm1') -Force -Global
-    Import-Module (Join-Path $ModulesPath 'AristaModule.psm1') -Force -Global
-    Import-Module (Join-Path $ModulesPath 'CiscoModule.psm1') -Force -Global
-    Import-Module (Join-Path $ModulesPath 'BrocadeModule.psm1') -Force -Global
-    Import-Module (Join-Path $ModulesPath 'DeviceRepositoryModule.psm1') -Force -Global
-    Import-Module (Join-Path $ModulesPath 'ParserPersistenceModule.psm1') -Force -Global
-    Import-Module (Join-Path $ModulesPath 'DeviceLogParserModule.psm1') -Force -Global
-    Import-Module (Join-Path $ModulesPath 'DatabaseModule.psm1') -Force -Global
+    Initialize-WorkerModules -ModulesPath $ModulesPath
 
     try {
         & $writeLog ("Parsing: {0}" -f $FilePath)
@@ -99,6 +157,8 @@ function Invoke-DeviceParsingJobs {
     $enableVerbose = $false
     try { $enableVerbose = [bool]$Global:StateTraceDebug } catch { $enableVerbose = $false }
 
+    Initialize-WorkerModules -ModulesPath $ModulesPath
+
     if ($Synchronous -or $MaxThreads -le 1) {
         foreach ($file in $DeviceFiles) {
             Invoke-DeviceParseWorker -FilePath $file -ModulesPath $ModulesPath -ArchiveRoot $ArchiveRoot -DatabasePath $DatabasePath -EnableVerbose:$enableVerbose
@@ -108,13 +168,20 @@ function Invoke-DeviceParsingJobs {
 
     $sessionState = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
     $sessionState.LanguageMode = [System.Management.Automation.PSLanguageMode]::FullLanguage
+    $importList = Get-RunspaceModuleImportList -ModulesPath $ModulesPath
+    if ($importList -and $importList.Count -gt 0) { $null = $sessionState.ImportPSModule($importList) }
     $pool = [runspacefactory]::CreateRunspacePool(1, $MaxThreads, $sessionState, $Host)
     $pool.Open()
 
     $runspaces = New-Object 'System.Collections.Generic.List[object]'
     $workerScript = {
         param($filePath, $modulesPath, $archiveRoot, $dbPath, [bool]$enableVerbose)
-        Import-Module (Join-Path $modulesPath 'ParserRunspaceModule.psm1') -Force
+        $parserModulePath = Join-Path $modulesPath 'ParserRunspaceModule.psm1'
+        $loaded = $null
+        try {
+            $loaded = Get-Module -Name 'ParserRunspaceModule' -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $parserModulePath }
+        } catch { $loaded = $null }
+        if (-not $loaded) { Import-Module -Name $parserModulePath -ErrorAction Stop | Out-Null }
         ParserRunspaceModule\Invoke-DeviceParseWorker -FilePath $filePath -ModulesPath $modulesPath -ArchiveRoot $archiveRoot -DatabasePath $dbPath -EnableVerbose:$enableVerbose
     }
 
@@ -141,4 +208,6 @@ function Invoke-DeviceParsingJobs {
 }
 
 Export-ModuleMember -Function Invoke-DeviceParseWorker, Invoke-DeviceParsingJobs
+
+
 

@@ -705,11 +705,47 @@ Extended IP access list ACL-USER
 
 WLLS-A01-AS-01#
 WLLS-A01-AS-01# show spanning-tree
+
 VLAN0010
   Spanning tree enabled protocol rstp
   Root ID    Priority    32769
              Address     5254.001b.1c58
-             This bridge is the root
+             Cost        4
+             Port        48 (GigabitEthernet1/0/48)
+             Hello Time 2 sec  Max Age 20 sec  Forward Delay 15 sec
+
+  Bridge ID  Priority    32769 (priority 32768 sys-id-ext 1)
+             Address     5254.001b.2c40
+             Hello Time 2 sec  Max Age 20 sec  Forward Delay 15 sec
+             Aging Time  300 sec
+
+Interface           Role Sts Cost      Prio.Nbr Type
+------------------- ---- --- --------- -------- ------------------------
+Gi1/0/1             Desg FWD 4         128.1    P2p Edge
+Gi1/0/9             Desg FWD 4         128.9    P2p Edge
+Gi1/0/15            Desg FWD 4         128.15   P2p Edge
+Gi1/0/24            Altn BLK 4         128.24   P2p
+Gi1/0/48            Root FWD 4         128.48   P2p Uplink
+
+VLAN0030
+  Spanning tree enabled protocol rstp
+  Root ID    Priority    32789
+             Address     5254.001b.1c58
+             Cost        4
+             Port        48 (GigabitEthernet1/0/48)
+             Hello Time 2 sec  Max Age 20 sec  Forward Delay 15 sec
+
+  Bridge ID  Priority    32789 (priority 32768 sys-id-ext 30)
+             Address     5254.001b.2c40
+             Hello Time 2 sec  Max Age 20 sec  Forward Delay 15 sec
+             Aging Time  300 sec
+
+Interface           Role Sts Cost      Prio.Nbr Type
+------------------- ---- --- --------- -------- ------------------------
+Gi1/0/30            Desg FWD 4         128.30   P2p Edge
+Gi1/0/31            Desg FWD 4         128.31   P2p Edge
+Gi1/0/36            Altn BLK 4         128.36   P2p
+Gi1/0/48            Root FWD 4         128.48   P2p Uplink
 WLLS-A01-AS-01# show lldp neighbors
 Device ID        Local Intf  Hold-time Capability  Port ID
 core-sw          Gi1/0/48    120       B           Gi1/0/1

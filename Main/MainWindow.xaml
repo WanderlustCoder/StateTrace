@@ -57,6 +57,7 @@
         <ComboBox Name="BrocadeOSDropdown" Width="110" Margin="0,0,5,0" Style="{DynamicResource ToolbarComboBoxStyle}"/>
         <!-- Help button opens a window containing documentation for each section of the GUI -->
         <Button Name="HelpButton" Content="Help" Width="60" Margin="0,0,0,0" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Open help documentation"/>
+        <CheckBox Name="DebugNextLaunchCheckbox" Content="Enable debug next launch" Margin="10,0,0,0" VerticalAlignment="Center" Style="{DynamicResource ToolbarCheckBoxStyle}" ToolTip="Stores preference to enable verbose diagnostics on the next application start"/>
         <!-- Compare configs button removed; comparison is launched from the Interfaces tab -->
       </StackPanel>
     </Grid>

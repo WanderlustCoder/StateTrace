@@ -951,7 +951,105 @@ ORDER BY i.Hostname, i.Port
         if ($session) { Close-DbReadSession -Session $session }
     }
 }
-Export-ModuleMember -Function Get-DataDirectoryPath, Get-SiteFromHostname, Get-DbPathForSite, Get-DbPathForHost, Get-AllSiteDbPaths, Clear-SiteInterfaceCache, Update-SiteZoneCache, Get-GlobalInterfaceSnapshot, Update-GlobalInterfaceList, Get-InterfacesForSite, Get-InterfaceInfo, Get-InterfaceConfiguration, Get-InterfacesForHostsBatch, Invoke-ParallelDbQuery, Import-DatabaseModule
+function Get-SpanningTreeInfo {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$Hostname
+    )
+
+    $hostTrim = ('' + $Hostname).Trim()
+    if ([string]::IsNullOrWhiteSpace($hostTrim)) { return @() }
+
+    Import-DatabaseModule
+
+    $dbPath = $null
+    try { $dbPath = Get-DbPathForHost -Hostname $hostTrim } catch { $dbPath = $null }
+    if (-not $dbPath -or -not (Test-Path -LiteralPath $dbPath)) { return @() }
+
+    $escHost = $hostTrim -replace "'", "''"
+    $sql = "SELECT Vlan, RootSwitch, RootPort, Role, Upstream, LastUpdated FROM SpanInfo WHERE Hostname = '$escHost' ORDER BY Vlan, RootPort, Role, Upstream"
+
+    $session = $null
+    try { $session = Open-DbReadSession -DatabasePath $dbPath } catch { $session = $null }
+
+    try {
+        if ($session) {
+            $data = Invoke-DbQuery -DatabasePath $dbPath -Sql $sql -Session $session
+        } else {
+            $data = Invoke-DbQuery -DatabasePath $dbPath -Sql $sql
+        }
+    } finally {
+        if ($session) { Close-DbReadSession -Session $session }
+    }
+
+    if (-not $data) { return @() }
+
+    $rows = @()
+    if ($data -is [System.Data.DataTable]) {
+        $rows = $data.Rows
+    } elseif ($data -is [System.Collections.IEnumerable]) {
+        $rows = @($data)
+    }
+
+    if (-not $rows -or $rows.Count -eq 0) { return @() }
+
+    $list = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($row in $rows) {
+        if (-not $row) { continue }
+
+        $vlan = ''
+        $rootSwitch = ''
+        $rootPort = ''
+        $role = ''
+        $upstream = ''
+        $lastUpdated = ''
+
+        try {
+            if ($row -is [System.Data.DataRow]) {
+                $vlan = '' + ($row['Vlan'])
+                $rootSwitch = '' + ($row['RootSwitch'])
+                $rootPort = '' + ($row['RootPort'])
+                $role = '' + ($row['Role'])
+                $upstream = '' + ($row['Upstream'])
+                if ($row.Table.Columns.Contains('LastUpdated')) {
+                    $lastUpdated = '' + ($row['LastUpdated'])
+                }
+            } elseif ($row.PSObject) {
+                if ($row.PSObject.Properties['Vlan']) { $vlan = '' + $row.Vlan }
+                if ($row.PSObject.Properties['RootSwitch']) { $rootSwitch = '' + $row.RootSwitch }
+                if ($row.PSObject.Properties['RootPort']) { $rootPort = '' + $row.RootPort }
+                if ($row.PSObject.Properties['Role']) { $role = '' + $row.Role }
+                if ($row.PSObject.Properties['Upstream']) { $upstream = '' + $row.Upstream }
+                if ($row.PSObject.Properties['LastUpdated']) { $lastUpdated = '' + $row.LastUpdated }
+            }
+        } catch {}
+
+        $obj = [PSCustomObject]@{
+            VLAN        = $vlan
+            RootSwitch  = $rootSwitch
+            RootPort    = $rootPort
+            Role        = $role
+            Upstream    = $upstream
+            LastUpdated = $lastUpdated
+        }
+        [void]$list.Add($obj)
+    }
+
+
+    try {
+        $projectRoot = Split-Path -Parent $PSScriptRoot
+        $debugDir = Join-Path $projectRoot 'Logs\Debug'
+        if (-not (Test-Path $debugDir)) { New-Item -ItemType Directory -Path $debugDir -Force | Out-Null }
+        $logPath = Join-Path $debugDir 'SpanDebug.log'
+        $rowCount = $list.Count
+        $timestamp = (Get-Date).ToString('yyyy-MM-ddTHH:mm:ss')
+        $line = ("{0} Host={1} Rows={2}" -f $timestamp, $hostTrim, $rowCount)
+        Add-Content -Path $logPath -Value $line -Encoding UTF8
+    } catch { }
+
+    return $list.ToArray()
+}
+Export-ModuleMember -Function Get-DataDirectoryPath, Get-SiteFromHostname, Get-DbPathForSite, Get-DbPathForHost, Get-AllSiteDbPaths, Clear-SiteInterfaceCache, Update-SiteZoneCache, Get-GlobalInterfaceSnapshot, Update-GlobalInterfaceList, Get-InterfacesForSite, Get-InterfaceInfo, Get-InterfaceConfiguration, Get-SpanningTreeInfo, Get-InterfacesForHostsBatch, Invoke-ParallelDbQuery, Import-DatabaseModule
 
 
 

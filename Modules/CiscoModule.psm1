@@ -377,7 +377,10 @@ function Get-MacTable {
     }
 
     #-----------------------------------------
-    $blocks    = Get-ShowCommandBlocks -Lines $Lines
+    if (-not $Blocks) {
+        try { $Blocks = Get-ShowCommandBlocks -Lines $Lines } catch { $Blocks = @{} }
+    }
+    $blocks = $Blocks
     # Retrieve show command blocks with graceful fallbacks when the exact
     # command name is not present.  Some devices emit singular variants (e.g.
     # "show authentication session") or omit hyphens.  We search for the

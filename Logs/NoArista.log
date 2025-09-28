@@ -598,6 +598,24 @@ MAC Address       Port       Type       VLAN  Action
 0011.2233.440e    1/1/14     Dynamic    40    Forward
 0011.2233.440f    1/1/15     Dynamic    50    Forward
 
+SSH@WLLS-A07-AS-07# show span
+Vlan Root		Root Root	Prio Max He- ho- Fwd Last     Chg Bridge
+ ID   ID		Cost Port	rity Age llo ld  dly Chang    cnt Address
+					Hex  sec sec sec sec sec      
+ 10  10d25555ccccdddd  0    Root	8000 20  2   1   15  185430   0   80005555ccccde01
+
+Port STP Parameters:
+
+Port	  Prio Path	  State		Fwd    Design  Designated	Designated
+Num	  rity Cost			Trans  Cost    Root		Bridge
+	  Hex
+1/1/1	  80   2	  FORWARDING	2	2      10d25555ccccdddd 80005555ccccde01
+1/1/6	  80   2	  FORWARDING	2	2      10d25555ccccdddd 80005555ccccde01
+1/1/8	  80   2	  FORWARDING	2	2      10d25555ccccdddd 80005555ccccde01
+1/1/13	  80   2	  FORWARDING	2	2      10d25555ccccdddd 80005555ccccde01
+1/1/15	  80   2	  FORWARDING	2	2      10d25555ccccdddd 80005555ccccde01
+1/1/24	  80   2	  FORWARDING	3	2      10d25555ccccdddd 80005555ccccde01
+2/1/1	  80   4	  BLOCKING	0	4      10d25555ccccdddd 80005555ccccde01
 SSH@WLLS-A07-AS-07#show vlan
 PORT-VLAN 10, Name DEFAULT-VLAN, Priority level0
  Untagged Ports: None
@@ -607,11 +625,47 @@ PORT-VLAN 10, Name DEFAULT-VLAN, Priority level0
  DualMode Ports: None
 !
 WLLS-A03-AS-03# show spanning-tree
-MST0
+
+VLAN0010
   Spanning tree enabled protocol rstp
-  Root ID    Priority    32768
-             Address     3333.aaaa.bbbb
-             This bridge is the root
+  Root ID    Priority    32778
+             Address     5254.001b.1c58
+             Cost        4
+             Port        48 (GigabitEthernet1/0/48)
+             Hello Time 2 sec  Max Age 20 sec  Forward Delay 15 sec
+
+  Bridge ID  Priority    32778 (priority 32768 sys-id-ext 10)
+             Address     5254.001b.2d60
+             Hello Time 2 sec  Max Age 20 sec  Forward Delay 15 sec
+             Aging Time  300 sec
+
+Interface           Role Sts Cost      Prio.Nbr Type
+------------------- ---- --- --------- -------- ------------------------
+Gi1/0/1             Desg FWD 4         128.1    P2p Edge
+Gi1/0/2             Desg FWD 4         128.2    P2p Edge
+Gi1/0/3             Desg FWD 4         128.3    P2p Edge
+Gi1/0/4             Desg FWD 4         128.4    P2p Edge
+Gi1/0/48            Root FWD 4         128.48   P2p
+
+VLAN0020
+  Spanning tree enabled protocol rstp
+  Root ID    Priority    32788
+             Address     5254.001b.1c58
+             Cost        4
+             Port        48 (GigabitEthernet1/0/48)
+             Hello Time 2 sec  Max Age 20 sec  Forward Delay 15 sec
+
+  Bridge ID  Priority    32788 (priority 32768 sys-id-ext 20)
+             Address     5254.001b.2d60
+             Hello Time 2 sec  Max Age 20 sec  Forward Delay 15 sec
+             Aging Time  300 sec
+
+Interface           Role Sts Cost      Prio.Nbr Type
+------------------- ---- --- --------- -------- ------------------------
+Gi1/0/5             Desg FWD 4         128.5    P2p Edge
+Gi1/0/6             Desg FWD 4         128.6    P2p Edge
+Gi1/0/7             Desg FWD 4         128.7    P2p Edge
+Gi1/0/48            Root FWD 4         128.48   P2p
 WLLS-A03-AS-03# show lldp neighbors
 Device ID           Local Intf    Hold-time Capability Port ID
 core-arista         Gi1/0/1       120      BR         Gi1/0/1
