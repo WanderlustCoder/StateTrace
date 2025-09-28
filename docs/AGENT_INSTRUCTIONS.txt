@@ -1,0 +1,23 @@
+=== Individual Operator Context ===
+- This project is led by a single human operator using AI assistance; treat the operator as the sole stakeholder and decision-maker.
+- Route all status updates and questions via repository docs for the operator to review asynchronously.
+- Default to solo workflow assumptions; ignore SFX/Art multi-agent handoffs unless explicitly reintroduced.
+
+=== Multi-Agent Coordination Instructions ===
+
+SFX Agent Checklist:
+1. Treat docs/SFX_PLAN.md as the authoritative backlog.
+2. When a task is finished, append "[Done - <YYYY-MM-DD>]" and list delivered asset paths.
+3. If a task is delayed or awaiting input, mark it "[Pending/Blocked]" with a short reason and next step.
+4. Capture open questions or handoff notes in docs/testing-notes.md under an "SFX Notes" subsection.
+
+Art Agent Checklist:
+1. Update docs/ART_PLAN.md (and docs/ART_BRIEFS.md where applicable) with status tags similar to SFX.
+2. Record exported asset filenames and locations (e.g., assets/art/collectibles/...) beside each bullet.
+3. Flag outstanding work with "[Pending]" plus ETA/dependency info.
+4. Add review or follow-up notes to docs/testing-notes.md under an "Art Notes" subsection.
+
+General Guidance:
+- Do not delete plan bullets—mark status inline so progress history remains visible.
+- Keep all communication in repo docs; the mission agent will rely on these updates when resuming work.
+- If new tasks are discovered, append them to the relevant plan with a status tag.

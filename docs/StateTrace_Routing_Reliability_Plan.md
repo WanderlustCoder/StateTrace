@@ -86,12 +86,12 @@ Primary routing paths have become critical to customer trust. When a primary rou
    - Update runbooks and produce short Loom/video walk-throughs.
    - Host training sessions with ops/support, capturing feedback for iteration backlog.
 
-## Milestones & Timeline (Draft)
-1. Discovery & schema design complete – Week 2.
-2. Backend services & migrations ready in staging – Week 5.
-3. UI diagnostics beta + alert templates validated – Week 7.
-4. Pilot rollout with selected customers – Week 8.
-5. GA launch with full alerting + documentation – Week 10.
+## Milestone Outline
+- Discovery & schema design complete.
+- Backend services & migrations ready in staging.
+- UI diagnostics beta with alert templates validated.
+- Pilot rollout with selected customers.
+- GA launch with full alerting + documentation.
 
 ## Risks & Mitigations
 - **Telemetry gaps:** Some routes may lack reliable probes. Mitigate by prioritising instrumentation workstream and setting "unknown" status fallback alerts.
@@ -108,8 +108,8 @@ Primary routing paths have become critical to customer trust. When a primary rou
 5. What SLAs must we publish externally once this visibility exists?
 
 ## Immediate Next Steps
-1. Schedule discovery workshops with network ops, support, and product leads.
-2. Draft detailed data model diagrams and service interaction architecture.
-3. Prepare resource plan (engineering, UX, SRE) aligning to milestones above.
+- Work through the routing discovery prompts in `docs/StateTrace_Routing_Discovery_Workplan.md` and log findings.
+- Develop draft data and service diagrams in `docs/StateTrace_Routing_DataArchitecture.md`.
+- Outline a sustainable personal execution approach in `docs/StateTrace_Routing_ResourcePlan.md`.
 
 

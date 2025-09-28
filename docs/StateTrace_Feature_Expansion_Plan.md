@@ -1,4 +1,4 @@
-# StateTrace Feature Expansion Plan
+Ôªø# StateTrace Feature Expansion Plan
 
 ## Context & Goals
 StateTrace converts raw infrastructure log bundles into actionable guidance for network operators. The immediate roadmap should:
@@ -43,7 +43,7 @@ StateTrace converts raw infrastructure log bundles into actionable guidance for 
 
 **Key Capabilities**
 - Pattern-to-runbook mapping: when a known `.log` signature appears, show relevant runbook snippet, required checks, and expected outcomes.
-- ìNext command suggestionsî referencing gaps in log coverage (e.g., missing `show interface transceiver` when optics alerts fire).
+- ‚ÄúNext command suggestions‚Äù referencing gaps in log coverage (e.g., missing `show interface transceiver` when optics alerts fire).
 - Inline remediation checklists with completion tracking (e.g., confirm redundant link up, verify authentication server status).
 - Escalation cues (who to call, SLA impact) tied to severity of detected issues.
 
@@ -63,7 +63,7 @@ StateTrace converts raw infrastructure log bundles into actionable guidance for 
 
 **Key Capabilities**
 - UI-driven custom parser rule builder supporting regex, delimiter, and JSONPath extraction with live preview on sample `.log` files.
-- Derived metric definitions (e.g., ìcount interfaces with err-disabled state grouped by buildingî) saved as reusable widgets.
+- Derived metric definitions (e.g., ‚Äúcount interfaces with err-disabled state grouped by building‚Äù) saved as reusable widgets.
 - Export/import packs (JSON/PowerShell module) so teams can share rule sets across environments.
 - Scriptable automation surfaces (PowerShell cmdlets plus optional PowerShell-hosted HTTP listener) exposing parsed datasets, diff results, and anomalies.
 
@@ -116,13 +116,13 @@ StateTrace converts raw infrastructure log bundles into actionable guidance for 
 - Add maintenance mode toggles when ingestion intentionally paused (e.g., planned maintenance) to suppress false alarms.
 
 **Success Metrics**
-- Reduction in ìmissing logî incidents by 50% quarter-over-quarter.
+- Reduction in ‚Äúmissing log‚Äù incidents by 50% quarter-over-quarter.
 - Parser P95 duration baseline established and improved by 20% after optimizations informed by telemetry.
 - Operators report =90% confidence in ingestion health (survey/feedback loop).
 
 ## Phased Roadmap (Draft)
 
-### Phase 0: Discovery & Design (Weeks 1-3)
+### Phase 0: Discovery & Design
 - Conduct stakeholder interviews/workshops covering diff expectations, anomaly thresholds, collaboration needs (Owner: Product).
 - Inventory current log types, parsing coverage, and data quality issues (Owner: Parser team).
 - Draft data model updates for diff snapshots, anomaly events, custom rules, acknowledgements (Owner: Platform). Create ERDs.
@@ -131,7 +131,7 @@ StateTrace converts raw infrastructure log bundles into actionable guidance for 
 
 **Exit Criteria:** Stakeholder-aligned PRD, approved data model, wireframes signed off, measurement plan documented.
 
-### Phase 1: Foundational Enhancements (Weeks 4-7)
+### Phase 1: Foundational Enhancements
 - Implement snapshot storage & diff engine (persist normalized device/interface states with hash/versioning).
 - Extend parser to emit anomaly inputs and record raw-log offsets; add performance telemetry instrumentation.
 - Build ingestion health monitoring backend + service to aggregate telemetry and raise warnings.
@@ -140,7 +140,7 @@ StateTrace converts raw infrastructure log bundles into actionable guidance for 
 
 **Deliverables:** Diff API endpoints, anomaly data schema, telemetry dashboards MVP, runbook storage service, sandbox prototype.
 
-### Phase 2: Insight Delivery (Weeks 8-11)
+### Phase 2: Insight Delivery
 - Implement diff explorer UI (side-by-side view, filters, change summary chips).
 - Launch anomaly insight card UI with severity indicators and knowledge base linkage.
 - Add timeline charts using stored metrics; ensure performant queries.
@@ -149,7 +149,7 @@ StateTrace converts raw infrastructure log bundles into actionable guidance for 
 
 **Deliverables:** Diff UI, insight card component, timeline chart widgets, troubleshooting checklist experience, health dashboard.
 
-### Phase 3: Collaboration & Extensibility (Weeks 12-15)
+### Phase 3: Collaboration & Extensibility
 - Deliver incident packet generator (configurable template) and acknowledgement workflow with activity log.
 - Release scheduled digest service (email/webhook) configurable per persona.
 - Ship custom rule builder UI + validation harness + rule deployment pipeline.
@@ -157,7 +157,7 @@ StateTrace converts raw infrastructure log bundles into actionable guidance for 
 
 **Deliverables:** Packet export feature, acknowledgement workflow GA, digest scheduler, custom rule editor, API documentation.
 
-### Phase 4: Hardening & Rollout (Weeks 16-18)
+### Phase 4: Hardening & Rollout
 - Beta program with select operators; gather telemetry and qualitative feedback.
 - Tune anomaly thresholds, checklist content, and runbooks based on real incidents.
 - Performance profiling and optimization for diff engine and rule execution.
@@ -187,12 +187,12 @@ StateTrace converts raw infrastructure log bundles into actionable guidance for 
 - Platform/backend (2 FTE) for telemetry, custom rules sandbox, APIs.
 - Technical writer/ops SME for runbook curation (~0.5 FTE each during phases 2-4).
 
-## Immediate Next Steps (0-4 Weeks)
-1. Schedule cross-functional ideation and scoping workshop (Product, Parser, Ops, Support).
-2. Collect top incident postmortems to inform runbook library and anomaly thresholds.
-3. Prototype diff data model on sampled logs to validate storage footprint and performance.
-4. Define user identity approach for acknowledgement workflow (coordinate with security/IT).
-5. Draft success metric dashboards for launch (e.g., diff usage, anomaly accuracy) ready for instrumentation in Phase 1.
+## Immediate Next Steps
+- Capture sanitized incident postmortems and expand the tracking table in `docs/StateTrace_IncidentPostmortem_Intake.md`.
+- Prototype the diff data model referencing `docs/StateTrace_DiffModel_Prototype.md`; record findings under `Logs/Research/DiffPrototype`.
+- Evaluate acknowledgement identity options in `docs/StateTrace_Acknowledgement_Identity_Options.md` and choose an initial approach.
+- Flesh out the launch metrics dashboard concepts, including telemetry dictionary and wireframes (`docs/StateTrace_LaunchMetrics_DashboardDraft.md`).
+- Start drafting guided troubleshooting runbooks once postmortem content is ready.
 
 ## Open Questions
 - Do we require per-tenant customization boundaries for custom rules/export templates? (impacts storage design)
@@ -200,6 +200,7 @@ StateTrace converts raw infrastructure log bundles into actionable guidance for 
 - What external integrations (PagerDuty, Slack, ServiceNow) must be first-class in digests/escalations?
 - How will we manage conflicting custom rules across teams (priority system, namespacing)?
 - Are there compliance constraints on email digests containing configuration data?
+
 
 
 

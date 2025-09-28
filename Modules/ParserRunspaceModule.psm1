@@ -167,10 +167,12 @@ function Invoke-DeviceParsingJobs {
     }
 
     $sessionState = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
+    $sessionState.ApartmentState = [System.Threading.ApartmentState]::STA
     $sessionState.LanguageMode = [System.Management.Automation.PSLanguageMode]::FullLanguage
     $importList = Get-RunspaceModuleImportList -ModulesPath $ModulesPath
     if ($importList -and $importList.Count -gt 0) { $null = $sessionState.ImportPSModule($importList) }
-    $pool = [runspacefactory]::CreateRunspacePool(1, $MaxThreads, $sessionState, $Host)
+        $pool = [runspacefactory]::CreateRunspacePool(1, $MaxThreads, $sessionState, $Host)
+    try { $pool.ApartmentState = [System.Threading.ApartmentState]::STA } catch { }
     $pool.Open()
 
     $runspaces = New-Object 'System.Collections.Generic.List[object]'
