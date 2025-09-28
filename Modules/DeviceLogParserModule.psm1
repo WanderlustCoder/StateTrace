@@ -3,6 +3,9 @@ Set-StrictMode -Version Latest
 if (-not (Get-Variable -Name StateTraceDebug -Scope Global -ErrorAction SilentlyContinue)) {
     Set-Variable -Scope Global -Name StateTraceDebug -Value $false -Option None
 }
+if (-not (Get-Variable -Name DbProviderCache -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:DbProviderCache = [System.Collections.Concurrent.ConcurrentDictionary[string,string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+}
 
 # Cache vendor templates per runspace to avoid repeated JSON parsing.
 if (-not (Get-Variable -Name VendorTemplatesCache -Scope Script -ErrorAction SilentlyContinue)) {
@@ -94,7 +97,147 @@ function Get-ShowCommandBlocks {
     return $blocks
 }
 
+function Get-CanonicalDatabaseKey {
+    param([string]$DatabasePath)
+
+    if ([string]::IsNullOrWhiteSpace($DatabasePath)) { return '' }
+
+    $candidate = $DatabasePath
+    try {
+        $candidate = [System.IO.Path]::GetFullPath($DatabasePath)
+    } catch {
+        # Ignore path resolution errors and fall back to the provided value
+    }
+
+    return $candidate.Trim().ToLowerInvariant()
+}
+
+function Get-DatabaseMutexName {
+    param([string]$DatabasePath)
+
+    $key = Get-CanonicalDatabaseKey -DatabasePath $DatabasePath
+    if ([string]::IsNullOrEmpty($key)) { return 'StateTraceDbWriteMutex' }
+
+    $hash = $null
+    try {
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($key)
+        $sha = [System.Security.Cryptography.SHA256]::Create()
+        try {
+            $hashBytes = $sha.ComputeHash($bytes)
+            $hash = ([System.BitConverter]::ToString($hashBytes) -replace '-', '')
+        } finally {
+            if ($sha) { $sha.Dispose() }
+        }
+    } catch {
+        $hash = [Math]::Abs($key.GetHashCode())
+    }
+
+    if (-not $hash) { $hash = 'Default' }
+    return "StateTraceDbWriteMutex_$hash"
+}
+
+function Get-DeviceLogContext {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$FilePath
+    )
+
+    $linesList = New-Object 'System.Collections.Generic.List[string]'
+    $blocks = @{}
+    $currentCmd = ''
+    $buffer = New-Object 'System.Collections.Generic.List[string]'
+    $recording = $false
+    $promptPattern = '^[^\s]+[>#]\s*(?:do\s+)?(show\s+.+)$'
+    $promptStartPattern = '^[^\s]+[>#]'
+
+    $reader = $null
+    try {
+        $reader = [System.IO.StreamReader]::new($FilePath)
+        while (-not $reader.EndOfStream) {
+            $line = $reader.ReadLine()
+            [void]$linesList.Add($line)
+
+            if ($line -match $promptPattern) {
+                if ($recording -and $currentCmd) {
+                    $blocks[$currentCmd] = $buffer
+                }
+                $currentCmd = $matches[1].Trim().ToLower()
+                $buffer = New-Object 'System.Collections.Generic.List[string]'
+                $recording = $true
+                continue
+            }
+            if ($recording -and $line -match $promptStartPattern) {
+                $blocks[$currentCmd] = $buffer
+                $currentCmd = ''
+                $buffer = New-Object 'System.Collections.Generic.List[string]'
+                $recording = $false
+                continue
+            }
+            if ($recording) {
+                [void]$buffer.Add($line)
+            }
+        }
+    } finally {
+        if ($reader) { $reader.Dispose() }
+    }
+
+    if ($recording -and $currentCmd) {
+        $blocks[$currentCmd] = $buffer
+    }
+
+    $lineArray = $linesList.ToArray()
+    return [PSCustomObject]@{
+        Lines  = $lineArray
+        Blocks = $blocks
+    }
+}
 # Determine the device vendor from the contents of a "show version" block.  Rather than
+
+function Get-LogParseContext {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$FilePath
+    )
+
+    return Get-DeviceLogContext -FilePath $FilePath
+}
+
+function Get-VendorTemplates {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Vendor,
+        [string]$TemplatesRoot
+    )
+
+    if (-not $script:VendorTemplatesCache) { $script:VendorTemplatesCache = @{} }
+
+    $vendorKey = ('' + $Vendor).Trim()
+    if ([string]::IsNullOrWhiteSpace($vendorKey)) { return @() }
+
+    if (-not $TemplatesRoot) {
+        $TemplatesRoot = Join-Path $PSScriptRoot '..\Templates'
+    }
+
+    if ($script:VendorTemplatesCache.ContainsKey($vendorKey)) {
+        return $script:VendorTemplatesCache[$vendorKey]
+    }
+
+    $templates = @()
+    try {
+        $jsonFile = Join-Path $TemplatesRoot ("{0}.json" -f $vendorKey)
+        if (Test-Path $jsonFile) {
+            $json = Get-Content -Path $jsonFile -Raw | ConvertFrom-Json
+            if ($json.templates) {
+                $templates = $json.templates
+            }
+        }
+    } catch {
+        $templates = @()
+    }
+
+    $script:VendorTemplatesCache[$vendorKey] = $templates
+    return $templates
+}
 
 function Get-DeviceMakeFromBlocks {
     [CmdletBinding()]
@@ -145,50 +288,73 @@ function ConvertFrom-SpanningTree {
     param(
         [string[]]$SpanLines
     )
-    # Use a typed List[object] to accumulate spanning tree entries to avoid
+
     $entries = New-Object 'System.Collections.Generic.List[object]'
     $current    = ''
     $rootSwitch = ''
     $rootPort   = ''
+    $firstInterface = ''
+    $firstRole = ''
+    $captureInterfaces = $false
+
     foreach ($ln in $SpanLines) {
-        $line = $ln.Trim()
-        # Identify a new section header.  Match VLANxxxx or MST<number> in a
+        $line = if ($null -ne $ln) { $ln.Trim() } else { '' }
+
         if ($line -match '(?i)^(vlan\d+|mst\d+)') {
             if ($current -ne '') {
                 [void]$entries.Add([PSCustomObject]@{
                     VLAN       = $current
                     RootSwitch = $rootSwitch
                     RootPort   = $rootPort
-                    Role       = ''
-                    Upstream   = ''
+                    Role       = $firstRole
+                    Upstream   = $firstInterface
                 })
             }
-            $current    = $matches[1]
+            $current = $matches[1]
             $rootSwitch = ''
             $rootPort   = ''
+            $firstInterface = ''
+            $firstRole = ''
+            $captureInterfaces = $false
             continue
         }
-        # Capture the root switch MAC from a line containing "Address".
+
         if (-not $rootSwitch -and $line -match 'Address\s+(\S+)') {
             $rootSwitch = $matches[1]
             continue
         }
-        # Capture the root port from a line like "Root port Fa0/1, cost 4".
+
         if (-not $rootPort -and $line -match 'Root\s+port\s+(\S+),') {
             $rootPort = $matches[1]
             continue
         }
+
+        if ($line -match '(?i)^Interface\s+Role\s+Sts') {
+            $captureInterfaces = $true
+            continue
+        }
+
+        if ($captureInterfaces) {
+            if ([string]::IsNullOrWhiteSpace($line)) { continue }
+            if ($line -match '^-{2,}') { continue }
+            $parts = $line -split '\s+', 6
+            if ($parts.Count -ge 2) {
+                if (-not $firstInterface) { $firstInterface = $parts[0] }
+                if (-not $firstRole)      { $firstRole      = $parts[1] }
+            }
+        }
     }
-    # Flush the final entry if any context remains
+
     if ($current -ne '') {
         [void]$entries.Add([PSCustomObject]@{
             VLAN       = $current
             RootSwitch = $rootSwitch
             RootPort   = $rootPort
-            Role       = ''
-            Upstream   = ''
+            Role       = $firstRole
+            Upstream   = $firstInterface
         })
     }
+
     return $entries
 }
 
@@ -266,10 +432,10 @@ function Invoke-DeviceLogParsing {
     if ($Global:StateTraceDebug) {
         Write-Host "[DEBUG] Parsing file '$FilePath'" -ForegroundColor Yellow
     }
-    $lines = Get-Content $FilePath
-    # Partition the log into show command blocks once.  These blocks are used
-    $blocks = Get-ShowCommandBlocks -Lines $lines
-    if (-not $blocks) { $blocks = @{} }
+    $logContext = Get-DeviceLogContext -FilePath $FilePath
+    $lines = $logContext.Lines
+    $blocks = if ($logContext.Blocks) { $logContext.Blocks } else { @{} }
+    $logContext = $null
 
     # Determine the vendor (device make) using only the "show version" output.
     $make = Get-DeviceMakeFromBlocks -Blocks $blocks
@@ -295,9 +461,8 @@ function Invoke-DeviceLogParsing {
             }
             "Arista" {
                 $facts = Get-AristaDeviceFacts -Lines $lines -Blocks $blocks
-            }
-        }
-    } catch {
+            }}
+            } catch {
         Write-Warning "Failed to parse $make log '${FilePath}': $($_.Exception.Message)"
         return
     }
@@ -416,9 +581,8 @@ function Invoke-DeviceLogParsing {
             }
         } finally {
             try { $dbCreateMutex.ReleaseMutex() } catch { }
-            $dbCreateMutex.Dispose()
-        }
-    } catch {
+            $dbCreateMutex.Dispose()}
+            } catch {
         # If any error occurs deriving or creating the per-site database, emit a warning
         Write-Warning ("Failed to set up per-site database for host {0}: {1}" -f $facts.Hostname, $_.Exception.Message)
     }
@@ -496,41 +660,22 @@ function Invoke-DeviceLogParsing {
             # The summary and interface SQL statements will be constructed by helper functions.  No per‑field escaping is required here.
 
             #-------------------------------------------------------------------------
-            $templates = $null
+            $templates = @()
             try {
                 $vendor = 'Cisco'
                 if ($facts.Make) {
-                    # Match known vendors in a case-insensitive manner without specifying all vendor strings.
                     if ($facts.Make -match '(?i)brocade') { $vendor = 'Brocade' }
                     elseif ($facts.Make -match '(?i)arista') { $vendor = 'Brocade' }
                 }
-                $tplDir   = Join-Path $PSScriptRoot '..\Templates'
-                $jsonFile = Join-Path $tplDir "$vendor.json"
-                # Use the script-scoped cache to avoid repeatedly reading and parsing the same
-                # vendor template file within a single runspace.  Populate the cache on
-                # first use; thereafter reuse the stored templates array.
-                if (-not $script:VendorTemplatesCache) { $script:VendorTemplatesCache = @{} }
-                if ($script:VendorTemplatesCache.ContainsKey($vendor)) {
-                    $templates = $script:VendorTemplatesCache[$vendor]
-                } else {
-                    if (Test-Path $jsonFile) {
-                        $json = Get-Content -Path $jsonFile -Raw | ConvertFrom-Json
-                        if ($json.templates) {
-                            $templates = $json.templates
-                        } else {
-                            $templates = @()
-                        }
-                        $script:VendorTemplatesCache[$vendor] = $templates
-                    } else {
-                        $templates = @()
-                    }
-                }
+                $tplDir = Join-Path $PSScriptRoot '..\Templates'
+                $templates = Get-VendorTemplates -Vendor $vendor -TemplatesRoot $tplDir
             } catch {
                 # Ignore template load errors; compliance info will remain default
             }
 
             #---------------------------------------------------------------------
-            $mutexName = 'StateTraceDbWriteMutex'
+            $databaseKey = Get-CanonicalDatabaseKey -DatabasePath $DatabasePath
+            $mutexName = Get-DatabaseMutexName -DatabasePath $DatabasePath
             $dbMutex = New-Object System.Threading.Mutex($false, $mutexName)
             try {
                 if ($Global:StateTraceDebug) {
@@ -548,37 +693,46 @@ function Invoke-DeviceLogParsing {
                 if ($Global:StateTraceDebug) {
                     Write-Host "[DEBUG] Detecting available OLEDB provider for database" -ForegroundColor Yellow
                 }
+                if ($databaseKey -and $script:DbProviderCache.ContainsKey($databaseKey)) {
+                    $__dbProvider = $script:DbProviderCache[$databaseKey]
+                    if ($Global:StateTraceDebug) {
+                        Write-Host ("[DEBUG] Reusing cached provider '{0}' for database '{1}'" -f $__dbProvider, $DatabasePath) -ForegroundColor Yellow
+                    }
+                }
                 # Prefer the ACE provider when available; fall back to Jet for .mdb files.
-                foreach ($provCandidate in @('Microsoft.ACE.OLEDB.12.0','Microsoft.Jet.OLEDB.4.0')) {
-                    $testConn = $null
-                    try {
-                        $testConn = New-Object -ComObject ADODB.Connection
-                        $testConn.Open("Provider=$provCandidate;Data Source=$DatabasePath")
-                        $testConn.Close()
-                        $__dbProvider = $provCandidate
-                        if ($Global:StateTraceDebug) {
-                            Write-Host ("[DEBUG] Provider '{0}' validated for database '{1}'" -f $__dbProvider, $DatabasePath) -ForegroundColor Yellow
-                        }
-                        break
-                    } catch {
-                        $errorMessage = $_.Exception.Message
-                        $hresult = $null
-                        try { $hresult = ('0x{0:X8}' -f $_.Exception.HResult) } catch { }
-                        $providerErrors.Add([PSCustomObject]@{
-                            Provider = $provCandidate
-                            Message  = $errorMessage
-                            HResult  = $hresult
-                        })
-                        if ($Global:StateTraceDebug) {
-                            Write-Host ("[DEBUG] Provider '{0}' test failed: {1}" -f $provCandidate, $errorMessage) -ForegroundColor Yellow
-                        }
-                    } finally {
-                        if ($testConn) {
-                            try { $testConn.Close() } catch { }
-                            try { [System.Runtime.InteropServices.Marshal]::FinalReleaseComObject($testConn) | Out-Null } catch { }
+                if (-not $__dbProvider) {
+                    foreach ($provCandidate in @('Microsoft.ACE.OLEDB.12.0','Microsoft.Jet.OLEDB.4.0')) {
+                        $testConn = $null
+                        try {
+                            $testConn = New-Object -ComObject ADODB.Connection
+                            $testConn.Open("Provider=$provCandidate;Data Source=$DatabasePath")
+                            $testConn.Close()
+                            $__dbProvider = $provCandidate
+                            if ($Global:StateTraceDebug) {
+                                Write-Host ("[DEBUG] Provider '{0}' validated for database '{1}'" -f $__dbProvider, $DatabasePath) -ForegroundColor Yellow
+                            }
+                            break
+                        } catch {
+                            $errorMessage = $_.Exception.Message
+                            $hresult = $null
+                            try { $hresult = ('0x{0:X8}' -f $_.Exception.HResult) } catch { }
+                            $providerErrors.Add([PSCustomObject]@{
+                                Provider = $provCandidate
+                                Message  = $errorMessage
+                                HResult  = $hresult
+                            })
+                            if ($Global:StateTraceDebug) {
+                                Write-Host ("[DEBUG] Provider '{0}' test failed: {1}" -f $provCandidate, $errorMessage) -ForegroundColor Yellow
+                            }
+                        } finally {
+                            if ($testConn) {
+                                try { $testConn.Close() } catch { }
+                                try { [System.Runtime.InteropServices.Marshal]::FinalReleaseComObject($testConn) | Out-Null } catch { }
+                            }
                         }
                     }
                 }
+
                 if (-not $__dbProvider) {
                     $candidateList = 'Microsoft.ACE.OLEDB.12.0, Microsoft.Jet.OLEDB.4.0'
                     $detailText = 'No provider-specific diagnostics were captured.'
@@ -590,6 +744,10 @@ function Invoke-DeviceLogParsing {
                         $detailText = [string]::Join([System.Environment]::NewLine, $detailLines)
                     }
                     throw "Failed to open Access database '$DatabasePath'. Tried providers: $candidateList.`n$detailText"
+                }
+
+                if ($__dbProvider -and $databaseKey) {
+                    $script:DbProviderCache[$databaseKey] = $__dbProvider
                 }
                 $__dbConn = New-Object -ComObject ADODB.Connection
                 if ($Global:StateTraceDebug) {
@@ -678,7 +836,8 @@ function Invoke-DeviceLogParsing {
 
 
 
-Export-ModuleMember -Function Get-LocationDetails, Get-ShowCommandBlocks, Get-DeviceMakeFromBlocks, Get-SnmpLocationFromLines, ConvertFrom-SpanningTree, Remove-OldArchiveFolder, Get-BrocadeAuthBlockFromLines, Invoke-DeviceLogParsing
+Export-ModuleMember -Function Get-LocationDetails, Get-ShowCommandBlocks, Get-DeviceMakeFromBlocks, Get-SnmpLocationFromLines, ConvertFrom-SpanningTree, Remove-OldArchiveFolder, Get-BrocadeAuthBlockFromLines, Invoke-DeviceLogParsing, Get-LogParseContext, Get-VendorTemplates, Get-DatabaseMutexName
+
 
 
 

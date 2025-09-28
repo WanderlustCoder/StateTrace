@@ -176,12 +176,6 @@ function Invoke-DeviceParsingJobs {
     $runspaces = New-Object 'System.Collections.Generic.List[object]'
     $workerScript = {
         param($filePath, $modulesPath, $archiveRoot, $dbPath, [bool]$enableVerbose)
-        $parserModulePath = Join-Path $modulesPath 'ParserRunspaceModule.psm1'
-        $loaded = $null
-        try {
-            $loaded = Get-Module -Name 'ParserRunspaceModule' -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $parserModulePath }
-        } catch { $loaded = $null }
-        if (-not $loaded) { Import-Module -Name $parserModulePath -ErrorAction Stop | Out-Null }
         ParserRunspaceModule\Invoke-DeviceParseWorker -FilePath $filePath -ModulesPath $modulesPath -ArchiveRoot $archiveRoot -DatabasePath $dbPath -EnableVerbose:$enableVerbose
     }
 

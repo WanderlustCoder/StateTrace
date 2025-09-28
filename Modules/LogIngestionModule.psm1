@@ -1,4 +1,4 @@
-﻿Set-StrictMode -Version Latest
+Set-StrictMode -Version Latest
 
 function Split-RawLogs {
     [CmdletBinding()]
@@ -55,7 +55,10 @@ function Split-RawLogs {
 
                 if ($detected) {
                     if (-not $currentHost -or $detected -ne $currentHost) {
-                        if ($null -ne $writer) { $writer.Dispose() }
+                        if ($null -ne $writer) {
+                            try { $writer.Flush() } catch { }
+                            $writer.Dispose()
+                        }
 
                         $safe = ($detected -replace '[\\/:*?"<>|]', '_')
                         $outPath = Join-Path $ExtractedPath "$safe.log"
@@ -64,7 +67,7 @@ function Split-RawLogs {
                             [System.IO.FileAccess]::Write,
                             [System.IO.FileShare]::Read)
                         $writer = New-Object System.IO.StreamWriter($fs)
-                        $writer.AutoFlush = $true
+                        $writer.AutoFlush = $false
                         $currentHost = $detected
                         Write-Host "Writing slice for host '$currentHost' -> $outPath"
 
@@ -88,7 +91,7 @@ function Split-RawLogs {
                                 [System.IO.FileAccess]::Write,
                                 [System.IO.FileShare]::Read)
                             $unknownWriter = New-Object System.IO.StreamWriter($ufs)
-                            $unknownWriter.AutoFlush = $true
+                            $unknownWriter.AutoFlush = $false
                             Write-Host "No host detected yet; spilling overflow to $uPath"
                         }
                         $unknownWriter.WriteLine($line)
@@ -104,8 +107,9 @@ function Split-RawLogs {
                         [System.IO.FileAccess]::Write,
                         [System.IO.FileShare]::Read)
                     $uw = New-Object System.IO.StreamWriter($ufs)
-                    $uw.AutoFlush = $true
+                    $uw.AutoFlush = $false
                     foreach ($b in $buffer) { $uw.WriteLine($b) }
+                    try { $uw.Flush() } catch { }
                     $uw.Dispose()
                     Write-Host "Completed file without detecting a host; wrote buffered content to $uPath"
                 } else {
@@ -115,8 +119,14 @@ function Split-RawLogs {
             }
         }
         finally {
-            if ($writer) { $writer.Dispose() }
-            if ($unknownWriter) { $unknownWriter.Dispose() }
+            if ($writer) {
+                try { $writer.Flush() } catch { }
+                $writer.Dispose()
+            }
+            if ($unknownWriter) {
+                try { $unknownWriter.Flush() } catch { }
+                $unknownWriter.Dispose()
+            }
             if ($sr) { $sr.Dispose() }
         }
     }
