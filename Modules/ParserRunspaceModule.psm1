@@ -208,11 +208,6 @@ function Invoke-DeviceParsingJobs {
         $siteQueues[$siteKey].Enqueue($file)
     }
 
-    $workerScript = {
-        param($filePath, $modulesPath, $archiveRoot, $dbPath, [bool]$enableVerbose)
-        ParserRunspaceModule\Invoke-DeviceParseWorker -FilePath $filePath -ModulesPath $modulesPath -ArchiveRoot $archiveRoot -DatabasePath $dbPath -EnableVerbose:$enableVerbose
-    }
-
     $active = New-Object 'System.Collections.Generic.List[object]'
     try {
         while ($true) {
@@ -239,7 +234,12 @@ function Invoke-DeviceParsingJobs {
                     $file = $queue.Dequeue()
                     $ps = [powershell]::Create()
                     $ps.RunspacePool = $pool
-                    $null = $ps.AddScript($workerScript).AddArgument($file).AddArgument($ModulesPath).AddArgument($ArchiveRoot).AddArgument($DatabasePath).AddArgument($enableVerbose)
+                    $null = $ps.AddCommand('ParserRunspaceModule\Invoke-DeviceParseWorker')
+                    $null = $ps.AddParameter('FilePath', $file)
+                    $null = $ps.AddParameter('ModulesPath', $ModulesPath)
+                    $null = $ps.AddParameter('ArchiveRoot', $ArchiveRoot)
+                    if ($DatabasePath) { $null = $ps.AddParameter('DatabasePath', $DatabasePath) }
+                    $null = $ps.AddParameter('EnableVerbose', $enableVerbose)
                     $async = $ps.BeginInvoke()
                     $active.Add([PSCustomObject]@{ Pipe = $ps; AsyncResult = $async; Site = $siteKey })
                     [void]$activeSites.Add($siteKey)
