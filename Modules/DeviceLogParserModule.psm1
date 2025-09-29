@@ -943,45 +943,44 @@ function Invoke-DeviceLogParsing {
     # Access database under the project's Data folder.
     try {
         $siteCode = DeviceRepositoryModule\Get-SiteFromHostname -Hostname $facts.Hostname -FallbackLength 4
-        # Compute the absolute project root for constructing the Data directory.
-        # Compute the project root using GetFullPath instead of Resolveâ€‘Path to
-        # avoid pipeline overhead.  This is executed inside each runspace, so
-        # efficiency matters when processing many logs.
-        try {
-            $projectRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
-        } catch {
-            $projectRoot = (Split-Path -Parent $PSScriptRoot)
+        $providedDbPath = $null
+        if ($PSBoundParameters.ContainsKey('DatabasePath') -and $PSBoundParameters['DatabasePath']) {
+            $providedDbPath = $PSBoundParameters['DatabasePath']
         }
-        $dbDir = Join-Path $projectRoot 'Data'
-        if (-not (Test-Path $dbDir)) {
-            # Create the Data directory if it doesn't exist
-            New-Item -ItemType Directory -Force -Path $dbDir | Out-Null
+
+        if ($providedDbPath) {
+            $DatabasePath = $providedDbPath
+            $siteDbDir = $null
+            try { $siteDbDir = [System.IO.Path]::GetDirectoryName($DatabasePath) } catch { $siteDbDir = $null }
+            if ($siteDbDir -and -not (Test-Path -LiteralPath $siteDbDir)) {
+                [System.IO.Directory]::CreateDirectory($siteDbDir) | Out-Null
+            }
+        } else {
+            $dataDir = DeviceRepositoryModule\Get-DataDirectoryPath
+            if (-not (Test-Path -LiteralPath $dataDir)) {
+                [System.IO.Directory]::CreateDirectory($dataDir) | Out-Null
+            }
+
+            $DatabasePath = DeviceRepositoryModule\Get-DbPathForSite -Site $siteCode
+            $siteDbDir = $null
+            try { $siteDbDir = [System.IO.Path]::GetDirectoryName($DatabasePath) } catch { $siteDbDir = $null }
+            if ($siteDbDir -and -not (Test-Path -LiteralPath $siteDbDir)) {
+                [System.IO.Directory]::CreateDirectory($siteDbDir) | Out-Null
+            }
         }
-        # Compose a file name for the site database; always use .accdb extension
-        $DatabasePath = Join-Path $dbDir ("$siteCode.accdb")
-        # Ensure the database exists and has the required schema.  This helper
-        # is idempotent, so calling it from multiple runspaces is safe.
-        # Use a named mutex to avoid race conditions when multiple runspaces
-        # attempt to create the same perâ€‘site database concurrently.  The mutex
-        # name is derived from the site code so that only runspaces targeting
-        # the same database will block each other.  Inside the mutex, check
-        # again whether the file exists before creating it.  If the file is
-        # created by another runspace while waiting, the creation call will be
-        # skipped.
+
         $createMutexName = "StateTraceDbCreateMutex_${siteCode}"
         $dbCreateMutex = New-Object System.Threading.Mutex($false, $createMutexName)
         try {
             $null = $dbCreateMutex.WaitOne()
             if (Get-Command -Name New-DatabaseIfMissing -ErrorAction SilentlyContinue) {
-                # Always call New-DatabaseIfMissing, which is expected to be idempotent.
                 try {
                     New-DatabaseIfMissing -Path $DatabasePath
                 } catch {
                     # Swallow errors related to existing database to avoid noisy warnings.
                 }
             } elseif (Get-Command -Name New-AccessDatabase -ErrorAction SilentlyContinue) {
-                # Only create the database if it does not already exist.
-                if (-not (Test-Path $DatabasePath)) {
+                if (-not (Test-Path -LiteralPath $DatabasePath)) {
                     try {
                         New-AccessDatabase -Path $DatabasePath | Out-Null
                     } catch {
@@ -991,12 +990,12 @@ function Invoke-DeviceLogParsing {
             }
         } finally {
             try { $dbCreateMutex.ReleaseMutex() } catch { }
-            $dbCreateMutex.Dispose()}
-            } catch {
+            $dbCreateMutex.Dispose()
+        }
+    } catch {
         # If any error occurs deriving or creating the per-site database, emit a warning
         Write-Warning ("Failed to set up per-site database for host {0}: {1}" -f $facts.Hostname, $_.Exception.Message)
     }
-
     $hostname     = $facts.Hostname -replace '[\\\/:\*\?"<>\|]', '_'
     $today        = Get-Date -Format "yyyy-MM-dd"
     $devicePath   = Join-Path $ArchiveRoot $hostname
@@ -1010,16 +1009,16 @@ function Invoke-DeviceLogParsing {
     }
 
     if ($facts.PSObject.Properties.Name -contains "InterfacesCombined") {
-        # CSV export disabled â€“ historical data is now stored in the database
+        # CSV export disabled - historical data is now stored in the database
     } else {
-        # CSV export disabled â€“ historical data is now stored in the database
+        # CSV export disabled - historical data is now stored in the database
     }
 
     # Export spanning tree information if available.  The facts may contain
     if ($facts.PSObject.Properties.Name -contains 'SpanInfo') {
         $spanData = $facts.SpanInfo
         if ($spanData) {
-            # Span CSV export disabled â€“ historical data is now stored in the database only
+            # Span CSV export disabled - historical data is now stored in the database only
         }
     }
 
@@ -1057,8 +1056,7 @@ function Invoke-DeviceLogParsing {
         AuthBlock        = if ($facts.PSObject.Properties.Name -contains 'AuthenticationBlock' -and $facts.AuthenticationBlock) { $facts.AuthenticationBlock -join "`n" } else { "" }
     }
 
-    # Summary CSV export disabled â€“ historical data is now stored in the database
-
+    # Summary CSV export disabled - historical data is now stored in the database
     # If a database path was supplied, insert the summary and interface data
     $ingestionSucceeded = $false
     if ($DatabasePath) {
@@ -1068,7 +1066,7 @@ function Invoke-DeviceLogParsing {
         try {
             # Capture the current run time for historical records.  Format it
             $runDateString = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
-            # The summary and interface SQL statements will be constructed by helper functions.  No perâ€‘field escaping is required here.
+            # The summary and interface SQL statements will be constructed by helper functions.  No per-field escaping is required here.
 
             #-------------------------------------------------------------------------
             $templates = @()
@@ -1319,12 +1317,3 @@ function Invoke-DeviceLogParsing {
 
 
 Export-ModuleMember -Function Get-LocationDetails, Get-ShowCommandBlocks, Get-DeviceMakeFromBlocks, Get-SnmpLocationFromLines, ConvertFrom-SpanningTree, Remove-OldArchiveFolder, Get-BrocadeAuthBlockFromLines, Invoke-DeviceLogParsing, Get-LogParseContext, Get-VendorTemplates, Get-DatabaseMutexName
-
-
-
-
-
-
-
-
-

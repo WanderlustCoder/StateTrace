@@ -72,7 +72,11 @@ function Get-InterfaceSiteCode {
 function Resolve-InterfaceDatabasePath {
     param([Parameter()][AllowEmptyString()][string]$Hostname)
     $site = Get-InterfaceSiteCode $Hostname
-    return (Join-Path $script:InterfaceDataDir ("{0}.accdb" -f $site))
+    try {
+        return DeviceRepositoryModule\Get-DbPathForSite -Site $site
+    } catch {
+        return (Join-Path $script:InterfaceDataDir ("{0}.accdb" -f $site))
+    }
 }
 
 function Ensure-DatabaseModule {
@@ -994,5 +998,3 @@ function Set-InterfaceViewData {
 }
 
 Export-ModuleMember -Function Get-PortSortKey,Get-InterfaceHostnames,Get-InterfaceInfo,Get-InterfaceList,New-InterfaceObjectsFromDbRow,Compare-InterfaceConfigs,Get-InterfaceConfiguration,Get-ConfigurationTemplates,Set-InterfaceViewData,Get-SpanningTreeInfo,New-InterfacesView
-
-

@@ -74,10 +74,29 @@ function Get-SiteFromHostname {
 function Get-DbPathForSite {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$Site)
+
     $siteCode = ('' + $Site).Trim()
     if ([string]::IsNullOrWhiteSpace($siteCode)) { $siteCode = 'Unknown' }
+
     $dataDir = Get-DataDirectoryPath
-    return (Join-Path $dataDir ("{0}.accdb" -f $siteCode))
+    $prefix = $siteCode
+    $dashIndex = $prefix.IndexOf('-')
+    if ($dashIndex -gt 0) { $prefix = $prefix.Substring(0, $dashIndex) }
+
+    $invalidChars = [System.IO.Path]::GetInvalidFileNameChars()
+    foreach ($ch in $invalidChars) {
+        $prefix = $prefix.Replace([string]$ch, '_')
+    }
+    if ([string]::IsNullOrWhiteSpace($prefix)) { $prefix = 'Unknown' }
+
+    $modernDir = Join-Path $dataDir $prefix
+    $modernPath = Join-Path $modernDir ("{0}.accdb" -f $siteCode)
+    $legacyPath = Join-Path $dataDir ("{0}.accdb" -f $siteCode)
+
+    if (Test-Path -LiteralPath $modernPath) { return $modernPath }
+    if (Test-Path -LiteralPath $legacyPath) { return $legacyPath }
+
+    return $modernPath
 }
 
 function Get-DbPathForHost {
@@ -92,7 +111,7 @@ function Get-AllSiteDbPaths {
     param()
     $dataDir = Get-DataDirectoryPath
     if (-not (Test-Path $dataDir)) { return @() }
-    $files = Get-ChildItem -Path $dataDir -Filter '*.accdb' -File
+    $files = Get-ChildItem -Path $dataDir -Filter '*.accdb' -File -Recurse
     $list = New-Object 'System.Collections.Generic.List[string]'
     foreach ($f in $files) { [void]$list.Add($f.FullName) }
     return $list.ToArray()
@@ -1050,8 +1069,3 @@ function Get-SpanningTreeInfo {
     return $list.ToArray()
 }
 Export-ModuleMember -Function Get-DataDirectoryPath, Get-SiteFromHostname, Get-DbPathForSite, Get-DbPathForHost, Get-AllSiteDbPaths, Clear-SiteInterfaceCache, Update-SiteZoneCache, Get-GlobalInterfaceSnapshot, Update-GlobalInterfaceList, Get-InterfacesForSite, Get-InterfaceInfo, Get-InterfaceConfiguration, Get-SpanningTreeInfo, Get-InterfacesForHostsBatch, Invoke-ParallelDbQuery, Import-DatabaseModule
-
-
-
-
-

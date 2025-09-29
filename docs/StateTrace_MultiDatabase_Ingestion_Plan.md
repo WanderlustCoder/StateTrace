@@ -19,8 +19,8 @@
 
 ## Workstream A: Database Topology & Scheduling
 1. **Site Directory Structure**
-   - Group site databases by leading site prefix (e.g., `Data/WLLS/WLLS.accdb`) to reduce single-directory congestion.
-   - Update `DeviceRepositoryModule::Get-DbPathForSite` to honour the new layout (backwards-compatible fallback).
+   - [Done - 2025-09-29] Site databases now live under `Data/<prefix>/<Site>.accdb` (existing root files have been migrated).
+   - [Done - 2025-09-29] `DeviceRepositoryModule::Get-DbPathForSite` prefers the grouped layout with automatic fallback to legacy paths.
 2. **Ingestion Scheduler**
    - [Done - 2025-09-28] ParserRunspaceModule now queues device files per site and enforces a configurable per-site worker limit.
    - Next: capture scheduler metrics (queued vs. active jobs) for telemetry visibility.
