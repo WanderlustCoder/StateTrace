@@ -29,8 +29,8 @@
 1. **Change Detection**
    - [Done - 2025-09-28] SHA-256 hashes now drive per-site ingestion history (`Data/IngestionHistory/<Site>.json`); unchanged bundles are skipped before parsing.
 2. **Incremental Updates**
-   - Split large interface writes into deltas by comparing current parsed set with the last snapshot before executing delete/insert.
-   - Consider staging tables (`Interfaces_Staging`) to batch upserts and swap via transactions.
+   - [Done - 2025-09-28] Parser persistence now diffs interfaces per-port, issuing targeted deletes/inserts instead of wiping the table each run.
+   - Next: evaluate staging tables (`Interfaces_Staging`) for batching and lock reduction.
 3. **Adaptive Runspace Pool**
    - Dynamically size runspace pool based on CPU count and current queue length.
    - Expose configuration in `StateTraceSettings.json` (e.g., `MaxConcurrentSites`, `MaxWorkersPerSite`).

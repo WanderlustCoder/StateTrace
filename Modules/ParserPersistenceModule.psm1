@@ -85,6 +85,7 @@ function Update-DeviceSummaryInDb {
     }
 }
 
+
 function Update-InterfacesInDb {
     [CmdletBinding()]
     param(
@@ -94,60 +95,85 @@ function Update-InterfacesInDb {
         [Parameter(Mandatory=$true)][string]$RunDateString,
         [Parameter(Mandatory=$false)][object[]]$Templates
     )
-    # Escape hostname once for reuse
+
     $escHostname = $Hostname -replace "'", "''"
-    # Delete existing interface rows for this host using a retry loop to
-    $delSql = "DELETE FROM Interfaces WHERE Hostname = '$escHostname'"
-    $deleted = $false
-    for ($attempt = 1; $attempt -le 3; $attempt++) {
-        try {
-            $Connection.Execute($delSql) | Out-Null
-            $deleted = $true
-            break
-        } catch {
-            if ($attempt -lt 3) {
-                Start-Sleep -Milliseconds 200
-            } else {
-                Write-Warning "Failed to delete old interface rows for host ${Hostname}: $($_.Exception.Message)"
-            }
-        }
-    }
-    # Determine which interface collection to use
+
     $ifaceRecords = $null
     if ($Facts.PSObject.Properties.Name -contains 'InterfacesCombined') {
         $ifaceRecords = $Facts.InterfacesCombined
     } elseif ($Facts.PSObject.Properties.Name -contains 'Interfaces') {
         $ifaceRecords = $Facts.Interfaces
     }
-    if (-not $ifaceRecords) { return }
-    # Prepare run date literal for history table
+    if (-not $ifaceRecords) { $ifaceRecords = @() }
+
+    $existingRows = @{}
+    $selectSql = "SELECT Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, PortColor, ConfigStatus, ToolTip FROM Interfaces WHERE Hostname = '$escHostname'"
+    $recordset = $null
+    try {
+        $recordset = $Connection.Execute($selectSql)
+        if ($recordset -and $recordset.State -eq 1) {
+            while (-not $recordset.EOF) {
+                $portValue = '' + ($recordset.Fields.Item('Port').Value)
+                if (-not [string]::IsNullOrWhiteSpace($portValue)) {
+                    $normalizedPort = $portValue.Trim()
+                    $existingRows[$normalizedPort] = [PSCustomObject]@{
+                        Name      = '' + ($recordset.Fields.Item('Name').Value)
+                        Status    = '' + ($recordset.Fields.Item('Status').Value)
+                        VLAN      = '' + ($recordset.Fields.Item('VLAN').Value)
+                        Duplex    = '' + ($recordset.Fields.Item('Duplex').Value)
+                        Speed     = '' + ($recordset.Fields.Item('Speed').Value)
+                        Type      = '' + ($recordset.Fields.Item('Type').Value)
+                        Learned   = '' + ($recordset.Fields.Item('LearnedMACs').Value)
+                        AuthState = '' + ($recordset.Fields.Item('AuthState').Value)
+                        AuthMode  = '' + ($recordset.Fields.Item('AuthMode').Value)
+                        AuthClient= '' + ($recordset.Fields.Item('AuthClientMAC').Value)
+                        Template  = '' + ($recordset.Fields.Item('AuthTemplate').Value)
+                        Config    = '' + ($recordset.Fields.Item('Config').Value)
+                        PortColor = '' + ($recordset.Fields.Item('PortColor').Value)
+                        StatusTag = '' + ($recordset.Fields.Item('ConfigStatus').Value)
+                        ToolTip   = '' + ($recordset.Fields.Item('ToolTip').Value)
+                    }
+                }
+                $recordset.MoveNext() | Out-Null
+            }
+        }
+    } catch {
+        $existingRows = @{}
+    } finally {
+        if ($recordset) {
+            try { $recordset.Close() } catch { }
+        }
+    }
+
+    $toInsert = New-Object 'System.Collections.Generic.List[object]'
+    $toUpdate = New-Object 'System.Collections.Generic.List[object]'
+    $seenPorts = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+
     $runDateLiteral = "#$RunDateString#"
+
     foreach ($iface in $ifaceRecords) {
-        # Extract scalar fields safely
-        $port   = '' + $iface.Port
+        if (-not $iface) { continue }
+
+        $port = '' + $iface.Port
+        if ([string]::IsNullOrWhiteSpace($port)) { continue }
+        $normalizedPort = $port.Trim()
+        $seenPorts.Add($normalizedPort) | Out-Null
+
         $name   = '' + $iface.Name
         $status = '' + $iface.Status
         $vlan   = '' + $iface.VLAN
         $duplex = '' + $iface.Duplex
         $speed  = '' + $iface.Speed
         $type   = '' + $iface.Type
-        # Normalize LearnedMACs handling so that both strings and arrays
-        # are written correctly.  Prefer the full list property when
-        # provided; otherwise join array elements or accept the string as-is.
+
         $learned = ''
         if ($iface.PSObject.Properties.Name -contains 'LearnedMACsFull' -and ($iface.LearnedMACsFull)) {
-            # The vendor module provided an explicit comma-separated string of
-            # all learned MACs; use it directly.
             $learned = '' + $iface.LearnedMACsFull
         } elseif ($iface.PSObject.Properties.Name -contains 'LearnedMACs') {
             $lm = $iface.LearnedMACs
             if ($lm -is [string]) {
-                # Already a single MAC string; assign as-is
                 $learned = $lm
-            } elseif ($lm -ne $null) {
-                # Join a list of MACs into a comma-separated string.  Filter out
-                # null or empty entries to avoid extraneous commas.  Use a
-                # strongly typed list instead of a Where-Object pipeline.
+            } elseif ($lm) {
                 $macList = New-Object 'System.Collections.Generic.List[string]'
                 foreach ($mac in $lm) {
                     if ($mac -and $mac -ne '') { [void]$macList.Add($mac) }
@@ -155,27 +181,18 @@ function Update-InterfacesInDb {
                 $learned = [string]::Join(',', $macList.ToArray())
             }
         }
+
         $authState = ''
-        if ($iface.PSObject.Properties.Name -contains 'AuthState') {
-            $authState = $iface.AuthState
-        }
+        if ($iface.PSObject.Properties.Name -contains 'AuthState') { $authState = '' + $iface.AuthState }
         $authMode = ''
-        if ($iface.PSObject.Properties.Name -contains 'AuthMode') {
-            $authMode = $iface.AuthMode
-        }
+        if ($iface.PSObject.Properties.Name -contains 'AuthMode') { $authMode = '' + $iface.AuthMode }
         $authClient = ''
-        if ($iface.PSObject.Properties.Name -contains 'AuthClientMAC') {
-            $authClient = $iface.AuthClientMAC
-        }
+        if ($iface.PSObject.Properties.Name -contains 'AuthClientMAC') { $authClient = '' + $iface.AuthClientMAC }
         $authTemplate = ''
-        if ($iface.PSObject.Properties.Name -contains 'AuthTemplate') {
-            $authTemplate = $iface.AuthTemplate
-        }
+        if ($iface.PSObject.Properties.Name -contains 'AuthTemplate') { $authTemplate = '' + $iface.AuthTemplate }
+
         $configText = ''
-        if ($iface.PSObject.Properties.Name -contains 'Config') {
-            $configText = $iface.Config
-        }
-        # If the config is empty and this is a Brocade device, substitute
+        if ($iface.PSObject.Properties.Name -contains 'Config') { $configText = '' + $iface.Config }
         if (-not $configText -or ($configText -is [string] -and $configText.Trim() -eq '')) {
             if ($Facts -and $Facts.Make -eq 'Brocade') {
                 if ($Facts.PSObject.Properties.Name -contains 'AuthenticationBlock' -and $Facts.AuthenticationBlock) {
@@ -183,10 +200,10 @@ function Update-InterfacesInDb {
                 }
             }
         }
-        # Compose a tooltip combining the template name and the raw config
+
         $toolTip = "AuthTemplate: $authTemplate"
         if ($configText) { $toolTip = "$toolTip`n`n$configText" }
-        # Compute compliance fields based on templates
+
         $portColor    = 'Gray'
         $configStatus = 'Mismatch'
         if ($Templates) {
@@ -201,6 +218,7 @@ function Update-InterfacesInDb {
                         if ($al -ieq $authTemplate) { $aliasMatch = $true; break }
                     }
                 }
+
                 if ($nameMatch -or $aliasMatch) {
                     $portColor    = $tpl.color
                     $configStatus = 'Match'
@@ -208,38 +226,114 @@ function Update-InterfacesInDb {
                 }
             }
         }
-        # Escape fields for SQL
-        $escPort      = $port        -replace "'", "''"
-        $escName      = $name        -replace "'", "''"
-        $escStatus    = $status      -replace "'", "''"
-        $escDuplex    = $duplex      -replace "'", "''"
-        $escSpeed     = $speed       -replace "'", "''"
-        $escType      = $type        -replace "'", "''"
-        $escLearned   = $learned      -replace "'", "''"
-        $escState     = $authState    -replace "'", "''"
-        $escModeFld   = $authMode     -replace "'", "''"
-        $escClient    = $authClient   -replace "'", "''"
-        $escTemplate  = $authTemplate -replace "'", "''"
-        $escConfig    = $configText   -replace "'", "''"
-        $escColor     = $portColor    -replace "'", "''"
-        $escCfgStat   = $configStatus -replace "'", "''"
-        $escToolTip   = $toolTip      -replace "'", "''"
-        # Convert VLAN to numeric when possible
+
+        $newRow = [PSCustomObject]@{
+            Port       = $normalizedPort
+            Name       = $name
+            Status     = $status
+            VLAN       = '' + $vlan
+            Duplex     = $duplex
+            Speed      = $speed
+            Type       = $type
+            Learned    = $learned
+            AuthState  = $authState
+            AuthMode   = $authMode
+            AuthClient = $authClient
+            Template   = $authTemplate
+            Config     = $configText
+            PortColor  = $portColor
+            StatusTag  = $configStatus
+            ToolTip    = $toolTip
+        }
+
+        if ($existingRows.ContainsKey($normalizedPort)) {
+            $existing = $existingRows[$normalizedPort]
+            $changed = $false
+            foreach ($prop in 'Name','Status','VLAN','Duplex','Speed','Type','Learned','AuthState','AuthMode','AuthClient','Template','Config','PortColor','StatusTag','ToolTip') {
+                $newValue = '' + $newRow.$prop
+                $existingValue = '' + $existing.$prop
+                if (-not [System.StringComparer]::Ordinal.Equals($newValue, $existingValue)) {
+                    $changed = $true
+                    break
+                }
+            }
+
+            if ($changed) {
+                $toUpdate.Add($newRow) | Out-Null
+            }
+        } else {
+            $toInsert.Add($newRow) | Out-Null
+        }
+    }
+
+    $toDelete = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($existingPort in $existingRows.Keys) {
+        if (-not $seenPorts.Contains($existingPort)) {
+            $toDelete.Add($existingPort) | Out-Null
+        }
+    }
+
+    if ($toDelete.Count -gt 0) {
+        $batch = New-Object 'System.Collections.Generic.List[string]'
+        foreach ($portToRemove in $toDelete) {
+            $batch.Add($portToRemove) | Out-Null
+            if ($batch.Count -ge 50) {
+                $escaped = @()
+                foreach ($item in $batch) { $escaped += "'" + ($item -replace "'", "''") + "'" }
+                $deleteSql = "DELETE FROM Interfaces WHERE Hostname = '$escHostname' AND Port IN (" + ([string]::Join(',', $escaped)) + ")"
+                try { $Connection.Execute($deleteSql) | Out-Null } catch { Write-Warning "Failed to delete stale port ${Hostname}/${item}: $($_.Exception.Message)" }
+                $batch.Clear()
+            }
+        }
+
+        if ($batch.Count -gt 0) {
+            $escaped = @()
+            foreach ($item in $batch) { $escaped += "'" + ($item -replace "'", "''") + "'" }
+            $deleteSql = "DELETE FROM Interfaces WHERE Hostname = '$escHostname' AND Port IN (" + ([string]::Join(',', $escaped)) + ")"
+            try { $Connection.Execute($deleteSql) | Out-Null } catch { Write-Warning "Failed to delete stale ports for host ${Hostname}: $($_.Exception.Message)" }
+        }
+    }
+
+    function Add-InterfaceRow {
+        param(
+            [object]$Row
+        )
+
+        $escPort      = $Row.Port       -replace "'", "''"
+        $escName      = $Row.Name       -replace "'", "''"
+        $escStatus    = $Row.Status     -replace "'", "''"
+        $escDuplex    = $Row.Duplex     -replace "'", "''"
+        $escSpeed     = $Row.Speed      -replace "'", "''"
+        $escType      = $Row.Type       -replace "'", "''"
+        $escLearned   = $Row.Learned    -replace "'", "''"
+        $escState     = $Row.AuthState  -replace "'", "''"
+        $escModeFld   = $Row.AuthMode   -replace "'", "''"
+        $escClient    = $Row.AuthClient -replace "'", "''"
+        $escTemplate  = $Row.Template   -replace "'", "''"
+        $escConfig    = $Row.Config     -replace "'", "''"
+        $escColor     = $Row.PortColor  -replace "'", "''"
+        $escCfgStat   = $Row.StatusTag  -replace "'", "''"
+        $escToolTip   = $Row.ToolTip    -replace "'", "''"
+
         $vlanNumeric = 0
-        [void][int]::TryParse($vlan, [ref]$vlanNumeric)
-        # Build insert SQL for Interfaces and InterfaceHistory
+        [void][int]::TryParse($Row.VLAN, [ref]$vlanNumeric)
+
         $ifaceSql = "INSERT INTO Interfaces (Hostname, Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, PortColor, ConfigStatus, ToolTip) VALUES ('$escHostname', '$escPort', '$escName', '$escStatus', $vlanNumeric, '$escDuplex', '$escSpeed', '$escType', '$escLearned', '$escState', '$escModeFld', '$escClient', '$escTemplate', '$escConfig', '$escColor', '$escCfgStat', '$escToolTip')"
-        try {
-            $Connection.Execute($ifaceSql) | Out-Null
-        } catch {
-            Write-Warning "Failed to insert interface record for host ${Hostname} port ${port}: $($_.Exception.Message)"
-        }
+        try { $Connection.Execute($ifaceSql) | Out-Null } catch { Write-Warning "Failed to insert interface record for host ${Hostname} port ${Row.Port}: $($_.Exception.Message)" }
+
         $histIfaceSql = "INSERT INTO InterfaceHistory (Hostname, RunDate, Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, PortColor, ConfigStatus, ToolTip) VALUES ('$escHostname', $runDateLiteral, '$escPort', '$escName', '$escStatus', $vlanNumeric, '$escDuplex', '$escSpeed', '$escType', '$escLearned', '$escState', '$escModeFld', '$escClient', '$escTemplate', '$escConfig', '$escColor', '$escCfgStat', '$escToolTip')"
-        try {
-            $Connection.Execute($histIfaceSql) | Out-Null
-        } catch {
-            Write-Warning "Failed to insert interface history for host ${Hostname} port ${port}: $($_.Exception.Message)"
-        }
+        try { $Connection.Execute($histIfaceSql) | Out-Null } catch { Write-Warning "Failed to insert interface history for host ${Hostname} port ${Row.Port}: $($_.Exception.Message)" }
+    }
+
+    foreach ($row in $toInsert) {
+        Add-InterfaceRow -Row $row
+    }
+
+    foreach ($row in $toUpdate) {
+        $escPortSingle = $row.Port -replace "'", "''"
+        $deleteSql = "DELETE FROM Interfaces WHERE Hostname = '$escHostname' AND Port = '$escPortSingle'"
+        try { $Connection.Execute($deleteSql) | Out-Null } catch { Write-Warning "Failed to clear existing port ${Hostname}/${row.Port}: $($_.Exception.Message)" }
+        Add-InterfaceRow -Row $row
     }
 }
 
