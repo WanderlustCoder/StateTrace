@@ -37,8 +37,7 @@
 
 ## Workstream C: Access Write Optimisation
 1. **Connection Reuse**
-   - Add a connection cache per database path with time-based expiration to avoid repeated ACE initialisation.
-   - Guard with `Mutex`/`SemaphoreSlim` to stay thread-safe.
+   - [Done - 2025-09-28] Parser now acquires cached ADODB connections per database with configurable TTL; connections close automatically when idle.
 2. **Parameterized Statements**
    - Refactor persistence helpers (`Update-DeviceSummaryInDb`, `Update-InterfacesInDb`) to use parameterized `ADODB.Command` objects for repeated inserts, reducing parsing overhead.
 3. **Transaction Tuning**

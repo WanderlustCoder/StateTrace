@@ -121,5 +121,127 @@ Describe "DeviceLogParserModule" {
         }
     }
 
+
+    Context "Get-CachedDbConnection" {
+        function Invoke-InModule {
+            param([Parameter(Mandatory)][ScriptBlock]$ScriptBlock, [object[]]$Arguments = @())
+            $module = Get-Module DeviceLogParserModule
+            if (-not $module) { throw "DeviceLogParserModule is not loaded." }
+            $result = $module.Invoke($ScriptBlock, $Arguments)
+            if ($null -eq $result) { return $null }
+            if ($result -is [System.Collections.IList]) {
+                if ($result.Count -eq 0) { return $null }
+                return $result[0]
+            }
+            return $result
+        }
+
+        function Invoke-ConnectionMock {
+            param([string]$FailPattern)
+            Invoke-InModule { param($value) $script:ConnectionMockFailPattern = $value } @($FailPattern)
+            Mock -ModuleName DeviceLogParserModule -CommandName New-Object -ParameterFilter { $PSBoundParameters.ContainsKey('ComObject') -and $ComObject -eq 'ADODB.Connection' } -MockWith {
+                $prop = [pscustomobject]@{ Value = 0 }
+                $properties = [pscustomobject]@{ ValueHolder = $prop }
+                $properties | Add-Member -MemberType ScriptMethod -Name Item -Value {
+                    param($name)
+                    if ($name -eq 'Jet OLEDB:Transaction Commit Mode') { return $this.ValueHolder }
+                    return $null
+                }
+                $conn = [pscustomobject]@{
+                    State = 0
+                    Properties = $properties
+                    LastConnectionString = $null
+                    CloseCalls = 0
+                    FailPattern = $script:ConnectionMockFailPattern
+                }
+                $conn | Add-Member -MemberType ScriptMethod -Name Open -Value {
+                    param($connStr)
+                    $this.LastConnectionString = $connStr
+                    if ($this.FailPattern -and ($connStr -match $this.FailPattern)) { throw [System.Exception]::new('provider failure') }
+                    $this.State = 1
+                }
+                $conn | Add-Member -MemberType ScriptMethod -Name Close -Value {
+                    $this.State = 0
+                    $this.CloseCalls++
+                }
+                return $conn
+            }
+        }
+
+        BeforeEach {
+            Invoke-InModule {
+                $script:ConnectionCache.Clear()
+                $script:DbProviderCache.Clear()
+                $script:ConnectionCacheTtlMinutes = 5
+                $script:ConnectionMockFailPattern = $null
+            }
+        }
+
+        AfterEach {
+            Invoke-InModule {
+                $script:ConnectionCache.Clear()
+                $script:DbProviderCache.Clear()
+                $script:ConnectionCacheTtlMinutes = 5
+                $script:ConnectionMockFailPattern = $null
+            }
+        }
+
+        It "expires idle cached connections when TTL is zero" {
+            Invoke-InModule {
+                $script:ConnectionCache.Clear()
+                $script:DbProviderCache.Clear()
+                $script:ConnectionCacheTtlMinutes = 0
+            }
+            Invoke-ConnectionMock -FailPattern 'Provider=__none__'
+            $dbPath = Join-Path ([System.IO.Path]::GetTempPath()) (([System.Guid]::NewGuid()).ToString() + '.accdb')
+            $lease = Invoke-InModule { param($path) Get-CachedDbConnection -DatabasePath $path } @($dbPath)
+            $lease.Connection.State | Should Be 1
+            Invoke-InModule { param($lease) Release-CachedDbConnection -Lease $lease } @($lease)
+            $lease.Connection.State | Should Be 0
+            $lease.Connection.CloseCalls | Should Be 1
+            $key = Invoke-InModule { param($path) Get-CanonicalDatabaseKey -DatabasePath $path } @($dbPath)
+            $entryExists = Invoke-InModule { param($cacheKey) $script:ConnectionCache.ContainsKey($cacheKey) } @($key)
+            $entryExists | Should Be False
+        }
+
+        It "removes cached connection when force removal is requested" {
+            Invoke-InModule {
+                $script:ConnectionCache.Clear()
+                $script:DbProviderCache.Clear()
+                $script:ConnectionCacheTtlMinutes = 10
+            }
+            Invoke-ConnectionMock -FailPattern 'Provider=__none__'
+            $dbPath = Join-Path ([System.IO.Path]::GetTempPath()) (([System.Guid]::NewGuid()).ToString() + '.accdb')
+            $lease1 = Invoke-InModule { param($path) Get-CachedDbConnection -DatabasePath $path } @($dbPath)
+            $initialConnection = $lease1.Connection
+            Invoke-InModule { param($lease) Release-CachedDbConnection -Lease $lease } @($lease1)
+            $lease2 = Invoke-InModule { param($path) Get-CachedDbConnection -DatabasePath $path } @($dbPath)
+            [object]::ReferenceEquals($initialConnection, $lease2.Connection) | Should Be True
+            Invoke-InModule { param($lease) Release-CachedDbConnection -Lease $lease -ForceRemove } @($lease2)
+            $initialConnection.State | Should Be 0
+            $initialConnection.CloseCalls | Should Be 1
+            $lease3 = Invoke-InModule { param($path) Get-CachedDbConnection -DatabasePath $path } @($dbPath)
+            [object]::ReferenceEquals($initialConnection, $lease3.Connection) | Should Be False
+            Invoke-InModule { param($lease) Release-CachedDbConnection -Lease $lease -ForceRemove } @($lease3)
+        }
+
+        It "falls back to next provider candidate when the first fails" {
+            Invoke-InModule {
+                $script:ConnectionCache.Clear()
+                $script:DbProviderCache.Clear()
+                $script:ConnectionCacheTtlMinutes = 5
+            }
+            Invoke-ConnectionMock -FailPattern 'Provider=Microsoft\.ACE\.OLEDB\.12\.0'
+            $dbPath = Join-Path ([System.IO.Path]::GetTempPath()) (([System.Guid]::NewGuid()).ToString() + '.accdb')
+            $providers = @('Microsoft.ACE.OLEDB.12.0','Microsoft.Jet.OLEDB.4.0')
+            $lease = Invoke-InModule { param($path,$candidates) Get-CachedDbConnection -DatabasePath $path -ProviderCandidates $candidates } @($dbPath, $providers)
+            $lease.Provider | Should Be 'Microsoft.Jet.OLEDB.4.0'
+            $lease.Connection.LastConnectionString | Should Match 'Provider=Microsoft.Jet.OLEDB.4.0'
+            $key = Invoke-InModule { param($path) Get-CanonicalDatabaseKey -DatabasePath $path } @($dbPath)
+            $cachedProvider = Invoke-InModule { param($cacheKey) if ($script:DbProviderCache.ContainsKey($cacheKey)) { $script:DbProviderCache[$cacheKey] } else { $null } } @($key)
+            $cachedProvider | Should Be 'Microsoft.Jet.OLEDB.4.0'
+            Invoke-InModule { param($lease) Release-CachedDbConnection -Lease $lease -ForceRemove } @($lease)
+        }
+    }
 }
 

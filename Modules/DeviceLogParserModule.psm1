@@ -8,6 +8,20 @@ if (-not (Get-Variable -Name DbProviderCache -Scope Script -ErrorAction Silently
 }
 
 # Cache vendor templates per runspace to avoid repeated JSON parsing.
+if (-not (Get-Variable -Name ConnectionCache -Scope Script -ErrorAction SilentlyContinue)) {
+
+    $script:ConnectionCache = [hashtable]::Synchronized(@{})
+
+}
+
+if (-not (Get-Variable -Name ConnectionCacheTtlMinutes -Scope Script -ErrorAction SilentlyContinue)) {
+
+    $script:ConnectionCacheTtlMinutes = 5
+
+}
+
+
+
 if (-not (Get-Variable -Name VendorTemplatesCache -Scope Script -ErrorAction SilentlyContinue)) {
     $script:VendorTemplatesCache = @{}
 }
@@ -155,6 +169,260 @@ function Get-FileHashHex {
         if ($sha) { $sha.Dispose() }
     }
 }
+
+function Close-StaleConnections {
+
+    [CmdletBinding()]
+
+    param()
+
+
+
+    $ttlMinutes = 5
+
+    try { if ($script:ConnectionCacheTtlMinutes -ne $null) { $ttlMinutes = [int]$script:ConnectionCacheTtlMinutes } } catch { $ttlMinutes = 5 }
+
+    if ($ttlMinutes -lt 0) { return }
+
+
+
+    $now = [DateTime]::UtcNow
+
+    $toRemove = New-Object 'System.Collections.Generic.List[string]'
+
+    foreach ($key in @($script:ConnectionCache.Keys)) {
+
+        $entry = $script:ConnectionCache[$key]
+
+        if (-not $entry) { continue }
+
+        if ($entry.RefCount -gt 0) { continue }
+
+        $last = $entry.LastUsedUtc
+
+        if (-not $last) { $last = [DateTime]::MinValue }
+
+        $elapsedMinutes = ($now - $last).TotalMinutes
+
+        if ($entry.Connection -and ($ttlMinutes -eq 0 -or $elapsedMinutes -ge $ttlMinutes)) {
+
+            try { $entry.Connection.Close() } catch { }
+
+            $entry.Connection = $null
+
+        }
+
+        if (-not $entry.Connection -and $entry.RefCount -eq 0) {
+
+            $toRemove.Add($key) | Out-Null
+
+        }
+
+    }
+
+
+
+    foreach ($key in $toRemove) {
+
+        $null = $script:ConnectionCache.Remove($key)
+
+    }
+
+}
+
+
+
+function Get-CachedDbConnection {
+
+    [CmdletBinding()]
+
+    param(
+
+        [Parameter(Mandatory)][string]$DatabasePath,
+
+        [string[]]$ProviderCandidates = @('Microsoft.ACE.OLEDB.12.0','Microsoft.Jet.OLEDB.4.0')
+
+    )
+
+
+
+    Close-StaleConnections
+
+
+
+    $key = Get-CanonicalDatabaseKey -DatabasePath $DatabasePath
+
+    if ([string]::IsNullOrWhiteSpace($key)) { throw "Invalid database path '$DatabasePath'" }
+
+
+
+    if (-not $script:ConnectionCache.ContainsKey($key)) {
+
+        $script:ConnectionCache[$key] = [PSCustomObject]@{
+
+            Connection   = $null
+
+            Provider     = $null
+
+            RefCount     = 0
+
+            LastUsedUtc  = [DateTime]::MinValue
+
+        }
+
+    }
+
+
+
+    $entry = $script:ConnectionCache[$key]
+
+    if ($entry.Connection -and $entry.Connection.State -ne 1) {
+
+        try { $entry.Connection.Close() } catch { }
+
+        $entry.Connection = $null
+
+    }
+
+
+
+    $provider = $entry.Provider
+
+    if (-not $provider -and $script:DbProviderCache.ContainsKey($key)) {
+
+        $provider = $script:DbProviderCache[$key]
+
+    }
+
+
+
+    if (-not $entry.Connection) {
+
+        $errors = New-Object 'System.Collections.Generic.List[string]'
+
+        if (-not $provider) {
+
+            foreach ($provCandidate in $ProviderCandidates) {
+
+                $testConn = $null
+
+                try {
+
+                    $testConn = New-Object -ComObject ADODB.Connection
+
+                    $testConn.Open("Provider=$provCandidate;Data Source=$DatabasePath;Mode=ReadWrite;Jet OLEDB:Database Locking Mode=1")
+
+                    $testConn.Close()
+
+                    $provider = $provCandidate
+
+                    break
+
+                } catch {
+
+                    $errors.Add("- Provider '$provCandidate': $($_.Exception.Message)") | Out-Null
+
+                    $provider = $null
+
+                } finally {
+
+                    if ($testConn) { try { $testConn.Close() } catch { } }
+
+                }
+
+            }
+
+        }
+
+
+
+        if (-not $provider) {
+
+            $detail = if ($errors.Count -gt 0) { $errors -join "`n" } else { 'No providers succeeded.' }
+
+            throw "Failed to open Access database '$DatabasePath'. Tried providers:`n$detail"
+
+        }
+
+
+
+        $entry.Connection = New-Object -ComObject ADODB.Connection
+
+        $entry.Connection.Open("Provider=$provider;Data Source=$DatabasePath;Mode=ReadWrite;Jet OLEDB:Database Locking Mode=1")
+
+        try {
+
+            $prop = $entry.Connection.Properties.Item('Jet OLEDB:Transaction Commit Mode')
+
+            if ($prop) { $prop.Value = 1 }
+
+        } catch { }
+
+        $entry.Provider = $provider
+
+        $script:DbProviderCache[$key] = $provider
+
+    }
+
+
+
+    $entry.RefCount++
+
+    $entry.LastUsedUtc = [DateTime]::UtcNow
+
+
+
+    return [PSCustomObject]@{ Connection = $entry.Connection; Key = $key; Provider = $entry.Provider }
+
+}
+
+
+
+function Release-CachedDbConnection {
+
+    [CmdletBinding()]
+
+    param(
+
+        [Parameter(Mandatory)][object]$Lease,
+
+        [switch]$ForceRemove
+
+    )
+
+
+
+    if (-not $Lease) { return }
+
+    $key = $Lease.Key
+
+    if (-not $key) { return }
+
+    if (-not $script:ConnectionCache.ContainsKey($key)) { return }
+
+    $entry = $script:ConnectionCache[$key]
+
+    if ($entry.RefCount -gt 0) { $entry.RefCount-- }
+
+    $entry.LastUsedUtc = [DateTime]::UtcNow
+
+
+
+    if ($ForceRemove -and $entry.Connection) {
+
+        try { $entry.Connection.Close() } catch { }
+
+        $entry.Connection = $null
+
+    }
+
+
+
+    Close-StaleConnections
+
+}
+
+
 
 function Get-DeviceLogContext {
     [CmdletBinding()]
@@ -637,7 +905,7 @@ function Invoke-DeviceLogParsing {
     try {
         $siteCode = DeviceRepositoryModule\Get-SiteFromHostname -Hostname $facts.Hostname -FallbackLength 4
         # Compute the absolute project root for constructing the Data directory.
-        # Compute the project root using GetFullPath instead of Resolve‑Path to
+        # Compute the project root using GetFullPath instead of Resolveâ€‘Path to
         # avoid pipeline overhead.  This is executed inside each runspace, so
         # efficiency matters when processing many logs.
         try {
@@ -655,7 +923,7 @@ function Invoke-DeviceLogParsing {
         # Ensure the database exists and has the required schema.  This helper
         # is idempotent, so calling it from multiple runspaces is safe.
         # Use a named mutex to avoid race conditions when multiple runspaces
-        # attempt to create the same per‑site database concurrently.  The mutex
+        # attempt to create the same perâ€‘site database concurrently.  The mutex
         # name is derived from the site code so that only runspaces targeting
         # the same database will block each other.  Inside the mutex, check
         # again whether the file exists before creating it.  If the file is
@@ -703,16 +971,16 @@ function Invoke-DeviceLogParsing {
     }
 
     if ($facts.PSObject.Properties.Name -contains "InterfacesCombined") {
-        # CSV export disabled – historical data is now stored in the database
+        # CSV export disabled â€“ historical data is now stored in the database
     } else {
-        # CSV export disabled – historical data is now stored in the database
+        # CSV export disabled â€“ historical data is now stored in the database
     }
 
     # Export spanning tree information if available.  The facts may contain
     if ($facts.PSObject.Properties.Name -contains 'SpanInfo') {
         $spanData = $facts.SpanInfo
         if ($spanData) {
-            # Span CSV export disabled – historical data is now stored in the database only
+            # Span CSV export disabled â€“ historical data is now stored in the database only
         }
     }
 
@@ -750,7 +1018,7 @@ function Invoke-DeviceLogParsing {
         AuthBlock        = if ($facts.PSObject.Properties.Name -contains 'AuthenticationBlock' -and $facts.AuthenticationBlock) { $facts.AuthenticationBlock -join "`n" } else { "" }
     }
 
-    # Summary CSV export disabled – historical data is now stored in the database
+    # Summary CSV export disabled â€“ historical data is now stored in the database
 
     # If a database path was supplied, insert the summary and interface data
     $ingestionSucceeded = $false
@@ -761,7 +1029,7 @@ function Invoke-DeviceLogParsing {
         try {
             # Capture the current run time for historical records.  Format it
             $runDateString = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
-            # The summary and interface SQL statements will be constructed by helper functions.  No per‑field escaping is required here.
+            # The summary and interface SQL statements will be constructed by helper functions.  No perâ€‘field escaping is required here.
 
             #-------------------------------------------------------------------------
             $templates = @()
@@ -791,132 +1059,156 @@ function Invoke-DeviceLogParsing {
                     Write-Host "[DEBUG] Acquired DB write mutex for host '$cleanHostname'" -ForegroundColor Yellow
                 }
 
-                # Establish a single connection to the database for all statements.
-                $__dbProvider = $null
-                $providerErrors = [System.Collections.Generic.List[object]]::new()
-                if ($Global:StateTraceDebug) {
-                    Write-Host "[DEBUG] Detecting available OLEDB provider for database" -ForegroundColor Yellow
-                }
-                if ($databaseKey -and $script:DbProviderCache.ContainsKey($databaseKey)) {
-                    $__dbProvider = $script:DbProviderCache[$databaseKey]
+                $connectionLease = $null
+
+                try {
+
+                    $providerCandidates = @('Microsoft.ACE.OLEDB.12.0','Microsoft.Jet.OLEDB.4.0')
+
                     if ($Global:StateTraceDebug) {
-                        Write-Host ("[DEBUG] Reusing cached provider '{0}' for database '{1}'" -f $__dbProvider, $DatabasePath) -ForegroundColor Yellow
-                    }
-                }
-                # Prefer the ACE provider when available; fall back to Jet for .mdb files.
-                if (-not $__dbProvider) {
-                    foreach ($provCandidate in @('Microsoft.ACE.OLEDB.12.0','Microsoft.Jet.OLEDB.4.0')) {
-                        $testConn = $null
-                        try {
-                            $testConn = New-Object -ComObject ADODB.Connection
-                            $testConn.Open("Provider=$provCandidate;Data Source=$DatabasePath")
-                            $testConn.Close()
-                            $__dbProvider = $provCandidate
-                            if ($Global:StateTraceDebug) {
-                                Write-Host ("[DEBUG] Provider '{0}' validated for database '{1}'" -f $__dbProvider, $DatabasePath) -ForegroundColor Yellow
-                            }
-                            break
-                        } catch {
-                            $errorMessage = $_.Exception.Message
-                            $hresult = $null
-                            try { $hresult = ('0x{0:X8}' -f $_.Exception.HResult) } catch { }
-                            $providerErrors.Add([PSCustomObject]@{
-                                Provider = $provCandidate
-                                Message  = $errorMessage
-                                HResult  = $hresult
-                            })
-                            if ($Global:StateTraceDebug) {
-                                Write-Host ("[DEBUG] Provider '{0}' test failed: {1}" -f $provCandidate, $errorMessage) -ForegroundColor Yellow
-                            }
-                        } finally {
-                            if ($testConn) {
-                                try { $testConn.Close() } catch { }
-                                try { [System.Runtime.InteropServices.Marshal]::FinalReleaseComObject($testConn) | Out-Null } catch { }
-                            }
-                        }
-                    }
-                }
 
-                if (-not $__dbProvider) {
-                    $candidateList = 'Microsoft.ACE.OLEDB.12.0, Microsoft.Jet.OLEDB.4.0'
-                    $detailText = 'No provider-specific diagnostics were captured.'
-                    if ($providerErrors.Count -gt 0) {
-                        $detailLines = foreach ($entry in $providerErrors) {
-                            $hrNote = if ($entry.HResult) { " (HRESULT=$($entry.HResult))" } else { '' }
-                            "- Provider '{0}': {1}{2}" -f $entry.Provider, $entry.Message, $hrNote
-                        }
-                        $detailText = [string]::Join([System.Environment]::NewLine, $detailLines)
-                    }
-                    throw "Failed to open Access database '$DatabasePath'. Tried providers: $candidateList.`n$detailText"
-                }
+                        Write-Host ("[DEBUG] Acquiring database connection for '{0}'" -f $DatabasePath) -ForegroundColor Yellow
 
-                if ($__dbProvider -and $databaseKey) {
-                    $script:DbProviderCache[$databaseKey] = $__dbProvider
-                }
-                $__dbConn = New-Object -ComObject ADODB.Connection
-                if ($Global:StateTraceDebug) {
-                    Write-Host "[DEBUG] Opening DB connection to '$DatabasePath' using provider '$__dbProvider'" -ForegroundColor Yellow
-                }
-                $__dbConn.Open("Provider=$__dbProvider;Data Source=$DatabasePath;Mode=ReadWrite;Jet OLEDB:Database Locking Mode=1")
-                # When using the Jet OLEDB provider, we can request synchronous
-                try {
-                    $prop = $__dbConn.Properties.Item('Jet OLEDB:Transaction Commit Mode')
-                    if ($prop) { $prop.Value = 1 }
-                } catch { }
-                # Use an explicit transaction to batch all SQL statements.  Jet/ACE
-                $__dbConn.BeginTrans()
-                try {
-                    #------------------------------------------------------------------
+                    }
 
-                    # Persist the parsed data using centralized helpers.  These
-                    $summaryCmd = Get-Command -Name 'ParserPersistenceModule\\Update-DeviceSummaryInDb' -ErrorAction SilentlyContinue
-                    if (-not $summaryCmd) { $summaryCmd = Get-Command -Name 'Update-DeviceSummaryInDb' -ErrorAction SilentlyContinue }
-                    if (-not $summaryCmd) { throw "Required parser persistence helper 'Update-DeviceSummaryInDb' is not available. Ensure ParserPersistenceModule.psm1 is imported." }
-                    $summaryParams = @{
-                        Connection      = $__dbConn
-                        Facts           = $facts
-                        Hostname        = $cleanHostname
-                        SiteCode        = $siteCode
-                        LocationDetails = $locDetails
-                        RunDateString   = $runDateString
+                    $connectionLease = Get-CachedDbConnection -DatabasePath $DatabasePath -ProviderCandidates $providerCandidates
+
+                    $__dbConn = $connectionLease.Connection
+
+                    $__dbProvider = $connectionLease.Provider
+
+                    if ($Global:StateTraceDebug) {
+
+                        Write-Host ("[DEBUG] Using provider '{0}' for database '{1}'" -f $__dbProvider, $DatabasePath) -ForegroundColor Yellow
+
                     }
-                    & $summaryCmd @summaryParams
-                    $ifaceCmd = Get-Command -Name 'ParserPersistenceModule\\Update-InterfacesInDb' -ErrorAction SilentlyContinue
-                    if (-not $ifaceCmd) { $ifaceCmd = Get-Command -Name 'Update-InterfacesInDb' -ErrorAction SilentlyContinue }
-                    if (-not $ifaceCmd) { throw "Required parser persistence helper 'Update-InterfacesInDb' is not available. Ensure ParserPersistenceModule.psm1 is imported." }
-                    $ifaceParams = @{
-                        Connection    = $__dbConn
-                        Facts         = $facts
-                        Hostname      = $cleanHostname
-                        RunDateString = $runDateString
-                        Templates     = $templates
-                    }
-                    & $ifaceCmd @ifaceParams
-                    # Commit the transaction after all operations have executed.
+
+
+
+                    $__dbConn.BeginTrans()
+
                     try {
+
+                        #------------------------------------------------------------------
+
+
+
+                        # Persist the parsed data using centralized helpers.  These
+
+                        $summaryCmd = Get-Command -Name 'ParserPersistenceModule\Update-DeviceSummaryInDb' -ErrorAction SilentlyContinue
+
+                        if (-not $summaryCmd) { $summaryCmd = Get-Command -Name 'Update-DeviceSummaryInDb' -ErrorAction SilentlyContinue }
+
+                        if (-not $summaryCmd) { throw "Required parser persistence helper 'Update-DeviceSummaryInDb' is not available. Ensure ParserPersistenceModule.psm1 is imported." }
+
+                        $summaryParams = @{
+
+                            Connection      = $__dbConn
+
+                            Facts           = $facts
+
+                            Hostname        = $cleanHostname
+
+                            SiteCode        = $siteCode
+
+                            LocationDetails = $locDetails
+
+                            RunDateString   = $runDateString
+
+                        }
+
+                        & $summaryCmd @summaryParams
+
+                        $ifaceCmd = Get-Command -Name 'ParserPersistenceModule\Update-InterfacesInDb' -ErrorAction SilentlyContinue
+
+                        if (-not $ifaceCmd) { $ifaceCmd = Get-Command -Name 'Update-InterfacesInDb' -ErrorAction SilentlyContinue }
+
+                        if (-not $ifaceCmd) { throw "Required parser persistence helper 'Update-InterfacesInDb' is not available. Ensure ParserPersistenceModule.psm1 is imported." }
+
+                        $ifaceParams = @{
+
+                            Connection    = $__dbConn
+
+                            Facts         = $facts
+
+                            Hostname      = $cleanHostname
+
+                            RunDateString = $runDateString
+
+                            Templates     = $templates
+
+                        }
+
+                        & $ifaceCmd @ifaceParams
+
+                        # Commit the transaction after all operations have executed.
+
                         if ($Global:StateTraceDebug) {
+
                             Write-Host "[DEBUG] Committing transaction for host '$cleanHostname'" -ForegroundColor Yellow
+
                         }
+
                         $__dbConn.CommitTrans()
+
                         try {
+
                             $jet = New-Object -ComObject JRO.JetEngine
+
                             $jet.RefreshCache($__dbConn)
+
                             if ($Global:StateTraceDebug) {
+
                                 Write-Host "[DEBUG] Refreshed Jet cache after commit for host '$cleanHostname'" -ForegroundColor Yellow
+
                             }
+
                         } catch {}
+
                         $ingestionSucceeded = $true
+
                     } catch {
+
                         if ($Global:StateTraceDebug) {
-                            Write-Host "[DEBUG] Commit failed for host '$cleanHostname', rolling back" -ForegroundColor Yellow
+
+                            Write-Host ("[DEBUG] Transaction failed for host '{0}', rolling back: {1}" -f $cleanHostname, $_.Exception.Message) -ForegroundColor Yellow
+
                         }
+
                         try { $__dbConn.RollbackTrans() } catch {}
+
                         throw
+
                     }
+
+                } catch {
+
+                    if ($connectionLease) {
+
+                        Release-CachedDbConnection -Lease $connectionLease -ForceRemove
+
+                        $connectionLease = $null
+
+                    }
+
+                    if ($Global:StateTraceDebug) {
+
+                        Write-Host ("[DEBUG] Database operation failed for host '{0}': {1}" -f $cleanHostname, $_.Exception.Message) -ForegroundColor Yellow
+
+                    }
+
+                    throw
+
                 } finally {
-                    if ($__dbConn -and $__dbConn.State -ne 0) {
-                        try { $__dbConn.Close() } catch {}
+
+                    if ($connectionLease) {
+
+                        Release-CachedDbConnection -Lease $connectionLease
+
+                        $connectionLease = $null
+
                     }
+
                 }
             } finally {
                 # Release the mutex to allow other runspaces to write.  Always
