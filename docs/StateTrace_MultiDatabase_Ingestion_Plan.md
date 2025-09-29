@@ -79,3 +79,7 @@
 - [Done - 2025-09-28] Ingestion scheduler implemented (per-site queue + worker gating).
 - Define schema for ingestion history table and update persistence module accordingly.
 - Draft automation scripts for compaction and size telemetry; integrate with upcoming dashboard work.
+
+## Configuration
+- Parser concurrency can be tuned via `Data/StateTraceSettings.json` under `ParserSettings` (keys: `MaxWorkersPerSite`, `MaxActiveSites`).
+- Defaults are conservative (`MaxWorkersPerSite=1`, `MaxActiveSites=1`) to avoid ACE provider contention; increase gradually while monitoring ingestion telemetry.

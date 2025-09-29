@@ -44,7 +44,49 @@ function Invoke-StateTraceParsing {
         Write-Warning "No device logs were extracted; the parser will not run."
     }
 
+    $parserSettings = $null
+    $maxWorkersPerSite = 1
+    $maxActiveSites = 1
+    try {
+        $settingsPath = Join-Path $projectRoot '..\Data\StateTraceSettings.json'
+        if (Test-Path -LiteralPath $settingsPath) {
+            $raw = Get-Content -LiteralPath $settingsPath -Raw
+            if (-not [string]::IsNullOrWhiteSpace($raw)) {
+                try { $settings = $raw | ConvertFrom-Json } catch { $settings = $null }
+                if ($settings) {
+                    if ($settings.PSObject.Properties.Name -contains 'ParserSettings') {
+                        $parserSettings = $settings.ParserSettings
+                    } elseif ($settings.PSObject.Properties.Name -contains 'Parser') {
+                        $parserSettings = $settings.Parser
+                    }
+                }
+            }
+        }
+    } catch { }
+
+    if ($parserSettings) {
+        if ($parserSettings.PSObject.Properties.Name -contains 'MaxWorkersPerSite') {
+            try {
+                $val = [int]$parserSettings.MaxWorkersPerSite
+                if ($val -gt 0) { $maxWorkersPerSite = $val }
+                elseif ($val -eq 0) { $maxWorkersPerSite = 0 }
+            } catch { }
+        }
+        if ($parserSettings.PSObject.Properties.Name -contains 'MaxActiveSites') {
+            try {
+                $val = [int]$parserSettings.MaxActiveSites
+                if ($val -gt 0) { $maxActiveSites = $val }
+                elseif ($val -eq 0) { $maxActiveSites = 0 }
+            } catch { }
+        }
+    }
+
     $threadCount = [Math]::Min(8, [Environment]::ProcessorCount)
+    if ($maxActiveSites -gt 0) {
+        $threadCount = [Math]::Min($threadCount, [Math]::Max(1, $maxActiveSites * [Math]::Max(1, $maxWorkersPerSite)))
+    } elseif ($maxWorkersPerSite -gt 0) {
+        $threadCount = [Math]::Min($threadCount, [Math]::Max(1, $maxWorkersPerSite))
+    }
 
     $dbPath = $null
     if ($PSBoundParameters.ContainsKey('DatabasePath') -and $DatabasePath) {
@@ -57,6 +99,8 @@ function Invoke-StateTraceParsing {
         DatabasePath = $dbPath
         ModulesPath = $modulesPath
         ArchiveRoot = $archiveRoot
+        MaxWorkersPerSite = $maxWorkersPerSite
+        MaxActiveSites    = $maxActiveSites
     }
     if ($Synchronous) { $jobsParams.Synchronous = $true }
 
