@@ -79,5 +79,5 @@
 - Draft automation scripts for compaction and size telemetry; integrate with upcoming dashboard work.
 
 ## Configuration
-- Parser concurrency can be tuned via `Data/StateTraceSettings.json` under `ParserSettings` (keys: `MaxWorkersPerSite`, `MaxActiveSites`).
-- Defaults are conservative (`MaxWorkersPerSite=1`, `MaxActiveSites=1`) to avoid ACE provider contention; increase gradually while monitoring ingestion telemetry.
+- Parser concurrency can be tuned via `Data/StateTraceSettings.json` under `ParserSettings` (keys: `AutoScaleConcurrency`, `MaxWorkersPerSite`, `MaxActiveSites`, `MaxRunspaceCeiling`, `MinRunspaceCount`, `JobsPerThread`, `EnableAdaptiveThreads`).
+- Set `AutoScaleConcurrency` to `true` (and leave numeric limits at `0`) to let the parser size the runspace pool from CPU count and the current queue; disable it when you need explicit caps and increase them gradually while monitoring ingestion telemetry.

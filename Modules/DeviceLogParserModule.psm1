@@ -765,6 +765,7 @@ function Invoke-DeviceLogParsing {
     }
 
     $skipProcessing = $false
+    $matchedHistoryRecord = $null
     if ($fileHash) {
         $historyMutex = $null
         try {
@@ -788,6 +789,7 @@ function Invoke-DeviceLogParsing {
             foreach ($record in $historyRecords) {
                 if ($record.Hostname -eq $historyKey -and $record.FileHash -eq $fileHash -and ([long]$record.SourceLength -eq $sourceLength)) {
                     $skipProcessing = $true
+                    $matchedHistoryRecord = $record
                     break
                 }
             }
@@ -797,10 +799,47 @@ function Invoke-DeviceLogParsing {
     }
 
     if ($skipProcessing) {
-        if ($Global:StateTraceDebug) {
-            Write-Host "[DEBUG] Skipping '$historyKey' because log hash matches previous ingestion" -ForegroundColor Yellow
+        # Ensure we do not skip when the per-site database is missing.
+        $expectedDbPath = $null
+        $dbPathCmd = $null
+        try {
+            $dbPathCmd = Get-Command -Name 'DeviceRepositoryModule\Get-DbPathForSite' -ErrorAction SilentlyContinue
+            if (-not $dbPathCmd) { $dbPathCmd = Get-Command -Name 'Get-DbPathForSite' -ErrorAction SilentlyContinue }
+        } catch { $dbPathCmd = $null }
+        if ($dbPathCmd) {
+            $siteForDb = $null
+            if ($matchedHistoryRecord -and $matchedHistoryRecord.PSObject.Properties.Name -contains 'Site' -and -not [string]::IsNullOrWhiteSpace($matchedHistoryRecord.Site)) {
+                $siteForDb = '' + $matchedHistoryRecord.Site
+            } elseif (-not [string]::IsNullOrWhiteSpace($historyContext.SiteKey)) {
+                $siteForDb = '' + $historyContext.SiteKey
+            }
+            if (-not [string]::IsNullOrWhiteSpace($siteForDb)) {
+                try {
+                    $candidatePath = & $dbPathCmd -Site $siteForDb
+                    if ($candidatePath) { $expectedDbPath = $candidatePath }
+                } catch { }
+            }
         }
-        return
+        if (-not $expectedDbPath -and $DatabasePath) {
+            try { $expectedDbPath = [System.IO.Path]::GetFullPath($DatabasePath) } catch { $expectedDbPath = $DatabasePath }
+        }
+        $shouldReprocess = $false
+        if ($expectedDbPath) {
+            try {
+                if (-not (Test-Path -LiteralPath $expectedDbPath)) { $shouldReprocess = $true }
+            } catch { $shouldReprocess = $true }
+        }
+        if ($shouldReprocess) {
+            $skipProcessing = $false
+            if ($Global:StateTraceDebug) {
+                Write-Host ("[DEBUG] Reprocessing '{0}' because database '{1}' is missing" -f $historyKey, $expectedDbPath) -ForegroundColor Yellow
+            }
+        } else {
+            if ($Global:StateTraceDebug) {
+                Write-Host "[DEBUG] Skipping '$historyKey' because log hash matches previous ingestion" -ForegroundColor Yellow
+            }
+            return
+        }
     }
 
     $logContext = Get-DeviceLogContext -FilePath $FilePath
