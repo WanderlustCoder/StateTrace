@@ -136,6 +136,26 @@ function Get-DatabaseMutexName {
     return "StateTraceDbWriteMutex_$hash"
 }
 
+function Get-FileHashHex {
+    param([Parameter(Mandatory)][string]$FilePath)
+
+    if (-not (Test-Path -LiteralPath $FilePath)) {
+        throw "File '$FilePath' not found"
+    }
+
+    $stream = $null
+    $sha    = $null
+    try {
+        $stream = [System.IO.File]::Open($FilePath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::Read)
+        $sha = [System.Security.Cryptography.SHA256]::Create()
+        $hashBytes = $sha.ComputeHash($stream)
+        return ([System.BitConverter]::ToString($hashBytes) -replace '-', '').ToLowerInvariant()
+    } finally {
+        if ($stream) { $stream.Dispose() }
+        if ($sha) { $sha.Dispose() }
+    }
+}
+
 function Get-DeviceLogContext {
     [CmdletBinding()]
     param(
@@ -428,10 +448,93 @@ function Invoke-DeviceLogParsing {
         [string]$DatabasePath
     )
 
-    # Emit debug message only when StateTrace debugging is enabled
     if ($Global:StateTraceDebug) {
         Write-Host "[DEBUG] Parsing file '$FilePath'" -ForegroundColor Yellow
     }
+
+    try {
+        $projectRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+    } catch {
+        $projectRoot = (Split-Path -Parent $PSScriptRoot)
+    }
+
+    $historyKey = [System.IO.Path]::GetFileNameWithoutExtension($FilePath)
+    if ([string]::IsNullOrWhiteSpace($historyKey)) { $historyKey = 'UnknownHost' }
+    $siteKey = $historyKey
+    try {
+        $siteKey = DeviceRepositoryModule\Get-SiteFromHostname -Hostname $historyKey -FallbackLength 4
+    } catch { }
+    if ([string]::IsNullOrWhiteSpace($siteKey)) { $siteKey = 'Unknown' }
+    $sanitizedSiteKey = ($siteKey -replace '[^A-Za-z0-9_-]', '_')
+
+    $historyRoot = Join-Path $projectRoot 'Data\IngestionHistory'
+    try { [System.IO.Directory]::CreateDirectory($historyRoot) | Out-Null } catch { }
+    $historyFilePath = Join-Path $historyRoot ("{0}.json" -f $sanitizedSiteKey)
+    $historyMutexName = "StateTraceHistory_{0}" -f $sanitizedSiteKey
+
+    $fileInfo = $null
+    $fileHash = $null
+    $sourceLength = 0
+    $sourceTimestampUtc = $null
+    try {
+        $fileInfo = Get-Item -LiteralPath $FilePath -ErrorAction Stop
+        $sourceLength = [long]$fileInfo.Length
+        $sourceTimestampUtc = $fileInfo.LastWriteTimeUtc
+        try { $fileHash = Get-FileHashHex -FilePath $FilePath } catch { $fileHash = $null }
+    } catch {
+        Write-Warning ("Failed to read file details for {0}: {1}" -f $FilePath, $_.Exception.Message)
+    }
+
+    $historyContext = [PSCustomObject]@{
+        Key = $historyKey
+        SiteKey = $siteKey
+        SanitizedSiteKey = $sanitizedSiteKey
+        FilePath = $historyFilePath
+        MutexName = $historyMutexName
+        FileHash = $fileHash
+        SourceLength = $sourceLength
+        SourceTimestampUtc = $sourceTimestampUtc
+    }
+
+    $skipProcessing = $false
+    if ($fileHash) {
+        $historyMutex = $null
+        try {
+            $historyMutex = New-Object System.Threading.Mutex($false, $historyMutexName)
+            $null = $historyMutex.WaitOne()
+
+            $historyRecords = @()
+            if (Test-Path -LiteralPath $historyFilePath) {
+                try {
+                    $rawHistory = Get-Content -LiteralPath $historyFilePath -Raw
+                    if (-not [string]::IsNullOrWhiteSpace($rawHistory)) {
+                        $parsed = $rawHistory | ConvertFrom-Json
+                        if ($parsed) {
+                            if ($parsed -is [System.Array]) { $historyRecords = @($parsed) }
+                            else { $historyRecords = @($parsed) }
+                        }
+                    }
+                } catch { $historyRecords = @() }
+            }
+
+            foreach ($record in $historyRecords) {
+                if ($record.Hostname -eq $historyKey -and $record.FileHash -eq $fileHash -and ([long]$record.SourceLength -eq $sourceLength)) {
+                    $skipProcessing = $true
+                    break
+                }
+            }
+        } finally {
+            if ($historyMutex) { try { $historyMutex.ReleaseMutex() } catch { } ; $historyMutex.Dispose() }
+        }
+    }
+
+    if ($skipProcessing) {
+        if ($Global:StateTraceDebug) {
+            Write-Host "[DEBUG] Skipping '$historyKey' because log hash matches previous ingestion" -ForegroundColor Yellow
+        }
+        return
+    }
+
     $logContext = Get-DeviceLogContext -FilePath $FilePath
     $lines = $logContext.Lines
     $blocks = if ($logContext.Blocks) { $logContext.Blocks } else { @{} }
@@ -650,6 +753,7 @@ function Invoke-DeviceLogParsing {
     # Summary CSV export disabled – historical data is now stored in the database
 
     # If a database path was supplied, insert the summary and interface data
+    $ingestionSucceeded = $false
     if ($DatabasePath) {
         if ($Global:StateTraceDebug) {
             Write-Host "[DEBUG] Writing results for host '$cleanHostname' to database at '$DatabasePath'" -ForegroundColor Yellow
@@ -801,6 +905,7 @@ function Invoke-DeviceLogParsing {
                                 Write-Host "[DEBUG] Refreshed Jet cache after commit for host '$cleanHostname'" -ForegroundColor Yellow
                             }
                         } catch {}
+                        $ingestionSucceeded = $true
                     } catch {
                         if ($Global:StateTraceDebug) {
                             Write-Host "[DEBUG] Commit failed for host '$cleanHostname', rolling back" -ForegroundColor Yellow
@@ -826,6 +931,52 @@ function Invoke-DeviceLogParsing {
         } catch {
             # Use curly braces around variable names that precede a colon to avoid
             Write-Warning "Failed to insert data into database for host ${cleanHostname}: $($_.Exception.Message)"
+        }
+    }
+
+    if ($ingestionSucceeded -and $historyContext -and $historyContext.FileHash) {
+        $historyMutex = $null
+        try {
+            $historyMutex = New-Object System.Threading.Mutex($false, $historyContext.MutexName)
+            $null = $historyMutex.WaitOne()
+
+            $historyRecords = @()
+            if (Test-Path -LiteralPath $historyContext.FilePath) {
+                try {
+                    $rawHistory = Get-Content -LiteralPath $historyContext.FilePath -Raw
+                    if (-not [string]::IsNullOrWhiteSpace($rawHistory)) {
+                        $parsed = $rawHistory | ConvertFrom-Json
+                        if ($parsed) {
+                            if ($parsed -is [System.Array]) { $historyRecords = @($parsed) }
+                            else { $historyRecords = @($parsed) }
+                        }
+                    }
+                } catch { $historyRecords = @() }
+            }
+
+            $updated = New-Object 'System.Collections.Generic.List[object]'
+            foreach ($record in $historyRecords) {
+                if ($record.Hostname -ne $historyContext.Key) { [void]$updated.Add($record) }
+            }
+            $sourceStamp = ''
+            if ($historyContext.SourceTimestampUtc) {
+                try { $sourceStamp = ([DateTime]$historyContext.SourceTimestampUtc).ToUniversalTime().ToString('o') } catch { $sourceStamp = '' }
+            }
+            $updated.Add([PSCustomObject]@{
+                Hostname = $historyContext.Key
+                ActualHostname = $cleanHostname
+                Site = $historyContext.SiteKey
+                FileHash = $historyContext.FileHash
+                SourceLength = $historyContext.SourceLength
+                SourceTimestampUtc = $sourceStamp
+                LastIngestedUtc = (Get-Date).ToUniversalTime().ToString('o')
+            }) | Out-Null
+            $json = $updated | ConvertTo-Json -Depth 4
+            $json | Set-Content -LiteralPath $historyContext.FilePath -Encoding UTF8
+        } catch {
+            Write-Warning "Failed to update ingestion history for ${cleanHostname}: $($_.Exception.Message)"
+        } finally {
+            if ($historyMutex) { try { $historyMutex.ReleaseMutex() } catch { } ; $historyMutex.Dispose() }
         }
     }
 

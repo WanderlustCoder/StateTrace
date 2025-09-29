@@ -27,8 +27,7 @@
 
 ## Workstream B: Parser Throughput Enhancements
 1. **Change Detection**
-   - Compute hash + timestamp metadata for each log bundle; skip parsing if identical data already ingested.
-   - Persist hash state per host in a lightweight JSON file or Access table (`IngestionHistory`).
+   - [Done - 2025-09-28] SHA-256 hashes now drive per-site ingestion history (`Data/IngestionHistory/<Site>.json`); unchanged bundles are skipped before parsing.
 2. **Incremental Updates**
    - Split large interface writes into deltas by comparing current parsed set with the last snapshot before executing delete/insert.
    - Consider staging tables (`Interfaces_Staging`) to batch upserts and swap via transactions.
