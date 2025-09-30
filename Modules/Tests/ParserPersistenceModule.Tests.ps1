@@ -254,4 +254,23 @@ Describe "ParserPersistenceModule" {
         Remove-Variable -Name commands -Scope Script -ErrorAction SilentlyContinue
         Remove-Variable -Name recordsets -Scope Script -ErrorAction SilentlyContinue
     }
+
+    It "detects ADODB connections via type name" {
+        InModuleScope -ModuleName ParserPersistenceModule {
+            $conn = New-Object PSObject
+            $conn.PSObject.TypeNames.Insert(0, 'ADODB.Connection')
+            (Test-IsAdodbConnection -Connection $conn) | Should Be $true
+            (Test-IsAdodbConnection -Connection ([pscustomobject]@{})) | Should Be $false
+        }
+    }
+
+    It "converts run date strings to DateTime when possible" {
+        InModuleScope -ModuleName ParserPersistenceModule {
+            $result = ConvertTo-DbDateTime -RunDateString '2025-09-30 12:34:56'
+            $result.GetType().FullName | Should Be "System.DateTime"
+            (ConvertTo-DbDateTime -RunDateString '') | Should Be $null
+        }
+    }
+
+
 }
