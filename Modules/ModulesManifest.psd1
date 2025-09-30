@@ -2,6 +2,7 @@
     # List of module filenames to import at startup.  The order of the modules
     Modules = @(
         'ThemeModule.psm1',
+        'TelemetryModule.psm1',
         # Core parser and helper modules
         'LogIngestionModule.psm1',
         'ParserPersistenceModule.psm1',

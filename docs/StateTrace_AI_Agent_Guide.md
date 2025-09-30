@@ -1,48 +1,55 @@
-# StateTrace AI Agent Operations Guide
+﻿# StateTrace AI Agent Operations Guide
 
-## Purpose
-- Central reference so automated assistants understand StateTrace's architecture, guardrails, and validation expectations before making changes.
-- Complements existing design notes: always cross-reference `docs/StateTrace_Functions_Features.md`, `docs/DeviceDataModule_RefactorPlan.md`, and `docs/DynamicThemeRefactorPlan.md` for authoritative behaviour details.
+This guide is the canonical reference for AI contributors and tools working in the StateTrace repository.
 
-## Project Snapshot
-- **Platform:** PowerShell 5.x WPF desktop client (`Main/MainWindow.ps1` + XAML views).
-- **Module manifest:** `Modules/ModulesManifest.psd1` controls load order; module filenames are contracts, so avoid renames unless the manifest and import sites update together.
-- **Data layer:** Per-site Access `.accdb` databases under `Data/`; the parser (`Modules/ParserWorker.psm1`) and vendor modules keep them current.
-- **Shared state:** UI flows depend on globals seeded by the repository/catalog modules, e.g. `$global:DeviceMetadata`, `$global:DeviceInterfaceCache`, `$global:AllInterfaces`, `$global:alertsView`, `$global:templatesView`. Breaking these names or their shape cascades into runtime failures.
-- **Backups:** Restorable snapshots of the project live at `C:\Users\Werem\StateTraceBackups`. Use them for comparison, not as an editing workspace.
+## Project snapshot
+- **Runtime:** PowerShell 5.x on Windows; WPF for the UI.
+- **Entry points:** `Main/MainWindow.ps1` (UI) and `Modules/ParserWorker.psm1` (ingestion).
+- **Data:** Perâ€‘site Microsoft Access `.accdb` under `Data/<prefix>/<Site>.accdb`.
+- **Key modules:** `ParserWorker.psm1`, `ParserRunspaceModule.psm1`, vendor parsers (`*Vendor*.psm1`), repository modules, view modules (`Views/*ViewModule.psm1`).
 
-## Before You Change Anything
-1. Read the task twice, then review the docs above to confirm desired behaviour. If the task intersects DeviceData or view logic, consult the refactor plan tables to see current vs target ownership.
-2. Identify the modules and views involved. Use `rg` to trace function usage instead of guessing.
-3. Check for planned migrations or wrappers (e.g., verify the canonical modules such as `DeviceRepositoryModule`, `DeviceCatalogModule`, `FilterStateModule`) so you edit the correct source of truth. so you edit the correct source of truth.
-4. If the change touches themes, load `Modules/ThemeModule.psm1` and `Themes/*.json` to respect the runtime theme system rather than hard-coding colours.
+## Guardrails (mustâ€‘follow)
+- **No compiled components** and **no internet access**.
+- **No new data stores.** Stay with PowerShell + Access. Use parameterised `ADODB.Command` for writes.
+- **Security & privacy:** Never commit raw logs or `.accdb`. Use `Tools/Sanitize-PostmortemLogs.ps1`. Keep fixtures under `Tests/Fixtures/`.
+- **Docs first:** Update plans when you change behaviour. Every change must have a corresponding entry on the task board.
 
-## Safe Implementation Checklist
-- **Approved verbs:** When adding or renaming PowerShell functions, use approved verbs (see `Get-Verb`) so exports stay compliant, and never embed `StateTrace` in the verb portion.
-- **Preserve exports:** Ensure any function you move or rename remains exported where consumers expect it. Update both the manifest and downstream imports together.
-- **Maintain caches:** When altering repository/catalog logic, keep cache invalidation ((`Clear-SiteInterfaceCache`, `Get-GlobalInterfaceSnapshot`/`Update-GlobalInterfaceList`)) and globals in sync. Never purge globals without repopulation.
-- **Respect parser IO:** Parser-worker functions assume Access schema names and environment flags (`$env:IncludeArchive`, `$env:IncludeHistorical`). Do not repurpose these without auditing `ParserWorker` and `MainWindow` handlers.
-- **UI bindings:** XAML views bind to specific property names and DataContext members from their modules. Verify bindings remain valid after edits by searching for `x:Name` and matching handler functions.
-- **Theme-aware UI:** Use `ThemeModule` tokens and `DynamicResource` bindings; avoid new literal colours unless you also extend the theme definition and defaults.
-- **Vendor modules:** Keep normalised interface objects consistent (properties like `PortColor`, `AuthTemplate`, `ConfigStatus`). UI modules rely on these fields for styling and alerts.
-- **Compatibility wrappers:** `DeviceDataModule` has been retired; ensure new functionality targets the owning modules directly and avoid reintroducing wrapper layers.
+## Safe implementation checklist
+- Confirm target files with local search (`Select-String -Path . -Pattern <term> -Recurse`).
+- Keep diffs small (â‰¤ ~150 lines across â‰¤ 3 files).
+- Preserve exported function names unless you also update the module manifest and imports.
+- Maintain global state contracts used by UI modules (e.g., `global:AllInterfaces`). If you change shape, update all consumers.
+- For Access writes, prefer batched transactions and parameterised commands; measure p95 latency with `DatabaseWriteLatency` metric.
+- If touching parser streaming, avoid buffering entire files; process line groups.
+- For UI updates: ensure XAML `x:Name` bindings and event handlers still resolve; test by launching the main window.
 
-## Validation Expectations
-- Run automated tests whenever you touch parser, repository, or analytics logic: `Invoke-Pester Modules/Tests` from the repo root.
-- After providing your change summary to the operator, launch `Main/MainWindow.ps1` once to confirm it starts without errors and report the outcome.
-- For theme or UI adjustments, confirm that resource dictionaries still merge without throwing (search for `StateTraceThemeChanged` handlers) and that new tokens exist in the default theme JSON.
-- After parser or repository changes, perform a dry-run by executing `Main/MainWindow.ps1` manually if possible, or inspect log output to ensure refresh routines succeed.
-- Update or add docs/tests alongside code when behaviour changes; missing coverage is a regression risk.
+## Validation expectations
+1. Run unit tests: `Invoke-Pester Modules/Tests` (must pass).
+2. When changing ingestion or persistence, run: `Tools\Invoke-StateTracePipeline.ps1` and capture key metrics to `Logs/IngestionMetrics/`.
+3. For UI changes, launch the app and verify views open without exceptions.
+4. Attach the summary to your task board entry.
 
-## Documentation & Logging Duties
-- Record noteworthy architectural changes in the relevant doc(s) under `docs/` and append migration notes to `AIworkLog.docx` if instructed by the task.
-- When introducing new modules or tokens, extend `docs/StateTrace_Functions_Features.md` and the appropriate refactor plan checklists.
-- When functions or features are created, removed, or moved, update `docs/StateTrace_Functions_Features.md` to stay in sync.
-- Keep log verbosity toggled via `$Global:StateTraceDebug`; do not leave debug logging permanently enabled.
+## Common agent tasks
 
-## When in Doubt
-- Compare against the latest backup in `C:\Users\Werem\StateTraceBackups` to understand intended behaviour.
-- Ask for clarification rather than guessing when requirements or ownership are ambiguous.
-- Default to conservative edits that maintain backwards compatibility until refactor checklists mark a component as fully migrated.
+### Add a new vendor parsing helper
+1. Create helper in `Modules/DeviceParsingCommon.psm1` (or the appropriate shared module).
+2. Refactor one vendor module to use it.
+3. Add/extend Pester tests with small fixtures under `Tests/Fixtures/`.
+4. Validate and document in `docs/StateTrace_Consolidated_Plans.md#plan-b-performance-ingestion-scale` under verification.
 
-Adhering to this guide ensures automated changes respect StateTrace's architecture, protect critical caches, and ship with the validation our operators expect.
+### Optimise ingestion performance
+1. Identify the hot path (e.g., module warmâ€‘up, mutex contention).
+2. Implement change behind a flag where possible.
+3. Emit `ParseDuration`/`DatabaseWriteLatency` metrics.
+4. Record before/after numbers and update `docs/StateTrace_Consolidated_Plans.md#plan-b-performance-ingestion-scale` DoD table.
+
+### Maintenance operations
+- Use `Tools/Maintain-AccessDatabases.ps1 -DataRoot Data -IndexAudit` to compact and audit indexes. Ensure no ingestion is running.
+- Ensure backups are stored under `Data/Backups/` and not committed.
+
+## Troubleshooting & stop conditions
+- If a change requires a schema migration or compiled code â†’ stop and mark **Blocked**, propose an ADR.
+- If tests fail and you cannot resolve within your session â†’ stop with a **Blocked** summary including failing test names and stack traces.
+
+## Deliverables
+- Minimal patch, passing tests, updated docs, task board entry, and (when applicable) metrics under `Logs/`.

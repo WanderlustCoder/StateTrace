@@ -1,23 +1,29 @@
-=== Individual Operator Context ===
-- This project is led by a single human operator using AI assistance; treat the operator as the sole stakeholder and decision-maker.
-- Route all status updates and questions via repository docs for the operator to review asynchronously.
-- Default to solo workflow assumptions; ignore SFX/Art multi-agent handoffs unless explicitly reintroduced.
+=== StateTrace Agent Operating Loop ===
 
-=== Multi-Agent Coordination Instructions ===
+Context
+- The human operator is the single stakeholder. AI agents assume whichever specialist role is required (Ingestion Engineer, Data Steward, Automation Engineer, Documentation Liaison).
+- All coordination and outcomes must be captured inside the repository so future sessions have crisp state.
 
-SFX Agent Checklist:
-1. Treat docs/SFX_PLAN.md as the authoritative backlog.
-2. When a task is finished, append "[Done - <YYYY-MM-DD>]" and list delivered asset paths.
-3. If a task is delayed or awaiting input, mark it "[Pending/Blocked]" with a short reason and next step.
-4. Capture open questions or handoff notes in docs/testing-notes.md under an "SFX Notes" subsection.
+Before you start
+1) Read `docs/README.md` → open the relevant plan(s) for the request.
+2) Read `AGENTS.md` and `docs/StateTrace_AI_Agent_Guide.md`. Respect “No compiled components,” “No internet,” and security rules.
+3) Update `docs/StateTrace_TaskBoard.md` by adding a card in **Backlog** with your role tag and a deliverable link you intend to produce.
 
-Art Agent Checklist:
-1. Update docs/ART_PLAN.md (and docs/ART_BRIEFS.md where applicable) with status tags similar to SFX.
-2. Record exported asset filenames and locations (e.g., assets/art/collectibles/...) beside each bullet.
-3. Flag outstanding work with "[Pending]" plus ETA/dependency info.
-4. Add review or follow-up notes to docs/testing-notes.md under an "Art Notes" subsection.
+Operating steps
+1) **Plan** — Write a 3–6 bullet execution plan in your session log (use `docs/agents/Agent_Session_Template.md`). Keep scope small and atomic.
+2) **Search** — Use safe, local search only (e.g., `Select-String` in PowerShell) to locate modules/views you intend to edit.
+3) **Edit** — Make the smallest viable change. Prefer new helpers over editing many files. Keep diffs focused.
+4) **Validate** — Run: `Invoke-Pester Modules/Tests` and, when appropriate, `Tools\Invoke-StateTracePipeline.ps1` end‑to‑end. Capture outputs/metrics under `Logs/`.
+5) **Document** — If you changed behaviour, update the relevant plan in `docs/` and add any new telemetry to the dictionary.
+6) **Record** — Update the task board status (`Ready` → `In Progress` → `Done - YYYY-MM-DD`) with a link to the files you changed and test results.
+7) **Hand off** — If blocked, move the card to **Blocked**, state the dependency, and create a follow‑up task for the appropriate role.
 
-General Guidance:
-- Do not delete plan bullets�mark status inline so progress history remains visible.
-- Keep all communication in repo docs; the mission agent will rely on these updates when resuming work.
-- If new tasks are discovered, append them to the relevant plan with a status tag.
+Guardrails
+- Do **not** add compiled code or new external stores. Stay within PowerShell + Access.
+- Prefer parameterised ADODB commands for database writes. Avoid raw string concatenation.
+- If you are uncertain, stop and mark the task **Blocked** with a concrete question.
+
+Stop conditions
+- Tests fail and you cannot fix them within your command budget.
+- A change would violate repository guardrails (compiled code, new external dependencies, secrets exposure).
+- You discover missing context (e.g., schema not documented). Leave notes and escalate via a new `Docs` task.

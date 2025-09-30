@@ -1,0 +1,57 @@
+# StateTrace Release Guide
+
+This guide describes how to package, version and release StateTrace.  It covers semantic versioning, artefact creation, smoke testing and changelog management.  Follow these steps whenever preparing a new release candidate.
+
+## Versioning
+
+StateTrace uses [semantic versioning](https://semver.org/) with the format `MAJOR.MINOR.PATCH`:
+
+- **MAJOR** – incremented for breaking changes in the data model, UI contracts or PowerShell APIs.
+- **MINOR** – incremented when adding backwards‑compatible features or significant plan milestones.
+- **PATCH** – incremented for bug fixes and minor improvements.
+
+Include a pre‑release suffix (e.g. `-beta1`) for internal betas or pilot releases.  Record the chosen version at the top of `CHANGELOG.md`.
+
+## Packaging
+
+Releases are built via a PowerShell script (`Tools/Pack-StateTrace.ps1`) which collects the necessary modules, views, tools and documentation into a zip file.  The script performs the following steps:
+
+1. **Clean build directory** – remove any previous build artefacts.
+2. **Copy source files** – include the `Modules/`, `Views/`, `Tools/`, `Data/StateTraceSettings.json` (without personal data), and `docs/` excluding `Logs/` or other ignored folders.
+3. **Embed version number** – write the selected version into a `VERSION.txt` file in the root of the package.
+4. **Create archive** – use `Compress-Archive` to produce `StateTrace_<version>.zip` in the `dist/` folder.
+5. **Generate hash** – compute a SHA‑256 hash of the archive and write to `<package>.sha256` for integrity checking.
+
+Ensure the script itself is version controlled; it lives in `Tools/Pack-StateTrace.ps1`.
+
+## Smoke testing
+
+Before tagging a release, run the following smoke tests to verify that the packaged application works end‑to‑end:
+
+1. **Unit tests** – execute `Invoke-Pester` in the `Modules/Tests/` folder.  All tests must pass.
+2. **Basic parsing** – run `Tools/Invoke-StateTracePipeline.ps1 -SkipParsing:$false` against a representative log bundle.  Confirm that databases are created, logs are parsed and no errors are emitted.
+3. **UI load** – launch the main window via `Invoke-StateTraceUI.ps1` (or the appropriate entry point) and load sample data.  Verify that core dashboards render without exceptions.
+4. **Version check** – open the `About` dialog or run `Get-StateTraceVersion` to confirm the embedded version matches the intended release.
+
+Document the outcome of each smoke test in the release checklist and attach any relevant logs.
+
+## Changelog
+
+Maintain a human‑readable `CHANGELOG.md` at the repository root.  Each entry should note the version, release date and a concise summary of changes.  Link to relevant plan documents or PRs for further details.  When preparing a release, draft the changelog entry first and update it during the release process.
+
+## Tagging & distribution
+
+Once smoke tests pass and the changelog is ready:
+
+1. Commit the version bump and changelog updates.
+2. Tag the commit with `v<version>` and push the tag to the repository.
+3. Upload the zipped package and its SHA‑256 file to the chosen distribution platform (e.g. internal artefact repository or release manager).  Do not publish `Logs/` or other local data.
+4. Announce the release internally with a summary of key changes and any required upgrade steps.
+
+## Rollback procedure
+
+If a critical issue is discovered after release:
+
+1. Communicate the issue to all stakeholders immediately.
+2. Revert to the previous stable version by restoring the corresponding package and tag.
+3. Investigate the root cause and apply a patch on a new branch; follow the same release process when ready.

@@ -715,11 +715,17 @@ function Invoke-DeviceLogParsing {
         [string]$ArchiveRoot,
         [string]$DatabasePath
     )
+    $__stParseStart = Get-Date
+    $__stParseSw = [System.Diagnostics.Stopwatch]::StartNew()
+    $cleanHostname = ''
+    $siteCode = ''
+    $ingestionSucceeded = $false
 
     if ($Global:StateTraceDebug) {
         Write-Host "[DEBUG] Parsing file '$FilePath'" -ForegroundColor Yellow
     }
 
+    try {
     try {
         $projectRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
     } catch {
@@ -1122,6 +1128,7 @@ function Invoke-DeviceLogParsing {
 
 
 
+                    $__stDbSw = [System.Diagnostics.Stopwatch]::StartNew()
                     $__dbConn.BeginTrans()
 
                     try {
@@ -1187,6 +1194,8 @@ function Invoke-DeviceLogParsing {
                         }
 
                         $__dbConn.CommitTrans()
+
+                        try { $__stDbSw.Stop(); TelemetryModule\Write-StTelemetryEvent -Name 'DatabaseWriteLatency' -Payload @{ Hostname=$cleanHostname; Site=$siteCode; LatencyMs = [int]$__stDbSw.Elapsed.TotalMilliseconds } } catch { }
 
                         try {
 
@@ -1310,6 +1319,23 @@ function Invoke-DeviceLogParsing {
     }
 
     Remove-OldArchiveFolder -DeviceArchivePath $devicePath -RetentionDays 30
+    }
+    finally {
+        try {
+            if ($__stParseSw) { $__stParseSw.Stop() }
+            $payload = @{
+                Hostname = $cleanHostname
+                Site = $siteCode
+                StartTime = $__stParseStart.ToUniversalTime().ToString('o')
+                DurationSeconds = [Math]::Round($__stParseSw.Elapsed.TotalSeconds, 3)
+                Success = [bool]$ingestionSucceeded
+            }
+            if ($FilePath) {
+                $payload['FileName'] = [System.IO.Path]::GetFileName($FilePath)
+            }
+            TelemetryModule\Write-StTelemetryEvent -Name 'ParseDuration' -Payload $payload
+        } catch { }
+    }
 }
 
 #
@@ -1317,3 +1343,4 @@ function Invoke-DeviceLogParsing {
 
 
 Export-ModuleMember -Function Get-LocationDetails, Get-ShowCommandBlocks, Get-DeviceMakeFromBlocks, Get-SnmpLocationFromLines, ConvertFrom-SpanningTree, Remove-OldArchiveFolder, Get-BrocadeAuthBlockFromLines, Invoke-DeviceLogParsing, Get-LogParseContext, Get-VendorTemplates, Get-DatabaseMutexName
+

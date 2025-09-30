@@ -23,6 +23,33 @@ function New-Directories {
 }
 
 
+function Get-DeviceLogSetStatistics {
+
+    param([string[]]$DeviceFiles)
+
+    $deviceCount = if ($DeviceFiles) { $DeviceFiles.Count } else { 0 }
+    $siteCount = 0
+    if ($deviceCount -gt 0) {
+        $siteSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+        foreach ($pathValue in $DeviceFiles) {
+            if ([string]::IsNullOrWhiteSpace($pathValue)) { continue }
+            $name = [System.IO.Path]::GetFileNameWithoutExtension($pathValue)
+            if ([string]::IsNullOrWhiteSpace($name)) { continue }
+            $siteToken = $name
+            $dashIndex = $name.IndexOf('-')
+            if ($dashIndex -gt 0) { $siteToken = $name.Substring(0, $dashIndex) }
+            if (-not [string]::IsNullOrWhiteSpace($siteToken)) {
+                [void]$siteSet.Add($siteToken)
+            }
+        }
+        $siteCount = $siteSet.Count
+    }
+
+    return [PSCustomObject]@{
+        DeviceCount = [int][Math]::Max(0, $deviceCount)
+        SiteCount   = [int][Math]::Max(0, $siteCount)
+    }
+}
 
 function Get-AutoScaleConcurrencyProfile {
 
@@ -50,35 +77,13 @@ function Get-AutoScaleConcurrencyProfile {
 
     $cpuCount = [Math]::Max(1, $CpuCount)
 
-    $deviceCount = if ($DeviceFiles) { $DeviceFiles.Count } else { 0 }
+    $stats = Get-DeviceLogSetStatistics -DeviceFiles $DeviceFiles
 
+    $deviceCount = $stats.DeviceCount
 
+    $rawSiteCount = $stats.SiteCount
 
-    $siteSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
-
-    foreach ($pathValue in $DeviceFiles) {
-
-        if ([string]::IsNullOrWhiteSpace($pathValue)) { continue }
-
-        $name = [System.IO.Path]::GetFileNameWithoutExtension($pathValue)
-
-        if ([string]::IsNullOrWhiteSpace($name)) { continue }
-
-        $siteToken = $name
-
-        $dashIndex = $name.IndexOf('-')
-
-        if ($dashIndex -gt 0) { $siteToken = $name.Substring(0, $dashIndex) }
-
-        if (-not [string]::IsNullOrWhiteSpace($siteToken)) {
-
-            [void]$siteSet.Add($siteToken)
-
-        }
-
-    }
-
-    $siteCount = if ($siteSet.Count -gt 0) { $siteSet.Count } else { 1 }
+    $siteCount = if ($rawSiteCount -gt 0) { $rawSiteCount } else { 1 }
 
 
 
@@ -196,6 +201,10 @@ function Get-AutoScaleConcurrencyProfile {
 
         MinRunspaces      = [int][Math]::Max(1, $minThreadBaseline)
 
+        DeviceCount       = [int][Math]::Max(0, $deviceCount)
+
+        SiteCount         = [int][Math]::Max(0, $rawSiteCount)
+
     }
 
 }
@@ -249,6 +258,12 @@ function Invoke-StateTraceParsing {
 
 
     $deviceFiles = @(Get-ChildItem -Path $extractedPath -File | Select-Object -ExpandProperty FullName)
+
+    $logSetStats = Get-DeviceLogSetStatistics -DeviceFiles $deviceFiles
+
+    $rawSiteCountForTelemetry = $logSetStats.SiteCount
+
+    $deviceCountForTelemetry = $logSetStats.DeviceCount
 
     if ($deviceFiles.Count -gt 0) {
 
@@ -444,9 +459,12 @@ function Invoke-StateTraceParsing {
 
 
 
+    $resolvedProfile = $null
+
     if ($autoScaleConcurrency) {
 
         $profile = Get-AutoScaleConcurrencyProfile -DeviceFiles $deviceFiles -CpuCount ([Environment]::ProcessorCount) -ThreadCeiling $autoScaleThreadHint -MaxWorkersPerSite $autoScaleWorkerHint -MaxActiveSites $autoScaleSiteHint -JobsPerThread $autoScaleJobsHint -MinRunspaces $autoScaleMinHint
+        $resolvedProfile = $profile
 
         $threadCeiling = $profile.ThreadCeiling
 
@@ -481,6 +499,78 @@ function Invoke-StateTraceParsing {
     }
 
     if ($threadCeiling -lt $minRunspaces) { $threadCeiling = $minRunspaces }
+
+
+
+    $telemetryPayload = @{
+
+        AutoScaleEnabled = [bool]$autoScaleConcurrency
+
+        DeviceCount      = [int]$deviceCountForTelemetry
+
+        SiteCount        = [int]$rawSiteCountForTelemetry
+
+        ThreadCeiling    = [int]$threadCeiling
+
+        MaxWorkersPerSite = [int]$maxWorkersPerSite
+
+        MaxActiveSites   = [int]$maxActiveSites
+
+        JobsPerThread    = [int]$jobsPerThread
+
+        MinRunspaces     = [int]$minRunspaces
+
+        AdaptiveThreads  = [bool]$enableAdaptiveThreads
+
+        HintThreadCeiling     = [int]$autoScaleThreadHint
+
+        HintMaxWorkersPerSite = [int]$autoScaleWorkerHint
+
+        HintMaxActiveSites    = [int]$autoScaleSiteHint
+
+        HintJobsPerThread     = [int]$autoScaleJobsHint
+
+        HintMinRunspaces      = [int]$autoScaleMinHint
+
+    }
+
+    if ($resolvedProfile) {
+
+        $telemetryPayload.DecisionSource = 'AutoScale'
+
+        $telemetryPayload.ResolvedThreadCeiling = [int]$resolvedProfile.ThreadCeiling
+
+        $telemetryPayload.ResolvedMaxWorkersPerSite = [int]$resolvedProfile.MaxWorkersPerSite
+
+        $telemetryPayload.ResolvedMaxActiveSites = [int]$resolvedProfile.MaxActiveSites
+
+        $telemetryPayload.ResolvedJobsPerThread = [int]$resolvedProfile.JobsPerThread
+
+        $telemetryPayload.ResolvedMinRunspaces = [int]$resolvedProfile.MinRunspaces
+
+        if ($resolvedProfile.PSObject.Properties.Name -contains 'DeviceCount') {
+
+            $telemetryPayload.ProfileDeviceCount = [int]$resolvedProfile.DeviceCount
+
+        }
+
+        if ($resolvedProfile.PSObject.Properties.Name -contains 'SiteCount') {
+
+            $telemetryPayload.ProfileSiteCount = [int]$resolvedProfile.SiteCount
+
+        }
+
+    } else {
+
+        $telemetryPayload.DecisionSource = 'Settings'
+
+    }
+
+    try {
+
+        TelemetryModule\Write-StTelemetryEvent -Name 'ConcurrencyProfileResolved' -Payload $telemetryPayload
+
+    } catch { }
 
 
 
