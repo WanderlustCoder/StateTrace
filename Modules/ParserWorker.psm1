@@ -257,7 +257,17 @@ function Invoke-StateTraceParsing {
 
 
 
-    $deviceFiles = @(Get-ChildItem -Path $extractedPath -File | Select-Object -ExpandProperty FullName)
+    $allExtractedFiles = @(Get-ChildItem -Path $extractedPath -File)
+
+    if ($allExtractedFiles.Count -gt 0) {
+        $unknownSlices = @($allExtractedFiles | Where-Object { $_.BaseName -eq '_unknown' })
+        if ($unknownSlices.Count -gt 0) {
+            $unknownNames = $unknownSlices | Select-Object -ExpandProperty FullName
+            Write-Verbose ("Skipping {0} unknown slice(s): {1}" -f $unknownSlices.Count, ($unknownNames -join ', '))
+        }
+    }
+
+    $deviceFiles = @($allExtractedFiles | Where-Object { $_.BaseName -ne '_unknown' } | Select-Object -ExpandProperty FullName)
 
     $logSetStats = Get-DeviceLogSetStatistics -DeviceFiles $deviceFiles
 

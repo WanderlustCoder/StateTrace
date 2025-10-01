@@ -185,7 +185,7 @@ The following source documents were reviewed and folded into the plan set:
 **Follow-ups:**
 - Trial reduced ceilings (e.g., MaxWorkersPerSite=4 or MaxActiveSites=2) to evaluate latency impact versus throughput.
 - Extend telemetry to emit ParseDuration and auto-scale decisions so future runs capture full pipeline timing. (Done: ParseDuration + ConcurrencyProfileResolved events now logged in pipeline telemetry.)
-- Investigate _unknown.log classification to remove warning noise or exclude it from stress bundles.
+- Investigate _unknown.log classification to remove warning noise or exclude it from stress bundles. (Done: ParserWorker now filters `_unknown.log` slices before scheduling parse jobs.)
 
 **KPIs (PhaseÃ‚Â 1 targets):**
 - `ParseDuration` p95 Ã¢â€°Â¤Ã‚Â 3Ã‚Â s per device; max <Ã‚Â 10Ã‚Â s.

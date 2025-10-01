@@ -67,19 +67,34 @@ Describe "ParserWorker auto-scaling" {
             $projectRoot = (Get-Location).ProviderPath
             $extractedPath = Join-Path $projectRoot 'Logs\Extracted'
             New-Item -ItemType Directory -Path $extractedPath -Force | Out-Null
-            $fileNames = @('TESTA-A01-AS-01.log','TESTA-A01-AS-02.log','TESTB-A02-AS-01.log')
+            $fileNames = @('TESTA-A01-AS-01.log','TESTA-A01-AS-02.log','TESTB-A02-AS-01.log','_unknown.log')
             $fileInfos = @()
             foreach ($name in $fileNames) {
                 $full = Join-Path $extractedPath $name
                 Set-Content -Path $full -Value '' -Encoding ASCII
                 $fileInfos += Get-Item -LiteralPath $full
             }
+            $unknownFullPath = Join-Path $extractedPath '_unknown.log'
             Import-Module (Join-Path $projectRoot 'Modules\LogIngestionModule.psm1') -Force
             Import-Module (Join-Path $projectRoot 'Modules\ParserRunspaceModule.psm1') -Force
             Import-Module (Join-Path $projectRoot 'Modules\TelemetryModule.psm1') -Force
             try {
                 Mock -CommandName 'LogIngestionModule\Split-RawLogs' -ModuleName ParserWorker { }
-                Mock -CommandName 'ParserRunspaceModule\Invoke-DeviceParsingJobs' -ModuleName ParserWorker { }
+                Mock -CommandName 'ParserRunspaceModule\Invoke-DeviceParsingJobs' -ModuleName ParserWorker -MockWith {
+                    param(
+                        [string[]]$DeviceFiles,
+                        [string]$ModulesPath,
+                        [string]$ArchiveRoot,
+                        [string]$DatabasePath,
+                        [int]$MaxThreads,
+                        [int]$MinThreads,
+                        [int]$JobsPerThread,
+                        [int]$MaxWorkersPerSite,
+                        [int]$MaxActiveSites,
+                        [switch]$AdaptiveThreads,
+                        [switch]$Synchronous
+                    )
+                }
                 Mock -CommandName 'LogIngestionModule\Clear-ExtractedLogs' -ModuleName ParserWorker { }
                 Mock -CommandName Get-ChildItem -ModuleName ParserWorker -MockWith { $fileInfos }
                 $script:telemetryEvents = @()
@@ -88,6 +103,8 @@ Describe "ParserWorker auto-scaling" {
                 if ($existingTelemetry) { $originalTelemetry = $existingTelemetry.ScriptBlock }
                 Set-Item -Path Function:TelemetryModule\Write-StTelemetryEvent -Value { param($Name, $Payload) $script:telemetryEvents += [PSCustomObject]@{ Name = $Name; Payload = $Payload } }
                 Invoke-StateTraceParsing -Synchronous
+                Assert-MockCalled -CommandName 'ParserRunspaceModule\Invoke-DeviceParsingJobs' -ModuleName ParserWorker -Times 1 -ParameterFilter { $DeviceFiles.Count -eq 3 }
+                Assert-MockCalled -CommandName 'ParserRunspaceModule\Invoke-DeviceParsingJobs' -ModuleName ParserWorker -Times 0 -ParameterFilter { $DeviceFiles -contains $unknownFullPath }
                 $event = $script:telemetryEvents | Where-Object { $_.Name -eq 'ConcurrencyProfileResolved' } | Select-Object -Last 1
                 $event | Should Not Be $null
                 $event.Payload.DeviceCount | Should Be 3
