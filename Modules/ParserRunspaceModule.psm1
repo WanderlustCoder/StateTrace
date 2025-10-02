@@ -500,7 +500,7 @@ function Invoke-DeviceParsingJobs {
             }
 
             $completed = @()
-            foreach ($entry in @($active)) {
+            foreach ($entry in $active.ToArray()) {
                 if ($entry.AsyncResult.IsCompleted) {
                     try { $entry.Pipe.EndInvoke($entry.AsyncResult) } catch { } finally { $entry.Pipe.Dispose() }
                     $completed += $entry
@@ -520,7 +520,7 @@ function Invoke-DeviceParsingJobs {
         }
 
     } finally {
-        foreach ($entry in @($active)) {
+        foreach ($entry in $active.ToArray()) {
             try { $entry.Pipe.EndInvoke($entry.AsyncResult) } catch { }
             $entry.Pipe.Dispose()
         }

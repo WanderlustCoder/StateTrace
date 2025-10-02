@@ -76,6 +76,27 @@ Describe "ParserRunspaceModule" {
         }
     }
 
+    Context "Active worker management" {
+        It "cleans up completed workers without ArgumentException" {
+            InModuleScope -ModuleName ParserRunspaceModule {
+                $active = New-Object 'System.Collections.Generic.List[object]'
+                $pipe = [pscustomobject]@{}
+                Add-Member -InputObject $pipe -MemberType ScriptMethod -Name EndInvoke -Value { param($async) } | Out-Null
+                Add-Member -InputObject $pipe -MemberType ScriptMethod -Name Dispose -Value { } | Out-Null
+                $async = [pscustomobject]@{ IsCompleted = $true }
+                $entry = [pscustomobject]@{ Pipe = $pipe; AsyncResult = $async; Site = 'SITE' }
+                $active.Add($entry) | Out-Null
+
+                { foreach ($worker in $active.ToArray()) {
+                        if ($worker.AsyncResult.IsCompleted) {
+                            $worker.Pipe.EndInvoke($worker.AsyncResult)
+                            $worker.Pipe.Dispose()
+                        }
+                    }
+                } | Should Not Throw
+            }
+        }
+    }
     Context "Adaptive thread budgeting" {
         It "scales with queue depth" {
             InModuleScope -ModuleName ParserRunspaceModule {
