@@ -16,6 +16,21 @@ $script:ThemeResourceDictionary  = $null
 $script:SharedStylesPath         = Join-Path $PSScriptRoot '..\Resources\SharedStyles.xaml'
 $script:SharedStylesDictionary   = $null
 $script:ThemeChangedHandlers     = New-Object 'System.Collections.Generic.List[System.Action[string]]'
+$script:PresentationFrameworkLoaded = $false
+
+function Ensure-PresentationFrameworkLoaded {
+    if ($script:PresentationFrameworkLoaded) { return $true }
+    try { $null = [Application] } catch {
+        try { Add-Type -AssemblyName PresentationFramework } catch { return $false }
+    }
+    $script:PresentationFrameworkLoaded = $true
+    return $true
+}
+
+function Get-WpfApplication {
+    if (-not (Ensure-PresentationFrameworkLoaded)) { return $null }
+    try { return [Application]::Current } catch { return $null }
+}
 
 function Get-ThemeDirectory {
     if (-not (Test-Path $script:ThemeDirectory)) {
@@ -123,7 +138,7 @@ function New-FrozenBrush {
 }
 
 function Ensure-SharedStylesDictionary {
-    $app = [Application]::Current
+    $app = Get-WpfApplication
     if (-not $app) { return }
 
     if (-not $script:SharedStylesDictionary) {
@@ -147,7 +162,8 @@ function Ensure-SharedStylesDictionary {
 
 function Update-ThemeResources {
     if (-not $script:CurrentThemeTokens) { return }
-    $app = [Application]::Current
+    if (-not (Ensure-PresentationFrameworkLoaded)) { return }
+    $app = Get-WpfApplication
     if (-not $app) {
         # No WPF application yet; resources will be applied later
         return
@@ -169,7 +185,9 @@ function Update-ThemeResources {
     $app.Resources.MergedDictionaries.Insert(0, $dict)
     $inputBackgroundBrush = Get-ThemeBrush -Key 'Theme.Input.Background'
     $inputTextBrush = Get-ThemeBrush -Key 'Theme.Input.Text'
-    $highlightBrush = Get-ThemeBrush -Key 'Theme.Surface.Secondary'
+    $highlightBrush = Get-ThemeBrush -Key 'Theme.DataGrid.SelectionBackground'
+    if (-not $highlightBrush) { $highlightBrush = Get-ThemeBrush -Key 'Theme.Surface.Secondary' }
+
     $highlightTextBrush = Get-ThemeBrush -Key 'Theme.Text.Primary'
 
     if ($inputBackgroundBrush) {
@@ -185,6 +203,17 @@ function Update-ThemeResources {
     }
     if ($highlightTextBrush) {
         $app.Resources[[System.Windows.SystemColors]::HighlightTextBrushKey] = $highlightTextBrush
+    }
+
+    $highlightColor = Get-ThemeColor -Key 'Theme.DataGrid.SelectionBackground'
+    if (-not $highlightColor) { $highlightColor = Get-ThemeColor -Key 'Theme.Surface.Secondary' }
+    $highlightTextColor = Get-ThemeColor -Key 'Theme.Text.Primary'
+
+    if ($highlightColor) {
+        $app.Resources[[System.Windows.SystemColors]::HighlightColorKey] = $highlightColor
+    }
+    if ($highlightTextColor) {
+        $app.Resources[[System.Windows.SystemColors]::HighlightTextColorKey] = $highlightTextColor
     }
 
     $inputBackgroundColor = Get-ThemeColor -Key 'Theme.Input.Background'
@@ -273,7 +302,8 @@ function Ensure-ThemeResources {
     if (-not $script:CurrentThemeTokens -or -not $script:CurrentThemeName) {
         return
     }
-    $app = [Application]::Current
+    if (-not (Ensure-PresentationFrameworkLoaded)) { return }
+    $app = Get-WpfApplication
     if (-not $app) { return }
     if (-not $script:ThemeResourceDictionary -or -not $app.Resources.MergedDictionaries.Contains($script:ThemeResourceDictionary)) {
         Update-ThemeResources
@@ -284,11 +314,26 @@ function Initialize-StateTraceTheme {
     param(
         [string]$PreferredTheme = 'blue-angels'
     )
-    try {
-        Set-StateTraceTheme -Name $PreferredTheme -Silent | Out-Null
-    } catch {
-        Set-StateTraceTheme -Name 'base' -Silent | Out-Null
+
+    $candidates = New-Object System.Collections.Generic.List[string]
+    if (-not [string]::IsNullOrWhiteSpace($PreferredTheme)) { $null = $candidates.Add($PreferredTheme) }
+    if (-not $candidates.Contains('helldivers-spill-oil')) { $null = $candidates.Add('helldivers-spill-oil') }
+    if (-not $candidates.Contains('blue-angels')) { $null = $candidates.Add('blue-angels') }
+    if (-not $candidates.Contains('base')) { $null = $candidates.Add('base') }
+
+    $initialized = $false
+    foreach ($candidate in $candidates) {
+        try {
+            Set-StateTraceTheme -Name $candidate -Silent | Out-Null
+            $initialized = $true
+            break
+        } catch { }
     }
+
+    if (-not $initialized) {
+        throw 'Failed to initialize theme resources.'
+    }
+
     Ensure-ThemeResources
 }
 
@@ -343,6 +388,7 @@ function Get-AvailableStateTraceThemes {
     $files = Get-ChildItem -Path $themeDir -Filter '*.json' -File | Sort-Object Name
     $themes = @()
     foreach ($file in $files) {
+        if ($file.BaseName -eq 'base') { continue }
         try {
             $def = Read-ThemeDefinition -Name ($file.BaseName)
             $display = if ($def.name) { '' + $def.name } else { $file.BaseName }

@@ -116,15 +116,15 @@
           </Border>
           <ControlTemplate.Triggers>
             <Trigger Property="IsHighlighted" Value="True">
-              <Setter TargetName="Root" Property="Background" Value="{DynamicResource Theme.Surface.Border}"/>
+              <Setter TargetName="Root" Property="Background" Value="{DynamicResource Theme.DataGrid.SelectionBackground}"/>
               <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
             </Trigger>
             <Trigger Property="IsSelected" Value="True">
-              <Setter TargetName="Root" Property="Background" Value="{DynamicResource Theme.Surface.Primary}"/>
-              <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Inverse}"/>
+              <Setter TargetName="Root" Property="Background" Value="{DynamicResource Theme.DataGrid.SelectionBackground}"/>
+              <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
-              <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Muted}"/>
+              <Setter Property="Foreground" Value="{DynamicResource Theme.Button.Disabled.Text}"/>
               <Setter TargetName="Root" Property="Opacity" Value="0.7"/>
             </Trigger>
           </ControlTemplate.Triggers>
