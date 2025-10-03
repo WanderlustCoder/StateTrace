@@ -2,7 +2,13 @@ param(
     [switch]$SkipTests,
     [switch]$SkipParsing,
     [string]$DatabasePath,
-    [switch]$VerboseParsing
+    [int]$ThreadCeilingOverride,
+    [int]$MaxWorkersPerSiteOverride,
+    [int]$MaxActiveSitesOverride,
+    [int]$JobsPerThreadOverride,
+    [int]$MinRunspacesOverride,
+    [switch]$VerboseParsing,
+    [switch]$ResetExtractedLogs
 )
 
 Set-StrictMode -Version Latest
@@ -100,12 +106,41 @@ if (-not (Test-Path -LiteralPath $parserWorkerModule)) {
     throw "ParserWorker module not found at $parserWorkerModule"
 }
 
+if ($ResetExtractedLogs) {
+    $extractedRoot = Join-Path -Path $repositoryRoot -ChildPath 'Logs'
+    $extractedPath = Join-Path -Path $extractedRoot -ChildPath 'Extracted'
+    if (Test-Path -LiteralPath $extractedPath) {
+        Write-Host "Resetting extracted log slices under ${extractedPath}..." -ForegroundColor Yellow
+        try {
+            Get-ChildItem -LiteralPath $extractedPath -Force -Recurse | Remove-Item -Force -Recurse
+        } catch {
+            Write-Warning "Failed to reset extracted logs in ${extractedPath}: $($_.Exception.Message)"
+        }
+    } elseif ($VerboseParsing) {
+        Write-Host "No extracted log directory found at ${extractedPath}; skipping reset." -ForegroundColor Yellow
+    }
+}
 Write-Host 'Starting ingestion run via Invoke-StateTraceParsing -Synchronous...' -ForegroundColor Cyan
 $module = Import-Module -Name $parserWorkerModule -PassThru -Force -ErrorAction Stop
 
 $invokeParams = @{ Synchronous = $true }
 if ($PSBoundParameters.ContainsKey('DatabasePath')) {
     $invokeParams['DatabasePath'] = $DatabasePath
+}
+if ($PSBoundParameters.ContainsKey('ThreadCeilingOverride')) {
+    $invokeParams['ThreadCeilingOverride'] = $ThreadCeilingOverride
+}
+if ($PSBoundParameters.ContainsKey('MaxWorkersPerSiteOverride')) {
+    $invokeParams['MaxWorkersPerSiteOverride'] = $MaxWorkersPerSiteOverride
+}
+if ($PSBoundParameters.ContainsKey('MaxActiveSitesOverride')) {
+    $invokeParams['MaxActiveSitesOverride'] = $MaxActiveSitesOverride
+}
+if ($PSBoundParameters.ContainsKey('JobsPerThreadOverride')) {
+    $invokeParams['JobsPerThreadOverride'] = $JobsPerThreadOverride
+}
+if ($PSBoundParameters.ContainsKey('MinRunspacesOverride')) {
+    $invokeParams['MinRunspacesOverride'] = $MinRunspacesOverride
 }
 
 try {

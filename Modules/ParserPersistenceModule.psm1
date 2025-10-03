@@ -8,6 +8,7 @@ if (-not (Get-Variable -Name AdCmdText -Scope Script -ErrorAction SilentlyContin
     $script:AdTypeLongVarWChar = 203
     $script:AdTypeInteger = 3
     $script:AdTypeDate = 7
+    $script:AdLongTextDefaultSize = 262144
 }
 
 function Test-IsAdodbConnection {
@@ -330,6 +331,9 @@ function Update-InterfacesInDb {
         $speed  = '' + $iface.Speed
         $type   = '' + $iface.Type
 
+        $vlanNumeric = 0
+        if (-not [int]::TryParse($vlan, [ref]$vlanNumeric)) { $vlanNumeric = 0 }
+
         $learned = ''
         if ($iface.PSObject.Properties.Name -contains 'LearnedMACsFull' -and ($iface.LearnedMACsFull)) {
             $learned = '' + $iface.LearnedMACsFull
@@ -400,6 +404,7 @@ function Update-InterfacesInDb {
             Name      = $name
             Status    = $status
             VLAN      = $vlan
+            VlanNumeric = $vlanNumeric
             Duplex    = $duplex
             Speed     = $speed
             Type      = $type
@@ -435,85 +440,211 @@ function Update-InterfacesInDb {
     }
 
     $toDelete = New-Object 'System.Collections.Generic.List[string]'
+
     foreach ($existingPort in $existingRows.Keys) {
+
         if (-not $seenPorts.Contains($existingPort)) {
+
             $toDelete.Add($existingPort) | Out-Null
+
         }
+
     }
+
+
 
     if ($toDelete.Count -gt 0) {
+
         $batch = New-Object 'System.Collections.Generic.List[string]'
+
         foreach ($portToRemove in $toDelete) {
+
             $batch.Add($portToRemove) | Out-Null
+
             if ($batch.Count -ge 50) {
+
                 $escaped = @()
+
                 foreach ($item in $batch) { $escaped += "'" + ($item -replace "'", "''") + "'" }
+
                 $deleteSql = "DELETE FROM Interfaces WHERE Hostname = '$escHostname' AND Port IN (" + ([string]::Join(',', $escaped)) + ")"
+
                 try { $Connection.Execute($deleteSql) | Out-Null } catch { Write-Warning "Failed to delete stale port ${Hostname}/${item}: $($_.Exception.Message)" }
+
                 $batch.Clear()
+
             }
+
         }
+
+
 
         if ($batch.Count -gt 0) {
+
             $escaped = @()
+
             foreach ($item in $batch) { $escaped += "'" + ($item -replace "'", "''") + "'" }
+
             $deleteSql = "DELETE FROM Interfaces WHERE Hostname = '$escHostname' AND Port IN (" + ([string]::Join(',', $escaped)) + ")"
+
             try { $Connection.Execute($deleteSql) | Out-Null } catch { Write-Warning "Failed to delete stale ports for host ${Hostname}: $($_.Exception.Message)" }
+
         }
+
     }
 
-    function Add-InterfaceRow {
-        param(
-            [object]$Row
-        )
 
-        $escPort      = $Row.Port       -replace "'", "''"
-        $escName      = $Row.Name       -replace "'", "''"
-        $escStatus    = $Row.Status     -replace "'", "''"
-        $escDuplex    = $Row.Duplex     -replace "'", "''"
-        $escSpeed     = $Row.Speed      -replace "'", "''"
-        $escType      = $Row.Type       -replace "'", "''"
-        $escLearned   = $Row.Learned    -replace "'", "''"
-        $escState     = $Row.AuthState  -replace "'", "''"
-        $escModeFld   = $Row.AuthMode   -replace "'", "''"
-        $escClient    = $Row.AuthClient -replace "'", "''"
-        $escTemplate  = $Row.Template   -replace "'", "''"
-        $escConfig    = $Row.Config     -replace "'", "''"
-        $escColor     = $Row.PortColor  -replace "'", "''"
-        $escCfgStat   = $Row.StatusTag  -replace "'", "''"
-        $escToolTip   = $Row.ToolTip    -replace "'", "''"
-
-        $vlanNumeric = 0
-        [void][int]::TryParse($Row.VLAN, [ref]$vlanNumeric)
-
-        $ifaceSql = "INSERT INTO Interfaces (Hostname, Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, PortColor, ConfigStatus, ToolTip) VALUES ('$escHostname', '$escPort', '$escName', '$escStatus', $vlanNumeric, '$escDuplex', '$escSpeed', '$escType', '$escLearned', '$escState', '$escModeFld', '$escClient', '$escTemplate', '$escConfig', '$escColor', '$escCfgStat', '$escToolTip')"
-        try { $Connection.Execute($ifaceSql) | Out-Null } catch { Write-Warning "Failed to insert interface record for host ${Hostname} port ${Row.Port}: $($_.Exception.Message)" }
-
-        $histIfaceSql = "INSERT INTO InterfaceHistory (Hostname, RunDate, Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, PortColor, ConfigStatus, ToolTip) VALUES ('$escHostname', $runDateLiteral, '$escPort', '$escName', '$escStatus', $vlanNumeric, '$escDuplex', '$escSpeed', '$escType', '$escLearned', '$escState', '$escModeFld', '$escClient', '$escTemplate', '$escConfig', '$escColor', '$escCfgStat', '$escToolTip')"
-        try { $Connection.Execute($histIfaceSql) | Out-Null } catch { Write-Warning "Failed to insert interface history for host ${Hostname} port ${Row.Port}: $($_.Exception.Message)" }
-    }
-
-    if ($useAdodbParameters) {
-        foreach ($row in $toInsert) {
-            $handled = Invoke-InterfaceRowParameterized -Connection $Connection -Hostname $Hostname -Row $row -RunDate $runDateValue
-            if (-not $handled) { Add-InterfaceRow -Row $row }
-        }
-    } else {
-        foreach ($row in $toInsert) {
-            Add-InterfaceRow -Row $row
-        }
-    }
 
     foreach ($row in $toUpdate) {
+
         $escPortSingle = $row.Port -replace "'", "''"
+
         $deleteSql = "DELETE FROM Interfaces WHERE Hostname = '$escHostname' AND Port = '$escPortSingle'"
+
         try { $Connection.Execute($deleteSql) | Out-Null } catch { Write-Warning "Failed to clear existing port ${Hostname}/${row.Port}: $($_.Exception.Message)" }
-        if ($useAdodbParameters) {
-            $handled = Invoke-InterfaceRowParameterized -Connection $Connection -Hostname $Hostname -Row $row -RunDate $runDateValue
-            if (-not $handled) { Add-InterfaceRow -Row $row }
+
+    }
+
+
+
+    function Add-InterfaceRow {
+
+        param(
+
+            [object]$Row
+
+        )
+
+
+
+        $escPort      = $Row.Port       -replace "'", "''"
+
+        $escName      = $Row.Name       -replace "'", "''"
+
+        $escStatus    = $Row.Status     -replace "'", "''"
+
+        $escDuplex    = $Row.Duplex     -replace "'", "''"
+
+        $escSpeed     = $Row.Speed      -replace "'", "''"
+
+        $escType      = $Row.Type       -replace "'", "''"
+
+        $escLearned   = $Row.Learned    -replace "'", "''"
+
+        $escState     = $Row.AuthState  -replace "'", "''"
+
+        $escModeFld   = $Row.AuthMode   -replace "'", "''"
+
+        $escClient    = $Row.AuthClient -replace "'", "''"
+
+        $escTemplate  = $Row.Template   -replace "'", "''"
+
+        $escConfig    = $Row.Config     -replace "'", "''"
+
+        $escColor     = $Row.PortColor  -replace "'", "''"
+
+        $escCfgStat   = $Row.StatusTag  -replace "'", "''"
+
+        $escToolTip   = $Row.ToolTip    -replace "'", "''"
+
+
+
+        $vlanNumeric = 0
+
+        if ($Row.PSObject.Properties.Name -contains 'VlanNumeric' -and $null -ne $Row.VlanNumeric) {
+
+            try { $vlanNumeric = [int]$Row.VlanNumeric } catch { $vlanNumeric = 0 }
+
         } else {
-            Add-InterfaceRow -Row $row
+
+            [void][int]::TryParse($Row.VLAN, [ref]$vlanNumeric)
+
         }
+
+
+
+        $ifaceSql = "INSERT INTO Interfaces (Hostname, Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, PortColor, ConfigStatus, ToolTip) VALUES ('$escHostname', '$escPort', '$escName', '$escStatus', $vlanNumeric, '$escDuplex', '$escSpeed', '$escType', '$escLearned', '$escState', '$escModeFld', '$escClient', '$escTemplate', '$escConfig', '$escColor', '$escCfgStat', '$escToolTip')"
+
+        try { $Connection.Execute($ifaceSql) | Out-Null } catch { Write-Warning "Failed to insert interface record for host ${Hostname} port ${Row.Port}: $($_.Exception.Message)" }
+
+
+
+        $histIfaceSql = "INSERT INTO InterfaceHistory (Hostname, RunDate, Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, PortColor, ConfigStatus, ToolTip) VALUES ('$escHostname', $runDateLiteral, '$escPort', '$escName', '$escStatus', $vlanNumeric, '$escDuplex', '$escSpeed', '$escType', '$escLearned', '$escState', '$escModeFld', '$escClient', '$escTemplate', '$escConfig', '$escColor', '$escCfgStat', '$escToolTip')"
+
+        try { $Connection.Execute($histIfaceSql) | Out-Null } catch { Write-Warning "Failed to insert interface history for host ${Hostname} port ${Row.Port}: $($_.Exception.Message)" }
+
+    }
+
+
+
+    $rowsToWrite = New-Object 'System.Collections.Generic.List[object]'
+
+    foreach ($row in $toInsert) { $rowsToWrite.Add($row) | Out-Null }
+
+    foreach ($row in $toUpdate) { $rowsToWrite.Add($row) | Out-Null }
+
+
+
+    $bulkSucceeded = $false
+
+    if ($useAdodbParameters -and $rowsToWrite.Count -gt 0) {
+
+        try {
+
+            $bulkSucceeded = Invoke-InterfaceBulkInsertInternal -Connection $Connection -Hostname $Hostname -RunDate $runDateValue -Rows $rowsToWrite
+
+        } catch {
+
+            Write-Verbose ("Bulk interface insert failed for {0}: {1}" -f $Hostname, $_.Exception.Message)
+
+            $bulkSucceeded = $false
+
+        }
+
+    }
+
+
+
+    if (-not $bulkSucceeded) {
+
+        if ($useAdodbParameters) {
+
+            foreach ($row in $toInsert) {
+
+                $handled = Invoke-InterfaceRowParameterized -Connection $Connection -Hostname $Hostname -Row $row -RunDate $runDateValue
+
+                if (-not $handled) { Add-InterfaceRow -Row $row }
+
+            }
+
+
+
+            foreach ($row in $toUpdate) {
+
+                $handled = Invoke-InterfaceRowParameterized -Connection $Connection -Hostname $Hostname -Row $row -RunDate $runDateValue
+
+                if (-not $handled) { Add-InterfaceRow -Row $row }
+
+            }
+
+        } else {
+
+            foreach ($row in $toInsert) {
+
+                Add-InterfaceRow -Row $row
+
+            }
+
+
+
+            foreach ($row in $toUpdate) {
+
+                Add-InterfaceRow -Row $row
+
+            }
+
+        }
+
     }
 
     try {
@@ -531,6 +662,348 @@ function Update-InterfacesInDb {
         }
     } catch { }
 }
+
+
+
+
+
+
+
+function Ensure-InterfaceBulkSeedTable {
+
+    [CmdletBinding()]
+
+    param(
+
+        [Parameter(Mandatory=$true)][object]$Connection
+
+    )
+
+    if (-not (Test-IsAdodbConnection -Connection $Connection)) { return $false }
+
+    try {
+
+        $Connection.Execute('SELECT TOP 1 BatchId FROM InterfaceBulkSeed') | Out-Null
+
+        return $true
+
+    } catch {
+
+        try {
+
+            $createSql = @"
+
+CREATE TABLE InterfaceBulkSeed (
+
+    BatchId TEXT(36) NOT NULL,
+
+    Hostname TEXT(255),
+
+    RunDateText TEXT(32),
+
+    Port TEXT(255),
+
+    Name TEXT(255),
+
+    Status TEXT(255),
+
+    VLAN INTEGER,
+
+    Duplex TEXT(255),
+
+    Speed TEXT(255),
+
+    Type TEXT(255),
+
+    LearnedMACs MEMO,
+
+    AuthState TEXT(255),
+
+    AuthMode TEXT(255),
+
+    AuthClientMAC TEXT(255),
+
+    AuthTemplate TEXT(255),
+
+    Config MEMO,
+
+    PortColor TEXT(255),
+
+    ConfigStatus TEXT(255),
+
+    ToolTip MEMO
+
+)
+
+"@
+
+            $Connection.Execute($createSql) | Out-Null
+
+            try { $Connection.Execute('CREATE INDEX IX_InterfaceBulkSeed_BatchId ON InterfaceBulkSeed (BatchId)') | Out-Null } catch { }
+
+            return $true
+
+        } catch {
+
+            Write-Warning ("Failed to ensure InterfaceBulkSeed staging table: {0}" -f $_.Exception.Message)
+
+            return $false
+
+        }
+
+    }
+
+}
+
+function Invoke-InterfaceBulkInsertInternal {
+
+    [CmdletBinding()]
+
+    param(
+
+        [Parameter(Mandatory=$true)][object]$Connection,
+
+        [Parameter(Mandatory=$true)][string]$Hostname,
+
+        [Parameter(Mandatory=$true)][datetime]$RunDate,
+
+        [Parameter(Mandatory=$true)][System.Collections.IEnumerable]$Rows
+
+    )
+
+    if (-not (Test-IsAdodbConnection -Connection $Connection)) { return $false }
+
+    $rowsBuffer = New-Object 'System.Collections.Generic.List[object]'
+
+    foreach ($row in $Rows) {
+
+        if ($null -ne $row) { $rowsBuffer.Add($row) | Out-Null }
+
+    }
+
+    if ($rowsBuffer.Count -eq 0) { return $true }
+
+    if (-not (Ensure-InterfaceBulkSeedTable -Connection $Connection)) { return $false }
+
+    $batchId = ([guid]::NewGuid()).ToString()
+
+    $escBatch = $batchId -replace "'", "''"
+
+    $escHostname = $Hostname -replace "'", "''"
+
+    $runDateText = $RunDate.ToString('yyyy-MM-dd HH:mm:ss')
+
+    $insertSql = 'INSERT INTO InterfaceBulkSeed (BatchId, Hostname, RunDateText, Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, PortColor, ConfigStatus, ToolTip) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+
+    $insertCmd = New-AdodbTextCommand -Connection $Connection -CommandText $insertSql
+
+    if (-not $insertCmd) { return $false }
+
+    $cleanupSql = "DELETE FROM InterfaceBulkSeed WHERE BatchId = '$escBatch'"
+
+    $stagedCount = 0
+
+    try {
+
+        $parameters = @(
+
+            Add-AdodbParameter -Command $insertCmd -Name 'BatchId' -Type $script:AdTypeVarWChar -Size 36
+
+            Add-AdodbParameter -Command $insertCmd -Name 'Hostname' -Type $script:AdTypeVarWChar -Size 255
+
+            Add-AdodbParameter -Command $insertCmd -Name 'RunDateText' -Type $script:AdTypeVarWChar -Size 32
+
+            Add-AdodbParameter -Command $insertCmd -Name 'Port' -Type $script:AdTypeVarWChar -Size 255
+
+            Add-AdodbParameter -Command $insertCmd -Name 'Name' -Type $script:AdTypeVarWChar -Size 255
+
+            Add-AdodbParameter -Command $insertCmd -Name 'Status' -Type $script:AdTypeVarWChar -Size 255
+
+            Add-AdodbParameter -Command $insertCmd -Name 'VLAN' -Type $script:AdTypeInteger
+
+            Add-AdodbParameter -Command $insertCmd -Name 'Duplex' -Type $script:AdTypeVarWChar -Size 255
+
+            Add-AdodbParameter -Command $insertCmd -Name 'Speed' -Type $script:AdTypeVarWChar -Size 255
+
+            Add-AdodbParameter -Command $insertCmd -Name 'Type' -Type $script:AdTypeVarWChar -Size 255
+
+            Add-AdodbParameter -Command $insertCmd -Name 'Learned' -Type $script:AdTypeLongVarWChar
+
+            Add-AdodbParameter -Command $insertCmd -Name 'AuthState' -Type $script:AdTypeVarWChar -Size 255
+
+            Add-AdodbParameter -Command $insertCmd -Name 'AuthMode' -Type $script:AdTypeVarWChar -Size 255
+
+            Add-AdodbParameter -Command $insertCmd -Name 'AuthClient' -Type $script:AdTypeVarWChar -Size 255
+
+            Add-AdodbParameter -Command $insertCmd -Name 'AuthTemplate' -Type $script:AdTypeVarWChar -Size 255
+
+            Add-AdodbParameter -Command $insertCmd -Name 'Config' -Type $script:AdTypeLongVarWChar
+
+            Add-AdodbParameter -Command $insertCmd -Name 'PortColor' -Type $script:AdTypeVarWChar -Size 255
+
+            Add-AdodbParameter -Command $insertCmd -Name 'ConfigStatus' -Type $script:AdTypeVarWChar -Size 255
+
+            Add-AdodbParameter -Command $insertCmd -Name 'ToolTip' -Type $script:AdTypeLongVarWChar
+
+        )
+
+        if ($parameters -contains $null) {
+
+            try { $Connection.Execute($cleanupSql) | Out-Null } catch { }
+
+            return $false
+
+        }
+
+        foreach ($row in $rowsBuffer) {
+
+            $vlanNumeric = 0
+
+            if ($row.PSObject.Properties.Name -contains 'VlanNumeric' -and $null -ne $row.VlanNumeric) {
+
+                try { $vlanNumeric = [int]$row.VlanNumeric } catch { $vlanNumeric = 0 }
+
+            } elseif ($row.PSObject.Properties.Name -contains 'VLAN') {
+
+                [void][int]::TryParse($row.VLAN, [ref]$vlanNumeric)
+
+            }
+
+            Set-AdodbParameterValue -Parameter $parameters[0] -Value $batchId
+
+            Set-AdodbParameterValue -Parameter $parameters[1] -Value $Hostname
+
+            Set-AdodbParameterValue -Parameter $parameters[2] -Value $runDateText
+
+            Set-AdodbParameterValue -Parameter $parameters[3] -Value ([string]$row.Port)
+
+            Set-AdodbParameterValue -Parameter $parameters[4] -Value ([string]$row.Name)
+
+            Set-AdodbParameterValue -Parameter $parameters[5] -Value ([string]$row.Status)
+
+            Set-AdodbParameterValue -Parameter $parameters[6] -Value $vlanNumeric
+
+            Set-AdodbParameterValue -Parameter $parameters[7] -Value ([string]$row.Duplex)
+
+            Set-AdodbParameterValue -Parameter $parameters[8] -Value ([string]$row.Speed)
+
+            Set-AdodbParameterValue -Parameter $parameters[9] -Value ([string]$row.Type)
+
+            Set-AdodbParameterValue -Parameter $parameters[10] -Value ([string]$row.Learned)
+
+            Set-AdodbParameterValue -Parameter $parameters[11] -Value ([string]$row.AuthState)
+
+            Set-AdodbParameterValue -Parameter $parameters[12] -Value ([string]$row.AuthMode)
+
+            Set-AdodbParameterValue -Parameter $parameters[13] -Value ([string]$row.AuthClient)
+
+            Set-AdodbParameterValue -Parameter $parameters[14] -Value ([string]$row.Template)
+
+            Set-AdodbParameterValue -Parameter $parameters[15] -Value ([string]$row.Config)
+
+            Set-AdodbParameterValue -Parameter $parameters[16] -Value ([string]$row.PortColor)
+
+            Set-AdodbParameterValue -Parameter $parameters[17] -Value ([string]$row.StatusTag)
+
+            Set-AdodbParameterValue -Parameter $parameters[18] -Value ([string]$row.ToolTip)
+
+            try {
+
+                $insertCmd.Execute() | Out-Null
+
+            } catch {
+
+                try { $Connection.Execute($cleanupSql) | Out-Null } catch { }
+
+                throw
+
+            }
+
+            $stagedCount++
+
+        }
+
+    } catch {
+
+        Write-Warning ("Failed to stage interfaces for host {0}: {1}" -f $Hostname, $_.Exception.Message)
+
+        return $false
+
+    } finally {
+
+        Release-ComObjectSafe -ComObject $insertCmd
+
+    }
+
+    if ($stagedCount -eq 0) {
+
+        try { $Connection.Execute($cleanupSql) | Out-Null } catch { }
+
+        return $true
+
+    }
+
+    $success = $false
+
+    try {
+
+        $insertInterfacesSql = "INSERT INTO Interfaces (Hostname, Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, PortColor, ConfigStatus, ToolTip)
+
+SELECT Hostname, Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, PortColor, ConfigStatus, ToolTip
+
+FROM InterfaceBulkSeed
+
+WHERE BatchId = '$escBatch' AND Hostname = '$escHostname'"
+
+        $Connection.Execute($insertInterfacesSql) | Out-Null
+
+        $insertHistorySql = "INSERT INTO InterfaceHistory (Hostname, RunDate, Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, PortColor, ConfigStatus, ToolTip)
+
+SELECT Hostname, CDate(RunDateText), Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, PortColor, ConfigStatus, ToolTip
+
+FROM InterfaceBulkSeed
+
+WHERE BatchId = '$escBatch' AND Hostname = '$escHostname'"
+
+        $Connection.Execute($insertHistorySql) | Out-Null
+
+        $success = $true
+
+    } catch {
+
+        Write-Warning ("Failed to commit bulk interface rows for host {0}: {1}" -f $Hostname, $_.Exception.Message)
+
+    } finally {
+
+        try { $Connection.Execute($cleanupSql) | Out-Null } catch { }
+
+    }
+
+    try {
+
+        TelemetryModule\Write-StTelemetryEvent -Name 'InterfaceBulkInsert' -Payload @{
+
+            Hostname = $Hostname
+
+            BatchId  = $batchId
+
+            Rows     = [int]$rowsBuffer.Count
+
+            RunDate  = $runDateText
+
+            Success  = $success
+
+        }
+
+    } catch { }
+
+    return $success
+
+}
+
+
+
+
 
 
 
@@ -622,7 +1095,7 @@ function Invoke-DeviceSummaryParameterized {
     try {
         $parameters = @(
             Add-AdodbParameter -Command $historyCmd -Name 'Hostname' -Type $script:AdTypeVarWChar -Size 255
-            Add-AdodbParameter -Command $historyCmd -Name 'RunDate' -Type $script:AdTypeDate
+            Add-AdodbParameter -Command $historyCmd -Name 'RunDate' -Type $script:AdTypeVarWChar -Size 32
             Add-AdodbParameter -Command $historyCmd -Name 'Make' -Type $script:AdTypeVarWChar -Size 255
             Add-AdodbParameter -Command $historyCmd -Name 'Model' -Type $script:AdTypeVarWChar -Size 255
             Add-AdodbParameter -Command $historyCmd -Name 'Uptime' -Type $script:AdTypeVarWChar -Size 255
@@ -637,7 +1110,7 @@ function Invoke-DeviceSummaryParameterized {
         if ($parameters -contains $null) { return $false }
 
         Set-AdodbParameterValue -Parameter $parameters[0] -Value $Hostname
-        Set-AdodbParameterValue -Parameter $parameters[1] -Value $RunDate
+        Set-AdodbParameterValue -Parameter $parameters[1] -Value ($RunDate.ToString('yyyy-MM-dd HH:mm:ss'))
         Set-AdodbParameterValue -Parameter $parameters[2] -Value ([string]$Values.Make)
         Set-AdodbParameterValue -Parameter $parameters[3] -Value ([string]$Values.Model)
         Set-AdodbParameterValue -Parameter $parameters[4] -Value ([string]$Values.Uptime)
@@ -660,132 +1133,298 @@ function Invoke-DeviceSummaryParameterized {
 }
 
 function Invoke-InterfaceRowParameterized {
+
     [CmdletBinding()]
+
     param(
+
         [Parameter(Mandatory=$true)][object]$Connection,
+
         [Parameter(Mandatory=$true)][string]$Hostname,
+
         [Parameter(Mandatory=$true)][object]$Row,
+
         [Parameter(Mandatory=$true)][datetime]$RunDate
+
     )
 
+
+
     $insertSql = 'INSERT INTO Interfaces (Hostname, Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, PortColor, ConfigStatus, ToolTip) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+
     $insertCmd = New-AdodbTextCommand -Connection $Connection -CommandText $insertSql
+
     if (-not $insertCmd) { return $false }
 
+
+
     $vlanNumeric = 0
-    if (-not [int]::TryParse($Row.VLAN, [ref]$vlanNumeric)) { $vlanNumeric = 0 }
+
+    if ($Row.PSObject.Properties.Name -contains 'VlanNumeric' -and $null -ne $Row.VlanNumeric) {
+
+        try { $vlanNumeric = [int]$Row.VlanNumeric } catch { $vlanNumeric = 0 }
+
+    } else {
+
+        [void][int]::TryParse($Row.VLAN, [ref]$vlanNumeric)
+
+    }
+
+
 
     try {
+
         $parameters = @(
+
             Add-AdodbParameter -Command $insertCmd -Name 'Hostname' -Type $script:AdTypeVarWChar -Size 255
+
             Add-AdodbParameter -Command $insertCmd -Name 'Port' -Type $script:AdTypeVarWChar -Size 255
+
             Add-AdodbParameter -Command $insertCmd -Name 'Name' -Type $script:AdTypeVarWChar -Size 255
+
             Add-AdodbParameter -Command $insertCmd -Name 'Status' -Type $script:AdTypeVarWChar -Size 255
+
             Add-AdodbParameter -Command $insertCmd -Name 'VLAN' -Type $script:AdTypeInteger
+
             Add-AdodbParameter -Command $insertCmd -Name 'Duplex' -Type $script:AdTypeVarWChar -Size 255
+
             Add-AdodbParameter -Command $insertCmd -Name 'Speed' -Type $script:AdTypeVarWChar -Size 255
+
             Add-AdodbParameter -Command $insertCmd -Name 'Type' -Type $script:AdTypeVarWChar -Size 255
+
             Add-AdodbParameter -Command $insertCmd -Name 'Learned' -Type $script:AdTypeLongVarWChar
+
             Add-AdodbParameter -Command $insertCmd -Name 'AuthState' -Type $script:AdTypeVarWChar -Size 255
+
             Add-AdodbParameter -Command $insertCmd -Name 'AuthMode' -Type $script:AdTypeVarWChar -Size 255
+
             Add-AdodbParameter -Command $insertCmd -Name 'AuthClient' -Type $script:AdTypeVarWChar -Size 255
+
             Add-AdodbParameter -Command $insertCmd -Name 'AuthTemplate' -Type $script:AdTypeVarWChar -Size 255
+
             Add-AdodbParameter -Command $insertCmd -Name 'Config' -Type $script:AdTypeLongVarWChar
+
             Add-AdodbParameter -Command $insertCmd -Name 'PortColor' -Type $script:AdTypeVarWChar -Size 255
+
             Add-AdodbParameter -Command $insertCmd -Name 'ConfigStatus' -Type $script:AdTypeVarWChar -Size 255
+
             Add-AdodbParameter -Command $insertCmd -Name 'ToolTip' -Type $script:AdTypeLongVarWChar
+
         )
+
+
 
         if ($parameters -contains $null) { return $false }
 
+
+
         Set-AdodbParameterValue -Parameter $parameters[0] -Value $Hostname
+
         Set-AdodbParameterValue -Parameter $parameters[1] -Value ([string]$Row.Port)
+
         Set-AdodbParameterValue -Parameter $parameters[2] -Value ([string]$Row.Name)
+
         Set-AdodbParameterValue -Parameter $parameters[3] -Value ([string]$Row.Status)
+
         Set-AdodbParameterValue -Parameter $parameters[4] -Value $vlanNumeric
+
         Set-AdodbParameterValue -Parameter $parameters[5] -Value ([string]$Row.Duplex)
+
         Set-AdodbParameterValue -Parameter $parameters[6] -Value ([string]$Row.Speed)
+
         Set-AdodbParameterValue -Parameter $parameters[7] -Value ([string]$Row.Type)
+
         Set-AdodbParameterValue -Parameter $parameters[8] -Value ([string]$Row.Learned)
+
         Set-AdodbParameterValue -Parameter $parameters[9] -Value ([string]$Row.AuthState)
+
         Set-AdodbParameterValue -Parameter $parameters[10] -Value ([string]$Row.AuthMode)
+
         Set-AdodbParameterValue -Parameter $parameters[11] -Value ([string]$Row.AuthClient)
+
         Set-AdodbParameterValue -Parameter $parameters[12] -Value ([string]$Row.Template)
+
         Set-AdodbParameterValue -Parameter $parameters[13] -Value ([string]$Row.Config)
+
         Set-AdodbParameterValue -Parameter $parameters[14] -Value ([string]$Row.PortColor)
+
         Set-AdodbParameterValue -Parameter $parameters[15] -Value ([string]$Row.StatusTag)
+
         Set-AdodbParameterValue -Parameter $parameters[16] -Value ([string]$Row.ToolTip)
 
+
+
         try {
+
             $insertCmd.Execute() | Out-Null
+
         } catch {
+
             Write-Warning "Failed to insert interface record for host ${Hostname} port ${Row.Port}: $($_.Exception.Message)"
+
             Write-Verbose ("Interface insert exception details: {0}" -f ($_.Exception | Format-List * | Out-String))
+
             return $false
+
         }
+
     } finally {
+
         Release-ComObjectSafe -ComObject $insertCmd
+
     }
 
+
+
     $historySql = 'INSERT INTO InterfaceHistory (Hostname, RunDate, Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, PortColor, ConfigStatus, ToolTip) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+
     $historyCmd = New-AdodbTextCommand -Connection $Connection -CommandText $historySql
+
     if (-not $historyCmd) { return $true }
 
+
+
     try {
+
         $parameters = @(
+
             Add-AdodbParameter -Command $historyCmd -Name 'Hostname' -Type $script:AdTypeVarWChar -Size 255
-            Add-AdodbParameter -Command $historyCmd -Name 'RunDate' -Type $script:AdTypeDate
+
+            Add-AdodbParameter -Command $historyCmd -Name 'RunDate' -Type $script:AdTypeVarWChar -Size 32
+
             Add-AdodbParameter -Command $historyCmd -Name 'Port' -Type $script:AdTypeVarWChar -Size 255
+
             Add-AdodbParameter -Command $historyCmd -Name 'Name' -Type $script:AdTypeVarWChar -Size 255
+
             Add-AdodbParameter -Command $historyCmd -Name 'Status' -Type $script:AdTypeVarWChar -Size 255
+
             Add-AdodbParameter -Command $historyCmd -Name 'VLAN' -Type $script:AdTypeInteger
+
             Add-AdodbParameter -Command $historyCmd -Name 'Duplex' -Type $script:AdTypeVarWChar -Size 255
+
             Add-AdodbParameter -Command $historyCmd -Name 'Speed' -Type $script:AdTypeVarWChar -Size 255
+
             Add-AdodbParameter -Command $historyCmd -Name 'Type' -Type $script:AdTypeVarWChar -Size 255
+
             Add-AdodbParameter -Command $historyCmd -Name 'Learned' -Type $script:AdTypeLongVarWChar
+
             Add-AdodbParameter -Command $historyCmd -Name 'AuthState' -Type $script:AdTypeVarWChar -Size 255
+
             Add-AdodbParameter -Command $historyCmd -Name 'AuthMode' -Type $script:AdTypeVarWChar -Size 255
+
             Add-AdodbParameter -Command $historyCmd -Name 'AuthClient' -Type $script:AdTypeVarWChar -Size 255
+
             Add-AdodbParameter -Command $historyCmd -Name 'AuthTemplate' -Type $script:AdTypeVarWChar -Size 255
+
             Add-AdodbParameter -Command $historyCmd -Name 'Config' -Type $script:AdTypeLongVarWChar
+
             Add-AdodbParameter -Command $historyCmd -Name 'PortColor' -Type $script:AdTypeVarWChar -Size 255
+
             Add-AdodbParameter -Command $historyCmd -Name 'ConfigStatus' -Type $script:AdTypeVarWChar -Size 255
+
             Add-AdodbParameter -Command $historyCmd -Name 'ToolTip' -Type $script:AdTypeLongVarWChar
+
         )
+
+
 
         if ($parameters -contains $null) { return $true }
 
+
+
         Set-AdodbParameterValue -Parameter $parameters[0] -Value $Hostname
-        Set-AdodbParameterValue -Parameter $parameters[1] -Value $RunDate
+
+        Set-AdodbParameterValue -Parameter $parameters[1] -Value ($RunDate.ToString('yyyy-MM-dd HH:mm:ss'))
+
         Set-AdodbParameterValue -Parameter $parameters[2] -Value ([string]$Row.Port)
+
         Set-AdodbParameterValue -Parameter $parameters[3] -Value ([string]$Row.Name)
+
         Set-AdodbParameterValue -Parameter $parameters[4] -Value ([string]$Row.Status)
+
         Set-AdodbParameterValue -Parameter $parameters[5] -Value $vlanNumeric
+
         Set-AdodbParameterValue -Parameter $parameters[6] -Value ([string]$Row.Duplex)
+
         Set-AdodbParameterValue -Parameter $parameters[7] -Value ([string]$Row.Speed)
+
         Set-AdodbParameterValue -Parameter $parameters[8] -Value ([string]$Row.Type)
+
         Set-AdodbParameterValue -Parameter $parameters[9] -Value ([string]$Row.Learned)
+
         Set-AdodbParameterValue -Parameter $parameters[10] -Value ([string]$Row.AuthState)
+
         Set-AdodbParameterValue -Parameter $parameters[11] -Value ([string]$Row.AuthMode)
+
         Set-AdodbParameterValue -Parameter $parameters[12] -Value ([string]$Row.AuthClient)
+
         Set-AdodbParameterValue -Parameter $parameters[13] -Value ([string]$Row.Template)
+
         Set-AdodbParameterValue -Parameter $parameters[14] -Value ([string]$Row.Config)
+
         Set-AdodbParameterValue -Parameter $parameters[15] -Value ([string]$Row.PortColor)
-        Set-AdodbParameterValue -Parameter $parameters[16] -Value ([string]$Row.ConfigStatus)
+
+        Set-AdodbParameterValue -Parameter $parameters[16] -Value ([string]$Row.StatusTag)
+
         Set-AdodbParameterValue -Parameter $parameters[17] -Value ([string]$Row.ToolTip)
 
+
+
         try {
+
             $historyCmd.Execute() | Out-Null
+
         } catch {
+
             Write-Warning "Failed to insert interface history for host ${Hostname} port ${Row.Port}: $($_.Exception.Message)"
+
         }
+
     } finally {
+
         Release-ComObjectSafe -ComObject $historyCmd
+
     }
 
+
+
     return $true
+
 }
 
+
+
+
+
+function Write-InterfacePersistenceFailure {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$Stage,
+        [Parameter(Mandatory=$true)][string]$Hostname,
+        [Parameter(Mandatory=$true)][System.Exception]$Exception,
+        [Parameter()][hashtable]$Metadata
+    )
+
+    $payload = @{
+        Stage = $Stage
+        Hostname = $Hostname
+        ExceptionMessage = $Exception.Message
+        ExceptionType = $Exception.GetType().FullName
+    }
+
+    if ($Metadata) {
+        foreach ($key in $Metadata.Keys) {
+            $payload[$key] = $Metadata[$key]
+        }
+    }
+
+    try {
+        TelemetryModule\Write-StTelemetryEvent -Name 'InterfacePersistenceFailure' -Payload $payload
+    } catch {
+        Write-Warning ("Failed to emit interface persistence telemetry: {0}" -f $_.Exception.Message)
+    }
+}
+
 function Update-SpanInfoInDb {
     [CmdletBinding()]
     param(
@@ -845,4 +1484,4 @@ function Update-SpanInfoInDb {
         }
     }
 }
-Export-ModuleMember -Function Update-DeviceSummaryInDb, Update-InterfacesInDb, Update-SpanInfoInDb
+Export-ModuleMember -Function Update-DeviceSummaryInDb, Update-InterfacesInDb, Update-SpanInfoInDb, Write-InterfacePersistenceFailure

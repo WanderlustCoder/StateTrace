@@ -21,6 +21,77 @@ function Get-SqlLiteral {
     return $Value.Replace("'", "''")
 }
 
+function Invoke-AccessDatabase32BitCreation {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][string]$Provider,
+        [Parameter(Mandatory)][int]$Engine
+    )
+
+    $sysWowPath = Join-Path $env:WINDIR 'SysWOW64\WindowsPowerShell\v1.0\powershell.exe'
+    if (-not (Test-Path -LiteralPath $sysWowPath)) {
+        throw "32-bit PowerShell executable not found at '$sysWowPath'."
+    }
+
+    $parentDir = Split-Path -Path $Path -Parent
+    if ($parentDir -and -not (Test-Path -LiteralPath $parentDir)) {
+        New-Item -ItemType Directory -Path $parentDir -Force | Out-Null
+    }
+
+    $scriptContent = @"
+param(
+    [Parameter(Mandatory=`$true)][string]`$Path,
+    [Parameter(Mandatory=`$true)][string]`$Provider,
+    [Parameter(Mandatory=`$true)][int]`$Engine
+)
+
+`$ErrorActionPreference = 'Stop'
+`$parentDir = Split-Path -Path `$Path -Parent
+if (`$parentDir -and -not (Test-Path -LiteralPath `$parentDir)) {
+    New-Item -ItemType Directory -Path `$parentDir -Force | Out-Null
+}
+
+`$catalog = `$null
+try {
+    `$catalog = New-Object -ComObject ADOX.Catalog
+    `$connectionString = "Provider=`$Provider;Data Source=`$Path;Jet OLEDB:Engine Type=`$Engine;"
+    `$null = `$catalog.Create(`$connectionString)
+} finally {
+    if (`$catalog) {
+        [System.Runtime.Interopservices.Marshal]::ReleaseComObject(`$catalog) | Out-Null
+    }
+}
+"@
+
+    $tempFile = [System.IO.Path]::ChangeExtension([System.IO.Path]::GetTempFileName(), '.ps1')
+    Set-Content -Path $tempFile -Value $scriptContent -Encoding ASCII
+
+    $process = $null
+    try {
+        $arguments = @('-NoProfile','-ExecutionPolicy','Bypass','-File',$tempFile,'-Path',$Path,'-Provider',$Provider,'-Engine',$Engine)
+        $process = Start-Process -FilePath $sysWowPath -ArgumentList $arguments -PassThru -WindowStyle Hidden
+        if (-not $process) {
+            throw "Failed to start 32-bit PowerShell for Access database creation."
+        }
+
+        $process.WaitForExit()
+        if ($process.ExitCode -ne 0) {
+            throw "32-bit PowerShell exited with code $($process.ExitCode)."
+        }
+    } finally {
+        if ($process) {
+            $process.Dispose()
+        }
+        if (Test-Path -LiteralPath $tempFile) {
+            Remove-Item -LiteralPath $tempFile -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        throw "32-bit fallback completed but database '$Path' was not created."
+    }
+}
 ###
 
 function Open-DbReadSession {
@@ -132,28 +203,62 @@ function New-AccessDatabase {
     # If the database does not exist, create it using ADOX.  The provider and engine
     $needsCreate = -not (Test-Path $Path)
     if ($needsCreate) {
-        # Emit a debug message when StateTrace debugging is enabled
         if ($Global:StateTraceDebug) {
             Write-Host "[DEBUG] Creating new Access database at '$Path'" -ForegroundColor Cyan
         }
-        # Determine file extension and provider/engine type accordingly.
+
         $ext = [System.IO.Path]::GetExtension($Path).ToLowerInvariant()
-        $provider = 'Microsoft.Jet.OLEDB.4.0'
-        $engine   = 5  # Jet 4.0 (Access 2000/2003)
+        $providerCandidates = @()
         if ($ext -eq '.accdb') {
-            $provider = 'Microsoft.ACE.OLEDB.12.0'
-            $engine   = 6  # ACE 2007
+            $providerCandidates += 'Microsoft.ACE.OLEDB.16.0'
+            $providerCandidates += 'Microsoft.ACE.OLEDB.12.0'
         }
-        try {
-            # Use ADOX Catalog to create the database.  ADOX is part of the
-            $cat = New-Object -ComObject ADOX.Catalog
-            $connStr = "Provider=$provider;Data Source=$Path;Jet OLEDB:Engine Type=$engine;"
-            $null = $cat.Create($connStr)
-            # Release COM object
-            [System.Runtime.Interopservices.Marshal]::ReleaseComObject($cat) | Out-Null
-        } catch {
-            Write-Warning "Failed to create the Access database using ADOX: $($_.Exception.Message)"
-            throw
+        $providerCandidates += 'Microsoft.Jet.OLEDB.4.0'
+
+        $creationDiagnostics = [System.Collections.Generic.List[string]]::new()
+        $databaseCreated = $false
+
+        foreach ($providerCandidate in $providerCandidates) {
+            $cat = $null
+            $engine = if ($providerCandidate -like 'Microsoft.Jet*') { 5 } else { 6 }
+
+            try {
+                $cat = New-Object -ComObject ADOX.Catalog
+                $connStr = "Provider=$providerCandidate;Data Source=$Path;Jet OLEDB:Engine Type=$engine;"
+                $null = $cat.Create($connStr)
+                $databaseCreated = Test-Path -LiteralPath $Path
+                if ($databaseCreated) {
+                    if ($Global:StateTraceDebug) {
+                        Write-Host "[DEBUG] Created Access database using provider '$providerCandidate' at '$Path'" -ForegroundColor Cyan
+                    }
+                    break
+                }
+            } catch {
+                $creationDiagnostics.Add("Provider '$providerCandidate': `$($_.Exception.Message)")
+                if ([Environment]::Is64BitProcess) {
+                    try {
+                        Invoke-AccessDatabase32BitCreation -Path $Path -Provider $providerCandidate -Engine $engine
+                        $databaseCreated = Test-Path -LiteralPath $Path
+                        if ($databaseCreated) {
+                            if ($Global:StateTraceDebug) {
+                                Write-Host "[DEBUG] Created Access database via 32-bit fallback using provider '$providerCandidate' at '$Path'" -ForegroundColor Cyan
+                            }
+                            break
+                        }
+                    } catch {
+                        $creationDiagnostics.Add("32-bit fallback for provider '$providerCandidate': `$($_.Exception.Message)")
+                    }
+                }
+            } finally {
+                if ($cat) {
+                    [System.Runtime.Interopservices.Marshal]::ReleaseComObject($cat) | Out-Null
+                }
+            }
+        }
+
+        if (-not $databaseCreated) {
+            $detailText = if ($creationDiagnostics.Count -gt 0) { [string]::Join([System.Environment]::NewLine, $creationDiagnostics) } else { 'No provider-specific diagnostics were captured.' }
+            throw "Failed to create Access database at '$Path'. Tried providers: $([string]::Join(', ', $providerCandidates)).`n$detailText"
         }
     }
 
@@ -393,4 +498,9 @@ function Invoke-DbQuery {
 }
 
 Export-ModuleMember -Function Get-SqlLiteral, New-AccessDatabase, Invoke-DbQuery, Open-DbReadSession, Close-DbReadSession
+
+
+
+
+
 

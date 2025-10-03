@@ -121,6 +121,93 @@ Describe "DeviceLogParserModule" {
         }
     }
 
+    It "emits duplicate telemetry when log hash matches prior ingestion" {
+        if (-not (Get-Command 'DeviceRepositoryModule\Get-SiteFromHostname' -ErrorAction SilentlyContinue)) {
+            function DeviceRepositoryModule\Get-SiteFromHostname {
+                param([string]$Hostname, [int]$FallbackLength)
+                if ([string]::IsNullOrWhiteSpace($Hostname)) { return '' }
+                $length = [Math]::Min([Math]::Max($FallbackLength, 1), $Hostname.Length)
+                return $Hostname.Substring(0, $length)
+            }
+        }
+
+        $deviceRepoModulePath = Join-Path (Split-Path $PSCommandPath) '..\DeviceRepositoryModule.psm1'
+        Import-Module (Resolve-Path $deviceRepoModulePath) -Force
+
+        $repoRoot = [System.IO.Path]::GetFullPath((Join-Path (Split-Path $PSCommandPath) '..\..'))
+        $sampleLogPath = Join-Path $repoRoot 'Logs\mock_brocade (1).log'
+        $logPath = Join-Path $TestDrive 'WLLS-A02-AS-02.log'
+        Copy-Item -LiteralPath $sampleLogPath -Destination $logPath -Force
+        $hashValue = (Get-FileHash -LiteralPath $logPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        $siteCode = 'WLLS'
+
+        $historyDir = Join-Path $repoRoot 'Data\IngestionHistory'
+        $historyFile = Join-Path $historyDir 'WLLS.json'
+        $historyExists = Test-Path -LiteralPath $historyFile
+        $previousHistory = $null
+        if ($historyExists) {
+            $previousHistory = Get-Content -LiteralPath $historyFile -Raw
+        }
+
+        $historyRecord = @(@{
+                Hostname        = 'WLLS-A02-AS-02'
+                Site            = $siteCode
+                FileHash        = $hashValue
+                SourceLength    = (Get-Item -LiteralPath $logPath).Length
+                LastIngestedUtc = '2025-10-03T12:00:00Z'
+            })
+        $historyJson = $historyRecord | ConvertTo-Json -Depth 4
+        Set-Content -LiteralPath $historyFile -Value $historyJson -Encoding UTF8
+
+        $dbPath = Join-Path $TestDrive 'WLLS.accdb'
+        if (-not (Test-Path -LiteralPath $dbPath)) {
+            New-Item -Path $dbPath -ItemType File | Out-Null
+        }
+
+        $telemetryModulePath = Join-Path (Split-Path $PSCommandPath) '..\TelemetryModule.psm1'
+        Import-Module (Resolve-Path $telemetryModulePath) -Force
+
+        $metricsDir = Join-Path $TestDrive 'metrics'
+        if (-not (Test-Path -LiteralPath $metricsDir)) { New-Item -ItemType Directory -Path $metricsDir -Force | Out-Null }
+        $previousTelemetryDir = $env:STATETRACE_TELEMETRY_DIR
+        $env:STATETRACE_TELEMETRY_DIR = $metricsDir
+
+        try {
+            DeviceLogParserModule\Invoke-DeviceLogParsing -FilePath $logPath -ArchiveRoot $TestDrive -DatabasePath $dbPath
+        } finally {
+            if ($previousTelemetryDir) {
+                $env:STATETRACE_TELEMETRY_DIR = $previousTelemetryDir
+            } else {
+                Remove-Item Env:STATETRACE_TELEMETRY_DIR -ErrorAction SilentlyContinue
+            }
+            if ($historyExists) {
+                Set-Content -LiteralPath $historyFile -Value $previousHistory -Encoding UTF8
+            } else {
+                Remove-Item -LiteralPath $historyFile -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        $metricsPath = Join-Path $metricsDir ((Get-Date).ToString('yyyy-MM-dd') + '.json')
+        $telemetryEvents = @()
+        if (Test-Path -LiteralPath $metricsPath) {
+            $telemetryEvents = Get-Content -LiteralPath $metricsPath | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object { $_ | ConvertFrom-Json }
+        }
+
+        $skipEvent = $telemetryEvents | Where-Object { $_.EventName -eq 'SkippedDuplicate' -and $_.Hostname -eq 'WLLS-A02-AS-02' } | Select-Object -First 1
+        $parseEvent = $telemetryEvents | Where-Object { $_.EventName -eq 'ParseDuration' -and $_.Hostname -eq 'WLLS-A02-AS-02' } | Select-Object -First 1
+
+        $skipEvent | Should Not BeNullOrEmpty
+        $skipEvent.Site | Should Be $siteCode
+        $skipEvent.Reason | Should Be 'HashMatch'
+        $skipEvent.FileHash | Should Be $hashValue
+
+        $parseEvent | Should Not BeNullOrEmpty
+        $parseEvent.Success | Should Be $true
+        $parseEvent.Duplicate | Should Be $true
+        $parseEvent.DuplicateReason | Should Be 'HashMatch'
+        $parseEvent.Site | Should Be $siteCode
+        $parseEvent.Hostname | Should Be 'WLLS-A02-AS-02'
+    }
 
     Context "Get-CachedDbConnection" {
         function Invoke-InModule {

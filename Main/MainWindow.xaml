@@ -37,9 +37,6 @@
       <Label Content="Room:" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
       <!-- Room dropdown with search capability -->
       <ComboBox Name="RoomDropdown" Width="80" Margin="5,0" IsEditable="True" IsTextSearchEnabled="True" Style="{DynamicResource ToolbarComboBoxStyle}"/>
-      <Label Content="Theme:" VerticalAlignment="Center" Margin="15,0,0,0" Style="{DynamicResource ToolbarLabelStyle}"/>
-      <ComboBox Name="ThemeSelector" Width="170" Margin="5,0" IsEditable="False" Style="{DynamicResource ToolbarComboBoxStyle}"/>
-
       <!-- Show command buttons moved to their own row -->
     </StackPanel>
 
@@ -57,6 +54,8 @@
         <ComboBox Name="BrocadeOSDropdown" Width="110" Margin="0,0,5,0" Style="{DynamicResource ToolbarComboBoxStyle}"/>
         <!-- Help button opens a window containing documentation for each section of the GUI -->
         <Button Name="HelpButton" Content="Help" Width="60" Margin="0,0,0,0" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Open help documentation"/>
+        <Label Content="Theme:" VerticalAlignment="Center" Margin="15,0,0,0" Style="{DynamicResource ToolbarLabelStyle}"/>
+        <ComboBox Name="ThemeSelector" Width="170" Margin="5,0" IsEditable="False" Style="{DynamicResource ToolbarComboBoxStyle}"/>
         <CheckBox Name="DebugNextLaunchCheckbox" Content="Enable debug next launch" Margin="10,0,0,0" VerticalAlignment="Center" Style="{DynamicResource ToolbarCheckBoxStyle}" ToolTip="Stores preference to enable verbose diagnostics on the next application start"/>
         <!-- Compare configs button removed; comparison is launched from the Interfaces tab -->
       </StackPanel>

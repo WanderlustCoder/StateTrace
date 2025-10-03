@@ -720,6 +720,8 @@ function Invoke-DeviceLogParsing {
     $cleanHostname = ''
     $siteCode = ''
     $ingestionSucceeded = $false
+    $skippedDuplicate = $false
+    $duplicateMetadata = @{}
 
     if ($Global:StateTraceDebug) {
         Write-Host "[DEBUG] Parsing file '$FilePath'" -ForegroundColor Yellow
@@ -844,6 +846,38 @@ function Invoke-DeviceLogParsing {
             if ($Global:StateTraceDebug) {
                 Write-Host "[DEBUG] Skipping '$historyKey' because log hash matches previous ingestion" -ForegroundColor Yellow
             }
+
+            $cleanHostname = $historyKey
+            if (-not [string]::IsNullOrWhiteSpace($historyContext.SiteKey)) {
+                $siteCode = $historyContext.SiteKey
+            }
+
+            $skippedDuplicate = $true
+            $duplicateMetadata = @{
+                Reason       = 'HashMatch'
+                FileHash     = $fileHash
+                SourceLength = $sourceLength
+                Site         = $siteCode
+            }
+
+            if ($matchedHistoryRecord -and $matchedHistoryRecord.PSObject.Properties.Name -contains 'LastIngestedUtc' -and -not [string]::IsNullOrWhiteSpace($matchedHistoryRecord.LastIngestedUtc)) {
+                $duplicateMetadata['LastIngestedUtc'] = '' + $matchedHistoryRecord.LastIngestedUtc
+            }
+
+            try {
+                $dupPayload = @{
+                    Hostname = $cleanHostname
+                    Site     = $siteCode
+                    Reason   = 'HashMatch'
+                }
+                if ($fileHash) { $dupPayload['FileHash'] = $fileHash }
+                if ($sourceLength -gt 0) { $dupPayload['SourceLength'] = [long]$sourceLength }
+                if ($duplicateMetadata.ContainsKey('LastIngestedUtc')) {
+                    $dupPayload['LastIngestedUtc'] = $duplicateMetadata['LastIngestedUtc']
+                }
+                TelemetryModule\Write-StTelemetryEvent -Name 'SkippedDuplicate' -Payload $dupPayload
+            } catch { }
+
             return
         }
     }
@@ -1268,6 +1302,11 @@ function Invoke-DeviceLogParsing {
             }
         } catch {
             # Use curly braces around variable names that precede a colon to avoid
+            $metadata = @{
+                DatabasePath = $DatabasePath
+                Provider     = $__dbProvider
+            }
+            ParserPersistenceModule\Write-InterfacePersistenceFailure -Stage 'DeviceLogParserUnhandled' -Hostname $cleanHostname -Exception $_.Exception -Metadata $metadata
             Write-Warning "Failed to insert data into database for host ${cleanHostname}: $($_.Exception.Message)"
         }
     }
@@ -1323,12 +1362,24 @@ function Invoke-DeviceLogParsing {
     finally {
         try {
             if ($__stParseSw) { $__stParseSw.Stop() }
+            $payloadSuccess = if ($skippedDuplicate) { $true } else { [bool]$ingestionSucceeded }
+
             $payload = @{
                 Hostname = $cleanHostname
                 Site = $siteCode
                 StartTime = $__stParseStart.ToUniversalTime().ToString('o')
                 DurationSeconds = [Math]::Round($__stParseSw.Elapsed.TotalSeconds, 3)
-                Success = [bool]$ingestionSucceeded
+                Success = $payloadSuccess
+            }
+
+            if ($skippedDuplicate) {
+                $payload['Duplicate'] = $true
+                if ($duplicateMetadata -and $duplicateMetadata.ContainsKey('Reason')) {
+                    $payload['DuplicateReason'] = $duplicateMetadata['Reason']
+                }
+                if ($duplicateMetadata -and $duplicateMetadata.ContainsKey('LastIngestedUtc')) {
+                    $payload['LastIngestedUtc'] = $duplicateMetadata['LastIngestedUtc']
+                }
             }
             if ($FilePath) {
                 $payload['FileName'] = [System.IO.Path]::GetFileName($FilePath)

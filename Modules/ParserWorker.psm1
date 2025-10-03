@@ -219,6 +219,16 @@ function Invoke-StateTraceParsing {
 
         [string]$DatabasePath,
 
+        [int]$ThreadCeilingOverride,
+
+        [int]$MaxWorkersPerSiteOverride,
+
+        [int]$MaxActiveSitesOverride,
+
+        [int]$JobsPerThreadOverride,
+
+        [int]$MinRunspacesOverride,
+
         [switch]$Synchronous
 
     )
@@ -308,8 +318,13 @@ function Invoke-StateTraceParsing {
     $enableAdaptiveThreads = $true
 
     try {
-
-        $settingsPath = Join-Path $projectRoot '..\Data\StateTraceSettings.json'
+        $settingsPath = Join-Path $projectRoot 'Data\StateTraceSettings.json'
+        if (-not (Test-Path -LiteralPath $settingsPath)) {
+            $altSettingsPath = Join-Path $projectRoot '..\Data\StateTraceSettings.json'
+            if (Test-Path -LiteralPath $altSettingsPath) {
+                $settingsPath = $altSettingsPath
+            }
+        }
 
         if (Test-Path -LiteralPath $settingsPath) {
 
@@ -454,6 +469,45 @@ function Invoke-StateTraceParsing {
         }
 
     }
+    if ($PSBoundParameters.ContainsKey('ThreadCeilingOverride')) {
+
+        $threadCeiling = [int]$ThreadCeilingOverride
+
+        $hasThreadCeilingSetting = $true
+
+    }
+
+    if ($PSBoundParameters.ContainsKey('MaxWorkersPerSiteOverride')) {
+
+        $maxWorkersPerSite = [int]$MaxWorkersPerSiteOverride
+
+        $hasMaxWorkersSetting = $true
+
+    }
+
+    if ($PSBoundParameters.ContainsKey('MaxActiveSitesOverride')) {
+
+        $maxActiveSites = [int]$MaxActiveSitesOverride
+
+        $hasMaxActiveSitesSetting = $true
+
+    }
+
+    if ($PSBoundParameters.ContainsKey('JobsPerThreadOverride')) {
+
+        $jobsPerThread = [int]$JobsPerThreadOverride
+
+        $hasJobsPerThreadSetting = $true
+
+    }
+
+    if ($PSBoundParameters.ContainsKey('MinRunspacesOverride')) {
+
+        $minRunspaces = [int]$MinRunspacesOverride
+
+        $hasMinRunspacesSetting = $true
+
+    }
 
 
 
@@ -512,6 +566,20 @@ function Invoke-StateTraceParsing {
 
 
 
+    $hasManualOverrides = $false
+
+    if ($PSBoundParameters.ContainsKey('ThreadCeilingOverride') -or
+        $PSBoundParameters.ContainsKey('MaxWorkersPerSiteOverride') -or
+        $PSBoundParameters.ContainsKey('MaxActiveSitesOverride') -or
+        $PSBoundParameters.ContainsKey('JobsPerThreadOverride') -or
+        $PSBoundParameters.ContainsKey('MinRunspacesOverride')) {
+
+        $hasManualOverrides = $true
+
+    }
+
+
+
     $telemetryPayload = @{
 
         AutoScaleEnabled = [bool]$autoScaleConcurrency
@@ -532,6 +600,8 @@ function Invoke-StateTraceParsing {
 
         AdaptiveThreads  = [bool]$enableAdaptiveThreads
 
+        ManualOverrides  = [bool]$hasManualOverrides
+
         HintThreadCeiling     = [int]$autoScaleThreadHint
 
         HintMaxWorkersPerSite = [int]$autoScaleWorkerHint
@@ -543,6 +613,38 @@ function Invoke-StateTraceParsing {
         HintMinRunspaces      = [int]$autoScaleMinHint
 
     }
+
+    if ($PSBoundParameters.ContainsKey('ThreadCeilingOverride')) {
+
+        $telemetryPayload.OverrideThreadCeiling = [int]$ThreadCeilingOverride
+
+    }
+
+    if ($PSBoundParameters.ContainsKey('MaxWorkersPerSiteOverride')) {
+
+        $telemetryPayload.OverrideMaxWorkersPerSite = [int]$MaxWorkersPerSiteOverride
+
+    }
+
+    if ($PSBoundParameters.ContainsKey('MaxActiveSitesOverride')) {
+
+        $telemetryPayload.OverrideMaxActiveSites = [int]$MaxActiveSitesOverride
+
+    }
+
+    if ($PSBoundParameters.ContainsKey('JobsPerThreadOverride')) {
+
+        $telemetryPayload.OverrideJobsPerThread = [int]$JobsPerThreadOverride
+
+    }
+
+    if ($PSBoundParameters.ContainsKey('MinRunspacesOverride')) {
+
+        $telemetryPayload.OverrideMinRunspaces = [int]$MinRunspacesOverride
+
+    }
+
+
 
     if ($resolvedProfile) {
 

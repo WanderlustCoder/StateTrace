@@ -1,4 +1,4 @@
-﻿# StateTrace Ã¢â‚¬â€ Consolidated Planning Dossier
+# StateTrace â€” Consolidated Planning Dossier
 > Generated: 2025-09-30 19:45 UTC
 
 This dossier consolidates the planning documents in `docs/` into a small set of **like plans**. Each consolidated plan merges overlapping goals, normalizes terminology, and lists crisp deliverables, scope boundaries, acceptance criteria, metrics, risks, and next actions.
@@ -43,17 +43,17 @@ The following source documents were reviewed and folded into the plan set:
 ---
 
 ## Executive summary
-- **Routing Reliability** becomes a single crossÃ¢â‚¬â€˜cutting program (data model, discovery, health scoring, alerting, and rollout) driven by a _Routing Working Set_ of docs merged below.
-- **Performance & Ingestion Scale** unifies perf hotÃ¢â‚¬â€˜spot fixes, multiÃ¢â‚¬â€˜DB concurrency, and code deduplication under one engineering plan with measurable p95 targets.
-- **Change Tracking (Diff)** provides AccessÃ¢â‚¬â€˜backed perÃ¢â‚¬â€˜run snapshots and a diff UI, treated as a feature enabler for drift detection and guided troubleshooting.
+- **Routing Reliability** becomes a single crossâ€‘cutting program (data model, discovery, health scoring, alerting, and rollout) driven by a _Routing Working Set_ of docs merged below.
+- **Performance & Ingestion Scale** unifies perf hotâ€‘spot fixes, multiâ€‘DB concurrency, and code deduplication under one engineering plan with measurable p95 targets.
+- **Change Tracking (Diff)** provides Accessâ€‘backed perâ€‘run snapshots and a diff UI, treated as a feature enabler for drift detection and guided troubleshooting.
 - **Feature Expansion** sequences UX surface area (anomaly cards, guided runbooks) behind the telemetry and diff groundwork.
-- **Telemetry & Launch Metrics** defines a PhaseÃ‚Â 1 dictionary and dashboard to verify adoption and SLA outcomes.
-- **Security, Identity & Online Mode** aligns ADRÃ¢â‚¬â€˜0004, security hygiene, and acknowledgement/identity decisions into a practical, offlineÃ¢â‚¬â€˜first implementation plan.
+- **Telemetry & Launch Metrics** defines a PhaseÂ 1 dictionary and dashboard to verify adoption and SLA outcomes.
+- **Security, Identity & Online Mode** aligns ADRâ€‘0004, security hygiene, and acknowledgement/identity decisions into a practical, offlineâ€‘first implementation plan.
 - **Release & Governance** ties the Risk Register, release guide, and quarterly roadmap to an operating cadence.
 
 ---
 
-## Mapping: source Ã¢â€ â€™ consolidated plan
+## Mapping: source â†’ consolidated plan
 **Routing Reliability**
 : `StateTrace_Routing_Reliability_Plan.md`
 : `StateTrace_Routing_Discovery_Workplan.md`
@@ -115,17 +115,17 @@ The following source documents were reviewed and folded into the plan set:
 - [Plan G - Release, Risk and Governance](#plan-g-release-risk-governance)
 
 <a id="plan-a-routing-reliability"></a>
-## Plan A Ã¢â‚¬â€ Routing Reliability
-**Objective:** Detect and explain primary route outages within 60Ã‚Â seconds with actionable remediation and historical trendability, while keeping Access as the PhaseÃ‚Â 1 store.
+## Plan A â€” Routing Reliability
+**Objective:** Detect and explain primary route outages within 60Â seconds with actionable remediation and historical trendability, while keeping Access as the PhaseÂ 1 store.
 
-**Scope (PhaseÃ‚Â 1):**
+**Scope (PhaseÂ 1):**
 - Canonical schemas: `RouteRecord`, `RouteHealthSnapshot`, `OutageEvent`, `RemediationTask`, `NotificationPreference`.
 - Ingestion pipelines for SNMP/probes/logs; correlation by `RouteRecord.Id`.
-- Health scoring w/ debouncing; state transitions (healthy Ã¢â€ â€™ degraded Ã¢â€ â€™ down Ã¢â€ â€™ recovered).
+- Health scoring w/ debouncing; state transitions (healthy â†’ degraded â†’ down â†’ recovered).
 - Operator UI: route list, detail, history, owner metadata, links to runbooks; alerting hooks.
-- Retention: 30Ã¢â‚¬â€˜day snapshots (highÃ¢â‚¬â€˜res), 12Ã¢â‚¬â€˜month aggregates (trend).
+- Retention: 30â€‘day snapshots (highâ€‘res), 12â€‘month aggregates (trend).
 
-**Out of scope (PhaseÃ‚Â 1):** new external services, replacing Access, multiÃ¢â‚¬â€˜tenant auth flows.
+**Out of scope (PhaseÂ 1):** new external services, replacing Access, multiâ€‘tenant auth flows.
 
 **Deliverables:**
 - ERD + sequence notes (stored under `Resources/architecture/routing/`).
@@ -134,26 +134,26 @@ The following source documents were reviewed and folded into the plan set:
 - Dashboards: missing/stale/conflicting signal monitors.
 
 **Acceptance criteria:**
-- p95 detection latency Ã¢â€°Â¤Ã‚Â 60Ã‚Â s for primary route failures in testbed.
-- Conflicting signal rate <Ã‚Â 2% daily; all alerts link to runbooks.
+- p95 detection latency â‰¤Â 60Â s for primary route failures in testbed.
+- Conflicting signal rate <Â 2% daily; all alerts link to runbooks.
 - Route ownership visible in UI and via API; audit trail for acknowledgements.
 
 **Risks & mitigations:**
-- Signal sparsity Ã¢â€¡â€™ add synthetic probes; flag data gaps in telemetry.
-- Alert fatigue Ã¢â€¡â€™ tune thresholds; staged rollout; feature flags.
-- SoloÃ¢â‚¬â€˜operator bandwidth Ã¢â€¡â€™ timeÃ¢â‚¬â€˜box discovery (see resource plan) and sequence work via roadmap.
+- Signal sparsity â‡’ add synthetic probes; flag data gaps in telemetry.
+- Alert fatigue â‡’ tune thresholds; staged rollout; feature flags.
+- Soloâ€‘operator bandwidth â‡’ timeâ€‘box discovery (see resource plan) and sequence work via roadmap.
 
-**Roadmap alignment:** See `StateTrace_Quarterly_Roadmap.md` milestone **M2 Ã¢â‚¬â€œ Routing discovery baseline** (target 2025Ã¢â‚¬â€˜11Ã¢â‚¬â€˜15) and subsequent backend/UI work. 
+**Roadmap alignment:** See `StateTrace_Quarterly_Roadmap.md` milestone **M2 â€“ Routing discovery baseline** (target 2025â€‘11â€‘15) and subsequent backend/UI work. 
 
 <a id="plan-b-performance-ingestion-scale"></a>
-## Plan B Ã¢â‚¬â€ Performance & Ingestion Scale
-**Objective:** Improve endÃ¢â‚¬â€˜toÃ¢â‚¬â€˜end ingestion throughput without functional changes, supporting growth in perÃ¢â‚¬â€˜site Access databases and concurrent parsing.
+## Plan B â€” Performance & Ingestion Scale
+**Objective:** Improve endâ€‘toâ€‘end ingestion throughput without functional changes, supporting growth in perâ€‘site Access databases and concurrent parsing.
 
 **Workstreams:**
-1. **WarmÃ¢â‚¬â€˜up & streaming parser** Ã¢â‚¬â€ module preloading caches; streaming line pipeline; memory bound below a fixed ceiling.
-2. **MultiÃ¢â‚¬â€˜DB concurrency** Ã¢â‚¬â€ siteÃ¢â‚¬â€˜scoped mutexes; connection reuse; staging tables; adaptive runspace pool surfaced in `StateTraceSettings.json`.
-3. **Persistence tuning** Ã¢â‚¬â€ parameterized `ADODB.Command`, batched writes, reduced autoÃ¢â‚¬â€˜flush, writeÃ¢â‚¬â€˜latency telemetry.
-4. **Deduplication** Ã¢â‚¬â€ shared vendorÃ¢â‚¬â€˜agnostic parsers; common UI composition helpers; central filter service; simpler `ParserWorker` orchestration.
+1. **Warmâ€‘up & streaming parser** â€” module preloading caches; streaming line pipeline; memory bound below a fixed ceiling.
+2. **Multiâ€‘DB concurrency** â€” siteâ€‘scoped mutexes; connection reuse; staging tables; adaptive runspace pool surfaced in `StateTraceSettings.json`.
+3. **Persistence tuning** â€” parameterized `ADODB.Command`, batched writes, reduced autoâ€‘flush, writeâ€‘latency telemetry.
+4. **Deduplication** â€” shared vendorâ€‘agnostic parsers; common UI composition helpers; central filter service; simpler `ParserWorker` orchestration.
 
 
 **Execution playbook:**
@@ -182,82 +182,94 @@ The following source documents were reviewed and folded into the plan set:
 - Latest ingestion run (13:06 MT) recorded 37 writes with DatabaseWriteLatency averages of ~281 ms (BOYO) and ~259 ms (WLLS); p95 peaked at 564 ms.
 - Metric coverage is limited to RowsWritten/DatabaseWriteLatency; no ParseDuration events were emitted, leaving parser timing unobserved.
 
-**Follow-ups:**
-- Trial reduced ceilings (e.g., MaxWorkersPerSite=4 or MaxActiveSites=2) to evaluate latency impact versus throughput.
-- Extend telemetry to emit ParseDuration and auto-scale decisions so future runs capture full pipeline timing. (Done: ParseDuration + ConcurrencyProfileResolved events now logged in pipeline telemetry.)
-- Investigate _unknown.log classification to remove warning noise or exclude it from stress bundles. (Done: ParserWorker now filters `_unknown.log` slices before scheduling parse jobs.)
 
-**KPIs (PhaseÃ‚Â 1 targets):**
-- `ParseDuration` p95 Ã¢â€°Â¤Ã‚Â 3Ã‚Â s per device; max <Ã‚Â 10Ã‚Â s.
-- `DatabaseWriteLatency` p95 Ã¢â€°Â¤Ã‚Â 200Ã‚Â ms.
-- `SkippedDuplicate` ratio Ã¢â€°Â¥Ã‚Â 50% on incremental runs.
-- Memory bounded during parsing; no provider contention in multiÃ¢â‚¬â€˜site tests.
+**2025-10-03 stress-test snapshot (bulk staging re-run, autoscale defaults):**
+- Run: `Tools/Invoke-StateTracePipeline.ps1 -VerboseParsing -ResetExtractedLogs`; Pester suite passed; processed 37-device BOYO/WLLS corpus.
+- Auto-scale profile resolved ThreadCeiling=8, MaxWorkersPerSite=4, MaxActiveSites=0, JobsPerThread=2.
+- ParseDuration p95 ~4.83 s (target <=3 s); max 7.34 s on WLLS-A05-AS-55; average 2.43 s across 37 hosts.
+- DatabaseWriteLatency p95 ~4.08 s (target <=200 ms); max 4.43 s on WLLS-A05-AS-55 after 91-row batch; staging succeeded but Access commit remained slow.
+- Second pass emitted Duplicate=true ParseDuration events for 35 devices with zero writes; only WLLS-A05-AS-55 and WLLS-A07-AS-07 retried with real commits; suppression needed to avoid redundant duplicate sweep.
+
+**Follow-ups status (as of 2025-10-03):**
+- Open: Trial reduced ceilings (for example, MaxWorkersPerSite=2 or MaxActiveSites=2) to evaluate latency impact versus throughput; WLLS commits still >4 s in latest run.
+- Open: Investigate Access commit latency (DatabaseWriteLatency p95 ~4.08 s) despite staging; test smaller batches or per-site serialization for WLLS hosts.
+- Done: Extended telemetry now emits ParseDuration and ConcurrencyProfileResolved events in pipeline runs.
+- Done: ParserWorker filters _unknown.log slices before scheduling parse jobs.
+- Done: Profiled Access bulk insert timing; InterfaceBulkInsertInternal emits InterfaceBulkInsertTiming telemetry for staging and commit phases.
+- Done: Added a 32-bit PowerShell fallback when ADOX cannot create new Access databases on 64-bit hosts.
+- Open: Suppress duplicate-only reruns triggered immediately after -ResetExtractedLogs (current telemetry marks Duplicate=true but still logs 35 ParseDuration entries with zero writes).
+
+**KPIs (PhaseÂ 1 targets):**
+- `ParseDuration` p95 â‰¤Â 3Â s per device; max <Â 10Â s.
+- `DatabaseWriteLatency` p95 â‰¤Â 200Â ms.
+- `SkippedDuplicate` ratio â‰¥Â 50% on incremental runs.
+- Memory bounded during parsing; no provider contention in multiâ€‘site tests.
 
 **Verification:** benchmark corpus, Pester tests, ingestion smoke tests; compare metrics before/after.
 
-**Roadmap alignment:** Milestone **M1 Ã¢â‚¬â€œ MultiÃ¢â‚¬â€˜DB ingestion foundation** (target 2025Ã¢â‚¬â€˜10Ã¢â‚¬â€˜14).
+**Roadmap alignment:** Milestone **M1 â€“ Multiâ€‘DB ingestion foundation** (target 2025â€‘10â€‘14).
 
 <a id="plan-c-change-tracking-diff-snapshots"></a>
-## Plan C Ã¢â‚¬â€ Change Tracking (Diff Snapshots)
-**Objective:** Persist perÃ¢â‚¬â€˜run normalized objects and compute diffs to surface configuration drift and feed anomaly rules, stored in Access for PhaseÃ‚Â 1.
+## Plan C â€” Change Tracking (Diff Snapshots)
+**Objective:** Persist perâ€‘run normalized objects and compute diffs to surface configuration drift and feed anomaly rules, stored in Access for PhaseÂ 1.
 
 **Schema sketch:** `DiffRun`, `DiffObject`, `DiffChange`, `DiffMetadata` (keys: DeviceId + CaptureId + ObjectHash; columns: ChangeType, Before, After, Confidence).
-**Implementation track:** parser spike to emit stable hashes; persistence test DB under `Data/Prototypes/`; UI queries for lastÃ‚Â N changes; metrics CSV under `Logs/Research/DiffPrototype/`.
+**Implementation track:** parser spike to emit stable hashes; persistence test DB under `Data/Prototypes/`; UI queries for lastÂ N changes; metrics CSV under `Logs/Research/DiffPrototype/`.
 
-**Success metrics:** Ã¢â€°Â¥Ã‚Â 70% diff usage in pilot sessions; Ã¢Ë†â€™40% timeÃ¢â‚¬â€˜toÃ¢â‚¬â€˜driftÃ¢â‚¬â€˜identification vs. baseline; FP rate <Ã‚Â 10% after tuning.
+**Success metrics:** â‰¥Â 70% diff usage in pilot sessions; âˆ’40% timeâ€‘toâ€‘driftâ€‘identification vs. baseline; FP rate <Â 10% after tuning.
 
 <a id="plan-d-feature-expansion-guided-troubleshooting"></a>
-## Plan D Ã¢â‚¬â€ Feature Expansion & Guided Troubleshooting
-**Objective:** Turn parsed facts + diffs into operatorÃ¢â‚¬â€˜ready insights with guided runbooks, while remaining offlineÃ¢â‚¬â€˜first and AccessÃ¢â‚¬â€˜backed.**
+## Plan D â€” Feature Expansion & Guided Troubleshooting
+**Objective:** Turn parsed facts + diffs into operatorâ€‘ready insights with guided runbooks, while remaining offlineâ€‘first and Accessâ€‘backed.**
 
 **Streams:**
-- **Anomaly cards** Ã¢â‚¬â€ ruleÃ¢â‚¬â€˜based engine (JSON config) to surface events/tags (e.g., `AuthFailureCount`, `PortFlapEvents`).
-- **Guided troubleshooting** Ã¢â‚¬â€ map patterns to vendorÃ¢â‚¬â€˜aligned runbooks; show next steps and expected outcomes.
-- **Diff explorer** Ã¢â‚¬â€ filterable UI for added/removed/changed items; deepÃ¢â‚¬â€˜link to raw log context.
-- **Exports & digests** Ã¢â‚¬â€ scheduled daily digests and exportable reports for analysts.
+- **Anomaly cards** â€” ruleâ€‘based engine (JSON config) to surface events/tags (e.g., `AuthFailureCount`, `PortFlapEvents`).
+- **Guided troubleshooting** â€” map patterns to vendorâ€‘aligned runbooks; show next steps and expected outcomes.
+- **Diff explorer** â€” filterable UI for added/removed/changed items; deepâ€‘link to raw log context.
+- **Exports & digests** â€” scheduled daily digests and exportable reports for analysts.
 
-**PreÃ¢â‚¬â€˜reqs:** Plans **B** and **C** (telemetry & diff data).
+**Preâ€‘reqs:** Plans **B** and **C** (telemetry & diff data).
 
 <a id="plan-e-telemetry-launch-metrics"></a>
-## Plan E Ã¢â‚¬â€ Telemetry & Launch Metrics
+## Plan E â€” Telemetry & Launch Metrics
 **Objective:** Instrument usage and reliability metrics to validate adoption and SLO outcomes.**
 
-**PhaseÃ‚Â 1 dictionary:** `ParseDuration`, `RowsWritten`, `SkippedDuplicate`, `DatabaseWriteLatency`, `DiffUsageRate`, `DriftDetectionTime`, plus optional agent metrics (e.g., `AgentTestPassRate`).
-**Artifacts:** metrics schema; ingestion to JSONÃ¢â‚¬â€˜lines under `Logs/`; dashboard draft for launch metrics.
+**PhaseÂ 1 dictionary:** `ParseDuration`, `RowsWritten`, `SkippedDuplicate`, `DatabaseWriteLatency`, `DiffUsageRate`, `DriftDetectionTime`, plus optional agent metrics (e.g., `AgentTestPassRate`).
+**Artifacts:** metrics schema; ingestion to JSONâ€‘lines under `Logs/`; dashboard draft for launch metrics.
 **Targets:** as specified in the dictionary (p95 thresholds; ratios).
 
 <a id="plan-f-security-identity-online-mode"></a>
-## Plan F Ã¢â‚¬â€ Security, Identity & Online Mode
-**Objective:** Apply leastÃ¢â‚¬â€˜privilege handling to logs and databases; choose a pragmatic identity mechanism for acknowledgements that fits offlineÃ¢â‚¬â€˜first constraints.**
+## Plan F â€” Security, Identity & Online Mode
+**Objective:** Apply leastâ€‘privilege handling to logs and databases; choose a pragmatic identity mechanism for acknowledgements that fits offlineâ€‘first constraints.**
 
-**Policies:** redaction before storage; 90Ã¢â‚¬â€˜day retention on sanitized postmortems; Access DB rotation/backups; `.gitignore` hygiene; incident confidentiality.
-**Identity options under evaluation:** AD integrated, Azure AD device code, local accounts, external SSO (PhaseÃ‚Â 2+).
+**Policies:** redaction before storage; 90â€‘day retention on sanitized postmortems; Access DB rotation/backups; `.gitignore` hygiene; incident confidentiality.
+**Identity options under evaluation:** AD integrated, Azure AD device code, local accounts, external SSO (PhaseÂ 2+).
 **Next actions:** scorecard each option; draft spike for chosen path; tie acknowledgements to Access `Audit` table and telemetry.
 
 <a id="plan-g-release-risk-governance"></a>
-## Plan G Ã¢â‚¬â€ Release, Risk & Governance
+## Plan G â€” Release, Risk & Governance
 **Objective:** Ship predictably and manage risk while operating as a small team.**
 
 **Release:** semantic versioning; packaging script; smoke tests (unit, parsing, UI load, version check).
 **Risk register:** active risks include telemetry gaps, DB contention, sanitisation lag, overcommitment, alert fatigue, identity uncertainty; review cadence per owner.
-**Operating cadence:** Use the quarterly roadmap for milestones (M1Ã¢â‚¬â€œM3), update during weekly planning and Friday retrospectives; convert discovery outcomes into backlog items.
+**Operating cadence:** Use the quarterly roadmap for milestones (M1â€“M3), update during weekly planning and Friday retrospectives; convert discovery outcomes into backlog items.
 
 ---
 
-## CrossÃ¢â‚¬â€˜cutting dependencies & sequencing
+## Crossâ€‘cutting dependencies & sequencing
 1. **Plan B (Performance/Scale)** underpins Plans C and D; land perf baselines before exposing heavier diff and anomaly features.
 2. **Plan E (Telemetry)** must be present before Plan D success metrics are meaningful; instrument as you go.
-3. **Plan F (Identity)** is required before acknowledgements are authoritative in Plan A; minimally support internal operator tracking in PhaseÃ‚Â 1.
+3. **Plan F (Identity)** is required before acknowledgements are authoritative in Plan A; minimally support internal operator tracking in PhaseÂ 1.
 
-## Consolidated backlog (PhaseÃ‚Â 1)
-- SiteÃ¢â‚¬â€˜scoped DB mutex; connection cache; staging tables; adaptive runspace sizing.
-- Streaming parser refactor; remove perÃ¢â‚¬â€˜line AutoFlush; Pester coverage for vendor parsers.
+## Consolidated backlog (PhaseÂ 1)
+- Siteâ€‘scoped DB mutex; connection cache; staging tables; adaptive runspace sizing.
+- Streaming parser refactor; remove perâ€‘line AutoFlush; Pester coverage for vendor parsers.
 - Diff prototype schema + persistence spike; UI diff queries; metrics CSV logging.
 - Telemetry dictionary implementation across parser/UI; draft launch dashboard.
 - Routing ERD + health evaluator + UI surfaces; alert pipeline to runbooks.
 - Identity option scorecard + spike; wire acknowledgements into Access + telemetry.
 - Release packaging script verification; roadmap sync; risk register reviews.
 
-## Appendix Ã¢â‚¬â€ Change log & review
-- Last source doc touchpoints were sampled from repository dates embedded in files (e.g., 2025Ã¢â‚¬â€˜09Ã¢â‚¬â€˜30 reviews).
+## Appendix â€” Change log & review
+- Last source doc touchpoints were sampled from repository dates embedded in files (e.g., 2025â€‘09â€‘30 reviews).
 - Keep this dossier versioned alongside `docs/` and update the mapping table when new plan docs are added.

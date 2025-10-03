@@ -1,4 +1,4 @@
-﻿Add-Type -AssemblyName PresentationFramework
+Add-Type -AssemblyName PresentationFramework
 
 $Global:StateTraceDebug     = $false
 $VerbosePreference          = 'SilentlyContinue'
@@ -369,7 +369,7 @@ function Invoke-StateTraceRefresh {
 
         $parseCmd = Get-Command Invoke-StateTraceParsing -ErrorAction SilentlyContinue
         if ($parseCmd) {
-            Invoke-StateTraceParsing
+            Invoke-StateTraceParsing -Synchronous
         } else {
             Write-Error ("Invoke-StateTraceParsing not found (module load failed).")
         }
@@ -820,7 +820,7 @@ $window.Add_Loaded({
 
         # Parse logs
         if (Get-Command Invoke-StateTraceParsing -ErrorAction SilentlyContinue) {
-            Invoke-StateTraceParsing
+            Invoke-StateTraceParsing -Synchronous
         } else {
             Write-Error "Invoke-StateTraceParsing not found (module load failed)"
         }

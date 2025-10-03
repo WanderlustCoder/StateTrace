@@ -1,4 +1,4 @@
-﻿# Repository Guidelines
+# Repository Guidelines
 
 ## Project Structure & Module Organization
 - `Modules/` hosts the PowerShell modules (e.g., `DeviceLogParserModule.psm1`, `ParserWorker.psm1`) and companion specs under `Modules/Tests/`.
@@ -29,6 +29,13 @@
 - Pull requests should include a concise summary, `Invoke-Pester` output (or equivalent), and links to issues/incidents when relevant.
 - Call out configuration or schema migrations (such as the `Data/<prefix>/` layout) so operators can plan rollouts.
 
+## Concurrency Overrides Workflow
+- Default runs (`Tools/Invoke-StateTracePipeline.ps1`) honour `Data/StateTraceSettings.json` and auto-scale ceilings.
+- For manual trials, add switches such as `-ThreadCeilingOverride`, `-MaxWorkersPerSiteOverride`, `-MaxActiveSitesOverride`, `-JobsPerThreadOverride`, or `-MinRunspacesOverride`; keep values > 0 only for the duration of the experiment.
+- Always note override usage in your session log and capture metrics from `Logs/IngestionMetrics/<date>.json` (look for `ParseDuration`, `DatabaseWriteLatency`, `ConcurrencyProfileResolved`).
+- Omit the override switches (or pass `0`) once testing finishes so the system reverts to autoscaling defaults.
+
+
 ## Security & Configuration Tips
 - Keep site databases outside source control; ensure `.gitignore` continues to exclude `.accdb` files.
 - Update `Data/StateTraceSettings.json` deliberately and document new toggles or defaults in `docs/`.
@@ -48,3 +55,4 @@ When authorised, agents and developers may use limited internet access and dev-s
 - Record actions in `docs/agents/sessions/*` and `Logs/NetOps/<date>.json`.
 
 **Still true:** Runtime releases remain scripts-only and offline-ready.
+

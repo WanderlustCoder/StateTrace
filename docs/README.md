@@ -1,4 +1,4 @@
-﻿# StateTrace Documentation Index
+# StateTrace Documentation Index
 
 This index provides a high-level map of the active planning and process documents for the StateTrace project. Use it as your starting point when navigating the repository. Each link below points to a Markdown file under docs/ and summarises its purpose.
 
@@ -29,3 +29,12 @@ This index provides a high-level map of the active planning and process document
 ## Historical & Completed Work
 
 Completed plans are moved to docs/completed/ with a completion summary and date. If other documents still reference them, leave a short stub pointing to the archive.
+
+## Execution & Overrides Quick Reference
+
+- Run `powershell -File Tools/Invoke-StateTracePipeline.ps1 -VerboseParsing` for a full ingestion pass; use `-SkipTests` when the Pester suite already ran.
+- Trial manual ceilings by passing `-ThreadCeilingOverride`, `-MaxWorkersPerSiteOverride`, `-MaxActiveSitesOverride`, `-JobsPerThreadOverride`, or `-MinRunspacesOverride`; these temporarily supersede the zero-valued hints in `Data/StateTraceSettings.json`.
+- Each run logs telemetry (`ParseDuration`, `DatabaseWriteLatency`, `ConcurrencyProfileResolved`, etc.) to `Logs/IngestionMetrics/<date>.json`; review these files when capturing metrics for plan updates.
+- Remove the override parameters (or set them to `0`) once experiments finish so autoscaling resumes.
+
+
