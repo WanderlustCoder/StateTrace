@@ -6,18 +6,19 @@ _No cards currently in this column._
 
 ## Ready
 - **Trial reduced auto-scale ceilings post-batching** - [Ingestion] Deliverable: benchmark run with capped MaxWorkersPerSite/MaxActiveSites appended to Plan B snapshots (targeting WLLS Access commits).
-- **Investigate Access commit latency after staging** - [Ingestion][Performance] Deliverable: test smaller batches or per-site serialization for WLLS hosts and document the before/after metrics in Plan B.
 - **Suppress duplicate-only reruns after spool reset** - [Automation][Telemetry] Deliverable: ensure the pipeline skips duplicate ParseDuration sweeps once `Logs/Extracted` is cleared and add validation coverage.
 
 
 ## In Progress (WIP=2)
-- **Identity option scorecard for acknowledgements** - [Security][Docs] Started 2025-10-01. Deliverable: scorecard recorded in `docs/StateTrace_Consolidated_Plans.md#plan-f-security-identity-online-mode`.
-_No other cards currently in this column._
+- **Investigate Access commit latency after staging** - [Ingestion][Performance] Started 2025-10-03. Deliverable: chunked staging (24-row) benchmarks captured in Plan B (2025-10-03 and 2025-10-05 snapshots); KPI still unmet with `DatabaseWriteLatency` p95 at 2.16 s (>0.2 s target).
+  - 2025-10-04: ParserPersistenceModule now detects Jet vs. ACE provider failures, emits timing telemetry with stage errors, and ParserWorker surfaces `InterfaceBulkChunkSize` overrides.
+  - 2025-10-05: Reset ingestion history and reran the BOYO/WLLS corpus; `DatabaseWriteLatency` p95 improved to 2.16 s (max 2.43 s) versus 4.08 s before chunking. `ParseDuration` p95 settled at 3.14 s with WLLS p95 2.78 s. `StageError=ParameterCreationFailed` still fires on 31 hosts via `LiteralFallback`; next focus is the Ready card for reduced ceilings.
 
 ## Blocked
 _No cards currently in this column._ Add a note explaining the dependency or issue for each blocked card.
 
 ## Done
+- **Identity option scorecard for acknowledgements** - [Security][Docs] Completed 2025-10-04. Deliverable: weighted scorecard and recommendation in `docs/StateTrace_Acknowledgement_Identity_Options.md` plus Plan F updates in `docs/StateTrace_Consolidated_Plans.md`.
 - **Unified ParserPersistence command-set caching** - [Ingestion][Automation] Completed 2025-10-02. Deliverable: `Modules/ParserPersistenceModule.psm1` command reuse + persistence failure logging, `Modules/DeviceLogParserModule.psm1` catch instrumentation, refreshed tests (`Modules/Tests/ParserPersistenceModule.Tests.ps1`, `Modules/Tests/ParserWorker.Tests.ps1`), and Plan B updates.
 - **Add spool reset helper for benchmark reruns** - [Automation][Docs] Completed 2025-10-03. Deliverable: -ResetExtractedLogs switch in Tools/Invoke-StateTracePipeline.ps1 plus README/Plan B updates.
 - **Profile Access bulk insert timing** - [Ingestion][Automation] Completed 2025-10-03. Deliverable: InterfaceBulkInsertTiming telemetry in Modules/ParserPersistenceModule.psm1 and 2025-10-03 Plan B snapshot.

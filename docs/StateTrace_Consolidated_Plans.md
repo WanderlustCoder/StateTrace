@@ -179,9 +179,17 @@ The following source documents were reviewed and folded into the plan set:
 **2025-09-30 stress-test snapshot:**
 - Corpus: 37 raw log files produced 38 extracted device slices (BOYO and WLLS); _unknown.log remains vendor-unknown and is skipped after warning.
 - Auto-scale profile (CPU=32): ThreadCeiling=24, MaxWorkersPerSite=8, MaxActiveSites=3, JobsPerThread=2, MinRunspaces=1.
-- Latest ingestion run (13:06 MT) recorded 37 writes with DatabaseWriteLatency averages of ~281 ms (BOYO) and ~259 ms (WLLS); p95 peaked at 564 ms.
-- Metric coverage is limited to RowsWritten/DatabaseWriteLatency; no ParseDuration events were emitted, leaving parser timing unobserved.
+- Latest ingestion run (2025-10-05 11:36 MT) recorded 37 writes with DatabaseWriteLatency averages of ~1.26 s (BOYO) and ~0.83 s (WLLS); p95 peaked at 2.43 s.
+- Metric coverage now includes ParseDuration, RowsWritten, DatabaseWriteLatency, InterfaceBulkInsertTiming, and chunk telemetry for the BOYO/WLLS corpus.
 
+
+**2025-10-05 chunked staging verification (autoscale defaults, ingestion history reset):**
+- Run: `Tools/Invoke-StateTracePipeline.ps1 -VerboseParsing` after removing `Data/IngestionHistory/BOYO.json` and `WLLS.json` to force a full pass; Pester suite passed; processed the 37-device BOYO/WLLS corpus.
+- Auto-scale profile resolved ThreadCeiling=8, MaxWorkersPerSite=4, MaxActiveSites=0, JobsPerThread=2; `InterfaceBulkChunkSize` resolved to 24.
+- `DatabaseWriteLatency` average 0.97 s (BOYO 1.26 s, WLLS 0.83 s); p95 2.16 s, max 2.43 s on BOYO-A05-AS-35 (down from 4.43 s on 2025-10-03) but still above the 200 ms target.
+- `ParseDuration` average 1.65 s; p95 3.14 s; WLLS p95 2.78 s (meets the <=3 s goal), BOYO max 5.90 s on BOYO-A05-AS-02.
+- `InterfaceBulkInsertTiming` logged 31 `StageError=ParameterCreationFailed` events with ACE fallback; staging averaged 330 ms, insert averaged 40 ms across 4 chunks per host.
+- No `SkippedDuplicate` telemetry after the history reset; ingestion history files were recreated with the new run metadata.
 
 **2025-10-03 stress-test snapshot (bulk staging re-run, autoscale defaults):**
 - Run: `Tools/Invoke-StateTracePipeline.ps1 -VerboseParsing -ResetExtractedLogs`; Pester suite passed; processed 37-device BOYO/WLLS corpus.
@@ -190,9 +198,10 @@ The following source documents were reviewed and folded into the plan set:
 - DatabaseWriteLatency p95 ~4.08 s (target <=200 ms); max 4.43 s on WLLS-A05-AS-55 after 91-row batch; staging succeeded but Access commit remained slow.
 - Second pass emitted Duplicate=true ParseDuration events for 35 devices with zero writes; only WLLS-A05-AS-55 and WLLS-A07-AS-07 retried with real commits; suppression needed to avoid redundant duplicate sweep.
 
-**Follow-ups status (as of 2025-10-03):**
-- Open: Trial reduced ceilings (for example, MaxWorkersPerSite=2 or MaxActiveSites=2) to evaluate latency impact versus throughput; WLLS commits still >4 s in latest run.
-- Open: Investigate Access commit latency (DatabaseWriteLatency p95 ~4.08 s) despite staging; test smaller batches or per-site serialization for WLLS hosts.
+**Follow-ups status (as of 2025-10-05):**
+- Open: Trial reduced ceilings (for example, MaxWorkersPerSite=2 or MaxActiveSites=2) to chase sub-second `DatabaseWriteLatency`; the 2025-10-05 run still landed at 2.16 s p95 with chunking.
+- Open: Resolve ACE parameter creation failures so we can avoid the `LiteralFallback` path; 31 hosts in the 2025-10-05 run logged `StageError=ParameterCreationFailed`.
+- Done: Capture a fresh WLLS run after provider detection landed (2025-10-05 chunked staging verification). `DatabaseWriteLatency` p95 dropped from 4.08 s (2025-10-03) to 2.16 s but remains above the <=200 ms KPI; next action is to trial the reduced ceilings card in Ready.
 - Done: Extended telemetry now emits ParseDuration and ConcurrencyProfileResolved events in pipeline runs.
 - Done: ParserWorker filters _unknown.log slices before scheduling parse jobs.
 - Done: Profiled Access bulk insert timing; InterfaceBulkInsertInternal emits InterfaceBulkInsertTiming telemetry for staging and commit phases.
