@@ -192,8 +192,8 @@ function Update-DeviceSummaryInDb {
     }
     # Extract the default authentication VLAN
     $rawAuthVlan = ''
-    if ($Facts.PSObject.Properties.Name -contains 'AuthDefaultVLAN' -and $Facts.AuthDefaultVLAN) {
-        $rawAuthVlan = $Facts.AuthDefaultVLAN
+    if ($Facts.PSObject.Properties.Name -contains 'AuthDefaultVLAN' -and $null -ne $Facts.AuthDefaultVLAN -and $Facts.AuthDefaultVLAN -ne '') {
+        try { $rawAuthVlan = [string]$Facts.AuthDefaultVLAN } catch { $rawAuthVlan = '' + $Facts.AuthDefaultVLAN }
     }
     $escAuthVlan = $rawAuthVlan -replace "'", "''"
     # Compose the authentication block text

@@ -4,8 +4,9 @@
 - **Role:** <Ingestion | Data | Automation | Docs>
 - **Task board card:** <copy the bullet you created/updated>
 
-## Plan (3–6 bullets)
+## Plan (3-6 bullets)
 - <what you intend to do>
+- <which `AGENTS.md` core ideas the plan reinforces (see `docs/Core_Ideas.md`)>
 
 ## Changes
 - Files touched:
@@ -20,4 +21,5 @@
 
 ## Outcome
 - Status: <Done | Blocked>
-- Follow‑ups: <new cards created, questions, risks>
+- Follow-ups: <new cards created, questions, risks>
+

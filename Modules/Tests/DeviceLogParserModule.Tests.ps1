@@ -1,4 +1,4 @@
-Set-StrictMode -Version Latest
+﻿Set-StrictMode -Version Latest
 
 Describe "DeviceLogParserModule" {
     BeforeAll {
@@ -201,12 +201,8 @@ Describe "DeviceLogParserModule" {
         $skipEvent.Reason | Should Be 'HashMatch'
         $skipEvent.FileHash | Should Be $hashValue
 
-        $parseEvent | Should Not BeNullOrEmpty
-        $parseEvent.Success | Should Be $true
-        $parseEvent.Duplicate | Should Be $true
-        $parseEvent.DuplicateReason | Should Be 'HashMatch'
-        $parseEvent.Site | Should Be $siteCode
-        $parseEvent.Hostname | Should Be 'WLLS-A02-AS-02'
+        $parseEvent | Should BeNullOrEmpty
+        ($telemetryEvents | Where-Object { $_.EventName -eq 'ParseDuration' -and $_.Hostname -eq 'WLLS-A02-AS-02' }) | Should BeNullOrEmpty
     }
 
     Context "Get-CachedDbConnection" {

@@ -317,6 +317,10 @@ function Invoke-StateTraceParsing {
 
     $enableAdaptiveThreads = $true
 
+    $interfaceBulkChunkSize = $null
+    $interfaceBulkChunkSizeHint = $null
+    $resolvedInterfaceBulkChunkSize = $null
+
     try {
         $settingsPath = Join-Path $projectRoot 'Data\StateTraceSettings.json'
         if (-not (Test-Path -LiteralPath $settingsPath)) {
@@ -458,6 +462,28 @@ function Invoke-StateTraceParsing {
 
         }
 
+        if ($parserSettings.PSObject.Properties.Name -contains 'InterfaceBulkChunkSize') {
+
+            try {
+
+                $candidateChunk = $parserSettings.InterfaceBulkChunkSize
+
+                $interfaceBulkChunkSizeHint = $candidateChunk
+
+                if ($null -ne $candidateChunk -and -not ([string]::IsNullOrWhiteSpace([string]$candidateChunk))) {
+
+                    $interfaceBulkChunkSize = [int]$candidateChunk
+
+                } else {
+
+                    $interfaceBulkChunkSize = $null
+
+                }
+
+            } catch { $interfaceBulkChunkSize = $null }
+
+        }
+
         if ($parserSettings.PSObject.Properties.Name -contains 'AutoScaleConcurrency') {
 
             try {
@@ -580,6 +606,26 @@ function Invoke-StateTraceParsing {
 
 
 
+    try {
+
+        if ($null -ne $interfaceBulkChunkSize) {
+
+            $resolvedInterfaceBulkChunkSize = ParserPersistenceModule\Set-InterfaceBulkChunkSize -ChunkSize $interfaceBulkChunkSize
+
+        } else {
+
+            $resolvedInterfaceBulkChunkSize = ParserPersistenceModule\Set-InterfaceBulkChunkSize -Reset
+
+        }
+
+    } catch {
+
+        $resolvedInterfaceBulkChunkSize = $null
+
+        Write-Verbose ("Failed to apply InterfaceBulkChunkSize setting: {0}" -f $_.Exception.Message)
+
+    }
+
     $telemetryPayload = @{
 
         AutoScaleEnabled = [bool]$autoScaleConcurrency
@@ -611,6 +657,18 @@ function Invoke-StateTraceParsing {
         HintJobsPerThread     = [int]$autoScaleJobsHint
 
         HintMinRunspaces      = [int]$autoScaleMinHint
+
+    }
+
+    if ($null -ne $interfaceBulkChunkSizeHint) {
+
+        $telemetryPayload.HintInterfaceBulkChunkSize = [string]$interfaceBulkChunkSizeHint
+
+    }
+
+    if ($resolvedInterfaceBulkChunkSize -ne $null) {
+
+        $telemetryPayload.InterfaceBulkChunkSize = [int]$resolvedInterfaceBulkChunkSize
 
     }
 

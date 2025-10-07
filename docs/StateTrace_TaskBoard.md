@@ -6,18 +6,21 @@ _No cards currently in this column._
 
 ## Ready
 - **Trial reduced auto-scale ceilings post-batching** - [Ingestion] Deliverable: benchmark run with capped MaxWorkersPerSite/MaxActiveSites appended to Plan B snapshots (targeting WLLS Access commits).
-- **Suppress duplicate-only reruns after spool reset** - [Automation][Telemetry] Deliverable: ensure the pipeline skips duplicate ParseDuration sweeps once `Logs/Extracted` is cleared and add validation coverage.
 
 
 ## In Progress (WIP=2)
 - **Investigate Access commit latency after staging** - [Ingestion][Performance] Started 2025-10-03. Deliverable: chunked staging (24-row) benchmarks captured in Plan B (2025-10-03 and 2025-10-05 snapshots); KPI still unmet with `DatabaseWriteLatency` p95 at 2.16 s (>0.2 s target).
   - 2025-10-04: ParserPersistenceModule now detects Jet vs. ACE provider failures, emits timing telemetry with stage errors, and ParserWorker surfaces `InterfaceBulkChunkSize` overrides.
   - 2025-10-05: Reset ingestion history and reran the BOYO/WLLS corpus; `DatabaseWriteLatency` p95 improved to 2.16 s (max 2.43 s) versus 4.08 s before chunking. `ParseDuration` p95 settled at 3.14 s with WLLS p95 2.78 s. `StageError=ParameterCreationFailed` still fires on 31 hosts via `LiteralFallback`; next focus is the Ready card for reduced ceilings.
-
+  - 2025-10-05 13:24 MT: Trialled overrides (`MaxWorkersPerSiteOverride=2`, `MaxActiveSitesOverride=2`); `DatabaseWriteLatency` p95 climbed to 2.61 s (max 2.77 s) and average 1.02 s, so overrides were reverted after the run. Next up: fix ACE parameter creation failures or test smaller chunks.
+  - 2025-10-05 19:10 MT: ParserPersistence now records `StageErrorDetail` with provider info and the Jet parameters that fail to bind, giving us the data needed to target ACE-compatible parameter types.
+  - 2025-10-06 16:45 MT: Re-ran mock BOYO/WLLS pipeline after `AuthDefaultVLAN` string conversion; no `InterfacePersistenceFailure` events logged and `InterfaceBulkInsertTiming` omits StageError. Latency still ~3.1 s on WLLS (tuning tracked separately).
+  - 2025-10-07: Applied default long-text parameter sizing for ACE/Jet so chunk staging stays parameterized; tests cover the `Add-AdodbParameter` sizing logic. Live Access verification now waits on provider fallback refinements.
 ## Blocked
 _No cards currently in this column._ Add a note explaining the dependency or issue for each blocked card.
 
 ## Done
+- **Suppress duplicate-only reruns after spool reset** - [Automation][Telemetry] Completed 2025-10-06. Deliverable: DeviceLogParser duplicate guard avoids extra Access opens, Pester coverage ensures duplicates skip `ParseDuration`, and the 2025-10-06 20:35Z rerun logged only `SkippedDuplicate` telemetry across two verification passes.
 - **Identity option scorecard for acknowledgements** - [Security][Docs] Completed 2025-10-04. Deliverable: weighted scorecard and recommendation in `docs/StateTrace_Acknowledgement_Identity_Options.md` plus Plan F updates in `docs/StateTrace_Consolidated_Plans.md`.
 - **Unified ParserPersistence command-set caching** - [Ingestion][Automation] Completed 2025-10-02. Deliverable: `Modules/ParserPersistenceModule.psm1` command reuse + persistence failure logging, `Modules/DeviceLogParserModule.psm1` catch instrumentation, refreshed tests (`Modules/Tests/ParserPersistenceModule.Tests.ps1`, `Modules/Tests/ParserWorker.Tests.ps1`), and Plan B updates.
 - **Add spool reset helper for benchmark reruns** - [Automation][Docs] Completed 2025-10-03. Deliverable: -ResetExtractedLogs switch in Tools/Invoke-StateTracePipeline.ps1 plus README/Plan B updates.
@@ -31,4 +34,3 @@ _No cards currently in this column._ Add a note explaining the dependency or iss
 - **Refactored parser persistence to parameterised ADODB commands** - [Automation] Completed 2025-09-30. Deliverable: updated persistence helpers and passing tests.
 - **Added orchestration script Tools/Invoke-StateTracePipeline.ps1** - [Automation] Completed 2025-09-30. Validated via `powershell -File Tools/Invoke-StateTracePipeline.ps1 -SkipParsing -VerboseParsing`.
 - **Applied plan status header to each active plan** - [Docs] Completed 2025-09-30. All planning documents now include status and last reviewed fields.
-

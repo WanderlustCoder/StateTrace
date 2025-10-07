@@ -1,15 +1,23 @@
 # Repository Guidelines
 
+## Core Ideas
+> Quick reference also available at `docs/Core_Ideas.md` for in-doc workflows.
+- **Offline-first & Access-backed:** Deliver everything with PowerShell scripts and Access databases, no compiled components, keep runtime offline-ready.
+- **Telemetry & verification:** Capture ingestion metrics (`ParseDuration`, `DatabaseWriteLatency`, etc.) and use them to validate every change.
+- **Plan-first collaboration:** Record a multi-step plan before editing, keep docs/task boards in sync, and narrate progress.
+- **Security & data hygiene:** Sanitize or exclude sensitive logs and databases; respect existing `.gitignore` guidance.
+
 ## Project Structure & Module Organization
+> If you are uncertain about scope or a decision touches multiple core ideas, escalate to the operator for approval before proceeding.
 - `Modules/` hosts the PowerShell modules (e.g., `DeviceLogParserModule.psm1`, `ParserWorker.psm1`) and companion specs under `Modules/Tests/`.
 - `Data/` stores per-site Access databases (`Data/<SitePrefix>/<Site>.accdb`) and configuration such as `StateTraceSettings.json`.
 - `Logs/` captures ingestion telemetry, mock fixtures, and metrics exports (`Logs/IngestionMetrics/`).
 - `docs/` carries operational plans and architecture notes; keep it aligned with implementation changes.
 
 ## Build, Test, and Development Commands
-- `Invoke-Pester Modules/Tests` — run the full Pester suite (unit plus scheduler helpers).
-- `Import-Module .\Modules\ParserWorker.psm1; Invoke-StateTraceParsing -Synchronous` — execute an end-to-end parsing pass against the local `Logs/` queue.
-- `Import-Module .\Modules\ParserRunspaceModule.psm1; Get-AutoScaleConcurrencyProfile -DeviceFiles ...` — inspect autoscaling decisions without launching jobs.
+- `Invoke-Pester Modules/Tests` ??? run the full Pester suite (unit plus scheduler helpers).
+- `Import-Module .\Modules\ParserWorker.psm1; Invoke-StateTraceParsing -Synchronous` ??? execute an end-to-end parsing pass against the local `Logs/` queue.
+- `Import-Module .\Modules\ParserRunspaceModule.psm1; Get-AutoScaleConcurrencyProfile -DeviceFiles ...` ??? inspect autoscaling decisions without launching jobs.
 
 ## Coding Style & Naming Conventions
 - All modules enforce `Set-StrictMode -Version Latest`; prefer explicit parameter binding and idempotent helpers.
@@ -32,6 +40,7 @@
 ## Concurrency Overrides Workflow
 - Default runs (`Tools/Invoke-StateTracePipeline.ps1`) honour `Data/StateTraceSettings.json` and auto-scale ceilings.
 - For manual trials, add switches such as `-ThreadCeilingOverride`, `-MaxWorkersPerSiteOverride`, `-MaxActiveSitesOverride`, `-JobsPerThreadOverride`, or `-MinRunspacesOverride`; keep values > 0 only for the duration of the experiment.
+- When Access staging needs tuning, set `ParserSettings.InterfaceBulkChunkSize` in `Data/StateTraceSettings.json`; ParserWorker passes the value to ParserPersistenceModule (default 24, use `0` to stage full batches).
 - Always note override usage in your session log and capture metrics from `Logs/IngestionMetrics/<date>.json` (look for `ParseDuration`, `DatabaseWriteLatency`, `ConcurrencyProfileResolved`).
 - Omit the override switches (or pass `0`) once testing finishes so the system reverts to autoscaling defaults.
 
@@ -55,4 +64,8 @@ When authorised, agents and developers may use limited internet access and dev-s
 - Record actions in `docs/agents/sessions/*` and `Logs/NetOps/<date>.json`.
 
 **Still true:** Runtime releases remain scripts-only and offline-ready.
+
+
+
+
 

@@ -91,6 +91,9 @@ Describe "ParserWorker auto-scaling" {
             if ($existingTelemetry) { $originalTelemetry = $existingTelemetry.ScriptBlock }
 
             try {
+                $script:lastChunkSize = $null
+                $originalChunkSetter = Get-Command -Name Set-InterfaceBulkChunkSize -Module ParserPersistenceModule -ErrorAction SilentlyContinue
+                Mock Get-Content -ModuleName ParserWorker -ParameterFilter { $LiteralPath -eq $settingsPath -and $Raw } { $customSettings }
                 Set-Item -Path Function:LogIngestionModule\Split-RawLogs -Value { param($LogPath, $ExtractedPath) }
                 Set-Item -Path Function:ParserRunspaceModule\Invoke-DeviceParsingJobs -Value {
                     param(
@@ -117,6 +120,7 @@ Describe "ParserWorker auto-scaling" {
                 }
                 Set-Item -Path Function:LogIngestionModule\Clear-ExtractedLogs -Value { param($ExtractedPath) }
                 Set-Item -Path Function:TelemetryModule\Write-StTelemetryEvent -Value { param($Name, $Payload) $script:telemetryEvents += [PSCustomObject]@{ Name = $Name; Payload = $Payload } }
+                Set-Item -Path Function:ParserPersistenceModule\Set-InterfaceBulkChunkSize -Value { param([int]$ChunkSize, [switch]$Reset) if ($Reset) { $script:lastChunkSize = 24; return 24 } else { $script:lastChunkSize = $ChunkSize; return $ChunkSize } }
 
                 Invoke-StateTraceParsing -Synchronous
 
@@ -129,6 +133,9 @@ Describe "ParserWorker auto-scaling" {
                 $event | Should Not Be $null
                 $event.Payload.DeviceCount | Should Be 3
                 $event.Payload.SiteCount | Should Be 2
+                $script:lastChunkSize | Should Be 24
+                $event.Payload.InterfaceBulkChunkSize | Should Be 24
+                $event.Payload.HintInterfaceBulkChunkSize | Should BeNullOrEmpty
             } finally {
                 foreach ($info in $fileInfos) {
                     Remove-Item -LiteralPath $info.FullName -ErrorAction SilentlyContinue
@@ -136,6 +143,11 @@ Describe "ParserWorker auto-scaling" {
                 if ($splitCommand) { Set-Item -Path Function:LogIngestionModule\Split-RawLogs -Value $splitCommand.ScriptBlock }
                 if ($invokeCommand) { Set-Item -Path Function:ParserRunspaceModule\Invoke-DeviceParsingJobs -Value $invokeCommand.ScriptBlock }
                 if ($clearCommand) { Set-Item -Path Function:LogIngestionModule\Clear-ExtractedLogs -Value $clearCommand.ScriptBlock }
+                if ($originalChunkSetter) {
+                    Set-Item -Path Function:ParserPersistenceModule\Set-InterfaceBulkChunkSize -Value $originalChunkSetter.ScriptBlock
+                } else {
+                    Remove-Item Function:ParserPersistenceModule\Set-InterfaceBulkChunkSize -ErrorAction SilentlyContinue
+                }
                 if ($originalTelemetry) {
                     Set-Item -Path Function:TelemetryModule\Write-StTelemetryEvent -Value $originalTelemetry
                 } else {
@@ -143,6 +155,96 @@ Describe "ParserWorker auto-scaling" {
                 }
             }
         }
+    }
+
+    It "applies InterfaceBulkChunkSize from settings" {
+        InModuleScope -ModuleName ParserWorker {
+            $projectRoot = (Get-Location).ProviderPath
+            $extractedPath = Join-Path $projectRoot 'Logs\Extracted'
+            New-Item -ItemType Directory -Path $extractedPath -Force | Out-Null
+            Get-ChildItem -Path $extractedPath -File -ErrorAction SilentlyContinue | Remove-Item -Force
+            $fileNames = @('ALPHA-A01-AS-01.log','ALPHA-A01-AS-02.log')
+            $fileInfos = @()
+            foreach ($name in $fileNames) {
+                $full = Join-Path $extractedPath $name
+                Set-Content -Path $full -Value '' -Encoding ASCII
+                $fileInfos += Get-Item -LiteralPath $full
+            }
+            Import-Module (Join-Path $projectRoot 'Modules\LogIngestionModule.psm1') -Force
+            Import-Module (Join-Path $projectRoot 'Modules\ParserRunspaceModule.psm1') -Force
+            Import-Module (Join-Path $projectRoot 'Modules\TelemetryModule.psm1') -Force
+
+            $splitCommand = Get-Command -Name Split-RawLogs -Module LogIngestionModule
+            $invokeCommand = Get-Command -Name Invoke-DeviceParsingJobs -Module ParserRunspaceModule
+            $clearCommand = Get-Command -Name Clear-ExtractedLogs -Module LogIngestionModule
+
+            $settingsPath = Join-Path $projectRoot 'Data\StateTraceSettings.json'
+            $customSettings = '{"ParserSettings":{"AutoScaleConcurrency":true,"InterfaceBulkChunkSize":12}}'
+
+            $script:capturedCalls = @()
+            $script:telemetryEvents = @()
+            $existingTelemetry = Get-Command -Name Write-StTelemetryEvent -Module TelemetryModule -ErrorAction SilentlyContinue
+            $originalTelemetry = $null
+            if ($existingTelemetry) { $originalTelemetry = $existingTelemetry.ScriptBlock }
+
+            try {
+                $script:lastChunkSize = $null
+                $originalChunkSetter = Get-Command -Name Set-InterfaceBulkChunkSize -Module ParserPersistenceModule -ErrorAction SilentlyContinue
+                Set-Item -Path Function:LogIngestionModule\Split-RawLogs -Value { param($LogPath, $ExtractedPath) }
+                Set-Item -Path Function:ParserRunspaceModule\Invoke-DeviceParsingJobs -Value {
+                    param(
+                        [string[]]$DeviceFiles,
+                        [string]$ModulesPath,
+                        [string]$ArchiveRoot,
+                        [string]$DatabasePath,
+                        [int]$MaxThreads,
+                        [int]$MinThreads,
+                        [int]$JobsPerThread,
+                        [int]$MaxWorkersPerSite,
+                        [int]$MaxActiveSites,
+                        [switch]$AdaptiveThreads,
+                        [switch]$Synchronous
+                    )
+                    $script:capturedCalls += [PSCustomObject]@{
+                        DeviceFiles       = $DeviceFiles
+                        MaxThreads        = $MaxThreads
+                        MinThreads        = $MinThreads
+                        JobsPerThread     = $JobsPerThread
+                        MaxWorkersPerSite = $MaxWorkersPerSite
+                        MaxActiveSites    = $MaxActiveSites
+                    }
+                }
+                Set-Item -Path Function:LogIngestionModule\Clear-ExtractedLogs -Value { param($ExtractedPath) }
+                Set-Item -Path Function:TelemetryModule\Write-StTelemetryEvent -Value { param($Name, $Payload) $script:telemetryEvents += [PSCustomObject]@{ Name = $Name; Payload = $Payload } }
+                Set-Item -Path Function:ParserPersistenceModule\Set-InterfaceBulkChunkSize -Value { param([int]$ChunkSize, [switch]$Reset) if ($Reset) { $script:lastChunkSize = 24; return 24 } else { $script:lastChunkSize = $ChunkSize; return $ChunkSize } }
+
+                Invoke-StateTraceParsing -Synchronous
+
+                $event = $script:telemetryEvents | Where-Object { $_.Name -eq 'ConcurrencyProfileResolved' } | Select-Object -Last 1
+                $event | Should Not Be $null
+                $script:lastChunkSize | Should Be 12
+                $event.Payload.InterfaceBulkChunkSize | Should Be 12
+                $event.Payload.HintInterfaceBulkChunkSize | Should Be '12'
+            } finally {
+                foreach ($info in $fileInfos) {
+                    Remove-Item -LiteralPath $info.FullName -ErrorAction SilentlyContinue
+                }
+                if ($splitCommand) { Set-Item -Path Function:LogIngestionModule\Split-RawLogs -Value $splitCommand.ScriptBlock }
+                if ($invokeCommand) { Set-Item -Path Function:ParserRunspaceModule\Invoke-DeviceParsingJobs -Value $invokeCommand.ScriptBlock }
+                if ($clearCommand) { Set-Item -Path Function:LogIngestionModule\Clear-ExtractedLogs -Value $clearCommand.ScriptBlock }
+                if ($originalChunkSetter) {
+                    Set-Item -Path Function:ParserPersistenceModule\Set-InterfaceBulkChunkSize -Value $originalChunkSetter.ScriptBlock
+                } else {
+                    Remove-Item Function:ParserPersistenceModule\Set-InterfaceBulkChunkSize -ErrorAction SilentlyContinue
+                }
+                if ($originalTelemetry) {
+                    Set-Item -Path Function:TelemetryModule\Write-StTelemetryEvent -Value $originalTelemetry
+                } else {
+                    Remove-Item Function:TelemetryModule\Write-StTelemetryEvent -ErrorAction SilentlyContinue
+                }
+            }
+        }
+
     }
 
 
@@ -225,6 +327,11 @@ Describe "ParserWorker auto-scaling" {
                 if ($splitCommand) { Set-Item -Path Function:LogIngestionModule\Split-RawLogs -Value $splitCommand.ScriptBlock }
                 if ($invokeCommand) { Set-Item -Path Function:ParserRunspaceModule\Invoke-DeviceParsingJobs -Value $invokeCommand.ScriptBlock }
                 if ($clearCommand) { Set-Item -Path Function:LogIngestionModule\Clear-ExtractedLogs -Value $clearCommand.ScriptBlock }
+                if ($originalChunkSetter) {
+                    Set-Item -Path Function:ParserPersistenceModule\Set-InterfaceBulkChunkSize -Value $originalChunkSetter.ScriptBlock
+                } else {
+                    Remove-Item Function:ParserPersistenceModule\Set-InterfaceBulkChunkSize -ErrorAction SilentlyContinue
+                }
                 if ($originalTelemetry) {
                     Set-Item -Path Function:TelemetryModule\Write-StTelemetryEvent -Value $originalTelemetry
                 } else {

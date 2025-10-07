@@ -198,7 +198,7 @@ The following source documents were reviewed and folded into the plan set:
 - DatabaseWriteLatency p95 ~4.08 s (target <=200 ms); max 4.43 s on WLLS-A05-AS-55 after 91-row batch; staging succeeded but Access commit remained slow.
 - Second pass emitted Duplicate=true ParseDuration events for 35 devices with zero writes; only WLLS-A05-AS-55 and WLLS-A07-AS-07 retried with real commits; suppression needed to avoid redundant duplicate sweep.
 
-**Follow-ups status (as of 2025-10-05):**
+**Follow-ups status (as of 2025-10-06):**
 - Open: Trial reduced ceilings (for example, MaxWorkersPerSite=2 or MaxActiveSites=2) to chase sub-second `DatabaseWriteLatency`; the 2025-10-05 run still landed at 2.16 s p95 with chunking.
 - Open: Resolve ACE parameter creation failures so we can avoid the `LiteralFallback` path; 31 hosts in the 2025-10-05 run logged `StageError=ParameterCreationFailed`.
 - Done: Capture a fresh WLLS run after provider detection landed (2025-10-05 chunked staging verification). `DatabaseWriteLatency` p95 dropped from 4.08 s (2025-10-03) to 2.16 s but remains above the <=200 ms KPI; next action is to trial the reduced ceilings card in Ready.
@@ -206,7 +206,7 @@ The following source documents were reviewed and folded into the plan set:
 - Done: ParserWorker filters _unknown.log slices before scheduling parse jobs.
 - Done: Profiled Access bulk insert timing; InterfaceBulkInsertInternal emits InterfaceBulkInsertTiming telemetry for staging and commit phases.
 - Done: Added a 32-bit PowerShell fallback when ADOX cannot create new Access databases on 64-bit hosts.
-- Open: Suppress duplicate-only reruns triggered immediately after -ResetExtractedLogs (current telemetry marks Duplicate=true but still logs 35 ParseDuration entries with zero writes).
+- Done: Suppress duplicate-only reruns triggered immediately after -ResetExtractedLogs. DeviceLogParser tests cover the guard, and the 2025-10-06 20:35Z rerun recorded only `SkippedDuplicate` telemetry (74 entries across two passes) with zero `ParseDuration` rows.
 
 **KPIs (PhaseÂ 1 targets):**
 - `ParseDuration` p95 â‰¤Â 3Â s per device; max <Â 10Â s.

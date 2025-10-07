@@ -1,4 +1,4 @@
-Set-StrictMode -Version Latest
+﻿Set-StrictMode -Version Latest
 
 if (-not (Get-Variable -Name StateTraceDebug -Scope Global -ErrorAction SilentlyContinue)) {
     Set-Variable -Scope Global -Name StateTraceDebug -Value $false -Option None
@@ -1362,35 +1362,27 @@ function Invoke-DeviceLogParsing {
     finally {
         try {
             if ($__stParseSw) { $__stParseSw.Stop() }
-            $payloadSuccess = if ($skippedDuplicate) { $true } else { [bool]$ingestionSucceeded }
 
-            $payload = @{
-                Hostname = $cleanHostname
-                Site = $siteCode
-                StartTime = $__stParseStart.ToUniversalTime().ToString('o')
-                DurationSeconds = [Math]::Round($__stParseSw.Elapsed.TotalSeconds, 3)
-                Success = $payloadSuccess
-            }
+            if (-not $skippedDuplicate) {
+                $payload = @{
+                    Hostname = $cleanHostname
+                    Site = $siteCode
+                    StartTime = $__stParseStart.ToUniversalTime().ToString('o')
+                    DurationSeconds = [Math]::Round($__stParseSw.Elapsed.TotalSeconds, 3)
+                    Success = [bool]$ingestionSucceeded
+                }
 
-            if ($skippedDuplicate) {
-                $payload['Duplicate'] = $true
-                if ($duplicateMetadata -and $duplicateMetadata.ContainsKey('Reason')) {
-                    $payload['DuplicateReason'] = $duplicateMetadata['Reason']
+                if ($FilePath) {
+                    $payload['FileName'] = [System.IO.Path]::GetFileName($FilePath)
                 }
-                if ($duplicateMetadata -and $duplicateMetadata.ContainsKey('LastIngestedUtc')) {
-                    $payload['LastIngestedUtc'] = $duplicateMetadata['LastIngestedUtc']
-                }
+
+                TelemetryModule\Write-StTelemetryEvent -Name 'ParseDuration' -Payload $payload
             }
-            if ($FilePath) {
-                $payload['FileName'] = [System.IO.Path]::GetFileName($FilePath)
-            }
-            TelemetryModule\Write-StTelemetryEvent -Name 'ParseDuration' -Payload $payload
         } catch { }
     }
 }
 
 #
-
 
 
 Export-ModuleMember -Function Get-LocationDetails, Get-ShowCommandBlocks, Get-DeviceMakeFromBlocks, Get-SnmpLocationFromLines, ConvertFrom-SpanningTree, Remove-OldArchiveFolder, Get-BrocadeAuthBlockFromLines, Invoke-DeviceLogParsing, Get-LogParseContext, Get-VendorTemplates, Get-DatabaseMutexName

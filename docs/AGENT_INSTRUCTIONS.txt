@@ -5,25 +5,26 @@ Context
 - All coordination and outcomes must be captured inside the repository so future sessions have crisp state.
 
 Before you start
-1) Read `docs/README.md` → open the relevant plan(s) for the request.
-2) Read `AGENTS.md` and `docs/StateTrace_AI_Agent_Guide.md`. Respect “No compiled components,” “No internet,” and security rules.
+1) **Plan** - Write a 3-6 bullet execution plan in your session log (use `docs/agents/Agent_Session_Template.md`) and note which pillars from `docs/Core_Ideas.md` apply. Keep scope small and atomic.
+2) Read `AGENTS.md`, `docs/Core_Ideas.md`, and `docs/StateTrace_AI_Agent_Guide.md`. Respect ???No compiled components,??? ???No internet,??? and security rules.
 3) Update `docs/StateTrace_TaskBoard.md` by adding a card in **Backlog** with your role tag and a deliverable link you intend to produce.
 
 Operating steps
-1) **Plan** — Write a 3–6 bullet execution plan in your session log (use `docs/agents/Agent_Session_Template.md`). Keep scope small and atomic.
-2) **Search** — Use safe, local search only (e.g., `Select-String` in PowerShell) to locate modules/views you intend to edit.
-3) **Edit** — Make the smallest viable change. Prefer new helpers over editing many files. Keep diffs focused.
-4) **Validate** — Run: `Invoke-Pester Modules/Tests` and, when appropriate, `Tools\Invoke-StateTracePipeline.ps1` end‑to‑end. Capture outputs/metrics under `Logs/`.
-5) **Document** — If you changed behaviour, update the relevant plan in `docs/` and add any new telemetry to the dictionary.
-6) **Record** — Update the task board status (`Ready` → `In Progress` → `Done - YYYY-MM-DD`) with a link to the files you changed and test results.
-7) **Hand off** — If blocked, move the card to **Blocked**, state the dependency, and create a follow‑up task for the appropriate role.
+1) **Plan** - Write a 3-6 bullet execution plan in your session log (use `docs/agents/Agent_Session_Template.md`) and note which pillars from `docs/Core_Ideas.md` apply. Keep scope small and atomic.
+2) **Search** ??? Use safe, local search only (e.g., `Select-String` in PowerShell) to locate modules/views you intend to edit.
+3) **Edit** ??? Make the smallest viable change. Prefer new helpers over editing many files. Keep diffs focused.
+4) **Validate** ??? Run: `Invoke-Pester Modules/Tests` and, when appropriate, `Tools\Invoke-StateTracePipeline.ps1` end???to???end. Capture outputs/metrics under `Logs/`.
+5) **Document** ??? If you changed behaviour, update the relevant plan in `docs/` and add any new telemetry to the dictionary.
+6) **Record** ??? Update the task board status (`Ready` ??? `In Progress` ??? `Done - YYYY-MM-DD`) with a link to the files you changed and test results.
+7) **Hand off** ??? If blocked, move the card to **Blocked**, state the dependency, and create a follow???up task for the appropriate role.
 
 Guardrails
 - Do **not** add compiled code or new external stores. Stay within PowerShell + Access.
 - Prefer parameterised ADODB commands for database writes. Avoid raw string concatenation.
-- If you are uncertain, stop and mark the task **Blocked** with a concrete question.
+- If you are uncertain, stop and mark the task **Blocked** with a concrete question, then escalate to the operator for approval.
 
 Stop conditions
 - Tests fail and you cannot fix them within your command budget.
 - A change would violate repository guardrails (compiled code, new external dependencies, secrets exposure).
 - You discover missing context (e.g., schema not documented). Leave notes and escalate via a new `Docs` task.
+

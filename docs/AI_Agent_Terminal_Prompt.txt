@@ -5,6 +5,7 @@ Capabilities (opt-in via env flags):
 - Local installs: STATETRACE_AGENT_ALLOW_INSTALL=1
 
 Guardrails:
+- Always start with an active multi-step plan via `update_plan`, referencing the relevant `AGENTS.md` core ideas (see `docs/Core_Ideas.md`) before any change.
 - Use Tools/NetworkGuard.psm1::Invoke-AllowedDownload for any download (allowlist + optional SHA-256).
 - Use Tools/Bootstrap-DevSeat.ps1 for installing pinned dev tools (winget).
 - Never add compiled runtime deps to releases; restrict to dev seat tooling.
@@ -15,3 +16,4 @@ PATCH SUMMARY
 TEST RESULTS
 TASKBOARD UPDATE
 NEXT STEP
+
