@@ -16,6 +16,11 @@ function Split-RawLogs {
     # order of files returned by Get-ChildItem.
     $rawFiles = New-Object 'System.Collections.Generic.List[System.IO.FileInfo]'
     foreach ($f in Get-ChildItem -Path $LogPath -File) {
+        # Skip warm-run telemetry helper transcripts/logs; they are for regression output and can remain locked.
+        if ($f.Name -like 'WarmRunTelemetry-*') {
+            Write-Host ("Skipping helper artifact '{0}'." -f $f.FullName)
+            continue
+        }
         # Match .log or .txt extensions (case-insensitive) using a compiled regex
         if ($f.Extension -match '^(?i)\.(log|txt)$') {
             [void]$rawFiles.Add($f)

@@ -229,7 +229,9 @@ function Invoke-StateTraceParsing {
 
         [int]$MinRunspacesOverride,
 
-        [switch]$Synchronous
+        [switch]$Synchronous,
+
+        [switch]$PreserveRunspace
 
     )
 
@@ -779,6 +781,8 @@ function Invoke-StateTraceParsing {
     if ($enableAdaptiveThreads) { $jobsParams.AdaptiveThreads = $true }
 
     if ($Synchronous) { $jobsParams.Synchronous = $true }
+
+    if ($PreserveRunspace) { $jobsParams.PreserveRunspacePool = $true }
 
 
 

@@ -8,7 +8,10 @@ param(
     [int]$JobsPerThreadOverride,
     [int]$MinRunspacesOverride,
     [switch]$VerboseParsing,
-    [switch]$ResetExtractedLogs
+    [switch]$ResetExtractedLogs,
+    [switch]$PreserveModuleSession,
+    [switch]$RunWarmRunRegression,
+    [string]$WarmRunRegressionOutputPath
 )
 
 Set-StrictMode -Version Latest
@@ -43,6 +46,40 @@ if (-not $alreadyPresent) {
     }
 }
 
+function Invoke-WarmRunRegressionInternal {
+    $warmRunRegressionScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Invoke-WarmRunRegression.ps1'
+    if (-not (Test-Path -LiteralPath $warmRunRegressionScript)) {
+        throw "Warm-run regression script not found at $warmRunRegressionScript"
+    }
+
+    $pwshCommand = Get-Command -Name 'pwsh' -ErrorAction Stop
+    $pwshExecutable = $pwshCommand.Source
+    $argumentList = @('-NoLogo','-NoProfile','-File',$warmRunRegressionScript)
+    if ($VerboseParsing) {
+        $argumentList += '-VerboseParsing'
+    }
+    if ($ResetExtractedLogs) {
+        $argumentList += '-ResetExtractedLogs'
+    }
+    if (-not [string]::IsNullOrWhiteSpace($WarmRunRegressionOutputPath)) {
+        $resolvedOutput = $WarmRunRegressionOutputPath
+        try {
+            $resolvedOutput = (Resolve-Path -LiteralPath $WarmRunRegressionOutputPath -ErrorAction Stop).Path
+        } catch {
+            $resolvedOutput = [System.IO.Path]::GetFullPath((Join-Path -Path (Get-Location) -ChildPath $WarmRunRegressionOutputPath))
+        }
+        $argumentList += @('-OutputPath', $resolvedOutput)
+    }
+
+    Write-Host 'Running preserved-session warm-run regression...' -ForegroundColor Cyan
+    & $pwshExecutable @argumentList
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0) {
+        throw "Warm-run regression failed with exit code $exitCode."
+    }
+    Write-Host 'Warm-run regression completed successfully.' -ForegroundColor Green
+}
+
 if (-not $SkipTests) {
     if (-not (Test-Path -LiteralPath $testsPath)) {
         throw "Pester test directory not found at $testsPath"
@@ -63,6 +100,9 @@ if (-not $SkipTests) {
 if ($SkipParsing) {
     if ($VerboseParsing) {
         Write-Host 'Skipping ingestion run because -SkipParsing was supplied.' -ForegroundColor Yellow
+    }
+    if ($RunWarmRunRegression) {
+        Invoke-WarmRunRegressionInternal
     }
     return
 }
@@ -99,7 +139,22 @@ foreach ($moduleEntry in $modulesToImport) {
     if (-not (Test-Path -LiteralPath $candidatePath)) {
         throw "Module entry '$moduleEntry' not found at $candidatePath"
     }
-    Import-Module -Name $candidatePath -Force -ErrorAction Stop | Out-Null
+    $moduleName = [System.IO.Path]::GetFileNameWithoutExtension($candidatePath)
+    $loadedModule = $null
+    if (-not [string]::IsNullOrWhiteSpace($moduleName)) {
+        $loadedModule = Get-Module -Name $moduleName -ErrorAction SilentlyContinue
+    }
+    if ($PreserveModuleSession -and $loadedModule) {
+        continue
+    }
+    $importArgs = @{
+        Name        = $candidatePath
+        ErrorAction = 'Stop'
+    }
+    if (-not $PreserveModuleSession -or -not $loadedModule) {
+        $importArgs['Force'] = $true
+    }
+    Import-Module @importArgs | Out-Null
 }
 
 if (-not (Test-Path -LiteralPath $parserWorkerModule)) {
@@ -121,7 +176,25 @@ if ($ResetExtractedLogs) {
     }
 }
 Write-Host 'Starting ingestion run via Invoke-StateTraceParsing -Synchronous...' -ForegroundColor Cyan
-$module = Import-Module -Name $parserWorkerModule -PassThru -Force -ErrorAction Stop
+$parserWorkerName = [System.IO.Path]::GetFileNameWithoutExtension($parserWorkerModule)
+$existingParserWorker = $null
+if (-not [string]::IsNullOrWhiteSpace($parserWorkerName)) {
+    $existingParserWorker = Get-Module -Name $parserWorkerName -ErrorAction SilentlyContinue
+}
+$module = $null
+if ($PreserveModuleSession -and $existingParserWorker) {
+    $module = $existingParserWorker
+} else {
+    $parserImportArgs = @{
+        Name        = $parserWorkerModule
+        ErrorAction = 'Stop'
+        PassThru    = $true
+    }
+    if (-not $PreserveModuleSession -or -not $existingParserWorker) {
+        $parserImportArgs['Force'] = $true
+    }
+    $module = Import-Module @parserImportArgs
+}
 
 $invokeParams = @{ Synchronous = $true }
 if ($PSBoundParameters.ContainsKey('DatabasePath')) {
@@ -142,6 +215,9 @@ if ($PSBoundParameters.ContainsKey('JobsPerThreadOverride')) {
 if ($PSBoundParameters.ContainsKey('MinRunspacesOverride')) {
     $invokeParams['MinRunspacesOverride'] = $MinRunspacesOverride
 }
+if ($PreserveModuleSession) {
+    $invokeParams['PreserveRunspace'] = $true
+}
 
 try {
     if ($VerboseParsing) {
@@ -150,9 +226,13 @@ try {
         Invoke-StateTraceParsing @invokeParams
     }
 } finally {
-    if ($module) {
+    if ($module -and -not $PreserveModuleSession) {
         Remove-Module -ModuleInfo $module -Force -ErrorAction SilentlyContinue
     }
 }
 
 Write-Host 'Ingestion run completed.' -ForegroundColor Green
+
+if ($RunWarmRunRegression) {
+    Invoke-WarmRunRegressionInternal
+}

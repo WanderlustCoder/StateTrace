@@ -146,4 +146,43 @@ Describe "InterfaceModule Get-InterfaceList" {
             Assert-MockCalled 'DeviceRepositoryModule\Get-SpanningTreeInfo' -ModuleName InterfaceModule -Times 1 -ParameterFilter { $Hostname -eq 'SW1' }
         }
     }
+
+    Context "Get-PortSortKey normalization" {
+        It "normalizes prefixes and pads numeric segments" {
+            $cases = @(
+                @{ Port = 'GigabitEthernet1/0/2'; Expected = '40-GI-00001-00000-00002-00000' },
+                @{ Port = 'Hundred GigabitEthernet 1/1'; Expected = '23-HU-00001-00001-00000-00000' },
+                @{ Port = 'Loopback10'; Expected = '98-LO-00010-00000-00000-00000' },
+                @{ Port = '1/1/1'; Expected = '30-ET-00001-00001-00001-00000' }
+            )
+
+            foreach ($case in $cases) {
+                InterfaceModule\Get-PortSortKey -Port $case.Port | Should Be $case.Expected
+            }
+        }
+    }
+
+    Context "Get-PortSortKey caching" {
+        It "caches normalized port keys and reports stats" {
+            $statsBefore = InterfaceModule\Get-PortSortCacheStatistics
+            $statsBefore | Should Not BeNullOrEmpty
+
+            $uniquePort = "GiCache-{0}" -f ([guid]::NewGuid().ToString('N'))
+            $first = InterfaceModule\Get-PortSortKey -Port ("  {0}  " -f $uniquePort)
+            $second = InterfaceModule\Get-PortSortKey -Port $uniquePort.ToLowerInvariant()
+
+            $first | Should Be $second
+
+            $statsAfter = InterfaceModule\Get-PortSortCacheStatistics
+            $statsAfter | Should Not BeNullOrEmpty
+
+            $hitDelta = [long]$statsAfter.Hits - [long]$statsBefore.Hits
+            $missDelta = [long]$statsAfter.Misses - [long]$statsBefore.Misses
+            $entryDelta = [long]$statsAfter.EntryCount - [long]$statsBefore.EntryCount
+
+            $missDelta | Should Be 1
+            $hitDelta | Should Be 1
+            $entryDelta | Should Be 1
+        }
+    }
 }

@@ -17,6 +17,151 @@ if (-not (Get-Variable -Scope Script -Name ParserModuleNames -ErrorAction Silent
     )
 }
 
+if (-not (Get-Variable -Scope Script -Name PreservedRunspacePool -ErrorAction SilentlyContinue)) {
+    $script:PreservedRunspacePool = $null
+    $script:PreservedRunspaceConfig = $null
+}
+
+function Publish-RunspaceCacheTelemetry {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Stage,
+        [string]$Site,
+        [psobject]$Summary
+    )
+
+    $runspaceId = ''
+    try {
+        $currentRunspace = [System.Management.Automation.Runspaces.Runspace]::DefaultRunspace
+        if ($currentRunspace) { $runspaceId = $currentRunspace.InstanceId.ToString() }
+    } catch {
+        $runspaceId = ''
+    }
+
+    $siteKey = if ($Site) { ('' + $Site).Trim() } else { '' }
+    $cacheExists = $false
+    $cacheStatus = ''
+    $hostCount = 0
+    $totalRows = 0
+    $hostMapType = ''
+    $entryType = ''
+    $cachedAt = ''
+
+    if ($Summary) {
+        try {
+            if ($Summary.PSObject.Properties.Name -contains 'CacheExists') {
+                $cacheExists = [bool]$Summary.CacheExists
+            }
+        } catch { $cacheExists = $false }
+        try {
+            if ($Summary.PSObject.Properties.Name -contains 'CacheStatus') {
+                $cacheStatus = '' + $Summary.CacheStatus
+            }
+        } catch { $cacheStatus = '' }
+        try {
+            if ($Summary.PSObject.Properties.Name -contains 'HostCount') {
+                $hostCount = [int]$Summary.HostCount
+            }
+        } catch { $hostCount = 0 }
+        try {
+            if ($Summary.PSObject.Properties.Name -contains 'TotalRows') {
+                $totalRows = [int]$Summary.TotalRows
+            }
+        } catch { $totalRows = 0 }
+        try {
+            if ($Summary.PSObject.Properties.Name -contains 'HostMapType') {
+                $hostMapType = '' + $Summary.HostMapType
+            }
+        } catch { $hostMapType = '' }
+        try {
+            if ($Summary.PSObject.Properties.Name -contains 'EntryType') {
+                $entryType = '' + $Summary.EntryType
+            }
+        } catch { $entryType = '' }
+        try {
+            if ($Summary.PSObject.Properties.Name -contains 'CachedAt' -and $null -ne $Summary.CachedAt) {
+                $cachedAt = ([datetime]$Summary.CachedAt).ToString('o')
+            }
+        } catch { $cachedAt = '' }
+    }
+
+    $payload = @{
+        Stage       = $Stage
+        RunspaceId  = $runspaceId
+        Site        = $siteKey
+        CacheExists = $cacheExists
+        CacheStatus = $cacheStatus
+        HostCount   = $hostCount
+        TotalRows   = $totalRows
+        HostMapType = $hostMapType
+        EntryType   = $entryType
+        CachedAt    = $cachedAt
+    }
+
+    try {
+        TelemetryModule\Write-StTelemetryEvent -Name 'InterfaceSiteCacheRunspaceState' -Payload $payload
+    } catch { }
+}
+
+function Publish-RunspacePoolEvent {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Operation,
+        [string]$Reason,
+        [System.Management.Automation.Runspaces.RunspacePool]$Pool,
+        [hashtable]$PoolConfig
+    )
+
+    $poolId = ''
+    $poolState = ''
+    if ($Pool) {
+        try { $poolId = $Pool.InstanceId.ToString() } catch { $poolId = '' }
+        try { $poolState = '' + $Pool.RunspacePoolStateInfo.State } catch { $poolState = '' }
+    }
+
+    $modulesPath = ''
+    $maxThreads = 0
+    $minThreads = 0
+    $jobsPerThread = 0
+    $maxWorkersPerSite = 0
+    $maxActiveSites = 0
+    if ($PoolConfig) {
+        if ($PoolConfig.ContainsKey('ModulesPath')) {
+            try { $modulesPath = '' + $PoolConfig['ModulesPath'] } catch { $modulesPath = '' }
+        }
+        if ($PoolConfig.ContainsKey('MaxThreads')) {
+            try { $maxThreads = [int]$PoolConfig['MaxThreads'] } catch { $maxThreads = 0 }
+        }
+        if ($PoolConfig.ContainsKey('MinThreads')) {
+            try { $minThreads = [int]$PoolConfig['MinThreads'] } catch { $minThreads = 0 }
+        }
+        if ($PoolConfig.ContainsKey('JobsPerThread')) {
+            try { $jobsPerThread = [int]$PoolConfig['JobsPerThread'] } catch { $jobsPerThread = 0 }
+        }
+        if ($PoolConfig.ContainsKey('MaxWorkersPerSite')) {
+            try { $maxWorkersPerSite = [int]$PoolConfig['MaxWorkersPerSite'] } catch { $maxWorkersPerSite = 0 }
+        }
+        if ($PoolConfig.ContainsKey('MaxActiveSites')) {
+            try { $maxActiveSites = [int]$PoolConfig['MaxActiveSites'] } catch { $maxActiveSites = 0 }
+        }
+    }
+
+    try {
+        TelemetryModule\Write-StTelemetryEvent -Name 'ParserRunspacePoolState' -Payload @{
+            Operation         = $Operation
+            Reason            = if ($Reason) { $Reason } else { '' }
+            PoolId            = $poolId
+            PoolState         = $poolState
+            ModulesPath       = $modulesPath
+            MaxThreads        = $maxThreads
+            MinThreads        = $minThreads
+            JobsPerThread     = $jobsPerThread
+            MaxWorkersPerSite = $maxWorkersPerSite
+            MaxActiveSites    = $maxActiveSites
+        }
+    } catch { }
+}
+
 function Get-ParserModulePaths {
     [CmdletBinding()]
     param(
@@ -283,6 +428,7 @@ function Invoke-DeviceParseWorker {
         [Parameter(Mandatory=$true)][string]$ModulesPath,
         [Parameter(Mandatory=$true)][string]$ArchiveRoot,
         [string]$DatabasePath,
+        [string]$SiteKey,
         [bool]$EnableVerbose = $false
     )
 
@@ -326,12 +472,41 @@ function Invoke-DeviceParseWorker {
         throw "Worker runspace LanguageMode is $langMode (expected FullLanguage)"
     }
 
+    $resolvedSiteKey = ''
+    if ($PSBoundParameters.ContainsKey('SiteKey') -and -not [string]::IsNullOrWhiteSpace($SiteKey)) {
+        $resolvedSiteKey = ('' + $SiteKey).Trim()
+    }
+    if ([string]::IsNullOrWhiteSpace($resolvedSiteKey)) {
+        try {
+            $hostToken = [System.IO.Path]::GetFileNameWithoutExtension($FilePath)
+            if (-not [string]::IsNullOrWhiteSpace($hostToken)) {
+                $resolvedSiteKey = $hostToken
+                $siteCmd = Get-Command -Name 'DeviceRepositoryModule\Get-SiteFromHostname' -ErrorAction SilentlyContinue
+                if ($siteCmd) {
+                    $candidateSite = & $siteCmd -Hostname $hostToken
+                    if (-not [string]::IsNullOrWhiteSpace($candidateSite)) {
+                        $resolvedSiteKey = ('' + $candidateSite).Trim()
+                    }
+                }
+            }
+        } catch {
+            $resolvedSiteKey = ''
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace($resolvedSiteKey)) { $resolvedSiteKey = 'Unknown' }
+
     Initialize-WorkerModules -ModulesPath $ModulesPath
 
+    $preSummary = $null
+    try { $preSummary = DeviceRepositoryModule\Get-InterfaceSiteCacheSummary -Site $resolvedSiteKey } catch { $preSummary = $null }
+    Publish-RunspaceCacheTelemetry -Stage 'Worker:PreParse' -Site $resolvedSiteKey -Summary $preSummary
+
+    $parseSucceeded = $false
     try {
         & $writeLog ("Parsing: {0}" -f $FilePath)
         DeviceLogParserModule\Invoke-DeviceLogParsing -FilePath $FilePath -ArchiveRoot $ArchiveRoot -DatabasePath $DatabasePath
         & $writeLog ("Parsing complete: {0}" -f $FilePath)
+        $parseSucceeded = $true
     } catch {
         $message = $_.Exception.Message
         $position = ''
@@ -349,6 +524,11 @@ function Invoke-DeviceParseWorker {
         $formatted = $builder.ToString()
         & $writeLog $formatted
         throw $formatted
+    } finally {
+        $postSummary = $null
+        try { $postSummary = DeviceRepositoryModule\Get-InterfaceSiteCacheSummary -Site $resolvedSiteKey } catch { $postSummary = $null }
+        $postStage = if ($parseSucceeded) { 'Worker:PostParse' } else { 'Worker:PostParseError' }
+        Publish-RunspaceCacheTelemetry -Stage $postStage -Site $resolvedSiteKey -Summary $postSummary
     }
 }
 
@@ -365,10 +545,16 @@ function Invoke-DeviceParsingJobs {
         [int]$MaxWorkersPerSite = 1,
         [int]$MaxActiveSites = 0,
         [switch]$AdaptiveThreads,
-        [switch]$Synchronous
+        [switch]$Synchronous,
+        [switch]$PreserveRunspacePool
     )
 
     if (-not $DeviceFiles -or $DeviceFiles.Count -eq 0) { return }
+
+    if (-not $PreserveRunspacePool.IsPresent -and $script:PreservedRunspacePool) {
+        Publish-RunspacePoolEvent -Operation 'Reset' -Reason 'PreserveFlagNotSet' -Pool $script:PreservedRunspacePool -PoolConfig $script:PreservedRunspaceConfig
+        Reset-DeviceParseRunspacePool
+    }
 
     if ($MinThreads -lt 1) { $MinThreads = 1 }
     if ($JobsPerThread -lt 1) { $JobsPerThread = 1 }
@@ -382,19 +568,97 @@ function Invoke-DeviceParsingJobs {
 
     if ($Synchronous -or $MaxThreads -le 1) {
         foreach ($file in $DeviceFiles) {
-            Invoke-DeviceParseWorker -FilePath $file -ModulesPath $ModulesPath -ArchiveRoot $ArchiveRoot -DatabasePath $DatabasePath -EnableVerbose:$enableVerbose
+            $siteKeyValue = 'Unknown'
+            try {
+                $hostToken = [System.IO.Path]::GetFileNameWithoutExtension($file)
+                if (-not [string]::IsNullOrWhiteSpace($hostToken)) {
+                    $siteKeyValue = $hostToken
+                    $siteCmd = Get-Command -Name 'DeviceRepositoryModule\Get-SiteFromHostname' -ErrorAction SilentlyContinue
+                    if ($siteCmd) {
+                        $candidateSite = & $siteCmd -Hostname $hostToken
+                        if (-not [string]::IsNullOrWhiteSpace($candidateSite)) {
+                            $siteKeyValue = ('' + $candidateSite).Trim()
+                        }
+                    }
+                }
+            } catch {
+                $siteKeyValue = 'Unknown'
+            }
+            Invoke-DeviceParseWorker -FilePath $file -ModulesPath $ModulesPath -ArchiveRoot $ArchiveRoot -DatabasePath $DatabasePath -EnableVerbose:$enableVerbose -SiteKey $siteKeyValue
         }
         return
     }
 
-    $sessionState = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
-    $sessionState.ApartmentState = [System.Threading.ApartmentState]::STA
-    $sessionState.LanguageMode = [System.Management.Automation.PSLanguageMode]::FullLanguage
-    $importList = Get-RunspaceModuleImportList -ModulesPath $ModulesPath
-    if ($importList -and $importList.Count -gt 0) { $null = $sessionState.ImportPSModule($importList) }
-    $pool = [runspacefactory]::CreateRunspacePool(1, $MaxThreads, $sessionState, $Host)
-    try { $pool.ApartmentState = [System.Threading.ApartmentState]::STA } catch { }
-    $pool.Open()
+    $pool = $null
+    $poolConfig = @{
+        ModulesPath      = (try { [System.IO.Path]::GetFullPath($ModulesPath) } catch { $ModulesPath })
+        MaxThreads       = [int]$MaxThreads
+        MinThreads       = [int]$MinThreads
+        JobsPerThread    = [int]$JobsPerThread
+        MaxWorkersPerSite = [int]$MaxWorkersPerSite
+        MaxActiveSites    = [int]$MaxActiveSites
+    }
+
+    if ($PreserveRunspacePool) {
+        $existingPool = $script:PreservedRunspacePool
+        $existingConfig = $script:PreservedRunspaceConfig
+        if ($existingPool -and $existingConfig) {
+            $stateName = '' + $existingPool.RunspacePoolStateInfo.State
+            if ([System.StringComparer]::OrdinalIgnoreCase.Equals($stateName, 'Opened')) {
+                $configMatches = $true
+                foreach ($key in $poolConfig.Keys) {
+                    if (-not $existingConfig.ContainsKey($key)) {
+                        $configMatches = $false
+                        break
+                    }
+                    $currentValue = $poolConfig[$key]
+                    $previousValue = $existingConfig[$key]
+                    if ($key -eq 'ModulesPath') {
+                        $leftValue = if ($null -ne $previousValue) { '' + $previousValue } else { '' }
+                        $rightValue = if ($null -ne $currentValue) { '' + $currentValue } else { '' }
+                        if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals($leftValue, $rightValue)) {
+                            $configMatches = $false
+                            break
+                        }
+                    } else {
+                        if ($previousValue -ne $currentValue) {
+                            $configMatches = $false
+                            break
+                        }
+                    }
+                }
+
+                if ($configMatches) {
+                    $pool = $existingPool
+                    Publish-RunspacePoolEvent -Operation 'Reuse' -Pool $existingPool -PoolConfig $existingConfig
+                } else {
+                    Publish-RunspacePoolEvent -Operation 'Reset' -Reason 'ConfigChanged' -Pool $existingPool -PoolConfig $existingConfig
+                    Reset-DeviceParseRunspacePool
+                }
+            } else {
+                Publish-RunspacePoolEvent -Operation 'Reset' -Reason 'PoolNotOpen' -Pool $existingPool -PoolConfig $existingConfig
+                Reset-DeviceParseRunspacePool
+            }
+        }
+    }
+
+    if (-not $pool) {
+        $sessionState = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
+        $sessionState.ApartmentState = [System.Threading.ApartmentState]::STA
+        $sessionState.LanguageMode = [System.Management.Automation.PSLanguageMode]::FullLanguage
+        $importList = Get-RunspaceModuleImportList -ModulesPath $ModulesPath
+        if ($importList -and $importList.Count -gt 0) { $null = $sessionState.ImportPSModule($importList) }
+        $pool = [runspacefactory]::CreateRunspacePool(1, $MaxThreads, $sessionState, $Host)
+        try { $pool.ApartmentState = [System.Threading.ApartmentState]::STA } catch { }
+        $pool.Open()
+        if ($PreserveRunspacePool) {
+            $script:PreservedRunspacePool = $pool
+            $script:PreservedRunspaceConfig = $poolConfig
+        }
+        Publish-RunspacePoolEvent -Operation 'Create' -Pool $pool -PoolConfig $poolConfig
+    } elseif ($PreserveRunspacePool) {
+        $script:PreservedRunspaceConfig = $poolConfig
+    }
 
     function Get-HostnameFromPath([string]$PathValue) {
         if ([string]::IsNullOrWhiteSpace($PathValue)) { return 'Unknown' }
@@ -489,6 +753,7 @@ function Invoke-DeviceParsingJobs {
                     $null = $ps.AddParameter('ModulesPath', $ModulesPath)
                     $null = $ps.AddParameter('ArchiveRoot', $ArchiveRoot)
                     if ($DatabasePath) { $null = $ps.AddParameter('DatabasePath', $DatabasePath) }
+                    $null = $ps.AddParameter('SiteKey', $siteKey)
                     $null = $ps.AddParameter('EnableVerbose', $enableVerbose)
                     $async = $ps.BeginInvoke()
                     $active.Add([PSCustomObject]@{ Pipe = $ps; AsyncResult = $async; Site = $siteKey })
@@ -524,8 +789,20 @@ function Invoke-DeviceParsingJobs {
             try { $entry.Pipe.EndInvoke($entry.AsyncResult) } catch { }
             $entry.Pipe.Dispose()
         }
-        $pool.Close()
-        $pool.Dispose()
+
+        if ($PreserveRunspacePool) {
+            if ($pool -ne $script:PreservedRunspacePool) {
+                try { $pool.Close() } catch { }
+                try { $pool.Dispose() } catch { }
+            }
+        } else {
+            try { $pool.Close() } catch { }
+            try { $pool.Dispose() } catch { }
+            if ($script:PreservedRunspacePool -eq $pool) {
+                $script:PreservedRunspacePool = $null
+                $script:PreservedRunspaceConfig = $null
+            }
+        }
 
         if ($metricsContext) {
             Finalize-SchedulerMetricsContext -Context $metricsContext
@@ -533,7 +810,69 @@ function Invoke-DeviceParsingJobs {
     }
 }
 
-Export-ModuleMember -Function Invoke-DeviceParseWorker, Invoke-DeviceParsingJobs
+function Reset-DeviceParseRunspacePool {
+    [CmdletBinding()]
+    param()
+
+    if ($script:PreservedRunspacePool) {
+        Publish-RunspacePoolEvent -Operation 'Dispose' -Reason 'ResetDeviceParseRunspacePool' -Pool $script:PreservedRunspacePool -PoolConfig $script:PreservedRunspaceConfig
+        try { $script:PreservedRunspacePool.Close() } catch { }
+        try { $script:PreservedRunspacePool.Dispose() } catch { }
+    }
+
+    $script:PreservedRunspacePool = $null
+    $script:PreservedRunspaceConfig = $null
+}
+
+function Invoke-InterfaceSiteCacheWarmup {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string[]]$Sites,
+        [switch]$Refresh
+    )
+
+    if (-not $Sites -or $Sites.Count -eq 0) { return }
+
+    $pool = $script:PreservedRunspacePool
+    if (-not $pool) { return }
+
+    $jobs = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($site in $Sites) {
+        if ([string]::IsNullOrWhiteSpace($site)) { continue }
+        $ps = [powershell]::Create()
+        $ps.RunspacePool = $pool
+        $scriptBlock = {
+            param($siteArg, [bool]$refreshFlag)
+
+            $resolvedSite = if ($siteArg) { ('' + $siteArg).Trim() } else { '' }
+            $stageRoot = if ($refreshFlag) { 'WarmupRefresh' } else { 'WarmupProbe' }
+
+            $beforeSummary = $null
+            try { $beforeSummary = DeviceRepositoryModule\Get-InterfaceSiteCacheSummary -Site $resolvedSite } catch { $beforeSummary = $null }
+            try { ParserRunspaceModule\Publish-RunspaceCacheTelemetry -Stage ($stageRoot + ':Before') -Site $resolvedSite -Summary $beforeSummary } catch { }
+
+            if ($refreshFlag) {
+                DeviceRepositoryModule\Get-InterfaceSiteCache -Site $resolvedSite -Refresh | Out-Null
+            } else {
+                DeviceRepositoryModule\Get-InterfaceSiteCache -Site $resolvedSite | Out-Null
+            }
+
+            $afterSummary = $null
+            try { $afterSummary = DeviceRepositoryModule\Get-InterfaceSiteCacheSummary -Site $resolvedSite } catch { $afterSummary = $null }
+            try { ParserRunspaceModule\Publish-RunspaceCacheTelemetry -Stage ($stageRoot + ':After') -Site $resolvedSite -Summary $afterSummary } catch { }
+        }
+        $null = $ps.AddScript($scriptBlock).AddArgument($site).AddArgument($Refresh.IsPresent)
+        $async = $ps.BeginInvoke()
+        $jobs.Add([pscustomobject]@{ Pipe = $ps; Async = $async })
+    }
+
+    foreach ($job in $jobs) {
+        try { $job.Pipe.EndInvoke($job.Async) } catch { }
+        $job.Pipe.Dispose()
+    }
+}
+
+Export-ModuleMember -Function Invoke-DeviceParseWorker, Invoke-DeviceParsingJobs, Reset-DeviceParseRunspacePool, Invoke-InterfaceSiteCacheWarmup, Publish-RunspaceCacheTelemetry
 
 
 

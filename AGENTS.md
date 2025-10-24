@@ -2,6 +2,8 @@
 
 ## Core Ideas
 > Quick reference also available at `docs/Core_Ideas.md` for in-doc workflows.
+- **Documentation Primacy:** Documentation is the top priority-consult it before taking action, publish the planned steps, and record results once work lands (this directive outranks every other pillar).
+- **Approved PowerShell Verbs:** Use only verbs from the PowerShell approved list (`Get-Verb`) when defining or renaming exported functions/cmdlets. Audit existing names during touchpoints and document remediation if legacy verbs remain.
 - **Offline-first & Access-backed:** Deliver everything with PowerShell scripts and Access databases, no compiled components, keep runtime offline-ready.
 - **Telemetry & verification:** Capture ingestion metrics (`ParseDuration`, `DatabaseWriteLatency`, etc.) and use them to validate every change.
 - **Plan-first collaboration:** Record a multi-step plan before editing, keep docs/task boards in sync, and narrate progress.
@@ -18,6 +20,8 @@
 - `Invoke-Pester Modules/Tests` ??? run the full Pester suite (unit plus scheduler helpers).
 - `Import-Module .\Modules\ParserWorker.psm1; Invoke-StateTraceParsing -Synchronous` ??? execute an end-to-end parsing pass against the local `Logs/` queue.
 - `Import-Module .\Modules\ParserRunspaceModule.psm1; Get-AutoScaleConcurrencyProfile -DeviceFiles ...` ??? inspect autoscaling decisions without launching jobs.
+- `Tools\Invoke-WarmRunRegression.ps1 -VerboseParsing` ??? preserved-session cold + warm replay with cache assertions and InterfaceCallDuration summary (fails fast on regression).
+- `Tools\Invoke-StateTracePipeline.ps1 -RunWarmRunRegression` ??? run the standard ingestion harness and immediately invoke the preserved-session warm-run regression wrapper (exports `Logs\IngestionMetrics\WarmRunTelemetry-<timestamp>.json`).
 
 ## Coding Style & Naming Conventions
 - All modules enforce `Set-StrictMode -Version Latest`; prefer explicit parameter binding and idempotent helpers.

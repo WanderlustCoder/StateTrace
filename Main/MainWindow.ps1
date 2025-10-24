@@ -531,7 +531,7 @@ return $res
 '@
         # Add the script and arguments to the PowerShell instance
         [void]$ps.AddScript($scriptText)
-        [void]$ps.AddArgument($Hostname)
+        [void]$ps.AddArgument($hostTrim)
         [void]$ps.AddArgument($modulesDir)
         if ($debug) {
             Write-Verbose "Import-DeviceDetailsAsync: script and arguments added to PowerShell instance"
@@ -542,7 +542,7 @@ return $res
             Write-Verbose ("Import-DeviceDetailsAsync: starting background thread for '{0}'" -f $Hostname)
         }
         $threadScript = {
-            param([System.Management.Automation.PowerShell]$psCmd)
+            param([System.Management.Automation.PowerShell]$psCmd, [string]$deviceHost)
             try {
                 # Invoke the script synchronously in the background thread
                 $results = $psCmd.Invoke()
@@ -578,7 +578,7 @@ return $res
                         # Extract summary information for downstream helpers
                         $summary = $null
                         if ($dto -and $dto.PSObject.Properties['Summary']) { $summary = $dto.Summary }
-                        $defaultHost = $Hostname
+                        $defaultHost = $deviceHost
                         if ($summary -and $summary.PSObject.Properties['Hostname']) {
                             $defaultHost = [string]$summary.Hostname
                         }
@@ -604,6 +604,101 @@ return $res
                     # Log any dispatcher invocation errors but do not crash
                     Write-Warning ("Import-DeviceDetailsAsync dispatcher invocation failed: {0}" -f $_.Exception.Message)
                 }
+
+                if ($data -and -not ($data -is [System.Management.Automation.ErrorRecord])) {
+                    $collection = $null
+                    try {
+                        if ($data.PSObject.Properties['Interfaces']) { $collection = $data.Interfaces }
+                    } catch { $collection = $null }
+
+                    try { DeviceRepositoryModule\Initialize-InterfacePortStream -Hostname $deviceHost } catch { }
+
+                    $initialStatus = $null
+                    try { $initialStatus = DeviceRepositoryModule\Get-InterfacePortStreamStatus -Hostname $deviceHost } catch { $initialStatus = $null }
+                    if ($initialStatus) {
+                        [System.Windows.Application]::Current.Dispatcher.Invoke([System.Action]{
+                            InterfaceModule\Set-PortLoadingIndicator -Loaded $initialStatus.PortsDelivered -Total $initialStatus.TotalPorts -BatchesRemaining $initialStatus.BatchesRemaining
+                        })
+                    }
+
+                    if ($collection) {
+                        while ($true) {
+                            $batch = $null
+                            try { $batch = DeviceRepositoryModule\Get-InterfacePortBatch -Hostname $deviceHost } catch { $batch = $null }
+                            if ($batch) {
+                                $portList = $batch.Ports
+                                $portItems = $portList
+                                if (-not ($portItems -is [System.Collections.ICollection])) {
+                                    $portItems = @($portItems)
+                                }
+
+                                $batchSize = 0
+                                try {
+                                    if ($portItems) { $batchSize = [int]$portItems.Count }
+                                } catch { $batchSize = 0 }
+
+                                $appendDurationMs = 0.0
+                                $indicatorDurationMs = 0.0
+                                $dispatcherDurationMs = 0.0
+
+                                $dispatcherStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+                                $uiMetrics = [System.Windows.Application]::Current.Dispatcher.Invoke([System.Func[object]]{
+                                    $localAppend = 0.0
+                                    $localIndicator = 0.0
+
+                                    try {
+                                        $appendSw = [System.Diagnostics.Stopwatch]::StartNew()
+                                        foreach ($row in $portItems) { $collection.Add($row) }
+                                        $appendSw.Stop()
+                                        $localAppend = [Math]::Round($appendSw.Elapsed.TotalMilliseconds, 3)
+                                    } catch {
+                                        $localAppend = 0.0
+                                    }
+
+                                    try {
+                                        $indicatorSw = [System.Diagnostics.Stopwatch]::StartNew()
+                                        InterfaceModule\Set-PortLoadingIndicator -Loaded $batch.PortsDelivered -Total $batch.TotalPorts -BatchesRemaining $batch.BatchesRemaining
+                                        $indicatorSw.Stop()
+                                        $localIndicator = [Math]::Round($indicatorSw.Elapsed.TotalMilliseconds, 3)
+                                    } catch {
+                                        $localIndicator = 0.0
+                                    }
+
+                                    return [pscustomobject]@{
+                                        AppendDurationMs    = $localAppend
+                                        IndicatorDurationMs = $localIndicator
+                                    }
+                                })
+                                $dispatcherStopwatch.Stop()
+                                $dispatcherDurationMs = [Math]::Round($dispatcherStopwatch.Elapsed.TotalMilliseconds, 3)
+
+                                if ($uiMetrics) {
+                                    if ($uiMetrics.PSObject.Properties['AppendDurationMs']) {
+                                        $appendDurationMs = [double]$uiMetrics.AppendDurationMs
+                                    }
+                                    if ($uiMetrics.PSObject.Properties['IndicatorDurationMs']) {
+                                        $indicatorDurationMs = [double]$uiMetrics.IndicatorDurationMs
+                                    }
+                                }
+
+                                try {
+                                    DeviceRepositoryModule\Set-InterfacePortDispatchMetrics -Hostname $deviceHost -BatchId $batch.BatchId -BatchOrdinal $batch.BatchOrdinal -BatchCount $batch.BatchCount -BatchSize $batchSize -PortsDelivered $batch.PortsDelivered -TotalPorts $batch.TotalPorts -DispatcherDurationMs $dispatcherDurationMs -AppendDurationMs $appendDurationMs -IndicatorDurationMs $indicatorDurationMs
+                                } catch { }
+
+                                if ($batch.Completed) { break }
+                                continue
+                            }
+
+                            $streamStatus = $null
+                            try { $streamStatus = DeviceRepositoryModule\Get-InterfacePortStreamStatus -Hostname $deviceHost } catch { $streamStatus = $null }
+                            if ($streamStatus -and $streamStatus.Completed) { break }
+                            Start-Sleep -Milliseconds 150
+                        }
+                    }
+                }
+
+                try { DeviceRepositoryModule\Clear-InterfacePortStream -Hostname $deviceHost } catch { }
+                [System.Windows.Application]::Current.Dispatcher.Invoke([System.Action]{ InterfaceModule\Hide-PortLoadingIndicator })
             } catch {
                 # Log any exceptions thrown during Invoke
                 Write-Warning ("Import-DeviceDetailsAsync thread encountered an exception: {0}" -f $_.Exception.Message)
@@ -614,7 +709,7 @@ return $res
             }
         }
         # Build the thread start delegate and launch the background thread
-        $threadStart = [System.Threading.ThreadStart]{ $threadScript.Invoke($ps) }
+        $threadStart = [System.Threading.ThreadStart]{ $threadScript.Invoke($ps, $hostTrim) }
         $workerThread = [System.Threading.Thread]::new($threadStart)
         $workerThread.ApartmentState = [System.Threading.ApartmentState]::STA
         $workerThread.Start()
@@ -874,3 +969,4 @@ if ($window.FindName('HostnameDropdown').Items.Count -gt 0) {
 $window.ShowDialog() | Out-Null
 
 # 9) Cleanup
+    $hostTrim = ('' + $Hostname).Trim()

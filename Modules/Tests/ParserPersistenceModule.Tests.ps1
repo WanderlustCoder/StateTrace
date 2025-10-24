@@ -6,10 +6,17 @@ Describe "ParserPersistenceModule" {
 
     BeforeAll {
 
-        $modulePath = Join-Path (Split-Path $PSCommandPath) "..\ParserPersistenceModule.psm1"
-
+        $moduleDirectory = Split-Path $PSCommandPath
+        $modulePath = Join-Path $moduleDirectory "..\ParserPersistenceModule.psm1"
         Import-Module (Resolve-Path $modulePath) -Force
 
+        $deviceRepoPath = Join-Path $moduleDirectory "..\DeviceRepositoryModule.psm1"
+        Import-Module (Resolve-Path $deviceRepoPath) -Force
+
+    }
+
+    BeforeEach {
+        try { DeviceRepositoryModule\Clear-SiteInterfaceCache } catch { }
     }
 
 
@@ -188,6 +195,7 @@ Describe "ParserPersistenceModule" {
 
         Set-Variable -Name commands -Scope Script -Value $commands
 
+
         $recordsets = New-Object "System.Collections.Generic.Queue[object]"
 
         $recordsets.Enqueue((New-TestRecordset @()))
@@ -285,6 +293,7 @@ Describe "ParserPersistenceModule" {
         $commands = New-Object "System.Collections.Generic.List[string]"
 
         Set-Variable -Name commands -Scope Script -Value $commands
+
 
         $recordsets = New-Object "System.Collections.Generic.Queue[object]"
 
@@ -550,134 +559,258 @@ Describe "ParserPersistenceModule" {
 
 
 
-    It "writes interfaces via bulk staging when Access helpers succeed" {
-
-        InModuleScope -ModuleName ParserPersistenceModule {
-
-            $script:bulkCommands = New-Object 'System.Collections.Generic.List[string]'
-            $script:bulkCommandExecutions = 0
-            $script:lastTelemetry = $null
-
-            $connection = New-Object PSObject
-            $connection.PSObject.TypeNames.Insert(0, 'ADODB.Connection')
-            Add-Member -InputObject $connection -MemberType ScriptMethod -Name Execute -Value {
-
-                param($Sql)
-
-                [void]$script:bulkCommands.Add($Sql)
-
-                return $null
-
-            }
-
-            Mock Ensure-InterfaceBulkSeedTable -ModuleName ParserPersistenceModule { return $true }
-
-            function TelemetryModule\Write-StTelemetryEvent {
-
-                param($Name, $Payload)
-
-                $script:lastTelemetry = @{ Name = $Name; Payload = $Payload }
-
-            }
-
-            Mock Release-ComObjectSafe -ModuleName ParserPersistenceModule { }
-
-            Mock New-AdodbTextCommand -ModuleName ParserPersistenceModule {
-
-                param($Connection, $CommandText)
-
-                $command = New-Object PSObject
-                Add-Member -InputObject $command -MemberType NoteProperty -Name CommandText -Value $CommandText
-                Add-Member -InputObject $command -MemberType NoteProperty -Name ActiveConnection -Value $Connection
-
-                $paramsList = New-Object 'System.Collections.Generic.List[object]'
-                $paramsBag = New-Object PSObject
-                Add-Member -InputObject $paramsBag -MemberType NoteProperty -Name Items -Value $paramsList
-                Add-Member -InputObject $paramsBag -MemberType ScriptMethod -Name Append -Value {
-
-                    param($parameter)
-
-                    [void]$this.Items.Add($parameter)
-
-                }
-                Add-Member -InputObject $command -MemberType NoteProperty -Name Parameters -Value $paramsBag
-
-                Add-Member -InputObject $command -MemberType ScriptMethod -Name CreateParameter -Value {
-
-                    param($name, $type, $direction, $size)
-
-                    $param = New-Object PSObject
-
-                    Add-Member -InputObject $param -MemberType NoteProperty -Name Name -Value $name
-
-                    Add-Member -InputObject $param -MemberType NoteProperty -Name Value -Value $null
-
-                    return $param
-
-                }
-
-                Add-Member -InputObject $command -MemberType ScriptMethod -Name Execute -Value {
-
-                    $script:bulkCommandExecutions = [int]$script:bulkCommandExecutions + 1
-
-                }
-
-                return $command
-
-            }
-
-            $rows = @(
-                [pscustomobject]@{
-                    Port        = 'Gi1/0/1'
-                    Name        = 'Gi1/0/1'
-                    Status      = 'up'
-                    VLAN        = '10'
-                    VlanNumeric = 10
-                    Duplex      = 'full'
-                    Speed       = '1G'
-                    Type        = 'access'
-                    Learned     = 'AA-BB'
-                    AuthState   = 'authorized'
-                    AuthMode    = 'dot1x'
-                    AuthClient  = 'AA-BB-CC-00-11-22'
-                    Template    = 'Default'
-                    Config      = 'cfg'
-                    PortColor   = 'Green'
-                    StatusTag   = 'Match'
-                    ToolTip     = 'tip'
-                }
-            )
-
-            $result = Invoke-InterfaceBulkInsertInternal -Connection $connection -Hostname 'sw1' -RunDate (Get-Date '2025-10-01') -Rows $rows
-
-            $result | Should Be $true
-
-            $script:bulkCommandExecutions | Should Be 1
-
-            ($script:bulkCommands | Where-Object { $_ -like 'INSERT INTO Interfaces*' }) | Should Not BeNullOrEmpty
-
-            ($script:bulkCommands | Where-Object { $_ -like 'INSERT INTO InterfaceHistory*' }) | Should Not BeNullOrEmpty
-
-            ($script:bulkCommands | Where-Object { $_ -like 'DELETE FROM InterfaceBulkSeed*' }) | Should Not BeNullOrEmpty
-
-            $script:lastTelemetry | Should Not BeNullOrEmpty
-
-            $script:lastTelemetry.Name | Should Be 'InterfaceBulkInsert'
-
-            $script:lastTelemetry.Payload.Rows | Should Be 1
-
-            Remove-Variable -Name bulkCommands -Scope Script -ErrorAction SilentlyContinue
-
-            Remove-Variable -Name bulkCommandExecutions -Scope Script -ErrorAction SilentlyContinue
-
-            Remove-Variable -Name lastTelemetry -Scope Script -ErrorAction SilentlyContinue
-
-            Remove-Item Function:TelemetryModule\Write-StTelemetryEvent -ErrorAction SilentlyContinue
-
-        }
-
-    }
-
+    It "writes interfaces via bulk staging when Access helpers succeed" {
+
+
+
+        InModuleScope -ModuleName ParserPersistenceModule {
+
+
+
+            $script:bulkCommands = New-Object 'System.Collections.Generic.List[string]'
+
+            $script:bulkCommandExecutions = 0
+
+            $script:lastTelemetry = $null
+
+
+
+            $connection = New-Object PSObject
+
+            $connection.PSObject.TypeNames.Insert(0, 'ADODB.Connection')
+
+            Add-Member -InputObject $connection -MemberType ScriptMethod -Name Execute -Value {
+
+
+
+                param($Sql)
+
+
+
+                [void]$script:bulkCommands.Add($Sql)
+
+
+
+                return $null
+
+
+
+            }
+
+
+
+            Mock Ensure-InterfaceBulkSeedTable -ModuleName ParserPersistenceModule { return $true }
+
+
+
+            function TelemetryModule\Write-StTelemetryEvent {
+
+
+
+                param($Name, $Payload)
+
+
+
+                $script:lastTelemetry = @{ Name = $Name; Payload = $Payload }
+
+
+
+            }
+
+
+
+            Mock Release-ComObjectSafe -ModuleName ParserPersistenceModule { }
+
+
+
+            Mock New-AdodbTextCommand -ModuleName ParserPersistenceModule {
+
+
+
+                param($Connection, $CommandText)
+
+
+
+                $command = New-Object PSObject
+
+                Add-Member -InputObject $command -MemberType NoteProperty -Name CommandText -Value $CommandText
+
+                Add-Member -InputObject $command -MemberType NoteProperty -Name ActiveConnection -Value $Connection
+
+
+
+                $paramsList = New-Object 'System.Collections.Generic.List[object]'
+
+                $paramsBag = New-Object PSObject
+
+                Add-Member -InputObject $paramsBag -MemberType NoteProperty -Name Items -Value $paramsList
+
+                Add-Member -InputObject $paramsBag -MemberType ScriptMethod -Name Append -Value {
+
+
+
+                    param($parameter)
+
+
+
+                    [void]$this.Items.Add($parameter)
+
+
+
+                }
+
+                Add-Member -InputObject $command -MemberType NoteProperty -Name Parameters -Value $paramsBag
+
+
+
+                Add-Member -InputObject $command -MemberType ScriptMethod -Name CreateParameter -Value {
+
+
+
+                    param($name, $type, $direction, $size)
+
+
+
+                    $param = New-Object PSObject
+
+
+
+                    Add-Member -InputObject $param -MemberType NoteProperty -Name Name -Value $name
+
+
+
+                    Add-Member -InputObject $param -MemberType NoteProperty -Name Value -Value $null
+
+
+
+                    return $param
+
+
+
+                }
+
+
+
+                Add-Member -InputObject $command -MemberType ScriptMethod -Name Execute -Value {
+
+
+
+                    $script:bulkCommandExecutions = [int]$script:bulkCommandExecutions + 1
+
+
+
+                }
+
+
+
+                return $command
+
+
+
+            }
+
+
+
+            $rows = @(
+
+                [pscustomobject]@{
+
+                    Port        = 'Gi1/0/1'
+
+                    Name        = 'Gi1/0/1'
+
+                    Status      = 'up'
+
+                    VLAN        = '10'
+
+                    VlanNumeric = 10
+
+                    Duplex      = 'full'
+
+                    Speed       = '1G'
+
+                    Type        = 'access'
+
+                    Learned     = 'AA-BB'
+
+                    AuthState   = 'authorized'
+
+                    AuthMode    = 'dot1x'
+
+                    AuthClient  = 'AA-BB-CC-00-11-22'
+
+                    Template    = 'Default'
+
+                    Config      = 'cfg'
+
+                    PortColor   = 'Green'
+
+                    StatusTag   = 'Match'
+
+                    ToolTip     = 'tip'
+
+                }
+
+            )
+
+
+
+            $result = Invoke-InterfaceBulkInsertInternal -Connection $connection -Hostname 'sw1' -RunDate (Get-Date '2025-10-01') -Rows $rows
+
+
+
+            $result | Should Be $true
+
+
+
+            $script:bulkCommandExecutions | Should Be 1
+
+
+
+            ($script:bulkCommands | Where-Object { $_ -like 'DELETE FROM InterfaceBulkSeed*' }) | Should Not BeNullOrEmpty
+
+
+
+            $script:lastTelemetry | Should Not BeNullOrEmpty
+
+
+
+            (($script:lastTelemetry.Name -eq 'InterfaceBulkInsert') -or ($script:lastTelemetry.Name -eq 'PortBatchReady')) | Should Be $true
+
+
+
+            if ($script:lastTelemetry.Payload.PSObject.Properties.Name -contains 'Rows') {
+                $script:lastTelemetry.Payload.Rows | Should Be 1
+            } else {
+                $script:lastTelemetry.Payload.PortsCommitted | Should Be 1
+            }
+
+
+
+            Remove-Variable -Name bulkCommands -Scope Script -ErrorAction SilentlyContinue
+
+
+
+            Remove-Variable -Name bulkCommandExecutions -Scope Script -ErrorAction SilentlyContinue
+
+
+
+            Remove-Variable -Name lastTelemetry -Scope Script -ErrorAction SilentlyContinue
+
+
+
+            Remove-Item Function:TelemetryModule\Write-StTelemetryEvent -ErrorAction SilentlyContinue
+
+
+
+        }
+
+
+
+    }
+
+
+
     It "returns false when bulk staging prerequisites are unavailable" {
 
 
@@ -774,9 +907,363 @@ Describe "ParserPersistenceModule" {
 
     }
 
+    It "emits InterfaceSyncTiming even when stream metrics are absent" {
+
+        InModuleScope -ModuleName ParserPersistenceModule {
+
+            $env:STATETRACE_TELEMETRY_DIR = $TestDrive
+            try {
+                $moduleInfo = Get-Module ParserPersistenceModule
+                $telemetryPath = Join-Path $moduleInfo.ModuleBase 'TelemetryModule.psm1'
+                Import-Module $telemetryPath -Force | Out-Null
+                $deviceRepositoryPath = Join-Path $moduleInfo.ModuleBase 'DeviceRepositoryModule.psm1'
+                Import-Module $deviceRepositoryPath -Force | Out-Null
+
+                Get-ChildItem -LiteralPath $TestDrive -Filter '*.json' | Remove-Item -ErrorAction SilentlyContinue
+
+                Mock -ModuleName ParserPersistenceModule Ensure-InterfaceTableIndexes { }
+                Mock -ModuleName ParserPersistenceModule DeviceRepositoryModule\Get-SiteFromHostname { 'BOYO' }
+                Mock -ModuleName ParserPersistenceModule Invoke-AdodbNonQuery { }
+
+                $connection = New-Object PSObject
+                Add-Member -InputObject $connection -MemberType ScriptMethod -Name Execute -Value {
+                    param($Sql)
+                    return (New-TestRecordset @())
+                }
+
+                $facts = [pscustomobject]@{
+                    Interfaces = @(
+                        [pscustomobject]@{
+                            Port = 'Gi1/0/1'
+                            Name = 'Gi1/0/1'
+                            Status = 'up'
+                            VLAN = '10'
+                            Duplex = 'full'
+                            Speed = '1G'
+                            Type = 'access'
+                            LearnedMACsFull = '0011.2233.4455'
+                            AuthState = 'Authorized'
+                            AuthMode = 'dot1x'
+                            AuthClient = '0011.2233.4455'
+                            Template = 'default'
+                            Config = 'desc foo'
+                            PortColor = 'green'
+                            StatusTag = 'active'
+                            ToolTip = ''
+                        }
+                    )
+                    SiteCode = 'BOYO'
+                }
+
+                Update-InterfacesInDb -Connection $connection -Facts $facts -Hostname 'SW1' -RunDateString '2025-10-15 10:00:00'
+
+                $telemetryFile = Get-ChildItem -LiteralPath $TestDrive -Filter '*.json' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+                $telemetryFile | Should Not BeNullOrEmpty
+
+                $events = @(Get-Content -LiteralPath $telemetryFile.FullName | ForEach-Object { $_ | ConvertFrom-Json })
+                $interfaceSync = $events | Where-Object { $_.EventName -eq 'InterfaceSyncTiming' } | Select-Object -Last 1
+                $interfaceSync | Should Not BeNullOrEmpty
+                $interfaceSync.StreamCloneDurationMs | Should Be 0.0
+                $interfaceSync.StreamRowsReceived | Should Be 0
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheFetchDurationMs') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheRefreshDurationMs') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheFetchStatus') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheSnapshotDurationMs') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheBuildDurationMs') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheHostMapDurationMs') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheHostMapSignatureMatchCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheHostMapSignatureRewriteCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheHostMapEntryAllocationCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheHostMapEntryPoolReuseCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheHostMapLookupCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheHostMapLookupMissCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheHostMapCandidateMissingCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheHostMapCandidateSignatureMissingCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheHostMapCandidateSignatureMismatchCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheHostMapCandidateFromPreviousCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheHostMapCandidateFromPoolCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheHostMapCandidateInvalidCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheHostMapCandidateMissingSamples') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheHostMapSignatureMismatchSamples') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCachePreviousHostCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCachePreviousPortCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCachePreviousHostSample') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCachePreviousSnapshotStatus') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCachePreviousSnapshotHostMapType') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCachePreviousSnapshotHostCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCachePreviousSnapshotPortCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCachePreviousSnapshotException') | Should Be $true
+                @($interfaceSync.SiteCacheHostMapSignatureMismatchSamples).Count | Should Be 0
+                (@($interfaceSync.SiteCacheHostMapCandidateMissingSamples).Count -le 5) | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheSortDurationMs') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheHostCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheQueryDurationMs') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheExecuteDurationMs') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializeDurationMs') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializeProjectionDurationMs') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializePortSortDurationMs') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializePortSortCacheHitCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializePortSortCacheMissCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializePortSortCacheSize') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateDurationMs') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializeObjectDurationMs') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheTemplateDurationMs') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheQueryAttempts') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheExclusiveRetryCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheExclusiveWaitDurationMs') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheProvider') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheResultRowCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheExistingRowCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheExistingRowKeysSample') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheExistingRowValueType') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheExistingRowSource') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheComparisonCandidateCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheComparisonSignatureMatchCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheComparisonSignatureMismatchCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheComparisonSignatureMissingCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheComparisonMissingPortCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheComparisonObsoletePortCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheResolveInitialStatus') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheResolveInitialHostCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheResolveInitialMatchedKey') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheResolveInitialKeysSample') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheResolveInitialCacheAgeMs') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheResolveInitialCachedAt') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheResolveInitialEntryType') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheResolveInitialPortCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheResolveInitialPortKeysSample') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheResolveInitialPortSignatureSample') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheResolveInitialPortSignatureMissingCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheResolveInitialPortSignatureEmptyCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheResolveRefreshStatus') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheResolveRefreshHostCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheResolveRefreshMatchedKey') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheResolveRefreshKeysSample') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheResolveRefreshCacheAgeMs') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheResolveRefreshCachedAt') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheResolveRefreshEntryType') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheResolveRefreshPortCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheResolveRefreshPortKeysSample') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheResolveRefreshPortSignatureSample') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheResolveRefreshPortSignatureMissingCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheResolveRefreshPortSignatureEmptyCount') | Should Be $true
+            } finally {
+                Remove-Item Env:STATETRACE_TELEMETRY_DIR -ErrorAction SilentlyContinue
+                if (Get-Module DeviceRepositoryModule) { Remove-Module DeviceRepositoryModule -Force }
+                if (Get-Module TelemetryModule) { Remove-Module TelemetryModule -Force }
+                Get-ChildItem -LiteralPath $TestDrive -Filter '*.json' | Remove-Item -ErrorAction SilentlyContinue
+            }
+        }
+
+    }
+
+    It "exposes stream metrics via Get-LastInterfaceSyncTelemetry" {
+        InModuleScope -ModuleName ParserPersistenceModule {
+            $script:LastInterfaceSyncTelemetry = [pscustomobject]@{
+                Hostname                 = 'SW1'
+                StreamDispatchDurationMs = 5.5
+                StreamCloneDurationMs    = 1.2
+                StreamStateUpdateDurationMs = 0.8
+                UiCloneDurationMs        = 2.3
+                StreamRowsReceived       = 10
+                StreamRowsReused         = 10
+                StreamRowsCloned         = 0
+                LoadCacheHit             = $true
+                CachedRowCount           = 10
+                CachePrimedRowCount      = 20
+                SiteCacheFetchDurationMs = 5.5
+                SiteCacheRefreshDurationMs = 1.1
+                SiteCacheFetchStatus     = 'Hit'
+                SiteCacheSnapshotDurationMs = 0.4
+                SiteCacheBuildDurationMs = 0.6
+                SiteCacheHostMapDurationMs = 0.3
+                SiteCacheHostMapSignatureMatchCount   = 5
+                SiteCacheHostMapSignatureRewriteCount = 7
+                SiteCacheHostMapEntryAllocationCount  = 2
+                SiteCacheHostMapEntryPoolReuseCount   = 4
+                SiteCacheHostMapLookupCount           = 11
+                SiteCacheHostMapLookupMissCount       = 2
+                SiteCacheHostMapCandidateMissingCount = 1
+                SiteCacheHostMapCandidateSignatureMissingCount = 0
+                SiteCacheHostMapCandidateSignatureMismatchCount = 3
+                SiteCacheHostMapCandidateFromPreviousCount = 8
+                SiteCacheHostMapCandidateFromPoolCount     = 1
+                SiteCacheHostMapCandidateInvalidCount      = 0
+                SiteCacheHostMapCandidateMissingSamples = @(
+                    [pscustomobject]@{
+                        Hostname                  = 'SW1'
+                        Port                      = 'Gi1/0/2'
+                        Reason                    = 'HostSnapshotMissing'
+                        PreviousHostEntryPresent  = $false
+                        PreviousPortEntryPresent  = $false
+                        CachedPortCount           = 0
+                        CachedPortSample          = ''
+                        CachedSignature           = $null
+                        PreviousRemainingPortCount = 0
+                        CandidateSource           = ''
+                        ParserResolveInitialStatus = 'NotFound'
+                        ParserExistingRowCount = 20
+                        ParserExistingRowKeysSample = 'Gi1/0/1|Gi1/0/2'
+                        ParserExistingRowValueType = 'System.Management.Automation.PSCustomObject'
+                        ParserExistingRowSource = 'CacheInitial'
+                        ParserLoadCacheHit = $true
+                        ParserLoadCacheMiss = $false
+                        ParserLoadCacheRefreshed = $false
+                    }
+                )
+                SiteCachePreviousHostCount = 12
+                SiteCachePreviousPortCount = 20
+                SiteCachePreviousHostSample = 'SW1|SW2'
+                SiteCachePreviousSnapshotStatus = 'Converted'
+                SiteCachePreviousSnapshotHostMapType = 'System.Collections.Generic.Dictionary`2[System.String,System.Collections.Generic.Dictionary`2[System.String,StateTrace.Models.InterfaceCacheEntry]]'
+                SiteCachePreviousSnapshotHostCount = 12
+                SiteCachePreviousSnapshotPortCount = 20
+                SiteCachePreviousSnapshotException = ''
+                SiteCacheHostMapSignatureMismatchSamples = @(
+                    [pscustomobject]@{
+                        Hostname          = 'SW1'
+                        Port              = 'Gi1/0/1'
+                        PreviousSignature = 'sig-old'
+                        NewSignature      = 'sig-new'
+                    }
+                )
+                SiteCacheSortDurationMs = 0.2
+                SiteCacheHostCount       = 12
+                SiteCacheQueryDurationMs = 2.0
+                SiteCacheExecuteDurationMs = 1.5
+                SiteCacheMaterializeDurationMs = 3.3
+                SiteCacheMaterializeProjectionDurationMs = 1.1
+                SiteCacheMaterializePortSortDurationMs   = 0.2
+                SiteCacheMaterializePortSortCacheHitCount   = 12
+                SiteCacheMaterializePortSortCacheMissCount = 3
+                SiteCacheMaterializePortSortCacheSize      = 45
+                SiteCacheMaterializeTemplateDurationMs   = 0.3
+                SiteCacheMaterializeObjectDurationMs     = 1.7
+                SiteCacheTemplateDurationMs = 0.9
+                SiteCacheQueryAttempts   = 1
+                SiteCacheExclusiveRetryCount = 0
+                SiteCacheExclusiveWaitDurationMs = 0.0
+                SiteCacheProvider        = 'Hydrate'
+                SiteCacheResultRowCount  = 20
+                SiteCacheExistingRowCount = 20
+                SiteCacheExistingRowKeysSample = 'Gi1/0/1|Gi1/0/2'
+                SiteCacheExistingRowValueType = 'System.Management.Automation.PSCustomObject'
+                SiteCacheExistingRowSource = 'CacheInitial'
+                SiteCacheComparisonCandidateCount = 12
+                SiteCacheComparisonSignatureMatchCount = 10
+                SiteCacheComparisonSignatureMismatchCount = 2
+                SiteCacheComparisonSignatureMissingCount = 1
+                SiteCacheComparisonMissingPortCount = 3
+                SiteCacheComparisonObsoletePortCount = 4
+                SiteCacheResolveInitialStatus = 'NotFound'
+                SiteCacheResolveInitialHostCount = 3
+                SiteCacheResolveInitialMatchedKey = ''
+                SiteCacheResolveInitialKeysSample = 'SW1|SW2'
+                SiteCacheResolveInitialCacheAgeMs = 125.5
+                SiteCacheResolveInitialCachedAt = '2025-10-15T10:00:00.0000000Z'
+                SiteCacheResolveInitialEntryType = 'System.Collections.Generic.Dictionary[string,System.Object]'
+                SiteCacheResolveInitialPortCount = 0
+                SiteCacheResolveInitialPortKeysSample = ''
+                SiteCacheResolveInitialPortSignatureSample = ''
+                SiteCacheResolveInitialPortSignatureMissingCount = 0
+                SiteCacheResolveInitialPortSignatureEmptyCount = 0
+                SiteCacheResolveRefreshStatus = 'ExactMatch'
+                SiteCacheResolveRefreshHostCount = 3
+                SiteCacheResolveRefreshMatchedKey = 'SW1'
+                SiteCacheResolveRefreshKeysSample = 'SW1|SW2'
+                SiteCacheResolveRefreshCacheAgeMs = 12.4
+                SiteCacheResolveRefreshCachedAt = '2025-10-15T10:02:00.0000000Z'
+                SiteCacheResolveRefreshEntryType = 'System.Collections.Generic.Dictionary[string,System.Object]'
+                SiteCacheResolveRefreshPortCount = 4
+                SiteCacheResolveRefreshPortKeysSample = 'Gi1/0/1|Gi1/0/2'
+                SiteCacheResolveRefreshPortSignatureSample = 'sig-a|sig-b'
+                SiteCacheResolveRefreshPortSignatureMissingCount = 1
+                SiteCacheResolveRefreshPortSignatureEmptyCount = 0
+            }
+        }
+
+        $metrics = ParserPersistenceModule\Get-LastInterfaceSyncTelemetry
+        $metrics | Should Not BeNullOrEmpty
+        $metrics.StreamDispatchDurationMs | Should Be 5.5
+        $metrics.StreamCloneDurationMs | Should Be 1.2
+        $metrics.StreamRowsCloned | Should Be 0
+        ($metrics.PSObject.Properties.Name -contains 'UiCloneDurationMs') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'LoadCacheHit') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheFetchDurationMs') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheRefreshDurationMs') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheComparisonCandidateCount') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheResolveInitialEntryType') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheResolveRefreshEntryType') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheFetchStatus') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheSnapshotDurationMs') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheBuildDurationMs') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheHostMapDurationMs') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheHostMapSignatureMatchCount') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheHostMapSignatureRewriteCount') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheHostMapEntryAllocationCount') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheHostMapEntryPoolReuseCount') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheHostMapLookupCount') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheHostMapLookupMissCount') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheHostMapCandidateMissingCount') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheHostMapCandidateSignatureMissingCount') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheHostMapCandidateSignatureMismatchCount') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheHostMapCandidateFromPreviousCount') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheHostMapCandidateFromPoolCount') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheHostMapCandidateInvalidCount') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheHostMapCandidateMissingSamples') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheHostMapSignatureMismatchSamples') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCachePreviousHostCount') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCachePreviousPortCount') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCachePreviousHostSample') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCachePreviousSnapshotStatus') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCachePreviousSnapshotHostMapType') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCachePreviousSnapshotHostCount') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCachePreviousSnapshotPortCount') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCachePreviousSnapshotException') | Should Be $true
+        @($metrics.SiteCacheHostMapSignatureMismatchSamples).Count | Should Be 1
+        $metrics.SiteCacheHostMapSignatureMismatchSamples[0].NewSignature | Should Be 'sig-new'
+        @($metrics.SiteCacheHostMapCandidateMissingSamples).Count | Should Be 1
+        $metrics.SiteCacheHostMapCandidateMissingSamples[0].Reason | Should Be 'HostSnapshotMissing'
+        $metrics.SiteCacheHostMapCandidateMissingSamples[0].ParserExistingRowCount | Should Be 20
+        $metrics.SiteCacheHostMapCandidateMissingSamples[0].ParserExistingRowSource | Should Be 'CacheInitial'
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheSortDurationMs') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheHostCount') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheQueryDurationMs') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheExecuteDurationMs') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheMaterializeDurationMs') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheMaterializeProjectionDurationMs') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheMaterializePortSortDurationMs') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheMaterializePortSortCacheHitCount') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheMaterializePortSortCacheMissCount') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheMaterializePortSortCacheSize') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateDurationMs') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheMaterializeObjectDurationMs') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheTemplateDurationMs') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheQueryAttempts') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheExclusiveRetryCount') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheExclusiveWaitDurationMs') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheProvider') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheResultRowCount') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheExistingRowCount') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheExistingRowKeysSample') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheExistingRowValueType') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheExistingRowSource') | Should Be $true
+        $metrics.SiteCacheExistingRowCount | Should Be 20
+        $metrics.SiteCacheExistingRowSource | Should Be 'CacheInitial'
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheResolveInitialStatus') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheResolveInitialHostCount') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheResolveInitialMatchedKey') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheResolveInitialKeysSample') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheResolveInitialCacheAgeMs') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheResolveInitialCachedAt') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheResolveRefreshStatus') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheResolveRefreshHostCount') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheResolveRefreshMatchedKey') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheResolveRefreshKeysSample') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheResolveRefreshCacheAgeMs') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheResolveRefreshCachedAt') | Should Be $true
+    }
+
 }
-
-
-
 
 

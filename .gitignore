@@ -8,3 +8,6 @@ Desktop.ini
 # Local data stores
 Data/
 Logs/
+
+# Generated logs
+*.log

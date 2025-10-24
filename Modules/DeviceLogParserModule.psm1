@@ -1195,7 +1195,20 @@ function Invoke-DeviceLogParsing {
 
                         }
 
-                        & $summaryCmd @summaryParams
+                        $summaryDurationMs = 0.0
+                        $interfaceDurationMs = 0.0
+                        $commitDurationMs = 0.0
+                        $databaseLatencyMs = 0
+                        $refreshDurationMs = 0.0
+                        $latestSyncTelemetry = $null
+
+                        $summaryStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+                        try {
+                            & $summaryCmd @summaryParams
+                        } finally {
+                            $summaryStopwatch.Stop()
+                            $summaryDurationMs = [Math]::Round($summaryStopwatch.Elapsed.TotalMilliseconds, 3)
+                        }
 
                         $ifaceCmd = Get-Command -Name 'ParserPersistenceModule\Update-InterfacesInDb' -ErrorAction SilentlyContinue
 
@@ -1215,9 +1228,27 @@ function Invoke-DeviceLogParsing {
 
                             Templates     = $templates
 
+                            SiteCode      = $siteCode
+
                         }
 
-                        & $ifaceCmd @ifaceParams
+                        $interfaceStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+                        try {
+                            & $ifaceCmd @ifaceParams
+                        } finally {
+                            $interfaceStopwatch.Stop()
+                            $interfaceDurationMs = [Math]::Round($interfaceStopwatch.Elapsed.TotalMilliseconds, 3)
+                        }
+
+                        try {
+                            $metricsCmd = Get-Command -Name 'ParserPersistenceModule\Get-LastInterfaceSyncTelemetry' -ErrorAction SilentlyContinue
+                            if (-not $metricsCmd) { $metricsCmd = Get-Command -Name 'Get-LastInterfaceSyncTelemetry' -ErrorAction SilentlyContinue }
+                            if ($metricsCmd) {
+                                $latestSyncTelemetry = & $metricsCmd
+                            }
+                        } catch {
+                            $latestSyncTelemetry = $null
+                        }
 
                         # Commit the transaction after all operations have executed.
 
@@ -1227,23 +1258,367 @@ function Invoke-DeviceLogParsing {
 
                         }
 
-                        $__dbConn.CommitTrans()
-
-                        try { $__stDbSw.Stop(); TelemetryModule\Write-StTelemetryEvent -Name 'DatabaseWriteLatency' -Payload @{ Hostname=$cleanHostname; Site=$siteCode; LatencyMs = [int]$__stDbSw.Elapsed.TotalMilliseconds } } catch { }
+                        $commitStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+                        try {
+                            $__dbConn.CommitTrans()
+                        } finally {
+                            $commitStopwatch.Stop()
+                            $commitDurationMs = [Math]::Round($commitStopwatch.Elapsed.TotalMilliseconds, 3)
+                        }
 
                         try {
+                            $__stDbSw.Stop()
+                            $databaseLatencyMs = [int][Math]::Round($__stDbSw.Elapsed.TotalMilliseconds, 0)
+                            TelemetryModule\Write-StTelemetryEvent -Name 'DatabaseWriteLatency' -Payload @{ Hostname = $cleanHostname; Site = $siteCode; LatencyMs = $databaseLatencyMs }
+                        } catch { }
 
+                        $refreshStopwatch = $null
+                        try {
+                            $refreshStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
                             $jet = New-Object -ComObject JRO.JetEngine
-
                             $jet.RefreshCache($__dbConn)
-
                             if ($Global:StateTraceDebug) {
-
                                 Write-Host "[DEBUG] Refreshed Jet cache after commit for host '$cleanHostname'" -ForegroundColor Yellow
+                            }
+                        } catch { }
+                        finally {
+                            if ($refreshStopwatch) {
+                                $refreshStopwatch.Stop()
+                                $refreshDurationMs = [Math]::Round($refreshStopwatch.Elapsed.TotalMilliseconds, 3)
+                            }
+                        }
 
+                        try {
+                            $breakdownPayload = @{
+                                Hostname                  = $cleanHostname
+                                Site                      = $siteCode
+                                SummaryDurationMs         = $summaryDurationMs
+                                InterfaceCallDurationMs   = $interfaceDurationMs
+                                CommitDurationMs          = $commitDurationMs
+                                DatabaseWriteLatencyMs    = $databaseLatencyMs
+                                RefreshDurationMs         = $refreshDurationMs
                             }
 
-                        } catch {}
+                            if ($latestSyncTelemetry) {
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'DiffDurationMs') {
+                                    $breakdownPayload['InterfaceDiffDurationMs'] = [double]$latestSyncTelemetry.DiffDurationMs
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'BulkCommandExecuteDurationMs') {
+                                    $breakdownPayload['BulkCommandExecuteDurationMs'] = [double]$latestSyncTelemetry.BulkCommandExecuteDurationMs
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'StreamDispatchDurationMs') {
+                                    $breakdownPayload['StreamDispatchDurationMs'] = [double]$latestSyncTelemetry.StreamDispatchDurationMs
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'UiCloneDurationMs') {
+                                    $breakdownPayload['UiCloneDurationMs'] = [double]$latestSyncTelemetry.UiCloneDurationMs
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'StreamCloneDurationMs') {
+                                    $breakdownPayload['StreamCloneDurationMs'] = [double]$latestSyncTelemetry.StreamCloneDurationMs
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'StreamStateUpdateDurationMs') {
+                                    $breakdownPayload['StreamStateUpdateDurationMs'] = [double]$latestSyncTelemetry.StreamStateUpdateDurationMs
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'StreamRowsReceived') {
+                                    $breakdownPayload['StreamRowsReceived'] = [int]$latestSyncTelemetry.StreamRowsReceived
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'StreamRowsReused') {
+                                    $breakdownPayload['StreamRowsReused'] = [int]$latestSyncTelemetry.StreamRowsReused
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'StreamRowsCloned') {
+                                    $breakdownPayload['StreamRowsCloned'] = [int]$latestSyncTelemetry.StreamRowsCloned
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheUpdateDurationMs') {
+                                    $breakdownPayload['SiteCacheUpdateDurationMs'] = [double]$latestSyncTelemetry.SiteCacheUpdateDurationMs
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheFetchDurationMs') {
+                                    $breakdownPayload['SiteCacheFetchDurationMs'] = [double]$latestSyncTelemetry.SiteCacheFetchDurationMs
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheRefreshDurationMs') {
+                                    $breakdownPayload['SiteCacheRefreshDurationMs'] = [double]$latestSyncTelemetry.SiteCacheRefreshDurationMs
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheFetchStatus') {
+                                    $statusValue = '' + $latestSyncTelemetry.SiteCacheFetchStatus
+                                    if (-not [string]::IsNullOrWhiteSpace($statusValue)) {
+                                        $breakdownPayload['SiteCacheFetchStatus'] = $statusValue
+                                    }
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheSnapshotDurationMs') {
+                                    $breakdownPayload['SiteCacheSnapshotDurationMs'] = [double]$latestSyncTelemetry.SiteCacheSnapshotDurationMs
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheBuildDurationMs') {
+                                    $breakdownPayload['SiteCacheBuildDurationMs'] = [double]$latestSyncTelemetry.SiteCacheBuildDurationMs
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheHostMapDurationMs') {
+                                    $breakdownPayload['SiteCacheHostMapDurationMs'] = [double]$latestSyncTelemetry.SiteCacheHostMapDurationMs
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheHostMapSignatureMatchCount') {
+                                    $breakdownPayload['SiteCacheHostMapSignatureMatchCount'] = [long]$latestSyncTelemetry.SiteCacheHostMapSignatureMatchCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheHostMapSignatureRewriteCount') {
+                                    $breakdownPayload['SiteCacheHostMapSignatureRewriteCount'] = [long]$latestSyncTelemetry.SiteCacheHostMapSignatureRewriteCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheHostMapEntryAllocationCount') {
+                                    $breakdownPayload['SiteCacheHostMapEntryAllocationCount'] = [long]$latestSyncTelemetry.SiteCacheHostMapEntryAllocationCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheHostMapEntryPoolReuseCount') {
+                                    $breakdownPayload['SiteCacheHostMapEntryPoolReuseCount'] = [long]$latestSyncTelemetry.SiteCacheHostMapEntryPoolReuseCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheHostMapLookupCount') {
+                                    $breakdownPayload['SiteCacheHostMapLookupCount'] = [long]$latestSyncTelemetry.SiteCacheHostMapLookupCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheHostMapLookupMissCount') {
+                                    $breakdownPayload['SiteCacheHostMapLookupMissCount'] = [long]$latestSyncTelemetry.SiteCacheHostMapLookupMissCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheHostMapCandidateMissingCount') {
+                                    $breakdownPayload['SiteCacheHostMapCandidateMissingCount'] = [long]$latestSyncTelemetry.SiteCacheHostMapCandidateMissingCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheHostMapCandidateSignatureMissingCount') {
+                                    $breakdownPayload['SiteCacheHostMapCandidateSignatureMissingCount'] = [long]$latestSyncTelemetry.SiteCacheHostMapCandidateSignatureMissingCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheHostMapCandidateSignatureMismatchCount') {
+                                    $breakdownPayload['SiteCacheHostMapCandidateSignatureMismatchCount'] = [long]$latestSyncTelemetry.SiteCacheHostMapCandidateSignatureMismatchCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheHostMapCandidateFromPreviousCount') {
+                                    $breakdownPayload['SiteCacheHostMapCandidateFromPreviousCount'] = [long]$latestSyncTelemetry.SiteCacheHostMapCandidateFromPreviousCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheHostMapCandidateFromPoolCount') {
+                                    $breakdownPayload['SiteCacheHostMapCandidateFromPoolCount'] = [long]$latestSyncTelemetry.SiteCacheHostMapCandidateFromPoolCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheHostMapCandidateInvalidCount') {
+                                    $breakdownPayload['SiteCacheHostMapCandidateInvalidCount'] = [long]$latestSyncTelemetry.SiteCacheHostMapCandidateInvalidCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheHostMapCandidateMissingSamples') {
+                                    $samples = $latestSyncTelemetry.SiteCacheHostMapCandidateMissingSamples
+                                    if ($null -ne $samples) {
+                                        if ($samples -is [System.Collections.IEnumerable] -and -not ($samples -is [string])) {
+                                            $breakdownPayload['SiteCacheHostMapCandidateMissingSamples'] = @($samples | ForEach-Object { $_ })
+                                        } else {
+                                            $breakdownPayload['SiteCacheHostMapCandidateMissingSamples'] = @($samples)
+                                        }
+                                    } else {
+                                        $breakdownPayload['SiteCacheHostMapCandidateMissingSamples'] = @()
+                                    }
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheHostMapSignatureMismatchSamples') {
+                                    $samples = $latestSyncTelemetry.SiteCacheHostMapSignatureMismatchSamples
+                                    if ($null -ne $samples) {
+                                        if ($samples -is [System.Collections.IEnumerable] -and -not ($samples -is [string])) {
+                                            $breakdownPayload['SiteCacheHostMapSignatureMismatchSamples'] = @($samples | ForEach-Object { $_ })
+                                        } else {
+                                            $breakdownPayload['SiteCacheHostMapSignatureMismatchSamples'] = @($samples)
+                                        }
+                                    } else {
+                                        $breakdownPayload['SiteCacheHostMapSignatureMismatchSamples'] = @()
+                                    }
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheResolveInitialStatus') {
+                                    $initialResolveStatus = '' + $latestSyncTelemetry.SiteCacheResolveInitialStatus
+                                    if (-not [string]::IsNullOrWhiteSpace($initialResolveStatus)) {
+                                        $breakdownPayload['SiteCacheResolveInitialStatus'] = $initialResolveStatus
+                                    }
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheResolveInitialHostCount') {
+                                    $breakdownPayload['SiteCacheResolveInitialHostCount'] = [int]$latestSyncTelemetry.SiteCacheResolveInitialHostCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheResolveInitialMatchedKey') {
+                                    $initialMatchedKey = '' + $latestSyncTelemetry.SiteCacheResolveInitialMatchedKey
+                                    if (-not [string]::IsNullOrWhiteSpace($initialMatchedKey)) {
+                                        $breakdownPayload['SiteCacheResolveInitialMatchedKey'] = $initialMatchedKey
+                                    }
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheResolveInitialKeysSample') {
+                                    $initialKeysSample = '' + $latestSyncTelemetry.SiteCacheResolveInitialKeysSample
+                                    if (-not [string]::IsNullOrWhiteSpace($initialKeysSample)) {
+                                        $breakdownPayload['SiteCacheResolveInitialKeysSample'] = $initialKeysSample
+                                    }
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheResolveInitialCacheAgeMs') {
+                                    $initialAge = $latestSyncTelemetry.SiteCacheResolveInitialCacheAgeMs
+                                    if ($null -ne $initialAge) {
+                                        $breakdownPayload['SiteCacheResolveInitialCacheAgeMs'] = [double]$initialAge
+                                    }
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheResolveInitialCachedAt') {
+                                    $initialCachedAt = '' + $latestSyncTelemetry.SiteCacheResolveInitialCachedAt
+                                    if (-not [string]::IsNullOrWhiteSpace($initialCachedAt)) {
+                                        $breakdownPayload['SiteCacheResolveInitialCachedAt'] = $initialCachedAt
+                                    }
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheResolveInitialEntryType') {
+                                    $initialEntryType = '' + $latestSyncTelemetry.SiteCacheResolveInitialEntryType
+                                    if (-not [string]::IsNullOrWhiteSpace($initialEntryType)) {
+                                        $breakdownPayload['SiteCacheResolveInitialEntryType'] = $initialEntryType
+                                    }
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheResolveInitialPortCount') {
+                                    $breakdownPayload['SiteCacheResolveInitialPortCount'] = [int]$latestSyncTelemetry.SiteCacheResolveInitialPortCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheResolveInitialPortKeysSample') {
+                                    $initialPortKeysSample = '' + $latestSyncTelemetry.SiteCacheResolveInitialPortKeysSample
+                                    if (-not [string]::IsNullOrWhiteSpace($initialPortKeysSample)) {
+                                        $breakdownPayload['SiteCacheResolveInitialPortKeysSample'] = $initialPortKeysSample
+                                    }
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheResolveInitialPortSignatureSample') {
+                                    $initialSignatureSample = '' + $latestSyncTelemetry.SiteCacheResolveInitialPortSignatureSample
+                                    if (-not [string]::IsNullOrWhiteSpace($initialSignatureSample)) {
+                                        $breakdownPayload['SiteCacheResolveInitialPortSignatureSample'] = $initialSignatureSample
+                                    }
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheResolveInitialPortSignatureMissingCount') {
+                                    $breakdownPayload['SiteCacheResolveInitialPortSignatureMissingCount'] = [int]$latestSyncTelemetry.SiteCacheResolveInitialPortSignatureMissingCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheResolveInitialPortSignatureEmptyCount') {
+                                    $breakdownPayload['SiteCacheResolveInitialPortSignatureEmptyCount'] = [int]$latestSyncTelemetry.SiteCacheResolveInitialPortSignatureEmptyCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheResolveRefreshStatus') {
+                                    $refreshResolveStatus = '' + $latestSyncTelemetry.SiteCacheResolveRefreshStatus
+                                    if (-not [string]::IsNullOrWhiteSpace($refreshResolveStatus)) {
+                                        $breakdownPayload['SiteCacheResolveRefreshStatus'] = $refreshResolveStatus
+                                    }
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheResolveRefreshHostCount') {
+                                    $breakdownPayload['SiteCacheResolveRefreshHostCount'] = [int]$latestSyncTelemetry.SiteCacheResolveRefreshHostCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheResolveRefreshMatchedKey') {
+                                    $refreshMatchedKey = '' + $latestSyncTelemetry.SiteCacheResolveRefreshMatchedKey
+                                    if (-not [string]::IsNullOrWhiteSpace($refreshMatchedKey)) {
+                                        $breakdownPayload['SiteCacheResolveRefreshMatchedKey'] = $refreshMatchedKey
+                                    }
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheResolveRefreshKeysSample') {
+                                    $refreshKeysSample = '' + $latestSyncTelemetry.SiteCacheResolveRefreshKeysSample
+                                    if (-not [string]::IsNullOrWhiteSpace($refreshKeysSample)) {
+                                        $breakdownPayload['SiteCacheResolveRefreshKeysSample'] = $refreshKeysSample
+                                    }
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheResolveRefreshCacheAgeMs') {
+                                    $refreshAge = $latestSyncTelemetry.SiteCacheResolveRefreshCacheAgeMs
+                                    if ($null -ne $refreshAge) {
+                                        $breakdownPayload['SiteCacheResolveRefreshCacheAgeMs'] = [double]$refreshAge
+                                    }
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheResolveRefreshCachedAt') {
+                                    $refreshCachedAt = '' + $latestSyncTelemetry.SiteCacheResolveRefreshCachedAt
+                                    if (-not [string]::IsNullOrWhiteSpace($refreshCachedAt)) {
+                                        $breakdownPayload['SiteCacheResolveRefreshCachedAt'] = $refreshCachedAt
+                                    }
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheResolveRefreshEntryType') {
+                                    $refreshEntryType = '' + $latestSyncTelemetry.SiteCacheResolveRefreshEntryType
+                                    if (-not [string]::IsNullOrWhiteSpace($refreshEntryType)) {
+                                        $breakdownPayload['SiteCacheResolveRefreshEntryType'] = $refreshEntryType
+                                    }
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheResolveRefreshPortCount') {
+                                    $breakdownPayload['SiteCacheResolveRefreshPortCount'] = [int]$latestSyncTelemetry.SiteCacheResolveRefreshPortCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheResolveRefreshPortKeysSample') {
+                                    $refreshPortKeysSample = '' + $latestSyncTelemetry.SiteCacheResolveRefreshPortKeysSample
+                                    if (-not [string]::IsNullOrWhiteSpace($refreshPortKeysSample)) {
+                                        $breakdownPayload['SiteCacheResolveRefreshPortKeysSample'] = $refreshPortKeysSample
+                                    }
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheResolveRefreshPortSignatureSample') {
+                                    $refreshSignatureSample = '' + $latestSyncTelemetry.SiteCacheResolveRefreshPortSignatureSample
+                                    if (-not [string]::IsNullOrWhiteSpace($refreshSignatureSample)) {
+                                        $breakdownPayload['SiteCacheResolveRefreshPortSignatureSample'] = $refreshSignatureSample
+                                    }
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheResolveRefreshPortSignatureMissingCount') {
+                                    $breakdownPayload['SiteCacheResolveRefreshPortSignatureMissingCount'] = [int]$latestSyncTelemetry.SiteCacheResolveRefreshPortSignatureMissingCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheResolveRefreshPortSignatureEmptyCount') {
+                                    $breakdownPayload['SiteCacheResolveRefreshPortSignatureEmptyCount'] = [int]$latestSyncTelemetry.SiteCacheResolveRefreshPortSignatureEmptyCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheSortDurationMs') {
+                                    $breakdownPayload['SiteCacheSortDurationMs'] = [double]$latestSyncTelemetry.SiteCacheSortDurationMs
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheHostCount') {
+                                    $breakdownPayload['SiteCacheHostCount'] = [int]$latestSyncTelemetry.SiteCacheHostCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheQueryDurationMs') {
+                                    $breakdownPayload['SiteCacheQueryDurationMs'] = [double]$latestSyncTelemetry.SiteCacheQueryDurationMs
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheExecuteDurationMs') {
+                                    $breakdownPayload['SiteCacheExecuteDurationMs'] = [double]$latestSyncTelemetry.SiteCacheExecuteDurationMs
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheMaterializeDurationMs') {
+                                    $breakdownPayload['SiteCacheMaterializeDurationMs'] = [double]$latestSyncTelemetry.SiteCacheMaterializeDurationMs
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheMaterializePortSortCacheHitCount') {
+                                    $breakdownPayload['SiteCacheMaterializePortSortCacheHitCount'] = [long]$latestSyncTelemetry.SiteCacheMaterializePortSortCacheHitCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheMaterializePortSortCacheMissCount') {
+                                    $breakdownPayload['SiteCacheMaterializePortSortCacheMissCount'] = [long]$latestSyncTelemetry.SiteCacheMaterializePortSortCacheMissCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheMaterializePortSortCacheSize') {
+                                    $breakdownPayload['SiteCacheMaterializePortSortCacheSize'] = [long]$latestSyncTelemetry.SiteCacheMaterializePortSortCacheSize
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheTemplateDurationMs') {
+                                    $breakdownPayload['SiteCacheTemplateDurationMs'] = [double]$latestSyncTelemetry.SiteCacheTemplateDurationMs
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheQueryAttempts') {
+                                    $breakdownPayload['SiteCacheQueryAttempts'] = [int]$latestSyncTelemetry.SiteCacheQueryAttempts
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheExclusiveRetryCount') {
+                                    $breakdownPayload['SiteCacheExclusiveRetryCount'] = [int]$latestSyncTelemetry.SiteCacheExclusiveRetryCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheExclusiveWaitDurationMs') {
+                                    $breakdownPayload['SiteCacheExclusiveWaitDurationMs'] = [double]$latestSyncTelemetry.SiteCacheExclusiveWaitDurationMs
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheProvider') {
+                                    $providerValue = '' + $latestSyncTelemetry.SiteCacheProvider
+                                    if (-not [string]::IsNullOrWhiteSpace($providerValue)) {
+                                        $breakdownPayload['SiteCacheProvider'] = $providerValue
+                                    }
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheResultRowCount') {
+                                    $breakdownPayload['SiteCacheResultRowCount'] = [int]$latestSyncTelemetry.SiteCacheResultRowCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheExistingRowCount') {
+                                    $breakdownPayload['SiteCacheExistingRowCount'] = [int]$latestSyncTelemetry.SiteCacheExistingRowCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheExistingRowKeysSample') {
+                                    $breakdownPayload['SiteCacheExistingRowKeysSample'] = '' + $latestSyncTelemetry.SiteCacheExistingRowKeysSample
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheExistingRowValueType') {
+                                    $breakdownPayload['SiteCacheExistingRowValueType'] = '' + $latestSyncTelemetry.SiteCacheExistingRowValueType
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheExistingRowSource') {
+                                    $breakdownPayload['SiteCacheExistingRowSource'] = '' + $latestSyncTelemetry.SiteCacheExistingRowSource
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheComparisonCandidateCount') {
+                                    $breakdownPayload['SiteCacheComparisonCandidateCount'] = [int]$latestSyncTelemetry.SiteCacheComparisonCandidateCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheComparisonSignatureMatchCount') {
+                                    $breakdownPayload['SiteCacheComparisonSignatureMatchCount'] = [int]$latestSyncTelemetry.SiteCacheComparisonSignatureMatchCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheComparisonSignatureMismatchCount') {
+                                    $breakdownPayload['SiteCacheComparisonSignatureMismatchCount'] = [int]$latestSyncTelemetry.SiteCacheComparisonSignatureMismatchCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheComparisonSignatureMissingCount') {
+                                    $breakdownPayload['SiteCacheComparisonSignatureMissingCount'] = [int]$latestSyncTelemetry.SiteCacheComparisonSignatureMissingCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheComparisonMissingPortCount') {
+                                    $breakdownPayload['SiteCacheComparisonMissingPortCount'] = [int]$latestSyncTelemetry.SiteCacheComparisonMissingPortCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheComparisonObsoletePortCount') {
+                                    $breakdownPayload['SiteCacheComparisonObsoletePortCount'] = [int]$latestSyncTelemetry.SiteCacheComparisonObsoletePortCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'RowsStaged') {
+                                    $breakdownPayload['RowsStaged'] = [int]$latestSyncTelemetry.RowsStaged
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'InsertCandidates') {
+                                    $breakdownPayload['InsertCandidates'] = [int]$latestSyncTelemetry.InsertCandidates
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'UpdateCandidates') {
+                                    $breakdownPayload['UpdateCandidates'] = [int]$latestSyncTelemetry.UpdateCandidates
+                                }
+                            }
+
+                            TelemetryModule\Write-StTelemetryEvent -Name 'DatabaseWriteBreakdown' -Payload $breakdownPayload
+                        } catch { }
 
                         $ingestionSucceeded = $true
 

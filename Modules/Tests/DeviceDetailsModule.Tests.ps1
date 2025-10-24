@@ -48,11 +48,10 @@ Describe "DeviceDetailsModule detail retrieval" {
         $dto = DeviceDetailsModule\Get-DeviceDetailsData -Hostname 'sw2'
 
         $dto.Summary.Hostname | Should Be 'SW2'
-        @($dto.Interfaces).Count | Should Be 1
-        $dto.Interfaces[0].Port | Should Be 'Gi1/0/2'
+        ($dto.Interfaces -is [System.Collections.ObjectModel.ObservableCollection[object]]) | Should Be $true
+        @($dto.Interfaces).Count | Should Be 0
         @($dto.Templates).Count | Should Be 1
         $dto.Templates[0].Name | Should Be 'Default'
-        Assert-MockCalled 'DeviceRepositoryModule\Get-InterfaceInfo' -ModuleName DeviceDetailsModule -Times 1 -ParameterFilter { $Hostname -eq 'sw2' }
         Assert-MockCalled 'TemplatesModule\Get-ConfigurationTemplates' -ModuleName DeviceDetailsModule -Times 1
     }
 }

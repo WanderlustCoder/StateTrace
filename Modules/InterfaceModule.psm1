@@ -16,6 +16,138 @@ if (-not (Get-Module -Name 'ViewStateService' -ErrorAction SilentlyContinue)) {
 $script:lastTemplateVendor = 'default'
 $script:TemplateThemeHandlerRegistered = $false
 
+if (-not (Get-Variable -Scope Script -Name PortSortKeyCache -ErrorAction SilentlyContinue)) {
+    try {
+        $script:PortSortKeyCache = [System.Collections.Concurrent.ConcurrentDictionary[string,string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    } catch {
+        $script:PortSortKeyCache = @{}
+    }
+}
+if (-not (Get-Variable -Scope Script -Name PortSortCacheHits -ErrorAction SilentlyContinue)) {
+    $script:PortSortCacheHits = [long]0
+}
+if (-not (Get-Variable -Scope Script -Name PortSortCacheMisses -ErrorAction SilentlyContinue)) {
+    $script:PortSortCacheMisses = [long]0
+}
+
+if (-not ('StateTrace.Models.InterfacePortRecord' -as [type])) {
+    Add-Type -TypeDefinition @"
+namespace StateTrace.Models
+{
+    public sealed class InterfacePortRecord
+    {
+        public string Hostname { get; set; }
+        public string Port { get; set; }
+        public string PortSort { get; set; }
+        public string Name { get; set; }
+        public string Status { get; set; }
+        public string VLAN { get; set; }
+        public string Duplex { get; set; }
+        public string Speed { get; set; }
+        public string Type { get; set; }
+        public string LearnedMACs { get; set; }
+        public string AuthState { get; set; }
+        public string AuthMode { get; set; }
+        public string AuthClientMAC { get; set; }
+        public string Site { get; set; }
+        public string Building { get; set; }
+        public string Room { get; set; }
+        public string Zone { get; set; }
+        public string AuthTemplate { get; set; }
+        public string Config { get; set; }
+        public string ConfigStatus { get; set; }
+        public string PortColor { get; set; }
+        public string ToolTip { get; set; }
+        public bool IsSelected { get; set; }
+    }
+
+    public sealed class InterfaceTemplateHint
+    {
+        public string PortColor { get; set; }
+        public string ConfigStatus { get; set; }
+        public bool HasTemplate { get; set; }
+    }
+}
+"@ -Language CSharp
+}
+
+$regexOptionsFallback = [System.Text.RegularExpressions.RegexOptions]::CultureInvariant
+if (-not (Get-Variable -Scope Script -Name PortSortRegexOptions -ErrorAction SilentlyContinue)) {
+    try {
+        $script:PortSortRegexOptions = [System.Text.RegularExpressions.RegexOptions]::Compiled -bor $regexOptionsFallback
+    } catch {
+        $script:PortSortRegexOptions = $regexOptionsFallback
+    }
+}
+if (-not (Get-Variable -Scope Script -Name PortSortTypeRegex -ErrorAction SilentlyContinue)) {
+    try {
+        $script:PortSortTypeRegex = [System.Text.RegularExpressions.Regex]::new('^(?<type>[A-Z\-]+)?\s*(?<nums>[\d/.:]+)', $script:PortSortRegexOptions)
+    } catch {
+        $script:PortSortTypeRegex = [regex]'^(?<type>[A-Z\-]+)?\s*(?<nums>[\d/.:]+)'
+    }
+}
+if (-not (Get-Variable -Scope Script -Name PortSortNumberRegex -ErrorAction SilentlyContinue)) {
+    try {
+        $script:PortSortNumberRegex = [System.Text.RegularExpressions.Regex]::new('\d+', $script:PortSortRegexOptions)
+    } catch {
+        $script:PortSortNumberRegex = [regex]'\d+'
+    }
+}
+if (-not (Get-Variable -Scope Script -Name PortSortNormalizationRules -ErrorAction SilentlyContinue)) {
+    try {
+        $options = $script:PortSortRegexOptions
+        $script:PortSortNormalizationRules = @(
+            @{ Regex = [System.Text.RegularExpressions.Regex]::new('HUNDRED\s*GIG(?:ABIT\s*ETHERNET|E)?', $options); Replacement = 'HU' },
+            @{ Regex = [System.Text.RegularExpressions.Regex]::new('FOUR\s*HUNDRED\s*GIG(?:ABIT\s*ETHERNET|E)?', $options); Replacement = 'TH' },
+            @{ Regex = [System.Text.RegularExpressions.Regex]::new('FORTY\s*GIG(?:ABIT\s*ETHERNET|E)?', $options); Replacement = 'FO' },
+            @{ Regex = [System.Text.RegularExpressions.Regex]::new('TWENTY\s*FIVE\s*GIG(?:ABIT\s*ETHERNET|E|IGE)?', $options); Replacement = 'TW' },
+            @{ Regex = [System.Text.RegularExpressions.Regex]::new('TEN\s*GIG(?:ABIT\s*ETHERNET|E)?', $options); Replacement = 'TE' },
+            @{ Regex = [System.Text.RegularExpressions.Regex]::new('GIGABIT\s*ETHERNET', $options); Replacement = 'GI' },
+            @{ Regex = [System.Text.RegularExpressions.Regex]::new('FAST\s*ETHERNET', $options); Replacement = 'FA' },
+            @{ Regex = [System.Text.RegularExpressions.Regex]::new('ETHERNET', $options); Replacement = 'ET' },
+            @{ Regex = [System.Text.RegularExpressions.Regex]::new('MANAGEMENT', $options); Replacement = 'MGMT' },
+            @{ Regex = [System.Text.RegularExpressions.Regex]::new('PORT-?\s*CHANNEL', $options); Replacement = 'PO' },
+            @{ Regex = [System.Text.RegularExpressions.Regex]::new('LOOPBACK', $options); Replacement = 'LO' },
+            @{ Regex = [System.Text.RegularExpressions.Regex]::new('VLAN', $options); Replacement = 'VL' }
+        )
+    } catch {
+        $script:PortSortNormalizationRules = @()
+    }
+}
+if (-not (Get-Variable -Scope Script -Name PortSortTypeWeights -ErrorAction SilentlyContinue)) {
+    try {
+        $weights = [System.Collections.Generic.Dictionary[string,int]]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $weights['MGMT'] = 5
+        $weights['PO'] = 10
+        $weights['TH'] = 22
+        $weights['HU'] = 23
+        $weights['FO'] = 24
+        $weights['TE'] = 25
+        $weights['TW'] = 26
+        $weights['ET'] = 30
+        $weights['GI'] = 40
+        $weights['FA'] = 50
+        $weights['VL'] = 97
+        $weights['LO'] = 98
+        $script:PortSortTypeWeights = $weights
+    } catch {
+        $script:PortSortTypeWeights = @{
+            MGMT = 5
+            PO   = 10
+            TH   = 22
+            HU   = 23
+            FO   = 24
+            TE   = 25
+            TW   = 26
+            ET   = 30
+            GI   = 40
+            FA   = 50
+            VL   = 97
+            LO   = 98
+        }
+    }
+}
+
 
 # Ensure that the debounce timer variable exists in script scope.  Under
 if (-not (Get-Variable -Name InterfacesFilterTimer -Scope Script -ErrorAction SilentlyContinue)) {
@@ -119,42 +251,127 @@ function Get-PortSortKey {
     param([Parameter(Mandatory)][string]$Port)
     if ([string]::IsNullOrWhiteSpace($Port)) { return '99-UNK-99999-99999-99999-99999-99999' }
 
-    $u = $Port.Trim().ToUpperInvariant()
-    # Normalize long form interface prefixes to short codes so sorting is consistent.
-    $u = $u -replace 'HUNDRED\s*GIG(?:ABIT\s*ETHERNET|E)?','HU'
-    $u = $u -replace 'FOUR\s*HUNDRED\s*GIG(?:ABIT\s*ETHERNET|E)?','TH'
-    $u = $u -replace 'FORTY\s*GIG(?:ABIT\s*ETHERNET|E)?','FO'
-    $u = $u -replace 'TWENTY\s*FIVE\s*GIG(?:ABIT\s*ETHERNET|E|IGE)?','TW'
-    $u = $u -replace 'TEN\s*GIG(?:ABIT\s*ETHERNET|E)?','TE'
-    $u = $u -replace 'GIGABIT\s*ETHERNET','GI'
-    $u = $u -replace 'FAST\s*ETHERNET','FA'
-    $u = $u -replace 'ETHERNET','ET'
-    $u = $u -replace 'MANAGEMENT','MGMT'
-    $u = $u -replace 'PORT-?\s*CHANNEL','PO'
-    $u = $u -replace 'LOOPBACK','LO'
-    $u = $u -replace 'VLAN','VL'
+    $normalized = $Port.Trim()
+    if ([string]::IsNullOrWhiteSpace($normalized)) { return '99-UNK-99999-99999-99999-99999-99999' }
+    $cacheKey = $normalized.ToUpperInvariant()
 
-    $m = [regex]::Match($u, '^(?<type>[A-Z\-]+)?\s*(?<nums>[\d/.:]+)')
-    $type = if ($m.Success -and $m.Groups['type'].Value) { $m.Groups['type'].Value } else {
-        if ($u -match '^\d') { 'ET' } else { $u -creplace '[^A-Z]','' }
+    $cacheInstance = $script:PortSortKeyCache
+    if ($cacheInstance -is [System.Collections.Concurrent.ConcurrentDictionary[string,string]]) {
+        $cachedValue = $null
+        if ($cacheInstance.TryGetValue($cacheKey, [ref]$cachedValue)) {
+            [System.Threading.Interlocked]::Increment([ref]$script:PortSortCacheHits) | Out-Null
+            return $cachedValue
+        }
+    } elseif ($cacheInstance -is [hashtable]) {
+        if ($cacheInstance.ContainsKey($cacheKey)) {
+            [System.Threading.Interlocked]::Increment([ref]$script:PortSortCacheHits) | Out-Null
+            return $cacheInstance[$cacheKey]
+        }
     }
 
-    # Type weights: lower values sort before higher ones.
-    $weights = @{ 'MGMT'=5; 'PO'=10; 'TH'=22; 'HU'=23; 'FO'=24; 'TE'=25; 'TW'=26; 'ET'=30; 'GI'=40; 'FA'=50; 'VL'=97; 'LO'=98 }
-    $w = if ($weights.ContainsKey($type)) { $weights[$type] } else { 60 }
+    $u = $cacheKey
+    $normalizationRules = $script:PortSortNormalizationRules
+    if ($normalizationRules -and $normalizationRules.Count -gt 0) {
+        foreach ($rule in $normalizationRules) {
+            try {
+                $u = $rule.Regex.Replace($u, $rule.Replacement)
+            } catch {
+                # Leave $u unchanged if the compiled regex throws so legacy replacements still apply.
+            }
+        }
+    } else {
+        $u = $u -replace 'HUNDRED\s*GIG(?:ABIT\s*ETHERNET|E)?','HU'
+        $u = $u -replace 'FOUR\s*HUNDRED\s*GIG(?:ABIT\s*ETHERNET|E)?','TH'
+        $u = $u -replace 'FORTY\s*GIG(?:ABIT\s*ETHERNET|E)?','FO'
+        $u = $u -replace 'TWENTY\s*FIVE\s*GIG(?:ABIT\s*ETHERNET|E|IGE)?','TW'
+        $u = $u -replace 'TEN\s*GIG(?:ABIT\s*ETHERNET|E)?','TE'
+        $u = $u -replace 'GIGABIT\s*ETHERNET','GI'
+        $u = $u -replace 'FAST\s*ETHERNET','FA'
+        $u = $u -replace 'ETHERNET','ET'
+        $u = $u -replace 'MANAGEMENT','MGMT'
+        $u = $u -replace 'PORT-?\s*CHANNEL','PO'
+        $u = $u -replace 'LOOPBACK','LO'
+        $u = $u -replace 'VLAN','VL'
+    }
 
-    $numsPart = if ($m.Success) { $m.Groups['nums'].Value } else { $u }
-    # Build a typed list of numeric segments for zero-padded comparison.
-    $matchesInts = [regex]::Matches($numsPart, '\d+')
-    $numsList = New-Object 'System.Collections.Generic.List[int]'
-    foreach ($mnum in $matchesInts) { [void]$numsList.Add([int]$mnum.Value) }
-    while ($numsList.Count -lt 4) { [void]$numsList.Add(0) }
-    $segmentsList = New-Object 'System.Collections.Generic.List[string]'
-    $limit = [Math]::Min(6, $numsList.Count)
-    for ($i = 0; $i -lt $limit; $i++) { [void]$segmentsList.Add('{0:00000}' -f $numsList[$i]) }
-    $segments = $segmentsList
+    $typeRegex = $script:PortSortTypeRegex
+    if ($typeRegex) {
+        try {
+            $m = $typeRegex.Match($u)
+        } catch {
+            $m = [regex]::Match($u, '^(?<type>[A-Z\-]+)?\s*(?<nums>[\d/.:]+)')
+        }
+    } else {
+        $m = [regex]::Match($u, '^(?<type>[A-Z\-]+)?\s*(?<nums>[\d/.:]+)')
+    }
+    if ($m.Success -and $m.Groups['type'].Value) {
+        $type = $m.Groups['type'].Value
+        $numsPart = $m.Groups['nums'].Value
+    } else {
+        $type = if ($u -match '^\d') { 'ET' } else { $u -creplace '[^A-Z]','' }
+        $numsPart = $u
+    }
 
-    return ('{0:00}-{1}-{2}' -f $w, $type, ($segments -join '-'))
+    $w = 60
+    $weights = $script:PortSortTypeWeights
+    if ($weights -is [System.Collections.Generic.Dictionary[string,int]]) {
+        $weightCandidate = 0
+        if ($weights.TryGetValue($type, [ref]$weightCandidate)) {
+            $w = $weightCandidate
+        }
+    } elseif ($weights -is [hashtable]) {
+        if ($weights.ContainsKey($type)) {
+            $w = [int]$weights[$type]
+        }
+    }
+
+    $numberRegex = $script:PortSortNumberRegex
+    if ($numberRegex) {
+        try {
+            $matchesInts = $numberRegex.Matches($numsPart)
+        } catch {
+            $matchesInts = [regex]::Matches($numsPart, '\d+')
+        }
+    } else {
+        $matchesInts = [regex]::Matches($numsPart, '\d+')
+    }
+    $matchCount = if ($matchesInts) { $matchesInts.Count } else { 0 }
+    $segmentLength = if ($matchCount -ge 4) { $matchCount } else { 4 }
+    $segmentCount = if ($segmentLength -gt 6) { 6 } else { $segmentLength }
+    $segments = [string[]]::new($segmentCount)
+    $valuesToCopy = [Math]::Min($matchCount, $segmentCount)
+    for ($i = 0; $i -lt $valuesToCopy; $i++) {
+        $segments[$i] = ([int]$matchesInts[$i].Value).ToString('00000')
+    }
+    for ($i = $valuesToCopy; $i -lt $segmentCount; $i++) {
+        $segments[$i] = '00000'
+    }
+
+    $result = ('{0:00}-{1}-{2}' -f $w, $type, ([string]::Join('-', $segments)))
+
+    if ($cacheInstance -is [System.Collections.Concurrent.ConcurrentDictionary[string,string]]) {
+        if ($cacheInstance.TryAdd($cacheKey, $result)) {
+            [System.Threading.Interlocked]::Increment([ref]$script:PortSortCacheMisses) | Out-Null
+            return $result
+        }
+
+        $concurrentLookup = $null
+        if ($cacheInstance.TryGetValue($cacheKey, [ref]$concurrentLookup)) {
+            [System.Threading.Interlocked]::Increment([ref]$script:PortSortCacheHits) | Out-Null
+            return $concurrentLookup
+        }
+    } elseif ($cacheInstance -is [hashtable]) {
+        if (-not $cacheInstance.ContainsKey($cacheKey)) {
+            $cacheInstance[$cacheKey] = $result
+            [System.Threading.Interlocked]::Increment([ref]$script:PortSortCacheMisses) | Out-Null
+            return $result
+        }
+        [System.Threading.Interlocked]::Increment([ref]$script:PortSortCacheHits) | Out-Null
+        return $cacheInstance[$cacheKey]
+    }
+
+    [System.Threading.Interlocked]::Increment([ref]$script:PortSortCacheMisses) | Out-Null
+    return $result
 }
 
 function Get-InterfaceHostnames {
@@ -303,11 +520,12 @@ function New-InterfaceObjectsFromDbRow {
     } else {
         New-Object 'System.Collections.Generic.Dictionary[string,object]' ([System.StringComparer]::OrdinalIgnoreCase)
     }
+    $templateHintCache = New-Object 'System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceTemplateHint]' ([System.StringComparer]::OrdinalIgnoreCase)
     foreach ($row in $rows) {
         if (-not $row) { continue }
         # Safely extract fields; some properties may not exist on all row types.
         $authTemplate = $null
-        if ($row.PSObject.Properties['AuthTemplate']) { $authTemplate = $row.AuthTemplate }
+        if ($row.PSObject.Properties['AuthTemplate']) { $authTemplate = '' + $row.AuthTemplate }
         $cfg          = $null
         if ($row.PSObject.Properties['Config'])       { $cfg = '' + $row.Config }
         $existingTip  = ''
@@ -328,36 +546,52 @@ function New-InterfaceObjectsFromDbRow {
         # Determine PortColor and ConfigStatus by combining row values with template defaults.
         $portColorVal = $null
         $cfgStatusVal = $null
-        $hasPortColor    = $false
+        $hasPortColor = $false
         $hasConfigStatus = $false
         if ($row.PSObject.Properties['PortColor'] -and $row.PortColor) {
-            $portColorVal = $row.PortColor
-            $hasPortColor = $true
+            $portColorVal = '' + $row.PortColor
+            if (-not [string]::IsNullOrWhiteSpace($portColorVal)) {
+                $hasPortColor = $true
+            }
         }
         if ($row.PSObject.Properties['ConfigStatus'] -and $row.ConfigStatus) {
-            $cfgStatusVal = $row.ConfigStatus
-            $hasConfigStatus = $true
+            $cfgStatusVal = '' + $row.ConfigStatus
+            if (-not [string]::IsNullOrWhiteSpace($cfgStatusVal)) {
+                $hasConfigStatus = $true
+            }
         }
         # If no explicit values were provided, look up the template colour and status.
         if (-not $hasPortColor -or -not $hasConfigStatus) {
-            $match = $null
-            if ($authTemplate) {
-                # Perform a case-insensitive lookup in the prebuilt template map.  The keys
-                $key = ('' + $authTemplate).ToLower()
-                if ($templateLookup.ContainsKey($key)) { $match = $templateLookup[$key] }
-            }
-            if (-not $hasPortColor) {
-                if ($match) { $portColorVal = $match.color } else { $portColorVal = 'Gray' }
-            }
-            if (-not $hasConfigStatus) {
-                if ($match) {
-                    $cfgStatusVal = 'Match'
-                } elseif ($authTemplate) {
-                    $cfgStatusVal = 'Mismatch'
-                } else {
-                    # When no template information exists, fall back to Unknown for consistency with Get-DeviceDetails.
-                    $cfgStatusVal = 'Unknown'
+            if ([string]::IsNullOrWhiteSpace($authTemplate)) {
+                if (-not $hasPortColor) { $portColorVal = 'Gray' }
+                if (-not $hasConfigStatus) { $cfgStatusVal = 'Unknown' }
+            } else {
+                $hint = $null
+                if (-not $templateHintCache.TryGetValue($authTemplate, [ref]$hint)) {
+                    $hint = [StateTrace.Models.InterfaceTemplateHint]::new()
+                    $match = $null
+                    if ($templateLookup -and $templateLookup.TryGetValue($authTemplate, [ref]$match)) {
+                        $colorFromTemplate = 'Gray'
+                        if ($match) {
+                            try {
+                                $colorProp = $match.PSObject.Properties['color']
+                                if ($colorProp -and $colorProp.Value) { $colorFromTemplate = '' + $colorProp.Value }
+                            } catch {
+                                $colorFromTemplate = 'Gray'
+                            }
+                        }
+                        $hint.PortColor = $colorFromTemplate
+                        $hint.ConfigStatus = 'Match'
+                        $hint.HasTemplate = $true
+                    } else {
+                        $hint.PortColor = 'Gray'
+                        $hint.ConfigStatus = 'Mismatch'
+                        $hint.HasTemplate = $false
+                    }
+                    $templateHintCache[$authTemplate] = $hint
                 }
+                if (-not $hasPortColor) { $portColorVal = $hint.PortColor }
+                if (-not $hasConfigStatus) { $cfgStatusVal = $hint.ConfigStatus }
             }
         }
         # Append global authentication block lines to the tooltip for Brocade devices.
@@ -372,25 +606,32 @@ function New-InterfaceObjectsFromDbRow {
         # Build the PSCustomObject for this interface.  Use the provided Hostname for all entries.
         $portValue = if ($row.PSObject.Properties['Port']) { '' + $row.Port } else { $null }
         $portSortKey = if ($portValue) { Get-PortSortKey -Port $portValue } else { '99-UNK-99999-99999-99999-99999-99999' }
-        [void]$resultList.Add([PSCustomObject]@{
-            Hostname      = $Hostname
-            Port          = $portValue
-            PortSort      = $portSortKey
-            Name          = $(if ($row.PSObject.Properties['Name']) { $row.Name } else { $null })
-            Status        = $(if ($row.PSObject.Properties['Status']) { $row.Status } else { $null })
-            VLAN          = $(if ($row.PSObject.Properties['VLAN']) { $row.VLAN } else { $null })
-            Duplex        = $(if ($row.PSObject.Properties['Duplex']) { $row.Duplex } else { $null })
-            Speed         = $(if ($row.PSObject.Properties['Speed']) { $row.Speed } else { $null })
-            Type          = $(if ($row.PSObject.Properties['Type']) { $row.Type } else { $null })
-            LearnedMACs   = $(if ($row.PSObject.Properties['LearnedMACs']) { $row.LearnedMACs } else { $null })
-            AuthState     = $(if ($row.PSObject.Properties['AuthState']) { $row.AuthState } else { $null })
-            AuthMode      = $(if ($row.PSObject.Properties['AuthMode']) { $row.AuthMode } else { $null })
-            AuthClientMAC = $(if ($row.PSObject.Properties['AuthClientMAC']) { $row.AuthClientMAC } else { $null })
-            ToolTip       = $finalTip
-            IsSelected    = $false
-            ConfigStatus  = $cfgStatusVal
-            PortColor     = $portColorVal
-        })
+
+        $record = [StateTrace.Models.InterfacePortRecord]::new()
+        $record.Hostname = $Hostname
+        $record.Port = $portValue
+        $record.PortSort = $portSortKey
+        if ($row.PSObject.Properties['Name']) { $record.Name = '' + $row.Name }
+        if ($row.PSObject.Properties['Status']) { $record.Status = '' + $row.Status }
+        if ($row.PSObject.Properties['VLAN']) { $record.VLAN = '' + $row.VLAN }
+        if ($row.PSObject.Properties['Duplex']) { $record.Duplex = '' + $row.Duplex }
+        if ($row.PSObject.Properties['Speed']) { $record.Speed = '' + $row.Speed }
+        if ($row.PSObject.Properties['Type']) { $record.Type = '' + $row.Type }
+        if ($row.PSObject.Properties['LearnedMACs']) { $record.LearnedMACs = '' + $row.LearnedMACs }
+        if ($row.PSObject.Properties['AuthState']) { $record.AuthState = '' + $row.AuthState }
+        if ($row.PSObject.Properties['AuthMode']) { $record.AuthMode = '' + $row.AuthMode }
+        if ($row.PSObject.Properties['AuthClientMAC']) { $record.AuthClientMAC = '' + $row.AuthClientMAC }
+        if ($row.PSObject.Properties['Site']) { $record.Site = '' + $row.Site }
+        if ($row.PSObject.Properties['Building']) { $record.Building = '' + $row.Building }
+        if ($row.PSObject.Properties['Room']) { $record.Room = '' + $row.Room }
+        if ($row.PSObject.Properties['Zone']) { $record.Zone = '' + $row.Zone }
+        $record.AuthTemplate = $authTemplate
+        $record.Config = $cfg
+        $record.ConfigStatus = $cfgStatusVal
+        $record.PortColor = $portColorVal
+        $record.ToolTip = $finalTip
+        $record.IsSelected = $false
+        [void]$resultList.Add($record)
     }
     $comparison = [System.Comparison[object]]{
         param($a, $b)
@@ -977,8 +1218,14 @@ function Set-InterfaceViewData {
     try {
         $grid = $interfacesView.FindName('InterfacesGrid')
         if ($grid) {
-            $grid.ItemsSource = if ($DeviceDetails.Interfaces) { $DeviceDetails.Interfaces } else { @() }
+            $itemsSource = $DeviceDetails.Interfaces
+            if (-not $itemsSource) {
+                $itemsSource = New-Object 'System.Collections.ObjectModel.ObservableCollection[object]'
+                $DeviceDetails.Interfaces = $itemsSource
+            }
+            $grid.ItemsSource = $itemsSource
             try { $global:interfacesGrid = $grid } catch {}
+            try { $global:CurrentInterfaceCollection = $itemsSource } catch { $global:CurrentInterfaceCollection = $null }
         }
     } catch {}
 
@@ -997,4 +1244,90 @@ function Set-InterfaceViewData {
     } catch {}
 }
 
-Export-ModuleMember -Function Get-PortSortKey,Get-InterfaceHostnames,Get-InterfaceInfo,Get-InterfaceList,New-InterfaceObjectsFromDbRow,Compare-InterfaceConfigs,Get-InterfaceConfiguration,Get-ConfigurationTemplates,Set-InterfaceViewData,Get-SpanningTreeInfo,New-InterfacesView
+function Set-PortLoadingIndicator {
+    [CmdletBinding()]
+    param(
+        [int]$Loaded = 0,
+        [int]$Total = 0,
+        [int]$BatchesRemaining = 0
+    )
+
+    $view = $null
+    try { $view = $global:interfacesView } catch { $view = $null }
+    if (-not $view) { return }
+
+    $indicator = $null
+    $progress = $null
+    try { $indicator = $view.FindName('PortLoadingIndicator') } catch { $indicator = $null }
+    try { $progress = $view.FindName('PortLoadingProgress') } catch { $progress = $null }
+
+    if (-not $indicator) { return }
+
+    $loadedValue = if ($Loaded -ge 0) { [int]$Loaded } else { 0 }
+    $totalValue = if ($Total -ge 0) { [int]$Total } else { 0 }
+    $remaining = if ($BatchesRemaining -ge 0) { [int]$BatchesRemaining } else { 0 }
+
+    if ($totalValue -le 0 -and $remaining -le 0) {
+        $indicator.Visibility = [System.Windows.Visibility]::Collapsed
+        if ($progress) { $progress.Visibility = [System.Windows.Visibility]::Collapsed }
+        return
+    }
+
+    $indicator.Visibility = [System.Windows.Visibility]::Visible
+    $displayLoaded = [Math]::Min($loadedValue, [Math]::Max($totalValue, 0))
+    if ($totalValue -le 0) {
+        $indicator.Text = 'Loading ports...'
+        if ($progress) { $progress.Visibility = [System.Windows.Visibility]::Collapsed }
+    } else {
+        $text = "Loading ports ({0} of {1})" -f $displayLoaded, $totalValue
+        if ($displayLoaded -ge $totalValue -and $remaining -le 0) {
+            $text = "Ports loaded ({0})" -f $totalValue
+        }
+        $indicator.Text = $text
+        if ($progress) {
+            $progress.Visibility = [System.Windows.Visibility]::Visible
+            $progress.Maximum = [double][Math]::Max($totalValue, 1)
+            $progress.Value = [double][Math]::Min($displayLoaded, $progress.Maximum)
+        }
+    }
+}
+
+function Hide-PortLoadingIndicator {
+    [CmdletBinding()]
+    param()
+
+    $view = $null
+    try { $view = $global:interfacesView } catch { $view = $null }
+    if (-not $view) { return }
+
+    try {
+        $indicator = $view.FindName('PortLoadingIndicator')
+        if ($indicator) { $indicator.Visibility = [System.Windows.Visibility]::Collapsed }
+    } catch { }
+
+    try {
+        $progress = $view.FindName('PortLoadingProgress')
+        if ($progress) { $progress.Visibility = [System.Windows.Visibility]::Collapsed }
+    } catch { }
+}
+
+function Get-PortSortCacheStatistics {
+    [CmdletBinding()]
+    param()
+
+    $cacheSize = 0
+    $cacheInstance = $script:PortSortKeyCache
+    if ($cacheInstance -is [System.Collections.Concurrent.ConcurrentDictionary[string,string]]) {
+        $cacheSize = $cacheInstance.Count
+    } elseif ($cacheInstance -is [hashtable]) {
+        $cacheSize = $cacheInstance.Count
+    }
+
+    return [pscustomobject]@{
+        Hits       = [long]$script:PortSortCacheHits
+        Misses     = [long]$script:PortSortCacheMisses
+        EntryCount = [long]$cacheSize
+    }
+}
+
+Export-ModuleMember -Function Get-PortSortKey,Get-PortSortCacheStatistics,Get-InterfaceHostnames,Get-InterfaceInfo,Get-InterfaceList,New-InterfaceObjectsFromDbRow,Compare-InterfaceConfigs,Get-InterfaceConfiguration,Get-ConfigurationTemplates,Set-InterfaceViewData,Get-SpanningTreeInfo,New-InterfacesView,Set-PortLoadingIndicator,Hide-PortLoadingIndicator

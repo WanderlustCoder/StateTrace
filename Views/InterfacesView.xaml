@@ -79,6 +79,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <Grid Grid.Row="0" Margin="0,0,0,5">
@@ -279,6 +280,27 @@
             <DataGridTextColumn Header="AuthClientMAC" Binding="{Binding AuthClientMAC}"/>
           </DataGrid.Columns>
         </DataGrid>
+
+        <Grid Grid.Row="3" Margin="5,4,5,0">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+          </Grid.ColumnDefinitions>
+          <TextBlock Name="PortLoadingIndicator"
+                     Text="Loading ports..."
+                     Foreground="{DynamicResource Theme.Text.Inverse}"
+                     FontSize="12"
+                     Visibility="Collapsed"
+                     VerticalAlignment="Center"/>
+          <ProgressBar Name="PortLoadingProgress"
+                       Grid.Column="1"
+                       Width="140"
+                       Height="8"
+                       Margin="12,0,0,0"
+                       Minimum="0"
+                       Maximum="1"
+                       Visibility="Collapsed"/>
+        </Grid>
     </Grid>
   </Grid>
 </UserControl>

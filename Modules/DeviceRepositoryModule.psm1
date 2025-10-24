@@ -17,6 +17,379 @@ if (-not (Get-Variable -Scope Script -Name SiteInterfaceCache -ErrorAction Silen
     $script:SiteInterfaceCache = @{}
 }
 
+if (-not (Get-Variable -Scope Script -Name SiteInterfaceSignatureCache -ErrorAction SilentlyContinue)) {
+    $script:SiteInterfaceSignatureCache = @{}
+}
+
+if (-not (Get-Variable -Scope Script -Name SharedSiteInterfaceCacheKey -ErrorAction SilentlyContinue)) {
+    $script:SharedSiteInterfaceCacheKey = 'StateTrace.Repository.SharedSiteInterfaceCache'
+}
+
+function Publish-SharedSiteInterfaceCacheStoreState {
+    param(
+        [Parameter(Mandatory)][string]$Operation,
+        [int]$EntryCount = 0,
+        [int]$StoreHashCode = 0
+    )
+
+    $runspaceId = ''
+    try {
+        $currentRunspace = [System.Management.Automation.Runspaces.Runspace]::DefaultRunspace
+        if ($currentRunspace) { $runspaceId = $currentRunspace.InstanceId.ToString() }
+    } catch {
+        $runspaceId = ''
+    }
+
+    $appDomainId = ''
+    $appDomainName = ''
+    try {
+        $domain = [System.AppDomain]::CurrentDomain
+        if ($domain) {
+            try { $appDomainId = '' + $domain.Id } catch { $appDomainId = '' }
+            try { $appDomainName = '' + $domain.FriendlyName } catch { $appDomainName = '' }
+        }
+    } catch {
+        $appDomainId = ''
+        $appDomainName = ''
+    }
+
+    $processId = 0
+    try { $processId = [System.Diagnostics.Process]::GetCurrentProcess().Id } catch { $processId = 0 }
+
+    $threadId = 0
+    try { $threadId = [System.Threading.Thread]::CurrentThread.ManagedThreadId } catch { $threadId = 0 }
+
+    try {
+        TelemetryModule\Write-StTelemetryEvent -Name 'InterfaceSiteCacheSharedStoreState' -Payload @{
+            Operation     = $Operation
+            EntryCount    = $EntryCount
+            StoreHashCode = $StoreHashCode
+            RunspaceId    = $runspaceId
+            AppDomainId   = $appDomainId
+            AppDomainName = $appDomainName
+            ProcessId     = $processId
+            ThreadId      = $threadId
+        }
+    } catch { }
+}
+
+if (-not ('StateTrace.Repository.SharedSiteInterfaceCacheHolder' -as [type])) {
+    Add-Type -TypeDefinition @"
+namespace StateTrace.Repository
+{
+    using System;
+    using System.Collections.Concurrent;
+    using System.Threading;
+
+    public static class SharedSiteInterfaceCacheHolder
+    {
+        private static readonly object SyncRoot = new object();
+        private static ConcurrentDictionary<string, object> store;
+
+        public static ConcurrentDictionary<string, object> GetStore()
+        {
+            lock (SyncRoot)
+            {
+                return store;
+            }
+        }
+
+        public static void SetStore(ConcurrentDictionary<string, object> value)
+        {
+            lock (SyncRoot)
+            {
+                store = value;
+            }
+        }
+
+        public static void ClearStore()
+        {
+            lock (SyncRoot)
+            {
+                store = null;
+            }
+        }
+    }
+}
+"@ -Language CSharp
+}
+
+function Initialize-SharedSiteInterfaceCacheStore {
+    $domain = [System.AppDomain]::CurrentDomain
+    $storeKey = $script:SharedSiteInterfaceCacheKey
+    $store = $null
+    $createdNewStore = $false
+    $adoptedExistingStore = $false
+
+    try {
+        $store = $domain.GetData($storeKey)
+    } catch {
+        $store = $null
+    }
+
+    if (-not ($store -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]])) {
+        $existing = $null
+        try { $existing = [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::GetStore() } catch { $existing = $null }
+        if ($existing -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
+            try {
+                $domain.SetData($storeKey, $existing)
+                $store = $domain.GetData($storeKey)
+            } catch {
+                $store = $existing
+            }
+            if ($store -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
+                $adoptedExistingStore = $true
+            }
+        }
+    }
+
+    if (-not ($store -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]])) {
+        $newStore = New-Object 'System.Collections.Concurrent.ConcurrentDictionary[string, object]' ([System.StringComparer]::OrdinalIgnoreCase)
+        try {
+            $domain.SetData($storeKey, $newStore)
+            $store = $domain.GetData($storeKey)
+        } catch {
+            $store = $null
+        }
+        if (-not ($store -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]])) {
+            $store = $newStore
+        }
+        $createdNewStore = $true
+    }
+
+    if ($store -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
+        try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($store) } catch { }
+        $storeHashCode = 0
+        $entryCount = 0
+        try { $storeHashCode = [System.Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($store) } catch { $storeHashCode = 0 }
+        try { $entryCount = [int]$store.Count } catch { $entryCount = 0 }
+        $operation = if ($createdNewStore) { 'InitNewStore' } elseif ($adoptedExistingStore) { 'InitAdoptedStore' } else { 'InitReuseStore' }
+        Publish-SharedSiteInterfaceCacheStoreState -Operation $operation -EntryCount $entryCount -StoreHashCode $storeHashCode
+    }
+
+    return $store
+}
+
+function Get-SharedSiteInterfaceCacheStore {
+    $store = $null
+    if (Get-Variable -Scope Script -Name SharedSiteInterfaceCache -ErrorAction SilentlyContinue) {
+        $store = $script:SharedSiteInterfaceCache
+    }
+
+    $storeKey = $script:SharedSiteInterfaceCacheKey
+    $domainStore = $null
+    $holderStore = $null
+    try { $domainStore = [System.AppDomain]::CurrentDomain.GetData($storeKey) } catch { $domainStore = $null }
+    try { $holderStore = [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::GetStore() } catch { $holderStore = $null }
+
+    $bestStore = $null
+    $bestCount = -1
+    foreach ($candidate in @($store, $domainStore, $holderStore)) {
+        if (-not ($candidate -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]])) {
+            continue
+        }
+        $candidateCount = 0
+        try { $candidateCount = [int]$candidate.Count } catch { $candidateCount = 0 }
+        if ($candidateCount -gt $bestCount) {
+            $bestCount = $candidateCount
+            $bestStore = $candidate
+        }
+    }
+
+    if ($bestStore) {
+        if (-not [object]::ReferenceEquals($store, $bestStore)) {
+            $script:SharedSiteInterfaceCache = $bestStore
+        }
+        try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($bestStore) } catch { }
+        if (-not [object]::ReferenceEquals($domainStore, $bestStore)) {
+            try { [System.AppDomain]::CurrentDomain.SetData($storeKey, $bestStore) } catch { }
+        }
+        return $bestStore
+    }
+
+    if (-not ($store -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]])) {
+        $store = Initialize-SharedSiteInterfaceCacheStore
+        $script:SharedSiteInterfaceCache = $store
+    }
+    if ($store -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
+        try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($store) } catch { }
+    }
+
+    return $store
+}
+
+if (-not (Get-Variable -Scope Script -Name SharedSiteInterfaceCache -ErrorAction SilentlyContinue)) {
+    $script:SharedSiteInterfaceCache = Initialize-SharedSiteInterfaceCacheStore
+} elseif (-not ($script:SharedSiteInterfaceCache -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]])) {
+    $script:SharedSiteInterfaceCache = Initialize-SharedSiteInterfaceCacheStore
+}
+
+function Copy-InterfaceCacheEntryObject {
+    param(
+        [Parameter(Mandatory)][StateTrace.Models.InterfaceCacheEntry]$Source
+    )
+
+    $clone = [StateTrace.Models.InterfaceCacheEntry]::new()
+    $clone.Name       = $Source.Name
+    $clone.Status     = $Source.Status
+    $clone.VLAN       = $Source.VLAN
+    $clone.Duplex     = $Source.Duplex
+    $clone.Speed      = $Source.Speed
+    $clone.Type       = $Source.Type
+    $clone.Learned    = $Source.Learned
+    $clone.AuthState  = $Source.AuthState
+    $clone.AuthMode   = $Source.AuthMode
+    $clone.AuthClient = $Source.AuthClient
+    $clone.Template   = $Source.Template
+    $clone.Config     = $Source.Config
+    $clone.PortColor  = $Source.PortColor
+    $clone.StatusTag  = $Source.StatusTag
+    $clone.ToolTip    = $Source.ToolTip
+    $clone.Signature  = $Source.Signature
+    return $clone
+}
+
+function Copy-InterfaceSiteCacheValue {
+    param($Value)
+
+    if ($null -eq $Value) { return $null }
+    if ($Value -is [string]) { return '' + $Value }
+    if ($Value -is [datetime]) { return [datetime]$Value }
+    if ($Value -is [System.ValueType]) { return $Value }
+    if ($Value -is [StateTrace.Models.InterfaceCacheEntry]) {
+        return Copy-InterfaceCacheEntryObject -Source $Value
+    }
+    if ($Value -is [System.Collections.IDictionary]) {
+        $result = @{}
+        foreach ($key in $Value.Keys) {
+            $result[$key] = Copy-InterfaceSiteCacheValue -Value $Value[$key]
+        }
+        return $result
+    }
+    if ($Value -is [System.Collections.IEnumerable]) {
+        if ($Value -is [string]) { return '' + $Value }
+        $list = New-Object 'System.Collections.Generic.List[object]'
+        foreach ($item in $Value) {
+            $list.Add((Copy-InterfaceSiteCacheValue -Value $item)) | Out-Null
+        }
+        return $list.ToArray()
+    }
+    if ($Value -is [psobject]) {
+        $clone = [pscustomobject]@{}
+        foreach ($prop in $Value.PSObject.Properties) {
+            $clone | Add-Member -NotePropertyName $prop.Name -NotePropertyValue (Copy-InterfaceSiteCacheValue -Value $prop.Value) -Force
+        }
+        return $clone
+    }
+    return $Value
+}
+
+function Copy-InterfaceCacheHostMap {
+    param($HostMap)
+
+    if (-not ($HostMap -is [System.Collections.IDictionary])) { return $null }
+    $clone = New-Object 'System.Collections.Generic.Dictionary[string,System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceCacheEntry]]' ([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($hostEntry in @($HostMap.GetEnumerator())) {
+        $hostKey = if ($hostEntry.Key) { ('' + $hostEntry.Key).Trim() } else { '' }
+        if ([string]::IsNullOrWhiteSpace($hostKey)) { continue }
+        $portMap = $hostEntry.Value
+        $portClone = New-Object 'System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceCacheEntry]' ([System.StringComparer]::OrdinalIgnoreCase)
+        if ($portMap -is [System.Collections.IDictionary]) {
+            foreach ($portEntry in @($portMap.GetEnumerator())) {
+                $portKey = if ($portEntry.Key) { ('' + $portEntry.Key).Trim() } else { '' }
+                if ([string]::IsNullOrWhiteSpace($portKey)) { continue }
+                $entryValue = $portEntry.Value
+                if ($entryValue -is [StateTrace.Models.InterfaceCacheEntry]) {
+                    $portClone[$portKey] = Copy-InterfaceCacheEntryObject -Source $entryValue
+                } elseif ($null -ne $entryValue) {
+                    try {
+                        $portClone[$portKey] = ConvertTo-InterfaceCacheEntryObject -InputObject $entryValue
+                    } catch {
+                        continue
+                    }
+                }
+            }
+        }
+        $clone[$hostKey] = $portClone
+    }
+    return $clone
+}
+
+function Clone-InterfaceSiteCacheEntry {
+    param([pscustomobject]$Entry)
+
+    if (-not $Entry) { return $null }
+    $clone = [pscustomobject]@{}
+    foreach ($prop in $Entry.PSObject.Properties) {
+        $name = $prop.Name
+        switch ($name) {
+            'HostMap' {
+                $clone | Add-Member -NotePropertyName 'HostMap' -NotePropertyValue (Copy-InterfaceCacheHostMap -HostMap $prop.Value) -Force
+            }
+            default {
+                $clone | Add-Member -NotePropertyName $name -NotePropertyValue (Copy-InterfaceSiteCacheValue -Value $prop.Value) -Force
+            }
+        }
+    }
+    return $clone
+}
+
+function Get-SharedSiteInterfaceCacheEntry {
+    param([Parameter(Mandatory)][string]$SiteKey)
+
+    $key = ('' + $SiteKey).Trim()
+    if ([string]::IsNullOrWhiteSpace($key)) { return $null }
+    $store = Get-SharedSiteInterfaceCacheStore
+    $storeHashCode = 0
+    if ($store) {
+        try { $storeHashCode = [System.Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($store) } catch { $storeHashCode = 0 }
+    }
+    if (-not ($store -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]])) {
+        Publish-SharedSiteInterfaceCacheEvent -SiteKey $key -Operation 'GetMiss' -EntryCount 0 -StoreHashCode $storeHashCode
+        return $null
+    }
+    $stored = $null
+    $entryCount = 0
+    try { $entryCount = [int]$store.Count } catch { $entryCount = 0 }
+    if ($store.TryGetValue($key, [ref]$stored) -and $stored) {
+        $clone = Clone-InterfaceSiteCacheEntry -Entry $stored
+        $stats = Get-SharedSiteInterfaceCacheEntryStatistics -Entry $clone
+        Publish-SharedSiteInterfaceCacheEvent -SiteKey $key -Operation 'GetHit' -EntryCount $entryCount -HostCount $stats.HostCount -TotalRows $stats.TotalRows -StoreHashCode $storeHashCode
+        return $clone
+    }
+    Publish-SharedSiteInterfaceCacheEvent -SiteKey $key -Operation 'GetMiss' -EntryCount $entryCount -StoreHashCode $storeHashCode
+    return $null
+}
+
+function Set-SharedSiteInterfaceCacheEntry {
+    param(
+        [Parameter(Mandatory)][string]$SiteKey,
+        [pscustomobject]$Entry
+    )
+
+    $key = ('' + $SiteKey).Trim()
+    if ([string]::IsNullOrWhiteSpace($key)) { return }
+    $store = Get-SharedSiteInterfaceCacheStore
+    if (-not ($store -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]])) { return }
+    $storeHashCode = 0
+    try { $storeHashCode = [System.Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($store) } catch { $storeHashCode = 0 }
+    if ($Entry) {
+        $clone = Clone-InterfaceSiteCacheEntry -Entry $Entry
+        $null = $store.AddOrUpdate($key, $clone, { param($k, $existing) $clone })
+        $stats = Get-SharedSiteInterfaceCacheEntryStatistics -Entry $clone
+        $entryCount = 0
+        try { $entryCount = [int]$store.Count } catch { $entryCount = 0 }
+        Publish-SharedSiteInterfaceCacheEvent -SiteKey $key -Operation 'Set' -EntryCount $entryCount -HostCount $stats.HostCount -TotalRows $stats.TotalRows -StoreHashCode $storeHashCode
+    } else {
+        $removed = $null
+        $store.TryRemove($key, [ref]$removed) | Out-Null
+        $entryCount = 0
+        try { $entryCount = [int]$store.Count } catch { $entryCount = 0 }
+        $removedStats = if ($removed) { Get-SharedSiteInterfaceCacheEntryStatistics -Entry $removed } else { [pscustomobject]@{ HostCount = 0; TotalRows = 0 } }
+        Publish-SharedSiteInterfaceCacheEvent -SiteKey $key -Operation 'Remove' -EntryCount $entryCount -HostCount $removedStats.HostCount -TotalRows $removedStats.TotalRows -StoreHashCode $storeHashCode
+    }
+}
+
 if (-not (Get-Variable -Scope Global -Name DeviceInterfaceCache -ErrorAction SilentlyContinue)) {
     $global:DeviceInterfaceCache = @{}
 }
@@ -27,6 +400,427 @@ if (-not (Get-Variable -Scope Global -Name AllInterfaces -ErrorAction SilentlyCo
 
 if (-not (Get-Variable -Scope Global -Name LoadedSiteZones -ErrorAction SilentlyContinue)) {
     $global:LoadedSiteZones = @{}
+}
+
+if (-not (Get-Variable -Scope Script -Name InterfacePortStreamStore -ErrorAction SilentlyContinue)) {
+    $script:InterfacePortStreamStore = @{}
+}
+
+if (-not (Get-Variable -Scope Script -Name InterfacePortStreamChunkSize -ErrorAction SilentlyContinue)) {
+    $script:InterfacePortStreamChunkSize = 24
+}
+
+if (-not (Get-Variable -Scope Script -Name LastInterfacePortStreamMetrics -ErrorAction SilentlyContinue)) {
+    $script:LastInterfacePortStreamMetrics = $null
+}
+
+if (-not (Get-Variable -Scope Script -Name LastInterfacePortDispatchMetrics -ErrorAction SilentlyContinue)) {
+    $script:LastInterfacePortDispatchMetrics = $null
+}
+
+if (-not (Get-Variable -Scope Script -Name LastInterfacePortQueueMetrics -ErrorAction SilentlyContinue)) {
+    $script:LastInterfacePortQueueMetrics = $null
+}
+
+if (-not (Get-Variable -Scope Script -Name LastInterfaceSiteCacheMetrics -ErrorAction SilentlyContinue)) {
+    $script:LastInterfaceSiteCacheMetrics = $null
+}
+
+if (-not (Get-Variable -Scope Script -Name LastInterfaceSiteHydrationMetrics -ErrorAction SilentlyContinue)) {
+    $script:LastInterfaceSiteHydrationMetrics = $null
+}
+
+function Publish-InterfaceSiteCacheTelemetry {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$SiteKey,
+        [Parameter(Mandatory)][pscustomobject]$Metrics,
+        [Parameter()][int]$HostCount = 0,
+        [Parameter()][int]$TotalRows = 0,
+        [Parameter()][bool]$Refreshed = $false
+    )
+
+    try {
+        TelemetryModule\Write-StTelemetryEvent -Name 'InterfaceSiteCacheMetrics' -Payload @{
+            Site                             = $SiteKey
+            CacheStatus                      = $Metrics.CacheStatus
+            Refreshed                        = $Refreshed
+            HydrationDurationMs              = $Metrics.HydrationDurationMs
+            SnapshotDurationMs               = $Metrics.HydrationSnapshotMs
+            BuildDurationMs                  = $Metrics.HydrationBuildMs
+            HostMapDurationMs                = $Metrics.HydrationHostMapDurationMs
+            HostMapSignatureMatchCount       = $Metrics.HydrationHostMapSignatureMatchCount
+            HostMapSignatureRewriteCount     = $Metrics.HydrationHostMapSignatureRewriteCount
+            HostMapSignatureMismatchSamples  = $Metrics.HydrationHostMapSignatureMismatchSamples
+            HostMapEntryAllocationCount      = $Metrics.HydrationHostMapEntryAllocationCount
+            HostMapEntryPoolReuseCount       = $Metrics.HydrationHostMapEntryPoolReuseCount
+            HostMapLookupCount               = $Metrics.HydrationHostMapLookupCount
+            HostMapLookupMissCount           = $Metrics.HydrationHostMapLookupMissCount
+            HostMapCandidateMissingCount     = $Metrics.HydrationHostMapCandidateMissingCount
+            HostMapCandidateSignatureMissingCount = $Metrics.HydrationHostMapCandidateSignatureMissingCount
+            HostMapCandidateSignatureMismatchCount = $Metrics.HydrationHostMapCandidateSignatureMismatchCount
+            HostMapCandidateMissingSamples   = $Metrics.HydrationHostMapCandidateMissingSamples
+            HostMapCandidateFromPreviousCount = $Metrics.HydrationHostMapCandidateFromPreviousCount
+            HostMapCandidateFromPoolCount    = $Metrics.HydrationHostMapCandidateFromPoolCount
+            HostMapCandidateInvalidCount     = $Metrics.HydrationHostMapCandidateInvalidCount
+            PreviousHostCount                = $Metrics.HydrationPreviousHostCount
+            PreviousPortCount                = $Metrics.HydrationPreviousPortCount
+            PreviousHostSample               = $Metrics.HydrationPreviousHostSample
+            PreviousSnapshotStatus           = $Metrics.HydrationPreviousSnapshotStatus
+            PreviousSnapshotHostMapType      = $Metrics.HydrationPreviousSnapshotHostMapType
+            PreviousSnapshotHostCount        = $Metrics.HydrationPreviousSnapshotHostCount
+            PreviousSnapshotPortCount        = $Metrics.HydrationPreviousSnapshotPortCount
+            PreviousSnapshotException        = $Metrics.HydrationPreviousSnapshotException
+            SortDurationMs                   = $Metrics.HydrationSortDurationMs
+            QueryDurationMs                  = $Metrics.HydrationQueryDurationMs
+            ExecuteDurationMs                = $Metrics.HydrationExecuteDurationMs
+            MaterializeDurationMs            = $Metrics.HydrationMaterializeDurationMs
+            MaterializeProjectionDurationMs  = $Metrics.HydrationMaterializeProjectionDurationMs
+            MaterializePortSortDurationMs    = $Metrics.HydrationMaterializePortSortDurationMs
+            MaterializePortSortCacheHits     = $Metrics.HydrationMaterializePortSortCacheHits
+            MaterializePortSortCacheMisses   = $Metrics.HydrationMaterializePortSortCacheMisses
+            MaterializePortSortCacheSize     = $Metrics.HydrationMaterializePortSortCacheSize
+            MaterializeTemplateDurationMs    = $Metrics.HydrationMaterializeTemplateDurationMs
+            MaterializeObjectDurationMs      = $Metrics.HydrationMaterializeObjectDurationMs
+            TemplateDurationMs               = $Metrics.HydrationTemplateDurationMs
+            QueryAttempts                    = $Metrics.HydrationQueryAttempts
+            ExclusiveRetryCount              = $Metrics.HydrationExclusiveRetryCount
+            ExclusiveWaitDurationMs          = $Metrics.HydrationExclusiveWaitDurationMs
+            Provider                         = $Metrics.HydrationProvider
+            ResultRowCount                   = $Metrics.HydrationResultRowCount
+            HostCount                        = $HostCount
+            TotalRows                        = $TotalRows
+        }
+    } catch { }
+}
+
+function Get-SharedSiteInterfaceCacheEntryStatistics {
+    param([pscustomobject]$Entry)
+
+    $hostCount = 0
+    $totalRows = 0
+
+    if ($Entry) {
+        if ($Entry.PSObject.Properties.Name -contains 'HostCount') {
+            try { $hostCount = [int]$Entry.HostCount } catch { $hostCount = 0 }
+        }
+        if ($Entry.PSObject.Properties.Name -contains 'TotalRows') {
+            try { $totalRows = [int]$Entry.TotalRows } catch { $totalRows = 0 }
+        }
+        if ($Entry.PSObject.Properties.Name -contains 'HostMap') {
+            $hostMap = $Entry.HostMap
+            if ($hostMap -is [System.Collections.IDictionary]) {
+                if ($hostCount -le 0) {
+                    try { $hostCount = [int]$hostMap.Count } catch { $hostCount = 0 }
+                }
+                if ($totalRows -le 0) {
+                    foreach ($hostEntry in @($hostMap.GetEnumerator())) {
+                        $ports = $hostEntry.Value
+                        if ($ports -is [System.Collections.IDictionary] -or $ports -is [System.Collections.ICollection]) {
+                            try { $totalRows += [int]$ports.Count } catch { }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    [pscustomobject]@{
+        HostCount = $hostCount
+        TotalRows = $totalRows
+    }
+}
+
+function Publish-SharedSiteInterfaceCacheEvent {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$SiteKey,
+        [Parameter(Mandatory)][string]$Operation,
+        [int]$EntryCount = 0,
+        [int]$HostCount = 0,
+        [int]$TotalRows = 0,
+        [int]$StoreHashCode = 0
+    )
+
+    $runspaceId = ''
+    try {
+        $currentRunspace = [System.Management.Automation.Runspaces.Runspace]::DefaultRunspace
+        if ($currentRunspace) { $runspaceId = $currentRunspace.InstanceId.ToString() }
+    } catch {
+        $runspaceId = ''
+    }
+
+    $appDomainId = ''
+    $appDomainName = ''
+    try {
+        $domain = [System.AppDomain]::CurrentDomain
+        if ($domain) {
+            try { $appDomainId = '' + $domain.Id } catch { $appDomainId = '' }
+            try { $appDomainName = '' + $domain.FriendlyName } catch { $appDomainName = '' }
+        }
+    } catch {
+        $appDomainId = ''
+        $appDomainName = ''
+    }
+
+    $processId = 0
+    try { $processId = [System.Diagnostics.Process]::GetCurrentProcess().Id } catch { $processId = 0 }
+
+    $threadId = 0
+    try { $threadId = [System.Threading.Thread]::CurrentThread.ManagedThreadId } catch { $threadId = 0 }
+
+    try {
+        TelemetryModule\Write-StTelemetryEvent -Name 'InterfaceSiteCacheSharedStore' -Payload @{
+            Site       = $SiteKey
+            Operation  = $Operation
+            RunspaceId = $runspaceId
+            EntryCount = $EntryCount
+            HostCount  = $HostCount
+            TotalRows  = $TotalRows
+            StoreHashCode = $StoreHashCode
+            AppDomainId   = $appDomainId
+            AppDomainName = $appDomainName
+            ProcessId     = $processId
+            ThreadId      = $threadId
+        }
+    } catch { }
+}
+
+function Publish-InterfaceSiteCacheReuseState {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$SiteKey,
+        [Parameter()][psobject]$Entry
+    )
+
+    $hostCount = 0
+    $totalRows = 0
+    $hostMapType = ''
+    $keysSample = ''
+    $entryType = ''
+
+    if ($Entry) {
+        try { $entryType = $Entry.GetType().FullName } catch { $entryType = '' }
+        $hostMap = $null
+        if ($Entry.PSObject.Properties.Name -contains 'HostMap') {
+            $hostMap = $Entry.HostMap
+        }
+
+        if ($hostMap) {
+            try { $hostMapType = $hostMap.GetType().FullName } catch { $hostMapType = '' }
+
+            if ($hostMap -is [System.Collections.IDictionary]) {
+                try { $hostCount = [int]$hostMap.Count } catch { $hostCount = 0 }
+
+                $sampleKeys = New-Object 'System.Collections.Generic.List[string]'
+                foreach ($key in @($hostMap.Keys)) {
+                    if ($sampleKeys.Count -ge 5) { break }
+                    if ($null -eq $key) { continue }
+                    $sampleKeys.Add(('' + $key)) | Out-Null
+
+                    $portCollection = $hostMap[$key]
+                    if ($portCollection -is [System.Collections.IDictionary] -or $portCollection -is [System.Collections.ICollection]) {
+                        try { $totalRows += [int]$portCollection.Count } catch { }
+                    }
+                }
+                if ($sampleKeys.Count -gt 0) {
+                    $keysSample = [string]::Join(',', $sampleKeys.ToArray())
+                }
+            } elseif ($hostMap -is [System.Collections.ICollection]) {
+                try { $hostCount = [int]$hostMap.Count } catch { $hostCount = 0 }
+            }
+        }
+
+        if (($Entry.PSObject.Properties.Name -contains 'TotalRows') -and (-not $totalRows -or $totalRows -le 0)) {
+            try { $totalRows = [int]$Entry.TotalRows } catch { }
+        }
+    }
+
+    try {
+        TelemetryModule\Write-StTelemetryEvent -Name 'InterfaceSiteCacheReuseState' -Payload @{
+            Site       = $SiteKey
+            HostCount  = $hostCount
+            TotalRows  = $totalRows
+            HostMapType= $hostMapType
+            KeysSample = $keysSample
+            EntryType  = $entryType
+        }
+    } catch { }
+}
+
+if (-not ('StateTrace.Models.InterfacePortRecord' -as [type])) {
+    Add-Type -TypeDefinition @"
+namespace StateTrace.Models
+{
+    public sealed class InterfacePortRecord
+    {
+        public string Hostname { get; set; }
+        public string Port { get; set; }
+        public string PortSort { get; set; }
+        public string Name { get; set; }
+        public string Status { get; set; }
+        public string VLAN { get; set; }
+        public string Duplex { get; set; }
+        public string Speed { get; set; }
+        public string Type { get; set; }
+        public string LearnedMACs { get; set; }
+        public string AuthState { get; set; }
+        public string AuthMode { get; set; }
+        public string AuthClientMAC { get; set; }
+        public string Site { get; set; }
+        public string Building { get; set; }
+        public string Room { get; set; }
+        public string Zone { get; set; }
+        public string AuthTemplate { get; set; }
+        public string Config { get; set; }
+        public string ConfigStatus { get; set; }
+        public string PortColor { get; set; }
+        public string ToolTip { get; set; }
+        public string CacheSignature { get; set; }
+        public bool IsSelected { get; set; }
+    }
+
+    public sealed class InterfaceTemplateHint
+    {
+        public string PortColor { get; set; }
+        public string ConfigStatus { get; set; }
+        public bool HasTemplate { get; set; }
+    }
+}
+"@ -Language CSharp
+}
+
+if (-not (Get-Variable -Scope Script -Name TemplateLookupCache -ErrorAction SilentlyContinue)) {
+    $script:TemplateLookupCache = New-Object 'System.Collections.Generic.Dictionary[string,object]' ([System.StringComparer]::OrdinalIgnoreCase)
+}
+if (-not (Get-Variable -Scope Script -Name TemplateHintCache -ErrorAction SilentlyContinue)) {
+    $script:TemplateHintCache = New-Object 'System.Collections.Generic.Dictionary[string,System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceTemplateHint]]' ([System.StringComparer]::OrdinalIgnoreCase)
+}
+
+if (-not ('StateTrace.Models.InterfaceCacheEntry' -as [type])) {
+    Add-Type -TypeDefinition @"
+namespace StateTrace.Models
+{
+    public sealed class InterfaceCacheEntry
+    {
+        public string Name { get; set; }
+        public string Status { get; set; }
+        public string VLAN { get; set; }
+        public string Duplex { get; set; }
+        public string Speed { get; set; }
+        public string Type { get; set; }
+        public string Learned { get; set; }
+        public string AuthState { get; set; }
+        public string AuthMode { get; set; }
+        public string AuthClient { get; set; }
+        public string Template { get; set; }
+        public string Config { get; set; }
+        public string PortColor { get; set; }
+        public string StatusTag { get; set; }
+        public string ToolTip { get; set; }
+        public string Signature { get; set; }
+    }
+}
+"@ -Language CSharp
+}
+
+if (-not ('StateTrace.Models.InterfacePortRecord' -as [type])) {
+    Add-Type -TypeDefinition @"
+namespace StateTrace.Models
+{
+    public sealed class InterfacePortRecord
+    {
+        public string Hostname { get; set; }
+        public string Port { get; set; }
+        public string PortSort { get; set; }
+        public string Name { get; set; }
+        public string Status { get; set; }
+        public string VLAN { get; set; }
+        public string Duplex { get; set; }
+        public string Speed { get; set; }
+        public string Type { get; set; }
+        public string LearnedMACs { get; set; }
+        public string AuthState { get; set; }
+        public string AuthMode { get; set; }
+        public string AuthClientMAC { get; set; }
+        public string Site { get; set; }
+        public string Building { get; set; }
+        public string Room { get; set; }
+        public string Zone { get; set; }
+        public string AuthTemplate { get; set; }
+        public string Config { get; set; }
+        public string ConfigStatus { get; set; }
+        public string PortColor { get; set; }
+        public string ToolTip { get; set; }
+        public string CacheSignature { get; set; }
+        public bool IsSelected { get; set; }
+    }
+
+    public sealed class InterfaceTemplateHint
+    {
+        public string PortColor { get; set; }
+        public string ConfigStatus { get; set; }
+        public bool HasTemplate { get; set; }
+    }
+}
+"@ -Language CSharp
+}
+
+if (-not (Get-Variable -Scope Script -Name TemplateLookupCache -ErrorAction SilentlyContinue)) {
+    $script:TemplateLookupCache = New-Object 'System.Collections.Generic.Dictionary[string,object]' ([System.StringComparer]::OrdinalIgnoreCase)
+}
+if (-not (Get-Variable -Scope Script -Name TemplateHintCache -ErrorAction SilentlyContinue)) {
+    $script:TemplateHintCache = New-Object 'System.Collections.Generic.Dictionary[string,System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceTemplateHint]]' ([System.StringComparer]::OrdinalIgnoreCase)
+}
+
+function script:Get-TemplateLookupForVendor {
+    param(
+        [Parameter(Mandatory)][string]$Vendor,
+        [Parameter(Mandatory)][string]$TemplatesPath
+    )
+
+    $vendorKey = if ([string]::IsNullOrWhiteSpace($Vendor)) { 'Cisco' } else { $Vendor }
+    $templatesRoot = $TemplatesPath
+    try { $templatesRoot = [System.IO.Path]::GetFullPath($TemplatesPath) } catch { }
+    $cacheKey = "{0}::{1}" -f $vendorKey, $templatesRoot
+
+    if ($script:TemplateLookupCache.ContainsKey($cacheKey)) {
+        return $script:TemplateLookupCache[$cacheKey]
+    }
+
+    $lookup = $null
+    try {
+        $templateData = TemplatesModule\Get-ConfigurationTemplateData -Vendor $vendorKey -TemplatesPath $TemplatesPath
+        if ($templateData -and $templateData.Exists -and $templateData.Lookup) {
+            $lookup = $templateData.Lookup
+        }
+    } catch {
+        $lookup = $null
+    }
+
+    $script:TemplateLookupCache[$cacheKey] = $lookup
+    return $lookup
+}
+
+function script:Get-TemplateHintCacheForVendor {
+    param(
+        [Parameter(Mandatory)][string]$Vendor,
+        [Parameter(Mandatory)][string]$TemplatesPath
+    )
+
+    $vendorKey = if ([string]::IsNullOrWhiteSpace($Vendor)) { 'Cisco' } else { $Vendor }
+    $templatesRoot = $TemplatesPath
+    try { $templatesRoot = [System.IO.Path]::GetFullPath($TemplatesPath) } catch { }
+    $cacheKey = "{0}::{1}" -f $vendorKey, $templatesRoot
+
+    $hintDictionary = $null
+    if ($script:TemplateHintCache.TryGetValue($cacheKey, [ref]$hintDictionary)) {
+        return $hintDictionary
+    }
+
+    $hintDictionary = New-Object 'System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceTemplateHint]' ([System.StringComparer]::OrdinalIgnoreCase)
+    $script:TemplateHintCache[$cacheKey] = $hintDictionary
+    return $hintDictionary
 }
 
 function Get-DataDirectoryPath {
@@ -120,11 +914,2048 @@ function Get-AllSiteDbPaths {
 function Clear-SiteInterfaceCache {
     [CmdletBinding()]
     param()
+
+    $storeKey = $script:SharedSiteInterfaceCacheKey
+    $store = Get-SharedSiteInterfaceCacheStore
+
     try {
         $script:SiteInterfaceCache = @{}
     } catch {
         Set-Variable -Name SiteInterfaceCache -Scope Script -Value @{}
     }
+    try {
+        $script:SiteInterfaceSignatureCache = @{}
+    } catch {
+        Set-Variable -Name SiteInterfaceSignatureCache -Scope Script -Value @{}
+    }
+    $script:LastInterfaceSiteCacheMetrics = $null
+
+    $targetStore = $script:SharedSiteInterfaceCache
+    if (-not ($targetStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]])) {
+        $targetStore = $store
+    }
+    $preClearHash = 0
+    $preClearCount = 0
+    if ($targetStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
+        try { $preClearHash = [System.Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($targetStore) } catch { $preClearHash = 0 }
+        try { $preClearCount = [int]$targetStore.Count } catch { $preClearCount = 0 }
+        Publish-SharedSiteInterfaceCacheStoreState -Operation 'ClearRequested' -EntryCount $preClearCount -StoreHashCode $preClearHash
+    }
+
+    if ($targetStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
+        try { $targetStore.Clear() } catch { }
+        $script:SharedSiteInterfaceCache = $targetStore
+    } else {
+        $script:SharedSiteInterfaceCache = Initialize-SharedSiteInterfaceCacheStore
+        if ($script:SharedSiteInterfaceCache -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
+            try { $script:SharedSiteInterfaceCache.Clear() } catch { }
+        }
+    }
+
+    if ($script:SharedSiteInterfaceCache -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
+        try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($script:SharedSiteInterfaceCache) } catch { }
+        try { [System.AppDomain]::CurrentDomain.SetData($storeKey, $script:SharedSiteInterfaceCache) } catch { }
+
+        $postClearHash = 0
+        $postClearCount = 0
+        try { $postClearHash = [System.Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($script:SharedSiteInterfaceCache) } catch { $postClearHash = 0 }
+        try { $postClearCount = [int]$script:SharedSiteInterfaceCache.Count } catch { $postClearCount = 0 }
+        Publish-SharedSiteInterfaceCacheStoreState -Operation 'Cleared' -EntryCount $postClearCount -StoreHashCode $postClearHash
+    } else {
+        try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::ClearStore() } catch { }
+    }
+}
+
+function Get-InterfaceSiteCacheSummary {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Site
+    )
+
+    $siteKey = ('' + $Site).Trim()
+    if ([string]::IsNullOrWhiteSpace($siteKey)) {
+        return [pscustomobject]@{
+            Site          = ''
+            CacheExists   = $false
+            CacheStatus   = ''
+            HostCount     = 0
+            TotalRows     = 0
+            CachedAt      = $null
+            HostMapType   = ''
+            EntryType     = ''
+        }
+    }
+
+    $entry = $null
+    if ($script:SiteInterfaceSignatureCache -and $script:SiteInterfaceSignatureCache.ContainsKey($siteKey)) {
+        $entry = $script:SiteInterfaceSignatureCache[$siteKey]
+    }
+
+    $cacheStatus = ''
+    $cachedAt = $null
+    $hostCount = 0
+    $totalRows = 0
+    $hostMapType = ''
+    $entryType = ''
+
+    if ($entry) {
+        if ($entry.PSObject.Properties.Name -contains 'CacheStatus') {
+            $cacheStatus = '' + $entry.CacheStatus
+        }
+        if ($entry.PSObject.Properties.Name -contains 'CachedAt') {
+            try { $cachedAt = [datetime]$entry.CachedAt } catch { $cachedAt = $null }
+        }
+        $entryType = $entry.GetType().FullName
+
+        $hostMap = $null
+        if ($entry.PSObject.Properties.Name -contains 'HostMap') {
+            $hostMap = $entry.HostMap
+        }
+
+        if ($hostMap -is [System.Collections.IDictionary]) {
+            $hostCount = $hostMap.Count
+            $hostMapType = $hostMap.GetType().FullName
+            $calculatedTotal = 0
+            foreach ($hostEntry in @($hostMap.GetEnumerator())) {
+                $portMap = $hostEntry.Value
+                if ($portMap -is [System.Collections.IDictionary] -or $portMap -is [System.Collections.ICollection]) {
+                    try { $calculatedTotal += $portMap.Count } catch { }
+                }
+            }
+            $totalRows = $calculatedTotal
+        } elseif ($hostMap) {
+            $hostMapType = $hostMap.GetType().FullName
+        }
+
+        if ($entry.PSObject.Properties.Name -contains 'HostCount') {
+            try {
+                $hostCount = [int]$entry.HostCount
+            } catch { }
+        }
+
+        if ($entry.PSObject.Properties.Name -contains 'TotalRows') {
+            try {
+                $totalRows = [int]$entry.TotalRows
+            } catch { }
+        }
+    }
+
+    return [pscustomobject]@{
+        Site        = $siteKey
+        CacheExists = [bool]$entry
+        CacheStatus = $cacheStatus
+        HostCount   = $hostCount
+        TotalRows   = $totalRows
+        CachedAt    = $cachedAt
+        HostMapType = $hostMapType
+        EntryType   = $entryType
+    }
+}
+
+function Test-IsAdodbConnectionInternal {
+    [CmdletBinding()]
+    param([Parameter()][object]$Connection)
+
+    if ($null -eq $Connection) { return $false }
+    if ($Connection -is [System.__ComObject]) { return $true }
+    try {
+        foreach ($name in $Connection.PSObject.TypeNames) {
+            if ($name -eq 'ADODB.Connection') { return $true }
+        }
+    } catch { }
+    return $false
+}
+
+function Invoke-WithAccessExclusiveRetry {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Context,
+        [Parameter(Mandatory)][ScriptBlock]$Operation,
+        [int]$MaxAttempts = 5,
+        [int]$RetryDelayMilliseconds = 100,
+        [ref]$TelemetrySink
+    )
+
+    $attempt = 0
+    $exclusiveRetryCount = 0
+    $totalWaitMilliseconds = 0.0
+    $operationStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    while ($attempt -lt $MaxAttempts) {
+        try {
+            $result = & $Operation
+            if ($operationStopwatch.IsRunning) { $operationStopwatch.Stop() }
+            if ($TelemetrySink) {
+                $TelemetrySink.Value = [PSCustomObject]@{
+                    Attempts                = $attempt + 1
+                    ExclusiveRetries        = $exclusiveRetryCount
+                    ExclusiveWaitDurationMs = [Math]::Round($totalWaitMilliseconds, 3)
+                    DurationMs              = [Math]::Round($operationStopwatch.Elapsed.TotalMilliseconds, 3)
+                    Succeeded               = $true
+                }
+            }
+            return $result
+        } catch {
+            $attempt++
+            $message = $_.Exception.Message
+            $hresultText = $null
+            try { $hresultText = ('0x{0:X8}' -f $_.Exception.HResult) } catch { $hresultText = $null }
+
+            $isExclusiveLock = $false
+            if ($message -and $message -match 'already opened exclusively') {
+                $isExclusiveLock = $true
+            }
+
+            if ($isExclusiveLock -and $attempt -lt $MaxAttempts) {
+                $delay = [Math]::Min(500, $RetryDelayMilliseconds * $attempt)
+                $totalWaitMilliseconds += $delay
+                $exclusiveRetryCount++
+                Start-Sleep -Milliseconds $delay
+                continue
+            }
+
+            if ($TelemetrySink) {
+                if ($operationStopwatch.IsRunning) { $operationStopwatch.Stop() }
+                $TelemetrySink.Value = [PSCustomObject]@{
+                    Attempts                = $attempt
+                    ExclusiveRetries        = $exclusiveRetryCount
+                    ExclusiveWaitDurationMs = [Math]::Round($totalWaitMilliseconds, 3)
+                    DurationMs              = [Math]::Round($operationStopwatch.Elapsed.TotalMilliseconds, 3)
+                    Succeeded               = $false
+                    Message                 = $message
+                    Context                 = $Context
+                }
+            }
+
+            $detailParts = @()
+            if ($message) { $detailParts += $message }
+            if ($hresultText) { $detailParts += "HRESULT=$hresultText" }
+            $detailText = if ($detailParts.Count -gt 0) { [string]::Join(' ; ', $detailParts) } else { 'No diagnostic details available.' }
+            Write-Warning ("{0}: {1}" -f $Context, $detailText)
+            break
+        }
+    }
+
+    if ($TelemetrySink -and -not $TelemetrySink.Value) {
+        if ($operationStopwatch.IsRunning) { $operationStopwatch.Stop() }
+        $TelemetrySink.Value = [PSCustomObject]@{
+            Attempts                = $attempt
+            ExclusiveRetries        = $exclusiveRetryCount
+            ExclusiveWaitDurationMs = [Math]::Round($totalWaitMilliseconds, 3)
+            DurationMs              = [Math]::Round($operationStopwatch.Elapsed.TotalMilliseconds, 3)
+            Succeeded               = $false
+        }
+    }
+
+    return $null
+}
+
+function ConvertTo-InterfaceCacheSignature {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][System.Collections.IEnumerable]$Values
+    )
+
+    $builder = New-Object System.Text.StringBuilder
+    $first = $true
+    foreach ($rawValue in $Values) {
+        if (-not $first) {
+            [void]$builder.Append('|')
+        } else {
+            $first = $false
+        }
+
+        $text = ''
+        if ($null -ne $rawValue -and $rawValue -ne [System.DBNull]::Value) {
+            $text = '' + $rawValue
+        }
+        [void]$builder.Append($text)
+    }
+
+    return $builder.ToString()
+}
+
+function ConvertTo-InterfaceCacheEntryObject {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][object]$InputObject
+    )
+
+    if ($null -eq $InputObject) { return $null }
+
+    if ($InputObject -is [StateTrace.Models.InterfaceCacheEntry]) {
+        return $InputObject
+    }
+
+    $getRawValue = {
+        param(
+            [object]$Source,
+            [string[]]$CandidateNames
+        )
+
+        if ($null -eq $Source) { return $null }
+
+        foreach ($candidate in $CandidateNames) {
+            if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
+
+            if ($Source -is [System.Collections.IDictionary]) {
+                if ($Source.Contains($candidate)) {
+                    return $Source[$candidate]
+                }
+            }
+
+            $psObject = $null
+            try { $psObject = $Source.PSObject } catch { $psObject = $null }
+            if ($psObject) {
+                $prop = $psObject.Properties[$candidate]
+                if ($prop) { return $prop.Value }
+            }
+
+            try {
+                $propertyInfo = $Source.GetType().GetProperty($candidate)
+                if ($propertyInfo -and $propertyInfo.CanRead) {
+                    return $propertyInfo.GetValue($Source, $null)
+                }
+            } catch { }
+        }
+
+        return $null
+    }
+
+    $toString = {
+        param($Value)
+        if ($null -eq $Value -or $Value -eq [System.DBNull]::Value) { return '' }
+        return '' + $Value
+    }
+
+    $nameValue = & $toString (& $getRawValue $InputObject @('Name'))
+    $statusValue = & $toString (& $getRawValue $InputObject @('Status'))
+    $vlanValue = & $toString (& $getRawValue $InputObject @('VLAN', 'Vlan'))
+    $duplexValue = & $toString (& $getRawValue $InputObject @('Duplex'))
+    $speedValue = & $toString (& $getRawValue $InputObject @('Speed'))
+    $typeValue = & $toString (& $getRawValue $InputObject @('Type'))
+
+    $rawLearned = & $getRawValue $InputObject @('Learned', 'LearnedMACs')
+    if ($null -eq $rawLearned -or $rawLearned -eq [System.DBNull]::Value) {
+        $learnedValue = ''
+    } elseif ($rawLearned -is [string]) {
+        $learnedValue = $rawLearned
+    } elseif ($rawLearned -is [System.Collections.IEnumerable] -and -not ($rawLearned -is [string])) {
+        $macList = New-Object 'System.Collections.Generic.List[string]'
+        foreach ($mac in $rawLearned) {
+            if ($mac) { $macList.Add(('' + $mac)) | Out-Null }
+        }
+        $learnedValue = [string]::Join(',', $macList.ToArray())
+    } else {
+        $learnedValue = '' + $rawLearned
+    }
+
+    $authStateValue = & $toString (& $getRawValue $InputObject @('AuthState'))
+    $authModeValue = & $toString (& $getRawValue $InputObject @('AuthMode'))
+    $authClientValue = & $toString (& $getRawValue $InputObject @('AuthClient', 'AuthClientMAC', 'AuthClientMac'))
+    $templateValue = & $toString (& $getRawValue $InputObject @('Template', 'AuthTemplate'))
+    $configValue = & $toString (& $getRawValue $InputObject @('Config'))
+    $portColorValue = & $toString (& $getRawValue $InputObject @('PortColor'))
+    $statusTagValue = & $toString (& $getRawValue $InputObject @('StatusTag', 'ConfigStatus'))
+    $toolTipValue = & $toString (& $getRawValue $InputObject @('ToolTip'))
+
+    $signatureValue = $null
+    $rawSignature = & $getRawValue $InputObject @('Signature', 'CacheSignature')
+    if ($null -ne $rawSignature -and $rawSignature -ne [System.DBNull]::Value) {
+        $signatureValue = '' + $rawSignature
+    }
+    if ([string]::IsNullOrWhiteSpace($signatureValue)) {
+        $signatureValue = ConvertTo-InterfaceCacheSignature -Values @(
+            $nameValue,
+            $statusValue,
+            $vlanValue,
+            $duplexValue,
+            $speedValue,
+            $typeValue,
+            $learnedValue,
+            $authStateValue,
+            $authModeValue,
+            $authClientValue,
+            $templateValue,
+            $configValue,
+            $portColorValue,
+            $statusTagValue,
+            $toolTipValue
+        )
+    }
+
+    $entry = [StateTrace.Models.InterfaceCacheEntry]::new()
+    $entry.Name = $nameValue
+    $entry.Status = $statusValue
+    $entry.VLAN = $vlanValue
+    $entry.Duplex = $duplexValue
+    $entry.Speed = $speedValue
+    $entry.Type = $typeValue
+    $entry.Learned = $learnedValue
+    $entry.AuthState = $authStateValue
+    $entry.AuthMode = $authModeValue
+    $entry.AuthClient = $authClientValue
+    $entry.Template = $templateValue
+    $entry.Config = $configValue
+    $entry.PortColor = $portColorValue
+    $entry.StatusTag = $statusTagValue
+    $entry.ToolTip = $toolTipValue
+    $entry.Signature = $signatureValue
+
+    return $entry
+}
+
+function Get-InterfaceSiteCache {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Site,
+        [switch]$Refresh,
+        [object]$Connection
+    )
+
+    $siteKey = ('' + $Site).Trim()
+    if ([string]::IsNullOrWhiteSpace($siteKey)) {
+        $script:LastInterfaceSiteCacheMetrics = $null
+        return $null
+    }
+
+    $metrics = [pscustomobject]@{
+        Site                     = $siteKey
+        CacheStatus              = 'Unknown'
+        Refreshed                = [bool]$Refresh
+        HydrationDurationMs      = 0.0
+        HydrationSnapshotMs      = 0.0
+        HydrationBuildMs         = 0.0
+        HydrationHostMapDurationMs = 0.0
+        HydrationHostMapSignatureMatchCount   = 0L
+        HydrationHostMapSignatureRewriteCount = 0L
+        HydrationHostMapEntryAllocationCount  = 0L
+        HydrationHostMapEntryPoolReuseCount   = 0L
+        HydrationSortDurationMs   = 0.0
+        HydrationQueryDurationMs      = 0.0
+        HydrationExecuteDurationMs    = 0.0
+        HydrationHostMapLookupCount             = 0L
+        HydrationHostMapLookupMissCount         = 0L
+        HydrationHostMapCandidateMissingCount   = 0L
+        HydrationHostMapCandidateSignatureMissingCount = 0L
+        HydrationHostMapCandidateSignatureMismatchCount = 0L
+        HydrationHostMapCandidateFromPreviousCount      = 0L
+        HydrationHostMapCandidateFromPoolCount          = 0L
+        HydrationHostMapCandidateInvalidCount           = 0L
+        HydrationHostMapSignatureMismatchSamples        = @()
+        HydrationHostMapCandidateMissingSamples         = @()
+        HydrationPreviousHostCount        = 0
+        HydrationPreviousPortCount        = 0
+        HydrationPreviousHostSample       = ''
+        HydrationPreviousSnapshotStatus      = 'CacheEntryMissing'
+        HydrationPreviousSnapshotHostMapType = ''
+        HydrationPreviousSnapshotHostCount   = 0
+        HydrationPreviousSnapshotPortCount   = 0
+        HydrationPreviousSnapshotException   = ''
+        HydrationMaterializeDurationMs= 0.0
+        HydrationMaterializeProjectionDurationMs = 0.0
+        HydrationMaterializePortSortDurationMs   = 0.0
+        HydrationMaterializePortSortCacheHits    = 0
+        HydrationMaterializePortSortCacheMisses  = 0
+        HydrationMaterializePortSortCacheSize    = 0
+        HydrationMaterializeTemplateDurationMs   = 0.0
+        HydrationMaterializeObjectDurationMs     = 0.0
+        HydrationTemplateDurationMs   = 0.0
+        HydrationQueryAttempts        = 0
+        HydrationExclusiveRetryCount  = 0
+        HydrationExclusiveWaitDurationMs = 0.0
+        HydrationProvider             = 'Unknown'
+        HydrationResultRowCount       = 0
+        HostCount                = 0
+        TotalRows                = 0
+        CachedAt                 = $null
+        Timestamp                = Get-Date
+    }
+    $hydrationDetail = $null
+    $previousSignatureEntry = $null
+    $scriptCacheEntryFound = $false
+    $scriptCacheStats = $null
+    if ($script:SiteInterfaceSignatureCache -and $script:SiteInterfaceSignatureCache.ContainsKey($siteKey)) {
+        $scriptCacheEntryFound = $true
+        try {
+            $scriptCacheCandidate = $script:SiteInterfaceSignatureCache[$siteKey]
+            if ($scriptCacheCandidate) {
+                $scriptCacheStats = Get-SharedSiteInterfaceCacheEntryStatistics -Entry $scriptCacheCandidate
+            }
+        } catch {
+            $scriptCacheStats = $null
+        }
+    }
+    if ($script:SiteInterfaceSignatureCache.ContainsKey($siteKey)) {
+        $previousSignatureEntry = $script:SiteInterfaceSignatureCache[$siteKey]
+    }
+    $sharedStoreEntryFound = $false
+    $sharedStoreStats = $null
+    $adoptedFromSharedStore = $false
+    if (-not $previousSignatureEntry) {
+        $sharedEntry = Get-SharedSiteInterfaceCacheEntry -SiteKey $siteKey
+        if ($sharedEntry) {
+            $sharedStoreEntryFound = $true
+            try { $sharedStoreStats = Get-SharedSiteInterfaceCacheEntryStatistics -Entry $sharedEntry } catch { $sharedStoreStats = $null }
+            if (-not ($sharedEntry.PSObject.Properties.Name -contains 'CacheStatus')) {
+                $sharedEntry | Add-Member -NotePropertyName 'CacheStatus' -NotePropertyValue 'Hit' -Force
+            } elseif ([string]::IsNullOrWhiteSpace(('' + $sharedEntry.CacheStatus))) {
+                $sharedEntry.CacheStatus = 'Hit'
+            }
+            $script:SiteInterfaceSignatureCache[$siteKey] = $sharedEntry
+            $previousSignatureEntry = $sharedEntry
+            $adoptedFromSharedStore = $true
+        }
+    }
+    try {
+        $reusePayload = @{
+            Site                     = $siteKey
+            Refresh                  = [bool]$Refresh
+            ScriptCacheEntryFound    = $scriptCacheEntryFound
+            SharedStoreEntryFound    = $sharedStoreEntryFound
+            AdoptedFromSharedStore   = $adoptedFromSharedStore
+        }
+        $currentRunspace = $null
+        try { $currentRunspace = [System.Management.Automation.Runspaces.Runspace]::DefaultRunspace } catch { $currentRunspace = $null }
+        if ($currentRunspace) {
+            try { $reusePayload.RunspaceId = $currentRunspace.InstanceId.ToString() } catch { }
+        }
+        if ($scriptCacheStats) {
+            $reusePayload.ScriptCacheHostCount  = [int]$scriptCacheStats.HostCount
+            $reusePayload.ScriptCacheTotalRows  = [int]$scriptCacheStats.TotalRows
+        }
+        if ($sharedStoreStats) {
+            $reusePayload.SharedStoreHostCount  = [int]$sharedStoreStats.HostCount
+            $reusePayload.SharedStoreTotalRows  = [int]$sharedStoreStats.TotalRows
+        }
+        TelemetryModule\Write-StTelemetryEvent -Name 'InterfaceSiteCacheReuseAttempt' -Payload $reusePayload
+    } catch { }
+
+    $previousSnapshotStatus = 'CacheEntryMissing'
+    $previousSnapshotHostMapType = ''
+    $previousSnapshotHostCount = 0
+    $previousSnapshotPortCount = 0
+    $previousSnapshotException = ''
+
+    if (-not $Refresh -and $previousSignatureEntry) {
+        $cachedEntry = $previousSignatureEntry
+        if ($cachedEntry) {
+            $metrics.CacheStatus = 'Hit'
+            $metrics.HydrationProvider = 'Cache'
+            if ($cachedEntry.PSObject.Properties.Name -contains 'TotalRows') {
+                $metrics.TotalRows = [int]$cachedEntry.TotalRows
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HostMap') {
+                $hostMapRef = $cachedEntry.HostMap
+                if ($hostMapRef -is [System.Collections.IDictionary]) {
+                    $metrics.HostCount = $hostMapRef.Count
+                }
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationDurationMs') {
+                $metrics.HydrationDurationMs = [double]$cachedEntry.HydrationDurationMs
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationSnapshotDurationMs') {
+                $metrics.HydrationSnapshotMs = [double]$cachedEntry.HydrationSnapshotDurationMs
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationBuildDurationMs') {
+                $metrics.HydrationBuildMs = [double]$cachedEntry.HydrationBuildDurationMs
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationHostMapDurationMs') {
+                $metrics.HydrationHostMapDurationMs = [double]$cachedEntry.HydrationHostMapDurationMs
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationHostMapSignatureMatchCount') {
+                $metrics.HydrationHostMapSignatureMatchCount = [long]$cachedEntry.HydrationHostMapSignatureMatchCount
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationHostMapSignatureRewriteCount') {
+                $metrics.HydrationHostMapSignatureRewriteCount = [long]$cachedEntry.HydrationHostMapSignatureRewriteCount
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationHostMapEntryAllocationCount') {
+                $metrics.HydrationHostMapEntryAllocationCount = [long]$cachedEntry.HydrationHostMapEntryAllocationCount
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationHostMapEntryPoolReuseCount') {
+                $metrics.HydrationHostMapEntryPoolReuseCount = [long]$cachedEntry.HydrationHostMapEntryPoolReuseCount
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationHostMapLookupCount') {
+                $metrics.HydrationHostMapLookupCount = [long]$cachedEntry.HydrationHostMapLookupCount
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationHostMapLookupMissCount') {
+                $metrics.HydrationHostMapLookupMissCount = [long]$cachedEntry.HydrationHostMapLookupMissCount
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationHostMapCandidateMissingCount') {
+                $metrics.HydrationHostMapCandidateMissingCount = [long]$cachedEntry.HydrationHostMapCandidateMissingCount
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationHostMapCandidateSignatureMissingCount') {
+                $metrics.HydrationHostMapCandidateSignatureMissingCount = [long]$cachedEntry.HydrationHostMapCandidateSignatureMissingCount
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationHostMapCandidateSignatureMismatchCount') {
+                $metrics.HydrationHostMapCandidateSignatureMismatchCount = [long]$cachedEntry.HydrationHostMapCandidateSignatureMismatchCount
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationHostMapCandidateFromPreviousCount') {
+                $metrics.HydrationHostMapCandidateFromPreviousCount = [long]$cachedEntry.HydrationHostMapCandidateFromPreviousCount
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationHostMapCandidateFromPoolCount') {
+                $metrics.HydrationHostMapCandidateFromPoolCount = [long]$cachedEntry.HydrationHostMapCandidateFromPoolCount
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationHostMapCandidateInvalidCount') {
+                $metrics.HydrationHostMapCandidateInvalidCount = [long]$cachedEntry.HydrationHostMapCandidateInvalidCount
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationSortDurationMs') {
+                $metrics.HydrationSortDurationMs = [double]$cachedEntry.HydrationSortDurationMs
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationQueryDurationMs') {
+                $metrics.HydrationQueryDurationMs = [double]$cachedEntry.HydrationQueryDurationMs
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationExecuteDurationMs') {
+                $metrics.HydrationExecuteDurationMs = [double]$cachedEntry.HydrationExecuteDurationMs
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationMaterializeDurationMs') {
+                $metrics.HydrationMaterializeDurationMs = [double]$cachedEntry.HydrationMaterializeDurationMs
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationMaterializeProjectionDurationMs') {
+                $metrics.HydrationMaterializeProjectionDurationMs = [double]$cachedEntry.HydrationMaterializeProjectionDurationMs
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationMaterializePortSortDurationMs') {
+                $metrics.HydrationMaterializePortSortDurationMs = [double]$cachedEntry.HydrationMaterializePortSortDurationMs
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationMaterializePortSortCacheHits') {
+                $metrics.HydrationMaterializePortSortCacheHits = [long]$cachedEntry.HydrationMaterializePortSortCacheHits
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationMaterializePortSortCacheMisses') {
+                $metrics.HydrationMaterializePortSortCacheMisses = [long]$cachedEntry.HydrationMaterializePortSortCacheMisses
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationMaterializePortSortCacheSize') {
+                $metrics.HydrationMaterializePortSortCacheSize = [long]$cachedEntry.HydrationMaterializePortSortCacheSize
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateDurationMs') {
+                $metrics.HydrationMaterializeTemplateDurationMs = [double]$cachedEntry.HydrationMaterializeTemplateDurationMs
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationMaterializeObjectDurationMs') {
+                $metrics.HydrationMaterializeObjectDurationMs = [double]$cachedEntry.HydrationMaterializeObjectDurationMs
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationTemplateDurationMs') {
+                $metrics.HydrationTemplateDurationMs = [double]$cachedEntry.HydrationTemplateDurationMs
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationQueryAttempts') {
+                $metrics.HydrationQueryAttempts = [int]$cachedEntry.HydrationQueryAttempts
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationExclusiveRetryCount') {
+                $metrics.HydrationExclusiveRetryCount = [int]$cachedEntry.HydrationExclusiveRetryCount
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationExclusiveWaitDurationMs') {
+                $metrics.HydrationExclusiveWaitDurationMs = [double]$cachedEntry.HydrationExclusiveWaitDurationMs
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationProvider') {
+                $providerValue = '' + $cachedEntry.HydrationProvider
+                if (-not [string]::IsNullOrWhiteSpace($providerValue)) {
+                    $metrics.HydrationProvider = $providerValue
+                }
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationHostMapSignatureMismatchSamples') {
+                $samplesValue = $cachedEntry.HydrationHostMapSignatureMismatchSamples
+                if ($null -ne $samplesValue) {
+                    if ($samplesValue -is [System.Collections.IEnumerable] -and -not ($samplesValue -is [string])) {
+                        $sampleList = New-Object 'System.Collections.Generic.List[object]'
+                        foreach ($sample in $samplesValue) {
+                            $sampleList.Add($sample) | Out-Null
+                        }
+                        $metrics.HydrationHostMapSignatureMismatchSamples = @($sampleList.ToArray())
+                    } else {
+                        $metrics.HydrationHostMapSignatureMismatchSamples = @($samplesValue)
+                    }
+                } else {
+                    $metrics.HydrationHostMapSignatureMismatchSamples = @()
+                }
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationHostMapCandidateMissingSamples') {
+                $samplesValue = $cachedEntry.HydrationHostMapCandidateMissingSamples
+                if ($null -ne $samplesValue) {
+                    if ($samplesValue -is [System.Collections.IEnumerable] -and -not ($samplesValue -is [string])) {
+                        $sampleList = New-Object 'System.Collections.Generic.List[object]'
+                        foreach ($sample in $samplesValue) {
+                            $sampleList.Add($sample) | Out-Null
+                        }
+                        $metrics.HydrationHostMapCandidateMissingSamples = @($sampleList.ToArray())
+                    } else {
+                        $metrics.HydrationHostMapCandidateMissingSamples = @($samplesValue)
+                    }
+                } else {
+                    $metrics.HydrationHostMapCandidateMissingSamples = @()
+                }
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationPreviousHostCount') {
+                try { $metrics.HydrationPreviousHostCount = [int]$cachedEntry.HydrationPreviousHostCount } catch { $metrics.HydrationPreviousHostCount = 0 }
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationPreviousPortCount') {
+                try { $metrics.HydrationPreviousPortCount = [int]$cachedEntry.HydrationPreviousPortCount } catch { $metrics.HydrationPreviousPortCount = 0 }
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationPreviousHostSample') {
+                $metrics.HydrationPreviousHostSample = '' + $cachedEntry.HydrationPreviousHostSample
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationPreviousSnapshotStatus') {
+                $metrics.HydrationPreviousSnapshotStatus = '' + $cachedEntry.HydrationPreviousSnapshotStatus
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationPreviousSnapshotHostMapType') {
+                $metrics.HydrationPreviousSnapshotHostMapType = '' + $cachedEntry.HydrationPreviousSnapshotHostMapType
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationPreviousSnapshotHostCount') {
+                try { $metrics.HydrationPreviousSnapshotHostCount = [int]$cachedEntry.HydrationPreviousSnapshotHostCount } catch { $metrics.HydrationPreviousSnapshotHostCount = 0 }
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationPreviousSnapshotPortCount') {
+                try { $metrics.HydrationPreviousSnapshotPortCount = [int]$cachedEntry.HydrationPreviousSnapshotPortCount } catch { $metrics.HydrationPreviousSnapshotPortCount = 0 }
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationPreviousSnapshotException') {
+                $metrics.HydrationPreviousSnapshotException = '' + $cachedEntry.HydrationPreviousSnapshotException
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationResultRowCount') {
+                $metrics.HydrationResultRowCount = [int]$cachedEntry.HydrationResultRowCount
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'CachedAt') {
+                $metrics.CachedAt = $cachedEntry.CachedAt
+            }
+        } else {
+            $metrics.CacheStatus = 'Hit'
+            $metrics.HydrationProvider = 'Cache'
+        }
+
+        $reuseHostCount = 0
+        $reusePortCount = 0
+        $reuseHostSampleValues = New-Object 'System.Collections.Generic.List[string]'
+        $cachedHostMap = $null
+        $cachedHostMapType = ''
+        if ($cachedEntry -and $cachedEntry.PSObject.Properties.Name -contains 'HostMap') {
+            $cachedHostMap = $cachedEntry.HostMap
+        }
+        if ($cachedHostMap) {
+            try { $cachedHostMapType = '' + $cachedHostMap.GetType().FullName } catch { $cachedHostMapType = '' }
+        }
+        if ($cachedHostMap -is [System.Collections.IDictionary]) {
+            foreach ($hostKeyCandidate in @($cachedHostMap.Keys)) {
+                $normalizedHostKey = if ($hostKeyCandidate) { ('' + $hostKeyCandidate).Trim() } else { '' }
+                if ([string]::IsNullOrWhiteSpace($normalizedHostKey)) { continue }
+                if ($reuseHostSampleValues.Count -lt 5) {
+                    $reuseHostSampleValues.Add($normalizedHostKey) | Out-Null
+                }
+                $reuseHostCount++
+                $portEntries = $cachedHostMap[$hostKeyCandidate]
+                if ($portEntries -is [System.Collections.IDictionary]) {
+                    try { $reusePortCount += [int]$portEntries.Count } catch { }
+                } elseif ($portEntries -is [System.Collections.ICollection]) {
+                    try { $reusePortCount += [int]$portEntries.Count } catch { }
+                }
+            }
+        } elseif ($cachedHostMap -is [System.Collections.ICollection]) {
+            foreach ($entry in $cachedHostMap) {
+                if ($entry) { $reusePortCount++ }
+            }
+        }
+
+        $metrics.CacheStatus = 'Hit'
+        $metrics.HydrationProvider = 'Cache'
+        $metrics.HydrationDurationMs = 0.0
+        $metrics.HydrationSnapshotMs = 0.0
+        $metrics.HydrationBuildMs = 0.0
+        $metrics.HydrationHostMapDurationMs = 0.0
+        $metrics.HydrationHostMapSignatureMatchCount = [long][Math]::Max(0, $reusePortCount)
+        $metrics.HydrationHostMapSignatureRewriteCount = 0L
+        $metrics.HydrationHostMapEntryAllocationCount = 0L
+        $metrics.HydrationHostMapEntryPoolReuseCount = 0L
+        $metrics.HydrationHostMapLookupCount = [long][Math]::Max(0, $reusePortCount)
+        $metrics.HydrationHostMapLookupMissCount = 0L
+        $metrics.HydrationHostMapCandidateMissingCount = 0L
+        $metrics.HydrationHostMapCandidateSignatureMissingCount = 0L
+        $metrics.HydrationHostMapCandidateSignatureMismatchCount = 0L
+        $metrics.HydrationHostMapCandidateFromPreviousCount = [long][Math]::Max(0, $reusePortCount)
+        $metrics.HydrationHostMapCandidateFromPoolCount = 0L
+        $metrics.HydrationHostMapCandidateInvalidCount = 0L
+        $metrics.HydrationHostMapCandidateMissingSamples = @()
+        $metrics.HydrationHostMapSignatureMismatchSamples = @()
+        $metrics.HydrationSortDurationMs = 0.0
+        $metrics.HydrationQueryDurationMs = 0.0
+        $metrics.HydrationExecuteDurationMs = 0.0
+        $metrics.HydrationMaterializeDurationMs = 0.0
+        $metrics.HydrationMaterializeProjectionDurationMs = 0.0
+        $metrics.HydrationMaterializePortSortDurationMs = 0.0
+        $metrics.HydrationMaterializePortSortCacheHits = 0L
+        $metrics.HydrationMaterializePortSortCacheMisses = 0L
+        $metrics.HydrationMaterializePortSortCacheSize = 0L
+        $metrics.HydrationMaterializeTemplateDurationMs = 0.0
+        $metrics.HydrationMaterializeObjectDurationMs = 0.0
+        $metrics.HydrationTemplateDurationMs = 0.0
+        $metrics.HydrationQueryAttempts = 0
+        $metrics.HydrationExclusiveRetryCount = 0
+        $metrics.HydrationExclusiveWaitDurationMs = 0.0
+        if ($reusePortCount -gt 0) {
+            $metrics.HydrationResultRowCount = [int]$reusePortCount
+        } else {
+            $metrics.HydrationResultRowCount = 0
+        }
+        $metrics.HydrationPreviousHostCount = [int][Math]::Max(0, $reuseHostCount)
+        $metrics.HydrationPreviousPortCount = [int][Math]::Max(0, $reusePortCount)
+        $metrics.HydrationPreviousHostSample = if ($reuseHostSampleValues.Count -gt 0) { [string]::Join(',', $reuseHostSampleValues.ToArray()) } else { '' }
+        $metrics.HydrationPreviousSnapshotStatus = 'CacheHit'
+        $metrics.HydrationPreviousSnapshotHostMapType = $cachedHostMapType
+        $metrics.HydrationPreviousSnapshotHostCount = [int][Math]::Max(0, $reuseHostCount)
+        $metrics.HydrationPreviousSnapshotPortCount = [int][Math]::Max(0, $reusePortCount)
+        $metrics.HydrationPreviousSnapshotException = ''
+        $metrics.TotalRows = [int][Math]::Max(0, $reusePortCount)
+        $metrics.HostCount = [int][Math]::Max(0, $reuseHostCount)
+
+        $hostMapForTotals = $null
+        if ($cachedEntry -and $cachedEntry.PSObject.Properties.Name -contains 'HostMap') {
+            $hostMapForTotals = $cachedEntry.HostMap
+        }
+
+        $hostCount = 0
+        if ($metrics.HostCount -gt 0) {
+            $hostCount = [int]$metrics.HostCount
+        } elseif ($cachedEntry -and $cachedEntry.PSObject.Properties.Name -contains 'HostCount') {
+            try { $hostCount = [int]$cachedEntry.HostCount } catch { $hostCount = 0 }
+        } elseif ($hostMapForTotals -is [System.Collections.IDictionary]) {
+            try { $hostCount = [int]$hostMapForTotals.Count } catch { $hostCount = 0 }
+        }
+
+        $totalRows = 0
+        if ($metrics.TotalRows -gt 0) {
+            $totalRows = [int]$metrics.TotalRows
+        } elseif ($cachedEntry -and $cachedEntry.PSObject.Properties.Name -contains 'TotalRows') {
+            try { $totalRows = [int]$cachedEntry.TotalRows } catch { $totalRows = 0 }
+        } elseif ($hostMapForTotals -is [System.Collections.IDictionary]) {
+            foreach ($hostEntry in @($hostMapForTotals.GetEnumerator())) {
+                $portMap = $hostEntry.Value
+                if ($portMap -is [System.Collections.ICollection]) {
+                    $totalRows += $portMap.Count
+                } elseif ($portMap -is [System.Collections.IDictionary]) {
+                    $totalRows += $portMap.Count
+                }
+            }
+        }
+
+        if ($metrics.HydrationResultRowCount -le 0 -and $totalRows -gt 0) {
+            $metrics.HydrationResultRowCount = $totalRows
+        }
+        $metrics.HostCount = $hostCount
+        $metrics.TotalRows = $totalRows
+
+        $script:LastInterfaceSiteCacheMetrics = $metrics
+        Publish-InterfaceSiteCacheTelemetry -SiteKey $siteKey -Metrics $metrics -HostCount $hostCount -TotalRows $totalRows -Refreshed ([bool]$Refresh)
+        Publish-InterfaceSiteCacheReuseState -SiteKey $siteKey -Entry $cachedEntry
+        return $cachedEntry
+    }
+
+    $hydrateStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    $snapshot = $null
+    $snapshotStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    try {
+        $snapshot = Get-InterfacesForSite -Site $siteKey
+    } catch {
+        $snapshot = $null
+    } finally {
+        $snapshotStopwatch.Stop()
+    }
+    try {
+        $hydrationDetail = Get-LastInterfaceSiteHydrationMetrics
+    } catch {
+        $hydrationDetail = $null
+    }
+    $snapshotDurationMs = [Math]::Round($snapshotStopwatch.Elapsed.TotalMilliseconds, 3)
+
+    $hostDictionaryPool = [System.Collections.Stack]::new()
+    $entryPool = [System.Collections.Stack]::new()
+    $previousHostEntries = $null
+    $previousHostSignatureSnapshot = $null
+    $previousHostEntryCount = 0
+    $previousHostPortCount = 0
+    $previousHostSampleValues = New-Object 'System.Collections.Generic.List[string]'
+    $hostMap = $null
+    if ($previousSignatureEntry) {
+        $previousSnapshotStatus = 'HostMapMissing'
+    }
+
+    if ($previousSignatureEntry -and $previousSignatureEntry.PSObject.Properties.Name -contains 'HostMap') {
+        $existingHostMap = $previousSignatureEntry.HostMap
+        if ($existingHostMap) {
+            try { $previousSnapshotHostMapType = '' + $existingHostMap.GetType().FullName } catch { $previousSnapshotHostMapType = '' }
+        }
+        if ($existingHostMap -is [System.Collections.IDictionary]) {
+            try { $previousSnapshotHostCount = [int]$existingHostMap.Count } catch { $previousSnapshotHostCount = 0 }
+            $previousHostEntries = New-Object 'System.Collections.Generic.Dictionary[string,System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceCacheEntry]]' ([System.StringComparer]::OrdinalIgnoreCase)
+            $previousHostSignatureSnapshot = New-Object 'System.Collections.Generic.Dictionary[string,System.Collections.Generic.Dictionary[string,string]]' ([System.StringComparer]::OrdinalIgnoreCase)
+            try {
+                $previousSnapshotStatus = 'Enumerating'
+                foreach ($existingHostEntry in @($existingHostMap.GetEnumerator())) {
+                    $existingHostKey = if ($existingHostEntry.Key) { ('' + $existingHostEntry.Key).Trim() } else { '' }
+                    if ([string]::IsNullOrWhiteSpace($existingHostKey)) { continue }
+                    $existingPortMap = $existingHostEntry.Value
+                    if ($existingPortMap -is [System.Collections.IDictionary]) {
+                        try {
+                            $previousSnapshotPortCount += [int]$existingPortMap.Count
+                        } catch { }
+                    } elseif ($existingPortMap -is [System.Collections.ICollection]) {
+                        try {
+                            $previousSnapshotPortCount += [int]$existingPortMap.Count
+                        } catch { }
+                    }
+                    if ($existingPortMap -is [System.Collections.IDictionary]) {
+                        $portEntries = New-Object 'System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceCacheEntry]' ([System.StringComparer]::OrdinalIgnoreCase)
+                        $signatureEntries = New-Object 'System.Collections.Generic.Dictionary[string,string]' ([System.StringComparer]::OrdinalIgnoreCase)
+                        foreach ($existingPortEntry in @($existingPortMap.GetEnumerator())) {
+                            $existingPortKey = if ($existingPortEntry.Key) { ('' + $existingPortEntry.Key).Trim() } else { '' }
+                            if ([string]::IsNullOrWhiteSpace($existingPortKey)) { continue }
+                            $previousEntry = $existingPortEntry.Value
+                            $typedPreviousEntry = $null
+                            if ($previousEntry -is [StateTrace.Models.InterfaceCacheEntry]) {
+                                $typedPreviousEntry = $previousEntry
+                            } elseif ($null -ne $previousEntry) {
+                                try {
+                                    $typedPreviousEntry = ConvertTo-InterfaceCacheEntryObject -InputObject $previousEntry
+                                } catch {
+                                    $typedPreviousEntry = $null
+                                }
+                            }
+                            if ($typedPreviousEntry) {
+                                $portEntries[$existingPortKey] = $typedPreviousEntry
+                                if ($null -ne $typedPreviousEntry.Signature) {
+                                    $signatureEntries[$existingPortKey] = '' + $typedPreviousEntry.Signature
+                                } else {
+                                    $signatureEntries[$existingPortKey] = $null
+                                }
+                            }
+                        }
+                        if ($portEntries.Count -gt 0) {
+                            $previousHostEntries[$existingHostKey] = $portEntries
+                        } else {
+                            $previousHostEntries[$existingHostKey] = New-Object 'System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceCacheEntry]' ([System.StringComparer]::OrdinalIgnoreCase)
+                        }
+                        $previousHostSignatureSnapshot[$existingHostKey] = $signatureEntries
+                        if (-not [string]::IsNullOrWhiteSpace($existingHostKey) -and $previousHostSampleValues.Count -lt 5) {
+                            $previousHostSampleValues.Add($existingHostKey) | Out-Null
+                        }
+                        if ($portEntries -is [System.Collections.IDictionary]) {
+                            $previousHostPortCount += $portEntries.Count
+                        } elseif ($portEntries -is [System.Collections.ICollection]) {
+                            $previousHostPortCount += $portEntries.Count
+                        }
+                        try { $existingPortMap.Clear() } catch { }
+                        $hostDictionaryPool.Push($existingPortMap)
+                    }
+                }
+                if ($previousHostEntries.Count -gt 0 -or $previousHostSignatureSnapshot.Count -gt 0) {
+                    $previousSnapshotStatus = 'Converted'
+                } else {
+                    $previousSnapshotStatus = 'EnumeratedZero'
+                }
+            } catch {
+                $previousSnapshotStatus = 'EnumerationFailed'
+                $previousSnapshotException = $_.Exception.Message
+            }
+            try { $existingHostMap.Clear() } catch { }
+            if ($existingHostMap -is [System.Collections.IDictionary]) {
+                $hostMap = $existingHostMap
+            }
+            if ($previousHostEntries) {
+                $previousHostEntryCount = $previousHostEntries.Count
+            }
+        } elseif ($null -eq $existingHostMap) {
+            $previousSnapshotStatus = 'HostMapNull'
+        } else {
+            $previousSnapshotStatus = 'HostMapUnsupported'
+        }
+    }
+    if (-not $hostMap) {
+        $hostMap = New-Object 'System.Collections.Generic.Dictionary[string,System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceCacheEntry]]' ([System.StringComparer]::OrdinalIgnoreCase)
+    }
+    $previousHostSampleText = if ($previousHostSampleValues.Count -gt 0) { [string]::Join(',', $previousHostSampleValues.ToArray()) } else { '' }
+
+    $totalRows = 0
+    $buildStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    $hostMapStopwatch = $null
+    $hostMapDurationMs = 0.0
+    $hostMapSignatureMatchCount = 0L
+    $hostMapSignatureRewriteCount = 0L
+    $hostMapEntryAllocationCount = 0L
+    $hostMapEntryPoolReuseCount = 0L
+    $hostMapLookupCount = 0L
+    $hostMapLookupMissCount = 0L
+    $hostMapCandidateMissingCount = 0L
+    $hostMapCandidateSignatureMissingCount = 0L
+    $hostMapCandidateSignatureMismatchCount = 0L
+    $hostMapCandidateFromPreviousCount = 0L
+    $hostMapCandidateFromPoolCount = 0L
+    $hostMapCandidateInvalidCount = 0L
+    $hostMapSignatureMismatchSamples = New-Object 'System.Collections.Generic.List[object]'
+    $hostMapCandidateMissingSamples = New-Object 'System.Collections.Generic.List[object]'
+    if ($snapshot) {
+        $hostMapStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+        foreach ($row in $snapshot) {
+            if ($null -eq $row) { continue }
+
+            $hostKey = ''
+            $portKey = ''
+            $nameValue = ''
+            $statusValue = ''
+            $vlanValue = ''
+            $duplexValue = ''
+            $speedValue = ''
+            $typeValue = ''
+            $learnedValue = ''
+            $authStateValue = ''
+            $authModeValue = ''
+            $authClientValue = ''
+            $templateValue = ''
+            $configValue = ''
+            $portColorValue = ''
+            $statusTagValue = ''
+            $toolTipValue = ''
+
+            if ($row -is [StateTrace.Models.InterfacePortRecord]) {
+                $typedRow = [StateTrace.Models.InterfacePortRecord]$row
+                $hostKey = [string]$typedRow.Hostname
+                if ($hostKey) { $hostKey = $hostKey.Trim() }
+                if ([string]::IsNullOrWhiteSpace($hostKey)) { continue }
+
+                $portKey = [string]$typedRow.Port
+                if ($portKey) { $portKey = $portKey.Trim() }
+                if ([string]::IsNullOrWhiteSpace($portKey)) { continue }
+
+                $nameValue = [string]$typedRow.Name
+                $statusValue = [string]$typedRow.Status
+                $vlanValue = [string]$typedRow.VLAN
+                $duplexValue = [string]$typedRow.Duplex
+                $speedValue = [string]$typedRow.Speed
+                $typeValue = [string]$typedRow.Type
+                $learnedValue = [string]$typedRow.LearnedMACs
+                $authStateValue = [string]$typedRow.AuthState
+                $authModeValue = [string]$typedRow.AuthMode
+                $authClientValue = [string]$typedRow.AuthClientMAC
+                $templateValue = [string]$typedRow.AuthTemplate
+                $configValue = [string]$typedRow.Config
+                $portColorValue = [string]$typedRow.PortColor
+                $statusTagValue = [string]$typedRow.ConfigStatus
+                $toolTipValue = [string]$typedRow.ToolTip
+                $signature = [string]$typedRow.CacheSignature
+                if ([string]::IsNullOrWhiteSpace($signature)) {
+                    $signature = ConvertTo-InterfaceCacheSignature -Values @(
+                        $nameValue,
+                        $statusValue,
+                        $vlanValue,
+                        $duplexValue,
+                        $speedValue,
+                        $typeValue,
+                        $learnedValue,
+                        $authStateValue,
+                        $authModeValue,
+                        $authClientValue,
+                        $templateValue,
+                        $configValue,
+                        $portColorValue,
+                        $statusTagValue,
+                        $toolTipValue
+                    )
+                }
+            } else {
+                $properties = $row.PSObject.Properties
+                $hostProp = $properties['Hostname']
+                if (-not $hostProp) { continue }
+                $hostNameRaw = '' + $hostProp.Value
+                if ([string]::IsNullOrWhiteSpace($hostNameRaw)) { continue }
+                $hostKey = $hostNameRaw.Trim()
+
+                $portProp = $properties['Port']
+                if (-not $portProp) { continue }
+                $portRaw = '' + $portProp.Value
+                if ([string]::IsNullOrWhiteSpace($portRaw)) { continue }
+                $portKey = $portRaw.Trim()
+
+                $nameProp = $properties['Name']
+                if ($nameProp) { $nameValue = '' + $nameProp.Value }
+
+                $statusProp = $properties['Status']
+                if ($statusProp) { $statusValue = '' + $statusProp.Value }
+
+                $vlanProp = $properties['VLAN']
+                if ($vlanProp) { $vlanValue = '' + $vlanProp.Value }
+
+                $duplexProp = $properties['Duplex']
+                if ($duplexProp) { $duplexValue = '' + $duplexProp.Value }
+
+                $speedProp = $properties['Speed']
+                if ($speedProp) { $speedValue = '' + $speedProp.Value }
+
+                $typeProp = $properties['Type']
+                if ($typeProp) { $typeValue = '' + $typeProp.Value }
+
+                $learnedProp = $properties['LearnedMACs']
+                if ($learnedProp) {
+                    $rawLearned = $learnedProp.Value
+                    if ($rawLearned -is [string]) {
+                        $learnedValue = $rawLearned
+                    } elseif ($rawLearned -is [System.Collections.IEnumerable]) {
+                        $macList = New-Object 'System.Collections.Generic.List[string]'
+                        foreach ($mac in $rawLearned) {
+                            if ($mac) {
+                                $macList.Add(('' + $mac)) | Out-Null
+                            }
+                        }
+                        $learnedValue = [string]::Join(',', $macList.ToArray())
+                    } elseif ($null -ne $rawLearned) {
+                        $learnedValue = '' + $rawLearned
+                    }
+                }
+
+                $authStateProp = $properties['AuthState']
+                if ($authStateProp) { $authStateValue = '' + $authStateProp.Value }
+
+                $authModeProp = $properties['AuthMode']
+                if ($authModeProp) { $authModeValue = '' + $authModeProp.Value }
+
+                $authClientProp = $properties['AuthClientMAC']
+                if ($authClientProp) { $authClientValue = '' + $authClientProp.Value }
+
+                $templateProp = $properties['AuthTemplate']
+                if ($templateProp) { $templateValue = '' + $templateProp.Value }
+
+                $configProp = $properties['Config']
+                if ($configProp) { $configValue = '' + $configProp.Value }
+
+                $portColorProp = $properties['PortColor']
+                if ($portColorProp) { $portColorValue = '' + $portColorProp.Value }
+
+                $configStatusProp = $properties['ConfigStatus']
+                if ($configStatusProp) { $statusTagValue = '' + $configStatusProp.Value }
+
+                $toolTipProp = $properties['ToolTip']
+                if ($toolTipProp) { $toolTipValue = '' + $toolTipProp.Value }
+
+                $signature = ConvertTo-InterfaceCacheSignature -Values @(
+                    $nameValue,
+                    $statusValue,
+                    $vlanValue,
+                    $duplexValue,
+                    $speedValue,
+                    $typeValue,
+                    $learnedValue,
+                    $authStateValue,
+                    $authModeValue,
+                    $authClientValue,
+                    $templateValue,
+                    $configValue,
+                    $portColorValue,
+                    $statusTagValue,
+                    $toolTipValue
+                )
+            }
+
+            if ([string]::IsNullOrWhiteSpace($hostKey) -or [string]::IsNullOrWhiteSpace($portKey)) {
+                continue
+            }
+
+        $hostPorts = $null
+        $hostMapLookupCount++
+        if (-not $hostMap.TryGetValue($hostKey, [ref]$hostPorts)) {
+            $hostMapLookupMissCount++
+            $hostPortsCandidate = $null
+            if ($hostDictionaryPool.Count -gt 0) {
+                $hostPortsCandidate = $hostDictionaryPool.Pop()
+            }
+            if ($hostPortsCandidate -and $hostPortsCandidate -is [System.Collections.IDictionary]) {
+                    try { $hostPortsCandidate.Clear() } catch { }
+                    $hostPorts = $hostPortsCandidate
+                }
+            if (-not $hostPorts) {
+                $hostPorts = New-Object 'System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceCacheEntry]' ([System.StringComparer]::OrdinalIgnoreCase)
+            }
+            $hostMap[$hostKey] = $hostPorts
+        }
+
+        $rowObject = $null
+        $allocatedNewEntry = $false
+        $previousPortEntries = $null
+        $candidateSource = $null
+        $previousHostEntryWasPresent = $false
+        $previousPortEntryWasPresent = $false
+        if ($previousHostEntries -and $previousHostEntries.TryGetValue($hostKey, [ref]$previousPortEntries)) {
+            $previousHostEntryWasPresent = $true
+            $existingPortEntry = $null
+            if ($previousPortEntries.TryGetValue($portKey, [ref]$existingPortEntry)) {
+                $previousPortEntryWasPresent = $true
+                if ($existingPortEntry -is [StateTrace.Models.InterfaceCacheEntry]) {
+                    $rowObject = $existingPortEntry
+                    $candidateSource = 'Previous'
+                } elseif ($null -ne $existingPortEntry) {
+                    $hostMapCandidateInvalidCount++
+                }
+                $previousPortEntries.Remove($portKey) | Out-Null
+            }
+            if (-not $rowObject -and $previousPortEntries.Count -gt 0) {
+                foreach ($previousPortKey in @($previousPortEntries.Keys)) {
+                    $existingPortEntry = $previousPortEntries[$previousPortKey]
+                    $previousPortEntries.Remove($previousPortKey) | Out-Null
+                    if ($existingPortEntry -is [StateTrace.Models.InterfaceCacheEntry]) {
+                        $rowObject = $existingPortEntry
+                        $hostMapEntryPoolReuseCount++
+                        $candidateSource = 'Previous'
+                        break
+                    } elseif ($null -ne $existingPortEntry) {
+                        $hostMapCandidateInvalidCount++
+                    }
+                }
+            }
+            if ($previousPortEntries.Count -eq 0) {
+                $previousHostEntries.Remove($hostKey) | Out-Null
+            } else {
+                $previousHostEntries[$hostKey] = $previousPortEntries
+            }
+        }
+
+        if (-not $rowObject -and $entryPool.Count -gt 0) {
+            $candidate = $entryPool.Pop()
+            if ($candidate -is [StateTrace.Models.InterfaceCacheEntry]) {
+                $rowObject = $candidate
+                $hostMapEntryPoolReuseCount++
+                $candidateSource = 'Pool'
+            } elseif ($null -ne $candidate) {
+                $hostMapCandidateInvalidCount++
+            }
+        }
+
+        $candidateWasReused = $false
+        $signatureComparisonKind = 'New'
+        $previousSignatureValue = $null
+        if ($rowObject) {
+            $candidateWasReused = $true
+            $signatureComparisonKind = 'Rewrite'
+            $prevSignatureRaw = $rowObject.Signature
+            if ($null -ne $prevSignatureRaw) {
+                $previousSignatureValue = '' + $prevSignatureRaw
+            }
+            if ($candidateSource -eq 'Previous') {
+                $hostMapCandidateFromPreviousCount++
+            } elseif ($candidateSource -eq 'Pool') {
+                $hostMapCandidateFromPoolCount++
+            }
+        } else {
+            $hostMapCandidateMissingCount++
+            if ($hostMapCandidateMissingSamples.Count -lt 5) {
+                $cachedSnapshotPortEntries = $null
+                $cachedPortCount = 0
+                $cachedPortSample = @()
+                $cachedSignature = $null
+                $missingReason = 'HostSnapshotMissing'
+                if ($previousHostSignatureSnapshot -and $previousHostSignatureSnapshot.TryGetValue($hostKey, [ref]$cachedSnapshotPortEntries)) {
+                    if ($cachedSnapshotPortEntries -is [System.Collections.IDictionary]) {
+                        $cachedPortCount = $cachedSnapshotPortEntries.Count
+                        $missingReason = 'PortSnapshotMissing'
+                        $cachedPortSample = @()
+                        $sampledPortCount = 0
+                        foreach ($cachedPortKey in $cachedSnapshotPortEntries.Keys) {
+                            if ($sampledPortCount -ge 5) { break }
+                            if ($null -ne $cachedPortKey) {
+                                $cachedPortSample += ('' + $cachedPortKey)
+                                $sampledPortCount++
+                            }
+                        }
+                        if ($cachedSnapshotPortEntries -is [System.Collections.Generic.Dictionary[string,string]]) {
+                            $snapshotSignature = $null
+                            if ($cachedSnapshotPortEntries.TryGetValue($portKey, [ref]$snapshotSignature)) {
+                                $missingReason = 'SignaturePersisted'
+                                if ($null -ne $snapshotSignature) {
+                                    $cachedSignature = '' + $snapshotSignature
+                                }
+                            }
+                        } elseif ($cachedSnapshotPortEntries.Contains($portKey)) {
+                            $missingReason = 'SignaturePersisted'
+                            $snapshotSignature = $cachedSnapshotPortEntries[$portKey]
+                            if ($null -ne $snapshotSignature) {
+                                $cachedSignature = '' + $snapshotSignature
+                            }
+                        }
+                    }
+                } elseif ($previousHostEntryWasPresent) {
+                    $missingReason = 'PreviousHostCleared'
+                }
+
+                $previousRemainingPortCount = 0
+                if ($previousPortEntries -is [System.Collections.IDictionary]) {
+                    $previousRemainingPortCount = $previousPortEntries.Count
+                }
+
+                $hostMapCandidateMissingSamples.Add([pscustomobject]@{
+                        Hostname                  = $hostKey
+                        Port                      = $portKey
+                        Reason                    = $missingReason
+                        PreviousHostEntryPresent  = [bool]$previousHostEntryWasPresent
+                        PreviousPortEntryPresent  = [bool]$previousPortEntryWasPresent
+                        CachedPortCount           = [int]$cachedPortCount
+                        CachedPortSample          = if ($cachedPortSample.Count -gt 0) { [string]::Join(',', $cachedPortSample) } else { '' }
+                        CachedSignature           = $cachedSignature
+                        PreviousRemainingPortCount = [int]$previousRemainingPortCount
+                        CandidateSource           = if ($candidateSource) { $candidateSource } else { '' }
+                    }) | Out-Null
+            }
+
+            $rowObject = [StateTrace.Models.InterfaceCacheEntry]::new()
+            $allocatedNewEntry = $true
+        }
+
+        $shouldRewrite = $true
+        if ($candidateWasReused) {
+            if ([string]::IsNullOrWhiteSpace($rowObject.Signature)) {
+                $hostMapCandidateSignatureMissingCount++
+                $signatureComparisonKind = 'SignatureMissing'
+            } elseif ([System.StringComparer]::Ordinal.Equals($rowObject.Signature, $signature)) {
+                $shouldRewrite = $false
+                $signatureComparisonKind = 'Match'
+            } else {
+                $hostMapCandidateSignatureMismatchCount++
+                $signatureComparisonKind = 'Mismatch'
+            }
+        }
+
+        if ($shouldRewrite) {
+            $hostMapSignatureRewriteCount++
+            if ($candidateWasReused -and $signatureComparisonKind -eq 'Mismatch' -and $hostMapSignatureMismatchSamples.Count -lt 5) {
+                $newSignatureValue = $null
+                if ($null -ne $signature) {
+                    $newSignatureValue = '' + $signature
+                }
+                $hostMapSignatureMismatchSamples.Add([pscustomobject]@{
+                    Hostname          = $hostKey
+                    Port              = $portKey
+                    PreviousSignature = $previousSignatureValue
+                    NewSignature      = $newSignatureValue
+                }) | Out-Null
+            }
+            $rowObject.Name = $nameValue
+            $rowObject.Status = $statusValue
+            $rowObject.VLAN = $vlanValue
+            $rowObject.Duplex = $duplexValue
+            $rowObject.Speed = $speedValue
+            $rowObject.Type = $typeValue
+            $rowObject.Learned = $learnedValue
+            $rowObject.AuthState = $authStateValue
+            $rowObject.AuthMode = $authModeValue
+            $rowObject.AuthClient = $authClientValue
+            $rowObject.Template = $templateValue
+            $rowObject.Config = $configValue
+            $rowObject.PortColor = $portColorValue
+            $rowObject.StatusTag = $statusTagValue
+            $rowObject.ToolTip = $toolTipValue
+            $rowObject.Signature = $signature
+        } else {
+            $hostMapSignatureMatchCount++
+        }
+
+        if ($allocatedNewEntry) {
+            $hostMapEntryAllocationCount++
+        }
+
+        $hostPorts[$portKey] = $rowObject
+        $totalRows++
+        }
+        if ($hostMapStopwatch) {
+            $hostMapStopwatch.Stop()
+            $hostMapDurationMs = [Math]::Round($hostMapStopwatch.Elapsed.TotalMilliseconds, 3)
+        }
+    }
+    $buildStopwatch.Stop()
+    $buildDurationMs = [Math]::Round($buildStopwatch.Elapsed.TotalMilliseconds, 3)
+    $hydrateStopwatch.Stop()
+    $hydrationDurationMs = [Math]::Round($hydrateStopwatch.Elapsed.TotalMilliseconds, 3)
+
+    if ($hydrationDetail -and $hydrationDetail.Site -and [System.StringComparer]::OrdinalIgnoreCase.Equals($hydrationDetail.Site, $siteKey)) {
+        if ($hydrationDetail.PSObject.Properties.Name -contains 'Provider') {
+            $providerValue = '' + $hydrationDetail.Provider
+            if (-not [string]::IsNullOrWhiteSpace($providerValue)) {
+                $metrics.HydrationProvider = $providerValue
+            }
+        }
+        if ($hydrationDetail.PSObject.Properties.Name -contains 'QueryDurationMs') {
+            $metrics.HydrationQueryDurationMs = [Math]::Round([double]$hydrationDetail.QueryDurationMs, 3)
+        }
+        if ($hydrationDetail.PSObject.Properties.Name -contains 'ExecuteDurationMs') {
+            $metrics.HydrationExecuteDurationMs = [Math]::Round([double]$hydrationDetail.ExecuteDurationMs, 3)
+        }
+        if ($hydrationDetail.PSObject.Properties.Name -contains 'MaterializeDurationMs') {
+            $metrics.HydrationMaterializeDurationMs = [Math]::Round([double]$hydrationDetail.MaterializeDurationMs, 3)
+        }
+        if ($hydrationDetail.PSObject.Properties.Name -contains 'MaterializeProjectionDurationMs') {
+            $metrics.HydrationMaterializeProjectionDurationMs = [Math]::Round([double]$hydrationDetail.MaterializeProjectionDurationMs, 3)
+        }
+        if ($hydrationDetail.PSObject.Properties.Name -contains 'MaterializePortSortDurationMs') {
+            $metrics.HydrationMaterializePortSortDurationMs = [Math]::Round([double]$hydrationDetail.MaterializePortSortDurationMs, 3)
+        }
+        if ($hydrationDetail.PSObject.Properties.Name -contains 'MaterializePortSortCacheHitCount') {
+            $metrics.HydrationMaterializePortSortCacheHits = [long][Math]::Max(0, $hydrationDetail.MaterializePortSortCacheHitCount)
+        }
+        if ($hydrationDetail.PSObject.Properties.Name -contains 'MaterializePortSortCacheMissCount') {
+            $metrics.HydrationMaterializePortSortCacheMisses = [long][Math]::Max(0, $hydrationDetail.MaterializePortSortCacheMissCount)
+        }
+        if ($hydrationDetail.PSObject.Properties.Name -contains 'MaterializePortSortCacheSize') {
+            $metrics.HydrationMaterializePortSortCacheSize = [long][Math]::Max(0, $hydrationDetail.MaterializePortSortCacheSize)
+        }
+        if ($hydrationDetail.PSObject.Properties.Name -contains 'MaterializeTemplateDurationMs') {
+            $metrics.HydrationMaterializeTemplateDurationMs = [Math]::Round([double]$hydrationDetail.MaterializeTemplateDurationMs, 3)
+        }
+        if ($hydrationDetail.PSObject.Properties.Name -contains 'MaterializeObjectDurationMs') {
+            $metrics.HydrationMaterializeObjectDurationMs = [Math]::Round([double]$hydrationDetail.MaterializeObjectDurationMs, 3)
+        }
+        if ($hydrationDetail.PSObject.Properties.Name -contains 'TemplateLoadDurationMs') {
+            $metrics.HydrationTemplateDurationMs = [Math]::Round([double]$hydrationDetail.TemplateLoadDurationMs, 3)
+        }
+        if ($hydrationDetail.PSObject.Properties.Name -contains 'SortDurationMs') {
+            $metrics.HydrationSortDurationMs = [Math]::Round([double]$hydrationDetail.SortDurationMs, 3)
+        }
+        if ($hydrationDetail.PSObject.Properties.Name -contains 'QueryAttempts') {
+            $metrics.HydrationQueryAttempts = [int]$hydrationDetail.QueryAttempts
+        }
+        if ($hydrationDetail.PSObject.Properties.Name -contains 'ExclusiveRetryCount') {
+            $metrics.HydrationExclusiveRetryCount = [int]$hydrationDetail.ExclusiveRetryCount
+        }
+        if ($hydrationDetail.PSObject.Properties.Name -contains 'ExclusiveWaitDurationMs') {
+            $metrics.HydrationExclusiveWaitDurationMs = [Math]::Round([double]$hydrationDetail.ExclusiveWaitDurationMs, 3)
+        }
+        if ($hydrationDetail.PSObject.Properties.Name -contains 'ResultRowCount') {
+            $metrics.HydrationResultRowCount = [int]$hydrationDetail.ResultRowCount
+        }
+    } elseif ($metrics.HydrationProvider -eq 'Unknown') {
+        $metrics.HydrationProvider = if ($Refresh) { 'Refresh' } else { 'Hydrate' }
+    }
+    $metrics.HydrationHostMapDurationMs = $hostMapDurationMs
+    $metrics.HydrationHostMapSignatureMatchCount = $hostMapSignatureMatchCount
+    $metrics.HydrationHostMapSignatureRewriteCount = $hostMapSignatureRewriteCount
+    $metrics.HydrationHostMapEntryAllocationCount = $hostMapEntryAllocationCount
+    $metrics.HydrationHostMapEntryPoolReuseCount = $hostMapEntryPoolReuseCount
+    $metrics.HydrationHostMapLookupCount = $hostMapLookupCount
+    $metrics.HydrationHostMapLookupMissCount = $hostMapLookupMissCount
+    $metrics.HydrationHostMapCandidateMissingCount = $hostMapCandidateMissingCount
+    $metrics.HydrationHostMapCandidateSignatureMissingCount = $hostMapCandidateSignatureMissingCount
+    $metrics.HydrationHostMapCandidateSignatureMismatchCount = $hostMapCandidateSignatureMismatchCount
+    $metrics.HydrationHostMapCandidateFromPreviousCount = $hostMapCandidateFromPreviousCount
+    $metrics.HydrationHostMapCandidateFromPoolCount = $hostMapCandidateFromPoolCount
+    $metrics.HydrationHostMapCandidateInvalidCount = $hostMapCandidateInvalidCount
+    $metrics.HydrationHostMapCandidateMissingSamples = $hostMapCandidateMissingSamples.ToArray()
+    $metrics.HydrationHostMapSignatureMismatchSamples = $hostMapSignatureMismatchSamples.ToArray()
+    $metrics.HydrationPreviousHostCount = $previousHostEntryCount
+    $metrics.HydrationPreviousPortCount = $previousHostPortCount
+    $metrics.HydrationPreviousHostSample = $previousHostSampleText
+    $metrics.HydrationPreviousSnapshotStatus = $previousSnapshotStatus
+    $metrics.HydrationPreviousSnapshotHostMapType = $previousSnapshotHostMapType
+    $metrics.HydrationPreviousSnapshotHostCount = $previousSnapshotHostCount
+    $metrics.HydrationPreviousSnapshotPortCount = $previousSnapshotPortCount
+    if ([string]::IsNullOrWhiteSpace($previousSnapshotException)) {
+        $metrics.HydrationPreviousSnapshotException = ''
+    } else {
+        $trimmedException = $previousSnapshotException
+        if ($trimmedException.Length -gt 512) {
+            $trimmedException = $trimmedException.Substring(0, 512)
+        }
+        $metrics.HydrationPreviousSnapshotException = $trimmedException
+    }
+
+    $cacheStatus = if ($Refresh) { 'Refreshed' } else { 'Hydrated' }
+    $cachedAt = Get-Date
+    $entry = [PSCustomObject]@{
+        HostMap                       = $hostMap
+        TotalRows                     = $totalRows
+        CachedAt                      = $cachedAt
+        CacheStatus                   = $cacheStatus
+        HydrationDurationMs           = $hydrationDurationMs
+        HydrationSnapshotDurationMs   = $snapshotDurationMs
+        HydrationBuildDurationMs      = $buildDurationMs
+        HydrationHostMapDurationMs    = $metrics.HydrationHostMapDurationMs
+        HydrationHostMapSignatureMatchCount   = $metrics.HydrationHostMapSignatureMatchCount
+        HydrationHostMapSignatureRewriteCount = $metrics.HydrationHostMapSignatureRewriteCount
+        HydrationHostMapEntryAllocationCount  = $metrics.HydrationHostMapEntryAllocationCount
+        HydrationHostMapEntryPoolReuseCount   = $metrics.HydrationHostMapEntryPoolReuseCount
+        HydrationHostMapLookupCount           = $metrics.HydrationHostMapLookupCount
+        HydrationHostMapLookupMissCount       = $metrics.HydrationHostMapLookupMissCount
+        HydrationHostMapCandidateMissingCount = $metrics.HydrationHostMapCandidateMissingCount
+        HydrationHostMapCandidateSignatureMissingCount = $metrics.HydrationHostMapCandidateSignatureMissingCount
+        HydrationHostMapCandidateSignatureMismatchCount = $metrics.HydrationHostMapCandidateSignatureMismatchCount
+        HydrationHostMapCandidateFromPreviousCount = $metrics.HydrationHostMapCandidateFromPreviousCount
+        HydrationHostMapCandidateFromPoolCount     = $metrics.HydrationHostMapCandidateFromPoolCount
+        HydrationHostMapCandidateInvalidCount      = $metrics.HydrationHostMapCandidateInvalidCount
+        HydrationHostMapCandidateMissingSamples    = $metrics.HydrationHostMapCandidateMissingSamples
+        HydrationHostMapSignatureMismatchSamples   = $metrics.HydrationHostMapSignatureMismatchSamples
+        HydrationPreviousHostCount    = $metrics.HydrationPreviousHostCount
+        HydrationPreviousPortCount    = $metrics.HydrationPreviousPortCount
+        HydrationPreviousHostSample   = $metrics.HydrationPreviousHostSample
+        HydrationPreviousSnapshotStatus      = $metrics.HydrationPreviousSnapshotStatus
+        HydrationPreviousSnapshotHostMapType = $metrics.HydrationPreviousSnapshotHostMapType
+        HydrationPreviousSnapshotHostCount   = $metrics.HydrationPreviousSnapshotHostCount
+        HydrationPreviousSnapshotPortCount   = $metrics.HydrationPreviousSnapshotPortCount
+        HydrationPreviousSnapshotException   = $metrics.HydrationPreviousSnapshotException
+        HydrationSortDurationMs       = $metrics.HydrationSortDurationMs
+        HydrationQueryDurationMs      = $metrics.HydrationQueryDurationMs
+        HydrationExecuteDurationMs    = $metrics.HydrationExecuteDurationMs
+        HydrationMaterializeDurationMs= $metrics.HydrationMaterializeDurationMs
+        HydrationMaterializeProjectionDurationMs = $metrics.HydrationMaterializeProjectionDurationMs
+        HydrationMaterializePortSortDurationMs   = $metrics.HydrationMaterializePortSortDurationMs
+        HydrationMaterializePortSortCacheHits    = $metrics.HydrationMaterializePortSortCacheHits
+        HydrationMaterializePortSortCacheMisses  = $metrics.HydrationMaterializePortSortCacheMisses
+        HydrationMaterializePortSortCacheSize    = $metrics.HydrationMaterializePortSortCacheSize
+        HydrationMaterializeTemplateDurationMs   = $metrics.HydrationMaterializeTemplateDurationMs
+        HydrationMaterializeObjectDurationMs     = $metrics.HydrationMaterializeObjectDurationMs
+        HydrationTemplateDurationMs   = $metrics.HydrationTemplateDurationMs
+        HydrationQueryAttempts        = $metrics.HydrationQueryAttempts
+        HydrationExclusiveRetryCount  = $metrics.HydrationExclusiveRetryCount
+        HydrationExclusiveWaitDurationMs = $metrics.HydrationExclusiveWaitDurationMs
+        HydrationProvider             = $metrics.HydrationProvider
+        HydrationResultRowCount       = if ($metrics.HydrationResultRowCount -gt 0) { [int]$metrics.HydrationResultRowCount } else { $totalRows }
+        HostCount                     = $hostMap.Count
+    }
+    $script:SiteInterfaceSignatureCache[$siteKey] = $entry
+    Set-SharedSiteInterfaceCacheEntry -SiteKey $siteKey -Entry $entry
+
+    $metrics.CacheStatus = $cacheStatus
+    $metrics.HydrationDurationMs = $hydrationDurationMs
+    $metrics.HydrationSnapshotMs = $snapshotDurationMs
+    $metrics.HydrationBuildMs = $buildDurationMs
+    $metrics.HostCount = $entry.HostCount
+    $metrics.TotalRows = $totalRows
+    $metrics.CachedAt = $cachedAt
+    if ($metrics.HydrationResultRowCount -le 0) {
+        $metrics.HydrationResultRowCount = $totalRows
+    }
+    if ($metrics.HydrationQueryAttempts -le 0 -and -not [System.StringComparer]::OrdinalIgnoreCase.Equals($metrics.HydrationProvider, 'Cache')) {
+        $metrics.HydrationQueryAttempts = 1
+    }
+    $script:LastInterfaceSiteCacheMetrics = $metrics
+
+    Publish-InterfaceSiteCacheTelemetry -SiteKey $siteKey -Metrics $metrics -HostCount $entry.HostCount -TotalRows $totalRows -Refreshed ([bool]$Refresh)
+
+    return $entry
+}
+
+function Set-InterfaceSiteCacheHost {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Site,
+        [Parameter(Mandatory)][string]$Hostname,
+        [Parameter(Mandatory)][System.Collections.IDictionary]$RowsByPort
+    )
+
+    $siteKey = ('' + $Site).Trim()
+    if ([string]::IsNullOrWhiteSpace($siteKey)) { return }
+
+    $hostKey = ('' + $Hostname).Trim()
+    if ([string]::IsNullOrWhiteSpace($hostKey)) { return }
+
+    $entry = $null
+    if ($script:SiteInterfaceSignatureCache.ContainsKey($siteKey)) {
+        $entry = $script:SiteInterfaceSignatureCache[$siteKey]
+    } else {
+        $entry = [PSCustomObject]@{
+            HostMap   = @{}
+            TotalRows = 0
+            HostCount = 0
+            CachedAt  = Get-Date
+        }
+        $script:SiteInterfaceSignatureCache[$siteKey] = $entry
+        Set-SharedSiteInterfaceCacheEntry -SiteKey $siteKey -Entry $entry
+    }
+
+    $existingHostMap = $entry.HostMap
+    $typedHostMap = $null
+    if ($existingHostMap -is [System.Collections.Generic.Dictionary[string,System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceCacheEntry]]]) {
+        $typedHostMap = $existingHostMap
+    } else {
+        $typedHostMap = New-Object 'System.Collections.Generic.Dictionary[string,System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceCacheEntry]]' ([System.StringComparer]::OrdinalIgnoreCase)
+        if ($existingHostMap -is [System.Collections.IDictionary]) {
+            foreach ($existingHostKey in @($existingHostMap.Keys)) {
+                $normalizedExistingHostKey = if ($existingHostKey) { ('' + $existingHostKey).Trim() } else { '' }
+                if ([string]::IsNullOrWhiteSpace($normalizedExistingHostKey)) { continue }
+                $existingPortMap = $existingHostMap[$existingHostKey]
+                $typedPortMap = $null
+                if ($existingPortMap -is [System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceCacheEntry]]) {
+                    $typedPortMap = $existingPortMap
+                } elseif ($existingPortMap -is [System.Collections.IDictionary]) {
+                    $typedPortMap = New-Object 'System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceCacheEntry]' ([System.StringComparer]::OrdinalIgnoreCase)
+                    foreach ($existingPortKey in @($existingPortMap.Keys)) {
+                        $normalizedExistingPortKey = if ($existingPortKey) { ('' + $existingPortKey).Trim() } else { '' }
+                        if ([string]::IsNullOrWhiteSpace($normalizedExistingPortKey)) { continue }
+                        $typedPortMap[$normalizedExistingPortKey] = $existingPortMap[$existingPortKey]
+                    }
+                }
+                if ($typedPortMap) {
+                    $typedHostMap[$normalizedExistingHostKey] = $typedPortMap
+                }
+            }
+        }
+        $entry.HostMap = $typedHostMap
+    }
+
+    $normalizedRows = New-Object 'System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceCacheEntry]' ([System.StringComparer]::OrdinalIgnoreCase)
+    if ($RowsByPort) {
+        foreach ($key in $RowsByPort.Keys) {
+            $portKey = ('' + $key).Trim()
+            if ([string]::IsNullOrWhiteSpace($portKey)) { continue }
+            $value = $RowsByPort[$key]
+            if ($null -eq $value) { continue }
+
+            $cacheEntry = $null
+            try {
+                $cacheEntry = ConvertTo-InterfaceCacheEntryObject -InputObject $value
+            } catch {
+                $cacheEntry = $null
+            }
+
+            if ($cacheEntry) {
+                $normalizedRows[$portKey] = $cacheEntry
+            }
+        }
+    }
+
+    $typedHostMap[$hostKey] = $normalizedRows
+    $entry.CachedAt = Get-Date
+
+    $total = 0
+    foreach ($hostEntry in $entry.HostMap.Values) {
+        if ($hostEntry -is [System.Collections.IDictionary]) {
+            $total += $hostEntry.Count
+        } elseif ($hostEntry -is [System.Collections.ICollection]) {
+            $total += $hostEntry.Count
+        }
+    }
+    $entry.TotalRows = $total
+    $entry.HostCount = $entry.HostMap.Count
+    Set-SharedSiteInterfaceCacheEntry -SiteKey $siteKey -Entry $entry
+}
+
+function Get-InterfacePortBatchChunkSize {
+    [CmdletBinding()]
+    param()
+
+    $size = 24
+    try {
+        if ($script:InterfacePortStreamChunkSize -is [int] -and $script:InterfacePortStreamChunkSize -gt 0) {
+            $size = [int]$script:InterfacePortStreamChunkSize
+        } elseif ($script:InterfacePortStreamChunkSize) {
+            $candidate = [int]$script:InterfacePortStreamChunkSize
+            if ($candidate -gt 0) { $size = $candidate }
+        }
+    } catch {
+        $size = 24
+    }
+
+    if ($size -le 0) { $size = 24 }
+    return $size
+}
+
+function Set-InterfacePortStreamData {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Hostname,
+        [Parameter(Mandatory)][datetime]$RunDate,
+        [Parameter(Mandatory)][System.Collections.IEnumerable]$InterfaceRows,
+        [string]$BatchId
+    )
+
+    $hostKey = ('' + $Hostname).Trim()
+    if ([string]::IsNullOrWhiteSpace($hostKey)) { return }
+
+    $normalizedBatchId = $BatchId
+    if ([string]::IsNullOrWhiteSpace($normalizedBatchId)) {
+        $normalizedBatchId = [guid]::NewGuid().ToString()
+    }
+
+    $rowsList = New-Object 'System.Collections.Generic.List[psobject]'
+    $rowsReused = 0
+    $rowsCloned = 0
+    $runDateText = $RunDate.ToString('yyyy-MM-dd HH:mm:ss')
+
+    $cloneStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    foreach ($row in $InterfaceRows) {
+        if ($null -eq $row) { continue }
+
+        $clone = $null
+        if ($row -is [psobject]) {
+            $clone = $row
+            $rowsReused++
+        } elseif ($row -is [System.Collections.IDictionary]) {
+            $rowsCloned++
+            $clone = [PSCustomObject]@{}
+            foreach ($key in $row.Keys) {
+                $clone | Add-Member -NotePropertyName $key -NotePropertyValue $row[$key] -Force
+            }
+        } else {
+            $rowsCloned++
+            $clone = New-Object psobject
+            try {
+                foreach ($prop in $row.PSObject.Properties) {
+                    $clone | Add-Member -NotePropertyName $prop.Name -NotePropertyValue $prop.Value -Force
+                }
+            } catch {
+                $clone = [PSCustomObject]@{}
+            }
+        }
+
+        $hostnameProp = $clone.PSObject.Properties['Hostname']
+        if ($hostnameProp) {
+            if ([string]::IsNullOrWhiteSpace(('' + $hostnameProp.Value))) {
+                $hostnameProp.Value = $hostKey
+            }
+        } else {
+            $clone | Add-Member -NotePropertyName Hostname -NotePropertyValue $hostKey -Force
+        }
+
+        if (-not $clone.PSObject.Properties['IsSelected']) {
+            $clone | Add-Member -NotePropertyName IsSelected -NotePropertyValue $false -Force
+        }
+
+        $rowsList.Add($clone) | Out-Null
+    }
+    $cloneStopwatch.Stop()
+    $cloneDurationMs = [Math]::Round($cloneStopwatch.Elapsed.TotalMilliseconds, 3)
+
+    $stateStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    $state = [PSCustomObject]@{
+        Hostname       = $hostKey
+        RunDate        = $RunDate
+        BatchId        = $normalizedBatchId
+        SourceRows     = $rowsList
+        Queue          = $null
+        TotalPorts     = [int]$rowsList.Count
+        PortsDelivered = 0
+        Completed      = ($rowsList.Count -eq 0)
+        Created        = Get-Date
+        Source         = 'parser'
+        BatchCount     = 0
+    }
+    $script:InterfacePortStreamStore[$hostKey] = $state
+    $stateStopwatch.Stop()
+    $stateDurationMs = [Math]::Round($stateStopwatch.Elapsed.TotalMilliseconds, 3)
+
+    $script:LastInterfacePortStreamMetrics = [pscustomobject]@{
+        Hostname                   = $hostKey
+        BatchId                    = $normalizedBatchId
+        RunDate                    = $runDateText
+        RowsReceived               = [int]$rowsList.Count
+        StreamCloneDurationMs      = $cloneDurationMs
+        StreamStateUpdateDurationMs= $stateDurationMs
+        RowsReused                 = $rowsReused
+        RowsCloned                 = $rowsCloned
+    }
+
+    $script:LastInterfacePortQueueMetrics = $null
+
+    try {
+        TelemetryModule\Write-StTelemetryEvent -Name 'InterfacePortStreamMetrics' -Payload @{
+            Hostname = $hostKey
+            BatchId  = $normalizedBatchId
+            RunDate  = $runDateText
+            RowsReceived = [int]$rowsList.Count
+            RowsReused   = $rowsReused
+            RowsCloned   = $rowsCloned
+            StreamCloneDurationMs       = $cloneDurationMs
+            StreamStateUpdateDurationMs = $stateDurationMs
+        }
+    } catch { }
+}
+
+function Initialize-InterfacePortStream {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Hostname,
+        [int]$ChunkSize
+    )
+
+    $hostKey = ('' + $Hostname).Trim()
+    if ([string]::IsNullOrWhiteSpace($hostKey)) { return }
+    $chunk = if ($ChunkSize -and $ChunkSize -gt 0) { [int]$ChunkSize } else { Get-InterfacePortBatchChunkSize }
+
+    $state = $null
+    if ($script:InterfacePortStreamStore.ContainsKey($hostKey)) {
+        $state = $script:InterfacePortStreamStore[$hostKey]
+    }
+
+    if (-not $state) {
+        $interfaces = Get-InterfaceInfo -Hostname $hostKey
+        if (-not $interfaces) { $interfaces = @() }
+        $list = New-Object 'System.Collections.Generic.List[psobject]'
+        foreach ($item in $interfaces) {
+            if ($null -eq $item) { continue }
+            if ($item -is [psobject]) {
+                $list.Add($item) | Out-Null
+            } elseif ($item -is [System.Collections.IDictionary]) {
+                $clone = [PSCustomObject]@{}
+                foreach ($key in $item.Keys) {
+                    $clone | Add-Member -NotePropertyName $key -NotePropertyValue $item[$key] -Force
+                }
+                $list.Add($clone) | Out-Null
+            } else {
+                $list.Add([PSCustomObject]$item) | Out-Null
+            }
+        }
+
+        $state = [PSCustomObject]@{
+            Hostname       = $hostKey
+            RunDate        = Get-Date
+            BatchId        = [guid]::NewGuid().ToString()
+            SourceRows     = $list
+            Queue          = $null
+            TotalPorts     = [int]$list.Count
+            PortsDelivered = 0
+            Completed      = ($list.Count -eq 0)
+            Created        = Get-Date
+            Source         = 'repository'
+            BatchCount     = 0
+        }
+
+        $script:InterfacePortStreamStore[$hostKey] = $state
+    }
+
+    $rows = $state.SourceRows
+    if (-not $rows) { $rows = @() }
+
+    $queueStartTimestamp = Get-Date
+    $queueStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+
+    $index = 0
+    $materialized = @()
+    if ($rows -is [System.Collections.IList]) {
+        $materialized = $rows
+    } else {
+        $materialized = @($rows)
+    }
+
+    $total = if ($materialized) { [int]$materialized.Count } else { 0 }
+    $queue = New-Object 'System.Collections.Generic.Queue[psobject]'
+    if ($total -gt 0 -and $chunk -gt 0) {
+        $batchCount = [int][Math]::Ceiling($total / [double]$chunk)
+        $ordinal = 0
+        while ($index -lt $materialized.Count) {
+            $take = [Math]::Min($chunk, $materialized.Count - $index)
+            $segment = New-Object 'System.Collections.Generic.List[psobject]' $take
+            for ($i = 0; $i -lt $take; $i++) {
+                $segment.Add($materialized[$index + $i]) | Out-Null
+            }
+            $ordinal++
+            $queue.Enqueue([PSCustomObject]@{
+                Hostname         = $hostKey
+                BatchId          = $state.BatchId
+                BatchOrdinal     = $ordinal
+                BatchCount       = $batchCount
+                Ports            = $segment
+                PortsCommitted   = [int]$segment.Count
+                TotalPorts       = $total
+                PortsDelivered   = 0
+                BatchesRemaining = [int]($batchCount - $ordinal)
+                RunDate          = $state.RunDate
+            })
+            $index += $take
+        }
+        $state.BatchCount = $batchCount
+    } else {
+        $state.BatchCount = 0
+    }
+
+    $state.Queue = $queue
+    $queueStopwatch.Stop()
+    $queueBuildDurationMs = [Math]::Round($queueStopwatch.Elapsed.TotalMilliseconds, 3)
+    $queueBuildDelayMs = 0.0
+    if ($state.PSObject.Properties.Name -contains 'Created' -and $state.Created) {
+        try {
+            $queueBuildDelayMs = [Math]::Round(($queueStartTimestamp - $state.Created).TotalMilliseconds, 3)
+        } catch {
+            $queueBuildDelayMs = 0.0
+        }
+        if ($queueBuildDelayMs -lt 0) { $queueBuildDelayMs = 0.0 }
+    }
+    try {
+        $initializedAt = Get-Date
+        if ($state.PSObject.Properties['QueueInitializedAt']) {
+            $state.QueueInitializedAt = $initializedAt
+        } else {
+            $state | Add-Member -NotePropertyName QueueInitializedAt -NotePropertyValue $initializedAt -Force
+        }
+    } catch { }
+    $state.TotalPorts = $total
+    $state.PortsDelivered = 0
+    $state.Completed = ($queue.Count -eq 0)
+
+    $script:LastInterfacePortQueueMetrics = [pscustomobject]@{
+        Hostname             = $hostKey
+        BatchId              = $state.BatchId
+        QueueBuildDurationMs = $queueBuildDurationMs
+        QueueBuildDelayMs    = $queueBuildDelayMs
+        BatchCount           = [int]$state.BatchCount
+        TotalPorts           = [int]$state.TotalPorts
+        ChunkSize            = $chunk
+    }
+
+    try {
+        TelemetryModule\Write-StTelemetryEvent -Name 'InterfacePortQueueMetrics' -Payload @{
+            Hostname             = $hostKey
+            BatchId              = $state.BatchId
+            QueueBuildDurationMs = $queueBuildDurationMs
+            QueueBuildDelayMs    = $queueBuildDelayMs
+            BatchCount           = [int]$state.BatchCount
+            TotalPorts           = [int]$state.TotalPorts
+            ChunkSize            = $chunk
+        }
+    } catch { }
+}
+
+function Get-InterfacePortStreamStatus {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Hostname)
+
+    $hostKey = ('' + $Hostname).Trim()
+    if ([string]::IsNullOrWhiteSpace($hostKey)) { return $null }
+
+    if (-not $script:InterfacePortStreamStore.ContainsKey($hostKey)) { return $null }
+    $state = $script:InterfacePortStreamStore[$hostKey]
+    if (-not $state) { return $null }
+
+    $remaining = 0
+    if ($state.Queue) { $remaining = $state.Queue.Count }
+
+    return [PSCustomObject]@{
+        Hostname        = $hostKey
+        TotalPorts      = [int]$state.TotalPorts
+        PortsDelivered  = [int]$state.PortsDelivered
+        BatchesRemaining= [int]$remaining
+        Completed       = [bool]$state.Completed
+        BatchCount      = [int]$state.BatchCount
+    }
+}
+
+function Get-InterfacePortBatch {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Hostname)
+
+    $hostKey = ('' + $Hostname).Trim()
+    if ([string]::IsNullOrWhiteSpace($hostKey)) { return $null }
+    if (-not $script:InterfacePortStreamStore.ContainsKey($hostKey)) { return $null }
+
+    $state = $script:InterfacePortStreamStore[$hostKey]
+    if (-not $state -or -not $state.Queue -or $state.Queue.Count -eq 0) { return $null }
+
+    $batch = $state.Queue.Dequeue()
+    if (-not $batch) { return $null }
+
+    $ports = $batch.Ports
+    $portCount = if ($ports -is [System.Collections.ICollection]) { [int]$ports.Count } else { @($ports).Count }
+    $state.PortsDelivered += $portCount
+    $remaining = if ($state.Queue) { [int]$state.Queue.Count } else { 0 }
+    if ($remaining -le 0) { $state.Completed = $true }
+
+    return [PSCustomObject]@{
+        Hostname         = $hostKey
+        BatchId          = $batch.BatchId
+        BatchOrdinal     = $batch.BatchOrdinal
+        BatchCount       = $batch.BatchCount
+        Ports            = $ports
+        PortsCommitted   = $portCount
+        TotalPorts       = [int]$state.TotalPorts
+        PortsDelivered   = [int]$state.PortsDelivered
+        BatchesRemaining = $remaining
+        RunDate          = $state.RunDate
+        Completed        = ($remaining -eq 0)
+    }
+}
+
+function Clear-InterfacePortStream {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Hostname)
+
+    $hostKey = ('' + $Hostname).Trim()
+    if ([string]::IsNullOrWhiteSpace($hostKey)) { return }
+    if ($script:InterfacePortStreamStore.ContainsKey($hostKey)) {
+        $script:InterfacePortStreamStore.Remove($hostKey) | Out-Null
+    }
+    if ($script:LastInterfacePortQueueMetrics -and $script:LastInterfacePortQueueMetrics.Hostname -eq $hostKey) {
+        $script:LastInterfacePortQueueMetrics = $null
+    }
+}
+
+function Get-LastInterfacePortStreamMetrics {
+    [CmdletBinding()]
+    param()
+
+    return $script:LastInterfacePortStreamMetrics
+}
+
+function Get-LastInterfacePortQueueMetrics {
+    [CmdletBinding()]
+    param()
+
+    return $script:LastInterfacePortQueueMetrics
+}
+
+function Get-LastInterfaceSiteCacheMetrics {
+    [CmdletBinding()]
+    param()
+
+    return $script:LastInterfaceSiteCacheMetrics
+}
+
+function Get-LastInterfaceSiteHydrationMetrics {
+    [CmdletBinding()]
+    param()
+
+    return $script:LastInterfaceSiteHydrationMetrics
+}
+
+function Set-InterfacePortDispatchMetrics {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Hostname,
+        [string]$BatchId,
+        [int]$BatchOrdinal,
+        [int]$BatchCount,
+        [int]$BatchSize,
+        [int]$PortsDelivered,
+        [int]$TotalPorts,
+        [double]$DispatcherDurationMs,
+        [double]$AppendDurationMs,
+        [double]$IndicatorDurationMs
+    )
+
+    $hostKey = ('' + $Hostname).Trim()
+    if ([string]::IsNullOrWhiteSpace($hostKey)) { return }
+
+    $normalizedBatchId = $null
+    if (-not [string]::IsNullOrWhiteSpace($BatchId)) {
+        $normalizedBatchId = ('' + $BatchId).Trim()
+    }
+
+    $payload = [pscustomobject]@{
+        Hostname             = $hostKey
+        BatchId              = $normalizedBatchId
+        BatchOrdinal         = if ($BatchOrdinal -gt 0) { [int]$BatchOrdinal } else { 0 }
+        BatchCount           = if ($BatchCount -gt 0) { [int]$BatchCount } else { 0 }
+        BatchSize            = if ($BatchSize -gt 0) { [int]$BatchSize } else { 0 }
+        PortsDelivered       = if ($PortsDelivered -gt 0) { [int]$PortsDelivered } else { 0 }
+        TotalPorts           = if ($TotalPorts -gt 0) { [int]$TotalPorts } else { 0 }
+        DispatcherDurationMs = if ($PSBoundParameters.ContainsKey('DispatcherDurationMs')) { [Math]::Round([double]$DispatcherDurationMs, 3) } else { 0.0 }
+        AppendDurationMs     = if ($PSBoundParameters.ContainsKey('AppendDurationMs')) { [Math]::Round([double]$AppendDurationMs, 3) } else { 0.0 }
+        IndicatorDurationMs  = if ($PSBoundParameters.ContainsKey('IndicatorDurationMs')) { [Math]::Round([double]$IndicatorDurationMs, 3) } else { 0.0 }
+    }
+
+    $script:LastInterfacePortDispatchMetrics = $payload
+
+    try {
+        TelemetryModule\Write-StTelemetryEvent -Name 'InterfacePortDispatchMetrics' -Payload @{
+            Hostname             = $payload.Hostname
+            BatchId              = $payload.BatchId
+            BatchOrdinal         = $payload.BatchOrdinal
+            BatchCount           = $payload.BatchCount
+            BatchSize            = $payload.BatchSize
+            PortsDelivered       = $payload.PortsDelivered
+            TotalPorts           = $payload.TotalPorts
+            DispatcherDurationMs = $payload.DispatcherDurationMs
+            AppendDurationMs     = $payload.AppendDurationMs
+            IndicatorDurationMs  = $payload.IndicatorDurationMs
+        }
+    } catch { }
+}
+
+function Get-LastInterfacePortDispatchMetrics {
+    [CmdletBinding()]
+    param()
+
+    return $script:LastInterfacePortDispatchMetrics
 }
 
 function Import-DatabaseModule {
@@ -388,12 +3219,57 @@ function Get-InterfacesForSite {
             return [System.StringComparer]::Ordinal.Compare($a.PortSort, $b.PortSort)
         }
         try { $combined.Sort($comparison) } catch {}
+
+        $script:LastInterfaceSiteHydrationMetrics = [PSCustomObject]@{
+            Site                    = $siteName
+            Provider                = 'Aggregate'
+            QueryAttempts           = 0
+            QueryDurationMs         = 0.0
+            ExclusiveRetryCount     = 0
+            ExclusiveWaitDurationMs = 0.0
+            ExecuteDurationMs       = 0.0
+            MaterializeDurationMs   = 0.0
+            TemplateLoadDurationMs  = 0.0
+            ResultRowCount          = [int]$combined.Count
+            Succeeded               = $true
+            Timestamp               = Get-Date
+        }
+
         return $combined
     }
 
     $siteCode = $siteName.Trim()
     if ([string]::IsNullOrWhiteSpace($siteCode)) {
+        $script:LastInterfaceSiteHydrationMetrics = [PSCustomObject]@{
+            Site                    = $siteName
+            Provider                = 'InvalidSite'
+            QueryAttempts           = 0
+            QueryDurationMs         = 0.0
+            ExclusiveRetryCount     = 0
+            ExclusiveWaitDurationMs = 0.0
+            ExecuteDurationMs       = 0.0
+            MaterializeDurationMs   = 0.0
+            TemplateLoadDurationMs  = 0.0
+            ResultRowCount          = 0
+            Succeeded               = $false
+            Timestamp               = Get-Date
+        }
         return (New-Object 'System.Collections.Generic.List[object]')
+    }
+
+    $hydrationDetail = [PSCustomObject]@{
+        Site                    = $siteCode
+        Provider                = 'Unknown'
+        QueryAttempts           = 0
+        QueryDurationMs         = 0.0
+        ExclusiveRetryCount     = 0
+        ExclusiveWaitDurationMs = 0.0
+        ExecuteDurationMs       = 0.0
+        MaterializeDurationMs   = 0.0
+        TemplateLoadDurationMs  = 0.0
+        ResultRowCount          = 0
+        Succeeded               = $false
+        Timestamp               = Get-Date
     }
 
     try {
@@ -404,6 +3280,10 @@ function Get-InterfacesForSite {
                 $currentTime = $null
                 try { $currentTime = (Get-Item -LiteralPath $dbPath).LastWriteTime } catch {}
                 if ($currentTime -and ($entry.DbTime -eq $currentTime)) {
+                    $hydrationDetail.Provider = 'Cache'
+                    $hydrationDetail.ResultRowCount = if ($entry.List) { [int]$entry.List.Count } else { 0 }
+                    $hydrationDetail.Succeeded = $true
+                    $script:LastInterfaceSiteHydrationMetrics = $hydrationDetail
                     return $entry.List
                 }
             }
@@ -412,6 +3292,9 @@ function Get-InterfacesForSite {
 
     $dbFile = Get-DbPathForSite -Site $siteCode
     if (-not (Test-Path $dbFile)) {
+        $hydrationDetail.Provider = 'MissingDatabase'
+        $hydrationDetail.Succeeded = $true
+        $script:LastInterfaceSiteHydrationMetrics = $hydrationDetail
         return (New-Object 'System.Collections.Generic.List[object]')
     }
 
@@ -434,138 +3317,634 @@ ORDER BY i.Hostname, i.Port
 "@
 
     $rows = New-Object 'System.Collections.Generic.List[object]'
-    try {
-        $dt = Invoke-DbQuery -DatabasePath $dbFile -Sql $sqlSite
-        if ($dt) {
-            $enum = $null
-            if ($dt -is [System.Data.DataTable]) {
-                $enum = $dt.Rows
-            } elseif ($dt -is [System.Data.DataView]) {
-                $enum = $dt
-            } elseif ($dt -is [System.Collections.IEnumerable]) {
-                $enum = $dt
-            }
-            if ($enum) {
-                $lookupByVendor = @{}
+    $rowsAreOrdered = $false
+
+    $dataSet = $null
+    $estimatedRowTotal = 0
+    $useAdodbConnection = Test-IsAdodbConnectionInternal -Connection $Connection
+    if ($useAdodbConnection) {
+        $hydrationDetail.Provider = 'ADODB'
+        $recordset = $null
+        $rowsFromConnection = New-Object 'System.Collections.Generic.List[object]'
+        $executeStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+        try {
+            $recordset = $Connection.Execute($sqlSite)
+        } catch {
+            $rowsFromConnection.Clear() | Out-Null
+        } finally {
+            $executeStopwatch.Stop()
+            $hydrationDetail.ExecuteDurationMs = [Math]::Round($executeStopwatch.Elapsed.TotalMilliseconds, 3)
+        }
+
+        $rawRows = $null
+        $fieldNames = @()
+        $rowCount = 0
+        try {
+            if ($recordset -and $recordset.State -eq 1) {
+                $enumerateStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
                 try {
-                    $templatesDir = Join-Path $PSScriptRoot '..\Templates'
-                    foreach ($vendorName in @('Cisco', 'Brocade')) {
-                        $templateData = $null
-                        try {
-                            $templateData = TemplatesModule\Get-ConfigurationTemplateData -Vendor $vendorName -TemplatesPath $templatesDir
-                        } catch {
-                            $templateData = $null
-                        }
-                        if ($templateData -and $templateData.Exists -and $templateData.Lookup) {
-                            $lookupByVendor[$vendorName] = $templateData.Lookup
-                        }
+                    try {
+                        $rawRows = $recordset.GetRows()
+                    } catch {
+                        $rawRows = $null
                     }
-                } catch {}
-
-                foreach ($row in $enum) {
-                    $hn = '' + $row.Hostname
-                    $port = '' + $row.Port
-                    $name = '' + $row.Name
-                    $status = '' + $row.Status
-                    $vlan = '' + $row.VLAN
-                    $duplex = '' + $row.Duplex
-                    $speed = '' + $row.Speed
-                    $type = '' + $row.Type
-                    $lm = '' + $row.LearnedMACs
-                    $aState = '' + $row.AuthState
-                    $aMode = '' + $row.AuthMode
-                    $aMAC = '' + $row.AuthClientMAC
-                    $siteVal = '' + $row.Site
-                    $bld = '' + $row.Building
-                    $room = '' + $row.Room
-                    $makeVal = '' + $row.Make
-                    $authTmpl = '' + $row.AuthTemplate
-                    $cfgVal = '' + $row.Config
-                    $cfgStatVal = '' + $row.ConfigStatus
-                    $portColorVal = '' + $row.PortColor
-                    $tipVal = '' + $row.ToolTip
-
-                    $zoneValIf = ''
-                    if ($hn -match '^(?<site>[^-]+)-(?<zone>[^-]+)-') {
-                        $zoneValIf = $matches['zone']
+                    $fieldCount = 0
+                    try {
+                        $fieldCount = $recordset.Fields.Count
+                    } catch {
+                        $fieldCount = 0
                     }
-
-                    $portSort = if (-not [string]::IsNullOrWhiteSpace($port)) {
-                        InterfaceModule\Get-PortSortKey -Port $port
-                    } else {
-                        '99-UNK-99999-99999-99999-99999-99999'
-                    }
-
-                    $vendor = 'Cisco'
-                    if ($makeVal -match '(?i)brocade') { $vendor = 'Brocade' }
-                    $tmplLookup = if ($lookupByVendor.ContainsKey($vendor)) { $lookupByVendor[$vendor] } else { $null }
-
-                    $tipCore = ($tipVal.TrimEnd())
-                    if (-not $tipCore) {
-                        if ($cfgVal -and ($cfgVal.Trim() -ne '')) {
-                            $tipCore = "AuthTemplate: $authTmpl`r`n`r`n$cfgVal"
-                        } elseif ($authTmpl) {
-                            $tipCore = "AuthTemplate: $authTmpl"
-                        } else {
-                            $tipCore = ''
-                        }
-                    }
-
-                    $finalPortColor = $portColorVal
-                    $finalCfgStatus = $cfgStatVal
-                    $hasPortColor = -not [string]::IsNullOrWhiteSpace($finalPortColor)
-                    $hasCfgStatus = -not [string]::IsNullOrWhiteSpace($finalCfgStatus)
-                    if (-not $hasPortColor -or -not $hasCfgStatus) {
-                        $match = $null
-                        if ($authTmpl -and $tmplLookup -and $tmplLookup.ContainsKey($authTmpl)) {
-                            $match = $tmplLookup[$authTmpl]
-                        }
-                        if (-not $hasPortColor) {
-                            $finalPortColor = if ($match) { $match.color } else { 'Gray' }
-                        }
-                        if (-not $hasCfgStatus) {
-                            if ($match) {
-                                $finalCfgStatus = 'Match'
-                            } elseif ($authTmpl) {
-                                $finalCfgStatus = 'Mismatch'
-                            } else {
-                                $finalCfgStatus = 'Unknown'
+                    if ($fieldCount -gt 0) {
+                        $fieldNames = New-Object string[] $fieldCount
+                        for ($fieldIndex = 0; $fieldIndex -lt $fieldCount; $fieldIndex++) {
+                            $fieldName = ''
+                            try {
+                                $fieldName = '' + $recordset.Fields.Item($fieldIndex).Name
+                            } catch {
+                                $fieldName = ''
                             }
+                            $fieldNames[$fieldIndex] = $fieldName
+                        }
+                    } else {
+                        $fieldNames = @()
+                    }
+                    if ($rawRows -and ($rawRows.Rank -ge 2)) {
+                        $rowUpper = $rawRows.GetUpperBound(1)
+                        if ($rowUpper -ge 0) {
+                            $rowCount = $rowUpper + 1
                         }
                     }
-
-                    $obj = [PSCustomObject]@{
-                        Hostname      = $hn
-                        Port          = $port
-                        PortSort      = $portSort
-                        Name          = $name
-                        Status        = $status
-                        VLAN          = $vlan
-                        Duplex        = $duplex
-                        Speed         = $speed
-                        Type          = $type
-                        LearnedMACs   = $lm
-                        AuthState     = $aState
-                        AuthMode      = $aMode
-                        AuthClientMAC = $aMAC
-                        Site          = $siteVal
-                        Building      = $bld
-                        Room          = $room
-                        Zone          = $zoneValIf
-                        AuthTemplate  = $authTmpl
-                        Config        = $cfgVal
-                        ConfigStatus  = $finalCfgStatus
-                        PortColor     = $finalPortColor
-                        ToolTip       = $tipCore
-                        IsSelected    = $false
-                    }
-                    [void]$rows.Add($obj)
+                } finally {
+                    $enumerateStopwatch.Stop()
+                    $hydrationDetail.QueryDurationMs = [Math]::Round($hydrationDetail.ExecuteDurationMs + $enumerateStopwatch.Elapsed.TotalMilliseconds, 3)
                 }
+            } elseif ($hydrationDetail.QueryDurationMs -le 0) {
+                $hydrationDetail.QueryDurationMs = $hydrationDetail.ExecuteDurationMs
+            }
+        } finally {
+            if ($recordset) {
+                try { $recordset.Close() } catch {}
             }
         }
-    } catch {
-        Write-Warning "Failed to query interfaces for site '$siteCode': $($_.Exception.Message)"
+
+        if ($rowCount -gt 0) {
+            $estimatedRowTotal = [int][Math]::Max($estimatedRowTotal, $rowCount)
+        }
+
+        if ($rowCount -gt 0 -and $fieldNames -and $fieldNames.Length -gt 0 -and $rawRows) {
+            $fieldIndexByName = @{}
+            for ($fieldIndex = 0; $fieldIndex -lt $fieldNames.Length; $fieldIndex++) {
+                $fieldName = $fieldNames[$fieldIndex]
+                if (-not [string]::IsNullOrWhiteSpace($fieldName)) {
+                    $fieldIndexByName[$fieldName.ToLowerInvariant()] = $fieldIndex
+                }
+            }
+
+            $idxHostname      = if ($fieldIndexByName.ContainsKey('hostname'))      { [int]$fieldIndexByName['hostname'] }      else { -1 }
+            $idxPort          = if ($fieldIndexByName.ContainsKey('port'))          { [int]$fieldIndexByName['port'] }          else { -1 }
+            $idxName          = if ($fieldIndexByName.ContainsKey('name'))          { [int]$fieldIndexByName['name'] }          else { -1 }
+            $idxStatus        = if ($fieldIndexByName.ContainsKey('status'))        { [int]$fieldIndexByName['status'] }        else { -1 }
+            $idxVlan          = if ($fieldIndexByName.ContainsKey('vlan'))          { [int]$fieldIndexByName['vlan'] }          else { -1 }
+            $idxDuplex        = if ($fieldIndexByName.ContainsKey('duplex'))        { [int]$fieldIndexByName['duplex'] }        else { -1 }
+            $idxSpeed         = if ($fieldIndexByName.ContainsKey('speed'))         { [int]$fieldIndexByName['speed'] }         else { -1 }
+            $idxType          = if ($fieldIndexByName.ContainsKey('type'))          { [int]$fieldIndexByName['type'] }          else { -1 }
+            $idxLearned       = if ($fieldIndexByName.ContainsKey('learnedmacs'))   { [int]$fieldIndexByName['learnedmacs'] }   else { -1 }
+            $idxAuthState     = if ($fieldIndexByName.ContainsKey('authstate'))     { [int]$fieldIndexByName['authstate'] }     else { -1 }
+            $idxAuthMode      = if ($fieldIndexByName.ContainsKey('authmode'))      { [int]$fieldIndexByName['authmode'] }      else { -1 }
+            $idxAuthClient    = if ($fieldIndexByName.ContainsKey('authclientmac')) { [int]$fieldIndexByName['authclientmac'] } else { -1 }
+            $idxSite          = if ($fieldIndexByName.ContainsKey('site'))          { [int]$fieldIndexByName['site'] }          else { -1 }
+            $idxBuilding      = if ($fieldIndexByName.ContainsKey('building'))      { [int]$fieldIndexByName['building'] }      else { -1 }
+            $idxRoom          = if ($fieldIndexByName.ContainsKey('room'))          { [int]$fieldIndexByName['room'] }          else { -1 }
+            $idxMake          = if ($fieldIndexByName.ContainsKey('make'))          { [int]$fieldIndexByName['make'] }          else { -1 }
+            $idxAuthTemplate  = if ($fieldIndexByName.ContainsKey('authtemplate'))  { [int]$fieldIndexByName['authtemplate'] }  else { -1 }
+            $idxConfig        = if ($fieldIndexByName.ContainsKey('config'))        { [int]$fieldIndexByName['config'] }        else { -1 }
+            $idxConfigStatus  = if ($fieldIndexByName.ContainsKey('configstatus'))  { [int]$fieldIndexByName['configstatus'] }  else { -1 }
+            $idxPortColor     = if ($fieldIndexByName.ContainsKey('portcolor'))     { [int]$fieldIndexByName['portcolor'] }     else { -1 }
+            $idxToolTip       = if ($fieldIndexByName.ContainsKey('tooltip'))       { [int]$fieldIndexByName['tooltip'] }       else { -1 }
+
+            $rowsFromConnection = New-Object 'System.Collections.Generic.List[object]' $rowCount
+            for ($rowIndex = 0; $rowIndex -lt $rowCount; $rowIndex++) {
+                $hostnameVal = ''
+                if ($idxHostname -ge 0) {
+                    $rawValue = $rawRows.GetValue($idxHostname, $rowIndex)
+                    if ($null -ne $rawValue -and $rawValue -ne [System.DBNull]::Value) { $hostnameVal = '' + $rawValue }
+                }
+
+                $portVal = ''
+                if ($idxPort -ge 0) {
+                    $rawValue = $rawRows.GetValue($idxPort, $rowIndex)
+                    if ($null -ne $rawValue -and $rawValue -ne [System.DBNull]::Value) { $portVal = '' + $rawValue }
+                }
+
+                $nameVal = ''
+                if ($idxName -ge 0) {
+                    $rawValue = $rawRows.GetValue($idxName, $rowIndex)
+                    if ($null -ne $rawValue -and $rawValue -ne [System.DBNull]::Value) { $nameVal = '' + $rawValue }
+                }
+
+                $statusVal = ''
+                if ($idxStatus -ge 0) {
+                    $rawValue = $rawRows.GetValue($idxStatus, $rowIndex)
+                    if ($null -ne $rawValue -and $rawValue -ne [System.DBNull]::Value) { $statusVal = '' + $rawValue }
+                }
+
+                $vlanVal = ''
+                if ($idxVlan -ge 0) {
+                    $rawValue = $rawRows.GetValue($idxVlan, $rowIndex)
+                    if ($null -ne $rawValue -and $rawValue -ne [System.DBNull]::Value) { $vlanVal = '' + $rawValue }
+                }
+
+                $duplexVal = ''
+                if ($idxDuplex -ge 0) {
+                    $rawValue = $rawRows.GetValue($idxDuplex, $rowIndex)
+                    if ($null -ne $rawValue -and $rawValue -ne [System.DBNull]::Value) { $duplexVal = '' + $rawValue }
+                }
+
+                $speedVal = ''
+                if ($idxSpeed -ge 0) {
+                    $rawValue = $rawRows.GetValue($idxSpeed, $rowIndex)
+                    if ($null -ne $rawValue -and $rawValue -ne [System.DBNull]::Value) { $speedVal = '' + $rawValue }
+                }
+
+                $typeVal = ''
+                if ($idxType -ge 0) {
+                    $rawValue = $rawRows.GetValue($idxType, $rowIndex)
+                    if ($null -ne $rawValue -and $rawValue -ne [System.DBNull]::Value) { $typeVal = '' + $rawValue }
+                }
+
+                $learnedVal = ''
+                if ($idxLearned -ge 0) {
+                    $rawValue = $rawRows.GetValue($idxLearned, $rowIndex)
+                    if ($null -ne $rawValue -and $rawValue -ne [System.DBNull]::Value) { $learnedVal = '' + $rawValue }
+                }
+
+                $authStateVal = ''
+                if ($idxAuthState -ge 0) {
+                    $rawValue = $rawRows.GetValue($idxAuthState, $rowIndex)
+                    if ($null -ne $rawValue -and $rawValue -ne [System.DBNull]::Value) { $authStateVal = '' + $rawValue }
+                }
+
+                $authModeVal = ''
+                if ($idxAuthMode -ge 0) {
+                    $rawValue = $rawRows.GetValue($idxAuthMode, $rowIndex)
+                    if ($null -ne $rawValue -and $rawValue -ne [System.DBNull]::Value) { $authModeVal = '' + $rawValue }
+                }
+
+                $authClientVal = ''
+                if ($idxAuthClient -ge 0) {
+                    $rawValue = $rawRows.GetValue($idxAuthClient, $rowIndex)
+                    if ($null -ne $rawValue -and $rawValue -ne [System.DBNull]::Value) { $authClientVal = '' + $rawValue }
+                }
+
+                $siteVal = ''
+                if ($idxSite -ge 0) {
+                    $rawValue = $rawRows.GetValue($idxSite, $rowIndex)
+                    if ($null -ne $rawValue -and $rawValue -ne [System.DBNull]::Value) { $siteVal = '' + $rawValue }
+                }
+
+                $buildingVal = ''
+                if ($idxBuilding -ge 0) {
+                    $rawValue = $rawRows.GetValue($idxBuilding, $rowIndex)
+                    if ($null -ne $rawValue -and $rawValue -ne [System.DBNull]::Value) { $buildingVal = '' + $rawValue }
+                }
+
+                $roomVal = ''
+                if ($idxRoom -ge 0) {
+                    $rawValue = $rawRows.GetValue($idxRoom, $rowIndex)
+                    if ($null -ne $rawValue -and $rawValue -ne [System.DBNull]::Value) { $roomVal = '' + $rawValue }
+                }
+
+                $makeVal = ''
+                if ($idxMake -ge 0) {
+                    $rawValue = $rawRows.GetValue($idxMake, $rowIndex)
+                    if ($null -ne $rawValue -and $rawValue -ne [System.DBNull]::Value) { $makeVal = '' + $rawValue }
+                }
+
+                $authTemplateVal = ''
+                if ($idxAuthTemplate -ge 0) {
+                    $rawValue = $rawRows.GetValue($idxAuthTemplate, $rowIndex)
+                    if ($null -ne $rawValue -and $rawValue -ne [System.DBNull]::Value) { $authTemplateVal = '' + $rawValue }
+                }
+
+                $configVal = ''
+                if ($idxConfig -ge 0) {
+                    $rawValue = $rawRows.GetValue($idxConfig, $rowIndex)
+                    if ($null -ne $rawValue -and $rawValue -ne [System.DBNull]::Value) { $configVal = '' + $rawValue }
+                }
+
+                $configStatusVal = ''
+                if ($idxConfigStatus -ge 0) {
+                    $rawValue = $rawRows.GetValue($idxConfigStatus, $rowIndex)
+                    if ($null -ne $rawValue -and $rawValue -ne [System.DBNull]::Value) { $configStatusVal = '' + $rawValue }
+                }
+
+                $portColorVal = ''
+                if ($idxPortColor -ge 0) {
+                    $rawValue = $rawRows.GetValue($idxPortColor, $rowIndex)
+                    if ($null -ne $rawValue -and $rawValue -ne [System.DBNull]::Value) { $portColorVal = '' + $rawValue }
+                }
+
+                $toolTipVal = ''
+                if ($idxToolTip -ge 0) {
+                    $rawValue = $rawRows.GetValue($idxToolTip, $rowIndex)
+                    if ($null -ne $rawValue -and $rawValue -ne [System.DBNull]::Value) { $toolTipVal = '' + $rawValue }
+                }
+
+                $rowObj = [PSCustomObject]@{
+                    Hostname      = $hostnameVal
+                    Port          = $portVal
+                    Name          = $nameVal
+                    Status        = $statusVal
+                    VLAN          = $vlanVal
+                    Duplex        = $duplexVal
+                    Speed         = $speedVal
+                    Type          = $typeVal
+                    LearnedMACs   = $learnedVal
+                    AuthState     = $authStateVal
+                    AuthMode      = $authModeVal
+                    AuthClientMAC = $authClientVal
+                    Site          = $siteVal
+                    Building      = $buildingVal
+                    Room          = $roomVal
+                    Make          = $makeVal
+                    AuthTemplate  = $authTemplateVal
+                    Config        = $configVal
+                    ConfigStatus  = $configStatusVal
+                    PortColor     = $portColorVal
+                    ToolTip       = $toolTipVal
+                }
+                [void]$rowsFromConnection.Add($rowObj)
+            }
+
+            $hydrationDetail.QueryAttempts = 1
+            $hydrationDetail.ResultRowCount = $rowCount
+            $dataSet = $rowsFromConnection
+        } elseif ($hydrationDetail.QueryDurationMs -le 0) {
+            $hydrationDetail.QueryDurationMs = $hydrationDetail.ExecuteDurationMs
+        }
     }
+
+    if (-not $dataSet) {
+        $hydrationDetail.Provider = 'AccessRetry'
+        $retryTelemetry = $null
+        $fallbackStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+        try {
+            $dataSet = Invoke-WithAccessExclusiveRetry -Context "Failed to query interfaces for site '$siteCode'" -MaxAttempts 5 -RetryDelayMilliseconds 100 -Operation {
+            Invoke-DbQuery -DatabasePath $dbFile -Sql $sqlSite
+            } -TelemetrySink ([ref]$retryTelemetry)
+        } finally {
+            $fallbackStopwatch.Stop()
+        }
+
+        if ($retryTelemetry) {
+            $hydrationDetail.QueryAttempts = if ($retryTelemetry.PSObject.Properties.Name -contains 'Attempts') { [int]$retryTelemetry.Attempts } else { 0 }
+            $hydrationDetail.ExclusiveRetryCount = if ($retryTelemetry.PSObject.Properties.Name -contains 'ExclusiveRetries') { [int]$retryTelemetry.ExclusiveRetries } else { 0 }
+            if ($retryTelemetry.PSObject.Properties.Name -contains 'ExclusiveWaitDurationMs') {
+                $hydrationDetail.ExclusiveWaitDurationMs = [Math]::Round([double]$retryTelemetry.ExclusiveWaitDurationMs, 3)
+            }
+            if ($retryTelemetry.PSObject.Properties.Name -contains 'DurationMs') {
+                $hydrationDetail.QueryDurationMs = [Math]::Round([double]$retryTelemetry.DurationMs, 3)
+                $hydrationDetail.ExecuteDurationMs = $hydrationDetail.QueryDurationMs
+            } else {
+                $hydrationDetail.QueryDurationMs = [Math]::Round($fallbackStopwatch.Elapsed.TotalMilliseconds, 3)
+                $hydrationDetail.ExecuteDurationMs = $hydrationDetail.QueryDurationMs
+            }
+            if ($retryTelemetry.PSObject.Properties.Name -contains 'Succeeded' -and -not [bool]$retryTelemetry.Succeeded) {
+                $hydrationDetail.Succeeded = $false
+            }
+        } else {
+            $hydrationDetail.QueryAttempts = 1
+            $hydrationDetail.QueryDurationMs = [Math]::Round($fallbackStopwatch.Elapsed.TotalMilliseconds, 3)
+            $hydrationDetail.ExecuteDurationMs = $hydrationDetail.QueryDurationMs
+        }
+    }
+
+    if ($dataSet) {
+        $enum = $null
+        if ($dataSet -is [System.Data.DataTable]) {
+            $enum = $dataSet.Rows
+        } elseif ($dataSet -is [System.Data.DataView]) {
+            $enum = $dataSet
+        } elseif ($dataSet -is [System.Collections.IEnumerable]) {
+            $enum = $dataSet
+        }
+
+        $materializePortSortCacheHits = 0L
+        $materializePortSortCacheMisses = 0L
+        $materializePortSortCacheSize = 0L
+
+        if ($enum) {
+            if ($estimatedRowTotal -le 0) {
+                try {
+                    if ($enum -is [System.Collections.ICollection]) {
+                        $estimatedRowTotal = [int][Math]::Max($estimatedRowTotal, $enum.Count)
+                    }
+                } catch { $estimatedRowTotal = 0 }
+            }
+            if ($estimatedRowTotal -gt 0 -and ($rows -is [System.Collections.Generic.List[object]])) {
+                try {
+                    if ($rows.Count -eq 0) {
+                        $rows = [System.Collections.Generic.List[object]]::new($estimatedRowTotal)
+                    } elseif ($rows.Capacity -lt $estimatedRowTotal) {
+                        $rows.Capacity = $estimatedRowTotal
+                    }
+                } catch { }
+            }
+
+            $portSortCacheHitsBaseline = 0L
+            $portSortCacheMissBaseline = 0L
+            try {
+                $portSortCacheStart = InterfaceModule\Get-PortSortCacheStatistics
+                if ($portSortCacheStart) {
+                    if ($portSortCacheStart.PSObject.Properties.Name -contains 'Hits') {
+                        $portSortCacheHitsBaseline = [long]$portSortCacheStart.Hits
+                    }
+                    if ($portSortCacheStart.PSObject.Properties.Name -contains 'Misses') {
+                        $portSortCacheMissBaseline = [long]$portSortCacheStart.Misses
+                    }
+                    if ($portSortCacheStart.PSObject.Properties.Name -contains 'EntryCount') {
+                        $materializePortSortCacheSize = [long][Math]::Max($materializePortSortCacheSize, [long]$portSortCacheStart.EntryCount)
+                    }
+                }
+            } catch { }
+
+            $templatesDir = Join-Path $PSScriptRoot '..\Templates'
+            $templateLookups = New-Object 'System.Collections.Generic.Dictionary[string,object]' ([System.StringComparer]::OrdinalIgnoreCase)
+            $templateHintCaches = New-Object 'System.Collections.Generic.Dictionary[string,System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceTemplateHint]]' ([System.StringComparer]::OrdinalIgnoreCase)
+            $templatesStopwatch = [System.Diagnostics.Stopwatch]::new()
+            $templateLoadDuration = 0.0
+
+            $materializeStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+            $projectionStopwatch = [System.Diagnostics.Stopwatch]::new()
+            $portSortStopwatch = [System.Diagnostics.Stopwatch]::new()
+            $templateResolveStopwatch = [System.Diagnostics.Stopwatch]::new()
+            $objectBuildStopwatch = [System.Diagnostics.Stopwatch]::new()
+            $materializeProjectionDuration = 0.0
+            $materializePortSortDuration = 0.0
+            $materializeTemplateDuration = 0.0
+            $materializeObjectDuration = 0.0
+
+            $lastHostname = $null
+            $lastZoneValue = ''
+            $lastSiteValue = $siteCode
+            $lastBuildingValue = ''
+            $lastRoomValue = ''
+            $lastVendorValue = 'Cisco'
+            $lastMakeValue = ''
+
+            foreach ($row in $enum) {
+                if ($null -eq $row) { continue }
+
+                $projectionStopwatch.Restart()
+                $hn = [string]$row.Hostname
+                if ($hn) { $hn = $hn.Trim() }
+                if ([string]::IsNullOrWhiteSpace($hn)) {
+                    $projectionStopwatch.Stop()
+                    $materializeProjectionDuration += $projectionStopwatch.Elapsed.TotalMilliseconds
+                    continue
+                }
+
+                if (-not $lastHostname -or -not [System.StringComparer]::Ordinal.Equals($hn, $lastHostname)) {
+                    $lastHostname = $hn
+                    $lastZoneValue = ''
+                    try {
+                        $parts = $hn.Split('-', [System.StringSplitOptions]::RemoveEmptyEntries)
+                        if ($parts.Length -ge 2) { $lastZoneValue = $parts[1] }
+                    } catch {
+                        $lastZoneValue = ''
+                    }
+
+                    $siteCandidate = [string]$row.Site
+                    if ([string]::IsNullOrWhiteSpace($siteCandidate)) {
+                        $siteCandidate = $siteCode
+                    }
+                    $lastSiteValue = $siteCandidate
+
+                    $lastBuildingValue = [string]$row.Building
+                    $lastRoomValue = [string]$row.Room
+
+                    $lastMakeValue = [string]$row.Make
+                    $lastVendorValue = 'Cisco'
+                    if (-not [string]::IsNullOrWhiteSpace($lastMakeValue)) {
+                        if ($lastMakeValue -match '(?i)brocade') { $lastVendorValue = 'Brocade' }
+                        elseif ($lastMakeValue -match '(?i)arista') { $lastVendorValue = 'Arista' }
+                    }
+                } else {
+                    $tmpBuilding = [string]$row.Building
+                    if (-not [string]::IsNullOrWhiteSpace($tmpBuilding)) {
+                        $lastBuildingValue = $tmpBuilding
+                    }
+                    $tmpRoom = [string]$row.Room
+                    if (-not [string]::IsNullOrWhiteSpace($tmpRoom)) {
+                        $lastRoomValue = $tmpRoom
+                    }
+                    $tmpSite = [string]$row.Site
+                    if (-not [string]::IsNullOrWhiteSpace($tmpSite)) {
+                        $lastSiteValue = $tmpSite
+                    }
+                    $tmpMake = [string]$row.Make
+                    if (-not [string]::IsNullOrWhiteSpace($tmpMake) -and -not [System.StringComparer]::OrdinalIgnoreCase.Equals($tmpMake, $lastMakeValue)) {
+                        $lastMakeValue = $tmpMake
+                        if ($lastMakeValue -match '(?i)brocade') { $lastVendorValue = 'Brocade' }
+                        elseif ($lastMakeValue -match '(?i)arista') { $lastVendorValue = 'Arista' }
+                        else { $lastVendorValue = 'Cisco' }
+                    }
+                }
+
+                $port = [string]$row.Port
+                $name = [string]$row.Name
+                $status = [string]$row.Status
+                $vlan = [string]$row.VLAN
+                $duplex = [string]$row.Duplex
+                $speed = [string]$row.Speed
+                $type = [string]$row.Type
+                $lm = [string]$row.LearnedMACs
+                $aState = [string]$row.AuthState
+                $aMode = [string]$row.AuthMode
+                $aMAC = [string]$row.AuthClientMAC
+                $authTmpl = [string]$row.AuthTemplate
+                $cfgVal = [string]$row.Config
+                $cfgStatVal = [string]$row.ConfigStatus
+                $portColorVal = [string]$row.PortColor
+                $tipVal = [string]$row.ToolTip
+                $siteVal = $lastSiteValue
+                $bld = $lastBuildingValue
+                $room = $lastRoomValue
+                $zoneValIf = $lastZoneValue
+                $vendor = $lastVendorValue
+                $projectionStopwatch.Stop()
+                $materializeProjectionDuration += $projectionStopwatch.Elapsed.TotalMilliseconds
+
+                $portSortStopwatch.Restart()
+                $portSort = if (-not [string]::IsNullOrWhiteSpace($port)) {
+                    InterfaceModule\Get-PortSortKey -Port $port
+                } else {
+                    '99-UNK-99999-99999-99999-99999-99999'
+                }
+                $portSortStopwatch.Stop()
+                $materializePortSortDuration += $portSortStopwatch.Elapsed.TotalMilliseconds
+
+                $templateResolveStopwatch.Restart()
+
+                $tmplLookup = $null
+                if (-not $templateLookups.TryGetValue($vendor, [ref]$tmplLookup)) {
+                    $templatesStopwatch.Restart()
+                    $tmplLookup = script:Get-TemplateLookupForVendor -Vendor $vendor -TemplatesPath $templatesDir
+                    $templatesStopwatch.Stop()
+                    $templateLoadDuration += $templatesStopwatch.Elapsed.TotalMilliseconds
+                    $templateLookups[$vendor] = $tmplLookup
+                }
+
+                $vendorHintCache = $null
+                if (-not $templateHintCaches.TryGetValue($vendor, [ref]$vendorHintCache)) {
+                    $vendorHintCache = script:Get-TemplateHintCacheForVendor -Vendor $vendor -TemplatesPath $templatesDir
+                    $templateHintCaches[$vendor] = $vendorHintCache
+                }
+
+                $tipCore = ($tipVal.TrimEnd())
+                if (-not $tipCore) {
+                    if ($cfgVal -and ($cfgVal.Trim() -ne '')) {
+                        $tipCore = "AuthTemplate: $authTmpl`r`n`r`n$cfgVal"
+                    } elseif ($authTmpl) {
+                        $tipCore = "AuthTemplate: $authTmpl"
+                    } else {
+                        $tipCore = ''
+                    }
+                }
+
+                $finalPortColor = $portColorVal
+                $finalCfgStatus = $cfgStatVal
+                $hasPortColor = -not [string]::IsNullOrWhiteSpace($finalPortColor)
+                $hasCfgStatus = -not [string]::IsNullOrWhiteSpace($finalCfgStatus)
+                if (-not $hasPortColor -or -not $hasCfgStatus) {
+                    if ([string]::IsNullOrWhiteSpace($authTmpl)) {
+                        if (-not $hasPortColor) { $finalPortColor = 'Gray' }
+                        if (-not $hasCfgStatus) { $finalCfgStatus = 'Unknown' }
+                    } else {
+                        $hint = $null
+                        if ($vendorHintCache -and $vendorHintCache.TryGetValue($authTmpl, [ref]$hint)) {
+                            # reuse existing hint
+                        } else {
+                            $hint = [StateTrace.Models.InterfaceTemplateHint]::new()
+                            $match = $null
+                            if ($tmplLookup -and $tmplLookup -is [System.Collections.Generic.Dictionary[string,object]]) {
+                                $tmpMatch = $null
+                                if ($tmplLookup.TryGetValue($authTmpl, [ref]$tmpMatch)) { $match = $tmpMatch }
+                            } elseif ($tmplLookup -and $tmplLookup.ContainsKey($authTmpl)) {
+                                $match = $tmplLookup[$authTmpl]
+                            }
+
+                            $colorFromTemplate = 'Gray'
+                            if ($match) {
+                                try {
+                                    $colorProp = $match.PSObject.Properties['color']
+                                    if ($colorProp -and $colorProp.Value) { $colorFromTemplate = [string]$colorProp.Value }
+                                } catch {
+                                    $colorFromTemplate = 'Gray'
+                                }
+                            }
+
+                            if ($match) {
+                                $hint.PortColor = $colorFromTemplate
+                                $hint.ConfigStatus = 'Match'
+                                $hint.HasTemplate = $true
+                            } else {
+                                $hint.PortColor = 'Gray'
+                                $hint.ConfigStatus = 'Mismatch'
+                                $hint.HasTemplate = $false
+                            }
+                            if ($vendorHintCache) {
+                                $vendorHintCache[$authTmpl] = $hint
+                            }
+                        }
+
+                if (-not $hasPortColor) { $finalPortColor = $hint.PortColor }
+                if (-not $hasCfgStatus) { $finalCfgStatus = $hint.ConfigStatus }
+            }
+        }
+        $templateResolveStopwatch.Stop()
+        $materializeTemplateDuration += $templateResolveStopwatch.Elapsed.TotalMilliseconds
+
+        $cacheSignature = ConvertTo-InterfaceCacheSignature -Values @(
+            $name,
+            $status,
+            $vlan,
+            $duplex,
+            $speed,
+            $type,
+            $lm,
+            $aState,
+            $aMode,
+            $aMAC,
+            $authTmpl,
+            $cfgVal,
+            $finalPortColor,
+            $finalCfgStatus,
+            $tipCore
+        )
+
+        $objectBuildStopwatch.Restart()
+        $record = [StateTrace.Models.InterfacePortRecord]::new()
+        $record.Hostname = $hn
+        $record.Port = $port
+        $record.PortSort = $portSort
+                $record.Name = $name
+                $record.Status = $status
+                $record.VLAN = $vlan
+                $record.Duplex = $duplex
+                $record.Speed = $speed
+                $record.Type = $type
+                $record.LearnedMACs = $lm
+                $record.AuthState = $aState
+                $record.AuthMode = $aMode
+                $record.AuthClientMAC = $aMAC
+                $record.Site = $siteVal
+                $record.Building = $bld
+                $record.Room = $room
+                $record.Zone = $zoneValIf
+                $record.AuthTemplate = $authTmpl
+        $record.Config = $cfgVal
+        $record.ConfigStatus = $finalCfgStatus
+        $record.PortColor = $finalPortColor
+        $record.ToolTip = $tipCore
+        $record.CacheSignature = $cacheSignature
+        $record.IsSelected = $false
+                [void]$rows.Add($record)
+                $objectBuildStopwatch.Stop()
+                $materializeObjectDuration += $objectBuildStopwatch.Elapsed.TotalMilliseconds
+            }
+            $rowsAreOrdered = $true
+            $hydrationDetail.TemplateLoadDurationMs = [Math]::Round($templateLoadDuration, 3)
+            try {
+                $portSortCacheEnd = InterfaceModule\Get-PortSortCacheStatistics
+                if ($portSortCacheEnd) {
+                    if ($portSortCacheEnd.PSObject.Properties.Name -contains 'Hits') {
+                        $materializePortSortCacheHits = [long][Math]::Max(0, [long]$portSortCacheEnd.Hits - $portSortCacheHitsBaseline)
+                    }
+                    if ($portSortCacheEnd.PSObject.Properties.Name -contains 'Misses') {
+                        $materializePortSortCacheMisses = [long][Math]::Max(0, [long]$portSortCacheEnd.Misses - $portSortCacheMissBaseline)
+                    }
+                    if ($portSortCacheEnd.PSObject.Properties.Name -contains 'EntryCount') {
+                        $materializePortSortCacheSize = [long][Math]::Max(0, [long]$portSortCacheEnd.EntryCount)
+                    }
+                }
+            } catch { }
+
+            $materializeStopwatch.Stop()
+            $hydrationDetail.MaterializeDurationMs = [Math]::Round($materializeStopwatch.Elapsed.TotalMilliseconds, 3)
+            $hydrationDetail | Add-Member -NotePropertyName MaterializeProjectionDurationMs -NotePropertyValue ([Math]::Round($materializeProjectionDuration, 3)) -Force
+            $hydrationDetail | Add-Member -NotePropertyName MaterializePortSortDurationMs -NotePropertyValue ([Math]::Round($materializePortSortDuration, 3)) -Force
+            $hydrationDetail | Add-Member -NotePropertyName MaterializeTemplateDurationMs -NotePropertyValue ([Math]::Round($materializeTemplateDuration, 3)) -Force
+            $hydrationDetail | Add-Member -NotePropertyName MaterializeObjectDurationMs -NotePropertyValue ([Math]::Round($materializeObjectDuration, 3)) -Force
+            if ($hydrationDetail.QueryDurationMs -le 0) {
+                $hydrationDetail.QueryDurationMs = $hydrationDetail.MaterializeDurationMs
+            }
+        }
+    }
+
+    $hydrationDetail | Add-Member -NotePropertyName MaterializePortSortCacheHitCount -NotePropertyValue ([long][Math]::Max(0, $materializePortSortCacheHits)) -Force
+    $hydrationDetail | Add-Member -NotePropertyName MaterializePortSortCacheMissCount -NotePropertyValue ([long][Math]::Max(0, $materializePortSortCacheMisses)) -Force
+    $hydrationDetail | Add-Member -NotePropertyName MaterializePortSortCacheSize -NotePropertyValue ([long][Math]::Max(0, $materializePortSortCacheSize)) -Force
 
     $comparison2 = [System.Comparison[object]]{
         param($a, $b)
@@ -573,7 +3952,25 @@ ORDER BY i.Hostname, i.Port
         if ($hnc2 -ne 0) { return $hnc2 }
         return [System.StringComparer]::Ordinal.Compare($a.PortSort, $b.PortSort)
     }
-    try { $rows.Sort($comparison2) } catch {}
+    $sortDurationMs = 0.0
+    $sortStopwatch = $null
+    try {
+        if ($rows -and -not $rowsAreOrdered) {
+            $sortStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+            $rows.Sort($comparison2)
+        }
+    } catch {
+    } finally {
+        if ($sortStopwatch) {
+            $sortStopwatch.Stop()
+            $sortDurationMs = [Math]::Round($sortStopwatch.Elapsed.TotalMilliseconds, 3)
+        }
+    }
+    if ($hydrationDetail) {
+        try {
+            $hydrationDetail | Add-Member -NotePropertyName SortDurationMs -NotePropertyValue $sortDurationMs -Force
+        } catch {}
+    }
 
     $dbTime = $null
     try { $dbTime = (Get-Item -LiteralPath $dbFile).LastWriteTime } catch {}
@@ -583,6 +3980,15 @@ ORDER BY i.Hostname, i.Port
             DbTime = $dbTime
         }
     } catch {}
+    if ($hydrationDetail.QueryAttempts -le 0 -and -not [System.StringComparer]::OrdinalIgnoreCase.Equals($hydrationDetail.Provider, 'Cache')) {
+        $hydrationDetail.QueryAttempts = 1
+    }
+    $hydrationDetail.ResultRowCount = [int]$rows.Count
+    if ($hydrationDetail.MaterializeDurationMs -le 0 -and $rows.Count -gt 0) {
+        $hydrationDetail.MaterializeDurationMs = [Math]::Round($hydrationDetail.QueryDurationMs, 3)
+    }
+    $hydrationDetail.Succeeded = $true
+    $script:LastInterfaceSiteHydrationMetrics = $hydrationDetail
     return $rows
 }
 
@@ -1068,4 +4474,6 @@ function Get-SpanningTreeInfo {
 
     return $list.ToArray()
 }
-Export-ModuleMember -Function Get-DataDirectoryPath, Get-SiteFromHostname, Get-DbPathForSite, Get-DbPathForHost, Get-AllSiteDbPaths, Clear-SiteInterfaceCache, Update-SiteZoneCache, Get-GlobalInterfaceSnapshot, Update-GlobalInterfaceList, Get-InterfacesForSite, Get-InterfaceInfo, Get-InterfaceConfiguration, Get-SpanningTreeInfo, Get-InterfacesForHostsBatch, Invoke-ParallelDbQuery, Import-DatabaseModule
+Export-ModuleMember -Function Get-DataDirectoryPath, Get-SiteFromHostname, Get-DbPathForSite, Get-DbPathForHost, Get-AllSiteDbPaths, Clear-SiteInterfaceCache, Get-InterfaceSiteCache, Get-InterfaceSiteCacheSummary, Set-InterfaceSiteCacheHost, Get-InterfacePortBatchChunkSize, Set-InterfacePortStreamData, Initialize-InterfacePortStream, Get-InterfacePortStreamStatus, Get-InterfacePortBatch, Get-LastInterfacePortStreamMetrics, Get-LastInterfacePortQueueMetrics, Get-LastInterfaceSiteCacheMetrics, Get-LastInterfaceSiteHydrationMetrics, Set-InterfacePortDispatchMetrics, Get-LastInterfacePortDispatchMetrics, Clear-InterfacePortStream, Update-SiteZoneCache, Get-GlobalInterfaceSnapshot, Update-GlobalInterfaceList, Get-InterfacesForSite, Get-InterfaceInfo, Get-InterfaceConfiguration, Get-SpanningTreeInfo, Get-InterfacesForHostsBatch, Invoke-ParallelDbQuery, Import-DatabaseModule
+
+

@@ -127,6 +127,29 @@ Describe "DeviceRepositoryModule core helpers" {
         $cache.Keys.Count | Should Be 0
     }
 
+    It "adopts shared cache entries from the AppDomain store when script cache is empty" {
+        $module = Get-Module DeviceRepositoryModule -ErrorAction Stop
+        $cacheKey = $module.SessionState.PSVariable.Get('SharedSiteInterfaceCacheKey').Value
+        $domainStore = New-Object 'System.Collections.Concurrent.ConcurrentDictionary[string, object]' ([System.StringComparer]::OrdinalIgnoreCase)
+        $entry = [pscustomobject]@{ Site = 'SITE1'; HostCount = 1 }
+        [void]$domainStore.TryAdd('SITE1', $entry)
+        [System.AppDomain]::CurrentDomain.SetData($cacheKey, $domainStore)
+        try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::ClearStore() } catch { }
+        Set-RepositoryVar -Name 'SharedSiteInterfaceCache' -Value (New-Object 'System.Collections.Concurrent.ConcurrentDictionary[string, object]' ([System.StringComparer]::OrdinalIgnoreCase))
+
+        $store = $module.Invoke({ Get-SharedSiteInterfaceCacheStore })
+
+        [object]::ReferenceEquals($store, $domainStore) | Should Be $true
+        $scriptStore = $module.SessionState.PSVariable.Get('SharedSiteInterfaceCache').Value
+        [object]::ReferenceEquals($scriptStore, $domainStore) | Should Be $true
+        $holderStore = $module.Invoke({ try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::GetStore() } catch { $null } })
+        [object]::ReferenceEquals($holderStore, $domainStore) | Should Be $true
+
+        DeviceRepositoryModule\Clear-SiteInterfaceCache
+        [System.AppDomain]::CurrentDomain.SetData($cacheKey, $null)
+        try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::ClearStore() } catch { }
+    }
+
     It "loads site data once per zone" {
         $global:DeviceMetadata = @{
             'SITE1-Z1-SW1' = [pscustomobject]@{ Site = 'SITE1'; Zone = 'Z1' }
@@ -168,5 +191,62 @@ Describe "DeviceRepositoryModule core helpers" {
         $result.Count | Should Be 1
         $result[0].Hostname | Should Be 'SITE1-Z1-SW1'
         ($result[0].PSObject.Properties.Name -contains 'IsSelected') | Should Be $true
+    }
+
+    It "emits cache-hit metrics when returning cached site entry" {
+        $hostMap = New-Object 'System.Collections.Generic.Dictionary[string,System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceCacheEntry]]' ([System.StringComparer]::OrdinalIgnoreCase)
+        $portMap = New-Object 'System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceCacheEntry]' ([System.StringComparer]::OrdinalIgnoreCase)
+        $entry = [StateTrace.Models.InterfaceCacheEntry]::new()
+        $entry.Name = 'Et1/1/1'
+        $entry.Status = 'up'
+        $entry.Signature = 'sig-et1'
+        $portMap['Et1/1/1'] = $entry
+        $hostMap['SITE1-A01-AS-01'] = $portMap
+
+        $cachedSiteEntry = [pscustomobject]@{
+            HostMap   = $hostMap
+            TotalRows = 1
+            HostCount = 1
+            CachedAt  = Get-Date
+            CacheStatus = 'Hydrated'
+            HydrationProvider = 'ADODB'
+            HydrationHostMapSignatureRewriteCount = 1
+            HydrationHostMapCandidateMissingCount = 1
+            HydrationHostMapCandidateMissingSamples = @([pscustomobject]@{
+                    Hostname                 = 'SITE1-A01-AS-01'
+                    Port                     = 'Et1/1/1'
+                    Reason                   = 'HostSnapshotMissing'
+                    PreviousHostEntryPresent = $false
+                    PreviousPortEntryPresent = $false
+                    CachedPortCount          = 0
+                    CachedPortSample         = ''
+                    CachedSignature          = $null
+                    PreviousRemainingPortCount = 0
+                    CandidateSource          = ''
+                })
+            HydrationResultRowCount = 1
+        }
+
+        Set-RepositoryVar -Name 'SiteInterfaceSignatureCache' -Value @{ 'SITE1' = $cachedSiteEntry }
+
+        try {
+            $result = DeviceRepositoryModule\Get-InterfaceSiteCache -Site 'SITE1'
+
+            $result | Should Not BeNullOrEmpty
+            $result.HostMap.Keys.Count | Should Be 1
+            $result.HostMap['SITE1-A01-AS-01'].ContainsKey('Et1/1/1') | Should Be $true
+
+            $metrics = DeviceRepositoryModule\Get-LastInterfaceSiteCacheMetrics
+            $metrics | Should Not BeNullOrEmpty
+            $metrics.CacheStatus | Should Be 'Hit'
+            $metrics.HydrationProvider | Should Be 'Cache'
+            $metrics.HydrationHostMapSignatureMatchCount | Should Be 1
+            $metrics.HydrationHostMapCandidateMissingCount | Should Be 0
+            $metrics.TotalRows | Should Be 1
+            $metrics.HostCount | Should Be 1
+            $metrics.HydrationDurationMs | Should Be 0
+        } finally {
+            Set-RepositoryVar -Name 'SiteInterfaceSignatureCache' -Value @{}
+        }
     }
 }

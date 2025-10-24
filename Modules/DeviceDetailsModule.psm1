@@ -49,8 +49,7 @@ function Get-DeviceDetailsData {
     try { DeviceRepositoryModule\Import-DatabaseModule } catch {}
 
     $dto.Summary = Get-DatabaseDeviceSummary -Hostname $hostTrim -DatabasePath $dbPath
-    $dto.Interfaces = DeviceRepositoryModule\Get-InterfaceInfo -Hostname $hostTrim -TemplatesPath $TemplatesPath
-    if (-not $dto.Interfaces) { $dto.Interfaces = @() }
+    $dto.Interfaces = New-Object 'System.Collections.ObjectModel.ObservableCollection[object]'
 
     try {
         $dto.Templates = TemplatesModule\Get-ConfigurationTemplates -Hostname $hostTrim -DatabasePath $dbPath -TemplatesPath $TemplatesPath
@@ -223,7 +222,6 @@ function Get-DeviceVendorFromSummary {
 
 
 Export-ModuleMember -Function Get-DeviceDetails, Get-DeviceDetailsData
-
 
 
 
