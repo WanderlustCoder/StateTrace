@@ -8,6 +8,7 @@ _No cards currently in this column._
 - **Trial reduced auto-scale ceilings post-batching** - [Ingestion] Deliverable: benchmark run with capped MaxWorkersPerSite/MaxActiveSites appended to Plan B snapshots (targeting WLLS Access commits).
 - **Automate warm-run regression in verification pipeline** - [Automation][Telemetry] Deliverable: run `Tools/Invoke-StateTraceVerification.ps1` in scheduled/CI jobs with `-RunWarmRunRegression`, archive `WarmRunTelemetry-*.json`, and enforce `AssertWarmCache` thresholds so cache regressions are caught immediately.
   - 2025-10-23 20:05 MT: Verification harness now maintains `WarmRunTelemetry-latest.json` and `WarmRunTelemetry-latest-summary.json` so downstream automation can ingest the improvement metrics without parsing per-run filenames. Next: plug the script into scheduled verification and alert when cache-hit ratios or improvement percentages fall below targets.
+  - 2025-10-23 20:32 MT: Introduced `Tools/Invoke-StateTraceScheduledVerification.ps1` to wrap the verification harness, defaulting to `-SkipTests -VerboseParsing`, emitting a transcript in `Logs\Verification`, and printing the warm-run summary. Action: update the scheduled job/CI workflow to invoke this wrapper and consume the latest-summary JSON for alerting.
 
 
 ## In Progress (WIP=2)
