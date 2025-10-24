@@ -1552,6 +1552,12 @@ function Invoke-DeviceLogParsing {
                                 if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheMaterializeDurationMs') {
                                     $breakdownPayload['SiteCacheMaterializeDurationMs'] = [double]$latestSyncTelemetry.SiteCacheMaterializeDurationMs
                                 }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheMaterializeProjectionDurationMs') {
+                                    $breakdownPayload['SiteCacheMaterializeProjectionDurationMs'] = [double]$latestSyncTelemetry.SiteCacheMaterializeProjectionDurationMs
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheMaterializePortSortDurationMs') {
+                                    $breakdownPayload['SiteCacheMaterializePortSortDurationMs'] = [double]$latestSyncTelemetry.SiteCacheMaterializePortSortDurationMs
+                                }
                                 if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheMaterializePortSortCacheHitCount') {
                                     $breakdownPayload['SiteCacheMaterializePortSortCacheHitCount'] = [long]$latestSyncTelemetry.SiteCacheMaterializePortSortCacheHitCount
                                 }
@@ -1560,6 +1566,60 @@ function Invoke-DeviceLogParsing {
                                 }
                                 if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheMaterializePortSortCacheSize') {
                                     $breakdownPayload['SiteCacheMaterializePortSortCacheSize'] = [long]$latestSyncTelemetry.SiteCacheMaterializePortSortCacheSize
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheMaterializePortSortCacheHitRatio') {
+                                    $breakdownPayload['SiteCacheMaterializePortSortCacheHitRatio'] = [double]$latestSyncTelemetry.SiteCacheMaterializePortSortCacheHitRatio
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheMaterializePortSortUniquePortCount') {
+                                    $breakdownPayload['SiteCacheMaterializePortSortUniquePortCount'] = [long]$latestSyncTelemetry.SiteCacheMaterializePortSortUniquePortCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheMaterializePortSortMissSamples') {
+                                    $breakdownPayload['SiteCacheMaterializePortSortMissSamples'] = @($latestSyncTelemetry.SiteCacheMaterializePortSortMissSamples)
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateDurationMs') {
+                                    $breakdownPayload['SiteCacheMaterializeTemplateDurationMs'] = [double]$latestSyncTelemetry.SiteCacheMaterializeTemplateDurationMs
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateLookupDurationMs') {
+                                    $breakdownPayload['SiteCacheMaterializeTemplateLookupDurationMs'] = [double]$latestSyncTelemetry.SiteCacheMaterializeTemplateLookupDurationMs
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateApplyDurationMs') {
+                                    $breakdownPayload['SiteCacheMaterializeTemplateApplyDurationMs'] = [double]$latestSyncTelemetry.SiteCacheMaterializeTemplateApplyDurationMs
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateCacheHitCount') {
+                                    $breakdownPayload['SiteCacheMaterializeTemplateCacheHitCount'] = [long]$latestSyncTelemetry.SiteCacheMaterializeTemplateCacheHitCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateCacheMissCount') {
+                                    $breakdownPayload['SiteCacheMaterializeTemplateCacheMissCount'] = [long]$latestSyncTelemetry.SiteCacheMaterializeTemplateCacheMissCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateCacheHitRatio') {
+                                    $breakdownPayload['SiteCacheMaterializeTemplateCacheHitRatio'] = [double]$latestSyncTelemetry.SiteCacheMaterializeTemplateCacheHitRatio
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateApplyCount') {
+                                    $breakdownPayload['SiteCacheMaterializeTemplateApplyCount'] = [long]$latestSyncTelemetry.SiteCacheMaterializeTemplateApplyCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateDefaultedCount') {
+                                    $breakdownPayload['SiteCacheMaterializeTemplateDefaultedCount'] = [long]$latestSyncTelemetry.SiteCacheMaterializeTemplateDefaultedCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateAuthTemplateMissingCount') {
+                                    $breakdownPayload['SiteCacheMaterializeTemplateAuthTemplateMissingCount'] = [long]$latestSyncTelemetry.SiteCacheMaterializeTemplateAuthTemplateMissingCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateNoTemplateMatchCount') {
+                                    $breakdownPayload['SiteCacheMaterializeTemplateNoTemplateMatchCount'] = [long]$latestSyncTelemetry.SiteCacheMaterializeTemplateNoTemplateMatchCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateHintAppliedCount') {
+                                    $breakdownPayload['SiteCacheMaterializeTemplateHintAppliedCount'] = [long]$latestSyncTelemetry.SiteCacheMaterializeTemplateHintAppliedCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateSetPortColorCount') {
+                                    $breakdownPayload['SiteCacheMaterializeTemplateSetPortColorCount'] = [long]$latestSyncTelemetry.SiteCacheMaterializeTemplateSetPortColorCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateSetConfigStatusCount') {
+                                    $breakdownPayload['SiteCacheMaterializeTemplateSetConfigStatusCount'] = [long]$latestSyncTelemetry.SiteCacheMaterializeTemplateSetConfigStatusCount
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateApplySamples') {
+                                    $breakdownPayload['SiteCacheMaterializeTemplateApplySamples'] = @($latestSyncTelemetry.SiteCacheMaterializeTemplateApplySamples)
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheMaterializeObjectDurationMs') {
+                                    $breakdownPayload['SiteCacheMaterializeObjectDurationMs'] = [double]$latestSyncTelemetry.SiteCacheMaterializeObjectDurationMs
                                 }
                                 if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheTemplateDurationMs') {
                                     $breakdownPayload['SiteCacheTemplateDurationMs'] = [double]$latestSyncTelemetry.SiteCacheTemplateDurationMs

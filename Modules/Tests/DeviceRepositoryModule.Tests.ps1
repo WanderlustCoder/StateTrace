@@ -249,6 +249,34 @@ Describe "DeviceRepositoryModule core helpers" {
             $metrics.HydrationSnapshotRecordsetDurationMs | Should Be 0
             ($metrics.PSObject.Properties.Name -contains 'HydrationSnapshotProjectDurationMs') | Should Be $true
             $metrics.HydrationSnapshotProjectDurationMs | Should Be 0
+            ($metrics.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateLookupDurationMs') | Should Be $true
+            $metrics.HydrationMaterializeTemplateLookupDurationMs | Should Be 0
+            ($metrics.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateApplyDurationMs') | Should Be $true
+            $metrics.HydrationMaterializeTemplateApplyDurationMs | Should Be 0
+            ($metrics.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateCacheHitCount') | Should Be $true
+            $metrics.HydrationMaterializeTemplateCacheHitCount | Should Be 0
+            ($metrics.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateCacheMissCount') | Should Be $true
+            $metrics.HydrationMaterializeTemplateCacheMissCount | Should Be 0
+            ($metrics.PSObject.Properties.Name -contains 'HydrationMaterializePortSortUniquePortCount') | Should Be $true
+            $metrics.HydrationMaterializePortSortUniquePortCount | Should Be 0
+            ($metrics.PSObject.Properties.Name -contains 'HydrationMaterializePortSortMissSamples') | Should Be $true
+            @($metrics.HydrationMaterializePortSortMissSamples).Count | Should Be 0
+            ($metrics.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateApplyCount') | Should Be $true
+            $metrics.HydrationMaterializeTemplateApplyCount | Should Be 0
+            ($metrics.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateDefaultedCount') | Should Be $true
+            $metrics.HydrationMaterializeTemplateDefaultedCount | Should Be 0
+            ($metrics.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateAuthTemplateMissingCount') | Should Be $true
+            $metrics.HydrationMaterializeTemplateAuthTemplateMissingCount | Should Be 0
+            ($metrics.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateNoTemplateMatchCount') | Should Be $true
+            $metrics.HydrationMaterializeTemplateNoTemplateMatchCount | Should Be 0
+            ($metrics.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateHintAppliedCount') | Should Be $true
+            $metrics.HydrationMaterializeTemplateHintAppliedCount | Should Be 0
+            ($metrics.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateSetPortColorCount') | Should Be $true
+            $metrics.HydrationMaterializeTemplateSetPortColorCount | Should Be 0
+            ($metrics.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateSetConfigStatusCount') | Should Be $true
+            $metrics.HydrationMaterializeTemplateSetConfigStatusCount | Should Be 0
+            ($metrics.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateApplySamples') | Should Be $true
+            @($metrics.HydrationMaterializeTemplateApplySamples).Count | Should Be 0
         } finally {
             Set-RepositoryVar -Name 'SiteInterfaceSignatureCache' -Value @{}
         }

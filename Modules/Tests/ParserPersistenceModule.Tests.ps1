@@ -1007,7 +1007,23 @@ Describe "ParserPersistenceModule" {
                 ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializePortSortCacheHitCount') | Should Be $true
                 ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializePortSortCacheMissCount') | Should Be $true
                 ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializePortSortCacheSize') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializePortSortCacheHitRatio') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializePortSortUniquePortCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializePortSortMissSamples') | Should Be $true
                 ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateDurationMs') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateLookupDurationMs') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateApplyDurationMs') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateCacheHitCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateCacheMissCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateCacheHitRatio') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateApplyCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateDefaultedCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateAuthTemplateMissingCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateNoTemplateMatchCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateHintAppliedCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateSetPortColorCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateSetConfigStatusCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateApplySamples') | Should Be $true
                 ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializeObjectDurationMs') | Should Be $true
                 ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheTemplateDurationMs') | Should Be $true
                 ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheQueryAttempts') | Should Be $true
@@ -1141,7 +1157,37 @@ Describe "ParserPersistenceModule" {
                 SiteCacheMaterializePortSortCacheHitCount   = 12
                 SiteCacheMaterializePortSortCacheMissCount = 3
                 SiteCacheMaterializePortSortCacheSize      = 45
+                SiteCacheMaterializePortSortCacheHitRatio  = 0.8
+                SiteCacheMaterializePortSortUniquePortCount = 90
+                SiteCacheMaterializePortSortMissSamples      = @(
+                    [pscustomobject]@{
+                        Port     = 'Gi1/0/1'
+                        PortSort = '01-GI-00001-00000-00000-00000'
+                    }
+                )
                 SiteCacheMaterializeTemplateDurationMs   = 0.3
+                SiteCacheMaterializeTemplateLookupDurationMs = 0.12
+                SiteCacheMaterializeTemplateApplyDurationMs  = 0.08
+                SiteCacheMaterializeTemplateCacheHitCount    = 10
+                SiteCacheMaterializeTemplateCacheMissCount   = 5
+                SiteCacheMaterializeTemplateCacheHitRatio    = 0.666667
+                SiteCacheMaterializeTemplateApplyCount        = 18
+                SiteCacheMaterializeTemplateDefaultedCount    = 4
+                SiteCacheMaterializeTemplateAuthTemplateMissingCount = 2
+                SiteCacheMaterializeTemplateNoTemplateMatchCount     = 2
+                SiteCacheMaterializeTemplateHintAppliedCount   = 14
+                SiteCacheMaterializeTemplateSetPortColorCount  = 3
+                SiteCacheMaterializeTemplateSetConfigStatusCount = 5
+                SiteCacheMaterializeTemplateApplySamples       = @(
+                    [pscustomobject]@{
+                        Port            = 'Gi1/0/1'
+                        AuthTemplate    = 'Default'
+                        Reason          = 'TemplateMatched'
+                        HintSource      = 'Cache'
+                        PortColorSet    = $true
+                        ConfigStatusSet = $true
+                    }
+                )
                 SiteCacheMaterializeObjectDurationMs     = 1.7
                 SiteCacheTemplateDurationMs = 0.9
                 SiteCacheQueryAttempts   = 1
@@ -1244,7 +1290,35 @@ Describe "ParserPersistenceModule" {
         ($metrics.PSObject.Properties.Name -contains 'SiteCacheMaterializePortSortCacheHitCount') | Should Be $true
         ($metrics.PSObject.Properties.Name -contains 'SiteCacheMaterializePortSortCacheMissCount') | Should Be $true
         ($metrics.PSObject.Properties.Name -contains 'SiteCacheMaterializePortSortCacheSize') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheMaterializePortSortCacheHitRatio') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheMaterializePortSortUniquePortCount') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheMaterializePortSortMissSamples') | Should Be $true
         ($metrics.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateDurationMs') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateLookupDurationMs') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateApplyDurationMs') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateCacheHitCount') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateCacheMissCount') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateCacheHitRatio') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateApplyCount') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateDefaultedCount') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateAuthTemplateMissingCount') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateNoTemplateMatchCount') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateHintAppliedCount') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateSetPortColorCount') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateSetConfigStatusCount') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateApplySamples') | Should Be $true
+        $metrics.SiteCacheMaterializePortSortUniquePortCount | Should Be 90
+        @($metrics.SiteCacheMaterializePortSortMissSamples).Count | Should Be 1
+        $metrics.SiteCacheMaterializePortSortMissSamples[0].Port | Should Be 'Gi1/0/1'
+        $metrics.SiteCacheMaterializeTemplateApplyCount | Should Be 18
+        $metrics.SiteCacheMaterializeTemplateDefaultedCount | Should Be 4
+        $metrics.SiteCacheMaterializeTemplateAuthTemplateMissingCount | Should Be 2
+        $metrics.SiteCacheMaterializeTemplateNoTemplateMatchCount | Should Be 2
+        $metrics.SiteCacheMaterializeTemplateHintAppliedCount | Should Be 14
+        $metrics.SiteCacheMaterializeTemplateSetPortColorCount | Should Be 3
+        $metrics.SiteCacheMaterializeTemplateSetConfigStatusCount | Should Be 5
+        @($metrics.SiteCacheMaterializeTemplateApplySamples).Count | Should Be 1
+        $metrics.SiteCacheMaterializeTemplateApplySamples[0].Reason | Should Be 'TemplateMatched'
         ($metrics.PSObject.Properties.Name -contains 'SiteCacheMaterializeObjectDurationMs') | Should Be $true
         ($metrics.PSObject.Properties.Name -contains 'SiteCacheTemplateDurationMs') | Should Be $true
         ($metrics.PSObject.Properties.Name -contains 'SiteCacheQueryAttempts') | Should Be $true

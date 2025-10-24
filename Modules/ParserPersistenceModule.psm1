@@ -642,8 +642,24 @@ $siteCacheMaterializePortSortDurationMs = 0.0
 $siteCacheMaterializePortSortCacheHitCount = 0
 $siteCacheMaterializePortSortCacheMissCount = 0
 $siteCacheMaterializePortSortCacheSize = 0
+$siteCacheMaterializePortSortCacheHitRatio = 0.0
+$siteCacheMaterializePortSortUniquePortCount = 0
+$siteCacheMaterializePortSortMissSamples = @()
 $siteCacheMaterializeTemplateDurationMs = 0.0
+$siteCacheMaterializeTemplateLookupDurationMs = 0.0
+$siteCacheMaterializeTemplateApplyDurationMs = 0.0
 $siteCacheMaterializeObjectDurationMs = 0.0
+$siteCacheMaterializeTemplateCacheHitCount = 0
+$siteCacheMaterializeTemplateCacheMissCount = 0
+$siteCacheMaterializeTemplateCacheHitRatio = 0.0
+$siteCacheMaterializeTemplateApplyCount = 0
+$siteCacheMaterializeTemplateDefaultedCount = 0
+$siteCacheMaterializeTemplateAuthTemplateMissingCount = 0
+$siteCacheMaterializeTemplateNoTemplateMatchCount = 0
+$siteCacheMaterializeTemplateHintAppliedCount = 0
+$siteCacheMaterializeTemplateSetPortColorCount = 0
+$siteCacheMaterializeTemplateSetConfigStatusCount = 0
+$siteCacheMaterializeTemplateApplySamples = @()
 $siteCacheTemplateDurationMs = 0.0
     $siteCacheQueryAttempts = 0
     $siteCacheExclusiveRetryCount = 0
@@ -1106,11 +1122,59 @@ $siteCacheTemplateDurationMs = 0.0
                 if ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'HydrationMaterializePortSortCacheSize') {
                     $siteCacheMaterializePortSortCacheSize = [long][Math]::Max(0, $lastSiteCacheMetrics.HydrationMaterializePortSortCacheSize)
                 }
+                if ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'HydrationMaterializePortSortCacheHitRatio') {
+                    $siteCacheMaterializePortSortCacheHitRatio = [Math]::Round([double]$lastSiteCacheMetrics.HydrationMaterializePortSortCacheHitRatio, 6)
+                }
+                if ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'HydrationMaterializePortSortUniquePortCount') {
+                    $siteCacheMaterializePortSortUniquePortCount = [long][Math]::Max(0, $lastSiteCacheMetrics.HydrationMaterializePortSortUniquePortCount)
+                }
+                if ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'HydrationMaterializePortSortMissSamples') {
+                    $siteCacheMaterializePortSortMissSamples = @($lastSiteCacheMetrics.HydrationMaterializePortSortMissSamples)
+                }
                 if ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateDurationMs') {
                     $siteCacheMaterializeTemplateDurationMs = [Math]::Round([double]$lastSiteCacheMetrics.HydrationMaterializeTemplateDurationMs, 3)
                 }
+                if ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateLookupDurationMs') {
+                    $siteCacheMaterializeTemplateLookupDurationMs = [Math]::Round([double]$lastSiteCacheMetrics.HydrationMaterializeTemplateLookupDurationMs, 3)
+                }
+                if ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateApplyDurationMs') {
+                    $siteCacheMaterializeTemplateApplyDurationMs = [Math]::Round([double]$lastSiteCacheMetrics.HydrationMaterializeTemplateApplyDurationMs, 3)
+                }
                 if ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'HydrationMaterializeObjectDurationMs') {
                     $siteCacheMaterializeObjectDurationMs = [Math]::Round([double]$lastSiteCacheMetrics.HydrationMaterializeObjectDurationMs, 3)
+                }
+                if ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateCacheHitCount') {
+                    $siteCacheMaterializeTemplateCacheHitCount = [long][Math]::Max(0, $lastSiteCacheMetrics.HydrationMaterializeTemplateCacheHitCount)
+                }
+                if ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateCacheMissCount') {
+                    $siteCacheMaterializeTemplateCacheMissCount = [long][Math]::Max(0, $lastSiteCacheMetrics.HydrationMaterializeTemplateCacheMissCount)
+                }
+                if ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateCacheHitRatio') {
+                    $siteCacheMaterializeTemplateCacheHitRatio = [Math]::Round([double]$lastSiteCacheMetrics.HydrationMaterializeTemplateCacheHitRatio, 6)
+                }
+                if ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateApplyCount') {
+                    $siteCacheMaterializeTemplateApplyCount = [long][Math]::Max(0, $lastSiteCacheMetrics.HydrationMaterializeTemplateApplyCount)
+                }
+                if ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateDefaultedCount') {
+                    $siteCacheMaterializeTemplateDefaultedCount = [long][Math]::Max(0, $lastSiteCacheMetrics.HydrationMaterializeTemplateDefaultedCount)
+                }
+                if ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateAuthTemplateMissingCount') {
+                    $siteCacheMaterializeTemplateAuthTemplateMissingCount = [long][Math]::Max(0, $lastSiteCacheMetrics.HydrationMaterializeTemplateAuthTemplateMissingCount)
+                }
+                if ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateNoTemplateMatchCount') {
+                    $siteCacheMaterializeTemplateNoTemplateMatchCount = [long][Math]::Max(0, $lastSiteCacheMetrics.HydrationMaterializeTemplateNoTemplateMatchCount)
+                }
+                if ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateHintAppliedCount') {
+                    $siteCacheMaterializeTemplateHintAppliedCount = [long][Math]::Max(0, $lastSiteCacheMetrics.HydrationMaterializeTemplateHintAppliedCount)
+                }
+                if ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateSetPortColorCount') {
+                    $siteCacheMaterializeTemplateSetPortColorCount = [long][Math]::Max(0, $lastSiteCacheMetrics.HydrationMaterializeTemplateSetPortColorCount)
+                }
+                if ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateSetConfigStatusCount') {
+                    $siteCacheMaterializeTemplateSetConfigStatusCount = [long][Math]::Max(0, $lastSiteCacheMetrics.HydrationMaterializeTemplateSetConfigStatusCount)
+                }
+                if ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateApplySamples') {
+                    $siteCacheMaterializeTemplateApplySamples = @($lastSiteCacheMetrics.HydrationMaterializeTemplateApplySamples)
                 }
                 if ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'HydrationTemplateDurationMs') {
                     $siteCacheTemplateDurationMs = [Math]::Round([double]$lastSiteCacheMetrics.HydrationTemplateDurationMs, 3)
@@ -2109,7 +2173,23 @@ $siteCacheTemplateDurationMs = 0.0
         SiteCacheMaterializePortSortCacheHitCount   = $siteCacheMaterializePortSortCacheHitCount
         SiteCacheMaterializePortSortCacheMissCount = $siteCacheMaterializePortSortCacheMissCount
         SiteCacheMaterializePortSortCacheSize      = $siteCacheMaterializePortSortCacheSize
+        SiteCacheMaterializePortSortCacheHitRatio  = $siteCacheMaterializePortSortCacheHitRatio
+        SiteCacheMaterializePortSortUniquePortCount = $siteCacheMaterializePortSortUniquePortCount
+        SiteCacheMaterializePortSortMissSamples      = $siteCacheMaterializePortSortMissSamples
         SiteCacheMaterializeTemplateDurationMs   = $siteCacheMaterializeTemplateDurationMs
+        SiteCacheMaterializeTemplateLookupDurationMs = $siteCacheMaterializeTemplateLookupDurationMs
+        SiteCacheMaterializeTemplateApplyDurationMs  = $siteCacheMaterializeTemplateApplyDurationMs
+        SiteCacheMaterializeTemplateCacheHitCount    = $siteCacheMaterializeTemplateCacheHitCount
+        SiteCacheMaterializeTemplateCacheMissCount   = $siteCacheMaterializeTemplateCacheMissCount
+        SiteCacheMaterializeTemplateCacheHitRatio    = $siteCacheMaterializeTemplateCacheHitRatio
+        SiteCacheMaterializeTemplateApplyCount        = $siteCacheMaterializeTemplateApplyCount
+        SiteCacheMaterializeTemplateDefaultedCount    = $siteCacheMaterializeTemplateDefaultedCount
+        SiteCacheMaterializeTemplateAuthTemplateMissingCount = $siteCacheMaterializeTemplateAuthTemplateMissingCount
+        SiteCacheMaterializeTemplateNoTemplateMatchCount     = $siteCacheMaterializeTemplateNoTemplateMatchCount
+        SiteCacheMaterializeTemplateHintAppliedCount   = $siteCacheMaterializeTemplateHintAppliedCount
+        SiteCacheMaterializeTemplateSetPortColorCount  = $siteCacheMaterializeTemplateSetPortColorCount
+        SiteCacheMaterializeTemplateSetConfigStatusCount = $siteCacheMaterializeTemplateSetConfigStatusCount
+        SiteCacheMaterializeTemplateApplySamples       = $siteCacheMaterializeTemplateApplySamples
         SiteCacheMaterializeObjectDurationMs     = $siteCacheMaterializeObjectDurationMs
         SiteCacheTemplateDurationMs = $siteCacheTemplateDurationMs
         SiteCacheQueryAttempts = $siteCacheQueryAttempts
@@ -2240,7 +2320,23 @@ $siteCacheTemplateDurationMs = 0.0
         SiteCacheMaterializePortSortCacheHitCount   = $siteCacheMaterializePortSortCacheHitCount
         SiteCacheMaterializePortSortCacheMissCount = $siteCacheMaterializePortSortCacheMissCount
         SiteCacheMaterializePortSortCacheSize      = $siteCacheMaterializePortSortCacheSize
+        SiteCacheMaterializePortSortCacheHitRatio  = $siteCacheMaterializePortSortCacheHitRatio
+        SiteCacheMaterializePortSortUniquePortCount = $siteCacheMaterializePortSortUniquePortCount
+        SiteCacheMaterializePortSortMissSamples      = $siteCacheMaterializePortSortMissSamples
         SiteCacheMaterializeTemplateDurationMs   = $siteCacheMaterializeTemplateDurationMs
+        SiteCacheMaterializeTemplateLookupDurationMs = $siteCacheMaterializeTemplateLookupDurationMs
+        SiteCacheMaterializeTemplateApplyDurationMs  = $siteCacheMaterializeTemplateApplyDurationMs
+        SiteCacheMaterializeTemplateCacheHitCount    = $siteCacheMaterializeTemplateCacheHitCount
+        SiteCacheMaterializeTemplateCacheMissCount   = $siteCacheMaterializeTemplateCacheMissCount
+        SiteCacheMaterializeTemplateCacheHitRatio    = $siteCacheMaterializeTemplateCacheHitRatio
+        SiteCacheMaterializeTemplateApplyCount        = $siteCacheMaterializeTemplateApplyCount
+        SiteCacheMaterializeTemplateDefaultedCount    = $siteCacheMaterializeTemplateDefaultedCount
+        SiteCacheMaterializeTemplateAuthTemplateMissingCount = $siteCacheMaterializeTemplateAuthTemplateMissingCount
+        SiteCacheMaterializeTemplateNoTemplateMatchCount     = $siteCacheMaterializeTemplateNoTemplateMatchCount
+        SiteCacheMaterializeTemplateHintAppliedCount   = $siteCacheMaterializeTemplateHintAppliedCount
+        SiteCacheMaterializeTemplateSetPortColorCount  = $siteCacheMaterializeTemplateSetPortColorCount
+        SiteCacheMaterializeTemplateSetConfigStatusCount = $siteCacheMaterializeTemplateSetConfigStatusCount
+        SiteCacheMaterializeTemplateApplySamples       = $siteCacheMaterializeTemplateApplySamples
         SiteCacheMaterializeObjectDurationMs     = $siteCacheMaterializeObjectDurationMs
         SiteCacheTemplateDurationMs = $siteCacheTemplateDurationMs
         SiteCacheQueryAttempts = $siteCacheQueryAttempts
