@@ -269,6 +269,8 @@ Describe "DeviceRepositoryModule core helpers" {
             $metrics.HydrationMaterializeTemplateAuthTemplateMissingCount | Should Be 0
             ($metrics.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateNoTemplateMatchCount') | Should Be $true
             $metrics.HydrationMaterializeTemplateNoTemplateMatchCount | Should Be 0
+            ($metrics.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateReuseCount') | Should Be $true
+            $metrics.HydrationMaterializeTemplateReuseCount | Should Be 0
             ($metrics.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateHintAppliedCount') | Should Be $true
             $metrics.HydrationMaterializeTemplateHintAppliedCount | Should Be 0
             ($metrics.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateSetPortColorCount') | Should Be $true
@@ -277,6 +279,45 @@ Describe "DeviceRepositoryModule core helpers" {
             $metrics.HydrationMaterializeTemplateSetConfigStatusCount | Should Be 0
             ($metrics.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateApplySamples') | Should Be $true
             @($metrics.HydrationMaterializeTemplateApplySamples).Count | Should Be 0
+        } finally {
+            Set-RepositoryVar -Name 'SiteInterfaceSignatureCache' -Value @{}
+        }
+    }
+
+    It "persists port sort values when caching site hosts" {
+        $siteKey = 'SITE1'
+        $hostKey = 'SITE1-A01-AS-01'
+        $portKey = 'Gi1/0/1'
+        $expectedPortSort = '01-GI-00001-00000-00000-00000-00000'
+
+        Set-RepositoryVar -Name 'SiteInterfaceSignatureCache' -Value @{}
+
+        try {
+            $rowsByPort = @{
+                $portKey = [pscustomobject]@{
+                    Name      = 'GigabitEthernet1/0/1'
+                    Status    = 'up'
+                    Port      = $portKey
+                    PortSort  = $expectedPortSort
+                    AuthState = 'authorized'
+                }
+            }
+
+            DeviceRepositoryModule\Set-InterfaceSiteCacheHost -Site $siteKey -Hostname $hostKey -RowsByPort $rowsByPort
+
+            $module = Get-Module DeviceRepositoryModule -ErrorAction Stop
+            $signatureCache = $module.SessionState.PSVariable.GetValue('SiteInterfaceSignatureCache')
+
+            $signatureCache | Should Not BeNullOrEmpty
+            $signatureCache.ContainsKey($siteKey) | Should Be $true
+
+            $hostMap = $signatureCache[$siteKey].HostMap
+            $hostMap.ContainsKey($hostKey) | Should Be $true
+
+            $storedEntry = $hostMap[$hostKey][$portKey]
+            $storedEntry | Should Not BeNullOrEmpty
+            $storedEntry | Should BeOfType 'StateTrace.Models.InterfaceCacheEntry'
+            $storedEntry.PortSort | Should Be $expectedPortSort
         } finally {
             Set-RepositoryVar -Name 'SiteInterfaceSignatureCache' -Value @{}
         }

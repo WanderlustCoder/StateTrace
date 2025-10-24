@@ -1606,6 +1606,9 @@ function Invoke-DeviceLogParsing {
                                 if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateNoTemplateMatchCount') {
                                     $breakdownPayload['SiteCacheMaterializeTemplateNoTemplateMatchCount'] = [long]$latestSyncTelemetry.SiteCacheMaterializeTemplateNoTemplateMatchCount
                                 }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateReuseCount') {
+                                    $breakdownPayload['SiteCacheMaterializeTemplateReuseCount'] = [long]$latestSyncTelemetry.SiteCacheMaterializeTemplateReuseCount
+                                }
                                 if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateHintAppliedCount') {
                                     $breakdownPayload['SiteCacheMaterializeTemplateHintAppliedCount'] = [long]$latestSyncTelemetry.SiteCacheMaterializeTemplateHintAppliedCount
                                 }

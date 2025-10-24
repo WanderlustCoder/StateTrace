@@ -651,6 +651,7 @@ $siteCacheMaterializeTemplateApplyDurationMs = 0.0
 $siteCacheMaterializeObjectDurationMs = 0.0
 $siteCacheMaterializeTemplateCacheHitCount = 0
 $siteCacheMaterializeTemplateCacheMissCount = 0
+$siteCacheMaterializeTemplateReuseCount = 0
 $siteCacheMaterializeTemplateCacheHitRatio = 0.0
 $siteCacheMaterializeTemplateApplyCount = 0
 $siteCacheMaterializeTemplateDefaultedCount = 0
@@ -1148,6 +1149,9 @@ $siteCacheTemplateDurationMs = 0.0
                 }
                 if ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateCacheMissCount') {
                     $siteCacheMaterializeTemplateCacheMissCount = [long][Math]::Max(0, $lastSiteCacheMetrics.HydrationMaterializeTemplateCacheMissCount)
+                }
+                if ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateReuseCount') {
+                    $siteCacheMaterializeTemplateReuseCount = [long][Math]::Max(0, $lastSiteCacheMetrics.HydrationMaterializeTemplateReuseCount)
                 }
                 if ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateCacheHitRatio') {
                     $siteCacheMaterializeTemplateCacheHitRatio = [Math]::Round([double]$lastSiteCacheMetrics.HydrationMaterializeTemplateCacheHitRatio, 6)
@@ -2181,6 +2185,7 @@ $siteCacheTemplateDurationMs = 0.0
         SiteCacheMaterializeTemplateApplyDurationMs  = $siteCacheMaterializeTemplateApplyDurationMs
         SiteCacheMaterializeTemplateCacheHitCount    = $siteCacheMaterializeTemplateCacheHitCount
         SiteCacheMaterializeTemplateCacheMissCount   = $siteCacheMaterializeTemplateCacheMissCount
+        SiteCacheMaterializeTemplateReuseCount       = $siteCacheMaterializeTemplateReuseCount
         SiteCacheMaterializeTemplateCacheHitRatio    = $siteCacheMaterializeTemplateCacheHitRatio
         SiteCacheMaterializeTemplateApplyCount        = $siteCacheMaterializeTemplateApplyCount
         SiteCacheMaterializeTemplateDefaultedCount    = $siteCacheMaterializeTemplateDefaultedCount
@@ -2328,6 +2333,7 @@ $siteCacheTemplateDurationMs = 0.0
         SiteCacheMaterializeTemplateApplyDurationMs  = $siteCacheMaterializeTemplateApplyDurationMs
         SiteCacheMaterializeTemplateCacheHitCount    = $siteCacheMaterializeTemplateCacheHitCount
         SiteCacheMaterializeTemplateCacheMissCount   = $siteCacheMaterializeTemplateCacheMissCount
+        SiteCacheMaterializeTemplateReuseCount       = $siteCacheMaterializeTemplateReuseCount
         SiteCacheMaterializeTemplateCacheHitRatio    = $siteCacheMaterializeTemplateCacheHitRatio
         SiteCacheMaterializeTemplateApplyCount        = $siteCacheMaterializeTemplateApplyCount
         SiteCacheMaterializeTemplateDefaultedCount    = $siteCacheMaterializeTemplateDefaultedCount

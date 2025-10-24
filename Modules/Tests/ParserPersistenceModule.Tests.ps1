@@ -1015,6 +1015,7 @@ Describe "ParserPersistenceModule" {
                 ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateApplyDurationMs') | Should Be $true
                 ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateCacheHitCount') | Should Be $true
                 ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateCacheMissCount') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateReuseCount') | Should Be $true
                 ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateCacheHitRatio') | Should Be $true
                 ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateApplyCount') | Should Be $true
                 ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateDefaultedCount') | Should Be $true
@@ -1170,6 +1171,7 @@ Describe "ParserPersistenceModule" {
                 SiteCacheMaterializeTemplateApplyDurationMs  = 0.08
                 SiteCacheMaterializeTemplateCacheHitCount    = 10
                 SiteCacheMaterializeTemplateCacheMissCount   = 5
+                SiteCacheMaterializeTemplateReuseCount       = 7
                 SiteCacheMaterializeTemplateCacheHitRatio    = 0.666667
                 SiteCacheMaterializeTemplateApplyCount        = 18
                 SiteCacheMaterializeTemplateDefaultedCount    = 4
@@ -1298,6 +1300,7 @@ Describe "ParserPersistenceModule" {
         ($metrics.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateApplyDurationMs') | Should Be $true
         ($metrics.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateCacheHitCount') | Should Be $true
         ($metrics.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateCacheMissCount') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateReuseCount') | Should Be $true
         ($metrics.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateCacheHitRatio') | Should Be $true
         ($metrics.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateApplyCount') | Should Be $true
         ($metrics.PSObject.Properties.Name -contains 'SiteCacheMaterializeTemplateDefaultedCount') | Should Be $true

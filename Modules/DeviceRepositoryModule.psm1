@@ -242,6 +242,7 @@ function Copy-InterfaceCacheEntryObject {
     $clone.AuthClient = $Source.AuthClient
     $clone.Template   = $Source.Template
     $clone.Config     = $Source.Config
+    $clone.PortSort   = $Source.PortSort
     $clone.PortColor  = $Source.PortColor
     $clone.StatusTag  = $Source.StatusTag
     $clone.ToolTip    = $Source.ToolTip
@@ -743,6 +744,7 @@ namespace StateTrace.Models
         public string AuthClient { get; set; }
         public string Template { get; set; }
         public string Config { get; set; }
+        public string PortSort { get; set; }
         public string PortColor { get; set; }
         public string StatusTag { get; set; }
         public string ToolTip { get; set; }
@@ -1282,6 +1284,7 @@ function ConvertTo-InterfaceCacheEntryObject {
     $authClientValue = & $toString (& $getRawValue $InputObject @('AuthClient', 'AuthClientMAC', 'AuthClientMac'))
     $templateValue = & $toString (& $getRawValue $InputObject @('Template', 'AuthTemplate'))
     $configValue = & $toString (& $getRawValue $InputObject @('Config'))
+    $portSortValue = & $toString (& $getRawValue $InputObject @('PortSort'))
     $portColorValue = & $toString (& $getRawValue $InputObject @('PortColor'))
     $statusTagValue = & $toString (& $getRawValue $InputObject @('StatusTag', 'ConfigStatus'))
     $toolTipValue = & $toString (& $getRawValue $InputObject @('ToolTip'))
@@ -1324,6 +1327,7 @@ function ConvertTo-InterfaceCacheEntryObject {
     $entry.AuthClient = $authClientValue
     $entry.Template = $templateValue
     $entry.Config = $configValue
+    $entry.PortSort = $portSortValue
     $entry.PortColor = $portColorValue
     $entry.StatusTag = $statusTagValue
     $entry.ToolTip = $toolTipValue
@@ -1395,6 +1399,7 @@ function Get-InterfaceSiteCache {
         HydrationMaterializeObjectDurationMs     = 0.0
         HydrationMaterializeTemplateCacheHitCount = 0
         HydrationMaterializeTemplateCacheMissCount = 0
+        HydrationMaterializeTemplateReuseCount    = 0
         HydrationMaterializeTemplateApplyCount = 0
         HydrationMaterializeTemplateDefaultedCount = 0
         HydrationMaterializeTemplateAuthTemplateMissingCount = 0
@@ -1599,6 +1604,9 @@ function Get-InterfaceSiteCache {
             if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateCacheMissCount') {
                 $metrics.HydrationMaterializeTemplateCacheMissCount = [long]$cachedEntry.HydrationMaterializeTemplateCacheMissCount
             }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateReuseCount') {
+                $metrics.HydrationMaterializeTemplateReuseCount = [long]$cachedEntry.HydrationMaterializeTemplateReuseCount
+            }
             if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationMaterializeTemplateApplyCount') {
                 $metrics.HydrationMaterializeTemplateApplyCount = [long]$cachedEntry.HydrationMaterializeTemplateApplyCount
             }
@@ -1740,6 +1748,22 @@ function Get-InterfaceSiteCache {
             }
         }
 
+        if ($reusePortCount -le 0 -and $cachedEntry -and $cachedEntry.PSObject.Properties.Name -contains 'TotalRows') {
+            try { $reusePortCount = [int][Math]::Max(0, $cachedEntry.TotalRows) } catch { $reusePortCount = 0 }
+        }
+        if ($reuseHostCount -le 0 -and $cachedEntry -and $cachedEntry.PSObject.Properties.Name -contains 'HostCount') {
+            try { $reuseHostCount = [int][Math]::Max(0, $cachedEntry.HostCount) } catch { }
+        }
+        if ($reuseHostCount -le 0 -and $metrics.HostCount -gt 0) {
+            $reuseHostCount = [int][Math]::Max(0, $metrics.HostCount)
+        }
+        if ($reuseHostCount -gt 0 -and ([int]$metrics.HostCount) -lt $reuseHostCount) {
+            $metrics.HostCount = $reuseHostCount
+        }
+        if ($reusePortCount -gt 0 -and ([int]$metrics.TotalRows) -lt $reusePortCount) {
+            $metrics.TotalRows = $reusePortCount
+        }
+
         $metrics.CacheStatus = 'Hit'
         $metrics.HydrationProvider = 'Cache'
         $metrics.HydrationDurationMs = 0.0
@@ -1779,6 +1803,7 @@ function Get-InterfaceSiteCache {
         $metrics.HydrationMaterializeObjectDurationMs = 0.0
         $metrics.HydrationMaterializeTemplateCacheHitCount = 0L
         $metrics.HydrationMaterializeTemplateCacheMissCount = 0L
+        $metrics.HydrationMaterializeTemplateReuseCount = 0L
         $metrics.HydrationMaterializeTemplateApplyCount = 0L
         $metrics.HydrationMaterializeTemplateDefaultedCount = 0L
         $metrics.HydrationMaterializeTemplateAuthTemplateMissingCount = 0L
@@ -2156,6 +2181,7 @@ function Get-InterfaceSiteCache {
                 continue
             }
 
+        $cachedPortEntry = $null
         $hostPorts = $null
         $hostMapLookupCount++
         if (-not $hostMap.TryGetValue($hostKey, [ref]$hostPorts)) {
@@ -2187,6 +2213,7 @@ function Get-InterfaceSiteCache {
                 $previousPortEntryWasPresent = $true
                 if ($existingPortEntry -is [StateTrace.Models.InterfaceCacheEntry]) {
                     $rowObject = $existingPortEntry
+                    $cachedPortEntry = $existingPortEntry
                     $candidateSource = 'Previous'
                 } elseif ($null -ne $existingPortEntry) {
                     $hostMapCandidateInvalidCount++
@@ -2352,6 +2379,42 @@ function Get-InterfaceSiteCache {
             $hostMapSignatureMatchCount++
         }
 
+        $needPortSortComputation = $shouldRewrite
+        if (-not $needPortSortComputation) {
+            if ([string]::IsNullOrWhiteSpace($rowObject.PortSort)) {
+                $needPortSortComputation = $true
+            } else {
+                $portSort = $rowObject.PortSort
+            }
+        }
+
+        if ($needPortSortComputation) {
+            $portSortStopwatch.Restart()
+            if (-not [string]::IsNullOrWhiteSpace($port)) {
+                $portSort = InterfaceModule\Get-PortSortKey -Port $port
+            } else {
+                $portSort = $defaultPortSortValue
+            }
+            $portSortStopwatch.Stop()
+            $materializePortSortDuration += $portSortStopwatch.Elapsed.TotalMilliseconds
+            if ($portSortAdded -and $portSortMissSamples.Count -lt $portSortMissSampleLimit) {
+                $portSortMissSamples.Add([pscustomobject]@{
+                        Port     = $port
+                        PortSort = $portSort
+                    }) | Out-Null
+            }
+            $rowObject.PortSort = $portSort
+        }
+
+        if ([string]::IsNullOrWhiteSpace($portSort)) {
+            if ([string]::IsNullOrWhiteSpace($rowObject.PortSort)) {
+                $portSort = $defaultPortSortValue
+                $rowObject.PortSort = $portSort
+            } else {
+                $portSort = $rowObject.PortSort
+            }
+        }
+
         if ($allocatedNewEntry) {
             $hostMapEntryAllocationCount++
         }
@@ -2453,6 +2516,9 @@ function Get-InterfaceSiteCache {
         }
         if ($hydrationDetail.PSObject.Properties.Name -contains 'MaterializeTemplateCacheMissCount') {
             $metrics.HydrationMaterializeTemplateCacheMissCount = [long][Math]::Max(0, $hydrationDetail.MaterializeTemplateCacheMissCount)
+        }
+        if ($hydrationDetail.PSObject.Properties.Name -contains 'MaterializeTemplateReuseCount') {
+            $metrics.HydrationMaterializeTemplateReuseCount = [long][Math]::Max(0, $hydrationDetail.MaterializeTemplateReuseCount)
         }
         if ($hydrationDetail.PSObject.Properties.Name -contains 'TemplateLoadDurationMs') {
             $metrics.HydrationTemplateDurationMs = [Math]::Round([double]$hydrationDetail.TemplateLoadDurationMs, 3)
@@ -2559,6 +2625,7 @@ function Get-InterfaceSiteCache {
         HydrationMaterializeObjectDurationMs     = $metrics.HydrationMaterializeObjectDurationMs
         HydrationMaterializeTemplateCacheHitCount = $metrics.HydrationMaterializeTemplateCacheHitCount
         HydrationMaterializeTemplateCacheMissCount = $metrics.HydrationMaterializeTemplateCacheMissCount
+        HydrationMaterializeTemplateReuseCount = $metrics.HydrationMaterializeTemplateReuseCount
         HydrationMaterializeTemplateApplyCount = $metrics.HydrationMaterializeTemplateApplyCount
         HydrationMaterializeTemplateDefaultedCount = $metrics.HydrationMaterializeTemplateDefaultedCount
         HydrationMaterializeTemplateAuthTemplateMissingCount = $metrics.HydrationMaterializeTemplateAuthTemplateMissingCount
@@ -3946,6 +4013,7 @@ ORDER BY i.Hostname, i.Port
             $lastRoomValue = ''
             $lastVendorValue = 'Cisco'
             $lastMakeValue = ''
+            $defaultPortSortValue = '99-UNK-99999-99999-99999-99999-99999'
 
             foreach ($row in $enum) {
                 if ($null -eq $row) { continue }
@@ -4030,23 +4098,10 @@ ORDER BY i.Hostname, i.Port
                 $projectionStopwatch.Stop()
                 $materializeProjectionDuration += $projectionStopwatch.Elapsed.TotalMilliseconds
 
-                $portSortStopwatch.Restart()
-                $portSort = if (-not [string]::IsNullOrWhiteSpace($port)) {
-                    InterfaceModule\Get-PortSortKey -Port $port
-                } else {
-                    '99-UNK-99999-99999-99999-99999-99999'
-                }
-                $portSortStopwatch.Stop()
-                $materializePortSortDuration += $portSortStopwatch.Elapsed.TotalMilliseconds
+                $portSort = $null
+                $portSortAdded = $false
                 if (-not [string]::IsNullOrWhiteSpace($port)) {
-                    if ($portSortUniquePorts.Add($port)) {
-                        if ($portSortMissSamples.Count -lt $portSortMissSampleLimit) {
-                            $portSortMissSamples.Add([pscustomobject]@{
-                                Port     = $port
-                                PortSort = $portSort
-                            }) | Out-Null
-                        }
-                    }
+                    $portSortAdded = $portSortUniquePorts.Add($port)
                 }
 
                 $templateResolveStopwatch.Restart()
@@ -4081,6 +4136,46 @@ ORDER BY i.Hostname, i.Port
                 $finalCfgStatus = $cfgStatVal
                 $hasPortColor = -not [string]::IsNullOrWhiteSpace($finalPortColor)
                 $hasCfgStatus = -not [string]::IsNullOrWhiteSpace($finalCfgStatus)
+                if ((-not $hasPortColor -or -not $hasCfgStatus) -and $cachedPortEntry -and ($cachedPortEntry -is [StateTrace.Models.InterfaceCacheEntry])) {
+                    $reuseTemplateMatches = $true
+                    if (-not [string]::IsNullOrWhiteSpace($authTmpl)) {
+                        try {
+                            if (-not [string]::IsNullOrWhiteSpace($cachedPortEntry.Template) -and -not [System.StringComparer]::OrdinalIgnoreCase.Equals($cachedPortEntry.Template, $authTmpl)) {
+                                $reuseTemplateMatches = $false
+                            }
+                        } catch {
+                            $reuseTemplateMatches = $false
+                        }
+                    }
+                    if ($reuseTemplateMatches) {
+                        $templateReuseApplied = $false
+                        if (-not $hasPortColor) {
+                            $cachedColor = ''
+                            try { $cachedColor = '' + $cachedPortEntry.PortColor } catch { $cachedColor = '' }
+                            if (-not [string]::IsNullOrWhiteSpace($cachedColor)) {
+                                $finalPortColor = $cachedColor
+                                $hasPortColor = -not [string]::IsNullOrWhiteSpace($finalPortColor)
+                                if ($hasPortColor) { $templateReuseApplied = $true }
+                            }
+                        }
+                        if (-not $hasCfgStatus) {
+                            $cachedStatus = ''
+                            if ($cachedPortEntry.PSObject.Properties.Name -contains 'StatusTag') {
+                                try { $cachedStatus = '' + $cachedPortEntry.StatusTag } catch { $cachedStatus = '' }
+                            } elseif ($cachedPortEntry.PSObject.Properties.Name -contains 'ConfigStatus') {
+                                try { $cachedStatus = '' + $cachedPortEntry.ConfigStatus } catch { $cachedStatus = '' }
+                            }
+                            if (-not [string]::IsNullOrWhiteSpace($cachedStatus)) {
+                                $finalCfgStatus = $cachedStatus
+                                $hasCfgStatus = -not [string]::IsNullOrWhiteSpace($finalCfgStatus)
+                                if ($hasCfgStatus) { $templateReuseApplied = $true }
+                            }
+                        }
+                        if ($templateReuseApplied) {
+                            $metrics.HydrationMaterializeTemplateReuseCount++
+                        }
+                    }
+                }
                 if (-not $hasPortColor -or -not $hasCfgStatus) {
                     $templateApplyCandidateCount++
                     $templateApplyStopwatch.Restart()
@@ -4260,6 +4355,7 @@ ORDER BY i.Hostname, i.Port
     $hydrationDetail | Add-Member -NotePropertyName MaterializePortSortCacheSize -NotePropertyValue ([long][Math]::Max(0, $materializePortSortCacheSize)) -Force
     $hydrationDetail | Add-Member -NotePropertyName MaterializePortSortUniquePortCount -NotePropertyValue ([long][Math]::Max(0, $portSortUniquePorts.Count)) -Force
     $hydrationDetail | Add-Member -NotePropertyName MaterializePortSortMissSamples -NotePropertyValue ($portSortMissSamples.ToArray()) -Force
+    $hydrationDetail | Add-Member -NotePropertyName MaterializeTemplateReuseCount -NotePropertyValue ([long][Math]::Max(0, $metrics.HydrationMaterializeTemplateReuseCount)) -Force
     $hydrationDetail | Add-Member -NotePropertyName MaterializeTemplateApplyCount -NotePropertyValue ([long][Math]::Max(0, $templateApplyCandidateCount)) -Force
     $hydrationDetail | Add-Member -NotePropertyName MaterializeTemplateDefaultedCount -NotePropertyValue ([long][Math]::Max(0, $templateApplyDefaultedCount)) -Force
     $hydrationDetail | Add-Member -NotePropertyName MaterializeTemplateAuthTemplateMissingCount -NotePropertyValue ([long][Math]::Max(0, $templateApplyAuthTemplateMissingCount)) -Force
