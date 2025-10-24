@@ -447,6 +447,8 @@ function Publish-InterfaceSiteCacheTelemetry {
             Refreshed                        = $Refreshed
             HydrationDurationMs              = $Metrics.HydrationDurationMs
             SnapshotDurationMs               = $Metrics.HydrationSnapshotMs
+            RecordsetDurationMs              = $Metrics.HydrationSnapshotRecordsetDurationMs
+            RecordsetProjectDurationMs       = $Metrics.HydrationSnapshotProjectDurationMs
             BuildDurationMs                  = $Metrics.HydrationBuildMs
             HostMapDurationMs                = $Metrics.HydrationHostMapDurationMs
             HostMapSignatureMatchCount       = $Metrics.HydrationHostMapSignatureMatchCount
@@ -1324,6 +1326,8 @@ function Get-InterfaceSiteCache {
         Refreshed                = [bool]$Refresh
         HydrationDurationMs      = 0.0
         HydrationSnapshotMs      = 0.0
+        HydrationSnapshotRecordsetDurationMs = 0.0
+        HydrationSnapshotProjectDurationMs = 0.0
         HydrationBuildMs         = 0.0
         HydrationHostMapDurationMs = 0.0
         HydrationHostMapSignatureMatchCount   = 0L
@@ -1455,6 +1459,12 @@ function Get-InterfaceSiteCache {
             }
             if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationSnapshotDurationMs') {
                 $metrics.HydrationSnapshotMs = [double]$cachedEntry.HydrationSnapshotDurationMs
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationSnapshotRecordsetDurationMs') {
+                $metrics.HydrationSnapshotRecordsetDurationMs = [double]$cachedEntry.HydrationSnapshotRecordsetDurationMs
+            }
+            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationSnapshotProjectDurationMs') {
+                $metrics.HydrationSnapshotProjectDurationMs = [double]$cachedEntry.HydrationSnapshotProjectDurationMs
             }
             if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationBuildDurationMs') {
                 $metrics.HydrationBuildMs = [double]$cachedEntry.HydrationBuildDurationMs
@@ -1652,6 +1662,8 @@ function Get-InterfaceSiteCache {
         $metrics.HydrationProvider = 'Cache'
         $metrics.HydrationDurationMs = 0.0
         $metrics.HydrationSnapshotMs = 0.0
+        $metrics.HydrationSnapshotRecordsetDurationMs = 0.0
+        $metrics.HydrationSnapshotProjectDurationMs = 0.0
         $metrics.HydrationBuildMs = 0.0
         $metrics.HydrationHostMapDurationMs = 0.0
         $metrics.HydrationHostMapSignatureMatchCount = [long][Math]::Max(0, $reusePortCount)
@@ -2274,6 +2286,12 @@ function Get-InterfaceSiteCache {
         if ($hydrationDetail.PSObject.Properties.Name -contains 'ExecuteDurationMs') {
             $metrics.HydrationExecuteDurationMs = [Math]::Round([double]$hydrationDetail.ExecuteDurationMs, 3)
         }
+        if ($hydrationDetail.PSObject.Properties.Name -contains 'RecordsetEnumerateDurationMs') {
+            $metrics.HydrationSnapshotRecordsetDurationMs = [Math]::Round([double]$hydrationDetail.RecordsetEnumerateDurationMs, 3)
+        }
+        if ($hydrationDetail.PSObject.Properties.Name -contains 'RecordsetProjectDurationMs') {
+            $metrics.HydrationSnapshotProjectDurationMs = [Math]::Round([double]$hydrationDetail.RecordsetProjectDurationMs, 3)
+        }
         if ($hydrationDetail.PSObject.Properties.Name -contains 'MaterializeDurationMs') {
             $metrics.HydrationMaterializeDurationMs = [Math]::Round([double]$hydrationDetail.MaterializeDurationMs, 3)
         }
@@ -2360,6 +2378,8 @@ function Get-InterfaceSiteCache {
         CacheStatus                   = $cacheStatus
         HydrationDurationMs           = $hydrationDurationMs
         HydrationSnapshotDurationMs   = $snapshotDurationMs
+        HydrationSnapshotRecordsetDurationMs = $metrics.HydrationSnapshotRecordsetDurationMs
+        HydrationSnapshotProjectDurationMs = $metrics.HydrationSnapshotProjectDurationMs
         HydrationBuildDurationMs      = $buildDurationMs
         HydrationHostMapDurationMs    = $metrics.HydrationHostMapDurationMs
         HydrationHostMapSignatureMatchCount   = $metrics.HydrationHostMapSignatureMatchCount
@@ -2454,7 +2474,25 @@ function Set-InterfaceSiteCacheHost {
         Set-SharedSiteInterfaceCacheEntry -SiteKey $siteKey -Entry $entry
     }
 
+    $previousHostCount = 0
+    if ($entry.PSObject.Properties.Name -contains 'HostCount') {
+        try { $previousHostCount = [int]$entry.HostCount } catch { $previousHostCount = 0 }
+    }
+    $previousPortCount = 0
+    if ($entry.PSObject.Properties.Name -contains 'TotalRows') {
+        try { $previousPortCount = [int]$entry.TotalRows } catch { $previousPortCount = 0 }
+    }
+
     $existingHostMap = $entry.HostMap
+    $originalHostMapReference = $existingHostMap
+    $previousHostMapType = ''
+    $previousHostMapWasTyped = $false
+    if ($existingHostMap) {
+        try { $previousHostMapType = '' + $existingHostMap.GetType().FullName } catch { $previousHostMapType = '' }
+        if ($existingHostMap -is [System.Collections.Generic.Dictionary[string,System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceCacheEntry]]]) {
+            $previousHostMapWasTyped = $true
+        }
+    }
     $typedHostMap = $null
     if ($existingHostMap -is [System.Collections.Generic.Dictionary[string,System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceCacheEntry]]]) {
         $typedHostMap = $existingHostMap
@@ -2505,6 +2543,7 @@ function Set-InterfaceSiteCacheHost {
         }
     }
 
+    $persistedPortCount = [int]$normalizedRows.Count
     $typedHostMap[$hostKey] = $normalizedRows
     $entry.CachedAt = Get-Date
 
@@ -2519,6 +2558,35 @@ function Set-InterfaceSiteCacheHost {
     $entry.TotalRows = $total
     $entry.HostCount = $entry.HostMap.Count
     Set-SharedSiteInterfaceCacheEntry -SiteKey $siteKey -Entry $entry
+
+    $typedHostMapType = ''
+    try { if ($typedHostMap) { $typedHostMapType = '' + $typedHostMap.GetType().FullName } } catch { $typedHostMapType = '' }
+    $typedHostMapIsTyped = $typedHostMap -is [System.Collections.Generic.Dictionary[string,System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceCacheEntry]]]
+    $convertedToTyped = $typedHostMapIsTyped -and (-not $previousHostMapWasTyped)
+    $hostMapReused = [object]::ReferenceEquals($typedHostMap, $originalHostMapReference)
+    $entryHostCount = [int]$entry.HostCount
+    $entryTotalRows = [int]$entry.TotalRows
+    $hostCountDelta = $entryHostCount - $previousHostCount
+    $portCountDelta = $entryTotalRows - $previousPortCount
+    try {
+        TelemetryModule\Write-StTelemetryEvent -Name 'InterfaceSiteCacheHostPersisted' -Payload @{
+            Site                      = $siteKey
+            Hostname                  = $hostKey
+            PreviousHostMapType       = $previousHostMapType
+            PreviousHostMapWasTyped   = [bool]$previousHostMapWasTyped
+            PreviousHostCount         = $previousHostCount
+            PreviousPortCount         = $previousPortCount
+            ConvertedToTyped          = [bool]$convertedToTyped
+            HostMapReused             = [bool]$hostMapReused
+            TypedHostMapType          = $typedHostMapType
+            PersistedPortCount        = $persistedPortCount
+            EntryHostCount            = $entryHostCount
+            EntryHostCountDelta       = $hostCountDelta
+            EntryTotalRows            = $entryTotalRows
+            EntryTotalRowsDelta       = $portCountDelta
+            SharedStoreUpdated        = $true
+        }
+    } catch { }
 }
 
 function Get-InterfacePortBatchChunkSize {
@@ -3322,6 +3390,8 @@ ORDER BY i.Hostname, i.Port
     $dataSet = $null
     $estimatedRowTotal = 0
     $useAdodbConnection = Test-IsAdodbConnectionInternal -Connection $Connection
+    $recordsetEnumerateDurationMs = 0.0
+    $recordsetProjectDurationMs = 0.0
     if ($useAdodbConnection) {
         $hydrationDetail.Provider = 'ADODB'
         $recordset = $null
@@ -3339,6 +3409,7 @@ ORDER BY i.Hostname, i.Port
         $rawRows = $null
         $fieldNames = @()
         $rowCount = 0
+        $recordsetEnumerateDurationMs = 0.0
         try {
             if ($recordset -and $recordset.State -eq 1) {
                 $enumerateStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
@@ -3376,7 +3447,9 @@ ORDER BY i.Hostname, i.Port
                     }
                 } finally {
                     $enumerateStopwatch.Stop()
-                    $hydrationDetail.QueryDurationMs = [Math]::Round($hydrationDetail.ExecuteDurationMs + $enumerateStopwatch.Elapsed.TotalMilliseconds, 3)
+                    $recordsetEnumerateDurationMs = [Math]::Round($enumerateStopwatch.Elapsed.TotalMilliseconds, 3)
+                    $hydrationDetail | Add-Member -NotePropertyName RecordsetEnumerateDurationMs -NotePropertyValue $recordsetEnumerateDurationMs -Force
+                    $hydrationDetail.QueryDurationMs = [Math]::Round($hydrationDetail.ExecuteDurationMs + $recordsetEnumerateDurationMs, 3)
                 }
             } elseif ($hydrationDetail.QueryDurationMs -le 0) {
                 $hydrationDetail.QueryDurationMs = $hydrationDetail.ExecuteDurationMs
@@ -3423,6 +3496,7 @@ ORDER BY i.Hostname, i.Port
             $idxToolTip       = if ($fieldIndexByName.ContainsKey('tooltip'))       { [int]$fieldIndexByName['tooltip'] }       else { -1 }
 
             $rowsFromConnection = New-Object 'System.Collections.Generic.List[object]' $rowCount
+            $recordsetProjectStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
             for ($rowIndex = 0; $rowIndex -lt $rowCount; $rowIndex++) {
                 $hostnameVal = ''
                 if ($idxHostname -ge 0) {
@@ -3575,6 +3649,10 @@ ORDER BY i.Hostname, i.Port
                 }
                 [void]$rowsFromConnection.Add($rowObj)
             }
+            if ($recordsetProjectStopwatch) {
+                $recordsetProjectStopwatch.Stop()
+                $recordsetProjectDurationMs = [Math]::Round($recordsetProjectStopwatch.Elapsed.TotalMilliseconds, 3)
+            }
 
             $hydrationDetail.QueryAttempts = 1
             $hydrationDetail.ResultRowCount = $rowCount
@@ -3582,6 +3660,13 @@ ORDER BY i.Hostname, i.Port
         } elseif ($hydrationDetail.QueryDurationMs -le 0) {
             $hydrationDetail.QueryDurationMs = $hydrationDetail.ExecuteDurationMs
         }
+    }
+
+    if ($useAdodbConnection -and -not ($hydrationDetail.PSObject.Properties.Name -contains 'RecordsetEnumerateDurationMs')) {
+        $hydrationDetail | Add-Member -NotePropertyName RecordsetEnumerateDurationMs -NotePropertyValue $recordsetEnumerateDurationMs -Force
+    }
+    if (-not ($hydrationDetail.PSObject.Properties.Name -contains 'RecordsetProjectDurationMs')) {
+        $hydrationDetail | Add-Member -NotePropertyName 'RecordsetProjectDurationMs' -NotePropertyValue $recordsetProjectDurationMs -Force
     }
 
     if (-not $dataSet) {

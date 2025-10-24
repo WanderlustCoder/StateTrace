@@ -969,6 +969,8 @@ Describe "ParserPersistenceModule" {
                 ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheRefreshDurationMs') | Should Be $true
                 ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheFetchStatus') | Should Be $true
                 ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheSnapshotDurationMs') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheRecordsetDurationMs') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheRecordsetProjectDurationMs') | Should Be $true
                 ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheBuildDurationMs') | Should Be $true
                 ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheHostMapDurationMs') | Should Be $true
                 ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheHostMapSignatureMatchCount') | Should Be $true
@@ -1075,6 +1077,8 @@ Describe "ParserPersistenceModule" {
                 SiteCacheRefreshDurationMs = 1.1
                 SiteCacheFetchStatus     = 'Hit'
                 SiteCacheSnapshotDurationMs = 0.4
+                SiteCacheRecordsetDurationMs = 0.15
+                SiteCacheRecordsetProjectDurationMs = 0.05
                 SiteCacheBuildDurationMs = 0.6
                 SiteCacheHostMapDurationMs = 0.3
                 SiteCacheHostMapSignatureMatchCount   = 5
@@ -1196,6 +1200,8 @@ Describe "ParserPersistenceModule" {
         ($metrics.PSObject.Properties.Name -contains 'SiteCacheResolveRefreshEntryType') | Should Be $true
         ($metrics.PSObject.Properties.Name -contains 'SiteCacheFetchStatus') | Should Be $true
         ($metrics.PSObject.Properties.Name -contains 'SiteCacheSnapshotDurationMs') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheRecordsetDurationMs') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheRecordsetProjectDurationMs') | Should Be $true
         ($metrics.PSObject.Properties.Name -contains 'SiteCacheBuildDurationMs') | Should Be $true
         ($metrics.PSObject.Properties.Name -contains 'SiteCacheHostMapDurationMs') | Should Be $true
         ($metrics.PSObject.Properties.Name -contains 'SiteCacheHostMapSignatureMatchCount') | Should Be $true
@@ -1226,6 +1232,8 @@ Describe "ParserPersistenceModule" {
         $metrics.SiteCacheHostMapCandidateMissingSamples[0].Reason | Should Be 'HostSnapshotMissing'
         $metrics.SiteCacheHostMapCandidateMissingSamples[0].ParserExistingRowCount | Should Be 20
         $metrics.SiteCacheHostMapCandidateMissingSamples[0].ParserExistingRowSource | Should Be 'CacheInitial'
+        $metrics.SiteCacheRecordsetDurationMs | Should Be 0.15
+        $metrics.SiteCacheRecordsetProjectDurationMs | Should Be 0.05
         ($metrics.PSObject.Properties.Name -contains 'SiteCacheSortDurationMs') | Should Be $true
         ($metrics.PSObject.Properties.Name -contains 'SiteCacheHostCount') | Should Be $true
         ($metrics.PSObject.Properties.Name -contains 'SiteCacheQueryDurationMs') | Should Be $true

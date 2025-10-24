@@ -1345,6 +1345,12 @@ function Invoke-DeviceLogParsing {
                                 if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheSnapshotDurationMs') {
                                     $breakdownPayload['SiteCacheSnapshotDurationMs'] = [double]$latestSyncTelemetry.SiteCacheSnapshotDurationMs
                                 }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheRecordsetDurationMs') {
+                                    $breakdownPayload['SiteCacheRecordsetDurationMs'] = [double]$latestSyncTelemetry.SiteCacheRecordsetDurationMs
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheRecordsetProjectDurationMs') {
+                                    $breakdownPayload['SiteCacheRecordsetProjectDurationMs'] = [double]$latestSyncTelemetry.SiteCacheRecordsetProjectDurationMs
+                                }
                                 if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheBuildDurationMs') {
                                     $breakdownPayload['SiteCacheBuildDurationMs'] = [double]$latestSyncTelemetry.SiteCacheBuildDurationMs
                                 }

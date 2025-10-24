@@ -606,6 +606,8 @@ function Update-InterfacesInDb {
     $siteCacheRefreshDurationMs = 0.0
     $siteCacheFetchStatus = $null
     $siteCacheSnapshotDurationMs = 0.0
+    $siteCacheRecordsetDurationMs = 0.0
+    $siteCacheRecordsetProjectDurationMs = 0.0
     $siteCacheBuildDurationMs = 0.0
     $siteCacheHostMapDurationMs = 0.0
     $siteCacheHostMapSignatureMatchCount = 0L
@@ -969,6 +971,12 @@ $siteCacheTemplateDurationMs = 0.0
                 }
                 if ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'HydrationSnapshotMs') {
                     $siteCacheSnapshotDurationMs = [Math]::Round([double]$lastSiteCacheMetrics.HydrationSnapshotMs, 3)
+                }
+                if ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'HydrationSnapshotRecordsetDurationMs') {
+                    $siteCacheRecordsetDurationMs = [Math]::Round([double]$lastSiteCacheMetrics.HydrationSnapshotRecordsetDurationMs, 3)
+                }
+                if ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'HydrationSnapshotProjectDurationMs') {
+                    $siteCacheRecordsetProjectDurationMs = [Math]::Round([double]$lastSiteCacheMetrics.HydrationSnapshotProjectDurationMs, 3)
                 }
                 if ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'HydrationBuildMs') {
                     $siteCacheBuildDurationMs = [Math]::Round([double]$lastSiteCacheMetrics.HydrationBuildMs, 3)
@@ -2065,6 +2073,8 @@ $siteCacheTemplateDurationMs = 0.0
         SiteCacheRefreshDurationMs = $siteCacheRefreshDurationMs
         SiteCacheFetchStatus = $siteCacheFetchStatus
         SiteCacheSnapshotDurationMs = $siteCacheSnapshotDurationMs
+        SiteCacheRecordsetDurationMs = $siteCacheRecordsetDurationMs
+        SiteCacheRecordsetProjectDurationMs = $siteCacheRecordsetProjectDurationMs
         SiteCacheBuildDurationMs = $siteCacheBuildDurationMs
         SiteCacheHostMapDurationMs = $siteCacheHostMapDurationMs
         SiteCacheHostMapSignatureMatchCount   = $siteCacheHostMapSignatureMatchCount
@@ -2194,6 +2204,8 @@ $siteCacheTemplateDurationMs = 0.0
         SiteCacheRefreshDurationMs = $siteCacheRefreshDurationMs
         SiteCacheFetchStatus = $siteCacheFetchStatus
         SiteCacheSnapshotDurationMs = $siteCacheSnapshotDurationMs
+        SiteCacheRecordsetDurationMs = $siteCacheRecordsetDurationMs
+        SiteCacheRecordsetProjectDurationMs = $siteCacheRecordsetProjectDurationMs
         SiteCacheBuildDurationMs = $siteCacheBuildDurationMs
         SiteCacheHostMapDurationMs = $siteCacheHostMapDurationMs
         SiteCacheHostMapSignatureMatchCount   = $siteCacheHostMapSignatureMatchCount

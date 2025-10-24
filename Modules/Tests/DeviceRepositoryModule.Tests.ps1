@@ -245,6 +245,10 @@ Describe "DeviceRepositoryModule core helpers" {
             $metrics.TotalRows | Should Be 1
             $metrics.HostCount | Should Be 1
             $metrics.HydrationDurationMs | Should Be 0
+            ($metrics.PSObject.Properties.Name -contains 'HydrationSnapshotRecordsetDurationMs') | Should Be $true
+            $metrics.HydrationSnapshotRecordsetDurationMs | Should Be 0
+            ($metrics.PSObject.Properties.Name -contains 'HydrationSnapshotProjectDurationMs') | Should Be $true
+            $metrics.HydrationSnapshotProjectDurationMs | Should Be 0
         } finally {
             Set-RepositoryVar -Name 'SiteInterfaceSignatureCache' -Value @{}
         }
