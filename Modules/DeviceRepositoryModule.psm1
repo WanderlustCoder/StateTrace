@@ -261,7 +261,7 @@ function Copy-InterfaceSiteCacheValue {
         return Copy-InterfaceCacheEntryObject -Source $Value
     }
     if ($Value -is [System.Collections.IDictionary]) {
-        $result = @{}
+        $result = New-Object 'System.Collections.Hashtable' ([System.StringComparer]::OrdinalIgnoreCase)
         foreach ($key in $Value.Keys) {
             $result[$key] = Copy-InterfaceSiteCacheValue -Value $Value[$key]
         }
@@ -288,31 +288,69 @@ function Copy-InterfaceSiteCacheValue {
 function Copy-InterfaceCacheHostMap {
     param($HostMap)
 
-    if (-not ($HostMap -is [System.Collections.IDictionary])) { return $null }
-    $clone = New-Object 'System.Collections.Generic.Dictionary[string,System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceCacheEntry]]' ([System.StringComparer]::OrdinalIgnoreCase)
-    foreach ($hostEntry in @($HostMap.GetEnumerator())) {
-        $hostKey = if ($hostEntry.Key) { ('' + $hostEntry.Key).Trim() } else { '' }
+    if (-not $HostMap) { return $null }
+
+    $clone = New-Object 'System.Collections.Hashtable' ([System.StringComparer]::OrdinalIgnoreCase)
+
+    $hostEnumerator = $null
+    try { $hostEnumerator = $HostMap.GetEnumerator() } catch { $hostEnumerator = $null }
+    if (-not $hostEnumerator) { return $null }
+
+    while ($hostEnumerator.MoveNext()) {
+        $hostEntry = $hostEnumerator.Current
+        $rawHostKey = $null
+        $hostPorts = $null
+        if ($hostEntry -is [System.Collections.DictionaryEntry]) {
+            $rawHostKey = $hostEntry.Key
+            $hostPorts = $hostEntry.Value
+        } else {
+            try { $rawHostKey = $hostEntry.Key } catch { $rawHostKey = $null }
+            try { $hostPorts = $hostEntry.Value } catch { $hostPorts = $null }
+        }
+
+        $hostKey = if ($rawHostKey) { ('' + $rawHostKey).Trim() } else { '' }
         if ([string]::IsNullOrWhiteSpace($hostKey)) { continue }
-        $portMap = $hostEntry.Value
-        $portClone = New-Object 'System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceCacheEntry]' ([System.StringComparer]::OrdinalIgnoreCase)
-        if ($portMap -is [System.Collections.IDictionary]) {
-            foreach ($portEntry in @($portMap.GetEnumerator())) {
-                $portKey = if ($portEntry.Key) { ('' + $portEntry.Key).Trim() } else { '' }
-                if ([string]::IsNullOrWhiteSpace($portKey)) { continue }
-                $entryValue = $portEntry.Value
-                if ($entryValue -is [StateTrace.Models.InterfaceCacheEntry]) {
-                    $portClone[$portKey] = Copy-InterfaceCacheEntryObject -Source $entryValue
-                } elseif ($null -ne $entryValue) {
-                    try {
-                        $portClone[$portKey] = ConvertTo-InterfaceCacheEntryObject -InputObject $entryValue
-                    } catch {
-                        continue
+
+        $portClone = New-Object 'System.Collections.Hashtable' ([System.StringComparer]::OrdinalIgnoreCase)
+        if ($hostPorts) {
+            $portEnumerator = $null
+            try { $portEnumerator = $hostPorts.GetEnumerator() } catch { $portEnumerator = $null }
+            if ($portEnumerator) {
+                while ($portEnumerator.MoveNext()) {
+                    $portEntry = $portEnumerator.Current
+                    $rawPortKey = $null
+                    $entryValue = $null
+                    if ($portEntry -is [System.Collections.DictionaryEntry]) {
+                        $rawPortKey = $portEntry.Key
+                        $entryValue = $portEntry.Value
+                    } else {
+                        try { $rawPortKey = $portEntry.Key } catch { $rawPortKey = $null }
+                        try { $entryValue = $portEntry.Value } catch { $entryValue = $null }
+                    }
+
+                    $portKey = if ($rawPortKey) { ('' + $rawPortKey).Trim() } else { '' }
+                    if ([string]::IsNullOrWhiteSpace($portKey)) { continue }
+                    if ($null -eq $entryValue) { continue }
+
+                    if ($entryValue -is [StateTrace.Models.InterfaceCacheEntry]) {
+                        $portClone[$portKey] = Copy-InterfaceCacheEntryObject -Source $entryValue
+                    } else {
+                        try {
+                            $converted = ConvertTo-InterfaceCacheEntryObject -InputObject $entryValue
+                            if ($converted) {
+                                $portClone[$portKey] = $converted
+                            }
+                        } catch {
+                            continue
+                        }
                     }
                 }
             }
         }
+
         $clone[$hostKey] = $portClone
     }
+
     return $clone
 }
 

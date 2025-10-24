@@ -322,4 +322,43 @@ Describe "DeviceRepositoryModule core helpers" {
             Set-RepositoryVar -Name 'SiteInterfaceSignatureCache' -Value @{}
         }
     }
+
+    It "clones typed host maps when snapshotting shared cache entries" {
+        $siteKey = 'SITECLONE'
+        Set-RepositoryVar -Name 'SiteInterfaceSignatureCache' -Value @{}
+        try {
+            $typedPortMap = New-Object 'System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceCacheEntry]' ([System.StringComparer]::OrdinalIgnoreCase)
+            $portEntry = [StateTrace.Models.InterfaceCacheEntry]::new()
+            $portEntry.Name = 'GigabitEthernet1/0/1'
+            $portEntry.Status = 'up'
+            $portEntry.PortSort = '01-GI-00001-00000-00000-00000-00000'
+            $typedPortMap['Gi1/0/1'] = $portEntry
+
+            $typedHostMap = New-Object 'System.Collections.Generic.Dictionary[string,System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceCacheEntry]]' ([System.StringComparer]::OrdinalIgnoreCase)
+            $typedHostMap['SITECLONE-A01-AS-01'] = $typedPortMap
+
+            $cacheEntry = [pscustomobject]@{
+                HostMap   = $typedHostMap
+                TotalRows = 1
+                HostCount = 1
+                CacheStatus = 'Hit'
+            }
+
+            $module = Get-Module DeviceRepositoryModule -ErrorAction Stop
+            $module.Invoke({ param($site, $entry) Set-SharedSiteInterfaceCacheEntry -SiteKey $site -Entry $entry }, $siteKey, $cacheEntry) | Out-Null
+            $restored = $module.Invoke({ param($site) Get-SharedSiteInterfaceCacheEntry -SiteKey $site }, $siteKey)
+
+            $restored | Should Not BeNullOrEmpty
+            $restored.HostMap | Should Not BeNullOrEmpty
+            $restored.HostMap.ContainsKey('SITECLONE-A01-AS-01') | Should Be $true
+            $restored.HostMap['SITECLONE-A01-AS-01'].ContainsKey('Gi1/0/1') | Should Be $true
+            $restored.HostMap['SITECLONE-A01-AS-01']['Gi1/0/1'].Name | Should Be 'GigabitEthernet1/0/1'
+        } finally {
+            Set-RepositoryVar -Name 'SiteInterfaceSignatureCache' -Value @{}
+            $module = Get-Module DeviceRepositoryModule -ErrorAction SilentlyContinue
+            if ($module) {
+                $module.Invoke({ param($site) Set-SharedSiteInterfaceCacheEntry -SiteKey $site -Entry $null }, $siteKey) | Out-Null
+            }
+        }
+    }
 }

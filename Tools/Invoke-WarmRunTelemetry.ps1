@@ -73,11 +73,6 @@ function Get-IngestionHistoryWarmRunSnapshot {
                     $parsed = $content | ConvertFrom-Json -ErrorAction Stop
                     if ($parsed) {
                         $records = if ($parsed -is [System.Array]) { @($parsed) } else { @($parsed) }
-                        foreach ($record in $records) {
-                            if ($null -ne $record -and $record.PSObject.Properties.Name -contains 'FileHash') {
-                                $record.FileHash = ''
-                            }
-                        }
                         if ($records.Count -gt 1) {
                             $content = ($records | ConvertTo-Json -Depth 6)
                         } elseif ($records.Count -eq 1) {
@@ -1168,6 +1163,10 @@ function Restore-SharedCacheEntries {
                     $entryValue = $item.Entry
                 }
                 if (-not $entryValue) { continue }
+                if (-not $script:SiteInterfaceSignatureCache) {
+                    $script:SiteInterfaceSignatureCache = @{}
+                }
+                $script:SiteInterfaceSignatureCache[$siteKey] = $entryValue
                 Set-SharedSiteInterfaceCacheEntry -SiteKey $siteKey -Entry $entryValue
                 $restored++
             }

@@ -27,7 +27,7 @@ $arguments = @{
     AssertWarmCache    = $true
     OutputPath         = $effectiveOutputPath
     ColdHistorySeed    = 'Empty'
-    WarmHistorySeed    = 'WarmBackup'
+    WarmHistorySeed    = 'ColdOutput'
 }
 
 if (-not $SkipRefresh.IsPresent) {
