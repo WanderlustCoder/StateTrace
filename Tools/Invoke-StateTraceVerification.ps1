@@ -11,10 +11,10 @@ param(
     [switch]$VerboseParsing,
     [switch]$ResetExtractedLogs,
     [switch]$PreserveModuleSession,
-    [switch]$SkipWarmRunRegression,
-    [string]$WarmRunTelemetryDirectory,
-    [string]$WarmRunRegressionOutputPath,
-    [switch]$PassThru
+[switch]$SkipWarmRunRegression,
+[string]$WarmRunTelemetryDirectory,
+[string]$WarmRunRegressionOutputPath,
+[switch]$PassThru
 )
 
 Set-StrictMode -Version Latest
@@ -65,6 +65,9 @@ if ($ResetExtractedLogs.IsPresent) { $pipelineParameters['ResetExtractedLogs'] =
 if ($PreserveModuleSession.IsPresent) { $pipelineParameters['PreserveModuleSession'] = $true }
 
 $computedWarmRunPath = $null
+$warmRunTelemetryDirectoryUsed = $null
+$warmRunSummaryPath = $null
+$warmRunSummaryData = $null
 if (-not $SkipWarmRunRegression.IsPresent) {
     $pipelineParameters['RunWarmRunRegression'] = $true
 
@@ -81,12 +84,14 @@ if (-not $SkipWarmRunRegression.IsPresent) {
         }
         $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
         $targetPath = Join-Path -Path $telemetryDir -ChildPath ("WarmRunTelemetry-{0}.json" -f $timestamp)
+        $warmRunTelemetryDirectoryUsed = $telemetryDir
     } else {
         $targetPath = Resolve-OptionalPath -PathValue $targetPath
         $targetDirectory = Split-Path -Path $targetPath -Parent
         if (-not [string]::IsNullOrWhiteSpace($targetDirectory) -and -not (Test-Path -LiteralPath $targetDirectory)) {
             New-Item -ItemType Directory -Path $targetDirectory -Force | Out-Null
         }
+        $warmRunTelemetryDirectoryUsed = $targetDirectory
     }
 
     $computedWarmRunPath = $targetPath
@@ -129,11 +134,60 @@ try {
 Write-Host 'StateTrace verification pipeline completed successfully.' -ForegroundColor Green
 if ($computedWarmRunPath) {
     Write-Host ("Warm-run regression telemetry stored at {0}" -f $computedWarmRunPath) -ForegroundColor DarkYellow
+    if (-not [string]::IsNullOrWhiteSpace($warmRunTelemetryDirectoryUsed)) {
+        $latestTelemetryPath = Join-Path -Path $warmRunTelemetryDirectoryUsed -ChildPath 'WarmRunTelemetry-latest.json'
+        try {
+            if ($latestTelemetryPath -ne $computedWarmRunPath) {
+                Copy-Item -LiteralPath $computedWarmRunPath -Destination $latestTelemetryPath -Force
+            }
+        } catch {
+            Write-Warning ("Failed to update warm-run telemetry latest pointer: {0}" -f $_.Exception.Message)
+        }
+        try {
+            $rawTelemetry = Get-Content -LiteralPath $computedWarmRunPath -Raw
+            if (-not [string]::IsNullOrWhiteSpace($rawTelemetry)) {
+                $telemetryObjects = $rawTelemetry | ConvertFrom-Json
+                $comparison = $telemetryObjects | Where-Object {
+                    $_.PassLabel -eq 'WarmRunComparison' -and $_.SummaryType -eq 'InterfaceCallDuration'
+                } | Select-Object -First 1
+                if ($null -ne $comparison) {
+                    $warmRunSummaryData = [pscustomobject]@{
+                        GeneratedAtUtc                = (Get-Date).ToUniversalTime()
+                        ColdInterfaceCallAvgMs        = $comparison.ColdInterfaceCallAvgMs
+                        ColdInterfaceCallP95Ms        = $comparison.ColdInterfaceCallP95Ms
+                        ColdInterfaceCallMaxMs        = $comparison.ColdInterfaceCallMaxMs
+                        WarmInterfaceCallAvgMs        = $comparison.WarmInterfaceCallAvgMs
+                        WarmInterfaceCallP95Ms        = $comparison.WarmInterfaceCallP95Ms
+                        WarmInterfaceCallMaxMs        = $comparison.WarmInterfaceCallMaxMs
+                        ImprovementAverageMs          = $comparison.ImprovementAverageMs
+                        ImprovementPercent            = $comparison.ImprovementPercent
+                        WarmCacheProviderHitCount     = $comparison.WarmCacheProviderHitCount
+                        WarmCacheProviderMissCount    = $comparison.WarmCacheProviderMissCount
+                        WarmCacheHitRatioPercent      = $comparison.WarmCacheHitRatioPercent
+                        WarmSignatureMatchMissCount   = $comparison.WarmSignatureMatchMissCount
+                        WarmSignatureRewriteTotal     = $comparison.WarmSignatureRewriteTotal
+                        WarmProviderCounts            = $comparison.WarmProviderCounts
+                        ColdProviderCounts            = $comparison.ColdProviderCounts
+                        TelemetryPath                 = $computedWarmRunPath
+                    }
+                    $warmRunSummaryPath = Join-Path -Path $warmRunTelemetryDirectoryUsed -ChildPath 'WarmRunTelemetry-latest-summary.json'
+                    $warmRunSummaryData | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $warmRunSummaryPath -Encoding utf8
+                    Write-Host ("Warm-run regression summary stored at {0}" -f $warmRunSummaryPath) -ForegroundColor DarkYellow
+                } else {
+                    Write-Warning 'Warm-run telemetry did not include an InterfaceCallDuration summary; summary export skipped.'
+                }
+            }
+        } catch {
+            Write-Warning ("Failed to process warm-run telemetry: {0}" -f $_.Exception.Message)
+        }
+    }
 }
 
 if ($PassThru.IsPresent) {
     [pscustomobject]@{
         WarmRunTelemetryPath = $computedWarmRunPath
+        WarmRunTelemetrySummaryPath = $warmRunSummaryPath
+        WarmRunSummary      = $warmRunSummaryData
         Parameters           = $pipelineParameters
     }
 }
