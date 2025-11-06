@@ -55,6 +55,26 @@ if (-not (Get-Variable -Name LastInterfaceSyncTelemetry -Scope Script -ErrorActi
     $script:LastInterfaceSyncTelemetry = $null
 }
 
+if (-not (Get-Variable -Name SkipSiteCacheUpdate -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:SkipSiteCacheUpdate = $false
+}
+
+function Set-ParserSkipSiteCacheUpdate {
+    [CmdletBinding()]
+    param(
+        [switch]$Reset,
+        [bool]$Skip = $true
+    )
+
+    if ($Reset) {
+        $script:SkipSiteCacheUpdate = $false
+    } else {
+        $script:SkipSiteCacheUpdate = [bool]$Skip
+    }
+
+    return $script:SkipSiteCacheUpdate
+}
+
 function Get-InterfaceSignatureFromValues {
     [CmdletBinding()]
     param(
@@ -509,7 +529,8 @@ function Update-InterfacesInDb {
         [Parameter(Mandatory=$true)][string]$Hostname,
         [Parameter(Mandatory=$true)][string]$RunDateString,
         [Parameter(Mandatory=$false)][object[]]$Templates,
-        [string]$SiteCode
+        [string]$SiteCode,
+        [bool]$SkipSiteCacheUpdate = $false
     )
 
     $script:LastInterfaceSyncTelemetry = $null
@@ -538,6 +559,8 @@ function Update-InterfacesInDb {
     if (-not $ifaceRecords) { $ifaceRecords = @() }
 
     Ensure-InterfaceTableIndexes -Connection $Connection
+
+    $skipSiteCacheUpdateSetting = (($SkipSiteCacheUpdate -eq $true) -or ($script:SkipSiteCacheUpdate -eq $true))
 
     $existingRows = @{}
     $normalizedHostname = ('' + $Hostname).Trim()
@@ -944,21 +967,163 @@ $siteCacheTemplateDurationMs = 0.0
 
         return $null
     }
-    if ($siteCodeValue) {
-        $siteCacheFetchStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    $skipSiteCacheHydration = $false
+    $sharedSiteCacheEntry = $null
+    $sharedSiteCacheEntryAttempted = $false
+    $sharedCacheHitStatus = 'SharedOnly'
+    $skipAccessHydration = $false
+    $siteCacheHitSource = 'None'
+    if ($skipSiteCacheUpdateSetting) {
+        $skipAccessHydration = $true
+        if (-not $siteCacheFetchStatus) {
+            $siteCacheFetchStatus = 'Disabled'
+        }
         try {
-            try { $siteCacheEntry = DeviceRepositoryModule\Get-InterfaceSiteCache -Site $siteCodeValue -Connection $Connection } catch { $siteCacheEntry = $null }
-        } finally {
-            if ($siteCacheFetchStopwatch) {
-                $siteCacheFetchStopwatch.Stop()
-                $siteCacheFetchDurationMs = [Math]::Round($siteCacheFetchStopwatch.Elapsed.TotalMilliseconds, 3)
+            if ($siteCacheResolveContext.ContainsKey('Initial')) {
+                $siteCacheResolveContext['Initial']['Status'] = 'Disabled'
             }
+            if ($siteCacheResolveContext.ContainsKey('Refresh')) {
+                $siteCacheResolveContext['Refresh']['Status'] = 'Disabled'
+            }
+        } catch { }
+    }
+
+    if ($siteCodeValue) {
+        try {
+            $siteCacheSummary = DeviceRepositoryModule\Get-InterfaceSiteCacheSummary -Site $siteCodeValue
+            if ($siteCacheSummary -and ((-not $siteCacheSummary.CacheExists) -or ([int]$siteCacheSummary.TotalRows -le 0))) {
+                $sharedSummaryEntry = $null
+                try { $sharedSummaryEntry = DeviceRepositoryModule\Get-SharedSiteInterfaceCacheEntry -SiteKey $siteCodeValue } catch { $sharedSummaryEntry = $null }
+                $sharedHostCount = 0
+                $sharedTotalRows = 0
+                if ($sharedSummaryEntry) {
+                    if ($sharedSummaryEntry.PSObject.Properties.Name -contains 'HostMap') {
+                        $sharedHostMap = $sharedSummaryEntry.HostMap
+                        if ($sharedHostMap -is [System.Collections.IDictionary]) {
+                            try { $sharedHostCount = [int]$sharedHostMap.Count } catch { $sharedHostCount = 0 }
+                            foreach ($sharedHostEntry in @($sharedHostMap.GetEnumerator())) {
+                                $sharedPorts = $sharedHostEntry.Value
+                                if ($sharedPorts -is [System.Collections.IDictionary] -or $sharedPorts -is [System.Collections.ICollection]) {
+                                    try { $sharedTotalRows += [int]$sharedPorts.Count } catch { }
+                                }
+                            }
+                        }
+                    }
+                    if ($sharedSummaryEntry.PSObject.Properties.Name -contains 'HostCount' -and $sharedHostCount -le 0) {
+                        try { $sharedHostCount = [int]$sharedSummaryEntry.HostCount } catch { }
+                    }
+                    if ($sharedSummaryEntry.PSObject.Properties.Name -contains 'TotalRows' -and $sharedTotalRows -le 0) {
+                        try { $sharedTotalRows = [int]$sharedSummaryEntry.TotalRows } catch { }
+                    }
+                }
+
+                if ($sharedHostCount -gt 0 -and $sharedTotalRows -gt 0) {
+                    $skipSiteCacheHydration = $false
+                    $siteCacheFetchStatus = $sharedCacheHitStatus
+                    $cachePrimedRowCount = [int][Math]::Max($cachePrimedRowCount, $sharedTotalRows)
+                    try {
+                        if ($siteCacheResolveContext.ContainsKey('Initial')) {
+                            $siteCacheResolveContext['Initial']['Status'] = 'SharedStoreSeed'
+                            $siteCacheResolveContext['Initial']['HostCount'] = $sharedHostCount
+                        }
+                        if ($siteCacheResolveContext.ContainsKey('Refresh')) {
+                            $siteCacheResolveContext['Refresh']['Status'] = 'SharedStoreSeed'
+                            $siteCacheResolveContext['Refresh']['HostCount'] = $sharedHostCount
+                        }
+                    } catch { }
+                } else {
+                    $skipSiteCacheHydration = $true
+                    $siteCacheFetchStatus = 'SkippedEmpty'
+                    try {
+                        if ($siteCacheResolveContext.ContainsKey('Initial')) {
+                            $siteCacheResolveContext['Initial']['Status'] = 'SkippedEmpty'
+                        }
+                        if ($siteCacheResolveContext.ContainsKey('Refresh')) {
+                            $siteCacheResolveContext['Refresh']['Status'] = 'SkippedEmpty'
+                        }
+                    } catch { }
+                }
+            }
+        } catch { }
+    }
+
+    $resolveSharedHostEntry = {
+        param(
+            [string]$stage = 'Initial'
+        )
+
+        if (-not $siteCodeValue) { return $null }
+
+        if (-not $sharedSiteCacheEntryAttempted) {
+            $sharedSiteCacheEntryAttempted = $true
+            try { $sharedSiteCacheEntry = DeviceRepositoryModule\Get-SharedSiteInterfaceCacheEntry -SiteKey $siteCodeValue } catch { $sharedSiteCacheEntry = $null }
+        }
+        if (-not $sharedSiteCacheEntry) { return $null }
+
+        $sharedHostEntry = & $resolveCachedHost $sharedSiteCacheEntry $stage
+        if (-not $sharedHostEntry) { return $null }
+
+        $siteCacheEntry = $sharedSiteCacheEntry
+        $siteCacheHitSource = 'Shared'
+        $skipAccessHydration = $true
+        if (-not $siteCacheFetchStatus -or $siteCacheFetchStatus -eq 'Refreshed' -or $siteCacheFetchStatus -eq 'Disabled' -or $siteCacheFetchStatus -eq 'SkippedEmpty') {
+            $siteCacheFetchStatus = $sharedCacheHitStatus
+        } elseif ($skipSiteCacheUpdateSetting -and $siteCacheFetchStatus -eq 'Hit') {
+            $siteCacheFetchStatus = $sharedCacheHitStatus
         }
         if ($siteCacheEntry -and $siteCacheEntry.PSObject.Properties.Name -contains 'TotalRows') {
-            $cachePrimedRowCount = [int]$siteCacheEntry.TotalRows
+            $cachePrimedRowCount = [int][Math]::Max($cachePrimedRowCount, $siteCacheEntry.TotalRows)
         }
-        $cachedHostEntry = & $resolveCachedHost $siteCacheEntry 'Initial'
+        try {
+            if ($siteCacheResolveContext.ContainsKey($stage)) {
+                $contextEntry = $siteCacheResolveContext[$stage]
+                if ($contextEntry) {
+                    $contextEntry['Status'] = 'SharedStoreMatch'
+                    $contextEntry['MatchedKey'] = $normalizedHostname
+                    if ($siteCacheEntry.PSObject.Properties.Name -contains 'HostCount') {
+                        $contextEntry['HostCount'] = [int]$siteCacheEntry.HostCount
+                    }
+                    if ($siteCacheEntry.PSObject.Properties.Name -contains 'CachedAt') {
+                        $cacheTimestamp = $siteCacheEntry.CachedAt
+                        $contextEntry['CachedAt'] = $cacheTimestamp
+                        $contextEntry['CachedAtText'] = if ($cacheTimestamp -is [datetime]) { $cacheTimestamp.ToString('o') } else { '' + $cacheTimestamp }
+                    }
+                }
+            }
+        } catch { }
+
+        return $sharedHostEntry
+    }
+
+    if ($siteCodeValue) {
         if (-not $cachedHostEntry) {
+            $cachedHostEntry = & $resolveSharedHostEntry 'Initial'
+        }
+
+        if (-not $cachedHostEntry -and -not $skipSiteCacheHydration -and -not $skipAccessHydration) {
+            $siteCacheFetchStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+            try {
+                try { $siteCacheEntry = DeviceRepositoryModule\Get-InterfaceSiteCache -Site $siteCodeValue -Connection $Connection } catch { $siteCacheEntry = $null }
+            } finally {
+                if ($siteCacheFetchStopwatch) {
+                    $siteCacheFetchStopwatch.Stop()
+                    $siteCacheFetchDurationMs = [Math]::Round($siteCacheFetchStopwatch.Elapsed.TotalMilliseconds, 3)
+                }
+            }
+            if ($siteCacheEntry -and $siteCacheEntry.PSObject.Properties.Name -contains 'TotalRows') {
+                $cachePrimedRowCount = [int]$siteCacheEntry.TotalRows
+            }
+            $cachedHostEntry = & $resolveCachedHost $siteCacheEntry 'Initial'
+            if ($cachedHostEntry) {
+                $siteCacheHitSource = 'Access'
+            }
+        }
+
+        if (-not $cachedHostEntry) {
+            $cachedHostEntry = & $resolveSharedHostEntry 'Refresh'
+        }
+
+        if (-not $cachedHostEntry -and -not $skipSiteCacheHydration -and -not $skipAccessHydration) {
             $loadCacheRefreshed = $true
             $siteCacheRefreshStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
             try {
@@ -973,10 +1138,17 @@ $siteCacheTemplateDurationMs = 0.0
                 $cachePrimedRowCount = [int]$siteCacheEntry.TotalRows
             }
             $cachedHostEntry = & $resolveCachedHost $siteCacheEntry 'Refresh'
+            if ($cachedHostEntry -and $siteCacheHitSource -eq 'None') {
+                $siteCacheHitSource = 'Access'
+            }
+        }
+
+        if (-not $cachedHostEntry) {
+            $cachedHostEntry = & $resolveSharedHostEntry 'Refresh'
         }
     }
 
-    if ($siteCodeValue) {
+    if ($siteCodeValue -and -not $skipSiteCacheHydration) {
         try {
             $lastSiteCacheMetrics = DeviceRepositoryModule\Get-LastInterfaceSiteCacheMetrics
             if ($lastSiteCacheMetrics -and $lastSiteCacheMetrics.Site -and [System.StringComparer]::OrdinalIgnoreCase.Equals($lastSiteCacheMetrics.Site, $siteCodeValue)) {
@@ -1003,6 +1175,8 @@ $siteCacheTemplateDurationMs = 0.0
                 }
                 if ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'HydrationHostMapSignatureMatchCount') {
                     $siteCacheHostMapSignatureMatchCount = [long]$lastSiteCacheMetrics.HydrationHostMapSignatureMatchCount
+                } elseif ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'HostMapSignatureMatchCount') {
+                    $siteCacheHostMapSignatureMatchCount = [long]$lastSiteCacheMetrics.HostMapSignatureMatchCount
                 }
                 if ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'HydrationHostMapSignatureRewriteCount') {
                     $siteCacheHostMapSignatureRewriteCount = [long]$lastSiteCacheMetrics.HydrationHostMapSignatureRewriteCount
@@ -1030,6 +1204,8 @@ $siteCacheTemplateDurationMs = 0.0
                 }
                 if ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'HydrationHostMapCandidateFromPreviousCount') {
                     $siteCacheHostMapCandidateFromPreviousCount = [long]$lastSiteCacheMetrics.HydrationHostMapCandidateFromPreviousCount
+                } elseif ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'HostMapCandidateFromPreviousCount') {
+                    $siteCacheHostMapCandidateFromPreviousCount = [long]$lastSiteCacheMetrics.HostMapCandidateFromPreviousCount
                 }
                 if ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'HydrationHostMapCandidateFromPoolCount') {
                     $siteCacheHostMapCandidateFromPoolCount = [long]$lastSiteCacheMetrics.HydrationHostMapCandidateFromPoolCount
@@ -1197,9 +1373,16 @@ $siteCacheTemplateDurationMs = 0.0
                     if (-not [string]::IsNullOrWhiteSpace($providerValue)) {
                         $siteCacheProvider = $providerValue
                     }
+                } elseif ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'Provider') {
+                    $providerValue = '' + $lastSiteCacheMetrics.Provider
+                    if (-not [string]::IsNullOrWhiteSpace($providerValue)) {
+                        $siteCacheProvider = $providerValue
+                    }
                 }
                 if ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'HydrationResultRowCount') {
                     $siteCacheResultRowCount = [int]$lastSiteCacheMetrics.HydrationResultRowCount
+                } elseif ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'ResultRowCount') {
+                    $siteCacheResultRowCount = [int]$lastSiteCacheMetrics.ResultRowCount
                 }
             }
         } catch { }
@@ -1312,7 +1495,7 @@ $siteCacheTemplateDurationMs = 0.0
         $existingRows = $queryResult.Rows
         $loadSignatureDurationMs += $queryResult.LoadSignatureDurationMs
         $cachedRowCount = if ($existingRows) { [int]$existingRows.Count } else { 0 }
-        if ($siteCodeValue) {
+        if ($siteCodeValue -and -not $skipSiteCacheUpdateSetting) {
             try { DeviceRepositoryModule\Set-InterfaceSiteCacheHost -Site $siteCodeValue -Hostname $normalizedHostname -RowsByPort $existingRows } catch { }
         }
     }
@@ -1941,7 +2124,7 @@ $siteCacheTemplateDurationMs = 0.0
                 if ($trimmedPort) { [void]$finalHostRows.Remove($trimmedPort) }
             }
         }
-        if ($siteCodeValue) {
+        if ($siteCodeValue -and -not $skipSiteCacheUpdateSetting) {
             $siteCacheStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
             try { DeviceRepositoryModule\Set-InterfaceSiteCacheHost -Site $siteCodeValue -Hostname $normalizedHostname -RowsByPort $finalHostRows } catch { }
             $siteCacheStopwatch.Stop()
@@ -1973,17 +2156,26 @@ $siteCacheTemplateDurationMs = 0.0
             if ($loadCacheRefreshed) {
                 $siteCacheFetchStatus = 'Refreshed'
             } elseif ($loadCacheHit) {
-                $siteCacheFetchStatus = 'Hit'
+                $siteCacheFetchStatus = if ($siteCacheHitSource -eq 'Shared') { $sharedCacheHitStatus } else { 'Hit' }
             } elseif ($loadCacheMiss) {
-        $siteCacheFetchStatus = 'Miss'
-    }
-}
+                $siteCacheFetchStatus = 'Miss'
+            } else {
+                $siteCacheFetchStatus = 'Unknown'
+            }
+        }
+        if ($siteCacheHitSource -eq 'Shared') {
+            $siteCacheFetchStatus = $sharedCacheHitStatus
+        }
 
     if (-not $siteCacheProvider) {
         if ($loadCacheRefreshed) {
             $siteCacheProvider = 'Refreshed'
         } elseif ($loadCacheHit) {
-            $siteCacheProvider = 'Cache'
+            if ($siteCacheHitSource -eq 'Shared') {
+                $siteCacheProvider = 'SharedCache'
+            } else {
+                $siteCacheProvider = 'Cache'
+            }
         } else {
             $siteCacheProvider = 'Unknown'
         }
@@ -3498,4 +3690,4 @@ function Get-LastInterfaceSyncTelemetry {
     return $script:LastInterfaceSyncTelemetry
 }
 
-Export-ModuleMember -Function Update-DeviceSummaryInDb, Update-InterfacesInDb, Update-SpanInfoInDb, Write-InterfacePersistenceFailure, Get-LastInterfaceSyncTelemetry
+Export-ModuleMember -Function Update-DeviceSummaryInDb, Update-InterfacesInDb, Update-SpanInfoInDb, Write-InterfacePersistenceFailure, Get-LastInterfaceSyncTelemetry, Set-ParserSkipSiteCacheUpdate

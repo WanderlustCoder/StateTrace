@@ -13,6 +13,9 @@ Describe "ParserPersistenceModule" {
         $deviceRepoPath = Join-Path $moduleDirectory "..\DeviceRepositoryModule.psm1"
         Import-Module (Resolve-Path $deviceRepoPath) -Force
 
+        $telemetryPath = Join-Path $moduleDirectory "..\TelemetryModule.psm1"
+        Import-Module (Resolve-Path $telemetryPath) -Force
+
     }
 
     BeforeEach {
@@ -21,11 +24,7 @@ Describe "ParserPersistenceModule" {
 
 
 
-    AfterAll {
-
-        Remove-Module ParserPersistenceModule -Force
-
-    }
+    AfterAll { }
 
 
 
@@ -517,6 +516,223 @@ Describe "ParserPersistenceModule" {
 
         Remove-Variable -Name recordsets -Scope Script -ErrorAction SilentlyContinue
 
+    }
+
+
+
+    It "reuses shared cache entry when initial site cache lookup misses" {
+
+        $commands = New-Object "System.Collections.Generic.List[string]"
+        Set-Variable -Name commands -Scope Script -Value $commands
+
+        $connection = New-Object PSObject
+        Add-Member -InputObject $connection -MemberType ScriptMethod -Name Execute -Value {
+            param($Sql)
+            if ($Sql -like "SELECT Port,*FROM Interfaces*") {
+                return New-TestRecordset @()
+            }
+            [void]$script:commands.Add($Sql)
+            return $null
+        }
+        Add-Member -InputObject $connection -MemberType ScriptMethod -Name BeginTrans -Value { }
+        Add-Member -InputObject $connection -MemberType ScriptMethod -Name CommitTrans -Value { }
+        Add-Member -InputObject $connection -MemberType ScriptMethod -Name RollbackTrans -Value { }
+        Add-Member -InputObject $connection -MemberType ScriptMethod -Name Close -Value { }
+
+        $sharedPort = [pscustomobject]@{
+            Name      = 'Gi1/0/1'
+            Status    = 'up'
+            VLAN      = '10'
+            Duplex    = 'full'
+            Speed     = '1G'
+            Type      = 'access'
+            Learned   = ''
+            AuthState = ''
+            AuthMode  = ''
+            AuthClient= ''
+            Template  = ''
+            Config    = ''
+            PortColor = ''
+            StatusTag = ''
+            ToolTip   = ''
+            Signature = 'sig-1'
+        }
+
+        $sharedEntry = [pscustomobject]@{
+            HostMap = @{
+                'SW1' = @{
+                    'Gi1/0/1' = $sharedPort
+                }
+            }
+            TotalRows = 1
+            HostCount = 1
+            CacheStatus = 'Hit'
+            CachedAt = Get-Date
+        }
+
+        Mock -ModuleName DeviceRepositoryModule Get-InterfaceSiteCache {
+            [pscustomobject]@{
+                HostMap   = @{}
+                TotalRows = 0
+                HostCount = 0
+                CacheStatus = 'Hit'
+                CachedAt  = Get-Date
+            }
+        }
+
+        Mock -ModuleName DeviceRepositoryModule Get-SharedSiteInterfaceCacheEntry { $sharedEntry }
+
+        Mock -ModuleName DeviceRepositoryModule Get-InterfaceSiteCacheSummary {
+            [pscustomobject]@{
+                CacheExists = $true
+                TotalRows   = 1
+            }
+        }
+
+        Mock -ModuleName DeviceRepositoryModule Get-LastInterfaceSiteCacheMetrics { $null }
+        Mock -ModuleName DeviceRepositoryModule Set-InterfaceSiteCacheHost { }
+        $facts = [pscustomobject]@{
+            InterfacesCombined = @(
+                [pscustomobject]@{
+                    Port      = 'Gi1/0/1'
+                    Name      = 'Gi1/0/1'
+                    Status    = 'up'
+                    VLAN      = '10'
+                    Duplex    = 'full'
+                    Speed     = '1G'
+                    Type      = 'access'
+                    Learned   = ''
+                    AuthState = ''
+                    AuthMode  = ''
+                    AuthClient= ''
+                    AuthTemplate = ''
+                    Config    = ''
+                    PortColor = ''
+                    StatusTag = ''
+                    ToolTip   = ''
+                    Signature = 'sig-1'
+                }
+            )
+            Make = 'Cisco'
+        }
+
+        ParserPersistenceModule\Update-InterfacesInDb -Connection $connection -Facts $facts -Hostname 'SW1' -RunDateString '2025-11-06 12:00:00'
+
+        $telemetry = InModuleScope -ModuleName ParserPersistenceModule { Get-LastInterfaceSyncTelemetry }
+        $telemetry | Should Not BeNullOrEmpty
+        Remove-Variable -Name commands -Scope Script -ErrorAction SilentlyContinue
+    }
+
+
+    It "prefers shared cache when site cache updates are disabled" {
+
+        $commands = New-Object "System.Collections.Generic.List[string]"
+        Set-Variable -Name commands -Scope Script -Value $commands
+
+        $connection = New-Object PSObject
+        Add-Member -InputObject $connection -MemberType ScriptMethod -Name Execute -Value {
+            param($Sql)
+            [void]$script:commands.Add($Sql)
+            return $null
+        }
+        Add-Member -InputObject $connection -MemberType ScriptMethod -Name BeginTrans -Value { }
+        Add-Member -InputObject $connection -MemberType ScriptMethod -Name CommitTrans -Value { }
+        Add-Member -InputObject $connection -MemberType ScriptMethod -Name RollbackTrans -Value { }
+        Add-Member -InputObject $connection -MemberType ScriptMethod -Name Close -Value { }
+
+        $sharedPort = [pscustomobject]@{
+            Name      = 'Gi1/0/1'
+            Status    = 'up'
+            VLAN      = '10'
+            Duplex    = 'full'
+            Speed     = '1G'
+            Type      = 'access'
+            Learned   = ''
+            AuthState = ''
+            AuthMode  = ''
+            AuthClient= ''
+            Template  = ''
+            Config    = ''
+            PortColor = ''
+            StatusTag = ''
+            ToolTip   = ''
+            Signature = 'sig-1'
+        }
+
+        $sharedEntry = [pscustomobject]@{
+            HostMap = @{
+                'SW1' = @{
+                    'Gi1/0/1' = $sharedPort
+                }
+            }
+            TotalRows = 1
+            HostCount = 1
+            CacheStatus = 'Hit'
+            CachedAt    = Get-Date
+        }
+
+        $script:interfaceSiteCacheFetchCount = 0
+
+        Mock -ModuleName DeviceRepositoryModule Get-InterfaceSiteCache {
+            param([string]$Site, [object]$Connection, [switch]$Refresh)
+            $script:interfaceSiteCacheFetchCount++
+            if ($Refresh) {
+                throw "Refresh should not be invoked when shared cache satisfies request."
+            }
+            return [pscustomobject]@{
+                HostMap   = @{}
+                TotalRows = 0
+                HostCount = 0
+                CacheStatus = 'Hit'
+                CachedAt  = Get-Date
+            }
+        }
+
+        Mock -ModuleName DeviceRepositoryModule Get-SharedSiteInterfaceCacheEntry { $sharedEntry }
+
+        Mock -ModuleName DeviceRepositoryModule Get-InterfaceSiteCacheSummary {
+            [pscustomobject]@{
+                CacheExists = $false
+                TotalRows   = 0
+            }
+        }
+
+        Mock -ModuleName DeviceRepositoryModule Get-LastInterfaceSiteCacheMetrics { $null }
+        Mock -ModuleName DeviceRepositoryModule Set-InterfaceSiteCacheHost { }
+        $facts = [pscustomobject]@{
+            InterfacesCombined = @(
+                [pscustomobject]@{
+                    Port      = 'Gi1/0/1'
+                    Name      = 'Gi1/0/1'
+                    Status    = 'up'
+                    VLAN      = '10'
+                    Duplex    = 'full'
+                    Speed     = '1G'
+                    Type      = 'access'
+                    Learned   = ''
+                    AuthState = ''
+                    AuthMode  = ''
+                    AuthClient= ''
+                    AuthTemplate = ''
+                    Config    = ''
+                    PortColor = ''
+                    StatusTag = ''
+                    ToolTip   = ''
+                    Signature = 'sig-1'
+                }
+            )
+            Make = 'Cisco'
+        }
+
+        ParserPersistenceModule\Update-InterfacesInDb -Connection $connection -Facts $facts -Hostname 'SW1' -RunDateString '2025-11-06 12:00:00' -SkipSiteCacheUpdate $true
+
+        $telemetry = InModuleScope -ModuleName ParserPersistenceModule { Get-LastInterfaceSyncTelemetry }
+        $telemetry | Should Not BeNullOrEmpty
+        $telemetry.LoadCacheRefreshed | Should Be $false
+        $script:interfaceSiteCacheFetchCount | Should Be 0
+
+        Remove-Variable -Name commands -Scope Script -ErrorAction SilentlyContinue
+        Remove-Variable -Name interfaceSiteCacheFetchCount -Scope Script -ErrorAction SilentlyContinue
     }
 
 
