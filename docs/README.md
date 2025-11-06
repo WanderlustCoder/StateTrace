@@ -36,6 +36,7 @@ Completed plans are moved to docs/completed/ with a completion summary and date.
 - Run `powershell -File Tools/Invoke-StateTracePipeline.ps1 -VerboseParsing` for a full ingestion pass; use `-SkipTests` when the Pester suite already ran.
 - Trial manual ceilings by passing `-ThreadCeilingOverride`, `-MaxWorkersPerSiteOverride`, `-MaxActiveSitesOverride`, `-JobsPerThreadOverride`, or `-MinRunspacesOverride`; these temporarily supersede the zero-valued hints in `Data/StateTraceSettings.json`.
 - Each run logs telemetry (`ParseDuration`, `DatabaseWriteLatency`, `ConcurrencyProfileResolved`, etc.) to `Logs/IngestionMetrics/<date>.json`; review these files when capturing metrics for plan updates.
+- Generate daily metric rollups with `Tools/Rollup-IngestionMetrics.ps1 -MetricsDirectory Logs/IngestionMetrics -OutputPath Logs/IngestionMetrics/IngestionMetricsSummary.csv`; add `-IncludePerSite`/`-IncludeSiteCache` for detailed slices, `-MetricFile <path>` for ad-hoc summaries, or `-MetricFileNameFilter '2025-11-*.json' -Latest 3` to filter the dataset without parsing the full archive.
 - Remove the override parameters (or set them to `0`) once experiments finish so autoscaling resumes.
 - Adjust bulk staging by setting `ParserSettings.InterfaceBulkChunkSize` in `Data/StateTraceSettings.json`; ParserWorker now pushes the value to ParserPersistenceModule (default 24, use `0` to stage full batches).
 
