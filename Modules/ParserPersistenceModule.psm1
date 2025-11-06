@@ -689,6 +689,7 @@ $siteCacheTemplateDurationMs = 0.0
     $siteCacheExclusiveRetryCount = 0
     $siteCacheExclusiveWaitDurationMs = 0.0
     $siteCacheProvider = $null
+    $siteCacheProviderReason = 'NotEvaluated'
     $siteCacheResultRowCount = 0
     $cacheComparisonCandidateCount = 0
     $cacheComparisonSignatureMatchCount = 0
@@ -1388,6 +1389,11 @@ $siteCacheTemplateDurationMs = 0.0
         } catch { }
     }
 
+    if ($siteCacheHitSource -eq 'Shared') {
+        $siteCacheFetchStatus = $sharedCacheHitStatus
+        $siteCacheProvider = 'SharedCache'
+        $siteCacheProviderReason = 'SharedCacheMatch'
+    }
     $queryExistingRows = {
         $result = @{
             Rows = @{}
@@ -2170,14 +2176,37 @@ $siteCacheTemplateDurationMs = 0.0
     if (-not $siteCacheProvider) {
         if ($loadCacheRefreshed) {
             $siteCacheProvider = 'Refreshed'
+            $siteCacheProviderReason = 'AccessRefresh'
         } elseif ($loadCacheHit) {
             if ($siteCacheHitSource -eq 'Shared') {
                 $siteCacheProvider = 'SharedCache'
+                if ([string]::IsNullOrWhiteSpace($siteCacheProviderReason) -or $siteCacheProviderReason -eq 'NotEvaluated') {
+                    $siteCacheProviderReason = 'SharedCacheMatch'
+                }
             } else {
                 $siteCacheProvider = 'Cache'
+                $siteCacheProviderReason = 'AccessCacheHit'
             }
         } else {
             $siteCacheProvider = 'Unknown'
+            if ($skipSiteCacheUpdateSetting -or $skipAccessHydration) {
+                $siteCacheProviderReason = 'SkipSiteCacheUpdate'
+            } elseif ($skipSiteCacheHydration) {
+                $siteCacheProviderReason = 'SharedCacheUnavailable'
+            } else {
+                $siteCacheProviderReason = 'DatabaseQueryFallback'
+            }
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace($siteCacheProviderReason)) {
+        if ($siteCacheProvider -eq 'SharedCache') {
+            $siteCacheProviderReason = 'SharedCacheMatch'
+        } elseif ($siteCacheProvider -eq 'Refreshed') {
+            $siteCacheProviderReason = 'AccessRefresh'
+        } elseif ($siteCacheProvider -eq 'Cache') {
+            $siteCacheProviderReason = 'AccessCacheHit'
+        } elseif ($siteCacheProvider -eq 'Unknown') {
+            $siteCacheProviderReason = 'Undetermined'
         }
     }
     if ($siteCacheResultRowCount -le 0) {
@@ -2393,6 +2422,7 @@ $siteCacheTemplateDurationMs = 0.0
         SiteCacheExclusiveRetryCount = $siteCacheExclusiveRetryCount
         SiteCacheExclusiveWaitDurationMs = $siteCacheExclusiveWaitDurationMs
         SiteCacheProvider = $siteCacheProvider
+        SiteCacheProviderReason = $siteCacheProviderReason
         SiteCacheResultRowCount = $siteCacheResultRowCount
         SiteCacheExistingRowCount = $siteCacheExistingRowCount
         SiteCacheExistingRowKeysSample = $siteCacheExistingRowKeysSample
@@ -2541,6 +2571,7 @@ $siteCacheTemplateDurationMs = 0.0
         SiteCacheExclusiveRetryCount = $siteCacheExclusiveRetryCount
         SiteCacheExclusiveWaitDurationMs = $siteCacheExclusiveWaitDurationMs
         SiteCacheProvider = $siteCacheProvider
+        SiteCacheProviderReason = $siteCacheProviderReason
         SiteCacheResultRowCount = $siteCacheResultRowCount
         SiteCacheExistingRowCount = $siteCacheExistingRowCount
         SiteCacheExistingRowKeysSample = $siteCacheExistingRowKeysSample

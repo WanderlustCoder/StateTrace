@@ -1247,6 +1247,7 @@ Describe "ParserPersistenceModule" {
                 ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheExclusiveRetryCount') | Should Be $true
                 ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheExclusiveWaitDurationMs') | Should Be $true
                 ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheProvider') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheProviderReason') | Should Be $true
                 ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheResultRowCount') | Should Be $true
                 ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheExistingRowCount') | Should Be $true
                 ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheExistingRowKeysSample') | Should Be $true
@@ -1308,7 +1309,7 @@ Describe "ParserPersistenceModule" {
                 CachePrimedRowCount      = 20
                 SiteCacheFetchDurationMs = 5.5
                 SiteCacheRefreshDurationMs = 1.1
-                SiteCacheFetchStatus     = 'Hit'
+                SiteCacheFetchStatus     = 'SharedOnly'
                 SiteCacheSnapshotDurationMs = 0.4
                 SiteCacheRecordsetDurationMs = 0.15
                 SiteCacheRecordsetProjectDurationMs = 0.05
@@ -1412,6 +1413,7 @@ Describe "ParserPersistenceModule" {
                 SiteCacheExclusiveRetryCount = 0
                 SiteCacheExclusiveWaitDurationMs = 0.0
                 SiteCacheProvider        = 'Hydrate'
+                SiteCacheProviderReason  = 'Hydrate'
                 SiteCacheResultRowCount  = 20
                 SiteCacheExistingRowCount = 20
                 SiteCacheExistingRowKeysSample = 'Gi1/0/1|Gi1/0/2'
@@ -1544,6 +1546,7 @@ Describe "ParserPersistenceModule" {
         ($metrics.PSObject.Properties.Name -contains 'SiteCacheExclusiveRetryCount') | Should Be $true
         ($metrics.PSObject.Properties.Name -contains 'SiteCacheExclusiveWaitDurationMs') | Should Be $true
         ($metrics.PSObject.Properties.Name -contains 'SiteCacheProvider') | Should Be $true
+        ($metrics.PSObject.Properties.Name -contains 'SiteCacheProviderReason') | Should Be $true
         ($metrics.PSObject.Properties.Name -contains 'SiteCacheResultRowCount') | Should Be $true
         ($metrics.PSObject.Properties.Name -contains 'SiteCacheExistingRowCount') | Should Be $true
         ($metrics.PSObject.Properties.Name -contains 'SiteCacheExistingRowKeysSample') | Should Be $true
