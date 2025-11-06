@@ -406,7 +406,7 @@ if ($MetricFile) {
         }
     }
 
-    if (-not $metricFiles -or $metricFiles.Count -eq 0) {
+    if (-not $metricFiles -or @($metricFiles).Count -eq 0) {
         Write-Warning 'No metric files were resolved from the provided -MetricFile paths.'
         return
     }
@@ -418,7 +418,15 @@ if ($MetricFile) {
     $metricsBasePath = $metricsPath.Path
     $metricFiles = Get-ChildItem -Path $metricsPath.Path -Filter '*.json' -File | Sort-Object -Property Name
 
-    if ($MetricFileNameFilter -and $MetricFileNameFilter.Count -gt 0) {
+    $hasNameFilters = $false
+    if ($MetricFileNameFilter) {
+        $filterCount = @($MetricFileNameFilter).Count
+        if ($filterCount -gt 0) {
+            $hasNameFilters = $true
+        }
+    }
+
+    if ($hasNameFilters) {
         $metricFiles = $metricFiles | Where-Object {
             $name = $_.Name
             foreach ($pattern in $MetricFileNameFilter) {
@@ -430,18 +438,24 @@ if ($MetricFile) {
         }
     }
 
-    if ($Latest -gt 0 -and $metricFiles.Count -gt $Latest) {
+    $metricFiles = @($metricFiles)
+    $currentMetricCount = @($metricFiles).Count
+
+    if ($Latest -gt 0 -and $currentMetricCount -gt $Latest) {
         $metricFiles = $metricFiles |
             Sort-Object -Property LastWriteTimeUtc -Descending |
             Select-Object -First $Latest |
             Sort-Object -Property Name
     }
 
-    if (-not $metricFiles -or $metricFiles.Count -eq 0) {
+    $currentMetricCount = @($metricFiles).Count
+    if (-not $metricFiles -or $currentMetricCount -eq 0) {
         Write-Warning ("No ingestion metrics files were found under '{0}' using the current filters." -f $metricsPath.Path)
         return
     }
 }
+
+$metricFiles = @($metricFiles)
 
 $summaryRows = New-Object 'System.Collections.Generic.List[psobject]'
 
