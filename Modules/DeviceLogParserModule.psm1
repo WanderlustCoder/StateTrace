@@ -630,6 +630,22 @@ function ConvertFrom-SpanningTree {
                 if (-not $firstInterface) { $firstInterface = $parts[0] }
                 if (-not $firstRole)      { $firstRole      = $parts[1] }
             }
+            continue
+        }
+
+        if ($line -match '^Port\s+\d+\s+\(([^)]+)\).+?\s+is\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)') {
+            $ifaceName = $matches[1]
+            $rolePhrase = $matches[2].Trim().ToLower()
+            if (-not $firstInterface) { $firstInterface = $ifaceName }
+            if (-not $firstRole) {
+                switch ($rolePhrase) {
+                    'designated forwarding' { $firstRole = 'Desg FWD'; break }
+                    'root forwarding'       { $firstRole = 'Root FWD'; break }
+                    'backup blocking'       { $firstRole = 'Back BLK'; break }
+                    'alternate blocking'    { $firstRole = 'Altn BLK'; break }
+                    default                 { $firstRole = $rolePhrase }
+                }
+            }
         }
     }
 
@@ -1240,6 +1256,23 @@ function Invoke-DeviceLogParsing {
                             $interfaceDurationMs = [Math]::Round($interfaceStopwatch.Elapsed.TotalMilliseconds, 3)
                         }
 
+                        $spanCmd = Get-Command -Name 'ParserPersistenceModule\Update-SpanInfoInDb' -ErrorAction SilentlyContinue
+                        if (-not $spanCmd) { $spanCmd = Get-Command -Name 'Update-SpanInfoInDb' -ErrorAction SilentlyContinue }
+                        if (-not $spanCmd) { throw "Required parser persistence helper 'Update-SpanInfoInDb' is not available. Ensure ParserPersistenceModule.psm1 is imported." }
+
+                        $spanParams = @{
+                            Connection    = $__dbConn
+                            Hostname      = $cleanHostname
+                            RunDateString = $runDateString
+                            SpanInfo      = if ($facts.PSObject.Properties.Name -contains 'SpanInfo') { $facts.SpanInfo } else { @() }
+                        }
+
+                        try {
+                            & $spanCmd @spanParams
+                        } catch {
+                            Write-Warning ("Failed to persist spanning tree data for host {0}: {1}" -f $cleanHostname, $_.Exception.Message)
+                        }
+
                         try {
                             $metricsCmd = Get-Command -Name 'ParserPersistenceModule\Get-LastInterfaceSyncTelemetry' -ErrorAction SilentlyContinue
                             if (-not $metricsCmd) { $metricsCmd = Get-Command -Name 'Get-LastInterfaceSyncTelemetry' -ErrorAction SilentlyContinue }
@@ -1302,6 +1335,9 @@ function Invoke-DeviceLogParsing {
                             if ($latestSyncTelemetry) {
                                 if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'DiffDurationMs') {
                                     $breakdownPayload['InterfaceDiffDurationMs'] = [double]$latestSyncTelemetry.DiffDurationMs
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'DiffComparisonDurationMs') {
+                                    $breakdownPayload['InterfaceDiffComparisonDurationMs'] = [double]$latestSyncTelemetry.DiffComparisonDurationMs
                                 }
                                 if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'BulkCommandExecuteDurationMs') {
                                     $breakdownPayload['BulkCommandExecuteDurationMs'] = [double]$latestSyncTelemetry.BulkCommandExecuteDurationMs
@@ -1640,6 +1676,12 @@ function Invoke-DeviceLogParsing {
                                     $providerValue = '' + $latestSyncTelemetry.SiteCacheProvider
                                     if (-not [string]::IsNullOrWhiteSpace($providerValue)) {
                                         $breakdownPayload['SiteCacheProvider'] = $providerValue
+                                    }
+                                }
+                                if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheProviderReason') {
+                                    $providerReasonValue = '' + $latestSyncTelemetry.SiteCacheProviderReason
+                                    if (-not [string]::IsNullOrWhiteSpace($providerReasonValue)) {
+                                        $breakdownPayload['SiteCacheProviderReason'] = $providerReasonValue.Trim()
                                     }
                                 }
                                 if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheResultRowCount') {

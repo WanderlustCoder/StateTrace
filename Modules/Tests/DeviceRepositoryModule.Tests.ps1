@@ -150,6 +150,50 @@ Describe "DeviceRepositoryModule core helpers" {
         try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::ClearStore() } catch { }
     }
 
+    It "marks cache status as SharedOnly when reusing shared store entries" {
+        DeviceRepositoryModule\Clear-SiteInterfaceCache
+        $siteKey = 'SHAREDONLY'
+        $hostKey = 'SHAREDONLY-A01-AS-01'
+        $ports = New-Object 'System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceCacheEntry]' ([System.StringComparer]::OrdinalIgnoreCase)
+        $entryModel = [StateTrace.Models.InterfaceCacheEntry]::new()
+        $entryModel.Name = 'Gi1/0/1'
+        $entryModel.Status = 'up'
+        $entryModel.Signature = 'sig-sharedonly'
+        $ports['Gi1/0/1'] = $entryModel
+        $hostMap = New-Object 'System.Collections.Generic.Dictionary[string,System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceCacheEntry]]' ([System.StringComparer]::OrdinalIgnoreCase)
+        $hostMap[$hostKey] = $ports
+        $sharedEntry = [pscustomobject]@{
+            HostMap   = $hostMap
+            TotalRows = 1
+            HostCount = 1
+            CachedAt  = Get-Date
+        }
+
+        $module = Get-Module DeviceRepositoryModule -ErrorAction Stop
+        try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::ClearStore() } catch { }
+        Set-RepositoryVar -Name 'SharedSiteInterfaceCache' -Value (New-Object 'System.Collections.Concurrent.ConcurrentDictionary[string, object]' ([System.StringComparer]::OrdinalIgnoreCase))
+
+        try {
+            $module.Invoke({ param($site, $entry) Set-SharedSiteInterfaceCacheEntry -SiteKey $site -Entry $entry }, $siteKey, $sharedEntry) | Out-Null
+
+            $result = DeviceRepositoryModule\Get-InterfaceSiteCache -Site $siteKey
+            $result | Should Not BeNullOrEmpty
+            $result.HostMap.Keys.Count | Should Be 1
+            $result.HostMap.ContainsKey($hostKey) | Should Be $true
+
+            $metrics = DeviceRepositoryModule\Get-LastInterfaceSiteCacheMetrics
+            $metrics | Should Not BeNullOrEmpty
+            $metrics.CacheStatus | Should Be 'SharedOnly'
+            $metrics.HydrationProvider | Should Be 'Cache'
+            $metrics.TotalRows | Should Be 1
+            $metrics.HostCount | Should Be 1
+        } finally {
+            $module.Invoke({ param($site) Set-SharedSiteInterfaceCacheEntry -SiteKey $site -Entry $null }, $siteKey) | Out-Null
+            Set-RepositoryVar -Name 'SharedSiteInterfaceCache' -Value (New-Object 'System.Collections.Concurrent.ConcurrentDictionary[string, object]' ([System.StringComparer]::OrdinalIgnoreCase))
+            try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::ClearStore() } catch { }
+        }
+    }
+
     It "loads site data once per zone" {
         $global:DeviceMetadata = @{
             'SITE1-Z1-SW1' = [pscustomobject]@{ Site = 'SITE1'; Zone = 'Z1' }
@@ -191,6 +235,40 @@ Describe "DeviceRepositoryModule core helpers" {
         $result.Count | Should Be 1
         $result[0].Hostname | Should Be 'SITE1-Z1-SW1'
         ($result[0].PSObject.Properties.Name -contains 'IsSelected') | Should Be $true
+    }
+
+    It "projects interface rows when InterfaceModule helpers are unavailable" {
+        $module = Get-Module DeviceRepositoryModule -ErrorAction Stop
+        $row = [pscustomobject]@{
+            Port          = 'Gi1/0/1'
+            Name          = 'Port1'
+            Status        = 'Up'
+            VLAN          = '10'
+            Duplex        = 'full'
+            Speed         = '1G'
+            Type          = 'access'
+            LearnedMACs   = '0011.2233.4455'
+            AuthState     = 'Authorized'
+            AuthMode      = 'dot1x'
+            AuthClientMAC = '0011.2233.4455'
+            AuthTemplate  = 'Default'
+            Config        = ''
+            ConfigStatus  = 'Match'
+            PortColor     = 'Green'
+            ToolTip       = ''
+        }
+
+        $result = $module.Invoke({
+            param($data, $host)
+            ConvertTo-InterfacePortRecordsFallback -Data $data -Hostname $host
+        }, @(@($row), 'SITE1-Z1-SW1'))
+        $items = @($result)
+
+        $items | Should Not BeNullOrEmpty
+        $items.Count | Should Be 1
+        $items[0].Port | Should Be 'Gi1/0/1'
+        $items[0].Hostname | Should Be 'SITE1-Z1-SW1'
+        ($items[0].PSObject.Properties.Name -contains 'IsSelected') | Should Be $true
     }
 
     It "emits cache-hit metrics when returning cached site entry" {
@@ -238,7 +316,7 @@ Describe "DeviceRepositoryModule core helpers" {
 
             $metrics = DeviceRepositoryModule\Get-LastInterfaceSiteCacheMetrics
             $metrics | Should Not BeNullOrEmpty
-            $metrics.CacheStatus | Should Be 'Hit'
+            $metrics.CacheStatus | Should Be 'Hydrated'
             $metrics.HydrationProvider | Should Be 'Cache'
             $metrics.HydrationHostMapSignatureMatchCount | Should Be 1
             $metrics.HydrationHostMapCandidateMissingCount | Should Be 0
@@ -323,6 +401,314 @@ Describe "DeviceRepositoryModule core helpers" {
         }
     }
 
+    It "retains existing hosts when updating cached rows without a new snapshot" {
+        $siteKey = 'SITECACHEPRESERVE'
+        $hostOne = 'SITECACHEPRESERVE-A01-AS-01'
+        $hostTwo = 'SITECACHEPRESERVE-A01-AS-02'
+
+        Set-RepositoryVar -Name 'SiteInterfaceSignatureCache' -Value @{}
+
+        try {
+            $entryOne = [StateTrace.Models.InterfaceCacheEntry]::new()
+            $entryOne.Name = 'GigabitEthernet1/0/1'
+            $entryOne.Status = 'up'
+            $entryOne.PortSort = '01-GI-00001-00000-00000-00000-00000'
+            $entryOne.Signature = 'sig-host1-port1'
+
+            $entryTwo = [StateTrace.Models.InterfaceCacheEntry]::new()
+            $entryTwo.Name = 'GigabitEthernet1/0/2'
+            $entryTwo.Status = 'up'
+            $entryTwo.PortSort = '01-GI-00002-00000-00000-00000-00000'
+            $entryTwo.Signature = 'sig-host2-port1'
+
+            $hostOnePorts = New-Object 'System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceCacheEntry]' ([System.StringComparer]::OrdinalIgnoreCase)
+            $hostOnePorts['Gi1/0/1'] = $entryOne
+
+            $hostTwoPorts = New-Object 'System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceCacheEntry]' ([System.StringComparer]::OrdinalIgnoreCase)
+            $hostTwoPorts['Gi1/0/2'] = $entryTwo
+
+            $seedHostMap = New-Object 'System.Collections.Generic.Dictionary[string,System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceCacheEntry]]' ([System.StringComparer]::OrdinalIgnoreCase)
+            $seedHostMap[$hostOne] = $hostOnePorts
+            $seedHostMap[$hostTwo] = $hostTwoPorts
+
+            $seedEntry = [pscustomobject]@{
+                HostMap   = $seedHostMap
+                TotalRows = 2
+                HostCount = 2
+                CachedAt  = Get-Date
+                CacheStatus = 'Hit'
+                HydrationHostMapSignatureMatchCount = 2
+                HydrationHostMapCandidateFromPreviousCount = 2
+            }
+
+            Set-RepositoryVar -Name 'SiteInterfaceSignatureCache' -Value @{ $siteKey = $seedEntry }
+
+            $cachedRowsHostOne = @{
+                'Gi1/0/1' = [pscustomobject]@{
+                    Port      = 'Gi1/0/1'
+                    Name      = 'GigabitEthernet1/0/1'
+                    Status    = 'up'
+                    Signature = 'sig-host1-port1'
+                    PortSort  = '01-GI-00001-00000-00000-00000-00000'
+                }
+            }
+
+            DeviceRepositoryModule\Set-InterfaceSiteCacheHost -Site $siteKey -Hostname $hostOne -RowsByPort $cachedRowsHostOne
+
+            $module = Get-Module DeviceRepositoryModule -ErrorAction Stop
+            $signatureCache = $module.SessionState.PSVariable.GetValue('SiteInterfaceSignatureCache')
+
+            $signatureCache.ContainsKey($siteKey) | Should Be $true
+            $updatedEntry = $signatureCache[$siteKey]
+            $updatedEntry.HostMap.Keys.Count | Should Be 2
+            $updatedEntry.HostMap.ContainsKey($hostOne) | Should Be $true
+            $updatedEntry.HostMap.ContainsKey($hostTwo) | Should Be $true
+            $updatedEntry.HostMap[$hostTwo].ContainsKey('Gi1/0/2') | Should Be $true
+
+            $metrics = DeviceRepositoryModule\Get-LastInterfaceSiteCacheMetrics
+            $metrics.CacheStatus | Should Be 'Hydrated'
+            $metrics.HydrationHostMapCandidateFromPreviousCount | Should Be 1
+            $metrics.HydrationHostMapSignatureMatchCount | Should Be 1
+
+            $cachedRowsHostTwo = @{
+                'Gi1/0/2' = [pscustomobject]@{
+                    Port      = 'Gi1/0/2'
+                    Name      = 'GigabitEthernet1/0/2'
+                    Status    = 'up'
+                    Signature = 'sig-host2-port1'
+                    PortSort  = '01-GI-00002-00000-00000-00000-00000'
+                }
+            }
+
+            DeviceRepositoryModule\Set-InterfaceSiteCacheHost -Site $siteKey -Hostname $hostTwo -RowsByPort $cachedRowsHostTwo
+
+            $postUpdateCache = $module.SessionState.PSVariable.GetValue('SiteInterfaceSignatureCache')
+            $postUpdateCache[$siteKey].HostMap.Keys.Count | Should Be 2
+            $postUpdateCache[$siteKey].HostMap.ContainsKey($hostOne) | Should Be $true
+            $postUpdateCache[$siteKey].HostMap.ContainsKey($hostTwo) | Should Be $true
+        } finally {
+            Set-RepositoryVar -Name 'SiteInterfaceSignatureCache' -Value @{}
+        }
+    }
+
+    It "merges shared cache entries when multiple workers publish hosts" {
+        $siteKey = 'SHAREDMERGE'
+        $hostOne = 'SHAREDMERGE-A01-AS-01'
+        $hostTwo = 'SHAREDMERGE-A01-AS-02'
+        $module = Get-Module DeviceRepositoryModule -ErrorAction Stop
+
+        $sharedStore = New-Object 'System.Collections.Concurrent.ConcurrentDictionary[string, object]' ([System.StringComparer]::OrdinalIgnoreCase)
+        Set-RepositoryVar -Name 'SharedSiteInterfaceCache' -Value $sharedStore
+
+        try {
+            $initialEntry = [pscustomobject]@{
+                HostMap = @{
+                    $hostOne = @{
+                        'Gi1/0/1' = [pscustomobject]@{
+                            Port       = 'Gi1/0/1'
+                            Name       = 'GigabitEthernet1/0/1'
+                            Status     = 'up'
+                            Signature  = 'sig-host1-port1'
+                            PortSort   = '01-GI-00001-00000-00000-00000-00000'
+                        }
+                    }
+                }
+                CacheStatus = 'Hit'
+                CachedAt    = (Get-Date).AddMinutes(-1)
+                HostCount   = 1
+                TotalRows   = 1
+                HydrationHostMapSignatureMatchCount = 1
+            }
+
+            $module.Invoke({ param($site, $entry) Set-SharedSiteInterfaceCacheEntry -SiteKey $site -Entry $entry }, $siteKey, $initialEntry) | Out-Null
+
+            $updateEntry = [pscustomobject]@{
+                HostMap = @{
+                    $hostTwo = @{
+                        'Gi1/0/2' = [pscustomobject]@{
+                            Port       = 'Gi1/0/2'
+                            Name       = 'GigabitEthernet1/0/2'
+                            Status     = 'up'
+                            Signature  = 'sig-host2-port1'
+                            PortSort   = '01-GI-00002-00000-00000-00000-00000'
+                        }
+                    }
+                }
+                CacheStatus = 'Hit'
+                CachedAt    = Get-Date
+                HydrationHostMapSignatureMatchCount = 1
+            }
+
+            $module.Invoke({ param($site, $entry) Set-SharedSiteInterfaceCacheEntry -SiteKey $site -Entry $entry }, $siteKey, $updateEntry) | Out-Null
+
+            $merged = $module.Invoke({ param($site) Get-SharedSiteInterfaceCacheEntry -SiteKey $site }, $siteKey)
+
+            $merged | Should Not BeNullOrEmpty
+            $merged.HostCount | Should Be 2
+            $merged.TotalRows | Should Be 2
+            $merged.HostMap.ContainsKey($hostOne) | Should Be $true
+            $merged.HostMap.ContainsKey($hostTwo) | Should Be $true
+            $merged.HostMap[$hostOne].ContainsKey('Gi1/0/1') | Should Be $true
+            $merged.HostMap[$hostTwo].ContainsKey('Gi1/0/2') | Should Be $true
+            $merged.HydrationHostMapSignatureMatchCount | Should Be 1
+            $merged.CacheStatus | Should Be 'Hit'
+        } finally {
+            $module.Invoke({ param($site) Set-SharedSiteInterfaceCacheEntry -SiteKey $site -Entry $null }, $siteKey) | Out-Null
+            Set-RepositoryVar -Name 'SharedSiteInterfaceCache' -Value (New-Object 'System.Collections.Concurrent.ConcurrentDictionary[string, object]' ([System.StringComparer]::OrdinalIgnoreCase))
+        }
+    }
+    It "refreshes script cache from shared store when host map is incomplete" {
+        DeviceRepositoryModule\Clear-SiteInterfaceCache
+        $module = Get-Module DeviceRepositoryModule -ErrorAction Stop
+        Set-RepositoryVar -Name 'SharedSiteInterfaceCache' -Value (New-Object 'System.Collections.Concurrent.ConcurrentDictionary[string, object]' ([System.StringComparer]::OrdinalIgnoreCase))
+        $siteKey = 'SITE1'
+
+        $host1Rows = @{
+            'Gi1/0/1' = [pscustomobject]@{
+                Name          = 'Gi1/0/1'
+                Status        = 'up'
+                VLAN          = '1'
+                Duplex        = 'full'
+                Speed         = '1 Gbps'
+                Type          = 'access'
+                LearnedMACs   = ''
+                AuthState     = 'authorized'
+                AuthMode      = 'dot1x'
+                AuthClientMAC = ''
+                AuthTemplate  = ''
+                Config        = ''
+                PortColor     = ''
+                ConfigStatus  = ''
+                ToolTip       = ''
+                Signature     = 'sig-host1'
+            }
+        }
+
+        DeviceRepositoryModule\Set-InterfaceSiteCacheHost -Site $siteKey -Hostname 'SITE1-A01-AS-01' -RowsByPort $host1Rows
+
+        $sharedEntry = $module.Invoke({ param($site) Get-SharedSiteInterfaceCacheEntry -SiteKey $site }, $siteKey)
+        $hostMap = $sharedEntry.HostMap
+        $typedHostTwo = New-Object 'System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceCacheEntry]' ([System.StringComparer]::OrdinalIgnoreCase)
+        $portEntryTwo = $module.Invoke({
+                param($row)
+                ConvertTo-InterfaceCacheEntryObject -InputObject $row
+            }, ([pscustomobject]@{
+                Name          = 'Gi1/0/2'
+                Status        = 'down'
+                VLAN          = '2'
+                Duplex        = 'full'
+                Speed         = '1 Gbps'
+                Type          = 'access'
+                LearnedMACs   = ''
+                AuthState     = 'unauthorized'
+                AuthMode      = 'dot1x'
+                AuthClientMAC = ''
+                AuthTemplate  = ''
+                Config        = ''
+                PortColor     = ''
+                ConfigStatus  = ''
+                ToolTip       = ''
+                Signature     = 'sig-host2'
+            }))
+        $typedHostTwo['Gi1/0/2'] = $portEntryTwo
+        $hostMap['SITE1-A02-AS-01'] = $typedHostTwo
+        $sharedEntry.TotalRows = 2
+        $sharedEntry.HostCount = 2
+
+        try {
+            $module.Invoke({ param($site, $entry) Set-SharedSiteInterfaceCacheEntry -SiteKey $site -Entry $entry }, $siteKey, $sharedEntry) | Out-Null
+
+            $preHostCount = $module.Invoke({
+                    param($site)
+                    if ($script:SiteInterfaceSignatureCache.ContainsKey($site)) {
+                        $map = $script:SiteInterfaceSignatureCache[$site].HostMap
+                        if ($map -is [System.Collections.IDictionary]) { return [int]$map.Count }
+                    }
+                    return 0
+                }, $siteKey)
+            $preHostCount | Should Be 1
+
+            $result = DeviceRepositoryModule\Get-InterfaceSiteCache -Site $siteKey
+
+            $result | Should Not BeNullOrEmpty
+            $result.HostMap.Count | Should Be 2
+            $result.HostMap.ContainsKey('SITE1-A02-AS-01') | Should Be $true
+
+            $postHostCount = $module.Invoke({
+                    param($site)
+                    if ($script:SiteInterfaceSignatureCache.ContainsKey($site)) {
+                        $map = $script:SiteInterfaceSignatureCache[$site].HostMap
+                        if ($map -is [System.Collections.IDictionary]) { return [int]$map.Count }
+                    }
+                    return 0
+                }, $siteKey)
+            $postHostCount | Should Be 2
+        } finally {
+            $module.Invoke({ param($site) Set-SharedSiteInterfaceCacheEntry -SiteKey $site -Entry $null }, $siteKey) | Out-Null
+            Set-RepositoryVar -Name 'SharedSiteInterfaceCache' -Value (New-Object 'System.Collections.Concurrent.ConcurrentDictionary[string, object]' ([System.StringComparer]::OrdinalIgnoreCase))
+        }
+    }
+
+    It "exports shared cache snapshot entries with host maps" {
+        $siteKey = 'SNAPSHOTTEST'
+        $hostname = 'SNAPSHOTTEST-A01-AS-01'
+        $module = Get-Module DeviceRepositoryModule -ErrorAction Stop
+
+        try {
+            DeviceRepositoryModule\Clear-SiteInterfaceCache
+            try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::ClearSnapshot() } catch { }
+
+            $rows = @{
+                'Gi1/0/1' = [pscustomobject]@{
+                    Port      = 'Gi1/0/1'
+                    Name      = 'GigabitEthernet1/0/1'
+                    Status    = 'up'
+                    VLAN      = '10'
+                    Signature = 'snapshot-port1'
+                    PortSort  = '01-GI-00001-00000-00000-00000-00000'
+                }
+                'Gi1/0/2' = [pscustomobject]@{
+                    Port      = 'Gi1/0/2'
+                    Name      = 'GigabitEthernet1/0/2'
+                    Status    = 'down'
+                    VLAN      = '20'
+                    Signature = 'snapshot-port2'
+                    PortSort  = '01-GI-00002-00000-00000-00000-00000'
+                }
+            }
+
+            DeviceRepositoryModule\Set-InterfaceSiteCacheHost -Site $siteKey -Hostname $hostname -RowsByPort $rows
+
+            $snapshotEntries = $module.Invoke({ Get-SharedSiteInterfaceCacheSnapshotEntries })
+            $snapshotEntries | Should Not BeNullOrEmpty
+            $snapshotEntries.Count | Should Be 1
+
+            $entry = $snapshotEntries[0].Entry
+            $entry | Should Not BeNullOrEmpty
+            $entry.HostMap.GetType().FullName | Should Be 'System.Collections.Hashtable'
+            $entry.HostMap.Keys.Count | Should Be 1
+            $entry.HostMap.ContainsKey($hostname) | Should Be $true
+            $entry.HostMap[$hostname].Keys.Count | Should Be 2
+
+            $portEntry = $entry.HostMap[$hostname]['Gi1/0/1']
+            $portEntry | Should Not BeNullOrEmpty
+            $portEntry.GetType().FullName | Should Be 'System.Management.Automation.PSCustomObject'
+            $portEntry.Name | Should Be 'GigabitEthernet1/0/1'
+            $portEntry.Status | Should Be 'up'
+            $entry.HostCount | Should BeGreaterThan 0
+            $entry.TotalRows | Should BeGreaterThan 0
+
+            $normalized = $module.Invoke({ param($payload) Normalize-InterfaceSiteCacheEntry -Entry $payload }, $entry)
+            $normalized | Should Not BeNullOrEmpty
+            $normalized.HostMap.ContainsKey($hostname) | Should Be $true
+            $normalized.HostMap[$hostname].ContainsKey('Gi1/0/1') | Should Be $true
+            $normalized.HostMap[$hostname]['Gi1/0/1'].GetType().FullName | Should Be 'StateTrace.Models.InterfaceCacheEntry'
+        } finally {
+            DeviceRepositoryModule\Clear-SiteInterfaceCache
+            try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::ClearSnapshot() } catch { }
+        }
+    }
+
     It "clones typed host maps when snapshotting shared cache entries" {
         $siteKey = 'SITECLONE'
         Set-RepositoryVar -Name 'SiteInterfaceSignatureCache' -Value @{}
@@ -358,6 +744,244 @@ Describe "DeviceRepositoryModule core helpers" {
             $module = Get-Module DeviceRepositoryModule -ErrorAction SilentlyContinue
             if ($module) {
                 $module.Invoke({ param($site) Set-SharedSiteInterfaceCacheEntry -SiteKey $site -Entry $null }, $siteKey) | Out-Null
+            }
+        }
+    }
+
+    It "normalizes snapshot host maps into typed dictionaries" {
+        $siteKey = 'SNAPSHOTNORMALIZE'
+        $rawEntry = [pscustomobject]@{
+            HostMap = @{
+                'SNAPSHOTNORMALIZE-A01-AS-01' = @{
+                    'Gi1/0/1' = [pscustomobject]@{
+                        Port           = 'Gi1/0/1'
+                        Name           = 'GigabitEthernet1/0/1'
+                        Status         = 'up'
+                        VLAN           = '1'
+                        Duplex         = 'full'
+                        Speed          = '1000'
+                        Type           = 'access'
+                        LearnedMACs    = '00:11:22:33:44:55'
+                        AuthState      = 'authorized'
+                        AuthMode       = 'dot1x'
+                        AuthClientMAC  = '00:11:22:33:44:55'
+                        AuthTemplate   = 'Default'
+                        Config         = 'running'
+                        PortColor      = 'green'
+                        ConfigStatus   = 'OK'
+                        ToolTip        = ''
+                        CacheSignature = 'sig-normalize'
+                        PortSort       = '01-GI-00001'
+                    }
+                }
+            }
+            CacheStatus = 'Hit'
+            CachedAt    = Get-Date
+        }
+
+        $module = Get-Module DeviceRepositoryModule -ErrorAction Stop
+        $normalized = $module.Invoke({ param($entry) Normalize-InterfaceSiteCacheEntry -Entry $entry }, $rawEntry)
+
+        $normalized | Should Not BeNullOrEmpty
+        $normalized.HostCount | Should Be 1
+        $normalized.TotalRows | Should Be 1
+        $normalized.HostMap | Should BeOfType ([System.Collections.Generic.Dictionary[string,System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceCacheEntry]]])
+        $normalized.HostMap.ContainsKey('SNAPSHOTNORMALIZE-A01-AS-01') | Should Be $true
+        $normalized.HostMap['SNAPSHOTNORMALIZE-A01-AS-01'].ContainsKey('Gi1/0/1') | Should Be $true
+        $normalized.HostMap['SNAPSHOTNORMALIZE-A01-AS-01']['Gi1/0/1'] | Should BeOfType 'StateTrace.Models.InterfaceCacheEntry'
+    }
+
+    It "restores shared cache entries with populated host maps from snapshot data" {
+        $siteKey = 'SNAPSHOTRESTORE'
+        $hostKey = 'SNAPSHOTRESTORE-A01-AS-01'
+        $module = Get-Module DeviceRepositoryModule -ErrorAction Stop
+        $module.Invoke({ Set-Variable -Name 'SiteInterfaceSignatureCache' -Scope Script -Value @{} })
+
+        try {
+            $snapshotEntry = [pscustomobject]@{
+                HostMap = @{
+                    $hostKey = @{
+                        'Gi1/0/1' = [pscustomobject]@{
+                            Port           = 'Gi1/0/1'
+                            Name           = 'GigabitEthernet1/0/1'
+                            Status         = 'up'
+                            VLAN           = '1'
+                            PortSort       = '01-GI-00001'
+                            CacheSignature = 'sig-restore-1'
+                        }
+                        'Gi1/0/2' = [pscustomobject]@{
+                            Port           = 'Gi1/0/2'
+                            Name           = 'GigabitEthernet1/0/2'
+                            Status         = 'down'
+                            VLAN           = '1'
+                            PortSort       = '01-GI-00002'
+                            CacheSignature = 'sig-restore-2'
+                        }
+                    }
+                }
+                CacheStatus = 'Hit'
+                CachedAt    = Get-Date
+            }
+
+            $module.Invoke(
+                {
+                    param($site, $entry)
+                    $normalized = Normalize-InterfaceSiteCacheEntry -Entry $entry
+                    if (-not $script:SiteInterfaceSignatureCache) {
+                        $script:SiteInterfaceSignatureCache = @{}
+                    }
+                    $script:SiteInterfaceSignatureCache[$site] = $normalized
+                    Set-SharedSiteInterfaceCacheEntry -SiteKey $site -Entry $normalized
+                },
+                $siteKey,
+                $snapshotEntry
+            ) | Out-Null
+
+            $restored = $module.Invoke({ param($site) Get-SharedSiteInterfaceCacheEntry -SiteKey $site }, $siteKey)
+
+            $restored | Should Not BeNullOrEmpty
+            $restored.HostCount | Should Be 1
+            $restored.TotalRows | Should Be 2
+            $restored.HostMap.ContainsKey($hostKey) | Should Be $true
+            $restored.HostMap[$hostKey].ContainsKey('Gi1/0/1') | Should Be $true
+            $restored.HostMap[$hostKey]['Gi1/0/1'] | Should BeOfType 'StateTrace.Models.InterfaceCacheEntry'
+            $restored.HostMap[$hostKey]['Gi1/0/1'].Name | Should Be 'GigabitEthernet1/0/1'
+        } finally {
+            $module.Invoke({ param($site) Set-SharedSiteInterfaceCacheEntry -SiteKey $site -Entry $null }, $siteKey) | Out-Null
+            $module.Invoke({ Set-Variable -Name 'SiteInterfaceSignatureCache' -Scope Script -Value @{} })
+        }
+    }
+
+    Context "shared cache snapshot fallbacks" {
+        BeforeAll {
+            $toolsPath = Join-Path -Path (Split-Path -Parent $PSCommandPath) -ChildPath '..\..\Tools\Invoke-WarmRunTelemetry.ps1'
+            $script:WarmTelemetryPreviousSkip = $null
+            if (Test-Path -LiteralPath 'variable:global:WarmRunTelemetrySkipMain') {
+                $script:WarmTelemetryPreviousSkip = Get-Variable -Name 'WarmRunTelemetrySkipMain' -Scope Global -ValueOnly
+            }
+            Set-Variable -Name 'WarmRunTelemetrySkipMain' -Scope Global -Value $true
+            . (Resolve-Path $toolsPath)
+            if ($null -ne $script:WarmTelemetryPreviousSkip) {
+                Set-Variable -Name 'WarmRunTelemetrySkipMain' -Scope Global -Value $script:WarmTelemetryPreviousSkip
+            } else {
+                Remove-Variable -Name 'WarmRunTelemetrySkipMain' -Scope Global -ErrorAction SilentlyContinue
+            }
+            $module = Get-Module DeviceRepositoryModule -ErrorAction Stop
+            $script:WarmTelemetrySharedCacheKey = $module.SessionState.PSVariable.Get('SharedSiteInterfaceCacheKey').Value
+        }
+
+        AfterAll {
+            Remove-Variable -Name 'WarmTelemetrySharedCacheKey' -Scope Script -ErrorAction SilentlyContinue
+            Remove-Variable -Name 'WarmTelemetryPreviousSkip' -Scope Script -ErrorAction SilentlyContinue
+        }
+
+        BeforeEach {
+            $module = Get-Module DeviceRepositoryModule -ErrorAction Stop
+            $module.Invoke(
+                {
+                    param($storeKey)
+                    try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::ClearSnapshot() } catch { }
+                    try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::ClearStore() } catch { }
+                    $store = New-Object 'System.Collections.Concurrent.ConcurrentDictionary[string, object]' ([System.StringComparer]::OrdinalIgnoreCase)
+                    Set-Variable -Name 'SharedSiteInterfaceCache' -Scope Script -Value $store
+                    Set-Variable -Name 'SiteInterfaceSignatureCache' -Scope Script -Value @{}
+                    try { [System.AppDomain]::CurrentDomain.SetData($storeKey, $store) } catch { }
+                    try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($store) } catch { }
+                },
+                $script:WarmTelemetrySharedCacheKey
+            ) | Out-Null
+        }
+
+        It "returns signature cache entries when shared store empty" {
+            $module = Get-Module DeviceRepositoryModule -ErrorAction Stop
+            $siteKey = 'SNAPSHOT1'
+            $entry = [pscustomobject]@{
+                HostMap = @{
+                    'host-a' = @{
+                        'Gi1/0/1' = [pscustomobject]@{
+                            Provider    = 'Cache'
+                            CacheStatus = 'Hit'
+                        }
+                    }
+                }
+            }
+            $normalized = $module.Invoke({ param($value) Normalize-InterfaceSiteCacheEntry -Entry $value }, $entry)
+            $module.Invoke(
+                {
+                    param($site, $cacheEntry)
+                    if (-not $script:SiteInterfaceSignatureCache) { $script:SiteInterfaceSignatureCache = @{} }
+                    $script:SiteInterfaceSignatureCache[$site] = $cacheEntry
+                },
+                $siteKey,
+                $normalized
+            ) | Out-Null
+
+            $snapshot = Get-SharedCacheEntriesSnapshot
+
+            ($snapshot | Measure-Object).Count | Should Be 1
+            $snapshot[0].Site | Should Be $siteKey
+            $snapshot[0].Entry | Should Not BeNullOrEmpty
+            $snapshot[0].Entry.HostCount | Should Be 1
+        }
+
+        It "hydrates fallback sites when cache stores are empty" {
+            $module = Get-Module DeviceRepositoryModule -ErrorAction Stop
+            $siteKey = 'SNAPSHOT2'
+            Mock -ModuleName DeviceRepositoryModule -CommandName Get-InterfaceSiteCache -MockWith {
+                param([string]$Site, [switch]$Refresh)
+                if ($Site -eq 'SNAPSHOT2') {
+                    return [pscustomobject]@{
+                        HostMap = @{
+                            'host-b' = @{
+                                'Gi1/0/2' = [pscustomobject]@{
+                                    Provider = 'Hydrate'
+                                }
+                            }
+                        }
+                    }
+                }
+                return $null
+            } -Verifiable
+
+            $snapshot = Get-SharedCacheEntriesSnapshot -FallbackSites @($siteKey)
+
+            ($snapshot | Measure-Object).Count | Should Be 1
+            $snapshot[0].Site | Should Be $siteKey
+            $snapshot[0].Entry.HostCount | Should Be 1
+            Assert-MockCalled Get-InterfaceSiteCache -ModuleName DeviceRepositoryModule -Times 1 -ParameterFilter { $Site -eq $siteKey -and $Refresh }
+        }
+
+        It "skips shared cache entries missing payload during restore" {
+            $module = Get-Module DeviceRepositoryModule -ErrorAction Stop
+            $validSite = 'RESTORE1'
+            $entry = [pscustomobject]@{
+                HostMap = @{
+                    'host-c' = @{
+                        'Gi1/0/3' = [pscustomobject]@{
+                            Provider = 'Cache'
+                        }
+                    }
+                }
+            }
+            Mock -ModuleName DeviceRepositoryModule -CommandName Get-InterfaceSiteCache -MockWith { $null }
+            Mock -CommandName Import-Module -ParameterFilter { $Name -like '*ParserRunspaceModule.psm1' } -MockWith { $null }
+
+            $entries = @(
+                [pscustomobject]@{ Site = $validSite; Entry = $entry },
+                [pscustomobject]@{ Site = 'INVALID'; Entry = $null }
+            )
+
+            try {
+                $restored = Restore-SharedCacheEntries -Entries $entries
+
+                $restored | Should Be 1
+                $restoredEntry = $module.Invoke({ param($site) Get-SharedSiteInterfaceCacheEntry -SiteKey $site }, $validSite)
+                $restoredEntry | Should Not BeNullOrEmpty
+                $restoredEntry.HostCount | Should Be 1
+                $missingEntry = $module.Invoke({ param($site) Get-SharedSiteInterfaceCacheEntry -SiteKey $site }, 'INVALID')
+                $missingEntry | Should Be $null
+            } finally {
+                $module.Invoke({ param($site) Set-SharedSiteInterfaceCacheEntry -SiteKey $site -Entry $null }, $validSite) | Out-Null
             }
         }
     }

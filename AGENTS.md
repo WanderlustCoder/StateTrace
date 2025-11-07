@@ -8,6 +8,7 @@
 - **Telemetry & verification:** Capture ingestion metrics (`ParseDuration`, `DatabaseWriteLatency`, etc.) and use them to validate every change.
 - **Plan-first collaboration:** Record a multi-step plan before editing, keep docs/task boards in sync, and narrate progress.
 - **Security & data hygiene:** Sanitize or exclude sensitive logs and databases; respect existing `.gitignore` guidance.
+- **Parser/UI Separation:** Keep the ingestion parser and the WPF interface decoupled—hydrate Access databases via the parser utility first, then let the UI project those results for operators; document when a run depends on fresh parsing versus cached data.
 
 ## Project Structure & Module Organization
 > If you are uncertain about scope or a decision touches multiple core ideas, escalate to the operator for approval before proceeding.
@@ -21,7 +22,7 @@
 - `Import-Module .\Modules\ParserWorker.psm1; Invoke-StateTraceParsing -Synchronous` ??? execute an end-to-end parsing pass against the local `Logs/` queue.
 - `Import-Module .\Modules\ParserRunspaceModule.psm1; Get-AutoScaleConcurrencyProfile -DeviceFiles ...` ??? inspect autoscaling decisions without launching jobs.
 - `Tools\Invoke-WarmRunRegression.ps1 -VerboseParsing` ??? preserved-session cold + warm replay with cache assertions and InterfaceCallDuration summary (fails fast on regression).
-- `Tools\Invoke-StateTracePipeline.ps1 -RunWarmRunRegression` ??? run the standard ingestion harness and immediately invoke the preserved-session warm-run regression wrapper (exports `Logs\IngestionMetrics\WarmRunTelemetry-<timestamp>.json`).
+- `Tools\Invoke-StateTracePipeline.ps1 -RunWarmRunRegression` ??? run the standard ingestion harness and immediately invoke the preserved-session warm-run regression wrapper (exports `Logs\IngestionMetrics\WarmRunTelemetry-<timestamp>.json`). The pipeline now restores and re-exports shared cache snapshots under `Logs\SharedCacheSnapshot\` by default; pass `-DisableSharedCacheSnapshot` to opt out, `-SharedCacheSnapshotDirectory <path>` to relocate the cache, or `-ShowSharedCacheSummary` to print the cached sites after the run.
 
 ## Coding Style & Naming Conventions
 - All modules enforce `Set-StrictMode -Version Latest`; prefer explicit parameter binding and idempotent helpers.

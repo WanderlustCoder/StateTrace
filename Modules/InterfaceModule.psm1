@@ -58,6 +58,7 @@ namespace StateTrace.Models
         public string ConfigStatus { get; set; }
         public string PortColor { get; set; }
         public string ToolTip { get; set; }
+        public string CacheSignature { get; set; }
         public bool IsSelected { get; set; }
     }
 

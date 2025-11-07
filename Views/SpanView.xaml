@@ -5,16 +5,29 @@
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
 
-    <StackPanel Orientation="Horizontal" Margin="5" Grid.Row="0">
+    <StackPanel Orientation="Horizontal" Margin="5" Grid.Row="0" VerticalAlignment="Center" >
       <Button Name="RefreshSpanButton"
               Content="Refresh"
               Width="80"
               Margin="0,0,10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
 
+      <Button Name="SpanDiagnosticsButton"
+              Content="Inspect"
+              Width="80"
+              Margin="0,0,10,0"
+              Style="{DynamicResource SecondaryButtonStyle}"/>
+
       <Label Content="VLAN:" VerticalAlignment="Center" Margin="0,0,5,0" Foreground="{DynamicResource Theme.Text.Inverse}"/>
       <ComboBox Name="VlanDropdown" Width="100" Style="{DynamicResource ToolbarComboBoxStyle}"/>
+
+      <TextBlock Name="SpanStatusLabel"
+                 Margin="10,0,0,0"
+                 VerticalAlignment="Center"
+                 Foreground="{DynamicResource Theme.Text.Inverse}"
+                 Text="No spanning-tree data loaded."/>
     </StackPanel>
 
     <DataGrid Name="SpanGrid"
@@ -41,7 +54,16 @@
         <DataGridTextColumn Header="Root Port" Binding="{Binding RootPort}" Width="80"/>
         <DataGridTextColumn Header="Role" Binding="{Binding Role}" Width="80"/>
         <DataGridTextColumn Header="Upstream" Binding="{Binding Upstream}" Width="150"/>
+        <DataGridTextColumn Header="Last Updated" Binding="{Binding LastUpdated}" Width="140"/>
       </DataGrid.Columns>
     </DataGrid>
+
+    <TextBlock Name="SpanSamplePreview"
+               Grid.Row="2"
+               Margin="5,0,5,5"
+               Foreground="{DynamicResource Theme.Text.Inverse}"
+               TextWrapping="Wrap"
+               FontStyle="Italic"
+               Text="Sample preview not loaded."/>
   </Grid>
 </UserControl>

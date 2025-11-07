@@ -577,6 +577,21 @@ function Get-MacTable {
         $spanLines = $blocks['show spanning-tree']
     } elseif ($blocks.ContainsKey('show span')) {
         $spanLines = $blocks['show span']
+    } else {
+        foreach ($k in $blocks.Keys) {
+            if ($k -match '^show\s+spanning-tree') {
+                $spanLines = $blocks[$k]
+                break
+            }
+        }
+        if (-not $spanLines -or $spanLines.Count -eq 0) {
+            foreach ($k in $blocks.Keys) {
+                if ($k -match '^show\s+span(\b|$)') {
+                    $spanLines = $blocks[$k]
+                    break
+                }
+            }
+        }
     }
     # Parse spanning tree information using the shared ConvertFrom-SpanningTree helper
     $spanInfo = if ($spanLines.Count -gt 0) { ConvertFrom-SpanningTree -SpanLines $spanLines } else { @() }

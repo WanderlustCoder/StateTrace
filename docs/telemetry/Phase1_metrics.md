@@ -21,4 +21,4 @@ This document defines core telemetry events for product usage and ingestion perf
 | **AgentChangeSize** | Lines changed per session | `SessionId`, `Files`, `Added`, `Removed` | VCS logs | Weekly p50/p95 | Keep p95 small |
 | **AgentRevertRate** | Sessions that required rollback | `SessionId`, `Reason` | VCS/PRs | Weekly count | Near zero |
 
-**Implementation notes:** Emit telemetry locally to `Logs/IngestionMetrics/<date>.json`. Engineering metrics can be derived from CI logs and PR metadata; do not include personal data.
+**Implementation notes:** Emit telemetry locally to `Logs/IngestionMetrics/<date>.json`. Engineering metrics can be derived from CI logs and PR metadata; do not include personal data. Use `Tools/Rollup-IngestionMetrics.ps1` to generate daily CSV summaries (totals, averages, and p95 values) for `ParseDuration`, `DatabaseWriteLatency`, `RowsWritten`, and `SkippedDuplicate`; append `-IncludePerSite` for per-site breakdowns and `-IncludeSiteCache` to surface `SiteCacheFetchDurationMs` status/provider counts and percentile timing.

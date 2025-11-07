@@ -51,6 +51,58 @@ function Get-DeviceLogSetStatistics {
     }
 }
 
+function Write-SharedCacheSnapshotFileInternal {
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [System.Collections.IEnumerable]$Entries
+    )
+
+    $entryArray = @($Entries)
+    $sanitizedEntries = New-Object 'System.Collections.Generic.List[psobject]'
+
+    foreach ($entry in $entryArray) {
+        if (-not $entry) { continue }
+
+        $siteValue = ''
+        if ($entry.PSObject.Properties.Name -contains 'Site') {
+            $siteValue = ('' + $entry.Site).Trim()
+        } elseif ($entry.PSObject.Properties.Name -contains 'SiteKey') {
+            $siteValue = ('' + $entry.SiteKey).Trim()
+        }
+        if ([string]::IsNullOrWhiteSpace($siteValue)) { continue }
+
+        $entryValue = $null
+        if ($entry.PSObject.Properties.Name -contains 'Entry') {
+            $entryValue = $entry.Entry
+        }
+        if (-not $entryValue) {
+            continue
+        }
+
+        $sanitizedEntries.Add([pscustomobject]@{
+                Site  = $siteValue
+                Entry = $entryValue
+            }) | Out-Null
+    }
+
+    $directory = $null
+    try { $directory = Split-Path -Parent $Path } catch { $directory = $null }
+    if (-not [string]::IsNullOrWhiteSpace($directory)) {
+        try { $directory = [System.IO.Path]::GetFullPath($directory) } catch { }
+    }
+    $targetPath = $Path
+    try { $targetPath = [System.IO.Path]::GetFullPath($Path) } catch { $targetPath = $Path }
+    try {
+        if (-not [string]::IsNullOrWhiteSpace($directory) -and -not (Test-Path -LiteralPath $directory)) {
+            New-Item -ItemType Directory -Path $directory -Force | Out-Null
+        }
+        $exportEntries = if ($sanitizedEntries.Count -gt 0) { $sanitizedEntries.ToArray() } else { @() }
+        Export-Clixml -InputObject $exportEntries -Path $targetPath -Depth 20
+    } catch {
+        Write-Warning ("Failed to write shared cache snapshot to '{0}': {1}" -f $targetPath, $_.Exception.Message)
+    }
+}
+
 function Get-AutoScaleConcurrencyProfile {
 
     [CmdletBinding()]
@@ -231,7 +283,9 @@ function Invoke-StateTraceParsing {
 
         [switch]$Synchronous,
 
-        [switch]$PreserveRunspace
+        [switch]$PreserveRunspace,
+
+        [string]$SharedCacheSnapshotExportPath
 
     )
 
@@ -322,6 +376,7 @@ function Invoke-StateTraceParsing {
     $interfaceBulkChunkSize = $null
     $interfaceBulkChunkSizeHint = $null
     $resolvedInterfaceBulkChunkSize = $null
+    $skipSiteCacheUpdate = $false
 
     try {
         $settingsPath = Join-Path $projectRoot 'Data\StateTraceSettings.json'
@@ -496,6 +551,12 @@ function Invoke-StateTraceParsing {
 
         }
 
+        if ($parserSettings.PSObject.Properties.Name -contains 'SkipSiteCacheUpdate') {
+            try {
+                $skipSiteCacheUpdate = [bool]$parserSettings.SkipSiteCacheUpdate
+            } catch { $skipSiteCacheUpdate = $false }
+        }
+
     }
     if ($PSBoundParameters.ContainsKey('ThreadCeilingOverride')) {
 
@@ -626,6 +687,21 @@ function Invoke-StateTraceParsing {
 
         Write-Verbose ("Failed to apply InterfaceBulkChunkSize setting: {0}" -f $_.Exception.Message)
 
+    }
+
+    try {
+        ParserPersistenceModule\Set-ParserSkipSiteCacheUpdate -Skip:$skipSiteCacheUpdate | Out-Null
+    } catch {
+        Write-Verbose ("Failed to apply SkipSiteCacheUpdate setting: {0}" -f $_.Exception.Message)
+    }
+    try {
+        if ($skipSiteCacheUpdate) {
+            $env:STATETRACE_SKIP_SITECACHE_UPDATE = '1'
+        } else {
+            $env:STATETRACE_SKIP_SITECACHE_UPDATE = '0'
+        }
+    } catch {
+        Write-Verbose ("Failed to persist SkipSiteCacheUpdate environment flag: {0}" -f $_.Exception.Message)
     }
 
     $telemetryPayload = @{
@@ -799,6 +875,26 @@ function Invoke-StateTraceParsing {
 
 
     LogIngestionModule\Clear-ExtractedLogs -ExtractedPath $extractedPath
+
+    if (-not [string]::IsNullOrWhiteSpace($SharedCacheSnapshotExportPath)) {
+        try {
+            $snapshotEntries = @()
+            $deviceRepoModule = Get-Module -Name 'DeviceRepositoryModule'
+            if ($deviceRepoModule) {
+                $snapshotEntries = @($deviceRepoModule.Invoke({ Get-SharedSiteInterfaceCacheSnapshotEntries }))
+            }
+            $snapshotEntryCount = ($snapshotEntries | Measure-Object).Count
+            Write-Verbose ("Shared cache snapshot entries captured: {0}" -f $snapshotEntryCount)
+            if ($snapshotEntryCount -gt 0) {
+                Write-SharedCacheSnapshotFileInternal -Path $SharedCacheSnapshotExportPath -Entries $snapshotEntries
+            } else {
+                Write-Verbose ("Shared cache snapshot export skipped (no entries).")
+            }
+        } catch {
+            Write-Warning ("Failed to export shared cache snapshot to '{0}': {1}" -f $SharedCacheSnapshotExportPath, $_.Exception.Message)
+        }
+        try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::ClearSnapshot() } catch { }
+    }
 
     Write-Host "Processing complete." -ForegroundColor Yellow
 

@@ -122,15 +122,47 @@ function Get-InterfacesForContext {
     foreach ($row in $interfaces) {
         if (-not $row) { continue }
 
+        $hostnameValue = ''
+        if ($row.PSObject.Properties['Hostname']) { $hostnameValue = '' + $row.Hostname }
+
         if ($siteFilter) {
             $siteValue = ''
             if ($row.PSObject.Properties['Site']) { $siteValue = '' + $row.Site }
+            if ([string]::IsNullOrWhiteSpace($siteValue) -and $hostnameValue) {
+                try { $siteValue = DeviceRepositoryModule\Get-SiteFromHostname -Hostname $hostnameValue } catch { $siteValue = '' }
+                if ([string]::IsNullOrWhiteSpace($siteValue)) {
+                    try {
+                        $partsSite = $hostnameValue -split '-', 2
+                        if ($partsSite.Length -ge 1) { $siteValue = '' + $partsSite[0] }
+                    } catch { $siteValue = '' }
+                }
+                try {
+                    if ($row.PSObject.Properties['Site']) {
+                        $row.Site = $siteValue
+                    } else {
+                        $row | Add-Member -NotePropertyName Site -NotePropertyValue $siteValue -Force
+                    }
+                } catch {}
+            }
             if (-not [string]::Equals($siteValue, $siteFilter, [System.StringComparison]::OrdinalIgnoreCase)) { continue }
         }
 
         if ($zoneFilter) {
             $zoneValue = ''
             if ($row.PSObject.Properties['Zone']) { $zoneValue = '' + $row.Zone }
+            if ([string]::IsNullOrWhiteSpace($zoneValue) -and $hostnameValue) {
+                try {
+                    $partsZone = $hostnameValue -split '-', 3
+                    if ($partsZone.Length -ge 2) { $zoneValue = '' + $partsZone[1] }
+                } catch { $zoneValue = '' }
+                try {
+                    if ($row.PSObject.Properties['Zone']) {
+                        $row.Zone = $zoneValue
+                    } else {
+                        $row | Add-Member -NotePropertyName Zone -NotePropertyValue $zoneValue -Force
+                    }
+                } catch {}
+            }
             if (-not [string]::Equals($zoneValue, $zoneFilter, [System.StringComparison]::OrdinalIgnoreCase)) { continue }
         }
 

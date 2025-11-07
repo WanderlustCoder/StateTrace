@@ -57,8 +57,14 @@ function Get-DeviceSummaries {
             try {
                 $parts = $name -split '-', 3
                 if ($parts.Length -ge 2) { $zoneVal = $parts[1] }
+                if ([string]::IsNullOrWhiteSpace($siteVal) -and $parts.Length -ge 1) {
+                    $siteVal = $parts[0]
+                }
             } catch {
                 $zoneVal = ''
+                if ([string]::IsNullOrWhiteSpace($siteVal)) {
+                    $siteVal = ''
+                }
             }
 
             $metadata[$name] = [PSCustomObject]@{

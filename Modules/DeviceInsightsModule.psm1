@@ -144,6 +144,15 @@ function Update-Summary {
     }
 
     $interfaces = ViewStateService\Get-InterfacesForContext -Site $siteSel -ZoneSelection $zoneSel -ZoneToLoad $zoneToLoad -Building $bldSel -Room $roomSel
+    try {
+        $locSite = if ($siteSel) { '' + $siteSel } else { '' }
+        $locZone = if ($zoneSel) { '' + $zoneSel } else { '' }
+        $locBuilding = if ($bldSel) { '' + $bldSel } else { '' }
+        $locRoom = if ($roomSel) { '' + $roomSel } else { '' }
+        $locText = ("Site={0};Zone={1};Building={2};Room={3}" -f $locSite, $locZone, $locBuilding, $locRoom)
+        $ifaceCount = ViewStateService\Get-SequenceCount -Value $interfaces
+        Write-Diag ("Update-Summary context | Location={0} | InterfaceCount={1}" -f $locText, $ifaceCount)
+    } catch {}
     if (-not $interfaces) { $interfaces = @() }
 
     foreach ($row in $interfaces) {
@@ -200,9 +209,11 @@ function Update-Summary {
     $uniqueVlans.Sort([System.StringComparer]::OrdinalIgnoreCase)
     $uniqueCount = $uniqueVlans.Count
 
+    $summaryVar = $null
     try {
         $summaryVar = Get-Variable -Name summaryView -Scope Global -ErrorAction Stop
     } catch {
+        try { Write-Diag ("Update-Summary skipped | Reason=SummaryViewMissing") } catch {}
         return
     }
 
@@ -220,6 +231,7 @@ function Update-Summary {
         $ratio = if ($intCount -gt 0) { [math]::Round(($upCount / $intCount) * 100, 1) } else { 0 }
         ($sv.FindName("SummaryExtra")).Text = "Up %: $ratio%"
         Write-Host "[Update-Summary] Devices=$devCount, Interfaces=$intCount, Up=$upCount, Down=$downCount, Auth=$authCount, Unauth=$unauthCount, UniqueVlans=$uniqueCount, Up%=$ratio%"
+        try { Write-Diag ("Update-Summary metrics | Devices={0} | Interfaces={1} | Up={2} | Down={3} | Auth={4} | Unauth={5} | UniqueVlans={6} | UpPct={7}" -f $devCount, $intCount, $upCount, $downCount, $authCount, $unauthCount, $uniqueCount, $ratio) } catch {}
     } catch {}
 }
 

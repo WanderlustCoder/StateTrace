@@ -590,8 +590,14 @@ function Invoke-DeviceParsingJobs {
     }
 
     $pool = $null
+    $resolvedModulesPath = $ModulesPath
+    try {
+        $resolvedModulesPath = [System.IO.Path]::GetFullPath($ModulesPath)
+    } catch {
+        $resolvedModulesPath = $ModulesPath
+    }
     $poolConfig = @{
-        ModulesPath      = (try { [System.IO.Path]::GetFullPath($ModulesPath) } catch { $ModulesPath })
+        ModulesPath       = $resolvedModulesPath
         MaxThreads       = [int]$MaxThreads
         MinThreads       = [int]$MinThreads
         JobsPerThread    = [int]$JobsPerThread
@@ -828,21 +834,46 @@ function Invoke-InterfaceSiteCacheWarmup {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string[]]$Sites,
-        [switch]$Refresh
+        [switch]$Refresh,
+        [System.Collections.IDictionary]$SiteEntries
     )
 
-    if (-not $Sites -or $Sites.Count -eq 0) { return }
+    if (-not $Sites -or $Sites.Count -eq 0) {
+        try {
+            Publish-RunspaceCacheTelemetry -Stage 'Warmup:SkippedNoSites' -Summary ([pscustomobject]@{ SiteCount = 0 })
+        } catch { }
+        return
+    }
 
     $pool = $script:PreservedRunspacePool
-    if (-not $pool) { return }
+    if (-not $pool) {
+        $siteCountSummary = [pscustomobject]@{
+            SiteCount = [int]$Sites.Count
+            Reason    = 'MissingPreservedRunspacePool'
+        }
+        try { Publish-RunspaceCacheTelemetry -Stage 'Warmup:SkippedNoPool' -Summary $siteCountSummary } catch { }
+        return
+    }
 
     $jobs = New-Object 'System.Collections.Generic.List[object]'
     foreach ($site in $Sites) {
         if ([string]::IsNullOrWhiteSpace($site)) { continue }
+        $lookupKey = ('' + $site).Trim()
+        if ([string]::IsNullOrWhiteSpace($lookupKey)) { $lookupKey = '' + $site }
+        $entryPayload = $null
+        if ($SiteEntries) {
+            try {
+                if ($SiteEntries.Contains($lookupKey)) {
+                    $entryPayload = $SiteEntries[$lookupKey]
+                }
+            } catch {
+                $entryPayload = $null
+            }
+        }
         $ps = [powershell]::Create()
         $ps.RunspacePool = $pool
         $scriptBlock = {
-            param($siteArg, [bool]$refreshFlag)
+            param($siteArg, [bool]$refreshFlag, $entryPayload)
 
             $resolvedSite = if ($siteArg) { ('' + $siteArg).Trim() } else { '' }
             $stageRoot = if ($refreshFlag) { 'WarmupRefresh' } else { 'WarmupProbe' }
@@ -850,6 +881,10 @@ function Invoke-InterfaceSiteCacheWarmup {
             $beforeSummary = $null
             try { $beforeSummary = DeviceRepositoryModule\Get-InterfaceSiteCacheSummary -Site $resolvedSite } catch { $beforeSummary = $null }
             try { ParserRunspaceModule\Publish-RunspaceCacheTelemetry -Stage ($stageRoot + ':Before') -Site $resolvedSite -Summary $beforeSummary } catch { }
+
+            if ($entryPayload) {
+                try { DeviceRepositoryModule\Set-SharedSiteInterfaceCacheEntry -SiteKey $resolvedSite -Entry $entryPayload } catch { }
+            }
 
             if ($refreshFlag) {
                 DeviceRepositoryModule\Get-InterfaceSiteCache -Site $resolvedSite -Refresh | Out-Null
@@ -861,7 +896,7 @@ function Invoke-InterfaceSiteCacheWarmup {
             try { $afterSummary = DeviceRepositoryModule\Get-InterfaceSiteCacheSummary -Site $resolvedSite } catch { $afterSummary = $null }
             try { ParserRunspaceModule\Publish-RunspaceCacheTelemetry -Stage ($stageRoot + ':After') -Site $resolvedSite -Summary $afterSummary } catch { }
         }
-        $null = $ps.AddScript($scriptBlock).AddArgument($site).AddArgument($Refresh.IsPresent)
+        $null = $ps.AddScript($scriptBlock).AddArgument($site).AddArgument($Refresh.IsPresent).AddArgument($entryPayload)
         $async = $ps.BeginInvoke()
         $jobs.Add([pscustomobject]@{ Pipe = $ps; Async = $async })
     }
@@ -869,6 +904,42 @@ function Invoke-InterfaceSiteCacheWarmup {
     foreach ($job in $jobs) {
         try { $job.Pipe.EndInvoke($job.Async) } catch { }
         $job.Pipe.Dispose()
+    }
+
+    if ($pool) {
+        foreach ($site in $Sites) {
+            if ([string]::IsNullOrWhiteSpace($site)) { continue }
+
+            $resolvedSite = ('' + $site).Trim()
+            if ([string]::IsNullOrWhiteSpace($resolvedSite)) { $resolvedSite = '' + $site }
+
+            $postSummary = $null
+            $summaryProbe = $null
+            try {
+                $summaryProbe = [powershell]::Create()
+                $summaryProbe.RunspacePool = $pool
+                $summaryScript = {
+                    param($siteArg)
+
+                    $summarySite = if ($siteArg) { ('' + $siteArg).Trim() } else { '' }
+                    if ([string]::IsNullOrWhiteSpace($summarySite)) { return $null }
+
+                    try { return DeviceRepositoryModule\Get-InterfaceSiteCacheSummary -Site $summarySite } catch { return $null }
+                }
+
+                $null = $summaryProbe.AddScript($summaryScript).AddArgument($resolvedSite)
+                $summaryResult = $summaryProbe.Invoke()
+                if ($summaryResult -and $summaryResult.Count -gt 0) {
+                    $postSummary = $summaryResult[$summaryResult.Count - 1]
+                }
+            } catch {
+                $postSummary = $null
+            } finally {
+                if ($summaryProbe) { try { $summaryProbe.Dispose() } catch { } }
+            }
+
+            try { Publish-RunspaceCacheTelemetry -Stage 'Warmup:PostJobs' -Site $resolvedSite -Summary $postSummary } catch { }
+        }
     }
 }
 

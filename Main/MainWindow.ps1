@@ -5,8 +5,31 @@ $VerbosePreference          = 'SilentlyContinue'
 $DebugPreference            = 'SilentlyContinue'
 $ErrorActionPreference      = 'Continue'
 
+if (-not (Get-Variable -Name InterfacePortCollections -Scope Global -ErrorAction SilentlyContinue)) {
+    $global:InterfacePortCollections = @{}
+}
+
 
 $scriptDir    = $PSScriptRoot
+if (-not (Get-Variable -Name ModulesDirectory -Scope Script -ErrorAction SilentlyContinue)) {
+    try {
+        $script:ModulesDirectory = (Resolve-Path -LiteralPath (Join-Path $scriptDir '..\Modules')).Path
+    } catch {
+        $script:ModulesDirectory = Join-Path $scriptDir '..\Modules'
+    }
+}
+if (-not (Get-Variable -Name DeviceLoaderModuleNames -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:DeviceLoaderModuleNames = @(
+        'DatabaseModule.psm1',
+        'DeviceRepositoryModule.psm1',
+        'TemplatesModule.psm1',
+        'InterfaceModule.psm1',
+        'DeviceDetailsModule.psm1'
+    )
+}
+if (-not (Get-Variable -Name DeviceDetailsWarmupQueued -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:DeviceDetailsWarmupQueued = $false
+}
 $script:StateTraceSettingsPath = Join-Path $scriptDir '..\Data\StateTraceSettings.json'
 
 function Load-StateTraceSettings {
@@ -101,6 +124,53 @@ try {
     Write-Diag ("Host keyword 'if' ok: {0}" -f $HostKeywordOK)
 } catch { }
 
+if (-not ('StateTrace.Threading.PowerShellThreadStartFactory' -as [type])) {
+    Add-Type -Language CSharp -TypeDefinition @'
+using System;
+using System.Management.Automation;
+using System.Management.Automation.Runspaces;
+using System.Threading;
+
+namespace StateTrace.Threading
+{
+    public static class PowerShellThreadStartFactory
+    {
+        public static ThreadStart Create(ScriptBlock action, PowerShell ps, string host)
+        {
+            if (action == null)
+            {
+                throw new ArgumentNullException("action");
+            }
+
+            if (ps == null)
+            {
+                throw new ArgumentNullException("ps");
+            }
+
+            return delegate
+            {
+                var runspace = ps.Runspace;
+                var previous = Runspace.DefaultRunspace;
+                try
+                {
+                    if (runspace != null)
+                    {
+                        Runspace.DefaultRunspace = runspace;
+                    }
+
+                    action.Invoke(ps, host);
+                }
+                finally
+                {
+                    Runspace.DefaultRunspace = previous;
+                }
+            };
+        }
+    }
+}
+'@
+}
+
 if ($null -eq $Global:StateTraceDebug) { $Global:StateTraceDebug = $false }
 
 $manifestPath = Join-Path $scriptDir '..\Modules\ModulesManifest.psd1'
@@ -128,8 +198,15 @@ try {
 
     # Import each module listed in the manifest
     foreach ($mod in $modulesToImport) {
+        $modulePath = Join-Path $scriptDir "..\Modules\$mod"
+        $moduleName = [System.IO.Path]::GetFileNameWithoutExtension($mod)
         Write-Host "Loading module: $mod"
-        Import-Module -Name (Join-Path $scriptDir "..\Modules\$mod")
+        try {
+            Import-Module -Name $modulePath -Force -ErrorAction Stop
+        } catch {
+            Write-Warning ("Failed to import module {0} from {1}: {2}" -f $moduleName, $modulePath, $_.Exception.Message)
+            throw
+        }
     }
 }
 catch {
@@ -146,6 +223,139 @@ try {
     Write-Warning ("Failed to ensure Data directory exists: {0}" -f $_.Exception.Message)
 }
 
+if (-not (Get-Variable -Name DeviceDetailsRunspaceLock -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:DeviceDetailsRunspaceLock = New-Object System.Threading.SemaphoreSlim 1, 1
+}
+if (-not (Get-Variable -Name DeviceDetailsRunspace -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:DeviceDetailsRunspace = $null
+}
+
+function Get-DeviceDetailsRunspace {
+    if ($script:DeviceDetailsRunspace) {
+        try {
+            $state = $script:DeviceDetailsRunspace.RunspaceStateInfo.State
+            if ($state -eq [System.Management.Automation.Runspaces.RunspaceState]::Opened) {
+                return $script:DeviceDetailsRunspace
+            }
+            if ($state -eq [System.Management.Automation.Runspaces.RunspaceState]::Opening -or
+                $state -eq [System.Management.Automation.Runspaces.RunspaceState]::Connecting) {
+                $script:DeviceDetailsRunspace.Open()
+                return $script:DeviceDetailsRunspace
+            }
+        } catch {
+            try { Write-Diag ("Device loader runspace state check failed | Error={0}" -f $_.Exception.Message) } catch {}
+            try { $script:DeviceDetailsRunspace.Dispose() } catch {}
+            $script:DeviceDetailsRunspace = $null
+        }
+    }
+
+    try {
+        $iss = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
+        $iss.LanguageMode = [System.Management.Automation.PSLanguageMode]::FullLanguage
+        $rs = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace($iss)
+        $rs.ApartmentState = [System.Threading.ApartmentState]::STA
+        $rs.ThreadOptions  = [System.Management.Automation.Runspaces.PSThreadOptions]::ReuseThread
+        $rs.Open()
+        $script:DeviceDetailsRunspace = $rs
+        try { Write-Diag ("Device loader runspace created | Id={0}" -f $rs.Id) } catch {}
+        return $script:DeviceDetailsRunspace
+    } catch {
+        try { Write-Diag ("Device loader runspace creation failed | Error={0}" -f $_.Exception.Message) } catch {}
+        return $null
+    }
+}
+
+function Queue-DeviceDetailsWarmup {
+    if ($script:DeviceDetailsWarmupQueued) { return }
+    $modulesDirLocal = $script:ModulesDirectory
+    if (-not $modulesDirLocal) {
+        try {
+            $modulesDirLocal = (Resolve-Path -LiteralPath (Join-Path $scriptDir '..\Modules')).Path
+        } catch {
+            $modulesDirLocal = Join-Path $scriptDir '..\Modules'
+        }
+    }
+    $moduleListLocal = @($script:DeviceLoaderModuleNames)
+    $script:DeviceDetailsWarmupQueued = $true
+
+    $warmupAction = {
+        param($modulesDirParam, $moduleListParam)
+        try {
+            $rsWarm = Get-DeviceDetailsRunspace
+            if (-not $rsWarm) {
+                $script:DeviceDetailsWarmupQueued = $false
+                return
+            }
+            $psWarm = $null
+            try {
+                $psWarm = [System.Management.Automation.PowerShell]::Create()
+                $psWarm.Runspace = $rsWarm
+                $warmupScript = @'
+param($modulesDir, $moduleList)
+if (-not $script:DeviceLoaderModulesLoaded) {
+    $modules = @($moduleList)
+    foreach ($name in $modules) {
+        $modulePath = Join-Path $modulesDir $name
+        if (Test-Path -LiteralPath $modulePath) {
+            Import-Module -Name $modulePath -Global -ErrorAction Stop
+        }
+    }
+    $script:DeviceLoaderModulesLoaded = $true
+}
+'@
+                [void]$psWarm.AddScript($warmupScript)
+                [void]$psWarm.AddArgument($modulesDirParam)
+                [void]$psWarm.AddArgument($moduleListParam)
+                $null = $psWarm.Invoke()
+            } finally {
+                if ($psWarm) { $psWarm.Dispose() }
+            }
+            try { Write-Diag ("Device loader warmup completed") } catch {}
+        } catch {
+            try { Write-Diag ("Device loader warmup failed | Error={0}" -f $_.Exception.Message) } catch {}
+            $script:DeviceDetailsWarmupQueued = $false
+        }
+    }.GetNewClosure()
+
+    try {
+        [System.Windows.Application]::Current.Dispatcher.BeginInvoke(
+            [System.Windows.Threading.DispatcherPriority]::ApplicationIdle,
+            [System.Action]{
+                try {
+                    if ($warmupAction) {
+                        $null = $warmupAction.Invoke($modulesDirLocal, $moduleListLocal)
+                    }
+                } catch {
+                    try { Write-Diag ("Device loader warmup execution failed | Error={0}" -f $_.Exception.Message) } catch {}
+                    $script:DeviceDetailsWarmupQueued = $false
+                }
+            }
+        ) | Out-Null
+    } catch {
+        try { Write-Diag ("Device loader warmup scheduling failed | Error={0}" -f $_.Exception.Message) } catch {}
+        $script:DeviceDetailsWarmupQueued = $false
+    }
+}
+
+function Update-DeviceInterfaceCacheSnapshot {
+    param(
+        [Parameter(Mandatory)][string]$Hostname,
+        [Parameter(Mandatory)][System.Collections.IEnumerable]$Collection
+    )
+
+    $hostKey = ('' + $Hostname).Trim()
+    if ([string]::IsNullOrWhiteSpace($hostKey)) { return }
+    if (-not (Get-Variable -Name DeviceInterfaceCache -Scope Global -ErrorAction SilentlyContinue)) {
+        $global:DeviceInterfaceCache = @{}
+    }
+
+    $list = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($item in $Collection) {
+        if ($null -ne $item) { [void]$list.Add($item) }
+    }
+    $global:DeviceInterfaceCache[$hostKey] = $list
+}
+
 # Ensure a WPF Application exists so theme resources can be merged
 try {
     $app = [System.Windows.Application]::Current
@@ -158,6 +368,8 @@ try {
 } catch {
     Write-Warning ("Theme initialization failed: {0}" -f $_.Exception.Message)
 }
+
+Queue-DeviceDetailsWarmup
 
 
 function Initialize-ThemeSelector {
@@ -409,7 +621,7 @@ function Show-DeviceDetails {
         try {
             $modPath = Join-Path $scriptDir '..\\Modules\\DeviceDetailsModule.psm1'
             if (Test-Path -LiteralPath $modPath) {
-                Import-Module -LiteralPath $modPath -Force -Global
+                Import-Module -Name $modPath -Global -ErrorAction Stop
             } else {
                 Import-Module DeviceDetailsModule -ErrorAction Stop
             }
@@ -431,9 +643,23 @@ function Show-DeviceDetails {
     }
 
     try {
+        $cachedCollection = $null
+        try {
+            if ($global:InterfacePortCollections -and $global:InterfacePortCollections.ContainsKey($hostTrim)) {
+                $cachedCollection = $global:InterfacePortCollections[$hostTrim]
+            }
+        } catch { $cachedCollection = $null }
+        if ($cachedCollection) {
+            try { $dto.Interfaces = $cachedCollection } catch {}
+        }
+
         InterfaceModule\Set-InterfaceViewData -DeviceDetails $dto -DefaultHostname $hostTrim
+        $initialCount = 0
+        try { $initialCount = @($dto.Interfaces).Count } catch { $initialCount = 0 }
+        try { Write-Diag ("Show-DeviceDetails applied | Host={0} | Interfaces={1}" -f $hostTrim, $initialCount) } catch {}
     } catch {
         Write-Warning ("Failed to apply device details for {0}: {1}" -f $hostTrim, $_.Exception.Message)
+        try { Write-Diag ("Show-DeviceDetails failed | Host={0} | Error={1}" -f $hostTrim, $_.Exception.Message) } catch {}
     }
 }
 
@@ -445,6 +671,11 @@ function Get-HostnameChanged {
         # Load device details synchronously.  Asynchronous invocation via
         if ($Hostname) {
             Show-DeviceDetails $Hostname
+            try {
+                Import-DeviceDetailsAsync -Hostname $Hostname
+            } catch {
+                Write-Warning ("Hostname change handler failed to queue async device load for {0}: {1}" -f $Hostname, $_.Exception.Message)
+            }
             if (Get-Command Get-SpanInfo -ErrorAction SilentlyContinue) {
                 Get-SpanInfo $Hostname
             }
@@ -466,64 +697,74 @@ function Import-DeviceDetailsAsync {
         [string]$Hostname
     )
     $debug = ($Global:StateTraceDebug -eq $true)
+    $hostTrim = ('' + $Hostname).Trim()
     if ($debug) {
-        Write-Verbose ("Import-DeviceDetailsAsync: called with Hostname='{0}'" -f ($Hostname -as [string]))
+        Write-Verbose ("Import-DeviceDetailsAsync: called with Hostname='{0}'" -f $hostTrim)
     }
+    try { Write-Diag ("Import-DeviceDetailsAsync start | Host={0}" -f $hostTrim) } catch {}
     # If no host is provided, clear span info and return
-    if (-not $Hostname) {
+    if ([string]::IsNullOrWhiteSpace($hostTrim)) {
         if (Get-Command Get-SpanInfo -ErrorAction SilentlyContinue) {
             try { [System.Windows.Application]::Current.Dispatcher.Invoke([System.Action]{ Get-SpanInfo '' }) } catch {}
         }
         return
     }
 
-    try {
-        $modulesDir = (Resolve-Path -LiteralPath (Join-Path $scriptDir "..\Modules")).Path
-    } catch {
-        $modulesDir = Join-Path $scriptDir "..\Modules"
+    $modulesDir = $script:ModulesDirectory
+    if (-not $modulesDir) {
+        try {
+            $modulesDir = (Resolve-Path -LiteralPath (Join-Path $scriptDir "..\Modules")).Path
+        } catch {
+            $modulesDir = Join-Path $scriptDir "..\Modules"
+        }
     }
 
-    try {
-        # Create a dedicated STA runspace for background processing.  Use a custom
-        # InitialSessionState with FullLanguage enabled so that script keywords
-        # (`if`, `foreach`, `try`, etc.) and advanced language features work even
-        # when the host or policy would otherwise restrict the language mode.
-        $iss = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
-        $iss.LanguageMode = [System.Management.Automation.PSLanguageMode]::FullLanguage
-        $rs = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace($iss)
-        $rs.ApartmentState = [System.Threading.ApartmentState]::STA
-        $rs.ThreadOptions  = [System.Management.Automation.Runspaces.PSThreadOptions]::ReuseThread
-        $rs.Open()
-        if ($debug) {
-            Write-Verbose ("Import-DeviceDetailsAsync: runspace created (Id={0})" -f $rs.Id)
-        }
+    $rs = Get-DeviceDetailsRunspace
+    if (-not $rs) {
+        Write-Warning ("Import-DeviceDetailsAsync failed to acquire a device loader runspace.")
+        return
+    }
 
-        # Create a PowerShell instance bound to the new runspace
+    $ps = $null
+    try {
         $ps = [System.Management.Automation.PowerShell]::Create()
         $ps.Runspace = $rs
         if ($debug) {
-            Write-Verbose "Import-DeviceDetailsAsync: PowerShell instance created for background runspace"
+            Write-Verbose ("Import-DeviceDetailsAsync: using pooled runspace (Id={0})" -f $rs.Id)
         }
+    } catch {
+        Write-Warning ("Import-DeviceDetailsAsync: failed to attach PowerShell to runspace: {0}" -f $_.Exception.Message)
+        return
+    }
 
+    try {
         # Build a script string instead of passing a ScriptBlock.  Passing a string
         $scriptText = @'
-param($hn, $modulesDir)
-$modules = @(
-    'DatabaseModule.psm1',
-    'DeviceRepositoryModule.psm1',
-    'TemplatesModule.psm1',
-    'InterfaceModule.psm1',
-    'DeviceDetailsModule.psm1'
-)
-foreach ($name in $modules) {
-    $modulePath = Join-Path $modulesDir $name
-    if (Test-Path -LiteralPath $modulePath) {
-        Import-Module -LiteralPath $modulePath -Force -Global -ErrorAction Stop
+param($hn, $modulesDir, $diagPath, $moduleList)
+$diagStamp = {
+    param($text)
+    if (-not $diagPath) { return }
+    try {
+        $timestamp = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss.fff')
+        Add-Content -LiteralPath $diagPath -Value ("[{0}] {1}" -f $timestamp, $text) -ErrorAction SilentlyContinue
+    } catch {}
+}
+$modulesLoadedNow = $false
+if (-not $script:DeviceLoaderModulesLoaded) {
+    $modules = @($moduleList)
+    foreach ($name in $modules) {
+        $modulePath = Join-Path $modulesDir $name
+        if (Test-Path -LiteralPath $modulePath) {
+            Import-Module -Name $modulePath -Global -ErrorAction Stop
+        }
     }
+    $script:DeviceLoaderModulesLoaded = $true
+    $modulesLoadedNow = $true
 }
 $res = $null
 try {
-    $res = Get-DeviceDetailsData -Hostname $hn
+    & $diagStamp ("Async thread modules ready for host {0} | LoadedNow={1}" -f $hn, $modulesLoadedNow)
+    $res = DeviceDetailsModule\Get-DeviceDetailsData -Hostname $hn
 } catch {
     $res = $_
 }
@@ -533,25 +774,57 @@ return $res
         [void]$ps.AddScript($scriptText)
         [void]$ps.AddArgument($hostTrim)
         [void]$ps.AddArgument($modulesDir)
+        [void]$ps.AddArgument($script:DiagLogPath)
+        [void]$ps.AddArgument($script:DeviceLoaderModuleNames)
         if ($debug) {
             Write-Verbose "Import-DeviceDetailsAsync: script and arguments added to PowerShell instance"
         }
 
         # Execute the device details retrieval on a dedicated background thread instead of using
         if ($Global:StateTraceDebug -eq $true) {
-            Write-Verbose ("Import-DeviceDetailsAsync: starting background thread for '{0}'" -f $Hostname)
+            Write-Verbose ("Import-DeviceDetailsAsync: starting background thread for '{0}'" -f $hostTrim)
         }
+        try { Write-Diag ("Import-DeviceDetailsAsync thread launching | Host={0}" -f $hostTrim) } catch {}
+        $diagPathLocal = $script:DiagLogPath
         $threadScript = {
             param([System.Management.Automation.PowerShell]$psCmd, [string]$deviceHost)
+            $logAsync = {
+                param($message)
+                if (-not $diagPathLocal) { return }
+                try {
+                    $stamp = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss.fff')
+                    Add-Content -LiteralPath $diagPathLocal -Value ("[{0}] {1}" -f $stamp, $message) -ErrorAction SilentlyContinue
+                } catch {}
+            }
+            $semaphore = $script:DeviceDetailsRunspaceLock
+            $heldLock = $false
             try {
+                if ($semaphore) {
+                    try {
+                        $semaphore.Wait()
+                        $heldLock = $true
+                    } catch {
+                        $heldLock = $false
+                    }
+                }
                 # Invoke the script synchronously in the background thread
+                $invokeStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
                 $results = $psCmd.Invoke()
+                $invokeStopwatch.Stop()
                 # Take the first result if multiple were returned
                 if ($results -is [System.Collections.IEnumerable]) {
                     $data = $results | Select-Object -First 1
                 } else {
                     $data = $results
                 }
+                $invokeDurationMs = 0.0
+                try {
+                    if ($invokeStopwatch) {
+                        $invokeDurationMs = [Math]::Round($invokeStopwatch.Elapsed.TotalMilliseconds, 3)
+                    }
+                } catch { $invokeDurationMs = 0.0 }
+
+                & $logAsync ("Async thread received device details result for host {0}" -f $deviceHost)
                 if ($Global:StateTraceDebug -eq $true) {
                     try {
                         $typeName = if ($null -ne $data) { $data.GetType().FullName } else { 'null' }
@@ -582,9 +855,14 @@ return $res
                         if ($summary -and $summary.PSObject.Properties['Hostname']) {
                             $defaultHost = [string]$summary.Hostname
                         }
+                        try { Write-Diag ("InterfaceViewData scheduling | Host={0}" -f $defaultHost) } catch {}
                         try {
                             InterfaceModule\Set-InterfaceViewData -DeviceDetails $dto -DefaultHostname $defaultHost
+                            $ifaceCount = 0
+                            try { $ifaceCount = @($dto.Interfaces).Count } catch { $ifaceCount = 0 }
+                            try { Write-Diag ("InterfaceViewData applied | Host={0} | Interfaces={1}" -f $defaultHost, $ifaceCount) } catch {}
                         } catch {
+                            try { Write-Diag ("InterfaceViewData failed | Host={0} | Error={1}" -f $defaultHost, $_.Exception.Message) } catch {}
                             if ($debug) {
                                 Write-Verbose ("Import-DeviceDetailsAsync: failed to apply device details: {0}" -f $_.Exception.Message)
                             }
@@ -597,9 +875,11 @@ return $res
                         # Swallow UI update exceptions to prevent crashes
                     }
                 }
+                $uiAction = $uiAction.GetNewClosure()
+                $uiDelegate = [System.Action[object]]$uiAction
                 # Invoke the UI action with the result.  Wrap in try/catch to handle dispatcher errors.
                 try {
-                    [System.Windows.Application]::Current.Dispatcher.Invoke($uiAction, @($data))
+                    [System.Windows.Application]::Current.Dispatcher.Invoke($uiDelegate, $data)
                 } catch {
                     # Log any dispatcher invocation errors but do not crash
                     Write-Warning ("Import-DeviceDetailsAsync dispatcher invocation failed: {0}" -f $_.Exception.Message)
@@ -612,6 +892,16 @@ return $res
                     } catch { $collection = $null }
 
                     try { DeviceRepositoryModule\Initialize-InterfacePortStream -Hostname $deviceHost } catch { }
+                    & $logAsync ("Async stream initialized for host {0}" -f $deviceHost)
+
+                    $streamStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+                    $firstBatchTimer = [System.Diagnostics.Stopwatch]::StartNew()
+                    $firstBatchDelayMs = $null
+                    $streamDurationMs = 0.0
+                    $totalDispatcherMs = 0.0
+                    $totalAppendMs = 0.0
+                    $totalIndicatorMs = 0.0
+                    $batchesProcessed = 0
 
                     $initialStatus = $null
                     try { $initialStatus = DeviceRepositoryModule\Get-InterfacePortStreamStatus -Hostname $deviceHost } catch { $initialStatus = $null }
@@ -621,7 +911,32 @@ return $res
                         })
                     }
 
-                    if ($collection) {
+                    if ($null -ne $collection) {
+                        try {
+                            [System.Windows.Application]::Current.Dispatcher.Invoke([System.Action]{
+                                if (-not (Get-Variable -Name InterfacePortCollections -Scope Global -ErrorAction SilentlyContinue)) {
+                                    $global:InterfacePortCollections = @{}
+                                }
+                                $global:InterfacePortCollections[$deviceHost] = $collection
+
+                                if (-not (Get-Variable -Name DeviceInterfaceCache -Scope Global -ErrorAction SilentlyContinue)) {
+                                    $global:DeviceInterfaceCache = @{}
+                                }
+                                $global:DeviceInterfaceCache[$deviceHost] = $collection
+                            })
+                        } catch {
+                            try {
+                                if (-not (Get-Variable -Name InterfacePortCollections -Scope Global -ErrorAction SilentlyContinue)) {
+                                    $global:InterfacePortCollections = @{}
+                                }
+                                $global:InterfacePortCollections[$deviceHost] = $collection
+
+                                if (-not (Get-Variable -Name DeviceInterfaceCache -Scope Global -ErrorAction SilentlyContinue)) {
+                                    $global:DeviceInterfaceCache = @{}
+                                }
+                                $global:DeviceInterfaceCache[$deviceHost] = $collection
+                            } catch {}
+                        }
                         while ($true) {
                             $batch = $null
                             try { $batch = DeviceRepositoryModule\Get-InterfacePortBatch -Hostname $deviceHost } catch { $batch = $null }
@@ -631,6 +946,9 @@ return $res
                                 if (-not ($portItems -is [System.Collections.ICollection])) {
                                     $portItems = @($portItems)
                                 }
+                                $batchCount = 0
+                                try { $batchCount = $portItems.Count } catch { $batchCount = 0 }
+                                & $logAsync ("Async retrieved batch for host {0} with {1} port(s). Completed={2}" -f $deviceHost, $batchCount, $batch.Completed)
 
                                 $batchSize = 0
                                 try {
@@ -664,6 +982,67 @@ return $res
                                         $localIndicator = 0.0
                                     }
 
+                                    try {
+                                        if (Get-Command -Name 'FilterStateModule\Get-SelectedLocation' -ErrorAction SilentlyContinue) {
+                                            $currentLocation = $null
+                                            try { $currentLocation = FilterStateModule\Get-SelectedLocation } catch { $currentLocation = $null }
+                                            $updateParams = @{}
+                                            if ($currentLocation) {
+                                                if ($currentLocation.PSObject.Properties['Site'] -and $currentLocation.Site) {
+                                                    $updateParams.Site = '' + $currentLocation.Site
+                                                }
+                                            if ($currentLocation.PSObject.Properties['Zone'] -and $currentLocation.Zone) {
+                                                $updateParams.ZoneSelection = '' + $currentLocation.Zone
+                                                $updateParams.ZoneToLoad = '' + $currentLocation.Zone
+                                            }
+                                        }
+                                        if (Get-Command -Name 'DeviceCatalogModule\Get-DeviceSummaries' -ErrorAction SilentlyContinue) {
+                                            $needsCatalogRefresh = $false
+                                            try {
+                                                if (-not (Get-Variable -Name DeviceMetadata -Scope Global -ErrorAction SilentlyContinue)) {
+                                                    $needsCatalogRefresh = $true
+                                                } else {
+                                                    $metaEntry = $null
+                                                    try {
+                                                        if ($global:DeviceMetadata.ContainsKey($deviceHost)) {
+                                                            $metaEntry = $global:DeviceMetadata[$deviceHost]
+                                                        }
+                                                    } catch { $metaEntry = $null }
+                                                    if (-not $metaEntry -or -not $metaEntry.PSObject.Properties['Site'] -or [string]::IsNullOrWhiteSpace($metaEntry.Site)) {
+                                                        $needsCatalogRefresh = $true
+                                                    }
+                                                }
+                                            } catch {
+                                                $needsCatalogRefresh = $true
+                                            }
+                                            if ($needsCatalogRefresh) {
+                                                try { DeviceCatalogModule\Get-DeviceSummaries | Out-Null } catch {}
+                                            }
+                                        }
+                                        if (Get-Command -Name 'DeviceRepositoryModule\Update-GlobalInterfaceList' -ErrorAction SilentlyContinue) {
+                                            try { DeviceRepositoryModule\Update-GlobalInterfaceList @updateParams | Out-Null } catch {}
+                                        }
+                                        } elseif (Get-Command -Name 'DeviceRepositoryModule\Update-GlobalInterfaceList' -ErrorAction SilentlyContinue) {
+                                            try { DeviceRepositoryModule\Update-GlobalInterfaceList | Out-Null } catch {}
+                                        }
+
+                                        $allCount = 0
+                                        try { $allCount = ViewStateService\Get-SequenceCount -Value $global:AllInterfaces } catch { $allCount = 0 }
+                                        try { Write-Diag ("Interface aggregate refreshed | Host={0} | GlobalInterfaces={1}" -f $deviceHost, $allCount) } catch {}
+
+                                        if (Get-Command -Name 'DeviceInsightsModule\Update-Summary' -ErrorAction SilentlyContinue) {
+                                            try { DeviceInsightsModule\Update-Summary } catch {}
+                                        }
+                                        if (Get-Command -Name 'DeviceInsightsModule\Update-Alerts' -ErrorAction SilentlyContinue) {
+                                            try { DeviceInsightsModule\Update-Alerts } catch {}
+                                        }
+                                        if (Get-Command -Name 'DeviceInsightsModule\Update-SearchGrid' -ErrorAction SilentlyContinue) {
+                                            try { DeviceInsightsModule\Update-SearchGrid } catch {}
+                                        }
+                                    } catch {
+                                        try { Write-Diag ("Interface aggregate refresh failed | Host={0} | Error={1}" -f $deviceHost, $_.Exception.Message) } catch {}
+                                    }
+
                                     return [pscustomobject]@{
                                         AppendDurationMs    = $localAppend
                                         IndicatorDurationMs = $localIndicator
@@ -671,6 +1050,9 @@ return $res
                                 })
                                 $dispatcherStopwatch.Stop()
                                 $dispatcherDurationMs = [Math]::Round($dispatcherStopwatch.Elapsed.TotalMilliseconds, 3)
+                                $collectionCount = 0
+                                try { $collectionCount = @($collection).Count } catch { $collectionCount = 0 }
+                                try { Write-Diag ("Interface batch appended | Host={0} | BatchSize={1} | CollectionCount={2}" -f $deviceHost, $batchSize, $collectionCount) } catch {}
 
                                 if ($uiMetrics) {
                                     if ($uiMetrics.PSObject.Properties['AppendDurationMs']) {
@@ -685,8 +1067,23 @@ return $res
                                     DeviceRepositoryModule\Set-InterfacePortDispatchMetrics -Hostname $deviceHost -BatchId $batch.BatchId -BatchOrdinal $batch.BatchOrdinal -BatchCount $batch.BatchCount -BatchSize $batchSize -PortsDelivered $batch.PortsDelivered -TotalPorts $batch.TotalPorts -DispatcherDurationMs $dispatcherDurationMs -AppendDurationMs $appendDurationMs -IndicatorDurationMs $indicatorDurationMs
                                 } catch { }
 
+                                $batchesProcessed++
+                                try {
+                                    $totalDispatcherMs += $dispatcherDurationMs
+                                    $totalAppendMs += $appendDurationMs
+                                    $totalIndicatorMs += $indicatorDurationMs
+                                } catch { }
+                                if ($firstBatchDelayMs -eq $null -and $firstBatchTimer) {
+                                    try { $firstBatchDelayMs = [Math]::Round($firstBatchTimer.Elapsed.TotalMilliseconds, 3) } catch { $firstBatchDelayMs = 0.0 }
+                                }
+
                                 if ($batch.Completed) { break }
                                 continue
+                            }
+
+                            else {
+                                & $logAsync ("Async Get-InterfacePortBatch returned null for host {0}; exiting loop" -f $deviceHost)
+                                break
                             }
 
                             $streamStatus = $null
@@ -697,25 +1094,91 @@ return $res
                     }
                 }
 
+                if ($streamStopwatch) {
+                    try {
+                        $streamStopwatch.Stop()
+                        $streamDurationMs = [Math]::Round($streamStopwatch.Elapsed.TotalMilliseconds, 3)
+                    } catch { $streamDurationMs = 0.0 }
+                }
+                if ($firstBatchDelayMs -eq $null) {
+                    if ($batchesProcessed -gt 0 -and $streamDurationMs -gt 0) {
+                        $firstBatchDelayMs = $streamDurationMs
+                    } else {
+                        $firstBatchDelayMs = 0.0
+                    }
+                }
+
+                if ($collection) {
+                    try {
+                        [System.Windows.Application]::Current.Dispatcher.Invoke([System.Action]{
+                            try { Update-DeviceInterfaceCacheSnapshot -Hostname $deviceHost -Collection $collection } catch {}
+                        })
+                    } catch {}
+                }
+
+                $finalCollectionCount = 0
+                try { $finalCollectionCount = [int](@($collection).Count) } catch { $finalCollectionCount = 0 }
+
+                $queueMetrics = $null
+                try { $queueMetrics = DeviceRepositoryModule\Get-LastInterfacePortQueueMetrics } catch { $queueMetrics = $null }
+
+                try {
+                    Write-Diag ("Device load metrics | Host={0} | InvokeMs={1} | StreamMs={2} | FirstBatchMs={3} | Batches={4} | Interfaces={5}" -f $deviceHost, $invokeDurationMs, $streamDurationMs, $firstBatchDelayMs, $batchesProcessed, $finalCollectionCount)
+                } catch {}
+
+                if (Get-Command -Name 'TelemetryModule\Write-StTelemetryEvent' -ErrorAction SilentlyContinue) {
+                    $telemetryPayload = @{
+                        Hostname          = $deviceHost
+                        InvokeDurationMs  = $invokeDurationMs
+                        StreamDurationMs  = $streamDurationMs
+                        FirstBatchMs      = (if ($firstBatchDelayMs -ne $null) { $firstBatchDelayMs } else { 0.0 })
+                        BatchesProcessed  = $batchesProcessed
+                        InterfaceCount    = $finalCollectionCount
+                        AppendWorkMs      = [Math]::Round($totalAppendMs, 3)
+                        DispatcherWorkMs  = [Math]::Round($totalDispatcherMs, 3)
+                        IndicatorWorkMs   = [Math]::Round($totalIndicatorMs, 3)
+                    }
+                    if ($queueMetrics) {
+                        try {
+                            if ($queueMetrics.PSObject.Properties['ChunkSize']) { $telemetryPayload.ChunkSize = [int]$queueMetrics.ChunkSize }
+                            if ($queueMetrics.PSObject.Properties['ChunkSource']) { $telemetryPayload.ChunkSource = '' + $queueMetrics.ChunkSource }
+                            if ($queueMetrics.PSObject.Properties['BatchCount']) { $telemetryPayload.PlannedBatchCount = [int]$queueMetrics.BatchCount }
+                            if ($queueMetrics.PSObject.Properties['TotalPorts']) { $telemetryPayload.QueuePorts = [int]$queueMetrics.TotalPorts }
+                        } catch { }
+                    }
+                    try { TelemetryModule\Write-StTelemetryEvent -Name 'DeviceDetailsLoadMetrics' -Payload $telemetryPayload } catch { }
+                }
+
                 try { DeviceRepositoryModule\Clear-InterfacePortStream -Hostname $deviceHost } catch { }
+                & $logAsync ("Async cleared port stream for host {0}" -f $deviceHost)
                 [System.Windows.Application]::Current.Dispatcher.Invoke([System.Action]{ InterfaceModule\Hide-PortLoadingIndicator })
             } catch {
                 # Log any exceptions thrown during Invoke
                 Write-Warning ("Import-DeviceDetailsAsync thread encountered an exception: {0}" -f $_.Exception.Message)
+                try {
+                    if ($script:DeviceDetailsRunspace -and
+                        $script:DeviceDetailsRunspace.RunspaceStateInfo.State -eq [System.Management.Automation.Runspaces.RunspaceState]::Broken) {
+                        $script:DeviceDetailsRunspace.Dispose()
+                        $script:DeviceDetailsRunspace = $null
+                    }
+                } catch { }
             } finally {
-                # Clean up the runspace and PowerShell instance
-                try { $psCmd.Runspace.Close() } catch {}
+                # Clean up the PowerShell instance and release the pooled runspace lock
+                try { $psCmd.Commands.Clear() } catch {}
                 $psCmd.Dispose()
+                if ($heldLock -and $semaphore) {
+                    try { $semaphore.Release() } catch {}
+                }
             }
         }
         # Build the thread start delegate and launch the background thread
-        $threadStart = [System.Threading.ThreadStart]{ $threadScript.Invoke($ps, $hostTrim) }
+        $threadStart = [StateTrace.Threading.PowerShellThreadStartFactory]::Create($threadScript, $ps, $hostTrim)
         $workerThread = [System.Threading.Thread]::new($threadStart)
         $workerThread.ApartmentState = [System.Threading.ApartmentState]::STA
         $workerThread.Start()
     } catch {
-        # On failure to create runspace or begin invocation, log and return
-        Write-Warning ("Import-DeviceDetailsAsync failed to start: {0}" -f $_.Exception.Message)
+        Write-Warning ("Import-DeviceDetailsAsync failed to dispatch background load: {0}" -f $_.Exception.Message)
+        try { if ($ps) { $ps.Dispose() } } catch {}
     }
 }
 

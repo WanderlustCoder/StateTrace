@@ -172,9 +172,32 @@ function Close-DbReadSession {
     param(
         [Parameter(Mandatory)][object]$Session
     )
-    if ($Session -and ($Session.PSTypeName -eq 'StateTrace.DbReadSession')) {
+    if (Test-IsDbReadSession -Session $Session) {
         try { $Session.Dispose() } catch {}
     }
+}
+
+function Test-IsDbReadSession {
+    [CmdletBinding()]
+    param(
+        [Parameter()][object]$Session
+    )
+
+    if (-not $Session) { return $false }
+
+    try {
+        if ($Session.PSObject -and $Session.PSObject.TypeNames -contains 'StateTrace.DbReadSession') {
+            return $true
+        }
+    } catch { }
+
+    try {
+        if ($Session.PSTypeName -eq 'StateTrace.DbReadSession') {
+            return $true
+        }
+    } catch { }
+
+    return $false
 }
 
 function New-AccessDatabase {
@@ -301,6 +324,31 @@ CREATE TABLE Interfaces (
 );
 '@
 
+    $createSpanInfoTable = @'
+CREATE TABLE SpanInfo (
+    Hostname    TEXT(64),
+    Vlan        TEXT(32),
+    RootSwitch  TEXT(64),
+    RootPort    TEXT(32),
+    Role        TEXT(32),
+    Upstream    TEXT(64),
+    LastUpdated DATETIME
+);
+'@
+
+    $createSpanHistoryTable = @'
+CREATE TABLE SpanHistory (
+    ID          COUNTER     PRIMARY KEY,
+    Hostname    TEXT(64),
+    RunDate     DATETIME,
+    Vlan        TEXT(32),
+    RootSwitch  TEXT(64),
+    RootPort    TEXT(32),
+    Role        TEXT(32),
+    Upstream    TEXT(64)
+);
+'@
+
     $createDeviceHistoryTable = @'
 CREATE TABLE DeviceHistory (
     ID               COUNTER PRIMARY KEY,
@@ -389,11 +437,16 @@ CREATE TABLE InterfaceHistory (
         # Attempt to create history tables if they don't exist
         try { $connection.Execute($createDeviceHistoryTable) | Out-Null } catch { }
         try { $connection.Execute($createInterfaceHistoryTable) | Out-Null } catch { }
+        # Attempt to create SpanInfo table if it doesn't exist
+        try { $connection.Execute($createSpanInfoTable) | Out-Null } catch { }
+        try { $connection.Execute($createSpanHistoryTable) | Out-Null } catch { }
 
         # Helpful indexes (ignore if they already exist)
         $createIndexes = @(
             "CREATE INDEX idx_devicesummary_host ON DeviceSummary (Hostname)",
-            "CREATE INDEX idx_interfaces_host_port ON Interfaces (Hostname, Port)"
+            "CREATE INDEX idx_interfaces_host_port ON Interfaces (Hostname, Port)",
+            "CREATE INDEX idx_spaninfo_host_vlan ON SpanInfo (Hostname, Vlan)",
+            "CREATE INDEX idx_spanhistory_host ON SpanHistory (Hostname)"
         )
         foreach ($stmt in $createIndexes) {
             try { $connection.Execute($stmt) | Out-Null } catch { }
@@ -437,10 +490,11 @@ function Invoke-DbQuery {
     $mustClose = $false
     $conn = $null
     try {
-        if ($Session -and $Session.PSTypeName -eq 'StateTrace.DbReadSession' -and $Session.Connection) {
+        $isDbSession = Test-IsDbReadSession -Session $Session
+        if ($isDbSession -and $Session.Connection) {
             $conn = $Session.Connection
         } else {
-            # Open a one‑shot connection
+            # Open a one-shot connection
             $conn = New-Object System.Data.OleDb.OleDbConnection
             $opened = $false
             $providerErrors = [System.Collections.Generic.List[object]]::new()

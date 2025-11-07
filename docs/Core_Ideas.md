@@ -8,5 +8,6 @@ These pillars define how agents and developers make changes. They mirror the aut
 4. **Telemetry & verification** - Capture ingestion metrics (for example `ParseDuration`, `DatabaseWriteLatency`) and use them to validate behaviour and performance.
 5. **Plan-first collaboration** - Record a multi-step plan before editing code, tests, or docs. Keep the plan active, narrate progress, and sync outcomes with the task board.
 6. **Security & data hygiene** - Sanitize sensitive logs, exclude databases from source control, and honour the repository's strict-mode and privacy guardrails.
+7. **Parser/UI separation** - Treat the parser pipeline and WPF UI as distinct phases: parse logs and hydrate Access databases first, then surface the stored results in the interface while documenting when fresh ingestion is required.
 
 Refer to `AGENTS.md` for the canonical wording and to keep these pillars updated alongside contributor guidance.

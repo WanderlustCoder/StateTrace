@@ -66,6 +66,12 @@ Describe "InterfaceModule Get-InterfaceList" {
         }
     }
 
+    It "exposes CacheSignature property regardless of import order" {
+        $record = [StateTrace.Models.InterfacePortRecord]::new()
+        { $record.CacheSignature = 'sig-123' } | Should Not Throw
+        $record.CacheSignature | Should Be 'sig-123'
+    }
+
     It "returns ports from ViewStateService when data is available" {
         Mock -ModuleName InterfaceModule -CommandName 'ViewStateService\Get-InterfacesForContext' {
             @(

@@ -3,7 +3,7 @@ Set-StrictMode -Version Latest
 function Invoke-RegexTableParser {
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)][AllowEmptyString()][string[]]$Lines,
+        [Parameter()][AllowEmptyString()][string[]]$Lines,
         [Parameter(Mandatory)][string]$HeaderPattern,
         [Parameter(Mandatory)][string]$RowPattern,
         [Parameter(Mandatory)][hashtable]$PropertyMap,

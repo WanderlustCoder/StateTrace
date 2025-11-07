@@ -59,6 +59,10 @@ if (-not (Get-Variable -Name SkipSiteCacheUpdate -Scope Script -ErrorAction Sile
     $script:SkipSiteCacheUpdate = $false
 }
 
+if (-not (Get-Variable -Name SpanTablesEnsured -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:SpanTablesEnsured = $false
+}
+
 function Set-ParserSkipSiteCacheUpdate {
     [CmdletBinding()]
     param(
@@ -357,6 +361,53 @@ function Invoke-AdodbNonQuery {
     }
 }
 
+function Ensure-SpanInfoTableExists {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][object]$Connection
+    )
+
+    if ($script:SpanTablesEnsured) {
+        return
+    }
+    if (-not (Test-IsAdodbConnection -Connection $Connection)) {
+        return
+    }
+
+    $createSpanInfoTable = @'
+CREATE TABLE SpanInfo (
+    Hostname    TEXT(64),
+    Vlan        TEXT(32),
+    RootSwitch  TEXT(64),
+    RootPort    TEXT(32),
+    Role        TEXT(32),
+    Upstream    TEXT(64),
+    LastUpdated DATETIME
+);
+'@
+    $createSpanHistoryTable = @'
+CREATE TABLE SpanHistory (
+    ID          COUNTER     PRIMARY KEY,
+    Hostname    TEXT(64),
+    RunDate     DATETIME,
+    Vlan        TEXT(32),
+    RootSwitch  TEXT(64),
+    RootPort    TEXT(32),
+    Role        TEXT(32),
+    Upstream    TEXT(64)
+);
+'@
+    $createSpanInfoIndex     = "CREATE INDEX idx_spaninfo_host_vlan ON SpanInfo (Hostname, Vlan)"
+    $createSpanHistoryIndex  = "CREATE INDEX idx_spanhistory_host ON SpanHistory (Hostname)"
+
+    try { Invoke-AdodbNonQuery -Connection $Connection -CommandText $createSpanInfoTable | Out-Null } catch { }
+    try { Invoke-AdodbNonQuery -Connection $Connection -CommandText $createSpanHistoryTable | Out-Null } catch { }
+    try { Invoke-AdodbNonQuery -Connection $Connection -CommandText $createSpanInfoIndex | Out-Null } catch { }
+    try { Invoke-AdodbNonQuery -Connection $Connection -CommandText $createSpanHistoryIndex | Out-Null } catch { }
+
+    $script:SpanTablesEnsured = $true
+}
+
 function Ensure-InterfaceTableIndexes {
     [CmdletBinding()]
     param(
@@ -537,6 +588,7 @@ function Update-InterfacesInDb {
 
     $loadExistingDurationMs = 0.0
     $diffDurationMs = 0.0
+    $diffComparisonDurationMs = 0.0
     $deleteDurationMs = 0.0
     $fallbackDurationMs = 0.0
     $loadSignatureDurationMs = 0.0
@@ -1619,8 +1671,9 @@ $siteCacheTemplateDurationMs = 0.0
 
     $diffStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     try {
-        foreach ($iface in $ifaceRecords) {
-            if (-not $iface) { continue }
+    foreach ($iface in $ifaceRecords) {
+        if (-not $iface) { continue }
+        $comparisonStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
             $port = '' + $iface.Port
             if ([string]::IsNullOrWhiteSpace($port)) { continue }
@@ -1669,8 +1722,11 @@ $siteCacheTemplateDurationMs = 0.0
                 if ($Facts -and $Facts.Make -eq 'Brocade') {
                     if ($Facts.PSObject.Properties.Name -contains 'AuthenticationBlock' -and $Facts.AuthenticationBlock) {
                         $configText = "AUTH BLOCK (GLOBAL)`r`n" + ($Facts.AuthenticationBlock -join "`r`n")
-                    }
-                }
+            }
+
+        $comparisonStopwatch.Stop()
+        $diffComparisonDurationMs += $comparisonStopwatch.Elapsed.TotalMilliseconds
+    }
             }
 
             $portColor = ''
@@ -2435,6 +2491,7 @@ $siteCacheTemplateDurationMs = 0.0
         SiteCacheComparisonMissingPortCount = $cacheComparisonMissingPortCount
         SiteCacheComparisonObsoletePortCount = $cacheComparisonObsoletePortCount
         DiffDurationMs = $diffDurationMs
+            DiffComparisonDurationMs = [Math]::Round($diffComparisonDurationMs, 3)
             DiffSignatureDurationMs = [Math]::Round($diffSignatureDurationMs, 3)
             DeleteDurationMs = [Math]::Round($deleteDurationMs, 3)
             FallbackDurationMs = $fallbackDurationMs
@@ -2584,6 +2641,7 @@ $siteCacheTemplateDurationMs = 0.0
         SiteCacheComparisonMissingPortCount = $cacheComparisonMissingPortCount
         SiteCacheComparisonObsoletePortCount = $cacheComparisonObsoletePortCount
         DiffDurationMs = $diffDurationMs
+            DiffComparisonDurationMs = [Math]::Round($diffComparisonDurationMs, 3)
             DiffRowsCompared = $diffRowsCompared
             DiffRowsChanged = $diffRowsChanged
             DiffRowsUnchanged = $diffRowsUnchanged
@@ -3665,6 +3723,8 @@ function Update-SpanInfoInDb {
 
     $escHostname = $Hostname -replace "'", "''"
     $runDateLiteral = "#$RunDateString#"
+
+    Ensure-SpanInfoTableExists -Connection $Connection
 
     try {
         Invoke-AdodbNonQuery -Connection $Connection -CommandText "DELETE FROM SpanInfo WHERE Hostname = '$escHostname'" | Out-Null
