@@ -9,7 +9,8 @@ param(
     [ValidateSet('Empty','Snapshot','ColdOutput','WarmBackup')]
     [string]$WarmHistorySeed = 'WarmBackup',
     [switch]$RefreshSiteCaches,
-    [switch]$AssertWarmCache
+    [switch]$AssertWarmCache,
+    [switch]$PreserveSkipSiteCacheSetting
 )
 
 Set-StrictMode -Version Latest
@@ -29,6 +30,62 @@ if (-not (Test-Path -LiteralPath $ingestionHistoryDir)) {
 $metricsDirectory = Join-Path -Path $repositoryRoot -ChildPath 'Logs\IngestionMetrics'
 if (-not (Test-Path -LiteralPath $metricsDirectory)) {
     throw "Telemetry directory not found at $metricsDirectory."
+}
+
+$settingsPath = Join-Path -Path $repositoryRoot -ChildPath 'Data\StateTraceSettings.json'
+$script:SkipSiteCacheOriginalSettings = $null
+$script:SkipSiteCacheSettingChanged = $false
+
+function Disable-SkipSiteCacheUpdateSetting {
+    param([string]$SettingsPath)
+
+    if ($script:SkipSiteCacheSettingChanged) { return }
+    if (-not (Test-Path -LiteralPath $SettingsPath)) { return }
+
+    $originalText = Get-Content -LiteralPath $SettingsPath -Raw
+    if ([string]::IsNullOrWhiteSpace($originalText)) { return }
+    if ($null -eq $script:SkipSiteCacheOriginalSettings) {
+        $script:SkipSiteCacheOriginalSettings = $originalText
+    }
+    if ($originalText -notmatch '"SkipSiteCacheUpdate"\s*:\s*true') {
+        return
+    }
+
+    $updatedText = [System.Text.RegularExpressions.Regex]::Replace(
+        $originalText,
+        '"SkipSiteCacheUpdate"\s*:\s*true',
+        '"SkipSiteCacheUpdate": false',
+        [System.Text.RegularExpressions.RegexOptions]::IgnoreCase
+    )
+    if ([string]::IsNullOrWhiteSpace($updatedText)) {
+        return
+    }
+
+    try {
+        Set-Content -LiteralPath $SettingsPath -Value $updatedText -Encoding utf8
+        $script:SkipSiteCacheSettingChanged = $true
+        Write-Host 'Disabled SkipSiteCacheUpdate for warm-run telemetry.' -ForegroundColor Yellow
+    } catch {
+        Write-Warning ("Failed to disable SkipSiteCacheUpdate: {0}" -f $_.Exception.Message)
+        $script:SkipSiteCacheSettingChanged = $false
+        $script:SkipSiteCacheOriginalSettings = $originalText
+    }
+}
+
+function Restore-SkipSiteCacheUpdateSetting {
+    param([string]$SettingsPath)
+
+    if (-not $script:SkipSiteCacheSettingChanged) { return }
+    if ($null -eq $script:SkipSiteCacheOriginalSettings) { return }
+    try {
+        Set-Content -LiteralPath $SettingsPath -Value $script:SkipSiteCacheOriginalSettings -Encoding utf8
+        Write-Host 'Restored SkipSiteCacheUpdate setting.' -ForegroundColor Yellow
+    } catch {
+        Write-Warning ("Failed to restore SkipSiteCacheUpdate setting: {0}" -f $_.Exception.Message)
+    } finally {
+        $script:SkipSiteCacheSettingChanged = $false
+        $script:SkipSiteCacheOriginalSettings = $null
+    }
 }
 
 $script:PassInterfaceAnalysis = @{}
@@ -646,12 +703,42 @@ function Convert-MetricsToSummary {
             $timestamp = [datetime]::Parse($timestamp)
         }
 
+        $providerReason = $null
+        if ($metric -and $metric.PSObject -and $metric.PSObject.Properties.Name -contains 'SiteCacheProviderReason') {
+            $providerReason = $metric.SiteCacheProviderReason
+        }
+
+        $hostName = $null
+        if ($metric -and $metric.PSObject) {
+            $metricProperties = $metric.PSObject.Properties.Name
+            if ($metricProperties -contains 'Hostname') {
+                $hostName = $metric.Hostname
+            } elseif ($metricProperties -contains 'HostName') {
+                $hostName = $metric.HostName
+            } elseif ($metricProperties -contains 'Host') {
+                $hostName = $metric.Host
+            }
+
+            if ([string]::IsNullOrWhiteSpace($hostName) -and $metricProperties -contains 'PreviousHostSample') {
+                $hostName = $metric.PreviousHostSample
+            } elseif ([string]::IsNullOrWhiteSpace($hostName) -and $metricProperties -contains 'HostSample') {
+                $hostName = $metric.HostSample
+            }
+        }
+        if (-not [string]::IsNullOrWhiteSpace($hostName)) {
+            $hostName = ('' + $hostName).Trim()
+        } else {
+            $hostName = $null
+        }
+
         [pscustomobject]@{
             PassLabel                     = $PassLabel
             Site                          = $metric.Site
+            Hostname                      = $hostName
             Timestamp                     = $timestamp
             CacheStatus                   = $metric.CacheStatus
             Provider                      = $metric.Provider
+            SiteCacheProviderReason       = $providerReason
             HydrationDurationMs           = $metric.HydrationDurationMs
             SnapshotDurationMs            = $metric.SnapshotDurationMs
             HostMapDurationMs             = $metric.HostMapDurationMs
@@ -669,6 +756,229 @@ function Convert-MetricsToSummary {
     }
 
     return $summaries
+}
+
+function Get-HostKeyFromTelemetryEvent {
+    param(
+        [Parameter(Mandatory)]
+        $Event
+    )
+
+    if (-not $Event -or -not $Event.PSObject) {
+        return $null
+    }
+
+    $hostKey = $null
+    foreach ($property in @('Hostname','HostName','Host','PreviousHostSample','HostSample')) {
+        if ($Event.PSObject.Properties.Name -contains $property) {
+            $candidate = ('' + $Event.$property).Trim()
+            if (-not [string]::IsNullOrWhiteSpace($candidate)) {
+                $hostKey = $candidate
+                break
+            }
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($hostKey)) {
+        return $null
+    }
+
+    return $hostKey
+}
+
+function Get-HostKeyFromMetricsSummary {
+    param(
+        [Parameter(Mandatory)]
+        $Summary
+    )
+
+    if (-not $Summary -or -not $Summary.PSObject) {
+        return $null
+    }
+
+    $hostKey = $null
+    if ($Summary.PSObject.Properties.Name -contains 'Hostname') {
+        $hostKey = ('' + $Summary.Hostname).Trim()
+    }
+
+    if ([string]::IsNullOrWhiteSpace($hostKey) -and $Summary.PSObject.Properties.Name -contains 'Metrics') {
+        $metricsRecord = $Summary.Metrics
+        if ($metricsRecord -and $metricsRecord.PSObject) {
+            foreach ($property in @('PreviousHostSample','Hostname','HostName','Host','HostSample')) {
+                if ($metricsRecord.PSObject.Properties.Name -contains $property) {
+                    $candidate = ('' + $metricsRecord.$property).Trim()
+                    if (-not [string]::IsNullOrWhiteSpace($candidate)) {
+                        $hostKey = $candidate
+                        break
+                    }
+                }
+            }
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($hostKey)) {
+        return $null
+    }
+
+    return $hostKey
+}
+
+function Get-SiteCacheProviderReasonFallback {
+    param(
+        $Record
+    )
+
+    if (-not $Record -or -not $Record.PSObject) {
+        return $null
+    }
+
+    $getTrimmedValue = {
+        param($target, [string[]]$PropertyNames)
+
+        if (-not $target -or -not $target.PSObject) { return $null }
+        foreach ($name in $PropertyNames) {
+            if ($target.PSObject.Properties.Name -contains $name) {
+                $candidate = ('' + $target.$name)
+                if (-not [string]::IsNullOrWhiteSpace($candidate)) {
+                    return $candidate.Trim()
+                }
+            }
+        }
+        return $null
+    }
+
+    $provider = & $getTrimmedValue $Record @('SiteCacheProvider','Provider')
+    $status = & $getTrimmedValue $Record @('SiteCacheFetchStatus','CacheStatus')
+    $skipFlag = $false
+    if ($Record.PSObject.Properties.Name -contains 'SkipSiteCacheUpdate') {
+        try {
+            $skipFlag = [bool]$Record.SkipSiteCacheUpdate
+        } catch {
+            $skipFlag = $false
+        }
+    }
+
+    $normalize = {
+        param($value)
+        if ([string]::IsNullOrWhiteSpace($value)) { return $null }
+        return $value.Trim().ToLowerInvariant()
+    }
+
+    $providerKey = & $normalize $provider
+    $statusKey = & $normalize $status
+
+    switch ($providerKey) {
+        'sharedcache' { return 'SharedCacheMatch' }
+        'sharedonly' { return 'SharedCacheMatch' }
+        'cache' { return 'AccessCacheHit' }
+        'refreshed' { return 'AccessRefresh' }
+        'refresh' { return 'AccessRefresh' }
+        'missingdatabase' { return 'SharedCacheUnavailable' }
+    }
+
+    if ($skipFlag) {
+        return 'SkipSiteCacheUpdate'
+    }
+
+    switch ($statusKey) {
+        'sharedonly' { return 'SharedCacheMatch' }
+        'hit' { return 'AccessCacheHit' }
+        'refreshed' { return 'AccessRefresh' }
+        'disabled' { return 'SkipSiteCacheUpdate' }
+        'skippedempty' { return 'SharedCacheUnavailable' }
+    }
+
+    if ($providerKey -eq 'unknown') {
+        if ($statusKey -eq 'skippedempty') {
+            return 'SharedCacheUnavailable'
+        }
+        return 'DatabaseQueryFallback'
+    }
+
+    return $null
+}
+
+function Resolve-SiteCacheProviderReasons {
+    param(
+        [System.Collections.IEnumerable]$Summaries,
+        [System.Collections.IEnumerable]$DatabaseEvents,
+        [System.Collections.IEnumerable]$InterfaceSyncEvents
+    )
+
+    $results = @()
+    if ($Summaries) {
+        $results = @($Summaries)
+    }
+    if (-not $results -or $results.Count -eq 0) {
+        return $results
+    }
+
+    $providerReasonMap = @{}
+    $addReason = {
+        param($eventRecord)
+        if (-not $eventRecord) { return }
+
+        $reasonValue = $null
+        if ($eventRecord.PSObject.Properties.Name -contains 'SiteCacheProviderReason') {
+            $reasonValue = ('' + $eventRecord.SiteCacheProviderReason).Trim()
+        }
+        if ([string]::IsNullOrWhiteSpace($reasonValue)) {
+            $reasonValue = Get-SiteCacheProviderReasonFallback -Record $eventRecord
+        }
+        if ([string]::IsNullOrWhiteSpace($reasonValue)) { return }
+
+        $siteKey = ''
+        if ($eventRecord.PSObject.Properties.Name -contains 'Site') {
+            $siteKey = ('' + $eventRecord.Site).Trim()
+        }
+        if ([string]::IsNullOrWhiteSpace($siteKey)) { return }
+
+        $hostKey = Get-HostKeyFromTelemetryEvent -Event $eventRecord
+        if ([string]::IsNullOrWhiteSpace($hostKey)) { return }
+
+        $mapKey = '{0}|{1}' -f $siteKey, $hostKey
+        if (-not $providerReasonMap.ContainsKey($mapKey)) {
+            $providerReasonMap[$mapKey] = $reasonValue
+        }
+    }
+
+    foreach ($eventRecord in @($InterfaceSyncEvents)) {
+        & $addReason $eventRecord
+    }
+    foreach ($eventRecord in @($DatabaseEvents)) {
+        & $addReason $eventRecord
+    }
+
+    foreach ($summary in $results) {
+        if (-not $summary) { continue }
+        $currentReason = $summary.SiteCacheProviderReason
+        if (-not [string]::IsNullOrWhiteSpace($currentReason)) { continue }
+
+        $siteKey = ''
+        if ($summary.PSObject.Properties.Name -contains 'Site') {
+            $siteKey = ('' + $summary.Site).Trim()
+        }
+        $mapApplied = $false
+        if (-not [string]::IsNullOrWhiteSpace($siteKey)) {
+            $hostKey = Get-HostKeyFromMetricsSummary -Summary $summary
+            if (-not [string]::IsNullOrWhiteSpace($hostKey)) {
+                $mapKey = '{0}|{1}' -f $siteKey, $hostKey
+                if ($providerReasonMap.ContainsKey($mapKey)) {
+                    $summary.SiteCacheProviderReason = $providerReasonMap[$mapKey]
+                    $mapApplied = $true
+                }
+            }
+        }
+
+        if (-not $mapApplied -and [string]::IsNullOrWhiteSpace($summary.SiteCacheProviderReason)) {
+            $fallbackReason = Get-SiteCacheProviderReasonFallback -Record $summary
+            if (-not [string]::IsNullOrWhiteSpace($fallbackReason)) {
+                $summary.SiteCacheProviderReason = $fallbackReason
+            }
+        }
+    }
+
+    return $results
 }
 
 $results = @()
@@ -765,7 +1075,7 @@ function Invoke-PipelinePass {
 
     Wait-TelemetryFlush -DirectoryPath $metricsDirectory -Baseline $metricsBaseline
 
-    $collection = Collect-TelemetryForPass -DirectoryPath $metricsDirectory -Baseline $metricsBaseline -PassStartTime $passStartTime -RequiredEventNames @('InterfaceSiteCacheMetrics','DatabaseWriteBreakdown')
+    $collection = Collect-TelemetryForPass -DirectoryPath $metricsDirectory -Baseline $metricsBaseline -PassStartTime $passStartTime -RequiredEventNames @('InterfaceSiteCacheMetrics','DatabaseWriteBreakdown','InterfaceSyncTiming')
     $telemetry = @()
     if ($collection -and $collection.Events) {
         $telemetry = @($collection.Events)
@@ -797,6 +1107,13 @@ function Invoke-PipelinePass {
         $script:PassInterfaceAnalysis[$Label] = $null
         Write-Warning "No DatabaseWriteBreakdown events were captured for pass '$Label'."
     }
+
+    $syncEvents = @()
+    if ($collection -and $collection.Buckets.ContainsKey('InterfaceSyncTiming')) {
+        $syncEvents = @($collection.Buckets['InterfaceSyncTiming'])
+    }
+
+    $passResults = Resolve-SiteCacheProviderReasons -Summaries $passResults -DatabaseEvents $breakdownEvents -InterfaceSyncEvents $syncEvents
 
     return $passResults
 }
@@ -1486,6 +1803,9 @@ if ($skipWarmRunTelemetryMain) {
 }
 
 try {
+    if (-not $PreserveSkipSiteCacheSetting.IsPresent) {
+        Disable-SkipSiteCacheUpdateSetting -SettingsPath $settingsPath
+    }
     if (-not $sharedCacheSnapshotPath) {
         $snapshotFileName = "SharedCacheSnapshot-{0:yyyyMMdd-HHmmss}.clixml" -f (Get-Date)
         $sharedCacheSnapshotPath = Join-Path -Path (Join-Path $repositoryRoot 'Logs') -ChildPath $snapshotFileName
@@ -1784,6 +2104,9 @@ try {
     if ($sharedCacheSnapshotPath -and (Test-Path -LiteralPath $sharedCacheSnapshotPath)) {
         try { Remove-Item -LiteralPath $sharedCacheSnapshotPath -Force } catch { }
     }
+    if (-not $PreserveSkipSiteCacheSetting.IsPresent) {
+        Restore-SkipSiteCacheUpdateSetting -SettingsPath $settingsPath
+    }
 }
 
 $comparisonSummary = $null
@@ -1920,7 +2243,7 @@ if ($OutputPath) {
     if ($directory -and -not (Test-Path -LiteralPath $directory)) {
         New-Item -ItemType Directory -Path $directory -Force | Out-Null
     }
-    $exportPayload = $results | Select-Object PassLabel,SummaryType,Site,Timestamp,CacheStatus,Provider,HydrationDurationMs,SnapshotDurationMs,HostMapDurationMs,HostCount,TotalRows,HostMapSignatureMatchCount,HostMapSignatureRewriteCount,HostMapCandidateMissingCount,HostMapCandidateFromPrevious,PreviousHostCount,PreviousSnapshotStatus,PreviousSnapshotHostMapType,EntryCount,RestoredCount,SourceStage,ColdHostCount,WarmHostCount,ColdInterfaceCallAvgMs,ColdInterfaceCallP95Ms,ColdInterfaceCallMaxMs,WarmInterfaceCallAvgMs,WarmInterfaceCallP95Ms,WarmInterfaceCallMaxMs,ImprovementAverageMs,ImprovementPercent,WarmCacheProviderHitCount,WarmCacheProviderMissCount,WarmCacheHitRatioPercent,WarmSignatureMatchMissCount,WarmSignatureRewriteTotal,WarmProviderCounts,ColdProviderCounts,ScriptCacheCount,ScriptCacheSites,DomainCacheCount,DomainCacheSites
+    $exportPayload = $results | Select-Object PassLabel,SummaryType,Site,Hostname,Timestamp,CacheStatus,Provider,SiteCacheProviderReason,HydrationDurationMs,SnapshotDurationMs,HostMapDurationMs,HostCount,TotalRows,HostMapSignatureMatchCount,HostMapSignatureRewriteCount,HostMapCandidateMissingCount,HostMapCandidateFromPrevious,PreviousHostCount,PreviousSnapshotStatus,PreviousSnapshotHostMapType,EntryCount,RestoredCount,SourceStage,ColdHostCount,WarmHostCount,ColdInterfaceCallAvgMs,ColdInterfaceCallP95Ms,ColdInterfaceCallMaxMs,WarmInterfaceCallAvgMs,WarmInterfaceCallP95Ms,WarmInterfaceCallMaxMs,ImprovementAverageMs,ImprovementPercent,WarmCacheProviderHitCount,WarmCacheProviderMissCount,WarmCacheHitRatioPercent,WarmSignatureMatchMissCount,WarmSignatureRewriteTotal,WarmProviderCounts,ColdProviderCounts,ScriptCacheCount,ScriptCacheSites,DomainCacheCount,DomainCacheSites
     $json = $exportPayload | ConvertTo-Json -Depth 6
     [System.IO.File]::WriteAllText($OutputPath, $json)
     Write-Host "Warm-run telemetry summary exported to $OutputPath" -ForegroundColor Green

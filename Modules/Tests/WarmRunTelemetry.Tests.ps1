@@ -1,0 +1,192 @@
+Set-StrictMode -Version Latest
+
+Describe 'Invoke-WarmRunTelemetry helper functions' {
+    BeforeAll {
+        $script:WarmTelemetryPreviousSkip = $null
+        if (Test-Path -LiteralPath 'variable:global:WarmRunTelemetrySkipMain') {
+            $script:WarmTelemetryPreviousSkip = Get-Variable -Name 'WarmRunTelemetrySkipMain' -Scope Global -ValueOnly
+        }
+        Set-Variable -Name 'WarmRunTelemetrySkipMain' -Scope Global -Value $true
+
+        $repoRoot = Split-Path -Path (Split-Path -Parent (Split-Path -Parent $PSCommandPath)) -Parent
+        $scriptPath = Join-Path -Path $repoRoot -ChildPath 'Tools\Invoke-WarmRunTelemetry.ps1'
+        . (Resolve-Path -LiteralPath $scriptPath)
+    }
+
+    AfterAll {
+        if ($null -ne $script:WarmTelemetryPreviousSkip) {
+            Set-Variable -Name 'WarmRunTelemetrySkipMain' -Scope Global -Value $script:WarmTelemetryPreviousSkip
+        } else {
+            Remove-Variable -Name 'WarmRunTelemetrySkipMain' -Scope Global -ErrorAction SilentlyContinue
+        }
+        Remove-Variable -Name 'WarmTelemetryPreviousSkip' -Scope Script -ErrorAction SilentlyContinue
+    }
+
+    function New-SampleInterfaceSiteCacheMetric {
+        param(
+            [string]$Site = 'TEST',
+            [string]$CacheStatus = 'Hit',
+            [string]$Provider = 'Cache',
+            [nullable[double]]$HydrationDurationMs = 0,
+            [string]$PreviousHostSample = $null
+        )
+
+        $metric = [pscustomobject]@{
+            EventName                       = 'InterfaceSiteCacheMetrics'
+            Timestamp                       = Get-Date
+            Site                            = $Site
+            CacheStatus                     = $CacheStatus
+            Provider                        = $Provider
+            HydrationDurationMs             = $HydrationDurationMs
+            SnapshotDurationMs              = 0
+            HostMapDurationMs               = 0
+            HostCount                       = 1
+            TotalRows                       = 1
+            HostMapSignatureMatchCount      = 1
+            HostMapSignatureRewriteCount    = 0
+            HostMapCandidateMissingCount    = 0
+            HostMapCandidateFromPreviousCount = 1
+            PreviousHostCount               = 1
+            PreviousSnapshotStatus          = 'CacheHit'
+            PreviousSnapshotHostMapType     = 'Dictionary'
+        }
+
+        if ($PreviousHostSample) {
+            Add-Member -InputObject $metric -MemberType NoteProperty -Name 'PreviousHostSample' -Value $PreviousHostSample
+        }
+
+        return $metric
+    }
+
+    It 'sets Hostname from PreviousHostSample when InterfaceSiteCacheMetrics lacks Hostname' {
+        $metric = New-SampleInterfaceSiteCacheMetric -PreviousHostSample 'TEST-A01-AS-01'
+        $result = @(
+            Convert-MetricsToSummary -PassLabel 'TestPass' -Metrics @($metric)
+        )
+
+        $result.Count | Should Be 1
+        $result[0].Hostname | Should Be 'TEST-A01-AS-01'
+    }
+
+    It 'still exposes a Hostname property when no host data is present' {
+        $metric = New-SampleInterfaceSiteCacheMetric
+        $result = @(
+            Convert-MetricsToSummary -PassLabel 'TestPass' -Metrics @($metric)
+        )
+
+        $result.Count | Should Be 1
+        { $null = $result[0].Hostname } | Should Not Throw
+        $result[0].Hostname | Should Be $null
+    }
+
+    It 'propagates provider reasons from InterfaceSyncTiming events when metrics lack hostnames' {
+        $summary = [pscustomobject]@{
+            Site                    = 'TEST'
+            Hostname                = $null
+            SiteCacheProviderReason = $null
+            Metrics                 = [pscustomobject]@{
+                PreviousHostSample = 'TEST-A01-AS-01'
+            }
+        }
+
+        $syncEvent = [pscustomobject]@{
+            EventName               = 'InterfaceSyncTiming'
+            Site                    = 'TEST'
+            Hostname                = 'TEST-A01-AS-01'
+            SiteCacheProviderReason = 'SkipSiteCacheUpdate'
+        }
+
+        $result = Resolve-SiteCacheProviderReasons -Summaries @($summary) -InterfaceSyncEvents @($syncEvent)
+        $result.Count | Should Be 1
+        $result[0].SiteCacheProviderReason | Should Be 'SkipSiteCacheUpdate'
+    }
+
+    It 'propagates provider reasons from DatabaseWriteBreakdown events when present' {
+        $summary = [pscustomobject]@{
+            Site                    = 'TEST'
+            Hostname                = 'TEST-A01-AS-02'
+            SiteCacheProviderReason = $null
+            Metrics                 = [pscustomobject]@{}
+        }
+
+        $dbEvent = [pscustomobject]@{
+            EventName               = 'DatabaseWriteBreakdown'
+            Site                    = 'TEST'
+            Hostname                = 'TEST-A01-AS-02'
+            SiteCacheProviderReason = 'SharedCacheUnavailable'
+        }
+
+        $result = Resolve-SiteCacheProviderReasons -Summaries @($summary) -DatabaseEvents @($dbEvent)
+        $result.Count | Should Be 1
+        $result[0].SiteCacheProviderReason | Should Be 'SharedCacheUnavailable'
+    }
+
+    It 'does not override an existing provider reason on the summary' {
+        $summary = [pscustomobject]@{
+            Site                    = 'TEST'
+            Hostname                = 'TEST-A01-AS-02'
+            SiteCacheProviderReason = 'SharedCacheOnly'
+        }
+
+        $dbEvent = [pscustomobject]@{
+            EventName               = 'DatabaseWriteBreakdown'
+            Site                    = 'TEST'
+            Hostname                = 'TEST-A01-AS-02'
+            SiteCacheProviderReason = 'SkipSiteCacheUpdate'
+        }
+
+        $result = Resolve-SiteCacheProviderReasons -Summaries @($summary) -DatabaseEvents @($dbEvent)
+        $result[0].SiteCacheProviderReason | Should Be 'SharedCacheOnly'
+    }
+
+    It 'infers SkipSiteCacheUpdate when database telemetry omits the reason' {
+        $summary = [pscustomobject]@{
+            Site                    = 'TEST'
+            Hostname                = 'TEST-A01-AS-03'
+            SiteCacheProviderReason = $null
+            Metrics                 = [pscustomobject]@{}
+        }
+
+        $dbEvent = [pscustomobject]@{
+            EventName            = 'DatabaseWriteBreakdown'
+            Site                 = 'TEST'
+            Hostname             = 'TEST-A01-AS-03'
+            SiteCacheProvider    = 'Unknown'
+            SiteCacheFetchStatus = 'Disabled'
+            SkipSiteCacheUpdate  = $true
+        }
+
+        $result = Resolve-SiteCacheProviderReasons -Summaries @($summary) -DatabaseEvents @($dbEvent)
+        $result[0].SiteCacheProviderReason | Should Be 'SkipSiteCacheUpdate'
+    }
+
+    It 'flags SharedCacheUnavailable when cache fetch is skipped without the skip flag' {
+        $summary = [pscustomobject]@{
+            Site                    = 'TEST'
+            Hostname                = 'TEST-A01-AS-04'
+            SiteCacheProviderReason = $null
+            Metrics                 = [pscustomobject]@{}
+        }
+
+        $dbEvent = [pscustomobject]@{
+            EventName            = 'DatabaseWriteBreakdown'
+            Site                 = 'TEST'
+            Hostname             = 'TEST-A01-AS-04'
+            SiteCacheProvider    = 'Unknown'
+            SiteCacheFetchStatus = 'SkippedEmpty'
+            SkipSiteCacheUpdate  = $false
+        }
+
+        $result = Resolve-SiteCacheProviderReasons -Summaries @($summary) -DatabaseEvents @($dbEvent)
+        $result[0].SiteCacheProviderReason | Should Be 'SharedCacheUnavailable'
+    }
+
+    It 'falls back to summary provider data when no telemetry events match' {
+        $metric = New-SampleInterfaceSiteCacheMetric -Provider 'Cache' -PreviousHostSample 'TEST-A01-AS-05'
+        $summary = Convert-MetricsToSummary -PassLabel 'TestPass' -Metrics @($metric)
+
+        $result = Resolve-SiteCacheProviderReasons -Summaries @($summary)
+        $result.Count | Should Be 1
+        $result[0].SiteCacheProviderReason | Should Be 'AccessCacheHit'
+    }
+}
