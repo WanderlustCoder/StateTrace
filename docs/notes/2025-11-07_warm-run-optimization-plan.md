@@ -24,3 +24,6 @@
 ## Open Questions
 - Do we maintain `SkipSiteCacheUpdate=true` in production, or can we flip it during cold passes to keep site caches fresh without touching Access writes?
 - Is there a smaller BOYO/WLLS subset we can prioritize for warm-run validation to reduce run time while hitting the 60% target?
+
+## 2025-11-08 Updates
+- ParserPersistence now records `DiffComparisonDurationMs` (total time spent comparing incoming vs. existing rows) and `LoadExistingRowSetCount` (rows pulled from Access/site cache) inside each `InterfaceSyncTiming` event. `Tools/DeviceLogParser` forwards both fields into `DatabaseWriteBreakdown`, so warm-run telemetry can rank the heaviest diff/hydration hosts before we prototype the keyed existing-row cache.

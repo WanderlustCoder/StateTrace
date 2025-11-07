@@ -586,8 +586,10 @@ function Update-InterfacesInDb {
 
     $script:LastInterfaceSyncTelemetry = $null
 
-    $loadExistingDurationMs = 0.0
-    $diffDurationMs = 0.0
+$loadExistingDurationMs = 0.0
+$loadExistingRowSetCount = 0
+$diffDurationMs = 0.0
+$diffComparisonDurationMs = 0.0
     $diffComparisonDurationMs = 0.0
     $deleteDurationMs = 0.0
     $fallbackDurationMs = 0.0
@@ -1561,6 +1563,7 @@ $siteCacheTemplateDurationMs = 0.0
     $loadExistingDurationMs = [Math]::Round($loadExistingStopwatch.Elapsed.TotalMilliseconds, 3)
 
     $siteCacheExistingRowCount = if ($existingRows) { [int]$existingRows.Count } else { 0 }
+    $loadExistingRowSetCount = $siteCacheExistingRowCount
     $siteCacheExistingRowKeysSample = ''
     if ($existingRows -is [System.Collections.IDictionary]) {
         try {
@@ -2384,6 +2387,7 @@ $siteCacheTemplateDurationMs = 0.0
         Site = $siteCodeValue
         UiCloneDurationMs = $uiCloneDurationMsValue
         LoadExistingDurationMs = $loadExistingDurationMs
+            LoadExistingRowSetCount = $loadExistingRowSetCount
             LoadSignatureDurationMs = [Math]::Round($loadSignatureDurationMs, 3)
             LoadCacheHit = $loadCacheHit
             LoadCacheMiss = $loadCacheMiss

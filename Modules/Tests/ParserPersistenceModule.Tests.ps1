@@ -1218,6 +1218,8 @@ Describe "ParserPersistenceModule" {
                 ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheQueryDurationMs') | Should Be $true
                 ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheExecuteDurationMs') | Should Be $true
                 ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializeDurationMs') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'DiffComparisonDurationMs') | Should Be $true
+                ($interfaceSync.PSObject.Properties.Name -contains 'LoadExistingRowSetCount') | Should Be $true
                 ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializeProjectionDurationMs') | Should Be $true
                 ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializePortSortDurationMs') | Should Be $true
                 ($interfaceSync.PSObject.Properties.Name -contains 'SiteCacheMaterializePortSortCacheHitCount') | Should Be $true
