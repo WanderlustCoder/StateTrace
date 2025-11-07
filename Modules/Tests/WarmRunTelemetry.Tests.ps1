@@ -189,4 +189,21 @@ Describe 'Invoke-WarmRunTelemetry helper functions' {
         $result.Count | Should Be 1
         $result[0].SiteCacheProviderReason | Should Be 'AccessCacheHit'
     }
+
+    It 'weights provider metrics using HostCount when summarizing' {
+        $summaries = @(
+            [pscustomobject]@{ Provider = 'Cache'; HostCount = 2 },
+            [pscustomobject]@{ Provider = 'Refresh'; HostCount = 1 },
+            [pscustomobject]@{ Provider = $null; HostCount = 0 }
+        )
+
+        $metrics = Measure-ProviderMetricsFromSummaries -Summaries $summaries
+        $metrics | Should Not Be $null
+        $metrics.ProviderCounts['Cache'] | Should Be 2
+        $metrics.ProviderCounts['Refresh'] | Should Be 1
+        $metrics.ProviderCounts['Unknown'] | Should Be 1
+        $metrics.HitCount | Should Be 2
+        $metrics.MissCount | Should Be 2
+        $metrics.HitRatio | Should Be 50
+    }
 }

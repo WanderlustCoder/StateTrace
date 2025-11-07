@@ -89,6 +89,7 @@ function Restore-SkipSiteCacheUpdateSetting {
 }
 
 $script:PassInterfaceAnalysis = @{}
+$script:PassSummaries = @{}
 
 function Get-IngestionHistorySnapshot {
     param(
@@ -758,6 +759,66 @@ function Convert-MetricsToSummary {
     return $summaries
 }
 
+function Measure-ProviderMetricsFromSummaries {
+    param(
+        [System.Collections.IEnumerable]$Summaries
+    )
+
+    if (-not $Summaries) {
+        return $null
+    }
+
+    $providerCounts = @{}
+    $totalWeight = 0
+
+    foreach ($summary in $Summaries) {
+        if (-not $summary) { continue }
+
+        $providerValue = ''
+        if ($summary.PSObject.Properties.Name -contains 'Provider') {
+            $providerValue = ('' + $summary.Provider).Trim()
+        }
+        if ([string]::IsNullOrWhiteSpace($providerValue)) {
+            $providerValue = 'Unknown'
+        }
+
+        $weight = 1
+        if ($summary.PSObject.Properties.Name -contains 'HostCount') {
+            try {
+                $hostWeight = [int]$summary.HostCount
+                if ($hostWeight -gt 0) {
+                    $weight = $hostWeight
+                }
+            } catch { }
+        }
+
+        if ($providerCounts.ContainsKey($providerValue)) {
+            $providerCounts[$providerValue] += $weight
+        } else {
+            $providerCounts[$providerValue] = $weight
+        }
+        $totalWeight += $weight
+    }
+
+    $hitCount = 0
+    if ($providerCounts.ContainsKey('Cache')) {
+        $hitCount = [int]$providerCounts['Cache']
+    }
+    $missCount = [Math]::Max(0, $totalWeight - $hitCount)
+    $hitRatio = $null
+    if ($totalWeight -gt 0) {
+        $hitRatio = [Math]::Round(($hitCount / $totalWeight) * 100, 2)
+    }
+
+    return [pscustomobject]@{
+        ProviderCounts = $providerCounts
+        TotalWeight    = $totalWeight
+        HitCount       = $hitCount
+        MissCount      = $missCount
+        HitRatio       = $hitRatio
+    }
+}
+
 function Get-HostKeyFromTelemetryEvent {
     param(
         [Parameter(Mandatory)]
@@ -1114,6 +1175,7 @@ function Invoke-PipelinePass {
     }
 
     $passResults = Resolve-SiteCacheProviderReasons -Summaries $passResults -DatabaseEvents $breakdownEvents -InterfaceSyncEvents $syncEvents
+    $script:PassSummaries[$Label] = @($passResults)
 
     return $passResults
 }
@@ -2112,32 +2174,59 @@ try {
 $comparisonSummary = $null
 $coldMetrics = $null
 $warmMetrics = $null
+$coldSummaries = @()
+$warmSummaries = @()
 if ($script:PassInterfaceAnalysis.ContainsKey('ColdPass')) {
     $coldMetrics = $script:PassInterfaceAnalysis['ColdPass']
 }
 if ($script:PassInterfaceAnalysis.ContainsKey('WarmPass')) {
     $warmMetrics = $script:PassInterfaceAnalysis['WarmPass']
 }
+if ($script:PassSummaries.ContainsKey('ColdPass')) {
+    $coldSummaries = @($script:PassSummaries['ColdPass'])
+}
+if ($script:PassSummaries.ContainsKey('WarmPass')) {
+    $warmSummaries = @($script:PassSummaries['WarmPass'])
+}
 
 if ($coldMetrics -and $warmMetrics) {
     $normalizedWarmProviderCounts = ConvertTo-NormalizedProviderCounts -ProviderCounts $warmMetrics.ProviderCounts
     $normalizedColdProviderCounts = ConvertTo-NormalizedProviderCounts -ProviderCounts $coldMetrics.ProviderCounts
 
-    $warmCacheProviderHitCount = 0
+    $warmCacheProviderHitCountRaw = 0
     if ($normalizedWarmProviderCounts.ContainsKey('Cache')) {
-        $warmCacheProviderHitCount = [int]$normalizedWarmProviderCounts['Cache']
+        $warmCacheProviderHitCountRaw = [int]$normalizedWarmProviderCounts['Cache']
     }
 
-    $warmCacheProviderMissCount = 0
+    $warmCacheProviderMissCountRaw = 0
     foreach ($entry in $normalizedWarmProviderCounts.GetEnumerator()) {
         if ($entry.Key -ne 'Cache') {
-            $warmCacheProviderMissCount += [int]$entry.Value
+            $warmCacheProviderMissCountRaw += [int]$entry.Value
         }
     }
 
-    $warmCacheHitRatioPercent = $null
+    $warmCacheHitRatioPercentRaw = $null
     if ($warmMetrics.Count -gt 0) {
-        $warmCacheHitRatioPercent = [math]::Round(($warmCacheProviderHitCount / $warmMetrics.Count) * 100, 2)
+        $warmCacheHitRatioPercentRaw = [math]::Round(($warmCacheProviderHitCountRaw / $warmMetrics.Count) * 100, 2)
+    }
+
+    $warmProviderCounts = $normalizedWarmProviderCounts
+    $warmCacheProviderHitCount = $warmCacheProviderHitCountRaw
+    $warmCacheProviderMissCount = $warmCacheProviderMissCountRaw
+    $warmCacheHitRatioPercent = $warmCacheHitRatioPercentRaw
+
+    $warmSummaryMetrics = Measure-ProviderMetricsFromSummaries -Summaries $warmSummaries
+    if ($warmSummaryMetrics) {
+        $warmProviderCounts = $warmSummaryMetrics.ProviderCounts
+        $warmCacheProviderHitCount = [int]$warmSummaryMetrics.HitCount
+        $warmCacheProviderMissCount = [int]$warmSummaryMetrics.MissCount
+        $warmCacheHitRatioPercent = $warmSummaryMetrics.HitRatio
+    }
+
+    $coldProviderCounts = $normalizedColdProviderCounts
+    $coldSummaryMetrics = Measure-ProviderMetricsFromSummaries -Summaries $coldSummaries
+    if ($coldSummaryMetrics) {
+        $coldProviderCounts = $coldSummaryMetrics.ProviderCounts
     }
 
     $warmSignatureRewriteTotal = 0
@@ -2192,14 +2281,19 @@ if ($coldMetrics -and $warmMetrics) {
         ImprovementAverageMs           = $improvementMs
         ImprovementPercent             = $improvementPercent
         WarmCacheProviderHitCount      = $warmCacheProviderHitCount
+        WarmCacheProviderHitCountRaw   = $warmCacheProviderHitCountRaw
         WarmCacheProviderMissCount     = $warmCacheProviderMissCount
+        WarmCacheProviderMissCountRaw  = $warmCacheProviderMissCountRaw
         WarmCacheHitRatioPercent       = $warmCacheHitRatioPercent
+        WarmCacheHitRatioPercentRaw    = $warmCacheHitRatioPercentRaw
         WarmSignatureMatchMissCount    = $warmSignatureMatchMissCount
         WarmSignatureRewriteTotal      = $warmSignatureRewriteTotal
-        WarmProviderCounts             = $normalizedWarmProviderCounts
+        WarmProviderCounts             = $warmProviderCounts
+        WarmProviderCountsRaw          = $normalizedWarmProviderCounts
         WarmInterfaceMetrics           = $warmMetrics
         ColdInterfaceMetrics           = $coldMetrics
-        ColdProviderCounts             = $normalizedColdProviderCounts
+        ColdProviderCounts             = $coldProviderCounts
+        ColdProviderCountsRaw          = $normalizedColdProviderCounts
     }
 
     $results += $comparisonSummary
@@ -2243,7 +2337,7 @@ if ($OutputPath) {
     if ($directory -and -not (Test-Path -LiteralPath $directory)) {
         New-Item -ItemType Directory -Path $directory -Force | Out-Null
     }
-    $exportPayload = $results | Select-Object PassLabel,SummaryType,Site,Hostname,Timestamp,CacheStatus,Provider,SiteCacheProviderReason,HydrationDurationMs,SnapshotDurationMs,HostMapDurationMs,HostCount,TotalRows,HostMapSignatureMatchCount,HostMapSignatureRewriteCount,HostMapCandidateMissingCount,HostMapCandidateFromPrevious,PreviousHostCount,PreviousSnapshotStatus,PreviousSnapshotHostMapType,EntryCount,RestoredCount,SourceStage,ColdHostCount,WarmHostCount,ColdInterfaceCallAvgMs,ColdInterfaceCallP95Ms,ColdInterfaceCallMaxMs,WarmInterfaceCallAvgMs,WarmInterfaceCallP95Ms,WarmInterfaceCallMaxMs,ImprovementAverageMs,ImprovementPercent,WarmCacheProviderHitCount,WarmCacheProviderMissCount,WarmCacheHitRatioPercent,WarmSignatureMatchMissCount,WarmSignatureRewriteTotal,WarmProviderCounts,ColdProviderCounts,ScriptCacheCount,ScriptCacheSites,DomainCacheCount,DomainCacheSites
+    $exportPayload = $results | Select-Object PassLabel,SummaryType,Site,Hostname,Timestamp,CacheStatus,Provider,SiteCacheProviderReason,HydrationDurationMs,SnapshotDurationMs,HostMapDurationMs,HostCount,TotalRows,HostMapSignatureMatchCount,HostMapSignatureRewriteCount,HostMapCandidateMissingCount,HostMapCandidateFromPrevious,PreviousHostCount,PreviousSnapshotStatus,PreviousSnapshotHostMapType,EntryCount,RestoredCount,SourceStage,ColdHostCount,WarmHostCount,ColdInterfaceCallAvgMs,ColdInterfaceCallP95Ms,ColdInterfaceCallMaxMs,WarmInterfaceCallAvgMs,WarmInterfaceCallP95Ms,WarmInterfaceCallMaxMs,ImprovementAverageMs,ImprovementPercent,WarmCacheProviderHitCount,WarmCacheProviderHitCountRaw,WarmCacheProviderMissCount,WarmCacheProviderMissCountRaw,WarmCacheHitRatioPercent,WarmCacheHitRatioPercentRaw,WarmSignatureMatchMissCount,WarmSignatureRewriteTotal,WarmProviderCounts,WarmProviderCountsRaw,ColdProviderCounts,ColdProviderCountsRaw,ScriptCacheCount,ScriptCacheSites,DomainCacheCount,DomainCacheSites
     $json = $exportPayload | ConvertTo-Json -Depth 6
     [System.IO.File]::WriteAllText($OutputPath, $json)
     Write-Host "Warm-run telemetry summary exported to $OutputPath" -ForegroundColor Green
