@@ -45,6 +45,7 @@ Completed plans are moved to docs/completed/ with a completion summary and date.
 - `Tools/Invoke-SharedCacheWarmup.ps1` primes the shared cache by calling the pipeline with `-ShowSharedCacheSummary`, then validates coverage using `Test-SharedCacheSummaryCoverage`; pass `-RequiredSites`, `-MinimumSiteCount`, `-MinimumHostCount`, or `-MinimumTotalRowCount` to enforce policy before pushing snapshots to verification. Coverage results are written to `SharedCacheCoverage-latest.json` (and archived by the scheduled verification harness).
 - Inspect cached snapshot contents at any time with `Tools/Inspect-SharedCacheSnapshot.ps1` (use `-ShowPorts` for per-host detail or `-All` to review historical exports).
 - Generate synthetic logs for missing hosts with `Tools/Expand-MockLogCorpus.ps1`; point `-SourceMetricsPath` at an existing telemetry file (for example `Logs\IngestionMetrics\2025-11-06.json`) and pass `-Force` to overwrite any prior synthetic log. The script clones template logs per site prefix so you can quickly seed WLLS/BOYO coverage for shared-cache warmups without waiting on new captures.
+- Use `Tools/Analyze-WarmRunDiffHotspots.ps1 -TelemetryPath Logs\IngestionMetrics\<warm run>.json -Top 20` to rank hosts by `DiffComparisonDurationMs`, including their providers, reasons, and `LoadExistingRowSetCount`; add `-OutputPath` to dump the table for incident reports.
 
 
 
