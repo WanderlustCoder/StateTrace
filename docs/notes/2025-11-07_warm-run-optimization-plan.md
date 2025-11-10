@@ -27,3 +27,9 @@
 
 ## 2025-11-08 Updates
 - ParserPersistence now records `DiffComparisonDurationMs` (total time spent comparing incoming vs. existing rows) and `LoadExistingRowSetCount` (rows pulled from Access/site cache) inside each `InterfaceSyncTiming` event. `Tools/DeviceLogParser` forwards both fields into `DatabaseWriteBreakdown`, so warm-run telemetry can rank the heaviest diff/hydration hosts before we prototype the keyed existing-row cache.
+
+## 2025-11-09 Run Summary
+- `Tools/Invoke-WarmRunTelemetry.ps1 -ResetExtractedLogs -ColdHistorySeed Empty -WarmHistorySeed ColdOutput -RefreshSiteCaches -AssertWarmCache:$false -OutputPath Logs/IngestionMetrics/WarmRunTelemetry-20251108-run3.json`
+  - Cold vs. warm averages: `ColdInterfaceCallAvgMs=850.19 ms`, `WarmInterfaceCallAvgMs=851.64 ms` (`-0.17%` improvement, effectively flat).
+  - Weighted cache hits stay high (`WarmCacheHitRatioPercent=90.54%`) because the shared snapshot serves every host, but `WarmCacheHitRatioPercentRaw=0%` since `SkipSiteCacheUpdate` prevents per-host DatabaseWriteBreakdown hits.
+  - `DiffComparisonDurationMs` and `LoadExistingRowSetCount` now populate the per-host records; next action is to mine those values for the WLLS tail and prototype the keyed existing-row cache (or temporarily re-enable site-cache updates during the cold pass) so the raw DB hit ratio becomes meaningful again.
