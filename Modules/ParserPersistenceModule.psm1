@@ -59,8 +59,19 @@ if (-not (Get-Variable -Name SkipSiteCacheUpdate -Scope Script -ErrorAction Sile
     $script:SkipSiteCacheUpdate = $false
 }
 
+if (-not (Get-Variable -Name SiteExistingRowCache -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:SiteExistingRowCache = @{}
+}
+
 if (-not (Get-Variable -Name SpanTablesEnsured -Scope Script -ErrorAction SilentlyContinue)) {
     $script:SpanTablesEnsured = $false
+}
+
+function Clear-SiteExistingRowCache {
+    [CmdletBinding()]
+    param()
+
+    $script:SiteExistingRowCache = @{}
 }
 
 function Set-ParserSkipSiteCacheUpdate {
@@ -72,6 +83,7 @@ function Set-ParserSkipSiteCacheUpdate {
 
     if ($Reset) {
         $script:SkipSiteCacheUpdate = $false
+        Clear-SiteExistingRowCache
     } else {
         $script:SkipSiteCacheUpdate = [bool]$Skip
     }
@@ -586,10 +598,9 @@ function Update-InterfacesInDb {
 
     $script:LastInterfaceSyncTelemetry = $null
 
-$loadExistingDurationMs = 0.0
-$loadExistingRowSetCount = 0
-$diffDurationMs = 0.0
-$diffComparisonDurationMs = 0.0
+    $loadExistingDurationMs = 0.0
+    $loadExistingRowSetCount = 0
+    $diffDurationMs = 0.0
     $diffComparisonDurationMs = 0.0
     $deleteDurationMs = 0.0
     $fallbackDurationMs = 0.0
@@ -616,7 +627,7 @@ $diffComparisonDurationMs = 0.0
 
     $skipSiteCacheUpdateSetting = (($SkipSiteCacheUpdate -eq $true) -or ($script:SkipSiteCacheUpdate -eq $true))
 
-    $existingRows = @{}
+    $existingRows = $null
     $normalizedHostname = ('' + $Hostname).Trim()
     $siteCodeValue = $SiteCode
     if (-not $siteCodeValue -and $Facts) {
@@ -639,6 +650,26 @@ $diffComparisonDurationMs = 0.0
                 $siteCodeValue = ('' + $siteCandidate).Trim()
             }
         } catch { }
+    }
+
+    $siteExistingCache = $null
+    $siteExistingCacheEnabled = $false
+    $siteExistingCacheHit = $false
+    if (-not [string]::IsNullOrWhiteSpace($siteCodeValue) -and ($skipSiteCacheUpdateSetting -or $script:SkipSiteCacheUpdate)) {
+        $siteExistingCacheEnabled = $true
+        if (-not $script:SiteExistingRowCache.ContainsKey($siteCodeValue)) {
+            $script:SiteExistingRowCache[$siteCodeValue] = @{}
+        }
+        $siteExistingCache = $script:SiteExistingRowCache[$siteCodeValue]
+    }
+
+    if ($siteExistingCache -and $siteExistingCache.ContainsKey($normalizedHostname)) {
+        $existingRows = $siteExistingCache[$normalizedHostname]
+        if ($existingRows) {
+            $siteExistingCacheHit = $true
+            $loadCacheHit = $true
+            $siteCacheExistingRowSource = 'SiteExistingCache'
+        }
     }
 
     $loadCacheHit = $false
@@ -1536,7 +1567,10 @@ $siteCacheTemplateDurationMs = 0.0
     }
 
     $loadExistingStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-    if ($cachedHostEntry -is [System.Collections.IDictionary]) {
+    if ($existingRows -is [System.Collections.IDictionary] -and $existingRows.Count -gt 0) {
+        $cachedRowCount = $existingRows.Count
+    } elseif ($cachedHostEntry -is [System.Collections.IDictionary]) {
+        $existingRows = @{}
         foreach ($key in $cachedHostEntry.Keys) {
             $existingRows[$key] = $cachedHostEntry[$key]
         }
@@ -1555,6 +1589,9 @@ $siteCacheTemplateDurationMs = 0.0
         $existingRows = $queryResult.Rows
         $loadSignatureDurationMs += $queryResult.LoadSignatureDurationMs
         $cachedRowCount = if ($existingRows) { [int]$existingRows.Count } else { 0 }
+        if ($siteExistingCacheEnabled -and $existingRows -and -not $siteExistingCache.ContainsKey($normalizedHostname)) {
+            $siteExistingCache[$normalizedHostname] = $existingRows
+        }
         if ($siteCodeValue -and -not $skipSiteCacheUpdateSetting) {
             try { DeviceRepositoryModule\Set-InterfaceSiteCacheHost -Site $siteCodeValue -Hostname $normalizedHostname -RowsByPort $existingRows } catch { }
         }
@@ -1608,7 +1645,9 @@ $siteCacheTemplateDurationMs = 0.0
             if (-not [string]::IsNullOrEmpty($siteCacheExistingRowValueType)) { break }
         }
     }
-    if ($loadCacheHit -and $loadCacheRefreshed) {
+    if ($siteExistingCacheHit) {
+        $siteCacheExistingRowSource = 'SiteExistingCache'
+    } elseif ($loadCacheHit -and $loadCacheRefreshed) {
         $siteCacheExistingRowSource = 'CacheRefresh'
     } elseif ($loadCacheHit) {
         $siteCacheExistingRowSource = 'CacheInitial'
