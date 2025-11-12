@@ -56,6 +56,7 @@ Completed plans are moved to docs/completed/ with a completion summary and date.
 - Generate synthetic logs for missing hosts with `Tools/Expand-MockLogCorpus.ps1`; point `-SourceMetricsPath` at an existing telemetry file (for example `Logs\IngestionMetrics\2025-11-06.json`) and pass `-Force` to overwrite any prior synthetic log. The script clones template logs per site prefix so you can quickly seed WLLS/BOYO coverage for shared-cache warmups without waiting on new captures.
 - Use `Tools/Analyze-WarmRunDiffHotspots.ps1 -TelemetryPath Logs\IngestionMetrics\<warm run>.json -Top 20` to rank hosts by `DiffComparisonDurationMs`, including their providers, reasons, and `LoadExistingRowSetCount`; add `-OutputPath` to dump the table for incident reports.
 - `pwsh Tools/Invoke-DailyMetricRollup.ps1 -Days 1 -IncludePerSite -IncludeSiteCache` wraps the rollup script and writes a timestamped `IngestionMetricsSummary-<timestamp>.csv` so daily telemetry snapshots can be generated (and scheduled) without manually composing filters.
+- `pwsh -STA -File Tools/Invoke-SpanViewSmokeTest.ps1 -Hostname <host> -PassThru` drives the SPAN view headlessly, runs `Get-SpanInfo`, and returns a snapshot (rows, VLANs, samples) so you can validate the UI even when the main window is unavailable; pair it with `Get-SpanViewSnapshot` for on-screen checks.
 - Telemetry success criteria per plan now live in **[telemetry/Automation_Gates.md](telemetry/Automation_Gates.md)**; update the relevant plan/task whenever those thresholds change.
 
 

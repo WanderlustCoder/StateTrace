@@ -11,12 +11,13 @@ Expand the UI feature set (guided workflows, SPAN visualisations, template helpe
 ## Active work
 | ID | Title | Owner | Status | Notes |
 |----|-------|-------|--------|-------|
-| ST-D-002 | SPAN view investigation follow-up | UI | In Progress | Convert notes from `docs/notes/2025-11-07_span-view-investigation.md` into actionable UI tasks and tests. |
+| _None_ | – | – | – | Add entries here as new UI initiatives surface. |
 
 ## Recently delivered
 | ID | Date | Summary | Evidence |
 |----|------|---------|----------|
-| ST-D-001 | 2025-11-12 | Refreshed the incremental-loading documentation: Operators runbook now includes explicit telemetry capture instructions (PortBatchReady, InterfaceSyncTiming, DatabaseWriteLatency) and Codex Runbook contains an “Incremental loading verification” entry. | `docs/StateTrace_Operators_Runbook.md`, `docs/CODEX_RUNBOOK.md`, task board row ST-D-001. |
+| ST-D-001 | 2025-11-12 | Refreshed the incremental-loading documentation: Operators runbook now includes explicit telemetry capture instructions (PortBatchReady, InterfaceSyncTiming, DatabaseWriteLatency) and Codex Runbook contains an "Incremental loading verification" entry. | `docs/StateTrace_Operators_Runbook.md`, `docs/CODEX_RUNBOOK.md`, task board row ST-D-001. |
+| ST-D-002 | 2025-11-12 | Captured the SPAN-view smoke workflow (README + Codex Runbook now point to `Tools/Invoke-SpanViewSmokeTest.ps1` / `Get-SpanViewSnapshot`) so UI automation can validate the investigation changes without manual context. | `docs/README.md`, `docs/CODEX_RUNBOOK.md`, task board row ST-D-002. |
 
 ## Recent timeline (migrated highlights)
 | Date (MT) | Summary | Evidence / Metrics | Source |

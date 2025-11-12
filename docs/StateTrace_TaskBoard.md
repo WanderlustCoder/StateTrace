@@ -8,7 +8,7 @@
 | ST-B-001 | Investigate WLLS snapshot/materialize regression | In Progress (WIP 1/2) | Ingestion/Performance | Focused cold pass + warm regression proving cache adoption and reduced `SiteCacheFetchDurationMs`. | docs/plans/PlanB_Performance.md |
 | ST-B-002 | Trial reduced auto-scale ceilings post-batching | Ready | Ingestion | Benchmark run with capped `MaxWorkersPerSite`/`MaxActiveSites`; update Plan B snapshots and recommend ceiling policy. | docs/plans/PlanB_Performance.md |
 | ST-A-001 | Verify InterfaceSync timing completeness | Ready | Ingestion/Routing | Dispatcher harness + pipeline replay confirming 37 `InterfaceSyncTiming` events and queue latency <120 ms. | docs/plans/PlanA_RoutingReliability.md |
-| ST-D-002 | SPAN view investigation follow-up | In Progress (WIP 2/2) | UI | Convert 2025-11-07 SPAN investigation notes into actionable UI fixes/tests. | docs/plans/PlanD_FeatureExpansion.md |
+| ST-D-002 | SPAN view investigation follow-up | Done - 2025-11-12 | UI | README + Codex Runbook now document the SPAN smoke harness (`Tools/Invoke-SpanViewSmokeTest.ps1`, `Get-SpanViewSnapshot`) so the investigation is repeatable. | docs/plans/PlanD_FeatureExpansion.md |
 | ST-D-001 | Document incremental loading UX metrics | Done - 2025-11-12 | Docs | Operators runbook + Codex runbook refreshed with telemetry capture guidance for incremental loading validation. | docs/plans/PlanD_FeatureExpansion.md |
 | ST-E-002 | Automate metric rollup schedule | Done - 2025-11-12 | Telemetry | Added Tools/Invoke-DailyMetricRollup.ps1 plus README/runbook guidance so daily CSV summaries are one command away. | docs/plans/PlanE_Telemetry.md |
 
