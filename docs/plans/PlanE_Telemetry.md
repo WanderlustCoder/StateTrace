@@ -9,10 +9,13 @@ Capture, roll up, and verify the telemetry needed for operations (Phase 1 dictio
 - Warm-run verification now enforces cache improvement thresholds (shared with Plan B).
 
 ## Active work
-| ID | Title | Owner | Status | Notes |
-|----|-------|-------|--------|-------|
-| ST-E-001 | Publish automation gates for each plan | Telemetry | In Progress | New `docs/telemetry/Automation_Gates.md` captures the thresholds referenced across plans/tasks. |
-| ST-E-002 | Automate metric rollup schedule | Ops | Backlog | Create scheduled task calling `Tools/Rollup-IngestionMetrics.ps1 -MetricsDirectory Logs/IngestionMetrics -IncludePerSite`. |
+_No active tasks at the moment._ Add new entries here when fresh telemetry or automation initiatives spin up.
+
+## Recently delivered
+| ID | Date | Summary | Evidence |
+|----|------|---------|----------|
+| ST-E-001 | 2025-11-06 | Published `docs/telemetry/Automation_Gates.md` and linked every plan/task to the shared telemetry thresholds. | `docs/telemetry/Automation_Gates.md`, plan updates, task board entries. |
+| ST-E-002 | 2025-11-12 | Added `Tools/Invoke-DailyMetricRollup.ps1`, updated README + Codex Runbook so daily ingestion summaries can be generated (and scheduled) with one command. | `Tools/Invoke-DailyMetricRollup.ps1`, `docs/README.md`, `docs/CODEX_RUNBOOK.md`. |
 
 ## Automation hooks
 - `Tools/Rollup-IngestionMetrics.ps1 -MetricsDirectory Logs/IngestionMetrics -OutputPath Logs/IngestionMetrics/IngestionMetricsSummary.csv [-IncludePerSite -IncludeSiteCache]`.

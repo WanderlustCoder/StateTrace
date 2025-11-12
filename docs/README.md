@@ -4,7 +4,8 @@ This index provides a high-level map of the active planning and process document
 
 ## Planning & Strategy
 
-- **[StateTrace Consolidated Plans](StateTrace_Consolidated_Plans.md)** - master dossier covering Plan A (Routing Reliability), Plan B (Performance and Ingestion Scale), Plan C (Change Tracking), Plan D (Feature Expansion and Guided Troubleshooting), Plan E (Telemetry and Launch Metrics), Plan F (Security, Identity and Online Mode), and Plan G (Release and Governance).
+- **[Plan Index (Plans A–G)](plans/PlanIndex.md)** - authoritative objectives, owners, and telemetry hooks for each pillar.
+- **[StateTrace Consolidated Plans](StateTrace_Consolidated_Plans.md)** - archival log of investigation notes; update after recording the structured summary under `docs/plans/`.
 - **[Diff Model Prototype](StateTrace_DiffModel_Prototype.md)** - proof-of-concept for change tracking data structures and access patterns.
 - **[Feature and Functions Catalogue](StateTrace_Functions_Features.md)** - catalogue of current and proposed UI and workflow capabilities.
 - **[Routing Data Architecture](StateTrace_Routing_DataArchitecture.md)** - schemas, diagrams, and integration points for routing telemetry.
@@ -17,6 +18,7 @@ This index provides a high-level map of the active planning and process document
 - **[Release Guide](Release.md)** - packaging and versioning instructions and smoke test requirements.
 - **[Security Guidelines](Security.md)** - data-handling rules, redaction policy, and retention expectations.
 - **[Architecture Decision Records](adr/)** - authoritative decisions (data store, UI platform, compiled components).
+- **[UI Smoke Checklist](UI_Smoke_Checklist.md)** - step-by-step verification of the WPF shell (Summary, Interfaces, SPAN, Templates, Alerts, Compare, Help).
 
 ## Using AI Agents
 
@@ -26,6 +28,13 @@ This index provides a high-level map of the active planning and process document
 - **[Agent PR Checklist](agents/Agent_PR_Checklist.md)** - what every agent-generated PR must include.
 - **[Agent Session Template](agents/Agent_Session_Template.md)** - a lightweight template for logging what the agent did and why.
 - **[Core Ideas](Core_Ideas.md)** - quick reference to the project pillars mirrored from `AGENTS.md` for use in plans and reviews.
+- **[Codex Autonomy Plan](CODEX_AUTONOMY_PLAN.md)** - defines autonomy levels, guardrails, and reporting requirements.
+- **[Codex Operations Guide](CODEX_OPERATIONS_GUIDE.md)** - end-to-end instruction set for Codex sessions (select work, plan, execute, validate, document).
+- **[Codex Session Checklist](CODEX_SESSION_CHECKLIST.md)** - checkbox flow covering pre-flight, execution, validation, and handoff steps.
+- **[Codex Quick Start](CODEX_QUICK_START.md)** - three-step TL;DR (pick & plan, execute & validate, document & hand off).
+- **[Codex Instruction Stack](CODEX_INSTRUCTION_STACK.md)** - shows which doc to use at every stage (guardrails, planning, execution, wrap-up).
+- **[Codex Runbook](CODEX_RUNBOOK.md)** - command/validation matrix for automation tasks.
+- **[Codex Backlog](CODEX_BACKLOG.md)** - automation-ready queue aligned with the task board.
 
 ## Historical & Completed Work
 
@@ -46,6 +55,8 @@ Completed plans are moved to docs/completed/ with a completion summary and date.
 - Inspect cached snapshot contents at any time with `Tools/Inspect-SharedCacheSnapshot.ps1` (use `-ShowPorts` for per-host detail or `-All` to review historical exports).
 - Generate synthetic logs for missing hosts with `Tools/Expand-MockLogCorpus.ps1`; point `-SourceMetricsPath` at an existing telemetry file (for example `Logs\IngestionMetrics\2025-11-06.json`) and pass `-Force` to overwrite any prior synthetic log. The script clones template logs per site prefix so you can quickly seed WLLS/BOYO coverage for shared-cache warmups without waiting on new captures.
 - Use `Tools/Analyze-WarmRunDiffHotspots.ps1 -TelemetryPath Logs\IngestionMetrics\<warm run>.json -Top 20` to rank hosts by `DiffComparisonDurationMs`, including their providers, reasons, and `LoadExistingRowSetCount`; add `-OutputPath` to dump the table for incident reports.
+- `pwsh Tools/Invoke-DailyMetricRollup.ps1 -Days 1 -IncludePerSite -IncludeSiteCache` wraps the rollup script and writes a timestamped `IngestionMetricsSummary-<timestamp>.csv` so daily telemetry snapshots can be generated (and scheduled) without manually composing filters.
+- Telemetry success criteria per plan now live in **[telemetry/Automation_Gates.md](telemetry/Automation_Gates.md)**; update the relevant plan/task whenever those thresholds change.
 
 
 
