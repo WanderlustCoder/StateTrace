@@ -22,6 +22,27 @@ This runbook explains how the refreshed incremental-loading workflow surfaces de
 5. After the UI finishes, inspect `Logs/IngestionMetrics/<date>.json`:
    - `PortBatchReady` entries list `Hostname`, `PortsCommitted`, and `EstimatedBatchCount` per device.
    - `InterfaceSyncTiming` shows `BulkStageDurationMs`, `DiffDurationMs`, and `LoadExistingDurationMs` so you can correlate backend timings with the UI experience.
+   - Capture these readings using the steps in **Telemetry capture & logging** below so every run records the evidence needed for Plan B/Plan D gates.
+
+## Telemetry capture & logging
+Once the incremental run completes, collect the telemetry snapshot and record it in your session log/plan update.
+
+```pwsh
+$logPath = 'Logs\IngestionMetrics\<date>.json'   # replace with the run you just completed
+$telemetry = Get-Content -Raw $logPath | ConvertFrom-Json
+$portBatchReady = $telemetry | Where-Object { $_.EventName -eq 'PortBatchReady' }
+$interfaceSync = $telemetry | Where-Object { $_.EventName -eq 'InterfaceSyncTiming' }
+$dbLatency = $telemetry | Where-Object { $_.EventName -eq 'DatabaseWriteBreakdown' }
+```
+
+| Signal | Command / Where to check | Target / Notes |
+|--------|-------------------------|----------------|
+| `PortBatchReady` count + sample | `$portBatchReady.Count` and `$portBatchReady | Select Hostname, PortsCommitted, EstimatedBatchCount` | Expect one entry per processed host (37 for BOYO/WLLS). Record the total count and at least one sample host in your plan/session log. |
+| Incremental telemetry fields | `$interfaceSync | Select Hostname, BulkStageDurationMs, DiffDurationMs, LoadExistingDurationMs` | Bulk stage should stay near 60 ms (p95 < 120 ms); `LoadExistingDurationMs` should remain < 500 ms. Note any hosts exceeding those numbers. |
+| Database write latency | `$dbLatency | Measure-Object -Property DatabaseWriteLatencyMs -Maximum -Average` | Plan B gate: p95 < 950 ms for cold passes. Capture the average/p95 so future runs can compare. |
+| Snapshot status | `$interfaceSync | Group-Object SiteCacheProvider` | Confirm `SiteCacheProvider` values are `Cache`/`SharedCache`; any `ADODB` entries require follow-up. |
+
+Store the telemetry path (`$logPath`) and the summarized numbers in your session log and in the Plan D timeline entry. These values support the automation gates listed in `docs/telemetry/Automation_Gates.md`.
 
 ## Warm-run Cache Reuse Validation (Optional)
 1. Stay in the same PowerShell session that completed Step 1 (or start a new one and keep it open), then execute the preserved-session warm-run harness:  

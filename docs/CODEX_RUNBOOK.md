@@ -1,2 +1,33 @@
-# Codex Runbook — Install, Run, Test
-[Full content truncated for brevity in this summary]
+# Codex Runbook – Install, Run, Test
+
+This runbook maps common automation tasks to the exact commands, required inputs, telemetry captures, and follow-up docs. Use it alongside `docs/CODEX_AUTONOMY_PLAN.md` and the per-plan files.
+
+## Command matrix
+| Task | Commands | Notes | Telemetry / evidence |
+|------|----------|-------|----------------------|
+| Full test suite | `Invoke-Pester Modules/Tests` | Run before every commit; capture summary. | Paste final Pester line into session log. |
+| Cold ingestion pass | `Tools\Invoke-StateTracePipeline.ps1 -SkipTests -VerboseParsing -ResetExtractedLogs` | Run from repo root; restores shared cache snapshots. | Attach `Logs/IngestionMetrics/<date>.json` snippet (ParseDuration, DatabaseWriteLatency, InterfaceSiteCacheMetrics). |
+| Cold + warm regression | `Tools\Invoke-StateTracePipeline.ps1 -SkipTests -VerboseParsing -RunWarmRunRegression` *or* `Tools\Invoke-WarmRunRegression.ps1 -VerboseParsing` | Include overrides when experimenting; reset afterwards. | WarmRunTelemetry JSON + improvement summary recorded in plan/task board. |
+| Autoscale profile inspection | `Import-Module .\Modules\ParserRunspaceModule.psm1; Get-AutoScaleConcurrencyProfile -DeviceFiles <paths>` | Use when tuning overrides; log resolved ceilings. | Screenshot or text snippet of resolved profile + overrides. |
+| Metrics rollup | `Tools\Rollup-IngestionMetrics.ps1 -MetricsDirectory Logs/IngestionMetrics -OutputPath Logs/IngestionMetrics/IngestionMetricsSummary.csv -IncludePerSite -IncludeSiteCache` | Run when telemetry changes; commit updated CSV if policy allows. | Mention output path + date in plan/task update. |
+| Shared cache warmup | `Tools\Invoke-SharedCacheWarmup.ps1 -ShowSharedCacheSummary -RequiredSites BOYO,WLLS` | Prepares snapshots before verification. | Attach `SharedCacheSnapshot-*-summary.json` stats. |
+| Analyze diff hotspots | `Tools\Analyze-WarmRunDiffHotspots.ps1 -TelemetryPath Logs\IngestionMetrics\<warm run>.json -Top 20` | Useful for Plan B + C investigations. | Link exported table or paste top offenders. |
+| Incremental loading verification | `Tools\Invoke-StateTracePipeline.ps1 -SkipTests -VerboseParsing -ResetExtractedLogs` then follow `docs/StateTrace_Operators_Runbook.md` (Interfaces view + telemetry capture). | Confirms streaming UI stays responsive and that `PortBatchReady`/`InterfaceSyncTiming` metrics hit the documented targets. | Record `Logs/IngestionMetrics/<date>.json` path, PortBatchReady count, InterfaceSyncTiming durations, and UI observations in session log/plan update. |
+| UI smoke test | Follow `docs/UI_Smoke_Checklist.md` (launch `Main/MainWindow.ps1`, exercise each tab, optional span harness). | Note any view regressions plus span snapshot output. | Checklist completion logged in session notes + plan/task entry. |
+| Session wrap | `docs/CODEX_SESSION_CHECKLIST.md` + CLI summary | Use at the end of every run to ensure plan/backlog/task board/session log updates are complete. | CLI summary references plan/backlog IDs + telemetry artifacts. |
+
+## Validation checklist
+1. **Commands executed** – capture the exact command (with parameters) per task.
+2. **Telemetry saved** – drop JSON/CSV outputs under `Logs/` (already ignored) and reference them in docs.
+3. **Docs updated** – edit the relevant plan file, task board entry, and backlog row.
+4. **Session logged** – add/update `docs/agents/sessions/<date>_session-XXXX.md`.
+
+## Environment setup
+- PowerShell 5.x (already available in the repo’s target environment).
+- Optional online dev mode requires `STATETRACE_AGENT_ALLOW_NET=1` and `STATETRACE_AGENT_ALLOW_INSTALL=1`, plus logging via `Tools/NetworkGuard.psm1::Invoke-AllowedDownload`.
+
+## Troubleshooting
+- If `Invoke-StateTracePipeline.ps1` fails due to history corruption, clear `Data/IngestionHistory/*.json` (back them up first) and rerun.
+- For Access contention, rerun with reduced concurrency overrides (`-ThreadCeilingOverride 1 -MaxWorkersPerSiteOverride 1`) and log the difference in Plan B.
+
+Keep this runbook short and scriptable—extend the table rather than writing prose when you add new tasks.
