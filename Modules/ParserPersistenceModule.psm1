@@ -1,5 +1,58 @@
 Set-StrictMode -Version Latest
 
+if (-not ('StateTrace.Parser.SiteExistingRowCacheHolder' -as [type])) {
+    Add-Type -TypeDefinition @"
+using System;
+using System.Collections.Concurrent;
+
+namespace StateTrace.Parser
+{
+    public static class SiteExistingRowCacheHolder
+    {
+        private static readonly object SyncRoot = new object();
+        private static ConcurrentDictionary<string, object> _store = CreateStore();
+
+        private static ConcurrentDictionary<string, object> CreateStore()
+        {
+            return new ConcurrentDictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        public static ConcurrentDictionary<string, object> GetStore()
+        {
+            if (_store == null)
+            {
+                lock (SyncRoot)
+                {
+                    if (_store == null)
+                    {
+                        _store = CreateStore();
+                    }
+                }
+            }
+
+            return _store;
+        }
+
+        public static void SetStore(ConcurrentDictionary<string, object> store)
+        {
+            lock (SyncRoot)
+            {
+                _store = store ?? CreateStore();
+            }
+        }
+
+        public static void ClearStore()
+        {
+            lock (SyncRoot)
+            {
+                _store = CreateStore();
+            }
+        }
+    }
+}
+"@
+}
+
 # ADODB helper constants and utilities for parameterized operations
 if (-not (Get-Variable -Name AdCmdText -Scope Script -ErrorAction SilentlyContinue)) {
     $script:AdCmdText = 1
@@ -60,7 +113,21 @@ if (-not (Get-Variable -Name SkipSiteCacheUpdate -Scope Script -ErrorAction Sile
 }
 
 if (-not (Get-Variable -Name SiteExistingRowCache -Scope Script -ErrorAction SilentlyContinue)) {
-    $script:SiteExistingRowCache = @{}
+    try {
+        $script:SiteExistingRowCache = [StateTrace.Parser.SiteExistingRowCacheHolder]::GetStore()
+    } catch {
+        $script:SiteExistingRowCache = [System.Collections.Concurrent.ConcurrentDictionary[string, object]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    }
+}
+
+if ($script:SiteExistingRowCache -isnot [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
+    $script:SiteExistingRowCache = [System.Collections.Concurrent.ConcurrentDictionary[string, object]]::new([System.StringComparer]::OrdinalIgnoreCase)
+}
+
+try { [StateTrace.Parser.SiteExistingRowCacheHolder]::SetStore($script:SiteExistingRowCache) } catch { }
+
+if (-not (Get-Variable -Name SiteExistingRowCacheSnapshotLoaded -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:SiteExistingRowCacheSnapshotLoaded = $false
 }
 
 if (-not (Get-Variable -Name SpanTablesEnsured -Scope Script -ErrorAction SilentlyContinue)) {
@@ -71,7 +138,15 @@ function Clear-SiteExistingRowCache {
     [CmdletBinding()]
     param()
 
-    $script:SiteExistingRowCache = @{}
+    try {
+        [StateTrace.Parser.SiteExistingRowCacheHolder]::ClearStore()
+        $script:SiteExistingRowCache = [StateTrace.Parser.SiteExistingRowCacheHolder]::GetStore()
+    } catch {
+        $script:SiteExistingRowCache = [System.Collections.Concurrent.ConcurrentDictionary[string, object]]::new([System.StringComparer]::OrdinalIgnoreCase)
+        try { [StateTrace.Parser.SiteExistingRowCacheHolder]::SetStore($script:SiteExistingRowCache) } catch { }
+    }
+
+    $script:SiteExistingRowCacheSnapshotLoaded = $false
 }
 
 function Set-ParserSkipSiteCacheUpdate {
@@ -89,6 +164,352 @@ function Set-ParserSkipSiteCacheUpdate {
     }
 
     return $script:SkipSiteCacheUpdate
+}
+
+function New-SiteExistingRowCacheEntry {
+    $entries = [System.Collections.Concurrent.ConcurrentDictionary[string, object]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    $primedEntries = [System.Collections.Concurrent.ConcurrentDictionary[string, object]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    return [pscustomobject]@{
+        Entries       = $entries
+        PrimedEntries = $primedEntries
+        Hydrated      = $false
+        CachedAt      = $null
+        Source        = 'Unknown'
+    }
+}
+
+function Get-SiteExistingRowCacheEntry {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$SiteCode
+    )
+
+    if (-not $script:SiteExistingRowCache.ContainsKey($SiteCode)) {
+        $script:SiteExistingRowCache[$SiteCode] = New-SiteExistingRowCacheEntry
+    }
+
+    $entry = $script:SiteExistingRowCache[$SiteCode]
+    if ($entry -and -not ($entry.PSObject.Properties.Name -contains 'Entries')) {
+        $entry | Add-Member -MemberType NoteProperty -Name 'Entries' -Value ([System.Collections.Concurrent.ConcurrentDictionary[string, object]]::new([System.StringComparer]::OrdinalIgnoreCase)) -Force
+    }
+    if ($entry -and -not ($entry.PSObject.Properties.Name -contains 'PrimedEntries')) {
+        $entry | Add-Member -MemberType NoteProperty -Name 'PrimedEntries' -Value ([System.Collections.Concurrent.ConcurrentDictionary[string, object]]::new([System.StringComparer]::OrdinalIgnoreCase)) -Force
+    }
+
+    return $entry
+}
+
+function Normalize-SiteExistingRowCacheHostEntry {
+    param(
+        $Entry
+    )
+
+    if (-not $Entry) {
+        return [pscustomobject]@{
+            Rows                    = [System.Collections.Concurrent.ConcurrentDictionary[string, object]]::new([System.StringComparer]::OrdinalIgnoreCase)
+            LoadSignatureDurationMs = 0.0
+        }
+    }
+
+    if ($Entry -isnot [psobject]) {
+        return Normalize-SiteExistingRowCacheHostEntry -Entry ([pscustomobject]$Entry)
+    }
+
+    if (-not ($Entry.PSObject.Properties.Name -contains 'Rows')) {
+        $Entry | Add-Member -MemberType NoteProperty -Name 'Rows' -Value ([System.Collections.Concurrent.ConcurrentDictionary[string, object]]::new([System.StringComparer]::OrdinalIgnoreCase)) -Force
+    } elseif ($Entry.Rows -isnot [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
+        $newRows = [System.Collections.Concurrent.ConcurrentDictionary[string, object]]::new([System.StringComparer]::OrdinalIgnoreCase)
+        if ($Entry.Rows -is [System.Collections.IDictionary]) {
+            foreach ($key in $Entry.Rows.Keys) { $newRows[$key] = $Entry.Rows[$key] }
+        } elseif ($Entry.Rows -is [System.Collections.IEnumerable]) {
+            foreach ($item in $Entry.Rows) {
+                if ($null -eq $item) { continue }
+                $portKey = ''
+                try { $portKey = '' + $item.Port } catch { $portKey = '' }
+                if (-not [string]::IsNullOrWhiteSpace($portKey)) {
+                    $newRows[$portKey] = $item
+                }
+            }
+        }
+        $Entry.Rows = $newRows
+    }
+
+    if (-not ($Entry.PSObject.Properties.Name -contains 'LoadSignatureDurationMs')) {
+        $Entry | Add-Member -MemberType NoteProperty -Name 'LoadSignatureDurationMs' -Value 0.0 -Force
+    }
+
+    return $Entry
+}
+
+function Copy-SiteExistingRowCacheHostEntry {
+    param(
+        $Entry
+    )
+
+    if (-not $Entry) { return $null }
+
+    $normalized = Normalize-SiteExistingRowCacheHostEntry -Entry ($Entry.PSObject.Copy())
+    $copyRows = [System.Collections.Concurrent.ConcurrentDictionary[string, object]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    if ($normalized.Rows) {
+        foreach ($rowKey in $normalized.Rows.Keys) {
+            $copyRows[$rowKey] = $normalized.Rows[$rowKey]
+        }
+    }
+    $normalized.Rows = $copyRows
+    return $normalized
+}
+
+function Get-SiteExistingRowCacheHostRowCount {
+    [CmdletBinding()]
+    param(
+        [object]$HostEntry
+    )
+
+    if (-not $HostEntry) { return 0 }
+    if (-not ($HostEntry.PSObject.Properties.Name -contains 'Rows')) { return 0 }
+
+    $rows = $HostEntry.Rows
+    if (-not $rows) { return 0 }
+
+    try {
+        if ($rows -is [System.Collections.ICollection]) {
+            return [int]$rows.Count
+        } elseif ($rows -is [System.Collections.IDictionary]) {
+            return [int]$rows.Count
+        } elseif ($rows.PSObject.Properties.Name -contains 'Count') {
+            return [int]$rows.Count
+        } elseif ($rows -is [System.Collections.IEnumerable]) {
+            $counter = 0
+            foreach ($item in $rows) { $counter++ }
+            return $counter
+        }
+    } catch {
+        return 0
+    }
+    return 0
+}
+
+function Import-SiteExistingRowCachePrimedHosts {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][psobject]$SiteEntry
+    )
+
+    if (-not $SiteEntry -or -not ($SiteEntry.PSObject.Properties.Name -contains 'PrimedEntries')) { return }
+    $primedEntries = $SiteEntry.PrimedEntries
+    if (-not $primedEntries) { return }
+
+    $entries = $SiteEntry.Entries
+    if (-not $entries) {
+        $entries = [System.Collections.Concurrent.ConcurrentDictionary[string, object]]::new([System.StringComparer]::OrdinalIgnoreCase)
+        $SiteEntry.Entries = $entries
+    }
+
+    foreach ($host in $primedEntries.Keys) {
+        if ($entries.ContainsKey($host)) { continue }
+        $entries[$host] = Normalize-SiteExistingRowCacheHostEntry -Entry (Copy-SiteExistingRowCacheHostEntry -Entry $primedEntries[$host])
+    }
+}
+
+function Import-SiteExistingRowCacheHostFromPrimedData {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][psobject]$SiteEntry,
+        [Parameter(Mandatory)][string]$Hostname
+    )
+
+    if (-not $SiteEntry -or -not ($SiteEntry.PSObject.Properties.Name -contains 'PrimedEntries')) { return $null }
+    $primedEntries = $SiteEntry.PrimedEntries
+    if (-not $primedEntries -or -not $primedEntries.ContainsKey($Hostname)) { return $null }
+
+    $hostEntry = Normalize-SiteExistingRowCacheHostEntry -Entry (Copy-SiteExistingRowCacheHostEntry -Entry $primedEntries[$Hostname])
+    if (-not $SiteEntry.Entries) {
+        $SiteEntry.Entries = [System.Collections.Concurrent.ConcurrentDictionary[string, object]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    }
+    $SiteEntry.Entries[$Hostname] = $hostEntry
+    return $hostEntry
+}
+
+function Get-SiteExistingRowCacheSnapshot {
+    [CmdletBinding()]
+    param()
+
+    $snapshot = New-Object 'System.Collections.Generic.List[object]'
+    if (-not $script:SiteExistingRowCache) { return ,$snapshot }
+
+    foreach ($siteKey in $script:SiteExistingRowCache.Keys) {
+        $siteEntry = $script:SiteExistingRowCache[$siteKey]
+        if (-not $siteEntry) { continue }
+
+        $entries = $null
+        if ($siteEntry.PSObject.Properties.Name -contains 'Entries') {
+            $entries = $siteEntry.Entries
+        }
+        if ((-not $entries -or $entries.Count -eq 0) -and $siteEntry.PSObject.Properties.Name -contains 'PrimedEntries') {
+            $entries = $siteEntry.PrimedEntries
+        }
+        if (-not $entries -or $entries.Count -eq 0) { continue }
+
+        foreach ($hostKey in $entries.Keys) {
+            $hostEntry = Normalize-SiteExistingRowCacheHostEntry -Entry $entries[$hostKey]
+            if (-not $hostEntry -or -not $hostEntry.Rows) { continue }
+
+            $rowsCopy = @{}
+            try {
+                foreach ($rowKey in $hostEntry.Rows.Keys) {
+                    $rowsCopy[$rowKey] = $hostEntry.Rows[$rowKey]
+                }
+            } catch {
+                $rowsCopy = @{}
+            }
+
+            $snapshot.Add([pscustomobject]@{
+                    Site     = $siteKey
+                    Hostname = $hostKey
+                    Rows     = $rowsCopy
+                }) | Out-Null
+        }
+    }
+
+    return ,$snapshot
+}
+
+function Set-SiteExistingRowCacheSnapshot {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][System.Collections.IEnumerable]$Snapshot
+    )
+
+    Clear-SiteExistingRowCache
+    if (-not $Snapshot) { return }
+
+    foreach ($item in $Snapshot) {
+        if (-not $item) { continue }
+        $siteCode = '' + $item.Site
+        $hostname = '' + $item.Hostname
+        if ([string]::IsNullOrWhiteSpace($siteCode) -or [string]::IsNullOrWhiteSpace($hostname)) { continue }
+
+        $normalizedSiteCode = $siteCode.Trim()
+        $normalizedHostname = $hostname.Trim()
+        if ([string]::IsNullOrWhiteSpace($normalizedSiteCode) -or [string]::IsNullOrWhiteSpace($normalizedHostname)) { continue }
+
+        $siteEntry = Get-SiteExistingRowCacheEntry -SiteCode $normalizedSiteCode
+        $siteEntryEntries = $siteEntry.Entries
+        if (-not $siteEntryEntries) { continue }
+
+        $hostRowsDictionary = [System.Collections.Concurrent.ConcurrentDictionary[string, object]]::new([System.StringComparer]::OrdinalIgnoreCase)
+        if ($item.Rows -is [System.Collections.IDictionary]) {
+            foreach ($rowKey in $item.Rows.Keys) {
+                $hostRowsDictionary[$rowKey] = $item.Rows[$rowKey]
+            }
+        }
+
+        $hostSnapshot = [pscustomobject]@{
+            Rows                    = $hostRowsDictionary
+            LoadSignatureDurationMs = 0.0
+            Hydrated                = $true
+            CachedAt                = [DateTime]::UtcNow
+            Source                  = 'Snapshot'
+        }
+
+        $siteEntryEntries[$normalizedHostname] = $hostSnapshot
+        if ($siteEntry.PSObject.Properties.Name -contains 'PrimedEntries') {
+            $siteEntry.PrimedEntries[$normalizedHostname] = Copy-SiteExistingRowCacheHostEntry -Entry $hostSnapshot
+        }
+        try { $siteEntry.Hydrated = $true } catch { }
+        try { $siteEntry.Source = 'Snapshot' } catch { }
+        try { $siteEntry.CachedAt = [DateTime]::UtcNow } catch { }
+    }
+
+    $script:SiteExistingRowCacheSnapshotLoaded = $true
+}
+
+function Import-SiteExistingRowCacheSnapshotFromEnv {
+    [CmdletBinding()]
+    param(
+        [switch]$Force
+    )
+
+    if (-not $Force -and $script:SiteExistingRowCacheSnapshotLoaded) { return }
+    if ($Force) { $script:SiteExistingRowCacheSnapshotLoaded = $false }
+
+    $path = $null
+    try {
+        if ($env:STATETRACE_SITE_EXISTING_ROW_CACHE_SNAPSHOT) {
+            $path = '' + $env:STATETRACE_SITE_EXISTING_ROW_CACHE_SNAPSHOT
+        }
+    } catch {
+        $path = $null
+    }
+    if ([string]::IsNullOrWhiteSpace($path)) { return }
+    if (-not (Test-Path -LiteralPath $path)) { return }
+
+    try {
+        $snapshot = Import-Clixml -Path $path
+        if ($snapshot -and ($snapshot -isnot [System.Collections.IEnumerable] -or ($snapshot -is [string]))) {
+            $snapshot = @($snapshot)
+        }
+        if ($snapshot -and ($snapshot | Measure-Object).Count -gt 0) {
+            Set-SiteExistingRowCacheSnapshot -Snapshot $snapshot
+            $script:SiteExistingRowCacheSnapshotLoaded = $true
+        }
+    } catch {
+        Write-Warning ("Failed to import site existing row cache snapshot '{0}': {1}" -f $path, $_.Exception.Message)
+    }
+}
+
+function Write-SiteExistingRowCacheTelemetry {
+    [CmdletBinding()]
+    param(
+        [string]$Site,
+        [string]$Hostname,
+        [bool]$CacheEnabled,
+        [System.Collections.Concurrent.ConcurrentDictionary[string, object]]$Entries,
+        [object]$HostEntry,
+        [bool]$CacheHit,
+        [bool]$SkipSetting,
+        [string[]]$SkipSources,
+        [string]$ExistingRowSource,
+        [bool]$LoadCacheHit,
+        [bool]$LoadCacheMiss,
+        [bool]$LoadCacheRefreshed
+    )
+
+    $hostEntryRows = Get-SiteExistingRowCacheHostRowCount -HostEntry $HostEntry
+    $payload = @{
+        Site                = $Site
+        Hostname            = $Hostname
+        CacheEnabled        = [bool]$CacheEnabled
+        SiteHostEntryCount  = if ($Entries) { $Entries.Count } else { 0 }
+        HostEntryExists     = [bool]$HostEntry
+        HostEntryRowCount   = $hostEntryRows
+        CacheHit            = [bool]$CacheHit
+        SkipSiteCacheUpdate = [bool]$SkipSetting
+        SkipSources         = if ($SkipSources) { @($SkipSources) } else { @() }
+        ExistingRowSource   = if ($ExistingRowSource) { $ExistingRowSource } else { 'Unknown' }
+        LoadCacheHit        = [bool]$LoadCacheHit
+        LoadCacheMiss       = [bool]$LoadCacheMiss
+        LoadCacheRefreshed  = [bool]$LoadCacheRefreshed
+    }
+
+    if ($Entries -and $Entries.Count -gt 0) {
+        try {
+            $hostSamples = New-Object 'System.Collections.Generic.List[string]'
+            foreach ($entryKeyCandidate in $Entries.Keys) {
+                if ($hostSamples.Count -ge 5) { break }
+                if ($null -eq $entryKeyCandidate) { continue }
+                try { $hostSamples.Add(('' + $entryKeyCandidate)) | Out-Null } catch { }
+            }
+            if ($hostSamples.Count -gt 0) {
+                $payload['SiteHostEntriesSample'] = $hostSamples.ToArray()
+            }
+        } catch { }
+    }
+
+    try {
+        TelemetryModule\Write-StTelemetryEvent -Name 'SiteExistingRowCacheState' -Payload $payload
+    } catch { }
 }
 
 function Get-InterfaceSignatureFromValues {
@@ -625,7 +1046,34 @@ function Update-InterfacesInDb {
 
     Ensure-InterfaceTableIndexes -Connection $Connection
 
-    $skipSiteCacheUpdateSetting = (($SkipSiteCacheUpdate -eq $true) -or ($script:SkipSiteCacheUpdate -eq $true))
+    Import-SiteExistingRowCacheSnapshotFromEnv
+
+    $skipSiteCacheUpdateFromParameter = ($SkipSiteCacheUpdate -eq $true)
+    $skipSiteCacheUpdateFromScript = ($script:SkipSiteCacheUpdate -eq $true)
+    $skipSiteCacheUpdateFromEnvironment = $false
+    $skipSiteCacheUpdateFlag = $skipSiteCacheUpdateFromScript
+    try {
+        $envSkipValue = [string]::Empty
+        if ($env:STATETRACE_SKIP_SITECACHE_UPDATE) {
+            $envSkipValue = '' + $env:STATETRACE_SKIP_SITECACHE_UPDATE
+        }
+        if (-not [string]::IsNullOrWhiteSpace($envSkipValue)) {
+            $envSkipEnabled = $false
+            if ([string]::Equals($envSkipValue, '1', [System.StringComparison]::OrdinalIgnoreCase)) {
+                $envSkipEnabled = $true
+            } else {
+                $parsedEnvSkip = $false
+                if ([bool]::TryParse($envSkipValue, [ref]$parsedEnvSkip) -and $parsedEnvSkip) {
+                    $envSkipEnabled = $true
+                }
+            }
+            if ($envSkipEnabled) {
+                $skipSiteCacheUpdateFromEnvironment = $true
+                $skipSiteCacheUpdateFlag = $true
+            }
+        }
+    } catch { }
+    $skipSiteCacheUpdateSetting = ($skipSiteCacheUpdateFromParameter -or $skipSiteCacheUpdateFlag -or $skipSiteCacheUpdateFromEnvironment)
 
     $existingRows = $null
     $normalizedHostname = ('' + $Hostname).Trim()
@@ -652,23 +1100,59 @@ function Update-InterfacesInDb {
         } catch { }
     }
 
-    $siteExistingCache = $null
+    $siteExistingCacheEntry = $null
+    $siteExistingCacheEntries = $null
+    $siteExistingCacheHostEntry = $null
     $siteExistingCacheEnabled = $false
     $siteExistingCacheHit = $false
-    if (-not [string]::IsNullOrWhiteSpace($siteCodeValue) -and ($skipSiteCacheUpdateSetting -or $script:SkipSiteCacheUpdate)) {
+    $siteExistingCacheHostEntryRowCount = 0
+    if (-not [string]::IsNullOrWhiteSpace($siteCodeValue) -and $skipSiteCacheUpdateSetting) {
         $siteExistingCacheEnabled = $true
-        if (-not $script:SiteExistingRowCache.ContainsKey($siteCodeValue)) {
-            $script:SiteExistingRowCache[$siteCodeValue] = @{}
+        try {
+            $siteExistingCacheEntry = Get-SiteExistingRowCacheEntry -SiteCode $siteCodeValue
+        } catch {
+            $siteExistingCacheEntry = $null
         }
-        $siteExistingCache = $script:SiteExistingRowCache[$siteCodeValue]
+        if ($siteExistingCacheEntry) {
+            try { Import-SiteExistingRowCachePrimedHosts -SiteEntry $siteExistingCacheEntry | Out-Null } catch { }
+            if ($siteExistingCacheEntry.PSObject.Properties.Name -contains 'Entries') {
+                $siteExistingCacheEntries = $siteExistingCacheEntry.Entries
+            }
+        }
     }
 
-    if ($siteExistingCache -and $siteExistingCache.ContainsKey($normalizedHostname)) {
-        $existingRows = $siteExistingCache[$normalizedHostname]
-        if ($existingRows) {
-            $siteExistingCacheHit = $true
-            $loadCacheHit = $true
-            $siteCacheExistingRowSource = 'SiteExistingCache'
+    if ($siteExistingCacheEnabled -and -not $siteExistingCacheEntry) {
+        try {
+            Import-SiteExistingRowCacheSnapshotFromEnv -Force
+            $siteExistingCacheEntry = Get-SiteExistingRowCacheEntry -SiteCode $siteCodeValue
+            if ($siteExistingCacheEntry -and $siteExistingCacheEntry.PSObject.Properties.Name -contains 'Entries') {
+                $siteExistingCacheEntries = $siteExistingCacheEntry.Entries
+            }
+            if ($siteExistingCacheEntry) {
+                try { Import-SiteExistingRowCachePrimedHosts -SiteEntry $siteExistingCacheEntry | Out-Null } catch { }
+            }
+        } catch { }
+    }
+
+    if ($siteExistingCacheEntries -and $siteExistingCacheEntries.ContainsKey($normalizedHostname)) {
+        $siteExistingCacheHostEntry = Normalize-SiteExistingRowCacheHostEntry -Entry $siteExistingCacheEntries[$normalizedHostname]
+        $siteExistingCacheEntries[$normalizedHostname] = $siteExistingCacheHostEntry
+    } elseif ($siteExistingCacheEntry) {
+        try { $siteExistingCacheHostEntry = Import-SiteExistingRowCacheHostFromPrimedData -SiteEntry $siteExistingCacheEntry -Hostname $normalizedHostname } catch { $siteExistingCacheHostEntry = $null }
+        if (-not $siteExistingCacheHostEntry -and $siteExistingCacheEnabled -and $siteExistingCacheEntries -and $siteExistingCacheEntries.Count -eq 0) {
+            try {
+                Import-SiteExistingRowCacheSnapshotFromEnv -Force
+                $siteExistingCacheEntry = Get-SiteExistingRowCacheEntry -SiteCode $siteCodeValue
+                if ($siteExistingCacheEntry -and $siteExistingCacheEntry.PSObject.Properties.Name -contains 'Entries') {
+                    $siteExistingCacheEntries = $siteExistingCacheEntry.Entries
+                }
+                if ($siteExistingCacheEntries -and $siteExistingCacheEntries.ContainsKey($normalizedHostname)) {
+                    $siteExistingCacheHostEntry = Normalize-SiteExistingRowCacheHostEntry -Entry $siteExistingCacheEntries[$normalizedHostname]
+                    $siteExistingCacheEntries[$normalizedHostname] = $siteExistingCacheHostEntry
+                } else {
+                    try { $siteExistingCacheHostEntry = Import-SiteExistingRowCacheHostFromPrimedData -SiteEntry $siteExistingCacheEntry -Hostname $normalizedHostname } catch { $siteExistingCacheHostEntry = $null }
+                }
+            } catch { }
         }
     }
 
@@ -786,6 +1270,17 @@ $siteCacheTemplateDurationMs = 0.0
     $siteCacheExistingRowKeysSample = ''
     $siteCacheExistingRowValueType = ''
     $siteCacheExistingRowSource = 'Unknown'
+
+    $siteExistingCacheHostEntryRowCount = Get-SiteExistingRowCacheHostRowCount -HostEntry $siteExistingCacheHostEntry
+    if ($siteExistingCacheHostEntryRowCount -gt 0) {
+        $siteExistingCacheHit = $true
+    }
+
+    if ($siteExistingCacheHit -and $siteExistingCacheHostEntry -and $siteExistingCacheHostEntry.Rows -and $siteExistingCacheHostEntryRowCount -gt 0 -and -not $existingRows) {
+        $existingRows = $siteExistingCacheHostEntry.Rows
+        $loadCacheHit = $true
+        $siteCacheExistingRowSource = 'SiteExistingCache'
+    }
 
     $siteCacheEntry = $null
     $cachedHostEntry = $null
@@ -1234,6 +1729,13 @@ $siteCacheTemplateDurationMs = 0.0
         }
     }
 
+    if ($cachedHostEntry -and $siteCacheHitSource -eq 'Shared') {
+        $loadCacheHit = $true
+        if ([string]::IsNullOrWhiteSpace($siteCacheFetchStatus) -or $siteCacheFetchStatus -eq 'Disabled' -or $siteCacheFetchStatus -eq 'SkippedEmpty') {
+            $siteCacheFetchStatus = $sharedCacheHitStatus
+        }
+    }
+
     if ($siteCodeValue -and -not $skipSiteCacheHydration) {
         try {
             $lastSiteCacheMetrics = DeviceRepositoryModule\Get-LastInterfaceSiteCacheMetrics
@@ -1567,8 +2069,9 @@ $siteCacheTemplateDurationMs = 0.0
     }
 
     $loadExistingStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-    if ($existingRows -is [System.Collections.IDictionary] -and $existingRows.Count -gt 0) {
-        $cachedRowCount = $existingRows.Count
+    $existingRowsHasCollection = (($existingRows -is [System.Collections.IDictionary]) -or ($existingRows -is [System.Collections.ICollection]))
+    if ($existingRowsHasCollection -and $existingRows.Count -gt 0) {
+        $cachedRowCount = [int]$existingRows.Count
     } elseif ($cachedHostEntry -is [System.Collections.IDictionary]) {
         $existingRows = @{}
         foreach ($key in $cachedHostEntry.Keys) {
@@ -1589,8 +2092,32 @@ $siteCacheTemplateDurationMs = 0.0
         $existingRows = $queryResult.Rows
         $loadSignatureDurationMs += $queryResult.LoadSignatureDurationMs
         $cachedRowCount = if ($existingRows) { [int]$existingRows.Count } else { 0 }
-        if ($siteExistingCacheEnabled -and $existingRows -and -not $siteExistingCache.ContainsKey($normalizedHostname)) {
-            $siteExistingCache[$normalizedHostname] = $existingRows
+        if ($siteExistingCacheEnabled -and $existingRows -and $existingRows.Count -gt 0) {
+            if (-not $siteExistingCacheEntry) {
+                $siteExistingCacheEntry = Get-SiteExistingRowCacheEntry -SiteCode $siteCodeValue
+            }
+            if (-not $siteExistingCacheEntries -and $siteExistingCacheEntry) {
+                $siteExistingCacheEntries = $siteExistingCacheEntry.Entries
+            }
+            if (-not $siteExistingCacheEntries) {
+                $siteExistingCacheEntries = [System.Collections.Concurrent.ConcurrentDictionary[string, object]]::new([System.StringComparer]::OrdinalIgnoreCase)
+                if ($siteExistingCacheEntry) {
+                    $siteExistingCacheEntry.Entries = $siteExistingCacheEntries
+                }
+            }
+            if ($siteExistingCacheEntries) {
+                $siteExistingCacheHostEntry = Normalize-SiteExistingRowCacheHostEntry -Entry ([pscustomobject]@{
+                        Rows                    = $existingRows
+                        LoadSignatureDurationMs = $queryResult.LoadSignatureDurationMs
+                    })
+                try { $siteExistingCacheHostEntry.Hydrated = $true } catch { }
+                try { $siteExistingCacheHostEntry.CachedAt = [DateTime]::UtcNow } catch { }
+                try { $siteExistingCacheHostEntry.Source = 'DatabaseQuery' } catch { }
+                $siteExistingCacheEntries[$normalizedHostname] = $siteExistingCacheHostEntry
+                if ($siteExistingCacheEntry -and $siteExistingCacheEntry.PSObject.Properties.Name -contains 'PrimedEntries') {
+                    $siteExistingCacheEntry.PrimedEntries[$normalizedHostname] = Copy-SiteExistingRowCacheHostEntry -Entry $siteExistingCacheHostEntry
+                }
+            }
         }
         if ($siteCodeValue -and -not $skipSiteCacheUpdateSetting) {
             try { DeviceRepositoryModule\Set-InterfaceSiteCacheHost -Site $siteCodeValue -Hostname $normalizedHostname -RowsByPort $existingRows } catch { }
@@ -1655,6 +2182,28 @@ $siteCacheTemplateDurationMs = 0.0
         $siteCacheExistingRowSource = 'DatabaseQuery'
     } else {
         $siteCacheExistingRowSource = 'Unknown'
+    }
+
+
+    $skipSourcesList = New-Object 'System.Collections.Generic.List[string]'
+    if ($skipSiteCacheUpdateFromParameter) { [void]$skipSourcesList.Add('Parameter') }
+    if ($skipSiteCacheUpdateFromScript)    { [void]$skipSourcesList.Add('Module') }
+    if ($skipSiteCacheUpdateFromEnvironment) { [void]$skipSourcesList.Add('Environment') }
+
+    if ($siteExistingCacheEnabled) {
+        Write-SiteExistingRowCacheTelemetry `
+            -Site $siteCodeValue `
+            -Hostname $normalizedHostname `
+            -CacheEnabled:$siteExistingCacheEnabled `
+            -Entries $siteExistingCacheEntries `
+            -HostEntry $siteExistingCacheHostEntry `
+            -CacheHit:$siteExistingCacheHit `
+            -SkipSetting:$skipSiteCacheUpdateSetting `
+            -SkipSources $skipSourcesList.ToArray() `
+            -ExistingRowSource $siteCacheExistingRowSource `
+            -LoadCacheHit:$loadCacheHit `
+            -LoadCacheMiss:$loadCacheMiss `
+            -LoadCacheRefreshed:$loadCacheRefreshed
     }
 
     $toInsert = New-Object 'System.Collections.Generic.List[object]'
@@ -3824,4 +4373,4 @@ function Get-LastInterfaceSyncTelemetry {
     return $script:LastInterfaceSyncTelemetry
 }
 
-Export-ModuleMember -Function Update-DeviceSummaryInDb, Update-InterfacesInDb, Update-SpanInfoInDb, Write-InterfacePersistenceFailure, Get-LastInterfaceSyncTelemetry, Set-ParserSkipSiteCacheUpdate
+Export-ModuleMember -Function Update-DeviceSummaryInDb, Update-InterfacesInDb, Update-SpanInfoInDb, Write-InterfacePersistenceFailure, Get-LastInterfaceSyncTelemetry, Set-ParserSkipSiteCacheUpdate, Get-SiteExistingRowCacheSnapshot, Set-SiteExistingRowCacheSnapshot, Clear-SiteExistingRowCache, Import-SiteExistingRowCacheSnapshotFromEnv

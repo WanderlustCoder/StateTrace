@@ -18,6 +18,7 @@ Describe "ParserPersistenceModule" {
 
     }
 
+
     BeforeEach {
         try { DeviceRepositoryModule\Clear-SiteInterfaceCache } catch { }
         try { ParserPersistenceModule\Clear-SiteExistingRowCache } catch { }
@@ -210,7 +211,7 @@ Describe "ParserPersistenceModule" {
 
             param($Sql)
 
-            if ($Sql -like "SELECT Port,*FROM Interfaces*") {
+            if ($Sql -match '(?is)^\s*select\b.*\bfrom\s+interfaces\b') {
 
                 if ($script:recordsets.Count -gt 0) { return $script:recordsets.Dequeue() }
 
@@ -299,6 +300,7 @@ Describe "ParserPersistenceModule" {
 
         $recordsets.Enqueue((New-TestRecordset @([ordered]@{
 
+            Hostname = 'SW1'
             Port = '1/1'
 
             Name = 'Gi1/1'
@@ -343,7 +345,7 @@ Describe "ParserPersistenceModule" {
 
             param($Sql)
 
-            if ($Sql -like "SELECT Port,*FROM Interfaces*") {
+            if ($Sql -match '(?is)^\s*select\b.*\bfrom\s+interfaces\b') {
 
                 if ($script:recordsets.Count -gt 0) { return $script:recordsets.Dequeue() }
 
@@ -393,15 +395,16 @@ Describe "ParserPersistenceModule" {
 
                 }
 
-            )
+                )
 
             Make = 'Cisco'
+            SiteCode = 'WLLS'
 
         }
 
 
 
-        ParserPersistenceModule\Update-InterfacesInDb -Connection $connection -Facts $facts -Hostname 'SW1' -RunDateString '2025-09-28 12:05:00'
+        ParserPersistenceModule\Update-InterfacesInDb -Connection $connection -Facts $facts -Hostname 'SW1' -RunDateString '2025-09-28 12:05:00' -SkipSiteCacheUpdate $true
 
 
 
@@ -433,6 +436,7 @@ Describe "ParserPersistenceModule" {
 
         $recordsets.Enqueue((New-TestRecordset @([ordered]@{
 
+            Hostname = 'SW1'
             Port = '1/1'
 
             Name = 'Gi1/1'
@@ -477,7 +481,7 @@ Describe "ParserPersistenceModule" {
 
             param($Sql)
 
-            if ($Sql -like "SELECT Port,*FROM Interfaces*") {
+            if ($Sql -match '(?is)^\s*select\b.*\bfrom\s+interfaces\b') {
 
                 if ($script:recordsets.Count -gt 0) { return $script:recordsets.Dequeue() }
 
@@ -498,12 +502,13 @@ Describe "ParserPersistenceModule" {
             Interfaces = @()
 
             Make = 'Cisco'
+            SiteCode = 'WLLS'
 
         }
 
 
 
-        ParserPersistenceModule\Update-InterfacesInDb -Connection $connection -Facts $facts -Hostname 'SW1' -RunDateString '2025-09-28 12:10:00'
+        ParserPersistenceModule\Update-InterfacesInDb -Connection $connection -Facts $facts -Hostname 'SW1' -RunDateString '2025-09-28 12:10:00' -SkipSiteCacheUpdate $true
 
 
 
@@ -739,6 +744,7 @@ Describe "ParserPersistenceModule" {
     It "reuses site existing row cache when site cache updates are skipped" {
         $rows = @(
             @{
+                Hostname = 'WLLS-A01-AS-01'
                 Port = 'Gi1/0/1'
                 Name = 'Gi1/0/1'
                 Status = 'up'
@@ -761,8 +767,8 @@ Describe "ParserPersistenceModule" {
         try {
             $recordsets = New-Object "System.Collections.Generic.Queue[object]"
             $recordsets.Enqueue((New-TestRecordset $rows))
-            Mock -ModuleName ParserPersistenceModule DeviceRepositoryModule\Get-InterfaceSiteCache { $null }
-            Mock -ModuleName ParserPersistenceModule DeviceRepositoryModule\Get-SharedSiteInterfaceCacheEntry { $null }
+            Mock -ModuleName DeviceRepositoryModule Get-InterfaceSiteCache { $null }
+            Mock -ModuleName DeviceRepositoryModule Get-SharedSiteInterfaceCacheEntry { $null }
 
             $connection = New-Object PSObject
             Add-Member -InputObject $connection -MemberType ScriptMethod -Name Execute -Value {
@@ -795,6 +801,7 @@ Describe "ParserPersistenceModule" {
                     }
                 )
                 SiteCode = 'WLLS'
+                Make = 'Cisco'
             }
 
             ParserPersistenceModule\Update-InterfacesInDb -Connection $connection -Facts $facts -Hostname 'WLLS-A01-AS-01' -RunDateString '2025-11-08 10:00:00'
@@ -804,6 +811,370 @@ Describe "ParserPersistenceModule" {
             $recordsets.Count | Should Be 1
         } finally {
             ParserPersistenceModule\Set-ParserSkipSiteCacheUpdate -Reset | Out-Null
+        }
+    }
+
+    It "counts host rows for snapshot-derived entries" {
+        InModuleScope -ModuleName ParserPersistenceModule {
+            $hostEntry = [pscustomobject]@{
+                Rows = @{
+                    'Et1/1/1' = [pscustomobject]@{ Port = 'Et1/1/1'; Name = 'Et1/1/1'; Status = 'up' }
+                    'Et1/1/2' = [pscustomobject]@{ Port = 'Et1/1/2'; Name = 'Et1/1/2'; Status = 'up' }
+                }
+            }
+
+            Get-SiteExistingRowCacheHostRowCount -HostEntry $hostEntry | Should Be 2
+        }
+    }
+
+    It "reuses site existing row cache when STATETRACE_SKIP_SITECACHE_UPDATE is set" {
+        $rows = @(
+            @{
+                Hostname = 'WLLS-A01-AS-02'
+                Port = 'Gi1/0/2'
+                Name = 'Gi1/0/2'
+                Status = 'up'
+                VLAN = '20'
+                Duplex = 'full'
+                Speed = '1G'
+                Type = 'access'
+                LearnedMACs = '00aa.11bb.22cc'
+                AuthState = 'Authorized'
+                AuthMode = 'dot1x'
+                AuthClientMAC = '00aa.11bb.22cc'
+                AuthTemplate = 'default'
+                Config = 'desc bar'
+                PortColor = 'green'
+                ConfigStatus = 'active'
+                ToolTip = ''
+            }
+        )
+
+        $originalEnv = $env:STATETRACE_SKIP_SITECACHE_UPDATE
+        try {
+            $env:STATETRACE_SKIP_SITECACHE_UPDATE = '1'
+            ParserPersistenceModule\Set-ParserSkipSiteCacheUpdate -Reset | Out-Null
+
+            $recordsets = New-Object "System.Collections.Generic.Queue[object]"
+            $recordsets.Enqueue((New-TestRecordset $rows))
+            Mock -ModuleName DeviceRepositoryModule Get-InterfaceSiteCache { $null }
+            Mock -ModuleName DeviceRepositoryModule Get-SharedSiteInterfaceCacheEntry { $null }
+
+            $connection = New-Object PSObject
+            Add-Member -InputObject $connection -MemberType ScriptMethod -Name Execute -Value {
+                param($Sql)
+                if ($Sql -match '^(?i)\s*select\b' -and $recordsets.Count -gt 0) {
+                    return $recordsets.Dequeue()
+                }
+                return $null
+            }
+
+            $facts = [pscustomobject]@{
+                Interfaces = @(
+                    [pscustomobject]@{
+                        Port = 'Gi1/0/2'
+                        Name = 'Gi1/0/2'
+                        Status = 'up'
+                        VLAN = '20'
+                        Duplex = 'full'
+                        Speed = '1G'
+                        Type = 'access'
+                        LearnedMACsFull = '00aa.11bb.22cc'
+                        AuthState = 'Authorized'
+                        AuthMode = 'dot1x'
+                        AuthClient = '00aa.11bb.22cc'
+                        Template = 'default'
+                        Config = 'desc bar'
+                        PortColor = 'green'
+                        StatusTag = 'active'
+                        ToolTip = ''
+                    }
+                )
+                SiteCode = 'WLLS'
+                Make = 'Cisco'
+            }
+
+            ParserPersistenceModule\Update-InterfacesInDb -Connection $connection -Facts $facts -Hostname 'WLLS-A01-AS-02' -RunDateString '2025-11-08 11:00:00'
+            $recordsets.Count | Should Be 0
+            $recordsets.Enqueue((New-TestRecordset $rows))
+            ParserPersistenceModule\Update-InterfacesInDb -Connection $connection -Facts $facts -Hostname 'WLLS-A01-AS-02' -RunDateString '2025-11-08 11:05:00'
+            $recordsets.Count | Should Be 1
+        } finally {
+            if ($null -eq $originalEnv) {
+                Remove-Item Env:STATETRACE_SKIP_SITECACHE_UPDATE -ErrorAction SilentlyContinue
+            } else {
+                $env:STATETRACE_SKIP_SITECACHE_UPDATE = $originalEnv
+            }
+            ParserPersistenceModule\Set-ParserSkipSiteCacheUpdate -Reset | Out-Null
+        }
+    }
+
+    It "reports shared cache provider when skip site cache update reuses shared entry" {
+        $site = 'WLLS'
+        $hostname = 'WLLS-A01-AS-03'
+        ParserPersistenceModule\Set-ParserSkipSiteCacheUpdate -Skip $true | Out-Null
+        $deviceRepoModule = $null
+        try {
+            $deviceRepoModule = Get-Module DeviceRepositoryModule -ErrorAction Stop
+            DeviceRepositoryModule\Clear-SiteInterfaceCache
+            $sharedEntry = [pscustomobject]@{
+                HostMap = @{
+                    $hostname = @{
+                        'Gi1/0/1' = [StateTrace.Models.InterfaceCacheEntry]::new()
+                    }
+                }
+                TotalRows = 1
+                HostCount = 1
+                CacheStatus = 'SharedOnly'
+            }
+            $sharedEntry.HostMap[$hostname]['Gi1/0/1'].Name = 'Gi1/0/1'
+            $sharedEntry.HostMap[$hostname]['Gi1/0/1'].Status = 'up'
+            $sharedEntry.HostMap[$hostname]['Gi1/0/1'].VLAN = '10'
+            $sharedEntry.HostMap[$hostname]['Gi1/0/1'].Signature = 'shared-sig'
+            $sharedEntry.HostMap[$hostname]['Gi1/0/1'].PortSort = '01-GI-00001-00000-00000-00000-00000'
+
+            $deviceRepoModule.Invoke({ param($siteKeyParam, $entryParam) Set-SharedSiteInterfaceCacheEntry -SiteKey $siteKeyParam -Entry $entryParam }, $site, $sharedEntry) | Out-Null
+
+            $connection = New-Object PSObject
+            Add-Member -InputObject $connection -MemberType ScriptMethod -Name Execute -Value { param($Sql) return $null }
+
+            $facts = [pscustomobject]@{
+                Interfaces = @()
+                SiteCode   = $site
+                Make       = 'Cisco'
+            }
+
+            ParserPersistenceModule\Update-InterfacesInDb -Connection $connection -Facts $facts -Hostname $hostname -RunDateString '2025-11-12 12:00:00' -SkipSiteCacheUpdate $true
+            $telemetry = InModuleScope -ModuleName ParserPersistenceModule { Get-LastInterfaceSyncTelemetry }
+            $telemetry | Should Not BeNullOrEmpty
+            $telemetry.LoadCacheHit | Should Be $true
+            $telemetry.SiteCacheFetchStatus | Should Be 'SharedOnly'
+        } finally {
+            ParserPersistenceModule\Set-ParserSkipSiteCacheUpdate -Reset | Out-Null
+            if ($deviceRepoModule) {
+                $deviceRepoModule.Invoke({ param($siteKeyParam) Set-SharedSiteInterfaceCacheEntry -SiteKey $siteKeyParam -Entry $null }, $site) | Out-Null
+            }
+        }
+    }
+
+    It "exports and imports site existing row cache snapshots" {
+        InModuleScope -ModuleName ParserPersistenceModule {
+            Clear-SiteExistingRowCache
+            $siteEntry = Get-SiteExistingRowCacheEntry -SiteCode 'WLLS'
+            $hostRows = [System.Collections.Concurrent.ConcurrentDictionary[string, object]]::new([System.StringComparer]::OrdinalIgnoreCase)
+            $hostRows['Gi1/0/1'] = [pscustomobject]@{
+                Port = 'Gi1/0/1'
+                Name = 'Gi1/0/1'
+                Status = 'up'
+            }
+            $siteEntry.Entries['WLLS-A01-AS-01'] = [pscustomobject]@{
+                Rows = $hostRows
+                LoadSignatureDurationMs = 0.0
+            }
+
+            $snapshot = Get-SiteExistingRowCacheSnapshot
+            ($snapshot | Measure-Object).Count | Should Be 1
+
+            Clear-SiteExistingRowCache
+            Set-SiteExistingRowCacheSnapshot -Snapshot $snapshot
+            $restored = Get-SiteExistingRowCacheEntry -SiteCode 'WLLS'
+            $restored.Entries.ContainsKey('WLLS-A01-AS-01') | Should Be $true
+            $restored.Entries['WLLS-A01-AS-01'].Rows.ContainsKey('Gi1/0/1') | Should Be $true
+        }
+    }
+
+    It "forces snapshot re-import when site existing row cache entries are empty" {
+        InModuleScope -ModuleName ParserPersistenceModule {
+            try {
+                Clear-SiteExistingRowCache
+                $snapshot = @(
+                    [pscustomobject]@{
+                        Site     = 'WLLS'
+                        Hostname = 'WLLS-A01-AS-01'
+                        Rows     = @{
+                            'Gi1/0/1' = [pscustomobject]@{
+                                Port = 'Gi1/0/1'
+                                Name = 'Gi1/0/1'
+                                Status = 'up'
+                            }
+                        }
+                    }
+                )
+                $snapshotPath = Join-Path $TestDrive 'SiteExistingRowCacheSnapshot-test.clixml'
+                $snapshot | Export-Clixml -Path $snapshotPath
+                $env:STATETRACE_SITE_EXISTING_ROW_CACHE_SNAPSHOT = $snapshotPath
+
+                Import-SiteExistingRowCacheSnapshotFromEnv
+                $entry = Get-SiteExistingRowCacheEntry -SiteCode 'WLLS'
+                $entry.Entries.Clear()
+                $entry.Entries.Count | Should Be 0
+
+                Import-SiteExistingRowCacheSnapshotFromEnv -Force
+                $entry = Get-SiteExistingRowCacheEntry -SiteCode 'WLLS'
+                $entry.Entries.ContainsKey('WLLS-A01-AS-01') | Should Be $true
+                $entry.Entries['WLLS-A01-AS-01'].Rows.ContainsKey('Gi1/0/1') | Should Be $true
+            } finally {
+                Remove-Item Env:STATETRACE_SITE_EXISTING_ROW_CACHE_SNAPSHOT -ErrorAction SilentlyContinue
+                Clear-SiteExistingRowCache
+            }
+        }
+    }
+
+    It "hydrates site existing row cache entries from snapshot primed data before querying Access" {
+        InModuleScope -ModuleName ParserPersistenceModule {
+            try {
+                Clear-SiteExistingRowCache
+                $hostRows = [System.Collections.Concurrent.ConcurrentDictionary[string, object]]::new([System.StringComparer]::OrdinalIgnoreCase)
+                $hostRows['Gi1/0/1'] = [pscustomobject]@{
+                    Port = 'Gi1/0/1'
+                    Name = 'Gi1/0/1'
+                    Status = 'up'
+                }
+                $snapshot = @(
+                    [pscustomobject]@{
+                        Site     = 'WLLS'
+                        Hostname = 'WLLS-A01-AS-01'
+                        Rows     = $hostRows
+                    }
+                )
+                Set-SiteExistingRowCacheSnapshot -Snapshot $snapshot
+                $siteEntry = Get-SiteExistingRowCacheEntry -SiteCode 'WLLS'
+                $siteEntry.Entries.Clear()
+                $siteEntry.PrimedEntries.Count | Should Be 1
+
+                $script:primedHydrationQueries = 0
+                $connection = New-Object PSObject
+                Add-Member -InputObject $connection -MemberType ScriptMethod -Name Execute -Value {
+                    param($Sql)
+                    if ($Sql -match '^(?i)\s*select\b') {
+                        $script:primedHydrationQueries++
+                    }
+                    return $null
+                }
+
+                ParserPersistenceModule\Set-ParserSkipSiteCacheUpdate -Skip $true | Out-Null
+                $facts = [pscustomobject]@{
+                    Interfaces = @()
+                    SiteCode   = 'WLLS'
+                }
+
+                ParserPersistenceModule\Update-InterfacesInDb -Connection $connection -Facts $facts -Hostname 'WLLS-A01-AS-01' -RunDateString '2025-11-08 13:00:00'
+                $script:primedHydrationQueries | Should Be 0
+                $siteEntry.Entries.ContainsKey('WLLS-A01-AS-01') | Should Be $true
+            } finally {
+                ParserPersistenceModule\Set-ParserSkipSiteCacheUpdate -Reset | Out-Null
+            }
+        }
+    }
+
+    It "shares the site existing row cache across parser workers when SkipSiteCacheUpdate is enabled" {
+        $rows = @(
+            @{
+                Hostname = 'WLLS-A01-AS-01'
+                Port = 'Gi1/0/1'
+                Name = 'Gi1/0/1'
+                Status = 'up'
+                VLAN = '10'
+                Duplex = 'full'
+                Speed = '1G'
+                Type = 'access'
+                LearnedMACs = ''
+                AuthState = ''
+                AuthMode = ''
+                AuthClientMAC = ''
+                AuthTemplate = ''
+                Config = ''
+                PortColor = ''
+                ConfigStatus = ''
+                ToolTip = ''
+            },
+            @{
+                Hostname = 'WLLS-A01-AS-02'
+                Port = 'Gi1/0/24'
+                Name = 'Gi1/0/24'
+                Status = 'down'
+                VLAN = '20'
+                Duplex = 'auto'
+                Speed = '1G'
+                Type = 'access'
+                LearnedMACs = ''
+                AuthState = ''
+                AuthMode = ''
+                AuthClientMAC = ''
+                AuthTemplate = ''
+                Config = ''
+                PortColor = ''
+                ConfigStatus = ''
+                ToolTip = ''
+            }
+        )
+
+        ParserPersistenceModule\Set-ParserSkipSiteCacheUpdate -Skip $true | Out-Null
+        try {
+            $recordsets = New-Object "System.Collections.Generic.Queue[object]"
+            $recordsets.Enqueue((New-TestRecordset $rows))
+            $script:seedSiteExistingCacheQueries = 0
+
+            $connectionSeed = New-Object PSObject
+            Add-Member -InputObject $connectionSeed -MemberType ScriptMethod -Name Execute -Value {
+                param($Sql)
+                if ($Sql -match '^(?i)\s*select\b' -and $recordsets.Count -gt 0) {
+                    $script:seedSiteExistingCacheQueries++
+                    return $recordsets.Dequeue()
+                }
+                return $null
+            }
+
+            $facts = [pscustomobject]@{
+                Interfaces = @(
+                    [pscustomobject]@{
+                        Port = 'Gi1/0/1'
+                        Name = 'Gi1/0/1'
+                        Status = 'up'
+                        VLAN = '10'
+                        Duplex = 'full'
+                        Speed = '1G'
+                        Type = 'access'
+                        LearnedMACsFull = ''
+                        AuthState = ''
+                        AuthMode = ''
+                        AuthClient = ''
+                        Template = ''
+                        Config = ''
+                        PortColor = ''
+                        StatusTag = ''
+                        ToolTip = ''
+                    }
+                )
+                SiteCode = 'WLLS'
+                Make = 'Cisco'
+            }
+
+            ParserPersistenceModule\Update-InterfacesInDb -Connection $connectionSeed -Facts $facts -Hostname 'WLLS-A01-AS-01' -RunDateString '2025-11-08 10:10:00'
+            $script:seedSiteExistingCacheQueries | Should Be 1
+            $recordsets.Count | Should Be 0
+
+            InModuleScope -ModuleName ParserPersistenceModule {
+                Remove-Variable -Name SiteExistingRowCache -Scope Script -ErrorAction SilentlyContinue
+                $script:SiteExistingRowCache = [StateTrace.Parser.SiteExistingRowCacheHolder]::GetStore()
+            }
+
+            $script:secondarySiteExistingCacheQueries = 0
+            $connectionNoQuery = New-Object PSObject
+            Add-Member -InputObject $connectionNoQuery -MemberType ScriptMethod -Name Execute -Value {
+                param($Sql)
+                if ($Sql -match '^(?i)\s*select\b') {
+                    $script:secondarySiteExistingCacheQueries++
+                }
+                return $null
+            }
+
+            ParserPersistenceModule\Update-InterfacesInDb -Connection $connectionNoQuery -Facts $facts -Hostname 'WLLS-A01-AS-01' -RunDateString '2025-11-08 10:15:00'
+            $script:secondarySiteExistingCacheQueries | Should Be 0
+        } finally {
+            ParserPersistenceModule\Set-ParserSkipSiteCacheUpdate -Reset | Out-Null
+            Remove-Variable -Name seedSiteExistingCacheQueries -Scope Script -ErrorAction SilentlyContinue
+            Remove-Variable -Name secondarySiteExistingCacheQueries -Scope Script -ErrorAction SilentlyContinue
         }
     }
 
@@ -1210,7 +1581,7 @@ Describe "ParserPersistenceModule" {
                 Get-ChildItem -LiteralPath $TestDrive -Filter '*.json' | Remove-Item -ErrorAction SilentlyContinue
 
                 Mock -ModuleName ParserPersistenceModule Ensure-InterfaceTableIndexes { }
-                Mock -ModuleName ParserPersistenceModule DeviceRepositoryModule\Get-SiteFromHostname { 'BOYO' }
+                Mock -ModuleName DeviceRepositoryModule Get-SiteFromHostname { 'BOYO' }
                 Mock -ModuleName ParserPersistenceModule Invoke-AdodbNonQuery { }
 
                 $connection = New-Object PSObject
