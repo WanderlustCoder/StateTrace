@@ -791,6 +791,26 @@ Describe "DeviceRepositoryModule core helpers" {
         $normalized.HostMap['SNAPSHOTNORMALIZE-A01-AS-01']['Gi1/0/1'] | Should BeOfType 'StateTrace.Models.InterfaceCacheEntry'
     }
 
+    It "computes PortSort when cached rows omit it" {
+        InModuleScope DeviceRepositoryModule {
+            if (-not (Get-Module -Name InterfaceModule -ErrorAction SilentlyContinue)) {
+                $interfaceModulePath = Join-Path $PSScriptRoot '..\InterfaceModule.psm1'
+                Import-Module -Name $interfaceModulePath -Force
+            }
+
+            $portName = 'GigabitEthernet1/0/42'
+            $converted = ConvertTo-InterfaceCacheEntryObject -InputObject ([pscustomobject]@{
+                    Name      = $portName
+                    Status    = 'up'
+                    VLAN      = '42'
+                    Signature = 'sig-port42'
+                })
+
+            $converted | Should Not BeNullOrEmpty
+            $converted.PortSort | Should Be (InterfaceModule\Get-PortSortKey -Port $portName)
+        }
+    }
+
     It "restores shared cache entries with populated host maps from snapshot data" {
         $siteKey = 'SNAPSHOTRESTORE'
         $hostKey = 'SNAPSHOTRESTORE-A01-AS-01'

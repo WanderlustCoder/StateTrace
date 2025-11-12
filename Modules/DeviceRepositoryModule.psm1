@@ -1877,6 +1877,23 @@ function ConvertTo-InterfaceCacheEntryObject {
     $templateValue = & $toString (& $getRawValue $InputObject @('Template', 'AuthTemplate'))
     $configValue = & $toString (& $getRawValue $InputObject @('Config'))
     $portSortValue = & $toString (& $getRawValue $InputObject @('PortSort'))
+    if ([string]::IsNullOrWhiteSpace($portSortValue)) {
+        $portSortValue = '99-UNK-99999-99999-99999-99999-99999'
+        if (-not [string]::IsNullOrWhiteSpace($nameValue)) {
+            $getPortSortCommand = $null
+            try { $getPortSortCommand = Get-Command -Name 'InterfaceModule\Get-PortSortKey' -ErrorAction SilentlyContinue } catch { $getPortSortCommand = $null }
+            if ($getPortSortCommand) {
+                try {
+                    $computedPortSort = InterfaceModule\Get-PortSortKey -Port $nameValue
+                    if (-not [string]::IsNullOrWhiteSpace($computedPortSort)) {
+                        $portSortValue = $computedPortSort
+                    }
+                } catch {
+                    # fall back to the default PortSort placeholder when the computation fails
+                }
+            }
+        }
+    }
     $portColorValue = & $toString (& $getRawValue $InputObject @('PortColor'))
     $statusTagValue = & $toString (& $getRawValue $InputObject @('StatusTag', 'ConfigStatus'))
     $toolTipValue = & $toString (& $getRawValue $InputObject @('ToolTip'))
