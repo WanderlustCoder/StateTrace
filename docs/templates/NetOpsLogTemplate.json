@@ -1,0 +1,29 @@
+{
+  "Timestamp": "2025-11-13T14:22:31.482Z",
+  "SessionId": "2025-11-13_session-0003",
+  "TaskBoardIds": [
+    "ST-F-001",
+    "ST-F-007"
+  ],
+  "PlanReferences": [
+    "PlanF_SecurityIdentity"
+  ],
+  "Action": "Invoke-AllowedDownload",
+  "Cmdlet": "Tools/NetworkGuard.psm1::Invoke-AllowedDownload",
+  "Arguments": {
+    "Uri": "https://example.cdn/vendor/tool.zip",
+    "OutPath": "Downloads/tool.zip",
+    "HashSha256": "cdb7f6135f4ed672a34da8158a3a2f0047eb5a8be23e94d65e9d9b9f4d0e5a6a",
+    "Reason": "PlanF - sanitize helper update"
+  },
+  "Environment": {
+    "STATETRACE_AGENT_ALLOW_NET": 1,
+    "STATETRACE_AGENT_ALLOW_INSTALL": 1
+  },
+  "Result": {
+    "Status": "Success",
+    "DurationMs": 4123,
+    "OutputPath": "Downloads/tool.zip"
+  },
+  "Notes": "Referenced in docs/plans/PlanF_SecurityIdentity.md timeline (ST-F-001). Reset STATETRACE_AGENT_ALLOW_* to 0 after completion."
+}
