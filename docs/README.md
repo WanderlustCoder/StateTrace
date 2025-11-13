@@ -19,6 +19,7 @@ This index provides a high-level map of the active planning and process document
 - **[Security Guidelines](Security.md)** - data-handling rules, redaction policy, and retention expectations.
 - **[Architecture Decision Records](adr/)** - authoritative decisions (data store, UI platform, compiled components).
 - **[UI Smoke Checklist](UI_Smoke_Checklist.md)** - step-by-step verification of the WPF shell (Summary, Interfaces, SPAN, Templates, Alerts, Compare, Help).
+- **[Schedule Daily Rollup Runbook](runbooks/Schedule_Daily_Rollup.md)** - instructions for registering the Windows Task Scheduler job that runs Tools/Invoke-DailyMetricRollup.ps1 (Plan E ST-E-003).
 
 ## Using AI Agents
 
@@ -62,6 +63,7 @@ Completed plans are moved to docs/completed/ with a completion summary and date.
 - `pwsh Tools/Invoke-DailyMetricRollup.ps1 -Days 1 -IncludePerSite -IncludeSiteCache` wraps the rollup script and writes a timestamped `IngestionMetricsSummary-<timestamp>.csv` so daily telemetry snapshots can be generated (and scheduled) without manually composing filters.
 - `pwsh -STA -File Tools/Invoke-SpanViewSmokeTest.ps1 -Hostname <host> -PassThru` drives the SPAN view headlessly, runs `Get-SpanInfo`, and returns a snapshot (rows, VLANs, samples) so you can validate the UI even when the main window is unavailable; pair it with `Get-SpanViewSnapshot` for on-screen checks.
 - Telemetry success criteria per plan now live in **[telemetry/Automation_Gates.md](telemetry/Automation_Gates.md)**; update the relevant plan/task whenever those thresholds change.
+
 
 
 

@@ -30,6 +30,7 @@ Capture, roll up, and verify the telemetry needed for operations (Phase 1 dictio
 ## Automation hooks
 - `Tools\Invoke-DailyMetricRollup.ps1 -Days 1 -IncludePerSite -IncludeSiteCache [-OutputPath Logs\IngestionMetrics\IngestionMetricsSummary-<timestamp>.csv]` to generate timestamped daily summaries (useful for automation or Task Scheduler).
 - `Tools\Rollup-IngestionMetrics.ps1 -MetricsDirectory Logs\IngestionMetrics -OutputPath Logs\IngestionMetrics\IngestionMetricsSummary.csv [-IncludePerSite -IncludeSiteCache -Start <date> -End <date>]` for ad-hoc or multi-day investigations.
+- `Tools\Schedule-DailyRollupTask.ps1 -TaskName StateTraceDailyRollup -StartTime 02:00 [-MetricsDirectory <path> -OutputDirectory <path>]` to register (or preview via `-DryRun`) a Windows scheduled task that runs the daily rollup harness (see `docs/runbooks/Schedule_Daily_Rollup.md`).
 - `pwsh -NoLogo -Command "Invoke-Pester Modules/Tests/RollupIngestionMetrics.Tests.ps1"` after modifying telemetry schemas or rollup scripts to ensure coverage stays green.
 - `pwsh Tools\Analyze-SharedCacheStoreState.ps1 -Path Logs\IngestionMetrics\<file>.json -IncludeSiteBreakdown` (optional) so cache-related telemetry captured for Plan B is also recorded here when Plan E publishes summaries.
 - `pwsh Tools\Analyze-WarmRunDiffHotspots.ps1 -TelemetryPath Logs\IngestionMetrics\WarmRunTelemetry-<run>.json -Top 20` when consuming preserved warm-run data for dashboards, ensuring the diff metrics referenced in Phase 1 dictionary are populated.
@@ -56,8 +57,13 @@ Capture, roll up, and verify the telemetry needed for operations (Phase 1 dictio
 - Telemetry specs + gates: `docs/telemetry/Phase1_metrics.md`, `docs/telemetry/Automation_Gates.md`.
 - Automation references: `docs/CODEX_RUNBOOK.md`, `docs/CODEX_PLAN_AUTOMATION_MATRIX.md`, `docs/agents/sessions/2025-11-12_session-0002.md`.
 - Scripts/tests: `Tools/Rollup-IngestionMetrics.ps1`, `Tools/Invoke-DailyMetricRollup.ps1`, `Modules/Tests/RollupIngestionMetrics.Tests.ps1`.
+- Runbook references: `docs/runbooks/Schedule_Daily_Rollup.md`.
 - Warm-run telemetry exports: `Logs/IngestionMetrics/WarmRunTelemetry-*.json`.
 - Shared-cache diagnostics & bundles: `docs/CODEX_SHARED_CACHE_DIAGNOSTICS.md`, `Logs/SharedCacheSnapshot/`, `Logs/ReleaseEvidence/` (once created).
+
+
+
+
 
 
 
