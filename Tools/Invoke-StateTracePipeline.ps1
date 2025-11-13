@@ -16,8 +16,13 @@ param(
     [string]$SharedCacheSnapshotExportPath,
     [switch]$DisableSharedCacheSnapshot,
     [string]$SharedCacheSnapshotDirectory,
-    [switch]$ShowSharedCacheSummary
+    [switch]$ShowSharedCacheSummary,
+    [switch]$RunSharedCacheDiagnostics,
+    [int]$SharedCacheDiagnosticsTopHosts = 10
 )
+
+$sharedCacheSnapshotEnvOriginal = $null
+$sharedCacheSnapshotEnvApplied = $false
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -26,6 +31,7 @@ $repositoryRoot = Split-Path -Path $PSScriptRoot -Parent
 $modulesPath = Join-Path -Path $repositoryRoot -ChildPath 'Modules'
 $testsPath = Join-Path -Path $modulesPath -ChildPath 'Tests'
 $parserWorkerModule = Join-Path -Path $modulesPath -ChildPath 'ParserWorker.psm1'
+$ingestionMetricsDirectory = Join-Path -Path $repositoryRoot -ChildPath 'Logs\IngestionMetrics'
 
 $pathSeparator = [System.IO.Path]::PathSeparator
 $resolvedModulesPath = [System.IO.Path]::GetFullPath($modulesPath)
@@ -602,6 +608,15 @@ if ($ResetExtractedLogs) {
 
 $restoredSharedCacheCount = 0
 if (-not [string]::IsNullOrWhiteSpace($effectiveSharedCacheSnapshotPath)) {
+    if (-not $sharedCacheSnapshotEnvApplied) {
+        try { $sharedCacheSnapshotEnvOriginal = $env:STATETRACE_SHARED_CACHE_SNAPSHOT } catch { $sharedCacheSnapshotEnvOriginal = $null }
+        try {
+            $env:STATETRACE_SHARED_CACHE_SNAPSHOT = $effectiveSharedCacheSnapshotPath
+            $sharedCacheSnapshotEnvApplied = $true
+        } catch {
+            $sharedCacheSnapshotEnvApplied = $false
+        }
+    }
     $restoredSharedCacheCount = Restore-SharedCacheEntriesFromFile -SnapshotPath $effectiveSharedCacheSnapshotPath
     if ($restoredSharedCacheCount -gt 0) {
         Write-Host ("Restored {0} shared cache entr{1} from snapshot '{2}'." -f $restoredSharedCacheCount, $(if ($restoredSharedCacheCount -eq 1) { 'y' } else { 'ies' }), $effectiveSharedCacheSnapshotPath) -ForegroundColor DarkCyan
@@ -667,12 +682,64 @@ try {
     if ($module -and -not $PreserveModuleSession) {
         Remove-Module -ModuleInfo $module -Force -ErrorAction SilentlyContinue
     }
+    if ($sharedCacheSnapshotEnvApplied) {
+        try {
+            if ($null -ne $sharedCacheSnapshotEnvOriginal) {
+                $env:STATETRACE_SHARED_CACHE_SNAPSHOT = $sharedCacheSnapshotEnvOriginal
+            } else {
+                Remove-Item Env:STATETRACE_SHARED_CACHE_SNAPSHOT -ErrorAction SilentlyContinue
+            }
+        } catch { }
+        $sharedCacheSnapshotEnvApplied = $false
+    }
 }
 
 Write-Host 'Ingestion run completed.' -ForegroundColor Green
 
 if ($RunWarmRunRegression) {
     Invoke-WarmRunRegressionInternal
+}
+
+if ($RunSharedCacheDiagnostics) {
+    try {
+        $latestLogEntry = $null
+        if (Test-Path -LiteralPath $ingestionMetricsDirectory) {
+            $latestLogEntry = Get-ChildItem -LiteralPath $ingestionMetricsDirectory -Filter '*.json' -File |
+                Sort-Object LastWriteTime -Descending |
+                Select-Object -First 1
+        }
+
+        if (-not $latestLogEntry) {
+            Write-Warning 'Shared cache diagnostics skipped: no ingestion metrics files were found.'
+        } else {
+            $latestLogPath = $latestLogEntry.FullName
+            Write-Host ("Running shared cache diagnostics against '{0}'..." -f $latestLogPath) -ForegroundColor Cyan
+
+            $storeAnalyzer = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Analyze-SharedCacheStoreState.ps1'
+            if (Test-Path -LiteralPath $storeAnalyzer) {
+                try {
+                    & $storeAnalyzer -Path $latestLogPath -IncludeSiteBreakdown
+                } catch {
+                    Write-Warning ("Shared cache store analyzer failed: {0}" -f $_.Exception.Message)
+                }
+            } else {
+                Write-Warning ("Shared cache store analyzer '{0}' was not found." -f $storeAnalyzer)
+            }
+
+            $providerAnalyzer = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Analyze-SiteCacheProviderReasons.ps1'
+            if (Test-Path -LiteralPath $providerAnalyzer) {
+                try {
+                    & $providerAnalyzer -Path $latestLogPath -IncludeHostBreakdown -TopHosts $SharedCacheDiagnosticsTopHosts
+                } catch {
+                    Write-Warning ("Provider reason analyzer failed: {0}" -f $_.Exception.Message)
+                }
+            } else {
+                Write-Warning ("Provider reason analyzer '{0}' was not found." -f $providerAnalyzer)
+            }
+        }
+    } catch {
+        Write-Warning ("Shared cache diagnostics encountered an unexpected error: {0}" -f $_.Exception.Message)
+    }
 }
 
 $timestampSummaryPath = $null

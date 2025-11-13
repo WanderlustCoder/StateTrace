@@ -1,76 +1,34 @@
 # Repository Guidelines
 
-## Core Ideas
-> Quick reference also available at `docs/Core_Ideas.md` for in-doc workflows.
-- **Documentation Primacy:** Documentation is the top priority-consult it before taking action, publish the planned steps, and record results once work lands (this directive outranks every other pillar).
-- **Approved PowerShell Verbs:** Use only verbs from the PowerShell approved list (`Get-Verb`) when defining or renaming exported functions/cmdlets. Audit existing names during touchpoints and document remediation if legacy verbs remain.
-- **Offline-first & Access-backed:** Deliver everything with PowerShell scripts and Access databases, no compiled components, keep runtime offline-ready.
-- **Telemetry & verification:** Capture ingestion metrics (`ParseDuration`, `DatabaseWriteLatency`, etc.) and use them to validate every change.
-- **Plan-first collaboration:** Record a multi-step plan before editing, keep docs/task boards in sync, and narrate progress.
-- **Security & data hygiene:** Sanitize or exclude sensitive logs and databases; respect existing `.gitignore` guidance.
-- **Parser/UI Separation:** Keep the ingestion parser and the WPF interface decoupled—hydrate Access databases via the parser utility first, then let the UI project those results for operators; document when a run depends on fresh parsing versus cached data.
+This quick reference now mirrors the canonical **StateTrace AI Agent Operations Guide** (`docs/StateTrace_AI_Agent_Guide.md`). Read that guide first; the sections below simply highlight where to look for more detail.
 
-## Project Structure & Module Organization
-> If you are uncertain about scope or a decision touches multiple core ideas, escalate to the operator for approval before proceeding.
-- `Modules/` hosts the PowerShell modules (e.g., `DeviceLogParserModule.psm1`, `ParserWorker.psm1`) and companion specs under `Modules/Tests/`.
-- `Data/` stores per-site Access databases (`Data/<SitePrefix>/<Site>.accdb`) and configuration such as `StateTraceSettings.json`.
-- `Logs/` captures ingestion telemetry, mock fixtures, and metrics exports (`Logs/IngestionMetrics/`).
-- `docs/` carries operational plans and architecture notes; keep it aligned with implementation changes.
+## Core ideas
+- **Documentation primacy**, **Approved PowerShell verbs**, **Offline-first & Access-backed**, **Telemetry & verification**, **Plan-first collaboration**, **Security & data hygiene**, **Parser/UI separation**.
+- Full wording and enforcement steps live in `docs/StateTrace_AI_Agent_Guide.md` and are duplicated in `docs/Core_Ideas.md` for inline linking.
 
-## Build, Test, and Development Commands
-- `Invoke-Pester Modules/Tests` ??? run the full Pester suite (unit plus scheduler helpers).
-- `Import-Module .\Modules\ParserWorker.psm1; Invoke-StateTraceParsing -Synchronous` ??? execute an end-to-end parsing pass against the local `Logs/` queue.
-- `Import-Module .\Modules\ParserRunspaceModule.psm1; Get-AutoScaleConcurrencyProfile -DeviceFiles ...` ??? inspect autoscaling decisions without launching jobs.
-- `Tools\Invoke-WarmRunRegression.ps1 -VerboseParsing` ??? preserved-session cold + warm replay with cache assertions and InterfaceCallDuration summary (fails fast on regression).
-- `Tools\Invoke-StateTracePipeline.ps1 -RunWarmRunRegression` ??? run the standard ingestion harness and immediately invoke the preserved-session warm-run regression wrapper (exports `Logs\IngestionMetrics\WarmRunTelemetry-<timestamp>.json`). The pipeline now restores and re-exports shared cache snapshots under `Logs\SharedCacheSnapshot\` by default; pass `-DisableSharedCacheSnapshot` to opt out, `-SharedCacheSnapshotDirectory <path>` to relocate the cache, or `-ShowSharedCacheSummary` to print the cached sites after the run.
+## Where things live
+- `Modules/` – parser, repository, and UI modules + `Modules/Tests/` coverage.
+- `Data/` – per-site `.accdb` stores plus `StateTraceSettings.json`.
+- `Logs/` – ingestion + telemetry exports (see `docs/telemetry/Automation_Gates.md` for required metrics).
+- `docs/` – plans, runbooks, and automation references (`docs/plans/`, `docs/CODEX_*.md`, etc.).
 
-## Coding Style & Naming Conventions
-- All modules enforce `Set-StrictMode -Version Latest`; prefer explicit parameter binding and idempotent helpers.
-- Use four-space indentation, PascalCase for exported functions/cmdlets, and camelCase for locals (`$siteDbDir`).
-- Prefer `Join-Path`, `Test-Path -LiteralPath`, and module-qualified calls (`DeviceRepositoryModule\Get-DbPathForSite`) to avoid implicit state.
-- Save files as ASCII/UTF-8 (no BOM) and avoid non-ASCII characters unless fixtures require them.
+## Run & test commands
+Use the automation matrix in `docs/CODEX_RUNBOOK.md` for the authoritative command list. Common anchors:
+- `Invoke-Pester Modules/Tests` – full unit suite.
+- `Import-Module .\Modules\ParserWorker.psm1; Invoke-StateTraceParsing -Synchronous` – ad-hoc parser run.
+- `Tools\Invoke-StateTracePipeline.ps1 [-RunWarmRunRegression]` – cold pass (and optional preserved warm pass).
+- `Tools\Invoke-WarmRunRegression.ps1 -VerboseParsing` – cached regression harness.
+- `Import-Module .\Modules\ParserRunspaceModule.psm1; Get-AutoScaleConcurrencyProfile ...` – scheduler inspection.
+- `Tools\Analyze-SharedCacheStoreState.ps1 -Path Logs\IngestionMetrics\<file>.json [-IncludeSiteBreakdown]` – summarizes shared cache store telemetry (SnapshotImported, GetHit/GetMiss, top sites) after pipeline runs. See `docs/CODEX_SHARED_CACHE_DIAGNOSTICS.md` for the full workflow.
+- `Tools\Analyze-SiteCacheProviderReasons.ps1 -Path Logs\IngestionMetrics\<file>.json [-IncludeHostBreakdown]` – aggregates `InterfaceSyncTiming` provider reasons so you can quickly see which sites/hosts still report `AccessRefresh` (details in `docs/CODEX_SHARED_CACHE_DIAGNOSTICS.md`).
 
-## Testing Guidelines
-- Tests live in `Modules/Tests/*.Tests.ps1`, mirroring the module name (`ParserWorker.Tests.ps1`).
-- New functionality should include unit coverage plus, when applicable, integration smoke checks via `Invoke-StateTraceParsing`.
-- Tests should use `$TestDrive` for temp artifacts and clean up external resources.
-- Run `Invoke-Pester Modules/Tests` prior to every commit or pull request update.
+## Style, testing, and reviews
+- PowerShell strict mode everywhere, 4-space indentation, PascalCase exports, camelCase locals, module-qualified calls (`DeviceRepositoryModule\Get-DbPathForSite`, etc.).
+- Keep diffs intentional and small; run `Invoke-Pester Modules/Tests` before every commit.
+- Never commit `.accdb` files or generated logs; log metrics and overrides in the corresponding plan/task entries.
 
-## Commit & Pull Request Guidelines
-- Follow the imperative commit style seen in history (e.g., `Add parser autoscaling and metrics instrumentation`).
-- Group related module, test, and doc updates; never commit generated logs or `.accdb` databases.
-- Pull requests should include a concise summary, `Invoke-Pester` output (or equivalent), and links to issues/incidents when relevant.
-- Call out configuration or schema migrations (such as the `Data/<prefix>/` layout) so operators can plan rollouts.
+## Overrides & online mode
+- Record every concurrency override (`-ThreadCeilingOverride`, `-MaxWorkersPerSiteOverride`, etc.) in your plan/task updates and reset them to `0` after experiments.
+- Limited online dev mode is allowed only when `STATETRACE_AGENT_ALLOW_NET=1` / `STATETRACE_AGENT_ALLOW_INSTALL=1` are explicitly set. Route downloads through `Tools/NetworkGuard.psm1::Invoke-AllowedDownload` and log actions under `docs/agents/sessions/` and `Logs/NetOps/<date>.json`.
 
-## Concurrency Overrides Workflow
-- Default runs (`Tools/Invoke-StateTracePipeline.ps1`) honour `Data/StateTraceSettings.json` and auto-scale ceilings.
-- For manual trials, add switches such as `-ThreadCeilingOverride`, `-MaxWorkersPerSiteOverride`, `-MaxActiveSitesOverride`, `-JobsPerThreadOverride`, or `-MinRunspacesOverride`; keep values > 0 only for the duration of the experiment.
-- When Access staging needs tuning, set `ParserSettings.InterfaceBulkChunkSize` in `Data/StateTraceSettings.json`; ParserWorker passes the value to ParserPersistenceModule (default 24, use `0` to stage full batches).
-- Always note override usage in your session log and capture metrics from `Logs/IngestionMetrics/<date>.json` (look for `ParseDuration`, `DatabaseWriteLatency`, `ConcurrencyProfileResolved`).
-- Omit the override switches (or pass `0`) once testing finishes so the system reverts to autoscaling defaults.
-
-
-## Security & Configuration Tips
-- Keep site databases outside source control; ensure `.gitignore` continues to exclude `.accdb` files.
-- Update `Data/StateTraceSettings.json` deliberately and document new toggles or defaults in `docs/`.
-- Treat `Logs/` contents as sensitive: scrub hostnames when creating shared fixtures.
-
-
-## Online Dev Mode (Optional)
-When authorised, agents and developers may use limited internet access and dev-seat binaries to speed up work.
-
-**Enable** by setting environment variables:
-- `STATETRACE_AGENT_ALLOW_NET=1` to permit network operations.
-- `STATETRACE_AGENT_ALLOW_INSTALL=1` to permit installing dev tools.
-
-**Use the guardrails:**
-- `Tools/NetworkGuard.psm1::Invoke-AllowedDownload` for all downloads (allowlist + hash).
-- `Tools/Bootstrap-DevSeat.ps1` (winget pins) for installations.
-- Record actions in `docs/agents/sessions/*` and `Logs/NetOps/<date>.json`.
-
-**Still true:** Runtime releases remain scripts-only and offline-ready.
-
-
-
-
-
+For anything not covered above, jump to `docs/StateTrace_AI_Agent_Guide.md`, `docs/CODEX_RUNBOOK.md`, or the relevant plan under `docs/plans/`.
