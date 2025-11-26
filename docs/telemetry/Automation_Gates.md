@@ -38,4 +38,5 @@ This reference consolidates the success criteria that each plan/task must meet b
 ## Plan H - User Experience & Adoption
 - `UserAction` telemetry present for core flows (ScanLogs, LoadFromDb, HelpQuickstart, InterfacesView, CompareView, SpanSnapshot); cite the latest telemetry bundle in plan/task updates (current evidence: `Logs/Reports/UserActionSummary-20251126-run3.json` inside `Logs/TelemetryBundles/UI-20251126-useraction7/`, all required actions present).
 - Adoption signals captured in rollups once ST-H-003 wires bundle aggregation (record bundle name + summary paths and flag any action gaps); treat missing required actions as a gate failure for release readiness. Rollup CSV now includes `Metric=UserActionCoverage` (Count=covered actions, Total=required actions, Notes=Missing=...) per scope/site for quick enforcement.
+- Freshness evidence: telemetry bundles must include a `FreshnessTelemetrySummary*.json` showing cache provider/source per site; freshness tooltip must align with the summary when capturing UI screenshots.
 Update this file whenever a plan adds or changes a gate so automation agents can enforce the criteria programmatically.
