@@ -811,17 +811,54 @@ function Get-SiteCacheProviderFromMetrics {
     }
     $telemetry = $null
     try { $telemetry = Get-Content -LiteralPath $latest.FullName -Raw | ConvertFrom-Json -ErrorAction Stop } catch { $telemetry = $null }
-    if (-not $telemetry) { return $null }
-    $provider = $null
-    $candidates = $telemetry | Where-Object { $_.EventName -in @('DatabaseWriteBreakdown','InterfaceSiteCacheMetrics','InterfaceSyncTiming') -and $_.Site -eq $Site }
-    foreach ($entry in $candidates) {
-        if ($entry.PSObject.Properties.Name -contains 'SiteCacheProvider' -and $entry.SiteCacheProvider) { $provider = $entry.SiteCacheProvider; break }
-        if ($entry.PSObject.Properties.Name -contains 'SiteCacheProviderReason' -and $entry.SiteCacheProviderReason) { $provider = $entry.SiteCacheProviderReason; break }
-        if ($entry.PSObject.Properties.Name -contains 'CacheStatus' -and $entry.CacheStatus) { $provider = $entry.CacheStatus; break }
+    if (-not $telemetry) {
+        # Fallback to newline-delimited JSON
+        $lines = Get-Content -LiteralPath $latest.FullName -ErrorAction SilentlyContinue
+        $parsed = @()
+        foreach ($line in $lines) {
+            if ([string]::IsNullOrWhiteSpace($line)) { continue }
+            try { $parsed += ($line | ConvertFrom-Json -ErrorAction Stop) } catch { }
+        }
+        if ($parsed.Count -gt 0) { $telemetry = $parsed }
     }
-    if (-not $provider) { $provider = 'Unknown' }
+    if (-not $telemetry) { return $null }
+
+    $candidateEvents = $telemetry | Where-Object { $_.EventName -in @('DatabaseWriteBreakdown','InterfaceSiteCacheMetrics','InterfaceSyncTiming','InterfaceSiteCacheRunspaceState') -and $_.Site -eq $Site }
+    if (-not $candidateEvents) { return $null }
+
+    $best = $null
+    foreach ($entry in $candidateEvents) {
+        $provider = $null
+        $reason = $null
+        $status = $null
+        if ($entry.PSObject.Properties.Name -contains 'SiteCacheProvider' -and $entry.SiteCacheProvider) { $provider = $entry.SiteCacheProvider }
+        if ($entry.PSObject.Properties.Name -contains 'SiteCacheProviderReason' -and $entry.SiteCacheProviderReason) { $reason = $entry.SiteCacheProviderReason }
+        if ($entry.PSObject.Properties.Name -contains 'CacheStatus' -and $entry.CacheStatus) { $status = $entry.CacheStatus }
+        if (-not $provider -and $status) { $provider = $status }
+        if (-not $provider -and $reason) { $provider = $reason }
+
+        $timestamp = $null
+        if ($entry.PSObject.Properties.Name -contains 'Timestamp' -and $entry.Timestamp) {
+            try { $timestamp = [datetime]::Parse($entry.Timestamp).ToLocalTime() } catch { $timestamp = $null }
+        }
+        $candidate = [pscustomobject]@{
+            Provider   = if ($provider) { $provider } else { 'Unknown' }
+            Reason     = $reason
+            CacheStatus= $status
+            EventName  = $entry.EventName
+            Timestamp  = $timestamp
+        }
+        if (-not $best -or ($timestamp -and $best.Timestamp -lt $timestamp)) {
+            $best = $candidate
+        }
+    }
+
+    if (-not $best) { return $null }
     $info = [pscustomobject]@{
-        Provider   = $provider
+        Provider   = $best.Provider
+        Reason     = $best.Reason
+        EventName  = $best.EventName
+        Timestamp  = $best.Timestamp
         MetricsLog = $latest.FullName
     }
     $script:FreshnessCache = @{
@@ -863,9 +900,22 @@ function Update-FreshnessIndicator {
     }
 
     $providerInfo = Get-SiteCacheProviderFromMetrics -Site $site
-    $providerText = if ($providerInfo) { $providerInfo.Provider } else { $info.Source }
+    $providerText = if ($providerInfo) {
+        if ($providerInfo.Reason) { "{0} ({1})" -f $providerInfo.Provider, $providerInfo.Reason } else { $providerInfo.Provider }
+    } else {
+        $info.Source
+    }
     $label.Content = "Freshness: $site @ $($localTime.ToString('g')) ($ageText, source $providerText)"
-    $label.ToolTip = if ($providerInfo) { "Ingestion history: $($info.HistoryPath)`nMetrics: $($providerInfo.MetricsLog)" } else { "Ingestion history: $($info.HistoryPath)" }
+
+    $tooltipParts = New-Object 'System.Collections.Generic.List[string]'
+    $tooltipParts.Add("Ingestion history: $($info.HistoryPath)") | Out-Null
+    if ($providerInfo) {
+        $tooltipParts.Add("Metrics: $($providerInfo.MetricsLog)") | Out-Null
+        $tooltipParts.Add("Provider: $($providerInfo.Provider)") | Out-Null
+        if ($providerInfo.Reason) { $tooltipParts.Add("Reason: $($providerInfo.Reason)") | Out-Null }
+        if ($providerInfo.Timestamp) { $tooltipParts.Add("Telemetry at: $($providerInfo.Timestamp.ToString('g'))") | Out-Null }
+    }
+    $label.ToolTip = [string]::Join("`n", $tooltipParts)
 }
 
 function Start-ParserBackgroundJob {
