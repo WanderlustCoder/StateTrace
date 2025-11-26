@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$Path,
-    [string]$OutputPath
+    [string]$OutputPath,
+    [string[]]$RequiredActions = @('ScanLogs','LoadFromDb','HelpQuickstart','InterfacesView','CompareView','SpanSnapshot')
 )
 
 <#
@@ -57,6 +58,18 @@ try {
 
 $userActions = @($events | Where-Object { $_.EventName -eq 'UserAction' })
 
+$missingRequired = @()
+foreach ($req in $RequiredActions) {
+    if (-not ($userActions | Where-Object { $_.Action -eq $req })) {
+        $missingRequired += $req
+    }
+}
+$requiredCoverage = [pscustomobject]@{
+    RequiredActions   = $RequiredActions
+    MissingActions    = $missingRequired
+    AllActionsPresent = ($missingRequired.Count -eq 0)
+}
+
 $actionGroups = $userActions | Group-Object Action | Sort-Object Count -Descending | ForEach-Object {
     [pscustomobject]@{
         Action = $_.Name
@@ -72,10 +85,11 @@ $siteGroups = $userActions | Group-Object Site | Sort-Object Count -Descending |
 }
 
 $summary = [pscustomobject]@{
-    SourcePath   = (Resolve-Path -LiteralPath $Path).ProviderPath
-    TotalEvents  = $userActions.Count
-    Actions      = $actionGroups
-    Sites        = $siteGroups
+    SourcePath        = (Resolve-Path -LiteralPath $Path).ProviderPath
+    TotalEvents       = $userActions.Count
+    Actions           = $actionGroups
+    Sites             = $siteGroups
+    RequiredCoverage  = $requiredCoverage
 }
 
 Write-Host ("[UserAction] Source: {0}" -f $summary.SourcePath) -ForegroundColor Cyan
@@ -83,6 +97,13 @@ Write-Host ("[UserAction] Total events: {0}" -f $summary.TotalEvents)
 if ($actionGroups) {
     Write-Host "[UserAction] By action:"
     foreach ($a in $actionGroups) { Write-Host ("  {0}: {1}" -f $a.Action, $a.Count) }
+}
+if ($requiredCoverage) {
+    if ($requiredCoverage.AllActionsPresent) {
+        Write-Host "[UserAction] Coverage: all required actions present." -ForegroundColor Green
+    } else {
+        Write-Warning ("[UserAction] Missing required actions: {0}" -f ($requiredCoverage.MissingActions -join ', '))
+    }
 }
 if ($siteGroups) {
     Write-Host "[UserAction] By site:"

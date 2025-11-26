@@ -36,6 +36,6 @@ This reference consolidates the success criteria that each plan/task must meet b
 - `Logs/SharedCacheSnapshot/SharedCacheSnapshot-latest-summary.json` shows minimum site count 2, host count 37, row count 1,200+ prior to release sign-off.
 
 ## Plan H - User Experience & Adoption
-- `UserAction` telemetry present for core flows (ScanLogs, LoadFromDb, HelpQuickstart, InterfacesView, CompareView, SpanSnapshot); cite the latest telemetry bundle in plan/task updates (current evidence: `Logs/Reports/UserActionSummary-20251126-run2.json` inside `Logs/TelemetryBundles/UI-20251126-useraction6/`, with >=1 event per action).
-- Adoption signals captured in rollups once ST-H-003 wires bundle aggregation (record bundle name + summary paths and flag any action gaps).
+- `UserAction` telemetry present for core flows (ScanLogs, LoadFromDb, HelpQuickstart, InterfacesView, CompareView, SpanSnapshot); cite the latest telemetry bundle in plan/task updates (current evidence: `Logs/Reports/UserActionSummary-20251126-run3.json` inside `Logs/TelemetryBundles/UI-20251126-useraction7/`, all required actions present).
+- Adoption signals captured in rollups once ST-H-003 wires bundle aggregation (record bundle name + summary paths and flag any action gaps); treat missing required actions as a gate failure for release readiness.
 Update this file whenever a plan adds or changes a gate so automation agents can enforce the criteria programmatically.
