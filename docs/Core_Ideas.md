@@ -1,6 +1,6 @@
 # StateTrace Core Ideas
 
-These pillars define how agents and developers make changes. They mirror the authoritative list in `AGENTS.md` so the guidance is available inside `docs/`.
+These pillars mirror the authoritative wording in `docs/StateTrace_AI_Agent_Guide.md`. Update that guide first if the policy changes, then refresh this quick-reference copy and the short summary in `AGENTS.md`.
 
 1. **Documentation Primacy** - Treat repository documentation as the single source of truth. Consult it before every change, record the plan-of-action in docs/task boards, and update the record once work is complete-even when that means pausing other priorities.
 2. **Approved PowerShell Verbs** - Exported functions and cmdlets must use verbs from the official `Get-Verb` list. Audit new or renamed commands for verb compliance, update legacy names that slip through, and document any remediation plans alongside code changes.

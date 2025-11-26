@@ -3,6 +3,15 @@
 ## Summary
 This runbook explains how the refreshed incremental-loading workflow surfaces device metadata immediately and streams interface ports in batches. Operators should use it to monitor ingestion sessions, interpret the bottom-of-window loading indicator, and validate that the UI stays responsive while the parser continues to deliver ports.
 
+## Start here (quickstart)
+Follow these steps when you need the fastest path to a validated Interfaces view (Plan H ST-H-001):
+1. Seed data (if needed): `pwsh Tools/Invoke-StateTracePipeline.ps1 -SkipTests -VerboseParsing -ResetExtractedLogs` (or reuse a recent ingestion if the Access files are current).
+2. Run the headless UI harness to capture time-to-first-view:  
+   `pwsh -NoLogo -STA -File Tools/Invoke-InterfacesViewChecklist.ps1 -SiteFilter WLLS,BOYO -MaxHosts 6 -OutputPath Logs/Reports/InterfacesViewChecklist.json -SummaryPath Logs/Reports/InterfacesViewQuickstart.json`  
+   The summary records `TimeToFirstHostMs`, host counts, and per-host interface rows so you can drop the JSON path directly into plan/task updates.
+3. Optional UI spot-check: launch `Main/MainWindow.ps1`, click **Scan Logs** once, then use **Load from DB** to confirm the dropdown and freshness indicators (when present) populate without re-running the parser.
+4. Capture telemetry paths in your session log (ingestion JSON + checklist summary). Link them to the task board card you’re updating.
+
 ## Preconditions
 - Current StateTrace build (2025-10-14 incremental-loading spike) deployed with the updated ParserPersistence, DeviceRepository, and Interface modules.
 - BOYO/WLLS mock corpus or equivalent site data staged for ingestion.

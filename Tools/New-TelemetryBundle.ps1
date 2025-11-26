@@ -14,6 +14,7 @@ param(
     [string[]]$DiffHotspotsPath,
     [string[]]$RollupPath,
     [string[]]$DocSyncPath,
+    [string[]]$QueueSummaryPath,
     [string[]]$AdditionalPath,
 
     [string[]]$PlanReferences,
@@ -38,6 +39,7 @@ $allArtifacts += $AnalyzerPath
 $allArtifacts += $DiffHotspotsPath
 $allArtifacts += $RollupPath
 $allArtifacts += $DocSyncPath
+$allArtifacts += $QueueSummaryPath
 $allArtifacts += $AdditionalPath
 
 if (-not $allArtifacts -or $allArtifacts.Count -eq 0) {
@@ -91,6 +93,7 @@ $categories = @(
     @{ Name = 'DiffHotspots'; Paths = $DiffHotspotsPath },
     @{ Name = 'RollupCsv'; Paths = $RollupPath },
     @{ Name = 'DocSync'; Paths = $DocSyncPath },
+    @{ Name = 'QueueDelaySummary'; Paths = $QueueSummaryPath },
     @{ Name = 'Additional'; Paths = $AdditionalPath }
 )
 

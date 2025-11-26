@@ -12,6 +12,7 @@ param(
     [switch]$SkipCoverageValidation,
     [switch]$PreserveSkipSiteCacheSetting,
     [switch]$PreserveIngestionHistory,
+    [switch]$SkipSchedulerFairnessGuard,
     [switch]$PassThru
 )
 
@@ -60,6 +61,10 @@ if ($SharedCacheSnapshotDirectory) {
     if ($resolvedSnapshotDir) {
         $pipelineParameters['SharedCacheSnapshotDirectory'] = $resolvedSnapshotDir
     }
+}
+if ($SkipSchedulerFairnessGuard.IsPresent) {
+    $pipelineParameters['FailOnSchedulerFairness'] = $false
+    Write-Warning '[SharedCacheWarmup] Parser scheduler fairness guard disabled for this warmup.'
 }
 
 $settingsPath = Join-Path -Path $repositoryRoot -ChildPath 'Data\StateTraceSettings.json'

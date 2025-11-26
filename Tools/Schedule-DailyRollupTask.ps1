@@ -12,6 +12,9 @@ param(
     [ValidateNotNullOrEmpty()]
     [string]$RepoRoot = (Split-Path -Path $PSScriptRoot -Parent),
 
+    [ValidateNotNullOrEmpty()]
+    [string]$ScriptPath = 'Tools\Invoke-DailyRollupScheduled.ps1',
+
     [string]$MetricsDirectory,
     [string]$OutputDirectory,
 
@@ -33,9 +36,9 @@ if (-not (Test-Path -LiteralPath $schtasks)) {
     throw "Unable to locate schtasks.exe at '$schtasks'."
 }
 
-$rollupScript = Join-Path -Path $RepoRoot -ChildPath 'Tools\Invoke-DailyMetricRollup.ps1'
+$rollupScript = Join-Path -Path $RepoRoot -ChildPath $ScriptPath
 if (-not (Test-Path -LiteralPath $rollupScript)) {
-    throw "Unable to locate Invoke-DailyMetricRollup.ps1 at '$rollupScript'."
+    throw "Unable to locate rollup script at '$rollupScript'."
 }
 
 $rollupArgs = @('-NoProfile','-ExecutionPolicy','Bypass','-File',"`"$rollupScript`"",'-Days', $DaysBack)

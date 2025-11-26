@@ -11,6 +11,7 @@ param(
     [string]$IngestionMetricsDirectory = (Join-Path -Path (Split-Path -Path $PSScriptRoot -Parent) -ChildPath 'Logs\IngestionMetrics'),
     [string]$RollupDirectory = (Join-Path -Path (Split-Path -Path $PSScriptRoot -Parent) -ChildPath 'Logs\IngestionMetrics'),
     [string]$DocSyncDirectory = (Join-Path -Path (Split-Path -Path $PSScriptRoot -Parent) -ChildPath 'docs\agents\sessions'),
+    [string]$HistoryDirectory = (Join-Path -Path (Split-Path -Path $PSScriptRoot -Parent) -ChildPath 'Logs\Reports'),
 
     [string[]]$ColdTelemetryPath,
     [string[]]$WarmTelemetryPath,
@@ -18,7 +19,16 @@ param(
     [string[]]$DiffHotspotsPath,
     [string[]]$RollupPath,
     [string[]]$DocSyncPath,
+    [string[]]$QueueSummaryPath,
     [string[]]$AdditionalPath,
+    [string]$QueueDelayHistoryFile = 'QueueDelayHistory.csv',
+    [string]$ParserSchedulerHistoryFile = 'ParserSchedulerHistory.csv',
+    [string]$PortBatchHistoryFile = 'PortBatchHistory.csv',
+    [string]$InterfaceSyncHistoryFile = 'InterfaceSyncHistory.csv',
+
+    [string]$PerformanceDocsDirectory = (Join-Path -Path (Split-Path -Path $PSScriptRoot -Parent) -ChildPath 'docs\performance'),
+    [string]$SchedulerDiversityReportFilter = 'SchedulerVsPortDiversity-*.json',
+    [string]$SchedulerDiversityMarkdownFilter = 'SchedulerVsPortDiversity-*.md',
 
     [string[]]$PlanReferences,
     [string[]]$TaskBoardIds,
@@ -29,9 +39,11 @@ param(
     [string[]]$AnalyzerFilter = @('SharedCache*.json'),
     [string]$DiffHotspotsFilter = 'WarmRunDiffHotspots*.csv',
     [string]$RollupFilter = 'IngestionMetricsSummary*.csv',
+    [string]$QueueSummaryFilter = 'QueueDelaySummary*.json',
 
     [int]$AnalyzerMaxCount = 2,
     [int]$RollupMaxCount = 1,
+    [int]$QueueSummaryMaxCount = 2,
 
     [switch]$Force,
     [switch]$PassThru
@@ -59,8 +71,8 @@ function Get-LatestArtifacts {
 
     $results = @()
     foreach ($pattern in $Filter) {
-        $items = Get-ChildItem -LiteralPath $Directory -Filter $pattern -File -ErrorAction Stop |
-            Sort-Object LastWriteTime -Descending
+        $items = @(Get-ChildItem -LiteralPath $Directory -Filter $pattern -File -ErrorAction Stop |
+            Sort-Object LastWriteTime -Descending)
         if (-not $items -or $items.Count -eq 0) {
             if ($Optional) {
                 Write-Warning "[$Description] No files matching '$pattern' were found under '$Directory'."
@@ -71,6 +83,13 @@ function Get-LatestArtifacts {
         $results += $items | Select-Object -First $MaxCount
     }
 
+    if ($results.Count -eq 0) {
+        if ($Optional) {
+            return @()
+        }
+        throw "[$Description] No artifacts found after scanning filters '$($Filter -join ', ')'."
+    }
+
     return ($results | Select-Object -Unique).FullName
 }
 
@@ -79,6 +98,76 @@ $resolvedWarm = if ($WarmTelemetryPath) { $WarmTelemetryPath } else { Get-Latest
 $resolvedAnalyzer = if ($AnalyzerPath) { $AnalyzerPath } else { Get-LatestArtifacts -Directory $IngestionMetricsDirectory -Filter $AnalyzerFilter -Description 'Shared cache analyzer output' -MaxCount $AnalyzerMaxCount -Optional }
 $resolvedDiff = if ($DiffHotspotsPath) { $DiffHotspotsPath } else { Get-LatestArtifacts -Directory $IngestionMetricsDirectory -Filter @($DiffHotspotsFilter) -Description 'Diff hotspot telemetry' -Optional }
 $resolvedRollup = if ($RollupPath) { $RollupPath } else { Get-LatestArtifacts -Directory $RollupDirectory -Filter @($RollupFilter) -Description 'Rollup CSV' -MaxCount $RollupMaxCount -Optional }
+$resolvedQueueSummary = @()
+if ($QueueSummaryPath) {
+    $resolvedQueueSummary = $QueueSummaryPath
+} elseif ($AreaName -and $AreaName -like 'Routing*') {
+    $resolvedQueueSummary = Get-LatestArtifacts -Directory $IngestionMetricsDirectory -Filter @($QueueSummaryFilter) -Description 'Queue delay summary' -MaxCount $QueueSummaryMaxCount -Optional
+}
+
+$historyFiles = @()
+if (-not [string]::IsNullOrWhiteSpace($HistoryDirectory)) {
+    $queueHistoryPath = $QueueDelayHistoryFile
+    if (-not [System.IO.Path]::IsPathRooted($queueHistoryPath)) {
+        $queueHistoryPath = Join-Path -Path $HistoryDirectory -ChildPath $QueueDelayHistoryFile
+    }
+    if (Test-Path -LiteralPath $queueHistoryPath) {
+        $historyFiles += (Resolve-Path -LiteralPath $queueHistoryPath).Path
+    } else {
+        Write-Verbose ("[History] Queue delay history file '{0}' not found; skipping." -f $queueHistoryPath)
+    }
+
+    $schedulerHistoryPath = $ParserSchedulerHistoryFile
+    if (-not [System.IO.Path]::IsPathRooted($schedulerHistoryPath)) {
+        $schedulerHistoryPath = Join-Path -Path $HistoryDirectory -ChildPath $ParserSchedulerHistoryFile
+    }
+    if (Test-Path -LiteralPath $schedulerHistoryPath) {
+        $historyFiles += (Resolve-Path -LiteralPath $schedulerHistoryPath).Path
+    } else {
+        Write-Verbose ("[History] Parser scheduler history file '{0}' not found; skipping." -f $schedulerHistoryPath)
+    }
+
+    $portHistoryPath = $PortBatchHistoryFile
+    if (-not [System.IO.Path]::IsPathRooted($portHistoryPath)) {
+        $portHistoryPath = Join-Path -Path $HistoryDirectory -ChildPath $PortBatchHistoryFile
+    }
+    if (Test-Path -LiteralPath $portHistoryPath) {
+        $historyFiles += (Resolve-Path -LiteralPath $portHistoryPath).Path
+    } else {
+        Write-Verbose ("[History] Port batch history file '{0}' not found; skipping." -f $portHistoryPath)
+    }
+
+    $interfaceHistoryPath = $InterfaceSyncHistoryFile
+    if (-not [System.IO.Path]::IsPathRooted($interfaceHistoryPath)) {
+        $interfaceHistoryPath = Join-Path -Path $HistoryDirectory -ChildPath $InterfaceSyncHistoryFile
+    }
+    if (Test-Path -LiteralPath $interfaceHistoryPath) {
+        $historyFiles += (Resolve-Path -LiteralPath $interfaceHistoryPath).Path
+    } else {
+        Write-Verbose ("[History] InterfaceSync history file '{0}' not found; skipping." -f $interfaceHistoryPath)
+    }
+}
+
+function Get-OptionalArtifacts {
+    param(
+        [string]$Directory,
+        [string[]]$Filter,
+        [string]$Description
+    )
+    if (-not $Directory -or -not (Test-Path -LiteralPath $Directory)) {
+        Write-Verbose ("[{0}] Directory '{1}' not found; skipping." -f $Description, $Directory)
+        return @()
+    }
+    try {
+        return Get-LatestArtifacts -Directory $Directory -Filter $Filter -Description $Description -Optional -MaxCount 1
+    } catch {
+        Write-Warning ("[{0}] Collection failed: {1}" -f $Description, $_.Exception.Message)
+        return @()
+    }
+}
+
+$schedulerComparisonJson = Get-OptionalArtifacts -Directory $HistoryDirectory -Filter @($SchedulerDiversityReportFilter) -Description 'Scheduler vs Port (JSON)'
+$schedulerComparisonMarkdown = Get-OptionalArtifacts -Directory $PerformanceDocsDirectory -Filter @($SchedulerDiversityMarkdownFilter) -Description 'Scheduler vs Port (Markdown)'
 
 if (@($DocSyncPath).Count -eq 0) {
     if (Test-Path -LiteralPath $DocSyncDirectory) {
@@ -112,7 +201,13 @@ if (@($resolvedAnalyzer).Count -gt 0) { $bundleParams['AnalyzerPath'] = $resolve
 if (@($resolvedDiff).Count -gt 0) { $bundleParams['DiffHotspotsPath'] = $resolvedDiff }
 if (@($resolvedRollup).Count -gt 0) { $bundleParams['RollupPath'] = $resolvedRollup }
 if (@($DocSyncPath).Count -gt 0) { $bundleParams['DocSyncPath'] = $DocSyncPath }
-if (@($AdditionalPath).Count -gt 0) { $bundleParams['AdditionalPath'] = $AdditionalPath }
+if (@($resolvedQueueSummary).Count -gt 0) { $bundleParams['QueueSummaryPath'] = $resolvedQueueSummary }
+$aggregatedAdditional = @()
+if (@($historyFiles).Count -gt 0) { $aggregatedAdditional += $historyFiles }
+if (@($schedulerComparisonJson).Count -gt 0) { $aggregatedAdditional += $schedulerComparisonJson }
+if (@($schedulerComparisonMarkdown).Count -gt 0) { $aggregatedAdditional += $schedulerComparisonMarkdown }
+if (@($AdditionalPath).Count -gt 0) { $aggregatedAdditional += $AdditionalPath }
+if (@($aggregatedAdditional).Count -gt 0) { $bundleParams['AdditionalPath'] = $aggregatedAdditional }
 if (@($PlanReferences).Count -gt 0) { $bundleParams['PlanReferences'] = $PlanReferences }
 if (@($TaskBoardIds).Count -gt 0) { $bundleParams['TaskBoardIds'] = $TaskBoardIds }
 if ($Notes) { $bundleParams['Notes'] = $Notes }

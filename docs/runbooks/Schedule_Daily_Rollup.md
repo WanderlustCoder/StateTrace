@@ -1,11 +1,11 @@
 # Schedule Daily Ingestion Rollups
 
-Use this runbook to create a Windows Task Scheduler job that executes `Tools/Invoke-DailyMetricRollup.ps1` every day and archives the CSV under `Logs/IngestionMetrics/`.
+Use this runbook to create a Windows Task Scheduler job that executes the wrapper (`Tools/Invoke-DailyRollupScheduled.ps1`, which calls `Tools/Invoke-DailyMetricRollup.ps1`) every day and archives the CSV under `Logs/IngestionMetrics/`.
 
 ## Prerequisites
 - PowerShell 5+ with permission to register scheduled tasks.
 - Repository cloned locally (script resolves relative paths).
-- `Tools/Invoke-DailyMetricRollup.ps1` committed (Plan E ST-E-002 deliverable).
+- `Tools/Invoke-DailyMetricRollup.ps1` + `Tools/Invoke-DailyRollupScheduled.ps1` committed (Plan E ST-E-002/ST-E-003 deliverables).
 
 ## Steps
 1. **Preview the task**
@@ -17,11 +17,10 @@ Use this runbook to create a Windows Task Scheduler job that executes `Tools/Inv
 
 2. **Register the task**
    ```powershell
-   pwsh Tools/Schedule-DailyRollupTask.ps1 -TaskName StateTraceDailyRollup \
-       -StartTime 02:00 -MetricsDirectory "C:\StateTrace\Logs\IngestionMetrics" \
-       -OutputDirectory "C:\StateTrace\Logs\IngestionMetrics" -Force
+   pwsh Tools/Schedule-DailyRollupTask.ps1 -TaskName StateTraceDailyRollup `
+       -StartTime 02:00 -DaysBack 1 -Force
    ```
-   The script wraps `schtasks.exe /Create` and points it at `Invoke-DailyRollup.ps1` with `-Days 1 -IncludePerSite -IncludeSiteCache`.
+   By default the task now runs the wrapper (`Tools/Invoke-DailyRollupScheduled.ps1`) so the scheduled command stays within the Windows 261-character `/TR` limit while still resolving repo-relative `Logs\IngestionMetrics` paths. Supply `-MetricsDirectory` / `-OutputDirectory` if the metrics live elsewhere.
 
 3. **Validate the scheduled task**
    ```powershell
@@ -33,7 +32,7 @@ Use this runbook to create a Windows Task Scheduler job that executes `Tools/Inv
    ```powershell
    schtasks /Run /TN StateTraceDailyRollup
    ```
-   After the test, verify `Logs/IngestionMetrics/IngestionMetricsSummary-<timestamp>.csv` exists and update Plan E timeline + Task Board row ST-E-003.
+   After the test (or the next scheduled trigger), confirm `Logs/IngestionMetrics/IngestionMetricsSummary-<timestamp>.csv` was created by `Tools/Invoke-DailyRollupScheduled.ps1` and update Plan E timeline + Task Board row ST-E-003 with the timestamp and bundle reference.
 
 ## Removal
 ```powershell

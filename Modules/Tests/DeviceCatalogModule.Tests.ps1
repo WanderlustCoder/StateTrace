@@ -12,6 +12,12 @@ Describe "DeviceCatalogModule catalog operations" {
         } else {
             $script:PrevDeviceMetadata = $null
         }
+
+        if (Get-Variable -Name DeviceHostnameOrder -Scope Global -ErrorAction SilentlyContinue) {
+            $script:PrevDeviceHostnameOrder = $global:DeviceHostnameOrder
+        } else {
+            $script:PrevDeviceHostnameOrder = $null
+        }
     }
 
     AfterAll {
@@ -20,6 +26,11 @@ Describe "DeviceCatalogModule catalog operations" {
         } else {
             Remove-Variable -Name DeviceMetadata -Scope Global -ErrorAction SilentlyContinue
         }
+        if ($script:PrevDeviceHostnameOrder -ne $null) {
+            $global:DeviceHostnameOrder = $script:PrevDeviceHostnameOrder
+        } else {
+            Remove-Variable -Name DeviceHostnameOrder -Scope Global -ErrorAction SilentlyContinue
+        }
         Remove-Module DeviceCatalogModule -Force
         Remove-Module DeviceRepositoryModule -Force
         Remove-Module DatabaseModule -Force
@@ -27,6 +38,7 @@ Describe "DeviceCatalogModule catalog operations" {
 
     BeforeEach {
         $global:DeviceMetadata = @{}
+        $global:DeviceHostnameOrder = @()
     }
 
     It "aggregates device summaries from all site databases" {
@@ -55,9 +67,48 @@ Describe "DeviceCatalogModule catalog operations" {
         @($result.Hostnames).Count | Should Be 3
         ($result.Hostnames -contains 'SITE1-Z1-SW1') | Should Be $true
         ($result.Hostnames -contains 'SITE2-Z3-EDGE') | Should Be $true
+        $ordered = @($result.Hostnames)
+        $ordered[0] | Should Be 'SITE1-Z1-SW1'
+        $ordered[1] | Should Be 'SITE2-Z3-EDGE'
+        $ordered[2] | Should Be 'SITE1-Z1-SW2'
         $global:DeviceMetadata.ContainsKey('SITE1-Z1-SW1') | Should Be $true
         $global:DeviceMetadata['SITE2-Z3-EDGE'].Building | Should Be 'B2'
         $global:DeviceMetadata['SITE1-Z1-SW2'].Zone | Should Be 'Z1'
+        @($global:DeviceHostnameOrder) | Should Be $ordered
+    }
+
+    It "limits catalog aggregation to the requested site filter" {
+        try {
+            Mock -ModuleName DeviceCatalogModule -CommandName 'DeviceRepositoryModule\Get-AllSiteDbPaths' {
+                throw "Should not enumerate every DB when SiteFilter is set."
+            }
+            Mock -ModuleName DeviceCatalogModule -CommandName 'DeviceRepositoryModule\Get-DbPathForSite' {
+                param([string]$Site)
+                return "C:\data\{0}.accdb" -f $Site
+            }
+            Mock -ModuleName DeviceCatalogModule -CommandName Test-Path { param($Path, $LiteralPath) $true }
+            Mock -ModuleName DeviceCatalogModule -CommandName 'DeviceRepositoryModule\Import-DatabaseModule' {}
+            $global:DeviceCatalogQueriedPathsTest = New-Object 'System.Collections.Generic.List[string]'
+            Mock -ModuleName DeviceCatalogModule -CommandName 'DatabaseModule\Invoke-DbQuery' {
+                param($DatabasePath, $Sql)
+                $global:DeviceCatalogQueriedPathsTest.Add($DatabasePath) | Out-Null
+                return @(
+                    [pscustomobject]@{ Hostname = 'SITE2-Z1-SW1'; Site = 'SITE2'; Building = 'B2'; Room = '201' }
+                )
+            }
+
+            $result = DeviceCatalogModule\Get-DeviceSummaries -SiteFilter 'SITE2'
+            @($result.Hostnames).Count | Should Be 1
+            (@($result.Hostnames))[0] | Should Be 'SITE2-Z1-SW1'
+            $global:DeviceMetadata.ContainsKey('SITE2-Z1-SW1') | Should Be $true
+            $global:DeviceMetadata['SITE2-Z1-SW1'].Building | Should Be 'B2'
+            $global:DeviceCatalogQueriedPathsTest.Count | Should Be 1
+
+            Assert-MockCalled -ModuleName DeviceCatalogModule -CommandName 'DeviceRepositoryModule\Get-DbPathForSite' -Times 1 -Scope It -ParameterFilter { $Site -eq 'SITE2' }
+            Assert-MockCalled -ModuleName DeviceCatalogModule -CommandName 'DeviceRepositoryModule\Get-AllSiteDbPaths' -Times 0 -Scope It
+        } finally {
+            Remove-Variable -Name DeviceCatalogQueriedPathsTest -Scope Global -ErrorAction SilentlyContinue
+        }
     }
 
     It "returns hostnames filtered by the requested location" {

@@ -411,6 +411,19 @@ function Get-SpanViewSnapshot {
         Write-SpanDiag ("Get-SpanViewSnapshot used cached rows ({0})." -f $snapshot.RowCount)
     }
 
+    $telemetryCmd = Get-Command -Name 'TelemetryModule\Write-StTelemetryEvent' -ErrorAction SilentlyContinue
+    if ($telemetryCmd) {
+        try {
+            TelemetryModule\Write-StTelemetryEvent -Name 'UserAction' -Payload @{
+                Action    = 'SpanSnapshot'
+                Hostname  = $snapshot.Hostname
+                Site      = $snapshot.Site
+                RowsBound = $snapshot.RowCount
+                Timestamp = (Get-Date).ToString('o')
+            }
+        } catch { }
+    }
+
     return [pscustomobject]$snapshot
 }
 

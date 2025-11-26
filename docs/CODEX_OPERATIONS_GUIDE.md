@@ -8,9 +8,11 @@ This guide stitches together every artifact Codex needs to execute StateTrace wo
 | `docs/CODEX_AUTONOMY_PLAN.md` | Autonomy levels, guardrails, escalation rules. |
 | `docs/CODEX_BACKLOG.md` + `docs/taskboard/TaskBoard.csv` | Automation-ready work queue aligned with plan files. |
 | `docs/plans/PlanIndex.md` + `docs/plans/Plan*.md` | Strategic objectives, active work, timelines, telemetry hooks. |
+| `docs/CODEX_PLAN_AUTOMATION_MATRIX.md` | Quick lookup for which commands/telemetry/doc updates apply to each plan. |
 | `docs/CODEX_RUNBOOK.md` | Command/validation matrix for parser, tests, metrics, UI smoke. |
 | `docs/UI_Smoke_Checklist.md` | Per-view verification of the WPF shell. |
 | `docs/telemetry/Automation_Gates.md` | Success criteria per plan/task. |
+| `docs/CODEX_DOC_SYNC_PLAYBOOK.md` | Checklist for updating plan files, Task Board, CSV, backlog, and session logs at the end of a task. |
 | `docs/agents/Agent_Session_Template.md` | Log template for every session. |
 | `docs/CODEX_SESSION_CHECKLIST.md` | Quick checkbox flow for the entire session (pre-flight through handoff). |
 | `docs/CODEX_QUICK_START.md` | TL;DR version of this guide (three-step flow: pick & plan, execute, hand off). |
@@ -46,8 +48,8 @@ Follow these sub-steps for every change:
 3. Compare results against `docs/telemetry/Automation_Gates.md`; if you miss a gate, stop and treat the task as blocked.
 
 ## 6. Update documentation
-1. Edit the corresponding plan file’s “Active work” or “Recent timeline” entry with metrics, commands, and references.
-2. Update the task board table and CSV row (status, notes, links).
+1. Edit the corresponding plan file's "Active work" or "Recent timeline" entry with metrics, commands, and references.
+2. Update the task board table and CSV row (status, notes, links) using `docs/CODEX_DOC_SYNC_PLAYBOOK.md` as the checklist.
 3. When behaviour changes, also update any affected runbooks (`docs/StateTrace_Operators_Runbook.md`, `docs/CODEX_RUNBOOK.md`, `docs/UI_Smoke_Checklist.md`, etc.).
 
 ## 7. Finalise the session

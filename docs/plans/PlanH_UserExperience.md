@@ -1,0 +1,52 @@
+# Plan H - User Experience & Adoption
+
+## Objective
+Strengthen operator-facing value by reducing time-to-first-insight, clarifying data freshness, and embedding guidance where users actually work (UI, harness checklists, and runbooks). Plan H keeps the experience aligned with the offline/Access contract while adding adoption telemetry so we can prove usefulness.
+
+## Current status (2025-11)
+- Incremental loading and background parsing are live (Plan D) but operators still rely on external notes to learn the workflow; there is no in-app quickstart or consolidated first-run checklist.
+- Status cues for data freshness and pipeline health are fragmented across logs and telemetry bundles; the UI does not surface per-site freshness, last ingest time, or cache source in a single place.
+- Telemetry focuses on parser/cache performance. UI actions (Scan Logs vs. Load from DB, Compare/Span usage, onboarding steps completed) are not measured, so we cannot tell which features deliver value or where users stall.
+
+## Active work
+| ID | Title | Owner | Status | Notes |
+|----|-------|-------|--------|-------|
+| ST-H-001 | Ship operator onboarding + quickstart surfaces | UI / Docs | In Progress | Quickstart anchor published in `docs/StateTrace_Operators_Runbook.md`, UI smoke checklist updated, headless harness emits a summary (`-SummaryPath`) with time-to-first-view, toolbar Help opens the quickstart anchor, and the toolbar now shows a freshness label per site. Next: add cache-source telemetry and capture UI screenshots. |
+| ST-H-002 | Expose data freshness & pipeline health in the UI | UI / Telemetry | Backlog | Add a top-level status strip summarizing last ingest timestamp per site, source (SharedOnly/AccessRefresh/Cache), and freshness thresholds (<24h green, >24h warning). Include a link to the latest pipeline log and allow refresh from Access without starting a parse. Cover with a minimal Pester UI harness plus a runbook note describing the indicator semantics. |
+| ST-H-003 | Instrument user-facing telemetry + feedback loop | Telemetry / UI | Backlog | Emit `UserAction` events for key operations (Scan Logs, Load from DB, Compare view open, Span snapshot, onboarding checklist completion) via `TelemetryModule\Write-StTelemetryEvent`, roll them into `Logs/IngestionMetrics/<date>.json`, and extend the rollup scripts/history CSVs to track adoption. Add thresholds to `docs/telemetry/Automation_Gates.md` (e.g., onboarding completion rate, Compare usage) and document how to synthesize reports. |
+
+## Near-term checkpoints
+- Publish the onboarding/quickstart path (ST-H-001) before adding new UI entry points so operators have a known-good flow.
+- Sequence ST-H-002 after ST-H-001 so the freshness banner reuses the onboarding samples and checklist harness.
+- Wire telemetry from ST-H-003 into the daily rollups and telemetry bundles so adoption metrics ship alongside performance evidence.
+
+## Timeline
+- **2025-11-26:** Quickstart anchor added to `docs/StateTrace_Operators_Runbook.md`, UI smoke checklist updated to enforce the help link/quickstart path, and `Tools/Invoke-InterfacesViewChecklist.ps1` now supports `-SummaryPath` to capture time-to-first-view. Notes captured in `docs/notes/2025-11-26_onboarding_quickstart.md`. Next: hook toolbar Help to the quickstart anchor and add the freshness banner with telemetry.
+- **2025-11-26 (later):** Toolbar Help now opens the Operators Runbook quickstart anchor before displaying the help window (`Main/MainWindow.ps1`), keeping the quickstart path discoverable inside the app. Next: add the freshness banner + screenshots/telemetry for ST-H-001 closure.
+- **2025-11-26 (evening):** Added a toolbar freshness label that reads `Data/IngestionHistory/<site>.json` to display the last ingest timestamp/age for the selected site and updated the UI smoke checklist with the new expectation. The label also consults the latest telemetry to show the cache provider/source when available. Next: capture screenshots and wire telemetry for ST-H-001 completion.
+- **2025-11-26 (night):** Interfaces headless checklist summary now emits `SiteFreshness` (last ingest/age/source per site) via `-SummaryPath`, aligning the automation with the new UI label.
+- **2025-11-27:** Added `docs/runbooks/Onboarding_Screenshots.md` to standardize evidence capture (toolbar freshness label, incremental loading, Help window pointing to the quickstart anchor). Next: produce screenshots and adoption telemetry to close ST-H-001.
+- **2025-11-27 (later):** Created `docs/performance/screenshots/README.md` to house onboarding/UX evidence with naming guidance. Awaiting captured images and telemetry to finish ST-H-001.
+- **2025-11-27 (telemetry):** UI now emits `UserAction` telemetry for Scan Logs and Load from DB (site/host context), laying groundwork for ST-H-003 adoption tracking.
+- **2025-11-27 (help telemetry):** Help button now publishes `UserAction` (`HelpQuickstart`) with site/host context before opening the quickstart anchor, improving onboarding adoption visibility.
+- **2025-11-27 (compare telemetry):** Compare view now emits `UserAction` (`CompareView`) with site/host/port context when telemetry is available, furthering ST-H-003.
+- **2025-11-27 (span telemetry):** Span snapshot now emits `UserAction` (`SpanSnapshot`) with host/site/row count when telemetry exists, rounding out adoption signals.
+- **2025-11-27 (interfaces telemetry):** Interfaces view now emits `UserAction` (`InterfacesView`) with hostname/site, completing the UI action set for adoption tracking.
+- **2025-11-27 (adoption analyzer):** Added `Tools/Analyze-UserActionTelemetry.ps1` to summarize UserAction counts by action/site for bundles/rollups.
+
+## Automation hooks
+- `pwsh -NoLogo -File Tools\Invoke-InterfacesViewChecklist.ps1 -SiteFilter <site(s)>` to exercise Scan Logs vs. Load from DB without the WPF shell; extend this harness with onboarding steps as part of ST-H-001.
+- `pwsh -NoLogo -File Tools\Invoke-StateTracePipeline.ps1 -SkipTests -VerboseParsing` (or `Tools\Invoke-IncrementalLoadingChecklist.ps1`) to seed Access data before UI validation; reference the resulting `Logs/IngestionMetrics/<date>.json` in plan/task updates.
+- `pwsh Tools\Analyze-PortBatchReadyTelemetry.ps1 -Path Logs\IngestionMetrics/<file>.json -IncludeHostBreakdown` to verify the sample onboarding corpus still emits the expected host counts/latency before UI smoke runs.
+- `pwsh Tools\Publish-TelemetryBundle.ps1 -AreaName UI` to bundle onboarding/adoption telemetry with the latest analyzer outputs for evidence.
+
+## Telemetry gates
+- **Time-to-first-view:** <= 2 minutes from launching the app to seeing the first Interfaces rows (cold start, offline corpus). Record in onboarding checklist output.
+- **Freshness indicator coverage:** 100% of supported sites show last ingest timestamp + source; warn when >24 hours old and log the warning in telemetry.
+- **Adoption signals:** Onboarding completion rate >= 80% for guided runs; Compare/Span invocation rate trending upward release-over-release. Add these to `docs/telemetry/Automation_Gates.md` and rollup CSVs once ST-H-003 lands.
+
+## References
+- Operator docs: `docs/StateTrace_Operators_Runbook.md`, `docs/UI_Smoke_Checklist.md`, `docs/CODEX_RUNBOOK.md`.
+- UI harnesses: `Tools/Invoke-InterfacesViewChecklist.ps1`, `Tools/Invoke-IncrementalLoadingChecklist.ps1`, `Tools/Invoke-AllChecks.ps1`.
+- Telemetry: `docs/telemetry/Automation_Gates.md`, `Tools/Publish-TelemetryBundle.ps1`, `Tools/Analyze-PortBatchReadyTelemetry.ps1`.
+- Historical context: Plan D (feature expansion) and Plan C (diff UX) for dependencies on Compare/Span instrumentation.

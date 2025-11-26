@@ -1,4 +1,4 @@
-# Plan F â€“ Security, Identity, & Online Mode
+# Plan F - Security, Identity, & Online Mode
 
 ## Objective
 Keep StateTrace offline-first and Access-backed while providing a documented path for optional online development (guarded downloads, dev seat bootstrapping, RBAC/identity options, and sanitisation tooling).
@@ -15,34 +15,69 @@ Keep StateTrace offline-first and Access-backed while providing a documented pat
 |----|-------|-------|--------|-------|
 | ST-F-001 | Document NetOps logging expectations for online mode | Security | In Progress | Capture the env-var + `Invoke-AllowedDownload` workflow in `docs/CODEX_AUTONOMY_PLAN.md`, `docs/Security.md`, and `docs/CODEX_SESSION_CHECKLIST.md`; provide a sample `Logs/NetOps/<date>.json` schema and reference it here. |
 | ST-F-002 | Access scrubber automation | Data | Backlog | Wrap `Tools/Sanitize-PostmortemLogs.ps1` usage into a reproducible script (inputs, destination, report path) and add a nightly fixture refresh entry to the task board; link sanitized bundles in this plan. |
-| ST-F-003 | NetOps session log enforcement | Automation | Ready | Build a lint-style check/script that verifies `STATETRACE_AGENT_ALLOW_NET`/`_INSTALL` usage is mirrored by `Logs/NetOps/<date>.json` + `docs/agents/sessions/`; hook it into `Tools/Invoke-AllChecks.ps1` or CI. |
+| ST-F-003 | NetOps session log enforcement | Automation | Done - 2025-11-13 | Added `Tools\Test-NetOpsEvidence.ps1` + `Tools\Invoke-AllChecks.ps1 -RequireNetOpsEvidence` so online-mode sessions must cite NetOps/reset logs (with reasons) and optionally the session log reference. |
 | ST-F-004 | Identity/RBAC rollout playbook | Security / Platform | Backlog | Translate the recommendations in `docs/StateTrace_Acknowledgement_Identity_Options.md` into a runnable playbook (dev seat bootstrap, RBAC switch verification) and link it from this plan and `docs/Security.md`. |
-| ST-F-005 | Offline-first verification checklist | Ops | Backlog | Extend `docs/CODEX_SESSION_CHECKLIST.md` / `docs/StateTrace_AI_Agent_Guide.md` so every session records whether it touched Access, downloads, or sanitized data; capture evidence paths (Accdb hash, sanitized log path) in this plan.
+| ST-F-005 | Offline-first verification checklist | Ops | Backlog | Extend `docs/CODEX_SESSION_CHECKLIST.md` / `docs/StateTrace_AI_Agent_Guide.md` so every session records whether it touched Access, downloads, or sanitized data; capture evidence paths (Accdb hash, sanitized log path) in this plan. |
 | ST-F-006 | Sanitized incident intake grind | Data / Docs | Backlog | Follow `docs/StateTrace_IncidentPostmortem_Intake.md` + kickoff task #2 (`docs/agents/Agent_Kickoff_Tasks.md`) to collect six sanitized incidents, drop them under `Data/Postmortems/<IncidentId>/Sanitized`, and reference the sanitizer reports + tracking rows here. |
 | ST-F-007 | NetOps + sanitizer evidence template | Automation | Done - 2025-11-13 | Added `docs/templates/NetOpsLogTemplate.json` + `docs/templates/SanitizationEvidenceTemplate.md` so sessions have ready-made evidence snippets for Plan F guardrails. |
 | ST-F-008 | NetOps schema + sample log | Security / Docs | Done - 2025-11-13 | Published the sample NetOps log template referenced above (fields cover timestamp, action, URI, hash, session/task IDs). Integrate into automation hooks + Security doc. |
-| ST-F-009 | Online-mode reset automation | Automation | Backlog | Add a helper (or checklist step) that automatically resets `STATETRACE_AGENT_ALLOW_NET/INSTALL` to 0 at the end of every session and records the reset in the session log/task board; surface warnings when env vars remain set. |
+| ST-F-009 | Online-mode reset automation | Automation | Done - 2025-11-13 | Added `Tools\Reset-OnlineModeFlags.ps1` (writes `Logs/NetOps/Resets/OnlineModeReset-<timestamp>.json`) so sessions can clear `STATETRACE_AGENT_ALLOW_*`, capture the provided `-Reason`, and cite the reset evidence in plans/task board/session logs. |
+
+## Near-term execution detail
+
+### ST-F-001 - NetOps logging workflow
+- **Pre-flight guardrails:** Default `STATETRACE_AGENT_ALLOW_NET` / `_INSTALL` to `0`. When an online action is unavoidable, set `$env:STATETRACE_AGENT_ALLOW_NET = 1` (and `_INSTALL`) immediately before calling the approved download cmdlet and log the change in the session entry for ST-F-001.
+- **Approved download flow:** Wrap every download/install step in `Tools/NetworkGuard.psm1::Invoke-AllowedDownload`. Example:\
+  ```powershell
+  Import-Module Tools/NetworkGuard.psm1
+  Invoke-AllowedDownload `
+      -Uri https://vendor.example.com/tool.zip `
+      -Destination Downloads\tool.zip `
+      -ExpectedSha256 <hash> `
+      -Reason 'Plan F ST-F-001 NetOps evidence refresh'
+  ```
+  Immediately capture the action using `docs/templates/NetOpsLogTemplate.json` as the schema and save the log to `Logs/NetOps/<date>-<session>.json`. Reference the log path/hash in this plan, on the Task Board row, and inside the relevant session log per `docs/CODEX_DOC_SYNC_PLAYBOOK.md`.
+- **Reset + lint:** After the download completes, run `pwsh Tools\Reset-OnlineModeFlags.ps1 -Reason "ST-F-001 download complete"` to force `STATETRACE_AGENT_ALLOW_*` back to `0` and emit `Logs/NetOps/Resets/OnlineModeReset-<timestamp>.json` (the JSON now records the reason so session/task notes can link to it). Finish the task with `pwsh Tools\Test-NetOpsEvidence.ps1 -RequireEvidence -RequireReason -SessionLogPath docs/agents/sessions/<id>.md` (or `Tools\Invoke-AllChecks.ps1 -RequireNetOpsEvidence`) to prove both NetOps and reset logs are present and that the reason metadata exists.
+- **Documentation sync:** Each time ST-F-001 moves, update `docs/CODEX_AUTONOMY_PLAN.md`, `docs/Security.md`, and `docs/CODEX_SESSION_CHECKLIST.md` pointers so they cite the latest NetOps log filename/hash. Record those doc links inside the Plan F timeline and Task Board note for traceability.
+
+### ST-F-005 - Offline-first verification checklist
+- **Checklist updates:** Expand `docs/CODEX_SESSION_CHECKLIST.md` and `docs/StateTrace_AI_Agent_Guide.md` with three mandatory answers per session: (1) Access `.accdb` usage (include file hash), (2) online-mode status (NetOps log + reset log paths), and (3) sanitized fixture consumption/creation (point to `Logs/Sanitization/<incident>.json` or `Data/Postmortems/<incident>/Sanitized`). Reference `docs/templates/SanitizationEvidenceTemplate.md` for wording.
+- **Task board hooks:** Every ST-F-005 Task Board update must link to the exact checklist section/anchor and note the evidence paths. Missing entries should trigger `Tools\Invoke-AllChecks.ps1 -RequireNetOpsEvidence` with a failure that blocks merges until the checklist is completed.
+- **Automation tie-in:** Track a follow-up to extend `Tools\Test-NetOpsEvidence.ps1` so it also validates Access hash + sanitization references inside the supplied session log. Document the enhancement in this plan before coding so auditors understand the coverage delta.
+
+### ST-F-006 - Sanitized incident intake grind
+- **Acquisition loop:** Follow `docs/StateTrace_IncidentPostmortem_Intake.md` to select six incidents. Store raw evidence offline (never committed) and log the secure path inside the session note. Each incident gets a permanent `Data\Postmortems/<IncidentId>/Sanitized` folder (safe to commit) plus corresponding `Logs/Sanitization/<IncidentId>.json`.
+- **Sanitization command:** Use the evidence template and run:\
+  ```powershell
+  pwsh Tools\Sanitize-PostmortemLogs.ps1 `
+      -SourcePath D:\SecureDrop\INC2025-1103\Raw `
+      -DestinationPath Data\Postmortems\INC2025-1103\Sanitized `
+      -ReportPath Logs\Sanitization\INC2025-1103.json `
+      -RedactPatterns @('password','community','token','snmpv3')
+  ```
+  Attach the resulting evidence block to the session log, update this plan + Task Board with the sanitized bundle path, and link the same artifact from Plan C ST-C-005 and Plan D ST-D-009 so downstream work can rely on the fixtures.
+- **Validation + publication:** After each sanitization run, execute `Invoke-Pester Tests/Sanitize-PostmortemLogs.Tests.ps1` and `Tools\Invoke-StateTracePipeline.ps1 -SkipTests -VerboseParsing -InputPath Data\Postmortems/<IncidentId>/Sanitized` to prove the sanitized data is usable. Record the report hash in `docs/StateTrace_IncidentPostmortem_Intake.md` and surface the incident ID + hash in `docs/StateTrace_TaskBoard.md`.
 
 ## Recent timeline (migrated highlights)
 | Date (MT) | Summary | Evidence / Metrics | Source |
 |-----------|---------|--------------------|--------|
-| 2025-09-30 | ADR 0004 accepted: defined opt-in online dev mode with guardrails (`STATETRACE_AGENT_ALLOW_NET`, `Tools/NetworkGuard.psm1`, `Tools/Bootstrap-DevSeat.ps1`) while keeping runtime offline-first. | ADR captures the dual-mode policy, guardrails, and follow-up tasks to update security docs and prompts. | docs/adr/0004-online-mode-and-tooling.md |
-| 2025-10-03 | Identity options scorecard completed; recommended AD-integrated accounts backed by a tightly scoped local fallback for air-gapped installs. | Scoring table, recommendation, and next actions (Access audit table, safeguards) documented. | docs/StateTrace_Acknowledgement_Identity_Options.md |
-| 2025-10-03 | Feature-expansion planning required six sanitized postmortems feeding guided troubleshooting content; kickoff tasks now include "Seed tiny sanitized fixtures." | Notes emphasize sanitization automation + runbook template usage before Plan D work. | docs/notes/2025-10-03_feature-expansion.md, docs/agents/Agent_Kickoff_Tasks.md |
-| 2025-11-12 | Codex Plan Automation Matrix + session checklist tie Plan F deliverables (NetOps logs, sanitizer evidence, ADR references) to every automation run. | Matrix + checklist call out NetOps logging and sanitized fixture expectations. | docs/CODEX_PLAN_AUTOMATION_MATRIX.md, docs/CODEX_SESSION_CHECKLIST.md |
-| 2025-11-13 | Added NetOps log + sanitization evidence templates under `docs/templates/` so sessions can quickly log downloads and redaction proof. | `docs/templates/NetOpsLogTemplate.json`, `docs/templates/SanitizationEvidenceTemplate.md`, Plan F ST-F-007/008 marked done. | docs/templates/NetOpsLogTemplate.json, docs/templates/SanitizationEvidenceTemplate.md |
+| 2025-11-13 12:05 | Built NetOps lint (`Tools\Test-NetOpsEvidence.ps1`) and hooked it into `Tools\Invoke-AllChecks.ps1` so online-mode sessions prove NetOps/reset logs (and optional session references) exist before closing. | Command: `pwsh Tools\Test-NetOpsEvidence.ps1 -RequireEvidence -SessionLogPath docs/agents/sessions/<id>.md`; `Tools\Invoke-AllChecks.ps1 -RequireNetOpsEvidence`. | Tools/Test-NetOpsEvidence.ps1, Tools/Invoke-AllChecks.ps1 |
+| 2025-11-13 13:50 | Updated `Tools\Test-NetOpsEvidence.ps1` + `Tools\Invoke-AllChecks.ps1` to require the new reset-log `Reason` field so NetOps lint fails if agents forget to cite the plan/task justification. | Script output referencing `-RequireReason`, plan/task board updates. | Tools/Test-NetOpsEvidence.ps1, Tools/Invoke-AllChecks.ps1 |
+| 2025-11-13 11:58 | Shipped `Tools\Reset-OnlineModeFlags.ps1` to automatically clear `STATETRACE_AGENT_ALLOW_*`, capture the provided `-Reason`, and emit `Logs/NetOps/Resets/OnlineModeReset-<timestamp>.json`, satisfying ST-F-009. | Script output + reset log example referenced in Task Board row ST-F-009. | Tools/Reset-OnlineModeFlags.ps1 |
+| 2025-11-13 11:52 | Added `docs/templates/NetOpsLogTemplate.json` + `docs/templates/SanitizationEvidenceTemplate.md` so every Plan F task has copy/paste scaffolding for NetOps + sanitization evidence. | Template files committed; referenced from Plan F, Plan A, Plan E, and session logs. | docs/templates/NetOpsLogTemplate.json, docs/templates/SanitizationEvidenceTemplate.md |
+| 2025-09-30 | ADR 0004 captured the approved-online-mode policy (allowlisted downloads, log requirements, rollback expectations). | `docs/adr/0004-online-mode-and-tooling.md`. | docs/adr/0004-online-mode-and-tooling.md |
 
 ## Automation hooks
-- Enable online mode only after approval: set `STATETRACE_AGENT_ALLOW_NET=1`, `STATETRACE_AGENT_ALLOW_INSTALL=1`, then route downloads via `Import-Module .\Tools\NetworkGuard.psm1; Invoke-AllowedDownload -Uri <url> -Reason <task> -OutPath Downloads\ -PassThru` so the NetOps entry captures URI, hash, and justification (see `docs/templates/NetOpsLogTemplate.json`).
-- Provision dev seats with `Tools\Bootstrap-DevSeat.ps1 -Manifest Tools\Bootstrap\ApprovedManifest.json`; attach the manifest + transcript (or NetOps entry) to the session log/task board card.
-- Sanitize fixtures via `Tools\Sanitize-PostmortemLogs.ps1 -SourcePath <raw> -DestinationPath Data\Postmortems\<IncidentId>\Sanitized -ReportPath Logs\Sanitization\<IncidentId>.json -RedactPatterns @(...)` before sharing logs; cite the report plus `docs/StateTrace_IncidentPostmortem_Intake.md` row in Plan F updates (use `docs/templates/SanitizationEvidenceTemplate.md` when recording evidence).
-- After each online or sanitization action, append the evidence to `docs/agents/sessions/<date>_session-XXXX.md`, include the NetOps JSON path, and link both under the relevant TaskBoard entry. Reset `STATETRACE_AGENT_ALLOW_NET/INSTALL` to 0 and note the command (`Remove-Item Env:STATETRACE_AGENT_ALLOW_*`) in the session log (ST-F-009).
-- `pwsh Tools\Invoke-AllChecks.ps1 -SecurityLintOnly` (future ST-F-003 deliverable) once the NetOps/sanitizer lint check exists.
+- Run `pwsh Tools\Test-NetOpsEvidence.ps1 -RequireEvidence -RequireReason [-SessionLogPath <log>]` (or `pwsh Tools\Invoke-AllChecks.ps1 -RequireNetOpsEvidence`) before signing off so NetOps and reset logs (plus session references and reason metadata) are validated.
+- `pwsh Tools\Invoke-AllChecks.ps1 -RequireNetOpsEvidence [-NetOpsSessionLogPath <log>]` runs the NetOps lint alongside the existing harness (use `-SkipNetOpsLint` only when offline sessions truly do not require evidence).
+- `pwsh Tools\Reset-OnlineModeFlags.ps1 -Reason "<task or plan>"` after any online session so reset logs are generated automatically (with the reason embedded) and stored under `Logs/NetOps/Resets/`.
+- `pwsh Tools\Sanitize-PostmortemLogs.ps1 -SourcePath <raw> -DestinationPath Data\Postmortems\<Incident>\Sanitized -ReportPath Logs\Sanitization\<Incident>.json` (plus the evidence template) whenever new incidents are prepared for Plans C/D.
 
 ## Telemetry / compliance gates
 - Zero `.accdb` or raw log files committed; reviewers must confirm sanitized outputs reference `Tools/Sanitize-PostmortemLogs.ps1` reports.
+- Run `Tools\Test-NetOpsEvidence.ps1 -RequireEvidence -RequireReason` (or `Tools\Invoke-AllChecks.ps1 -RequireNetOpsEvidence`) whenever online mode is used to prove NetOps/reset logs, reasons, and session references exist.
 - Every online session produces `Logs/NetOps/<date>.json` plus a matching entry in `docs/agents/sessions/`; missing logs block merges until resolved.
-- Any use of `STATETRACE_AGENT_ALLOW_NET` / `_INSTALL` is reset to `0` (or removed) at the end of the session, and the reset is documented in the plan/task board.
+- Any use of `STATETRACE_AGENT_ALLOW_NET` / `_INSTALL` is reset to `0` via `Tools\Reset-OnlineModeFlags.ps1` at the end of the session, and the generated `Logs/NetOps/Resets/OnlineModeReset-<timestamp>.json` path is cited in the plan/task board + session log.
 - Identity/RBAC changes require a referenced ADR (or playbook entry) and a rollback plan before landing.
 - Sanitized incident intake: `docs/StateTrace_IncidentPostmortem_Intake.md` table updated for each bundle, sanitizer reports stored under `Logs/Sanitization/`, and fixture provenance noted in the session/task board entry.
 - Dev-seat manifests + allowed downloads must cite the approved manifest (`Tools/Bootstrap\ApprovedManifest.json`), download hashes, and allowlist rationale per `docs/adr/0004-online-mode-and-tooling.md`.
@@ -51,5 +86,4 @@ Keep StateTrace offline-first and Access-backed while providing a documented pat
 - Policy: `docs/Security.md`, `docs/StateTrace_Acknowledgement_Identity_Options.md`.
 - Optional mode ADR: `docs/adr/0004-online-mode-and-tooling.md`.
 - Supporting guides: `docs/CODEX_AUTONOMY_PLAN.md`, `docs/CODEX_PLAN_AUTOMATION_MATRIX.md`, `docs/CODEX_SESSION_CHECKLIST.md`, `docs/CODEX_RUNBOOK.md`, `docs/StateTrace_AI_Agent_Guide.md`, `docs/RiskRegister.md`, `docs/StateTrace_IncidentPostmortem_Intake.md`, `docs/agents/Agent_Kickoff_Tasks.md`, `docs/templates/NetOpsLogTemplate.json`, `docs/templates/SanitizationEvidenceTemplate.md`.
-- Pending artifacts: online-mode reset helper (ST-F-009).
-
+- Pending artifacts: sanitized incident intake (ST-F-006).

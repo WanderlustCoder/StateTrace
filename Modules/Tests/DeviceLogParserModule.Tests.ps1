@@ -101,6 +101,49 @@ Describe "DeviceLogParserModule" {
         $nameA | Should Be $nameA2
     }
 
+    It "forces DatabaseWriteBreakdown payloads to report cache providers for site existing cache rows" {
+        $payload = @{}
+        $telemetry = [pscustomobject]@{ SiteCacheFetchStatus = '' }
+        $module = Get-Module DeviceLogParserModule
+        $module | Should Not Be $null
+        $module.Invoke({ param($p, $source, $telemetry)
+                Resolve-DatabaseWriteBreakdownCacheProvider -Payload $p -ExistingRowSource $source -Telemetry $telemetry
+            }, $payload, 'SiteExistingCache', $telemetry) | Out-Null
+        $payload['SiteCacheProvider'] | Should Be 'Cache'
+        $payload['SiteCacheProviderReason'] | Should Be 'SiteExistingCache'
+        $payload['SiteCacheFetchStatus'] | Should Be 'Hit'
+        $payload['SiteCacheExistingRowSource'] | Should Be 'SiteExistingCache'
+    }
+
+    It "derives cache provider details from telemetry when the existing row source is missing" {
+        $payload = @{}
+        $telemetry = [pscustomobject]@{
+            SiteCacheExistingRowSource = 'SiteExistingCache'
+            SiteCacheFetchStatus       = 'SkippedEmpty'
+        }
+        $module = Get-Module DeviceLogParserModule
+        $module | Should Not Be $null
+        $module.Invoke({ param($p, $telemetry)
+                Resolve-DatabaseWriteBreakdownCacheProvider -Payload $p -ExistingRowSource $null -Telemetry $telemetry
+            }, $payload, $telemetry) | Out-Null
+        $payload['SiteCacheProvider'] | Should Be 'Cache'
+        $payload['SiteCacheProviderReason'] | Should Be 'SiteExistingCache'
+        $payload['SiteCacheFetchStatus'] | Should Be 'Hit'
+        $payload['SiteCacheExistingRowSource'] | Should Be 'SiteExistingCache'
+    }
+
+    It "leaves DatabaseWriteBreakdown payloads untouched when existing rows are not cache-backed" {
+        $payload = @{}
+        $module = Get-Module DeviceLogParserModule
+        $module | Should Not Be $null
+        $module.Invoke({ param($p, $source)
+                Resolve-DatabaseWriteBreakdownCacheProvider -Payload $p -ExistingRowSource $source -Telemetry $null
+            }, $payload, 'SharedCacheOnly') | Out-Null
+        $payload.ContainsKey('SiteCacheProvider') | Should Be $false
+        $payload.ContainsKey('SiteCacheProviderReason') | Should Be $false
+        $payload.ContainsKey('SiteCacheFetchStatus') | Should Be $false
+    }
+
     It "caches vendor templates within the module" {
         $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid().ToString())
         $null = New-Item -ItemType Directory -Path $tempDir -Force

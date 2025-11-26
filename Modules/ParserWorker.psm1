@@ -51,6 +51,79 @@ function Get-DeviceLogSetStatistics {
     }
 }
 
+function Initialize-SiteExistingRowCacheSnapshot {
+    [CmdletBinding()]
+    param(
+        [string]$SnapshotPath,
+        [switch]$PrimeDeviceRepository
+    )
+
+    $resolvedPath = $SnapshotPath
+    if (-not $resolvedPath) {
+        try {
+            if ($env:STATETRACE_SITE_EXISTING_ROW_CACHE_SNAPSHOT) {
+                $resolvedPath = '' + $env:STATETRACE_SITE_EXISTING_ROW_CACHE_SNAPSHOT
+            }
+        } catch {
+            $resolvedPath = $null
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($resolvedPath) -or -not (Test-Path -LiteralPath $resolvedPath)) {
+        return $null
+    }
+
+    $snapshot = $null
+    try {
+        $snapshot = Import-Clixml -Path $resolvedPath
+    } catch {
+        Write-Warning ("Failed to import site existing row cache snapshot '{0}': {1}" -f $resolvedPath, $_.Exception.Message)
+        return $null
+    }
+    if (-not $snapshot) { return $null }
+
+    $entryCount = ($snapshot | Measure-Object).Count
+    if ($entryCount -le 0) { return $null }
+
+    try {
+        ParserPersistenceModule\Set-SiteExistingRowCacheSnapshot -Snapshot $snapshot | Out-Null
+    } catch {
+        Write-Warning ("Failed to hydrate parser persistence cache from '{0}': {1}" -f $resolvedPath, $_.Exception.Message)
+        return $null
+    }
+
+    $siteSummaries = New-Object 'System.Collections.Generic.List[psobject]'
+    $siteGroups = @($snapshot | Group-Object -Property Site)
+    foreach ($group in $siteGroups) {
+        $siteName = '' + $group.Name
+        if ([string]::IsNullOrWhiteSpace($siteName)) { $siteName = 'Unknown' }
+        $siteSummaries.Add([pscustomobject]@{
+                Site      = $siteName
+                HostCount = [int]$group.Count
+            }) | Out-Null
+
+        if ($PrimeDeviceRepository) {
+            foreach ($hostEntry in $group.Group) {
+                $hostname = '' + $hostEntry.Hostname
+                if ([string]::IsNullOrWhiteSpace($hostname)) { continue }
+                $rowsByPort = $hostEntry.Rows
+                if (-not $rowsByPort) { continue }
+                try {
+                    DeviceRepositoryModule\Set-InterfaceSiteCacheHost -Site $siteName -Hostname $hostname -RowsByPort $rowsByPort | Out-Null
+                } catch {
+                    Write-Verbose ("Failed to prime site cache for {0}/{1}: {2}" -f $siteName, $hostname, $_.Exception.Message)
+                }
+            }
+        }
+    }
+
+    return [pscustomobject]@{
+        SnapshotPath = $resolvedPath
+        EntryCount   = [int]$entryCount
+        SiteSummaries = $siteSummaries.ToArray()
+    }
+}
+
 function Write-SharedCacheSnapshotFileInternal {
     param(
         [Parameter(Mandatory)][string]$Path,
@@ -277,6 +350,8 @@ function Invoke-StateTraceParsing {
 
         [int]$MaxActiveSitesOverride,
 
+        [int]$MaxConsecutiveSiteLaunchesOverride,
+
         [int]$JobsPerThreadOverride,
 
         [int]$MinRunspacesOverride,
@@ -373,6 +448,9 @@ function Invoke-StateTraceParsing {
 
     $enableAdaptiveThreads = $true
 
+    $maxConsecutiveSiteLaunches = 8
+    $hasMaxConsecutiveSiteSetting = $false
+
     $interfaceBulkChunkSize = $null
     $interfaceBulkChunkSizeHint = $null
     $resolvedInterfaceBulkChunkSize = $null
@@ -460,6 +538,23 @@ function Invoke-StateTraceParsing {
                 elseif ($val -eq 0) { $maxActiveSites = 0 }
 
                 $hasMaxActiveSitesSetting = $true
+
+            } catch { }
+
+        }
+
+        if ($parserSettings.PSObject.Properties.Name -contains 'MaxConsecutiveSiteLaunches') {
+
+            try {
+
+                $limit = [int]$parserSettings.MaxConsecutiveSiteLaunches
+
+                if ($limit -gt 0) {
+                    $maxConsecutiveSiteLaunches = $limit
+                } elseif ($limit -eq 0) {
+                    $maxConsecutiveSiteLaunches = 0
+                }
+                $hasMaxConsecutiveSiteSetting = $true
 
             } catch { }
 
@@ -582,6 +677,14 @@ function Invoke-StateTraceParsing {
 
     }
 
+    if ($PSBoundParameters.ContainsKey('MaxConsecutiveSiteLaunchesOverride')) {
+
+        $maxConsecutiveSiteLaunches = [int]$MaxConsecutiveSiteLaunchesOverride
+
+        $hasMaxConsecutiveSiteSetting = $true
+
+    }
+
     if ($PSBoundParameters.ContainsKey('JobsPerThreadOverride')) {
 
         $jobsPerThread = [int]$JobsPerThreadOverride
@@ -660,6 +763,7 @@ function Invoke-StateTraceParsing {
     if ($PSBoundParameters.ContainsKey('ThreadCeilingOverride') -or
         $PSBoundParameters.ContainsKey('MaxWorkersPerSiteOverride') -or
         $PSBoundParameters.ContainsKey('MaxActiveSitesOverride') -or
+        $PSBoundParameters.ContainsKey('MaxConsecutiveSiteLaunchesOverride') -or
         $PSBoundParameters.ContainsKey('JobsPerThreadOverride') -or
         $PSBoundParameters.ContainsKey('MinRunspacesOverride')) {
 
@@ -703,6 +807,25 @@ function Invoke-StateTraceParsing {
     } catch {
         Write-Verbose ("Failed to persist SkipSiteCacheUpdate environment flag: {0}" -f $_.Exception.Message)
     }
+    $siteExistingCacheHydration = $null
+    if ($skipSiteCacheUpdate) {
+        try {
+            $siteExistingCacheHydration = Initialize-SiteExistingRowCacheSnapshot -PrimeDeviceRepository
+        } catch {
+            Write-Verbose ("Site existing row cache hydration skipped: {0}" -f $_.Exception.Message)
+        }
+        if ($siteExistingCacheHydration) {
+            $hydratedSiteCount = if ($siteExistingCacheHydration.SiteSummaries) { $siteExistingCacheHydration.SiteSummaries.Length } else { 0 }
+            $entryLabel = if ($siteExistingCacheHydration.EntryCount -eq 1) { 'entry' } else { 'entries' }
+            $siteLabel = if ($hydratedSiteCount -eq 1) { 'site' } else { 'sites' }
+            Write-Host ("Primed site existing row cache from '{0}' ({1} {2} across {3} {4})." -f $siteExistingCacheHydration.SnapshotPath, $siteExistingCacheHydration.EntryCount, $entryLabel, $hydratedSiteCount, $siteLabel) -ForegroundColor DarkCyan
+        } elseif ($env:STATETRACE_SITE_EXISTING_ROW_CACHE_SNAPSHOT) {
+            $snapshotNote = '' + $env:STATETRACE_SITE_EXISTING_ROW_CACHE_SNAPSHOT
+            Write-Verbose ("Site existing row cache snapshot '{0}' was unavailable or empty; skipping hydration." -f $snapshotNote)
+        }
+    }
+
+    $resolvedConsecutiveLimit = if ($maxConsecutiveSiteLaunches -gt 0) { [Math]::Max(1, [int]$maxConsecutiveSiteLaunches) } else { 0 }
 
     $telemetryPayload = @{
 
@@ -717,6 +840,8 @@ function Invoke-StateTraceParsing {
         MaxWorkersPerSite = [int]$maxWorkersPerSite
 
         MaxActiveSites   = [int]$maxActiveSites
+
+        MaxConsecutiveSiteLaunches = [int][Math]::Max(0, $resolvedConsecutiveLimit)
 
         JobsPerThread    = [int]$jobsPerThread
 
@@ -768,6 +893,12 @@ function Invoke-StateTraceParsing {
 
     }
 
+    if ($PSBoundParameters.ContainsKey('MaxConsecutiveSiteLaunchesOverride')) {
+
+        $telemetryPayload.OverrideMaxConsecutiveSiteLaunches = [int]$MaxConsecutiveSiteLaunchesOverride
+
+    }
+
     if ($PSBoundParameters.ContainsKey('JobsPerThreadOverride')) {
 
         $telemetryPayload.OverrideJobsPerThread = [int]$JobsPerThreadOverride
@@ -814,6 +945,8 @@ function Invoke-StateTraceParsing {
 
     }
 
+    $telemetryPayload.ResolvedMaxConsecutiveSiteLaunches = [int][Math]::Max(0, $resolvedConsecutiveLimit)
+
     try {
 
         TelemetryModule\Write-StTelemetryEvent -Name 'ConcurrencyProfileResolved' -Payload $telemetryPayload
@@ -851,6 +984,8 @@ function Invoke-StateTraceParsing {
         MaxWorkersPerSite = $maxWorkersPerSite
 
         MaxActiveSites    = $maxActiveSites
+
+        MaxConsecutiveSiteLaunches = $resolvedConsecutiveLimit
 
     }
 

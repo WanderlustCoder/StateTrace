@@ -56,6 +56,47 @@ function New-SortedStringList {
     return $list
 }
 
+function Get-PreferredHostnames {
+    param([System.Collections.Generic.HashSet[string]]$HostSet)
+
+    $ordered = New-Object 'System.Collections.Generic.List[string]'
+    if (-not $HostSet -or $HostSet.Count -eq 0) { return $ordered }
+
+    $rotation = $null
+    try { $rotation = $global:DeviceHostnameOrder } catch { $rotation = $null }
+
+    $added = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+
+    if ($rotation -and ($rotation.Count -gt 0)) {
+        foreach ($entry in $rotation) {
+            $candidate = ('' + $entry).Trim()
+            if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
+            if (-not $HostSet.Contains($candidate)) { continue }
+            if ($added.Add($candidate)) {
+                $ordered.Add($candidate) | Out-Null
+            }
+        }
+    }
+
+    if ($HostSet.Count -gt $added.Count) {
+        $remaining = New-Object 'System.Collections.Generic.List[string]'
+        foreach ($name in $HostSet) {
+            if ($added.Contains($name)) { continue }
+            $remaining.Add($name) | Out-Null
+        }
+        if ($remaining.Count -gt 1) {
+            $remaining.Sort([System.StringComparer]::OrdinalIgnoreCase)
+        }
+        foreach ($name in $remaining) {
+            if ($added.Add($name)) {
+                $ordered.Add($name) | Out-Null
+            }
+        }
+    }
+
+    return $ordered
+}
+
 function Get-InterfacesForContext {
     [CmdletBinding()]
     param(
@@ -258,10 +299,7 @@ function Get-FilterSnapshot {
     $zones = New-SortedStringList -Set $zoneSet
     $buildings = New-SortedStringList -Set $buildingSet
     $rooms = New-SortedStringList -Set $roomSet
-    $hosts = [System.Collections.Generic.List[string]]::new($hostSet)
-    if ((Get-SequenceCount $hosts) -gt 1) {
-        $hosts.Sort([System.StringComparer]::OrdinalIgnoreCase)
-    }
+    $hosts = Get-PreferredHostnames -HostSet $hostSet
     $unknownIndex = $hosts.IndexOf('Unknown')
     if ($unknownIndex -gt 0) {
         $first = $hosts[0]

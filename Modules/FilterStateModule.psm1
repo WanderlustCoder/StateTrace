@@ -101,14 +101,16 @@ function Set-DropdownItems {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][System.Windows.Controls.ItemsControl]$Control,
-        [Parameter(Mandatory)][object[]]$Items
+        [object[]]$Items = @()
     )
-    # Assign the ItemsSource and select the first item (index 0) when
+
+    if (-not $Items) { $Items = @() }
+
     $Control.ItemsSource = $Items
     if ($Items -and $Items.Count -gt 0) {
-        try { $Control.SelectedIndex = 0 } catch { $null = $null }
+        try { $Control.SelectedIndex = 0 } catch { }
     } else {
-        try { $Control.SelectedIndex = -1 } catch { $null = $null }
+        try { $Control.SelectedIndex = -1 } catch { }
     }
 }
 

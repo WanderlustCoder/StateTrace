@@ -1,0 +1,165 @@
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory)]
+    [string]$SchedulerReportPath,
+
+    [Parameter(Mandatory)]
+    [string]$PortDiversityReportPath,
+
+    [string]$OutputPath,
+
+    [string]$MarkdownPath
+)
+
+<#
+.SYNOPSIS
+Correlates parser scheduler launch streaks with PortBatchReady site streaks.
+
+.DESCRIPTION
+Reads `ParserSchedulerLaunch-*.json` and `PortBatchSiteDiversity-*.json` outputs and
+generates a combined summary showing, per site, the maximum scheduler streak vs. the
+longest consecutive PortBatchReady run. Highlights sites where the UI replay still
+shows longer streaks than the parser scheduler emits and optionally writes both JSON
+and markdown artifacts.
+
+.EXAMPLE
+pwsh Tools\Compare-SchedulerAndPortDiversity.ps1 `
+    -SchedulerReportPath Logs\Reports\ParserSchedulerLaunch-2025-11-14.json `
+    -PortDiversityReportPath Logs\Reports\PortBatchSiteDiversity-20251114.json `
+    -OutputPath Logs\Reports\SchedulerVsPortDiversity-2025-11-14.json `
+    -MarkdownPath docs\performance\SchedulerVsPortDiversity-20251114.md
+#>
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+
+function Resolve-ExistingFile {
+    param([string]$PathValue, [string]$Name)
+    if (-not (Test-Path -LiteralPath $PathValue)) {
+        throw "'$Name' file '$PathValue' was not found."
+    }
+    return (Resolve-Path -LiteralPath $PathValue).Path
+}
+
+$schedulerPath = Resolve-ExistingFile -PathValue $SchedulerReportPath -Name 'Scheduler report'
+$portPath = Resolve-ExistingFile -PathValue $PortDiversityReportPath -Name 'Port diversity report'
+
+try {
+    $scheduler = (Get-Content -LiteralPath $schedulerPath -Raw | ConvertFrom-Json -Depth 5)
+} catch {
+    throw "Failed to parse scheduler report '$schedulerPath': $($_.Exception.Message)"
+}
+try {
+    $port = (Get-Content -LiteralPath $portPath -Raw | ConvertFrom-Json -Depth 5)
+} catch {
+    throw "Failed to parse port diversity report '$portPath': $($_.Exception.Message)"
+}
+
+if (-not $scheduler.SiteSummaries) {
+    throw "Scheduler report '$schedulerPath' does not contain SiteSummaries."
+}
+if (-not $port.SiteStreaks) {
+    throw "Port diversity report '$portPath' does not contain SiteStreaks."
+}
+
+$schedulerLookup = @{}
+foreach ($entry in $scheduler.SiteSummaries) {
+    if ($entry.Site) {
+        $schedulerLookup[$entry.Site] = [int]$entry.MaxConsecutive
+    }
+}
+
+$portLookup = @{}
+foreach ($entry in $port.SiteStreaks) {
+    if ($entry.Site) {
+        $portLookup[$entry.Site] = [int]$entry.MaxCount
+    }
+}
+
+$sites = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+foreach ($key in $schedulerLookup.Keys) { [void]$sites.Add($key) }
+foreach ($key in $portLookup.Keys) { [void]$sites.Add($key) }
+
+$rows = @()
+foreach ($site in $sites) {
+    $schedulerMax = if ($schedulerLookup.ContainsKey($site)) { $schedulerLookup[$site] } else { 0 }
+    $portMax = if ($portLookup.ContainsKey($site)) { $portLookup[$site] } else { 0 }
+    $rows += [pscustomobject]@{
+        Site             = $site
+        SchedulerMax     = $schedulerMax
+        PortBatchMax     = $portMax
+        PortMinusScheduler = $portMax - $schedulerMax
+        Mismatch         = ($portMax -gt $schedulerMax)
+    }
+}
+
+$mismatches = $rows | Where-Object { $_.Mismatch }
+$sortedSites = $rows | Sort-Object -Property @{Expression = 'PortMinusScheduler'; Descending = $true }, @{Expression = 'Site'; Descending = $false }
+
+$summary = [pscustomobject]@{
+    SchedulerReportPath  = $schedulerPath
+    PortDiversityPath    = $portPath
+    GeneratedAtUtc       = (Get-Date).ToUniversalTime().ToString('o')
+    Sites                = $sortedSites
+    MismatchCount        = ($mismatches | Measure-Object).Count
+    MaxSchedulerStreak   = [int]($scheduler.SiteSummaries | Measure-Object -Property MaxConsecutive -Maximum).Maximum
+    MaxPortBatchStreak   = [int]($port.SiteStreaks | Measure-Object -Property MaxCount -Maximum).Maximum
+}
+
+Write-Host ("Scheduler max streak: {0}; PortBatchReady max streak: {1}" -f $summary.MaxSchedulerStreak, $summary.MaxPortBatchStreak) -ForegroundColor Cyan
+if ($summary.MismatchCount -gt 0) {
+    Write-Warning ("{0} site(s) show PortBatchReady streaks longer than scheduler launches. Top offenders: {1}" -f $summary.MismatchCount, (($mismatches | Select-Object -First 3 | ForEach-Object { "{0} (+{1})" -f $_.Site, $_.PortMinusScheduler }) -join ', '))
+} else {
+    Write-Host 'No scheduler vs. port streak mismatches detected.' -ForegroundColor Green
+}
+
+$jsonPath = $null
+$markdownPathResolved = $null
+
+if ($OutputPath) {
+    $ext = [System.IO.Path]::GetExtension($OutputPath)
+    if ([string]::Equals($ext, '.md', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $markdownPathResolved = $OutputPath
+    } else {
+        $jsonPath = $OutputPath
+    }
+}
+if ($MarkdownPath) {
+    $markdownPathResolved = $MarkdownPath
+}
+
+if ($jsonPath) {
+    $jsonDir = Split-Path -Path $jsonPath -Parent
+    if ($jsonDir -and -not (Test-Path -LiteralPath $jsonDir)) {
+        New-Item -ItemType Directory -Path $jsonDir -Force | Out-Null
+    }
+    $summary | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $jsonPath -Encoding utf8
+    Write-Host ("JSON summary written to {0}" -f (Resolve-Path -LiteralPath $jsonPath)) -ForegroundColor DarkCyan
+}
+
+if ($markdownPathResolved) {
+    $markdownDir = Split-Path -Path $markdownPathResolved -Parent
+    if ($markdownDir -and -not (Test-Path -LiteralPath $markdownDir)) {
+        New-Item -ItemType Directory -Path $markdownDir -Force | Out-Null
+    }
+    $md = New-Object System.Collections.Generic.List[string]
+    $md.Add("# Scheduler vs. PortBatchReady Streaks")
+    $md.Add("")
+    $md.Add([string]::Format("Generated: {0}", (Get-Date -Format 'yyyy-MM-dd HH:mm:ss K')))
+    $md.Add([string]::Format("Scheduler report: {0}", (Split-Path -Path $schedulerPath -Leaf)))
+    $md.Add([string]::Format("Port diversity report: {0}", (Split-Path -Path $portPath -Leaf)))
+    $md.Add("")
+    $md.Add("| Site | Scheduler Max | PortBatchReady Max | Delta |")
+    $md.Add("|------|---------------|--------------------|-------|")
+    foreach ($row in ($summary.Sites | Sort-Object PortBatchMax -Descending)) {
+        $md.Add(("| {0} | {1} | {2} | {3:+#;-#;0} |" -f $row.Site, $row.SchedulerMax, $row.PortBatchMax, $row.PortMinusScheduler))
+    }
+    $md.Add("")
+    $md.Add(("Mismatch count: {0}" -f $summary.MismatchCount))
+    Set-Content -LiteralPath $markdownPathResolved -Value ($md -join [Environment]::NewLine) -Encoding utf8
+    Write-Host ("Markdown summary written to {0}" -f (Resolve-Path -LiteralPath $markdownPathResolved)) -ForegroundColor DarkCyan
+}
+
+if (-not $OutputPath -and -not $MarkdownPath) {
+    $summary
+}

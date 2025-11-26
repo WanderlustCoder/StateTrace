@@ -1,5 +1,41 @@
 Set-StrictMode -Version Latest
 
+function Get-PercentileValue {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [double[]]$Values,
+        [Parameter(Mandatory = $true)]
+        [double]$Percentile
+    )
+
+    if (-not $Values -or $Values.Length -eq 0) {
+        return $null
+    }
+
+    if ($Percentile -lt 0) { $Percentile = 0 }
+    if ($Percentile -gt 100) { $Percentile = 100 }
+
+    $sorted = $Values | Sort-Object
+    $count = $sorted.Count
+    if ($count -eq 1) {
+        return [double]$sorted[0]
+    }
+
+    $position = ($Percentile / 100) * ($count - 1)
+    $lowerIndex = [math]::Floor($position)
+    $upperIndex = [math]::Ceiling($position)
+    if ($lowerIndex -eq $upperIndex) {
+        return [double]$sorted[$lowerIndex]
+    }
+
+    $lowerValue = [double]$sorted[$lowerIndex]
+    $upperValue = [double]$sorted[$upperIndex]
+    $fraction = $position - $lowerIndex
+    return $lowerValue + (($upperValue - $lowerValue) * $fraction)
+}
+
 function Test-WarmRunRegressionSummary {
     [CmdletBinding()]
     param(
@@ -301,4 +337,123 @@ function Test-SharedCacheSummaryCoverage {
     }
 }
 
-Export-ModuleMember -Function Test-WarmRunRegressionSummary, Test-SharedCacheSummaryCoverage
+function Test-InterfacePortQueueDelay {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [object[]]$Events,
+        [double]$MaximumP95Ms = 120,
+        [double]$MaximumP99Ms = 200,
+        [int]$MinimumEventCount = 1
+    )
+
+    $messages = New-Object System.Collections.Generic.List[string]
+    $violations = New-Object System.Collections.Generic.List[string]
+    $pass = $true
+
+    $totalProvided = if ($Events) { $Events.Count } else { 0 }
+
+    if (-not $Events -or $Events.Count -lt $MinimumEventCount) {
+        $messages.Add(("Only {0} InterfacePortQueueMetrics event(s) supplied (minimum required {1})." -f $totalProvided, $MinimumEventCount))
+        $violations.Add('EventCount')
+        return [pscustomobject]@{
+            Pass        = $false
+            Messages    = $messages.ToArray()
+            Violations  = $violations.ToArray()
+            Statistics  = [pscustomobject]@{
+                SampleCount = $totalProvided
+            }
+            Thresholds  = [pscustomobject]@{
+                MinimumEventCount      = $MinimumEventCount
+                MaximumQueueDelayP95Ms = $MaximumP95Ms
+                MaximumQueueDelayP99Ms = $MaximumP99Ms
+            }
+        }
+    }
+
+    $delayValues = New-Object System.Collections.Generic.List[double]
+    $durationValues = New-Object System.Collections.Generic.List[double]
+
+    foreach ($evt in $Events) {
+        if ($null -eq $evt) { continue }
+
+        $delay = $null
+        if ($evt.PSObject.Properties.Name -contains 'QueueDelayMs') {
+            try { $delay = [double]$evt.QueueDelayMs } catch { $delay = $null }
+        }
+        if ($delay -eq $null -and $evt.PSObject.Properties.Name -contains 'QueueBuildDelayMs') {
+            try { $delay = [double]$evt.QueueBuildDelayMs } catch { $delay = $null }
+        }
+        if ($delay -ne $null) {
+            $delayValues.Add($delay) | Out-Null
+        }
+
+        $duration = $null
+        if ($evt.PSObject.Properties.Name -contains 'QueueBuildDurationMs') {
+            try { $duration = [double]$evt.QueueBuildDurationMs } catch { $duration = $null }
+        }
+        if ($duration -eq $null -and $evt.PSObject.Properties.Name -contains 'QueueDurationMs') {
+            try { $duration = [double]$evt.QueueDurationMs } catch { $duration = $null }
+        }
+        if ($duration -ne $null) {
+            $durationValues.Add($duration) | Out-Null
+        }
+    }
+
+    if ($delayValues.Count -lt $MinimumEventCount) {
+        $messages.Add(("Found {0} InterfacePortQueueMetrics entries with delay data (minimum required {1})." -f $delayValues.Count, $MinimumEventCount))
+        $violations.Add('EventCount')
+        $pass = $false
+    }
+
+    $delayArray = $delayValues.ToArray()
+    $durationArray = $durationValues.ToArray()
+
+    $delayStats = [pscustomobject]@{
+        SampleCount = $delayArray.Length
+        Average     = if ($delayArray.Length -gt 0) { ($delayArray | Measure-Object -Average).Average } else { $null }
+        P95         = Get-PercentileValue -Values $delayArray -Percentile 95
+        P99         = Get-PercentileValue -Values $delayArray -Percentile 99
+        Min         = if ($delayArray.Length -gt 0) { ($delayArray | Measure-Object -Minimum).Minimum } else { $null }
+        Max         = if ($delayArray.Length -gt 0) { ($delayArray | Measure-Object -Maximum).Maximum } else { $null }
+    }
+
+    $durationStats = [pscustomobject]@{
+        SampleCount = $durationArray.Length
+        Average     = if ($durationArray.Length -gt 0) { ($durationArray | Measure-Object -Average).Average } else { $null }
+        P95         = Get-PercentileValue -Values $durationArray -Percentile 95
+        P99         = Get-PercentileValue -Values $durationArray -Percentile 99
+        Min         = if ($durationArray.Length -gt 0) { ($durationArray | Measure-Object -Minimum).Minimum } else { $null }
+        Max         = if ($durationArray.Length -gt 0) { ($durationArray | Measure-Object -Maximum).Maximum } else { $null }
+    }
+
+    if ($delayStats.P95 -ne $null -and $MaximumP95Ms -ge 0 -and $delayStats.P95 -gt $MaximumP95Ms) {
+        $pass = $false
+        $violations.Add('QueueDelayP95')
+        $messages.Add(("InterfacePortQueueMetrics QueueDelay P95 {0:N3} ms exceeds allowed {1:N3} ms." -f $delayStats.P95, $MaximumP95Ms))
+    }
+
+    if ($delayStats.P99 -ne $null -and $MaximumP99Ms -ge 0 -and $delayStats.P99 -gt $MaximumP99Ms) {
+        $pass = $false
+        $violations.Add('QueueDelayP99')
+        $messages.Add(("InterfacePortQueueMetrics QueueDelay P99 {0:N3} ms exceeds allowed {1:N3} ms." -f $delayStats.P99, $MaximumP99Ms))
+    }
+
+    return [pscustomobject]@{
+        Pass       = $pass
+        Messages   = $messages.ToArray()
+        Violations = $violations.ToArray()
+        Statistics = [pscustomobject]@{
+            SampleCount         = $delayStats.SampleCount
+            QueueBuildDelayMs   = $delayStats
+            QueueBuildDurationMs = $durationStats
+        }
+        Thresholds = [pscustomobject]@{
+            MinimumEventCount      = $MinimumEventCount
+            MaximumQueueDelayP95Ms = $MaximumP95Ms
+            MaximumQueueDelayP99Ms = $MaximumP99Ms
+        }
+    }
+}
+
+Export-ModuleMember -Function Test-WarmRunRegressionSummary, Test-SharedCacheSummaryCoverage, Test-InterfacePortQueueDelay

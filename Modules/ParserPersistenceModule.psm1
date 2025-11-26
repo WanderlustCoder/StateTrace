@@ -80,6 +80,35 @@ if (-not (Get-Variable -Name InterfaceIndexesEnsured -Scope Script -ErrorAction 
     $script:InterfaceIndexesEnsured = $false
 }
 
+if (-not (Get-Variable -Name InterfaceBulkChunkSizeDefault -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:InterfaceBulkChunkSizeDefault = 24
+}
+
+if (-not (Get-Variable -Name InterfaceBulkChunkSizeCurrent -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:InterfaceBulkChunkSizeCurrent = $script:InterfaceBulkChunkSizeDefault
+}
+
+function Set-InterfaceBulkChunkSize {
+    [CmdletBinding()]
+    param(
+        [int]$ChunkSize,
+        [switch]$Reset
+    )
+
+    $targetSize = $script:InterfaceBulkChunkSizeDefault
+    if (-not $Reset -and $PSBoundParameters.ContainsKey('ChunkSize') -and $ChunkSize -gt 0) {
+        $targetSize = [int]$ChunkSize
+    }
+
+    $script:InterfaceBulkChunkSizeCurrent = $targetSize
+
+    try {
+        DeviceRepositoryModule\Set-InterfacePortStreamChunkSize -ChunkSize $targetSize | Out-Null
+    } catch { }
+
+    return $script:InterfaceBulkChunkSizeCurrent
+}
+
 if (-not (Get-Variable -Name InterfaceIndexesEnsureAttempted -Scope Script -ErrorAction SilentlyContinue)) {
     $script:InterfaceIndexesEnsureAttempted = $false
 }
@@ -1258,6 +1287,7 @@ $siteCacheTemplateDurationMs = 0.0
     $siteCacheExclusiveRetryCount = 0
     $siteCacheExclusiveWaitDurationMs = 0.0
     $siteCacheProvider = $null
+    $siteCacheProviderFromMetrics = $null
     $siteCacheProviderReason = 'NotEvaluated'
     $siteCacheResultRowCount = 0
     $cacheComparisonCandidateCount = 0
@@ -1713,6 +1743,9 @@ $siteCacheTemplateDurationMs = 0.0
                 if ($siteCacheRefreshStopwatch) {
                     $siteCacheRefreshStopwatch.Stop()
                     $siteCacheRefreshDurationMs = [Math]::Round($siteCacheRefreshStopwatch.Elapsed.TotalMilliseconds, 3)
+                    if ($siteCacheRefreshDurationMs -gt 0) {
+                        $siteCacheFetchDurationMs = $siteCacheRefreshDurationMs
+                    }
                 }
             }
             if ($siteCacheEntry -and $siteCacheEntry.PSObject.Properties.Name -contains 'TotalRows') {
@@ -1742,7 +1775,10 @@ $siteCacheTemplateDurationMs = 0.0
             if ($lastSiteCacheMetrics -and $lastSiteCacheMetrics.Site -and [System.StringComparer]::OrdinalIgnoreCase.Equals($lastSiteCacheMetrics.Site, $siteCodeValue)) {
                 if ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'CacheStatus') {
                     $statusText = '' + $lastSiteCacheMetrics.CacheStatus
-                    if (-not [string]::IsNullOrWhiteSpace($statusText)) {
+                    if (-not [string]::IsNullOrWhiteSpace($statusText) -and (
+                        [string]::IsNullOrWhiteSpace($siteCacheFetchStatus) -or
+                        $siteCacheFetchStatus -eq 'NotEvaluated' -or
+                        $siteCacheFetchStatus -eq 'Unknown')) {
                         $siteCacheFetchStatus = $statusText
                     }
                 }
@@ -1959,12 +1995,12 @@ $siteCacheTemplateDurationMs = 0.0
                 if ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'HydrationProvider') {
                     $providerValue = '' + $lastSiteCacheMetrics.HydrationProvider
                     if (-not [string]::IsNullOrWhiteSpace($providerValue)) {
-                        $siteCacheProvider = $providerValue
+                        $siteCacheProviderFromMetrics = $providerValue
                     }
                 } elseif ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'Provider') {
                     $providerValue = '' + $lastSiteCacheMetrics.Provider
                     if (-not [string]::IsNullOrWhiteSpace($providerValue)) {
-                        $siteCacheProvider = $providerValue
+                        $siteCacheProviderFromMetrics = $providerValue
                     }
                 }
                 if ($lastSiteCacheMetrics.PSObject.Properties.Name -contains 'HydrationResultRowCount') {
@@ -2842,6 +2878,16 @@ $siteCacheTemplateDurationMs = 0.0
                 $siteCacheProviderReason = 'SharedCacheUnavailable'
             } else {
                 $siteCacheProviderReason = 'DatabaseQueryFallback'
+            }
+        }
+    }
+    if (-not $siteCacheProvider -and $siteCacheProviderFromMetrics) {
+        $siteCacheProvider = $siteCacheProviderFromMetrics
+        if ([string]::IsNullOrWhiteSpace($siteCacheProviderReason) -or $siteCacheProviderReason -eq 'NotEvaluated') {
+            switch ($siteCacheProvider) {
+                'Refreshed' { $siteCacheProviderReason = 'AccessRefresh'; break }
+                'Cache' { $siteCacheProviderReason = 'AccessCacheHit'; break }
+                'SharedCache' { $siteCacheProviderReason = 'SharedCacheMatch'; break }
             }
         }
     }
@@ -4373,4 +4419,4 @@ function Get-LastInterfaceSyncTelemetry {
     return $script:LastInterfaceSyncTelemetry
 }
 
-Export-ModuleMember -Function Update-DeviceSummaryInDb, Update-InterfacesInDb, Update-SpanInfoInDb, Write-InterfacePersistenceFailure, Get-LastInterfaceSyncTelemetry, Set-ParserSkipSiteCacheUpdate, Get-SiteExistingRowCacheSnapshot, Set-SiteExistingRowCacheSnapshot, Clear-SiteExistingRowCache, Import-SiteExistingRowCacheSnapshotFromEnv
+Export-ModuleMember -Function Update-DeviceSummaryInDb, Update-InterfacesInDb, Update-SpanInfoInDb, Write-InterfacePersistenceFailure, Get-LastInterfaceSyncTelemetry, Set-ParserSkipSiteCacheUpdate, Set-InterfaceBulkChunkSize, Get-SiteExistingRowCacheSnapshot, Set-SiteExistingRowCacheSnapshot, Clear-SiteExistingRowCache, Import-SiteExistingRowCacheSnapshotFromEnv

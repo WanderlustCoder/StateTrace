@@ -16,11 +16,13 @@ Use this one-pager as the quick command-and-control loop for every Codex session
 - [ ] Run required commands from `docs/CODEX_RUNBOOK.md` (pipeline, warm regression, autoscale, metrics rollup, etc.).
 - [ ] For UI work, complete every row in `docs/UI_Smoke_Checklist.md`.
 - [ ] When online mode is needed, set the approved env vars, route downloads via `Tools/NetworkGuard.psm1`, and log NetOps entries.
+- [ ] Before wrapping online work, run `Tools\Reset-OnlineModeFlags.ps1 -Reason "<plan/task note>"` so `STATETRACE_AGENT_ALLOW_*` returns to `0`, the reason is captured in `Logs/NetOps/Resets/*.json`, and cite the path in your notes.
 
 ## Validation & telemetry
 - [ ] Execute `Invoke-Pester Modules/Tests` plus any script mandated by the plan (pipeline, warm regression, span smoke).
 - [ ] Capture outputs/paths in your session log (`Logs/IngestionMetrics/<date>.json`, WarmRunTelemetry, CSV rollups).
 - [ ] Compare metrics to `docs/telemetry/Automation_Gates.md`; stop/escalate if thresholds are missed.
+- [ ] For telemetry bundle work, run `Tools\Test-TelemetryBundleReadiness.ps1 -BundlePath Logs/TelemetryBundles/<bundle> -Area Telemetry,Routing` (or `Tools\Invoke-AllChecks.ps1 -TelemetryBundlePath Logs/TelemetryBundles/<bundle> -RequireTelemetryBundleReady`) and record the readiness output in your session log.
 
 ## Documentation & handoff
 - [ ] Update the Plan file (active work or recent timeline) with results + telemetry links.

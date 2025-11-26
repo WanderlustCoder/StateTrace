@@ -11,7 +11,7 @@ Use this list to start agent-driven development safely. Each task includes a cle
 - **Acceptance:** Events present and validated by a small replay run.
 
 ## 2) Seed tiny sanitized fixtures
-- **Outcome:** Minimal log samples (???3 per vendor) in `Tests/Fixtures/` with a short README.
+- **Outcome:** Minimal log samples (~3 per vendor) in `Tests/Fixtures/` with a short README.
 - **Acceptance:** Unit tests run locally using fixtures; repo growth minimal.
 
 ## 3) Nightly Access DB maintenance

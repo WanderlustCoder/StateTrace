@@ -11,9 +11,10 @@ param(
     [switch]$VerboseParsing,
     [switch]$ResetExtractedLogs,
     [switch]$PreserveModuleSession,
-[switch]$SkipWarmRunRegression,
-[string]$WarmRunTelemetryDirectory,
-[string]$WarmRunRegressionOutputPath,
+    [switch]$SkipSchedulerFairnessGuard,
+    [switch]$SkipWarmRunRegression,
+    [string]$WarmRunTelemetryDirectory,
+    [string]$WarmRunRegressionOutputPath,
     [double]$WarmRunMinimumImprovementPercent = 25,
     [double]$WarmRunMinimumCacheHitRatioPercent = 99,
     [int]$WarmRunMaximumCacheMissCount = 0,
@@ -29,7 +30,23 @@ param(
     [string]$SharedCacheCoverageOutputPath,
     [switch]$SkipSharedCacheSummaryEvaluation,
     [switch]$ShowSharedCacheSummary,
+    [switch]$SkipQueueDelayEvaluation,
+    [string]$QueueMetricsPath,
+    [int]$QueueDelayMinimumSampleCount = 1,
+    [double]$QueueDelayP95Maximum = 120,
+    [double]$QueueDelayP99Maximum = 200,
+    [string]$QueueDelaySummaryPath,
+    [switch]$SkipQueueDelaySummaryExport,
+    [switch]$GenerateDiffHotspotReport,
+    [int]$DiffHotspotTop = 20,
+    [string]$DiffHotspotOutputPath,
+    [switch]$GenerateSharedCacheDiagnostics,
+    [string]$SharedCacheDiagnosticsDirectory,
+    [string]$TelemetryBundlePath,
+    [string[]]$TelemetryBundleAreas = @('Telemetry','Routing'),
+    [switch]$VerifyTelemetryBundleReadiness,
     [switch]$SkipWarmRunAssertions,
+    [switch]$QuietSummary,
     [switch]$PassThru
 )
 
@@ -58,6 +75,10 @@ $pipelineParameters = @{}
 
 if ($SkipTests.IsPresent) { $pipelineParameters['SkipTests'] = $true }
 if ($SkipParsing.IsPresent) { $pipelineParameters['SkipParsing'] = $true }
+if ($SkipSchedulerFairnessGuard.IsPresent) {
+    $pipelineParameters['FailOnSchedulerFairness'] = $false
+    Write-Warning 'Parser scheduler fairness guard disabled for this verification run.'
+}
 
 function Resolve-OptionalPath {
     param([string]$PathValue)
@@ -82,11 +103,143 @@ function Set-NumericParameter {
     }
 }
 
+function Get-LatestIngestionMetricsFile {
+    param([string]$Directory)
+
+    if ([string]::IsNullOrWhiteSpace($Directory) -or -not (Test-Path -LiteralPath $Directory)) {
+        return $null
+    }
+
+    $pattern = '^(?:\d{4}-\d{2}-\d{2}|\d{8})$'
+    $candidate = Get-ChildItem -Path $Directory -Filter '*.json' -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.BaseName -match $pattern } |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
+
+    if ($candidate) {
+        return $candidate.FullName
+    }
+
+    return $null
+}
+
+function Read-InterfacePortQueueEvents {
+    param([string]$MetricsPath)
+
+    if ([string]::IsNullOrWhiteSpace($MetricsPath) -or -not (Test-Path -LiteralPath $MetricsPath)) {
+        return @()
+    }
+
+    $events = New-Object System.Collections.Generic.List[object]
+    try {
+        foreach ($line in [System.IO.File]::ReadLines($MetricsPath)) {
+            if ([string]::IsNullOrWhiteSpace($line)) { continue }
+            if ($line.IndexOf('InterfacePortQueueMetrics', [System.StringComparison]::OrdinalIgnoreCase) -lt 0) { continue }
+            try {
+                $event = $line | ConvertFrom-Json -ErrorAction Stop
+                if ($event -and $event.EventName -eq 'InterfacePortQueueMetrics') {
+                    $events.Add($event) | Out-Null
+                }
+            } catch {
+                Write-Warning ("Failed to parse InterfacePortQueueMetrics entry from {0}: {1}" -f $MetricsPath, $_.Exception.Message)
+            }
+        }
+    } catch {
+        Write-Warning ("Failed to read ingestion metrics from {0}: {1}" -f $MetricsPath, $_.Exception.Message)
+    }
+
+    if ($events.Count -eq 0) {
+        return @()
+    }
+
+    return ,($events.ToArray())
+}
+
+function Resolve-QueueMetricsPath {
+    param(
+        [string]$ExplicitPath,
+        [string]$RepositoryRoot
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($ExplicitPath)) {
+        return Resolve-OptionalPath -PathValue $ExplicitPath
+    }
+
+    if ([string]::IsNullOrWhiteSpace($RepositoryRoot)) {
+        return $null
+    }
+
+    $defaultDirectory = Join-Path -Path $RepositoryRoot -ChildPath 'Logs\IngestionMetrics'
+    return Get-LatestIngestionMetricsFile -Directory $defaultDirectory
+}
+
+function Get-QueueDelaySummaryPath {
+    param(
+        [string]$RequestedPath,
+        [string]$RepositoryRoot
+    )
+
+    $resolved = $null
+    if (-not [string]::IsNullOrWhiteSpace($RequestedPath)) {
+        $resolved = Resolve-OptionalPath -PathValue $RequestedPath
+    }
+
+    if (-not $resolved) {
+        if ([string]::IsNullOrWhiteSpace($RepositoryRoot)) { return $null }
+        $summaryDir = Join-Path -Path $RepositoryRoot -ChildPath 'Logs\IngestionMetrics'
+        $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+        $resolved = Join-Path -Path $summaryDir -ChildPath ("QueueDelaySummary-{0}.json" -f $timestamp)
+    }
+
+    $directory = Split-Path -Path $resolved -Parent
+    if (-not [string]::IsNullOrWhiteSpace($directory) -and -not (Test-Path -LiteralPath $directory)) {
+        New-Item -ItemType Directory -Path $directory -Force | Out-Null
+    }
+
+    return $resolved
+}
+
+function Write-QueueDelaySummary {
+    param(
+        [Parameter(Mandatory = $true)][object]$Evaluation,
+        [Parameter(Mandatory = $true)][string]$TelemetryPath,
+        [Parameter(Mandatory = $true)][string]$SummaryPath
+    )
+
+    $payload = [pscustomobject]@{
+        GeneratedAtUtc       = (Get-Date).ToUniversalTime()
+        SourceTelemetryPath  = $TelemetryPath
+        Pass                 = $Evaluation.Pass
+        Thresholds           = $Evaluation.Thresholds
+        Statistics           = $Evaluation.Statistics
+    }
+
+    $jsonPayload = $payload | ConvertTo-Json -Depth 6
+    Set-Content -LiteralPath $SummaryPath -Value $jsonPayload -Encoding utf8
+
+    $latestPath = $SummaryPath
+    try {
+        $summaryDir = Split-Path -Path $SummaryPath -Parent
+        if (-not [string]::IsNullOrWhiteSpace($summaryDir)) {
+            $latestPath = Join-Path -Path $summaryDir -ChildPath 'QueueDelaySummary-latest.json'
+            Set-Content -LiteralPath $latestPath -Value $jsonPayload -Encoding utf8
+        }
+    } catch {
+        Write-Warning ("Failed to update QueueDelaySummary-latest.json: {0}" -f $_.Exception.Message)
+    }
+
+    return $SummaryPath
+}
+
 Set-NumericParameter -Name 'ThreadCeilingOverride' -Value $ThreadCeilingOverride
 Set-NumericParameter -Name 'MaxWorkersPerSiteOverride' -Value $MaxWorkersPerSiteOverride
 Set-NumericParameter -Name 'MaxActiveSitesOverride' -Value $MaxActiveSitesOverride
 Set-NumericParameter -Name 'JobsPerThreadOverride' -Value $JobsPerThreadOverride
 Set-NumericParameter -Name 'MinRunspacesOverride' -Value $MinRunspacesOverride
+
+if ($QueueDelayMinimumSampleCount -lt 1) {
+    $QueueDelayMinimumSampleCount = 1
+}
 
 if ($VerboseParsing.IsPresent) { $pipelineParameters['VerboseParsing'] = $true }
 if ($ResetExtractedLogs.IsPresent) { $pipelineParameters['ResetExtractedLogs'] = $true }
@@ -111,11 +264,21 @@ $computedWarmRunPath = $null
 $warmRunTelemetryDirectoryUsed = $null
 $warmRunSummaryPath = $null
 $warmRunSummaryData = $null
+$warmRunTimestamp = $null
+$diffHotspotReportPath = $null
+$shouldGenerateDiffHotspots = $GenerateDiffHotspotReport.IsPresent -or -not [string]::IsNullOrWhiteSpace($DiffHotspotOutputPath)
+$sharedCacheDiagnosticsDirectoryResolved = $null
+$sharedCacheStoreDiagnosticsPath = $null
+$siteCacheProviderDiagnosticsPath = $null
+$shouldGenerateSharedCacheDiagnostics = $GenerateSharedCacheDiagnostics.IsPresent -or -not [string]::IsNullOrWhiteSpace($SharedCacheDiagnosticsDirectory)
 $warmRunEvaluation = $null
 $sharedCacheSnapshotDirectoryUsed = $null
 $sharedCacheCoverageOutputPathResolved = $null
 $sharedCacheSummaryPath = $null
 $sharedCacheSummaryEvaluation = $null
+$queueMetricsPathUsed = $null
+$queueDelayEvaluation = $null
+$queueDelaySummaryPathUsed = $null
 if (-not $SkipWarmRunRegression.IsPresent) {
     $pipelineParameters['RunWarmRunRegression'] = $true
 
@@ -131,6 +294,7 @@ if (-not $SkipWarmRunRegression.IsPresent) {
             New-Item -ItemType Directory -Path $telemetryDir -Force | Out-Null
         }
         $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+        $warmRunTimestamp = $timestamp
         $targetPath = Join-Path -Path $telemetryDir -ChildPath ("WarmRunTelemetry-{0}.json" -f $timestamp)
         $warmRunTelemetryDirectoryUsed = $telemetryDir
     } else {
@@ -140,6 +304,15 @@ if (-not $SkipWarmRunRegression.IsPresent) {
             New-Item -ItemType Directory -Path $targetDirectory -Force | Out-Null
         }
         $warmRunTelemetryDirectoryUsed = $targetDirectory
+        if (-not $warmRunTimestamp) {
+            $leafName = Split-Path -Path $targetPath -Leaf
+            $match = [System.Text.RegularExpressions.Regex]::Match($leafName, '(?<ts>\d{8}-\d{6})')
+            if ($match.Success) {
+                $warmRunTimestamp = $match.Groups['ts'].Value
+            } else {
+                $warmRunTimestamp = (Get-Date -Format 'yyyyMMdd-HHmmss')
+            }
+        }
     }
 
     $computedWarmRunPath = $targetPath
@@ -274,7 +447,162 @@ if ($computedWarmRunPath) {
     }
 }
 
+if ($shouldGenerateDiffHotspots) {
+    if ($computedWarmRunPath -and (Test-Path -LiteralPath $computedWarmRunPath)) {
+        $analyzerScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Analyze-WarmRunDiffHotspots.ps1'
+        if (-not (Test-Path -LiteralPath $analyzerScript)) {
+            throw "Unable to locate diff hotspot analyzer at '$analyzerScript'."
+        }
+
+        $diffOutputPath = $DiffHotspotOutputPath
+        if ([string]::IsNullOrWhiteSpace($diffOutputPath)) {
+            $diffDir = if ($warmRunTelemetryDirectoryUsed) { $warmRunTelemetryDirectoryUsed } else { Split-Path -Path $computedWarmRunPath -Parent }
+            if ([string]::IsNullOrWhiteSpace($diffDir)) {
+                $diffDir = Join-Path -Path $repositoryRoot -ChildPath 'Logs\IngestionMetrics'
+            }
+            $diffTimestamp = if ($warmRunTimestamp) { $warmRunTimestamp } else { Get-Date -Format 'yyyyMMdd-HHmmss' }
+            $diffOutputPath = Join-Path -Path $diffDir -ChildPath ("DiffHotspots-{0}.csv" -f $diffTimestamp)
+        } else {
+            $diffOutputPath = Resolve-OptionalPath -PathValue $diffOutputPath
+        }
+
+        $diffDirEnsure = Split-Path -Path $diffOutputPath -Parent
+        if ($diffDirEnsure -and -not (Test-Path -LiteralPath $diffDirEnsure)) {
+            New-Item -ItemType Directory -Path $diffDirEnsure -Force | Out-Null
+        }
+
+        try {
+            & $analyzerScript -TelemetryPath $computedWarmRunPath -Top $DiffHotspotTop -OutputPath $diffOutputPath
+            if ($LASTEXITCODE -ne 0) {
+                throw "Analyze-WarmRunDiffHotspots exited with code $LASTEXITCODE."
+            }
+            $diffHotspotReportPath = (Resolve-Path -LiteralPath $diffOutputPath -ErrorAction Stop).Path
+            if (-not $QuietSummary.IsPresent) {
+                Write-Host ("Warm-run diff hotspot report stored at {0}" -f $diffHotspotReportPath) -ForegroundColor DarkYellow
+            }
+        } catch {
+            throw ("Failed to generate warm-run diff hotspot report: {0}" -f $_.Exception.Message)
+        }
+    } else {
+        Write-Warning 'Skipped diff hotspot report generation because warm-run telemetry was unavailable.'
+    }
+}
+
+if ($shouldGenerateSharedCacheDiagnostics -and -not $queueMetricsPathUsed) {
+    $queueMetricsPathUsed = Resolve-QueueMetricsPath -ExplicitPath $QueueMetricsPath -RepositoryRoot $repositoryRoot
+}
+
+if (-not $SkipQueueDelayEvaluation.IsPresent) {
+    $queueMetricsPathUsed = Resolve-QueueMetricsPath -ExplicitPath $QueueMetricsPath -RepositoryRoot $repositoryRoot
+    if (-not $queueMetricsPathUsed) {
+        throw 'Queue delay evaluation could not locate an ingestion metrics file. Provide -QueueMetricsPath explicitly or ensure Logs\IngestionMetrics contains a dated JSON export.'
+    }
+    if (-not (Test-Path -LiteralPath $queueMetricsPathUsed)) {
+        throw ("Queue delay evaluation file '{0}' was not found." -f $queueMetricsPathUsed)
+    }
+
+    $queueEvents = Read-InterfacePortQueueEvents -MetricsPath $queueMetricsPathUsed
+    $queueEventCount = if ($queueEvents) { $queueEvents.Count } else { 0 }
+    if ($queueEventCount -lt $QueueDelayMinimumSampleCount) {
+        throw ("Queue delay evaluation found {0} InterfacePortQueueMetrics event(s) in '{1}' (need at least {2})." -f $queueEventCount, $queueMetricsPathUsed, $QueueDelayMinimumSampleCount)
+    }
+
+    Ensure-VerificationModuleLoaded -ModulePath $verificationModulePath
+    $queueDelayEvaluation = Test-InterfacePortQueueDelay -Events $queueEvents `
+        -MaximumP95Ms $QueueDelayP95Maximum `
+        -MaximumP99Ms $QueueDelayP99Maximum `
+        -MinimumEventCount $QueueDelayMinimumSampleCount
+
+    if ($queueDelayEvaluation -and $queueDelayEvaluation.Statistics -and $queueDelayEvaluation.Statistics.QueueBuildDelayMs) {
+        $delayStats = $queueDelayEvaluation.Statistics.QueueBuildDelayMs
+        $avgDisplay = if ($delayStats.Average -ne $null) { ('{0:N3}' -f $delayStats.Average) } else { 'n/a' }
+        $p95Display = if ($delayStats.P95 -ne $null) { ('{0:N3}' -f $delayStats.P95) } else { 'n/a' }
+        $p99Display = if ($delayStats.P99 -ne $null) { ('{0:N3}' -f $delayStats.P99) } else { 'n/a' }
+        $maxDisplay = if ($delayStats.Max -ne $null) { ('{0:N3}' -f $delayStats.Max) } else { 'n/a' }
+        Write-Host 'InterfacePortQueueMetrics evaluation:' -ForegroundColor Yellow
+        Write-Host ("  Source file             : {0}" -f $queueMetricsPathUsed) -ForegroundColor Yellow
+        Write-Host ("  Samples                 : {0}" -f $delayStats.SampleCount) -ForegroundColor Yellow
+        Write-Host ("  Queue delay avg/p95/p99/max (ms): {0} / {1} / {2} / {3}" -f $avgDisplay, $p95Display, $p99Display, $maxDisplay) -ForegroundColor Yellow
+    }
+
+    if ($queueDelayEvaluation -and -not $queueDelayEvaluation.Pass) {
+        foreach ($message in $queueDelayEvaluation.Messages) {
+            Write-Warning $message
+        }
+        $queueViolationList = if ($queueDelayEvaluation.Violations -and $queueDelayEvaluation.Violations.Count -gt 0) {
+            $queueDelayEvaluation.Violations -join ', '
+        } else {
+            'Unknown'
+        }
+        throw ("InterfacePortQueueMetrics queue delay gate failed (violations: {0})." -f $queueViolationList)
+    }
+
+    if ($queueDelayEvaluation -and $queueDelayEvaluation.Pass -and -not $SkipQueueDelaySummaryExport.IsPresent) {
+        $queueDelaySummaryPathUsed = Get-QueueDelaySummaryPath -RequestedPath $QueueDelaySummaryPath -RepositoryRoot $repositoryRoot
+        if ($queueDelaySummaryPathUsed) {
+            try {
+                Write-QueueDelaySummary -Evaluation $queueDelayEvaluation -TelemetryPath $queueMetricsPathUsed -SummaryPath $queueDelaySummaryPathUsed | Out-Null
+                Write-Host ("Queue delay summary stored at {0}" -f $queueDelaySummaryPathUsed) -ForegroundColor DarkYellow
+            } catch {
+                Write-Warning ("Failed to write queue delay summary: {0}" -f $_.Exception.Message)
+                $queueDelaySummaryPathUsed = $null
+            }
+        }
+    }
+}
+
 $sharedCacheSummaryDefaultPath = Join-Path -Path $repositoryRoot -ChildPath 'Logs\SharedCacheSnapshot\SharedCacheSnapshot-latest-summary.json'
+if ($shouldGenerateSharedCacheDiagnostics) {
+    if (-not $queueMetricsPathUsed -or -not (Test-Path -LiteralPath $queueMetricsPathUsed)) {
+        Write-Warning 'Shared-cache diagnostics skipped because queue/ingestion metrics were not available.'
+    } else {
+        $sharedCacheDiagnosticsDirectoryResolved = $SharedCacheDiagnosticsDirectory
+        if ([string]::IsNullOrWhiteSpace($sharedCacheDiagnosticsDirectoryResolved)) {
+            $sharedCacheDiagnosticsDirectoryResolved = Join-Path -Path $repositoryRoot -ChildPath 'Logs\SharedCacheDiagnostics'
+        } else {
+            $sharedCacheDiagnosticsDirectoryResolved = Resolve-OptionalPath -PathValue $sharedCacheDiagnosticsDirectoryResolved
+        }
+
+        if (-not (Test-Path -LiteralPath $sharedCacheDiagnosticsDirectoryResolved)) {
+            New-Item -ItemType Directory -Path $sharedCacheDiagnosticsDirectoryResolved -Force | Out-Null
+        }
+
+        $diagTimestamp = if ($warmRunTimestamp) { $warmRunTimestamp } else { Get-Date -Format 'yyyyMMdd-HHmmss' }
+
+        $sharedCacheStoreScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Analyze-SharedCacheStoreState.ps1'
+        if (-not (Test-Path -LiteralPath $sharedCacheStoreScript)) {
+            throw "Unable to locate Analyze-SharedCacheStoreState.ps1 at '$sharedCacheStoreScript'."
+        }
+
+        $siteCacheProviderScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Analyze-SiteCacheProviderReasons.ps1'
+        if (-not (Test-Path -LiteralPath $siteCacheProviderScript)) {
+            throw "Unable to locate Analyze-SiteCacheProviderReasons.ps1 at '$siteCacheProviderScript'."
+        }
+
+        try {
+            $storeSummary = & $sharedCacheStoreScript -Path $queueMetricsPathUsed -IncludeSiteBreakdown
+            $sharedCacheStoreDiagnosticsPath = Join-Path -Path $sharedCacheDiagnosticsDirectoryResolved -ChildPath ("SharedCacheStoreState-{0}.json" -f $diagTimestamp)
+            $storeSummary | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $sharedCacheStoreDiagnosticsPath -Encoding utf8
+            if (-not $QuietSummary.IsPresent) {
+                Write-Host ("Shared-cache store diagnostics written to {0}" -f $sharedCacheStoreDiagnosticsPath) -ForegroundColor DarkYellow
+            }
+        } catch {
+            throw ("Failed to generate shared-cache store diagnostics: {0}" -f $_.Exception.Message)
+        }
+
+        try {
+            $providerSummary = & $siteCacheProviderScript -Path $queueMetricsPathUsed
+            $siteCacheProviderDiagnosticsPath = Join-Path -Path $sharedCacheDiagnosticsDirectoryResolved -ChildPath ("SiteCacheProviderReasons-{0}.json" -f $diagTimestamp)
+            $providerSummary | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $siteCacheProviderDiagnosticsPath -Encoding utf8
+            if (-not $QuietSummary.IsPresent) {
+                Write-Host ("Site cache provider diagnostics written to {0}" -f $siteCacheProviderDiagnosticsPath) -ForegroundColor DarkYellow
+            }
+        } catch {
+            throw ("Failed to generate site cache provider diagnostics: {0}" -f $_.Exception.Message)
+        }
+    }
+}
+
 if (-not $sharedCacheSummaryPath) {
     $sharedCacheSummaryPath = $sharedCacheSummaryDefaultPath
 }
@@ -349,16 +677,67 @@ if (-not $SkipSharedCacheSummaryEvaluation.IsPresent) {
     }
 }
 
+$bundleReadinessResults = $null
+if ($VerifyTelemetryBundleReadiness.IsPresent -or -not [string]::IsNullOrWhiteSpace($TelemetryBundlePath)) {
+    if ([string]::IsNullOrWhiteSpace($TelemetryBundlePath)) {
+        throw 'Specify -TelemetryBundlePath when requesting telemetry bundle readiness verification.'
+    }
+
+    $bundleScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Test-TelemetryBundleReadiness.ps1'
+    if (-not (Test-Path -LiteralPath $bundleScript)) {
+        throw "Telemetry bundle readiness script not found at $bundleScript."
+    }
+
+    $resolvedBundlePath = (Resolve-Path -LiteralPath $TelemetryBundlePath -ErrorAction Stop).Path
+    $bundleParams = @{
+        BundlePath = $resolvedBundlePath
+        PassThru   = $true
+    }
+    if ($TelemetryBundleAreas -and $TelemetryBundleAreas.Count -gt 0) {
+        $bundleParams['Area'] = $TelemetryBundleAreas
+    }
+
+    $bundleReadinessResults = & $bundleScript @bundleParams
+    if (-not $bundleReadinessResults) {
+        throw "Telemetry bundle readiness script returned no results for '$resolvedBundlePath'."
+    }
+
+    $missingArtifacts = @($bundleReadinessResults | Where-Object { $_.Status -eq 'Missing' })
+    if ($missingArtifacts.Count -gt 0) {
+        $summary = $missingArtifacts | Format-Table Area, Requirement -AutoSize | Out-String
+        throw ("Telemetry bundle readiness failed:`n{0}" -f $summary)
+    }
+
+    $optionalMissing = @($bundleReadinessResults | Where-Object { $_.Status -like 'Missing*Optional*' })
+    if ($optionalMissing.Count -gt 0) {
+        $names = $optionalMissing | ForEach-Object { '{0}:{1}' -f $_.Area, $_.Requirement }
+        Write-Warning ("Telemetry bundle readiness: optional artifacts missing ({0})." -f ($names -join ', '))
+    }
+
+    if (-not $QuietSummary.IsPresent) {
+        $areas = ($bundleReadinessResults.Area | Sort-Object -Unique) -join ', '
+        Write-Host ("Telemetry bundle readiness passed ({0})" -f $areas) -ForegroundColor Green
+    }
+}
+
 if ($PassThru.IsPresent) {
     [pscustomobject]@{
         WarmRunTelemetryPath = $computedWarmRunPath
         WarmRunTelemetrySummaryPath = $warmRunSummaryPath
         WarmRunSummary      = $warmRunSummaryData
         WarmRunEvaluation   = $warmRunEvaluation
+        QueueMetricsPath    = $queueMetricsPathUsed
+        QueueDelayEvaluation = $queueDelayEvaluation
+        QueueDelaySummaryPath = $queueDelaySummaryPathUsed
         SharedCacheSnapshotDirectory = $sharedCacheSnapshotDirectoryUsed
         SharedCacheSummaryPath = $sharedCacheSummaryPath
         SharedCacheCoveragePath = $sharedCacheCoverageOutputPathResolved
         SharedCacheSummaryEvaluation = $sharedCacheSummaryEvaluation
+        SharedCacheDiagnosticsDirectory = $sharedCacheDiagnosticsDirectoryResolved
+        SharedCacheStoreDiagnosticsPath = $sharedCacheStoreDiagnosticsPath
+        SiteCacheProviderDiagnosticsPath = $siteCacheProviderDiagnosticsPath
+        DiffHotspotReportPath = $diffHotspotReportPath
+        TelemetryBundleReadiness = $bundleReadinessResults
         Parameters           = $pipelineParameters
     }
 }

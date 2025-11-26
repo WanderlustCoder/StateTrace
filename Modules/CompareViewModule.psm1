@@ -676,6 +676,8 @@ function Show-CurrentComparison {
             return
         }
 
+        $telemetryCmd = Get-Command -Name 'TelemetryModule\Write-StTelemetryEvent' -ErrorAction SilentlyContinue
+
         # If both sides have selections, retrieve the corresponding data rows (if possible) and show comparison
         $row1 = Get-GridRowFor -Hostname $s1 -Port $p1
         $row2 = Get-GridRowFor -Hostname $s2 -Port $p2
@@ -690,6 +692,20 @@ function Show-CurrentComparison {
             $resolvedRow2 = if ($row2) { $row2 } else { [pscustomobject]@{ ToolTip = ''; PortColor = $null } }
             Set-CompareFromRows -Row1 $resolvedRow1 -Row2 $resolvedRow2
             Write-Verbose "[CompareView] Partial data: one or both rows not found in grid for $s1/$p1 vs $s2/$p2."
+        }
+
+        if ($telemetryCmd) {
+            try {
+                TelemetryModule\Write-StTelemetryEvent -Name 'UserAction' -Payload @{
+                    Action    = 'CompareView'
+                    Site      = (Get-SitePrefix $s1)
+                    Hostname  = $s1
+                    Hostname2 = $s2
+                    Port1     = $p1
+                    Port2     = $p2
+                    Timestamp = (Get-Date).ToString('o')
+                }
+            } catch { }
         }
     }
     catch {

@@ -14,12 +14,17 @@ Describe "ViewStateService Get-FilterSnapshot" {
         }
     }
 
+    BeforeEach {
+        $global:DeviceHostnameOrder = @()
+    }
+
     AfterAll {
         Remove-Module ViewStateService -Force
         Remove-Variable -Name TestMetadata -Scope Script -ErrorAction SilentlyContinue
+        Remove-Variable -Name DeviceHostnameOrder -Scope Global -ErrorAction SilentlyContinue
     }
 
-    It "returns sorted unique lists when no filters are provided" {
+    It "returns sorted unique lists when no rotation is defined" {
         $snapshot = ViewStateService\Get-FilterSnapshot -DeviceMetadata $script:TestMetadata
 
         $snapshot.Sites | Should Be @('SITE1','SITE2','SITE3')
@@ -27,6 +32,20 @@ Describe "ViewStateService Get-FilterSnapshot" {
         $snapshot.Buildings | Should Be @('B1','B2','B3','B4')
         $snapshot.Hostnames | Should Be @('SITE1-Z1-SW1','SITE1-Z2-SW2','SITE1-Z2-SW3','SITE2-Z3-SW4','SITE3-XX-SW5')
         $snapshot.ZoneToLoad | Should Be 'XX'
+    }
+
+    It "respects the preferred host rotation when provided" {
+        $global:DeviceHostnameOrder = @(
+            'SITE1-Z2-SW2',
+            'SITE2-Z3-SW4',
+            'SITE1-Z1-SW1',
+            'SITE3-XX-SW5',
+            'SITE1-Z2-SW3'
+        )
+
+        $snapshot = ViewStateService\Get-FilterSnapshot -DeviceMetadata $script:TestMetadata
+
+        $snapshot.Hostnames | Should Be @('SITE1-Z2-SW2','SITE2-Z3-SW4','SITE1-Z1-SW1','SITE3-XX-SW5','SITE1-Z2-SW3')
     }
 
     It "scopes zones, buildings, and hosts to the requested site" {

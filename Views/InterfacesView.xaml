@@ -282,17 +282,29 @@
         </DataGrid>
 
         <Grid Grid.Row="3" Margin="5,4,5,0">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+          </Grid.RowDefinitions>
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*"/>
             <ColumnDefinition Width="Auto"/>
           </Grid.ColumnDefinitions>
+          <TextBlock Name="HostLoadingIndicator"
+                     Text="Loading host..."
+                     Foreground="{DynamicResource Theme.Text.Inverse}"
+                     FontSize="12"
+                     Visibility="Collapsed"
+                     VerticalAlignment="Center"/>
           <TextBlock Name="PortLoadingIndicator"
+                     Grid.Row="1"
                      Text="Loading ports..."
                      Foreground="{DynamicResource Theme.Text.Inverse}"
                      FontSize="12"
                      Visibility="Collapsed"
                      VerticalAlignment="Center"/>
           <ProgressBar Name="PortLoadingProgress"
+                       Grid.RowSpan="2"
                        Grid.Column="1"
                        Width="140"
                        Height="8"

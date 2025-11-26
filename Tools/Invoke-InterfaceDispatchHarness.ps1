@@ -20,6 +20,15 @@ time.
 .PARAMETER ChunkSize
 Optional chunk size override when building port batches.
 
+.PARAMETER QueueDelayWarningMs
+Warning threshold (milliseconds) for `QueueBuildDelayMs`. Exceeding this still completes the harness but emits a warning.
+
+.PARAMETER QueueDelayCriticalMs
+Critical threshold (milliseconds) for `QueueBuildDelayMs`. Exceeding this throws and fails the harness.
+
+.PARAMETER SkipQueueDelayCheck
+Skips the post-run queue delay guard (not recommended).
+
 .EXAMPLE
 PS> .\Tools\Invoke-InterfaceDispatchHarness.ps1 -Hostname 'BOYO-A05-AS-05'
 Stages rows for BOYO-A05-AS-05 and emits InterfacePortDispatchMetrics payloads.
@@ -28,7 +37,10 @@ Stages rows for BOYO-A05-AS-05 and emits InterfacePortDispatchMetrics payloads.
 param(
     [Parameter(Mandatory)][string]$Hostname,
     [datetime]$RunDate = (Get-Date),
-    [int]$ChunkSize = 0
+    [int]$ChunkSize = 0,
+    [double]$QueueDelayWarningMs = 120,
+    [double]$QueueDelayCriticalMs = 200,
+    [switch]$SkipQueueDelayCheck
 )
 
 Set-StrictMode -Version Latest
@@ -120,6 +132,45 @@ while ($true) {
     if ($batch.Completed) { break }
 }
 
+$queueMetrics = $null
+try { $queueMetrics = DeviceRepositoryModule\Get-LastInterfacePortQueueMetrics } catch { $queueMetrics = $null }
 DeviceRepositoryModule\Clear-InterfacePortStream -Hostname $cleanHost
+
+if (-not $SkipQueueDelayCheck.IsPresent) {
+    if (-not $queueMetrics) {
+        Write-Warning ("[Harness] No InterfacePortQueueMetrics were captured for '{0}'; queue delay guard skipped." -f $cleanHost)
+    } else {
+        $delay = $null
+        foreach ($property in @('QueueDelayMs', 'QueueBuildDelayMs')) {
+            if ($queueMetrics.PSObject.Properties.Name -contains $property) {
+                try { $delay = [double]$queueMetrics.$property } catch { $delay = $null }
+            }
+            if ($delay -ne $null) { break }
+        }
+
+        $duration = $null
+        if ($queueMetrics.PSObject.Properties.Name -contains 'QueueBuildDurationMs') {
+            try { $duration = [double]$queueMetrics.QueueBuildDurationMs } catch { $duration = $null }
+        }
+
+        if ($delay -eq $null) {
+            Write-Warning ("[Harness] Queue metrics for '{0}' did not include QueueBuildDelayMs; guard skipped." -f $cleanHost)
+        } else {
+            $durationDisplay = if ($duration -ne $null) { ('{0:N3} ms' -f $duration) } else { 'n/a' }
+            Write-Host ("[Harness] Queue build delay for '{0}': {1:N3} ms (duration {2})" -f `
+                $cleanHost,
+                $delay,
+                $durationDisplay) -ForegroundColor Yellow
+
+            if ($QueueDelayCriticalMs -ge 0 -and $delay -gt $QueueDelayCriticalMs) {
+                throw ("[Harness] Queue build delay {0:N3} ms exceeds critical threshold {1:N3} ms." -f $delay, $QueueDelayCriticalMs)
+            }
+
+            if ($QueueDelayWarningMs -ge 0 -and $delay -gt $QueueDelayWarningMs) {
+                Write-Warning ("[Harness] Queue build delay {0:N3} ms exceeds warning threshold {1:N3} ms (Hostname: {2})." -f $delay, $QueueDelayWarningMs, $cleanHost)
+            }
+        }
+    }
+}
 
 Write-HarnessVerbose ("[Harness] Completed dispatcher simulation for '{0}'." -f $cleanHost)

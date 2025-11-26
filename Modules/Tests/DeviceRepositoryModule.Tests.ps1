@@ -120,12 +120,15 @@ Describe "DeviceRepositoryModule core helpers" {
         $expected = Join-Path $expectedDir 'ACME:HQ-EDGE1.accdb'
         $path | Should Be $expected
     }
-    It "clears the per-site interface cache" {
-        Set-RepositoryVar -Name 'SiteInterfaceCache' -Value @{ 'SITE1' = 1 }
-        DeviceRepositoryModule\Clear-SiteInterfaceCache
-        $cache = Get-Module DeviceRepositoryModule | ForEach-Object { $_.SessionState.PSVariable.Get('SiteInterfaceCache').Value }
-        $cache.Keys.Count | Should Be 0
-    }
+      It "clears the per-site interface cache" {
+          Set-RepositoryVar -Name 'SiteInterfaceCache' -Value @{ 'SITE1' = 1 }
+          DeviceRepositoryModule\Clear-SiteInterfaceCache
+          $cache = Get-Module DeviceRepositoryModule | ForEach-Object { $_.SessionState.PSVariable.Get('SiteInterfaceCache').Value }
+          $cache.Keys.Count | Should Be 0
+      }
+      It "accepts a reason when clearing the cache" {
+          { DeviceRepositoryModule\Clear-SiteInterfaceCache -Reason 'UnitTest' } | Should Not Throw
+      }
 
     It "adopts shared cache entries from the AppDomain store when script cache is empty" {
         $module = Get-Module DeviceRepositoryModule -ErrorAction Stop
@@ -872,6 +875,59 @@ Describe "DeviceRepositoryModule core helpers" {
         }
     }
 
+    It "imports shared cache snapshot from STATETRACE_SHARED_CACHE_SNAPSHOT when initializing the store" {
+        $siteKey = 'ENVIMPORT'
+        $hostKey = 'ENVIMPORT-A01-AS-01'
+        $module = Get-Module DeviceRepositoryModule -ErrorAction Stop
+        $snapshotPath = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath ("SharedCacheSnapshot-{0}.clixml" -f ([System.Guid]::NewGuid().ToString('N')))
+        $existingEnv = $null
+        try {
+            $snapshotEntry = [pscustomobject]@{
+                Site  = $siteKey
+                Entry = [pscustomobject]@{
+                    HostMap = @{
+                        $hostKey = @{
+                            'Gi1/0/1' = [pscustomobject]@{
+                                Port     = 'Gi1/0/1'
+                                Name     = 'GigabitEthernet1/0/1'
+                                Status   = 'up'
+                                VLAN     = '1'
+                                PortSort = '01-GI-00001'
+                                Signature = 'env-import'
+                            }
+                        }
+                    }
+                    CacheStatus = 'SharedOnly'
+                    CachedAt    = Get-Date
+                }
+            }
+
+            @($snapshotEntry) | Export-Clixml -Path $snapshotPath -Depth 10
+
+            $module.Invoke({ Clear-SiteInterfaceCache }) | Out-Null
+            $module.Invoke({ [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::ClearStore() }) | Out-Null
+            try { $existingEnv = $env:STATETRACE_SHARED_CACHE_SNAPSHOT } catch { $existingEnv = $null }
+            $module.Invoke({ param($path) $env:STATETRACE_SHARED_CACHE_SNAPSHOT = $path }, $snapshotPath)
+
+            $module.Invoke({ Initialize-SharedSiteInterfaceCacheStore | Out-Null })
+            $restoredEntry = $module.Invoke({ param($site) Get-SharedSiteInterfaceCacheEntry -SiteKey $site }, $siteKey)
+
+            $restoredEntry | Should Not BeNullOrEmpty
+            $restoredEntry.HostCount | Should Be 1
+            $restoredEntry.TotalRows | Should Be 1
+            $restoredEntry.HostMap.ContainsKey($hostKey) | Should Be $true
+            $restoredEntry.HostMap[$hostKey]['Gi1/0/1'] | Should BeOfType 'StateTrace.Models.InterfaceCacheEntry'
+        } finally {
+            if ($existingEnv -ne $null) {
+                $module.Invoke({ param($value) $env:STATETRACE_SHARED_CACHE_SNAPSHOT = $value }, $existingEnv)
+            } else {
+                $module.Invoke({ Remove-Item Env:STATETRACE_SHARED_CACHE_SNAPSHOT -ErrorAction SilentlyContinue })
+            }
+            Remove-Item -LiteralPath $snapshotPath -ErrorAction SilentlyContinue
+            $module.Invoke({ Clear-SiteInterfaceCache }) | Out-Null
+        }
+    }
+
     Context "shared cache snapshot fallbacks" {
         BeforeAll {
             $toolsPath = Join-Path -Path (Split-Path -Parent $PSCommandPath) -ChildPath '..\..\Tools\Invoke-WarmRunTelemetry.ps1'
@@ -942,6 +998,29 @@ Describe "DeviceRepositoryModule core helpers" {
             $snapshot[0].Site | Should Be $siteKey
             $snapshot[0].Entry | Should Not BeNullOrEmpty
             $snapshot[0].Entry.HostCount | Should Be 1
+        }
+
+        It "converts typed host maps when exporting shared cache entries" {
+            $module = Get-Module DeviceRepositoryModule -ErrorAction Stop
+            $portMap = New-Object 'System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceCacheEntry]' ([System.StringComparer]::OrdinalIgnoreCase)
+            $cacheEntry = [StateTrace.Models.InterfaceCacheEntry]::new()
+            $cacheEntry.Name = 'Gi1/0/9'
+            $cacheEntry.PortSort = '01-AAA-00001-00001-00001-00001-00001'
+            $portMap['Gi1/0/9'] = $cacheEntry
+
+            $hostMap = New-Object 'System.Collections.Generic.Dictionary[string,System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceCacheEntry]]' ([System.StringComparer]::OrdinalIgnoreCase)
+            $hostMap['HOST-TYPED'] = $portMap
+
+            $export = $module.Invoke(
+                {
+                    param($map)
+                    Convert-InterfaceSiteCacheHostMapToExportMap -HostMap $map
+                },
+                $hostMap
+            )
+
+            ($export.Keys | Measure-Object).Count | Should Be 1
+            ($export['HOST-TYPED'].Keys | Measure-Object).Count | Should Be 1
         }
 
         It "hydrates fallback sites when cache stores are empty" {

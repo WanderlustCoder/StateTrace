@@ -25,6 +25,76 @@ if (-not (Get-Variable -Scope Script -Name SharedSiteInterfaceCacheKey -ErrorAct
     $script:SharedSiteInterfaceCacheKey = 'StateTrace.Repository.SharedSiteInterfaceCache'
 }
 
+if (-not ('StateTrace.Models.InterfacePortRecord' -as [type])) {
+    Add-Type -TypeDefinition @"
+namespace StateTrace.Models
+{
+    public sealed class InterfacePortRecord
+    {
+        public string Hostname { get; set; }
+        public string Port { get; set; }
+        public string PortSort { get; set; }
+        public string Name { get; set; }
+        public string Status { get; set; }
+        public string VLAN { get; set; }
+        public string Duplex { get; set; }
+        public string Speed { get; set; }
+        public string Type { get; set; }
+        public string LearnedMACs { get; set; }
+        public string AuthState { get; set; }
+        public string AuthMode { get; set; }
+        public string AuthClientMAC { get; set; }
+        public string Site { get; set; }
+        public string Building { get; set; }
+        public string Room { get; set; }
+        public string Zone { get; set; }
+        public string AuthTemplate { get; set; }
+        public string Config { get; set; }
+        public string ConfigStatus { get; set; }
+        public string PortColor { get; set; }
+        public string ToolTip { get; set; }
+        public string CacheSignature { get; set; }
+        public bool IsSelected { get; set; }
+    }
+
+    public sealed class InterfaceTemplateHint
+    {
+        public string PortColor { get; set; }
+        public string ConfigStatus { get; set; }
+        public bool HasTemplate { get; set; }
+    }
+}
+"@ -Language CSharp
+}
+
+if (-not ('StateTrace.Models.InterfaceCacheEntry' -as [type])) {
+    Add-Type -TypeDefinition @"
+namespace StateTrace.Models
+{
+    public sealed class InterfaceCacheEntry
+    {
+        public string Name { get; set; }
+        public string Status { get; set; }
+        public string VLAN { get; set; }
+        public string Duplex { get; set; }
+        public string Speed { get; set; }
+        public string Type { get; set; }
+        public string Learned { get; set; }
+        public string AuthState { get; set; }
+        public string AuthMode { get; set; }
+        public string AuthClient { get; set; }
+        public string Template { get; set; }
+        public string Config { get; set; }
+        public string PortSort { get; set; }
+        public string PortColor { get; set; }
+        public string StatusTag { get; set; }
+        public string ToolTip { get; set; }
+        public string Signature { get; set; }
+    }
+}
+"@ -Language CSharp
+}
+
 function Publish-SharedSiteInterfaceCacheStoreState {
     param(
         [Parameter(Mandatory)][string]$Operation,
@@ -71,6 +141,139 @@ function Publish-SharedSiteInterfaceCacheStoreState {
             ThreadId      = $threadId
         }
     } catch { }
+}
+
+function Publish-SharedSiteInterfaceCacheClearInvocation {
+    param(
+        [string]$Reason,
+        [string]$CallerFunction,
+        [string]$CallerScript,
+        [int]$CallerLine,
+        [string]$InvocationName,
+        [int]$CallStackDepth
+    )
+
+    $runspaceId = ''
+    try {
+        $currentRunspace = [System.Management.Automation.Runspaces.Runspace]::DefaultRunspace
+        if ($currentRunspace) { $runspaceId = $currentRunspace.InstanceId.ToString() }
+    } catch {
+        $runspaceId = ''
+    }
+
+    $processId = 0
+    try { $processId = [System.Diagnostics.Process]::GetCurrentProcess().Id } catch { $processId = 0 }
+
+    $threadId = 0
+    try { $threadId = [System.Threading.Thread]::CurrentThread.ManagedThreadId } catch { $threadId = 0 }
+
+    try {
+        TelemetryModule\Write-StTelemetryEvent -Name 'InterfaceSiteCacheClearInvocation' -Payload @{
+            Reason         = $Reason
+            CallerFunction = $CallerFunction
+            CallerScript   = $CallerScript
+            CallerLine     = $CallerLine
+            InvocationName = $InvocationName
+            CallStackDepth = $CallStackDepth
+            RunspaceId     = $runspaceId
+            ProcessId      = $processId
+            ThreadId       = $threadId
+        }
+    } catch { }
+}
+
+function Import-SharedSiteInterfaceCacheSnapshotFromEnv {
+    param(
+        [System.Collections.Concurrent.ConcurrentDictionary[string, object]]$TargetStore
+    )
+
+    if (-not ($TargetStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]])) {
+        return 0
+    }
+
+    $snapshotPath = $null
+    try { $snapshotPath = $env:STATETRACE_SHARED_CACHE_SNAPSHOT } catch { $snapshotPath = $null }
+    if ([string]::IsNullOrWhiteSpace($snapshotPath) -or -not (Test-Path -LiteralPath $snapshotPath)) {
+        return 0
+    }
+
+    $entries = $null
+    try {
+        $entries = Import-Clixml -Path $snapshotPath
+    } catch {
+        Write-Warning ("Failed to import shared cache snapshot '{0}' from STATETRACE_SHARED_CACHE_SNAPSHOT: {1}" -f $snapshotPath, $_.Exception.Message)
+        return 0
+    }
+    if (-not $entries) { return 0 }
+
+    $imported = 0
+    foreach ($entry in @($entries)) {
+        if (-not $entry) { continue }
+
+        $siteKey = ''
+        if ($entry.PSObject.Properties.Name -contains 'Site') {
+            $siteKey = ('' + $entry.Site).Trim()
+        } elseif ($entry.PSObject.Properties.Name -contains 'SiteKey') {
+            $siteKey = ('' + $entry.SiteKey).Trim()
+        }
+        if ([string]::IsNullOrWhiteSpace($siteKey)) { continue }
+
+        $entryPayload = $null
+        if ($entry.PSObject.Properties.Name -contains 'Entry') {
+            $entryPayload = $entry.Entry
+        }
+        if (-not $entryPayload) { continue }
+
+        $normalizedEntry = $null
+        try { $normalizedEntry = Normalize-InterfaceSiteCacheEntry -Entry $entryPayload } catch { $normalizedEntry = $null }
+        if (-not $normalizedEntry) { continue }
+
+        $TargetStore[$siteKey] = $normalizedEntry
+        if (-not $script:SiteInterfaceSignatureCache) {
+            $script:SiteInterfaceSignatureCache = @{}
+        }
+        $script:SiteInterfaceSignatureCache[$siteKey] = $normalizedEntry
+
+        $stats = Get-SharedSiteInterfaceCacheEntryStatistics -Entry $normalizedEntry
+        $storeHashCode = 0
+        try { $storeHashCode = [System.Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($TargetStore) } catch { $storeHashCode = 0 }
+        Publish-SharedSiteInterfaceCacheEvent -SiteKey $siteKey -Operation 'Set' -EntryCount $TargetStore.Count -HostCount $stats.HostCount -TotalRows $stats.TotalRows -StoreHashCode $storeHashCode
+        $imported++
+    }
+
+    if ($imported -gt 0) {
+        Write-Verbose ("Imported {0} shared cache entr{1} from '{2}' via STATETRACE_SHARED_CACHE_SNAPSHOT." -f $imported, $(if ($imported -eq 1) { 'y' } else { 'ies' }), $snapshotPath)
+    }
+
+    return $imported
+}
+
+function Ensure-SharedSiteInterfaceCacheSnapshotImported {
+    param(
+        [System.Collections.Concurrent.ConcurrentDictionary[string, object]]$Store,
+        [switch]$Force
+    )
+
+    if (-not ($Store -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]])) {
+        return 0
+    }
+
+    $entryCount = 0
+    try { $entryCount = [int]$Store.Count } catch { $entryCount = 0 }
+    if ((-not $Force.IsPresent) -and $entryCount -gt 0) {
+        return 0
+    }
+
+    $imported = Import-SharedSiteInterfaceCacheSnapshotFromEnv -TargetStore $Store
+    if ($imported -gt 0) {
+        $storeHashCode = 0
+        try { $storeHashCode = [System.Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($Store) } catch { $storeHashCode = 0 }
+        $postImportCount = 0
+        try { $postImportCount = [int]$Store.Count } catch { $postImportCount = $entryCount }
+        Publish-SharedSiteInterfaceCacheStoreState -Operation 'SnapshotImported' -EntryCount $postImportCount -StoreHashCode $storeHashCode
+    }
+
+    return $imported
 }
 
 if (-not ('StateTrace.Repository.SharedSiteInterfaceCacheHolder' -as [type])) {
@@ -191,6 +394,10 @@ function Initialize-SharedSiteInterfaceCacheStore {
         try { $entryCount = [int]$store.Count } catch { $entryCount = 0 }
         $operation = if ($createdNewStore) { 'InitNewStore' } elseif ($adoptedExistingStore) { 'InitAdoptedStore' } else { 'InitReuseStore' }
         Publish-SharedSiteInterfaceCacheStoreState -Operation $operation -EntryCount $entryCount -StoreHashCode $storeHashCode
+
+        if ($entryCount -eq 0) {
+            [void](Ensure-SharedSiteInterfaceCacheSnapshotImported -Store $store -Force)
+        }
     }
 
     return $store
@@ -230,6 +437,9 @@ function Get-SharedSiteInterfaceCacheStore {
         if (-not [object]::ReferenceEquals($domainStore, $bestStore)) {
             try { [System.AppDomain]::CurrentDomain.SetData($storeKey, $bestStore) } catch { }
         }
+        if ($bestStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
+            [void](Ensure-SharedSiteInterfaceCacheSnapshotImported -Store $bestStore)
+        }
         return $bestStore
     }
 
@@ -239,6 +449,7 @@ function Get-SharedSiteInterfaceCacheStore {
     }
     if ($store -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
         try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($store) } catch { }
+        [void](Ensure-SharedSiteInterfaceCacheSnapshotImported -Store $store)
     }
 
     return $store
@@ -248,6 +459,10 @@ if (-not (Get-Variable -Scope Script -Name SharedSiteInterfaceCache -ErrorAction
     $script:SharedSiteInterfaceCache = Initialize-SharedSiteInterfaceCacheStore
 } elseif (-not ($script:SharedSiteInterfaceCache -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]])) {
     $script:SharedSiteInterfaceCache = Initialize-SharedSiteInterfaceCacheStore
+}
+
+if ($script:SharedSiteInterfaceCache -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
+    [void](Ensure-SharedSiteInterfaceCacheSnapshotImported -Store $script:SharedSiteInterfaceCache)
 }
 
 function Copy-InterfaceCacheEntryObject {
@@ -600,44 +815,97 @@ function Convert-InterfaceCacheEntryToExportObject {
     return $export
 }
 
+function ConvertTo-KeyValueEntryList {
+    param($Source)
+
+    $entries = New-Object 'System.Collections.Generic.List[psobject]'
+    if (-not $Source) { return $entries }
+
+    if ($Source -is [System.Collections.IDictionary]) {
+        foreach ($key in @($Source.Keys)) {
+            $entries.Add([pscustomobject]@{
+                    Key   = $key
+                    Value = $Source[$key]
+                }) | Out-Null
+        }
+        return $entries
+    }
+
+    if ($Source -is [System.Collections.IEnumerable]) {
+        foreach ($item in $Source) {
+            if (-not $item) { continue }
+            $entryKey = $null
+            $entryValue = $null
+
+            if ($item -is [System.Collections.DictionaryEntry]) {
+                $entryKey = $item.Key
+                $entryValue = $item.Value
+            } else {
+                $psEntry = $null
+                try { $psEntry = $item.PSObject } catch { $psEntry = $null }
+                if ($psEntry -and $psEntry.Properties['Key']) {
+                    $entryKey = $psEntry.Properties['Key'].Value
+                } elseif ($item -isnot [string]) {
+                    try { $entryKey = $item.Key } catch { $entryKey = $null }
+                }
+                if ($psEntry -and $psEntry.Properties['Value']) {
+                    $entryValue = $psEntry.Properties['Value'].Value
+                } elseif ($item -isnot [string]) {
+                    try { $entryValue = $item.Value } catch { $entryValue = $null }
+                }
+            }
+
+            if ($null -eq $entryKey) { continue }
+            $entries.Add([pscustomobject]@{
+                    Key   = $entryKey
+                    Value = $entryValue
+                }) | Out-Null
+        }
+    }
+
+    return $entries
+}
+
 function Convert-InterfaceSiteCacheHostMapToExportMap {
     param($HostMap)
 
     $exportMap = New-Object 'System.Collections.Hashtable' ([System.StringComparer]::OrdinalIgnoreCase)
     if (-not $HostMap) { return $exportMap }
 
-    if ($HostMap -is [System.Collections.IDictionary]) {
-        foreach ($hostKey in @($HostMap.Keys)) {
-            $normalizedHostKey = if ($hostKey) { ('' + $hostKey).Trim() } else { '' }
-            if ([string]::IsNullOrWhiteSpace($normalizedHostKey)) { continue }
+    $hostEntries = ConvertTo-KeyValueEntryList -Source $HostMap
+    foreach ($hostEntry in $hostEntries) {
+        if (-not $hostEntry) { continue }
+        $normalizedHostKey = if ($hostEntry.Key) { ('' + $hostEntry.Key).Trim() } else { '' }
+        if ([string]::IsNullOrWhiteSpace($normalizedHostKey)) { continue }
 
-            $ports = $HostMap[$hostKey]
-            $exportPorts = New-Object 'System.Collections.Hashtable' ([System.StringComparer]::OrdinalIgnoreCase)
+        $ports = $hostEntry.Value
+        $exportPorts = New-Object 'System.Collections.Hashtable' ([System.StringComparer]::OrdinalIgnoreCase)
 
-            if ($ports -is [System.Collections.IDictionary]) {
-                foreach ($portKey in @($ports.Keys)) {
-                    $normalizedPortKey = if ($portKey) { ('' + $portKey).Trim() } else { '' }
-                    if ([string]::IsNullOrWhiteSpace($normalizedPortKey)) { continue }
-                    $exportPorts[$normalizedPortKey] = Convert-InterfaceCacheEntryToExportObject -Entry $ports[$portKey]
-                }
-            } elseif ($ports -is [System.Collections.IEnumerable] -and -not ($ports -is [string])) {
-                foreach ($portEntry in $ports) {
-                    if (-not $portEntry) { continue }
-                    $portName = $null
-                    $portPsObject = $null
-                    try { $portPsObject = $portEntry.PSObject } catch { $portPsObject = $null }
-                    if ($portPsObject -and $portPsObject.Properties['Port']) {
-                        $portName = '' + $portPsObject.Properties['Port'].Value
-                    }
-                    if ([string]::IsNullOrWhiteSpace($portName)) { continue }
-                    $normalizedPortName = $portName.Trim()
-                    if ([string]::IsNullOrWhiteSpace($normalizedPortName)) { continue }
-                    $exportPorts[$normalizedPortName] = Convert-InterfaceCacheEntryToExportObject -Entry $portEntry
-                }
+        $portEntries = ConvertTo-KeyValueEntryList -Source $ports
+        if ($portEntries.Count -gt 0) {
+            foreach ($portEntry in $portEntries) {
+                if (-not $portEntry) { continue }
+                $normalizedPortKey = if ($portEntry.Key) { ('' + $portEntry.Key).Trim() } else { '' }
+                if ([string]::IsNullOrWhiteSpace($normalizedPortKey)) { continue }
+                $exportPorts[$normalizedPortKey] = Convert-InterfaceCacheEntryToExportObject -Entry $portEntry.Value
             }
-
-            $exportMap[$normalizedHostKey] = $exportPorts
+        } elseif ($ports -is [System.Collections.IEnumerable] -and -not ($ports -is [string])) {
+            foreach ($portEntry in $ports) {
+                if (-not $portEntry) { continue }
+                $portName = $null
+                $portPsObject = $null
+                try { $portPsObject = $portEntry.PSObject } catch { $portPsObject = $null }
+                if ($portPsObject -and $portPsObject.Properties['Port']) {
+                    $portName = '' + $portPsObject.Properties['Port'].Value
+                }
+                if ([string]::IsNullOrWhiteSpace($portName)) { continue }
+                $normalizedPortName = $portName.Trim()
+                if ([string]::IsNullOrWhiteSpace($normalizedPortName)) { continue }
+                $exportPorts[$normalizedPortName] = Convert-InterfaceCacheEntryToExportObject -Entry $portEntry
+            }
         }
+
+        $exportMap[$normalizedHostKey] = $exportPorts
     }
 
     return $exportMap
@@ -795,6 +1063,24 @@ if (-not (Get-Variable -Scope Script -Name InterfacePortStreamStore -ErrorAction
 
 if (-not (Get-Variable -Scope Script -Name InterfacePortStreamChunkSize -ErrorAction SilentlyContinue)) {
     $script:InterfacePortStreamChunkSize = 24
+}
+
+function Set-InterfacePortStreamChunkSize {
+    [CmdletBinding()]
+    param(
+        [int]$ChunkSize,
+        [switch]$Reset
+    )
+
+    $defaultChunkSize = 24
+    $targetSize = $defaultChunkSize
+
+    if (-not $Reset -and $PSBoundParameters.ContainsKey('ChunkSize') -and $ChunkSize -gt 0) {
+        $targetSize = [int]$ChunkSize
+    }
+
+    $script:InterfacePortStreamChunkSize = $targetSize
+    return $script:InterfacePortStreamChunkSize
 }
 
 if (-not (Get-Variable -Scope Script -Name LastInterfacePortStreamMetrics -ErrorAction SilentlyContinue)) {
@@ -967,6 +1253,7 @@ function Get-SharedSiteInterfaceCacheEntryStatistics {
     }
 }
 
+
 function Publish-SharedSiteInterfaceCacheEvent {
     [CmdletBinding()]
     param(
@@ -1084,48 +1371,6 @@ function Publish-InterfaceSiteCacheReuseState {
     } catch { }
 }
 
-if (-not ('StateTrace.Models.InterfacePortRecord' -as [type])) {
-    Add-Type -TypeDefinition @"
-namespace StateTrace.Models
-{
-    public sealed class InterfacePortRecord
-    {
-        public string Hostname { get; set; }
-        public string Port { get; set; }
-        public string PortSort { get; set; }
-        public string Name { get; set; }
-        public string Status { get; set; }
-        public string VLAN { get; set; }
-        public string Duplex { get; set; }
-        public string Speed { get; set; }
-        public string Type { get; set; }
-        public string LearnedMACs { get; set; }
-        public string AuthState { get; set; }
-        public string AuthMode { get; set; }
-        public string AuthClientMAC { get; set; }
-        public string Site { get; set; }
-        public string Building { get; set; }
-        public string Room { get; set; }
-        public string Zone { get; set; }
-        public string AuthTemplate { get; set; }
-        public string Config { get; set; }
-        public string ConfigStatus { get; set; }
-        public string PortColor { get; set; }
-        public string ToolTip { get; set; }
-        public string CacheSignature { get; set; }
-        public bool IsSelected { get; set; }
-    }
-
-    public sealed class InterfaceTemplateHint
-    {
-        public string PortColor { get; set; }
-        public string ConfigStatus { get; set; }
-        public bool HasTemplate { get; set; }
-    }
-}
-"@ -Language CSharp
-}
-
 if (-not (Get-Variable -Scope Script -Name TemplateLookupCache -ErrorAction SilentlyContinue)) {
     $script:TemplateLookupCache = New-Object 'System.Collections.Generic.Dictionary[string,object]' ([System.StringComparer]::OrdinalIgnoreCase)
 }
@@ -1134,83 +1379,6 @@ if (-not (Get-Variable -Scope Script -Name TemplateHintCache -ErrorAction Silent
 }
 if (-not (Get-Variable -Scope Script -Name InterfaceCacheHydrationTracker -ErrorAction SilentlyContinue)) {
     $script:InterfaceCacheHydrationTracker = @{}
-}
-
-if (-not ('StateTrace.Models.InterfaceCacheEntry' -as [type])) {
-    Add-Type -TypeDefinition @"
-namespace StateTrace.Models
-{
-    public sealed class InterfaceCacheEntry
-    {
-        public string Name { get; set; }
-        public string Status { get; set; }
-        public string VLAN { get; set; }
-        public string Duplex { get; set; }
-        public string Speed { get; set; }
-        public string Type { get; set; }
-        public string Learned { get; set; }
-        public string AuthState { get; set; }
-        public string AuthMode { get; set; }
-        public string AuthClient { get; set; }
-        public string Template { get; set; }
-        public string Config { get; set; }
-        public string PortSort { get; set; }
-        public string PortColor { get; set; }
-        public string StatusTag { get; set; }
-        public string ToolTip { get; set; }
-        public string Signature { get; set; }
-    }
-}
-"@ -Language CSharp
-}
-
-if (-not ('StateTrace.Models.InterfacePortRecord' -as [type])) {
-    Add-Type -TypeDefinition @"
-namespace StateTrace.Models
-{
-    public sealed class InterfacePortRecord
-    {
-        public string Hostname { get; set; }
-        public string Port { get; set; }
-        public string PortSort { get; set; }
-        public string Name { get; set; }
-        public string Status { get; set; }
-        public string VLAN { get; set; }
-        public string Duplex { get; set; }
-        public string Speed { get; set; }
-        public string Type { get; set; }
-        public string LearnedMACs { get; set; }
-        public string AuthState { get; set; }
-        public string AuthMode { get; set; }
-        public string AuthClientMAC { get; set; }
-        public string Site { get; set; }
-        public string Building { get; set; }
-        public string Room { get; set; }
-        public string Zone { get; set; }
-        public string AuthTemplate { get; set; }
-        public string Config { get; set; }
-        public string ConfigStatus { get; set; }
-        public string PortColor { get; set; }
-        public string ToolTip { get; set; }
-        public string CacheSignature { get; set; }
-        public bool IsSelected { get; set; }
-    }
-
-    public sealed class InterfaceTemplateHint
-    {
-        public string PortColor { get; set; }
-        public string ConfigStatus { get; set; }
-        public bool HasTemplate { get; set; }
-    }
-}
-"@ -Language CSharp
-}
-
-if (-not (Get-Variable -Scope Script -Name TemplateLookupCache -ErrorAction SilentlyContinue)) {
-    $script:TemplateLookupCache = New-Object 'System.Collections.Generic.Dictionary[string,object]' ([System.StringComparer]::OrdinalIgnoreCase)
-}
-if (-not (Get-Variable -Scope Script -Name TemplateHintCache -ErrorAction SilentlyContinue)) {
-    $script:TemplateHintCache = New-Object 'System.Collections.Generic.Dictionary[string,System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceTemplateHint]]' ([System.StringComparer]::OrdinalIgnoreCase)
 }
 
 function Ensure-InterfaceModuleBridge {
@@ -1530,10 +1698,55 @@ function Get-AllSiteDbPaths {
 
 function Clear-SiteInterfaceCache {
     [CmdletBinding()]
-    param()
+    param(
+        [string]$Reason = 'Unspecified'
+    )
 
     $storeKey = $script:SharedSiteInterfaceCacheKey
     $store = Get-SharedSiteInterfaceCacheStore
+
+    $callerFunction = 'Unknown'
+    $callerScript = ''
+    $callerLine = 0
+    $invocationName = ''
+    $callStackDepth = 0
+
+    try {
+        $stack = @(Get-PSCallStack)
+        if ($stack) {
+            $callStackDepth = $stack.Count
+            foreach ($frame in $stack) {
+                if (-not $frame) { continue }
+                $frameFunction = ''
+                try { $frameFunction = $frame.FunctionName } catch { $frameFunction = '' }
+                if ([System.StringComparer]::OrdinalIgnoreCase.Equals($frameFunction, 'Clear-SiteInterfaceCache')) {
+                    continue
+                }
+                if (-not [string]::IsNullOrWhiteSpace($frameFunction)) {
+                    $callerFunction = $frameFunction
+                }
+                $frameScript = ''
+                try { $frameScript = $frame.ScriptName } catch { $frameScript = '' }
+                if (-not [string]::IsNullOrWhiteSpace($frameScript)) {
+                    try { $callerScript = [System.IO.Path]::GetFileName($frameScript) } catch { $callerScript = $frameScript }
+                }
+                try {
+                    if ($frame.ScriptLineNumber -gt 0) {
+                        $callerLine = [int]$frame.ScriptLineNumber
+                    }
+                } catch {
+                    $callerLine = 0
+                }
+                break
+            }
+        }
+    } catch {
+        $callStackDepth = 0
+    }
+
+    try { $invocationName = '' + $PSCmdlet.MyInvocation.InvocationName } catch { $invocationName = '' }
+
+    Publish-SharedSiteInterfaceCacheClearInvocation -Reason $Reason -CallerFunction $callerFunction -CallerScript $callerScript -CallerLine $callerLine -InvocationName $invocationName -CallStackDepth $callStackDepth
 
     try {
         $script:SiteInterfaceCache = @{}
@@ -5597,6 +5810,6 @@ function Get-SpanningTreeInfo {
 
     return $list.ToArray()
 }
-Export-ModuleMember -Function Get-DataDirectoryPath, Get-SiteFromHostname, Get-DbPathForSite, Get-DbPathForHost, Get-AllSiteDbPaths, Clear-SiteInterfaceCache, Get-InterfaceSiteCache, Get-InterfaceSiteCacheSummary, Get-SharedSiteInterfaceCacheEntry, Set-InterfaceSiteCacheHost, Get-InterfacePortBatchChunkSize, Set-InterfacePortStreamData, Initialize-InterfacePortStream, Get-InterfacePortStreamStatus, Get-InterfacePortBatch, Get-LastInterfacePortStreamMetrics, Get-LastInterfacePortQueueMetrics, Get-LastInterfaceSiteCacheMetrics, Get-LastInterfaceSiteHydrationMetrics, Set-InterfacePortDispatchMetrics, Get-LastInterfacePortDispatchMetrics, Clear-InterfacePortStream, Update-SiteZoneCache, Get-GlobalInterfaceSnapshot, Update-GlobalInterfaceList, Get-InterfacesForSite, Get-InterfaceInfo, Get-InterfaceConfiguration, Get-SpanningTreeInfo, Get-InterfacesForHostsBatch, Invoke-ParallelDbQuery, Import-DatabaseModule
+Export-ModuleMember -Function Get-DataDirectoryPath, Get-SiteFromHostname, Get-DbPathForSite, Get-DbPathForHost, Get-AllSiteDbPaths, Clear-SiteInterfaceCache, Get-InterfaceSiteCache, Get-InterfaceSiteCacheSummary, Get-SharedSiteInterfaceCacheEntry, Set-InterfaceSiteCacheHost, Get-InterfacePortBatchChunkSize, Set-InterfacePortStreamChunkSize, Set-InterfacePortStreamData, Initialize-InterfacePortStream, Get-InterfacePortStreamStatus, Get-InterfacePortBatch, Get-LastInterfacePortStreamMetrics, Get-LastInterfacePortQueueMetrics, Get-LastInterfaceSiteCacheMetrics, Get-LastInterfaceSiteHydrationMetrics, Set-InterfacePortDispatchMetrics, Get-LastInterfacePortDispatchMetrics, Clear-InterfacePortStream, Update-SiteZoneCache, Get-GlobalInterfaceSnapshot, Update-GlobalInterfaceList, Get-InterfacesForSite, Get-InterfaceInfo, Get-InterfaceConfiguration, Get-SpanningTreeInfo, Get-InterfacesForHostsBatch, Invoke-ParallelDbQuery, Import-DatabaseModule
 
 

@@ -50,7 +50,12 @@ When `-IncludeHostBreakdown` is supplied, the tool also lists the hosts with the
 Log the per-site counts in your plan/task update and paste the host table when AccessRefresh persists.
 
 ## 4. Triage & follow-up
-- If `SnapshotImported=0`, confirm `STATETRACE_SHARED_CACHE_SNAPSHOT` was set (or that the harness received `-SharedCacheSnapshotPath`) and rerun the cold pass.
+- If `SnapshotImported=0`, confirm `STATETRACE_SHARED_CACHE_SNAPSHOT` was set (or that the harness received `-SharedCacheSnapshotPath`) and rerun the cold pass. DeviceRepository now hydrates any empty shared store (`Ensure-SharedSiteInterfaceCacheSnapshotImported` + hoisted `StateTrace.Models.*` types), so a zero count usually means the env var/path was missing. Quick check:
+  ```powershell
+  pwsh -NoLogo -Command "$env:STATETRACE_SHARED_CACHE_SNAPSHOT='Logs/SharedCacheSnapshot-<timestamp>.clixml'; Import-Module .\Modules\DeviceRepositoryModule.psm1 -Force; (DeviceRepositoryModule\Get-SharedSiteInterfaceCacheStore).Count"
+  ```
+  The count should match the snapshot entry total (7 for the current `Logs/SharedCacheSnapshot-20251110-192915.clixml`).
+- When you need to understand *why* the shared store keeps clearing, search the same ingestion metrics for `InterfaceSiteCacheClearInvocation`. Each telemetry record now includes the reason (if supplied), caller function/script, and call stack depth, so you can correlate `ClearRequested` bursts with the module or helper forcing the reset.
 - If SnapshotImported succeeded but `GetMiss` still dwarfs `GetHit`, use the host breakdown to inspect those specific Access hydrations (e.g., inspect `Data/IngestionHistory/<site>.json` or rerun with verbose parser logging).
 - Record all findings in Plan B (`docs/plans/PlanB_Performance.md`) and the task board so future runs can compare against these baselines.
 
@@ -60,5 +65,6 @@ Log the per-site counts in your plan/task update and paste the host table when A
 | Snapshot seeding (automatic) | `Tools\Invoke-StateTracePipeline.ps1 -SharedCacheSnapshotPath ...` | Harness manages `STATETRACE_SHARED_CACHE_SNAPSHOT` for you. |
 | Shared store summary | `Tools\Analyze-SharedCacheStoreState.ps1 -Path Logs\IngestionMetrics\<file>.json -IncludeSiteBreakdown` | Confirm SnapshotImported hit and review GetHit/GetMiss + top sites. |
 | Provider reason summary | `Tools\Analyze-SiteCacheProviderReasons.ps1 -Path Logs\IngestionMetrics\<file>.json -IncludeHostBreakdown -TopHosts 10` | Quantify AccessRefresh vs. SharedCacheMatch and list worst hosts. |
+| Manual snapshot sanity check | `pwsh -NoLogo -Command "$env:STATETRACE_SHARED_CACHE_SNAPSHOT='Logs/SharedCacheSnapshot-<timestamp>.clixml'; Import-Module .\Modules\DeviceRepositoryModule.psm1 -Force; (DeviceRepositoryModule\Get-SharedSiteInterfaceCacheStore).Count"` | Confirms DeviceRepository hydrates the expected number of entries before running the harness. |
 
 Keep this playbook alongside `docs/CODEX_RUNBOOK.md` whenever you run the cold/warm harnesses so cache regressions are diagnosed with consistent evidence.

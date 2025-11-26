@@ -1243,6 +1243,23 @@ function Set-InterfaceViewData {
             try { $global:templateDropdown = $combo } catch {}
         }
     } catch {}
+
+    $telemetryCmd = Get-Command -Name 'TelemetryModule\Write-StTelemetryEvent' -ErrorAction SilentlyContinue
+    if ($telemetryCmd) {
+        try {
+            $siteCode = $null
+            if (-not [string]::IsNullOrWhiteSpace($hostnameValue)) {
+                $parts = $hostnameValue -split '-', 2
+                if ($parts.Count -gt 0) { $siteCode = $parts[0] }
+            }
+            TelemetryModule\Write-StTelemetryEvent -Name 'UserAction' -Payload @{
+                Action    = 'InterfacesView'
+                Hostname  = $hostnameValue
+                Site      = $siteCode
+                Timestamp = (Get-Date).ToString('o')
+            }
+        } catch { }
+    }
 }
 
 function Set-PortLoadingIndicator {
@@ -1293,6 +1310,45 @@ function Set-PortLoadingIndicator {
     }
 }
 
+function Set-HostLoadingIndicator {
+    [CmdletBinding()]
+    param(
+        [string]$Hostname,
+        [int]$CurrentIndex = 0,
+        [int]$TotalHosts = 0,
+        [ValidateSet('Loading','Loaded','Hidden')]
+        [string]$State = 'Loading'
+    )
+
+    $view = $null
+    try { $view = $global:interfacesView } catch { $view = $null }
+    if (-not $view) { return }
+
+    $indicator = $null
+    try { $indicator = $view.FindName('HostLoadingIndicator') } catch { $indicator = $null }
+    if (-not $indicator) { return }
+
+    if ($State -eq 'Hidden' -or [string]::IsNullOrWhiteSpace($Hostname)) {
+        $indicator.Visibility = [System.Windows.Visibility]::Collapsed
+        $indicator.Text = ''
+        return
+    }
+
+    $text = ''
+    if ($State -eq 'Loaded') {
+        $text = "Loaded host {0}" -f $Hostname
+    } else {
+        if ($CurrentIndex -gt 0 -and $TotalHosts -gt 0) {
+            $text = "Loading host {0} ({1}/{2})..." -f $Hostname, $CurrentIndex, $TotalHosts
+        } else {
+            $text = "Loading host {0}..." -f $Hostname
+        }
+    }
+
+    $indicator.Text = $text
+    $indicator.Visibility = [System.Windows.Visibility]::Visible
+}
+
 function Hide-PortLoadingIndicator {
     [CmdletBinding()]
     param()
@@ -1331,4 +1387,4 @@ function Get-PortSortCacheStatistics {
     }
 }
 
-Export-ModuleMember -Function Get-PortSortKey,Get-PortSortCacheStatistics,Get-InterfaceHostnames,Get-InterfaceInfo,Get-InterfaceList,New-InterfaceObjectsFromDbRow,Compare-InterfaceConfigs,Get-InterfaceConfiguration,Get-ConfigurationTemplates,Set-InterfaceViewData,Get-SpanningTreeInfo,New-InterfacesView,Set-PortLoadingIndicator,Hide-PortLoadingIndicator
+Export-ModuleMember -Function Get-PortSortKey,Get-PortSortCacheStatistics,Get-InterfaceHostnames,Get-InterfaceInfo,Get-InterfaceList,New-InterfaceObjectsFromDbRow,Compare-InterfaceConfigs,Get-InterfaceConfiguration,Get-ConfigurationTemplates,Set-InterfaceViewData,Get-SpanningTreeInfo,New-InterfacesView,Set-PortLoadingIndicator,Hide-PortLoadingIndicator,Set-HostLoadingIndicator

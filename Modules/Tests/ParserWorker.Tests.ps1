@@ -62,6 +62,57 @@ Describe "ParserWorker auto-scaling" {
         }
     }
 
+    It "hydrates site existing row cache snapshots and primes device repository caches" {
+        $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
+        $parserModulePath = Join-Path $repoRoot 'Modules\ParserPersistenceModule.psm1'
+        $repoModulePath = Join-Path $repoRoot 'Modules\DeviceRepositoryModule.psm1'
+        Import-Module (Resolve-Path $parserModulePath) -Force
+        Import-Module (Resolve-Path $repoModulePath) -Force
+        InModuleScope -ModuleName ParserWorker {
+            $snapshot = @(
+                [pscustomobject]@{
+                    Site     = 'WLLS'
+                    Hostname = 'WLLS-A01-AS-01'
+                    Rows     = @{ 'Gi1/0/1' = @{ Signature = 'sig-a' } }
+                },
+                [pscustomobject]@{
+                    Site     = 'BOYO'
+                    Hostname = 'BOYO-A05-AS-02'
+                    Rows     = @{ 'Gi1/0/2' = @{ Signature = 'sig-b' } }
+                }
+            )
+            $path = Join-Path $TestDrive 'SiteExistingRowCacheSnapshot-test.clixml'
+            $snapshot | Export-Clixml -Path $path
+
+            $script:hydrated = @()
+            $script:primedHosts = @()
+            Mock -ModuleName ParserWorker -CommandName 'ParserPersistenceModule\Set-SiteExistingRowCacheSnapshot' -MockWith {
+                param($Snapshot)
+                $script:hydrated = @($Snapshot)
+            }
+            Mock -ModuleName ParserWorker -CommandName 'DeviceRepositoryModule\Set-InterfaceSiteCacheHost' -MockWith {
+                param($Site, $Hostname, $RowsByPort)
+                $script:primedHosts += [pscustomobject]@{
+                    Site = $Site
+                    Host = $Hostname
+                    RowCount = if ($RowsByPort) { $RowsByPort.Count } else { 0 }
+                }
+            }
+
+            $summary = Initialize-SiteExistingRowCacheSnapshot -SnapshotPath $path -PrimeDeviceRepository
+            $summary | Should Not BeNullOrEmpty
+            $summary.EntryCount | Should Be 2
+            $summary.SnapshotPath | Should Be $path
+            $summary.SiteSummaries.Length | Should Be 2
+            ($summary.SiteSummaries | Where-Object { $_.Site -eq 'WLLS' }).HostCount | Should Be 1
+            $script:hydrated.Count | Should Be 2
+            $script:primedHosts.Count | Should Be 2
+            ($script:primedHosts | Where-Object { $_.Site -eq 'BOYO' }).RowCount | Should Be 1
+        }
+        Remove-Module ParserPersistenceModule -ErrorAction SilentlyContinue
+        Remove-Module DeviceRepositoryModule -ErrorAction SilentlyContinue
+    }
+
     It "emits telemetry for concurrency decisions" {
         InModuleScope -ModuleName ParserWorker {
             $projectRoot = (Get-Location).ProviderPath
@@ -106,6 +157,7 @@ Describe "ParserWorker auto-scaling" {
                         [int]$JobsPerThread,
                         [int]$MaxWorkersPerSite,
                         [int]$MaxActiveSites,
+                        [int]$MaxConsecutiveSiteLaunches,
                         [switch]$AdaptiveThreads,
                         [switch]$Synchronous
                     )
@@ -116,6 +168,7 @@ Describe "ParserWorker auto-scaling" {
                         JobsPerThread     = $JobsPerThread
                         MaxWorkersPerSite = $MaxWorkersPerSite
                         MaxActiveSites    = $MaxActiveSites
+                        MaxConsecutiveSiteLaunches = $MaxConsecutiveSiteLaunches
                     }
                 }
                 Set-Item -Path Function:LogIngestionModule\Clear-ExtractedLogs -Value { param($ExtractedPath) }
@@ -128,6 +181,7 @@ Describe "ParserWorker auto-scaling" {
                 $capturedCall | Should Not Be $null
                 $capturedCall.DeviceFiles.Count | Should Be 3
                 ($capturedCall.DeviceFiles -contains $unknownFullPath) | Should Be $false
+                $capturedCall.MaxConsecutiveSiteLaunches | Should Be 8
 
                 $event = $script:telemetryEvents | Where-Object { $_.Name -eq 'ConcurrencyProfileResolved' } | Select-Object -Last 1
                 $event | Should Not Be $null
@@ -202,6 +256,7 @@ Describe "ParserWorker auto-scaling" {
                         [int]$JobsPerThread,
                         [int]$MaxWorkersPerSite,
                         [int]$MaxActiveSites,
+                        [int]$MaxConsecutiveSiteLaunches,
                         [switch]$AdaptiveThreads,
                         [switch]$Synchronous
                     )
@@ -212,6 +267,7 @@ Describe "ParserWorker auto-scaling" {
                         JobsPerThread     = $JobsPerThread
                         MaxWorkersPerSite = $MaxWorkersPerSite
                         MaxActiveSites    = $MaxActiveSites
+                        MaxConsecutiveSiteLaunches = $MaxConsecutiveSiteLaunches
                     }
                 }
                 Set-Item -Path Function:LogIngestionModule\Clear-ExtractedLogs -Value { param($ExtractedPath) }
@@ -290,6 +346,7 @@ Describe "ParserWorker auto-scaling" {
                         [int]$JobsPerThread,
                         [int]$MaxWorkersPerSite,
                         [int]$MaxActiveSites,
+                        [int]$MaxConsecutiveSiteLaunches,
                         [switch]$AdaptiveThreads,
                         [switch]$Synchronous
                     )
@@ -300,12 +357,13 @@ Describe "ParserWorker auto-scaling" {
                         JobsPerThread     = $JobsPerThread
                         MaxWorkersPerSite = $MaxWorkersPerSite
                         MaxActiveSites    = $MaxActiveSites
+                        MaxConsecutiveSiteLaunches = $MaxConsecutiveSiteLaunches
                     }
                 }
                 Set-Item -Path Function:LogIngestionModule\Clear-ExtractedLogs -Value { param($ExtractedPath) }
                 Set-Item -Path Function:TelemetryModule\Write-StTelemetryEvent -Value { param($Name, $Payload) $script:telemetryEvents += [PSCustomObject]@{ Name = $Name; Payload = $Payload } }
 
-                Invoke-StateTraceParsing -Synchronous -ThreadCeilingOverride 4 -MaxWorkersPerSiteOverride 2 -MaxActiveSitesOverride 2 -JobsPerThreadOverride 1 -MinRunspacesOverride 2
+                Invoke-StateTraceParsing -Synchronous -ThreadCeilingOverride 4 -MaxWorkersPerSiteOverride 2 -MaxActiveSitesOverride 2 -MaxConsecutiveSiteLaunchesOverride 5 -JobsPerThreadOverride 1 -MinRunspacesOverride 2
 
                 $capturedCall = $script:capturedCalls | Select-Object -Last 1
                 $capturedCall | Should Not Be $null
@@ -315,11 +373,14 @@ Describe "ParserWorker auto-scaling" {
                 $capturedCall.MaxWorkersPerSite | Should Be 2
                 $capturedCall.MaxActiveSites | Should Be 2
                 $capturedCall.JobsPerThread | Should Be 1
+                $capturedCall.MaxConsecutiveSiteLaunches | Should Be 5
 
                 $event = $script:telemetryEvents | Where-Object { $_.Name -eq 'ConcurrencyProfileResolved' } | Select-Object -Last 1
                 $event | Should Not Be $null
                 $event.Payload.ManualOverrides | Should Be $true
                 $event.Payload.ThreadCeiling | Should Be 4
+                $event.Payload.OverrideMaxConsecutiveSiteLaunches | Should Be 5
+                $event.Payload.ResolvedMaxConsecutiveSiteLaunches | Should Be 5
             } finally {
                 foreach ($info in $fileInfos) {
                     Remove-Item -LiteralPath $info.FullName -ErrorAction SilentlyContinue

@@ -4,17 +4,105 @@ if (-not (Get-Variable -Scope Global -Name DeviceMetadata -ErrorAction SilentlyC
     $global:DeviceMetadata = @{}
 }
 
+if (-not (Get-Variable -Scope Global -Name DeviceHostnameOrder -ErrorAction SilentlyContinue)) {
+    $global:DeviceHostnameOrder = @()
+}
+
+function Get-BalancedHostnames {
+    [CmdletBinding()]
+    param([System.Collections.IEnumerable]$Hostnames)
+
+    if (-not $Hostnames) { return @() }
+
+    $siteQueues = @{}
+    foreach ($name in $Hostnames) {
+        if ([string]::IsNullOrWhiteSpace($name)) { continue }
+        $site = ''
+        try {
+            $parts = $name -split '-', 2
+            if ($parts.Length -gt 0 -and -not [string]::IsNullOrWhiteSpace($parts[0])) {
+                $site = $parts[0]
+            } else {
+                $site = '(unknown)'
+            }
+        } catch {
+            $site = '(unknown)'
+        }
+
+        if (-not $siteQueues.ContainsKey($site)) {
+            $siteQueues[$site] = New-Object 'System.Collections.Generic.Queue[string]'
+        }
+        $siteQueues[$site].Enqueue($name)
+    }
+
+    if ($siteQueues.Count -le 1) {
+        return @($Hostnames)
+    }
+
+    $siteOrder = $siteQueues.GetEnumerator() |
+        Sort-Object @{ Expression = { $_.Value.Count }; Descending = $true },
+                     @{ Expression = { $_.Key }; Descending = $false } |
+        ForEach-Object { $_.Key }
+
+    $balanced = New-Object 'System.Collections.Generic.List[string]'
+    while ($true) {
+        $added = $false
+        foreach ($site in $siteOrder) {
+            $queue = $siteQueues[$site]
+            if ($queue.Count -gt 0) {
+                $balanced.Add($queue.Dequeue()) | Out-Null
+                $added = $true
+            }
+        }
+        if (-not $added) { break }
+    }
+
+    return $balanced.ToArray()
+}
+
 function Get-DeviceSummaries {
     [CmdletBinding()]
-    param()
+    param(
+        [string[]]$SiteFilter
+    )
 
     $metadata = @{}
     $hostnames = New-Object 'System.Collections.Generic.List[string]'
+
+    $normalizedSites = @()
+    if ($PSBoundParameters.ContainsKey('SiteFilter') -and $SiteFilter) {
+        foreach ($siteEntry in $SiteFilter) {
+            if ($null -eq $siteEntry) { continue }
+            $candidates = @($siteEntry -split ',')
+            foreach ($candidate in $candidates) {
+                $trimmed = ('' + $candidate).Trim()
+                if ([string]::IsNullOrWhiteSpace($trimmed)) { continue }
+                if ($trimmed -ieq 'All Sites') { continue }
+                $normalizedSites += $trimmed
+            }
+        }
+        $normalizedSites = @($normalizedSites | Select-Object -Unique)
+    }
+
     $dbPaths = @()
-    try {
-        $dbPaths = DeviceRepositoryModule\Get-AllSiteDbPaths
-    } catch {
-        $dbPaths = @()
+    if ($normalizedSites.Count -gt 0) {
+        $paths = New-Object 'System.Collections.Generic.List[string]'
+        foreach ($siteName in $normalizedSites) {
+            $path = $null
+            try { $path = DeviceRepositoryModule\Get-DbPathForSite -Site $siteName } catch { $path = $null }
+            if ($path -and -not [string]::IsNullOrWhiteSpace($path)) {
+                [void]$paths.Add($path)
+            }
+        }
+        if ($paths.Count -gt 0) {
+            $dbPaths = @($paths | Select-Object -Unique)
+        }
+    } else {
+        try {
+            $dbPaths = DeviceRepositoryModule\Get-AllSiteDbPaths
+        } catch {
+            $dbPaths = @()
+        }
     }
 
     if (-not $dbPaths -or $dbPaths.Count -eq 0) {
@@ -77,8 +165,11 @@ function Get-DeviceSummaries {
     }
 
     $global:DeviceMetadata = $metadata
+    $balancedHostnames = Get-BalancedHostnames -Hostnames $hostnames
+    $global:DeviceHostnameOrder = $balancedHostnames
+
     return [PSCustomObject]@{
-        Hostnames = $hostnames.ToArray()
+        Hostnames = $balancedHostnames
         Metadata  = $metadata
     }
 }

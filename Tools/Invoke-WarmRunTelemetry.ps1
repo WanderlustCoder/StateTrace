@@ -3,6 +3,7 @@ param(
     [switch]$IncludeTests,
     [switch]$VerboseParsing,
     [switch]$ResetExtractedLogs,
+    [switch]$SkipSchedulerFairnessGuard,
     [string]$OutputPath,
     [ValidateSet('Empty','Snapshot')]
     [string]$ColdHistorySeed = 'Snapshot',
@@ -10,7 +11,12 @@ param(
     [string]$WarmHistorySeed = 'WarmBackup',
     [switch]$RefreshSiteCaches,
     [switch]$AssertWarmCache,
-    [switch]$PreserveSkipSiteCacheSetting
+    [switch]$PreserveSkipSiteCacheSetting,
+    [string]$SiteExistingRowCacheSnapshotPath,
+    [switch]$PreserveSharedCacheSnapshot,
+    [switch]$GenerateDiffHotspotReport,
+    [int]$DiffHotspotTop = 20,
+    [string]$DiffHotspotOutputPath
 )
 
 Set-StrictMode -Version Latest
@@ -35,6 +41,8 @@ if (-not (Test-Path -LiteralPath $metricsDirectory)) {
 $settingsPath = Join-Path -Path $repositoryRoot -ChildPath 'Data\StateTraceSettings.json'
 $script:SkipSiteCacheOriginalSettings = $null
 $script:SkipSiteCacheSettingChanged = $false
+$sharedCacheSnapshotEnvOriginal = $null
+$sharedCacheSnapshotEnvApplied = $false
 
 function Disable-SkipSiteCacheUpdateSetting {
     param([string]$SettingsPath)
@@ -85,6 +93,76 @@ function Restore-SkipSiteCacheUpdateSetting {
     } finally {
         $script:SkipSiteCacheSettingChanged = $false
         $script:SkipSiteCacheOriginalSettings = $null
+    }
+}
+
+$script:PassInterfaceAnalysis = @{}
+$script:PassSummaries = @{}
+
+if (-not $SiteExistingRowCacheSnapshotPath) {
+    $SiteExistingRowCacheSnapshotPath = Join-Path -Path (Join-Path $repositoryRoot 'Logs') -ChildPath ("SiteExistingRowCacheSnapshot-{0:yyyyMMdd-HHmmss}.clixml" -f (Get-Date))
+}
+
+$shouldGenerateDiffHotspots = $GenerateDiffHotspotReport.IsPresent -or -not [string]::IsNullOrWhiteSpace($DiffHotspotOutputPath)
+
+$originalSiteExistingRowCacheSnapshotEnv = $null
+try { $originalSiteExistingRowCacheSnapshotEnv = $env:STATETRACE_SITE_EXISTING_ROW_CACHE_SNAPSHOT } catch { $originalSiteExistingRowCacheSnapshotEnv = $null }
+
+function Get-ParserPersistenceModule {
+    $module = Get-Module -Name 'ParserPersistenceModule' -ErrorAction SilentlyContinue
+    if ($module) { return $module }
+    $modulePath = Join-Path -Path $repositoryRoot -ChildPath 'Modules\ParserPersistenceModule.psm1'
+    if (Test-Path -LiteralPath $modulePath) {
+        try {
+            return Import-Module -Name $modulePath -PassThru -Force -ErrorAction Stop
+        } catch {
+            Write-Warning ("Unable to import ParserPersistenceModule: {0}" -f $_.Exception.Message)
+        }
+    }
+    return $null
+}
+
+function Save-SiteExistingRowCacheSnapshot {
+    param([string]$SnapshotPath)
+
+    if ([string]::IsNullOrWhiteSpace($SnapshotPath)) { return }
+    $module = Get-ParserPersistenceModule
+    if (-not $module) { return }
+
+    try {
+        $snapshot = ParserPersistenceModule\Get-SiteExistingRowCacheSnapshot
+        if (-not $snapshot -or ($snapshot | Measure-Object).Count -le 0) {
+            Write-Verbose 'Site existing row cache snapshot skipped (no entries).' -Verbose:$VerboseParsing
+            return
+        }
+        $directory = Split-Path -Path $SnapshotPath -Parent
+        if ($directory -and -not (Test-Path -LiteralPath $directory)) {
+            New-Item -ItemType Directory -Path $directory -Force | Out-Null
+        }
+        $snapshot | Export-Clixml -Path $SnapshotPath
+        Write-Host ("Site existing row cache snapshot exported to '{0}'." -f $SnapshotPath) -ForegroundColor DarkCyan
+    } catch {
+        Write-Warning ("Failed to export site existing row cache snapshot: {0}" -f $_.Exception.Message)
+    }
+}
+
+function Restore-SiteExistingRowCacheSnapshot {
+    param([string]$SnapshotPath)
+
+    if ([string]::IsNullOrWhiteSpace($SnapshotPath) -or -not (Test-Path -LiteralPath $SnapshotPath)) { return }
+    $module = Get-ParserPersistenceModule
+    if (-not $module) { return }
+
+    try {
+        $snapshot = Import-Clixml -Path $SnapshotPath
+        if (-not $snapshot -or ($snapshot | Measure-Object).Count -le 0) {
+            Write-Warning ("Site existing row cache snapshot '{0}' did not contain any entries." -f $SnapshotPath)
+            return
+        }
+        ParserPersistenceModule\Set-SiteExistingRowCacheSnapshot -Snapshot $snapshot
+        Write-Host ("Restored site existing row cache snapshot from '{0}' ({1} entr{2})." -f $SnapshotPath, ($snapshot | Measure-Object).Count, $(if (($snapshot | Measure-Object).Count -eq 1) { 'y' } else { 'ies' })) -ForegroundColor DarkCyan
+    } catch {
+        Write-Warning ("Failed to restore site existing row cache snapshot '{0}': {1}" -f $SnapshotPath, $_.Exception.Message)
     }
 }
 
@@ -1042,6 +1120,126 @@ function Resolve-SiteCacheProviderReasons {
     return $results
 }
 
+$perHostDatabaseProperties = @(
+    'InterfaceCallDurationMs',
+    'DatabaseWriteLatencyMs'
+)
+
+$perHostInterfaceProperties = @(
+    'DiffComparisonDurationMs',
+    'DiffDurationMs',
+    'LoadExistingDurationMs',
+    'LoadExistingRowSetCount',
+    'LoadSignatureDurationMs',
+    'LoadCacheHit',
+    'LoadCacheMiss',
+    'LoadCacheRefreshed',
+    'CachedRowCount',
+    'CachePrimedRowCount',
+    'RowsStaged',
+    'InsertCandidates',
+    'UpdateCandidates',
+    'DeleteCandidates',
+    'DiffRowsCompared',
+    'DiffRowsChanged',
+    'DiffRowsInserted',
+    'DiffRowsUnchanged',
+    'DiffSeenPorts',
+    'DiffDuplicatePorts',
+    'UiCloneDurationMs',
+    'DeleteDurationMs',
+    'FallbackDurationMs',
+    'FallbackUsed',
+    'FactsConsidered',
+    'ExistingCount'
+)
+
+function Merge-PerHostTelemetry {
+    param(
+        [System.Collections.IEnumerable]$Summaries,
+        [System.Collections.IEnumerable]$DatabaseEvents,
+        [System.Collections.IEnumerable]$InterfaceSyncEvents
+    )
+
+    $results = @()
+    if ($Summaries) {
+        $results = @($Summaries)
+    }
+    if (-not $results -or $results.Count -eq 0) {
+        return $results
+    }
+
+    $buildMap = {
+        param($events)
+
+        $eventMap = @{}
+        foreach ($eventRecord in @($events)) {
+            if (-not $eventRecord -or -not $eventRecord.PSObject) { continue }
+
+            $siteKey = ''
+            if ($eventRecord.PSObject.Properties.Name -contains 'Site') {
+                $siteKey = ('' + $eventRecord.Site).Trim()
+            }
+            if ([string]::IsNullOrWhiteSpace($siteKey)) { continue }
+
+            $hostKey = Get-HostKeyFromTelemetryEvent -Event $eventRecord
+            if ([string]::IsNullOrWhiteSpace($hostKey)) { continue }
+
+            $mapKey = '{0}|{1}' -f $siteKey, $hostKey
+            if (-not $eventMap.ContainsKey($mapKey)) {
+                $eventMap[$mapKey] = $eventRecord
+            }
+        }
+
+        return $eventMap
+    }
+
+    $databaseEventMap = @{}
+    if ($DatabaseEvents) {
+        $databaseEventMap = & $buildMap $DatabaseEvents
+    }
+
+    $interfaceEventMap = @{}
+    if ($InterfaceSyncEvents) {
+        $interfaceEventMap = & $buildMap $InterfaceSyncEvents
+    }
+
+    foreach ($summary in $results) {
+        if (-not $summary) { continue }
+
+        $siteKey = ''
+        if ($summary.PSObject.Properties.Name -contains 'Site') {
+            $siteKey = ('' + $summary.Site).Trim()
+        }
+        if ([string]::IsNullOrWhiteSpace($siteKey)) { continue }
+
+        $hostKey = Get-HostKeyFromMetricsSummary -Summary $summary
+        if ([string]::IsNullOrWhiteSpace($hostKey)) { continue }
+
+        $mapKey = '{0}|{1}' -f $siteKey, $hostKey
+
+        if ($databaseEventMap.ContainsKey($mapKey)) {
+            $databaseEvent = $databaseEventMap[$mapKey]
+            foreach ($propertyName in $perHostDatabaseProperties) {
+                if ($databaseEvent.PSObject.Properties.Name -contains $propertyName) {
+                    $summary | Add-Member -MemberType NoteProperty -Name $propertyName -Value $databaseEvent.$propertyName -Force
+                }
+            }
+        }
+
+        if ($interfaceEventMap.ContainsKey($mapKey)) {
+            $interfaceEvent = $interfaceEventMap[$mapKey]
+            foreach ($propertyName in $perHostInterfaceProperties) {
+                if ($interfaceEvent.PSObject.Properties.Name -contains $propertyName) {
+                    $summary | Add-Member -MemberType NoteProperty -Name $propertyName -Value $interfaceEvent.$propertyName -Force
+                }
+            }
+        }
+    }
+
+    return $results
+}
+
 $results = @()
 $postColdSnapshot = $null
 $warmPassSnapshot = $null
@@ -1105,6 +1303,10 @@ $sharedCacheSnapshotPath = $null
 $pipelineArguments = @{
     PreserveModuleSession       = $true
     DisableSharedCacheSnapshot  = $true
+}
+if ($SkipSchedulerFairnessGuard) {
+    $pipelineArguments['FailOnSchedulerFairness'] = $false
+    Write-Warning 'Skipping parser scheduler fairness guard for warm-run telemetry run.'
 }
 if (-not $IncludeTests) {
     $pipelineArguments['SkipTests'] = $true
@@ -1175,6 +1377,7 @@ function Invoke-PipelinePass {
     }
 
     $passResults = Resolve-SiteCacheProviderReasons -Summaries $passResults -DatabaseEvents $breakdownEvents -InterfaceSyncEvents $syncEvents
+    $passResults = Merge-PerHostTelemetry -Summaries $passResults -DatabaseEvents $breakdownEvents -InterfaceSyncEvents $syncEvents
     $script:PassSummaries[$Label] = @($passResults)
 
     return $passResults
@@ -1409,6 +1612,23 @@ function Get-SiteCacheState {
     }
 }
 
+function ConvertTo-SharedCacheEntryArray {
+    param([object]$Entries)
+
+    if (-not $Entries) { return @() }
+
+    $current = $Entries
+    while ($current -is [System.Collections.IList] -and $current.Count -eq 1 -and ($current[0] -is [System.Collections.IList])) {
+        $current = $current[0]
+    }
+
+    if ($current -is [System.Collections.IList]) {
+        return @($current)
+    }
+
+    return ,$current
+}
+
 function Write-SharedCacheSnapshot {
     param(
         [Parameter(Mandatory)][string]$Label
@@ -1640,7 +1860,7 @@ function Write-SharedCacheSnapshotFile {
         [System.Collections.IEnumerable]$Entries
     )
 
-    $entryArray = @($Entries)
+    $entryArray = ConvertTo-SharedCacheEntryArray -Entries $Entries
     $sanitizedEntries = New-Object 'System.Collections.Generic.List[psobject]'
 
     foreach ($entry in $entryArray) {
@@ -1692,7 +1912,7 @@ function Restore-SharedCacheEntries {
 
     if (-not $Entries) { return 0 }
 
-    $entryArray = @($Entries)
+    $entryArray = ConvertTo-SharedCacheEntryArray -Entries $Entries
     if (-not $entryArray -or $entryArray.Count -eq 0) { return 0 }
 
     $validEntries = New-Object 'System.Collections.Generic.List[psobject]'
@@ -1872,6 +2092,15 @@ try {
         $snapshotFileName = "SharedCacheSnapshot-{0:yyyyMMdd-HHmmss}.clixml" -f (Get-Date)
         $sharedCacheSnapshotPath = Join-Path -Path (Join-Path $repositoryRoot 'Logs') -ChildPath $snapshotFileName
     }
+    if (-not $sharedCacheSnapshotEnvApplied -and $sharedCacheSnapshotPath) {
+        try { $sharedCacheSnapshotEnvOriginal = $env:STATETRACE_SHARED_CACHE_SNAPSHOT } catch { $sharedCacheSnapshotEnvOriginal = $null }
+        try {
+            $env:STATETRACE_SHARED_CACHE_SNAPSHOT = $sharedCacheSnapshotPath
+            $sharedCacheSnapshotEnvApplied = $true
+        } catch {
+            $sharedCacheSnapshotEnvApplied = $false
+        }
+    }
 
     $pipelineArguments['SharedCacheSnapshotExportPath'] = $sharedCacheSnapshotPath
     Set-IngestionHistoryForPass -SeedMode $ColdHistorySeed -Snapshot $ingestionHistorySnapshot -PassLabel 'ColdPass'
@@ -1885,6 +2114,10 @@ try {
     if ($postColdSummary) {
         $results += $postColdSummary
     }
+    if ($SiteExistingRowCacheSnapshotPath) {
+        Save-SiteExistingRowCacheSnapshot -SnapshotPath $SiteExistingRowCacheSnapshotPath
+        try { $env:STATETRACE_SITE_EXISTING_ROW_CACHE_SNAPSHOT = $SiteExistingRowCacheSnapshotPath } catch { }
+    }
     $initialSiteCandidates = @()
     try { $initialSiteCandidates = Get-SitesFromSnapshot -Snapshot $ingestionHistorySnapshot } catch { $initialSiteCandidates = @() }
     if ($initialSiteCandidates -and $initialSiteCandidates.Count -gt 0) {
@@ -1896,7 +2129,7 @@ try {
     $usingExportedSnapshot = $false
     if ($sharedCacheSnapshotPath -and (Test-Path -LiteralPath $sharedCacheSnapshotPath)) {
         try {
-            $sharedCacheEntries = @(Import-Clixml -Path $sharedCacheSnapshotPath)
+            $sharedCacheEntries = ConvertTo-SharedCacheEntryArray -Entries (Import-Clixml -Path $sharedCacheSnapshotPath)
             if ($sharedCacheEntries -and ($sharedCacheEntries | Measure-Object).Count -gt 0) {
                 $usingExportedSnapshot = $true
             } else {
@@ -1907,8 +2140,11 @@ try {
             $sharedCacheEntries = @()
         }
     }
+    if ($SiteExistingRowCacheSnapshotPath -and (Test-Path -LiteralPath $SiteExistingRowCacheSnapshotPath)) {
+        Restore-SiteExistingRowCacheSnapshot -SnapshotPath $SiteExistingRowCacheSnapshotPath
+    }
     if (-not $sharedCacheEntries -or ($sharedCacheEntries | Measure-Object).Count -eq 0) {
-        $sharedCacheEntries = Get-SharedCacheEntriesSnapshot -FallbackSites $initialSiteCandidates
+        $sharedCacheEntries = ConvertTo-SharedCacheEntryArray -Entries (Get-SharedCacheEntriesSnapshot -FallbackSites $initialSiteCandidates)
     }
     $capturedAfterCold = ($sharedCacheEntries | Measure-Object).Count
 
@@ -1928,7 +2164,7 @@ try {
             try { $postColdFallbackSites = Get-SitesFromSnapshot -Snapshot $ingestionHistorySnapshot } catch { $postColdFallbackSites = @() }
         }
         if ($postColdFallbackSites -and $postColdFallbackSites.Count -gt 0) {
-            $sharedCacheEntries = Get-SharedCacheEntriesSnapshot -FallbackSites $postColdFallbackSites
+            $sharedCacheEntries = ConvertTo-SharedCacheEntryArray -Entries (Get-SharedCacheEntriesSnapshot -FallbackSites $postColdFallbackSites)
             $capturedAfterCold = ($sharedCacheEntries | Measure-Object).Count
         }
     }
@@ -1987,7 +2223,7 @@ try {
                     $results += $probeResults
                 }
                 Write-Host 'Warming preserved parser runspaces with refreshed site caches...' -ForegroundColor Cyan
-                $refreshedEntries = @(Get-SharedCacheEntriesSnapshot -FallbackSites $sitesForRefresh)
+                $refreshedEntries = ConvertTo-SharedCacheEntryArray -Entries (Get-SharedCacheEntriesSnapshot -FallbackSites $sitesForRefresh)
                 $refreshEntryTable = @{}
                 foreach ($entry in $refreshedEntries) {
                     if (-not $entry) { continue }
@@ -2163,8 +2399,20 @@ try {
     if ($pipelineArguments.ContainsKey('SharedCacheSnapshotPath')) {
         $pipelineArguments.Remove('SharedCacheSnapshotPath')
     }
-    if ($sharedCacheSnapshotPath -and (Test-Path -LiteralPath $sharedCacheSnapshotPath)) {
+    if ($sharedCacheSnapshotEnvApplied) {
+        try {
+            if ($null -ne $sharedCacheSnapshotEnvOriginal) {
+                $env:STATETRACE_SHARED_CACHE_SNAPSHOT = $sharedCacheSnapshotEnvOriginal
+            } else {
+                Remove-Item Env:STATETRACE_SHARED_CACHE_SNAPSHOT -ErrorAction SilentlyContinue
+            }
+        } catch { }
+        $sharedCacheSnapshotEnvApplied = $false
+    }
+    if (-not $PreserveSharedCacheSnapshot.IsPresent -and $sharedCacheSnapshotPath -and (Test-Path -LiteralPath $sharedCacheSnapshotPath)) {
         try { Remove-Item -LiteralPath $sharedCacheSnapshotPath -Force } catch { }
+    } elseif ($PreserveSharedCacheSnapshot.IsPresent -and $sharedCacheSnapshotPath) {
+        Write-Host ("Preserved shared cache snapshot at '{0}' for inspection." -f $sharedCacheSnapshotPath) -ForegroundColor DarkCyan
     }
     if (-not $PreserveSkipSiteCacheSetting.IsPresent) {
         Restore-SkipSiteCacheUpdateSetting -SettingsPath $settingsPath
@@ -2337,10 +2585,139 @@ if ($OutputPath) {
     if ($directory -and -not (Test-Path -LiteralPath $directory)) {
         New-Item -ItemType Directory -Path $directory -Force | Out-Null
     }
-    $exportPayload = $results | Select-Object PassLabel,SummaryType,Site,Hostname,Timestamp,CacheStatus,Provider,SiteCacheProviderReason,HydrationDurationMs,SnapshotDurationMs,HostMapDurationMs,HostCount,TotalRows,HostMapSignatureMatchCount,HostMapSignatureRewriteCount,HostMapCandidateMissingCount,HostMapCandidateFromPrevious,PreviousHostCount,PreviousSnapshotStatus,PreviousSnapshotHostMapType,EntryCount,RestoredCount,SourceStage,ColdHostCount,WarmHostCount,ColdInterfaceCallAvgMs,ColdInterfaceCallP95Ms,ColdInterfaceCallMaxMs,WarmInterfaceCallAvgMs,WarmInterfaceCallP95Ms,WarmInterfaceCallMaxMs,ImprovementAverageMs,ImprovementPercent,WarmCacheProviderHitCount,WarmCacheProviderHitCountRaw,WarmCacheProviderMissCount,WarmCacheProviderMissCountRaw,WarmCacheHitRatioPercent,WarmCacheHitRatioPercentRaw,WarmSignatureMatchMissCount,WarmSignatureRewriteTotal,WarmProviderCounts,WarmProviderCountsRaw,ColdProviderCounts,ColdProviderCountsRaw,ScriptCacheCount,ScriptCacheSites,DomainCacheCount,DomainCacheSites
+    $exportPayload = $results | Select-Object `
+        PassLabel,
+        SummaryType,
+        Site,
+        Hostname,
+        Timestamp,
+        CacheStatus,
+        Provider,
+        SiteCacheProviderReason,
+        HydrationDurationMs,
+        SnapshotDurationMs,
+        HostMapDurationMs,
+        HostCount,
+        TotalRows,
+        HostMapSignatureMatchCount,
+        HostMapSignatureRewriteCount,
+        HostMapCandidateMissingCount,
+        HostMapCandidateFromPrevious,
+        PreviousHostCount,
+        PreviousSnapshotStatus,
+        PreviousSnapshotHostMapType,
+        EntryCount,
+        RestoredCount,
+        SourceStage,
+        ColdHostCount,
+        WarmHostCount,
+        ColdInterfaceCallAvgMs,
+        ColdInterfaceCallP95Ms,
+        ColdInterfaceCallMaxMs,
+        WarmInterfaceCallAvgMs,
+        WarmInterfaceCallP95Ms,
+        WarmInterfaceCallMaxMs,
+        ImprovementAverageMs,
+        ImprovementPercent,
+        WarmCacheProviderHitCount,
+        WarmCacheProviderHitCountRaw,
+        WarmCacheProviderMissCount,
+        WarmCacheProviderMissCountRaw,
+        WarmCacheHitRatioPercent,
+        WarmCacheHitRatioPercentRaw,
+        WarmSignatureMatchMissCount,
+        WarmSignatureRewriteTotal,
+        WarmProviderCounts,
+        WarmProviderCountsRaw,
+        ColdProviderCounts,
+        ColdProviderCountsRaw,
+        ScriptCacheCount,
+        ScriptCacheSites,
+        DomainCacheCount,
+        DomainCacheSites,
+        InterfaceCallDurationMs,
+        DatabaseWriteLatencyMs,
+        DiffComparisonDurationMs,
+        DiffDurationMs,
+        LoadExistingDurationMs,
+        LoadExistingRowSetCount,
+        LoadSignatureDurationMs,
+        LoadCacheHit,
+        LoadCacheMiss,
+        LoadCacheRefreshed,
+        CachedRowCount,
+        CachePrimedRowCount,
+        RowsStaged,
+        InsertCandidates,
+        UpdateCandidates,
+        DeleteCandidates,
+        DiffRowsCompared,
+        DiffRowsChanged,
+        DiffRowsInserted,
+        DiffRowsUnchanged,
+        DiffSeenPorts,
+        DiffDuplicatePorts,
+        UiCloneDurationMs,
+        DeleteDurationMs,
+        FallbackDurationMs,
+        FallbackUsed,
+        FactsConsidered,
+        ExistingCount
     $json = $exportPayload | ConvertTo-Json -Depth 6
     [System.IO.File]::WriteAllText($OutputPath, $json)
     Write-Host "Warm-run telemetry summary exported to $OutputPath" -ForegroundColor Green
+
+    if ($shouldGenerateDiffHotspots) {
+        if (-not (Test-Path -LiteralPath $OutputPath)) {
+            Write-Warning 'Unable to generate diff hotspot report because the warm-run telemetry file does not exist.'
+        } else {
+            $analyzerScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Analyze-WarmRunDiffHotspots.ps1'
+            if (-not (Test-Path -LiteralPath $analyzerScript)) {
+                throw "Diff hotspot analyzer script not found at '$analyzerScript'."
+            }
+
+            $targetDiffPath = $DiffHotspotOutputPath
+            if ([string]::IsNullOrWhiteSpace($targetDiffPath)) {
+                $diffDir = Split-Path -Path $OutputPath -Parent
+                if ([string]::IsNullOrWhiteSpace($diffDir)) {
+                    $diffDir = Join-Path -Path $repositoryRoot -ChildPath 'Logs\IngestionMetrics'
+                }
+                $leafName = Split-Path -Path $OutputPath -Leaf
+                $match = [System.Text.RegularExpressions.Regex]::Match($leafName, 'WarmRunTelemetry-(?<ts>\d{8}-\d{6})\.json', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+                $timestamp = if ($match.Success) { $match.Groups['ts'].Value } else { (Get-Date -Format 'yyyyMMdd-HHmmss') }
+                $targetDiffPath = Join-Path -Path $diffDir -ChildPath ("DiffHotspots-{0}.csv" -f $timestamp)
+            } else {
+                try {
+                    $targetDiffPath = (Resolve-Path -LiteralPath $targetDiffPath -ErrorAction Stop).Path
+                } catch {
+                    $targetDiffPath = $DiffHotspotOutputPath
+                }
+            }
+
+            $diffDirEnsure = Split-Path -Path $targetDiffPath -Parent
+            if ($diffDirEnsure -and -not (Test-Path -LiteralPath $diffDirEnsure)) {
+                New-Item -ItemType Directory -Path $diffDirEnsure -Force | Out-Null
+            }
+
+            try {
+                & $analyzerScript -TelemetryPath $OutputPath -Top $DiffHotspotTop -OutputPath $targetDiffPath
+                if ($LASTEXITCODE -ne 0) {
+                    throw "Analyze-WarmRunDiffHotspots exited with code $LASTEXITCODE."
+                }
+                Write-Host ("Diff hotspot report exported to {0}" -f $targetDiffPath) -ForegroundColor Green
+            } catch {
+                throw ("Failed to generate diff hotspot report: {0}" -f $_.Exception.Message)
+            }
+        }
+    }
 }
+
+try {
+    if ($null -ne $originalSiteExistingRowCacheSnapshotEnv) {
+        $env:STATETRACE_SITE_EXISTING_ROW_CACHE_SNAPSHOT = $originalSiteExistingRowCacheSnapshotEnv
+    } else {
+        Remove-Item Env:STATETRACE_SITE_EXISTING_ROW_CACHE_SNAPSHOT -ErrorAction SilentlyContinue
+    }
+} catch { }
 
 $results

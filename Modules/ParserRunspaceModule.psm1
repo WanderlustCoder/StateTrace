@@ -22,6 +22,27 @@ if (-not (Get-Variable -Scope Script -Name PreservedRunspacePool -ErrorAction Si
     $script:PreservedRunspaceConfig = $null
 }
 
+if (-not (Get-Variable -Scope Script -Name SchedulerTelemetryWriter -ErrorAction SilentlyContinue)) {
+    $script:SchedulerTelemetryWriter = {
+        param([string]$Name, $Payload)
+        TelemetryModule\Write-StTelemetryEvent -Name $Name -Payload $Payload
+    }
+}
+
+function Set-SchedulerTelemetryWriter {
+    [CmdletBinding()]
+    param([scriptblock]$Writer)
+
+    if ($Writer) {
+        $script:SchedulerTelemetryWriter = $Writer
+    } else {
+        $script:SchedulerTelemetryWriter = {
+            param([string]$Name, $Payload)
+            TelemetryModule\Write-StTelemetryEvent -Name $Name -Payload $Payload
+        }
+    }
+}
+
 function Publish-RunspaceCacheTelemetry {
     [CmdletBinding()]
     param(
@@ -162,6 +183,38 @@ function Publish-RunspacePoolEvent {
     } catch { }
 }
 
+function Publish-SchedulerLaunchTelemetry {
+    [CmdletBinding()]
+    param(
+        [string]$Site,
+        [int]$ActiveWorkers,
+        [int]$ActiveSites,
+        [int]$ThreadBudget,
+        [int]$QueuedJobs,
+        [int]$QueuedSites
+    )
+
+    $payload = @{
+        Site          = if ($Site) { ('' + $Site).Trim() } else { '' }
+        ActiveWorkers = [Math]::Max(0, [int]$ActiveWorkers)
+        ActiveSites   = [Math]::Max(0, [int]$ActiveSites)
+        ThreadBudget  = [Math]::Max(0, [int]$ThreadBudget)
+        QueuedJobs    = [Math]::Max(0, [int]$QueuedJobs)
+        QueuedSites   = [Math]::Max(0, [int]$QueuedSites)
+    }
+
+    $writer = $script:SchedulerTelemetryWriter
+    if ($writer) {
+        try {
+            & $writer -Name 'ParserSchedulerLaunch' -Payload $payload
+        } catch { }
+    } else {
+        try {
+            TelemetryModule\Write-StTelemetryEvent -Name 'ParserSchedulerLaunch' -Payload $payload
+        } catch { }
+    }
+}
+
 function Get-ParserModulePaths {
     [CmdletBinding()]
     param(
@@ -207,6 +260,16 @@ function Initialize-WorkerModules {
     foreach ($path in (Get-ParserModulePaths -ModulesPath $ModulesPath)) {
         Import-Module -Name $path -ErrorAction Stop -Global | Out-Null
     }
+
+    try {
+        $parserModule = Get-Module -Name 'ParserPersistenceModule' -ErrorAction SilentlyContinue
+        if ($parserModule) {
+            $parserModule.Invoke({ Import-SiteExistingRowCacheSnapshotFromEnv }) | Out-Null
+        }
+    } catch {
+        Write-Verbose ("Site existing row cache snapshot import skipped: {0}" -f $_.Exception.Message)
+    }
+
     $script:WorkerModulesInitialized = $true
 }
 
@@ -532,6 +595,96 @@ function Invoke-DeviceParseWorker {
     }
 }
 
+function Get-NextSiteQueueJob {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][System.Collections.IDictionary]$SiteQueues,
+        [Parameter(Mandatory)][System.Collections.Generic.Queue[string]]$RotationQueue,
+        [Parameter(Mandatory)][AllowEmptyCollection()][System.Collections.Generic.List[object]]$ActiveEntries,
+        [Parameter(Mandatory)][AllowEmptyCollection()][System.Collections.Generic.HashSet[string]]$ActiveSiteSet,
+        [int]$MaxWorkersPerSite = 0,
+        [int]$MaxActiveSites = 0,
+        [string]$LastLaunchedSite,
+        [int]$LastSiteConsecutive = 0,
+        [int]$MaxConsecutivePerSite = 0
+    )
+
+    if (-not $RotationQueue -or $RotationQueue.Count -eq 0) {
+        return $null
+    }
+
+    $consecutiveLimiterEnabled = ($MaxConsecutivePerSite -gt 0 -and $LastSiteConsecutive -ge $MaxConsecutivePerSite -and -not [string]::IsNullOrWhiteSpace($LastLaunchedSite))
+    $limitBypassActive = $false
+    $attempt = 0
+    do {
+        $skipDueToConsecutiveLimit = $false
+        $rotationChecks = $RotationQueue.Count
+        for ($i = 0; $i -lt $rotationChecks; $i++) {
+            if ($RotationQueue.Count -eq 0) { break }
+            $siteKey = $RotationQueue.Peek()
+            if ([string]::IsNullOrWhiteSpace($siteKey)) {
+                [void]$RotationQueue.Dequeue()
+                continue
+            }
+
+            $queue = $SiteQueues[$siteKey]
+            if (-not $queue -or $queue.Count -eq 0) {
+                [void]$RotationQueue.Dequeue()
+                continue
+            }
+
+            $perSiteActive = 0
+            foreach ($entry in $ActiveEntries) {
+                if (-not $entry) { continue }
+                $entrySite = '' + $entry.Site
+                if ([string]::IsNullOrWhiteSpace($entrySite)) { continue }
+                if ([System.StringComparer]::OrdinalIgnoreCase.Equals($entrySite, $siteKey)) {
+                    $perSiteActive++
+                }
+            }
+
+            if ($MaxWorkersPerSite -gt 0 -and $perSiteActive -ge $MaxWorkersPerSite) {
+                [void]$RotationQueue.Dequeue()
+                $RotationQueue.Enqueue($siteKey)
+                continue
+            }
+
+            if ($MaxActiveSites -gt 0 -and $perSiteActive -eq 0 -and $ActiveSiteSet.Count -ge $MaxActiveSites) {
+                return $null
+            }
+
+            if ($consecutiveLimiterEnabled -and $attempt -eq 0 -and [System.StringComparer]::OrdinalIgnoreCase.Equals($siteKey, $LastLaunchedSite)) {
+                $skipDueToConsecutiveLimit = $true
+                $limitBypassActive = $true
+                [void]$RotationQueue.Dequeue()
+                $RotationQueue.Enqueue($siteKey)
+                continue
+            }
+
+            [void]$RotationQueue.Dequeue()
+            $filePath = $queue.Dequeue()
+            if ($queue.Count -gt 0) {
+                $RotationQueue.Enqueue($siteKey)
+            }
+
+            $fairnessBypassUsed = ($limitBypassActive -and [System.StringComparer]::OrdinalIgnoreCase.Equals($siteKey, $LastLaunchedSite))
+
+            return [pscustomobject]@{
+                Site     = $siteKey
+                FilePath = $filePath
+                FairnessBypassUsed = $fairnessBypassUsed
+            }
+        }
+
+        if (-not $skipDueToConsecutiveLimit) {
+            break
+        }
+        $attempt++
+    } while ($attempt -lt 2)
+
+    return $null
+}
+
 function Invoke-DeviceParsingJobs {
     [CmdletBinding()]
     param(
@@ -544,12 +697,39 @@ function Invoke-DeviceParsingJobs {
         [int]$JobsPerThread = 2,
         [int]$MaxWorkersPerSite = 1,
         [int]$MaxActiveSites = 0,
+        [int]$MaxConsecutiveSiteLaunches = 0,
         [switch]$AdaptiveThreads,
         [switch]$Synchronous,
         [switch]$PreserveRunspacePool
     )
 
+    function Get-HostnameFromPath([string]$PathValue) {
+        if ([string]::IsNullOrWhiteSpace($PathValue)) { return 'Unknown' }
+        try {
+            $name = [System.IO.Path]::GetFileNameWithoutExtension($PathValue)
+            if ([string]::IsNullOrWhiteSpace($name)) { return 'Unknown' }
+            return $name
+        } catch {
+            return 'Unknown'
+        }
+    }
+
+    function Get-SiteKeyFromHostname([string]$Hostname) {
+        if ([string]::IsNullOrWhiteSpace($Hostname)) { return 'Unknown' }
+        try {
+            $cmd = Get-Command -Name 'DeviceRepositoryModule\Get-SiteFromHostname' -ErrorAction Stop
+            $site = & $cmd -Hostname $Hostname
+            if (-not [string]::IsNullOrWhiteSpace($site)) { return $site }
+        } catch { }
+        return $Hostname
+    }
+
     if (-not $DeviceFiles -or $DeviceFiles.Count -eq 0) { return }
+
+    $consecutiveLimit = 0
+    if ($MaxConsecutiveSiteLaunches -gt 0) {
+        $consecutiveLimit = [Math]::Max(1, [int]$MaxConsecutiveSiteLaunches)
+    }
 
     if (-not $PreserveRunspacePool.IsPresent -and $script:PreservedRunspacePool) {
         Publish-RunspacePoolEvent -Operation 'Reset' -Reason 'PreserveFlagNotSet' -Pool $script:PreservedRunspacePool -PoolConfig $script:PreservedRunspaceConfig
@@ -566,25 +746,52 @@ function Invoke-DeviceParsingJobs {
 
     Initialize-WorkerModules -ModulesPath $ModulesPath
 
+    $siteQueues = [ordered]@{}
+    $siteRotation = [System.Collections.Generic.Queue[string]]::new()
+    foreach ($file in $DeviceFiles) {
+        $hostToken = Get-HostnameFromPath -PathValue $file
+        $siteKeyValue = Get-SiteKeyFromHostname -Hostname $hostToken
+        if ([string]::IsNullOrWhiteSpace($siteKeyValue)) { $siteKeyValue = 'Unknown' }
+        if (-not $siteQueues.Contains($siteKeyValue)) {
+            $siteQueues[$siteKeyValue] = New-Object 'System.Collections.Generic.Queue[string]'
+            [void]$siteRotation.Enqueue($siteKeyValue)
+        }
+        $siteQueues[$siteKeyValue].Enqueue($file)
+    }
+
     if ($Synchronous -or $MaxThreads -le 1) {
-        foreach ($file in $DeviceFiles) {
-            $siteKeyValue = 'Unknown'
-            try {
-                $hostToken = [System.IO.Path]::GetFileNameWithoutExtension($file)
-                if (-not [string]::IsNullOrWhiteSpace($hostToken)) {
-                    $siteKeyValue = $hostToken
-                    $siteCmd = Get-Command -Name 'DeviceRepositoryModule\Get-SiteFromHostname' -ErrorAction SilentlyContinue
-                    if ($siteCmd) {
-                        $candidateSite = & $siteCmd -Hostname $hostToken
-                        if (-not [string]::IsNullOrWhiteSpace($candidateSite)) {
-                            $siteKeyValue = ('' + $candidateSite).Trim()
-                        }
-                    }
-                }
-            } catch {
-                $siteKeyValue = 'Unknown'
+        $activeEntries = New-Object 'System.Collections.Generic.List[object]'
+        $activeSites = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+        $lastLaunchSite = ''
+        $lastLaunchCount = 0
+
+        while ($true) {
+            $nextJob = Get-NextSiteQueueJob -SiteQueues $siteQueues -RotationQueue $siteRotation -ActiveEntries $activeEntries -ActiveSiteSet $activeSites -MaxWorkersPerSite $MaxWorkersPerSite -MaxActiveSites $MaxActiveSites -LastLaunchedSite $lastLaunchSite -LastSiteConsecutive $lastLaunchCount -MaxConsecutivePerSite $consecutiveLimit
+            if (-not $nextJob) { break }
+
+            $remainingQueued = 0
+            $remainingQueuedSites = 0
+            foreach ($queue in $siteQueues.Values) {
+                $remainingQueued += $queue.Count
+                if ($queue.Count -gt 0) { $remainingQueuedSites++ }
             }
-            Invoke-DeviceParseWorker -FilePath $file -ModulesPath $ModulesPath -ArchiveRoot $ArchiveRoot -DatabasePath $DatabasePath -EnableVerbose:$enableVerbose -SiteKey $siteKeyValue
+            Publish-SchedulerLaunchTelemetry -Site $nextJob.Site -ActiveWorkers 1 -ActiveSites 1 -ThreadBudget 1 -QueuedJobs $remainingQueued -QueuedSites $remainingQueuedSites
+            Invoke-DeviceParseWorker -FilePath $nextJob.FilePath -ModulesPath $ModulesPath -ArchiveRoot $ArchiveRoot -DatabasePath $DatabasePath -EnableVerbose:$enableVerbose -SiteKey $nextJob.Site
+
+            $fairnessBypass = $false
+            if ($nextJob.PSObject.Properties.Name -contains 'FairnessBypassUsed') {
+                $fairnessBypass = [bool]$nextJob.FairnessBypassUsed
+            }
+
+            if ($fairnessBypass) {
+                $lastLaunchSite = $nextJob.Site
+                $lastLaunchCount = 1
+            } elseif ([string]::IsNullOrWhiteSpace($lastLaunchSite) -or -not [System.StringComparer]::OrdinalIgnoreCase.Equals($lastLaunchSite, $nextJob.Site)) {
+                $lastLaunchSite = $nextJob.Site
+                $lastLaunchCount = 1
+            } else {
+                $lastLaunchCount++
+            }
         }
         return
     }
@@ -666,39 +873,8 @@ function Invoke-DeviceParsingJobs {
         $script:PreservedRunspaceConfig = $poolConfig
     }
 
-    function Get-HostnameFromPath([string]$PathValue) {
-        if ([string]::IsNullOrWhiteSpace($PathValue)) { return 'Unknown' }
-        try {
-            $name = [System.IO.Path]::GetFileNameWithoutExtension($PathValue)
-            if ([string]::IsNullOrWhiteSpace($name)) { return 'Unknown' }
-            return $name
-        } catch {
-            return 'Unknown'
-        }
-    }
-
-    function Get-SiteKeyFromHostname([string]$Hostname) {
-        if ([string]::IsNullOrWhiteSpace($Hostname)) { return 'Unknown' }
-        try {
-            $cmd = Get-Command -Name 'DeviceRepositoryModule\Get-SiteFromHostname' -ErrorAction Stop
-            $site = & $cmd -Hostname $Hostname
-            if (-not [string]::IsNullOrWhiteSpace($site)) { return $site }
-        } catch { }
-        return $Hostname
-    }
-
     $metricsContext = Initialize-SchedulerMetricsContext -ModulesPath $ModulesPath -DeviceCount $DeviceFiles.Count -MaxThreads $MaxThreads -MaxWorkersPerSite $MaxWorkersPerSite -MaxActiveSites $MaxActiveSites -MinThreads $MinThreads -JobsPerThread $JobsPerThread -CpuCount $cpuCount -AdaptiveThreads:$AdaptiveThreads
     $currentThreadLimit = $MaxThreads
-
-    $siteQueues = [ordered]@{}
-    foreach ($file in $DeviceFiles) {
-        $host = Get-HostnameFromPath -PathValue $file
-        $siteKey = Get-SiteKeyFromHostname -Hostname $host
-        if (-not $siteQueues.Contains($siteKey)) {
-            $siteQueues[$siteKey] = New-Object 'System.Collections.Generic.Queue[string]'
-        }
-        $siteQueues[$siteKey].Enqueue($file)
-    }
 
     if ($metricsContext) {
         $initialQueued = 0
@@ -716,6 +892,8 @@ function Invoke-DeviceParsingJobs {
     }
 
     $active = New-Object 'System.Collections.Generic.List[object]'
+    $lastLaunchSite = ''
+    $lastLaunchCount = 0
     try {
         while ($true) {
             $activeSiteSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
@@ -742,31 +920,44 @@ function Invoke-DeviceParsingJobs {
 
             $launched = $false
             if ($active.Count -lt $currentThreadLimit) {
-                foreach ($siteKey in $siteQueues.Keys) {
-                    $queue = $siteQueues[$siteKey]
-                    if ($queue.Count -eq 0) { continue }
-
-                    $perSiteActive = 0
-                    foreach ($entry in $active) { if ([System.StringComparer]::OrdinalIgnoreCase.Equals($entry.Site, $siteKey)) { $perSiteActive++ } }
-                    if ($MaxWorkersPerSite -gt 0 -and $perSiteActive -ge $MaxWorkersPerSite) { continue }
-                    if ($MaxActiveSites -gt 0 -and $perSiteActive -eq 0 -and $activeSiteSet.Count -ge $MaxActiveSites) { continue }
-
-                    $file = $queue.Dequeue()
+                $nextJob = Get-NextSiteQueueJob -SiteQueues $siteQueues -RotationQueue $siteRotation -ActiveEntries $active -ActiveSiteSet $activeSiteSet -MaxWorkersPerSite $MaxWorkersPerSite -MaxActiveSites $MaxActiveSites -LastLaunchedSite $lastLaunchSite -LastSiteConsecutive $lastLaunchCount -MaxConsecutivePerSite $consecutiveLimit
+                if ($nextJob) {
                     $ps = [powershell]::Create()
                     $ps.RunspacePool = $pool
                     $null = $ps.AddCommand('ParserRunspaceModule\Invoke-DeviceParseWorker')
-                    $null = $ps.AddParameter('FilePath', $file)
+                    $null = $ps.AddParameter('FilePath', $nextJob.FilePath)
                     $null = $ps.AddParameter('ModulesPath', $ModulesPath)
                     $null = $ps.AddParameter('ArchiveRoot', $ArchiveRoot)
                     if ($DatabasePath) { $null = $ps.AddParameter('DatabasePath', $DatabasePath) }
-                    $null = $ps.AddParameter('SiteKey', $siteKey)
+                    $null = $ps.AddParameter('SiteKey', $nextJob.Site)
                     $null = $ps.AddParameter('EnableVerbose', $enableVerbose)
                     $async = $ps.BeginInvoke()
-                    $active.Add([PSCustomObject]@{ Pipe = $ps; AsyncResult = $async; Site = $siteKey })
-                    [void]$activeSiteSet.Add($siteKey)
+                    $active.Add([PSCustomObject]@{ Pipe = $ps; AsyncResult = $async; Site = $nextJob.Site })
+                    [void]$activeSiteSet.Add($nextJob.Site)
                     $launched = $true
 
-                    if ($active.Count -ge $currentThreadLimit) { break }
+                    $remainingQueued = 0
+                    $remainingQueuedSites = 0
+                    foreach ($queue in $siteQueues.Values) {
+                        $remainingQueued += $queue.Count
+                        if ($queue.Count -gt 0) { $remainingQueuedSites++ }
+                    }
+                    Publish-SchedulerLaunchTelemetry -Site $nextJob.Site -ActiveWorkers $active.Count -ActiveSites $activeSiteSet.Count -ThreadBudget $currentThreadLimit -QueuedJobs $remainingQueued -QueuedSites $remainingQueuedSites
+
+                    $fairnessBypass = $false
+                    if ($nextJob.PSObject.Properties.Name -contains 'FairnessBypassUsed') {
+                        $fairnessBypass = [bool]$nextJob.FairnessBypassUsed
+                    }
+
+                    if ($fairnessBypass) {
+                        $lastLaunchSite = $nextJob.Site
+                        $lastLaunchCount = 1
+                    } elseif ([string]::IsNullOrWhiteSpace($lastLaunchSite) -or -not [System.StringComparer]::OrdinalIgnoreCase.Equals($lastLaunchSite, $nextJob.Site)) {
+                        $lastLaunchSite = $nextJob.Site
+                        $lastLaunchCount = 1
+                    } else {
+                        $lastLaunchCount++
+                    }
                 }
             }
 

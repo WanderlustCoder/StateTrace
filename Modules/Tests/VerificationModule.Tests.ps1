@@ -86,3 +86,31 @@ Describe 'Test-SharedCacheSummaryCoverage' {
         ($result.RequiredSitesMissing -contains 'BOYO') | Should Be $true
     }
 }
+
+Describe 'Test-InterfacePortQueueDelay' {
+    It 'passes when delays stay under thresholds' {
+        $events = @(
+            [pscustomobject]@{ QueueBuildDelayMs = 45; QueueBuildDurationMs = 18 },
+            [pscustomobject]@{ QueueBuildDelayMs = 60; QueueBuildDurationMs = 19 },
+            [pscustomobject]@{ QueueBuildDelayMs = 72; QueueBuildDurationMs = 21 },
+            [pscustomobject]@{ QueueBuildDelayMs = 48; QueueBuildDurationMs = 17 }
+        )
+
+        $result = Test-InterfacePortQueueDelay -Events $events -MaximumP95Ms 120 -MaximumP99Ms 200 -MinimumEventCount 3
+        $result.Pass | Should Be $true
+        $result.Statistics.QueueBuildDelayMs.SampleCount | Should Be 4
+        $result.Violations | Should BeNullOrEmpty
+    }
+
+    It 'fails when P95 exceeds maximum or events missing' {
+        $events = @(
+            [pscustomobject]@{ QueueDelayMs = 90 },
+            [pscustomobject]@{ QueueBuildDelayMs = 250 },
+            [pscustomobject]@{ QueueBuildDelayMs = 130 }
+        )
+
+        $result = Test-InterfacePortQueueDelay -Events $events -MaximumP95Ms 100 -MaximumP99Ms 180 -MinimumEventCount 3
+        $result.Pass | Should Be $false
+        ($result.Violations -contains 'QueueDelayP95') | Should Be $true
+    }
+}

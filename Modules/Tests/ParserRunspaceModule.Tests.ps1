@@ -12,6 +12,7 @@ Describe "ParserRunspaceModule" {
 
     It "invokes the worker once per file when running synchronously" {
         Mock -ModuleName ParserRunspaceModule -CommandName Invoke-DeviceParseWorker -MockWith {}
+        Mock -ModuleName ParserRunspaceModule -CommandName Publish-SchedulerLaunchTelemetry -MockWith {}
 
         $files = @('C:\logs\device1.log', 'C:\logs\device2.log')
         ParserRunspaceModule\Invoke-DeviceParsingJobs -DeviceFiles $files -ModulesPath 'C:\modules' -ArchiveRoot 'C:\archives' -DatabasePath $null -Synchronous
@@ -19,6 +20,7 @@ Describe "ParserRunspaceModule" {
         Assert-MockCalled -ModuleName ParserRunspaceModule -CommandName Invoke-DeviceParseWorker -Times 2
         Assert-MockCalled -ModuleName ParserRunspaceModule -CommandName Invoke-DeviceParseWorker -ParameterFilter { $FilePath -eq 'C:\logs\device1.log' -and -not $EnableVerbose -and $SiteKey -eq 'device1' } -Times 1
         Assert-MockCalled -ModuleName ParserRunspaceModule -CommandName Invoke-DeviceParseWorker -ParameterFilter { $FilePath -eq 'C:\logs\device2.log' -and -not $EnableVerbose -and $SiteKey -eq 'device2' } -Times 1
+        Assert-MockCalled -ModuleName ParserRunspaceModule -CommandName Publish-SchedulerLaunchTelemetry -Times 2
     }
 
     It "falls back to synchronous execution when MaxThreads is 1" {
@@ -116,6 +118,131 @@ Describe "ParserRunspaceModule" {
             InModuleScope -ModuleName ParserRunspaceModule {
                 $budget = Get-AdaptiveThreadBudget -ActiveWorkers 1 -QueuedJobs 50 -CpuCount 2 -MinThreads 1 -MaxThreads 4 -JobsPerThread 1
                 $budget | Should Be 4
+            }
+        }
+    }
+
+   Context "Site rotation scheduling" {
+        It "rotates between sites while work remains" {
+            InModuleScope -ModuleName ParserRunspaceModule {
+                $queues = [ordered]@{}
+                $queueA = [System.Collections.Generic.Queue[string]]::new()
+                $queueA.Enqueue('A1')
+                $queueA.Enqueue('A2')
+                $queueB = [System.Collections.Generic.Queue[string]]::new()
+                $queueB.Enqueue('B1')
+                $queueB.Enqueue('B2')
+                $queues['A'] = $queueA
+                $queues['B'] = $queueB
+
+                $rotation = [System.Collections.Generic.Queue[string]]::new()
+                $rotation.Enqueue('A')
+                $rotation.Enqueue('B')
+
+                $activeEntries = New-Object 'System.Collections.Generic.List[object]'
+                $activeSites = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+
+                $first = Get-NextSiteQueueJob -SiteQueues $queues -RotationQueue $rotation -ActiveEntries $activeEntries -ActiveSiteSet $activeSites -MaxWorkersPerSite 1 -MaxActiveSites 0
+                $first.Site | Should Be 'A'
+                $second = Get-NextSiteQueueJob -SiteQueues $queues -RotationQueue $rotation -ActiveEntries $activeEntries -ActiveSiteSet $activeSites -MaxWorkersPerSite 1 -MaxActiveSites 0
+                $second.Site | Should Be 'B'
+                $third = Get-NextSiteQueueJob -SiteQueues $queues -RotationQueue $rotation -ActiveEntries $activeEntries -ActiveSiteSet $activeSites -MaxWorkersPerSite 1 -MaxActiveSites 0
+                $third.Site | Should Be 'A'
+            }
+        }
+
+        It "respects worker limits but preserves rotation order" {
+            InModuleScope -ModuleName ParserRunspaceModule {
+                $queues = [ordered]@{}
+                $queueA = [System.Collections.Generic.Queue[string]]::new()
+                $queueA.Enqueue('A1')
+                $queues['A'] = $queueA
+                $queueB = [System.Collections.Generic.Queue[string]]::new()
+                $queueB.Enqueue('B1')
+                $queues['B'] = $queueB
+
+                $rotation = [System.Collections.Generic.Queue[string]]::new()
+                $rotation.Enqueue('A')
+                $rotation.Enqueue('B')
+
+                $activeEntries = New-Object 'System.Collections.Generic.List[object]'
+                $activeSites = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+                [void]$activeEntries.Add([pscustomobject]@{ Site = 'A' })
+                $null = $activeSites.Add('A')
+
+                $blocked = Get-NextSiteQueueJob -SiteQueues $queues -RotationQueue $rotation -ActiveEntries $activeEntries -ActiveSiteSet $activeSites -MaxWorkersPerSite 1 -MaxActiveSites 1
+                $blocked | Should Be $null
+
+                $activeEntries.Clear()
+                $activeSites.Clear()
+
+                $next = Get-NextSiteQueueJob -SiteQueues $queues -RotationQueue $rotation -ActiveEntries $activeEntries -ActiveSiteSet $activeSites -MaxWorkersPerSite 1 -MaxActiveSites 1
+                $next.Site | Should Be 'B'
+            }
+        }
+
+        It "skips sites that exceed the consecutive launch limit when alternates exist" {
+            InModuleScope -ModuleName ParserRunspaceModule {
+                $queues = [ordered]@{}
+                $queueA = [System.Collections.Generic.Queue[string]]::new()
+                $queueA.Enqueue('A1')
+                $queues['A'] = $queueA
+                $queueB = [System.Collections.Generic.Queue[string]]::new()
+                $queueB.Enqueue('B1')
+                $queues['B'] = $queueB
+
+                $rotation = [System.Collections.Generic.Queue[string]]::new()
+                $rotation.Enqueue('A')
+                $rotation.Enqueue('B')
+
+                $activeEntries = New-Object 'System.Collections.Generic.List[object]'
+                $activeSites = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+
+                $next = Get-NextSiteQueueJob -SiteQueues $queues -RotationQueue $rotation -ActiveEntries $activeEntries -ActiveSiteSet $activeSites -MaxWorkersPerSite 1 -MaxActiveSites 1 -LastLaunchedSite 'A' -LastSiteConsecutive 3 -MaxConsecutivePerSite 3
+                $next.Site | Should Be 'B'
+            }
+        }
+
+        It "falls back to the same site when it is the only remaining option" {
+            InModuleScope -ModuleName ParserRunspaceModule {
+                $queues = [ordered]@{}
+                $queueA = [System.Collections.Generic.Queue[string]]::new()
+                $queueA.Enqueue('A1')
+                $queues['A'] = $queueA
+
+                $rotation = [System.Collections.Generic.Queue[string]]::new()
+                $rotation.Enqueue('A')
+
+                $activeEntries = New-Object 'System.Collections.Generic.List[object]'
+                $activeSites = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+
+                $next = Get-NextSiteQueueJob -SiteQueues $queues -RotationQueue $rotation -ActiveEntries $activeEntries -ActiveSiteSet $activeSites -MaxWorkersPerSite 1 -MaxActiveSites 1 -LastLaunchedSite 'A' -LastSiteConsecutive 5 -MaxConsecutivePerSite 4
+                $next.Site | Should Be 'A'
+                $next.FairnessBypassUsed | Should Be $true
+            }
+        }
+    }
+
+    Context "Scheduler telemetry" {
+        It "allows overriding the scheduler telemetry writer" {
+            InModuleScope -ModuleName ParserRunspaceModule {
+                $writer = {
+                    param([string]$Name, $Payload)
+                    Set-Variable -Scope Script -Name SchedulerTelemetryTestPayload -Value $Payload -Force
+                }
+                Set-SchedulerTelemetryWriter $writer
+                $resolved = Get-Variable -Scope Script -Name SchedulerTelemetryWriter -ValueOnly
+                $resolved | Should Be $writer
+                { Publish-SchedulerLaunchTelemetry -Site 'WLLS' -ActiveWorkers 2 -ActiveSites 1 -ThreadBudget 4 -QueuedJobs 10 -QueuedSites 2 } | Should Not Throw
+                Set-SchedulerTelemetryWriter
+            }
+        }
+
+        It "swallows telemetry errors" {
+            InModuleScope -ModuleName ParserRunspaceModule {
+                Set-SchedulerTelemetryWriter { throw 'fail' }
+                { Publish-SchedulerLaunchTelemetry -Site 'BOYO' -ActiveWorkers 1 -ActiveSites 1 -ThreadBudget 1 -QueuedJobs 0 -QueuedSites 0 } | Should Not Throw
+                Set-SchedulerTelemetryWriter
             }
         }
     }

@@ -19,7 +19,9 @@ This index provides a high-level map of the active planning and process document
 - **[Security Guidelines](Security.md)** - data-handling rules, redaction policy, and retention expectations.
 - **[Architecture Decision Records](adr/)** - authoritative decisions (data store, UI platform, compiled components).
 - **[UI Smoke Checklist](UI_Smoke_Checklist.md)** - step-by-step verification of the WPF shell (Summary, Interfaces, SPAN, Templates, Alerts, Compare, Help).
-- **[Schedule Daily Rollup Runbook](runbooks/Schedule_Daily_Rollup.md)** - instructions for registering the Windows Task Scheduler job that runs Tools/Invoke-DailyMetricRollup.ps1 (Plan E ST-E-003).
+- **[Schedule Daily Rollup Runbook](runbooks/Schedule_Daily_Rollup.md)** - instructions for registering the Windows Task Scheduler job that runs Tools/Invoke-DailyRollupScheduled.ps1 (wrapper over Tools/Invoke-DailyMetricRollup.ps1 for Plan E ST-E-003).
+- **[Telemetry Bundle Verification Runbook](runbooks/Telemetry_Bundle_Verification.md)** - step-by-step checklist for validating `Logs/TelemetryBundles/<bundle>/` contents (README hashes, required artifacts, readiness scripts) before updating Plans E/G and release notes.
+- **[Incremental Loading Performance Runbook](runbooks/Incremental_Loading_Performance.md)** - captures the Interfaces view telemetry sweep (PortBatchReady + InterfaceSyncTiming + analyzer report) so Plan D can baseline UI throughput whenever changes ship.
 
 ## Using AI Agents
 
@@ -46,7 +48,7 @@ Completed plans are moved to docs/completed/ with a completion summary and date.
 ## Execution & Overrides Quick Reference
 
 - Run `powershell -File Tools/Invoke-StateTracePipeline.ps1 -VerboseParsing` for a full ingestion pass; use `-SkipTests` when the Pester suite already ran.
-- Trial manual ceilings by passing `-ThreadCeilingOverride`, `-MaxWorkersPerSiteOverride`, `-MaxActiveSitesOverride`, `-JobsPerThreadOverride`, or `-MinRunspacesOverride`; these temporarily supersede the zero-valued hints in `Data/StateTraceSettings.json`.
+- Trial manual ceilings by passing `-ThreadCeilingOverride`, `-MaxWorkersPerSiteOverride`, `-MaxActiveSitesOverride`, `-MaxConsecutiveSiteLaunchesOverride`, `-JobsPerThreadOverride`, or `-MinRunspacesOverride`; these temporarily supersede the zero-valued hints in `Data/StateTraceSettings.json`.
 - Each run logs telemetry (`ParseDuration`, `DatabaseWriteLatency`, `ConcurrencyProfileResolved`, etc.) to `Logs/IngestionMetrics/<date>.json`; review these files when capturing metrics for plan updates.
 - Generate daily metric rollups with `Tools/Rollup-IngestionMetrics.ps1 -MetricsDirectory Logs/IngestionMetrics -OutputPath Logs/IngestionMetrics/IngestionMetricsSummary.csv`; add `-IncludePerSite`/`-IncludeSiteCache` for detailed slices, `-MetricFile <path>` for ad-hoc summaries, or `-MetricFileNameFilter '2025-11-*.json' -Latest 3` to filter the dataset without parsing the full archive.
 - Package release evidence with `Tools/New-TelemetryBundle.ps1 -BundleName <name> -ColdTelemetryPath Logs\IngestionMetrics\<date>.json -WarmTelemetryPath Logs\IngestionMetrics\WarmRunTelemetry-*.json -AnalyzerPath Logs\IngestionMetrics\SharedCacheAnalysis-*.json -RollupPath Logs\IngestionMetrics\IngestionMetricsSummary-*.csv -DocSyncPath docs\agents\sessions\<date>_session-XXXX.md`; the script copies all artifacts into `Logs/TelemetryBundles/<name>/[Area]`, generates a manifest + README, and should be referenced from Plans B/E/G and the Task Board entry linked to the run.

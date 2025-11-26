@@ -2,24 +2,26 @@
 
 The seven active StateTrace plans now live in discrete files so automation agents can reference a small, structured surface instead of parsing the historical log inside `docs/StateTrace_Consolidated_Plans.md`. Treat the per-plan pages as the **source of truth for objectives, owners, active work, and telemetry gates**; append narrative updates or long-form investigation notes to the historical log only after you have updated the plan page.
 
-| Plan | Focus | Primary owner(s) | Key telemetry | Plan file |
-|------|-------|------------------|---------------|-----------|
-| A | Routing reliability & dispatcher health | Ingestion / Routing | `InterfacePortQueueMetrics`, `InterfaceSyncTiming` | `docs/plans/PlanA_RoutingReliability.md` |
-| B | Performance & ingestion scale | Ingestion / Parser Worker | `ParseDuration`, `DatabaseWriteLatency`, `InterfaceSiteCacheMetrics` | `docs/plans/PlanB_Performance.md` |
+| Plan | Focus | Primary owner(s) | Key telemetry / automation hooks | Plan file |
+|------|-------|------------------|-------------------------------|-----------|
+| A | Routing reliability & dispatcher health | Ingestion / Routing | `InterfacePortQueueMetrics`, `InterfaceSyncTiming`, telemetry bundles (`Tools\Test-TelemetryBundleReadiness.ps1`) | `docs/plans/PlanA_RoutingReliability.md` |
+| B | Performance & ingestion scale | Ingestion / Parser Worker | `ParseDuration`, `DatabaseWriteLatency`, `InterfaceSiteCacheMetrics`, diff hotspot CSVs, shared-cache diagnostics | `docs/plans/PlanB_Performance.md` |
 | C | Change tracking & diff model | UI / Data | `DiffUsageRate`, diff snapshot health | `docs/plans/PlanC_ChangeTracking.md` |
 | D | Feature expansion & guided troubleshooting | UI / Guided Ops | Feature telemetry, SPAN helpers | `docs/plans/PlanD_FeatureExpansion.md` |
-| E | Telemetry, launch metrics, and rollups | Telemetry / Ops | `Phase1` metrics dictionary plus rollup CSVs | `docs/plans/PlanE_Telemetry.md` |
-| F | Security, identity, & online mode | Security / Platform | Redaction tooling, RBAC switches, NetOps logs | `docs/plans/PlanF_SecurityIdentity.md` |
-| G | Release & governance | Release / PMO | Release checklist completion, warm-run verification | `docs/plans/PlanG_ReleaseGovernance.md` |
+| E | Telemetry, launch metrics, and rollups | Telemetry / Ops | `Phase1` metrics dictionary, rollup CSVs, scheduled daily rollup task (`Tools\Schedule-DailyRollupTask.ps1`, telemetry bundles / readiness) | `docs/plans/PlanE_Telemetry.md` |
+| F | Security, identity, & online mode | Security / Platform | Redaction tooling, RBAC switches, NetOps logs (`Tools\Test-NetOpsEvidence.ps1 -RequireEvidence -RequireReason`, `Tools\Reset-OnlineModeFlags.ps1 -Reason "<task>"`) | `docs/plans/PlanF_SecurityIdentity.md` |
+| G | Release & governance | Release / PMO | Release checklist completion, warm-run verification, telemetry bundle readiness (`Tools\Invoke-StateTraceVerification.ps1 -VerifyTelemetryBundleReadiness`, `Tools\Test-TelemetryBundleReadiness.ps1`) | `docs/plans/PlanG_ReleaseGovernance.md` |
+| H | User experience & adoption | UI / Docs | Onboarding checklist, UI freshness banner, `UserAction` telemetry surfaced in rollups | `docs/plans/PlanH_UserExperience.md` |
 
 ## Status snapshot (2025-11)
-- **Plan A** – Routing instrumentation restored; dispatcher harness + verification scripts must log `InterfaceSyncTiming` counts before merges. Outstanding tasks: queue-delay alert, dispatcher harness evidence automation.
+- **Plan A** – Routing instrumentation restored; dispatcher harness + verification scripts now enforce `InterfacePortQueueMetrics.QueueBuildDelayMs` gates (p95 ≤120 ms / p99 ≤200 ms) and emit `QueueDelaySummary-<timestamp>.json` for telemetry bundles. Next focus: keep the summary + dispatcher evidence flowing into routing bundles per ST-A-006.
 - **Plan B** – Shared-cache diagnostics highlight `SnapshotImported=0` for WLLS/BOYO; keyed existing-row cache prototype + warm diff hotspot automation remain in progress, and `Tools\Publish-TelemetryBundle.ps1` now packages cold/warm telemetry for release evidence (ST-B-008/009).
 - **Plan C** – Diff prototype validation and Compare view telemetry instrumentation are queued; drift analyzer output must accompany warm-run reports.
 - **Plan D** – Incremental-loading telemetry sweep, SPAN telemetry wiring, guided troubleshooting runbooks, and UI smoke artifact automation are the next focus items.
-- **Plan E** – Daily rollup scheduling, Phase 1 dictionary refresh, and telemetry gate enforcement harness pending; telemetry bundles (via `Tools\Publish-TelemetryBundle.ps1`/`Tools\New-TelemetryBundle.ps1`) must include shared-cache analyzer output before Plan G sign-off.
-- **Plan F** – NetOps logging workflow, sanitizer automation, and evidence templates need implementation before any online-mode or sanitized-fixture work proceeds.
-- **Plan G** – Release checklist needs explicit shared-cache snapshot policy plus scheduled verification summaries/telemetry bundles (`Tools\Publish-TelemetryBundle.ps1`) archived with each candidate build alongside doc-sync evidence.
+- **Plan E** - Daily rollup scheduling, Phase 1 dictionary refresh, and telemetry gate enforcement harness pending; next actions include registering the `Tools\Schedule-DailyRollupTask.ps1` job (ST-E-003) and producing telemetry bundles after every rollup so Plan A routing + shared-cache analyzers stay collocated (ST-E-007/ST-E-009).
+- **Plan F** - NetOps logging workflow, sanitizer automation, and evidence templates need implementation; `Tools\Reset-OnlineModeFlags.ps1 -Reason "<task>"` handles the env-var reset/log requirement (capturing why online mode was used) and `Tools\Test-NetOpsEvidence.ps1 -RequireEvidence -RequireReason` (via `Tools\Invoke-AllChecks.ps1 -RequireNetOpsEvidence`) enforces NetOps/reset evidence before sign-off.
+- **Plan G** - Release checklist needs explicit shared-cache snapshot policy plus scheduled verification summaries/telemetry bundles archived with each candidate build; ST-G-007 now tracks automating bundle verification (using `Tools\Publish-TelemetryBundle.ps1` output + README hash, routing evidence present, doc-sync artifact stored) before approvals.
+- **Plan H** - New user experience/adoption track covering onboarding, in-app freshness indicators, and user-action telemetry. First steps: publish the quickstart/onboarding checklist, surface per-site freshness + source in the UI, and route `UserAction` events into rollups to prove uptake.
 
 ## How to use the plans
 1. **Before editing code** - open the relevant plan file, confirm the objective still matches your intent, and add your upcoming work to the "Active work" table (include the task-board or Codex backlog ID).

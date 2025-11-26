@@ -150,6 +150,46 @@ function Get-DatabaseMutexName {
     return "StateTraceDbWriteMutex_$hash"
 }
 
+function Resolve-DatabaseWriteBreakdownCacheProvider {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][hashtable]$Payload,
+        [string]$ExistingRowSource,
+        [object]$Telemetry
+    )
+
+    if (-not $Payload) { return }
+    $sourceCandidate = $ExistingRowSource
+    if ([string]::IsNullOrWhiteSpace($sourceCandidate) -and $Telemetry) {
+        try {
+            if ($Telemetry.PSObject.Properties.Name -contains 'SiteCacheExistingRowSource') {
+                $sourceCandidate = '' + $Telemetry.SiteCacheExistingRowSource
+            }
+        } catch {
+            $sourceCandidate = $null
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace($sourceCandidate)) { return }
+
+    $normalizedSource = $sourceCandidate.Trim()
+    if ([string]::Equals($normalizedSource, 'SiteExistingCache', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $Payload['SiteCacheProvider'] = 'Cache'
+        $Payload['SiteCacheProviderReason'] = 'SiteExistingCache'
+        $Payload['SiteCacheExistingRowSource'] = 'SiteExistingCache'
+
+        $currentStatus = $null
+        if ($Payload.ContainsKey('SiteCacheFetchStatus')) {
+            $currentStatus = '' + $Payload['SiteCacheFetchStatus']
+        } elseif ($Telemetry -and $Telemetry.PSObject.Properties.Name -contains 'SiteCacheFetchStatus') {
+            $currentStatus = '' + $Telemetry.SiteCacheFetchStatus
+        }
+
+        if ([string]::IsNullOrWhiteSpace($currentStatus) -or -not [string]::Equals($currentStatus, 'Hit', [System.StringComparison]::OrdinalIgnoreCase)) {
+            $Payload['SiteCacheFetchStatus'] = 'Hit'
+        }
+    }
+}
+
 function Get-FileHashHex {
     param([Parameter(Mandatory)][string]$FilePath)
 
@@ -1332,6 +1372,7 @@ function Invoke-DeviceLogParsing {
                                 RefreshDurationMs         = $refreshDurationMs
                             }
 
+                            $siteCacheExistingRowSourceValue = $null
                             if ($latestSyncTelemetry) {
                                 if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'DiffDurationMs') {
                                     $breakdownPayload['InterfaceDiffDurationMs'] = [double]$latestSyncTelemetry.DiffDurationMs
@@ -1703,7 +1744,11 @@ function Invoke-DeviceLogParsing {
                                     $breakdownPayload['SiteCacheExistingRowValueType'] = '' + $latestSyncTelemetry.SiteCacheExistingRowValueType
                                 }
                                 if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheExistingRowSource') {
-                                    $breakdownPayload['SiteCacheExistingRowSource'] = '' + $latestSyncTelemetry.SiteCacheExistingRowSource
+                                    $siteCacheExistingRowSourceValue = '' + $latestSyncTelemetry.SiteCacheExistingRowSource
+                                    if (-not [string]::IsNullOrWhiteSpace($siteCacheExistingRowSourceValue)) {
+                                        $siteCacheExistingRowSourceValue = $siteCacheExistingRowSourceValue.Trim()
+                                        $breakdownPayload['SiteCacheExistingRowSource'] = $siteCacheExistingRowSourceValue
+                                    }
                                 }
                                 if ($latestSyncTelemetry.PSObject.Properties.Name -contains 'SiteCacheComparisonCandidateCount') {
                                     $breakdownPayload['SiteCacheComparisonCandidateCount'] = [int]$latestSyncTelemetry.SiteCacheComparisonCandidateCount
@@ -1733,6 +1778,15 @@ function Invoke-DeviceLogParsing {
                                     $breakdownPayload['UpdateCandidates'] = [int]$latestSyncTelemetry.UpdateCandidates
                                 }
                             }
+
+                            if (-not $siteCacheExistingRowSourceValue -and $breakdownPayload.ContainsKey('SiteCacheExistingRowSource')) {
+                                $candidateSourceValue = '' + $breakdownPayload['SiteCacheExistingRowSource']
+                                if (-not [string]::IsNullOrWhiteSpace($candidateSourceValue)) {
+                                    $siteCacheExistingRowSourceValue = $candidateSourceValue.Trim()
+                                }
+                            }
+
+                            Resolve-DatabaseWriteBreakdownCacheProvider -Payload $breakdownPayload -ExistingRowSource $siteCacheExistingRowSourceValue -Telemetry $latestSyncTelemetry
 
                             TelemetryModule\Write-StTelemetryEvent -Name 'DatabaseWriteBreakdown' -Payload $breakdownPayload
                         } catch { }

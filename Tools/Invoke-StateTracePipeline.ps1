@@ -5,6 +5,7 @@ param(
     [int]$ThreadCeilingOverride,
     [int]$MaxWorkersPerSiteOverride,
     [int]$MaxActiveSitesOverride,
+    [int]$MaxConsecutiveSiteLaunchesOverride,
     [int]$JobsPerThreadOverride,
     [int]$MinRunspacesOverride,
     [switch]$VerboseParsing,
@@ -18,7 +19,11 @@ param(
     [string]$SharedCacheSnapshotDirectory,
     [switch]$ShowSharedCacheSummary,
     [switch]$RunSharedCacheDiagnostics,
-    [int]$SharedCacheDiagnosticsTopHosts = 10
+    [int]$SharedCacheDiagnosticsTopHosts = 10,
+    [switch]$VerifyTelemetryCompleteness,
+    [switch]$FailOnTelemetryMissing,
+    [switch]$SynthesizeSchedulerTelemetryOnMissing,
+    [switch]$FailOnSchedulerFairness = $true
 )
 
 $sharedCacheSnapshotEnvOriginal = $null
@@ -659,6 +664,9 @@ if ($PSBoundParameters.ContainsKey('MaxWorkersPerSiteOverride')) {
 if ($PSBoundParameters.ContainsKey('MaxActiveSitesOverride')) {
     $invokeParams['MaxActiveSitesOverride'] = $MaxActiveSitesOverride
 }
+if ($PSBoundParameters.ContainsKey('MaxConsecutiveSiteLaunchesOverride')) {
+    $invokeParams['MaxConsecutiveSiteLaunchesOverride'] = $MaxConsecutiveSiteLaunchesOverride
+}
 if ($PSBoundParameters.ContainsKey('JobsPerThreadOverride')) {
     $invokeParams['JobsPerThreadOverride'] = $JobsPerThreadOverride
 }
@@ -700,19 +708,113 @@ if ($RunWarmRunRegression) {
     Invoke-WarmRunRegressionInternal
 }
 
+$latestIngestionMetricsEntry = $null
+try {
+    if (Test-Path -LiteralPath $ingestionMetricsDirectory) {
+        $latestIngestionMetricsEntry = Get-ChildItem -LiteralPath $ingestionMetricsDirectory -Filter '*.json' -File |
+            Where-Object {
+                $baseName = $_.BaseName
+                (-not [string]::IsNullOrWhiteSpace($baseName)) -and [System.Char]::IsDigit($baseName[0])
+            } |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+    }
+} catch {
+    Write-Warning ("Failed to enumerate ingestion metrics files: {0}" -f $_.Exception.Message)
+}
+
+$metricsBaseName = $null
+$metricsReportSuffix = (Get-Date).ToString('yyyyMMdd-HHmmss')
+if ($latestIngestionMetricsEntry) {
+    $metricsBaseName = [System.IO.Path]::GetFileNameWithoutExtension($latestIngestionMetricsEntry.Name)
+    if (-not [string]::IsNullOrWhiteSpace($metricsBaseName)) {
+        $metricsReportSuffix = $metricsBaseName
+    }
+}
+
+$reportsDirectory = Join-Path -Path $repositoryRoot -ChildPath 'Logs\Reports'
+if (-not (Test-Path -LiteralPath $reportsDirectory)) {
+    New-Item -Path $reportsDirectory -ItemType Directory -Force | Out-Null
+}
+
+$schedulerReportPath = $null
+$queueSummaryPath = $null
+$portBatchReportPath = $null
+$interfaceSyncReportPath = $null
+$portDiversityReportPath = $null
+try {
+    $queueSummaryScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Generate-QueueDelaySummary.ps1'
+    if (-not (Test-Path -LiteralPath $queueSummaryScript)) {
+        Write-Verbose ("Queue delay summary script not found at '{0}', skipping generation." -f $queueSummaryScript)
+    } elseif (-not $latestIngestionMetricsEntry) {
+        Write-Warning 'Queue delay summary skipped: no ingestion metrics files were found.'
+    } else {
+        $queueSummaryPath = Join-Path -Path $ingestionMetricsDirectory -ChildPath ("QueueDelaySummary-{0}.json" -f $metricsReportSuffix)
+        Write-Host ("Generating queue delay summary '{0}'..." -f $queueSummaryPath) -ForegroundColor Cyan
+        & $queueSummaryScript -MetricsPath $latestIngestionMetricsEntry.FullName -OutputPath $queueSummaryPath | Out-Null
+    }
+} catch {
+    Write-Warning ("Queue delay summary generation failed: {0}" -f $_.Exception.Message)
+    $queueSummaryPath = $null
+}
+
+try {
+    $portAnalyzerScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Analyze-PortBatchReadyTelemetry.ps1'
+    if (-not (Test-Path -LiteralPath $portAnalyzerScript)) {
+        Write-Verbose ("Port batch analyzer '{0}' not found; skipping incremental loading summary." -f $portAnalyzerScript)
+    } elseif (-not $latestIngestionMetricsEntry) {
+        Write-Warning 'Port batch analyzer skipped: no ingestion metrics files were found.'
+    } else {
+        $portBatchReportPath = Join-Path -Path $reportsDirectory -ChildPath ("PortBatchReady-{0}.json" -f $metricsReportSuffix)
+        Write-Host ("Summarising incremental loading telemetry into '{0}'..." -f $portBatchReportPath) -ForegroundColor Cyan
+        & $portAnalyzerScript -Path $latestIngestionMetricsEntry.FullName -IncludeHostBreakdown -OutputPath $portBatchReportPath | Out-Null
+    }
+} catch {
+    Write-Warning ("Port batch analyzer failed: {0}" -f $_.Exception.Message)
+    $portBatchReportPath = $null
+}
+
+try {
+    $interfaceAnalyzerScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Analyze-InterfaceSyncTiming.ps1'
+    if (-not (Test-Path -LiteralPath $interfaceAnalyzerScript)) {
+        Write-Verbose ("InterfaceSync analyzer '{0}' not found; skipping InterfaceSyncTiming summary." -f $interfaceAnalyzerScript)
+    } elseif (-not $latestIngestionMetricsEntry) {
+        Write-Warning 'InterfaceSync analyzer skipped: no ingestion metrics files were found.'
+    } else {
+        $interfaceSyncReportPath = Join-Path -Path $reportsDirectory -ChildPath ("InterfaceSyncTiming-{0}.json" -f $metricsReportSuffix)
+        Write-Host ("Summarising InterfaceSync telemetry into '{0}'..." -f $interfaceSyncReportPath) -ForegroundColor Cyan
+        & $interfaceAnalyzerScript -Path $latestIngestionMetricsEntry.FullName -OutputPath $interfaceSyncReportPath | Out-Null
+    }
+} catch {
+    Write-Warning ("InterfaceSync analyzer failed: {0}" -f $_.Exception.Message)
+    $interfaceSyncReportPath = $null
+}
+
+try {
+    $diversityScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Test-PortBatchSiteDiversity.ps1'
+    if (-not (Test-Path -LiteralPath $diversityScript)) {
+        Write-Verbose ("Port batch diversity script '{0}' not found; skipping site streak guard." -f $diversityScript)
+    } elseif (-not $latestIngestionMetricsEntry) {
+        Write-Warning 'Port batch diversity guard skipped: no ingestion metrics files were found.'
+    } else {
+        $portDiversityReportPath = Join-Path -Path $reportsDirectory -ChildPath ("PortBatchSiteDiversity-{0}.json" -f $metricsReportSuffix)
+        Write-Host ("Validating port batch site diversity into '{0}'..." -f $portDiversityReportPath) -ForegroundColor Cyan
+        try {
+            & $diversityScript -MetricsPath $latestIngestionMetricsEntry.FullName -MaxAllowedConsecutive 8 -OutputPath $portDiversityReportPath | Out-Null
+        } catch {
+            throw ("Port batch diversity guard failed: {0}" -f $_.Exception.Message)
+        }
+    }
+} catch {
+    throw
+}
+
 if ($RunSharedCacheDiagnostics) {
     try {
-        $latestLogEntry = $null
-        if (Test-Path -LiteralPath $ingestionMetricsDirectory) {
-            $latestLogEntry = Get-ChildItem -LiteralPath $ingestionMetricsDirectory -Filter '*.json' -File |
-                Sort-Object LastWriteTime -Descending |
-                Select-Object -First 1
-        }
-
-        if (-not $latestLogEntry) {
+        if (-not $latestIngestionMetricsEntry) {
             Write-Warning 'Shared cache diagnostics skipped: no ingestion metrics files were found.'
         } else {
-            $latestLogPath = $latestLogEntry.FullName
+            $latestLogPath = $latestIngestionMetricsEntry.FullName
             Write-Host ("Running shared cache diagnostics against '{0}'..." -f $latestLogPath) -ForegroundColor Cyan
 
             $storeAnalyzer = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Analyze-SharedCacheStoreState.ps1'
@@ -739,6 +841,180 @@ if ($RunSharedCacheDiagnostics) {
         }
     } catch {
         Write-Warning ("Shared cache diagnostics encountered an unexpected error: {0}" -f $_.Exception.Message)
+    }
+}
+
+try {
+    $schedulerAnalyzer = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Analyze-ParserSchedulerLaunch.ps1'
+    if (Test-Path -LiteralPath $schedulerAnalyzer) {
+        if (-not $latestIngestionMetricsEntry) {
+            Write-Warning 'Parser scheduler launch analyzer skipped: no ingestion metrics files were found.'
+        } else {
+            $schedulerReportPath = Join-Path -Path $reportsDirectory -ChildPath ("ParserSchedulerLaunch-{0}.json" -f $metricsReportSuffix)
+            Write-Host ("Summarising parser scheduler telemetry into '{0}'..." -f $schedulerReportPath) -ForegroundColor Cyan
+            & $schedulerAnalyzer -Path $latestIngestionMetricsEntry.FullName -MaxAllowedStreak 8 -OutputPath $schedulerReportPath | Out-Null
+        }
+    } else {
+        Write-Verbose ("Parser scheduler analyzer not found at '{0}', skipping rotation summary." -f $schedulerAnalyzer)
+    }
+} catch {
+    Write-Warning ("Parser scheduler analyzer failed: {0}" -f $_.Exception.Message)
+}
+
+if ($FailOnSchedulerFairness -and $schedulerReportPath -and (Test-Path -LiteralPath $schedulerReportPath)) {
+    $fairnessScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Test-ParserSchedulerFairness.ps1'
+    if (Test-Path -LiteralPath $fairnessScript) {
+        try {
+            & $fairnessScript -ReportPath $schedulerReportPath -ThrowOnViolation | Out-Null
+        } catch {
+            throw ("Parser scheduler fairness guard failed: {0}" -f $_.Exception.Message)
+        }
+    } else {
+        Write-Warning ("Scheduler fairness test script '{0}' was not found; skipping guard." -f $fairnessScript)
+    }
+}
+
+try {
+    if ($schedulerReportPath -and $portDiversityReportPath) {
+        $comparisonScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Compare-SchedulerAndPortDiversity.ps1'
+        if (Test-Path -LiteralPath $comparisonScript) {
+            $schedulerVsPortReportPath = Join-Path -Path $reportsDirectory -ChildPath ("SchedulerVsPortDiversity-{0}.json" -f $metricsReportSuffix)
+            $performanceReportsDirectory = Join-Path -Path $repositoryRoot -ChildPath 'docs\performance'
+            if (-not (Test-Path -LiteralPath $performanceReportsDirectory)) {
+                New-Item -ItemType Directory -Path $performanceReportsDirectory -Force | Out-Null
+            }
+            $schedulerVsPortMarkdownPath = Join-Path -Path $performanceReportsDirectory -ChildPath ("SchedulerVsPortDiversity-{0}.md" -f $metricsReportSuffix)
+            Write-Host ("Comparing scheduler vs. port diversity into '{0}' and '{1}'..." -f $schedulerVsPortReportPath, $schedulerVsPortMarkdownPath) -ForegroundColor Cyan
+            try {
+                & $comparisonScript -SchedulerReportPath $schedulerReportPath -PortDiversityReportPath $portDiversityReportPath -OutputPath $schedulerVsPortReportPath -MarkdownPath $schedulerVsPortMarkdownPath | Out-Null
+            } catch {
+                Write-Warning ("Scheduler vs. port diversity comparison failed: {0}" -f $_.Exception.Message)
+            }
+        } else {
+            Write-Verbose ("Scheduler vs. port diversity script '{0}' not found; skipping comparison." -f $comparisonScript)
+        }
+    }
+} catch {
+    Write-Warning ("Scheduler vs. port diversity comparison encountered an error: {0}" -f $_.Exception.Message)
+}
+
+try {
+    if ($portBatchReportPath -and (Test-Path -LiteralPath $portBatchReportPath)) {
+        $portHistoryScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Update-PortBatchHistory.ps1'
+        if (Test-Path -LiteralPath $portHistoryScript) {
+            & $portHistoryScript -ReportPaths $portBatchReportPath | Out-Null
+        } else {
+            Write-Verbose ("Port batch history updater not found at '{0}', skipping history append." -f $portHistoryScript)
+        }
+    }
+} catch {
+    Write-Warning ("Port batch history update failed: {0}" -f $_.Exception.Message)
+}
+
+try {
+    if ($interfaceSyncReportPath -and (Test-Path -LiteralPath $interfaceSyncReportPath)) {
+        $interfaceHistoryScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Update-InterfaceSyncHistory.ps1'
+        if (Test-Path -LiteralPath $interfaceHistoryScript) {
+            & $interfaceHistoryScript -ReportPaths $interfaceSyncReportPath | Out-Null
+        } else {
+            Write-Verbose ("InterfaceSync history updater not found at '{0}', skipping history append." -f $interfaceHistoryScript)
+        }
+    }
+} catch {
+    Write-Warning ("InterfaceSync history update failed: {0}" -f $_.Exception.Message)
+}
+
+try {
+    if ($queueSummaryPath -and (Test-Path -LiteralPath $queueSummaryPath)) {
+        $historyScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Update-QueueDelayHistory.ps1'
+        if (Test-Path -LiteralPath $historyScript) {
+            & $historyScript -QueueSummaryPaths $queueSummaryPath | Out-Null
+        } else {
+            Write-Verbose ("Queue delay history updater not found at '{0}', skipping history append." -f $historyScript)
+        }
+    }
+} catch {
+    Write-Warning ("Queue delay history update failed: {0}" -f $_.Exception.Message)
+}
+
+try {
+    if ($schedulerReportPath -and (Test-Path -LiteralPath $schedulerReportPath)) {
+        $schedulerHistoryScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Update-ParserSchedulerHistory.ps1'
+        if (Test-Path -LiteralPath $schedulerHistoryScript) {
+            & $schedulerHistoryScript -SchedulerReportPaths $schedulerReportPath | Out-Null
+        } else {
+            Write-Verbose ("Parser scheduler history updater not found at '{0}', skipping history append." -f $schedulerHistoryScript)
+        }
+    }
+} catch {
+    Write-Warning ("Parser scheduler history update failed: {0}" -f $_.Exception.Message)
+}
+
+if ($VerifyTelemetryCompleteness) {
+    $telemetryResult = $null
+    $telemetryMissingSignals = @()
+    $telemetryPass = $true
+    if (-not $latestIngestionMetricsEntry) {
+        Write-Warning 'Telemetry completeness check skipped: no ingestion metrics files were found.'
+        $telemetryPass = $false
+    } else {
+        $telemetryScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Test-IncrementalTelemetryCompleteness.ps1'
+        if (-not (Test-Path -LiteralPath $telemetryScript)) {
+            Write-Warning ("Telemetry completeness script '{0}' not found; skipping verification." -f $telemetryScript)
+            $telemetryPass = $false
+        } else {
+            $scriptArgs = @{
+                MetricsPath            = $latestIngestionMetricsEntry.FullName
+                RequirePortBatchReady  = $true
+                RequireInterfaceSync   = $true
+                RequireSchedulerLaunch = $true
+            }
+            if ($FailOnTelemetryMissing) { $scriptArgs['ThrowOnMissing'] = $true }
+            Write-Host ("Verifying incremental telemetry completeness via '{0}'..." -f $telemetryScript) -ForegroundColor Cyan
+            try {
+                $telemetryResult = & $telemetryScript @scriptArgs
+                $telemetryMissingSignals = @($telemetryResult.MissingSignals)
+                $telemetryPass = [bool]$telemetryResult.Pass
+            } catch {
+                $telemetryPass = $false
+                if ($FailOnTelemetryMissing -and -not $SynthesizeSchedulerTelemetryOnMissing) {
+                    throw
+                } else {
+                    Write-Warning ("Telemetry completeness check failed: {0}" -f $_.Exception.Message)
+                }
+            }
+        }
+
+        if (-not $telemetryPass -and $SynthesizeSchedulerTelemetryOnMissing -and ($telemetryMissingSignals -contains 'ParserSchedulerLaunch')) {
+            $synthScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Synthesize-ParserSchedulerTelemetry.ps1'
+            if (Test-Path -LiteralPath $synthScript) {
+                Write-Warning 'ParserSchedulerLaunch events missing; synthesizing scheduler telemetry from ParseDuration order...'
+                & $synthScript -MetricsPath $latestIngestionMetricsEntry.FullName -InPlace | Out-Null
+                try {
+                    Write-Host 'Re-running telemetry completeness check after synthesis...' -ForegroundColor Cyan
+                    $telemetryResult = & $telemetryScript @scriptArgs
+                    $telemetryMissingSignals = @($telemetryResult.MissingSignals)
+                    $telemetryPass = [bool]$telemetryResult.Pass
+                } catch {
+                    $telemetryPass = $false
+                    if ($FailOnTelemetryMissing) {
+                        throw
+                    } else {
+                        Write-Warning ("Telemetry completeness check failed after synthesis: {0}" -f $_.Exception.Message)
+                    }
+                }
+            } else {
+                Write-Warning ("Scheduler synthesis script '{0}' not found; unable to patch telemetry." -f $synthScript)
+            }
+        }
+
+        if (-not $telemetryPass -and $FailOnTelemetryMissing) {
+            $missingSummary = if ($telemetryMissingSignals) { ($telemetryMissingSignals -join ', ') } else { 'Unknown' }
+            throw ("Telemetry completeness check failed (missing: {0})." -f $missingSummary)
+        } elseif (-not $telemetryPass) {
+            $missingSummary = if ($telemetryMissingSignals) { ($telemetryMissingSignals -join ', ') } else { 'Unknown' }
+            Write-Warning ("Telemetry completeness check failed (missing: {0})." -f $missingSummary)
+        }
     }
 }
 

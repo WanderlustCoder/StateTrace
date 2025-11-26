@@ -32,6 +32,47 @@ if (-not (Get-Variable -Name DeviceDetailsWarmupQueued -Scope Script -ErrorActio
 }
 $script:StateTraceSettingsPath = Join-Path $scriptDir '..\Data\StateTraceSettings.json'
 
+if (-not (Get-Variable -Name ParserStatusTimer -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:ParserStatusTimer = $null
+}
+if (-not (Get-Variable -Name CurrentParserJob -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:CurrentParserJob = $null
+}
+if (-not (Get-Variable -Name ParserJobLogPath -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:ParserJobLogPath = $null
+}
+if (-not (Get-Variable -Name FreshnessCache -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:FreshnessCache = @{
+        Site      = $null
+        Info      = $null
+        MetricsAt = $null
+    }
+}
+if (-not (Get-Variable -Name ParserJobStartedAt -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:ParserJobStartedAt = $null
+}
+if (-not (Get-Variable -Name ParserPendingSiteFilter -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:ParserPendingSiteFilter = $null
+}
+
+function Publish-UserActionTelemetry {
+    param(
+        [string]$Action,
+        [string]$Site,
+        [string]$Hostname,
+        [string]$Context
+    )
+    $cmd = Get-Command -Name 'TelemetryModule\Write-StTelemetryEvent' -ErrorAction SilentlyContinue
+    if (-not $cmd) { return }
+    $payload = @{}
+    if ($Action) { $payload['Action'] = $Action }
+    if ($Site) { $payload['Site'] = $Site }
+    if ($Hostname) { $payload['Hostname'] = $Hostname }
+    if ($Context) { $payload['Context'] = $Context }
+    $payload['Timestamp'] = (Get-Date).ToString('o')
+    try { TelemetryModule\Write-StTelemetryEvent -Name 'UserAction' -Payload $payload } catch { }
+}
+
 function Load-StateTraceSettings {
     $settings = @{}
     if (Test-Path $script:StateTraceSettingsPath) {
@@ -565,6 +606,333 @@ function Set-EnvToggle {
     }
 }
 
+function Get-AvailableSiteNames {
+    $dataDir = Join-Path $scriptDir '..\Data'
+    if (-not (Test-Path -LiteralPath $dataDir)) { return @() }
+    $siteNames = @()
+    Get-ChildItem -LiteralPath $dataDir -Directory | ForEach-Object {
+        $siteName = $_.Name
+        $dbPath = Join-Path $_.FullName ("{0}.accdb" -f $siteName)
+        if (Test-Path -LiteralPath $dbPath) {
+            $siteNames += $siteName
+        }
+    }
+    return ($siteNames | Sort-Object -Unique)
+}
+
+function Populate-SiteDropdownWithAvailableSites {
+    param(
+        [Windows.Window]$Window,
+        [string]$PreferredSelection,
+        [switch]$PreserveExistingSelection
+    )
+    if (-not $Window) { return }
+    $siteDropdown = $Window.FindName('SiteDropdown')
+    if (-not $siteDropdown) { return }
+    $sites = Get-AvailableSiteNames
+    if (-not $sites -or $sites.Count -eq 0) { return }
+
+    $existingSelection = $null
+    if ($PreserveExistingSelection -and $siteDropdown.SelectedItem) {
+        $existingSelection = '' + $siteDropdown.SelectedItem
+    }
+
+    $items = New-Object 'System.Collections.Generic.List[string]'
+    [void]$items.Add('All Sites')
+    foreach ($site in $sites) { [void]$items.Add($site) }
+    $siteDropdown.ItemsSource = $items
+
+    $targetSelection = $null
+    if (-not [string]::IsNullOrWhiteSpace($PreferredSelection)) {
+        $targetSelection = $PreferredSelection
+    } elseif (-not [string]::IsNullOrWhiteSpace($existingSelection)) {
+        $targetSelection = $existingSelection
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($targetSelection)) {
+        $matchIndex = -1
+        for ($i = 0; $i -lt $items.Count; $i++) {
+            $itemValue = '' + $items[$i]
+            if ([System.StringComparer]::OrdinalIgnoreCase.Equals($itemValue, $targetSelection)) {
+                $matchIndex = $i
+                break
+            }
+        }
+        if ($matchIndex -ge 0) {
+            $siteDropdown.SelectedIndex = $matchIndex
+        }
+    }
+
+    if ($items.Count -gt 0) {
+        $siteDropdown.SelectedIndex = 0
+    } else {
+        $siteDropdown.SelectedIndex = -1
+    }
+
+    try { Update-FreshnessIndicator -Window $Window } catch { }
+}
+
+function Get-SelectedSiteFilterValue {
+    param([Windows.Window]$Window)
+    if (-not $Window) { return $null }
+    $siteDropdown = $Window.FindName('SiteDropdown')
+    if (-not $siteDropdown) { return $null }
+    $selection = $null
+    try { $selection = '' + $siteDropdown.SelectedItem } catch { $selection = $null }
+    if ([string]::IsNullOrWhiteSpace($selection)) {
+        try { $selection = '' + $siteDropdown.Text } catch { $selection = $null }
+    }
+    if ([string]::IsNullOrWhiteSpace($selection) -or $selection -eq 'All Sites') { return $null }
+    return $selection
+}
+
+function Get-SelectedHostname {
+    param([Windows.Window]$Window)
+    if (-not $Window) { return $null }
+    $dd = $Window.FindName('HostnameDropdown')
+    if (-not $dd) { return $null }
+    $selection = $null
+    try { $selection = '' + $dd.SelectedItem } catch { $selection = $null }
+    if ([string]::IsNullOrWhiteSpace($selection)) {
+        try { $selection = '' + $dd.Text } catch { $selection = $null }
+    }
+    if ([string]::IsNullOrWhiteSpace($selection)) { return $null }
+    return $selection
+}
+
+function Get-ParserStatusControl {
+    param([Windows.Window]$Window)
+    if (-not $Window) { return $null }
+    try { return $Window.FindName('ParserStatusText') } catch { return $null }
+}
+
+function Ensure-ParserStatusTimer {
+    param([Windows.Window]$Window)
+    if ($script:ParserStatusTimer) { return }
+    $timer = New-Object System.Windows.Threading.DispatcherTimer
+    $timer.Interval = [TimeSpan]::FromMilliseconds(1500)
+    $timer.add_Tick({
+        try {
+            $target = $global:window
+            if ($target) {
+                Update-ParserStatusIndicator -Window $target
+            }
+        } catch { }
+    })
+    $script:ParserStatusTimer = $timer
+}
+
+function Update-ParserStatusIndicator {
+    param([Windows.Window]$Window)
+    $indicator = Get-ParserStatusControl -Window $Window
+    if (-not $indicator) { return }
+
+    if (-not $script:CurrentParserJob) {
+        $indicator.Content = 'Parser idle'
+        if ($script:ParserStatusTimer) { $script:ParserStatusTimer.Stop() }
+        return
+    }
+
+    $state = $script:CurrentParserJob.State
+    if ($state -eq 'Running' -or $state -eq 'NotStarted') {
+        $started = $null
+        try { if ($script:ParserJobStartedAt) { $started = $script:ParserJobStartedAt.ToString('HH:mm:ss') } } catch { }
+        if ($started) {
+            $indicator.Content = "Parsing in progress (started $started)"
+        } else {
+            $indicator.Content = 'Parsing in progress...'
+        }
+        return
+    }
+
+    $logPath = $script:ParserJobLogPath
+    try { Receive-Job $script:CurrentParserJob | Out-Null } catch { }
+    try { Remove-Job $script:CurrentParserJob -Force -ErrorAction SilentlyContinue } catch { }
+    $script:CurrentParserJob = $null
+    if ($state -eq 'Completed') {
+        $stamp = (Get-Date).ToString('HH:mm:ss')
+        if ($logPath) {
+            $indicator.Content = ("Parsing finished at {0} (log: {1})" -f $stamp, $logPath)
+        } else {
+            $indicator.Content = "Parsing finished at $stamp"
+        }
+        $refreshFilter = $script:ParserPendingSiteFilter
+        $script:ParserPendingSiteFilter = $null
+        try { Initialize-DeviceViewFromCatalog -Window $Window -SiteFilter $refreshFilter } catch { }
+        try { Populate-SiteDropdownWithAvailableSites -Window $Window -PreferredSelection $refreshFilter -PreserveExistingSelection } catch { }
+        try { Update-FreshnessIndicator -Window $Window } catch { }
+    } else {
+        if ($logPath) {
+            $indicator.Content = ("Parsing {0}. See {1}" -f $state.ToLower(), $logPath)
+        } else {
+            $indicator.Content = ("Parsing {0}" -f $state.ToLower())
+        }
+        $script:ParserPendingSiteFilter = $null
+    }
+
+    $script:ParserJobLogPath = $null
+    if ($script:ParserStatusTimer) { $script:ParserStatusTimer.Stop() }
+}
+
+function Get-SiteIngestionInfo {
+    param([string]$Site)
+    if ([string]::IsNullOrWhiteSpace($Site)) { return $null }
+    $historyPath = Join-Path $scriptDir "..\Data\IngestionHistory\$Site.json"
+    if (-not (Test-Path -LiteralPath $historyPath)) { return $null }
+    $entries = $null
+    try { $entries = Get-Content -LiteralPath $historyPath -Raw | ConvertFrom-Json } catch { $entries = $null }
+    if (-not $entries) { return $null }
+    $latest = $entries | Where-Object { $_.LastIngestedUtc } | Sort-Object { $_.LastIngestedUtc } -Descending | Select-Object -First 1
+    if (-not $latest) { return $null }
+    $ingestedUtc = $null
+    try { $ingestedUtc = [datetime]::Parse($latest.LastIngestedUtc).ToUniversalTime() } catch { $ingestedUtc = $null }
+    if (-not $ingestedUtc) { return $null }
+    $source = $latest.SiteCacheProvider
+    if (-not $source -and $latest.CacheStatus) { $source = $latest.CacheStatus }
+    if (-not $source -and $latest.Source) { $source = $latest.Source }
+    if (-not $source) { $source = 'History' }
+    return [pscustomobject]@{
+        Site            = $Site
+        LastIngestedUtc = $ingestedUtc
+        Source          = $source
+        HistoryPath     = $historyPath
+    }
+}
+
+function Get-SiteCacheProviderFromMetrics {
+    param([string]$Site)
+    if ([string]::IsNullOrWhiteSpace($Site)) { return $null }
+    $logDir = Join-Path $scriptDir '..\Logs\IngestionMetrics'
+    if (-not (Test-Path -LiteralPath $logDir)) { return $null }
+    $latest = Get-ChildItem -LiteralPath $logDir -Filter '*.json' -File | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    if (-not $latest) { return $null }
+    if ($script:FreshnessCache.Site -eq $Site -and $script:FreshnessCache.MetricsAt -eq $latest.LastWriteTime) {
+        return $script:FreshnessCache.Info
+    }
+    $telemetry = $null
+    try { $telemetry = Get-Content -LiteralPath $latest.FullName -Raw | ConvertFrom-Json -ErrorAction Stop } catch { $telemetry = $null }
+    if (-not $telemetry) { return $null }
+    $provider = $null
+    $candidates = $telemetry | Where-Object { $_.EventName -in @('DatabaseWriteBreakdown','InterfaceSiteCacheMetrics','InterfaceSyncTiming') -and $_.Site -eq $Site }
+    foreach ($entry in $candidates) {
+        if ($entry.PSObject.Properties.Name -contains 'SiteCacheProvider' -and $entry.SiteCacheProvider) { $provider = $entry.SiteCacheProvider; break }
+        if ($entry.PSObject.Properties.Name -contains 'SiteCacheProviderReason' -and $entry.SiteCacheProviderReason) { $provider = $entry.SiteCacheProviderReason; break }
+        if ($entry.PSObject.Properties.Name -contains 'CacheStatus' -and $entry.CacheStatus) { $provider = $entry.CacheStatus; break }
+    }
+    if (-not $provider) { $provider = 'Unknown' }
+    $info = [pscustomobject]@{
+        Provider   = $provider
+        MetricsLog = $latest.FullName
+    }
+    $script:FreshnessCache = @{
+        Site      = $Site
+        Info      = $info
+        MetricsAt = $latest.LastWriteTime
+    }
+    return $info
+}
+
+function Update-FreshnessIndicator {
+    param([Windows.Window]$Window)
+    $label = $Window.FindName('FreshnessLabel')
+    if (-not $label) { return }
+
+    $site = Get-SiteFilterSelection -Window $Window
+    if (-not $site) {
+        $label.Content = 'Freshness: select a site'
+        return
+    }
+
+    $info = Get-SiteIngestionInfo -Site $site
+    if (-not $info) {
+        $label.Content = "Freshness: no history for $site"
+        $label.ToolTip = "No ingestion history found under Data\\IngestionHistory\\$site.json"
+        return
+    }
+
+    $localTime = $info.LastIngestedUtc.ToLocalTime()
+    $age = [datetime]::UtcNow - $info.LastIngestedUtc
+    $ageText = if ($age.TotalMinutes -lt 1) {
+        '<1 min ago'
+    } elseif ($age.TotalHours -lt 1) {
+        ('{0:F0} min ago' -f [math]::Floor($age.TotalMinutes))
+    } elseif ($age.TotalDays -lt 1) {
+        ('{0:F1} h ago' -f $age.TotalHours)
+    } else {
+        ('{0:F1} d ago' -f $age.TotalDays)
+    }
+
+    $providerInfo = Get-SiteCacheProviderFromMetrics -Site $site
+    $providerText = if ($providerInfo) { $providerInfo.Provider } else { $info.Source }
+    $label.Content = "Freshness: $site @ $($localTime.ToString('g')) ($ageText, source $providerText)"
+    $label.ToolTip = if ($providerInfo) { "Ingestion history: $($info.HistoryPath)`nMetrics: $($providerInfo.MetricsLog)" } else { "Ingestion history: $($info.HistoryPath)" }
+}
+
+function Start-ParserBackgroundJob {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][Windows.Window]$Window,
+        [bool]$IncludeArchive,
+        [bool]$IncludeHistorical,
+        [string]$SiteFilter
+    )
+
+    if ($script:CurrentParserJob -and ($script:CurrentParserJob.State -in @('Running','NotStarted'))) {
+        [System.Windows.MessageBox]::Show('Parsing is already running. Monitor the parser status indicator for progress.', 'Parsing in progress')
+        return
+    }
+
+    $repoRoot = (Resolve-Path (Join-Path $scriptDir '..')).Path
+    $logDir = Join-Path $repoRoot 'Logs\UI'
+    if (-not (Test-Path -LiteralPath $logDir)) {
+        New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+    }
+    $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+    $logPath = Join-Path $logDir ("ParserJob-{0}.log" -f $timestamp)
+
+    $job = $null
+    try {
+        $job = Start-Job -Name ("StateTraceParser-{0}" -f $timestamp) -ArgumentList @(
+            $repoRoot,
+            $IncludeArchive,
+            $IncludeHistorical,
+            $logPath
+        ) -ScriptBlock {
+        param($RepoRoot,$IncludeArchive,$IncludeHistorical,$LogPath)
+        Push-Location $RepoRoot
+        try {
+            $logParent = Split-Path -Parent $LogPath
+            if (-not (Test-Path -LiteralPath $logParent)) {
+                New-Item -ItemType Directory -Path $logParent -Force | Out-Null
+            }
+            $pipeline = Join-Path $RepoRoot 'Tools\Invoke-StateTracePipeline.ps1'
+            $env:IncludeArchive    = if ($IncludeArchive)    { '1' } else { '0' }
+            $env:IncludeHistorical = if ($IncludeHistorical){ '1' } else { '0' }
+            if (Test-Path -LiteralPath $pipeline) {
+                & $pipeline -SkipTests -VerboseParsing -ResetExtractedLogs -VerifyTelemetryCompleteness -FailOnTelemetryMissing -FailOnSchedulerFairness |
+                    Tee-Object -FilePath $LogPath
+            } else {
+                Import-Module (Join-Path $RepoRoot 'Modules\ParserWorker.psm1') -Force
+                Invoke-StateTraceParsing -Synchronous | Tee-Object -FilePath $LogPath
+            }
+        } finally {
+            Pop-Location
+        }
+    }
+    } catch {
+        [System.Windows.MessageBox]::Show(("Failed to start parsing job: {0}" -f $_.Exception.Message), 'Parsing error')
+        return
+    }
+
+    $script:CurrentParserJob = $job
+    $script:ParserJobStartedAt = Get-Date
+    $script:ParserJobLogPath = $logPath
+    $script:ParserPendingSiteFilter = $SiteFilter
+    Ensure-ParserStatusTimer -Window $Window
+    Update-ParserStatusIndicator -Window $Window
+    if ($script:ParserStatusTimer) { $script:ParserStatusTimer.Start() }
+}
+
 function Invoke-StateTraceRefresh {
     [CmdletBinding()]
     param([Parameter(Mandatory)][Windows.Window]$Window)
@@ -574,39 +942,132 @@ function Invoke-StateTraceRefresh {
         $includeArchiveCB    = $Window.FindName('IncludeArchiveCheckbox')
         $includeHistoricalCB = $Window.FindName('IncludeHistoricalCheckbox')
 
-        if ($includeArchiveCB)    { Set-EnvToggle -Name 'IncludeArchive'    -Checked ([bool]$includeArchiveCB.IsChecked) }
-        if ($includeHistoricalCB) { Set-EnvToggle -Name 'IncludeHistorical' -Checked ([bool]$includeHistoricalCB.IsChecked) }
+        $includeArchiveFlag = $false
+        $includeHistoricalFlag = $false
+        if ($includeArchiveCB) {
+            $includeArchiveFlag = [bool]$includeArchiveCB.IsChecked
+            Set-EnvToggle -Name 'IncludeArchive' -Checked $includeArchiveFlag
+        }
+        if ($includeHistoricalCB) {
+            $includeHistoricalFlag = [bool]$includeHistoricalCB.IsChecked
+            Set-EnvToggle -Name 'IncludeHistorical' -Checked $includeHistoricalFlag
+        }
 
         if ($global:StateTraceDb) { $env:StateTraceDbPath = $global:StateTraceDb }
 
-        $parseCmd = Get-Command Invoke-StateTraceParsing -ErrorAction SilentlyContinue
-        if ($parseCmd) {
-            Invoke-StateTraceParsing -Synchronous
-        } else {
-            Write-Error ("Invoke-StateTraceParsing not found (module load failed).")
-        }
-
-        # Call the unified device helper functions directly (no module qualifier).
-        $catalog = $null
-        try { $catalog = Get-DeviceSummaries } catch { $catalog = $null }
-        try {
-            $hostList = $null
-            if ($catalog -and $catalog.PSObject.Properties['Hostnames']) { $hostList = $catalog.Hostnames }
-            if ($hostList) {
-                Initialize-DeviceFilters -Hostnames $hostList -Window $window
-            } else {
-                Initialize-DeviceFilters -Window $window
-            }
-        } catch {}
-        Update-DeviceFilter
-        # Rebuild Compare view so its host list reflects the new parse
-        if (Get-Command -Name Update-CompareView -ErrorAction SilentlyContinue) {
-            try { Update-CompareView -Window $window | Out-Null }
-            catch { Write-Warning ("Failed to refresh Compare view: {0}" -f $_.Exception.Message) }
-        }
+        $siteFilterValue = Get-SelectedSiteFilterValue -Window $Window
+        Start-ParserBackgroundJob -Window $Window -IncludeArchive $includeArchiveFlag -IncludeHistorical $includeHistoricalFlag -SiteFilter $siteFilterValue
+        Publish-UserActionTelemetry -Action 'ScanLogs' -Site $siteFilterValue -Hostname (Get-SelectedHostname -Window $Window) -Context 'MainWindow'
 
     } catch {
         Write-Warning ("Refresh failed: {0}" -f $_.Exception.Message)
+    }
+}
+
+function Initialize-DeviceViewFromCatalog {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][Windows.Window]$Window,
+        [string]$SiteFilter
+    )
+
+    # Call the unified device helper functions directly (no module qualifier).
+    $catalog = $null
+    try {
+        if ([string]::IsNullOrWhiteSpace($SiteFilter)) {
+            $catalog = Get-DeviceSummaries
+        } else {
+            $catalog = Get-DeviceSummaries -SiteFilter $SiteFilter
+        }
+    } catch { $catalog = $null }
+    $hostList = @()
+    if ($catalog -and $catalog.PSObject.Properties['Hostnames']) {
+        $hostList = @($catalog.Hostnames)
+    }
+    if ($SiteFilter -and $catalog -and $catalog.Metadata) {
+        $comparison = [System.StringComparer]::OrdinalIgnoreCase
+        $filteredHosts = New-Object 'System.Collections.Generic.List[string]'
+        foreach ($hostname in $hostList) {
+            $meta = $null
+            if ($catalog.Metadata.ContainsKey($hostname)) {
+                $meta = $catalog.Metadata[$hostname]
+            }
+            $siteName = ''
+            if ($meta -and $meta.PSObject.Properties['Site']) {
+                $siteName = '' + $meta.Site
+            }
+            if ($comparison.Equals($siteName, $SiteFilter)) {
+                $filteredHosts.Add($hostname) | Out-Null
+            }
+        }
+        $hostList = $filteredHosts
+        if ($hostList.Count -eq 0) {
+            [System.Windows.MessageBox]::Show(("No hosts found for site '{0}'." -f $SiteFilter), "No Data")
+        }
+    }
+
+    try {
+        if ($hostList -and $hostList.Count -gt 0) {
+            $firstHost = $hostList | Select-Object -First 1
+            if ($firstHost) {
+                try {
+                    if (Get-Command -Name 'InterfaceModule\Set-HostLoadingIndicator' -ErrorAction SilentlyContinue) {
+                        InterfaceModule\Set-HostLoadingIndicator -Hostname $firstHost -CurrentIndex 1 -TotalHosts $hostList.Count -State 'Loading'
+                    }
+                } catch {}
+            }
+            Initialize-DeviceFilters -Hostnames $hostList -Window $Window
+        } else {
+            Initialize-DeviceFilters -Window $Window
+            try {
+                if (Get-Command -Name 'InterfaceModule\Set-HostLoadingIndicator' -ErrorAction SilentlyContinue) {
+                    InterfaceModule\Set-HostLoadingIndicator -State 'Hidden'
+                }
+            } catch {}
+        }
+    } catch {}
+
+    try { Update-DeviceFilter } catch {}
+
+    if (Get-Command -Name Update-CompareView -ErrorAction SilentlyContinue) {
+        try { Update-CompareView -Window $Window | Out-Null }
+        catch { Write-Warning ("Failed to refresh Compare view: {0}" -f $_.Exception.Message) }
+    }
+
+    try {
+        $hostDD = $Window.FindName('HostnameDropdown')
+        $firstHost = $null
+        if ($hostDD -and $hostDD.Items.Count -gt 0) {
+            $firstHost = $hostDD.SelectedItem
+            if (-not $firstHost -and $hostDD.Items.Count -gt 0) {
+                $firstHost = $hostDD.Items[0]
+            }
+        }
+        if ($firstHost) {
+            Show-DeviceDetails $firstHost
+            if (Get-Command Get-SpanInfo -ErrorAction SilentlyContinue) {
+                Get-SpanInfo $firstHost
+            }
+        } else {
+            if (Get-Command -Name 'InterfaceModule\Set-HostLoadingIndicator' -ErrorAction SilentlyContinue) {
+                InterfaceModule\Set-HostLoadingIndicator -State 'Hidden'
+            }
+        }
+    } catch {}
+}
+
+function Invoke-DatabaseImport {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][Windows.Window]$Window)
+
+    try {
+        if ($global:StateTraceDb) { $env:StateTraceDbPath = $global:StateTraceDb }
+        $siteFilterValue = Get-SelectedSiteFilterValue -Window $Window
+        Initialize-DeviceViewFromCatalog -Window $Window -SiteFilter $siteFilterValue
+        Populate-SiteDropdownWithAvailableSites -Window $Window -PreferredSelection $siteFilterValue -PreserveExistingSelection
+        Publish-UserActionTelemetry -Action 'LoadFromDb' -Site $siteFilterValue -Hostname (Get-SelectedHostname -Window $Window) -Context 'MainWindow'
+    } catch {
+        Write-Warning ("Database import failed: {0}" -f $_.Exception.Message)
     }
 }
 
@@ -631,14 +1092,25 @@ function Show-DeviceDetails {
     }
 
     $dto = $null
+    $hostIndicatorCmd = $null
+    try { $hostIndicatorCmd = Get-Command -Name 'InterfaceModule\Set-HostLoadingIndicator' -ErrorAction SilentlyContinue } catch { $hostIndicatorCmd = $null }
+    if ($hostIndicatorCmd) {
+        try { InterfaceModule\Set-HostLoadingIndicator -Hostname $hostTrim -State 'Loading' } catch {}
+    }
     try {
         $dto = DeviceDetailsModule\Get-DeviceDetails -Hostname $hostTrim
     } catch {
         [System.Windows.MessageBox]::Show("Error loading ${hostTrim}:`n$($_.Exception.Message)")
+        if ($hostIndicatorCmd) {
+            try { InterfaceModule\Set-HostLoadingIndicator -State 'Hidden' } catch {}
+        }
         return
     }
     if (-not $dto) {
         [System.Windows.MessageBox]::Show("No device details available for ${hostTrim}.")
+        if ($hostIndicatorCmd) {
+            try { InterfaceModule\Set-HostLoadingIndicator -State 'Hidden' } catch {}
+        }
         return
     }
 
@@ -668,18 +1140,52 @@ function Get-HostnameChanged {
     param([string]$Hostname)
 
     try {
+        $currentIndex = 0
+        $totalHosts = 0
+        try {
+            $hostDropdownRef = $null
+            if ($global:window) {
+                $hostDropdownRef = $global:window.FindName('HostnameDropdown')
+            }
+            if ($hostDropdownRef) {
+                if ($hostDropdownRef.Items) {
+                    $totalHosts = [int]$hostDropdownRef.Items.Count
+                }
+                $selectedIndex = $hostDropdownRef.SelectedIndex
+                if ($selectedIndex -ge 0) {
+                    $currentIndex = [int]$selectedIndex + 1
+                }
+            }
+        } catch {
+            $currentIndex = 0
+            $totalHosts = 0
+        }
+
+        $hostIndicatorCmd = Get-Command -Name 'InterfaceModule\Set-HostLoadingIndicator' -ErrorAction SilentlyContinue
+
         # Load device details synchronously.  Asynchronous invocation via
         if ($Hostname) {
+            if ($hostIndicatorCmd) {
+                try {
+                    InterfaceModule\Set-HostLoadingIndicator -Hostname $Hostname -CurrentIndex $currentIndex -TotalHosts $totalHosts -State 'Loading'
+                } catch {}
+            }
             Show-DeviceDetails $Hostname
             try {
                 Import-DeviceDetailsAsync -Hostname $Hostname
             } catch {
                 Write-Warning ("Hostname change handler failed to queue async device load for {0}: {1}" -f $Hostname, $_.Exception.Message)
+                if ($hostIndicatorCmd) {
+                    try { InterfaceModule\Set-HostLoadingIndicator -State 'Hidden' } catch {}
+                }
             }
             if (Get-Command Get-SpanInfo -ErrorAction SilentlyContinue) {
                 Get-SpanInfo $Hostname
             }
         } else {
+            if ($hostIndicatorCmd) {
+                try { InterfaceModule\Set-HostLoadingIndicator -State 'Hidden' } catch {}
+            }
             # Clear span info when hostname is empty
             if (Get-Command Get-SpanInfo -ErrorAction SilentlyContinue) {
                 Get-SpanInfo ''
@@ -704,6 +1210,11 @@ function Import-DeviceDetailsAsync {
     try { Write-Diag ("Import-DeviceDetailsAsync start | Host={0}" -f $hostTrim) } catch {}
     # If no host is provided, clear span info and return
     if ([string]::IsNullOrWhiteSpace($hostTrim)) {
+        try {
+            if (Get-Command -Name 'InterfaceModule\Set-HostLoadingIndicator' -ErrorAction SilentlyContinue) {
+                InterfaceModule\Set-HostLoadingIndicator -State 'Hidden'
+            }
+        } catch {}
         if (Get-Command Get-SpanInfo -ErrorAction SilentlyContinue) {
             try { [System.Windows.Application]::Current.Dispatcher.Invoke([System.Action]{ Get-SpanInfo '' }) } catch {}
         }
@@ -1151,10 +1662,24 @@ return $res
 
                 try { DeviceRepositoryModule\Clear-InterfacePortStream -Hostname $deviceHost } catch { }
                 & $logAsync ("Async cleared port stream for host {0}" -f $deviceHost)
-                [System.Windows.Application]::Current.Dispatcher.Invoke([System.Action]{ InterfaceModule\Hide-PortLoadingIndicator })
+                $hostIndicatorAvailable = $false
+                try {
+                    $hostIndicatorAvailable = (Get-Command -Name 'InterfaceModule\Set-HostLoadingIndicator' -ErrorAction SilentlyContinue) -ne $null
+                } catch { $hostIndicatorAvailable = $false }
+                [System.Windows.Application]::Current.Dispatcher.Invoke([System.Action]{
+                    InterfaceModule\Hide-PortLoadingIndicator
+                    if ($using:hostIndicatorAvailable) {
+                        try { InterfaceModule\Set-HostLoadingIndicator -Hostname $using:deviceHost -State 'Loaded' } catch {}
+                    }
+                })
             } catch {
                 # Log any exceptions thrown during Invoke
                 Write-Warning ("Import-DeviceDetailsAsync thread encountered an exception: {0}" -f $_.Exception.Message)
+                try {
+                    if (Get-Command -Name 'InterfaceModule\Set-HostLoadingIndicator' -ErrorAction SilentlyContinue) {
+                        InterfaceModule\Set-HostLoadingIndicator -State 'Hidden'
+                    }
+                } catch {}
                 try {
                     if ($script:DeviceDetailsRunspace -and
                         $script:DeviceDetailsRunspace.RunspaceStateInfo.State -eq [System.Management.Automation.Runspaces.RunspaceState]::Broken) {
@@ -1189,6 +1714,12 @@ $hostnameDropdown = $window.FindName('HostnameDropdown')
 if ($refreshBtn -and -not $script:RefreshHandlerAttached) {
     $refreshBtn.Add_Click({ param($sender,$e) Invoke-StateTraceRefresh -Window $window })
     $script:RefreshHandlerAttached = $true
+}
+
+$loadDbButton = $window.FindName('LoadDatabaseButton')
+if ($loadDbButton -and -not $script:LoadDatabaseHandlerAttached) {
+    $loadDbButton.Add_Click({ param($sender,$e) Invoke-DatabaseImport -Window $window })
+    $script:LoadDatabaseHandlerAttached = $true
 }
 
 if ($hostnameDropdown -and -not $script:HostnameHandlerAttached) {
@@ -1252,6 +1783,9 @@ function Request-DeviceFilterUpdate {
     # Restart the timer; successive calls coalesce into one update
     $script:FilterUpdateTimer.Stop()
     $script:FilterUpdateTimer.Start()
+    if ($window) {
+        try { Update-FreshnessIndicator -Window $window } catch { }
+    }
 }
 
 # Track which controls we've already wired to avoid duplicate subscriptions.
@@ -1335,6 +1869,15 @@ if ($helpBtn) {
             return
         }
         try {
+            $runbookPath = Join-Path $scriptDir '..\docs\StateTrace_Operators_Runbook.md'
+            if (Test-Path -LiteralPath $runbookPath) {
+                try {
+                    $runbookUri    = [Uri]::new((Resolve-Path -LiteralPath $runbookPath).ProviderPath)
+                    $quickstartUri = $runbookUri.AbsoluteUri + '#start-here-quickstart'
+                    Start-Process -FilePath $quickstartUri -ErrorAction SilentlyContinue | Out-Null
+                } catch {}
+            }
+            Publish-UserActionTelemetry -Action 'HelpQuickstart' -Site (Get-SelectedSiteFilterValue -Window $window) -Hostname (Get-SelectedHostname -Window $window) -Context 'MainWindow'
             $helpXaml   = Get-Content $helpXamlPath -Raw
             $helpReader = New-Object System.Xml.XmlTextReader (New-Object System.IO.StringReader($helpXaml))
             $helpWin    = [Windows.Markup.XamlReader]::Load($helpReader)
@@ -1370,63 +1913,25 @@ if ($debugNextToggle) {
     $debugNextToggle.Add_Unchecked($updateDebugPreference)
 }
 
-# === BEGIN Window Loaded handler (patched) ===
+# === BEGIN Window Loaded handler ===
 $window.Add_Loaded({
     try {
-        # Make DB path visible to child code
         if ($global:StateTraceDb) { $env:StateTraceDbPath = $global:StateTraceDb }
-
-        # Parse logs
-        if (Get-Command Invoke-StateTraceParsing -ErrorAction SilentlyContinue) {
-            Invoke-StateTraceParsing -Synchronous
-        } else {
-            Write-Error "Invoke-StateTraceParsing not found (module load failed)"
-        }
-
-        # Bind summaries and filters (this populates HostnameDropdown)
-        $catalog = $null
-        try { $catalog = Get-DeviceSummaries } catch { $catalog = $null }
+        Initialize-DeviceFilters -Window $window
+        Populate-SiteDropdownWithAvailableSites -Window $window
+        Ensure-ParserStatusTimer -Window $window
+        Update-ParserStatusIndicator -Window $window
+        try { Update-FreshnessIndicator -Window $window } catch { }
         try {
-            $hostList = $null
-            if ($catalog -and $catalog.PSObject.Properties['Hostnames']) { $hostList = $catalog.Hostnames }
-            if ($hostList) {
-                Initialize-DeviceFilters -Hostnames $hostList -Window $window
-            } else {
-                Initialize-DeviceFilters -Window $window
+            if (Get-Command -Name 'InterfaceModule\Set-HostLoadingIndicator' -ErrorAction SilentlyContinue) {
+                InterfaceModule\Set-HostLoadingIndicator -State 'Hidden'
             }
         } catch {}
-        Update-DeviceFilter   # <-- critical
-
-        # Now build Compare so it can read the host list
-        if (Get-Command -Name Update-CompareView -ErrorAction SilentlyContinue) {
-            try { Update-CompareView -Window $window | Out-Null }
-            catch { Write-Warning ("Failed to initialize Compare view after parsing: {0}" -f $_.Exception.Message) }
-        }
-
-        # Seed details for the first host (optional)
-        $hostDD = $window.FindName('HostnameDropdown')
-        if ($hostDD -and $hostDD.Items.Count -gt 0) {
-            $first = $hostDD.Items[0]
-            # Load details for the first host via the unified helper
-            Show-DeviceDetails $first
-            if (Get-Command Get-SpanInfo -ErrorAction SilentlyContinue) { Get-SpanInfo $first }
-        }
     } catch {
-        [System.Windows.MessageBox]::Show(("Log parsing failed:`n{0}" -f $_.Exception.Message), "Error")
+        Write-Warning ("Initialization failed: {0}" -f $_.Exception.Message)
     }
 })
-# === END Window Loaded handler (patched) ===
-
-
-
-if ($window.FindName('HostnameDropdown').Items.Count -gt 0) {
-    $first = $window.FindName('HostnameDropdown').Items[0]
-    # Load details for the first host using the unified helper
-    Show-DeviceDetails $first
-    if (Get-Command Get-SpanInfo -ErrorAction SilentlyContinue) {
-        Get-SpanInfo $first
-    }
-}
+# === END Window Loaded handler ===
 
 # 8) Show window
 $window.ShowDialog() | Out-Null
