@@ -40,6 +40,7 @@ Strengthen operator-facing value by reducing time-to-first-insight, clarifying d
 - **2025-11-28 (onboarding evidence):** Generated headless onboarding screenshots at `docs/performance/screenshots/onboarding-20251126-154036-*.png` (toolbar freshness/help cues + incremental Interfaces load) to keep ST-H-001 evidence flowing until a live UI capture is available.
 - **2025-11-28 (rollup coverage):** `Tools/Rollup-IngestionMetrics.ps1` now emits `Metric=UserActionCoverage` (Count vs Total, Notes=Missing=...) per scope/site so daily summaries flag missing actions and enforce the adoption gate automatically.
 - **2025-11-28 (freshness source detail):** Freshness label now pulls cache provider/reason + timestamp from the latest telemetry log (with newline-JSON fallback) and surfaces it in the tooltip, so operators can see whether data came from cache/shared/access and when the signal was recorded.
+- **2025-11-28 (freshness telemetry runbook):** Added `Tools/Analyze-FreshnessTelemetry.ps1` + `docs/runbooks/Freshness_Telemetry.md` to summarize cache provider/status signals per site for bundles/checklists; current sample (2025-11-26 telemetry) has no provider events, so future UI runs must emit cache source signals.
 
 ## Automation hooks
 - `pwsh -NoLogo -File Tools\Invoke-InterfacesViewChecklist.ps1 -SiteFilter <site(s)>` to exercise Scan Logs vs. Load from DB without the WPF shell; extend this harness with onboarding steps as part of ST-H-001.
