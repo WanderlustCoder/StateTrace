@@ -144,9 +144,10 @@ function Get-SiteFreshnessInfo {
     $ingested = $null
     try { $ingested = [datetime]::Parse($latest.LastIngestedUtc).ToUniversalTime() } catch { $ingested = $null }
     if (-not $ingested) { return $null }
-    $source = $latest.SiteCacheProvider
-    if (-not $source -and $latest.CacheStatus) { $source = $latest.CacheStatus }
-    if (-not $source -and $latest.Source) { $source = $latest.Source }
+    $source = $null
+    if ($latest.PSObject.Properties.Name -contains 'SiteCacheProvider') { $source = $latest.SiteCacheProvider }
+    if (-not $source -and ($latest.PSObject.Properties.Name -contains 'CacheStatus')) { $source = $latest.CacheStatus }
+    if (-not $source -and ($latest.PSObject.Properties.Name -contains 'Source')) { $source = $latest.Source }
     if (-not $source) { $source = 'History' }
 
     $age = [datetime]::UtcNow - $ingested
