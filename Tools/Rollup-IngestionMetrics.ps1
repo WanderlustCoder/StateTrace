@@ -54,6 +54,7 @@ function New-MetricAccumulator {
         SiteCacheFetchZeroCount     = 0
         SiteCacheFetchStatusCounts  = @{}
         SiteCacheProviderCounts     = @{}
+        UserActionCounts            = @{}
     }
 
     return $accumulator
@@ -245,6 +246,41 @@ function Get-SummaryRowsForAccumulator {
             }) | Out-Null
     }
 
+    if ($Accumulator.UserActionCounts.Count -gt 0) {
+        $totalActions = 0
+        foreach ($actionKey in $Accumulator.UserActionCounts.Keys) {
+            $count = [int]$Accumulator.UserActionCounts[$actionKey]
+            $totalActions += $count
+            $rows.Add([pscustomobject]@{
+                    Date           = $DateKey
+                    Scope          = $Scope
+                    Metric         = 'UserAction'
+                    Count          = $count
+                    Average        = $null
+                    P95            = $null
+                    Max            = $null
+                    Total          = $null
+                    SecondaryTotal = $null
+                    Notes          = "Action=$actionKey"
+                }) | Out-Null
+        }
+
+        if ($totalActions -gt 0) {
+            $rows.Add([pscustomobject]@{
+                    Date           = $DateKey
+                    Scope          = $Scope
+                    Metric         = 'UserActionTotal'
+                    Count          = $totalActions
+                    Average        = $null
+                    P95            = $null
+                    Max            = $null
+                    Total          = $null
+                    SecondaryTotal = $null
+                    Notes          = $null
+                }) | Out-Null
+        }
+    }
+
     return $rows
 }
 
@@ -382,6 +418,15 @@ function Update-AccumulatorFromEvent {
             if ($Event.PSObject.Properties.Name -contains 'SiteCacheProvider') {
                 $providerValue = ('' + $Event.SiteCacheProvider).Trim()
                 Add-DictionaryCount -Dictionary $Accumulator.SiteCacheProviderCounts -Key $providerValue
+            }
+        }
+
+        'UserAction' {
+            if ($Event.PSObject.Properties.Name -contains 'Action') {
+                $actionValue = ('' + $Event.Action).Trim()
+                Add-DictionaryCount -Dictionary $Accumulator.UserActionCounts -Key $actionValue
+            } else {
+                Add-DictionaryCount -Dictionary $Accumulator.UserActionCounts -Key '(unspecified)'
             }
         }
     }
