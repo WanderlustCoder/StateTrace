@@ -12,6 +12,7 @@ param(
     [string[]]$WarmTelemetryPath,
     [string[]]$AnalyzerPath,
     [string[]]$DiffHotspotsPath,
+    [string[]]$UserActionSummaryPath,
     [string[]]$RollupPath,
     [string[]]$DocSyncPath,
     [string[]]$QueueSummaryPath,
@@ -37,6 +38,7 @@ $allArtifacts += $ColdTelemetryPath
 $allArtifacts += $WarmTelemetryPath
 $allArtifacts += $AnalyzerPath
 $allArtifacts += $DiffHotspotsPath
+$allArtifacts += $UserActionSummaryPath
 $allArtifacts += $RollupPath
 $allArtifacts += $DocSyncPath
 $allArtifacts += $QueueSummaryPath
