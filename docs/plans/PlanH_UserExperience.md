@@ -35,6 +35,7 @@ Strengthen operator-facing value by reducing time-to-first-insight, clarifying d
 - **2025-11-27 (adoption analyzer):** Added `Tools/Analyze-UserActionTelemetry.ps1` to summarize UserAction counts by action/site for bundles/rollups.
 - **2025-11-28:** New runbook `docs/runbooks/UserAction_Telemetry.md` documents how to generate and attach UserAction summaries to telemetry bundles (Plan H gate).
 - **2025-11-28 (rollup integration):** `Tools/Rollup-IngestionMetrics.ps1` now rolls up `UserAction` counts (per action and total) so daily rollups/bundles carry adoption signals automatically.
+- **2025-11-28 (bundle sample):** Generated `Logs/Reports/UserActionSummary-20251126.json` from the quickstart harness and published bundle `Logs/TelemetryBundles/UI-20251126-useraction5/` (cold telemetry + user action summary + headless checklist outputs) for Plan H adoption evidence.
 
 ## Automation hooks
 - `pwsh -NoLogo -File Tools\Invoke-InterfacesViewChecklist.ps1 -SiteFilter <site(s)>` to exercise Scan Logs vs. Load from DB without the WPF shell; extend this harness with onboarding steps as part of ST-H-001.
