@@ -14,6 +14,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $script:IncludeSiteCacheMetrics = $IncludeSiteCache.IsPresent
+$script:RequiredUserActions = @('ScanLogs','LoadFromDb','HelpQuickstart','InterfacesView','CompareView','SpanSnapshot')
 
 function Add-DictionaryCount {
     param(
@@ -264,6 +265,20 @@ function Get-SummaryRowsForAccumulator {
                     Notes          = "Action=$actionKey"
                 }) | Out-Null
         }
+
+        $missingActions = @($script:RequiredUserActions | Where-Object { -not $Accumulator.UserActionCounts.ContainsKey($_) })
+        $rows.Add([pscustomobject]@{
+                Date           = $DateKey
+                Scope          = $Scope
+                Metric         = 'UserActionCoverage'
+                Count          = ($script:RequiredUserActions.Count - $missingActions.Count)
+                Average        = $null
+                P95            = $null
+                Max            = $null
+                Total          = $script:RequiredUserActions.Count
+                SecondaryTotal = if ($missingActions.Count -gt 0) { [string]::Join(',', $missingActions) } else { $null }
+                Notes          = if ($missingActions.Count -gt 0) { "Missing=$([string]::Join(',', $missingActions))" } else { 'All required actions present' }
+            }) | Out-Null
 
         if ($totalActions -gt 0) {
             $rows.Add([pscustomobject]@{

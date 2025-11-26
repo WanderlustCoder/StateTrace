@@ -38,6 +38,7 @@ Strengthen operator-facing value by reducing time-to-first-insight, clarifying d
 - **2025-11-28 (bundle sample):** Generated `Logs/Reports/UserActionSummary-20251126.json` from the quickstart harness and published bundle `Logs/TelemetryBundles/UI-20251126-useraction5/` (cold telemetry + user action summary + headless checklist outputs) for Plan H adoption evidence.
 - **2025-11-28 (UserAction coverage):** Scripted harness emitted every core `UserAction` (ScanLogs/LoadFromDb/HelpQuickstart/InterfacesView/CompareView/SpanSnapshot) with BOYO + WLLS context; latest summary `Logs/Reports/UserActionSummary-20251126-run3.json` (coverage includes MissingActions/AllActionsPresent) bundled at `Logs/TelemetryBundles/UI-20251126-useraction7/` after adding UserAction support to the bundle tool.
 - **2025-11-28 (onboarding evidence):** Generated headless onboarding screenshots at `docs/performance/screenshots/onboarding-20251126-154036-*.png` (toolbar freshness/help cues + incremental Interfaces load) to keep ST-H-001 evidence flowing until a live UI capture is available.
+- **2025-11-28 (rollup coverage):** `Tools/Rollup-IngestionMetrics.ps1` now emits `Metric=UserActionCoverage` (Count vs Total, Notes=Missing=...) per scope/site so daily summaries flag missing actions and enforce the adoption gate automatically.
 
 ## Automation hooks
 - `pwsh -NoLogo -File Tools\Invoke-InterfacesViewChecklist.ps1 -SiteFilter <site(s)>` to exercise Scan Logs vs. Load from DB without the WPF shell; extend this harness with onboarding steps as part of ST-H-001.
