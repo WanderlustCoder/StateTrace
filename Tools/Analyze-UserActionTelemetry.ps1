@@ -39,7 +39,21 @@ if (-not (Test-Path -LiteralPath $Path)) {
 
 $raw = Get-Content -LiteralPath $Path -Raw
 $events = $null
-try { $events = $raw | ConvertFrom-Json -ErrorAction Stop } catch { throw "Failed to parse telemetry at $Path: $($_.Exception.Message)" }
+try {
+    $events = $raw | ConvertFrom-Json -ErrorAction Stop
+} catch {
+    # Fallback for newline-delimited JSON
+    $lines = Get-Content -LiteralPath $Path
+    $parsed = @()
+    foreach ($line in $lines) {
+        if ([string]::IsNullOrWhiteSpace($line)) { continue }
+        try { $parsed += ($line | ConvertFrom-Json -ErrorAction Stop) } catch { }
+    }
+    if ($parsed.Count -eq 0) {
+        throw "Failed to parse telemetry at ${Path}: $($_.Exception.Message)"
+    }
+    $events = $parsed
+}
 
 $userActions = @($events | Where-Object { $_.EventName -eq 'UserAction' })
 
