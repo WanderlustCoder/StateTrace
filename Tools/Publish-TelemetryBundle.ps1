@@ -18,6 +18,7 @@ param(
     [string[]]$AnalyzerPath,
     [string[]]$DiffHotspotsPath,
     [string[]]$UserActionSummaryPath,
+    [string[]]$FreshnessSummaryPath,
     [string[]]$RollupPath,
     [string[]]$DocSyncPath,
     [string[]]$QueueSummaryPath,
@@ -42,6 +43,7 @@ param(
     [string]$RollupFilter = 'IngestionMetricsSummary*.csv',
     [string]$QueueSummaryFilter = 'QueueDelaySummary*.json',
     [string]$UserActionSummaryFilter = 'UserActionSummary*.json',
+    [string]$FreshnessSummaryFilter = 'FreshnessTelemetrySummary*.json',
 
     [int]$AnalyzerMaxCount = 2,
     [int]$RollupMaxCount = 1,
@@ -101,6 +103,7 @@ $resolvedAnalyzer = if ($AnalyzerPath) { $AnalyzerPath } else { Get-LatestArtifa
 $resolvedDiff = if ($DiffHotspotsPath) { $DiffHotspotsPath } else { Get-LatestArtifacts -Directory $IngestionMetricsDirectory -Filter @($DiffHotspotsFilter) -Description 'Diff hotspot telemetry' -Optional }
 $resolvedRollup = if ($RollupPath) { $RollupPath } else { Get-LatestArtifacts -Directory $RollupDirectory -Filter @($RollupFilter) -Description 'Rollup CSV' -MaxCount $RollupMaxCount -Optional }
 $resolvedUserAction = if ($UserActionSummaryPath) { $UserActionSummaryPath } else { Get-LatestArtifacts -Directory $HistoryDirectory -Filter @($UserActionSummaryFilter) -Description 'UserAction summary' -Optional }
+$resolvedFreshness = if ($FreshnessSummaryPath) { $FreshnessSummaryPath } else { Get-LatestArtifacts -Directory $HistoryDirectory -Filter @($FreshnessSummaryFilter) -Description 'Freshness telemetry summary' -Optional }
 $resolvedQueueSummary = @()
 if ($QueueSummaryPath) {
     $resolvedQueueSummary = $QueueSummaryPath
@@ -203,6 +206,7 @@ if ($resolvedWarm) { $bundleParams['WarmTelemetryPath'] = $resolvedWarm }
 if (@($resolvedAnalyzer).Count -gt 0) { $bundleParams['AnalyzerPath'] = $resolvedAnalyzer }
 if (@($resolvedDiff).Count -gt 0) { $bundleParams['DiffHotspotsPath'] = $resolvedDiff }
 if (@($resolvedUserAction).Count -gt 0) { $bundleParams['UserActionSummaryPath'] = $resolvedUserAction }
+if (@($resolvedFreshness).Count -gt 0) { $bundleParams['FreshnessSummaryPath'] = $resolvedFreshness }
 if (@($resolvedRollup).Count -gt 0) { $bundleParams['RollupPath'] = $resolvedRollup }
 if (@($DocSyncPath).Count -gt 0) { $bundleParams['DocSyncPath'] = $DocSyncPath }
 if (@($resolvedQueueSummary).Count -gt 0) { $bundleParams['QueueSummaryPath'] = $resolvedQueueSummary }

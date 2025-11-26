@@ -13,6 +13,7 @@ param(
     [string[]]$AnalyzerPath,
     [string[]]$DiffHotspotsPath,
     [string[]]$UserActionSummaryPath,
+    [string[]]$FreshnessSummaryPath,
     [string[]]$RollupPath,
     [string[]]$DocSyncPath,
     [string[]]$QueueSummaryPath,
@@ -39,6 +40,7 @@ $allArtifacts += $WarmTelemetryPath
 $allArtifacts += $AnalyzerPath
 $allArtifacts += $DiffHotspotsPath
 $allArtifacts += $UserActionSummaryPath
+$allArtifacts += $FreshnessSummaryPath
 $allArtifacts += $RollupPath
 $allArtifacts += $DocSyncPath
 $allArtifacts += $QueueSummaryPath
@@ -94,6 +96,7 @@ $categories = @(
     @{ Name = 'SharedCacheAnalyzer'; Paths = $AnalyzerPath },
     @{ Name = 'DiffHotspots'; Paths = $DiffHotspotsPath },
     @{ Name = 'UserActionSummary'; Paths = $UserActionSummaryPath },
+    @{ Name = 'FreshnessSummary'; Paths = $FreshnessSummaryPath },
     @{ Name = 'RollupCsv'; Paths = $RollupPath },
     @{ Name = 'DocSync'; Paths = $DocSyncPath },
     @{ Name = 'QueueDelaySummary'; Paths = $QueueSummaryPath },
