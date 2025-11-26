@@ -93,6 +93,7 @@ $categories = @(
     @{ Name = 'WarmTelemetry'; Paths = $WarmTelemetryPath },
     @{ Name = 'SharedCacheAnalyzer'; Paths = $AnalyzerPath },
     @{ Name = 'DiffHotspots'; Paths = $DiffHotspotsPath },
+    @{ Name = 'UserActionSummary'; Paths = $UserActionSummaryPath },
     @{ Name = 'RollupCsv'; Paths = $RollupPath },
     @{ Name = 'DocSync'; Paths = $DocSyncPath },
     @{ Name = 'QueueDelaySummary'; Paths = $QueueSummaryPath },

@@ -10,7 +10,7 @@ Document the fastest path for operators to reach a validated Interfaces view, re
    - Summary captures `TimeToFirstHostMs`, host success counts, and per-host interface rows.
    - `SiteFreshness` in the summary records the last ingest timestamp/age/source per site (from `Data/IngestionHistory/<site>.json`).
 3. **UI confirmation (optional):** Launch `Main/MainWindow.ps1`, click **Scan Logs** once, then use **Load from DB** to hydrate the Interfaces view without rerunning the parser. Confirm host dropdown + freshness indicator populate.
-4. **Log evidence:** Record the ingestion log path (if generated) and `Logs/Reports/InterfacesViewQuickstart.json` in your session log and task board update.
+4. **Log evidence:** Record the ingestion log path (if generated), `Logs/Reports/InterfacesViewQuickstart.json`, the latest `UserActionSummary-<date>.json`, and any onboarding screenshots (`docs/performance/screenshots/onboarding-<timestamp>.png`) in your session log and task board update.
 
 ## Expected outputs
 - `Logs/Reports/InterfacesViewChecklist.json` – per-host interface/batch counts from the headless run.
