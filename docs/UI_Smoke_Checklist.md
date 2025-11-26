@@ -23,7 +23,7 @@ pwsh -NoLogo -NoProfile -File .\Main\MainWindow.ps1
 | Templates tab | Load a template, copy text via the provided button, and confirm no errors surface in the console. | Template preview should appear; clipboard operations should not throw. |
 | Alerts tab | Toggle status/auth filters, ensure `$global:AlertsList` updates (inspect via console if needed). | Grid refreshes with new counts; no stale bindings. |
 | Compare view | Add two hosts, expand the diff list, and confirm configuration text renders. | `Get-InterfaceConfiguration` lookups should not hit Access once caches are primed. |
-| Freshness indicator | Select a site and observe the toolbar freshness label. | Shows last ingest timestamp + relative age for the selected site and cache source when available; updates when site selection changes. |
+| Freshness indicator | Select a site and observe the toolbar freshness label. Hover to inspect the tooltip. | Shows last ingest timestamp + relative age for the selected site; tooltip lists cache source/provider (e.g., Cache/SharedOnly or AccessRefresh) and the telemetry log path. Capture a screenshot if values differ from history. |
 | Help dialog | Open Help from the toolbar to ensure secondary windows still resolve their resource dictionaries and link to the Operators Runbook quickstart anchor. | Window opens without XAML binding errors; help link targets the "Start here (quickstart)" section. |
 | Quickstart path | Verify the Scan Logs -> Load from DB flow: click **Scan Logs** once, then **Load from DB** for a selected site without re-parsing. | Host dropdown remains populated, Interfaces rows render without starting a new parse, and status strip reflects cached data. |
 
