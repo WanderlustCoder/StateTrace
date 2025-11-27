@@ -238,6 +238,7 @@ if ($VerifyPlanHReadiness) {
         RequiredActions       = $PlanHRequiredActions
         ErrorAction           = 'Stop'
         OutputPath            = if ($bundleResult.Path -and $PlanHReadinessOutputName) { Join-Path -Path $bundleResult.Path -ChildPath $PlanHReadinessOutputName } else { $null }
+        PassThru              = $true
     }
     $planHResult = & $planHScript @planHParams
     if ($planHResult.Ready -ne $true) {
