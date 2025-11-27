@@ -31,6 +31,7 @@ Use this runbook to prove that every telemetry bundle (Plan E ST-E-007/ST-E-009,
        -SummaryPath "$bundle/VerificationSummary.json"
    ```
    The script prints a table of README hashes (SHA-256 by default) plus the requirement checklist for each area, and it writes a machine-readable summary JSON file you can reference from plans/task board rows. Keep the summary with the bundle so reviewers can see which files were validated.
+   - For Plan H bundles, also run `pwsh Tools/Test-PlanHReadiness.ps1 -BundlePath $bundle` (or publish with `Tools/Publish-TelemetryBundle.ps1 -VerifyPlanHReadiness`) to assert `UserAction` coverage + `FreshnessTelemetrySummary*.json` are present; stash the emitted `PlanHReadiness.json` inside the bundle.
 
 3. **Verify Telemetry payload**  
    ```powershell
