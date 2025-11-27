@@ -42,6 +42,7 @@ Strengthen operator-facing value by reducing time-to-first-insight, clarifying d
 - **2025-11-28 (freshness source detail):** Freshness label now pulls cache provider/reason + timestamp from the latest telemetry log (with newline-JSON fallback) and surfaces it in the tooltip, so operators can see whether data came from cache/shared/access and when the signal was recorded.
 - **2025-11-28 (freshness telemetry runbook):** Added `Tools/Analyze-FreshnessTelemetry.ps1` + `docs/runbooks/Freshness_Telemetry.md` to summarize cache provider/status signals per site for bundles/checklists; latest summary `Logs/Reports/FreshnessTelemetrySummary-20251126-run2.json` (AccessRefresh/Cache coverage) bundled in `Logs/TelemetryBundles/UI-20251126-useraction8/`.
 - **2025-11-28 (bundle auto-discovery):** Bundle publisher now auto-discovers `FreshnessTelemetrySummary*.json` so Plan H evidence (cache source/provider) ships with UserAction summaries without manual wiring.
+- **2025-11-28 (readiness check):** `Tools/Publish-TelemetryBundle.ps1 -VerifyPlanHReadiness` now runs `Tools/Test-PlanHReadiness.ps1` and emits `PlanHReadiness.json` inside the bundle to prove UserAction + freshness evidence are present; `Logs/Reports/PlanHReadiness-20251126.json` captures the current bundle status.
 
 ## Automation hooks
 - `pwsh -NoLogo -File Tools\Invoke-InterfacesViewChecklist.ps1 -SiteFilter <site(s)>` to exercise Scan Logs vs. Load from DB without the WPF shell; extend this harness with onboarding steps as part of ST-H-001.
