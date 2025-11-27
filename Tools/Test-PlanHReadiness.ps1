@@ -4,6 +4,7 @@ param(
     [string]$UserActionSummaryPath,
     [string]$FreshnessSummaryPath,
     [string[]]$RequiredActions = @('ScanLogs','LoadFromDb','HelpQuickstart','InterfacesView','CompareView','SpanSnapshot'),
+    [string]$OutputPath,
     [switch]$PassThru
 )
 
@@ -121,7 +122,17 @@ $result = [pscustomobject]@{
     BundlePath            = $BundlePath
     UserActionSummaryPath = $UserActionSummaryPath
     FreshnessSummaryPath  = $FreshnessSummaryPath
+    RequiredActions       = $RequiredActions
     Failures              = $failures
+}
+
+if ($OutputPath) {
+    $dir = Split-Path -Path $OutputPath -Parent
+    if ($dir -and -not (Test-Path -LiteralPath $dir)) {
+        New-Item -ItemType Directory -Path $dir -Force | Out-Null
+    }
+    $result | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $OutputPath -Encoding UTF8
+    Write-Verbose ("Plan H readiness summary written to {0}" -f $OutputPath)
 }
 
 if ($PassThru) { return $result }

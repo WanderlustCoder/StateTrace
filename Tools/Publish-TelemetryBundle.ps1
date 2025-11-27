@@ -53,7 +53,8 @@ param(
     [switch]$PassThru,
 
     [switch]$VerifyPlanHReadiness,
-    [string[]]$PlanHRequiredActions = @('ScanLogs','LoadFromDb','HelpQuickstart','InterfacesView','CompareView','SpanSnapshot')
+    [string[]]$PlanHRequiredActions = @('ScanLogs','LoadFromDb','HelpQuickstart','InterfacesView','CompareView','SpanSnapshot'),
+    [string]$PlanHReadinessOutputName = 'PlanHReadiness.json'
 )
 
 Set-StrictMode -Version Latest
@@ -236,6 +237,7 @@ if ($VerifyPlanHReadiness) {
         BundlePath            = $bundleResult.Path
         RequiredActions       = $PlanHRequiredActions
         ErrorAction           = 'Stop'
+        OutputPath            = if ($bundleResult.Path -and $PlanHReadinessOutputName) { Join-Path -Path $bundleResult.Path -ChildPath $PlanHReadinessOutputName } else { $null }
     }
     $planHResult = & $planHScript @planHParams
     if ($planHResult.Ready -ne $true) {
