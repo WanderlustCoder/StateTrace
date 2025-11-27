@@ -45,21 +45,20 @@ if (-not $resolvedTelemetry -or -not (Test-Path -LiteralPath $resolvedTelemetry)
 }
 $telemetryFull = (Resolve-Path -LiteralPath $resolvedTelemetry).ProviderPath
 $telemetryStem = [System.IO.Path]::GetFileNameWithoutExtension($telemetryFull)
+$reportsDir = Join-Path (Split-Path -Path $telemetryFull -Parent) '..\Reports'
+if (-not (Test-Path -LiteralPath $reportsDir)) { New-Item -ItemType Directory -Path $reportsDir -Force | Out-Null }
+$reportsDir = (Resolve-Path -LiteralPath $reportsDir).ProviderPath
 
 # Generate UserAction summary if missing
 if (-not $UserActionSummaryPath) {
-    $uaPath = Join-Path (Split-Path -Path $telemetryFull -Parent) "..\Reports\UserActionSummary-$telemetryStem-planh.json"
-    $uaPath = (Resolve-Path -LiteralPath $uaPath -ErrorAction SilentlyContinue)?.ProviderPath ?? (Join-Path (Split-Path -Path $telemetryFull -Parent) "Reports\UserActionSummary-$telemetryStem-planh.json")
-    $UserActionSummaryPath = $uaPath
-    pwsh -NoLogo -File (Join-Path $PSScriptRoot 'Analyze-UserActionTelemetry.ps1') -Path $telemetryFull -OutputPath $UserActionSummaryPath | Out-Null
+    $UserActionSummaryPath = Join-Path $reportsDir "UserActionSummary-$telemetryStem-planh.json"
+    & (Join-Path $PSScriptRoot 'Analyze-UserActionTelemetry.ps1') -Path $telemetryFull -OutputPath $UserActionSummaryPath | Out-Null
 }
 
 # Generate freshness summary if missing
 if (-not $FreshnessSummaryPath) {
-    $frPath = Join-Path (Split-Path -Path $telemetryFull -Parent) "..\Reports\FreshnessTelemetrySummary-$telemetryStem-planh.json"
-    $frPath = (Resolve-Path -LiteralPath $frPath -ErrorAction SilentlyContinue)?.ProviderPath ?? (Join-Path (Split-Path -Path $telemetryFull -Parent) "Reports\FreshnessTelemetrySummary-$telemetryStem-planh.json")
-    $FreshnessSummaryPath = $frPath
-    pwsh -NoLogo -File (Join-Path $PSScriptRoot 'Analyze-FreshnessTelemetry.ps1') -Path $telemetryFull -OutputPath $FreshnessSummaryPath | Out-Null
+    $FreshnessSummaryPath = Join-Path $reportsDir "FreshnessTelemetrySummary-$telemetryStem-planh.json"
+    & (Join-Path $PSScriptRoot 'Analyze-FreshnessTelemetry.ps1') -Path $telemetryFull -OutputPath $FreshnessSummaryPath | Out-Null
 }
 
 $resolvedAdditional = @()
