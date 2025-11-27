@@ -38,30 +38,33 @@ if (-not $BundlePath -and -not $UserActionSummaryPath -and -not $FreshnessSummar
 }
 
 $manifest = $null
-if ($BundlePath) {
-    $resolved = Resolve-Path -LiteralPath $BundlePath -ErrorAction Stop
-    $bundleDir = $resolved.ProviderPath
-    $manifestPath = Join-Path $bundleDir 'TelemetryBundle.json'
-    if (-not (Test-Path -LiteralPath $manifestPath)) {
-        # Manifest might be inside an area subfolder
-        $areaManifest = Get-ChildItem -LiteralPath $bundleDir -Filter 'TelemetryBundle.json' -Recurse -File | Select-Object -First 1
-        if ($areaManifest) { $manifestPath = $areaManifest.FullName }
+    if ($BundlePath) {
+        $resolved = Resolve-Path -LiteralPath $BundlePath -ErrorAction Stop
+        $bundleDir = $resolved.ProviderPath
+        $manifestPath = Join-Path $bundleDir 'TelemetryBundle.json'
+        if (-not (Test-Path -LiteralPath $manifestPath)) {
+            # Manifest might be inside an area subfolder
+            $areaManifest = Get-ChildItem -LiteralPath $bundleDir -Filter 'TelemetryBundle.json' -Recurse -File | Select-Object -First 1
+            if ($areaManifest) { $manifestPath = $areaManifest.FullName }
+        }
+        if (Test-Path -LiteralPath $manifestPath) {
+            $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+            Write-Verbose ("Using manifest: {0}" -f $manifestPath)
+        } else {
+            Write-Warning "TelemetryBundle.json not found under $bundleDir"
+        }
+        if (-not $UserActionSummaryPath -and $manifest) {
+            $ua = $manifest.Artifacts | Where-Object { $_.Category -eq 'UserActionSummary' } | Select-Object -First 1
+            if ($ua) { $UserActionSummaryPath = Join-Path (Split-Path $manifestPath -Parent) $ua.TargetFile }
+        }
+        if (-not $FreshnessSummaryPath -and $manifest) {
+            $fr = $manifest.Artifacts | Where-Object { $_.Category -eq 'FreshnessSummary' } | Select-Object -First 1
+            if (-not $fr) {
+                $fr = $manifest.Artifacts | Where-Object { $_.TargetFile -like 'FreshnessTelemetrySummary*' } | Select-Object -First 1
+            }
+            if ($fr) { $FreshnessSummaryPath = Join-Path (Split-Path $manifestPath -Parent) $fr.TargetFile }
+        }
     }
-    if (Test-Path -LiteralPath $manifestPath)) {
-        $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
-        Write-Verbose ("Using manifest: {0}" -f $manifestPath)
-    } else {
-        Write-Warning "TelemetryBundle.json not found under $bundleDir"
-    }
-    if (-not $UserActionSummaryPath -and $manifest) {
-        $ua = $manifest.Artifacts | Where-Object { $_.Category -eq 'UserActionSummary' } | Select-Object -First 1
-        if ($ua) { $UserActionSummaryPath = Join-Path (Split-Path $manifestPath -Parent) $ua.TargetFile }
-    }
-    if (-not $FreshnessSummaryPath -and $manifest) {
-        $fr = $manifest.Artifacts | Where-Object { $_.Category -eq 'FreshnessSummary' } | Select-Object -First 1
-        if ($fr) { $FreshnessSummaryPath = Join-Path (Split-Path $manifestPath -Parent) $fr.TargetFile }
-    }
-}
 
 $failures = New-Object 'System.Collections.Generic.List[string]'
 
