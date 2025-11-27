@@ -82,6 +82,7 @@ if ($Force) { $publishParams.Force = $true }
 if ($PassThru) { $publishParams.PassThru = $true }
 
 $result = & $publishScript @publishParams
+$bundleDir = if ($result -and $result.Path) { $result.Path } else { Join-Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'Logs\TelemetryBundles') $BundleName }
 
 if ($PassThru) { return $result }
-Write-Host ("Plan H bundle ready: {0}" -f $result.Path) -ForegroundColor Green
+Write-Host ("Plan H bundle ready: {0}" -f $bundleDir) -ForegroundColor Green

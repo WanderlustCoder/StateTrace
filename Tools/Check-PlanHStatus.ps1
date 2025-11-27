@@ -1,21 +1,9 @@
 [CmdletBinding()]
 param(
     [string]$BundlePath,
-    [switch]$FailOnNotReady
+    [switch]$FailOnNotReady,
+    [switch]$PassThru
 )
-
-<#
-.SYNOPSIS
-Checks the latest Plan H readiness state.
-
-.DESCRIPTION
-Finds the latest telemetry bundle (or uses the supplied -BundlePath) and runs
-Tools\Test-PlanHReadiness.ps1. Prints readiness status and paths; optionally fails
-when not ready (CI-friendly).
-
-.EXAMPLE
-pwsh -NoLogo -File Tools\Check-PlanHStatus.ps1 -BundlePath Logs\TelemetryBundles\UI-20251126-useraction9 -FailOnNotReady
-#>
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -29,10 +17,7 @@ function Get-LatestBundle {
         ForEach-Object { $_.FullName }
 }
 
-if (-not $BundlePath) {
-    $BundlePath = Get-LatestBundle
-}
-
+if (-not $BundlePath) { $BundlePath = Get-LatestBundle }
 if (-not $BundlePath -or -not (Test-Path -LiteralPath $BundlePath)) {
     throw "Bundle not found. Provide -BundlePath or ensure Logs\TelemetryBundles has entries."
 }

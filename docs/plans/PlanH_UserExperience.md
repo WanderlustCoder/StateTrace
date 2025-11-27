@@ -47,6 +47,7 @@ Strengthen operator-facing value by reducing time-to-first-insight, clarifying d
 - **2025-11-28 (bundle workflow runbook):** Added `docs/runbooks/PlanH_Bundle_Workflow.md` to codify the steps (UserAction/Freshness summaries, readiness-enforced publish, evidence recording).
 - **2025-11-28 (headless screenshots v2):** Added `Tools/Capture-PlanHScreenshots.ps1` to render toolbar/help/Interfaces evidence from quickstart + freshness summaries; generated `docs/performance/screenshots/onboarding-20251126-191000-*.png` as interim proof until live WPF captures are available.
 - **2025-11-28 (status/report helpers):** Added `Tools/Invoke-PlanHBundle.ps1` (one-shot readiness-enforced bundle) and `Tools/Invoke-PlanHChecks.ps1` (readiness + markdown report) to streamline evidence capture; reports now land in `docs/performance/PlanHReport-*.md`.
+- **2025-11-28 (headless simulation bundle):** `Tools/Simulate-PlanHUIRun.ps1` now emits UserAction + freshness telemetry, generates headless screenshots, and publishes a readiness-enforced bundle (`Logs/TelemetryBundles/UI-20251126-planh-sim/`) with report `docs/performance/PlanHReport-20251126-215102.md` as interim evidence.
 
 ## Automation hooks
 - `pwsh -NoLogo -File Tools\Invoke-InterfacesViewChecklist.ps1 -SiteFilter <site(s)>` to exercise Scan Logs vs. Load from DB without the WPF shell; extend this harness with onboarding steps as part of ST-H-001.
