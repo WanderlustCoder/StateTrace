@@ -57,8 +57,8 @@ This matrix condenses the per-plan expectations into a single page so Codex (or 
 
 ### Plan H - User experience & adoption
 - **Typical scripts:** onboarding + UI smoke via `Tools\Invoke-InterfacesViewChecklist.ps1 -SiteFilter <sites>` (extend with onboarding steps), incremental-loading checklist to hydrate data before UI validation, and the UI help entry/quickstart once added.
-- **Telemetry to capture:** onboarding completion timestamps, time-to-first-view, freshness indicator values per site (last ingest + source), and `UserAction` events for Scan Logs, Load from DB, Compare view, and Span snapshots. Add adoption thresholds to `docs/telemetry/Automation_Gates.md` when ST-H-003 lands.
-- **Documentation touchpoints:** Plan H page, Operators Runbook quickstart section, UI smoke checklist, TaskBoard/CSV row ST-H-001, and session logs noting onboarding/freshness telemetry paths.
+- **Telemetry to capture:** onboarding completion timestamps, time-to-first-view, freshness indicator values per site (last ingest + source/provider), and `UserAction` events for Scan Logs, Load from DB, Compare view, and Span snapshots. Run `Tools\Test-PlanHReadiness.ps1 -BundlePath <bundle>` (or `Tools\Publish-TelemetryBundle.ps1 -VerifyPlanHReadiness`) to ensure bundles contain `UserAction` coverage + `FreshnessTelemetrySummary*.json` (write/readiness output into the bundle).
+- **Documentation touchpoints:** Plan H page, Operators Runbook quickstart section, UI smoke checklist, TaskBoard/CSV row ST-H-001, and session logs noting onboarding/freshness telemetry paths and readiness results.
 
 ## Usage checklist
 1. Pick a task from `docs/taskboard/TaskBoard.csv` (or create one) and identify the matching plan row in this matrix.
