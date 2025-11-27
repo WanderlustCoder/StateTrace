@@ -50,7 +50,10 @@ param(
     [int]$QueueSummaryMaxCount = 2,
 
     [switch]$Force,
-    [switch]$PassThru
+    [switch]$PassThru,
+
+    [switch]$VerifyPlanHReadiness,
+    [string[]]$PlanHRequiredActions = @('ScanLogs','LoadFromDb','HelpQuickstart','InterfacesView','CompareView','SpanSnapshot')
 )
 
 Set-StrictMode -Version Latest
@@ -219,15 +222,31 @@ if (@($aggregatedAdditional).Count -gt 0) { $bundleParams['AdditionalPath'] = $a
 if (@($PlanReferences).Count -gt 0) { $bundleParams['PlanReferences'] = $PlanReferences }
 if (@($TaskBoardIds).Count -gt 0) { $bundleParams['TaskBoardIds'] = $TaskBoardIds }
 if ($Notes) { $bundleParams['Notes'] = $Notes }
-if ($PassThru) { $bundleParams['PassThru'] = $true }
+if ($PassThru -or $VerifyPlanHReadiness) { $bundleParams['PassThru'] = $true }
 
 Write-Verbose "Publishing telemetry bundle '$BundleName' (Area='$AreaName')."
 $bundleResult = & $bundleScript @bundleParams
 
+if ($VerifyPlanHReadiness) {
+    $planHScript = Join-Path -Path $PSScriptRoot -ChildPath 'Test-PlanHReadiness.ps1'
+    if (-not (Test-Path -LiteralPath $planHScript)) {
+        throw "Plan H readiness script not found at '$planHScript'."
+    }
+    $planHParams = @{
+        BundlePath            = $bundleResult.Path
+        RequiredActions       = $PlanHRequiredActions
+        ErrorAction           = 'Stop'
+    }
+    $planHResult = & $planHScript @planHParams
+    if ($planHResult.Ready -ne $true) {
+        throw "Plan H readiness failed for bundle '$($bundleResult.Path)': $([string]::Join('; ', $planHResult.Failures))"
+    }
+    Write-Host ("Plan H readiness: Ready (UserAction + freshness evidence present).") -ForegroundColor Green
+}
+
 if ($PassThru) {
     return $bundleResult
-}
-else {
+} else {
     if ($bundleResult) {
         Write-Host "Bundle created at $($bundleResult.Path)" -ForegroundColor Green
     } else {
