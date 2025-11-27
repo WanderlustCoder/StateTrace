@@ -49,6 +49,7 @@ Strengthen operator-facing value by reducing time-to-first-insight, clarifying d
 - **2025-11-28 (status/report helpers):** Added `Tools/Invoke-PlanHBundle.ps1` (one-shot readiness-enforced bundle) and `Tools/Invoke-PlanHChecks.ps1` (readiness + markdown report) to streamline evidence capture; reports now land in `docs/performance/PlanHReport-*.md`.
 - **2025-11-28 (headless simulation bundle):** `Tools/Simulate-PlanHUIRun.ps1` now emits UserAction + freshness telemetry, generates headless screenshots, and publishes a readiness-enforced bundle (`Logs/TelemetryBundles/UI-20251126-planh-sim/`) with report `docs/performance/PlanHReport-20251126-215102.md` as interim evidence.
 - **2025-11-28 (headless automation helper):** Added `Tools/Run-PlanHHeadless.ps1` and `docs/runbooks/PlanH_Headless_Automation.md` for one-shot headless runs (telemetry + screenshots + readiness bundle + report) when UI is unavailable.
+- **2025-11-28 (UI auto-click helper):** Added `Tools/AutoCapture-PlanHUI.ps1` (UIAutomation clicks for Scan/Load/Interfaces/Help + screenshots) for interactive sessions that need scripted capture.
 
 ## Automation hooks
 - `pwsh -NoLogo -File Tools\Invoke-InterfacesViewChecklist.ps1 -SiteFilter <site(s)>` to exercise Scan Logs vs. Load from DB without the WPF shell; extend this harness with onboarding steps as part of ST-H-001.

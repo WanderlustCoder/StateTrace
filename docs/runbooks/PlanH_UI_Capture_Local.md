@@ -22,6 +22,13 @@ Use these steps on a machine with desktop access to capture real WPF evidence (f
    - Click **Help**; screenshot confirming the quickstart anchor opens.
 7) Optional: switch to BOYO and repeat freshness tooltip + Interfaces screenshot.
 
+### Automate (experimental)
+If you prefer scripted clicks on a desktop session:
+```pwsh
+pwsh -NoLogo -File Tools\AutoCapture-PlanHUI.ps1 -ScreenshotDir docs\performance\screenshots -Timestamp <ts>
+```
+This uses UI Automation to click Scan Logs, Load from DB, select Interfaces, open Help, and capture window/help shots. Still requires an interactive desktop (not headless).
+
 ## After capture
 1) Summaries:
    ```pwsh
