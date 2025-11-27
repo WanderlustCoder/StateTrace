@@ -15,6 +15,10 @@ Use this checklist to produce a Plan H-ready telemetry bundle (UserAction covera
 
 3) **Publish bundle (enforces Plan H readiness)**
    ```pwsh
+   # one-shot helper
+   pwsh -NoLogo -File Tools\Invoke-PlanHBundle.ps1 -TelemetryPath Logs\IngestionMetrics\<date>.json -Force
+
+   # or explicit publish
    pwsh -NoLogo -File Tools\Publish-TelemetryBundle.ps1 `
      -BundleName UI-<date>-<tag> `
      -AreaName UI `
