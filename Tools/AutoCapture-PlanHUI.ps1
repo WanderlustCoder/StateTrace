@@ -54,8 +54,8 @@ function Get-MainWindow {
 
 function Invoke-ButtonByName {
     param([System.Windows.Automation.AutomationElement]$Window, [string]$Name)
-    $btn = $Window.FindFirst([System.Windows.Automation.TreeScope]::Descendants,
-        New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, $Name))
+    $cond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, $Name)
+    $btn = $Window.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $cond)
     if ($btn) {
         $invoke = $btn.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern)
         $invoke.Invoke()
@@ -67,8 +67,8 @@ function Invoke-ButtonByName {
 
 function Select-TabByName {
     param([System.Windows.Automation.AutomationElement]$Window, [string]$Name)
-    $tabItem = $Window.FindFirst([System.Windows.Automation.TreeScope]::Descendants,
-        New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, $Name))
+    $cond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, $Name)
+    $tabItem = $Window.FindFirst([System.Windows.Automation.TreeScope]::Descendants, $cond)
     if ($tabItem) {
         $sel = $tabItem.GetCurrentPattern([System.Windows.Automation.SelectionItemPattern]::Pattern)
         $sel.Select()
@@ -110,8 +110,8 @@ Start-Sleep -Seconds 2
 $helpWindow = $null
 try {
     $root = [System.Windows.Automation.AutomationElement]::RootElement
-    $helpWindow = $root.FindFirst([System.Windows.Automation.TreeScope]::Children,
-        New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, 'Help'))
+    $helpCond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, 'Help')
+    $helpWindow = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, $helpCond)
 } catch {}
 if ($helpWindow) {
     $helpShot = Join-Path $ScreenshotDir ("onboarding-{0}-help.png" -f $Timestamp)
