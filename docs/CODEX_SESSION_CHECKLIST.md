@@ -23,6 +23,7 @@ Use this one-pager as the quick command-and-control loop for every Codex session
 - [ ] Capture outputs/paths in your session log (`Logs/IngestionMetrics/<date>.json`, WarmRunTelemetry, CSV rollups).
 - [ ] Compare metrics to `docs/telemetry/Automation_Gates.md`; stop/escalate if thresholds are missed.
 - [ ] For telemetry bundle work, run `Tools\Test-TelemetryBundleReadiness.ps1 -BundlePath Logs/TelemetryBundles/<bundle> -Area Telemetry,Routing` (or `Tools\Invoke-AllChecks.ps1 -TelemetryBundlePath Logs/TelemetryBundles/<bundle> -RequireTelemetryBundleReady`) and record the readiness output in your session log.
+- [ ] For Plan H bundles, run `Tools\Test-PlanHReadiness.ps1 -BundlePath Logs/TelemetryBundles/<bundle>` (or publish with `-VerifyPlanHReadiness`) and stash `PlanHReadiness.json` inside the bundle; cite the path in your session log.
 
 ## Documentation & handoff
 - [ ] Update the Plan file (active work or recent timeline) with results + telemetry links.
