@@ -10,6 +10,8 @@ param(
     [int]$MinRunspacesOverride,
     [switch]$VerboseParsing,
     [switch]$ResetExtractedLogs,
+    [switch]$DisableSkipSiteCacheUpdate,
+    [switch]$SkipPortDiversityGuard,
     [switch]$PreserveModuleSession,
     [switch]$RunWarmRunRegression,
     [string]$WarmRunRegressionOutputPath,
@@ -23,7 +25,8 @@ param(
     [switch]$VerifyTelemetryCompleteness,
     [switch]$FailOnTelemetryMissing,
     [switch]$SynthesizeSchedulerTelemetryOnMissing,
-    [switch]$FailOnSchedulerFairness = $true
+    [switch]$FailOnSchedulerFairness = $true,
+    [switch]$DisablePreserveRunspace
 )
 
 $sharedCacheSnapshotEnvOriginal = $null
@@ -32,11 +35,19 @@ $sharedCacheSnapshotEnvApplied = $false
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+$skipSiteCacheGuardModule = Join-Path -Path $PSScriptRoot -ChildPath 'SkipSiteCacheUpdateGuard.psm1'
+if (-not (Test-Path -LiteralPath $skipSiteCacheGuardModule)) {
+    throw "Skip-site-cache guard module not found at $skipSiteCacheGuardModule."
+}
+Import-Module -Name $skipSiteCacheGuardModule -Force -ErrorAction Stop
+
 $repositoryRoot = Split-Path -Path $PSScriptRoot -Parent
 $modulesPath = Join-Path -Path $repositoryRoot -ChildPath 'Modules'
 $testsPath = Join-Path -Path $modulesPath -ChildPath 'Tests'
 $parserWorkerModule = Join-Path -Path $modulesPath -ChildPath 'ParserWorker.psm1'
 $ingestionMetricsDirectory = Join-Path -Path $repositoryRoot -ChildPath 'Logs\IngestionMetrics'
+$settingsPath = Join-Path -Path $repositoryRoot -ChildPath 'Data\StateTraceSettings.json'
+$skipSiteCacheGuard = $null
 
 $pathSeparator = [System.IO.Path]::PathSeparator
 $resolvedModulesPath = [System.IO.Path]::GetFullPath($modulesPath)
@@ -187,6 +198,14 @@ function Restore-SharedCacheEntries {
                     $script:SiteInterfaceSignatureCache = @{}
                 }
                 $script:SiteInterfaceSignatureCache[$siteKey] = $normalizedEntry
+                # Ensure shared store is available in this session for restored entries.
+                try {
+                    $store = DeviceRepositoryModule\Get-SharedSiteInterfaceCacheStore
+                    if ($store -is [System.Collections.IDictionary]) {
+                        try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($store) } catch { }
+                        try { [System.AppDomain]::CurrentDomain.SetData('StateTrace.Repository.SharedSiteInterfaceCache', $store) } catch { }
+                    }
+                } catch { }
                 Set-SharedSiteInterfaceCacheEntry -SiteKey $siteKey -Entry $normalizedEntry
                 $restored++
             }
@@ -515,6 +534,11 @@ if (-not [string]::IsNullOrWhiteSpace($effectiveSharedCacheSnapshotExportPath)) 
     $snapshotSummaryPath = $effectiveSharedCacheSnapshotExportPath
 }
 
+try {
+    if ($DisableSkipSiteCacheUpdate.IsPresent) {
+        $skipSiteCacheGuard = Disable-SkipSiteCacheUpdateSetting -SettingsPath $settingsPath -Label 'StateTracePipeline'
+    }
+
 if (-not $SkipTests) {
     if (-not (Test-Path -LiteralPath $testsPath)) {
         throw "Pester test directory not found at $testsPath"
@@ -630,7 +654,11 @@ if (-not [string]::IsNullOrWhiteSpace($effectiveSharedCacheSnapshotPath)) {
     }
 }
 
-Write-Host 'Starting ingestion run via Invoke-StateTraceParsing -Synchronous...' -ForegroundColor Cyan
+if ($DisablePreserveRunspace) {
+    Write-Host 'Starting ingestion run via Invoke-StateTraceParsing (single-session)...' -ForegroundColor Cyan
+} else {
+    Write-Host 'Starting ingestion run via Invoke-StateTraceParsing (preserved runspace pool)...' -ForegroundColor Cyan
+}
 $parserWorkerName = [System.IO.Path]::GetFileNameWithoutExtension($parserWorkerModule)
 $existingParserWorker = $null
 if (-not [string]::IsNullOrWhiteSpace($parserWorkerName)) {
@@ -652,6 +680,9 @@ if ($PreserveModuleSession -and $existingParserWorker) {
 }
 
 $invokeParams = @{ Synchronous = $true }
+if (-not $DisablePreserveRunspace) {
+    $invokeParams['PreserveRunspace'] = $true
+}
 if ($PSBoundParameters.ContainsKey('DatabasePath')) {
     $invokeParams['DatabasePath'] = $DatabasePath
 }
@@ -672,9 +703,6 @@ if ($PSBoundParameters.ContainsKey('JobsPerThreadOverride')) {
 }
 if ($PSBoundParameters.ContainsKey('MinRunspacesOverride')) {
     $invokeParams['MinRunspacesOverride'] = $MinRunspacesOverride
-}
-if ($PreserveModuleSession) {
-    $invokeParams['PreserveRunspace'] = $true
 }
 if (-not [string]::IsNullOrWhiteSpace($effectiveSharedCacheSnapshotExportPath)) {
     $invokeParams['SharedCacheSnapshotExportPath'] = $effectiveSharedCacheSnapshotExportPath
@@ -791,18 +819,22 @@ try {
 }
 
 try {
-    $diversityScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Test-PortBatchSiteDiversity.ps1'
-    if (-not (Test-Path -LiteralPath $diversityScript)) {
-        Write-Verbose ("Port batch diversity script '{0}' not found; skipping site streak guard." -f $diversityScript)
-    } elseif (-not $latestIngestionMetricsEntry) {
-        Write-Warning 'Port batch diversity guard skipped: no ingestion metrics files were found.'
+    if ($SkipPortDiversityGuard.IsPresent) {
+        Write-Warning 'Port batch diversity guard skipped by request.'
     } else {
-        $portDiversityReportPath = Join-Path -Path $reportsDirectory -ChildPath ("PortBatchSiteDiversity-{0}.json" -f $metricsReportSuffix)
-        Write-Host ("Validating port batch site diversity into '{0}'..." -f $portDiversityReportPath) -ForegroundColor Cyan
-        try {
-            & $diversityScript -MetricsPath $latestIngestionMetricsEntry.FullName -MaxAllowedConsecutive 8 -OutputPath $portDiversityReportPath | Out-Null
-        } catch {
-            throw ("Port batch diversity guard failed: {0}" -f $_.Exception.Message)
+        $diversityScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Test-PortBatchSiteDiversity.ps1'
+        if (-not (Test-Path -LiteralPath $diversityScript)) {
+            Write-Verbose ("Port batch diversity script '{0}' not found; skipping site streak guard." -f $diversityScript)
+        } elseif (-not $latestIngestionMetricsEntry) {
+            Write-Warning 'Port batch diversity guard skipped: no ingestion metrics files were found.'
+        } else {
+            $portDiversityReportPath = Join-Path -Path $reportsDirectory -ChildPath ("PortBatchSiteDiversity-{0}.json" -f $metricsReportSuffix)
+            Write-Host ("Validating port batch site diversity into '{0}'..." -f $portDiversityReportPath) -ForegroundColor Cyan
+            try {
+                & $diversityScript -MetricsPath $latestIngestionMetricsEntry.FullName -MaxAllowedConsecutive 8 -OutputPath $portDiversityReportPath | Out-Null
+            } catch {
+                throw ("Port batch diversity guard failed: {0}" -f $_.Exception.Message)
+            }
         }
     }
 } catch {
@@ -1076,5 +1108,10 @@ if ($ShowSharedCacheSummary.IsPresent) {
         } else {
             Write-Host '  (No entries reported)' -ForegroundColor DarkGray
         }
+    }
+}
+} finally {
+    if ($skipSiteCacheGuard) {
+        Restore-SkipSiteCacheUpdateSetting -Guard $skipSiteCacheGuard
     }
 }

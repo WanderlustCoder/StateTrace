@@ -2719,7 +2719,7 @@ function Get-InterfaceSiteCache {
     $snapshot = $null
     $snapshotStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     try {
-        $snapshot = Get-InterfacesForSite -Site $siteKey
+        $snapshot = Get-InterfacesForSite -Site $siteKey -Connection $Connection
     } catch {
         $snapshot = $null
     } finally {
@@ -2858,10 +2858,50 @@ function Get-InterfaceSiteCache {
     $hostMapSignatureMismatchSamples = New-Object 'System.Collections.Generic.List[object]'
     $hostMapCandidateMissingSamples = New-Object 'System.Collections.Generic.List[object]'
     if ($snapshot) {
+        $materializePortSortCacheHits = 0L
+        $materializePortSortCacheMisses = 0L
+        $materializePortSortCacheSize = 0L
+        $portSortUniquePorts = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+        $portSortMissSamples = New-Object 'System.Collections.Generic.List[object]'
+        $portSortMissSampleLimit = 20
+        $templateApplyCandidateCount = 0L
+        $templateApplyDefaultedCount = 0L
+        $templateApplyAuthTemplateMissingCount = 0L
+        $templateApplyNoTemplateMatchCount = 0L
+        $templateApplyHintAppliedCount = 0L
+        $templateApplySetPortColorCount = 0L
+        $templateApplySetConfigStatusCount = 0L
+        $templateApplySamples = New-Object 'System.Collections.Generic.List[object]'
+        $templateApplySampleLimit = 20
+        $templatesDir = Join-Path $PSScriptRoot '..\Templates'
+        $templateLookups = New-Object 'System.Collections.Generic.Dictionary[string,object]' ([System.StringComparer]::OrdinalIgnoreCase)
+        $templateHintCaches = New-Object 'System.Collections.Generic.Dictionary[string,System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceTemplateHint]]' ([System.StringComparer]::OrdinalIgnoreCase)
+        $templatesStopwatch = [System.Diagnostics.Stopwatch]::new()
+        $templateLoadDuration = 0.0
+        $materializeStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+        $projectionStopwatch = [System.Diagnostics.Stopwatch]::new()
+        $portSortStopwatch = [System.Diagnostics.Stopwatch]::new()
+        $templateResolveStopwatch = [System.Diagnostics.Stopwatch]::new()
+        $objectBuildStopwatch = [System.Diagnostics.Stopwatch]::new()
+        $materializeProjectionDuration = 0.0
+        $materializePortSortDuration = 0.0
+        $materializeTemplateDuration = 0.0
+        $materializeTemplateLookupDuration = 0.0
+        $materializeTemplateApplyDuration = 0.0
+        $materializeObjectDuration = 0.0
+        $templateLookupStopwatch = [System.Diagnostics.Stopwatch]::new()
+        $templateApplyStopwatch = [System.Diagnostics.Stopwatch]::new()
+        $templateHintCacheHitCount = 0L
+        $templateHintCacheMissCount = 0L
+        $defaultPortSortValue = '99-UNK-99999-99999-99999-99999-99999'
+
         $hostMapStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         foreach ($row in $snapshot) {
             if ($null -eq $row) { continue }
 
+            $port = ''
+            $portSort = $null
+            $portSortAdded = $false
             $hostKey = ''
             $portKey = ''
             $nameValue = ''
@@ -4329,7 +4369,8 @@ function Get-InterfacesForSite {
     param(
         [string]$Site,
         [string]$ZoneSelection,
-        [string]$ZoneToLoad
+        [string]$ZoneToLoad,
+        [object]$Connection
     )
 
     $snapshot = Get-GlobalInterfaceSnapshot @PSBoundParameters
@@ -4343,7 +4384,10 @@ function Get-InterfacesForSite {
 
 function Get-InterfacesForSite {
     [CmdletBinding()]
-    param([string]$Site)
+    param(
+        [string]$Site,
+        [object]$Connection
+    )
 
     $siteName = if ($Site) { '' + $Site } else { '' }
     if ([string]::IsNullOrWhiteSpace($siteName) -or
@@ -4356,7 +4400,7 @@ function Get-InterfacesForSite {
             $code = ''
             try { $code = [System.IO.Path]::GetFileNameWithoutExtension($p) } catch { $code = '' }
             if (-not [string]::IsNullOrWhiteSpace($code)) {
-                $siteList = Get-InterfacesForSite -Site $code
+                $siteList = Get-InterfacesForSite -Site $code -Connection $Connection
                 if ($siteList) {
                     foreach ($item in $siteList) { [void]$combined.Add($item) }
                 }
@@ -4449,11 +4493,28 @@ function Get-InterfacesForSite {
     }
 
     $siteEsc = $siteCode
+    $siteAliasEsc = $null
+    $sitePredicate = $null
     try {
         Import-DatabaseModule
         $siteEsc = DatabaseModule\Get-SqlLiteral -Value $siteCode
+        $siteAlphaPrefix = ($siteCode -replace '[^A-Za-z]').Trim()
+        if (-not [string]::IsNullOrWhiteSpace($siteAlphaPrefix) -and
+            -not [System.StringComparer]::OrdinalIgnoreCase.Equals($siteAlphaPrefix, $siteCode)) {
+            $siteAliasEsc = DatabaseModule\Get-SqlLiteral -Value $siteAlphaPrefix
+        }
     } catch {
         $siteEsc = $siteCode -replace "'", "''"
+        $siteAlphaPrefix = ($siteCode -replace '[^A-Za-z]').Trim()
+        if (-not [string]::IsNullOrWhiteSpace($siteAlphaPrefix) -and
+            -not [System.StringComparer]::OrdinalIgnoreCase.Equals($siteAlphaPrefix, $siteCode)) {
+            $siteAliasEsc = $siteAlphaPrefix -replace "'", "''"
+        }
+    }
+    if (-not [string]::IsNullOrWhiteSpace($siteAliasEsc)) {
+        $sitePredicate = "IN ('{0}','{1}')" -f $siteEsc, $siteAliasEsc
+    } else {
+        $sitePredicate = "= '$siteEsc'"
     }
     $sqlSite = @"
 SELECT i.Hostname, i.Port, i.Name, i.Status, i.VLAN, i.Duplex, i.Speed, i.Type,
@@ -4462,7 +4523,7 @@ SELECT i.Hostname, i.Port, i.Name, i.Status, i.VLAN, i.Duplex, i.Speed, i.Type,
        i.AuthTemplate, i.Config, i.ConfigStatus, i.PortColor, i.ToolTip
 FROM Interfaces AS i
 LEFT JOIN DeviceSummary AS ds ON i.Hostname = ds.Hostname
-WHERE ds.Site = '$siteEsc'
+WHERE ds.Site $sitePredicate
 ORDER BY i.Hostname, i.Port
 "@
 
@@ -4868,6 +4929,7 @@ ORDER BY i.Hostname, i.Port
             $templateApplyStopwatch = [System.Diagnostics.Stopwatch]::new()
             $templateHintCacheHitCount = 0L
             $templateHintCacheMissCount = 0L
+            $metrics = [pscustomobject]@{ HydrationMaterializeTemplateReuseCount = 0 }
 
             $lastHostname = $null
             $lastZoneValue = ''
@@ -4881,6 +4943,7 @@ ORDER BY i.Hostname, i.Port
             foreach ($row in $enum) {
                 if ($null -eq $row) { continue }
 
+                $cachedPortEntry = $null
                 $projectionStopwatch.Restart()
                 $hn = [string]$row.Hostname
                 if ($hn) { $hn = $hn.Trim() }

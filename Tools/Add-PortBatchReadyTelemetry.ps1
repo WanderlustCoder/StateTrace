@@ -102,7 +102,32 @@ if ($hasPortBatchReady -and -not $Force) {
 }
 
 if ($streamEvents.Count -eq 0) {
-    throw "No InterfacePortStreamMetrics events found in '$MetricsPath'; cannot synthesize PortBatchReady."
+    if ($queueEvents.Count -gt 0) {
+        # Fall back to queue metrics when stream metrics are absent (e.g., dispatcher harness-only runs)
+        foreach ($qe in $queueEvents.Values) {
+            $runDateValue = $null
+            $runDateProp = $qe.PSObject.Properties.Match('RunDate')
+            if ($runDateProp -and $runDateProp.Count -gt 0 -and $runDateProp[0].Value) {
+                $runDateValue = '' + $runDateProp[0].Value
+            }
+            $timestampValue = $null
+            $tsProp = $qe.PSObject.Properties.Match('Timestamp')
+            if ($tsProp -and $tsProp.Count -gt 0 -and $tsProp[0].Value) {
+                $timestampValue = $tsProp[0].Value
+            }
+            $syntheticStream = [pscustomobject]@{
+                EventName    = 'InterfacePortStreamMetrics'
+                BatchId      = '' + $qe.BatchId
+                Hostname     = '' + $qe.Hostname
+                RowsReceived = if ($qe.ChunkSize -gt 0) { [int]$qe.ChunkSize } elseif ($qe.TotalPorts -gt 0) { [int]$qe.TotalPorts } else { 0 }
+                RunDate      = if ($runDateValue) { $runDateValue } elseif ($timestampValue) { ([datetime]$timestampValue).ToString('yyyy-MM-dd HH:mm:ss') } else { '' }
+                Timestamp    = $timestampValue
+            }
+            $streamEvents.Add($syntheticStream) | Out-Null
+        }
+    } else {
+        throw "No InterfacePortStreamMetrics events found in '$MetricsPath'; cannot synthesize PortBatchReady."
+    }
 }
 
 $synthesized = New-Object System.Collections.Generic.List[string]

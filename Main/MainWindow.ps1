@@ -221,20 +221,54 @@ try {
         throw "Module manifest not found at ${manifestPath}"
     }
 
-    $manifest =
+    $manifest = $null
+    try {
         if (Get-Command Import-PowerShellDataFile -ErrorAction SilentlyContinue) {
-            Import-PowerShellDataFile -Path $manifestPath
+            $manifest = Import-PowerShellDataFile -Path $manifestPath
         } else {
-            . $manifestPath
+            $manifest = . $manifestPath
         }
+    } catch {
+        Write-Warning ("Failed to parse manifest with Import-PowerShellDataFile: {0}" -f $_.Exception.Message)
+        try { $manifest = . $manifestPath } catch { $manifest = $null }
+    }
 
     $modulesToImport = @()
-    if ($manifest.ModulesToImport) {
+    if ($manifest -and $manifest.ModulesToImport) {
         $modulesToImport = $manifest.ModulesToImport
-    } elseif ($manifest.Modules) {
+    } elseif ($manifest -and $manifest.Modules) {
         $modulesToImport = $manifest.Modules
     } else {
-        throw "No ModulesToImport defined in manifest."
+        Write-Warning "No ModulesToImport/Modules defined in manifest; falling back to default list."
+        $modulesToImport = @(
+            'ThemeModule.psm1',
+            'TelemetryModule.psm1',
+            'LogIngestionModule.psm1',
+            'ParserPersistenceModule.psm1',
+            'ParserRunspaceModule.psm1',
+            'DeviceLogParserModule.psm1',
+            'ParserWorker.psm1',
+            'DatabaseModule.psm1',
+            'DeviceRepositoryModule.psm1',
+            'DeviceCatalogModule.psm1',
+            'FilterStateModule.psm1',
+            'DeviceDetailsModule.psm1',
+            'DeviceInsightsModule.psm1',
+            'DeviceParsingCommon.psm1',
+            'AristaModule.psm1',
+            'BrocadeModule.psm1',
+            'CiscoModule.psm1',
+            'ViewCompositionModule.psm1',
+            'ViewStateService.psm1',
+            'InterfaceModule.psm1',
+            'SpanViewModule.psm1',
+            'SearchInterfacesViewModule.psm1',
+            'SummaryViewModule.psm1',
+            'TemplatesViewModule.psm1',
+            'AlertsViewModule.psm1',
+            'CompareViewModule.psm1',
+            'TemplatesModule.psm1'
+        )
     }
 
     # Import each module listed in the manifest

@@ -55,7 +55,7 @@ try {
     if ([string]::IsNullOrWhiteSpace($json)) {
         throw "Report '$reportToInspect' is empty."
     }
-    $report = $json | ConvertFrom-Json -Depth 6
+    $report = $json | ConvertFrom-Json
     if (-not $report) {
         throw "Report '$reportToInspect' could not be parsed."
     }
@@ -100,4 +100,3 @@ finally {
         Remove-Item -LiteralPath $generatedReportPath -ErrorAction SilentlyContinue
     }
 }
-

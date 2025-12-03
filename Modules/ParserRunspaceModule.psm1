@@ -726,6 +726,19 @@ function Invoke-DeviceParsingJobs {
 
     if (-not $DeviceFiles -or $DeviceFiles.Count -eq 0) { return }
 
+    # When a preserved runspace pool is requested, force the multi-runspace path even for single-threaded runs.
+    if ($PreserveRunspacePool) {
+        # Force a single runspace to maximize cache reuse across passes when preservation is requested.
+        $MaxThreads = 1
+        $MinThreads = 1
+        $MaxWorkersPerSite = 1
+        $MaxActiveSites = 1
+
+        if ($MaxThreads -lt 1) { $MaxThreads = 1 }
+        if ($MinThreads -lt 1) { $MinThreads = 1 }
+        $Synchronous = $false
+    }
+
     $consecutiveLimit = 0
     if ($MaxConsecutiveSiteLaunches -gt 0) {
         $consecutiveLimit = [Math]::Max(1, [int]$MaxConsecutiveSiteLaunches)
@@ -1087,7 +1100,9 @@ function Invoke-InterfaceSiteCacheWarmup {
             try { $afterSummary = DeviceRepositoryModule\Get-InterfaceSiteCacheSummary -Site $resolvedSite } catch { $afterSummary = $null }
             try { ParserRunspaceModule\Publish-RunspaceCacheTelemetry -Stage ($stageRoot + ':After') -Site $resolvedSite -Summary $afterSummary } catch { }
         }
-        $null = $ps.AddScript($scriptBlock).AddArgument($site).AddArgument($Refresh.IsPresent).AddArgument($entryPayload)
+        $scriptText = $scriptBlock.ToString()
+        # Use AddScript with explicit script text to avoid PowerShell treating tokens like "-join" as remaining scripts.
+        $null = $ps.AddScript($scriptText, $true).AddArgument($site).AddArgument($Refresh.IsPresent).AddArgument($entryPayload)
         $async = $ps.BeginInvoke()
         $jobs.Add([pscustomobject]@{ Pipe = $ps; Async = $async })
     }
@@ -1134,7 +1149,187 @@ function Invoke-InterfaceSiteCacheWarmup {
     }
 }
 
-Export-ModuleMember -Function Invoke-DeviceParseWorker, Invoke-DeviceParsingJobs, Reset-DeviceParseRunspacePool, Invoke-InterfaceSiteCacheWarmup, Publish-RunspaceCacheTelemetry
+function Get-RunspaceSharedCacheSummary {
+    [CmdletBinding()]
+    param()
+
+    $pool = $script:PreservedRunspacePool
+    if (-not $pool) { return @() }
+
+    $ps = $null
+    try {
+        $ps = [powershell]::Create()
+        $ps.RunspacePool = $pool
+        $scriptBlock = {
+            $store = DeviceRepositoryModule\Get-SharedSiteInterfaceCacheStore
+            $summary = New-Object 'System.Collections.Generic.List[psobject]'
+            if ($store -is [System.Collections.IDictionary]) {
+                foreach ($key in @($store.Keys)) {
+                    $entry = $null
+                    try { $entry = DeviceRepositoryModule\Get-SharedSiteInterfaceCacheEntry -SiteKey $key } catch { $entry = $null }
+                    $hostCount = 0
+                    $totalRows = 0
+                    $cacheStatus = ''
+                    if ($entry) {
+                        if ($entry.PSObject.Properties.Name -contains 'HostMap' -and $entry.HostMap -is [System.Collections.IDictionary]) {
+                            try { $hostCount = [int]$entry.HostMap.Count } catch { $hostCount = 0 }
+                            foreach ($map in @($entry.HostMap.Values)) {
+                                if ($map -is [System.Collections.IDictionary]) {
+                                    try { $totalRows += [int]$map.Count } catch { }
+                                }
+                            }
+                        }
+                        if ($hostCount -le 0 -and $entry.PSObject.Properties.Name -contains 'HostCount') {
+                            try { $hostCount = [int]$entry.HostCount } catch { }
+                        }
+                        if ($totalRows -le 0 -and $entry.PSObject.Properties.Name -contains 'TotalRows') {
+                            try { $totalRows = [int]$entry.TotalRows } catch { }
+                        }
+                        if ($entry.PSObject.Properties.Name -contains 'CacheStatus') {
+                            try { $cacheStatus = '' + $entry.CacheStatus } catch { $cacheStatus = '' }
+                        }
+                    }
+                    $summary.Add([pscustomobject]@{
+                            Site        = $key
+                            HostCount   = $hostCount
+                            TotalRows   = $totalRows
+                            CacheStatus = $cacheStatus
+                        }) | Out-Null
+                }
+            }
+            return ,$summary.ToArray()
+        }
+        $results = $ps.AddScript($scriptBlock, $true).Invoke()
+        if (-not $results) { return @() }
+        return @($results)
+    } catch {
+        return @()
+    } finally {
+        if ($ps) { try { $ps.Dispose() } catch { } }
+    }
+}
+
+function Initialize-RunspaceSharedCacheStore {
+    [CmdletBinding()]
+    param()
+
+    $pool = $script:PreservedRunspacePool
+    if (-not $pool) { return @() }
+
+    $ps = $null
+    try {
+        $ps = [powershell]::Create()
+        $ps.RunspacePool = $pool
+        $scriptBlock = {
+            param($storeKey)
+
+            $store = $null
+            try { $store = DeviceRepositoryModule\Get-SharedSiteInterfaceCacheStore } catch { $store = $null }
+            if (-not ($store -is [System.Collections.IDictionary])) {
+                $store = New-Object 'System.Collections.Concurrent.ConcurrentDictionary[string, object]' ([System.StringComparer]::OrdinalIgnoreCase)
+            }
+
+            try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($store) } catch { }
+            if ($storeKey) {
+                try { [System.AppDomain]::CurrentDomain.SetData($storeKey, $store) } catch { }
+            }
+            try { $script:SharedSiteInterfaceCache = $store } catch { }
+
+            return @{
+                EntryCount = if ($store -is [System.Collections.IDictionary]) { $store.Count } else { 0 }
+                StoreHash  = if ($store) { [System.Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($store) } else { 0 }
+            }
+        }
+        $storeKeyValue = $null
+        try { $storeKeyValue = $script:SharedSiteInterfaceCacheKey } catch { $storeKeyValue = 'StateTrace.Repository.SharedSiteInterfaceCache' }
+        $results = $ps.AddScript($scriptBlock, $true).AddArgument($storeKeyValue).Invoke()
+        if (-not $results) { return @() }
+        return @($results)
+    } catch {
+        return @()
+    } finally {
+        if ($ps) { try { $ps.Dispose() } catch { } }
+    }
+}
+
+function Set-RunspaceSharedCacheEntries {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][object[]]$Entries
+    )
+
+    $pool = $script:PreservedRunspacePool
+    if (-not $pool) { return }
+    if (-not $Entries -or $Entries.Count -eq 0) { return }
+
+    Initialize-RunspaceSharedCacheStore | Out-Null
+
+    $storeKeyValue = $null
+    try { $storeKeyValue = $script:SharedSiteInterfaceCacheKey } catch { $storeKeyValue = 'StateTrace.Repository.SharedSiteInterfaceCache' }
+
+    $jobs = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($entry in @($Entries)) {
+        if (-not $entry) { continue }
+        $siteKey = ''
+        if ($entry.PSObject.Properties.Name -contains 'Site') {
+            $siteKey = ('' + $entry.Site).Trim()
+        } elseif ($entry.PSObject.Properties.Name -contains 'SiteKey') {
+            $siteKey = ('' + $entry.SiteKey).Trim()
+        }
+        if ([string]::IsNullOrWhiteSpace($siteKey)) { continue }
+        $payload = $null
+        if ($entry.PSObject.Properties.Name -contains 'Entry') {
+            $payload = $entry.Entry
+        } else {
+            $payload = $entry
+        }
+        if (-not $payload) { continue }
+
+        $ps = [powershell]::Create()
+        $ps.RunspacePool = $pool
+        $scriptBlock = {
+            param($siteKeyArg, $entryArg, $storeKey)
+
+            $normalizedSite = if ($siteKeyArg) { ('' + $siteKeyArg).Trim() } else { '' }
+            if ([string]::IsNullOrWhiteSpace($normalizedSite) -or -not $entryArg) { return }
+
+            try {
+                $store = DeviceRepositoryModule\Get-SharedSiteInterfaceCacheStore
+                if ($store -isnot [System.Collections.IDictionary]) {
+                    $store = New-Object 'System.Collections.Concurrent.ConcurrentDictionary[string, object]' ([System.StringComparer]::OrdinalIgnoreCase)
+                }
+                try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($store) } catch { }
+                if ($storeKey) {
+                    try { [System.AppDomain]::CurrentDomain.SetData($storeKey, $store) } catch { }
+                }
+                try { $script:SharedSiteInterfaceCache = $store } catch { }
+
+                DeviceRepositoryModule\Set-SharedSiteInterfaceCacheEntry -SiteKey $normalizedSite -Entry $entryArg | Out-Null
+            } catch { }
+
+            try {
+                # Ensure the shared store is promoted to the current AppDomain holder.
+                $store = DeviceRepositoryModule\Get-SharedSiteInterfaceCacheStore
+                if ($store -is [System.Collections.IDictionary]) {
+                    try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($store) } catch { }
+                    if ($storeKey) {
+                        try { [System.AppDomain]::CurrentDomain.SetData($storeKey, $store) } catch { }
+                    }
+                }
+            } catch { }
+        }
+        $null = $ps.AddScript($scriptBlock, $true).AddArgument($siteKey).AddArgument($payload).AddArgument($storeKeyValue)
+        $async = $ps.BeginInvoke()
+        $jobs.Add([pscustomobject]@{ Pipe = $ps; Async = $async })
+    }
+
+    foreach ($job in $jobs) {
+        try { $job.Pipe.EndInvoke($job.Async) } catch { }
+        $job.Pipe.Dispose()
+    }
+}
+
+Export-ModuleMember -Function Invoke-DeviceParseWorker, Invoke-DeviceParsingJobs, Reset-DeviceParseRunspacePool, Invoke-InterfaceSiteCacheWarmup, Publish-RunspaceCacheTelemetry, Get-RunspaceSharedCacheSummary, Set-RunspaceSharedCacheEntries, Initialize-RunspaceSharedCacheStore
 
 
 

@@ -8,6 +8,9 @@ Desktop.ini
 # Local data stores
 Data/
 Logs/
+DebugLogs/*
+!DebugLogs/.gitkeep
+!DebugLogs/README.md
 
 # Generated logs
 *.log

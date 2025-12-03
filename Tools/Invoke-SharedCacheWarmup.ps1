@@ -19,6 +19,12 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+$skipSiteCacheGuardModule = Join-Path -Path $PSScriptRoot -ChildPath 'SkipSiteCacheUpdateGuard.psm1'
+if (-not (Test-Path -LiteralPath $skipSiteCacheGuardModule)) {
+    throw "Skip-site-cache guard module not found at $skipSiteCacheGuardModule."
+}
+Import-Module -Name $skipSiteCacheGuardModule -Force -ErrorAction Stop
+
 $repositoryRoot = Split-Path -Path $PSScriptRoot -Parent
 $pipelineScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Invoke-StateTracePipeline.ps1'
 if (-not (Test-Path -LiteralPath $pipelineScript)) {
@@ -68,32 +74,12 @@ if ($SkipSchedulerFairnessGuard.IsPresent) {
 }
 
 $settingsPath = Join-Path -Path $repositoryRoot -ChildPath 'Data\StateTraceSettings.json'
-$originalSettingsText = $null
-$skipSettingUpdated = $false
+$skipSiteCacheGuard = $null
 $ingestionHistoryDir = Join-Path -Path $repositoryRoot -ChildPath 'Data\IngestionHistory'
 $ingestionHistoryReset = $false
 
 if (-not $PreserveSkipSiteCacheSetting.IsPresent) {
-    try {
-        if (Test-Path -LiteralPath $settingsPath) {
-            $originalSettingsText = Get-Content -LiteralPath $settingsPath -Raw
-            if ($originalSettingsText -match '"SkipSiteCacheUpdate"\s*:\s*true') {
-                $updatedSettingsText = [System.Text.RegularExpressions.Regex]::Replace(
-                    $originalSettingsText,
-                    '"SkipSiteCacheUpdate"\s*:\s*true',
-                    '"SkipSiteCacheUpdate": false',
-                    [System.Text.RegularExpressions.RegexOptions]::IgnoreCase
-                )
-                Set-Content -LiteralPath $settingsPath -Value $updatedSettingsText -Encoding utf8
-                $skipSettingUpdated = $true
-                Write-Host '[SharedCacheWarmup] Temporarily disabled SkipSiteCacheUpdate for warmup.' -ForegroundColor Yellow
-            }
-        } else {
-            Write-Warning ("[SharedCacheWarmup] Unable to locate StateTraceSettings.json at '{0}'." -f $settingsPath)
-        }
-    } catch {
-        Write-Warning ("[SharedCacheWarmup] Failed to adjust SkipSiteCacheUpdate setting: {0}" -f $_.Exception.Message)
-    }
+    $skipSiteCacheGuard = Disable-SkipSiteCacheUpdateSetting -SettingsPath $settingsPath -Label 'SharedCacheWarmup'
 }
 
 if (-not $PreserveIngestionHistory.IsPresent) {
@@ -126,13 +112,8 @@ try {
     Write-Host '[SharedCacheWarmup] Pipeline execution failed.' -ForegroundColor Red
     throw
 } finally {
-    if ($skipSettingUpdated -and $null -ne $originalSettingsText) {
-        try {
-            Set-Content -LiteralPath $settingsPath -Value $originalSettingsText -Encoding utf8
-            Write-Host '[SharedCacheWarmup] Restored SkipSiteCacheUpdate setting.' -ForegroundColor Yellow
-        } catch {
-            Write-Warning ("[SharedCacheWarmup] Failed to restore StateTraceSettings.json: {0}" -f $_.Exception.Message)
-        }
+    if (-not $PreserveSkipSiteCacheSetting.IsPresent -and $skipSiteCacheGuard) {
+        Restore-SkipSiteCacheUpdateSetting -Guard $skipSiteCacheGuard
     }
 }
 

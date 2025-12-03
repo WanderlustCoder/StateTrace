@@ -1300,6 +1300,99 @@ $siteCacheTemplateDurationMs = 0.0
     $siteCacheExistingRowKeysSample = ''
     $siteCacheExistingRowValueType = ''
     $siteCacheExistingRowSource = 'Unknown'
+    $sharedCacheDebugEnabled = $false
+    try { $sharedCacheDebugEnabled = [string]::Equals($env:STATETRACE_SHARED_CACHE_DEBUG, '1', [System.StringComparison]::OrdinalIgnoreCase) } catch { $sharedCacheDebugEnabled = $false }
+    $emitSharedCacheDebug = {
+        param(
+            [string]$Stage,
+            [string]$Outcome,
+            [int]$HostCount = 0,
+            [int]$TotalRows = 0,
+            [string]$CacheStatus = '',
+            [string]$Hostname = '',
+            [string]$Provider = '',
+            [string]$ProviderReason = '',
+            [bool]$LoadCacheHit = $false,
+            [bool]$LoadCacheMiss = $false
+        )
+
+        if (-not $sharedCacheDebugEnabled) { return }
+
+        $payload = @{
+            Stage          = if ($Stage) { $Stage } else { '' }
+            Site           = if ($siteCodeValue) { $siteCodeValue } else { '' }
+            Outcome        = if ($Outcome) { $Outcome } else { '' }
+            HostCount      = [int]$HostCount
+            TotalRows      = [int]$TotalRows
+            CacheStatus    = if ($CacheStatus) { $CacheStatus } else { '' }
+            Hostname       = if ($Hostname) { $Hostname } else { '' }
+            FetchStatus    = if ($siteCacheFetchStatus) { $siteCacheFetchStatus } else { '' }
+            HitSource      = if ($siteCacheHitSource) { $siteCacheHitSource } else { '' }
+            SkipHydrate    = [bool]$skipSiteCacheHydration
+            Provider       = if ($Provider) { $Provider } else { '' }
+            ProviderReason = if ($ProviderReason) { $ProviderReason } else { '' }
+            LoadCacheHit   = [bool]$LoadCacheHit
+            LoadCacheMiss  = [bool]$LoadCacheMiss
+        }
+
+        try { TelemetryModule\Write-StTelemetryEvent -Name 'SharedCacheDebug' -Payload $payload } catch { }
+    }
+
+    $getSharedCacheDebugStats = {
+        param(
+            $EntryCandidate = $null
+        )
+
+        $debugHostCount = 0
+        $debugTotalRows = 0
+        $debugCacheStatus = ''
+        $candidates = @()
+        if ($EntryCandidate) { $candidates += $EntryCandidate }
+        if ($siteCacheEntry) { $candidates += $siteCacheEntry }
+        if ($sharedSiteCacheEntry) { $candidates += $sharedSiteCacheEntry }
+
+        foreach ($candidate in $candidates) {
+            if (-not $candidate) { continue }
+            if ($debugHostCount -le 0) {
+                if ($candidate.PSObject.Properties.Name -contains 'HostCount') {
+                    try { $debugHostCount = [int]$candidate.HostCount } catch { $debugHostCount = 0 }
+                }
+                if ($debugHostCount -le 0 -and $candidate.PSObject.Properties.Name -contains 'HostMap' -and $candidate.HostMap -is [System.Collections.IDictionary]) {
+                    try { $debugHostCount = [int]$candidate.HostMap.Count } catch { $debugHostCount = 0 }
+                }
+            }
+            if ($debugTotalRows -le 0) {
+                if ($candidate.PSObject.Properties.Name -contains 'TotalRows') {
+                    try { $debugTotalRows = [int]$candidate.TotalRows } catch { $debugTotalRows = 0 }
+                }
+                if ($debugTotalRows -le 0 -and $candidate.PSObject.Properties.Name -contains 'HostMap' -and $candidate.HostMap -is [System.Collections.IDictionary]) {
+                    foreach ($hostEntry in @($candidate.HostMap.Values)) {
+                        if ($hostEntry -is [System.Collections.IDictionary]) {
+                            try { $debugTotalRows += [int]$hostEntry.Count } catch { }
+                        }
+                    }
+                }
+            }
+            if ([string]::IsNullOrWhiteSpace($debugCacheStatus) -and $candidate.PSObject.Properties.Name -contains 'CacheStatus') {
+                try { $debugCacheStatus = '' + $candidate.CacheStatus } catch { $debugCacheStatus = '' }
+            }
+        }
+
+        if ($debugHostCount -le 0 -and $cachedHostEntry -is [System.Collections.IDictionary]) {
+            $debugHostCount = 1
+            if ($debugTotalRows -le 0) {
+                try { $debugTotalRows = [int]$cachedHostEntry.Count } catch { $debugTotalRows = 0 }
+            }
+        } elseif ($debugTotalRows -le 0 -and $cachedHostEntry -is [System.Collections.IDictionary]) {
+            try { $debugTotalRows = [int]$cachedHostEntry.Count } catch { $debugTotalRows = 0 }
+        }
+
+        return [pscustomobject]@{
+            HostCount   = [int]$debugHostCount
+            TotalRows   = [int]$debugTotalRows
+            CacheStatus = if ($debugCacheStatus) { $debugCacheStatus } else { '' }
+        }
+    }
 
     $siteExistingCacheHostEntryRowCount = Get-SiteExistingRowCacheHostRowCount -HostEntry $siteExistingCacheHostEntry
     if ($siteExistingCacheHostEntryRowCount -gt 0) {
@@ -1583,6 +1676,7 @@ $siteCacheTemplateDurationMs = 0.0
     $sharedSiteCacheEntryAttempted = $false
     $sharedCacheHitStatus = 'SharedOnly'
     $skipAccessHydration = $false
+    $sharedHostEntryMatched = $false
     $siteCacheHitSource = 'None'
     if ($skipSiteCacheUpdateSetting) {
         $skipAccessHydration = $true
@@ -1607,6 +1701,7 @@ $siteCacheTemplateDurationMs = 0.0
                 try { $sharedSummaryEntry = DeviceRepositoryModule\Get-SharedSiteInterfaceCacheEntry -SiteKey $siteCodeValue } catch { $sharedSummaryEntry = $null }
                 $sharedHostCount = 0
                 $sharedTotalRows = 0
+                $sharedCacheStatus = ''
                 if ($sharedSummaryEntry) {
                     if ($sharedSummaryEntry.PSObject.Properties.Name -contains 'HostMap') {
                         $sharedHostMap = $sharedSummaryEntry.HostMap
@@ -1626,6 +1721,13 @@ $siteCacheTemplateDurationMs = 0.0
                     if ($sharedSummaryEntry.PSObject.Properties.Name -contains 'TotalRows' -and $sharedTotalRows -le 0) {
                         try { $sharedTotalRows = [int]$sharedSummaryEntry.TotalRows } catch { }
                     }
+                    if ($sharedSummaryEntry.PSObject.Properties.Name -contains 'CacheStatus') {
+                        try { $sharedCacheStatus = '' + $sharedSummaryEntry.CacheStatus } catch { $sharedCacheStatus = '' }
+                    }
+                }
+
+                if ($sharedCacheDebugEnabled) {
+                    & $emitSharedCacheDebug 'Summary' 'SharedSummary' $sharedHostCount $sharedTotalRows $sharedCacheStatus ''
                 }
 
                 if ($sharedHostCount -gt 0 -and $sharedTotalRows -gt 0) {
@@ -1642,6 +1744,9 @@ $siteCacheTemplateDurationMs = 0.0
                             $siteCacheResolveContext['Refresh']['HostCount'] = $sharedHostCount
                         }
                     } catch { }
+                    if ($sharedCacheDebugEnabled) {
+                        & $emitSharedCacheDebug 'Summary' 'SharedSummaryPrimed' $sharedHostCount $sharedTotalRows $sharedCacheStatus ''
+                    }
                 } else {
                     $skipSiteCacheHydration = $true
                     $siteCacheFetchStatus = 'SkippedEmpty'
@@ -1653,6 +1758,9 @@ $siteCacheTemplateDurationMs = 0.0
                             $siteCacheResolveContext['Refresh']['Status'] = 'SkippedEmpty'
                         }
                     } catch { }
+                    if ($sharedCacheDebugEnabled) {
+                        & $emitSharedCacheDebug 'Summary' 'SharedSummaryEmpty' $sharedHostCount $sharedTotalRows $sharedCacheStatus ''
+                    }
                 }
             }
         } catch { }
@@ -1669,14 +1777,78 @@ $siteCacheTemplateDurationMs = 0.0
             $sharedSiteCacheEntryAttempted = $true
             try { $sharedSiteCacheEntry = DeviceRepositoryModule\Get-SharedSiteInterfaceCacheEntry -SiteKey $siteCodeValue } catch { $sharedSiteCacheEntry = $null }
         }
-        if (-not $sharedSiteCacheEntry) { return $null }
+        if (-not $sharedSiteCacheEntry) {
+            if ($sharedCacheDebugEnabled) {
+                Write-Host ("[SharedCacheDebug] No shared entry found for site '{0}'." -f $siteCodeValue) -ForegroundColor DarkYellow
+                & $emitSharedCacheDebug $stage 'EntryMissing' 0 0 '' $normalizedHostname
+            }
+            return $null
+        }
+
+        if ($sharedCacheDebugEnabled) {
+            $debugHostCount = 0
+            $debugRowCount = 0
+            try {
+                if ($sharedSiteCacheEntry.HostMap -is [System.Collections.IDictionary]) {
+                    $debugHostCount = $sharedSiteCacheEntry.HostMap.Count
+                    foreach ($m in @($sharedSiteCacheEntry.HostMap.Values)) {
+                        if ($m -is [System.Collections.IDictionary]) { $debugRowCount += $m.Count }
+                    }
+                } elseif ($sharedSiteCacheEntry.PSObject.Properties.Name -contains 'HostCount') {
+                    $debugHostCount = [int]$sharedSiteCacheEntry.HostCount
+                }
+                if ($sharedSiteCacheEntry.PSObject.Properties.Name -contains 'TotalRows' -and $debugRowCount -eq 0) {
+                    $debugRowCount = [int]$sharedSiteCacheEntry.TotalRows
+                }
+            } catch { }
+            Write-Host ("[SharedCacheDebug] Shared entry for site '{0}' -> hosts={1}, rows={2}, CacheStatus={3}" -f $siteCodeValue, $debugHostCount, $debugRowCount, $sharedSiteCacheEntry.CacheStatus) -ForegroundColor DarkCyan
+            & $emitSharedCacheDebug $stage 'EntryAvailable' $debugHostCount $debugRowCount ('' + $sharedSiteCacheEntry.CacheStatus) $normalizedHostname
+        }
+
+        try {
+            $sharedHostMap = $null
+            try { $sharedHostMap = $sharedSiteCacheEntry.HostMap } catch { }
+            $sharedHostCount = 0
+            $sharedTotalRows = 0
+            if ($sharedHostMap -is [System.Collections.IDictionary]) {
+                try { $sharedHostCount = [int]$sharedHostMap.Count } catch { $sharedHostCount = 0 }
+                foreach ($sharedHostEntry in @($sharedHostMap.GetEnumerator())) {
+                    $sharedPorts = $sharedHostEntry.Value
+                    if ($sharedPorts -is [System.Collections.IDictionary]) {
+                        try { $sharedTotalRows += [int]$sharedPorts.Count } catch { }
+                    }
+                }
+            } elseif ($sharedSiteCacheEntry.PSObject.Properties.Name -contains 'HostCount') {
+                try { $sharedHostCount = [int]$sharedSiteCacheEntry.HostCount } catch { $sharedHostCount = 0 }
+            }
+            if ($sharedSiteCacheEntry.PSObject.Properties.Name -contains 'TotalRows' -and $sharedTotalRows -eq 0) {
+                try { $sharedTotalRows = [int]$sharedSiteCacheEntry.TotalRows } catch { }
+            }
+            if ($sharedHostCount -gt 0 -and $sharedTotalRows -gt 0) {
+                $skipSiteCacheHydration = $false
+                if (-not $siteCacheFetchStatus -or $siteCacheFetchStatus -eq 'SkippedEmpty') {
+                    $siteCacheFetchStatus = $sharedCacheHitStatus
+                }
+            }
+        } catch { }
 
         $sharedHostEntry = & $resolveCachedHost $sharedSiteCacheEntry $stage
-        if (-not $sharedHostEntry) { return $null }
-
+        if (-not $sharedHostEntry) {
+            if ($sharedCacheDebugEnabled) {
+                Write-Host ("[SharedCacheDebug] Shared entry for site '{0}' did not contain hostname '{1}'." -f $siteCodeValue, $normalizedHostname) -ForegroundColor DarkYellow
+                $sharedCacheStatusValue = ''
+                if ($sharedSiteCacheEntry.PSObject.Properties.Name -contains 'CacheStatus') {
+                    try { $sharedCacheStatusValue = '' + $sharedSiteCacheEntry.CacheStatus } catch { $sharedCacheStatusValue = '' }
+                }
+                & $emitSharedCacheDebug $stage 'HostMissing' $sharedHostCount $sharedTotalRows $sharedCacheStatusValue $normalizedHostname
+            }
+            return $null
+        }
+        $skipSiteCacheHydration = $false
         $siteCacheEntry = $sharedSiteCacheEntry
         $siteCacheHitSource = 'Shared'
         $skipAccessHydration = $true
+        $sharedHostEntryMatched = $true
         if (-not $siteCacheFetchStatus -or $siteCacheFetchStatus -eq 'Refreshed' -or $siteCacheFetchStatus -eq 'Disabled' -or $siteCacheFetchStatus -eq 'SkippedEmpty') {
             $siteCacheFetchStatus = $sharedCacheHitStatus
         } elseif ($skipSiteCacheUpdateSetting -and $siteCacheFetchStatus -eq 'Hit') {
@@ -1684,6 +1856,14 @@ $siteCacheTemplateDurationMs = 0.0
         }
         if ($siteCacheEntry -and $siteCacheEntry.PSObject.Properties.Name -contains 'TotalRows') {
             $cachePrimedRowCount = [int][Math]::Max($cachePrimedRowCount, $siteCacheEntry.TotalRows)
+        }
+        if ($sharedCacheDebugEnabled) {
+            $sharedCacheStatusValue = ''
+            if ($siteCacheEntry -and $siteCacheEntry.PSObject.Properties.Name -contains 'CacheStatus') {
+                try { $sharedCacheStatusValue = '' + $siteCacheEntry.CacheStatus } catch { $sharedCacheStatusValue = '' }
+            }
+            Write-Host ("[SharedCacheDebug] Matched shared host '{0}' for site '{1}' via stage '{2}'." -f $normalizedHostname, $siteCodeValue, $stage) -ForegroundColor DarkCyan
+            & $emitSharedCacheDebug $stage 'HostMatch' $sharedHostCount $sharedTotalRows $sharedCacheStatusValue $normalizedHostname
         }
         try {
             if ($siteCacheResolveContext.ContainsKey($stage)) {
@@ -2852,9 +3032,45 @@ $siteCacheTemplateDurationMs = 0.0
                 $siteCacheFetchStatus = 'Unknown'
             }
         }
+
         if ($siteCacheHitSource -eq 'Shared') {
             $siteCacheFetchStatus = $sharedCacheHitStatus
         }
+
+        if ($loadCacheHit -and ([string]::IsNullOrWhiteSpace($siteCacheHitSource) -or $siteCacheHitSource -eq 'None')) {
+            $sharedCacheDebugStats = & $getSharedCacheDebugStats
+            $normalizedCacheStatus = '' + $sharedCacheDebugStats.CacheStatus
+            $candidateHostCount = [int]$sharedCacheDebugStats.HostCount
+            if ($sharedSiteCacheEntry -or $normalizedCacheStatus -like 'Shared*' -or $candidateHostCount -gt 0) {
+                $siteCacheHitSource = 'Shared'
+                if (-not $siteCacheFetchStatus -or $siteCacheFetchStatus -eq 'Unknown' -or $siteCacheFetchStatus -eq 'Hit') {
+                    $siteCacheFetchStatus = $sharedCacheHitStatus
+                }
+                if ($sharedCacheDebugEnabled) {
+                    & $emitSharedCacheDebug 'ProviderResolution' 'HitSourceNormalized' $sharedCacheDebugStats.HostCount $sharedCacheDebugStats.TotalRows $sharedCacheDebugStats.CacheStatus $normalizedHostname $siteCacheProvider $siteCacheProviderReason $loadCacheHit $loadCacheMiss
+                }
+        } else {
+            $siteCacheHitSource = 'Access'
+        }
+    }
+
+    if ($sharedHostEntryMatched) {
+        $loadCacheHit = $true
+        $siteCacheHitSource = 'Shared'
+        if (-not $siteCacheFetchStatus -or $siteCacheFetchStatus -eq 'Unknown' -or $siteCacheFetchStatus -eq 'Hit') {
+            $siteCacheFetchStatus = $sharedCacheHitStatus
+        }
+        if (-not $siteCacheProvider) {
+            $siteCacheProvider = 'SharedCache'
+        }
+        if ([string]::IsNullOrWhiteSpace($siteCacheProviderReason) -or $siteCacheProviderReason -eq 'NotEvaluated' -or $siteCacheProviderReason -eq 'SharedCacheUnavailable') {
+            $siteCacheProviderReason = 'SharedCacheMatch'
+        }
+        if ($sharedCacheDebugEnabled) {
+            $sharedCacheDebugStats = & $getSharedCacheDebugStats
+            & $emitSharedCacheDebug 'ProviderResolution' 'SharedHostPinned' $sharedCacheDebugStats.HostCount $sharedCacheDebugStats.TotalRows $sharedCacheDebugStats.CacheStatus $normalizedHostname $siteCacheProvider $siteCacheProviderReason $loadCacheHit $loadCacheMiss
+        }
+    }
 
     if (-not $siteCacheProvider) {
         if ($loadCacheRefreshed) {
@@ -2876,6 +3092,10 @@ $siteCacheTemplateDurationMs = 0.0
                 $siteCacheProviderReason = 'SkipSiteCacheUpdate'
             } elseif ($skipSiteCacheHydration) {
                 $siteCacheProviderReason = 'SharedCacheUnavailable'
+                if ($sharedCacheDebugEnabled) {
+                    $sharedCacheDebugStats = & $getSharedCacheDebugStats
+                    & $emitSharedCacheDebug 'ProviderReason' 'SharedCacheUnavailable' $sharedCacheDebugStats.HostCount $sharedCacheDebugStats.TotalRows $sharedCacheDebugStats.CacheStatus $normalizedHostname
+                }
             } else {
                 $siteCacheProviderReason = 'DatabaseQueryFallback'
             }
@@ -2901,6 +3121,29 @@ $siteCacheTemplateDurationMs = 0.0
         } elseif ($siteCacheProvider -eq 'Unknown') {
             $siteCacheProviderReason = 'Undetermined'
         }
+    }
+    if ($siteCacheHitSource -eq 'Shared') {
+        $loadCacheHit = $true
+        $loadCacheMiss = $false
+        $siteCacheFetchStatus = $sharedCacheHitStatus
+        $siteCacheProvider = 'SharedCache'
+        $siteCacheProviderReason = 'SharedCacheMatch'
+    }
+    if ($sharedHostEntryMatched) {
+        $siteCacheHitSource = 'Shared'
+        if ($sharedCacheDebugEnabled) {
+            $sharedCacheDebugStats = & $getSharedCacheDebugStats
+            & $emitSharedCacheDebug 'ProviderResolution' 'SharedHostPinned' $sharedCacheDebugStats.HostCount $sharedCacheDebugStats.TotalRows $sharedCacheDebugStats.CacheStatus $normalizedHostname $siteCacheProvider $siteCacheProviderReason $loadCacheHit $loadCacheMiss
+        }
+    }
+    if ($sharedCacheDebugEnabled -and $siteCacheProviderReason -eq 'SharedCacheUnavailable') {
+        $sharedCacheDebugStats = & $getSharedCacheDebugStats
+        & $emitSharedCacheDebug 'ProviderResolution' 'SharedCacheUnavailable' $sharedCacheDebugStats.HostCount $sharedCacheDebugStats.TotalRows $sharedCacheDebugStats.CacheStatus $normalizedHostname $siteCacheProvider $siteCacheProviderReason $loadCacheHit $loadCacheMiss
+    }
+    if ($sharedCacheDebugEnabled) {
+        $sharedCacheDebugStats = & $getSharedCacheDebugStats
+        & $emitSharedCacheDebug 'ProviderResolution' 'Resolved' $sharedCacheDebugStats.HostCount $sharedCacheDebugStats.TotalRows $sharedCacheDebugStats.CacheStatus $normalizedHostname $siteCacheProvider $siteCacheProviderReason $loadCacheHit $loadCacheMiss
+        & $emitSharedCacheDebug 'Provider' 'Resolved' $sharedCacheDebugStats.HostCount $sharedCacheDebugStats.TotalRows $sharedCacheDebugStats.CacheStatus $normalizedHostname $siteCacheProvider $siteCacheProviderReason $loadCacheHit $loadCacheMiss
     }
     if ($siteCacheResultRowCount -le 0) {
         if ($cachePrimedRowCount -gt 0) {
