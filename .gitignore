@@ -11,6 +11,8 @@ Logs/
 DebugLogs/*
 !DebugLogs/.gitkeep
 !DebugLogs/README.md
+docs/agents/sessions/
+docs/performance/SchedulerVsPortDiversity-*.md
 
 # Generated logs
 *.log
