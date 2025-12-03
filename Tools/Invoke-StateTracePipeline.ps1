@@ -934,7 +934,9 @@ try {
     if ($portBatchReportPath -and (Test-Path -LiteralPath $portBatchReportPath)) {
         $portHistoryScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Update-PortBatchHistory.ps1'
         if (Test-Path -LiteralPath $portHistoryScript) {
-            & $portHistoryScript -ReportPaths $portBatchReportPath | Out-Null
+            powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Command @"
+& '$portHistoryScript' -ReportPaths '$portBatchReportPath'
+"@ | Out-Null
         } else {
             Write-Verbose ("Port batch history updater not found at '{0}', skipping history append." -f $portHistoryScript)
         }
@@ -947,7 +949,9 @@ try {
     if ($interfaceSyncReportPath -and (Test-Path -LiteralPath $interfaceSyncReportPath)) {
         $interfaceHistoryScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Update-InterfaceSyncHistory.ps1'
         if (Test-Path -LiteralPath $interfaceHistoryScript) {
-            & $interfaceHistoryScript -ReportPaths $interfaceSyncReportPath | Out-Null
+            powershell -NoLogo -NoProfile -ExecutionPolicy Bypass -Command @"
+& '$interfaceHistoryScript' -ReportPaths '$interfaceSyncReportPath'
+"@ | Out-Null
         } else {
             Write-Verbose ("InterfaceSync history updater not found at '{0}', skipping history append." -f $interfaceHistoryScript)
         }
