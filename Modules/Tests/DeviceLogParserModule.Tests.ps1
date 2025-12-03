@@ -178,9 +178,13 @@ Describe "DeviceLogParserModule" {
         Import-Module (Resolve-Path $deviceRepoModulePath) -Force
 
         $repoRoot = [System.IO.Path]::GetFullPath((Join-Path (Split-Path $PSCommandPath) '..\..'))
-        $sampleLogPath = Join-Path $repoRoot 'Logs\mock_brocade (1).log'
         $logPath = Join-Path $TestDrive 'WLLS-A02-AS-02.log'
-        Copy-Item -LiteralPath $sampleLogPath -Destination $logPath -Force
+        $logContent = @(
+            'brocade',
+            'WLLS-A02-AS-02# show version',
+            'Version output line'
+        )
+        Set-Content -LiteralPath $logPath -Value $logContent -Encoding UTF8
         $hashValue = (Get-FileHash -LiteralPath $logPath -Algorithm SHA256).Hash.ToLowerInvariant()
         $siteCode = 'WLLS'
 
