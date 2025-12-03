@@ -317,7 +317,7 @@ function Get-HostnameFilterSet {
         return $null
     }
 
-    return $set
+    return ,$set
 }
 
 function Get-HostnamesFromEvents {
