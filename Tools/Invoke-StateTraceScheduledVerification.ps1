@@ -15,6 +15,7 @@ param(
 [switch]$DisableSharedCacheSnapshot,
 [switch]$ShowSharedCacheSummary,
 [string]$SharedCacheSnapshotDirectory,
+[switch]$RequireTelemetryIntegrity,
 [Nullable[int]]$SharedCacheMinimumSiteCount,
 [Nullable[int]]$SharedCacheMinimumHostCount,
 [Nullable[int]]$SharedCacheMinimumTotalRowCount,
@@ -104,6 +105,9 @@ if ($PSBoundParameters.ContainsKey('SharedCacheRequiredSites')) {
 }
 if ($SkipSharedCacheSummaryEvaluation.IsPresent) {
     $verificationParameters['SkipSharedCacheSummaryEvaluation'] = $true
+}
+if ($RequireTelemetryIntegrity.IsPresent) {
+    $verificationParameters['RequireTelemetryIntegrity'] = $true
 }
 
 $sharedCacheSnapshotDirectoryResolved = $null
