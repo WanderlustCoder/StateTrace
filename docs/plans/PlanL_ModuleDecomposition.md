@@ -19,6 +19,7 @@ Reduce the size and coupling of core modules (DeviceRepository, ParserPersistenc
 
 ## Recently delivered
 - Plan created to track module decomposition and associated test coverage.
+- Added shim modules (`DeviceRepository.Cache`, `DeviceRepository.Access`, `ParserPersistence.Core`, `ParserPersistence.Diff`, `WarmRun.Telemetry`) with re-exports and a Pester tag (`Decomposition`) to keep imports verified.
 
 ## Automation hooks
 - Cache tests: `Invoke-Pester Modules/Tests/DeviceRepositoryModule.Tests.ps1 -Tag Cache` (extend with new cases when cache layer is split).

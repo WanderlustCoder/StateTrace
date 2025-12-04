@@ -6,10 +6,15 @@
         # Core parser and helper modules
         'LogIngestionModule.psm1',
         'ParserPersistenceModule.psm1',
+        'ParserPersistence.Core.psm1',
+        'ParserPersistence.Diff.psm1',
+        'WarmRun.Telemetry.psm1',
         'ParserRunspaceModule.psm1',
         'DeviceLogParserModule.psm1',
         'ParserWorker.psm1',
         'DatabaseModule.psm1',
+        'DeviceRepository.Cache.psm1',
+        'DeviceRepository.Access.psm1',
         'DeviceRepositoryModule.psm1',
         'DeviceCatalogModule.psm1',
         'FilterStateModule.psm1',
@@ -33,4 +38,3 @@
         'TemplatesModule.psm1'
     )
 }
-
