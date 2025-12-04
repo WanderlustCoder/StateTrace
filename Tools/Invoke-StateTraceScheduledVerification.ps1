@@ -16,6 +16,7 @@ param(
 [switch]$ShowSharedCacheSummary,
 [string]$SharedCacheSnapshotDirectory,
 [switch]$RequireTelemetryIntegrity,
+[switch]$RequireSharedCacheSnapshotGuard,
 [Nullable[int]]$SharedCacheMinimumSiteCount,
 [Nullable[int]]$SharedCacheMinimumHostCount,
 [Nullable[int]]$SharedCacheMinimumTotalRowCount,
@@ -93,26 +94,42 @@ if ($ShowSharedCacheSummary.IsPresent) {
 }
 if ($SharedCacheMinimumSiteCount -ne $null) {
     $verificationParameters['SharedCacheMinimumSiteCount'] = [int]$SharedCacheMinimumSiteCount
+} else {
+    $verificationParameters['SharedCacheMinimumSiteCount'] = 1
 }
 if ($SharedCacheMinimumHostCount -ne $null) {
     $verificationParameters['SharedCacheMinimumHostCount'] = [int]$SharedCacheMinimumHostCount
+} else {
+    $verificationParameters['SharedCacheMinimumHostCount'] = 1
 }
 if ($SharedCacheMinimumTotalRowCount -ne $null) {
     $verificationParameters['SharedCacheMinimumTotalRowCount'] = [int]$SharedCacheMinimumTotalRowCount
+} else {
+    $verificationParameters['SharedCacheMinimumTotalRowCount'] = 1
 }
 if ($PSBoundParameters.ContainsKey('SharedCacheRequiredSites')) {
     $verificationParameters['SharedCacheRequiredSites'] = $SharedCacheRequiredSites
+} else {
+    # Default required sites for coverage; adjust as datasets evolve
+    $verificationParameters['SharedCacheRequiredSites'] = @('BOYO','WLLS')
 }
 if ($SkipSharedCacheSummaryEvaluation.IsPresent) {
     $verificationParameters['SkipSharedCacheSummaryEvaluation'] = $true
 }
-# Default to requiring telemetry integrity unless explicitly omitted
+# Default to requiring telemetry integrity and snapshot guard unless explicitly omitted
 if ($PSBoundParameters.ContainsKey('RequireTelemetryIntegrity')) {
     if ($RequireTelemetryIntegrity.IsPresent) {
         $verificationParameters['RequireTelemetryIntegrity'] = $true
     }
 } else {
     $verificationParameters['RequireTelemetryIntegrity'] = $true
+}
+if ($PSBoundParameters.ContainsKey('RequireSharedCacheSnapshotGuard')) {
+    if ($RequireSharedCacheSnapshotGuard.IsPresent) {
+        $verificationParameters['RequireSharedCacheSnapshotGuard'] = $true
+    }
+} else {
+    $verificationParameters['RequireSharedCacheSnapshotGuard'] = $true
 }
 
 $sharedCacheSnapshotDirectoryResolved = $null
