@@ -20,7 +20,7 @@ Ensure all telemetry, rollups, and evidence bundles are clean, validated, and re
 - Plan created to centralize telemetry hygiene and bundle integrity.
 
 ## Automation hooks
-- Telemetry lint (proposed): `Tools\Test-TelemetryIntegrity.ps1 -Path Logs\IngestionMetrics\2025-12-01.json -RequireQueueSummary -RequireInterfaceSync`.
+- Telemetry lint: `Tools\Test-TelemetryIntegrity.ps1 -Path Logs\IngestionMetrics\2025-12-01.json -RequireQueueSummary -RequireInterfaceSync` or `Tools\Invoke-StateTracePipeline.ps1 -RequireTelemetryIntegrity` / `Tools\Invoke-AllChecks.ps1 -RequireTelemetryIntegrity` (scheduled verification wrapper also supports `-RequireTelemetryIntegrity`).
 - Bundle check: `Tools\Test-TelemetryBundleReadiness.ps1 -BundlePath Logs\TelemetryBundles\<bundle> -RequireHashes -RequireQueueSummary`.
 - Rollup hygiene: `Tools\Rollup-IngestionMetrics.ps1 -MetricsDirectory Logs\IngestionMetrics -OutputPath Logs\IngestionMetrics\IngestionMetricsSummary.csv -FailOnWarning`.
 
