@@ -30,6 +30,7 @@ param(
     [string]$SharedCacheCoverageOutputPath,
     [switch]$SkipSharedCacheSummaryEvaluation,
     [switch]$ShowSharedCacheSummary,
+    [switch]$RequireSharedCacheSnapshotGuard,
     [switch]$SkipQueueDelayEvaluation,
     [string]$QueueMetricsPath,
     [int]$QueueDelayMinimumSampleCount = 1,
@@ -258,6 +259,9 @@ if ($pipelineParameters.ContainsKey('SharedCacheSnapshotDirectory')) {
     $sharedCacheSnapshotDirectoryUsed = Join-Path -Path $repositoryRoot -ChildPath 'Logs\SharedCacheSnapshot'
 }
 if ($ShowSharedCacheSummary.IsPresent) {
+    $pipelineParameters['ShowSharedCacheSummary'] = $true
+}
+if ($RequireSharedCacheSnapshotGuard.IsPresent) {
     $pipelineParameters['ShowSharedCacheSummary'] = $true
 }
 if ($RequireTelemetryIntegrity.IsPresent) {
@@ -620,6 +624,44 @@ if (-not [string]::IsNullOrWhiteSpace($SharedCacheCoverageOutputPath)) {
             $sharedCacheCoverageOutputPathResolved = Join-Path -Path $summaryDir -ChildPath 'SharedCacheCoverage-latest.json'
         }
     } catch { }
+}
+
+if ($RequireSharedCacheSnapshotGuard.IsPresent) {
+    $snapshotGuardScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Test-SharedCacheSnapshot.ps1'
+    if (-not (Test-Path -LiteralPath $snapshotGuardScript)) {
+        throw "Shared cache snapshot guard script not found at $snapshotGuardScript"
+    }
+
+    $snapshotTarget = $sharedCacheSummaryPath
+    if (-not ($snapshotTarget -and (Test-Path -LiteralPath $snapshotTarget))) {
+        if (-not [string]::IsNullOrWhiteSpace($sharedCacheSnapshotDirectoryUsed) -and (Test-Path -LiteralPath $sharedCacheSnapshotDirectoryUsed)) {
+            $latestSummaryFile = Get-ChildItem -Path $sharedCacheSnapshotDirectoryUsed -Filter 'SharedCacheSnapshot-*-summary.json' -File -ErrorAction SilentlyContinue |
+                Sort-Object LastWriteTime -Descending |
+                Select-Object -First 1
+            if ($latestSummaryFile) { $snapshotTarget = $latestSummaryFile.FullName }
+        }
+    }
+
+    if (-not ($snapshotTarget -and (Test-Path -LiteralPath $snapshotTarget))) {
+        throw "Shared cache snapshot guard requested but no summary file was found. Run warmup to produce snapshots before verification."
+    }
+
+    $guardParams = @(
+        '-File', $snapshotGuardScript,
+        '-Path', $snapshotTarget,
+        '-MinimumSiteCount', $SharedCacheMinimumSiteCount,
+        '-MinimumHostCount', $SharedCacheMinimumHostCount,
+        '-MinimumTotalRowCount', $SharedCacheMinimumTotalRowCount
+    )
+    if ($SharedCacheRequiredSites -and $SharedCacheRequiredSites.Count -gt 0) {
+        $guardParams += @('-RequiredSites', ($SharedCacheRequiredSites -join ','))
+    }
+
+    Write-Host ("Shared cache snapshot guard: validating {0}..." -f $snapshotTarget) -ForegroundColor Cyan
+    & pwsh @guardParams
+    if ($LASTEXITCODE -ne 0) {
+        throw "Shared cache snapshot guard failed. See console output above."
+    }
 }
 
 if (-not $SkipSharedCacheSummaryEvaluation.IsPresent) {
