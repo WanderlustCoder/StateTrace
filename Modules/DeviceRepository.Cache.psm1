@@ -332,8 +332,17 @@ function Set-SharedSiteInterfaceCacheEntry {
     # Normalize keys to preserve ordering and avoid null references
     $normalized = New-Object 'System.Collections.Generic.Dictionary[string, object]'
     foreach ($key in @($Entry.Keys | Sort-Object)) {
-        if ($null -eq $Entry[$key]) { continue }
-        $normalized[$key] = $Entry[$key]
+        $value = $Entry[$key]
+        if ($null -eq $value) { continue }
+
+        # Preserve lists as arrays so row counts are retained.
+        if ($value -is [System.Collections.IDictionary]) {
+            $normalized[$key] = $value
+        } elseif ($value -is [System.Collections.IEnumerable] -and -not ($value -is [string])) {
+            $normalized[$key] = @($value)
+        } else {
+            $normalized[$key] = $value
+        }
     }
 
     $store[$SiteKey] = $normalized
