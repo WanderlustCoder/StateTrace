@@ -13,6 +13,16 @@ if (-not (Get-Variable -Scope Script -Name DataDirPath -ErrorAction SilentlyCont
     $script:DataDirPath = Join-Path $rootPath 'Data'
 }
 
+# Load shared cache module (decomposition target) so downstream calls can delegate.
+if (-not (Get-Module -Name 'DeviceRepository.Cache')) {
+    try {
+        $cacheModulePath = Join-Path $PSScriptRoot 'DeviceRepository.Cache.psm1'
+        Import-Module (Resolve-Path $cacheModulePath) -DisableNameChecking -Force
+    } catch {
+        Write-Verbose ("DeviceRepository.Cache could not be imported: {0}" -f $_.Exception.Message)
+    }
+}
+
 if (-not (Get-Variable -Scope Script -Name SiteInterfaceCache -ErrorAction SilentlyContinue)) {
     $script:SiteInterfaceCache = @{}
 }
@@ -5873,6 +5883,7 @@ function Get-SpanningTreeInfo {
 
     return $list.ToArray()
 }
+
 Export-ModuleMember -Function Get-DataDirectoryPath, Get-SiteFromHostname, Get-DbPathForSite, Get-DbPathForHost, Get-AllSiteDbPaths, Clear-SiteInterfaceCache, Get-InterfaceSiteCache, Get-InterfaceSiteCacheSummary, Get-SharedSiteInterfaceCacheEntry, Set-InterfaceSiteCacheHost, Get-InterfacePortBatchChunkSize, Set-InterfacePortStreamChunkSize, Set-InterfacePortStreamData, Initialize-InterfacePortStream, Get-InterfacePortStreamStatus, Get-InterfacePortBatch, Get-LastInterfacePortStreamMetrics, Get-LastInterfacePortQueueMetrics, Get-LastInterfaceSiteCacheMetrics, Get-LastInterfaceSiteHydrationMetrics, Set-InterfacePortDispatchMetrics, Get-LastInterfacePortDispatchMetrics, Clear-InterfacePortStream, Update-SiteZoneCache, Get-GlobalInterfaceSnapshot, Update-GlobalInterfaceList, Get-InterfacesForSite, Get-InterfaceInfo, Get-InterfaceConfiguration, Get-SpanningTreeInfo, Get-InterfacesForHostsBatch, Invoke-ParallelDbQuery, Import-DatabaseModule
 
 
