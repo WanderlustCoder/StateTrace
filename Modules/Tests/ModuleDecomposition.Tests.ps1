@@ -37,5 +37,25 @@ Describe "Module decomposition shims" -Tag 'Decomposition' {
         It "imports warm-run telemetry module" {
             Get-Module -Name 'WarmRun.Telemetry' | Should Not BeNullOrEmpty
         }
+
+        It "can set/get/clear shared cache entries" {
+            # Use module-qualified calls to avoid global state contamination
+            $store = DeviceRepository.Cache\Initialize-SharedSiteInterfaceCacheStore
+            $siteKey = 'TEST'
+            $rows = @(
+                [pscustomobject]@{ Hostname = 'h1'; Port = '1'; HostRows = 2 },
+                [pscustomobject]@{ Hostname = 'h2'; Port = '2'; HostRows = 3 }
+            )
+            DeviceRepository.Cache\Set-SharedSiteInterfaceCacheEntry -SiteKey $siteKey -Entry @{ h1 = @($rows[0]); h2 = @($rows[1]) }
+            $fetched = DeviceRepository.Cache\Get-SharedSiteInterfaceCacheEntry -SiteKey $siteKey
+            $fetched.Keys.Count | Should Be 2
+            $stats = DeviceRepository.Cache\Get-SharedSiteInterfaceCacheEntryStatistics -Entry $fetched
+            $stats.HostCount | Should Be 2
+            $stats.TotalRows | Should Be 2
+
+            DeviceRepository.Cache\Clear-SharedSiteInterfaceCache -Reason 'test'
+            $cleared = DeviceRepository.Cache\Get-SharedSiteInterfaceCacheEntry -SiteKey $siteKey
+            $cleared | Should Be $null
+        }
     }
 }
