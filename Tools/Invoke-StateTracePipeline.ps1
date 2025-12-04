@@ -26,6 +26,7 @@ param(
     [switch]$FailOnTelemetryMissing,
     [switch]$SynthesizeSchedulerTelemetryOnMissing,
     [switch]$FailOnSchedulerFairness = $true,
+    [switch]$RequireTelemetryIntegrity,
     [switch]$DisablePreserveRunspace
 )
 
@@ -46,6 +47,7 @@ $modulesPath = Join-Path -Path $repositoryRoot -ChildPath 'Modules'
 $testsPath = Join-Path -Path $modulesPath -ChildPath 'Tests'
 $parserWorkerModule = Join-Path -Path $modulesPath -ChildPath 'ParserWorker.psm1'
 $ingestionMetricsDirectory = Join-Path -Path $repositoryRoot -ChildPath 'Logs\IngestionMetrics'
+$reportsDirectory = Join-Path -Path $repositoryRoot -ChildPath 'Logs\Reports'
 $settingsPath = Join-Path -Path $repositoryRoot -ChildPath 'Data\StateTraceSettings.json'
 $skipSiteCacheGuard = $null
 
@@ -1068,6 +1070,32 @@ if ($ShowSharedCacheSummary.IsPresent) {
             Write-Host '  (No entries reported)' -ForegroundColor DarkGray
         }
     }
+}
+# Telemetry integrity lint (after pipeline run)
+if ($RequireTelemetryIntegrity) {
+    $integrityScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Test-TelemetryIntegrity.ps1'
+    if (-not (Test-Path -LiteralPath $integrityScript)) {
+        throw "Telemetry integrity script not found at $integrityScript"
+    }
+    if (-not (Test-Path -LiteralPath $reportsDirectory)) {
+        New-Item -ItemType Directory -Path $reportsDirectory -Force | Out-Null
+    }
+    $latestIngestionMetricsEntry = Get-ChildItem -Path $ingestionMetricsDirectory -Filter '*.json' -File -ErrorAction Stop |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
+    if (-not $latestIngestionMetricsEntry) {
+        throw "No ingestion metrics found under $ingestionMetricsDirectory for integrity check."
+    }
+    $integrityReportPath = Join-Path -Path $reportsDirectory -ChildPath ("TelemetryIntegrity-{0}.txt" -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
+    Write-Host ("Running telemetry integrity check on {0}..." -f $latestIngestionMetricsEntry.FullName) -ForegroundColor Cyan
+    & pwsh -File $integrityScript -Path $latestIngestionMetricsEntry.FullName -RequireQueueSummary -RequireInterfaceSync *> $integrityReportPath
+    $integrityExit = $LASTEXITCODE
+    if ($integrityExit -ne 0) {
+        $integrityPreview = Get-Content -LiteralPath $integrityReportPath | Select-Object -First 20
+        $previewText = ($integrityPreview -join [Environment]::NewLine)
+        throw ("Telemetry integrity failed (exit {0}). See report at {1}.{2}{3}" -f $integrityExit, $integrityReportPath, [Environment]::NewLine, $previewText)
+    }
+    Write-Host ("Telemetry integrity passed. Report: {0}" -f $integrityReportPath) -ForegroundColor Green
 }
 } finally {
     if ($skipSiteCacheGuard) {

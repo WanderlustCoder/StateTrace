@@ -13,7 +13,8 @@ param(
     [int]$NetOpsEvidenceMaxHours = 12,
     [string]$TelemetryBundlePath,
     [string[]]$TelemetryBundleArea = @('Telemetry','Routing'),
-    [switch]$RequireTelemetryBundleReady
+    [switch]$RequireTelemetryBundleReady,
+    [switch]$RequireTelemetryIntegrity
 )
 
 Set-StrictMode -Version Latest
@@ -194,6 +195,43 @@ try {
             Areas      = ((@($bundleResult.Area) | Sort-Object -Unique) -join ',')
             Notes      = if ($optionalMissing -and $optionalMissing.Count -gt 0) { 'Optional artifacts missing' } else { 'All required artifacts present' }
         }
+    }
+
+    if ($RequireTelemetryIntegrity) {
+        Write-Host "===> Running telemetry integrity lint" -ForegroundColor Cyan
+        $integrityScript = Join-Path $repoRoot 'Tools\Test-TelemetryIntegrity.ps1'
+        if (-not (Test-Path -LiteralPath $integrityScript)) {
+            throw "Telemetry integrity script missing at $integrityScript"
+        }
+
+        $ingestionDir = Join-Path $repoRoot 'Logs\IngestionMetrics'
+        $latestMetrics = Get-ChildItem -Path $ingestionDir -Filter '*.json' -File -ErrorAction Stop |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+        if (-not $latestMetrics) {
+            throw "Telemetry integrity lint: no ingestion metrics found under $ingestionDir"
+        }
+
+        $integrityReportDir = Join-Path $repoRoot 'Logs\Reports'
+        if (-not (Test-Path -LiteralPath $integrityReportDir)) {
+            New-Item -ItemType Directory -Path $integrityReportDir -Force | Out-Null
+        }
+        $integrityReportPath = Join-Path $integrityReportDir ("TelemetryIntegrity-{0}.txt" -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
+
+        & pwsh -File $integrityScript -Path $latestMetrics.FullName -RequireQueueSummary -RequireInterfaceSync *> $integrityReportPath
+        $integrityExit = $LASTEXITCODE
+        if ($integrityExit -ne 0) {
+            $preview = Get-Content -LiteralPath $integrityReportPath | Select-Object -First 20
+            $previewText = ($preview -join [Environment]::NewLine)
+            throw ("Telemetry integrity failed (exit {0}). See {1}.{2}{3}" -f $integrityExit, $integrityReportPath, [Environment]::NewLine, $previewText)
+        }
+
+        $results += [pscustomobject]@{
+            Check      = 'TelemetryIntegrity'
+            ReportPath = $integrityReportPath
+            File       = $latestMetrics.FullName
+        }
+        Write-Host ("Telemetry integrity passed for {0} (report: {1})" -f $latestMetrics.FullName, $integrityReportPath) -ForegroundColor Green
     }
 }
 finally {
