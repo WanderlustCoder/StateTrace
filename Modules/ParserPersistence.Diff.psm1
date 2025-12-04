@@ -13,4 +13,6 @@ Export-ModuleMember -Function `
     Compare-InterfaceSiteCacheEntries, `
     Get-WarmRunComparisonSummary, `
     Export-SiteExistingRowCacheSnapshot, `
-    Import-SiteExistingRowCacheSnapshot
+    Import-SiteExistingRowCacheSnapshot, `
+    Export-InterfaceSiteCacheKeyedSnapshots, `
+    Import-InterfaceSiteCacheKeyedSnapshots

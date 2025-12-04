@@ -16,4 +16,7 @@ Export-ModuleMember -Function `
     Restore-SharedCacheEntries, `
     Restore-SharedCacheEntriesFromFile, `
     Export-SharedCacheSnapshot, `
-    Get-SharedSiteInterfaceCache
+    Get-SharedSiteInterfaceCache, `
+    Set-SharedSiteInterfaceCacheEntry, `
+    Clear-SharedSiteInterfaceCache, `
+    Publish-SharedSiteInterfaceCacheStoreState
