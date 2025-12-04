@@ -11,7 +11,7 @@ Ensure all telemetry, rollups, and evidence bundles are clean, validated, and re
 ## Active work
 | ID | Title | Owner | Status | Notes |
 |----|-------|-------|--------|-------|
-| ST-M-001 | Telemetry schema & lint gate | Telemetry | Ready | Add a schema/lint step (`Test-TelemetryIntegrity`) that rejects non-JSON lines, missing `InterfaceSyncTiming`, and absent queue summaries before analyzers run. Fail pipeline/warm-run scripts early and log offending paths. |
+| ST-M-001 | Telemetry schema & lint gate | Telemetry | In Progress | Added `Tools\Test-TelemetryIntegrity.ps1` to fail fast on malformed JSON and missing InterfaceSync/queue metrics. Next: wire into pipeline/warm-run harness before analyzers. |
 | ST-M-002 | Bundle integrity checker | PMO | In Progress | Extend `Tools\Test-TelemetryBundleReadiness.ps1` (or new helper) to verify README presence, hash files, analyzer outputs, queue/diversity summaries, and shared-cache diagnostics before `Publish-TelemetryBundle`. |
 | ST-M-003 | Redaction enforcement | Security | Backlog | Add optional `-RequireRedaction` flag to bundle/publish scripts that runs `Tools\Sanitize-PostmortemLogs.ps1` (or similar) and logs evidence paths in plan/task updates. |
 | ST-M-004 | Rollup hygiene | Telemetry | Backlog | Ensure `Tools\Rollup-IngestionMetrics.ps1` fails when source JSON contains warnings, and records input file hashes next to the CSV for traceability. |
