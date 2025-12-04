@@ -112,6 +112,8 @@ function Publish-SharedSiteInterfaceCacheStoreState {
         [int]$StoreHashCode = 0
     )
 
+    try { DeviceRepository.Cache\Publish-SharedSiteInterfaceCacheStoreState @PSBoundParameters } catch { }
+
     $runspaceId = ''
     try {
         $currentRunspace = [System.Management.Automation.Runspaces.Runspace]::DefaultRunspace
@@ -162,6 +164,8 @@ function Publish-SharedSiteInterfaceCacheClearInvocation {
         [string]$InvocationName,
         [int]$CallStackDepth
     )
+
+    try { DeviceRepository.Cache\Publish-SharedSiteInterfaceCacheClearInvocation @PSBoundParameters } catch { }
 
     $runspaceId = ''
     try {
@@ -354,115 +358,113 @@ namespace StateTrace.Repository
 }
 
 function Initialize-SharedSiteInterfaceCacheStore {
-    $domain = [System.AppDomain]::CurrentDomain
     $storeKey = $script:SharedSiteInterfaceCacheKey
-    $store = $null
-    $createdNewStore = $false
-    $adoptedExistingStore = $false
 
+    $cacheModule = $null
+    try { $cacheModule = Get-Module -Name 'DeviceRepository.Cache' -ErrorAction SilentlyContinue } catch { $cacheModule = $null }
+
+    $candidates = @()
+    try { if ($script:SharedSiteInterfaceCache -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) { $candidates += $script:SharedSiteInterfaceCache } } catch { }
     try {
-        $store = $domain.GetData($storeKey)
-    } catch {
-        $store = $null
-    }
-
-    if (-not ($store -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]])) {
-        $existing = $null
-        try { $existing = [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::GetStore() } catch { $existing = $null }
-        if ($existing -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
-            try {
-                $domain.SetData($storeKey, $existing)
-                $store = $domain.GetData($storeKey)
-            } catch {
-                $store = $existing
-            }
-            if ($store -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
-                $adoptedExistingStore = $true
-            }
+        if ($cacheModule) {
+            $cacheStore = $cacheModule.SessionState.PSVariable.GetValue('SharedSiteInterfaceCache')
+            if ($cacheStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) { $candidates += $cacheStore }
         }
-    }
-
-    if (-not ($store -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]])) {
-        $newStore = New-Object 'System.Collections.Concurrent.ConcurrentDictionary[string, object]' ([System.StringComparer]::OrdinalIgnoreCase)
-        try {
-            $domain.SetData($storeKey, $newStore)
-            $store = $domain.GetData($storeKey)
-        } catch {
-            $store = $null
-        }
-        if (-not ($store -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]])) {
-            $store = $newStore
-        }
-        $createdNewStore = $true
-    }
-
-    if ($store -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
-        try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($store) } catch { }
-        $storeHashCode = 0
-        $entryCount = 0
-        try { $storeHashCode = [System.Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($store) } catch { $storeHashCode = 0 }
-        try { $entryCount = [int]$store.Count } catch { $entryCount = 0 }
-        $operation = if ($createdNewStore) { 'InitNewStore' } elseif ($adoptedExistingStore) { 'InitAdoptedStore' } else { 'InitReuseStore' }
-        Publish-SharedSiteInterfaceCacheStoreState -Operation $operation -EntryCount $entryCount -StoreHashCode $storeHashCode
-
-        if ($entryCount -eq 0) {
-            [void](Ensure-SharedSiteInterfaceCacheSnapshotImported -Store $store -Force)
-        }
-    }
-
-    return $store
-}
-
-function Get-SharedSiteInterfaceCacheStore {
-    $store = $null
-    if (Get-Variable -Scope Script -Name SharedSiteInterfaceCache -ErrorAction SilentlyContinue) {
-        $store = $script:SharedSiteInterfaceCache
-    }
-
-    $storeKey = $script:SharedSiteInterfaceCacheKey
-    $domainStore = $null
-    $holderStore = $null
-    try { $domainStore = [System.AppDomain]::CurrentDomain.GetData($storeKey) } catch { $domainStore = $null }
-    try { $holderStore = [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::GetStore() } catch { $holderStore = $null }
+    } catch { }
+    try {
+        $domainStore = [System.AppDomain]::CurrentDomain.GetData($storeKey)
+        if ($domainStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) { $candidates += $domainStore }
+    } catch { }
+    try {
+        $holderStore = [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::GetStore()
+        if ($holderStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) { $candidates += $holderStore }
+    } catch { }
 
     $bestStore = $null
     $bestCount = -1
-    foreach ($candidate in @($store, $domainStore, $holderStore)) {
-        if (-not ($candidate -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]])) {
-            continue
-        }
+    foreach ($candidate in $candidates) {
+        if (-not ($candidate -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]])) { continue }
         $candidateCount = 0
         try { $candidateCount = [int]$candidate.Count } catch { $candidateCount = 0 }
         if ($candidateCount -gt $bestCount) {
-            $bestCount = $candidateCount
             $bestStore = $candidate
+            $bestCount = $candidateCount
         }
     }
 
-    if ($bestStore) {
-        if (-not [object]::ReferenceEquals($store, $bestStore)) {
-            $script:SharedSiteInterfaceCache = $bestStore
+    if (-not $bestStore) {
+        $bestStore = New-Object 'System.Collections.Concurrent.ConcurrentDictionary[string, object]' ([System.StringComparer]::OrdinalIgnoreCase)
+    }
+
+    $script:SharedSiteInterfaceCache = $bestStore
+    if ($cacheModule) {
+        try { $cacheModule.SessionState.PSVariable.Set('SharedSiteInterfaceCache', $bestStore) } catch { }
+    }
+    try { [System.AppDomain]::CurrentDomain.SetData($storeKey, $bestStore) } catch { }
+    try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($bestStore) } catch { }
+
+    if ($bestStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
+        [void](Ensure-SharedSiteInterfaceCacheSnapshotImported -Store $bestStore -Force)
+        try {
+            $hash = [System.Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($bestStore)
+            $count = 0
+            try { $count = [int]$bestStore.Count } catch { $count = 0 }
+            Publish-SharedSiteInterfaceCacheStoreState -Operation 'InitDelegatedStore' -EntryCount $count -StoreHashCode $hash
+        } catch { }
+    }
+
+    return $bestStore
+}
+
+function Get-SharedSiteInterfaceCacheStore {
+    $storeKey = $script:SharedSiteInterfaceCacheKey
+    $cacheModule = $null
+    try { $cacheModule = Get-Module -Name 'DeviceRepository.Cache' -ErrorAction SilentlyContinue } catch { $cacheModule = $null }
+
+    $candidates = @()
+    try { if ($script:SharedSiteInterfaceCache -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) { $candidates += $script:SharedSiteInterfaceCache } } catch { }
+    try {
+        if ($cacheModule) {
+            $cacheStore = $cacheModule.SessionState.PSVariable.GetValue('SharedSiteInterfaceCache')
+            if ($cacheStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) { $candidates += $cacheStore }
+        }
+    } catch { }
+    try {
+        $domainStore = [System.AppDomain]::CurrentDomain.GetData($storeKey)
+        if ($domainStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) { $candidates += $domainStore }
+    } catch { }
+    try {
+        $holderStore = [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::GetStore()
+        if ($holderStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) { $candidates += $holderStore }
+    } catch { }
+
+    $bestStore = $null
+    $bestCount = -1
+    foreach ($candidate in $candidates) {
+        if (-not ($candidate -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]])) { continue }
+        $candidateCount = 0
+        try { $candidateCount = [int]$candidate.Count } catch { $candidateCount = 0 }
+        if ($candidateCount -gt $bestCount) {
+            $bestStore = $candidate
+            $bestCount = $candidateCount
+        }
+    }
+
+    if (-not $bestStore) {
+        $bestStore = Initialize-SharedSiteInterfaceCacheStore
+    } else {
+        $script:SharedSiteInterfaceCache = $bestStore
+        if ($cacheModule) {
+            try { $cacheModule.SessionState.PSVariable.Set('SharedSiteInterfaceCache', $bestStore) } catch { }
         }
         try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($bestStore) } catch { }
-        if (-not [object]::ReferenceEquals($domainStore, $bestStore)) {
-            try { [System.AppDomain]::CurrentDomain.SetData($storeKey, $bestStore) } catch { }
-        }
+        try { [System.AppDomain]::CurrentDomain.SetData($storeKey, $bestStore) } catch { }
         if ($bestStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
             [void](Ensure-SharedSiteInterfaceCacheSnapshotImported -Store $bestStore)
         }
-        return $bestStore
     }
 
-    if (-not ($store -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]])) {
-        $store = Initialize-SharedSiteInterfaceCacheStore
-        $script:SharedSiteInterfaceCache = $store
-    }
-    if ($store -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
-        try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($store) } catch { }
-        [void](Ensure-SharedSiteInterfaceCacheSnapshotImported -Store $store)
-    }
-
-    return $store
+    return $bestStore
 }
 
 if (-not (Get-Variable -Scope Script -Name SharedSiteInterfaceCache -ErrorAction SilentlyContinue)) {
@@ -998,20 +1000,25 @@ function Set-SharedSiteInterfaceCacheEntry {
 
     $key = ('' + $SiteKey).Trim()
     if ([string]::IsNullOrWhiteSpace($key)) { return }
+
     $store = Get-SharedSiteInterfaceCacheStore
     if (-not ($store -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]])) { return }
+
     $storeHashCode = 0
     try { $storeHashCode = [System.Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($store) } catch { $storeHashCode = 0 }
+
+    if (-not $script:SiteInterfaceSignatureCache) { $script:SiteInterfaceSignatureCache = @{} }
+
     if ($Entry) {
-        $clone = Normalize-InterfaceSiteCacheEntry -Entry $Entry
+        $incoming = Normalize-InterfaceSiteCacheEntry -Entry $Entry
         $updated = $store.AddOrUpdate(
             $key,
-            $clone,
+            $incoming,
             {
                 param($k, $existing)
-                $merged = Merge-InterfaceSiteCacheEntry -Existing $existing -Incoming $clone
+                $merged = Merge-InterfaceSiteCacheEntry -Existing $existing -Incoming $incoming
                 if ($merged) { return $merged }
-                return $clone
+                return $incoming
             }
         )
         $normalized = Normalize-InterfaceSiteCacheEntry -Entry $updated
@@ -1041,11 +1048,22 @@ function Set-SharedSiteInterfaceCacheEntry {
         } catch { }
     } else {
         $removed = $null
-        $store.TryRemove($key, [ref]$removed) | Out-Null
+        try { $script:SiteInterfaceSignatureCache.Remove($key) | Out-Null } catch { }
+        if ($store -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
+            try { $store.TryRemove($key, [ref]$removed) | Out-Null } catch { }
+        }
+
+        $removedStats = $null
+        if ($removed) {
+            $removedStats = Get-SharedSiteInterfaceCacheEntryStatistics -Entry ([pscustomobject]@{ HostMap = $removed })
+        }
         $entryCount = 0
+        $storeHashCode = 0
         try { $entryCount = [int]$store.Count } catch { $entryCount = 0 }
-        $removedStats = if ($removed) { Get-SharedSiteInterfaceCacheEntryStatistics -Entry $removed } else { [pscustomobject]@{ HostCount = 0; TotalRows = 0 } }
+        try { $storeHashCode = [System.Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($store) } catch { $storeHashCode = 0 }
+        if (-not $removedStats) { $removedStats = [pscustomobject]@{ HostCount = 0; TotalRows = 0 } }
         Publish-SharedSiteInterfaceCacheEvent -SiteKey $key -Operation 'Remove' -EntryCount $entryCount -HostCount $removedStats.HostCount -TotalRows $removedStats.TotalRows -StoreHashCode $storeHashCode
+
         try {
             $snapshotStore = [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::GetSnapshot()
             if ($snapshotStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
@@ -1274,6 +1292,8 @@ function Publish-SharedSiteInterfaceCacheEvent {
         [int]$TotalRows = 0,
         [int]$StoreHashCode = 0
     )
+
+    try { DeviceRepository.Cache\Publish-SharedSiteInterfaceCacheEvent @PSBoundParameters } catch { }
 
     $runspaceId = ''
     try {
@@ -1712,9 +1732,6 @@ function Clear-SiteInterfaceCache {
         [string]$Reason = 'Unspecified'
     )
 
-    $storeKey = $script:SharedSiteInterfaceCacheKey
-    $store = Get-SharedSiteInterfaceCacheStore
-
     $callerFunction = 'Unknown'
     $callerScript = ''
     $callerLine = 0
@@ -1729,24 +1746,16 @@ function Clear-SiteInterfaceCache {
                 if (-not $frame) { continue }
                 $frameFunction = ''
                 try { $frameFunction = $frame.FunctionName } catch { $frameFunction = '' }
-                if ([System.StringComparer]::OrdinalIgnoreCase.Equals($frameFunction, 'Clear-SiteInterfaceCache')) {
-                    continue
-                }
-                if (-not [string]::IsNullOrWhiteSpace($frameFunction)) {
-                    $callerFunction = $frameFunction
-                }
+                if ([System.StringComparer]::OrdinalIgnoreCase.Equals($frameFunction, 'Clear-SiteInterfaceCache')) { continue }
+                if (-not [string]::IsNullOrWhiteSpace($frameFunction)) { $callerFunction = $frameFunction }
                 $frameScript = ''
                 try { $frameScript = $frame.ScriptName } catch { $frameScript = '' }
                 if (-not [string]::IsNullOrWhiteSpace($frameScript)) {
                     try { $callerScript = [System.IO.Path]::GetFileName($frameScript) } catch { $callerScript = $frameScript }
                 }
                 try {
-                    if ($frame.ScriptLineNumber -gt 0) {
-                        $callerLine = [int]$frame.ScriptLineNumber
-                    }
-                } catch {
-                    $callerLine = 0
-                }
+                    if ($frame.ScriptLineNumber -gt 0) { $callerLine = [int]$frame.ScriptLineNumber }
+                } catch { $callerLine = 0 }
                 break
             }
         }
@@ -1758,54 +1767,20 @@ function Clear-SiteInterfaceCache {
 
     Publish-SharedSiteInterfaceCacheClearInvocation -Reason $Reason -CallerFunction $callerFunction -CallerScript $callerScript -CallerLine $callerLine -InvocationName $invocationName -CallStackDepth $callStackDepth
 
-    try {
-        $script:SiteInterfaceCache = @{}
-    } catch {
-        Set-Variable -Name SiteInterfaceCache -Scope Script -Value @{}
-    }
-    try { 
-        $script:SiteInterfaceSignatureCache = @{} 
-    } catch { 
-        Set-Variable -Name SiteInterfaceSignatureCache -Scope Script -Value @{} 
-    } 
-    try { 
-        $script:InterfaceCacheHydrationTracker = @{} 
-    } catch { 
-        Set-Variable -Name InterfaceCacheHydrationTracker -Scope Script -Value @{} 
-    } 
-    $script:LastInterfaceSiteCacheMetrics = $null 
+    try { DeviceRepository.Cache\Clear-SharedSiteInterfaceCache -Reason $Reason } catch { }
 
-    $targetStore = $script:SharedSiteInterfaceCache
-    if (-not ($targetStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]])) {
-        $targetStore = $store
-    }
-    $preClearHash = 0
-    $preClearCount = 0
-    if ($targetStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
-        try { $preClearHash = [System.Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($targetStore) } catch { $preClearHash = 0 }
-        try { $preClearCount = [int]$targetStore.Count } catch { $preClearCount = 0 }
-        Publish-SharedSiteInterfaceCacheStoreState -Operation 'ClearRequested' -EntryCount $preClearCount -StoreHashCode $preClearHash
-    }
+    try { $script:SiteInterfaceCache = @{} } catch { Set-Variable -Name SiteInterfaceCache -Scope Script -Value @{} }
+    try { $script:SiteInterfaceSignatureCache = @{} } catch { Set-Variable -Name SiteInterfaceSignatureCache -Scope Script -Value @{} }
+    try { $script:InterfaceCacheHydrationTracker = @{} } catch { Set-Variable -Name InterfaceCacheHydrationTracker -Scope Script -Value @{} }
+    $script:LastInterfaceSiteCacheMetrics = $null
 
-    if ($targetStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
-        try { $targetStore.Clear() } catch { }
-        $script:SharedSiteInterfaceCache = $targetStore
-    } else {
-        $script:SharedSiteInterfaceCache = Initialize-SharedSiteInterfaceCacheStore
-        if ($script:SharedSiteInterfaceCache -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
-            try { $script:SharedSiteInterfaceCache.Clear() } catch { }
-        }
-    }
+    try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::ClearSnapshot() } catch { }
 
-    if ($script:SharedSiteInterfaceCache -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
-        try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($script:SharedSiteInterfaceCache) } catch { }
-        try { [System.AppDomain]::CurrentDomain.SetData($storeKey, $script:SharedSiteInterfaceCache) } catch { }
-
-        $postClearHash = 0
-        $postClearCount = 0
-        try { $postClearHash = [System.Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($script:SharedSiteInterfaceCache) } catch { $postClearHash = 0 }
-        try { $postClearCount = [int]$script:SharedSiteInterfaceCache.Count } catch { $postClearCount = 0 }
-        Publish-SharedSiteInterfaceCacheStoreState -Operation 'Cleared' -EntryCount $postClearCount -StoreHashCode $postClearHash
+    $store = Get-SharedSiteInterfaceCacheStore
+    if ($store -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
+        $script:SharedSiteInterfaceCache = $store
+        try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($store) } catch { }
+        try { [System.AppDomain]::CurrentDomain.SetData($script:SharedSiteInterfaceCacheKey, $store) } catch { }
     } else {
         try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::ClearStore() } catch { }
     }

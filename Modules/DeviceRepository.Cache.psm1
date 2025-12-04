@@ -305,8 +305,20 @@ function Get-SharedSiteInterfaceCacheEntry {
             }
             # Clone the host map so downstream consumers do not mutate the shared store.
             $clone = New-Object 'System.Collections.Generic.Dictionary[string, object]'
-            foreach ($key in @($entry.Keys)) {
-                $clone[$key] = $entry[$key]
+            $keyList = @()
+            if ($entry -is [System.Collections.IDictionary]) {
+                $keyList = $entry.Keys
+            } else {
+                try { $keyList = $entry.PSObject.Properties.Name } catch { $keyList = @() }
+            }
+            foreach ($key in @($keyList)) {
+                $value = $null
+                if ($entry -is [System.Collections.IDictionary]) {
+                    $value = $entry[$key]
+                } else {
+                    try { $value = $entry.PSObject.Properties[$key].Value } catch { $value = $null }
+                }
+                $clone[$key] = $value
             }
             $stats = Get-SharedSiteInterfaceCacheEntryStatistics -Entry $clone
             Publish-SharedSiteInterfaceCacheEvent -SiteKey $SiteKey -Operation 'GetHit' -EntryCount $entryCount -HostCount $stats.HostCount -TotalRows $stats.TotalRows -StoreHashCode $storeHashCode
@@ -331,8 +343,20 @@ function Set-SharedSiteInterfaceCacheEntry {
 
     # Normalize keys to preserve ordering and avoid null references
     $normalized = New-Object 'System.Collections.Generic.Dictionary[string, object]'
-    foreach ($key in @($Entry.Keys | Sort-Object)) {
-        $value = $Entry[$key]
+    $keyList = @()
+    if ($Entry -is [System.Collections.IDictionary]) {
+        $keyList = $Entry.Keys
+    } else {
+        try { $keyList = $Entry.PSObject.Properties.Name } catch { $keyList = @() }
+    }
+
+    foreach ($key in @($keyList | Sort-Object)) {
+        $value = $null
+        if ($Entry -is [System.Collections.IDictionary]) {
+            $value = $Entry[$key]
+        } else {
+            try { $value = $Entry.PSObject.Properties[$key].Value } catch { $value = $null }
+        }
         if ($null -eq $value) { continue }
 
         # Preserve lists as arrays so row counts are retained.
@@ -479,14 +503,35 @@ function Get-SharedSiteInterfaceCacheEntryStatistics {
     $hostCount = 0
     $totalRows = 0
 
-    if ($Entry -and $Entry.Count -gt 0) {
-        $hostCount = $Entry.Count
-        foreach ($key in @($Entry.Keys)) {
-            $value = $Entry[$key]
-            if ($value -is [System.Collections.ICollection]) {
-                $totalRows += $value.Count
-            } else {
-                $totalRows++
+    if ($Entry) {
+        $hostMap = $null
+        try {
+            if ($Entry.Contains('HostMap')) {
+                $hostMap = $Entry['HostMap']
+            } elseif ($Entry.ContainsKey -and $Entry.ContainsKey('HostMap')) {
+                $hostMap = $Entry['HostMap']
+            }
+        } catch { $hostMap = $null }
+
+        if ($hostMap -is [System.Collections.IDictionary]) {
+            try { $hostCount = [int]$hostMap.Count } catch { $hostCount = 0 }
+            foreach ($hostEntry in @($hostMap.Keys)) {
+                $value = $hostMap[$hostEntry]
+                if ($value -is [System.Collections.ICollection]) {
+                    $totalRows += $value.Count
+                } else {
+                    $totalRows++
+                }
+            }
+        } elseif ($Entry.Count -gt 0) {
+            $hostCount = $Entry.Count
+            foreach ($key in @($Entry.Keys)) {
+                $value = $Entry[$key]
+                if ($value -is [System.Collections.ICollection]) {
+                    $totalRows += $value.Count
+                } else {
+                    $totalRows++
+                }
             }
         }
     }
