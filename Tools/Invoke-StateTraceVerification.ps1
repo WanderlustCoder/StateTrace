@@ -651,16 +651,32 @@ if ($RequireSharedCacheSnapshotGuard.IsPresent) {
         '-Path', $snapshotTarget,
         '-MinimumSiteCount', $SharedCacheMinimumSiteCount,
         '-MinimumHostCount', $SharedCacheMinimumHostCount,
-        '-MinimumTotalRowCount', $SharedCacheMinimumTotalRowCount
+        '-MinimumTotalRowCount', $SharedCacheMinimumTotalRowCount,
+        '-PassThru'
     )
     if ($SharedCacheRequiredSites -and $SharedCacheRequiredSites.Count -gt 0) {
         $guardParams += @('-RequiredSites', ($SharedCacheRequiredSites -join ','))
     }
 
     Write-Host ("Shared cache snapshot guard: validating {0}..." -f $snapshotTarget) -ForegroundColor Cyan
-    & pwsh @guardParams
+    $guardResult = & pwsh @guardParams
     if ($LASTEXITCODE -ne 0) {
         throw "Shared cache snapshot guard failed. See console output above."
+    }
+
+    $guardSummaryPath = $null
+    if ($guardResult) {
+        try {
+            $guardTimestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+            $targetDir = Split-Path -Parent $snapshotTarget
+            if (-not [string]::IsNullOrWhiteSpace($targetDir)) {
+                $guardSummaryPath = Join-Path -Path $targetDir -ChildPath ("SharedCacheSnapshotGuard-{0}.json" -f $guardTimestamp)
+                $guardResult | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $guardSummaryPath -Encoding utf8
+            }
+        } catch {
+            Write-Warning ("Failed to write shared cache snapshot guard summary: {0}" -f $_.Exception.Message)
+            $guardSummaryPath = $null
+        }
     }
 }
 
@@ -778,6 +794,7 @@ if ($PassThru.IsPresent) {
         SharedCacheSnapshotDirectory = $sharedCacheSnapshotDirectoryUsed
         SharedCacheSummaryPath = $sharedCacheSummaryPath
         SharedCacheCoveragePath = $sharedCacheCoverageOutputPathResolved
+        SharedCacheSnapshotGuardPath = $guardSummaryPath
         SharedCacheSummaryEvaluation = $sharedCacheSummaryEvaluation
         SharedCacheDiagnosticsDirectory = $sharedCacheDiagnosticsDirectoryResolved
         SharedCacheStoreDiagnosticsPath = $sharedCacheStoreDiagnosticsPath
