@@ -2,6 +2,7 @@
 param(
     [string]$RepositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')),
     [switch]$SkipPester,
+    [switch]$RunDecompositionTests,
     [switch]$SkipUnusedExportLint,
     [string[]]$UnusedExportAllowlist = @(),
     [switch]$SkipSpanHarness,
@@ -80,6 +81,25 @@ try {
         $results += $pesterSummary
         if ($pester.FailedCount -gt 0) {
             throw "Pester reported $($pester.FailedCount) failures."
+        }
+    }
+
+    if ($RunDecompositionTests) {
+        Write-Host "===> Running decomposition shim tests" -ForegroundColor Cyan
+        try {
+            $decomp = Invoke-Pester -Path 'Modules/Tests' -Tag 'Decomposition' -EnableExit:$false -PassThru
+        } catch {
+            throw "Decomposition Pester run failed: $($_.Exception.Message)"
+        }
+        $results += [pscustomobject]@{
+            Check    = 'Decomposition'
+            Passed   = ($decomp.FailedCount -eq 0)
+            Total    = $decomp.TotalCount
+            Failed   = $decomp.FailedCount
+            Duration = if ($decomp.Time) { [math]::Round($decomp.Time.TotalSeconds, 2) } else { 0 }
+        }
+        if ($decomp.FailedCount -gt 0) {
+            throw "Decomposition Pester reported $($decomp.FailedCount) failures."
         }
     }
 
