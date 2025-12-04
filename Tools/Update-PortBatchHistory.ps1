@@ -89,7 +89,12 @@ foreach ($reportPath in $ReportPaths) {
     }
 
     $json = Get-Content -LiteralPath $resolvedReport -Raw -ErrorAction Stop
-    $reportObject = $json | ConvertFrom-Json -Depth 6
+    try {
+        $reportObject = ConvertFrom-Json -InputObject $json
+    } catch {
+        Write-Warning ("Report '{0}' could not be parsed as JSON: {1}" -f $resolvedReport, $_.Exception.Message)
+        continue
+    }
     if (-not $reportObject) {
         Write-Warning ("Report '{0}' is empty or invalid; skipping." -f $resolvedReport)
         continue
