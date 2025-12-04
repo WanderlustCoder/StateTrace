@@ -3,7 +3,7 @@ $script:ShowCfgPath  = Join-Path $PSScriptRoot '..\Templates\ShowCommands.json'
 $script:ShowCfg      = $null
 $script:ShowCfgMtime = [datetime]::MinValue
 
-function script:Get-ShowConfig {
+function Get-ShowConfig {
     if (-not (Test-Path -LiteralPath $script:ShowCfgPath)) { return $null }
     $mtime = (Get-Item -LiteralPath $script:ShowCfgPath).LastWriteTimeUtc
     if ($script:ShowCfg -and $script:ShowCfgMtime -eq $mtime) { return $script:ShowCfg }

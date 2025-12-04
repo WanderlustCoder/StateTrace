@@ -291,51 +291,6 @@ function Restore-SharedCacheEntriesFromFile {
     return Restore-SharedCacheEntries -Entries @($entries)
 }
 
-function Get-SharedCacheEntriesForExport {
-    $module = Get-Module -Name 'DeviceRepositoryModule'
-    if (-not $module) {
-        $modulePath = Join-Path -Path $repositoryRoot -ChildPath 'Modules\DeviceRepositoryModule.psm1'
-        if (Test-Path -LiteralPath $modulePath) {
-            $module = Import-Module -Name $modulePath -PassThru -ErrorAction SilentlyContinue
-        }
-    }
-    if (-not $module) {
-        Write-Warning 'Unable to capture shared cache entries because DeviceRepositoryModule is not loaded.'
-        return @()
-    }
-
-    $entries = $module.Invoke({ Get-SharedSiteInterfaceCacheSnapshotEntries })
-    $entryCount = ($entries | Measure-Object).Count
-    Write-Verbose ("Shared cache snapshot entries available: {0}" -f $entryCount)
-    if (-not $entries -or $entryCount -eq 0) {
-        $entries = $module.Invoke(
-            {
-                $result = New-Object 'System.Collections.Generic.List[psobject]'
-                $store = Get-SharedSiteInterfaceCacheStore
-                if ($store -is [System.Collections.IDictionary]) {
-                    foreach ($siteKey in @($store.Keys)) {
-                        if ([string]::IsNullOrWhiteSpace($siteKey)) { continue }
-                        $entry = $null
-                        try { $entry = Get-SharedSiteInterfaceCacheEntry -SiteKey $siteKey } catch { $entry = $null }
-                        if ($entry) {
-                            $result.Add([pscustomobject]@{
-                                    Site  = $siteKey
-                                    Entry = $entry
-                                }) | Out-Null
-                        }
-                    }
-                }
-                return ,$result.ToArray()
-            }
-        )
-    }
-
-    Write-Verbose ("Shared cache entries selected for export: {0}" -f (($entries | Measure-Object).Count))
-
-    if (-not $entries) { return @() }
-    return @($entries)
-}
-
 function Write-SharedCacheSnapshotFile {
     param(
         [Parameter(Mandatory)][string]$Path,

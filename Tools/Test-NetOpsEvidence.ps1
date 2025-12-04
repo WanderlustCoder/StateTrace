@@ -98,7 +98,8 @@ if ($resetDirResolved) {
             }
             $result.LatestResetReason = $resetReason
             if ($RequireReason -and [string]::IsNullOrWhiteSpace($resetReason)) {
-                throw ("NetOps lint failed: latest reset log '{0}' is missing the 'Reason' field. Re-run Tools\Reset-OnlineModeFlags.ps1 -Reason \"<plan/task>\" before proceeding." -f $latestReset.Name)
+                $resetReasonMessage = "NetOps lint failed: latest reset log '{0}' is missing the 'Reason' field. Re-run Tools\Reset-OnlineModeFlags.ps1 -Reason '<plan/task>' before proceeding."
+                throw ($resetReasonMessage -f $latestReset.Name)
             }
         }
         catch {
