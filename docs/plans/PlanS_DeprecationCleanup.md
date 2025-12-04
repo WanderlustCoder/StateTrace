@@ -11,7 +11,7 @@ Identify and remove unused code paths, scripts, feature flags, and legacy UI ele
 ## Active work
 | ID | Title | Owner | Status | Notes |
 |----|-------|-------|--------|-------|
-| ST-S-001 | Unused export inventory | Architecture | In Progress | Added `Tools\Report-UnusedExports.ps1` to scan function definitions across Modules/Tools/Main and report zero-reference candidates (supports allowlist + JSON output). Initial run pruned unused cache export helper and normalized show-config loader; rerun now clean. |
+| ST-S-001 | Unused export inventory | Architecture | In Progress | Added `Tools\Report-UnusedExports.ps1` to scan function definitions across Modules/Tools/Main and report zero-reference candidates (supports allowlist + JSON output). Initial run pruned unused cache export helper and normalized show-config loader; wired lint into `Tools\Invoke-AllChecks.ps1` so CI/harness runs it by default (report at `Logs/Reports/UnusedExports.json`). |
 | ST-S-002 | Feature flag audit | PMO | Backlog | Enumerate feature flags/config toggles; mark deprecated ones, remove dead branches, and document surviving flags in `docs/CODEX_RUNBOOK.md`. |
 | ST-S-003 | Script/runbook pruning | Automation | Backlog | Identify unused scripts in `Tools/` and outdated runbooks; remove or archive to `docs/completed/` with pointers. |
 | ST-S-004 | UI cleanup sweep | UI | Backlog | Remove unused XAML controls and code-behind handlers (esp. Compare/Templates legacy flows) after confirming no bindings/telemetry rely on them. |
