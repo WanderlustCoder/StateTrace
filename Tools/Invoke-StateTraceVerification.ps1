@@ -45,6 +45,7 @@ param(
     [string]$TelemetryBundlePath,
     [string[]]$TelemetryBundleAreas = @('Telemetry','Routing'),
     [switch]$VerifyTelemetryBundleReadiness,
+    [switch]$RequireTelemetryIntegrity,
     [switch]$SkipWarmRunAssertions,
     [switch]$QuietSummary,
     [switch]$PassThru
@@ -258,6 +259,9 @@ if ($pipelineParameters.ContainsKey('SharedCacheSnapshotDirectory')) {
 }
 if ($ShowSharedCacheSummary.IsPresent) {
     $pipelineParameters['ShowSharedCacheSummary'] = $true
+}
+if ($RequireTelemetryIntegrity.IsPresent) {
+    $pipelineParameters['RequireTelemetryIntegrity'] = $true
 }
 
 $computedWarmRunPath = $null
