@@ -11,7 +11,7 @@ Reduce the size and coupling of core modules (DeviceRepository, ParserPersistenc
 ## Active work
 | ID | Title | Owner | Status | Notes |
 |----|-------|-------|--------|-------|
-| ST-L-001 | Define target boundaries & ADR | Architecture | Ready | Draft an ADR proposing module splits: `DeviceRepository.Cache`, `DeviceRepository.AccessAdapters`, `ParserPersistence.Core`, `ParserPersistence.Diff`, `WarmRun.Telemetry`, `UI.Services`. Include import graphs and public contract lists. |
+| ST-L-001 | Define target boundaries & ADR | Architecture | In Progress | Drafted ADR 0006 documenting target module splits (`Modules/DeviceRepository.Cache.psm1`, `Modules/DeviceRepository.Access.psm1`, `Modules/ParserPersistence.Core.psm1`, `Modules/ParserPersistence.Diff.psm1`, `Modules/WarmRun.Telemetry.psm1`) and the re-export approach. Next: add import graphs and public contract lists. |
 | ST-L-002 | Extract repository cache layer | Ingestion | In Progress | Move cache types and cache-access helpers from `DeviceRepositoryModule` into `DeviceRepository.Cache.psm1`; add Pester tests for cache signature and hit/miss behaviour using synthetic fixtures. Update callers to module-qualify new exports. |
 | ST-L-003 | Extract parser persistence/diff layer | Ingestion | Ready | Split `ParserPersistenceModule` into core batch writer and diff/comparison helpers. Add micro-bench Pester tests that assert `ParseDuration`/`DiffComparisonDurationMs` stay within existing p95 gates on fixture datasets. |
 | ST-L-004 | Move UI services out of MainWindow | UI | Backlog | Extract parser job orchestration, user-action telemetry publishing, and freshness caching into `MainWindow.Services.psm1` (or similar) so XAML code-behind shrinks and gains unit coverage. |
