@@ -9,6 +9,7 @@ param(
     [int]$MinimumSiteCount = 1,
     [int]$MinimumHostCount = 1,
     [int]$MinimumTotalRowCount = 1,
+    [switch]$RequireTelemetryIntegrity,
     [switch]$SkipCoverageValidation,
     [switch]$PreserveSkipSiteCacheSetting,
     [switch]$PreserveIngestionHistory,
@@ -62,6 +63,7 @@ if (-not $IncludeTests.IsPresent) {
 if ($ResetExtractedLogs.IsPresent) { $pipelineParameters['ResetExtractedLogs'] = $true }
 if ($VerboseParsing.IsPresent) { $pipelineParameters['VerboseParsing'] = $true }
 if ($RunWarmRunRegression.IsPresent) { $pipelineParameters['RunWarmRunRegression'] = $true }
+if ($RequireTelemetryIntegrity.IsPresent) { $pipelineParameters['RequireTelemetryIntegrity'] = $true }
 if ($SharedCacheSnapshotDirectory) {
     $resolvedSnapshotDir = Resolve-OptionalPath -PathValue $SharedCacheSnapshotDirectory
     if ($resolvedSnapshotDir) {
@@ -157,6 +159,27 @@ if ($summaryEntries) {
 $coverageResult = $null
 if (-not $SkipCoverageValidation.IsPresent) {
     Ensure-VerificationModuleLoaded -ModulePath $verificationModulePath
+    $snapshotGuardScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Test-SharedCacheSnapshot.ps1'
+    if (-not (Test-Path -LiteralPath $snapshotGuardScript)) {
+        throw "Shared cache snapshot guard missing at $snapshotGuardScript"
+    }
+    # Fail fast on snapshot coverage (clixml or summary)
+    $snapshotGuardParams = @(
+        '-File', $snapshotGuardScript,
+        '-Path', $summaryPath,
+        '-MinimumSiteCount', $MinimumSiteCount,
+        '-MinimumHostCount', $MinimumHostCount,
+        '-MinimumTotalRowCount', $MinimumTotalRowCount
+    )
+    if ($RequiredSites -and $RequiredSites.Count -gt 0) {
+        $snapshotGuardParams += @('-RequiredSites', ($RequiredSites -join ','))
+    }
+    Write-Host ("[SharedCacheWarmup] Validating snapshot coverage via Test-SharedCacheSnapshot.ps1...") -ForegroundColor Cyan
+    & pwsh @snapshotGuardParams
+    if ($LASTEXITCODE -ne 0) {
+        throw "[SharedCacheWarmup] Snapshot coverage guard failed. See console output above."
+    }
+
     $coverageResult = Test-SharedCacheSummaryCoverage -Summary $summaryPath `
         -MinimumSiteCount $MinimumSiteCount `
         -MinimumHostCount $MinimumHostCount `
