@@ -106,7 +106,12 @@ if ($PSBoundParameters.ContainsKey('SharedCacheRequiredSites')) {
 if ($SkipSharedCacheSummaryEvaluation.IsPresent) {
     $verificationParameters['SkipSharedCacheSummaryEvaluation'] = $true
 }
-if ($RequireTelemetryIntegrity.IsPresent) {
+# Default to requiring telemetry integrity unless explicitly omitted
+if ($PSBoundParameters.ContainsKey('RequireTelemetryIntegrity')) {
+    if ($RequireTelemetryIntegrity.IsPresent) {
+        $verificationParameters['RequireTelemetryIntegrity'] = $true
+    }
+} else {
     $verificationParameters['RequireTelemetryIntegrity'] = $true
 }
 
