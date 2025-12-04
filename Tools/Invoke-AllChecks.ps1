@@ -2,6 +2,8 @@
 param(
     [string]$RepositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')),
     [switch]$SkipPester,
+    [switch]$SkipUnusedExportLint,
+    [string[]]$UnusedExportAllowlist = @(),
     [switch]$SkipSpanHarness,
     [string]$SpanHostname = 'LABS-A01-AS-01',
     [int]$SpanSampleCount = 5,
@@ -21,6 +23,45 @@ Push-Location $repoRoot
 
 $results = @()
 try {
+    if (-not $SkipUnusedExportLint) {
+        Write-Host "===> Running unused export lint" -ForegroundColor Cyan
+        $lintScript = Join-Path $repoRoot 'Tools\Report-UnusedExports.ps1'
+        if (-not (Test-Path -LiteralPath $lintScript)) {
+            throw "Unused export lint script missing at $lintScript"
+        }
+
+        $reportDir = Join-Path $repoRoot 'Logs\Reports'
+        if (-not (Test-Path -LiteralPath $reportDir)) {
+            New-Item -ItemType Directory -Path $reportDir -Force | Out-Null
+        }
+        $reportPath = Join-Path $reportDir 'UnusedExports.json'
+
+        $lintParams = @(
+            '-File', $lintScript,
+            '-OutputPath', $reportPath,
+            '-FailOnUnused'
+        )
+        if ($UnusedExportAllowlist -and $UnusedExportAllowlist.Count -gt 0) {
+            $lintParams += @('-Allowlist', ($UnusedExportAllowlist -join ','))
+        }
+
+        & pwsh @lintParams
+        $lintExit = $LASTEXITCODE
+        if ($lintExit -ne 0) {
+            throw ("Unused export lint failed with exit code {0}. See {1} for details." -f $lintExit, $reportPath)
+        }
+
+        $lintReport = $null
+        try { $lintReport = Get-Content -LiteralPath $reportPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop } catch {}
+        $unusedCount = if ($lintReport) { (@($lintReport | Where-Object { -not $_.Allowlisted -and $_.ReferenceCount -le 0 })).Count } else { 0 }
+
+        $results += [pscustomobject]@{
+            Check       = 'UnusedExports'
+            ReportPath  = $reportPath
+            UnusedCount = $unusedCount
+        }
+    }
+
     if (-not $SkipPester) {
         Write-Host "===> Running Pester suite" -ForegroundColor Cyan
         try {
