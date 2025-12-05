@@ -3,6 +3,9 @@ param(
     [switch]$IncludeTests,
     [switch]$VerboseParsing,
     [switch]$ResetExtractedLogs,
+    [switch]$SkipPortDiversityGuard,
+    [int]$PortBatchMaxConsecutiveOverride,
+    [switch]$SkipWarmValidation,
     [string]$OutputPath,
     [switch]$SkipRefresh,
     [switch]$PassThru
@@ -35,6 +38,15 @@ if (-not $SkipRefresh.IsPresent) {
 }
 if ($IncludeTests.IsPresent) {
     $arguments['IncludeTests'] = $true
+}
+if ($PSBoundParameters.ContainsKey('PortBatchMaxConsecutiveOverride')) {
+    $arguments['PortBatchMaxConsecutiveOverride'] = $PortBatchMaxConsecutiveOverride
+}
+if ($SkipPortDiversityGuard.IsPresent) {
+    $arguments['SkipPortDiversityGuard'] = $true
+}
+if ($SkipWarmValidation.IsPresent) {
+    $arguments['SkipWarmValidation'] = $true
 }
 if ($VerboseParsing.IsPresent) {
     $arguments['VerboseParsing'] = $true

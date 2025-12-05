@@ -5,6 +5,8 @@ param(
     [switch]$ResetExtractedLogs,
     [switch]$SkipSchedulerFairnessGuard,
     [string]$OutputPath,
+    [int]$PortBatchMaxConsecutiveOverride,
+    [switch]$SkipWarmValidation,
     [ValidateSet('Empty','Snapshot')]
     [string]$ColdHistorySeed = 'Snapshot',
     [ValidateSet('Empty','Snapshot','ColdOutput','WarmBackup')]
@@ -1534,6 +1536,9 @@ if ($ResetExtractedLogs) {
 }
 if ($SkipPortDiversityGuard) {
     $pipelineArguments['SkipPortDiversityGuard'] = $true
+}
+if ($PSBoundParameters.ContainsKey('PortBatchMaxConsecutiveOverride')) {
+    $pipelineArguments['PortBatchMaxConsecutiveOverride'] = $PortBatchMaxConsecutiveOverride
 }
 if ($DisablePreservedRunspacePool) {
     $pipelineArguments['DisablePreserveRunspace'] = $true
@@ -3138,7 +3143,7 @@ if (($coldMetrics -or $coldSummaries) -and ($warmMetrics -or $warmSummaries)) {
     $results += $comparisonSummary
 }
 
-if ($AssertWarmCache.IsPresent) {
+if ($AssertWarmCache.IsPresent -and -not $SkipWarmValidation.IsPresent) {
     $assertFailures = New-Object 'System.Collections.Generic.List[string]'
     if (-not $comparisonSummary) {
         $assertFailures.Add('InterfaceCallDuration comparison metrics were not captured for cold and warm passes.')

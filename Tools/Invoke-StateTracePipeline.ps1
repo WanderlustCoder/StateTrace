@@ -12,6 +12,8 @@ param(
     [switch]$ResetExtractedLogs,
     [switch]$DisableSkipSiteCacheUpdate,
     [switch]$SkipPortDiversityGuard,
+    [int]$PortBatchMaxConsecutiveOverride,
+    [switch]$SkipWarmValidation,
     [switch]$PreserveModuleSession,
     [switch]$RunWarmRunRegression,
     [string]$WarmRunRegressionOutputPath,
@@ -89,6 +91,15 @@ function Invoke-WarmRunRegressionInternal {
     }
     if ($ResetExtractedLogs) {
         $argumentList += '-ResetExtractedLogs'
+    }
+    if ($SkipPortDiversityGuard) {
+        $argumentList += '-SkipPortDiversityGuard'
+    }
+    if ($PSBoundParameters.ContainsKey('PortBatchMaxConsecutiveOverride')) {
+        $argumentList += @('-PortBatchMaxConsecutiveOverride', $PortBatchMaxConsecutiveOverride)
+    }
+    if ($SkipWarmValidation) {
+        $argumentList += '-SkipWarmValidation'
     }
     if (-not [string]::IsNullOrWhiteSpace($WarmRunRegressionOutputPath)) {
         $resolvedOutput = $WarmRunRegressionOutputPath
@@ -785,10 +796,14 @@ try {
         } elseif (-not $latestIngestionMetricsEntry) {
             Write-Warning 'Port batch diversity guard skipped: no ingestion metrics files were found.'
         } else {
+            $maxConsecutive = 8
+            if ($PSBoundParameters.ContainsKey('PortBatchMaxConsecutiveOverride')) {
+                $maxConsecutive = $PortBatchMaxConsecutiveOverride
+            }
             $portDiversityReportPath = Join-Path -Path $reportsDirectory -ChildPath ("PortBatchSiteDiversity-{0}.json" -f $metricsReportSuffix)
             Write-Host ("Validating port batch site diversity into '{0}'..." -f $portDiversityReportPath) -ForegroundColor Cyan
             try {
-                & $diversityScript -MetricsPath $latestIngestionMetricsEntry.FullName -MaxAllowedConsecutive 8 -OutputPath $portDiversityReportPath | Out-Null
+                & $diversityScript -MetricsPath $latestIngestionMetricsEntry.FullName -MaxAllowedConsecutive $maxConsecutive -OutputPath $portDiversityReportPath | Out-Null
             } catch {
                 throw ("Port batch diversity guard failed: {0}" -f $_.Exception.Message)
             }
