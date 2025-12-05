@@ -262,7 +262,7 @@ function Import-SharedSiteInterfaceCacheSnapshotFromEnv {
     return $imported
 }
 
-function Ensure-SharedSiteInterfaceCacheSnapshotImported {
+function Import-SharedSiteInterfaceCacheSnapshot {
     param(
         [System.Collections.Concurrent.ConcurrentDictionary[string, object]]$Store,
         [switch]$Force
@@ -288,6 +288,16 @@ function Ensure-SharedSiteInterfaceCacheSnapshotImported {
     }
 
     return $imported
+}
+
+function Ensure-SharedSiteInterfaceCacheSnapshotImported {
+    param(
+        [System.Collections.Concurrent.ConcurrentDictionary[string, object]]$Store,
+        [switch]$Force
+    )
+
+    Write-Warning "Ensure-SharedSiteInterfaceCacheSnapshotImported is deprecated; use Import-SharedSiteInterfaceCacheSnapshot instead." -WarningAction SilentlyContinue
+    return (Import-SharedSiteInterfaceCacheSnapshot -Store $Store -Force:$Force.IsPresent)
 }
 
 if (-not ('StateTrace.Repository.SharedSiteInterfaceCacheHolder' -as [type])) {
@@ -404,7 +414,7 @@ function Initialize-SharedSiteInterfaceCacheStore {
     try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($bestStore) } catch { }
 
     if ($bestStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
-        [void](Ensure-SharedSiteInterfaceCacheSnapshotImported -Store $bestStore -Force)
+        [void](Import-SharedSiteInterfaceCacheSnapshot -Store $bestStore -Force)
         try {
             $hash = [System.Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($bestStore)
             $count = 0
@@ -460,7 +470,7 @@ function Get-SharedSiteInterfaceCacheStore {
         try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($bestStore) } catch { }
         try { [System.AppDomain]::CurrentDomain.SetData($storeKey, $bestStore) } catch { }
         if ($bestStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
-            [void](Ensure-SharedSiteInterfaceCacheSnapshotImported -Store $bestStore)
+            [void](Import-SharedSiteInterfaceCacheSnapshot -Store $bestStore)
         }
     }
 
@@ -474,7 +484,7 @@ if (-not (Get-Variable -Scope Script -Name SharedSiteInterfaceCache -ErrorAction
 }
 
 if ($script:SharedSiteInterfaceCache -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
-    [void](Ensure-SharedSiteInterfaceCacheSnapshotImported -Store $script:SharedSiteInterfaceCache)
+    [void](Import-SharedSiteInterfaceCacheSnapshot -Store $script:SharedSiteInterfaceCache)
 }
 
 function Copy-InterfaceCacheEntryObject {

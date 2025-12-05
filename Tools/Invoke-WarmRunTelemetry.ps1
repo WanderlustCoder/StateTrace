@@ -1567,7 +1567,7 @@ function Invoke-PipelinePass {
     $collection = Collect-TelemetryForPass -DirectoryPath $metricsDirectory -Baseline $metricsBaseline -PassStartTime $passStartTime -RequiredEventNames @('InterfaceSiteCacheMetrics','DatabaseWriteBreakdown','InterfaceSyncTiming')
     $telemetry = @()
     if ($collection -and $collection.Events) {
-        $collection.Events = Add-PassLabelToEvents -Events $collection.Events -PassLabel $Label
+        $collection.Events = Add-PassLabelToEvents -Events @($collection.Events) -PassLabel $Label
         $telemetry = @($collection.Events)
     }
 
@@ -1637,7 +1637,7 @@ function Invoke-PipelinePass {
         Write-Host ("Filtered DatabaseWriteBreakdown events for pass '{0}': {1} -> {2}." -f $Label, $originalBreakdownCount, $filteredBreakdownCount) -ForegroundColor DarkCyan
     }
 
-    $passHostnames = Get-HostnamesFromEvents -Events $breakdownEvents
+    $passHostnames = Get-HostnamesFromEvents -Events @($breakdownEvents)
     $script:PassHostnames[$Label] = $passHostnames
     if ($Label -eq 'ColdPass') {
         $script:ColdPassHostnames = $passHostnames
@@ -1668,7 +1668,7 @@ function Invoke-PipelinePass {
     }
 
     if ($breakdownEvents -and ($breakdownEvents | Measure-Object).Count -gt 0) {
-        $script:PassInterfaceAnalysis[$Label] = Measure-InterfaceCallDurationMetrics -Events $breakdownEvents
+        $script:PassInterfaceAnalysis[$Label] = Measure-InterfaceCallDurationMetrics -Events @($breakdownEvents)
     } else {
         $script:PassInterfaceAnalysis[$Label] = $null
         Write-Warning "No DatabaseWriteBreakdown events were captured for pass '$Label'."
@@ -2895,10 +2895,14 @@ try {
     } catch {
         Write-Warning ("Failed to seed preserved runspace shared cache: {0}" -f $_.Exception.Message)
     }
+    Write-Host ("[Diag] WarmPass starting at {0:o}" -f (Get-Date)) -ForegroundColor Magenta
     $results += Invoke-PipelinePass -Label 'WarmPass'
+    Write-Host ("[Diag] WarmPass completed at {0:o}" -f (Get-Date)) -ForegroundColor Magenta
 } finally {
-    Write-Host 'Restoring ingestion history to original snapshot...' -ForegroundColor Yellow
+    $restoreStart = Get-Date
+    Write-Host ("[Diag] Restoring ingestion history to original snapshot... ({0:o})" -f $restoreStart) -ForegroundColor Yellow
     Restore-IngestionHistory -Snapshot $ingestionHistorySnapshot
+    Write-Host ("[Diag] Ingestion history restore completed in {0:N0} ms" -f ((Get-Date) - $restoreStart).TotalMilliseconds) -ForegroundColor Magenta
     try { ParserRunspaceModule\Reset-DeviceParseRunspacePool } catch { }
     if ($pipelineArguments.ContainsKey('SharedCacheSnapshotPath')) {
         $pipelineArguments.Remove('SharedCacheSnapshotPath')
@@ -3284,8 +3288,8 @@ function Update-ComparisonSummaryFromResults {
         }
     }
 
-    $warmSnapshot = Get-ProviderSnapshot -Events $warmEvents
-    $coldSnapshot = Get-ProviderSnapshot -Events $coldEvents
+    $warmSnapshot = Get-ProviderSnapshot -Events @($warmEvents)
+    $coldSnapshot = Get-ProviderSnapshot -Events @($coldEvents)
 
     if ($warmSnapshot) {
         $comparison.WarmProviderCounts = $warmSnapshot.Providers

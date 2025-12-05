@@ -200,7 +200,7 @@ function Import-SharedSiteInterfaceCacheSnapshotFromEnv {
     return $imported
 }
 
-function Ensure-SharedSiteInterfaceCacheSnapshotImported {
+function Import-SharedSiteInterfaceCacheSnapshot {
     param(
         [Parameter(Mandatory)][System.Collections.Concurrent.ConcurrentDictionary[string, object]]$Store,
         [switch]$Force
@@ -239,6 +239,16 @@ function Ensure-SharedSiteInterfaceCacheSnapshotImported {
     return 0
 }
 
+function Ensure-SharedSiteInterfaceCacheSnapshotImported {
+    param(
+        [Parameter(Mandatory)][System.Collections.Concurrent.ConcurrentDictionary[string, object]]$Store,
+        [switch]$Force
+    )
+
+    Write-Warning "Ensure-SharedSiteInterfaceCacheSnapshotImported is deprecated; use Import-SharedSiteInterfaceCacheSnapshot instead." -WarningAction SilentlyContinue
+    return (Import-SharedSiteInterfaceCacheSnapshot -Store $Store -Force:$Force.IsPresent)
+}
+
 function Initialize-SharedSiteInterfaceCacheStore {
     $storeKey = $script:SharedSiteInterfaceCacheKey
     $store = $null
@@ -260,7 +270,7 @@ function Initialize-SharedSiteInterfaceCacheStore {
         $store = New-Object 'System.Collections.Concurrent.ConcurrentDictionary[string, object]'
     }
 
-    $count = Ensure-SharedSiteInterfaceCacheSnapshotImported -Store $store
+    $count = Import-SharedSiteInterfaceCacheSnapshot -Store $store
     $storeHashCode = [System.Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($store)
     if ($count -gt 0) {
         Publish-SharedSiteInterfaceCacheStoreState -Operation 'InitializedWithSnapshot' -EntryCount ([int]$store.Count) -StoreHashCode $storeHashCode
@@ -607,4 +617,4 @@ Export-ModuleMember -Function `
     Get-SharedSiteInterfaceCacheEntryStatistics, `
     Initialize-SharedSiteInterfaceCacheStore, `
     Import-SharedSiteInterfaceCacheSnapshotFromEnv, `
-    Ensure-SharedSiteInterfaceCacheSnapshotImported
+    Import-SharedSiteInterfaceCacheSnapshot

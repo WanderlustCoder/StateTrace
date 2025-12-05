@@ -310,7 +310,21 @@ function Get-DeviceDetailsRunspace {
         try {
             $state = $script:DeviceDetailsRunspace.RunspaceStateInfo.State
             if ($state -eq [System.Management.Automation.Runspaces.RunspaceState]::Opened) {
-                return $script:DeviceDetailsRunspace
+                $langMode = $null
+                try { $langMode = $script:DeviceDetailsRunspace.SessionStateProxy.LanguageMode } catch { $langMode = $null }
+                if ($langMode -ne [System.Management.Automation.PSLanguageMode]::FullLanguage) {
+                    try { Write-Diag ("Device loader runspace language mode mismatch | Mode={0}" -f $langMode) } catch {}
+                    try { $script:DeviceDetailsRunspace.SessionStateProxy.LanguageMode = [System.Management.Automation.PSLanguageMode]::FullLanguage } catch {}
+                    try { $langMode = $script:DeviceDetailsRunspace.SessionStateProxy.LanguageMode } catch { $langMode = $null }
+                    if ($langMode -ne [System.Management.Automation.PSLanguageMode]::FullLanguage) {
+                        try { Write-Diag ("Device loader runspace discarded due to language mode reset failure | Mode={0}" -f $langMode) } catch {}
+                        try { $script:DeviceDetailsRunspace.Dispose() } catch {}
+                        $script:DeviceDetailsRunspace = $null
+                    }
+                }
+                if ($script:DeviceDetailsRunspace) {
+                    return $script:DeviceDetailsRunspace
+                }
             }
             if ($state -eq [System.Management.Automation.Runspaces.RunspaceState]::Opening -or
                 $state -eq [System.Management.Automation.Runspaces.RunspaceState]::Connecting) {
@@ -331,8 +345,11 @@ function Get-DeviceDetailsRunspace {
         $rs.ApartmentState = [System.Threading.ApartmentState]::STA
         $rs.ThreadOptions  = [System.Management.Automation.Runspaces.PSThreadOptions]::ReuseThread
         $rs.Open()
+        try { $rs.SessionStateProxy.LanguageMode = [System.Management.Automation.PSLanguageMode]::FullLanguage } catch {}
         $script:DeviceDetailsRunspace = $rs
-        try { Write-Diag ("Device loader runspace created | Id={0}" -f $rs.Id) } catch {}
+        try {
+            Write-Diag ("Device loader runspace created | Id={0} | LangMode={1}" -f $rs.Id, $rs.SessionStateProxy.LanguageMode)
+        } catch {}
         return $script:DeviceDetailsRunspace
     } catch {
         try { Write-Diag ("Device loader runspace creation failed | Error={0}" -f $_.Exception.Message) } catch {}
@@ -706,6 +723,32 @@ function Populate-SiteDropdownWithAvailableSites {
     try { Update-FreshnessIndicator -Window $Window } catch { }
 }
 
+function Set-StateTraceDbPath {
+    param(
+        [string]$Site
+    )
+
+    $dataDir = Join-Path $scriptDir '..\Data'
+    if (-not (Test-Path -LiteralPath $dataDir)) { return }
+    $candidate = $null
+    if (-not [string]::IsNullOrWhiteSpace($Site)) {
+        $siteDir = Join-Path $dataDir $Site
+        $siteDb = Join-Path $siteDir ("{0}.accdb" -f $Site)
+        if (Test-Path -LiteralPath $siteDb) { $candidate = $siteDb }
+    }
+    if (-not $candidate) {
+        $firstDir = Get-ChildItem -LiteralPath $dataDir -Directory | Select-Object -First 1
+        if ($firstDir) {
+            $siteDb = Join-Path $firstDir.FullName ("{0}.accdb" -f $firstDir.Name)
+            if (Test-Path -LiteralPath $siteDb) { $candidate = $siteDb }
+        }
+    }
+    if ($candidate) {
+        $global:StateTraceDb = $candidate
+        $env:StateTraceDbPath = $candidate
+    }
+}
+
 function Get-SelectedSiteFilterValue {
     param([Windows.Window]$Window)
     if (-not $Window) { return $null }
@@ -763,6 +806,7 @@ function Update-ParserStatusIndicator {
 
     if (-not $script:CurrentParserJob) {
         $indicator.Content = 'Parser idle'
+        Set-ParserDetailText -Window $Window -Text ''
         if ($script:ParserStatusTimer) { $script:ParserStatusTimer.Stop() }
         return
     }
@@ -775,6 +819,12 @@ function Update-ParserStatusIndicator {
             $indicator.Content = "Parsing in progress (started $started)"
         } else {
             $indicator.Content = 'Parsing in progress...'
+        }
+        $tail = Get-ParserLogTailText -Path $script:ParserJobLogPath
+        if ($tail) {
+            Set-ParserDetailText -Window $Window -Text ("Last log: {0}" -f $tail)
+        } else {
+            Set-ParserDetailText -Window $Window -Text ''
         }
         return
     }
@@ -805,6 +855,7 @@ function Update-ParserStatusIndicator {
     }
 
     $script:ParserJobLogPath = $null
+    Set-ParserDetailText -Window $Window -Text ''
     if ($script:ParserStatusTimer) { $script:ParserStatusTimer.Stop() }
 }
 
@@ -952,13 +1003,77 @@ function Update-FreshnessIndicator {
     $label.ToolTip = [string]::Join("`n", $tooltipParts)
 }
 
+function Set-ParserDetailText {
+    param([Windows.Window]$Window, [string]$Text)
+    if (-not $Window) { return }
+    $detailLabel = $Window.FindName('ParserDetailText')
+    if (-not $detailLabel) { return }
+    $detailLabel.Content = if ($Text) { $Text } else { '' }
+}
+
+function Get-ParserLogTailText {
+    param(
+        [string]$Path,
+        [int]$TailCount = 25
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path)) {
+        return $null
+    }
+
+    $lines = $null
+    try { $lines = Get-Content -LiteralPath $Path -Tail $TailCount -ErrorAction Stop } catch { return $null }
+    if (-not $lines) { return $null }
+
+    $lines = $lines | ForEach-Object { ($_ -replace [char]0, '') }
+    $candidate = ($lines | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Last 1)
+    if ([string]::IsNullOrWhiteSpace($candidate)) { return $null }
+
+    $candidate = $candidate.Trim()
+    if ($candidate.Length -gt 140) {
+        $candidate = $candidate.Substring(0,137) + '...'
+    }
+    return $candidate
+}
+
+function Reset-ParserCachesForRefresh {
+    [CmdletBinding()]
+    param([string]$SiteFilter)
+
+    try { Write-Diag ("Parser refresh: clearing caches | SiteFilter={0}" -f $SiteFilter) } catch {}
+
+    $repoRoot = (Resolve-Path (Join-Path $scriptDir '..')).Path
+
+    $historyDir = Join-Path $repoRoot 'Data\IngestionHistory'
+    if (Test-Path -LiteralPath $historyDir) {
+        $historyTargets = @()
+        try { $historyTargets = Get-ChildItem -LiteralPath $historyDir -File -ErrorAction SilentlyContinue } catch { $historyTargets = @() }
+        foreach ($item in @($historyTargets)) {
+            try { Remove-Item -LiteralPath $item.FullName -Force -ErrorAction SilentlyContinue } catch {}
+        }
+        try { Write-Diag ("Parser refresh: cleared ingestion history files ({0})" -f $historyTargets.Count) } catch {}
+    }
+
+    $cacheModulePath = Join-Path $script:ModulesDirectory 'DeviceRepository.Cache.psm1'
+    if (Test-Path -LiteralPath $cacheModulePath) {
+        try { Import-Module -Name $cacheModulePath -Global -ErrorAction SilentlyContinue } catch { }
+    }
+
+    try { DeviceRepository.Cache\Clear-SharedSiteInterfaceCache -Reason 'UIForceReparse' } catch { }
+    try { DeviceRepositoryModule\Clear-SiteInterfaceCache -Reason 'UIForceReparse' } catch { }
+    try { ParserPersistenceModule\Clear-SiteExistingRowCache } catch { }
+
+    try { Write-Diag "Parser refresh: caches cleared" } catch {}
+}
+
 function Start-ParserBackgroundJob {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][Windows.Window]$Window,
         [bool]$IncludeArchive,
         [bool]$IncludeHistorical,
-        [string]$SiteFilter
+        [string]$SiteFilter,
+        [bool]$ForceReload
     )
 
     if ($script:CurrentParserJob -and ($script:CurrentParserJob.State -in @('Running','NotStarted'))) {
@@ -980,9 +1095,10 @@ function Start-ParserBackgroundJob {
             $repoRoot,
             $IncludeArchive,
             $IncludeHistorical,
-            $logPath
+            $logPath,
+            $ForceReload
         ) -ScriptBlock {
-        param($RepoRoot,$IncludeArchive,$IncludeHistorical,$LogPath)
+        param($RepoRoot,$IncludeArchive,$IncludeHistorical,$LogPath,$ForceReload)
         Push-Location $RepoRoot
         try {
             $logParent = Split-Path -Parent $LogPath
@@ -992,13 +1108,38 @@ function Start-ParserBackgroundJob {
             $pipeline = Join-Path $RepoRoot 'Tools\Invoke-StateTracePipeline.ps1'
             $env:IncludeArchive    = if ($IncludeArchive)    { '1' } else { '0' }
             $env:IncludeHistorical = if ($IncludeHistorical){ '1' } else { '0' }
+            if ($ForceReload) { $env:STATETRACE_SHARED_CACHE_SNAPSHOT = '' }
+            $ErrorActionPreference = 'Stop'
+            $header = "Parser job started at {0:o} (IncludeArchive={1}, IncludeHistorical={2})" -f (Get-Date), $IncludeArchive, $IncludeHistorical
+            Set-Content -LiteralPath $LogPath -Value $header
             if (Test-Path -LiteralPath $pipeline) {
-                & $pipeline -SkipTests -VerboseParsing -ResetExtractedLogs -VerifyTelemetryCompleteness -FailOnTelemetryMissing -FailOnSchedulerFairness |
-                    Tee-Object -FilePath $LogPath
+                $pipelineParams = @{
+                    VerboseParsing              = $true
+                    ResetExtractedLogs          = $true
+                    VerifyTelemetryCompleteness = $true
+                    FailOnTelemetryMissing      = $false
+                    FailOnSchedulerFairness     = $true
+                    SkipPortDiversityGuard      = $true
+                    QuickMode                   = $true
+                }
+                if ($ForceReload) {
+                    $pipelineParams.SkipTests                = $true
+                    $pipelineParams.DisableSharedCacheSnapshot = $true
+                    $pipelineParams.DisablePreserveRunspace  = $true
+                    $pipelineParams.DisableSkipSiteCacheUpdate = $true
+                }
+                & $pipeline @pipelineParams -ErrorAction Stop *>&1 |
+                    Tee-Object -FilePath $LogPath -Append
             } else {
                 Import-Module (Join-Path $RepoRoot 'Modules\ParserWorker.psm1') -Force
-                Invoke-StateTraceParsing -Synchronous | Tee-Object -FilePath $LogPath
+                Invoke-StateTraceParsing -Synchronous -ErrorAction Stop *>&1 | Tee-Object -FilePath $LogPath -Append
             }
+            $footer = "Parser job completed successfully at {0:o}" -f (Get-Date)
+            Add-Content -LiteralPath $LogPath -Value $footer
+        } catch {
+            $errorText = "Parser job failed at {0:o}: {1}" -f (Get-Date), ($_ | Out-String)
+            Add-Content -LiteralPath $LogPath -Value $errorText
+            throw
         } finally {
             Pop-Location
         }
@@ -1025,9 +1166,11 @@ function Invoke-StateTraceRefresh {
         # Read checkboxes fresh each time (safe if UI is rebuilt)
         $includeArchiveCB    = $Window.FindName('IncludeArchiveCheckbox')
         $includeHistoricalCB = $Window.FindName('IncludeHistoricalCheckbox')
+        $forceReloadCB       = $Window.FindName('ForceReloadCheckbox')
 
         $includeArchiveFlag = $false
         $includeHistoricalFlag = $false
+        $forceReloadFlag = $false
         if ($includeArchiveCB) {
             $includeArchiveFlag = [bool]$includeArchiveCB.IsChecked
             Set-EnvToggle -Name 'IncludeArchive' -Checked $includeArchiveFlag
@@ -1036,11 +1179,19 @@ function Invoke-StateTraceRefresh {
             $includeHistoricalFlag = [bool]$includeHistoricalCB.IsChecked
             Set-EnvToggle -Name 'IncludeHistorical' -Checked $includeHistoricalFlag
         }
+        if ($forceReloadCB) {
+            $forceReloadFlag = [bool]$forceReloadCB.IsChecked
+        }
 
         if ($global:StateTraceDb) { $env:StateTraceDbPath = $global:StateTraceDb }
 
         $siteFilterValue = Get-SelectedSiteFilterValue -Window $Window
-        Start-ParserBackgroundJob -Window $Window -IncludeArchive $includeArchiveFlag -IncludeHistorical $includeHistoricalFlag -SiteFilter $siteFilterValue
+
+        if ($forceReloadFlag) {
+            Reset-ParserCachesForRefresh -SiteFilter $siteFilterValue
+        }
+
+        Start-ParserBackgroundJob -Window $Window -IncludeArchive $includeArchiveFlag -IncludeHistorical $includeHistoricalFlag -SiteFilter $siteFilterValue -ForceReload $forceReloadFlag
         Publish-UserActionTelemetry -Action 'ScanLogs' -Site $siteFilterValue -Hostname (Get-SelectedHostname -Window $Window) -Context 'MainWindow'
 
     } catch {
@@ -1109,6 +1260,20 @@ function Initialize-DeviceViewFromCatalog {
                 }
             } catch {}
         }
+    } catch {}
+
+    try {
+        $siteTarget = $SiteFilter
+        if (-not $siteTarget -and $hostList -and $catalog -and $catalog.Metadata) {
+            $first = $hostList | Select-Object -First 1
+            if ($first -and $catalog.Metadata.ContainsKey($first)) {
+                $meta = $catalog.Metadata[$first]
+                if ($meta -and $meta.PSObject.Properties['Site']) {
+                    $siteTarget = '' + $meta.Site
+                }
+            }
+        }
+        Set-StateTraceDbPath -Site $siteTarget
     } catch {}
 
     try { Update-DeviceFilter } catch {}
@@ -1288,6 +1453,9 @@ function Import-DeviceDetailsAsync {
     )
     $debug = ($Global:StateTraceDebug -eq $true)
     $hostTrim = ('' + $Hostname).Trim()
+    if (-not $global:StateTraceDb) {
+        try { Set-StateTraceDbPath } catch {}
+    }
     if ($debug) {
         Write-Verbose ("Import-DeviceDetailsAsync: called with Hostname='{0}'" -f $hostTrim)
     }
@@ -1335,7 +1503,7 @@ function Import-DeviceDetailsAsync {
     try {
         # Build a script string instead of passing a ScriptBlock.  Passing a string
         $scriptText = @'
-param($hn, $modulesDir, $diagPath, $moduleList)
+param($hn, $modulesDir, $diagPath, $moduleList, $dbPath)
 $diagStamp = {
     param($text)
     if (-not $diagPath) { return }
@@ -1343,6 +1511,11 @@ $diagStamp = {
         $timestamp = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss.fff')
         Add-Content -LiteralPath $diagPath -Value ("[{0}] {1}" -f $timestamp, $text) -ErrorAction SilentlyContinue
     } catch {}
+}
+$ErrorActionPreference = 'Stop'
+if (-not [string]::IsNullOrWhiteSpace($dbPath)) {
+    $global:StateTraceDb = $dbPath
+    $env:StateTraceDbPath = $dbPath
 }
 $modulesLoadedNow = $false
 if (-not $script:DeviceLoaderModulesLoaded) {
@@ -1371,6 +1544,7 @@ return $res
         [void]$ps.AddArgument($modulesDir)
         [void]$ps.AddArgument($script:DiagLogPath)
         [void]$ps.AddArgument($script:DeviceLoaderModuleNames)
+        [void]$ps.AddArgument($global:StateTraceDb)
         if ($debug) {
             Write-Verbose "Import-DeviceDetailsAsync: script and arguments added to PowerShell instance"
         }
@@ -1434,6 +1608,7 @@ return $res
                         if (-not $dto -or ($dto -is [System.Management.Automation.ErrorRecord])) {
                             if ($dto -and $dto.Exception) {
                                 Write-Warning ("Import-DeviceDetailsAsync error: {0}" -f $dto.Exception.Message)
+                                try { Write-Diag ("Import-DeviceDetailsAsync error detail | Host={0} | Error={1}" -f $deviceHost, $dto.Exception.ToString()) } catch {}
                             }
                             # Clear the interfaces grid on failure
                             if ($global:interfacesView) {

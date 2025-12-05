@@ -10,6 +10,7 @@
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
 
     <!-- Top toolbar: device selector, refresh and filtering controls -->
@@ -20,9 +21,8 @@
            locate it. -->
       <ComboBox Name="HostnameDropdown" Width="180" Margin="5,0" IsEditable="True" IsTextSearchEnabled="True" Style="{DynamicResource ToolbarComboBoxStyle}"/>
       <Button Name="RefreshButton" Content="Scan Logs" Margin="5,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+      <CheckBox Name="ForceReloadCheckbox" Content="Clear cache before scan" VerticalAlignment="Center" Margin="5,0" Style="{DynamicResource ToolbarCheckBoxStyle}" ToolTip="Clears cached interface data and ingestion history before scanning logs"/>
       <Button Name="LoadDatabaseButton" Content="Load from DB" Margin="5,0" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Load devices from the existing database without scanning logs"/>
-      <Label Name="ParserStatusText" Content="Parser idle" Margin="15,0,0,0" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
-      <Label Name="FreshnessLabel" Content="Freshness: select a site" Margin="10,0,0,0" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}" ToolTip="Displays the last ingest timestamp for the selected site."/>
       <!-- Checkbox to include archive data (most recent) -->
       <CheckBox Name="IncludeArchiveCheckbox" Content="Include archives" VerticalAlignment="Center" Margin="10,0" Style="{DynamicResource ToolbarCheckBoxStyle}"/>
       <!-- Checkbox to include historical data from archives -->
@@ -100,6 +100,13 @@
         <ContentControl Name="CompareHost"/>
       </Border>
     </Grid>
+
+    <!-- Bottom status bar: parser status and site freshness -->
+    <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="10,5" Background="{DynamicResource Theme.Toolbar.Background}" >
+      <Label Name="ParserStatusText" Content="Parser idle" Margin="0,0,10,0" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
+      <Label Name="ParserDetailText" Content="" Margin="0,0,10,0" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
+      <Label Name="FreshnessLabel" Content="Freshness: select a site" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}" ToolTip="Displays the last ingest timestamp for the selected site."/>
+    </StackPanel>
   </Grid>
 </Window>
 

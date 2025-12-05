@@ -219,6 +219,7 @@ function Update-DeviceFilter {
     $window = $global:window
     if (-not $window) { return }
     if ($script:DeviceFilterUpdating) { return }
+    if (-not (Get-Command -Name 'ViewStateService\Get-FilterSnapshot' -ErrorAction SilentlyContinue)) { return }
 
     $script:DeviceFilterUpdating = $true
     $___prevProgFlag = $global:ProgrammaticFilterUpdate
@@ -256,6 +257,12 @@ function Update-DeviceFilter {
         $buildingDD = $window.FindName('BuildingDropdown')
         $roomDD     = $window.FindName('RoomDropdown')
         $hostnameDD = $window.FindName('HostnameDropdown')
+
+        # If the window has not finished constructing these controls, bail out quietly.
+        if (-not $siteDD -or -not $zoneDD -or -not $buildingDD -or -not $roomDD -or -not $hostnameDD) {
+            Write-Verbose 'FilterStateModule: dropdown controls not available yet; skipping device filter update.' -Verbose:$true
+            return
+        }
 
         $metadata = $global:DeviceMetadata
 
