@@ -1,4 +1,6 @@
 param(
+    [ValidateSet('Quick','Full','Diag')]
+    [string]$Profile,
     [switch]$SkipTests,
     [switch]$SkipParsing,
     [string]$DatabasePath,
@@ -38,6 +40,44 @@ $sharedCacheSnapshotEnvApplied = $false
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+$profileBoundParameters = $PSBoundParameters
+function Set-ProfileSwitch {
+    param(
+        [Parameter(Mandatory)][string]$Name,
+        [Parameter(Mandatory)][bool]$Value
+    )
+    if (-not $profileBoundParameters.ContainsKey($Name)) {
+        Set-Variable -Scope Script -Name $Name -Value $Value
+    }
+}
+
+if ($Profile) {
+    switch ($Profile) {
+        'Quick' {
+            Set-ProfileSwitch -Name 'SkipTests' -Value $true
+            Set-ProfileSwitch -Name 'QuickMode' -Value $true
+            Set-ProfileSwitch -Name 'ResetExtractedLogs' -Value $true
+            Set-ProfileSwitch -Name 'SkipWarmValidation' -Value $true
+        }
+        'Full' {
+            Set-ProfileSwitch -Name 'QuickMode' -Value $false
+            Set-ProfileSwitch -Name 'ResetExtractedLogs' -Value $true
+            Set-ProfileSwitch -Name 'VerifyTelemetryCompleteness' -Value $true
+            Set-ProfileSwitch -Name 'FailOnTelemetryMissing' -Value $true
+        }
+        'Diag' {
+            Set-ProfileSwitch -Name 'QuickMode' -Value $false
+            Set-ProfileSwitch -Name 'ResetExtractedLogs' -Value $true
+            Set-ProfileSwitch -Name 'VerboseParsing' -Value $true
+            Set-ProfileSwitch -Name 'RunSharedCacheDiagnostics' -Value $true
+            Set-ProfileSwitch -Name 'ShowSharedCacheSummary' -Value $true
+            Set-ProfileSwitch -Name 'VerifyTelemetryCompleteness' -Value $true
+            Set-ProfileSwitch -Name 'FailOnTelemetryMissing' -Value $false
+            Set-ProfileSwitch -Name 'SynthesizeSchedulerTelemetryOnMissing' -Value $true
+        }
+    }
+}
 
 $skipSiteCacheGuardModule = Join-Path -Path $PSScriptRoot -ChildPath 'SkipSiteCacheUpdateGuard.psm1'
 if (-not (Test-Path -LiteralPath $skipSiteCacheGuardModule)) {
