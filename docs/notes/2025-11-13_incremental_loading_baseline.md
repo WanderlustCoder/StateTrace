@@ -161,3 +161,20 @@ Top talkers (ports committed = 50 each): `BOYO-A05-AS-02`, `BOYO-A05-AS-05`, `BO
 - Updated analyzers (`PortBatchIntervals-20251114.json`, `docs/performance/DispatcherGapCorrelation-20251114.md`, `docs/performance/PortBatchSiteGapSummary-20251114.md`, `docs/performance/WLLS_BOYO_GapTimeline-20251114.md`, `docs/performance/PortBatchSiteMix-20251114.md`) and bundled everything under `Logs/TelemetryBundles/Release-20251114/Telemetry/`.
 - Despite the balanced sweep, the site-diversity guard still fails (WLLS streak 25 vs. limit 8) and PortBatchReady-derived throughput jumps to 188 ports/min because harness sweeps execute in rapid succession. Plan D ST-D-003/ST-D-010 must now focus on smoothing the host scheduler so telemetry matches the balanced host order rather than synthetic replay bursts.
 
+### 2025-12-05 Rerun (balanced host order)
+- Reran the incremental-loading pipeline after the routing/scheduler cleanups:
+  ```powershell
+  pwsh Tools/Invoke-StateTracePipeline.ps1 `
+      -SkipTests `
+      -VerboseParsing `
+      -ResetExtractedLogs `
+      -RunSharedCacheDiagnostics
+  ```
+- Outputs:
+  - Telemetry: `Logs/IngestionMetrics/2025-12-05.json`
+  - Queue summary: `Logs/IngestionMetrics/QueueDelaySummary-2025-12-05.json` (appended to `Logs/Reports/QueueDelayHistory.csv`)
+  - Port batch summaries: `Logs/Reports/PortBatchReady-2025-12-05.json`, `Logs/Reports/PortBatchSiteDiversity-2025-12-05.json`, `Logs/Reports/PortBatchHistory.csv`
+  - Scheduler summaries: `Logs/Reports/ParserSchedulerLaunch-2025-12-05.json`, `Logs/Reports/ParserSchedulerHistory.csv`, `Logs/Reports/SchedulerVsPortDiversity-2025-12-05.json`, `docs/performance/SchedulerVsPortDiversity-2025-12-05.md`
+- InterfaceSync analyzer currently fails with a `Count` property error when the telemetry lacks InterfaceSyncTiming events; follow up to harden `Tools/Analyze-InterfaceSyncTiming.ps1` before the next sweep.
+- Site diversity now passes (max streak 1) under the balanced order; shared cache diagnostics show primary reliance on shared matches (BOYO 10/12, WLLS 24/35). Keep this run as the new baseline until the InterfaceSync analyzer is fixed.
+

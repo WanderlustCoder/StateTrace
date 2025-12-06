@@ -34,6 +34,18 @@ if (-not (Test-Path -LiteralPath $logRoot)) {
     $null = New-Item -ItemType Directory -Path $logRoot -Force
 }
 $logFile = Join-Path $logRoot ((Get-Date).ToString('yyyyMMdd-HHmmss') + '.log')
+$indexAuditReportPath = Join-Path $logRoot ((Get-Date).ToString('yyyyMMdd-HHmmss') + '-index-audit.csv')
+
+$expectedIndexes = @(
+    @{ Table = 'DeviceSummary';     Name = 'idx_devicesummary_host';          Columns = @('Hostname') },
+    @{ Table = 'Interfaces';        Name = 'idx_interfaces_host_port';       Columns = @('Hostname','Port') },
+    @{ Table = 'Interfaces';        Name = 'IX_Interfaces_Hostname';         Columns = @('Hostname') },
+    @{ Table = 'Interfaces';        Name = 'IX_Interfaces_HostnamePort';     Columns = @('Hostname','Port') },
+    @{ Table = 'InterfaceHistory';  Name = 'IX_InterfaceHistory_HostnameRunDate'; Columns = @('Hostname','RunDate') },
+    @{ Table = 'SpanInfo';          Name = 'idx_spaninfo_host_vlan';         Columns = @('Hostname','Vlan') },
+    @{ Table = 'SpanHistory';       Name = 'idx_spanhistory_host';           Columns = @('Hostname') },
+    @{ Table = 'InterfaceBulkSeed'; Name = 'IX_InterfaceBulkSeed_BatchId';   Columns = @('BatchId') }
+)
 
 function Write-Log {
     param([string]$Message)
@@ -63,10 +75,80 @@ function Compact-Database {
 
 function Audit-Indexes {
     param([string]$DbPath)
-    # NOTE: This function is a placeholder.  Implement index inspection using ADOX if desired.
-    # For now, simply log that the audit ran.
-    Write-Log "Index audit placeholder for '$DbPath'."
-    # TODO: inspect tables and produce a CSV report of missing or corrupt indexes.
+    $providers = @('Microsoft.ACE.OLEDB.12.0', 'Microsoft.Jet.OLEDB.4.0')
+    $catalog = $null
+    $connectedProvider = $null
+    foreach ($provider in $providers) {
+        try {
+            $catalog = New-Object -ComObject ADOX.Catalog
+            $catalog.ActiveConnection = "Provider=$provider;Data Source=$DbPath"
+            $connectedProvider = $provider
+            break
+        } catch {
+            if ($catalog) {
+                try { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($catalog) | Out-Null } catch { }
+                $catalog = $null
+            }
+            continue
+        }
+    }
+
+    if (-not $catalog) {
+        Write-Log "Index audit skipped for '$DbPath' (no usable provider)."
+        return
+    }
+
+    $existingByColumns = @{}
+    try {
+        foreach ($table in $catalog.Tables) {
+            $tableName = '' + $table.Name
+            foreach ($index in $table.Indexes) {
+                $cols = @()
+                foreach ($col in $index.Columns) {
+                    $cols += ('' + $col.Name)
+                }
+                $key = "{0}|{1}" -f $tableName.ToLowerInvariant(), ([string]::Join(',', ($cols | ForEach-Object { $_.ToLowerInvariant() })))
+                $existingByColumns[$key] = [pscustomobject]@{
+                    IndexName  = '' + $index.Name
+                    Table      = $tableName
+                    Columns    = $cols
+                    PrimaryKey = [bool]$index.PrimaryKey
+                    Unique     = [bool]$index.Unique
+                }
+            }
+        }
+    } catch {
+        Write-Log "Index audit failed for '$DbPath': $_"
+        try { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($catalog) | Out-Null } catch { }
+        return
+    }
+
+    $missing = @()
+    foreach ($expected in $expectedIndexes) {
+        $key = "{0}|{1}" -f $expected.Table.ToLowerInvariant(), ([string]::Join(',', ($expected.Columns | ForEach-Object { $_.ToLowerInvariant() })))
+        if (-not $existingByColumns.ContainsKey($key)) {
+            $missing += [pscustomobject]@{
+                Database        = $DbPath
+                Table           = $expected.Table
+                ExpectedIndex   = $expected.Name
+                ExpectedColumns = [string]::Join(',', $expected.Columns)
+                Status          = 'Missing'
+            }
+        }
+    }
+
+    if ($missing.Count -eq 0) {
+        Write-Log "Index audit passed for '$DbPath' using provider '$connectedProvider'."
+    } else {
+        Write-Log ("Index audit found {0} missing indexes for '{1}'." -f $missing.Count, $DbPath)
+        if (-not (Test-Path -LiteralPath $indexAuditReportPath)) {
+            $missing | Export-Csv -Path $indexAuditReportPath -NoTypeInformation
+        } else {
+            $missing | Export-Csv -Path $indexAuditReportPath -NoTypeInformation -Append
+        }
+    }
+
+    try { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($catalog) | Out-Null } catch { }
 }
 
 Get-ChildItem -Path $DataRoot -Filter '*.accdb' -Recurse | ForEach-Object {
