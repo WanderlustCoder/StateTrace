@@ -175,6 +175,14 @@ Top talkers (ports committed = 50 each): `BOYO-A05-AS-02`, `BOYO-A05-AS-05`, `BO
   - Queue summary: `Logs/IngestionMetrics/QueueDelaySummary-2025-12-05.json` (appended to `Logs/Reports/QueueDelayHistory.csv`)
   - Port batch summaries: `Logs/Reports/PortBatchReady-2025-12-05.json`, `Logs/Reports/PortBatchSiteDiversity-2025-12-05.json`, `Logs/Reports/PortBatchHistory.csv`
   - Scheduler summaries: `Logs/Reports/ParserSchedulerLaunch-2025-12-05.json`, `Logs/Reports/ParserSchedulerHistory.csv`, `Logs/Reports/SchedulerVsPortDiversity-2025-12-05.json`, `docs/performance/SchedulerVsPortDiversity-2025-12-05.md`
+  - Bundle: copied all of the above to `Logs/TelemetryBundles/Release-2025-12-05/Telemetry` for the current baseline.
 - InterfaceSync analyzer currently fails with a `Count` property error when the telemetry lacks InterfaceSyncTiming events; follow up to harden `Tools/Analyze-InterfaceSyncTiming.ps1` before the next sweep.
 - Site diversity now passes (max streak 1) under the balanced order; shared cache diagnostics show primary reliance on shared matches (BOYO 10/12, WLLS 24/35). Keep this run as the new baseline until the InterfaceSync analyzer is fixed.
+
+### Planned refactors to reduce duplication (tracking)
+- Shared cache plumbing: consolidate snapshot export/import/store init between `DeviceRepository.Cache.psm1` and `ParserPersistenceModule.psm1` into a common helper to eliminate divergent code paths.
+- Analyzer stats: extract percentile/empty-set handling into a shared stats module and import it in `Tools/Analyze-InterfaceSyncTiming.ps1`, `Analyze-PortBatch*`, `Generate-QueueDelaySummary.ps1`, etc.
+- Pipeline presets: introduce named profiles (Quick/Full/Diag) in `Tools/Invoke-StateTracePipeline.ps1` to replace multiple switch combinations and reduce guard duplication.
+- Index expectations: centralize expected Access index definitions so `Modules/DatabaseModule.psm1`, `ParserPersistenceModule.psm1`, and `Tools/Maintain-AccessDatabases.ps1` consume the same list.
+- Port normalization: unify port sort/normalization helpers between `InterfaceModule` and `DeviceRepositoryModule` to avoid parallel implementations.
 
