@@ -186,3 +186,9 @@ Top talkers (ports committed = 50 each): `BOYO-A05-AS-02`, `BOYO-A05-AS-05`, `BO
 - Index expectations: centralize expected Access index definitions so `Modules/DatabaseModule.psm1`, `ParserPersistenceModule.psm1`, and `Tools/Maintain-AccessDatabases.ps1` consume the same list.
 - Port normalization: unify port sort/normalization helpers between `InterfaceModule` and `DeviceRepositoryModule` to avoid parallel implementations.
 
+### Port normalization unification plan
+- Build a shared helper (`Modules/PortNormalization.psm1`) that captures the full InterfaceModule behavior: compiled regex options, type/number regexes, normalization rules (including MGMT/PO/LO/VL), and type weights.
+- Update InterfaceModule to import the helper and drop its duplicated cache/normalization initialization while keeping existing weights/rules intact.
+- Update DeviceRepositoryModule to import the same helper and rely on it for port sort keys so both modules share one implementation.
+- Validate with `Invoke-Pester Modules/Tests` and a quick parse smoke test to confirm PortSort values remain stable.
+
