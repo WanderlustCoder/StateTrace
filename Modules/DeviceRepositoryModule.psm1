@@ -13,6 +13,16 @@ if (-not (Get-Variable -Scope Script -Name DataDirPath -ErrorAction SilentlyCont
     $script:DataDirPath = Join-Path $rootPath 'Data'
 }
 
+# Import shared port normalization (delegates to InterfaceModule) so consumers can reuse the same port sort key helper.
+try {
+    $portNormPath = Join-Path $PSScriptRoot 'PortNormalization.psm1'
+    if (Test-Path -LiteralPath $portNormPath) {
+        Import-Module -Name $portNormPath -Force -ErrorAction Stop
+    }
+} catch {
+    Write-Verbose ("[DeviceRepositoryModule] PortNormalization not loaded: {0}" -f $_.Exception.Message)
+}
+
 # Load shared cache module (decomposition target) so downstream calls can delegate.
 if (-not (Get-Module -Name 'DeviceRepository.Cache')) {
     try {
