@@ -191,4 +191,9 @@ Top talkers (ports committed = 50 each): `BOYO-A05-AS-02`, `BOYO-A05-AS-05`, `BO
 - Update InterfaceModule to import the helper and drop its duplicated cache/normalization initialization while keeping existing weights/rules intact.
 - Update DeviceRepositoryModule to import the same helper and rely on it for port sort keys so both modules share one implementation.
 - Validate with `Invoke-Pester Modules/Tests` and a quick parse smoke test to confirm PortSort values remain stable.
+- Implementation steps (to do):
+  1) Expand `PortNormalization.psm1` with InterfaceModule’s full regex setup, normalization rules (MGMT/PO/LO/VL), type weights, cache stats, and `Get-PortSortKey`/`Get-PortSortCacheStatistics`.
+  2) Refactor InterfaceModule to import the helper and remove its local PortSort init (retain all usage/behavior).
+  3) Import the helper in DeviceRepositoryModule; keep calls to `InterfaceModule\Get-PortSortKey` or switch to the shared export if names match.
+  4) Validate via `Invoke-Pester Modules/Tests` + a parser smoke run to ensure PortSort stability.
 
