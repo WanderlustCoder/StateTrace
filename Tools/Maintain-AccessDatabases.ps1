@@ -36,16 +36,12 @@ if (-not (Test-Path -LiteralPath $logRoot)) {
 $logFile = Join-Path $logRoot ((Get-Date).ToString('yyyyMMdd-HHmmss') + '.log')
 $indexAuditReportPath = Join-Path $logRoot ((Get-Date).ToString('yyyyMMdd-HHmmss') + '-index-audit.csv')
 
-$expectedIndexes = @(
-    @{ Table = 'DeviceSummary';     Name = 'idx_devicesummary_host';          Columns = @('Hostname') },
-    @{ Table = 'Interfaces';        Name = 'idx_interfaces_host_port';       Columns = @('Hostname','Port') },
-    @{ Table = 'Interfaces';        Name = 'IX_Interfaces_Hostname';         Columns = @('Hostname') },
-    @{ Table = 'Interfaces';        Name = 'IX_Interfaces_HostnamePort';     Columns = @('Hostname','Port') },
-    @{ Table = 'InterfaceHistory';  Name = 'IX_InterfaceHistory_HostnameRunDate'; Columns = @('Hostname','RunDate') },
-    @{ Table = 'SpanInfo';          Name = 'idx_spaninfo_host_vlan';         Columns = @('Hostname','Vlan') },
-    @{ Table = 'SpanHistory';       Name = 'idx_spanhistory_host';           Columns = @('Hostname') },
-    @{ Table = 'InterfaceBulkSeed'; Name = 'IX_InterfaceBulkSeed_BatchId';   Columns = @('BatchId') }
-)
+$indexModulePath = Join-Path -Path $PSScriptRoot -ChildPath '..\Modules\DatabaseIndexes.psm1'
+if (Test-Path -LiteralPath $indexModulePath) {
+    Import-Module -Name $indexModulePath -Force
+} else {
+    throw "Database index definitions module not found at '$indexModulePath'."
+}
 
 function Write-Log {
     param([string]$Message)
@@ -124,6 +120,7 @@ function Audit-Indexes {
     }
 
     $missing = @()
+    $expectedIndexes = Get-StateTraceIndexDefinitions
     foreach ($expected in $expectedIndexes) {
         $key = "{0}|{1}" -f $expected.Table.ToLowerInvariant(), ([string]::Join(',', ($expected.Columns | ForEach-Object { $_.ToLowerInvariant() })))
         if (-not $existingByColumns.ContainsKey($key)) {

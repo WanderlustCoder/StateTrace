@@ -3,11 +3,11 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$Path,
 
-    [string]$OutputPath,
+[string]$OutputPath,
 
-    [int]$TopHosts = 10,
+[int]$TopHosts = 10,
 
-    [switch]$PassThru
+[switch]$PassThru
 )
 
 <#
@@ -30,6 +30,13 @@ pwsh Tools\Analyze-InterfaceSyncTiming.ps1 `
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+$statsModulePath = Join-Path -Path $PSScriptRoot -ChildPath 'AnalyzerStats.psm1'
+if (Test-Path -LiteralPath $statsModulePath) {
+    Import-Module -Name $statsModulePath -Force
+} else {
+    throw "AnalyzerStats module not found at '$statsModulePath'."
+}
+
 function Resolve-InputFiles {
     param([string]$InputPath)
     if (-not (Test-Path -LiteralPath $InputPath)) {
@@ -42,38 +49,6 @@ function Resolve-InputFiles {
         return $files.FullName
     }
     return @($item.FullName)
-}
-
-function Convert-ToStats {
-    param(
-        [double[]]$Values,
-        [string]$Name
-    )
-    # Normalize to an array to keep singletons from being unrolled during Sort-Object
-    $normalized = @($Values | Where-Object { $_ -ne $null })
-    if (-not $normalized -or $normalized.Count -eq 0) {
-        return [pscustomobject]@{ Name=$Name; Count=0; Average=$null; P50=$null; P95=$null; Max=$null }
-    }
-    $sorted = @($normalized | Sort-Object)
-    $count = $sorted.Count
-    $avg = ($sorted | Measure-Object -Average).Average
-    $max = $sorted[-1]
-    function Get-Pct($arr,[double]$percent) {
-        $rank = ($percent/100.0)*($arr.Length-1)
-        $lower=[math]::Floor($rank)
-        $upper=[math]::Ceiling($rank)
-        if ($lower -eq $upper) { return $arr[$lower] }
-        $weight=$rank-$lower
-        return $arr[$lower]+($weight*($arr[$upper]-$arr[$lower]))
-    }
-    return [pscustomobject]@{
-        Name    = $Name
-        Count   = $count
-        Average = [math]::Round($avg,3)
-        P50     = [math]::Round((Get-Pct $sorted 50),3)
-        P95     = [math]::Round((Get-Pct $sorted 95),3)
-        Max     = [math]::Round($max,3)
-    }
 }
 
 $files = Resolve-InputFiles -InputPath $Path
@@ -112,10 +87,10 @@ if ($events.Count -eq 0) {
         FilesAnalyzed    = $files
         EventCount       = 0
         GlobalStats      = [pscustomobject]@{
-            UiClone         = Convert-ToStats -Values $null -Name 'UiCloneDurationMs'
-            StreamDispatch  = Convert-ToStats -Values $null -Name 'StreamDispatchDurationMs'
-            DiffDuration    = Convert-ToStats -Values $null -Name 'DiffDurationMs'
-            SiteCacheUpdate = Convert-ToStats -Values $null -Name 'SiteCacheUpdateDurationMs'
+            UiClone         = New-StatsSummary -Values $null -Name 'UiCloneDurationMs'
+            StreamDispatch  = New-StatsSummary -Values $null -Name 'StreamDispatchDurationMs'
+            DiffDuration    = New-StatsSummary -Values $null -Name 'DiffDurationMs'
+            SiteCacheUpdate = New-StatsSummary -Values $null -Name 'SiteCacheUpdateDurationMs'
         }
         SiteBreakdown    = @()
         HostBreakdownTop = @()
@@ -138,10 +113,10 @@ $diffValues = $events | Where-Object { $_.DiffDuration -ge 0 } | ForEach-Object 
 $siteCacheValues = $events | Where-Object { $_.SiteCacheUpdate -ge 0 } | ForEach-Object { $_.SiteCacheUpdate }
 
 $globalStats = [pscustomobject]@{
-    UiClone        = Convert-ToStats -Values ([double[]]$uiCloneValues) -Name 'UiCloneDurationMs'
-    StreamDispatch = Convert-ToStats -Values ([double[]]$dispatchValues) -Name 'StreamDispatchDurationMs'
-    DiffDuration   = Convert-ToStats -Values ([double[]]$diffValues) -Name 'DiffDurationMs'
-    SiteCacheUpdate = Convert-ToStats -Values ([double[]]$siteCacheValues) -Name 'SiteCacheUpdateDurationMs'
+    UiClone        = New-StatsSummary -Values ([double[]]$uiCloneValues) -Name 'UiCloneDurationMs'
+    StreamDispatch = New-StatsSummary -Values ([double[]]$dispatchValues) -Name 'StreamDispatchDurationMs'
+    DiffDuration   = New-StatsSummary -Values ([double[]]$diffValues) -Name 'DiffDurationMs'
+    SiteCacheUpdate = New-StatsSummary -Values ([double[]]$siteCacheValues) -Name 'SiteCacheUpdateDurationMs'
 }
 
 $siteGroups = $events | Group-Object Site
@@ -152,9 +127,9 @@ $siteBreakdown = foreach ($group in $siteGroups) {
     [pscustomobject]@{
         Site             = $group.Name
         EventCount       = $group.Count
-        UiCloneP95       = (Convert-ToStats -Values ([double[]]$siteUi) -Name 'UiClone').P95
-        StreamDispatchP95 = (Convert-ToStats -Values ([double[]]$siteDispatch) -Name 'StreamDispatch').P95
-        DiffDurationP95  = (Convert-ToStats -Values ([double[]]$siteDiff) -Name 'DiffDuration').P95
+        UiCloneP95       = (New-StatsSummary -Values ([double[]]$siteUi) -Name 'UiClone').P95
+        StreamDispatchP95 = (New-StatsSummary -Values ([double[]]$siteDispatch) -Name 'StreamDispatch').P95
+        DiffDurationP95  = (New-StatsSummary -Values ([double[]]$siteDiff) -Name 'DiffDuration').P95
     }
 }
 
@@ -162,8 +137,8 @@ $hostAgg = $events | Group-Object Host | ForEach-Object {
     [pscustomobject]@{
         Host             = $_.Name
         EventCount       = $_.Count
-        UiCloneP95       = (Convert-ToStats -Values ([double[]]($_.Group | ForEach-Object { $_.UiClone })) -Name 'UiClone').P95
-        StreamDispatchP95 = (Convert-ToStats -Values ([double[]]($_.Group | ForEach-Object { $_.StreamDispatch })) -Name 'StreamDispatch').P95
+        UiCloneP95       = (New-StatsSummary -Values ([double[]]($_.Group | ForEach-Object { $_.UiClone })) -Name 'UiClone').P95
+        StreamDispatchP95 = (New-StatsSummary -Values ([double[]]($_.Group | ForEach-Object { $_.StreamDispatch })) -Name 'StreamDispatch').P95
     }
 } | Sort-Object UiCloneP95 -Descending
 

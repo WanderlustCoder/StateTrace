@@ -30,6 +30,13 @@ pwsh Tools\Analyze-PortBatchReadyTelemetry.ps1 -Path Logs\IngestionMetrics\2025-
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+$statsModulePath = Join-Path -Path $PSScriptRoot -ChildPath 'AnalyzerStats.psm1'
+if (Test-Path -LiteralPath $statsModulePath) {
+    Import-Module -Name $statsModulePath -Force
+} else {
+    throw "AnalyzerStats module not found at '$statsModulePath'."
+}
+
 function Get-TargetFiles {
     param([string]$InputPath)
     if (-not (Test-Path -LiteralPath $InputPath)) {
@@ -50,50 +57,6 @@ function Get-TargetFiles {
     }
     else {
         throw "Unsupported path type for '$InputPath'."
-    }
-}
-
-function Get-Percentile {
-    param(
-        [double[]]$Values,
-        [double]$Percent
-    )
-    if (-not $Values -or $Values.Count -eq 0) { return $null }
-    $sorted = $Values | Sort-Object
-    $rank = ($Percent / 100.0) * ($sorted.Count - 1)
-    $lowerIndex = [math]::Floor($rank)
-    $upperIndex = [math]::Ceiling($rank)
-    if ($lowerIndex -eq $upperIndex) {
-        return $sorted[$lowerIndex]
-    }
-    $weight = $rank - $lowerIndex
-    return $sorted[$lowerIndex] + ($weight * ($sorted[$upperIndex] - $sorted[$lowerIndex]))
-}
-
-function Convert-ToStatObject {
-    param(
-        [double[]]$Values,
-        [string]$Name
-    )
-    if (-not $Values -or $Values.Count -eq 0) {
-        return [pscustomobject]@{
-            Name = $Name
-            Count = 0
-            Average = $null
-            P50 = $null
-            P95 = $null
-            Max = $null
-        }
-    }
-
-    $sorted = $Values | Sort-Object
-    return [pscustomobject]@{
-        Name    = $Name
-        Count   = $sorted.Count
-        Average = [math]::Round(($sorted | Measure-Object -Average).Average, 3)
-        P50     = [math]::Round((Get-Percentile -Values $sorted -Percent 50), 3)
-        P95     = [math]::Round((Get-Percentile -Values $sorted -Percent 95), 3)
-        Max     = [math]::Round($sorted[-1], 3)
     }
 }
 
@@ -180,10 +143,10 @@ if ($timestamps.Count -ge 2) {
 
 $avgPortsPerBatch = if ($portEventCount -gt 0) { [math]::Round($totalPorts / $portEventCount, 3) } else { $null }
 $avgChunkSize = if ($portEventCount -gt 0) { [math]::Round($totalChunk / $portEventCount, 3) } else { $null }
-$batchIntervalSummary = Convert-ToStatObject -Values ([double[]]$batchIntervals) -Name 'BatchIntervalMs'
-$uiCloneSummary = Convert-ToStatObject -Values ([double[]]$uiCloneDurations) -Name 'UiCloneDurationMs'
-$streamDispatchSummary = Convert-ToStatObject -Values ([double[]]$streamDispatchDurations) -Name 'StreamDispatchDurationMs'
-$diffSummary = Convert-ToStatObject -Values ([double[]]$diffDurations) -Name 'DiffDurationMs'
+$batchIntervalSummary = New-StatsSummary -Values ([double[]]$batchIntervals) -Name 'BatchIntervalMs' -Percentiles @(50,95)
+$uiCloneSummary = New-StatsSummary -Values ([double[]]$uiCloneDurations) -Name 'UiCloneDurationMs' -Percentiles @(50,95)
+$streamDispatchSummary = New-StatsSummary -Values ([double[]]$streamDispatchDurations) -Name 'StreamDispatchDurationMs' -Percentiles @(50,95)
+$diffSummary = New-StatsSummary -Values ([double[]]$diffDurations) -Name 'DiffDurationMs' -Percentiles @(50,95)
 
 $hostBreakdown = $null
 if ($IncludeHostBreakdown -and $hostStats.Count -gt 0) {

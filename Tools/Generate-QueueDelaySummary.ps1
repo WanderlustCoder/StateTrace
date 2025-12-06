@@ -31,25 +31,15 @@ pwsh Tools\Generate-QueueDelaySummary.ps1 `
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-if (-not (Test-Path -LiteralPath $MetricsPath)) {
-    throw "Metrics file '$MetricsPath' does not exist."
+$statsModulePath = Join-Path -Path $PSScriptRoot -ChildPath 'AnalyzerStats.psm1'
+if (Test-Path -LiteralPath $statsModulePath) {
+    Import-Module -Name $statsModulePath -Force
+} else {
+    throw "AnalyzerStats module not found at '$statsModulePath'."
 }
 
-function Get-Percentile {
-    param(
-        [double[]]$Values,
-        [double]$Percentile
-    )
-    if (-not $Values -or $Values.Count -eq 0) { return 0 }
-    $sorted = $Values | Sort-Object
-    $position = ($Percentile / 100.0) * ($sorted.Count - 1)
-    $lowerIndex = [math]::Floor($position)
-    $upperIndex = [math]::Ceiling($position)
-    if ($lowerIndex -eq $upperIndex) {
-        return $sorted[$lowerIndex]
-    }
-    $weight = $position - $lowerIndex
-    return $sorted[$lowerIndex] + ($weight * ($sorted[$upperIndex] - $sorted[$lowerIndex]))
+if (-not (Test-Path -LiteralPath $MetricsPath)) {
+    throw "Metrics file '$MetricsPath' does not exist."
 }
 
 $delaySamples = New-Object System.Collections.Generic.List[double]
@@ -77,22 +67,9 @@ if ($delaySamples.Count -lt $MinimumEventCount) {
     throw ("Queue delay summary requires at least {0} sample(s); found {1} in '{2}'." -f $MinimumEventCount, $delaySamples.Count, $MetricsPath)
 }
 
-function New-StatisticObject {
-    param([System.Collections.Generic.List[double]]$Samples)
-    $avg = if ($Samples.Count -gt 0) { ($Samples | Measure-Object -Average).Average } else { 0 }
-    return [pscustomobject]@{
-        SampleCount = $Samples.Count
-        Average     = [math]::Round($avg, 6)
-        P95         = [math]::Round((Get-Percentile -Values $Samples -Percentile 95), 6)
-        P99         = [math]::Round((Get-Percentile -Values $Samples -Percentile 99), 6)
-        Min         = [math]::Round(($Samples | Measure-Object -Minimum).Minimum, 6)
-        Max         = [math]::Round(($Samples | Measure-Object -Maximum).Maximum, 6)
-    }
-}
-
-$delayStats = New-StatisticObject -Samples $delaySamples
+$delayStats = New-StatsSummary -Values $delaySamples -Name 'QueueBuildDelayMs' -Percentiles @(50,95,99)
 $durationStats = if ($durationSamples.Count -gt 0) {
-    New-StatisticObject -Samples $durationSamples
+    New-StatsSummary -Values $durationSamples -Name 'QueueBuildDurationMs' -Percentiles @(50,95,99)
 } else {
     $null
 }
