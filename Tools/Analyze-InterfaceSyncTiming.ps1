@@ -49,10 +49,12 @@ function Convert-ToStats {
         [double[]]$Values,
         [string]$Name
     )
-    if (-not $Values -or $Values.Count -eq 0) {
+    # Normalize to an array to keep singletons from being unrolled during Sort-Object
+    $normalized = @($Values | Where-Object { $_ -ne $null })
+    if (-not $normalized -or $normalized.Count -eq 0) {
         return [pscustomobject]@{ Name=$Name; Count=0; Average=$null; P50=$null; P95=$null; Max=$null }
     }
-    $sorted = $Values | Sort-Object
+    $sorted = @($normalized | Sort-Object)
     $count = $sorted.Count
     $avg = ($sorted | Measure-Object -Average).Average
     $max = $sorted[-1]
@@ -103,7 +105,31 @@ foreach ($file in $files) {
 }
 
 if ($events.Count -eq 0) {
-    throw "No InterfaceSyncTiming events found in the supplied files."
+    $warningMsg = "No InterfaceSyncTiming events found in the supplied files."
+    Write-Warning $warningMsg
+    $emptyResult = [pscustomobject]@{
+        GeneratedAtUtc   = (Get-Date).ToUniversalTime().ToString('o')
+        FilesAnalyzed    = $files
+        EventCount       = 0
+        GlobalStats      = [pscustomobject]@{
+            UiClone         = Convert-ToStats -Values $null -Name 'UiCloneDurationMs'
+            StreamDispatch  = Convert-ToStats -Values $null -Name 'StreamDispatchDurationMs'
+            DiffDuration    = Convert-ToStats -Values $null -Name 'DiffDurationMs'
+            SiteCacheUpdate = Convert-ToStats -Values $null -Name 'SiteCacheUpdateDurationMs'
+        }
+        SiteBreakdown    = @()
+        HostBreakdownTop = @()
+    }
+    if ($OutputPath) {
+        $outputDir = Split-Path -Path $OutputPath -Parent
+        if ($outputDir -and -not (Test-Path -LiteralPath $outputDir)) {
+            New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
+        }
+        $emptyResult | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $OutputPath -Encoding utf8
+        Write-Warning ("Wrote empty InterfaceSyncTiming summary to {0}" -f (Resolve-Path -LiteralPath $OutputPath))
+    }
+    if ($PassThru) { return $emptyResult }
+    return
 }
 
 $uiCloneValues = $events | Where-Object { $_.UiClone -ge 0 } | ForEach-Object { $_.UiClone }
