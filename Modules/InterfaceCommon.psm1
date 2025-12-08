@@ -45,10 +45,20 @@ function Ensure-PortRowDefaults {
     } catch { }
 }
 
+function Set-PortRowDefaults {
+    [CmdletBinding()]
+    param(
+        $Row,
+        [string]$Hostname
+    )
+
+    return (Ensure-PortRowDefaults -Row $Row -Hostname $Hostname)
+}
+
 function Get-PortSortFallbackKey {
     [CmdletBinding()]
     param()
     return $script:PortSortFallbackKey
 }
 
-Export-ModuleMember -Function Get-StringPropertyValue, Ensure-PortRowDefaults, Get-PortSortFallbackKey
+Export-ModuleMember -Function Get-StringPropertyValue, Set-PortRowDefaults, Get-PortSortFallbackKey

@@ -3800,8 +3800,8 @@ function Ensure-PortRowDefaults {
     if ($null -eq $Row) { return }
 
     try {
-        if (Get-Command -Name 'InterfaceCommon\Ensure-PortRowDefaults' -ErrorAction SilentlyContinue) {
-            InterfaceCommon\Ensure-PortRowDefaults -Row $Row -Hostname $Hostname
+        if (Get-Command -Name 'InterfaceCommon\Set-PortRowDefaults' -ErrorAction SilentlyContinue) {
+            InterfaceCommon\Set-PortRowDefaults -Row $Row -Hostname $Hostname
             return
         }
     } catch { }
