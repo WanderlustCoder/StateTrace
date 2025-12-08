@@ -22,6 +22,13 @@ if (-not (Get-Variable -Scope Global -Name ProgrammaticFilterUpdate -ErrorAction
     $global:ProgrammaticFilterUpdate = $false
 }
 
+if (-not (Get-Module -Name 'InterfaceCommon' -ErrorAction SilentlyContinue)) {
+    $interfaceCommonPath = Join-Path $PSScriptRoot 'InterfaceCommon.psm1'
+    if (Test-Path -LiteralPath $interfaceCommonPath) {
+        try { Import-Module -Name $interfaceCommonPath -Force -Global -ErrorAction SilentlyContinue | Out-Null } catch { }
+    }
+}
+
 function Test-StringListEqualCI {
     param([System.Collections.IEnumerable]$A, [System.Collections.IEnumerable]$B)
     $la = @($A); $lb = @($B)
@@ -189,8 +196,8 @@ function Initialize-DeviceFilters {
                 $key = '' + $entry.Key
                 if ([string]::IsNullOrWhiteSpace($key)) { continue }
                 if (-not $hostList.Contains($key)) { [void]$hostList.Add($key) }
-            }
         }
+    }
         Set-DropdownItems -Control $hostnameDD -Items $hostList
     }
 
