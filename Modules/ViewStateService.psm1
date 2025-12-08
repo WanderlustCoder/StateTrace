@@ -5,6 +5,13 @@ if (-not (Get-Variable -Scope Script -Name CachedSite -ErrorAction SilentlyConti
     $script:CachedZoneSelection = $null
     $script:CachedZoneLoad = $null
 }
+
+if (-not (Get-Module -Name 'InterfaceCommon' -ErrorAction SilentlyContinue)) {
+    $interfaceCommonPath = Join-Path $PSScriptRoot 'InterfaceCommon.psm1'
+    if (Test-Path -LiteralPath $interfaceCommonPath) {
+        try { Import-Module -Name $interfaceCommonPath -Force -Global -ErrorAction SilentlyContinue | Out-Null } catch { }
+    }
+}
 function Get-SequenceCount {
     param([object]$Value)
 
@@ -163,12 +170,22 @@ function Get-InterfacesForContext {
     foreach ($row in $interfaces) {
         if (-not $row) { continue }
 
-        $hostnameValue = ''
-        if ($row.PSObject.Properties['Hostname']) { $hostnameValue = '' + $row.Hostname }
+        $hostnameValue = if (Get-Command -Name 'InterfaceCommon\Get-StringPropertyValue' -ErrorAction SilentlyContinue) {
+            InterfaceCommon\Get-StringPropertyValue -InputObject $row -PropertyNames @('Hostname')
+        } else {
+            ''
+        }
+        if (-not $hostnameValue) {
+            try {
+                if ($row.PSObject.Properties['Hostname']) { $hostnameValue = '' + $row.Hostname }
+            } catch { $hostnameValue = '' }
+        }
 
         if ($siteFilter) {
-            $siteValue = ''
-            if ($row.PSObject.Properties['Site']) { $siteValue = '' + $row.Site }
+            $siteValue = if (Get-Command -Name 'InterfaceCommon\Get-StringPropertyValue' -ErrorAction SilentlyContinue) {
+                InterfaceCommon\Get-StringPropertyValue -InputObject $row -PropertyNames @('Site')
+            } else { '' }
+            if ([string]::IsNullOrWhiteSpace($siteValue) -and $row.PSObject.Properties['Site']) { $siteValue = '' + $row.Site }
             if ([string]::IsNullOrWhiteSpace($siteValue) -and $hostnameValue) {
                 try { $siteValue = DeviceRepositoryModule\Get-SiteFromHostname -Hostname $hostnameValue } catch { $siteValue = '' }
                 if ([string]::IsNullOrWhiteSpace($siteValue)) {
@@ -189,8 +206,10 @@ function Get-InterfacesForContext {
         }
 
         if ($zoneFilter) {
-            $zoneValue = ''
-            if ($row.PSObject.Properties['Zone']) { $zoneValue = '' + $row.Zone }
+            $zoneValue = if (Get-Command -Name 'InterfaceCommon\Get-StringPropertyValue' -ErrorAction SilentlyContinue) {
+                InterfaceCommon\Get-StringPropertyValue -InputObject $row -PropertyNames @('Zone')
+            } else { '' }
+            if ([string]::IsNullOrWhiteSpace($zoneValue) -and $row.PSObject.Properties['Zone']) { $zoneValue = '' + $row.Zone }
             if ([string]::IsNullOrWhiteSpace($zoneValue) -and $hostnameValue) {
                 try {
                     $partsZone = $hostnameValue -split '-', 3
@@ -208,14 +227,18 @@ function Get-InterfacesForContext {
         }
 
         if ($buildingFilter) {
-            $bldValue = ''
-            if ($row.PSObject.Properties['Building']) { $bldValue = '' + $row.Building }
+            $bldValue = if (Get-Command -Name 'InterfaceCommon\Get-StringPropertyValue' -ErrorAction SilentlyContinue) {
+                InterfaceCommon\Get-StringPropertyValue -InputObject $row -PropertyNames @('Building')
+            } else { '' }
+            if ([string]::IsNullOrWhiteSpace($bldValue) -and $row.PSObject.Properties['Building']) { $bldValue = '' + $row.Building }
             if (-not [string]::Equals($bldValue, $buildingFilter, [System.StringComparison]::OrdinalIgnoreCase)) { continue }
         }
 
         if ($roomFilter) {
-            $roomValue = ''
-            if ($row.PSObject.Properties['Room']) { $roomValue = '' + $row.Room }
+            $roomValue = if (Get-Command -Name 'InterfaceCommon\Get-StringPropertyValue' -ErrorAction SilentlyContinue) {
+                InterfaceCommon\Get-StringPropertyValue -InputObject $row -PropertyNames @('Room')
+            } else { '' }
+            if ([string]::IsNullOrWhiteSpace($roomValue) -and $row.PSObject.Properties['Room']) { $roomValue = '' + $row.Room }
             if (-not [string]::Equals($roomValue, $roomFilter, [System.StringComparison]::OrdinalIgnoreCase)) { continue }
         }
 
@@ -251,14 +274,14 @@ function Get-FilterSnapshot {
             if ([string]::IsNullOrWhiteSpace($hostname)) { continue }
 
             $meta = $entry.Value
-            $siteValue = ''
-            if ($meta -and $meta.PSObject.Properties['Site']) { $siteValue = '' + $meta.Site }
+            $siteValue = if (Get-Command -Name 'InterfaceCommon\Get-StringPropertyValue' -ErrorAction SilentlyContinue) {
+                InterfaceCommon\Get-StringPropertyValue -InputObject $meta -PropertyNames @('Site')
+            } else { '' }
             if (-not [string]::IsNullOrWhiteSpace($siteValue)) { [void]$siteSet.Add($siteValue) }
 
-            $zoneValue = ''
-            if ($meta -and $meta.PSObject.Properties['Zone']) {
-                $zoneValue = '' + $meta.Zone
-            }
+            $zoneValue = if (Get-Command -Name 'InterfaceCommon\Get-StringPropertyValue' -ErrorAction SilentlyContinue) {
+                InterfaceCommon\Get-StringPropertyValue -InputObject $meta -PropertyNames @('Zone')
+            } else { '' }
             if ([string]::IsNullOrWhiteSpace($zoneValue)) {
                 try {
                     $parts = $hostname -split '-'
@@ -266,11 +289,13 @@ function Get-FilterSnapshot {
                 } catch { $zoneValue = '' }
             }
 
-            $buildingValue = ''
-            if ($meta -and $meta.PSObject.Properties['Building']) { $buildingValue = '' + $meta.Building }
+            $buildingValue = if (Get-Command -Name 'InterfaceCommon\Get-StringPropertyValue' -ErrorAction SilentlyContinue) {
+                InterfaceCommon\Get-StringPropertyValue -InputObject $meta -PropertyNames @('Building')
+            } else { '' }
 
-            $roomValue = ''
-            if ($meta -and $meta.PSObject.Properties['Room']) { $roomValue = '' + $meta.Room }
+            $roomValue = if (Get-Command -Name 'InterfaceCommon\Get-StringPropertyValue' -ErrorAction SilentlyContinue) {
+                InterfaceCommon\Get-StringPropertyValue -InputObject $meta -PropertyNames @('Room')
+            } else { '' }
 
             $siteMatches = (-not $siteFilter) -or [System.StringComparer]::OrdinalIgnoreCase.Equals($siteValue, $siteFilter)
             $zoneMatches = (-not $zoneFilter) -or [System.StringComparer]::OrdinalIgnoreCase.Equals($zoneValue, $zoneFilter)
