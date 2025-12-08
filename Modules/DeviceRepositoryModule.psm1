@@ -40,10 +40,6 @@ if (-not (Get-Module -Name 'DeviceRepository.Cache')) {
     }
 }
 
-if (-not (Get-Variable -Scope Script -Name PortSortFallbackKey -ErrorAction SilentlyContinue)) {
-    $script:PortSortFallbackKey = '99-UNK-99999-99999-99999-99999-99999'
-}
-
 if (-not (Get-Variable -Scope Script -Name SiteInterfaceCache -ErrorAction SilentlyContinue)) {
     $script:SiteInterfaceCache = @{}
 }
