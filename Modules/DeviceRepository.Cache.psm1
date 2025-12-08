@@ -245,7 +245,7 @@ function Ensure-SharedSiteInterfaceCacheSnapshotImported {
         [switch]$Force
     )
 
-    Write-Warning "Ensure-SharedSiteInterfaceCacheSnapshotImported is deprecated; use Import-SharedSiteInterfaceCacheSnapshot instead." -WarningAction SilentlyContinue
+    Write-Verbose "Ensure-SharedSiteInterfaceCacheSnapshotImported is deprecated; use Import-SharedSiteInterfaceCacheSnapshot instead."
     return (Import-SharedSiteInterfaceCacheSnapshot -Store $Store -Force:$Force.IsPresent)
 }
 
