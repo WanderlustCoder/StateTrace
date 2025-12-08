@@ -158,13 +158,15 @@ function Update-Summary {
     foreach ($row in $interfaces) {
         if (-not $row) { continue }
         try {
-            if (-not $row.PSObject.Properties['Hostname']) {
-                $row | Add-Member -NotePropertyName Hostname -NotePropertyValue ('' + $row.Hostname) -ErrorAction SilentlyContinue
-            }
-        } catch {}
-        try {
-            if (-not $row.PSObject.Properties['IsSelected']) {
-                $row | Add-Member -NotePropertyName IsSelected -NotePropertyValue $false -ErrorAction SilentlyContinue
+            if (Get-Command -Name 'DeviceRepositoryModule\Ensure-PortRowDefaults' -ErrorAction SilentlyContinue) {
+                DeviceRepositoryModule\Ensure-PortRowDefaults -Row $row -Hostname ('' + $row.Hostname)
+            } else {
+                if (-not $row.PSObject.Properties['Hostname']) {
+                    $row | Add-Member -NotePropertyName Hostname -NotePropertyValue ('' + $row.Hostname) -ErrorAction SilentlyContinue
+                }
+                if (-not $row.PSObject.Properties['IsSelected']) {
+                    $row | Add-Member -NotePropertyName IsSelected -NotePropertyValue $false -ErrorAction SilentlyContinue
+                }
             }
         } catch {}
     }

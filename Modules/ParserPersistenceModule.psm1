@@ -3652,7 +3652,6 @@ function Invoke-InterfaceBulkInsertInternal {
     $runDateText = $RunDate.ToString('yyyy-MM-dd HH:mm:ss')
 
     $rowsBuffer = $null
-    $rowsBufferCount = 0
     $stagedCount = 0
 
     $stageDurationMs = 0.0
@@ -3716,8 +3715,72 @@ function Invoke-InterfaceBulkInsertInternal {
 
     if (-not (Test-IsAdodbConnection -Connection $Connection)) { return (& $setLastBulkMetrics $false) }
 
-    $rowsBuffer = New-Object 'System.Collections.Generic.List[object[]]'
-    $uiRows = New-Object 'System.Collections.Generic.List[psobject]'
+    $rowsBufferCapacity = 0
+    if ($Rows -is [System.Collections.ICollection]) {
+        try { $rowsBufferCapacity = [int]$Rows.Count } catch { $rowsBufferCapacity = 0 }
+        if ($rowsBufferCapacity -lt 0) { $rowsBufferCapacity = 0 }
+    }
+
+    $newUiList = {
+        param([System.Collections.IEnumerable]$items)
+
+        $capacity = 0
+        if ($items -is [System.Collections.ICollection]) {
+            try { $capacity = [int]$items.Count } catch { $capacity = 0 }
+            if ($capacity -lt 0) { $capacity = 0 }
+        }
+
+        $ctorArgs = @()
+        if ($capacity -gt 0) { $ctorArgs = @($capacity) }
+        return New-Object 'System.Collections.Generic.List[psobject]' @ctorArgs
+    }
+
+    $convertUiRow = {
+        param($row)
+
+        if ($null -eq $row) { return $null }
+
+        try {
+            if (Get-Command -Name 'DeviceRepositoryModule\ConvertTo-PortPsObject' -ErrorAction SilentlyContinue) {
+                return DeviceRepositoryModule\ConvertTo-PortPsObject -Row $row -Hostname $Hostname -EnsureHostname -EnsureIsSelected
+            }
+        } catch { }
+
+        $clone = $null
+        if ($row -is [psobject]) {
+            $clone = $row
+        } elseif ($row -is [System.Collections.IDictionary]) {
+            $clone = [PSCustomObject]@{}
+            foreach ($key in $row.Keys) {
+                $clone | Add-Member -NotePropertyName $key -NotePropertyValue $row[$key] -Force
+            }
+        } else {
+            $clone = New-Object psobject
+            try {
+                foreach ($prop in $row.PSObject.Properties) {
+                    $clone | Add-Member -NotePropertyName $prop.Name -NotePropertyValue $prop.Value -Force
+                }
+            } catch {
+                $clone = [PSCustomObject]@{}
+            }
+        }
+
+        if (-not $clone.PSObject.Properties['Hostname']) {
+            $clone | Add-Member -NotePropertyName Hostname -NotePropertyValue $Hostname -Force
+        }
+        if (-not $clone.PSObject.Properties['IsSelected']) {
+            $clone | Add-Member -NotePropertyName IsSelected -NotePropertyValue $false -Force
+        }
+        return $clone
+    }
+
+    if ($rowsBufferCapacity -gt 0) {
+        $rowsBuffer = New-Object 'System.Collections.Generic.List[object[]]' ($rowsBufferCapacity)
+        $uiRows = & $newUiList $Rows
+    } else {
+        $rowsBuffer = New-Object 'System.Collections.Generic.List[object[]]'
+        $uiRows = & $newUiList $null
+    }
     $uiCloneDurationMs = 0.0
     $uiCloneStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     $extractStringValue = {
@@ -3777,17 +3840,8 @@ function Invoke-InterfaceBulkInsertInternal {
         $rowsBuffer.Add($rowValues) | Out-Null
 
         try {
-            $clone = New-Object psobject
-            foreach ($prop in $properties) {
-                $clone | Add-Member -NotePropertyName $prop.Name -NotePropertyValue $prop.Value -Force
-            }
-            if (-not $clone.PSObject.Properties['Hostname']) {
-                $clone | Add-Member -NotePropertyName Hostname -NotePropertyValue $Hostname -Force
-            }
-            if (-not $clone.PSObject.Properties['IsSelected']) {
-                $clone | Add-Member -NotePropertyName IsSelected -NotePropertyValue $false -Force
-            }
-            $uiRows.Add($clone) | Out-Null
+            $clone = & $convertUiRow $row
+            if ($clone) { $uiRows.Add($clone) | Out-Null }
         } catch { }
     }
     $uiCloneStopwatch.Stop()
@@ -3800,6 +3854,21 @@ function Invoke-InterfaceBulkInsertInternal {
     $escHostname = $Hostname -replace "'", "''"
 
     $cleanupSql = "DELETE FROM InterfaceBulkSeed WHERE BatchId = '$escBatch'"
+    $invokeCleanup = {
+        param([switch]$RecordDuration)
+
+        $cleanupStopwatch = $null
+        if ($RecordDuration) {
+            $cleanupStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+        }
+
+        try { Invoke-AdodbNonQuery -Connection $Connection -CommandText $cleanupSql | Out-Null } catch { }
+
+        if ($cleanupStopwatch) {
+            $cleanupStopwatch.Stop()
+            $cleanupDurationMs = [Math]::Round($cleanupStopwatch.Elapsed.TotalMilliseconds, 3)
+        }
+    }
     $streamDispatchDurationMs = 0.0
     $streamCloneDurationMs = 0.0
     $streamStateUpdateDurationMs = 0.0
@@ -3836,7 +3905,7 @@ function Invoke-InterfaceBulkInsertInternal {
             $parameterBindDurationMs = 0.0
             $commandExecuteDurationMs = 0.0
             try { $seedRecordset.CancelUpdate() } catch { }
-            try { Invoke-AdodbNonQuery -Connection $Connection -CommandText $cleanupSql | Out-Null } catch { }
+            & $invokeCleanup
         } finally {
             $stageStopwatch.Stop()
             if ($recordsetSucceeded) {
@@ -3883,7 +3952,7 @@ function Invoke-InterfaceBulkInsertInternal {
             )
 
             if ($parameters -contains $null) {
-                try { Invoke-AdodbNonQuery -Connection $Connection -CommandText $cleanupSql | Out-Null } catch { }
+                & $invokeCleanup -RecordDuration
                 return (& $setLastBulkMetrics $false)
             }
 
@@ -3926,7 +3995,7 @@ function Invoke-InterfaceBulkInsertInternal {
                         try {
                             $insertCmd.Execute() | Out-Null
                         } catch {
-                            try { Invoke-AdodbNonQuery -Connection $Connection -CommandText $cleanupSql | Out-Null } catch { }
+                            & $invokeCleanup -RecordDuration
                             throw
                         }
                     } finally {
@@ -3951,10 +4020,7 @@ function Invoke-InterfaceBulkInsertInternal {
     }
 
     if ($stagedCount -eq 0) {
-        $cleanupStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-        try { Invoke-AdodbNonQuery -Connection $Connection -CommandText $cleanupSql | Out-Null } catch { }
-        $cleanupStopwatch.Stop()
-        $cleanupDurationMs = [Math]::Round($cleanupStopwatch.Elapsed.TotalMilliseconds, 3)
+        & $invokeCleanup -RecordDuration
         return (& $setLastBulkMetrics $true)
     }
 
@@ -4056,10 +4122,7 @@ WHERE Seed.BatchId = '$escBatch' AND Seed.Hostname = '$escHostname'"
 
         Write-Warning ("Failed to commit bulk interface rows for host {0}: {1}" -f $Hostname, $_.Exception.Message)
     } finally {
-        $cleanupStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-        try { Invoke-AdodbNonQuery -Connection $Connection -CommandText $cleanupSql | Out-Null } catch { }
-        $cleanupStopwatch.Stop()
-        $cleanupDurationMs = [Math]::Round($cleanupStopwatch.Elapsed.TotalMilliseconds, 3)
+        & $invokeCleanup -RecordDuration
     }
 
     try {

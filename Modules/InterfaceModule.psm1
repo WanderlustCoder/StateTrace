@@ -29,6 +29,9 @@ if (-not (Get-Variable -Scope Script -Name PortSortCacheHits -ErrorAction Silent
 if (-not (Get-Variable -Scope Script -Name PortSortCacheMisses -ErrorAction SilentlyContinue)) {
     $script:PortSortCacheMisses = [long]0
 }
+if (-not (Get-Variable -Scope Script -Name PortSortFallbackKey -ErrorAction SilentlyContinue)) {
+    $script:PortSortFallbackKey = '99-UNK-99999-99999-99999-99999-99999'
+}
 
 if (-not ('StateTrace.Models.InterfacePortRecord' -as [type])) {
     Add-Type -TypeDefinition @"
@@ -226,6 +229,29 @@ function Ensure-DatabaseModule {
         # Swallow import errors; callers handle missing cmdlets gracefully.
     }
 }
+
+function Get-PropertyStringValue {
+    param(
+        [Parameter(Mandatory)][object]$InputObject,
+        [Parameter(Mandatory)][string[]]$PropertyNames
+    )
+
+    foreach ($name in $PropertyNames) {
+        try {
+            $prop = $InputObject.PSObject.Properties[$name]
+            if ($prop -and $null -ne $prop.Value) {
+                $val = '' + $prop.Value
+                if (-not [string]::IsNullOrWhiteSpace($val)) {
+                    return $val
+                }
+            }
+        } catch {
+            continue
+        }
+    }
+
+    return ''
+}
 function Set-TemplateDropdownBrush {
     param([string]$Vendor)
     if ([string]::IsNullOrWhiteSpace($Vendor)) { $Vendor = 'default' }
@@ -250,10 +276,10 @@ function Set-TemplateDropdownBrush {
 
 function Get-PortSortKey {
     param([Parameter(Mandatory)][string]$Port)
-    if ([string]::IsNullOrWhiteSpace($Port)) { return '99-UNK-99999-99999-99999-99999-99999' }
+    if ([string]::IsNullOrWhiteSpace($Port)) { return $script:PortSortFallbackKey }
 
     $normalized = $Port.Trim()
-    if ([string]::IsNullOrWhiteSpace($normalized)) { return '99-UNK-99999-99999-99999-99999-99999' }
+    if ([string]::IsNullOrWhiteSpace($normalized)) { return $script:PortSortFallbackKey }
     $cacheKey = $normalized.ToUpperInvariant()
 
     $cacheInstance = $script:PortSortKeyCache
@@ -373,6 +399,41 @@ function Get-PortSortKey {
 
     [System.Threading.Interlocked]::Increment([ref]$script:PortSortCacheMisses) | Out-Null
     return $result
+}
+
+function Get-PortSortCacheStatistics {
+    [CmdletBinding()]
+    param()
+
+    $cacheInstance = $script:PortSortKeyCache
+    $count = 0
+    if ($cacheInstance -is [System.Collections.ICollection]) {
+        try { $count = [int]$cacheInstance.Count } catch { $count = 0 }
+    }
+
+    return [pscustomobject]@{
+        Count      = $count
+        Hits       = [long]$script:PortSortCacheHits
+        Misses     = [long]$script:PortSortCacheMisses
+        Fallback   = $script:PortSortFallbackKey
+        CacheType  = $cacheInstance.GetType().FullName
+    }
+}
+
+function Reset-PortSortCache {
+    [CmdletBinding()]
+    param()
+
+    try {
+        $script:PortSortKeyCache = [System.Collections.Concurrent.ConcurrentDictionary[string,string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    } catch {
+        $script:PortSortKeyCache = @{}
+    }
+
+    $script:PortSortCacheHits = 0
+    $script:PortSortCacheMisses = 0
+
+    return Get-PortSortCacheStatistics
 }
 
 function Get-InterfaceHostnames {
@@ -606,26 +667,26 @@ function New-InterfaceObjectsFromDbRow {
         }
         # Build the PSCustomObject for this interface.  Use the provided Hostname for all entries.
         $portValue = if ($row.PSObject.Properties['Port']) { '' + $row.Port } else { $null }
-        $portSortKey = if ($portValue) { Get-PortSortKey -Port $portValue } else { '99-UNK-99999-99999-99999-99999-99999' }
+        $portSortKey = if ($portValue) { Get-PortSortKey -Port $portValue } else { $script:PortSortFallbackKey }
 
         $record = [StateTrace.Models.InterfacePortRecord]::new()
         $record.Hostname = $Hostname
         $record.Port = $portValue
         $record.PortSort = $portSortKey
-        if ($row.PSObject.Properties['Name']) { $record.Name = '' + $row.Name }
-        if ($row.PSObject.Properties['Status']) { $record.Status = '' + $row.Status }
-        if ($row.PSObject.Properties['VLAN']) { $record.VLAN = '' + $row.VLAN }
-        if ($row.PSObject.Properties['Duplex']) { $record.Duplex = '' + $row.Duplex }
-        if ($row.PSObject.Properties['Speed']) { $record.Speed = '' + $row.Speed }
-        if ($row.PSObject.Properties['Type']) { $record.Type = '' + $row.Type }
-        if ($row.PSObject.Properties['LearnedMACs']) { $record.LearnedMACs = '' + $row.LearnedMACs }
-        if ($row.PSObject.Properties['AuthState']) { $record.AuthState = '' + $row.AuthState }
-        if ($row.PSObject.Properties['AuthMode']) { $record.AuthMode = '' + $row.AuthMode }
-        if ($row.PSObject.Properties['AuthClientMAC']) { $record.AuthClientMAC = '' + $row.AuthClientMAC }
-        if ($row.PSObject.Properties['Site']) { $record.Site = '' + $row.Site }
-        if ($row.PSObject.Properties['Building']) { $record.Building = '' + $row.Building }
-        if ($row.PSObject.Properties['Room']) { $record.Room = '' + $row.Room }
-        if ($row.PSObject.Properties['Zone']) { $record.Zone = '' + $row.Zone }
+        $record.Name = Get-PropertyStringValue -InputObject $row -PropertyNames @('Name')
+        $record.Status = Get-PropertyStringValue -InputObject $row -PropertyNames @('Status')
+        $record.VLAN = Get-PropertyStringValue -InputObject $row -PropertyNames @('VLAN')
+        $record.Duplex = Get-PropertyStringValue -InputObject $row -PropertyNames @('Duplex')
+        $record.Speed = Get-PropertyStringValue -InputObject $row -PropertyNames @('Speed')
+        $record.Type = Get-PropertyStringValue -InputObject $row -PropertyNames @('Type')
+        $record.LearnedMACs = Get-PropertyStringValue -InputObject $row -PropertyNames @('LearnedMACs')
+        $record.AuthState = Get-PropertyStringValue -InputObject $row -PropertyNames @('AuthState')
+        $record.AuthMode = Get-PropertyStringValue -InputObject $row -PropertyNames @('AuthMode')
+        $record.AuthClientMAC = Get-PropertyStringValue -InputObject $row -PropertyNames @('AuthClientMAC')
+        $record.Site = Get-PropertyStringValue -InputObject $row -PropertyNames @('Site')
+        $record.Building = Get-PropertyStringValue -InputObject $row -PropertyNames @('Building')
+        $record.Room = Get-PropertyStringValue -InputObject $row -PropertyNames @('Room')
+        $record.Zone = Get-PropertyStringValue -InputObject $row -PropertyNames @('Zone')
         $record.AuthTemplate = $authTemplate
         $record.Config = $cfg
         $record.ConfigStatus = $cfgStatusVal
@@ -636,8 +697,8 @@ function New-InterfaceObjectsFromDbRow {
     }
     $comparison = [System.Comparison[object]]{
         param($a, $b)
-        $keyA = if ($a -and $a.PSObject.Properties['PortSort']) { '' + $a.PortSort } else { '99-UNK-99999-99999-99999-99999-99999' }
-        $keyB = if ($b -and $b.PSObject.Properties['PortSort']) { '' + $b.PortSort } else { '99-UNK-99999-99999-99999-99999-99999' }
+        $keyA = if ($a -and $a.PSObject.Properties['PortSort']) { '' + $a.PortSort } else { $script:PortSortFallbackKey }
+        $keyB = if ($b -and $b.PSObject.Properties['PortSort']) { '' + $b.PortSort } else { $script:PortSortFallbackKey }
         return [System.StringComparer]::Ordinal.Compare($keyA, $keyB)
     }
     try { $resultList.Sort($comparison) } catch {}
@@ -700,10 +761,14 @@ function Get-InterfaceList {
             }
 
             if ($meta) {
-                try { if ($meta.PSObject.Properties['Site']) { $site = '' + $meta.Site } } catch { $site = $site }
-                try { if ($meta.PSObject.Properties['Zone']) { $zone = '' + $meta.Zone } } catch { $zone = $zone }
-                try { if ($meta.PSObject.Properties['Building']) { $building = '' + $meta.Building } } catch { $building = $building }
-                try { if ($meta.PSObject.Properties['Room']) { $room = '' + $meta.Room } } catch { $room = $room }
+                $metaSite = Get-PropertyStringValue -InputObject $meta -PropertyNames @('Site')
+                if (-not [string]::IsNullOrWhiteSpace($metaSite)) { $site = $metaSite }
+                $metaZone = Get-PropertyStringValue -InputObject $meta -PropertyNames @('Zone')
+                if (-not [string]::IsNullOrWhiteSpace($metaZone)) { $zone = $metaZone }
+                $metaBld = Get-PropertyStringValue -InputObject $meta -PropertyNames @('Building')
+                if (-not [string]::IsNullOrWhiteSpace($metaBld)) { $building = $metaBld }
+                $metaRoom = Get-PropertyStringValue -InputObject $meta -PropertyNames @('Room')
+                if (-not [string]::IsNullOrWhiteSpace($metaRoom)) { $room = $metaRoom }
             }
 
             if ([string]::IsNullOrWhiteSpace($site)) {
@@ -732,23 +797,12 @@ function Get-InterfaceList {
             foreach ($iface in $interfaces) {
                 if (-not $iface) { continue }
 
-                $hostValue = ''
-                try {
-                    if ($iface.PSObject.Properties['Hostname']) { $hostValue = '' + $iface.Hostname }
-                    elseif ($iface.PSObject.Properties['HostName']) { $hostValue = '' + $iface.HostName }
-                    elseif ($iface.PSObject.Properties['Device']) { $hostValue = '' + $iface.Device }
-                } catch { $hostValue = '' }
+                $hostValue = Get-PropertyStringValue -InputObject $iface -PropertyNames @('Hostname', 'HostName', 'Device')
 
                 if ([string]::IsNullOrWhiteSpace($hostValue)) { continue }
                 if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals($hostValue.Trim(), $targetHost)) { continue }
 
-                $portVal = ''
-                try {
-                    if ($iface.PSObject.Properties['Port']) { $portVal = '' + $iface.Port }
-                    elseif ($iface.PSObject.Properties['Interface']) { $portVal = '' + $iface.Interface }
-                    elseif ($iface.PSObject.Properties['IfName']) { $portVal = '' + $iface.IfName }
-                    elseif ($iface.PSObject.Properties['Name']) { $portVal = '' + $iface.Name }
-                } catch { $portVal = '' }
+                $portVal = Get-PropertyStringValue -InputObject $iface -PropertyNames @('Port', 'Interface', 'IfName', 'Name')
 
                 if (-not [string]::IsNullOrWhiteSpace($portVal)) {
                     [void]$ports.Add($portVal.Trim())
@@ -776,10 +830,9 @@ function Get-InterfaceList {
             if ($items) {
                 $plist = New-Object 'System.Collections.Generic.List[string]'
                 foreach ($it in $items) {
-                    if ($it -and ($it | Get-Member -Name Port -ErrorAction SilentlyContinue)) {
-                        $pVal = '' + $it.Port
-                        if ($pVal -ne $null) { [void]$plist.Add($pVal) }
-                    }
+                    if (-not $it) { continue }
+                    $pVal = Get-PropertyStringValue -InputObject $it -PropertyNames @('Port')
+                    if (-not [string]::IsNullOrWhiteSpace($pVal)) { [void]$plist.Add($pVal) }
                 }
                 return $plist.ToArray()
             }
@@ -1387,4 +1440,4 @@ function Get-PortSortCacheStatistics {
     }
 }
 
-Export-ModuleMember -Function Get-PortSortKey,Get-PortSortCacheStatistics,Get-InterfaceHostnames,Get-InterfaceInfo,Get-InterfaceList,New-InterfaceObjectsFromDbRow,Compare-InterfaceConfigs,Get-InterfaceConfiguration,Get-ConfigurationTemplates,Set-InterfaceViewData,Get-SpanningTreeInfo,New-InterfacesView,Set-PortLoadingIndicator,Hide-PortLoadingIndicator,Set-HostLoadingIndicator
+Export-ModuleMember -Function Get-PortSortKey,Get-PortSortCacheStatistics,Reset-PortSortCache,Get-InterfaceHostnames,Get-InterfaceInfo,Get-InterfaceList,New-InterfaceObjectsFromDbRow,Compare-InterfaceConfigs,Get-InterfaceConfiguration,Get-ConfigurationTemplates,Set-InterfaceViewData,Get-SpanningTreeInfo,New-InterfacesView,Set-PortLoadingIndicator,Hide-PortLoadingIndicator,Set-HostLoadingIndicator

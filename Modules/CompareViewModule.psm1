@@ -42,14 +42,31 @@ function Resolve-CompareControls {
             $script:switch2Dropdown -and $script:port2Dropdown)
 }
 
+function Get-StringPropertyValue {
+    param(
+        [Parameter(Mandatory)][object]$InputObject,
+        [Parameter(Mandatory)][string[]]$PropertyNames
+    )
+
+    foreach ($name in $PropertyNames) {
+        try {
+            $prop = $InputObject.PSObject.Properties[$name]
+            if ($prop -and $null -ne $prop.Value) {
+                $val = '' + $prop.Value
+                if (-not [string]::IsNullOrWhiteSpace($val)) { return $val }
+            }
+        } catch { continue }
+    }
+    return ''
+}
+
 function Get-HostString {
     param($Item)
     # Returns a string hostname given an item which might be a complex object
     if ($null -eq $Item) { return '' }
     if ($Item -is [string])                        { return $Item }
-    if ($Item.PSObject -and $Item.PSObject.Properties['Hostname']) { return [string]$Item.Hostname }
-    if ($Item.PSObject -and $Item.PSObject.Properties['HostName']) { return [string]$Item.HostName }
-    if ($Item.PSObject -and $Item.PSObject.Properties['Name'])     { return [string]$Item.Name }
+    $val = Get-StringPropertyValue -InputObject $Item -PropertyNames @('Hostname','HostName','Name')
+    if (-not [string]::IsNullOrWhiteSpace($val)) { return $val }
     return ('' + $Item)
 }
 function Get-CompareFilterContext {
@@ -163,15 +180,7 @@ function Get-HostsFromMain {
 
                 if (-not $row) { continue }
 
-                $hostname = ''
-
-                try {
-
-                    if ($row.PSObject.Properties['Hostname']) { $hostname = '' + $row.Hostname }
-
-                    elseif ($row.PSObject.Properties['HostName']) { $hostname = '' + $row.HostName }
-
-                } catch { $hostname = '' }
+                $hostname = Get-StringPropertyValue -InputObject $row -PropertyNames @('Hostname','HostName','Name')
 
                 if ([string]::IsNullOrWhiteSpace($hostname)) { $hostname = '' + $row }
 
@@ -201,9 +210,7 @@ function Get-HostsFromMain {
 
             if ($siteSel -and -not [string]::IsNullOrWhiteSpace($siteSel) -and -not [System.StringComparer]::OrdinalIgnoreCase.Equals($siteSel, 'All Sites')) {
 
-                $siteVal = ''
-
-                if ($meta -and $meta.PSObject.Properties['Site']) { $siteVal = '' + $meta.Site }
+                $siteVal = Get-StringPropertyValue -InputObject $meta -PropertyNames @('Site')
 
                 if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals($siteVal, $siteSel)) { continue }
 
@@ -211,23 +218,20 @@ function Get-HostsFromMain {
 
             if ($zoneSel -and -not [string]::IsNullOrWhiteSpace($zoneSel) -and -not [System.StringComparer]::OrdinalIgnoreCase.Equals($zoneSel, 'All Zones')) {
 
-                $zoneVal = ''
-
-                if ($meta -and $meta.PSObject.Properties['Zone']) { $zoneVal = '' + $meta.Zone }
+                $zoneVal = Get-StringPropertyValue -InputObject $meta -PropertyNames @('Zone')
 
                 if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals($zoneVal, $zoneSel)) { continue }
 
             }
 
-            if ($bldSel -and -not [string]::IsNullOrWhiteSpace($bldSel) -and $meta -and $meta.PSObject.Properties['Building']) {
-
-                if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals(('' + $meta.Building), $bldSel)) { continue }
-
+            if ($bldSel -and -not [string]::IsNullOrWhiteSpace($bldSel) -and $meta) {
+                $bldVal = Get-StringPropertyValue -InputObject $meta -PropertyNames @('Building')
+                if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals($bldVal, $bldSel)) { continue }
             }
 
-            if ($roomSel -and -not [string]::IsNullOrWhiteSpace($roomSel) -and $meta -and $meta.PSObject.Properties['Room']) {
-
-                if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals(('' + $meta.Room), $roomSel)) { continue }
+            if ($roomSel -and -not [string]::IsNullOrWhiteSpace($roomSel) -and $meta) {
+                $roomVal = Get-StringPropertyValue -InputObject $meta -PropertyNames @('Room')
+                if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals($roomVal, $roomSel)) { continue }
 
             }
 
@@ -314,25 +318,13 @@ function Get-PortsForHost {
             foreach ($iface in $svcInterfaces) {
                 if (-not $iface) { continue }
 
-                $hostValue = ''
-                try {
-                    if ($iface.PSObject.Properties['Hostname']) { $hostValue = '' + $iface.Hostname }
-                    elseif ($iface.PSObject.Properties['HostName']) { $hostValue = '' + $iface.HostName }
-                } catch { $hostValue = '' }
-
+                $hostValue = Get-StringPropertyValue -InputObject $iface -PropertyNames @('Hostname','HostName','Name')
                 if ([string]::IsNullOrWhiteSpace($hostValue)) { $hostValue = '' + $iface }
                 if ([string]::IsNullOrWhiteSpace($hostValue)) { continue }
 
                 if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals($hostValue.Trim(), $targetHost)) { continue }
 
-                $portVal = $null
-                try {
-                    if ($iface.PSObject.Properties['Port'])       { $portVal = '' + $iface.Port }
-                    elseif ($iface.PSObject.Properties['Interface']) { $portVal = '' + $iface.Interface }
-                    elseif ($iface.PSObject.Properties['IfName'])    { $portVal = '' + $iface.IfName }
-                    elseif ($iface.PSObject.Properties['Name'])      { $portVal = '' + $iface.Name }
-                } catch { $portVal = '' }
-
+                $portVal = Get-StringPropertyValue -InputObject $iface -PropertyNames @('Port','Interface','IfName','Name')
                 if (-not $portVal) { $portVal = '' + $iface }
                 if (-not [string]::IsNullOrWhiteSpace($portVal)) { [void]$portsList.Add($portVal) }
             }
@@ -724,13 +716,7 @@ function Get-CompareHandlers {
         $rebuildLeft = {
             ### FIX: inline hostname (avoid Get-HostFromCombo) [switch1Dropdown]
             $si = $script:switch1Dropdown.SelectedItem
-            $hostname = if ($si) {
-                if ($si -is [string]) { [string]$si }
-                elseif ($si.PSObject -and $si.PSObject.Properties['Hostname']) { [string]$si.Hostname }
-                elseif ($si.PSObject -and $si.PSObject.Properties['HostName']) { [string]$si.HostName }
-                elseif ($si.PSObject -and $si.PSObject.Properties['Name'])     { [string]$si.Name }
-                else { ('' + $si) }
-            } else { ('' + $script:switch1Dropdown.Text).Trim() }
+            $hostname = if ($si) { Get-StringPropertyValue -InputObject $si -PropertyNames @('Hostname','HostName','Name') } else { ('' + $script:switch1Dropdown.Text).Trim() }
             ### END FIX
             if ($hostname) {
                 Write-Verbose "[CompareView] Switch1 changed to '$hostname'. Rebuilding Port1 list..."
@@ -754,13 +740,7 @@ function Get-CompareHandlers {
         $rebuildRight = {
             ### FIX: inline hostname (avoid Get-HostFromCombo) [switch2Dropdown]
             $si = $script:switch2Dropdown.SelectedItem
-            $hostname = if ($si) {
-                if ($si -is [string]) { [string]$si }
-                elseif ($si.PSObject -and $si.PSObject.Properties['Hostname']) { [string]$si.Hostname }
-                elseif ($si.PSObject -and $si.PSObject.Properties['HostName']) { [string]$si.HostName }
-                elseif ($si.PSObject -and $si.PSObject.Properties['Name'])     { [string]$si.Name }
-                else { ('' + $si) }
-            } else { ('' + $script:switch2Dropdown.Text).Trim() }
+            $hostname = if ($si) { Get-StringPropertyValue -InputObject $si -PropertyNames @('Hostname','HostName','Name') } else { ('' + $script:switch2Dropdown.Text).Trim() }
             ### END FIX
             if ($hostname) {
                 Write-Verbose "[CompareView] Switch2 changed to '$hostname'. Rebuilding Port2 list..."
@@ -785,13 +765,7 @@ function Get-CompareHandlers {
             ### FIX: inline hostname (avoid Get-HostFromCombo) [opened switch1Dropdown]
             $hostname = if ($script:switch1Dropdown) {
                 $si = $script:switch1Dropdown.SelectedItem
-                if ($si) {
-                    if ($si -is [string]) { [string]$si }
-                    elseif ($si.PSObject -and $si.PSObject.Properties['Hostname']) { [string]$si.Hostname }
-                    elseif ($si.PSObject -and $si.PSObject.Properties['HostName']) { [string]$si.HostName }
-                    elseif ($si.PSObject -and $si.PSObject.Properties['Name'])     { [string]$si.Name }
-                    else { ('' + $si) }
-                } else { ('' + $script:switch1Dropdown.Text).Trim() }
+                if ($si) { Get-StringPropertyValue -InputObject $si -PropertyNames @('Hostname','HostName','Name') } else { ('' + $script:switch1Dropdown.Text).Trim() }
             } else { $null }
             ### END FIX
             if ($hostname) {
@@ -813,13 +787,7 @@ function Get-CompareHandlers {
             ### FIX: inline hostname (avoid Get-HostFromCombo) [opened switch2Dropdown]
             $hostname = if ($script:switch2Dropdown) {
                 $si = $script:switch2Dropdown.SelectedItem
-                if ($si) {
-                    if ($si -is [string]) { [string]$si }
-                    elseif ($si.PSObject -and $si.PSObject.Properties['Hostname']) { [string]$si.Hostname }
-                    elseif ($si.PSObject -and $si.PSObject.Properties['HostName']) { [string]$si.HostName }
-                    elseif ($si.PSObject -and $si.PSObject.Properties['Name'])     { [string]$si.Name }
-                    else { ('' + $si) }
-                } else { ('' + $script:switch2Dropdown.Text).Trim() }
+                if ($si) { Get-StringPropertyValue -InputObject $si -PropertyNames @('Hostname','HostName','Name') } else { ('' + $script:switch2Dropdown.Text).Trim() }
             } else { $null }
             ### END FIX
             if ($hostname) {

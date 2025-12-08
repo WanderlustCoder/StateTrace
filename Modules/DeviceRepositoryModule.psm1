@@ -33,6 +33,10 @@ if (-not (Get-Module -Name 'DeviceRepository.Cache')) {
     }
 }
 
+if (-not (Get-Variable -Scope Script -Name PortSortFallbackKey -ErrorAction SilentlyContinue)) {
+    $script:PortSortFallbackKey = '99-UNK-99999-99999-99999-99999-99999'
+}
+
 if (-not (Get-Variable -Scope Script -Name SiteInterfaceCache -ErrorAction SilentlyContinue)) {
     $script:SiteInterfaceCache = @{}
 }
@@ -1543,7 +1547,7 @@ function ConvertTo-InterfacePortRecordsFallback {
         $portColor   = & $getValue $row 'PortColor'
         $tooltipValue= & $getValue $row 'ToolTip'
 
-        $portSortKey = '99-UNK-99999-99999-99999-99999-99999'
+        $portSortKey = $script:PortSortFallbackKey
         try {
             if (Get-Command -Name 'InterfaceModule\Get-PortSortKey' -ErrorAction SilentlyContinue) {
                 if (-not [string]::IsNullOrWhiteSpace($portValue)) {
@@ -2096,7 +2100,7 @@ function ConvertTo-InterfaceCacheEntryObject {
     $configValue = & $toString (& $getRawValue $InputObject @('Config'))
     $portSortValue = & $toString (& $getRawValue $InputObject @('PortSort'))
     if ([string]::IsNullOrWhiteSpace($portSortValue)) {
-        $portSortValue = '99-UNK-99999-99999-99999-99999-99999'
+        $portSortValue = $script:PortSortFallbackKey
         if (-not [string]::IsNullOrWhiteSpace($nameValue)) {
             $getPortSortCommand = $null
             try { $getPortSortCommand = Get-Command -Name 'InterfaceModule\Get-PortSortKey' -ErrorAction SilentlyContinue } catch { $getPortSortCommand = $null }
@@ -2898,7 +2902,7 @@ function Get-InterfaceSiteCache {
         $templateApplyStopwatch = [System.Diagnostics.Stopwatch]::new()
         $templateHintCacheHitCount = 0L
         $templateHintCacheMissCount = 0L
-        $defaultPortSortValue = '99-UNK-99999-99999-99999-99999-99999'
+    $defaultPortSortValue = $script:PortSortFallbackKey
 
         $hostMapStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         foreach ($row in $snapshot) {
@@ -3713,6 +3717,90 @@ function Get-InterfacePortBatchChunkSize {
     return $size
 }
 
+function New-PortPsObjectList {
+    param([System.Collections.IEnumerable]$Items)
+
+    $capacity = 0
+    if ($Items -is [System.Collections.ICollection]) {
+        try { $capacity = [int]$Items.Count } catch { $capacity = 0 }
+        if ($capacity -lt 0) { $capacity = 0 }
+    }
+
+    if ($capacity -gt 0) {
+        return New-Object 'System.Collections.Generic.List[psobject]' ($capacity)
+    }
+
+    return New-Object 'System.Collections.Generic.List[psobject]'
+}
+
+function ConvertTo-PortPsObject {
+    param(
+        $Row,
+        [string]$Hostname,
+        [switch]$EnsureHostname,
+        [switch]$EnsureIsSelected
+    )
+
+    if ($null -eq $Row) { return $null }
+
+    $clone = $null
+    if ($Row -is [psobject]) {
+        $clone = $Row
+    } elseif ($Row -is [System.Collections.IDictionary]) {
+        $clone = [PSCustomObject]@{}
+        foreach ($key in $Row.Keys) {
+            $clone | Add-Member -NotePropertyName $key -NotePropertyValue $Row[$key] -Force
+        }
+    } else {
+        $clone = New-Object psobject
+        try {
+            foreach ($prop in $Row.PSObject.Properties) {
+                $clone | Add-Member -NotePropertyName $prop.Name -NotePropertyValue $prop.Value -Force
+            }
+        } catch {
+            $clone = [PSCustomObject]@{}
+        }
+    }
+
+    if ($EnsureHostname) {
+        $hostnameProp = $clone.PSObject.Properties['Hostname']
+        if ($hostnameProp) {
+            if ([string]::IsNullOrWhiteSpace(('' + $hostnameProp.Value))) {
+                $hostnameProp.Value = $Hostname
+            }
+        } else {
+            $clone | Add-Member -NotePropertyName Hostname -NotePropertyValue $Hostname -Force
+        }
+    }
+
+    if ($EnsureIsSelected -and -not $clone.PSObject.Properties['IsSelected']) {
+        $clone | Add-Member -NotePropertyName IsSelected -NotePropertyValue $false -Force
+    }
+
+    return $clone
+}
+
+function Ensure-PortRowDefaults {
+    param(
+        $Row,
+        [string]$Hostname
+    )
+
+    if ($null -eq $Row) { return }
+
+    try {
+        if (-not $Row.PSObject.Properties['Hostname']) {
+            $Row | Add-Member -NotePropertyName Hostname -NotePropertyValue ($Hostname) -ErrorAction SilentlyContinue
+        }
+    } catch {}
+
+    try {
+        if (-not $Row.PSObject.Properties['IsSelected']) {
+            $Row | Add-Member -NotePropertyName IsSelected -NotePropertyValue $false -ErrorAction SilentlyContinue
+        }
+    } catch {}
+}
+
 function Set-InterfacePortStreamData {
     [CmdletBinding()]
     param(
@@ -3730,7 +3818,7 @@ function Set-InterfacePortStreamData {
         $normalizedBatchId = [guid]::NewGuid().ToString()
     }
 
-    $rowsList = New-Object 'System.Collections.Generic.List[psobject]'
+    $rowsList = New-PortPsObjectList -Items $InterfaceRows
     $rowsReused = 0
     $rowsCloned = 0
     $runDateText = $RunDate.ToString('yyyy-MM-dd HH:mm:ss')
@@ -3739,39 +3827,11 @@ function Set-InterfacePortStreamData {
     foreach ($row in $InterfaceRows) {
         if ($null -eq $row) { continue }
 
-        $clone = $null
-        if ($row -is [psobject]) {
-            $clone = $row
+        $clone = ConvertTo-PortPsObject -Row $row -Hostname $hostKey -EnsureHostname -EnsureIsSelected
+        if ($clone -eq $row) {
             $rowsReused++
-        } elseif ($row -is [System.Collections.IDictionary]) {
-            $rowsCloned++
-            $clone = [PSCustomObject]@{}
-            foreach ($key in $row.Keys) {
-                $clone | Add-Member -NotePropertyName $key -NotePropertyValue $row[$key] -Force
-            }
         } else {
             $rowsCloned++
-            $clone = New-Object psobject
-            try {
-                foreach ($prop in $row.PSObject.Properties) {
-                    $clone | Add-Member -NotePropertyName $prop.Name -NotePropertyValue $prop.Value -Force
-                }
-            } catch {
-                $clone = [PSCustomObject]@{}
-            }
-        }
-
-        $hostnameProp = $clone.PSObject.Properties['Hostname']
-        if ($hostnameProp) {
-            if ([string]::IsNullOrWhiteSpace(('' + $hostnameProp.Value))) {
-                $hostnameProp.Value = $hostKey
-            }
-        } else {
-            $clone | Add-Member -NotePropertyName Hostname -NotePropertyValue $hostKey -Force
-        }
-
-        if (-not $clone.PSObject.Properties['IsSelected']) {
-            $clone | Add-Member -NotePropertyName IsSelected -NotePropertyValue $false -Force
         }
 
         $rowsList.Add($clone) | Out-Null
@@ -3851,20 +3911,10 @@ function Initialize-InterfacePortStream {
     if (-not $state) {
         $interfaces = Get-InterfaceInfo -Hostname $hostKey
         if (-not $interfaces) { $interfaces = @() }
-        $list = New-Object 'System.Collections.Generic.List[psobject]'
+        $list = New-PortPsObjectList -Items $interfaces
         foreach ($item in $interfaces) {
-            if ($null -eq $item) { continue }
-            if ($item -is [psobject]) {
-                $list.Add($item) | Out-Null
-            } elseif ($item -is [System.Collections.IDictionary]) {
-                $clone = [PSCustomObject]@{}
-                foreach ($key in $item.Keys) {
-                    $clone | Add-Member -NotePropertyName $key -NotePropertyValue $item[$key] -Force
-                }
-                $list.Add($clone) | Out-Null
-            } else {
-                $list.Add([PSCustomObject]$item) | Out-Null
-            }
+            $clone = ConvertTo-PortPsObject -Row $item -Hostname $hostKey
+            if ($clone) { $list.Add($clone) | Out-Null }
         }
 
         $state = [PSCustomObject]@{
@@ -4943,7 +4993,7 @@ ORDER BY i.Hostname, i.Port
             $lastRoomValue = ''
             $lastVendorValue = 'Cisco'
             $lastMakeValue = ''
-            $defaultPortSortValue = '99-UNK-99999-99999-99999-99999-99999'
+        $defaultPortSortValue = $script:PortSortFallbackKey
 
             foreach ($row in $enum) {
                 if ($null -eq $row) { continue }
@@ -5364,19 +5414,7 @@ function Get-InterfaceInfo {
                     $cachedCount = @($cached).Count
                 }
                 if ($cachedCount -gt 0) {
-                    foreach ($o in $cached) {
-                        if ($null -eq $o) { continue }
-                        try {
-                            if (-not $o.PSObject.Properties['Hostname']) {
-                                $o | Add-Member -NotePropertyName Hostname -NotePropertyValue ($Hostname) -ErrorAction SilentlyContinue
-                            }
-                        } catch {}
-                        try {
-                            if (-not $o.PSObject.Properties['IsSelected']) {
-                                $o | Add-Member -NotePropertyName IsSelected -NotePropertyValue $false -ErrorAction SilentlyContinue
-                            }
-                        } catch {}
-                    }
+                    foreach ($o in $cached) { Ensure-PortRowDefaults -Row $o -Hostname $Hostname }
                     try {
                         if ($cachedCount -gt 0) {
                             $script:InterfaceCacheHydrationTracker[$Hostname] = $true
@@ -5440,16 +5478,7 @@ function Get-InterfaceInfo {
             if ($objs) {
                 foreach ($oo in $objs) {
                     if ($null -eq $oo) { continue }
-                    try {
-                        if (-not $oo.PSObject.Properties['Hostname']) {
-                            $oo | Add-Member -NotePropertyName Hostname -NotePropertyValue ($Hostname) -ErrorAction SilentlyContinue
-                        }
-                    } catch {}
-                    try {
-                        if (-not $oo.PSObject.Properties['IsSelected']) {
-                            $oo | Add-Member -NotePropertyName IsSelected -NotePropertyValue $false -ErrorAction SilentlyContinue
-                        }
-                    } catch {}
+                    Ensure-PortRowDefaults -Row $oo -Hostname $Hostname
                     # Inject location metadata for summary filtering.  When the Site/Zone/Building/Room
                     # properties are absent, derive them from DeviceMetadata or by parsing the hostname.
                     try {
