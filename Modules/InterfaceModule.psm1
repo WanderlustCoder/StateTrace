@@ -13,6 +13,13 @@ if (-not (Get-Module -Name 'ViewStateService' -ErrorAction SilentlyContinue)) {
     }
 }
 
+if (-not (Get-Module -Name 'InterfaceCommon' -ErrorAction SilentlyContinue)) {
+    $interfaceCommonPath = Join-Path $PSScriptRoot 'InterfaceCommon.psm1'
+    if (Test-Path -LiteralPath $interfaceCommonPath) {
+        try { Import-Module -Name $interfaceCommonPath -Force -Global | Out-Null } catch { }
+    }
+}
+
 $script:lastTemplateVendor = 'default'
 $script:TemplateThemeHandlerRegistered = $false
 
@@ -30,7 +37,7 @@ if (-not (Get-Variable -Scope Script -Name PortSortCacheMisses -ErrorAction Sile
     $script:PortSortCacheMisses = [long]0
 }
 if (-not (Get-Variable -Scope Script -Name PortSortFallbackKey -ErrorAction SilentlyContinue)) {
-    $script:PortSortFallbackKey = '99-UNK-99999-99999-99999-99999-99999'
+    try { $script:PortSortFallbackKey = InterfaceCommon\Get-PortSortFallbackKey } catch { $script:PortSortFallbackKey = '99-UNK-99999-99999-99999-99999-99999' }
 }
 
 if (-not ('StateTrace.Models.InterfacePortRecord' -as [type])) {
@@ -235,6 +242,12 @@ function Get-PropertyStringValue {
         [Parameter(Mandatory)][object]$InputObject,
         [Parameter(Mandatory)][string[]]$PropertyNames
     )
+
+    try {
+        if (Get-Command -Name 'InterfaceCommon\Get-StringPropertyValue' -ErrorAction SilentlyContinue) {
+            return InterfaceCommon\Get-StringPropertyValue @PSBoundParameters
+        }
+    } catch { }
 
     foreach ($name in $PropertyNames) {
         try {

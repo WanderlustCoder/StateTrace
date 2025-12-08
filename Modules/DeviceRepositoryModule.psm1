@@ -23,6 +23,13 @@ try {
     Write-Verbose ("[DeviceRepositoryModule] PortNormalization not loaded: {0}" -f $_.Exception.Message)
 }
 
+if (-not (Get-Module -Name 'InterfaceCommon' -ErrorAction SilentlyContinue)) {
+    $interfaceCommonPath = Join-Path $PSScriptRoot 'InterfaceCommon.psm1'
+    if (Test-Path -LiteralPath $interfaceCommonPath) {
+        try { Import-Module -Name $interfaceCommonPath -Force -Global -ErrorAction SilentlyContinue | Out-Null } catch { }
+    }
+}
+
 # Load shared cache module (decomposition target) so downstream calls can delegate.
 if (-not (Get-Module -Name 'DeviceRepository.Cache')) {
     try {
@@ -47,6 +54,10 @@ if (-not (Get-Variable -Scope Script -Name SiteInterfaceSignatureCache -ErrorAct
 
 if (-not (Get-Variable -Scope Script -Name SharedSiteInterfaceCacheKey -ErrorAction SilentlyContinue)) {
     $script:SharedSiteInterfaceCacheKey = 'StateTrace.Repository.SharedSiteInterfaceCache'
+}
+
+if (-not (Get-Variable -Scope Script -Name PortSortFallbackKey -ErrorAction SilentlyContinue)) {
+    try { $script:PortSortFallbackKey = InterfaceCommon\Get-PortSortFallbackKey } catch { $script:PortSortFallbackKey = '99-UNK-99999-99999-99999-99999-99999' }
 }
 
 if (-not ('StateTrace.Models.InterfacePortRecord' -as [type])) {
@@ -3787,6 +3798,13 @@ function Ensure-PortRowDefaults {
     )
 
     if ($null -eq $Row) { return }
+
+    try {
+        if (Get-Command -Name 'InterfaceCommon\Ensure-PortRowDefaults' -ErrorAction SilentlyContinue) {
+            InterfaceCommon\Ensure-PortRowDefaults -Row $Row -Hostname $Hostname
+            return
+        }
+    } catch { }
 
     try {
         if (-not $Row.PSObject.Properties['Hostname']) {

@@ -24,6 +24,13 @@ $script:CompareThemeHandlerRegistered = $false
 if ($null -eq $Global:StateTraceDebug) { $Global:StateTraceDebug = $false }
 if ($Global:StateTraceDebug) { $VerbosePreference = 'Continue' }
 
+if (-not (Get-Module -Name 'InterfaceCommon' -ErrorAction SilentlyContinue)) {
+    $interfaceCommonPath = Join-Path $PSScriptRoot 'InterfaceCommon.psm1'
+    if (Test-Path -LiteralPath $interfaceCommonPath) {
+        try { Import-Module -Name $interfaceCommonPath -Force -Global -ErrorAction SilentlyContinue | Out-Null } catch { }
+    }
+}
+
 function Resolve-CompareControls {
     if (-not $script:compareView) { return $false }
     # Find and bind all the named controls from the loaded XAML view
@@ -47,6 +54,12 @@ function Get-StringPropertyValue {
         [Parameter(Mandatory)][object]$InputObject,
         [Parameter(Mandatory)][string[]]$PropertyNames
     )
+
+    try {
+        if (Get-Command -Name 'InterfaceCommon\Get-StringPropertyValue' -ErrorAction SilentlyContinue) {
+            return InterfaceCommon\Get-StringPropertyValue @PSBoundParameters
+        }
+    } catch { }
 
     foreach ($name in $PropertyNames) {
         try {
