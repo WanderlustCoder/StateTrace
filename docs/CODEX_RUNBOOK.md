@@ -60,3 +60,8 @@ This runbook maps common automation tasks to the exact commands, required inputs
 Keep this runbook short and scriptable—extend the table rather than writing prose when you add new tasks.
 
 
+
+## Shared interface helpers
+- InterfaceCommon (Modules/InterfaceCommon.psm1) exports Get-StringPropertyValue, Set-PortRowDefaults (Hostname/IsSelected defaults), Get-PortSortFallbackKey.
+- Consumers: InterfaceModule, DeviceRepositoryModule, CompareViewModule, DeviceInsightsModule, ViewStateService, FilterStateModule, ParserPersistenceModule.
+- Prefer these helpers over duplicating PSObject property checks or port sort fallback literals.
