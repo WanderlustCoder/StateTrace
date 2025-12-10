@@ -1,5 +1,16 @@
 # Brocade Device Parsing Module
 
+# Precompile frequently reused regexes to avoid repeated allocations.
+if (-not (Get-Variable -Name BrocadeAuthPortRangeRegex -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:BrocadeAuthPortRangeRegex = [regex]::new('(?i)eth(?:e)?\s+(\d+/\d+/\d+)(?:\s+to\s+(\d+/\d+/\d+))?')
+}
+if (-not (Get-Variable -Name BrocadeTypeTrunkRegex -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:BrocadeTypeTrunkRegex = [regex]::new('uplink|trunk', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+}
+if (-not (Get-Variable -Name BrocadeTypeAccessRegex -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:BrocadeTypeAccessRegex = [regex]::new('access|user|staff|voice|endpoint|printer', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+}
+
 # (Debug code removed)
 function Get-BrocadeDeviceFacts {
     param (
@@ -10,34 +21,6 @@ function Get-BrocadeDeviceFacts {
     #
 
     #
-    function Get-CommandBlock {
-        param(
-            [string[]]$Lines,
-            [string]$CommandRegex
-        )
-        $startIndex = -1
-        # Locate the command line.  Escape any regex meta characters in the
-        $pattern = "(?i)$CommandRegex"
-        for ($i = 0; $i -lt $Lines.Count; $i++) {
-            if ($Lines[$i] -match $pattern) {
-                $startIndex = $i
-                break
-            }
-        }
-        if ($startIndex -lt 0) { return @() }
-        # Use a typed List[string] instead of a PowerShell array.  Using '+=' on an array
-        $buffer = New-Object 'System.Collections.Generic.List[string]'
-        # Capture lines after the command until the next prompt or end of file
-        for ($j = $startIndex + 1; $j -lt $Lines.Count; $j++) {
-            $nl = $Lines[$j]
-            if ($nl -match '^[^\s]*#') {
-                break
-            }
-            [void]$buffer.Add($nl)
-        }
-        return $buffer.ToArray()
-    }
-
     function ConvertTo-StandardPortName { param ($raw) return "Et$raw" }
 
     # Normalize a port key by stripping any leading 'Et', 'Eth' or 'Ethernet' prefixes.
@@ -67,7 +50,7 @@ function Get-BrocadeDeviceFacts {
         $stack = $startParts[0]; $slot = $startParts[1]
         $startPort = [int]$startParts[2]; $endPort = [int]$endParts[2]
         # Use a typed list to avoid repeated array copying when expanding large port ranges.
-        $ports = New-Object 'System.Collections.Generic.List[string]'
+        $ports = [System.Collections.Generic.List[string]]::new()
         for ($i = $startPort; $i -le $endPort; $i++) {
             [void]$ports.Add("Et$stack/$slot/$i")
         }
@@ -79,20 +62,12 @@ function Get-BrocadeDeviceFacts {
     if ($Blocks -and $Blocks.Count -gt 0) {
         $blocks = $Blocks
     } else {
-        $blocks = Get-ShowCommandBlocks -Lines $Lines
+        $blocks = DeviceLogParserModule\Get-ShowCommandBlocks -Lines $Lines
     }
 
     function Get-Hostname {
-        foreach ($line in $Lines) {
-            if ($line -match "^(\S+)[>#]") {
-                $rawHost = $matches[1]
-                # Strip any SSH@ prefix.  Logs captured via SSH often include
-                if ($rawHost -like 'SSH@*') {
-                    return $rawHost.Substring(4)
-                }
-                return $rawHost
-            }
-        }
+        $hostname = DeviceParsingCommon\Get-HostnameFromPrompt -Lines $Lines
+        if ($hostname) { return $hostname }
         return "Unknown"
     }
 
@@ -108,9 +83,8 @@ function Get-BrocadeDeviceFacts {
 
     function Get-Uptime {
         param ($Block)
-        foreach ($line in $Block) {
-            if ($line -match "uptime is (.+)$") { return $matches[1].Trim() }
-        }
+        $uptime = DeviceParsingCommon\Get-UptimeFromLines -Lines $Block -Patterns @('(?i)uptime is (.+)$', '(?i)uptime:\s*(.+)$')
+        if ($uptime) { return $uptime }
         return "Unknown"
     }
 
@@ -137,14 +111,9 @@ function Get-BrocadeDeviceFacts {
         # Separate dot1x "port-control auto" and global "dot1x enable" directives.  Only the
         # port-control auto list is used for authentication template classification; the
         # enable list is informational and may be surfaced in the UI if needed.
-        $dot1xAuto   = New-Object 'System.Collections.Generic.List[string]'
-        $dot1xEnable = New-Object 'System.Collections.Generic.List[string]'
-        $macauth     = New-Object 'System.Collections.Generic.List[string]'
-
-        # Helper regexes for tokenizing port ranges in authentication block lines.  Accept both
-        # "eth" and "ethe" prefixes, optional "to" ranges, and ignore surrounding text.  A
-        # single port (no "to") will be expanded via Expand-PortRange with identical start/end.
-        $reToken = [regex]::new('(?i)eth(?:e)?\s+(\d+/\d+/\d+)(?:\s+to\s+(\d+/\d+/\d+))?')
+        $dot1xAuto   = [System.Collections.Generic.List[string]]::new()
+        $dot1xEnable = [System.Collections.Generic.List[string]]::new()
+        $macauth     = [System.Collections.Generic.List[string]]::new()
 
         foreach ($line in $Block) {
             # Normalize case and trim for easier matching
@@ -152,7 +121,7 @@ function Get-BrocadeDeviceFacts {
 
             # MAC authentication enable lines may specify multiple ranges or single ports.
             if ($l -match '(?i)^\s*mac-authentication\s+enable') {
-                $mAll = $reToken.Matches($l)
+                $mAll = $script:BrocadeAuthPortRangeRegex.Matches($l)
                 foreach ($m in $mAll) {
                     $start = $m.Groups[1].Value
                     $end   = $m.Groups[2].Value
@@ -168,7 +137,7 @@ function Get-BrocadeDeviceFacts {
             # for classification.  "dot1x enable" lines are treated as global enablement and
             # stored separately in $dot1xEnable for optional informational use.
             if ($l -match '(?i)^\s*dot1x\s+port-control\s+auto') {
-                $mAll = $reToken.Matches($l)
+                $mAll = $script:BrocadeAuthPortRangeRegex.Matches($l)
                 foreach ($m in $mAll) {
                     $start = $m.Groups[1].Value
                     $end   = $m.Groups[2].Value
@@ -179,7 +148,7 @@ function Get-BrocadeDeviceFacts {
                     }
                 }
             } elseif ($l -match '(?i)^\s*dot1x\s+enable') {
-                $mAll = $reToken.Matches($l)
+                $mAll = $script:BrocadeAuthPortRangeRegex.Matches($l)
                 foreach ($m in $mAll) {
                     $start = $m.Groups[1].Value
                     $end   = $m.Groups[2].Value
@@ -213,7 +182,7 @@ function Get-BrocadeDeviceFacts {
         # Dedupe while preserving order.  Use hashtables as sets.
         # Dedupe while preserving order.  Use hashtables as sets.
         $dotSeen = @{}
-        $dotUniq = New-Object 'System.Collections.Generic.List[string]'
+        $dotUniq = [System.Collections.Generic.List[string]]::new()
         foreach ($p in $dot1xAuto) {
             if (-not $dotSeen.ContainsKey($p)) {
                 $dotSeen[$p] = $true
@@ -221,7 +190,7 @@ function Get-BrocadeDeviceFacts {
             }
         }
         $macSeen = @{}
-        $macUniq = New-Object 'System.Collections.Generic.List[string]'
+        $macUniq = [System.Collections.Generic.List[string]]::new()
         foreach ($p in $macauth) {
             if (-not $macSeen.ContainsKey($p)) {
                 $macSeen[$p] = $true
@@ -253,12 +222,12 @@ function Get-BrocadeDeviceFacts {
 
     function Get-MacTable {
         param ($Block)
-        $propertyMap = [ordered]@{
-            MAC  = { param($match) $match.Groups['mac'].Value.Trim() }
-            Port = { param($match) ConvertTo-StandardPortName $match.Groups['port'].Value }
-            VLAN = { param($match) [int]$match.Groups['vlan'].Value }
+        $portTransform = {
+            param($p)
+            $standard = ConvertTo-StandardPortName $p
+            return DeviceParsingCommon\ConvertTo-ShortPortName -Port $standard
         }
-        return DeviceParsingCommon\Invoke-RegexTableParser -Lines $Block -HeaderPattern '^\s*MAC\s+Address' -RowPattern '^(?<mac>(?:[0-9A-Fa-f]{4}\.){2}[0-9A-Fa-f]{4,6})\s+(?<port>\d+/\d+/\d+)\s+.*?\s+(?<vlan>\d+)(?:\s+\S+)?\s*$' -PropertyMap $propertyMap
+        return DeviceParsingCommon\ConvertFrom-MacTableRegex -Lines $Block -HeaderPattern '^\s*MAC\s+Address' -RowPattern '^(?<mac>(?:[0-9A-Fa-f]{4}\.){2}[0-9A-Fa-f]{4,6})\s+(?<port>\d+/\d+/\d+)\s+.*?\s+(?<vlan>\d+)(?:\s+\S+)?\s*$' -VlanGroup 3 -MacGroup 1 -PortGroup 2 -PortTransform $portTransform
     }
 
     function Get-AuthStatus {
@@ -301,7 +270,7 @@ function Get-BrocadeDeviceFacts {
     function Get-AuthStatusUnified {
         param([string[]]$Block)
         # Use a typed list to avoid repeated array copying when aggregating auth status entries.
-        $results = New-Object 'System.Collections.Generic.List[psobject]'
+        $results = [System.Collections.Generic.List[psobject]]::new()
         foreach ($line in $Block) {
             $trimmed = $line.Trim()
             # Skip headers or separators
@@ -329,7 +298,7 @@ function Get-BrocadeDeviceFacts {
     function Get-AuthenticationBlock {
         param ([string[]]$ConfigBlock)
         # Use a typed list for the auth config buffer to avoid array copying.
-        $buffer = New-Object 'System.Collections.Generic.List[string]'
+        $buffer = [System.Collections.Generic.List[string]]::new()
         $inside = $false
         foreach ($line in $ConfigBlock) {
             if ($line -match '^Authentication\s*$') {
@@ -361,7 +330,7 @@ function Get-BrocadeDeviceFacts {
         param ($Block)
         # Build per-interface configuration text using a typed list rather than
         $configs = @{}; $names = @{}; $current = ""
-        $bufferList = New-Object 'System.Collections.Generic.List[string]'
+        $bufferList = [System.Collections.Generic.List[string]]::new()
         foreach ($line in $Block) {
             # End of an interface configuration is typically indicated by a standalone
             # exclamation mark.  When we encounter such a line and are currently
@@ -406,16 +375,16 @@ function Get-BrocadeDeviceFacts {
     # The spanning-tree parsing helper has been moved to ParserWorker.psm1.
 
     #
-    $versionBlock    = Get-CommandBlock -Lines $Lines -CommandRegex '#\s*show\s+version'
-    $configBlock     = Get-CommandBlock -Lines $Lines -CommandRegex '#\s*show\s+config'
-    $interfacesBlock = Get-CommandBlock -Lines $Lines -CommandRegex '#\s*show\s+interfaces\s+brief'
-    $macTableBlock   = Get-CommandBlock -Lines $Lines -CommandRegex '#\s*show\s+mac\s*-?address'
-    $dot1xSessions   = Get-CommandBlock -Lines $Lines -CommandRegex '#\s*show\s+dot1x\s+sessions\s+all'
-    $macAuthSessions = Get-CommandBlock -Lines $Lines -CommandRegex '#\s*show\s+mac\s*-?authentication\s+sessions\s+all'
+    $versionBlock    = DeviceLogParserModule\Get-ShowBlock -Blocks $blocks -Lines $Lines -PreferredKeys @('show version') -CommandRegexes @('#\s*show\s+version') -DefaultValue @()
+    $configBlock     = DeviceLogParserModule\Get-ShowBlock -Blocks $blocks -Lines $Lines -PreferredKeys @('show config') -CommandRegexes @('#\s*show\s+config') -DefaultValue @()
+    $interfacesBlock = DeviceLogParserModule\Get-ShowBlock -Blocks $blocks -Lines $Lines -PreferredKeys @('show interfaces brief','show interface brief') -RegexPatterns @('^show\s+interfaces?\s+brief') -CommandRegexes @('#\s*show\s+interfaces?\s+brief') -DefaultValue @()
+    $macTableBlock   = DeviceLogParserModule\Get-ShowBlock -Blocks $blocks -Lines $Lines -PreferredKeys @('show mac address-table','show mac-address-table','show mac address','show mac-address') -RegexPatterns @('^show\s+mac[- ]address') -CommandRegexes @('#\s*show\s+mac\s*-?address') -DefaultValue @()
+    $dot1xSessions   = DeviceLogParserModule\Get-ShowBlock -Blocks $blocks -Lines $Lines -PreferredKeys @('show dot1x sessions all') -CommandRegexes @('#\s*show\s+dot1x\s+sessions\s+all') -DefaultValue @()
+    $macAuthSessions = DeviceLogParserModule\Get-ShowBlock -Blocks $blocks -Lines $Lines -PreferredKeys @('show mac authentication sessions all','show mac-authentication sessions all') -RegexPatterns @('^show\s+mac[- ]authentication\s+sessions') -CommandRegexes @('#\s*show\s+mac\s*-?authentication\s+sessions\s+all') -DefaultValue @()
     # Retrieve the unified authentication session command if present.  This newer
     # command reports both 802.1X and MAC authentication state in one table.  When
     # available it supersedes the separate dot1x/mac-auth session commands.
-    $authSessionsAll = Get-CommandBlock -Lines $Lines -CommandRegex '#\s*show\s+authentication\s+sessions'
+    $authSessionsAll = DeviceLogParserModule\Get-ShowBlock -Blocks $blocks -Lines $Lines -PreferredKeys @('show authentication sessions') -CommandRegexes @('#\s*show\s+authentication\s+sessions') -DefaultValue @()
 
     # On older Brocade FCX software (e.g. 7.3.x) the session commands differ from
     # modern releases.  In lieu of "show dot1x sessions all" the command
@@ -423,9 +392,9 @@ function Get-BrocadeDeviceFacts {
     # retrieved via two commands which separately list authorized and unauthorized
     # MAC addresses.  Capture these alternate command blocks here so they may be
     # used as fallbacks later when the standard commands return no output.
-    $dot1xMacSessions    = Get-CommandBlock -Lines $Lines -CommandRegex '#\s*show\s+dot1x\s+mac-?sessions'
-    $authMacAuthorized   = Get-CommandBlock -Lines $Lines -CommandRegex '#\s*show\s+auth-?mac-?addresses\s+authorized-mac'
-    $authMacUnauthorized = Get-CommandBlock -Lines $Lines -CommandRegex '#\s*show\s+auth-?mac-?addresses\s+unauthorized-mac'
+    $dot1xMacSessions    = DeviceLogParserModule\Get-ShowBlock -Blocks $blocks -Lines $Lines -PreferredKeys @('show dot1x mac-sessions') -CommandRegexes @('#\s*show\s+dot1x\s+mac-?sessions') -DefaultValue @()
+    $authMacAuthorized   = DeviceLogParserModule\Get-ShowBlock -Blocks $blocks -Lines $Lines -PreferredKeys @('show auth-mac-addresses authorized-mac','show auth mac addresses authorized-mac') -RegexPatterns @('^show\s+auth-?mac-?addresses\s+authorized-mac') -CommandRegexes @('#\s*show\s+auth-?mac-?addresses\s+authorized-mac') -DefaultValue @()
+    $authMacUnauthorized = DeviceLogParserModule\Get-ShowBlock -Blocks $blocks -Lines $Lines -PreferredKeys @('show auth-mac-addresses unauthorized-mac','show auth mac addresses unauthorized-mac') -RegexPatterns @('^show\s+auth-?mac-?addresses\s+unauthorized-mac') -CommandRegexes @('#\s*show\s+auth-?mac-?addresses\s+unauthorized-mac') -DefaultValue @()
 
     $hostname   = Get-Hostname
     $modelVer   = Get-ModelAndVersion $versionBlock
@@ -499,7 +468,7 @@ function Get-BrocadeDeviceFacts {
         if ($macAuthSessions -and $macAuthSessions.Count -gt 0) {
             $macAuthBlockToUse = $macAuthSessions
         } elseif (($authMacAuthorized -and $authMacAuthorized.Count -gt 0) -or ($authMacUnauthorized -and $authMacUnauthorized.Count -gt 0)) {
-            $combined = New-Object 'System.Collections.Generic.List[string]'
+            $combined = [System.Collections.Generic.List[string]]::new()
             # Append authorized entries.  When lines originate from the legacy
             # "show auth-mac-addresses authorized-mac" command, the format is
             # "MAC Port Vlan Yes ...".  Normalize each line by reordering
@@ -561,13 +530,6 @@ function Get-BrocadeDeviceFacts {
     $interfaces = Get-InterfacesBrief $interfacesBlock
     $macs       = Get-MacTable $macTableBlock
 
-    # Precompile regex patterns used for interface type determination.  These
-    # compiled expressions are reused for each port in the per-interface loop,
-    # avoiding repeated parsing of pattern strings on every iteration.  The
-    # match is case-insensitive.
-    $reTypeTrunk  = [regex]::new('uplink|trunk',  [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
-    $reTypeAccess = [regex]::new('access|user|staff|voice|endpoint|printer', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
-
     # Pre-index the MAC table and authentication rows by port to avoid pipeline
     # scans in the per-interface loop.  Normalize each port key to ensure that
     # ports specified with different prefixes (e.g. "Ethernet1/1/1" vs "Et1/1/1")
@@ -577,7 +539,7 @@ function Get-BrocadeDeviceFacts {
         $p    = $m.Port
         $norm = ConvertTo-PortKey $p
         if (-not $macsByPort.ContainsKey($norm)) {
-            $macsByPort[$norm] = New-Object 'System.Collections.Generic.List[string]'
+            $macsByPort[$norm] = [System.Collections.Generic.List[string]]::new()
         }
         [void]$macsByPort[$norm].Add([string]$m.MAC)
     }
@@ -674,9 +636,9 @@ function Get-BrocadeDeviceFacts {
         }
         # Determine port type via precompiled regular expressions rather than
         # matching inline patterns each time.  Use IsMatch() for efficiency.
-        $type = if ($reTypeTrunk.IsMatch($desc)) {
+        $type = if ($script:BrocadeTypeTrunkRegex.IsMatch($desc)) {
             "Trunk"
-        } elseif ($reTypeAccess.IsMatch($desc)) {
+        } elseif ($script:BrocadeTypeAccessRegex.IsMatch($desc)) {
             "Access"
         } else {
             ""
@@ -693,10 +655,7 @@ function Get-BrocadeDeviceFacts {
     }
 
     # Attempt to parse spanning-tree information if present.  Locate the
-    $spanBlock = Get-CommandBlock -Lines $Lines -CommandRegex '#\s*show\s+spanning-tree'
-    if ($spanBlock.Count -eq 0) {
-        $spanBlock = Get-CommandBlock -Lines $Lines -CommandRegex '#\s*show\s+span'
-    }
+    $spanBlock = DeviceLogParserModule\Get-ShowBlock -Blocks $blocks -Lines $Lines -PreferredKeys @('show spanning-tree') -RegexPatterns @('^show\s+span(\b|$)') -CommandRegexes @('#\s*show\s+span(?:ning-tree)?') -DefaultValue @()
     # Parse spanning tree information using the shared ConvertFrom-SpanningTree helper
     $spanInfo = if ($spanBlock.Count -gt 0) { ConvertFrom-SpanningTree -SpanLines $spanBlock } else { @() }
 
@@ -716,4 +675,3 @@ function Get-BrocadeDeviceFacts {
 }
 
 Export-ModuleMember -Function Get-BrocadeDeviceFacts
-

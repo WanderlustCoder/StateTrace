@@ -1,8 +1,9 @@
 if (-not (Get-Variable -Name StateTraceDebug -Scope Global -ErrorAction SilentlyContinue)) {
-
     Set-Variable -Scope Global -Name StateTraceDebug -Value $false -Option None
-
 }
+try {
+    TelemetryModule\Initialize-StateTraceDebug
+} catch { }
 
 
 
@@ -92,7 +93,7 @@ function Initialize-SiteExistingRowCacheSnapshot {
         return $null
     }
 
-    $siteSummaries = New-Object 'System.Collections.Generic.List[psobject]'
+    $siteSummaries = [System.Collections.Generic.List[psobject]]::new()
     $siteGroups = @($snapshot | Group-Object -Property Site)
     foreach ($group in $siteGroups) {
         $siteName = '' + $group.Name
@@ -130,8 +131,33 @@ function Write-SharedCacheSnapshotFileInternal {
         [System.Collections.IEnumerable]$Entries
     )
 
-    $entryArray = @($Entries)
-    $sanitizedEntries = New-Object 'System.Collections.Generic.List[psobject]'
+    $cacheFallbackWriter = Get-Command -Name 'DeviceRepository.Cache\Write-SharedCacheSnapshotFileFallback' -ErrorAction SilentlyContinue
+    if (-not $cacheFallbackWriter) {
+        $cacheFallbackWriter = Get-Command -Name 'Write-SharedCacheSnapshotFileFallback' -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue
+    }
+    if ($cacheFallbackWriter) {
+        try {
+            & $cacheFallbackWriter -Path $Path -Entries $Entries
+            return
+        } catch {
+            Write-Verbose ("Shared cache snapshot fallback via DeviceRepository.Cache failed: {0}" -f $_.Exception.Message)
+        }
+    }
+
+    $entryArray = $Entries
+    try {
+        $cacheHelper = Get-Command -Name 'DeviceRepository.Cache\ConvertTo-SharedCacheEntryArray' -ErrorAction SilentlyContinue
+        if (-not $cacheHelper) {
+            $cacheHelper = Get-Command -Name 'ConvertTo-SharedCacheEntryArray' -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue
+        }
+        if ($cacheHelper) {
+            $entryArray = & $cacheHelper -Entries $Entries
+        }
+    } catch {
+        $entryArray = $Entries
+    }
+    if (-not ($entryArray -is [System.Collections.IEnumerable])) { $entryArray = @($entryArray) }
+    $sanitizedEntries = [System.Collections.Generic.List[psobject]]::new()
 
     foreach ($entry in $entryArray) {
         if (-not $entry) { continue }
@@ -359,6 +385,8 @@ function Invoke-StateTraceParsing {
         [switch]$Synchronous,
 
         [switch]$PreserveRunspace,
+
+        [switch]$DisableAutoScaleProfile,
 
         [string]$SharedCacheSnapshotExportPath
 
@@ -653,6 +681,10 @@ function Invoke-StateTraceParsing {
         }
 
     }
+    $autoScaleConcurrencyRequested = $autoScaleConcurrency
+    if ($DisableAutoScaleProfile) {
+        $autoScaleConcurrency = $false
+    }
     if ($PSBoundParameters.ContainsKey('ThreadCeilingOverride')) {
 
         $threadCeiling = [int]$ThreadCeilingOverride
@@ -701,6 +733,21 @@ function Invoke-StateTraceParsing {
 
     }
 
+    $hasManualOverrides = $false
+
+    if ($PSBoundParameters.ContainsKey('ThreadCeilingOverride') -or
+        $PSBoundParameters.ContainsKey('MaxWorkersPerSiteOverride') -or
+        $PSBoundParameters.ContainsKey('MaxActiveSitesOverride') -or
+        $PSBoundParameters.ContainsKey('MaxConsecutiveSiteLaunchesOverride') -or
+        $PSBoundParameters.ContainsKey('JobsPerThreadOverride') -or
+        $PSBoundParameters.ContainsKey('MinRunspacesOverride')) {
+
+        $hasManualOverrides = $true
+
+    }
+
+    $noConcurrencyHints = (-not $hasThreadCeilingSetting -and -not $hasMaxWorkersSetting -and -not $hasMaxActiveSitesSetting -and -not $hasJobsPerThreadSetting -and -not $hasMinRunspacesSetting -and -not $hasManualOverrides)
+
 
 
     $autoScaleThreadHint = if ($hasThreadCeilingSetting) { $threadCeiling } else { 0 }
@@ -717,20 +764,30 @@ function Invoke-StateTraceParsing {
 
     $resolvedProfile = $null
 
-    if ($autoScaleConcurrency) {
+    $useAutoScaleProfile = $false
+
+    $shouldApplyAutoScaleProfile = (-not $DisableAutoScaleProfile) -and ($autoScaleConcurrency -or $noConcurrencyHints)
+
+    if ($shouldApplyAutoScaleProfile) {
+
+        $useAutoScaleProfile = $true
 
         $profile = Get-AutoScaleConcurrencyProfile -DeviceFiles $deviceFiles -CpuCount ([Environment]::ProcessorCount) -ThreadCeiling $autoScaleThreadHint -MaxWorkersPerSite $autoScaleWorkerHint -MaxActiveSites $autoScaleSiteHint -JobsPerThread $autoScaleJobsHint -MinRunspaces $autoScaleMinHint
-        $resolvedProfile = $profile
+        if ($profile) {
 
-        $threadCeiling = $profile.ThreadCeiling
+            $resolvedProfile = $profile
 
-        $maxWorkersPerSite = $profile.MaxWorkersPerSite
+            $threadCeiling = $profile.ThreadCeiling
 
-        $maxActiveSites = $profile.MaxActiveSites
+            $maxWorkersPerSite = $profile.MaxWorkersPerSite
 
-        $jobsPerThread = $profile.JobsPerThread
+            $maxActiveSites = $profile.MaxActiveSites
 
-        if ($profile.MinRunspaces -gt 0) { $minRunspaces = $profile.MinRunspaces }
+            $jobsPerThread = $profile.JobsPerThread
+
+            if ($profile.MinRunspaces -gt 0) { $minRunspaces = $profile.MinRunspaces }
+
+        }
 
     }
 
@@ -755,21 +812,6 @@ function Invoke-StateTraceParsing {
     }
 
     if ($threadCeiling -lt $minRunspaces) { $threadCeiling = $minRunspaces }
-
-
-
-    $hasManualOverrides = $false
-
-    if ($PSBoundParameters.ContainsKey('ThreadCeilingOverride') -or
-        $PSBoundParameters.ContainsKey('MaxWorkersPerSiteOverride') -or
-        $PSBoundParameters.ContainsKey('MaxActiveSitesOverride') -or
-        $PSBoundParameters.ContainsKey('MaxConsecutiveSiteLaunchesOverride') -or
-        $PSBoundParameters.ContainsKey('JobsPerThreadOverride') -or
-        $PSBoundParameters.ContainsKey('MinRunspacesOverride')) {
-
-        $hasManualOverrides = $true
-
-    }
 
 
 
@@ -830,6 +872,10 @@ function Invoke-StateTraceParsing {
     $telemetryPayload = @{
 
         AutoScaleEnabled = [bool]$autoScaleConcurrency
+        AutoScaleRequested = [bool]$autoScaleConcurrencyRequested
+        AutoScaleProfileRequested = [bool]$useAutoScaleProfile
+        AutoScaleProfileDisabled  = [bool]$DisableAutoScaleProfile.IsPresent
+        AutoScaleProfileResolved  = [bool]($resolvedProfile -ne $null)
 
         DeviceCount      = [int]$deviceCountForTelemetry
 
@@ -990,6 +1036,7 @@ function Invoke-StateTraceParsing {
     }
 
     if ($enableAdaptiveThreads) { $jobsParams.AdaptiveThreads = $true }
+    if ($useAutoScaleProfile) { $jobsParams.UseAutoScaleProfile = $true }
 
     if ($Synchronous) { $jobsParams.Synchronous = $true }
 
@@ -1013,17 +1060,118 @@ function Invoke-StateTraceParsing {
 
     if (-not [string]::IsNullOrWhiteSpace($SharedCacheSnapshotExportPath)) {
         try {
-            $snapshotEntries = @()
-            $deviceRepoModule = Get-Module -Name 'DeviceRepositoryModule'
-            if ($deviceRepoModule) {
-                $snapshotEntries = @($deviceRepoModule.Invoke({ Get-SharedSiteInterfaceCacheSnapshotEntries }))
+            $exported = $false
+            $cacheModule = Get-Module -Name 'DeviceRepository.Cache' -ErrorAction SilentlyContinue
+            if (-not $cacheModule) {
+                try {
+                    $cacheModulePath = Join-Path $modulesPath 'DeviceRepository.Cache.psm1'
+                    if (Test-Path -LiteralPath $cacheModulePath) {
+                        $cacheModule = Import-Module -Name $cacheModulePath -ErrorAction SilentlyContinue -PassThru
+                    }
+                } catch { }
             }
-            $snapshotEntryCount = ($snapshotEntries | Measure-Object).Count
-            Write-Verbose ("Shared cache snapshot entries captured: {0}" -f $snapshotEntryCount)
-            if ($snapshotEntryCount -gt 0) {
-                Write-SharedCacheSnapshotFileInternal -Path $SharedCacheSnapshotExportPath -Entries $snapshotEntries
-            } else {
-                Write-Verbose ("Shared cache snapshot export skipped (no entries).")
+            $cacheExportCmd = Get-Command -Name 'DeviceRepository.Cache\Export-SharedCacheSnapshot' -ErrorAction SilentlyContinue
+            if (-not $cacheExportCmd) {
+                $cacheExportCmd = Get-Command -Name 'Export-SharedCacheSnapshot' -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue
+            }
+            if ($cacheExportCmd) {
+                try {
+                    $siteFilter = [System.Collections.Generic.List[string]]::new()
+                    foreach ($entry in $snapshotEntries) {
+                        if (-not $entry) { continue }
+                        $siteValue = ''
+                        if ($entry.PSObject.Properties.Name -contains 'Site') {
+                            $siteValue = ('' + $entry.Site).Trim()
+                        } elseif ($entry.PSObject.Properties.Name -contains 'SiteKey') {
+                            $siteValue = ('' + $entry.SiteKey).Trim()
+                        }
+                        if (-not [string]::IsNullOrWhiteSpace($siteValue)) {
+                            $siteFilter.Add($siteValue) | Out-Null
+                        }
+                    }
+
+                    $exportArgs = @{ OutputPath = $SharedCacheSnapshotExportPath }
+                    if ($siteFilter.Count -gt 0) { $exportArgs['SiteFilter'] = $siteFilter.ToArray() }
+
+                    & $cacheExportCmd @exportArgs | Out-Null
+                    $exported = $true
+                    Write-Verbose ("Shared cache snapshot exported via DeviceRepository.Cache to '{0}'." -f $SharedCacheSnapshotExportPath)
+                } catch {
+                    Write-Verbose ("Shared cache snapshot export via DeviceRepository.Cache failed: {0}" -f $_.Exception.Message)
+                }
+            }
+
+            if (-not $exported) {
+                $snapshotEntries = @()
+                $cacheSnapshotCmd = Get-Command -Name 'DeviceRepository.Cache\Get-SharedSiteInterfaceCacheSnapshotEntries' -ErrorAction SilentlyContinue
+                if (-not $cacheSnapshotCmd) {
+                    $cacheSnapshotCmd = Get-Command -Name 'Get-SharedSiteInterfaceCacheSnapshotEntries' -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue
+                }
+                if ($cacheSnapshotCmd) {
+                    try { $snapshotEntries = @(& $cacheSnapshotCmd) } catch { $snapshotEntries = @() }
+                }
+                if (-not $snapshotEntries -or $snapshotEntries.Count -eq 0) {
+                    $deviceRepoModule = Get-Module -Name 'DeviceRepositoryModule'
+                    if ($deviceRepoModule) {
+                        $snapshotEntries = @($deviceRepoModule.Invoke({ Get-SharedSiteInterfaceCacheSnapshotEntries }))
+                    }
+                }
+                $snapshotEntryCount = ($snapshotEntries | Measure-Object).Count
+                Write-Verbose ("Shared cache snapshot entries captured: {0}" -f $snapshotEntryCount)
+
+                $normalizedEntries = $snapshotEntries
+                if ($normalizedEntries -and $normalizedEntries.Count -gt 0) {
+                    # Ensure fallback entries include an Entry payload for legacy writer compatibility.
+                    $normalizedList = [System.Collections.Generic.List[psobject]]::new()
+                    foreach ($entry in $normalizedEntries) {
+                        if (-not $entry) { continue }
+                        $siteValue = ''
+                        if ($entry.PSObject.Properties.Name -contains 'Site') {
+                            $siteValue = $entry.Site
+                        } elseif ($entry.PSObject.Properties.Name -contains 'SiteKey') {
+                            $siteValue = $entry.SiteKey
+                        }
+                        if ([string]::IsNullOrWhiteSpace($siteValue)) { continue }
+
+                        if ($entry.PSObject.Properties.Name -contains 'Entry') {
+                            $normalizedList.Add($entry) | Out-Null
+                            continue
+                        }
+
+                        $hostMap = $null
+                        if ($entry.PSObject.Properties.Name -contains 'HostMap') { $hostMap = $entry.HostMap }
+                        if (-not $hostMap) { continue }
+
+                        $normalizedList.Add([pscustomobject]@{
+                                Site  = $siteValue
+                                Entry = [pscustomobject]@{
+                                    HostMap   = $hostMap
+                                    HostCount = if ($entry.PSObject.Properties.Name -contains 'HostCount') { $entry.HostCount } else { $null }
+                                    TotalRows = if ($entry.PSObject.Properties.Name -contains 'TotalRows') { $entry.TotalRows } else { $null }
+                                }
+                            }) | Out-Null
+                    }
+                    $normalizedEntries = $normalizedList
+                    $snapshotEntryCount = ($normalizedEntries | Measure-Object).Count
+                }
+                if ($snapshotEntryCount -gt 0) {
+                    $fallbackWriter = Get-Command -Name 'DeviceRepository.Cache\Write-SharedCacheSnapshotFileFallback' -ErrorAction SilentlyContinue
+                    if (-not $fallbackWriter) {
+                        $fallbackWriter = Get-Command -Name 'Write-SharedCacheSnapshotFileFallback' -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue
+                    }
+                    if ($fallbackWriter) {
+                        try {
+                            & $fallbackWriter -Path $SharedCacheSnapshotExportPath -Entries $normalizedEntries
+                        } catch {
+                            Write-Verbose ("Fallback shared cache snapshot export via DeviceRepository.Cache failed: {0}" -f $_.Exception.Message)
+                            Write-SharedCacheSnapshotFileInternal -Path $SharedCacheSnapshotExportPath -Entries $normalizedEntries
+                        }
+                    } else {
+                        Write-SharedCacheSnapshotFileInternal -Path $SharedCacheSnapshotExportPath -Entries $normalizedEntries
+                    }
+                } else {
+                    Write-Verbose ("Shared cache snapshot export skipped (no entries).")
+                }
             }
         } catch {
             Write-Warning ("Failed to export shared cache snapshot to '{0}': {1}" -f $SharedCacheSnapshotExportPath, $_.Exception.Message)

@@ -73,11 +73,8 @@ function Get-DatabaseDeviceSummary {
 
     $row = $null
     if ($dtSummary) {
-        if ($dtSummary -is [System.Data.DataTable]) {
-            if ($dtSummary.Rows.Count -gt 0) { $row = $dtSummary.Rows[0] }
-        } elseif ($dtSummary -is [System.Collections.IEnumerable]) {
-            try { $row = ($dtSummary | Select-Object -First 1) } catch { $row = $null }
-        }
+        $summaryRows = DatabaseModule\ConvertTo-DbRowList -Data $dtSummary
+        if ($summaryRows.Count -gt 0) { $row = $summaryRows[0] }
     }
 
     $fallback = Get-DeviceHistoryFallback -Hostname $Hostname -DatabasePath $DatabasePath
@@ -131,11 +128,8 @@ function Get-DeviceHistoryFallback {
         $hist = DatabaseModule\Invoke-DbQuery -DatabasePath $DatabasePath -Sql "SELECT TOP 1 Make, Model, Uptime, AuthDefaultVLAN, Building, Room FROM DeviceHistory WHERE Trim(Hostname) = '$escHost' ORDER BY RunDate DESC"
         $row = $null
         if ($hist) {
-            if ($hist -is [System.Data.DataTable]) {
-                if ($hist.Rows.Count -gt 0) { $row = $hist.Rows[0] }
-            } elseif ($hist -is [System.Collections.IEnumerable]) {
-                try { $row = ($hist | Select-Object -First 1) } catch { $row = $null }
-            }
+            $histRows = DatabaseModule\ConvertTo-DbRowList -Data $hist
+            if ($histRows.Count -gt 0) { $row = $histRows[0] }
         }
         if ($row) {
             $mk = script:Get-RowValue -Row $row -Property 'Make'
@@ -157,11 +151,8 @@ function Get-DeviceHistoryFallback {
         $cnt = DatabaseModule\Invoke-DbQuery -DatabasePath $DatabasePath -Sql "SELECT COUNT(*) AS PortCount FROM Interfaces WHERE Trim(Hostname) = '$escHost'"
         $cntRow = $null
         if ($cnt) {
-            if ($cnt -is [System.Data.DataTable]) {
-                if ($cnt.Rows.Count -gt 0) { $cntRow = $cnt.Rows[0] }
-            } elseif ($cnt -is [System.Collections.IEnumerable]) {
-                try { $cntRow = ($cnt | Select-Object -First 1) } catch { $cntRow = $null }
-            }
+            $cntRows = DatabaseModule\ConvertTo-DbRowList -Data $cnt
+            if ($cntRows.Count -gt 0) { $cntRow = $cntRows[0] }
         }
         if ($cntRow) {
             $pc = script:Get-RowValue -Row $cntRow -Property 'PortCount'
@@ -208,11 +199,8 @@ function Get-DeviceVendorFromSummary {
         $mkDt = DatabaseModule\Invoke-DbQuery -DatabasePath $DatabasePath -Sql "SELECT Make FROM DeviceSummary WHERE Hostname = '$escHost'"
         $row = $null
         if ($mkDt) {
-            if ($mkDt -is [System.Data.DataTable]) {
-                if ($mkDt.Rows.Count -gt 0) { $row = $mkDt.Rows[0] }
-            } elseif ($mkDt -is [System.Collections.IEnumerable]) {
-                try { $row = ($mkDt | Select-Object -First 1) } catch { $row = $null }
-            }
+            $mkRows = DatabaseModule\ConvertTo-DbRowList -Data $mkDt
+            if ($mkRows.Count -gt 0) { $row = $mkRows[0] }
         }
         $mk = script:Get-RowValue -Row $row -Property 'Make'
         if ($mk -and ($mk -match '(?i)brocade')) { $vendor = 'Brocade' }
@@ -222,7 +210,6 @@ function Get-DeviceVendorFromSummary {
 
 
 Export-ModuleMember -Function Get-DeviceDetails, Get-DeviceDetailsData
-
 
 
 

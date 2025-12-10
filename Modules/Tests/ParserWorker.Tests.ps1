@@ -159,7 +159,8 @@ Describe "ParserWorker auto-scaling" {
                         [int]$MaxActiveSites,
                         [int]$MaxConsecutiveSiteLaunches,
                         [switch]$AdaptiveThreads,
-                        [switch]$Synchronous
+                        [switch]$Synchronous,
+                        [switch]$UseAutoScaleProfile
                     )
                     $script:capturedCalls += [PSCustomObject]@{
                         DeviceFiles       = $DeviceFiles
@@ -169,6 +170,7 @@ Describe "ParserWorker auto-scaling" {
                         MaxWorkersPerSite = $MaxWorkersPerSite
                         MaxActiveSites    = $MaxActiveSites
                         MaxConsecutiveSiteLaunches = $MaxConsecutiveSiteLaunches
+                        UseAutoScaleProfile = $UseAutoScaleProfile.IsPresent
                     }
                 }
                 Set-Item -Path Function:LogIngestionModule\Clear-ExtractedLogs -Value { param($ExtractedPath) }
@@ -182,11 +184,14 @@ Describe "ParserWorker auto-scaling" {
                 $capturedCall.DeviceFiles.Count | Should Be 3
                 ($capturedCall.DeviceFiles -contains $unknownFullPath) | Should Be $false
                 $capturedCall.MaxConsecutiveSiteLaunches | Should Be 8
+                $capturedCall.UseAutoScaleProfile | Should Be $true
 
                 $event = $script:telemetryEvents | Where-Object { $_.Name -eq 'ConcurrencyProfileResolved' } | Select-Object -Last 1
                 $event | Should Not Be $null
                 $event.Payload.DeviceCount | Should Be 3
                 $event.Payload.SiteCount | Should Be 2
+                $event.Payload.AutoScaleProfileRequested | Should Be $true
+                $event.Payload.AutoScaleProfileDisabled | Should Be $false
                 $script:lastChunkSize | Should Be 24
                 $event.Payload.InterfaceBulkChunkSize | Should Be 24
                 $event.Payload.HintInterfaceBulkChunkSize | Should BeNullOrEmpty
@@ -258,7 +263,8 @@ Describe "ParserWorker auto-scaling" {
                         [int]$MaxActiveSites,
                         [int]$MaxConsecutiveSiteLaunches,
                         [switch]$AdaptiveThreads,
-                        [switch]$Synchronous
+                        [switch]$Synchronous,
+                        [switch]$UseAutoScaleProfile
                     )
                     $script:capturedCalls += [PSCustomObject]@{
                         DeviceFiles       = $DeviceFiles
@@ -268,6 +274,7 @@ Describe "ParserWorker auto-scaling" {
                         MaxWorkersPerSite = $MaxWorkersPerSite
                         MaxActiveSites    = $MaxActiveSites
                         MaxConsecutiveSiteLaunches = $MaxConsecutiveSiteLaunches
+                        UseAutoScaleProfile = $UseAutoScaleProfile.IsPresent
                     }
                 }
                 Set-Item -Path Function:LogIngestionModule\Clear-ExtractedLogs -Value { param($ExtractedPath) }
@@ -276,8 +283,16 @@ Describe "ParserWorker auto-scaling" {
 
                 Invoke-StateTraceParsing -Synchronous
 
+                $capturedCall = $script:capturedCalls | Select-Object -Last 1
+                $capturedCall | Should Not Be $null
+                $capturedCall.UseAutoScaleProfile | Should Be $true
+
                 $event = $script:telemetryEvents | Where-Object { $_.Name -eq 'ConcurrencyProfileResolved' } | Select-Object -Last 1
                 $event | Should Not Be $null
+                $event.Payload.AutoScaleRequested | Should Be $true
+                $event.Payload.AutoScaleEnabled | Should Be $true
+                $event.Payload.AutoScaleProfileRequested | Should Be $true
+                $event.Payload.AutoScaleProfileDisabled | Should Be $false
                 $script:lastChunkSize | Should Be 12
                 $event.Payload.InterfaceBulkChunkSize | Should Be 12
                 $event.Payload.HintInterfaceBulkChunkSize | Should Be '12'
@@ -301,6 +316,94 @@ Describe "ParserWorker auto-scaling" {
             }
         }
 
+    }
+
+
+
+    It "disables auto-scale profile when requested" {
+        InModuleScope -ModuleName ParserWorker {
+            $projectRoot = (Get-Location).ProviderPath
+            $extractedPath = Join-Path $projectRoot 'Logs\Extracted'
+            New-Item -ItemType Directory -Path $extractedPath -Force | Out-Null
+            Get-ChildItem -Path $extractedPath -File -ErrorAction SilentlyContinue | Remove-Item -Force
+            $fileNames = @('DELTA-A01-AS-01.log','DELTA-A01-AS-02.log')
+            $fileInfos = @()
+            foreach ($name in $fileNames) {
+                $full = Join-Path $extractedPath $name
+                Set-Content -Path $full -Value '' -Encoding ASCII
+                $fileInfos += Get-Item -LiteralPath $full
+            }
+            Import-Module (Join-Path $projectRoot 'Modules\LogIngestionModule.psm1') -Force
+            Import-Module (Join-Path $projectRoot 'Modules\ParserRunspaceModule.psm1') -Force
+            Import-Module (Join-Path $projectRoot 'Modules\TelemetryModule.psm1') -Force
+
+            $splitCommand = Get-Command -Name Split-RawLogs -Module LogIngestionModule
+            $invokeCommand = Get-Command -Name Invoke-DeviceParsingJobs -Module ParserRunspaceModule
+            $clearCommand = Get-Command -Name Clear-ExtractedLogs -Module LogIngestionModule
+
+            $script:capturedCalls = @()
+            $script:telemetryEvents = @()
+            $existingTelemetry = Get-Command -Name Write-StTelemetryEvent -Module TelemetryModule -ErrorAction SilentlyContinue
+            $originalTelemetry = $null
+            if ($existingTelemetry) { $originalTelemetry = $existingTelemetry.ScriptBlock }
+
+            try {
+                Set-Item -Path Function:LogIngestionModule\Split-RawLogs -Value { param($LogPath, $ExtractedPath) }
+                Set-Item -Path Function:ParserRunspaceModule\Invoke-DeviceParsingJobs -Value {
+                    param(
+                        [string[]]$DeviceFiles,
+                        [string]$ModulesPath,
+                        [string]$ArchiveRoot,
+                        [string]$DatabasePath,
+                        [int]$MaxThreads,
+                        [int]$MinThreads,
+                        [int]$JobsPerThread,
+                        [int]$MaxWorkersPerSite,
+                        [int]$MaxActiveSites,
+                        [int]$MaxConsecutiveSiteLaunches,
+                        [switch]$AdaptiveThreads,
+                        [switch]$Synchronous,
+                        [switch]$UseAutoScaleProfile
+                    )
+                    $script:capturedCalls += [PSCustomObject]@{
+                        DeviceFiles       = $DeviceFiles
+                        MaxThreads        = $MaxThreads
+                        MinThreads        = $MinThreads
+                        JobsPerThread     = $JobsPerThread
+                        MaxWorkersPerSite = $MaxWorkersPerSite
+                        MaxActiveSites    = $MaxActiveSites
+                        MaxConsecutiveSiteLaunches = $MaxConsecutiveSiteLaunches
+                        UseAutoScaleProfile = $UseAutoScaleProfile.IsPresent
+                    }
+                }
+                Set-Item -Path Function:LogIngestionModule\Clear-ExtractedLogs -Value { param($ExtractedPath) }
+                Set-Item -Path Function:TelemetryModule\Write-StTelemetryEvent -Value { param($Name, $Payload) $script:telemetryEvents += [PSCustomObject]@{ Name = $Name; Payload = $Payload } }
+
+                Invoke-StateTraceParsing -Synchronous -DisableAutoScaleProfile
+
+                $capturedCall = $script:capturedCalls | Select-Object -Last 1
+                $capturedCall | Should Not Be $null
+                $capturedCall.DeviceFiles.Count | Should Be 2
+                $capturedCall.UseAutoScaleProfile | Should Be $false
+
+                $event = $script:telemetryEvents | Where-Object { $_.Name -eq 'ConcurrencyProfileResolved' } | Select-Object -Last 1
+                $event | Should Not Be $null
+                $event.Payload.AutoScaleProfileRequested | Should Be $false
+                $event.Payload.AutoScaleProfileDisabled | Should Be $true
+            } finally {
+                foreach ($info in $fileInfos) {
+                    Remove-Item -LiteralPath $info.FullName -ErrorAction SilentlyContinue
+                }
+                if ($splitCommand) { Set-Item -Path Function:LogIngestionModule\Split-RawLogs -Value $splitCommand.ScriptBlock }
+                if ($invokeCommand) { Set-Item -Path Function:ParserRunspaceModule\Invoke-DeviceParsingJobs -Value $invokeCommand.ScriptBlock }
+                if ($clearCommand) { Set-Item -Path Function:LogIngestionModule\Clear-ExtractedLogs -Value $clearCommand.ScriptBlock }
+                if ($originalTelemetry) {
+                    Set-Item -Path Function:TelemetryModule\Write-StTelemetryEvent -Value $originalTelemetry
+                } else {
+                    Remove-Item Function:TelemetryModule\Write-StTelemetryEvent -ErrorAction SilentlyContinue
+                }
+            }
+        }
     }
 
 
@@ -348,7 +451,8 @@ Describe "ParserWorker auto-scaling" {
                         [int]$MaxActiveSites,
                         [int]$MaxConsecutiveSiteLaunches,
                         [switch]$AdaptiveThreads,
-                        [switch]$Synchronous
+                        [switch]$Synchronous,
+                        [switch]$UseAutoScaleProfile
                     )
                     $script:capturedCalls += [PSCustomObject]@{
                         DeviceFiles       = $DeviceFiles
@@ -358,6 +462,7 @@ Describe "ParserWorker auto-scaling" {
                         MaxWorkersPerSite = $MaxWorkersPerSite
                         MaxActiveSites    = $MaxActiveSites
                         MaxConsecutiveSiteLaunches = $MaxConsecutiveSiteLaunches
+                        UseAutoScaleProfile = $UseAutoScaleProfile.IsPresent
                     }
                 }
                 Set-Item -Path Function:LogIngestionModule\Clear-ExtractedLogs -Value { param($ExtractedPath) }
@@ -374,6 +479,7 @@ Describe "ParserWorker auto-scaling" {
                 $capturedCall.MaxActiveSites | Should Be 2
                 $capturedCall.JobsPerThread | Should Be 1
                 $capturedCall.MaxConsecutiveSiteLaunches | Should Be 5
+                $capturedCall.UseAutoScaleProfile | Should Be $false
 
                 $event = $script:telemetryEvents | Where-Object { $_.Name -eq 'ConcurrencyProfileResolved' } | Select-Object -Last 1
                 $event | Should Not Be $null
@@ -381,6 +487,8 @@ Describe "ParserWorker auto-scaling" {
                 $event.Payload.ThreadCeiling | Should Be 4
                 $event.Payload.OverrideMaxConsecutiveSiteLaunches | Should Be 5
                 $event.Payload.ResolvedMaxConsecutiveSiteLaunches | Should Be 5
+                $event.Payload.AutoScaleProfileRequested | Should Be $false
+                $event.Payload.AutoScaleProfileDisabled | Should Be $false
             } finally {
                 foreach ($info in $fileInfos) {
                     Remove-Item -LiteralPath $info.FullName -ErrorAction SilentlyContinue

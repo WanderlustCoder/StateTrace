@@ -200,6 +200,92 @@ function Import-SharedSiteInterfaceCacheSnapshotFromEnv {
     return $imported
 }
 
+function ConvertTo-SharedCacheEntryArray {
+    param([object]$Entries)
+
+    if (-not $Entries) { return @() }
+
+    $current = $Entries
+    while ($current -is [System.Collections.IList] -and $current.Count -eq 1 -and ($current[0] -is [System.Collections.IList])) {
+        $current = $current[0]
+    }
+
+    if ($current -is [System.Collections.IList]) {
+        return @($current)
+    }
+
+    return ,$current
+}
+
+function Write-SharedCacheSnapshotFileFallback {
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [System.Collections.IEnumerable]$Entries
+    )
+
+    $entryArray = ConvertTo-SharedCacheEntryArray -Entries $Entries
+    $sanitizedEntries = [System.Collections.Generic.List[psobject]]::new()
+
+    foreach ($entry in $entryArray) {
+        if (-not $entry) { continue }
+
+        $siteValue = ''
+        if ($entry.PSObject.Properties.Name -contains 'Site') {
+            $siteValue = ('' + $entry.Site).Trim()
+        } elseif ($entry.PSObject.Properties.Name -contains 'SiteKey') {
+            $siteValue = ('' + $entry.SiteKey).Trim()
+        }
+        if ([string]::IsNullOrWhiteSpace($siteValue)) { continue }
+
+        $entryValue = $null
+        if ($entry.PSObject.Properties.Name -contains 'Entry') {
+            $entryValue = $entry.Entry
+        }
+        if (-not $entryValue) { continue }
+
+        $sanitizedEntries.Add([pscustomobject]@{
+                Site  = $siteValue
+                Entry = $entryValue
+            }) | Out-Null
+    }
+
+    $directory = $null
+    try { $directory = Split-Path -Parent $Path } catch { $directory = $null }
+    if (-not [string]::IsNullOrWhiteSpace($directory)) {
+        try { $directory = [System.IO.Path]::GetFullPath($directory) } catch { }
+    }
+    $targetPath = $Path
+    try { $targetPath = [System.IO.Path]::GetFullPath($Path) } catch { $targetPath = $Path }
+    try {
+        if (-not [string]::IsNullOrWhiteSpace($directory) -and -not (Test-Path -LiteralPath $directory)) {
+            New-Item -ItemType Directory -Path $directory -Force | Out-Null
+        }
+        $exportEntries = if ($sanitizedEntries.Count -gt 0) { $sanitizedEntries.ToArray() } else { @() }
+        # Use the cache module's Clixml export when available to keep depth/shape aligned.
+        $cacheExport = Get-Command -Name 'DeviceRepository.Cache\Export-SharedCacheSnapshot' -ErrorAction SilentlyContinue
+        if (-not $cacheExport) {
+            $cacheExport = Get-Command -Name 'Export-SharedCacheSnapshot' -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue
+        }
+        if ($cacheExport) {
+            try {
+                $sites = @()
+                foreach ($entry in $exportEntries) {
+                    if ($entry.Site) { $sites += ('' + $entry.Site).Trim() }
+                }
+                $args = @{ OutputPath = $targetPath }
+                if ($sites.Count -gt 0) { $args['SiteFilter'] = $sites }
+                & $cacheExport @args | Out-Null
+            } catch {
+                Export-Clixml -InputObject $exportEntries -Path $targetPath -Depth 20
+            }
+        } else {
+            Export-Clixml -InputObject $exportEntries -Path $targetPath -Depth 20
+        }
+    } catch {
+        Write-Warning ("Failed to write shared cache snapshot to '{0}': {1}" -f $targetPath, $_.Exception.Message)
+    }
+}
+
 function Import-SharedSiteInterfaceCacheSnapshot {
     param(
         [Parameter(Mandatory)][System.Collections.Concurrent.ConcurrentDictionary[string, object]]$Store,
@@ -417,7 +503,7 @@ function Export-SharedCacheSnapshot {
 
     $store = Get-SharedSiteInterfaceCacheStore
 
-    $snapshot = New-Object 'System.Collections.Generic.List[object]'
+    $snapshot = [System.Collections.Generic.List[object]]::new()
 
     foreach ($siteKey in $store.Keys) {
         if ($SiteFilter -and $SiteFilter.Count -gt 0 -and ($SiteFilter -notcontains $siteKey)) {
@@ -440,7 +526,7 @@ function Export-SharedCacheSnapshot {
 
 function Get-SharedSiteInterfaceCacheSnapshotEntries {
     $store = Get-SharedSiteInterfaceCacheStore
-    $entries = New-Object 'System.Collections.Generic.List[object]'
+    $entries = [System.Collections.Generic.List[object]]::new()
 
     foreach ($siteKey in @($store.Keys | Sort-Object)) {
         $entry = $store[$siteKey]
@@ -588,7 +674,7 @@ function Get-SharedSiteInterfaceCache {
     $siteCache = Get-SharedSiteInterfaceCacheEntry -SiteKey $siteKey
     if (-not $siteCache) { return @() }
 
-    $rows = New-Object 'System.Collections.Generic.List[object]'
+    $rows = [System.Collections.Generic.List[object]]::new()
     foreach ($hostKey in @($siteCache.Keys | Sort-Object)) {
         $hostRows = $siteCache[$hostKey]
         if (-not $hostRows) { continue }
@@ -617,4 +703,6 @@ Export-ModuleMember -Function `
     Get-SharedSiteInterfaceCacheEntryStatistics, `
     Initialize-SharedSiteInterfaceCacheStore, `
     Import-SharedSiteInterfaceCacheSnapshotFromEnv, `
-    Import-SharedSiteInterfaceCacheSnapshot
+    Import-SharedSiteInterfaceCacheSnapshot, `
+    ConvertTo-SharedCacheEntryArray, `
+    Write-SharedCacheSnapshotFileFallback

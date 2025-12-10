@@ -3,11 +3,14 @@
 if (-not (Get-Variable -Name StateTraceDebug -Scope Global -ErrorAction SilentlyContinue)) {
     Set-Variable -Scope Global -Name StateTraceDebug -Value $false -Option None
 }
+try {
+    TelemetryModule\Initialize-StateTraceDebug
+} catch { }
 if (-not (Get-Variable -Name DbProviderCache -Scope Script -ErrorAction SilentlyContinue)) {
     $script:DbProviderCache = [System.Collections.Concurrent.ConcurrentDictionary[string,string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 }
 
-# Cache vendor templates per runspace to avoid repeated JSON parsing.
+# Cache database connections per runspace to avoid repeated opens.
 if (-not (Get-Variable -Name ConnectionCache -Scope Script -ErrorAction SilentlyContinue)) {
 
     $script:ConnectionCache = [hashtable]::Synchronized(@{})
@@ -21,10 +24,6 @@ if (-not (Get-Variable -Name ConnectionCacheTtlMinutes -Scope Script -ErrorActio
 }
 
 
-
-if (-not (Get-Variable -Name VendorTemplatesCache -Scope Script -ErrorAction SilentlyContinue)) {
-    $script:VendorTemplatesCache = @{}
-}
 
 function Get-LocationDetails {
     [CmdletBinding()] param(
@@ -44,7 +43,7 @@ function Get-LocationDetails {
         # number of underscores between tokens.  Avoid the Where-Object pipeline
         # by manually filtering out empty strings into a strongly typed list.
         $rawTokens = $Location -split '_+'
-        $tokensList = New-Object 'System.Collections.Generic.List[string]'
+        $tokensList = [System.Collections.Generic.List[string]]::new()
         foreach ($t in $rawTokens) {
             if ($t -ne '') { [void]$tokensList.Add($t) }
         }
@@ -66,49 +65,145 @@ function Get-LocationDetails {
 
 
 
+function New-ShowBlockState {
+    $state = [PSCustomObject]@{
+        Blocks     = @{}
+        CurrentCmd = ''
+        Buffer     = [System.Collections.Generic.List[string]]::new()
+        Recording  = $false
+    }
+    return $state
+}
+
+# Precompile prompt regexes used when carving show command blocks to avoid
+# repeated parsing of the same patterns on every line.
+if (-not (Get-Variable -Name ShowPromptWithCommandRegex -Scope Script -ErrorAction SilentlyContinue)) {
+    # Allow prompts with or without host tokens (e.g., "switch# show ..." or "# show ...").
+    $script:ShowPromptWithCommandRegex = [regex]::new('^\s*[^\s]*[>#]\s*(?:do\s+)?(show\s+.+)$', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+}
+if (-not (Get-Variable -Name ShowPromptStartRegex -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:ShowPromptStartRegex = [regex]::new('^\s*[^\s]*[>#]', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+}
+
+function Update-ShowBlockState {
+    param(
+        [psobject]$State,
+        [string]$Line
+    )
+
+    if (-not $State) { return }
+
+    # Match a prompt followed by a show command.  Accept both '#' and '>'
+    $promptMatch = $script:ShowPromptWithCommandRegex.Match($Line)
+    if ($promptMatch.Success) {
+        if ($State.Recording -and $State.CurrentCmd) {
+            $State.Blocks[$State.CurrentCmd] = $State.Buffer
+        }
+        $State.CurrentCmd = $promptMatch.Groups[1].Value.Trim().ToLower()
+        $State.Buffer     = [System.Collections.Generic.List[string]]::new()
+        $State.Recording  = $true
+        return
+    }
+
+    # Detect the start of the next prompt which signals the end of the current block
+    if ($State.Recording -and $script:ShowPromptStartRegex.IsMatch($Line)) {
+        $State.Blocks[$State.CurrentCmd] = $State.Buffer
+        $State.CurrentCmd = ''
+        $State.Buffer     = [System.Collections.Generic.List[string]]::new()
+        $State.Recording  = $false
+        return
+    }
+
+    # Append lines to the current buffer if we are within a block
+    if ($State.Recording) {
+        [void]$State.Buffer.Add($Line)
+    }
+}
+
+function Complete-ShowBlockState {
+    param([psobject]$State)
+
+    if (-not $State) { return @{} }
+    if ($State.Recording -and $State.CurrentCmd) {
+        $State.Blocks[$State.CurrentCmd] = $State.Buffer
+    }
+    return $State.Blocks
+}
+
 function Get-ShowCommandBlocks {
     [CmdletBinding()]
     param(
         [string[]]$Lines
     )
-    # Initialize tracking variables for the current command and buffer
-    $blocks     = @{}
-    $currentCmd = ''
-    # Use a typed List[string] for the buffer to accumulate lines efficiently.
-    $buffer     = New-Object 'System.Collections.Generic.List[string]'
-    $recording  = $false
 
+    $state = New-ShowBlockState
     foreach ($line in $Lines) {
-        # Match a prompt followed by a show command.  Accept both '#' and '>'
-        if ($line -match '^[^\s]+[>#]\s*(?:do\s+)?(show\s+.+)$') {
-            # If we were recording a previous command, save its buffer
-            if ($recording -and $currentCmd) {
-                $blocks[$currentCmd] = $buffer
+        Update-ShowBlockState -State $state -Line $line
+    }
+    return (Complete-ShowBlockState -State $state)
+}
+
+function Get-ShowBlock {
+    [CmdletBinding()]
+    param(
+        [hashtable]$Blocks,
+        [string[]]$PreferredKeys = @(),
+        [string[]]$RegexPatterns = @(),
+        [string[]]$Lines,
+        [string[]]$CommandRegexes = @(),
+        [object]$DefaultValue = @()
+    )
+
+    if (-not $Blocks) { $Blocks = @{} }
+
+    foreach ($key in $PreferredKeys) {
+        if ($Blocks.ContainsKey($key)) { return $Blocks[$key] }
+    }
+
+    $compiledRegexPatterns = @()
+    if ($RegexPatterns -and $RegexPatterns.Count -gt 0) {
+        foreach ($pattern in $RegexPatterns) {
+            if ([string]::IsNullOrWhiteSpace($pattern)) { continue }
+            try { $compiledRegexPatterns += [regex]::new($pattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase) } catch { }
+        }
+    }
+
+    if ($Blocks.Count -gt 0 -and $compiledRegexPatterns.Count -gt 0) {
+        foreach ($re in $compiledRegexPatterns) {
+            foreach ($key in $Blocks.Keys) {
+                if ($re.IsMatch($key)) { return $Blocks[$key] }
             }
-            # Set new current command, normalize to lowercase, reset buffer
-            $currentCmd = $matches[1].Trim().ToLower()
-            $buffer     = New-Object 'System.Collections.Generic.List[string]'
-            $recording  = $true
-            continue
-        }
-        # Detect the start of the next prompt which signals the end of the current block
-        if ($recording -and $line -match '^[^\s]+[>#]') {
-            $blocks[$currentCmd] = $buffer
-            $currentCmd = ''
-            $buffer     = New-Object 'System.Collections.Generic.List[string]'
-            $recording  = $false
-            continue
-        }
-        # Append lines to the current buffer if we are within a block
-        if ($recording) {
-            [void]$buffer.Add($line)
         }
     }
-    # Flush the final block if still recording
-    if ($recording -and $currentCmd) {
-            $blocks[$currentCmd] = $buffer
+
+    # Fallback: derive the block directly from raw lines when a regex matches a command
+    $compiledCommandRegexes = @()
+    if ($CommandRegexes -and $CommandRegexes.Count -gt 0) {
+        foreach ($pattern in $CommandRegexes) {
+            if ([string]::IsNullOrWhiteSpace($pattern)) { continue }
+            try { $compiledCommandRegexes += [regex]::new($pattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase) } catch { }
+        }
     }
-    return $blocks
+
+    if ($Lines -and $compiledCommandRegexes.Count -gt 0) {
+        foreach ($regex in $compiledCommandRegexes) {
+            $startIndex = -1
+            for ($i = 0; $i -lt $Lines.Count; $i++) {
+                if ($regex.IsMatch($Lines[$i])) { $startIndex = $i; break }
+            }
+            if ($startIndex -lt 0) { continue }
+
+            $buffer = [System.Collections.Generic.List[string]]::new()
+            for ($j = $startIndex + 1; $j -lt $Lines.Count; $j++) {
+                $line = $Lines[$j]
+                if ($script:ShowPromptStartRegex.IsMatch($line)) { break }
+                [void]$buffer.Add($line)
+            }
+            return $buffer.ToArray()
+        }
+    }
+
+    return $DefaultValue
 }
 
 function Get-CanonicalDatabaseKey {
@@ -228,7 +323,7 @@ function Close-StaleConnections {
 
     $now = [DateTime]::UtcNow
 
-    $toRemove = New-Object 'System.Collections.Generic.List[string]'
+    $toRemove = [System.Collections.Generic.List[string]]::new()
 
     foreach ($key in @($script:ConnectionCache.Keys)) {
 
@@ -338,7 +433,7 @@ function Get-CachedDbConnection {
 
     if (-not $entry.Connection) {
 
-        $errors = New-Object 'System.Collections.Generic.List[string]'
+        $errors = [System.Collections.Generic.List[string]]::new()
 
         if (-not $provider) {
 
@@ -470,50 +565,22 @@ function Get-DeviceLogContext {
         [Parameter(Mandatory)][string]$FilePath
     )
 
-    $linesList = New-Object 'System.Collections.Generic.List[string]'
-    $blocks = @{}
-    $currentCmd = ''
-    $buffer = New-Object 'System.Collections.Generic.List[string]'
-    $recording = $false
-    $promptPattern = '^[^\s]+[>#]\s*(?:do\s+)?(show\s+.+)$'
-    $promptStartPattern = '^[^\s]+[>#]'
-
+    $linesList = [System.Collections.Generic.List[string]]::new()
+    $blockState = New-ShowBlockState
     $reader = $null
     try {
         $reader = [System.IO.StreamReader]::new($FilePath)
         while (-not $reader.EndOfStream) {
             $line = $reader.ReadLine()
             [void]$linesList.Add($line)
-
-            if ($line -match $promptPattern) {
-                if ($recording -and $currentCmd) {
-                    $blocks[$currentCmd] = $buffer
-                }
-                $currentCmd = $matches[1].Trim().ToLower()
-                $buffer = New-Object 'System.Collections.Generic.List[string]'
-                $recording = $true
-                continue
-            }
-            if ($recording -and $line -match $promptStartPattern) {
-                $blocks[$currentCmd] = $buffer
-                $currentCmd = ''
-                $buffer = New-Object 'System.Collections.Generic.List[string]'
-                $recording = $false
-                continue
-            }
-            if ($recording) {
-                [void]$buffer.Add($line)
-            }
+            Update-ShowBlockState -State $blockState -Line $line
         }
     } finally {
         if ($reader) { $reader.Dispose() }
     }
 
-    if ($recording -and $currentCmd) {
-        $blocks[$currentCmd] = $buffer
-    }
-
     $lineArray = $linesList.ToArray()
+    $blocks = Complete-ShowBlockState -State $blockState
     return [PSCustomObject]@{
         Lines  = $lineArray
         Blocks = $blocks
@@ -537,34 +604,34 @@ function Get-VendorTemplates {
         [string]$TemplatesRoot
     )
 
-    if (-not $script:VendorTemplatesCache) { $script:VendorTemplatesCache = @{} }
-
     $vendorKey = ('' + $Vendor).Trim()
     if ([string]::IsNullOrWhiteSpace($vendorKey)) { return @() }
 
-    if (-not $TemplatesRoot) {
-        $TemplatesRoot = Join-Path $PSScriptRoot '..\Templates'
+    $resolvedTemplatesPath = $TemplatesRoot
+    if (-not $resolvedTemplatesPath) {
+        $resolvedTemplatesPath = Join-Path $PSScriptRoot '..\Templates'
     }
 
-    if ($script:VendorTemplatesCache.ContainsKey($vendorKey)) {
-        return $script:VendorTemplatesCache[$vendorKey]
-    }
-
-    $templates = @()
     try {
-        $jsonFile = Join-Path $TemplatesRoot ("{0}.json" -f $vendorKey)
-        if (Test-Path $jsonFile) {
-            $json = Get-Content -Path $jsonFile -Raw | ConvertFrom-Json
-            if ($json.templates) {
-                $templates = $json.templates
+        if (-not (Get-Command -Name 'TemplatesModule\Get-ConfigurationTemplateData' -ErrorAction SilentlyContinue)) {
+            $templatesModulePath = Join-Path $PSScriptRoot 'TemplatesModule.psm1'
+            if (Test-Path -LiteralPath $templatesModulePath) {
+                Import-Module -Name $templatesModulePath -Force -Global -ErrorAction SilentlyContinue | Out-Null
             }
         }
+
+        $entry = $null
+        if (Get-Command -Name 'TemplatesModule\Get-ConfigurationTemplateData' -ErrorAction SilentlyContinue) {
+            $entry = TemplatesModule\Get-ConfigurationTemplateData -Vendor $vendorKey -TemplatesPath $resolvedTemplatesPath
+        }
+
+        if ($entry -and $entry.Templates) {
+            return $entry.Templates
+        }
     } catch {
-        $templates = @()
     }
 
-    $script:VendorTemplatesCache[$vendorKey] = $templates
-    return $templates
+    return @()
 }
 
 function Get-DeviceMakeFromBlocks {
@@ -617,7 +684,7 @@ function ConvertFrom-SpanningTree {
         [string[]]$SpanLines
     )
 
-    $entries = New-Object 'System.Collections.Generic.List[object]'
+    $entries = [System.Collections.Generic.List[object]]::new()
     $current    = ''
     $rootSwitch = ''
     $rootPort   = ''
@@ -1877,7 +1944,7 @@ function Invoke-DeviceLogParsing {
                 } catch { $historyRecords = @() }
             }
 
-            $updated = New-Object 'System.Collections.Generic.List[object]'
+            $updated = [System.Collections.Generic.List[object]]::new()
             foreach ($record in $historyRecords) {
                 if ($record.Hostname -ne $historyContext.Key) { [void]$updated.Add($record) }
             }
@@ -1931,5 +1998,4 @@ function Invoke-DeviceLogParsing {
 #
 
 
-Export-ModuleMember -Function Get-LocationDetails, Get-ShowCommandBlocks, Get-DeviceMakeFromBlocks, Get-SnmpLocationFromLines, ConvertFrom-SpanningTree, Remove-OldArchiveFolder, Get-BrocadeAuthBlockFromLines, Invoke-DeviceLogParsing, Get-LogParseContext, Get-VendorTemplates, Get-DatabaseMutexName
-
+Export-ModuleMember -Function Get-LocationDetails, Get-ShowCommandBlocks, Get-ShowBlock, Get-DeviceMakeFromBlocks, Get-SnmpLocationFromLines, ConvertFrom-SpanningTree, Remove-OldArchiveFolder, Get-BrocadeAuthBlockFromLines, Invoke-DeviceLogParsing, Get-LogParseContext, Get-VendorTemplates, Get-DatabaseMutexName

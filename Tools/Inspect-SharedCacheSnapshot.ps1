@@ -159,7 +159,7 @@ function Write-EntryDetail {
 }
 
 $filesToInspect = Get-SnapshotFiles -PathValue $SnapshotPath -AllFiles:$All
-$summaries = New-Object 'System.Collections.Generic.List[pscustomobject]'
+$summaries = [System.Collections.Generic.List[pscustomobject]]::new()
 
 foreach ($file in $filesToInspect) {
     $entries = Read-SnapshotEntries -FilePath $file

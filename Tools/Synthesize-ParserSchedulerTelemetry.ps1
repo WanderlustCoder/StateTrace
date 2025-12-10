@@ -52,7 +52,7 @@ $tempOutput = if ($InPlace) {
     $finalOutput
 }
 
-$parseEvents = New-Object 'System.Collections.Generic.List[psobject]'
+$parseEvents = [System.Collections.Generic.List[psobject]]::new()
 $siteRemaining = @{}
 
 Get-Content -LiteralPath $MetricsPath -ReadCount 500 | ForEach-Object {

@@ -2,25 +2,40 @@
 - Quick inventory of duplicated implementations across Modules/, with references noted as path:line.
 
 **Template Loading**
-- Modules/DeviceLogParserModule.psm1:493 re-implements vendor template JSON parsing already handled by Modules/TemplatesModule.psm1:266, maintaining a second cache and separate file resolution.
-- Divergent caches risk drift when templates change; consider exposing TemplatesModule\Get-ConfigurationTemplateData to parser workers instead of bespoke caching.
+- Modules/DeviceLogParserModule.psm1 now delegates vendor template JSON parsing to Modules/TemplatesModule.psm1 (Get-ConfigurationTemplateData) so parser workers reuse the shared cache instead of maintaining a bespoke copy.
 
 **Debug Switch Guards**
-- Modules/DatabaseModule.psm1:12, Modules/DeviceLogParserModule.psm1:4, Modules/ParserWorker.psm1:3, Modules/CompareViewModule.psm1:24 each define fallback initialization for $Global:StateTraceDebug.
-- Consolidating this guard (for example in TelemetryModule or a shared prelude) would avoid duplicated strict-mode scaffolding and reduce future maintenance.
+- Modules/DatabaseModule.psm1, Modules/DeviceLogParserModule.psm1, Modules/ParserWorker.psm1, and Modules/CompareViewModule.psm1 now rely on TelemetryModule\Initialize-StateTraceDebug rather than bespoke $Global:StateTraceDebug scaffolding.
 
 **Span Debug Logging**
-- Modules/DeviceRepositoryModule.psm1:1062 and Modules/SpanViewModule.psm1:45 both create Logs\\Debug directories and append SpanDebug.log entries with near-identical formatting.
-- Extracting a shared Span logging helper would eliminate redundant directory checks and keep telemetry formatting consistent.
+- Centralized via TelemetryModule\Write-SpanDebugLog; both DeviceRepositoryModule.psm1 and SpanViewModule.psm1 now delegate to the shared helper instead of re-creating Logs\\Debug\SpanDebug.log and temp files independently.
 
 **Db Result Normalization**
-- Modules/DeviceDetailsModule.psm1:77, Modules/DeviceRepositoryModule.psm1:441, Modules/InterfaceModule.psm1:200, Modules/TemplatesModule.psm1:242 repeat the same pattern to coerce Invoke-DbQuery output between DataTable instances and generic enumerables.
-- A DatabaseModule utility (for example ConvertTo-RowList) could collapse the boilerplate and enforce consistent null handling.
+- Consolidated into DatabaseModule\ConvertTo-DbRowList; DeviceDetailsModule.psm1, DeviceRepositoryModule.psm1, InterfaceModule.psm1, and TemplatesModule.psm1 now delegate to the shared helper for DataTable/enumerable normalization.
 
 **ViewStateService Bootstrap**
-- Modules/DeviceInsightsModule.psm1:6 and Modules/InterfaceModule.psm1:6 contain near-identical logic to probe for ViewStateService.psm1 and import it globally when missing.
-- Providing a single helper (perhaps ViewStateService\Ensure-Loaded) would prevent UI modules from duplicating this import and error handling code.
+- Centralized via ViewStateService\Import-ViewStateServiceModule (renamed from the unapproved Ensure-ViewStateServiceLoaded); DeviceInsightsModule and InterfaceModule now call the helper instead of duplicating the import/probe logic.
+
+**InterfaceCommon Bootstrap**
+- TelemetryModule now exposes Import-InterfaceCommon (replacing the unapproved-verb Ensure-InterfaceCommonLoaded) so UI/device modules can import InterfaceCommon via a shared helper instead of repeating local `Get-Module`/`Import-Module` blocks (CompareViewModule, DeviceRepositoryModule, FilterStateModule, InterfaceModule, ViewStateService).
 
 **Concurrency Heuristics**
 - Modules/ParserWorker.psm1:54 (Get-AutoScaleConcurrencyProfile) and Modules/ParserRunspaceModule.psm1:208 (Get-AdaptiveThreadBudget) both derive thread ceilings and job batching limits from device queues.
-- Unifying the heuristics inside a shared scheduler service would simplify tuning and keep autoscale behaviour consistent between worker discovery and runspace orchestration.
+- ParserRunspaceModule now exposes Get-ParserAutoScaleProfile (used when -UseAutoScaleProfile is set or when no concurrency hints are provided) to reuse the ParserWorker auto-scale calculation; further unification of adaptive budgeting remains open.
+- Adaptive thread budgeting in ParserRunspaceModule now applies the same MaxActiveSites/MaxWorkersPerSite bounds that ParserWorker uses when resolving thread ceilings, reducing duplicate concurrency heuristics and over-allocation for single-site workloads.
+- DeviceRepositoryModule\Import-SharedSiteInterfaceCacheSnapshotFromEnv now delegates to DeviceRepository.Cache\Import-SharedSiteInterfaceCacheSnapshotFromEnv first, avoiding two divergent snapshot import paths and keeping the preferred SiteKey/HostMap format primary while retaining the legacy fallback.
+- ParserWorker snapshot export now imports DeviceRepository.Cache when available and prefers its Export-SharedCacheSnapshot (shared format) before falling back to the local writer, reducing duplicate serialization paths for shared cache snapshots.
+- ParserWorker snapshot export now also prefers DeviceRepository.Cache\Get-SharedSiteInterfaceCacheSnapshotEntries before falling back to DeviceRepositoryModule, keeping the snapshot export and entry enumeration aligned on the same shared-cache module.
+- When falling back to the legacy snapshot writer, ParserWorker normalizes cache module snapshot entries into the Site/Entry shape to avoid format drift between the two export paths.
+- ParserWorker now attempts the cache module export first (without pre-enumerating entries), only enumerating snapshot entries when it has to fall back, reducing redundant work and keeping shared cache serialization centralized.
+- DeviceRepositoryModule\Get-SharedSiteInterfaceCacheSnapshotEntries now defers to DeviceRepository.Cache when present, minimizing divergent snapshot enumeration logic across modules.
+- Invoke-WarmRunTelemetry snapshot export now prefers DeviceRepository.Cache\Export-SharedCacheSnapshot (using site filters from the captured entries) before falling back to its local writer, aligning cold/warm harness exports with the shared cache module format.
+- Invoke-StateTracePipeline snapshot export now prefers DeviceRepository.Cache\Export-SharedCacheSnapshot (with site filters) before falling back to its local writer, reducing duplicate snapshot writers across pipeline/warm harnesses.
+- Invoke-WarmRunTelemetry now prefers DeviceRepository.Cache\Get-SharedSiteInterfaceCacheSnapshotEntries when capturing snapshot entries, keeping warm harness enumeration aligned with the shared cache module and avoiding duplicate snapshot entry logic.
+- ParserWorker cache-module export now passes a site filter derived from the captured snapshot entries, aligning with the pipeline/warm harness exports and avoiding redundant serialization work.
+- DeviceRepository.Cache now exposes ConvertTo-SharedCacheEntryArray for callers, and Invoke-WarmRunTelemetry delegates to it when available, trimming duplicated array-flattening helpers across snapshot writers.
+- Invoke-StateTracePipeline fallback snapshot export now uses DeviceRepository.Cache\ConvertTo-SharedCacheEntryArray when available, keeping flattening consistent with the cache module and eliminating an extra local helper.
+- ParserWorker fallback snapshot export now leverages DeviceRepository.Cache\ConvertTo-SharedCacheEntryArray when present, aligning flattening/normalization with other snapshot writers.
+- Invoke-WarmRunTelemetry's flattening helper is now just a wrapper over DeviceRepository.Cache\ConvertTo-SharedCacheEntryArray, eliminating its local duplicate implementation.
+- ParserWorker fallback writer now calls DeviceRepository.Cache\Write-SharedCacheSnapshotFileFallback first, reducing redundant serialization logic across modules before using its own internal writer.
+- DeviceRepository.Cache fallback snapshot writer now invokes its own Export-SharedCacheSnapshot when present, keeping Clixml depth/shape consistent even in fallback paths, with a plain Export-Clixml final fallback.

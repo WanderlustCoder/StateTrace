@@ -15,8 +15,8 @@ if (-not $OutputDirectory) {
     $OutputDirectory = Join-Path $repoRoot 'Logs\RefactorValidation'
 }
 
-$logEntries = New-Object 'System.Collections.Generic.List[string]'
-$errors = New-Object 'System.Collections.Generic.List[string]'
+$logEntries = [System.Collections.Generic.List[string]]::new()
+$errors = [System.Collections.Generic.List[string]]::new()
 
 function Add-Log {
     param([string]$Message)
@@ -83,7 +83,7 @@ if ($manifest) {
 }
 
 $modulesDir = Join-Path $repoRoot 'Modules'
-$importedModules = New-Object 'System.Collections.Generic.List[string]'
+$importedModules = [System.Collections.Generic.List[string]]::new()
 
 foreach ($moduleName in $modulesToImport) {
     $modulePath = Join-Path $modulesDir $moduleName
@@ -181,4 +181,3 @@ $summary
 if ($errors.Count -gt 0) {
     throw "MainWindow smoke test failed. Review $logPath for details."
 }
-

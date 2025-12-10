@@ -332,7 +332,7 @@ function Invoke-InterfacesViewForHost {
 $targetHosts = @(Resolve-TargetHosts -ExplicitHosts $Hostnames -SiteFilter $SiteFilter -MaxHosts $MaxHosts)
 Write-Host ("[InterfacesChecklist] Running headless UI stream for {0} host(s)..." -f $targetHosts.Count) -ForegroundColor Cyan
 
-$results = New-Object 'System.Collections.Generic.List[pscustomobject]'
+$results = [System.Collections.Generic.List[pscustomobject]]::new()
 
 for ($hostIndex = 0; $hostIndex -lt $targetHosts.Count; $hostIndex++) {
     $currentHost = $targetHosts[$hostIndex]

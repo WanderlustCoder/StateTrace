@@ -34,12 +34,12 @@ function Add-DictionaryCount {
 
 function New-MetricAccumulator {
     $accumulator = @{
-        ParseDurations              = New-Object 'System.Collections.Generic.List[double]'
+        ParseDurations              = [System.Collections.Generic.List[double]]::new()
         ParseDurationSum            = 0.0
         ParseDurationMax            = [double]::NegativeInfinity
         ParseDurationSuccess        = 0
         ParseDurationFailure        = 0
-        WriteLatencies              = New-Object 'System.Collections.Generic.List[double]'
+        WriteLatencies              = [System.Collections.Generic.List[double]]::new()
         WriteLatencySum             = 0.0
         WriteLatencyMax             = [double]::NegativeInfinity
         RowsWrittenTotal            = 0.0
@@ -48,7 +48,7 @@ function New-MetricAccumulator {
         RowsWrittenHosts            = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
         SkippedDuplicateCount       = 0
         SkippedDuplicateHosts       = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
-        SiteCacheFetchDurations     = New-Object 'System.Collections.Generic.List[double]'
+        SiteCacheFetchDurations     = [System.Collections.Generic.List[double]]::new()
         SiteCacheFetchDurationSum   = 0.0
         SiteCacheFetchDurationMax   = [double]::NegativeInfinity
         SiteCacheFetchCount         = 0
@@ -121,7 +121,7 @@ function Get-SummaryRowsForAccumulator {
         [string]$Scope
     )
 
-    $rows = New-Object 'System.Collections.Generic.List[psobject]'
+    $rows = [System.Collections.Generic.List[psobject]]::new()
 
     $parseCount = $Accumulator.ParseDurations.Count
     if ($parseCount -gt 0) {
@@ -210,7 +210,7 @@ function Get-SummaryRowsForAccumulator {
             $fetchTotal = $Accumulator.SiteCacheFetchDurationSum
         }
 
-        $noteParts = New-Object 'System.Collections.Generic.List[string]'
+        $noteParts = [System.Collections.Generic.List[string]]::new()
         if ($Accumulator.SiteCacheFetchStatusCounts.Count -gt 0) {
             $statusSummary = ($Accumulator.SiteCacheFetchStatusCounts.GetEnumerator() | Sort-Object Name | ForEach-Object {
                     '{0}={1}' -f $_.Key, $_.Value
@@ -517,7 +517,7 @@ if ($MetricFile) {
 
 $metricFiles = @($metricFiles)
 
-$summaryRows = New-Object 'System.Collections.Generic.List[psobject]'
+$summaryRows = [System.Collections.Generic.List[psobject]]::new()
 
 foreach ($file in $metricFiles) {
     $dateKey = [System.IO.Path]::GetFileNameWithoutExtension($file.Name)

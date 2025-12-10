@@ -44,7 +44,7 @@ function Get-BalancedHostnames {
                      @{ Expression = { $_.Key }; Descending = $false } |
         ForEach-Object { $_.Key }
 
-    $balanced = New-Object 'System.Collections.Generic.List[string]'
+    $balanced = [System.Collections.Generic.List[string]]::new()
     while ($true) {
         $added = $false
         foreach ($site in $siteOrder) {
@@ -67,7 +67,7 @@ function Get-DeviceSummaries {
     )
 
     $metadata = @{}
-    $hostnames = New-Object 'System.Collections.Generic.List[string]'
+    $hostnames = [System.Collections.Generic.List[string]]::new()
 
     $normalizedSites = @()
     if ($PSBoundParameters.ContainsKey('SiteFilter') -and $SiteFilter) {
@@ -86,7 +86,7 @@ function Get-DeviceSummaries {
 
     $dbPaths = @()
     if ($normalizedSites.Count -gt 0) {
-        $paths = New-Object 'System.Collections.Generic.List[string]'
+        $paths = [System.Collections.Generic.List[string]]::new()
         foreach ($siteName in $normalizedSites) {
             $path = $null
             try { $path = DeviceRepositoryModule\Get-DbPathForSite -Site $siteName } catch { $path = $null }
@@ -195,7 +195,7 @@ function Get-InterfaceHostnames {
     $buildingFilter = if ([string]::IsNullOrWhiteSpace($Building) -or $Building -ieq 'All Buildings') { $null } else { $Building }
     $roomFilter = if ([string]::IsNullOrWhiteSpace($Room) -or $Room -ieq 'All Rooms') { $null } else { $Room }
 
-    $hostList = New-Object 'System.Collections.Generic.List[string]'
+    $hostList = [System.Collections.Generic.List[string]]::new()
     foreach ($entry in $metadata.GetEnumerator()) {
         $name = $entry.Key
         $meta = $entry.Value

@@ -364,7 +364,7 @@ function Get-SiteExistingRowCacheSnapshot {
     [CmdletBinding()]
     param()
 
-    $snapshot = New-Object 'System.Collections.Generic.List[object]'
+    $snapshot = [System.Collections.Generic.List[object]]::new()
     if (-not $script:SiteExistingRowCache) { return ,$snapshot }
 
     foreach ($siteKey in $script:SiteExistingRowCache.Keys) {
@@ -524,7 +524,7 @@ function Write-SiteExistingRowCacheTelemetry {
 
     if ($Entries -and $Entries.Count -gt 0) {
         try {
-            $hostSamples = New-Object 'System.Collections.Generic.List[string]'
+            $hostSamples = [System.Collections.Generic.List[string]]::new()
             foreach ($entryKeyCandidate in $Entries.Keys) {
                 if ($hostSamples.Count -ge 5) { break }
                 if ($null -eq $entryKeyCandidate) { continue }
@@ -575,7 +575,7 @@ function Get-InterfaceRowSignature {
     )
 
     $propertyBag = $Row.PSObject.Properties
-    $values = New-Object 'System.Collections.Generic.List[object]' $script:InterfaceComparisonProperties.Count
+    $values = [System.Collections.Generic.List[object]]::new($script:InterfaceComparisonProperties.Count)
 
     foreach ($prop in $script:InterfaceComparisonProperties) {
         $member = $propertyBag[$prop]
@@ -1457,8 +1457,8 @@ $siteCacheTemplateDurationMs = 0.0
 
             try { $context.EntryType = $candidateEntry.GetType().FullName } catch { $context.EntryType = '' }
 
-            $portKeys = New-Object 'System.Collections.Generic.List[string]'
-            $signatureSamples = New-Object 'System.Collections.Generic.List[string]'
+            $portKeys = [System.Collections.Generic.List[string]]::new()
+            $signatureSamples = [System.Collections.Generic.List[string]]::new()
             $signatureMissing = 0
             $signatureEmpty = 0
 
@@ -2021,7 +2021,7 @@ $siteCacheTemplateDurationMs = 0.0
                     $rawMissingSamples = $lastSiteCacheMetrics.HydrationHostMapCandidateMissingSamples
                     if ($null -ne $rawMissingSamples) {
                         if ($rawMissingSamples -is [System.Collections.IEnumerable] -and -not ($rawMissingSamples -is [string])) {
-                            $sampleList = New-Object 'System.Collections.Generic.List[object]'
+                            $sampleList = [System.Collections.Generic.List[object]]::new()
                             foreach ($sample in $rawMissingSamples) {
                                 $sampleList.Add($sample) | Out-Null
                             }
@@ -2061,7 +2061,7 @@ $siteCacheTemplateDurationMs = 0.0
                     $rawMismatchSamples = $lastSiteCacheMetrics.HydrationHostMapSignatureMismatchSamples
                     if ($null -ne $rawMismatchSamples) {
                         if ($rawMismatchSamples -is [System.Collections.IEnumerable] -and -not ($rawMismatchSamples -is [string])) {
-                            $sampleList = New-Object 'System.Collections.Generic.List[object]'
+                            $sampleList = [System.Collections.Generic.List[object]]::new()
                             foreach ($sample in $rawMismatchSamples) {
                                 $sampleList.Add($sample) | Out-Null
                             }
@@ -2347,7 +2347,7 @@ $siteCacheTemplateDurationMs = 0.0
     $siteCacheExistingRowKeysSample = ''
     if ($existingRows -is [System.Collections.IDictionary]) {
         try {
-            $existingKeySamples = New-Object 'System.Collections.Generic.List[string]'
+            $existingKeySamples = [System.Collections.Generic.List[string]]::new()
             foreach ($existingKeyCandidate in $existingRows.Keys) {
                 if ($existingKeySamples.Count -ge 5) { break }
                 if ($null -eq $existingKeyCandidate) { continue }
@@ -2401,7 +2401,7 @@ $siteCacheTemplateDurationMs = 0.0
     }
 
 
-    $skipSourcesList = New-Object 'System.Collections.Generic.List[string]'
+    $skipSourcesList = [System.Collections.Generic.List[string]]::new()
     if ($skipSiteCacheUpdateFromParameter) { [void]$skipSourcesList.Add('Parameter') }
     if ($skipSiteCacheUpdateFromScript)    { [void]$skipSourcesList.Add('Module') }
     if ($skipSiteCacheUpdateFromEnvironment) { [void]$skipSourcesList.Add('Environment') }
@@ -2422,15 +2422,15 @@ $siteCacheTemplateDurationMs = 0.0
             -LoadCacheRefreshed:$loadCacheRefreshed
     }
 
-    $toInsert = New-Object 'System.Collections.Generic.List[object]'
-    $toUpdate = New-Object 'System.Collections.Generic.List[object]'
+    $toInsert = [System.Collections.Generic.List[object]]::new()
+    $toUpdate = [System.Collections.Generic.List[object]]::new()
     $seenPorts = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
 
     $runDateLiteral = "#$RunDateString#"
     $runDateValue = ConvertTo-DbDateTime -RunDateString $RunDateString
     $useAdodbParameters = $runDateValue -and (Test-IsAdodbConnection -Connection $Connection)
 
-    $toDelete = New-Object 'System.Collections.Generic.List[string]'
+    $toDelete = [System.Collections.Generic.List[string]]::new()
 
     $createInterfaceRow = {
         param(
@@ -2506,7 +2506,7 @@ $siteCacheTemplateDurationMs = 0.0
                 if ($lm -is [string]) {
                     $learned = $lm
                 } elseif ($lm) {
-                    $macList = New-Object 'System.Collections.Generic.List[string]'
+                    $macList = [System.Collections.Generic.List[string]]::new()
                     foreach ($mac in $lm) {
                         if ($mac -and $mac -ne '') { [void]$macList.Add($mac) }
                     }
@@ -2692,7 +2692,7 @@ $siteCacheTemplateDurationMs = 0.0
 
         if (-not $PortBatch -or $PortBatch.Count -eq 0) { return }
 
-        $escapedPorts = New-Object 'System.Collections.Generic.List[string]'
+        $escapedPorts = [System.Collections.Generic.List[string]]::new()
         foreach ($portName in $PortBatch) {
             $candidate = $portName
             if ($null -eq $candidate) { $candidate = '' }
@@ -2728,7 +2728,7 @@ $siteCacheTemplateDurationMs = 0.0
             $SeenPorts = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
         }
 
-        $batch = New-Object 'System.Collections.Generic.List[string]'
+        $batch = [System.Collections.Generic.List[string]]::new()
 
         foreach ($portName in $PortSequence) {
             if ([string]::IsNullOrWhiteSpace($portName)) { continue }
@@ -2829,7 +2829,7 @@ $siteCacheTemplateDurationMs = 0.0
 
 
 
-    $rowsToWrite = New-Object 'System.Collections.Generic.List[object]'
+    $rowsToWrite = [System.Collections.Generic.List[object]]::new()
 
     foreach ($row in $toInsert) { $rowsToWrite.Add($row) | Out-Null }
 
@@ -2891,7 +2891,7 @@ $siteCacheTemplateDurationMs = 0.0
             if ($toUpdate.Count -gt 0) {
                 $fallbackDeleteStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
                 try {
-                    $updatePorts = New-Object 'System.Collections.Generic.List[string]'
+                    $updatePorts = [System.Collections.Generic.List[string]]::new()
                     foreach ($row in $toUpdate) {
                         if ($row -and $row.PSObject.Properties.Name -contains 'Port') {
                             $updatePorts.Add([string]$row.Port) | Out-Null
@@ -3730,9 +3730,10 @@ function Invoke-InterfaceBulkInsertInternal {
             if ($capacity -lt 0) { $capacity = 0 }
         }
 
-        $ctorArgs = @()
-        if ($capacity -gt 0) { $ctorArgs = @($capacity) }
-        return New-Object 'System.Collections.Generic.List[psobject]' @ctorArgs
+        if ($capacity -gt 0) {
+            return [System.Collections.Generic.List[psobject]]::new($capacity)
+        }
+        return [System.Collections.Generic.List[psobject]]::new()
     }
 
     $convertUiRow = {
@@ -3775,10 +3776,10 @@ function Invoke-InterfaceBulkInsertInternal {
     }
 
     if ($rowsBufferCapacity -gt 0) {
-        $rowsBuffer = New-Object 'System.Collections.Generic.List[object[]]' ($rowsBufferCapacity)
+        $rowsBuffer = [System.Collections.Generic.List[object[]]]::new($rowsBufferCapacity)
         $uiRows = & $newUiList $Rows
     } else {
-        $rowsBuffer = New-Object 'System.Collections.Generic.List[object[]]'
+        $rowsBuffer = [System.Collections.Generic.List[object[]]]::new()
         $uiRows = & $newUiList $null
     }
     $uiCloneDurationMs = 0.0
@@ -4169,7 +4170,12 @@ WHERE Seed.BatchId = '$escBatch' AND Seed.Hostname = '$escHostname'"
     } catch { }
 
     if ($success) {
-        $totalPorts = if ($uiRows) { [int]$uiRows.Count } else { 0 }
+        $totalPorts = 0
+        if ($uiRows -and $uiRows.Count -gt 0) {
+            $totalPorts = [int]$uiRows.Count
+        } elseif ($rowsBuffer -and $rowsBuffer.Count -gt 0) {
+            $totalPorts = [int]$rowsBuffer.Count
+        }
         $streamStopwatch = $null
         try {
             $streamStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
@@ -4627,35 +4633,35 @@ function Invoke-InterfaceRowParameterized {
 
 
 
-function Write-InterfacePersistenceFailure {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory=$true)][string]$Stage,
-        [Parameter(Mandatory=$true)][string]$Hostname,
-        [Parameter(Mandatory=$true)][System.Exception]$Exception,
-        [Parameter()][hashtable]$Metadata
-    )
-
-    $payload = @{
-        Stage = $Stage
-        Hostname = $Hostname
-        ExceptionMessage = $Exception.Message
-        ExceptionType = $Exception.GetType().FullName
-    }
-
-    if ($Metadata) {
-        foreach ($key in $Metadata.Keys) {
-            $payload[$key] = $Metadata[$key]
-        }
-    }
-
-    try {
-        TelemetryModule\Write-StTelemetryEvent -Name 'InterfacePersistenceFailure' -Payload $payload
-    } catch {
-        Write-Warning ("Failed to emit interface persistence telemetry: {0}" -f $_.Exception.Message)
-    }
-}
-
+function Write-InterfacePersistenceFailure {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$Stage,
+        [Parameter(Mandatory=$true)][string]$Hostname,
+        [Parameter(Mandatory=$true)][System.Exception]$Exception,
+        [Parameter()][hashtable]$Metadata
+    )
+
+    $payload = @{
+        Stage = $Stage
+        Hostname = $Hostname
+        ExceptionMessage = $Exception.Message
+        ExceptionType = $Exception.GetType().FullName
+    }
+
+    if ($Metadata) {
+        foreach ($key in $Metadata.Keys) {
+            $payload[$key] = $Metadata[$key]
+        }
+    }
+
+    try {
+        TelemetryModule\Write-StTelemetryEvent -Name 'InterfacePersistenceFailure' -Payload $payload
+    } catch {
+        Write-Warning ("Failed to emit interface persistence telemetry: {0}" -f $_.Exception.Message)
+    }
+}
+
 function Update-SpanInfoInDb {
     [CmdletBinding()]
     param(

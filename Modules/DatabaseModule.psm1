@@ -1,16 +1,11 @@
 Set-StrictMode -Version Latest
 
-<#+
-Ensure a global debug flag exists.  Under strict mode, referencing an
-undefined variable produces an error.  Some functions in this module
-conditionally emit debug messages based on `$Global:StateTraceDebug`.
-If the variable hasn't been set elsewhere (e.g. by the UI module), it
-will be undefined and strict mode will throw.  Define it here with
-a default value of `$false` when it does not already exist.
-#>
 if (-not (Get-Variable -Name StateTraceDebug -Scope Global -ErrorAction SilentlyContinue)) {
     Set-Variable -Scope Global -Name StateTraceDebug -Value $false -Option None
 }
+try {
+    TelemetryModule\Initialize-StateTraceDebug
+} catch { }
 
 # Cache the last time we forced a Jet/ACE cache refresh
 if (-not (Get-Variable -Name LastCacheRefresh -Scope Script -ErrorAction SilentlyContinue)) { $script:LastCacheRefresh = Get-Date '2000-01-01' }
@@ -19,6 +14,29 @@ if (-not (Get-Variable -Name LastCacheRefresh -Scope Script -ErrorAction Silentl
 function Get-SqlLiteral {
     param([Parameter(Mandatory)][string]$Value)
     return $Value.Replace("'", "''")
+}
+
+function ConvertTo-DbRowList {
+    [CmdletBinding()]
+    param(
+        [Parameter()][object]$Data
+    )
+
+    $list = [System.Collections.Generic.List[object]]::new()
+    if (-not $Data) { return @() }
+
+    if ($Data -is [System.Data.DataTable]) {
+        foreach ($row in $Data.Rows) { $null = $list.Add($row) }
+        return ,$list.ToArray()
+    }
+
+    if ($Data -is [System.Collections.IEnumerable]) {
+        foreach ($item in $Data) {
+            if ($null -ne $item) { $null = $list.Add($item) }
+        }
+    }
+
+    return $list.ToArray()
 }
 
 function Invoke-AccessDatabase32BitCreation {
@@ -551,8 +569,7 @@ function Invoke-DbQuery {
     }
 }
 
-Export-ModuleMember -Function Get-SqlLiteral, New-AccessDatabase, Invoke-DbQuery, Open-DbReadSession, Close-DbReadSession
-
+Export-ModuleMember -Function Get-SqlLiteral, ConvertTo-DbRowList, New-AccessDatabase, Invoke-DbQuery, Open-DbReadSession, Close-DbReadSession
 
 
 

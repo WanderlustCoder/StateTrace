@@ -67,7 +67,7 @@ $manifest = $null
         }
     }
 
-$failures = New-Object 'System.Collections.Generic.List[string]'
+$failures = [System.Collections.Generic.List[string]]::new()
 
 $userActionCoverage = $null
 if ($UserActionSummaryPath) {

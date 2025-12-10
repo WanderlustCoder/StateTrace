@@ -21,14 +21,29 @@ $script:LastCompareHostList = $null
 
 $script:lastCompareColors       = @{}
 $script:CompareThemeHandlerRegistered = $false
-if ($null -eq $Global:StateTraceDebug) { $Global:StateTraceDebug = $false }
-if ($Global:StateTraceDebug) { $VerbosePreference = 'Continue' }
+try {
+    TelemetryModule\Initialize-StateTraceDebug -EnableVerbosePreference
+} catch { }
 
-if (-not (Get-Module -Name 'InterfaceCommon' -ErrorAction SilentlyContinue)) {
-    $interfaceCommonPath = Join-Path $PSScriptRoot 'InterfaceCommon.psm1'
-    if (Test-Path -LiteralPath $interfaceCommonPath) {
-        try { Import-Module -Name $interfaceCommonPath -Force -Global -ErrorAction SilentlyContinue | Out-Null } catch { }
+try { TelemetryModule\Import-InterfaceCommon | Out-Null } catch { }
+
+function Invoke-InterfaceStringPropertyValue {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][object]$InputObject,
+        [Parameter(Mandatory)][string[]]$PropertyNames
+    )
+
+    if (-not (Get-Command -Name 'InterfaceCommon\Get-StringPropertyValue' -ErrorAction SilentlyContinue)) {
+        try {
+            $modulePath = Join-Path $PSScriptRoot 'InterfaceCommon.psm1'
+            if (Test-Path -LiteralPath $modulePath) {
+                Import-Module $modulePath -ErrorAction Stop | Out-Null
+            }
+        } catch { }
     }
+
+    try { return InterfaceCommon\Get-StringPropertyValue @PSBoundParameters } catch { return '' }
 }
 
 function Resolve-CompareControls {
@@ -49,36 +64,12 @@ function Resolve-CompareControls {
             $script:switch2Dropdown -and $script:port2Dropdown)
 }
 
-function Get-StringPropertyValue {
-    param(
-        [Parameter(Mandatory)][object]$InputObject,
-        [Parameter(Mandatory)][string[]]$PropertyNames
-    )
-
-    try {
-        if (Get-Command -Name 'InterfaceCommon\Get-StringPropertyValue' -ErrorAction SilentlyContinue) {
-            return InterfaceCommon\Get-StringPropertyValue @PSBoundParameters
-        }
-    } catch { }
-
-    foreach ($name in $PropertyNames) {
-        try {
-            $prop = $InputObject.PSObject.Properties[$name]
-            if ($prop -and $null -ne $prop.Value) {
-                $val = '' + $prop.Value
-                if (-not [string]::IsNullOrWhiteSpace($val)) { return $val }
-            }
-        } catch { continue }
-    }
-    return ''
-}
-
 function Get-HostString {
     param($Item)
     # Returns a string hostname given an item which might be a complex object
     if ($null -eq $Item) { return '' }
     if ($Item -is [string])                        { return $Item }
-    $val = Get-StringPropertyValue -InputObject $Item -PropertyNames @('Hostname','HostName','Name')
+    $val = Invoke-InterfaceStringPropertyValue -InputObject $Item -PropertyNames @('Hostname','HostName','Name')
     if (-not [string]::IsNullOrWhiteSpace($val)) { return $val }
     return ('' + $Item)
 }
@@ -169,7 +160,7 @@ function Get-HostsFromMain {
 
     $hostSet  = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
 
-    $hostList = New-Object 'System.Collections.Generic.List[string]'
+    $hostList = [System.Collections.Generic.List[string]]::new()
 
     if ($snapshot -and $snapshot.Hostnames) {
 
@@ -193,7 +184,7 @@ function Get-HostsFromMain {
 
                 if (-not $row) { continue }
 
-                $hostname = Get-StringPropertyValue -InputObject $row -PropertyNames @('Hostname','HostName','Name')
+                $hostname = Invoke-InterfaceStringPropertyValue -InputObject $row -PropertyNames @('Hostname','HostName','Name')
 
                 if ([string]::IsNullOrWhiteSpace($hostname)) { $hostname = '' + $row }
 
@@ -223,7 +214,7 @@ function Get-HostsFromMain {
 
             if ($siteSel -and -not [string]::IsNullOrWhiteSpace($siteSel) -and -not [System.StringComparer]::OrdinalIgnoreCase.Equals($siteSel, 'All Sites')) {
 
-                $siteVal = Get-StringPropertyValue -InputObject $meta -PropertyNames @('Site')
+                $siteVal = Invoke-InterfaceStringPropertyValue -InputObject $meta -PropertyNames @('Site')
 
                 if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals($siteVal, $siteSel)) { continue }
 
@@ -231,19 +222,19 @@ function Get-HostsFromMain {
 
             if ($zoneSel -and -not [string]::IsNullOrWhiteSpace($zoneSel) -and -not [System.StringComparer]::OrdinalIgnoreCase.Equals($zoneSel, 'All Zones')) {
 
-                $zoneVal = Get-StringPropertyValue -InputObject $meta -PropertyNames @('Zone')
+                $zoneVal = Invoke-InterfaceStringPropertyValue -InputObject $meta -PropertyNames @('Zone')
 
                 if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals($zoneVal, $zoneSel)) { continue }
 
             }
 
             if ($bldSel -and -not [string]::IsNullOrWhiteSpace($bldSel) -and $meta) {
-                $bldVal = Get-StringPropertyValue -InputObject $meta -PropertyNames @('Building')
+                $bldVal = Invoke-InterfaceStringPropertyValue -InputObject $meta -PropertyNames @('Building')
                 if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals($bldVal, $bldSel)) { continue }
             }
 
             if ($roomSel -and -not [string]::IsNullOrWhiteSpace($roomSel) -and $meta) {
-                $roomVal = Get-StringPropertyValue -InputObject $meta -PropertyNames @('Room')
+                $roomVal = Invoke-InterfaceStringPropertyValue -InputObject $meta -PropertyNames @('Room')
                 if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals($roomVal, $roomSel)) { continue }
 
             }
@@ -314,7 +305,7 @@ function Get-PortsForHost {
 
     # Fetch all interface names for the given host from the database.  This revised
     Write-Verbose "[CompareView] Fetching ports for host '$Hostname'..."
-    $portsList = New-Object 'System.Collections.Generic.List[string]'
+    $portsList = [System.Collections.Generic.List[string]]::new()
     $targetHost = ('' + $Hostname).Trim()
     if ([string]::IsNullOrWhiteSpace($targetHost)) {
         return @()
@@ -331,13 +322,13 @@ function Get-PortsForHost {
             foreach ($iface in $svcInterfaces) {
                 if (-not $iface) { continue }
 
-                $hostValue = Get-StringPropertyValue -InputObject $iface -PropertyNames @('Hostname','HostName','Name')
+                $hostValue = Invoke-InterfaceStringPropertyValue -InputObject $iface -PropertyNames @('Hostname','HostName','Name')
                 if ([string]::IsNullOrWhiteSpace($hostValue)) { $hostValue = '' + $iface }
                 if ([string]::IsNullOrWhiteSpace($hostValue)) { continue }
 
                 if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals($hostValue.Trim(), $targetHost)) { continue }
 
-                $portVal = Get-StringPropertyValue -InputObject $iface -PropertyNames @('Port','Interface','IfName','Name')
+                $portVal = Invoke-InterfaceStringPropertyValue -InputObject $iface -PropertyNames @('Port','Interface','IfName','Name')
                 if (-not $portVal) { $portVal = '' + $iface }
                 if (-not [string]::IsNullOrWhiteSpace($portVal)) { [void]$portsList.Add($portVal) }
             }
@@ -390,7 +381,7 @@ function Get-PortsForHost {
     }
     # Normalise, deduplicate and sort using a HashSet and typed list.  Use a
     $set = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
-    $finalList = New-Object 'System.Collections.Generic.List[string]'
+    $finalList = [System.Collections.Generic.List[string]]::new()
     foreach ($p in $portsList) {
         $t = ('' + $p).Trim()
         if ($t -and $t -ne '' -and $set.Add($t)) {
@@ -632,22 +623,22 @@ function Set-CompareFromRows {
     }
 
     # Compute differences between the two config texts line by line using Compare-Object.
-    $lines1 = New-Object 'System.Collections.Generic.List[string]'
+    $lines1 = [System.Collections.Generic.List[string]]::new()
     if ($clean1) {
         foreach ($ln in ($clean1 -split "`r?`n")) {
             $t = $ln.Trim()
             if ($t -ne '') { [void]$lines1.Add($t) }
         }
     }
-    $lines2 = New-Object 'System.Collections.Generic.List[string]'
+    $lines2 = [System.Collections.Generic.List[string]]::new()
     if ($clean2) {
         foreach ($ln in ($clean2 -split "`r?`n")) {
             $t = $ln.Trim()
             if ($t -ne '') { [void]$lines2.Add($t) }
         }
     }
-    $diff1 = New-Object 'System.Collections.Generic.List[string]'
-    $diff2 = New-Object 'System.Collections.Generic.List[string]'
+    $diff1 = [System.Collections.Generic.List[string]]::new()
+    $diff2 = [System.Collections.Generic.List[string]]::new()
     try {
         $comp = Compare-Object -ReferenceObject $lines1 -DifferenceObject $lines2
         if ($comp) {
@@ -729,7 +720,7 @@ function Get-CompareHandlers {
         $rebuildLeft = {
             ### FIX: inline hostname (avoid Get-HostFromCombo) [switch1Dropdown]
             $si = $script:switch1Dropdown.SelectedItem
-            $hostname = if ($si) { Get-StringPropertyValue -InputObject $si -PropertyNames @('Hostname','HostName','Name') } else { ('' + $script:switch1Dropdown.Text).Trim() }
+            $hostname = if ($si) { Invoke-InterfaceStringPropertyValue -InputObject $si -PropertyNames @('Hostname','HostName','Name') } else { ('' + $script:switch1Dropdown.Text).Trim() }
             ### END FIX
             if ($hostname) {
                 Write-Verbose "[CompareView] Switch1 changed to '$hostname'. Rebuilding Port1 list..."
@@ -753,7 +744,7 @@ function Get-CompareHandlers {
         $rebuildRight = {
             ### FIX: inline hostname (avoid Get-HostFromCombo) [switch2Dropdown]
             $si = $script:switch2Dropdown.SelectedItem
-            $hostname = if ($si) { Get-StringPropertyValue -InputObject $si -PropertyNames @('Hostname','HostName','Name') } else { ('' + $script:switch2Dropdown.Text).Trim() }
+            $hostname = if ($si) { Invoke-InterfaceStringPropertyValue -InputObject $si -PropertyNames @('Hostname','HostName','Name') } else { ('' + $script:switch2Dropdown.Text).Trim() }
             ### END FIX
             if ($hostname) {
                 Write-Verbose "[CompareView] Switch2 changed to '$hostname'. Rebuilding Port2 list..."
@@ -778,7 +769,7 @@ function Get-CompareHandlers {
             ### FIX: inline hostname (avoid Get-HostFromCombo) [opened switch1Dropdown]
             $hostname = if ($script:switch1Dropdown) {
                 $si = $script:switch1Dropdown.SelectedItem
-                if ($si) { Get-StringPropertyValue -InputObject $si -PropertyNames @('Hostname','HostName','Name') } else { ('' + $script:switch1Dropdown.Text).Trim() }
+                if ($si) { Invoke-InterfaceStringPropertyValue -InputObject $si -PropertyNames @('Hostname','HostName','Name') } else { ('' + $script:switch1Dropdown.Text).Trim() }
             } else { $null }
             ### END FIX
             if ($hostname) {
@@ -800,7 +791,7 @@ function Get-CompareHandlers {
             ### FIX: inline hostname (avoid Get-HostFromCombo) [opened switch2Dropdown]
             $hostname = if ($script:switch2Dropdown) {
                 $si = $script:switch2Dropdown.SelectedItem
-                if ($si) { Get-StringPropertyValue -InputObject $si -PropertyNames @('Hostname','HostName','Name') } else { ('' + $script:switch2Dropdown.Text).Trim() }
+                if ($si) { Invoke-InterfaceStringPropertyValue -InputObject $si -PropertyNames @('Hostname','HostName','Name') } else { ('' + $script:switch2Dropdown.Text).Trim() }
             } else { $null }
             ### END FIX
             if ($hostname) {
@@ -996,6 +987,5 @@ function Set-CompareSelection {
 }
 
 Export-ModuleMember -Function Resolve-CompareControls, Get-HostString, Get-HostsFromMain, Get-PortSortKey, Get-PortsForHost, Set-PortsForCombo, Get-GridRowFor, Get-AuthTemplateFromTooltip, Get-ThemeBrushForPortColor, Update-CompareThemeBrushes, Set-CompareFromRows, Show-CurrentComparison, Get-CompareHandlers, Update-CompareView, Set-CompareSelection
-
 
 

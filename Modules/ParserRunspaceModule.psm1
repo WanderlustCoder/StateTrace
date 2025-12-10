@@ -221,7 +221,7 @@ function Get-ParserModulePaths {
         [Parameter(Mandatory)][string]$ModulesPath
     )
 
-    $paths = New-Object 'System.Collections.Generic.List[string]'
+    $paths = [System.Collections.Generic.List[string]]::new()
     foreach ($name in $script:ParserModuleNames) {
         $combined = Join-Path $ModulesPath $name
         try {
@@ -273,6 +273,39 @@ function Initialize-WorkerModules {
     $script:WorkerModulesInitialized = $true
 }
 
+function Get-ParserAutoScaleProfile {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string[]]$DeviceFiles,
+        [int]$CpuCount = 0,
+        [int]$ThreadCeiling = 0,
+        [int]$MaxWorkersPerSite = 0,
+        [int]$MaxActiveSites = 0,
+        [int]$JobsPerThread = 0,
+        [int]$MinRunspaces = 0
+    )
+
+    try {
+        $cmd = Get-Command -Name 'ParserWorker\Get-AutoScaleConcurrencyProfile' -ErrorAction SilentlyContinue
+        if (-not $cmd) { $cmd = Get-Command -Name 'Get-AutoScaleConcurrencyProfile' -Module 'ParserWorker' -ErrorAction SilentlyContinue }
+        if (-not $cmd) { $cmd = Get-Command -Name 'Get-AutoScaleConcurrencyProfile' -ErrorAction SilentlyContinue }
+        if (-not $cmd) { return $null }
+
+        $args = @{
+            DeviceFiles       = $DeviceFiles
+            CpuCount          = $CpuCount
+            ThreadCeiling     = $ThreadCeiling
+            MaxWorkersPerSite = $MaxWorkersPerSite
+            MaxActiveSites    = $MaxActiveSites
+            JobsPerThread     = $JobsPerThread
+            MinRunspaces      = $MinRunspaces
+        }
+        return & $cmd @args
+    } catch {
+        return $null
+    }
+}
+
 function Initialize-SchedulerMetricsContext {
     [CmdletBinding()]
     param(
@@ -319,7 +352,7 @@ function Initialize-SchedulerMetricsContext {
 
     return [PSCustomObject]@{
         FilePath            = $filePath
-        Buffer              = New-Object 'System.Collections.Generic.List[object]'
+        Buffer              = [System.Collections.Generic.List[object]]::new()
         LastSnapshot        = $null
         LastSnapshotTime    = [DateTime]::MinValue
         MaxThreads          = $MaxThreads
@@ -421,13 +454,17 @@ function Get-AdaptiveThreadBudget {
         [Parameter(Mandatory)][int]$CpuCount,
         [Parameter(Mandatory)][int]$MinThreads,
         [Parameter(Mandatory)][int]$MaxThreads,
-        [Parameter(Mandatory)][int]$JobsPerThread
+        [Parameter(Mandatory)][int]$JobsPerThread,
+        [int]$MaxWorkersPerSite = 0,
+        [int]$MaxActiveSites = 0
     )
 
     if ($MinThreads -lt 1) { $MinThreads = 1 }
     if ($JobsPerThread -lt 1) { $JobsPerThread = 1 }
     if ($MaxThreads -lt $MinThreads) { $MaxThreads = $MinThreads }
     if ($CpuCount -lt 1) { $CpuCount = 1 }
+    if ($MaxWorkersPerSite -lt 0) { $MaxWorkersPerSite = 0 }
+    if ($MaxActiveSites -lt 0) { $MaxActiveSites = 0 }
 
     $cpuBound = [Math]::Max($MinThreads, [Math]::Min($MaxThreads, $CpuCount * 2))
     $desired = [Math]::Max($MinThreads, $ActiveWorkers)
@@ -439,7 +476,15 @@ function Get-AdaptiveThreadBudget {
         $desired = $MinThreads
     }
 
+    $siteBound = $MaxThreads
+    if ($MaxActiveSites -gt 0) {
+        $siteBound = [Math]::Min($siteBound, [Math]::Max($MinThreads, $MaxActiveSites * [Math]::Max(1, $MaxWorkersPerSite)))
+    } elseif ($MaxWorkersPerSite -gt 0) {
+        $siteBound = [Math]::Min($siteBound, [Math]::Max($MinThreads, $MaxWorkersPerSite))
+    }
+
     if ($desired -gt $cpuBound) { $desired = $cpuBound }
+    if ($desired -gt $siteBound) { $desired = $siteBound }
     if ($desired -gt $MaxThreads) { $desired = $MaxThreads }
     if ($desired -lt $ActiveWorkers) { $desired = $ActiveWorkers }
 
@@ -457,7 +502,7 @@ function Finalize-SchedulerMetricsContext {
     if (-not $Context.Buffer -or $Context.Buffer.Count -eq 0) { return }
 
     try {
-        $combined = New-Object 'System.Collections.Generic.List[object]'
+        $combined = [System.Collections.Generic.List[object]]::new()
         try {
             if (Test-Path -LiteralPath $Context.FilePath) {
                 $existingRaw = Get-Content -LiteralPath $Context.FilePath -Raw -ErrorAction Stop
@@ -700,6 +745,7 @@ function Invoke-DeviceParsingJobs {
         [int]$MaxConsecutiveSiteLaunches = 0,
         [switch]$AdaptiveThreads,
         [switch]$Synchronous,
+        [switch]$UseAutoScaleProfile,
         [switch]$PreserveRunspacePool
     )
 
@@ -739,6 +785,14 @@ function Invoke-DeviceParsingJobs {
         $Synchronous = $false
     }
 
+    $useAutoScaleProfile = $UseAutoScaleProfile.IsPresent
+    $hasThreadHint = $PSBoundParameters.ContainsKey('MaxThreads')
+    $hasMinThreadHint = $PSBoundParameters.ContainsKey('MinThreads')
+    $hasWorkerHint = $PSBoundParameters.ContainsKey('MaxWorkersPerSite')
+    $hasActiveHint = $PSBoundParameters.ContainsKey('MaxActiveSites')
+    $hasJobsHint = $PSBoundParameters.ContainsKey('JobsPerThread')
+    $hasConcurrencyHints = ($hasThreadHint -or $hasMinThreadHint -or $hasWorkerHint -or $hasActiveHint -or $hasJobsHint)
+
     $consecutiveLimit = 0
     if ($MaxConsecutiveSiteLaunches -gt 0) {
         $consecutiveLimit = [Math]::Max(1, [int]$MaxConsecutiveSiteLaunches)
@@ -752,7 +806,26 @@ function Invoke-DeviceParsingJobs {
     if ($MinThreads -lt 1) { $MinThreads = 1 }
     if ($JobsPerThread -lt 1) { $JobsPerThread = 1 }
     if ($MaxThreads -lt $MinThreads) { $MaxThreads = $MinThreads }
-    $cpuCount = [Math]::Max(1, [Environment]::ProcessorCount)
+
+    $profileCpuCount = [Math]::Max(1, [Environment]::ProcessorCount)
+
+    if (-not $useAutoScaleProfile -and -not $hasConcurrencyHints -and -not $Synchronous -and -not $PreserveRunspacePool.IsPresent) {
+        $useAutoScaleProfile = $true
+    }
+
+    if ($useAutoScaleProfile) {
+        $profile = Get-ParserAutoScaleProfile -DeviceFiles $DeviceFiles -CpuCount $profileCpuCount -ThreadCeiling $MaxThreads -MaxWorkersPerSite $MaxWorkersPerSite -MaxActiveSites $MaxActiveSites -JobsPerThread $JobsPerThread -MinRunspaces $MinThreads
+        if ($profile) {
+            if (-not $PSBoundParameters.ContainsKey('MaxThreads') -or $MaxThreads -le 0) { $MaxThreads = [int]$profile.ThreadCeiling }
+            if (-not $PSBoundParameters.ContainsKey('MaxWorkersPerSite') -or $MaxWorkersPerSite -le 0) { $MaxWorkersPerSite = [int]$profile.MaxWorkersPerSite }
+            if (-not $PSBoundParameters.ContainsKey('MaxActiveSites') -or $MaxActiveSites -le 0) { $MaxActiveSites = [int]$profile.MaxActiveSites }
+            if (-not $PSBoundParameters.ContainsKey('JobsPerThread') -or $JobsPerThread -le 0) { $JobsPerThread = [int]$profile.JobsPerThread }
+            if (-not $PSBoundParameters.ContainsKey('MinThreads') -or $MinThreads -le 0) { $MinThreads = [int]$profile.MinRunspaces }
+            if ($MaxThreads -lt $MinThreads) { $MaxThreads = $MinThreads }
+        }
+    }
+
+    $cpuCount = $profileCpuCount
 
     $enableVerbose = $false
     try { $enableVerbose = [bool]$Global:StateTraceDebug } catch { $enableVerbose = $false }
@@ -773,7 +846,7 @@ function Invoke-DeviceParsingJobs {
     }
 
     if ($Synchronous -or $MaxThreads -le 1) {
-        $activeEntries = New-Object 'System.Collections.Generic.List[object]'
+        $activeEntries = [System.Collections.Generic.List[object]]::new()
         $activeSites = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
         $lastLaunchSite = ''
         $lastLaunchCount = 0
@@ -897,14 +970,14 @@ function Invoke-DeviceParsingJobs {
             if ($queue.Count -gt 0) { $initialQueuedSites++ }
         }
         if ($AdaptiveThreads) {
-            $currentThreadLimit = Get-AdaptiveThreadBudget -ActiveWorkers 0 -QueuedJobs $initialQueued -CpuCount $cpuCount -MinThreads $MinThreads -MaxThreads $MaxThreads -JobsPerThread $JobsPerThread
+            $currentThreadLimit = Get-AdaptiveThreadBudget -ActiveWorkers 0 -QueuedJobs $initialQueued -CpuCount $cpuCount -MinThreads $MinThreads -MaxThreads $MaxThreads -JobsPerThread $JobsPerThread -MaxWorkersPerSite $MaxWorkersPerSite -MaxActiveSites $MaxActiveSites
         } else {
             $currentThreadLimit = $MaxThreads
         }
         Write-ParserSchedulerMetricSnapshot -Context $metricsContext -ActiveWorkers 0 -ActiveSites 0 -QueuedJobs $initialQueued -QueuedSites $initialQueuedSites -ThreadBudget $currentThreadLimit -Force
     }
 
-    $active = New-Object 'System.Collections.Generic.List[object]'
+    $active = [System.Collections.Generic.List[object]]::new()
     $lastLaunchSite = ''
     $lastLaunchCount = 0
     try {
@@ -920,7 +993,7 @@ function Invoke-DeviceParsingJobs {
             }
 
             if ($AdaptiveThreads) {
-                $currentThreadLimit = Get-AdaptiveThreadBudget -ActiveWorkers $active.Count -QueuedJobs $totalQueued -CpuCount $cpuCount -MinThreads $MinThreads -MaxThreads $MaxThreads -JobsPerThread $JobsPerThread
+                $currentThreadLimit = Get-AdaptiveThreadBudget -ActiveWorkers $active.Count -QueuedJobs $totalQueued -CpuCount $cpuCount -MinThreads $MinThreads -MaxThreads $MaxThreads -JobsPerThread $JobsPerThread -MaxWorkersPerSite $MaxWorkersPerSite -MaxActiveSites $MaxActiveSites
             } else {
                 $currentThreadLimit = $MaxThreads
             }
@@ -1059,7 +1132,7 @@ function Invoke-InterfaceSiteCacheWarmup {
         return
     }
 
-    $jobs = New-Object 'System.Collections.Generic.List[object]'
+    $jobs = [System.Collections.Generic.List[object]]::new()
     foreach ($site in $Sites) {
         if ([string]::IsNullOrWhiteSpace($site)) { continue }
         $lookupKey = ('' + $site).Trim()
@@ -1162,7 +1235,7 @@ function Get-RunspaceSharedCacheSummary {
         $ps.RunspacePool = $pool
         $scriptBlock = {
             $store = DeviceRepositoryModule\Get-SharedSiteInterfaceCacheStore
-            $summary = New-Object 'System.Collections.Generic.List[psobject]'
+            $summary = [System.Collections.Generic.List[psobject]]::new()
             if ($store -is [System.Collections.IDictionary]) {
                 foreach ($key in @($store.Keys)) {
                     $entry = $null
@@ -1267,7 +1340,7 @@ function Set-RunspaceSharedCacheEntries {
     $storeKeyValue = $null
     try { $storeKeyValue = $script:SharedSiteInterfaceCacheKey } catch { $storeKeyValue = 'StateTrace.Repository.SharedSiteInterfaceCache' }
 
-    $jobs = New-Object 'System.Collections.Generic.List[object]'
+    $jobs = [System.Collections.Generic.List[object]]::new()
     foreach ($entry in @($Entries)) {
         if (-not $entry) { continue }
         $siteKey = ''
@@ -1330,6 +1403,3 @@ function Set-RunspaceSharedCacheEntries {
 }
 
 Export-ModuleMember -Function Invoke-DeviceParseWorker, Invoke-DeviceParsingJobs, Reset-DeviceParseRunspacePool, Invoke-InterfaceSiteCacheWarmup, Publish-RunspaceCacheTelemetry, Get-RunspaceSharedCacheSummary, Set-RunspaceSharedCacheEntries, Initialize-RunspaceSharedCacheStore
-
-
-

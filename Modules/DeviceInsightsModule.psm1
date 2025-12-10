@@ -1,11 +1,6 @@
 Set-StrictMode -Version Latest
 
-if (-not (Get-Module -Name "ViewStateService" -ErrorAction SilentlyContinue)) {
-    $viewStatePath = Join-Path $PSScriptRoot "ViewStateService.psm1"
-    if (Test-Path -LiteralPath $viewStatePath) {
-        Import-Module -Name $viewStatePath -Force -Global
-    }
-}
+try { ViewStateService\Import-ViewStateServiceModule | Out-Null } catch { }
 if (-not (Get-Variable -Scope Script -Name SearchRegexEnabled -ErrorAction SilentlyContinue)) {
     $script:SearchRegexEnabled = $false
 }
@@ -55,7 +50,7 @@ function Update-SearchResults {
     } catch {}
 
     $interfaces = ViewStateService\Get-InterfacesForContext -Site $siteSel -ZoneSelection $zoneSel -ZoneToLoad $zoneSel -Building $bldSel -Room $roomSel
-    $results   = New-Object 'System.Collections.Generic.List[object]'
+    $results   = [System.Collections.Generic.List[object]]::new()
     $termEmpty = [string]::IsNullOrWhiteSpace($Term)
 
     foreach ($row in $interfaces) {
@@ -260,11 +255,11 @@ function Update-Alerts {
     $interfaces = ViewStateService\Get-InterfacesForContext -Site $siteSel -ZoneSelection $zoneSel -ZoneToLoad $zoneToLoad -Building $bldSel -Room $roomSel
     if (-not $interfaces) { $interfaces = @() }
 
-    $alerts = New-Object 'System.Collections.Generic.List[object]'
+        $alerts = [System.Collections.Generic.List[object]]::new()
     foreach ($row in $interfaces) {
         if (-not $row) { continue }
 
-        $reasons = New-Object 'System.Collections.Generic.List[string]'
+        $reasons = [System.Collections.Generic.List[string]]::new()
         $status = '' + $row.Status
         if ($status) {
             if ([System.StringComparer]::OrdinalIgnoreCase.Equals($status, 'down') -or

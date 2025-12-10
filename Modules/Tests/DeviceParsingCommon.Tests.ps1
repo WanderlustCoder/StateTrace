@@ -95,4 +95,77 @@ Describe "DeviceParsingCommon Invoke-RegexTableParser" {
         $result[2].MAC | Should Be "bbaa.1122.3344"
         $result[2].VLAN | Should Be ""
     }
+
+    Context "ConvertFrom-MacTableRegex" {
+        It "parses standard VLAN/MAC/port rows with port normalization" {
+            $lines = @(
+                "header",
+                " Vlan Mac Address       Type Ports",
+                " 10   0011.2233.4455    dynamic Et1",
+                " 20   a0b1.c2d3.e4f5    static  Ethernet2/1/1"
+            )
+
+            $portTransform = { param($p) DeviceParsingCommon\ConvertTo-ShortPortName -Port $p }
+            $parsed = DeviceParsingCommon\ConvertFrom-MacTableRegex -Lines $lines -HeaderPattern '^\s*Vlan\s+Mac\s+Address\s+Type\s+Ports' -RowPattern '^\s*(\d+)\s+([0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4})\s+\S+\s+(\S+)\b' -VlanGroup 1 -MacGroup 2 -PortGroup 3 -PortTransform $portTransform
+
+            $parsed.Count | Should Be 2
+            $parsed[0].VLAN | Should Be "10"
+            $parsed[0].MAC  | Should Be "0011.2233.4455"
+            $parsed[0].Port | Should Be "Et1"
+            $parsed[1].Port | Should Be "Et2/1/1"
+        }
+    }
+
+    Context "Get-HostnameFromPrompt" {
+        It "extracts hostname from prompts with config context" {
+            $lines = @(
+                "core-switch(config)# show version"
+            )
+
+            DeviceParsingCommon\Get-HostnameFromPrompt -Lines $lines | Should Be "core-switch"
+        }
+
+        It "strips SSH prefixes and falls back to running-config entries" {
+            $lines = @(
+                "SSH@edge-sw1#",
+                "hostname branch-01-sw"
+            )
+
+            $result = DeviceParsingCommon\Get-HostnameFromPrompt -Lines $lines -RunningConfigPattern '^(?i)\s*hostname\s+(.+)$'
+            $result | Should Be "edge-sw1"
+        }
+
+        It "returns null when no hostname tokens are present" {
+            $lines = @("random line", "other output")
+            $result = DeviceParsingCommon\Get-HostnameFromPrompt -Lines $lines
+            $result | Should BeNullOrEmpty
+        }
+    }
+
+    Context "Get-UptimeFromLines" {
+        It "parses Cisco-style uptime lines" {
+            $lines = @(
+                "router uptime is 5 weeks, 2 days, 3 hours, 1 minute"
+            )
+
+            $result = DeviceParsingCommon\Get-UptimeFromLines -Lines $lines
+            $result | Should Be "5 weeks, 2 days, 3 hours, 1 minute"
+        }
+
+        It "parses Arista-style uptime lines" {
+            $lines = @(
+                "Something else",
+                "Uptime: 12 days, 1 hour"
+            )
+
+            $result = DeviceParsingCommon\Get-UptimeFromLines -Lines $lines
+            $result | Should Be "12 days, 1 hour"
+        }
+
+        It "returns null when no uptime tokens are present" {
+            $lines = @("foo", "bar")
+            $result = DeviceParsingCommon\Get-UptimeFromLines -Lines $lines
+            $result | Should BeNullOrEmpty
+        }
+    }
 }

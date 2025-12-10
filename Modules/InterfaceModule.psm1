@@ -2,23 +2,15 @@
 
 Set-StrictMode -Version Latest
 
-if (-not (Get-Module -Name 'ViewStateService' -ErrorAction SilentlyContinue)) {
-    $viewStateModulePath = Join-Path $PSScriptRoot 'ViewStateService.psm1'
-    if (Test-Path -LiteralPath $viewStateModulePath) {
-        try {
-            Import-Module -Name $viewStateModulePath -Force -Global | Out-Null
-        } catch {
-            Write-Verbose "[InterfaceModule] Failed to import ViewStateService: $($_.Exception.Message)"
-        }
+try {
+    if (-not (ViewStateService\Import-ViewStateServiceModule)) {
+        Write-Verbose "[InterfaceModule] ViewStateService not available"
     }
+} catch {
+    Write-Verbose "[InterfaceModule] Failed to import ViewStateService: $($_.Exception.Message)"
 }
 
-if (-not (Get-Module -Name 'InterfaceCommon' -ErrorAction SilentlyContinue)) {
-    $interfaceCommonPath = Join-Path $PSScriptRoot 'InterfaceCommon.psm1'
-    if (Test-Path -LiteralPath $interfaceCommonPath) {
-        try { Import-Module -Name $interfaceCommonPath -Force -Global | Out-Null } catch { }
-    }
-}
+try { TelemetryModule\Import-InterfaceCommon | Out-Null } catch { }
 
 $script:lastTemplateVendor = 'default'
 $script:TemplateThemeHandlerRegistered = $false
@@ -381,7 +373,7 @@ function Get-PortSortKey {
     $segments = [string[]]::new($segmentCount)
     $valuesToCopy = [Math]::Min($matchCount, $segmentCount)
     for ($i = 0; $i -lt $valuesToCopy; $i++) {
-        $segments[$i] = ([int]$matchesInts[$i].Value).ToString('00000')
+        $segments[$i] = ([long]$matchesInts[$i].Value).ToString('00000')
     }
     for ($i = $valuesToCopy; $i -lt $segmentCount; $i++) {
         $segments[$i] = '00000'
@@ -419,17 +411,22 @@ function Get-PortSortCacheStatistics {
     param()
 
     $cacheInstance = $script:PortSortKeyCache
-    $count = 0
-    if ($cacheInstance -is [System.Collections.ICollection]) {
-        try { $count = [int]$cacheInstance.Count } catch { $count = 0 }
+    $entryCount = 0
+    $cacheType = ''
+    if ($cacheInstance) {
+        try { $cacheType = $cacheInstance.GetType().FullName } catch { $cacheType = '' }
+        if ($cacheInstance -is [System.Collections.ICollection]) {
+            try { $entryCount = [int]$cacheInstance.Count } catch { $entryCount = 0 }
+        }
     }
 
     return [pscustomobject]@{
-        Count      = $count
         Hits       = [long]$script:PortSortCacheHits
         Misses     = [long]$script:PortSortCacheMisses
+        EntryCount = [long]$entryCount
         Fallback   = $script:PortSortFallbackKey
-        CacheType  = $cacheInstance.GetType().FullName
+        CacheType  = $cacheType
+        Count      = [long]$entryCount
     }
 }
 
@@ -489,14 +486,8 @@ function New-InterfaceObjectsFromDbRow {
     $firstRow = $null
     # Try to extract a representative row from the provided data
     try {
-        if ($Data -is [System.Data.DataTable]) {
-            if ($Data.Rows.Count -gt 0) { $firstRow = $Data.Rows[0] }
-        } elseif ($Data -is [System.Data.DataView]) {
-            if ($Data.Count -gt 0) { $firstRow = $Data[0].Row }
-        } elseif ($Data -is [System.Collections.IEnumerable]) {
-            $enum = $Data.GetEnumerator()
-            if ($enum -and $enum.MoveNext()) { $firstRow = $enum.Current }
-        }
+        $rows = DatabaseModule\ConvertTo-DbRowList -Data $Data
+        if ($rows.Count -gt 0) { $firstRow = $rows[0] }
     } catch {}
     # Attempt to determine vendor from joined Make column
     try {
@@ -511,17 +502,10 @@ function New-InterfaceObjectsFromDbRow {
         try {
             $mkDt = Invoke-DbQuery -DatabasePath $dbPath -Sql "SELECT Make FROM DeviceSummary WHERE Hostname = '$escHost'"
             if ($mkDt) {
-                if ($mkDt -is [System.Data.DataTable]) {
-                    if ($mkDt.Rows.Count -gt 0) {
-                        $mk = '' + $mkDt.Rows[0].Make
-                        if ($mk -match '(?i)brocade') { $vendor = 'Brocade' }
-                    }
-                } else {
-                    $mkRow = $mkDt | Select-Object -First 1
-                    if ($mkRow -and $mkRow.PSObject.Properties['Make']) {
-                        $mk = '' + $mkRow.Make
-                        if ($mk -match '(?i)brocade') { $vendor = 'Brocade' }
-                    }
+                $mkRows = DatabaseModule\ConvertTo-DbRowList -Data $mkDt
+                if ($mkRows.Count -gt 0) {
+                    $mk = '' + $mkRows[0].Make
+                    if ($mk -match '(?i)brocade') { $vendor = 'Brocade' }
                 }
             }
         } catch {}
@@ -531,28 +515,26 @@ function New-InterfaceObjectsFromDbRow {
         $abText = $null
         try {
             # Check if the first row exposes an 'AuthBlock' property without constraining MemberType
-            if ($firstRow -and ($firstRow | Get-Member -Name 'AuthBlock' -ErrorAction SilentlyContinue)) {
-                $abText = '' + $firstRow.AuthBlock
+        if ($firstRow -and ($firstRow | Get-Member -Name 'AuthBlock' -ErrorAction SilentlyContinue)) {
+            $abText = '' + $firstRow.AuthBlock
+        }
+    } catch {}
+    if (-not $abText) {
+        try {
+            $abDt = Invoke-DbQuery -DatabasePath $dbPath -Sql "SELECT AuthBlock FROM DeviceSummary WHERE Hostname = '$escHost'"
+            if ($abDt) {
+                $abRows = DatabaseModule\ConvertTo-DbRowList -Data $abDt
+                if ($abRows.Count -gt 0) {
+                    try { $abText = '' + $abRows[0].AuthBlock } catch { }
+                }
             }
         } catch {}
-        if (-not $abText) {
-            try {
-                $abDt = Invoke-DbQuery -DatabasePath $dbPath -Sql "SELECT AuthBlock FROM DeviceSummary WHERE Hostname = '$escHost'"
-                if ($abDt) {
-                    if ($abDt -is [System.Data.DataTable]) {
-                        if ($abDt.Rows.Count -gt 0) { $abText = '' + $abDt.Rows[0].AuthBlock }
-                    } else {
-                        $abRow = $abDt | Select-Object -First 1
-                        if ($abRow -and $abRow.PSObject.Properties['AuthBlock']) { $abText = '' + $abRow.AuthBlock }
-                    }
-                }
-            } catch {}
-        }
+    }
         if ($abText) {
             # Split into non-empty trimmed lines.  Use a typed list instead of ForEach-Object to
             # avoid pipeline overhead when processing large authentication blocks.
             $__tmpLines = $abText -split "`r?`n"
-            $__list = New-Object 'System.Collections.Generic.List[string]'
+            $__list = [System.Collections.Generic.List[string]]::new()
             foreach ($ln in $__tmpLines) {
                 $s = ('' + $ln).Trim()
                 if ($s -ne '') { [void]$__list.Add($s) }
@@ -576,18 +558,10 @@ function New-InterfaceObjectsFromDbRow {
         $templatesByName = $null
     }
     # Normalise $Data into an enumerable collection of rows.  Support DataTable,
-    $rows = @()
-    if ($Data -is [System.Data.DataTable]) {
-        $rows = $Data.Rows
-    } elseif ($Data -is [System.Data.DataView]) {
-        $rows = $Data
-    } elseif ($Data -is [System.Collections.IEnumerable]) {
-        $rows = $Data
-    } else {
-        return @()
-    }
+    $rows = DatabaseModule\ConvertTo-DbRowList -Data $Data
+    if (-not $rows -or $rows.Count -eq 0) { return @() }
     # Use a strongly typed List[object] instead of a PowerShell array.  Using
-    $resultList = New-Object 'System.Collections.Generic.List[object]'
+    $resultList = [System.Collections.Generic.List[object]]::new()
 
     # Precompute a lookup table for compliance templates when available.  When
     $templateLookup = if ($templatesByName) {
@@ -841,7 +815,7 @@ function Get-InterfaceList {
         if ($global:DeviceInterfaceCache -and $global:DeviceInterfaceCache.ContainsKey($Hostname)) {
             $items = $global:DeviceInterfaceCache[$Hostname]
             if ($items) {
-                $plist = New-Object 'System.Collections.Generic.List[string]'
+                $plist = [System.Collections.Generic.List[string]]::new()
                 foreach ($it in $items) {
                     if (-not $it) { continue }
                     $pVal = Get-PropertyStringValue -InputObject $it -PropertyNames @('Port')
@@ -857,7 +831,7 @@ function Get-InterfaceList {
         Ensure-DatabaseModule
         $escHost = $Hostname -replace "'", "''"
         $dt = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT Port FROM Interfaces WHERE Hostname = '$escHost' ORDER BY Port"
-        $portList = New-Object 'System.Collections.Generic.List[string]'
+        $portList = [System.Collections.Generic.List[string]]::new()
         foreach ($row in $dt) {
             [void]$portList.Add([string]$row.Port)
         }
@@ -1299,7 +1273,7 @@ function Set-InterfaceViewData {
     try {
         $combo = $interfacesView.FindName('ConfigOptionsDropdown')
         if ($combo) {
-            $items = New-Object 'System.Collections.Generic.List[object]'
+            $items = [System.Collections.Generic.List[object]]::new()
             if ($DeviceDetails.Templates) {
                 foreach ($item in $DeviceDetails.Templates) {
                     if ($null -ne $item) { [void]$items.Add(('' + $item)) }
@@ -1432,25 +1406,6 @@ function Hide-PortLoadingIndicator {
         $progress = $view.FindName('PortLoadingProgress')
         if ($progress) { $progress.Visibility = [System.Windows.Visibility]::Collapsed }
     } catch { }
-}
-
-function Get-PortSortCacheStatistics {
-    [CmdletBinding()]
-    param()
-
-    $cacheSize = 0
-    $cacheInstance = $script:PortSortKeyCache
-    if ($cacheInstance -is [System.Collections.Concurrent.ConcurrentDictionary[string,string]]) {
-        $cacheSize = $cacheInstance.Count
-    } elseif ($cacheInstance -is [hashtable]) {
-        $cacheSize = $cacheInstance.Count
-    }
-
-    return [pscustomobject]@{
-        Hits       = [long]$script:PortSortCacheHits
-        Misses     = [long]$script:PortSortCacheMisses
-        EntryCount = [long]$cacheSize
-    }
 }
 
 Export-ModuleMember -Function Get-PortSortKey,Get-PortSortCacheStatistics,Reset-PortSortCache,Get-InterfaceHostnames,Get-InterfaceInfo,Get-InterfaceList,New-InterfaceObjectsFromDbRow,Compare-InterfaceConfigs,Get-InterfaceConfiguration,Get-ConfigurationTemplates,Set-InterfaceViewData,Get-SpanningTreeInfo,New-InterfacesView,Set-PortLoadingIndicator,Hide-PortLoadingIndicator,Set-HostLoadingIndicator

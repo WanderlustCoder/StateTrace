@@ -7,11 +7,8 @@ function Get-AristaDeviceFacts {
     #
 
     function Get-Hostname {
-        foreach ($line in $Lines) {
-            if ($line -match "^([^(]+?)(?:\([^)]*\))?#") {
-                return $matches[1]
-            }
-        }
+        $hostname = DeviceParsingCommon\Get-HostnameFromPrompt -Lines $Lines
+        if ($hostname) { return $hostname }
         return "Unknown"
     }
 
@@ -35,11 +32,8 @@ function Get-AristaDeviceFacts {
     }
 
     function Get-Uptime {
-        foreach ($line in $Lines) {
-            if ($line -match "Uptime:\s*(.+)$") {
-                return $matches[1].Trim()
-            }
-        }
+        $uptime = DeviceParsingCommon\Get-UptimeFromLines -Lines $Lines -Patterns @('(?i)uptime:\s*(.+)$', '(?i)uptime\s+is\s+(.+)$')
+        if ($uptime) { return $uptime }
         return "Unknown"
     }
 
@@ -63,13 +57,8 @@ function Get-AristaDeviceFacts {
     }
 
     function Get-MacTable {
-        $propertyMap = [ordered]@{
-            VLAN = 1
-            MAC  = 2
-            Type = 3
-            Port = 4
-        }
-        return DeviceParsingCommon\Invoke-RegexTableParser -Lines $Lines -HeaderPattern '^\s*Vlan\s+Mac\s+Address\s+Type\s+Ports' -RowPattern '^\s*(\d+)\s+([0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4})\s+(\S+)\s+(\S+)\b' -PropertyMap $propertyMap
+        $portTransform = { param($p) DeviceParsingCommon\ConvertTo-ShortPortName -Port $p }
+        return DeviceParsingCommon\ConvertFrom-MacTableRegex -Lines $Lines -HeaderPattern '^\s*Vlan\s+Mac\s+Address\s+Type\s+Ports' -RowPattern '^\s*(\d+)\s+([0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4}\.[0-9A-Fa-f]{4})\s+(\S+)\s+(\S+)\b' -VlanGroup 1 -MacGroup 2 -PortGroup 4 -PortTransform $portTransform
     }
 
     function Get-Dot1xStatus {
@@ -91,7 +80,7 @@ function Get-AristaDeviceFacts {
         if ($line -imatch "^\s*interface\s+(?:Et|Ethernet)(\d+(?:/\d+)*)\b") {
             $portName    = "Et" + $matches[1]
             # Accumulate config lines in a typed List[string] for efficiency
-            $configLines = New-Object 'System.Collections.Generic.List[string]'
+            $configLines = [System.Collections.Generic.List[string]]::new()
             [void]$configLines.Add($line)
             $j           = $i + 1
             while ($j -lt $Lines.Count) {
@@ -112,68 +101,17 @@ function Get-AristaDeviceFacts {
     #
     if (-not $Blocks) {
         try {
-            $Blocks = Get-ShowCommandBlocks -Lines $Lines
+            $Blocks = DeviceLogParserModule\Get-ShowCommandBlocks -Lines $Lines
         } catch {
             $Blocks = @{}
         }
     }
     # Determine targeted blocks for each category of information.  Fallback to the full
-    $versionLines = if ($Blocks.ContainsKey('show version')) { $Blocks['show version'] } else { $Lines }
-    $runCfgLines  = if ($Blocks.ContainsKey('show running-config')) { $Blocks['show running-config'] } else { $Lines }
-    $intStatusLines = $null
-    foreach ($key in 'show interfaces status','show interface status','show interfaces brief','show interfaces') {
-        if (-not $intStatusLines -and $Blocks.ContainsKey($key)) {
-            $intStatusLines = $Blocks[$key]
-        }
-    }
-    # If no exact key matched, search for any key that begins with
-    # "show interfaces status" or "show interface status" to support
-    # extended variants such as "show interfaces status port-channel".
-    if (-not $intStatusLines) {
-        foreach ($k in $Blocks.Keys) {
-            if ($k -match '^show\s+interfaces?\s+status') { $intStatusLines = $Blocks[$k]; break }
-        }
-    }
-    if (-not $intStatusLines) { $intStatusLines = $Lines }
-    # Retrieve the MAC address table.  Accept variants of the command when
-    # the exact "show mac address-table" or "show mac-address-table" key is
-    # not present.  Search for keys beginning with the expected prefix.
-    # Hyphens and spaces between "mac" and "address" as well as "address" and
-    # "table" are tolerated in the pattern.
-    if ($Blocks.ContainsKey('show mac address-table')) {
-        $macLines = $Blocks['show mac address-table']
-    } elseif ($Blocks.ContainsKey('show mac-address-table')) {
-        $macLines = $Blocks['show mac-address-table']
-    } else {
-        $macLines = @()
-        foreach ($k in $Blocks.Keys) {
-            if ($k -match '^show\s+mac[- ]address[- ]table') { $macLines = $Blocks[$k]; break }
-        }
-    }
-    # Retrieve authentication session lines.  Handle singular ("show authentication session")
-    # and plural ("show authentication sessions") forms, and scan for any key
-    # beginning with those prefixes.  The regex "^show\s+authentication\s+sessions?"
-    # matches both singular and plural and captures extended forms such as
-    # "show authentication sessions interface".  This ensures that data is
-    # captured even when the command string differs from the canonical form.
-    if ($Blocks.ContainsKey('show authentication sessions')) {
-        $authLines = $Blocks['show authentication sessions']
-    } elseif ($Blocks.ContainsKey('show authentication session')) {
-        $authLines = $Blocks['show authentication session']
-    } else {
-        $authLines = @()
-        # First attempt to match keys that begin with "show authentication session[s]" (plural or singular)
-        foreach ($k in $Blocks.Keys) {
-            if ($k -match '^show\s+authentication\s+sessions?') { $authLines = $Blocks[$k]; break }
-        }
-        # If still not found, attempt to match abbreviated commands such as "show auth ses".
-        if (-not $authLines -or $authLines.Count -eq 0) {
-            foreach ($k in $Blocks.Keys) {
-                # Match commands like "show auth ses", "show auth sess", or other abbreviations.
-                if ($k -match '^show\s+auth\w*\s+ses\w*') { $authLines = $Blocks[$k]; break }
-            }
-        }
-    }
+    $versionLines   = DeviceLogParserModule\Get-ShowBlock -Blocks $Blocks -Lines $Lines -PreferredKeys @('show version') -CommandRegexes @('^[^\s]+[>#]\s*(?:do\s+)?show\s+version') -DefaultValue $Lines
+    $runCfgLines    = DeviceLogParserModule\Get-ShowBlock -Blocks $Blocks -Lines $Lines -PreferredKeys @('show running-config') -CommandRegexes @('^[^\s]+[>#]\s*(?:do\s+)?show\s+running-config') -DefaultValue $Lines
+    $intStatusLines = DeviceLogParserModule\Get-ShowBlock -Blocks $Blocks -Lines $Lines -PreferredKeys @('show interfaces status','show interface status','show interfaces brief','show interfaces') -RegexPatterns @('^show\s+interfaces?\s+status') -CommandRegexes @('^[^\s]+[>#]\s*(?:do\s+)?show\s+interfaces?\s+status') -DefaultValue $Lines
+    $macLines       = DeviceLogParserModule\Get-ShowBlock -Blocks $Blocks -Lines $Lines -PreferredKeys @('show mac address-table','show mac-address-table') -RegexPatterns @('^show\s+mac[- ]address[- ]table') -CommandRegexes @('^[^\s]+[>#]\s*(?:do\s+)?show\s+mac[- ]address[- ]table') -DefaultValue @()
+    $authLines      = DeviceLogParserModule\Get-ShowBlock -Blocks $Blocks -Lines $Lines -PreferredKeys @('show authentication sessions','show authentication session') -RegexPatterns @('^show\s+authentication\s+sessions?','^show\s+auth\w*\s+ses\w*') -CommandRegexes @('^[^\s]+[>#]\s*(?:do\s+)?show\s+authentication\s+sessions?') -DefaultValue @()
 
     # Preserve the original Lines value so it can be restored after targeted parsing.
     $origLines = $Lines
@@ -206,7 +144,7 @@ function Get-AristaDeviceFacts {
     $macsByPort = @{}
     foreach ($m in $macs) {
         if (-not $macsByPort.ContainsKey($m.Port)) {
-            $macsByPort[$m.Port] = New-Object 'System.Collections.Generic.List[string]'
+            $macsByPort[$m.Port] = [System.Collections.Generic.List[string]]::new()
         }
         [void]$macsByPort[$m.Port].Add([string]$m.MAC)
     }
@@ -225,7 +163,7 @@ function Get-AristaDeviceFacts {
     $Lines = $origLines
 
     #
-    $combinedInterfaces = New-Object 'System.Collections.Generic.List[object]'
+    $combinedInterfaces = [System.Collections.Generic.List[object]]::new()
     foreach ($iface in $interfaces) {
         # a) All learned MACs for this port using the precomputed lookup.  Display only
         # the first MAC in the grid to avoid excessively wide columns; store the full

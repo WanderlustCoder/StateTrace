@@ -20,7 +20,7 @@ function New-TemplatesView {
             if (-not (Test-Path $script:TemplatesDir)) { return }
             $files = Get-ChildItem -Path $script:TemplatesDir -Filter '*.json' -File
             # Build the list of file names using a .NET List instead of piping
-            $items = New-Object 'System.Collections.Generic.List[string]'
+            $items = [System.Collections.Generic.List[string]]::new()
             foreach ($f in $files) {
                 [void]$items.Add($f.Name)
             }
@@ -153,6 +153,5 @@ function New-TemplatesView {
 }
 
 Export-ModuleMember -Function New-TemplatesView
-
 
 

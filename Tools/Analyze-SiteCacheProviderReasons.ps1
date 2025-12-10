@@ -143,7 +143,7 @@ foreach ($file in $logFiles) {
                     SharedCacheMatch = 0
                         Total         = 0
                         LastReason    = ''
-                        FetchDurations= New-Object 'System.Collections.Generic.List[double]'
+                        FetchDurations= [System.Collections.Generic.List[double]]::new()
                     }
                 }
 

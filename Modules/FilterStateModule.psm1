@@ -22,12 +22,7 @@ if (-not (Get-Variable -Scope Global -Name ProgrammaticFilterUpdate -ErrorAction
     $global:ProgrammaticFilterUpdate = $false
 }
 
-if (-not (Get-Module -Name 'InterfaceCommon' -ErrorAction SilentlyContinue)) {
-    $interfaceCommonPath = Join-Path $PSScriptRoot 'InterfaceCommon.psm1'
-    if (Test-Path -LiteralPath $interfaceCommonPath) {
-        try { Import-Module -Name $interfaceCommonPath -Force -Global -ErrorAction SilentlyContinue | Out-Null } catch { }
-    }
-}
+try { TelemetryModule\Import-InterfaceCommon | Out-Null } catch { }
 
 function Test-StringListEqualCI {
     param([System.Collections.IEnumerable]$A, [System.Collections.IEnumerable]$B)
@@ -179,7 +174,7 @@ function Initialize-DeviceFilters {
     }
 
     if ($hostnameDD) {
-        $hostList = New-Object 'System.Collections.Generic.List[string]'
+        $hostList = [System.Collections.Generic.List[string]]::new()
         if ($Hostnames) {
             foreach ($raw in $Hostnames) {
                 $name = '' + $raw

@@ -358,7 +358,7 @@ function Filter-EventsByHostname {
         return @($Events)
     }
 
-    $filtered = New-Object 'System.Collections.Generic.List[psobject]'
+    $filtered = [System.Collections.Generic.List[psobject]]::new()
     foreach ($event in @($Events)) {
         if (-not $event) { continue }
         $hosts = @()
@@ -416,7 +416,7 @@ function Add-PassLabelToEvents {
     if (-not ($Events -is [System.Collections.IEnumerable]) -or ($Events -is [string])) {
         $Events = @($Events)
     }
-    $labeled = New-Object 'System.Collections.Generic.List[psobject]'
+    $labeled = [System.Collections.Generic.List[psobject]]::new()
     foreach ($evt in @($Events)) {
         if (-not $evt) { continue }
         if (-not ($evt -is [psobject])) {
@@ -877,7 +877,7 @@ function Measure-InterfaceCallDurationMetrics {
         [System.Collections.IEnumerable]$Events
     )
 
-    $durations = New-Object 'System.Collections.Generic.List[double]'
+    $durations = [System.Collections.Generic.List[double]]::new()
     $providerCounts = @{}
     $capturedEvents = @()
 
@@ -1759,7 +1759,7 @@ function Invoke-SiteCacheProbe {
         }
     }
 
-    $probedSites = New-Object 'System.Collections.Generic.List[string]'
+    $probedSites = [System.Collections.Generic.List[string]]::new()
     foreach ($site in $Sites) {
         if ([string]::IsNullOrWhiteSpace($site)) { continue }
         try {
@@ -1927,18 +1927,19 @@ function Get-SiteCacheState {
 function ConvertTo-SharedCacheEntryArray {
     param([object]$Entries)
 
+    $cacheHelper = $null
+    try { $cacheHelper = Get-Command -Name 'DeviceRepository.Cache\ConvertTo-SharedCacheEntryArray' -ErrorAction SilentlyContinue } catch { }
+    if (-not $cacheHelper) {
+        try { $cacheHelper = Get-Command -Name 'ConvertTo-SharedCacheEntryArray' -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue } catch { }
+    }
+    if ($cacheHelper) {
+        try { return @(& $cacheHelper -Entries $Entries) } catch { }
+    }
+
+    # Minimal fallback to keep shape stable when cache module is unavailable.
     if (-not $Entries) { return @() }
-
-    $current = $Entries
-    while ($current -is [System.Collections.IList] -and $current.Count -eq 1 -and ($current[0] -is [System.Collections.IList])) {
-        $current = $current[0]
-    }
-
-    if ($current -is [System.Collections.IList]) {
-        return @($current)
-    }
-
-    return ,$current
+    if ($Entries -is [System.Collections.IList]) { return @($Entries) }
+    return ,$Entries
 }
 
 function Write-SharedCacheSnapshot {
@@ -2080,7 +2081,7 @@ function Get-SharedCacheEntriesSnapshot {
                     $normalizedFallbackSites += ('' + $siteCandidate).Trim()
                 }
 
-                $result = New-Object 'System.Collections.Generic.List[psobject]'
+                $result = [System.Collections.Generic.List[psobject]]::new()
                 $seenSites = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
 
                 $appendEntry = {
@@ -2096,7 +2097,17 @@ function Get-SharedCacheEntriesSnapshot {
                 }
 
                 $snapshotEntries = @()
-                try { $snapshotEntries = @(Get-SharedSiteInterfaceCacheSnapshotEntries) } catch { $snapshotEntries = @() }
+                $cacheSnapshotCmd = $null
+                try { $cacheSnapshotCmd = Get-Command -Name 'DeviceRepository.Cache\Get-SharedSiteInterfaceCacheSnapshotEntries' -ErrorAction SilentlyContinue } catch { }
+                if (-not $cacheSnapshotCmd) {
+                    try { $cacheSnapshotCmd = Get-Command -Name 'Get-SharedSiteInterfaceCacheSnapshotEntries' -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue } catch { }
+                }
+                if ($cacheSnapshotCmd) {
+                    try { $snapshotEntries = @(& $cacheSnapshotCmd) } catch { $snapshotEntries = @() }
+                }
+                if (-not $snapshotEntries -or $snapshotEntries.Count -eq 0) {
+                    try { $snapshotEntries = @(Get-SharedSiteInterfaceCacheSnapshotEntries) } catch { $snapshotEntries = @() }
+                }
                 foreach ($snapshotEntry in $snapshotEntries) {
                     if (-not $snapshotEntry) { continue }
                     $snapshotSite = $null
@@ -2263,7 +2274,59 @@ function Write-SharedCacheSnapshotFile {
     )
 
     $entryArray = ConvertTo-SharedCacheEntryArray -Entries $Entries
-    $sanitizedEntries = New-Object 'System.Collections.Generic.List[psobject]'
+
+    # Prefer the cache module export (keeps format aligned) when the module is available.
+    $siteFilter = @()
+    foreach ($entry in $entryArray) {
+        if (-not $entry) { continue }
+        $siteValue = ''
+        if ($entry.PSObject.Properties.Name -contains 'Site') {
+            $siteValue = ('' + $entry.Site).Trim()
+        } elseif ($entry.PSObject.Properties.Name -contains 'SiteKey') {
+            $siteValue = ('' + $entry.SiteKey).Trim()
+        }
+        if (-not [string]::IsNullOrWhiteSpace($siteValue)) { $siteFilter += $siteValue }
+    }
+
+    $cacheModule = Get-Module -Name 'DeviceRepository.Cache' -ErrorAction SilentlyContinue
+    if (-not $cacheModule) {
+        try {
+            $cachePath = Join-Path -Path $repositoryRoot -ChildPath 'Modules\DeviceRepository.Cache.psm1'
+            if (Test-Path -LiteralPath $cachePath) {
+                $cacheModule = Import-Module -Name $cachePath -PassThru -ErrorAction SilentlyContinue
+            }
+        } catch { }
+    }
+    if ($cacheModule) {
+        $cacheExport = Get-Command -Name 'DeviceRepository.Cache\Export-SharedCacheSnapshot' -ErrorAction SilentlyContinue
+        if (-not $cacheExport) {
+            $cacheExport = Get-Command -Name 'Export-SharedCacheSnapshot' -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue
+        }
+        if ($cacheExport) {
+            try {
+                $args = @{ OutputPath = $Path }
+                if ($siteFilter -and $siteFilter.Count -gt 0) { $args['SiteFilter'] = $siteFilter }
+                & $cacheExport @args | Out-Null
+                return
+            } catch {
+                Write-Verbose ("Shared cache snapshot export via DeviceRepository.Cache failed: {0}" -f $_.Exception.Message)
+            }
+        }
+        $fallbackWriter = Get-Command -Name 'DeviceRepository.Cache\Write-SharedCacheSnapshotFileFallback' -ErrorAction SilentlyContinue
+        if (-not $fallbackWriter) {
+            $fallbackWriter = Get-Command -Name 'Write-SharedCacheSnapshotFileFallback' -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue
+        }
+        if ($fallbackWriter) {
+            try {
+                & $fallbackWriter -Path $Path -Entries $entryArray
+                return
+            } catch {
+                Write-Verbose ("Shared cache snapshot fallback export via DeviceRepository.Cache failed: {0}" -f $_.Exception.Message)
+            }
+        }
+    }
+
+    $sanitizedEntries = [System.Collections.Generic.List[psobject]]::new()
 
     foreach ($entry in $entryArray) {
         if (-not $entry) { continue }
@@ -2335,7 +2398,7 @@ function Restore-SharedCacheEntries {
     $entryArray = ConvertTo-SharedCacheEntryArray -Entries $Entries
     if (-not $entryArray -or $entryArray.Count -eq 0) { return 0 }
 
-    $validEntries = New-Object 'System.Collections.Generic.List[psobject]'
+    $validEntries = [System.Collections.Generic.List[psobject]]::new()
     foreach ($entry in $entryArray) {
         if (-not $entry) { continue }
 
@@ -2368,7 +2431,7 @@ function Restore-SharedCacheEntries {
         return 0
     }
 
-    $sitesToWarm = New-Object 'System.Collections.Generic.List[string]'
+    $sitesToWarm = [System.Collections.Generic.List[string]]::new()
     $siteEntryTable = @{}
     foreach ($entry in $validEntries) {
         $siteName = ('' + $entry.Site).Trim()
@@ -3148,7 +3211,7 @@ if (($coldMetrics -or $coldSummaries) -and ($warmMetrics -or $warmSummaries)) {
 }
 
 if ($AssertWarmCache.IsPresent -and -not $SkipWarmValidation.IsPresent) {
-    $assertFailures = New-Object 'System.Collections.Generic.List[string]'
+    $assertFailures = [System.Collections.Generic.List[string]]::new()
     if (-not $comparisonSummary) {
         $assertFailures.Add('InterfaceCallDuration comparison metrics were not captured for cold and warm passes.')
     } else {
@@ -3190,7 +3253,7 @@ function Get-PassHostnameFilter {
 }
 
 if ($script:ComparisonHostFilter -and $script:ComparisonHostFilter.Count -gt 0) {
-    $filteredResults = New-Object 'System.Collections.Generic.List[psobject]'
+    $filteredResults = [System.Collections.Generic.List[psobject]]::new()
     foreach ($result in @($results)) {
         if ($result.PSObject.Properties.Name -contains 'SummaryType' -and $result.SummaryType) {
             $filteredResults.Add($result) | Out-Null
@@ -3243,7 +3306,7 @@ function Update-ComparisonSummaryFromResults {
         param([System.Collections.IEnumerable]$Events)
         $providerCounts = @{}
         $hostSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
-        $durations = New-Object 'System.Collections.Generic.List[double]'
+        $durations = [System.Collections.Generic.List[double]]::new()
         $signatureMisses = 0
 
         foreach ($evt in @($Events)) {
@@ -3494,5 +3557,3 @@ try {
 } catch { }
 
 $results
-
-

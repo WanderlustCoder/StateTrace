@@ -15,7 +15,7 @@ $script:ThemeBrushCache          = @{}
 $script:ThemeResourceDictionary  = $null
 $script:SharedStylesPath         = Join-Path $PSScriptRoot '..\Resources\SharedStyles.xaml'
 $script:SharedStylesDictionary   = $null
-$script:ThemeChangedHandlers     = New-Object 'System.Collections.Generic.List[System.Action[string]]'
+$script:ThemeChangedHandlers     = [System.Collections.Generic.List[System.Action[string]]]::new()
 $script:PresentationFrameworkLoaded = $false
 
 function Ensure-PresentationFrameworkLoaded {

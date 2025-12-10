@@ -27,6 +27,26 @@ Describe "DeviceLogParserModule" {
         DeviceLogParserModule\Get-SnmpLocationFromLines -Lines $lines | Should Be 'HQ-2-115'
     }
 
+    It "selects show blocks with preferred keys and regex fallbacks" {
+        $blocks = @{
+            'show interfaces status' = @('status')
+            'show mac-address-table' = @('macs')
+            'show auth ses' = @('auth')
+        }
+        (@(DeviceLogParserModule\Get-ShowBlock -Blocks $blocks -PreferredKeys @('show interfaces status') -DefaultValue @('fallback')))[0] | Should Be 'status'
+        (@(DeviceLogParserModule\Get-ShowBlock -Blocks $blocks -PreferredKeys @('missing') -RegexPatterns @('^show\s+mac[- ]address[- ]table') -DefaultValue @('fallback')))[0] | Should Be 'macs'
+        (@(DeviceLogParserModule\Get-ShowBlock -Blocks $blocks -PreferredKeys @('missing') -RegexPatterns @('^nomatch') -DefaultValue @('fallback')))[0] | Should Be 'fallback'
+    }
+
+    It "falls back to raw lines when blocks are absent" {
+        $lines = @('# show version','line1','line2','# prompt')
+        $result = DeviceLogParserModule\Get-ShowBlock -Blocks @{} -Lines $lines -CommandRegexes @('#\s*show\s+version') -DefaultValue @('miss')
+        $result | Should Not BeNullOrEmpty
+        $result.Count | Should Be 2
+        $result[0] | Should Be 'line1'
+        $result[1] | Should Be 'line2'
+    }
+
     It "cleans archive folders older than retention window" {
         $root = Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid().ToString())
         New-Item -ItemType Directory -Path $root -Force | Out-Null
@@ -144,7 +164,7 @@ Describe "DeviceLogParserModule" {
         $payload.ContainsKey('SiteCacheFetchStatus') | Should Be $false
     }
 
-    It "caches vendor templates within the module" {
+    It "loads vendor templates via TemplatesModule and honors file updates" {
         $tempDir = Join-Path ([System.IO.Path]::GetTempPath()) ([System.Guid]::NewGuid().ToString())
         $null = New-Item -ItemType Directory -Path $tempDir -Force
         $jsonPath = Join-Path $tempDir 'UnitTest.json'
@@ -154,12 +174,11 @@ Describe "DeviceLogParserModule" {
             $first.Length | Should BeGreaterThan 0
             ($first | Select-Object -First 1) | Should Be 'alpha'
 
+            Start-Sleep -Milliseconds 1100
             Set-Content -Path $jsonPath -Value '{"templates":["beta"]}' -Encoding UTF8
             $second = DeviceLogParserModule\Get-VendorTemplates -Vendor 'UnitTest' -TemplatesRoot $tempDir
-            ($second | Select-Object -First 1) | Should Be 'alpha'
+            ($second | Select-Object -First 1) | Should Be 'beta'
         } finally {
-            $module = Get-Module DeviceLogParserModule
-            if ($module) { $module.Invoke({ param($key) if ($script:VendorTemplatesCache.ContainsKey($key)) { $script:VendorTemplatesCache.Remove($key) | Out-Null } }, 'UnitTest') }
             Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
         }
     }
@@ -374,4 +393,3 @@ Describe "DeviceLogParserModule" {
         }
     }
 }
-

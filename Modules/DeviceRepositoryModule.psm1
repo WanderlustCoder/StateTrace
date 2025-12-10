@@ -23,12 +23,7 @@ try {
     Write-Verbose ("[DeviceRepositoryModule] PortNormalization not loaded: {0}" -f $_.Exception.Message)
 }
 
-if (-not (Get-Module -Name 'InterfaceCommon' -ErrorAction SilentlyContinue)) {
-    $interfaceCommonPath = Join-Path $PSScriptRoot 'InterfaceCommon.psm1'
-    if (Test-Path -LiteralPath $interfaceCommonPath) {
-        try { Import-Module -Name $interfaceCommonPath -Force -Global -ErrorAction SilentlyContinue | Out-Null } catch { }
-    }
-}
+try { TelemetryModule\Import-InterfaceCommon | Out-Null } catch { }
 
 # Load shared cache module (decomposition target) so downstream calls can delegate.
 if (-not (Get-Module -Name 'DeviceRepository.Cache')) {
@@ -38,6 +33,124 @@ if (-not (Get-Module -Name 'DeviceRepository.Cache')) {
     } catch {
         Write-Verbose ("DeviceRepository.Cache could not be imported: {0}" -f $_.Exception.Message)
     }
+}
+
+function Import-SharedSiteInterfaceCacheSnapshotFromEnv {
+    param([System.Collections.Concurrent.ConcurrentDictionary[string, object]]$TargetStore)
+
+    if (-not ($TargetStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]])) {
+        return 0
+    }
+
+    # Prefer the dedicated cache module importer when available (handles SiteKey/HostMap export format).
+    try {
+        $delegated = DeviceRepository.Cache\Import-SharedSiteInterfaceCacheSnapshotFromEnv -TargetStore $TargetStore
+        if ($delegated -gt 0) {
+            return $delegated
+        }
+    } catch {
+        # Fall back to the legacy parser below.
+    }
+
+    $snapshotPath = $null
+    try { $snapshotPath = $env:STATETRACE_SHARED_CACHE_SNAPSHOT } catch { $snapshotPath = $null }
+    if ([string]::IsNullOrWhiteSpace($snapshotPath) -or -not (Test-Path -LiteralPath $snapshotPath)) {
+        return 0
+    }
+
+    $entries = $null
+    try { $entries = Import-Clixml -Path $snapshotPath } catch {
+        Write-Warning ("Failed to import shared cache snapshot '{0}' from STATETRACE_SHARED_CACHE_SNAPSHOT: {1}" -f $snapshotPath, $_.Exception.Message)
+        $entries = $null
+    }
+    if (-not $entries) { return 0 }
+
+    $imported = 0
+    foreach ($entry in @($entries)) {
+        if (-not $entry) { continue }
+
+        $siteKey = ''
+        if ($entry.Site) {
+            $siteKey = ('' + $entry.Site).Trim()
+        } elseif ($entry.SiteKey) {
+            $siteKey = ('' + $entry.SiteKey).Trim()
+        }
+        if ([string]::IsNullOrWhiteSpace($siteKey)) { continue }
+
+        $payload = $null
+        if ($entry.Entry) {
+            $payload = $entry.Entry
+        } elseif ($entry.HostMap) {
+            $payload = [pscustomobject]@{ HostMap = $entry.HostMap; CacheStatus = $entry.CacheStatus; CachedAt = $entry.CachedAt }
+        }
+        if (-not $payload) { continue }
+
+        if (-not $payload.HostMap) {
+            if ($entry.HostMap) {
+                $payload = [pscustomobject]@{ HostMap = $entry.HostMap; CacheStatus = $entry.CacheStatus; CachedAt = $entry.CachedAt }
+            } else {
+                continue
+            }
+        }
+
+        $normalizedEntry = $null
+        try { $normalizedEntry = Normalize-InterfaceSiteCacheEntry -Entry $payload } catch { $normalizedEntry = $null }
+        if (-not $normalizedEntry) { continue }
+
+        $TargetStore[$siteKey] = $normalizedEntry
+        if (-not $script:SiteInterfaceSignatureCache) { $script:SiteInterfaceSignatureCache = @{} }
+        $script:SiteInterfaceSignatureCache[$siteKey] = $normalizedEntry
+
+        $stats = Get-SharedSiteInterfaceCacheEntryStatistics -Entry $normalizedEntry
+        $storeHashCode = 0
+        try { $storeHashCode = [System.Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($TargetStore) } catch { $storeHashCode = 0 }
+        Publish-SharedSiteInterfaceCacheEvent -SiteKey $siteKey -Operation 'Set' -EntryCount $TargetStore.Count -HostCount $stats.HostCount -TotalRows $stats.TotalRows -StoreHashCode $storeHashCode
+        $imported++
+    }
+
+    if ($imported -gt 0) {
+        Write-Verbose ("Imported {0} shared cache entr{1} from '{2}' via STATETRACE_SHARED_CACHE_SNAPSHOT (legacy format)." -f $imported, $(if ($imported -eq 1) { 'y' } else { 'ies' }), $snapshotPath)
+    }
+
+    return $imported
+}
+
+function Import-SharedSiteInterfaceCacheSnapshot {
+    param(
+        [System.Collections.Concurrent.ConcurrentDictionary[string, object]]$Store,
+        [switch]$Force
+    )
+
+    if (-not ($Store -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]])) {
+        return 0
+    }
+
+    $entryCount = 0
+    try { $entryCount = [int]$Store.Count } catch { $entryCount = 0 }
+    if ((-not $Force.IsPresent) -and $entryCount -gt 0) {
+        return 0
+    }
+
+    $imported = Import-SharedSiteInterfaceCacheSnapshotFromEnv -TargetStore $Store
+    if ($imported -gt 0) {
+        $storeHashCode = 0
+        try { $storeHashCode = [System.Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($Store) } catch { $storeHashCode = 0 }
+        $postImportCount = 0
+        try { $postImportCount = [int]$Store.Count } catch { $postImportCount = $entryCount }
+        Publish-SharedSiteInterfaceCacheStoreState -Operation 'SnapshotImported' -EntryCount $postImportCount -StoreHashCode $storeHashCode
+    }
+
+    return $imported
+}
+
+function Ensure-SharedSiteInterfaceCacheSnapshotImported {
+    param(
+        [System.Collections.Concurrent.ConcurrentDictionary[string, object]]$Store,
+        [switch]$Force
+    )
+
+    Write-Verbose "Ensure-SharedSiteInterfaceCacheSnapshotImported is deprecated; use Import-SharedSiteInterfaceCacheSnapshot instead."
+    return (Import-SharedSiteInterfaceCacheSnapshot -Store $Store -Force:$Force.IsPresent)
 }
 
 if (-not (Get-Variable -Scope Script -Name SiteInterfaceCache -ErrorAction SilentlyContinue)) {
@@ -217,110 +330,6 @@ function Publish-SharedSiteInterfaceCacheClearInvocation {
     } catch { }
 }
 
-function Import-SharedSiteInterfaceCacheSnapshotFromEnv {
-    param(
-        [System.Collections.Concurrent.ConcurrentDictionary[string, object]]$TargetStore
-    )
-
-    if (-not ($TargetStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]])) {
-        return 0
-    }
-
-    $snapshotPath = $null
-    try { $snapshotPath = $env:STATETRACE_SHARED_CACHE_SNAPSHOT } catch { $snapshotPath = $null }
-    if ([string]::IsNullOrWhiteSpace($snapshotPath) -or -not (Test-Path -LiteralPath $snapshotPath)) {
-        return 0
-    }
-
-    $entries = $null
-    try {
-        $entries = Import-Clixml -Path $snapshotPath
-    } catch {
-        Write-Warning ("Failed to import shared cache snapshot '{0}' from STATETRACE_SHARED_CACHE_SNAPSHOT: {1}" -f $snapshotPath, $_.Exception.Message)
-        return 0
-    }
-    if (-not $entries) { return 0 }
-
-    $imported = 0
-    foreach ($entry in @($entries)) {
-        if (-not $entry) { continue }
-
-        $siteKey = ''
-        if ($entry.PSObject.Properties.Name -contains 'Site') {
-            $siteKey = ('' + $entry.Site).Trim()
-        } elseif ($entry.PSObject.Properties.Name -contains 'SiteKey') {
-            $siteKey = ('' + $entry.SiteKey).Trim()
-        }
-        if ([string]::IsNullOrWhiteSpace($siteKey)) { continue }
-
-        $entryPayload = $null
-        if ($entry.PSObject.Properties.Name -contains 'Entry') {
-            $entryPayload = $entry.Entry
-        }
-        if (-not $entryPayload) { continue }
-
-        $normalizedEntry = $null
-        try { $normalizedEntry = Normalize-InterfaceSiteCacheEntry -Entry $entryPayload } catch { $normalizedEntry = $null }
-        if (-not $normalizedEntry) { continue }
-
-        $TargetStore[$siteKey] = $normalizedEntry
-        if (-not $script:SiteInterfaceSignatureCache) {
-            $script:SiteInterfaceSignatureCache = @{}
-        }
-        $script:SiteInterfaceSignatureCache[$siteKey] = $normalizedEntry
-
-        $stats = Get-SharedSiteInterfaceCacheEntryStatistics -Entry $normalizedEntry
-        $storeHashCode = 0
-        try { $storeHashCode = [System.Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($TargetStore) } catch { $storeHashCode = 0 }
-        Publish-SharedSiteInterfaceCacheEvent -SiteKey $siteKey -Operation 'Set' -EntryCount $TargetStore.Count -HostCount $stats.HostCount -TotalRows $stats.TotalRows -StoreHashCode $storeHashCode
-        $imported++
-    }
-
-    if ($imported -gt 0) {
-        Write-Verbose ("Imported {0} shared cache entr{1} from '{2}' via STATETRACE_SHARED_CACHE_SNAPSHOT." -f $imported, $(if ($imported -eq 1) { 'y' } else { 'ies' }), $snapshotPath)
-    }
-
-    return $imported
-}
-
-function Import-SharedSiteInterfaceCacheSnapshot {
-    param(
-        [System.Collections.Concurrent.ConcurrentDictionary[string, object]]$Store,
-        [switch]$Force
-    )
-
-    if (-not ($Store -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]])) {
-        return 0
-    }
-
-    $entryCount = 0
-    try { $entryCount = [int]$Store.Count } catch { $entryCount = 0 }
-    if ((-not $Force.IsPresent) -and $entryCount -gt 0) {
-        return 0
-    }
-
-    $imported = Import-SharedSiteInterfaceCacheSnapshotFromEnv -TargetStore $Store
-    if ($imported -gt 0) {
-        $storeHashCode = 0
-        try { $storeHashCode = [System.Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($Store) } catch { $storeHashCode = 0 }
-        $postImportCount = 0
-        try { $postImportCount = [int]$Store.Count } catch { $postImportCount = $entryCount }
-        Publish-SharedSiteInterfaceCacheStoreState -Operation 'SnapshotImported' -EntryCount $postImportCount -StoreHashCode $storeHashCode
-    }
-
-    return $imported
-}
-
-function Ensure-SharedSiteInterfaceCacheSnapshotImported {
-    param(
-        [System.Collections.Concurrent.ConcurrentDictionary[string, object]]$Store,
-        [switch]$Force
-    )
-
-    Write-Verbose "Ensure-SharedSiteInterfaceCacheSnapshotImported is deprecated; use Import-SharedSiteInterfaceCacheSnapshot instead."
-    return (Import-SharedSiteInterfaceCacheSnapshot -Store $Store -Force:$Force.IsPresent)
-}
-
 if (-not ('StateTrace.Repository.SharedSiteInterfaceCacheHolder' -as [type])) {
     Add-Type -TypeDefinition @"
 namespace StateTrace.Repository
@@ -491,7 +500,7 @@ function Get-SharedSiteInterfaceCacheStore {
         try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($bestStore) } catch { }
         try { [System.AppDomain]::CurrentDomain.SetData($storeKey, $bestStore) } catch { }
         if ($bestStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
-            [void](Import-SharedSiteInterfaceCacheSnapshot -Store $bestStore)
+            [void](Import-SharedSiteInterfaceCacheSnapshot -Store $bestStore -Force)
         }
     }
 
@@ -505,7 +514,7 @@ if (-not (Get-Variable -Scope Script -Name SharedSiteInterfaceCache -ErrorAction
 }
 
 if ($script:SharedSiteInterfaceCache -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
-    [void](Import-SharedSiteInterfaceCacheSnapshot -Store $script:SharedSiteInterfaceCache)
+    [void](Import-SharedSiteInterfaceCacheSnapshot -Store $script:SharedSiteInterfaceCache -Force)
 }
 
 function Copy-InterfaceCacheEntryObject {
@@ -553,7 +562,7 @@ function Copy-InterfaceSiteCacheValue {
     }
     if ($Value -is [System.Collections.IEnumerable]) {
         if ($Value -is [string]) { return '' + $Value }
-        $list = New-Object 'System.Collections.Generic.List[object]'
+        $list = [System.Collections.Generic.List[object]]::new()
         foreach ($item in $Value) {
             $list.Add((Copy-InterfaceSiteCacheValue -Value $item)) | Out-Null
         }
@@ -861,7 +870,7 @@ function Convert-InterfaceCacheEntryToExportObject {
 function ConvertTo-KeyValueEntryList {
     param($Source)
 
-    $entries = New-Object 'System.Collections.Generic.List[psobject]'
+    $entries = [System.Collections.Generic.List[psobject]]::new()
     if (-not $Source) { return $entries }
 
     if ($Source -is [System.Collections.IDictionary]) {
@@ -998,9 +1007,19 @@ function Convert-SharedSiteCacheEntryToExportObject {
 }
 
 function Get-SharedSiteInterfaceCacheSnapshotEntries {
+    # Prefer the cache module's snapshot enumeration to keep snapshot format aligned across exporters.
+    $cacheSnapshotCmd = $null
+    try { $cacheSnapshotCmd = Get-Command -Name 'DeviceRepository.Cache\Get-SharedSiteInterfaceCacheSnapshotEntries' -ErrorAction SilentlyContinue } catch { }
+    if (-not $cacheSnapshotCmd) {
+        try { $cacheSnapshotCmd = Get-Command -Name 'Get-SharedSiteInterfaceCacheSnapshotEntries' -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue } catch { }
+    }
+    if ($cacheSnapshotCmd) {
+        try { return @(& $cacheSnapshotCmd) } catch { }
+    }
+
     $snapshot = $null
     try { $snapshot = [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::GetSnapshot() } catch { $snapshot = $null }
-    $result = New-Object 'System.Collections.Generic.List[psobject]'
+    $result = [System.Collections.Generic.List[psobject]]::new()
     if ($snapshot -is [System.Collections.IDictionary]) {
         foreach ($siteKey in @($snapshot.Keys)) {
             if ([string]::IsNullOrWhiteSpace($siteKey)) { continue }
@@ -1109,7 +1128,7 @@ if (-not (Get-Variable -Scope Global -Name DeviceInterfaceCache -ErrorAction Sil
 }
 
 if (-not (Get-Variable -Scope Global -Name AllInterfaces -ErrorAction SilentlyContinue)) {
-    $global:AllInterfaces = New-Object 'System.Collections.Generic.List[object]'
+    $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
 }
 
 if (-not (Get-Variable -Scope Global -Name LoadedSiteZones -ErrorAction SilentlyContinue)) {
@@ -1396,7 +1415,7 @@ function Publish-InterfaceSiteCacheReuseState {
             if ($hostMap -is [System.Collections.IDictionary]) {
                 try { $hostCount = [int]$hostMap.Count } catch { $hostCount = 0 }
 
-                $sampleKeys = New-Object 'System.Collections.Generic.List[string]'
+                $sampleKeys = [System.Collections.Generic.List[string]]::new()
                 foreach ($key in @($hostMap.Keys)) {
                     if ($sampleKeys.Count -ge 5) { break }
                     if ($null -eq $key) { continue }
@@ -1495,23 +1514,12 @@ function ConvertTo-InterfacePortRecordsFallback {
         [Parameter(Mandatory)][string]$Hostname
     )
 
-    $list = New-Object 'System.Collections.Generic.List[object]'
+    Import-DatabaseModule
+
+    $list = [System.Collections.Generic.List[object]]::new()
     if (-not $Data) { return $list }
 
-    $rows = @()
-    if ($Data -is [System.Data.DataTable]) {
-        $rows = @($Data.Rows)
-    } elseif ($Data -is [System.Data.DataView]) {
-        $rows = @($Data)
-    } elseif ($Data -is [System.Collections.IEnumerable] -and -not ($Data -is [string])) {
-        if ($Data -is [System.Array]) {
-            $rows = $Data
-        } else {
-            $rows = @($Data)
-        }
-    } else {
-        $rows = @($Data)
-    }
+    $rows = DatabaseModule\ConvertTo-DbRowList -Data $Data
 
     foreach ($row in $rows) {
         if ($null -eq $row) { continue }
@@ -1752,7 +1760,7 @@ function Get-AllSiteDbPaths {
     $dataDir = Get-DataDirectoryPath
     if (-not (Test-Path $dataDir)) { return @() }
     $files = Get-ChildItem -Path $dataDir -Filter '*.accdb' -File -Recurse
-    $list = New-Object 'System.Collections.Generic.List[string]'
+    $list = [System.Collections.Generic.List[string]]::new()
     foreach ($f in $files) { [void]$list.Add($f.FullName) }
     return $list.ToArray()
 }
@@ -2091,7 +2099,7 @@ function ConvertTo-InterfaceCacheEntryObject {
     } elseif ($rawLearned -is [string]) {
         $learnedValue = $rawLearned
     } elseif ($rawLearned -is [System.Collections.IEnumerable] -and -not ($rawLearned -is [string])) {
-        $macList = New-Object 'System.Collections.Generic.List[string]'
+        $macList = [System.Collections.Generic.List[string]]::new()
         foreach ($mac in $rawLearned) {
             if ($mac) { $macList.Add(('' + $mac)) | Out-Null }
         }
@@ -2510,7 +2518,7 @@ function Get-InterfaceSiteCache {
                 $samplesValue = $cachedEntry.HydrationHostMapSignatureMismatchSamples
                 if ($null -ne $samplesValue) {
                     if ($samplesValue -is [System.Collections.IEnumerable] -and -not ($samplesValue -is [string])) {
-                        $sampleList = New-Object 'System.Collections.Generic.List[object]'
+                        $sampleList = [System.Collections.Generic.List[object]]::new()
                         foreach ($sample in $samplesValue) {
                             $sampleList.Add($sample) | Out-Null
                         }
@@ -2526,7 +2534,7 @@ function Get-InterfaceSiteCache {
                 $samplesValue = $cachedEntry.HydrationHostMapCandidateMissingSamples
                 if ($null -ne $samplesValue) {
                     if ($samplesValue -is [System.Collections.IEnumerable] -and -not ($samplesValue -is [string])) {
-                        $sampleList = New-Object 'System.Collections.Generic.List[object]'
+                        $sampleList = [System.Collections.Generic.List[object]]::new()
                         foreach ($sample in $samplesValue) {
                             $sampleList.Add($sample) | Out-Null
                         }
@@ -2575,7 +2583,7 @@ function Get-InterfaceSiteCache {
 
         $reuseHostCount = 0
         $reusePortCount = 0
-        $reuseHostSampleValues = New-Object 'System.Collections.Generic.List[string]'
+        $reuseHostSampleValues = [System.Collections.Generic.List[string]]::new()
         $cachedHostMap = $null
         $cachedHostMapType = ''
         if ($cachedEntry -and $cachedEntry.PSObject.Properties.Name -contains 'HostMap') {
@@ -2754,7 +2762,7 @@ function Get-InterfaceSiteCache {
     $previousHostSignatureSnapshot = $null
     $previousHostEntryCount = 0
     $previousHostPortCount = 0
-    $previousHostSampleValues = New-Object 'System.Collections.Generic.List[string]'
+    $previousHostSampleValues = [System.Collections.Generic.List[string]]::new()
     $hostMap = $null
     if ($previousSignatureEntry) {
         $previousSnapshotStatus = 'HostMapMissing'
@@ -2871,14 +2879,14 @@ function Get-InterfaceSiteCache {
     $hostMapCandidateFromPreviousCount = 0L
     $hostMapCandidateFromPoolCount = 0L
     $hostMapCandidateInvalidCount = 0L
-    $hostMapSignatureMismatchSamples = New-Object 'System.Collections.Generic.List[object]'
-    $hostMapCandidateMissingSamples = New-Object 'System.Collections.Generic.List[object]'
+    $hostMapSignatureMismatchSamples = [System.Collections.Generic.List[object]]::new()
+    $hostMapCandidateMissingSamples = [System.Collections.Generic.List[object]]::new()
     if ($snapshot) {
         $materializePortSortCacheHits = 0L
         $materializePortSortCacheMisses = 0L
         $materializePortSortCacheSize = 0L
         $portSortUniquePorts = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
-        $portSortMissSamples = New-Object 'System.Collections.Generic.List[object]'
+        $portSortMissSamples = [System.Collections.Generic.List[object]]::new()
         $portSortMissSampleLimit = 20
         $templateApplyCandidateCount = 0L
         $templateApplyDefaultedCount = 0L
@@ -2887,7 +2895,7 @@ function Get-InterfaceSiteCache {
         $templateApplyHintAppliedCount = 0L
         $templateApplySetPortColorCount = 0L
         $templateApplySetConfigStatusCount = 0L
-        $templateApplySamples = New-Object 'System.Collections.Generic.List[object]'
+        $templateApplySamples = [System.Collections.Generic.List[object]]::new()
         $templateApplySampleLimit = 20
         $templatesDir = Join-Path $PSScriptRoot '..\Templates'
         $templateLookups = New-Object 'System.Collections.Generic.Dictionary[string,object]' ([System.StringComparer]::OrdinalIgnoreCase)
@@ -3019,7 +3027,7 @@ function Get-InterfaceSiteCache {
                     if ($rawLearned -is [string]) {
                         $learnedValue = $rawLearned
                     } elseif ($rawLearned -is [System.Collections.IEnumerable]) {
-                        $macList = New-Object 'System.Collections.Generic.List[string]'
+                        $macList = [System.Collections.Generic.List[string]]::new()
                         foreach ($mac in $rawLearned) {
                             if ($mac) {
                                 $macList.Add(('' + $mac)) | Out-Null
@@ -3734,10 +3742,10 @@ function New-PortPsObjectList {
     }
 
     if ($capacity -gt 0) {
-        return New-Object 'System.Collections.Generic.List[psobject]' ($capacity)
+        return [System.Collections.Generic.List[psobject]]::new($capacity)
     }
 
-    return New-Object 'System.Collections.Generic.List[psobject]'
+    return [System.Collections.Generic.List[psobject]]::new()
 }
 
 function ConvertTo-PortPsObject {
@@ -3796,8 +3804,8 @@ function Ensure-PortRowDefaults {
     if ($null -eq $Row) { return }
 
     try {
-        if (Get-Command -Name 'InterfaceCommon\Set-PortRowDefaults' -ErrorAction SilentlyContinue) {
-            InterfaceCommon\Set-PortRowDefaults -Row $Row -Hostname $Hostname
+        if (Get-Command -Name 'InterfaceCommon\Ensure-PortRowDefaults' -ErrorAction SilentlyContinue) {
+            InterfaceCommon\Ensure-PortRowDefaults -Row $Row -Hostname $Hostname
             return
         }
     } catch { }
@@ -3982,7 +3990,7 @@ function Initialize-InterfacePortStream {
         $ordinal = 0
         while ($index -lt $materialized.Count) {
             $take = [Math]::Min($chunk, $materialized.Count - $index)
-            $segment = New-Object 'System.Collections.Generic.List[psobject]' $take
+            $segment = [System.Collections.Generic.List[psobject]]::new($take)
             for ($i = 0; $i -lt $take; $i++) {
                 $segment.Add($materialized[$index + $i]) | Out-Null
             }
@@ -4288,7 +4296,7 @@ function Update-SiteZoneCache {
 
     if (-not $hostNames -or $hostNames.Count -eq 0) { return }
 
-    $newRows = New-Object 'System.Collections.Generic.List[object]'
+    $newRows = [System.Collections.Generic.List[object]]::new()
     foreach ($hn in $hostNames) {
         if ($global:DeviceInterfaceCache.ContainsKey($hn)) { continue }
         try {
@@ -4341,7 +4349,7 @@ function Invoke-ParallelDbQuery {
         $job = [pscustomobject]@{ PS = $ps; AsyncResult = $ps.BeginInvoke() }
         $jobs += $job
     }
-    $results = New-Object 'System.Collections.Generic.List[object]'
+    $results = [System.Collections.Generic.List[object]]::new()
     foreach ($job in $jobs) {
         try {
             $dt = $job.PS.EndInvoke($job.AsyncResult)
@@ -4367,7 +4375,7 @@ function Get-GlobalInterfaceSnapshot {
     $zoneSelectionValue = if ($ZoneSelection) { '' + $ZoneSelection } else { '' }
     $zoneLoadValue = if ($PSBoundParameters.ContainsKey('ZoneToLoad')) { '' + $ZoneToLoad } else { '' }
 
-    $interfaces = New-Object 'System.Collections.Generic.List[object]'
+    $interfaces = [System.Collections.Generic.List[object]]::new()
     $appendRows = {
         param($hostname, $rows)
         if (-not $rows) { return }
@@ -4387,8 +4395,26 @@ function Get-GlobalInterfaceSnapshot {
         }
     }
 
+    $zoneSelectionFilter = ''
+    if (-not [string]::IsNullOrWhiteSpace($zoneSelectionValue) -and -not [System.StringComparer]::OrdinalIgnoreCase.Equals($zoneSelectionValue, 'All Zones')) {
+        $zoneSelectionFilter = $zoneSelectionValue
+    }
+    $zoneLoadFilter = ''
+    if (-not [string]::IsNullOrWhiteSpace($zoneLoadValue)) {
+        $zoneLoadFilter = $zoneLoadValue
+    }
+
     if ([string]::IsNullOrWhiteSpace($siteValue) -or [System.StringComparer]::OrdinalIgnoreCase.Equals($siteValue, 'All Sites')) {
         foreach ($kv in $global:DeviceInterfaceCache.GetEnumerator()) {
+            if ($zoneSelectionFilter -or $zoneLoadFilter) {
+                $zoneTarget = if ($zoneSelectionFilter) { $zoneSelectionFilter } else { $zoneLoadFilter }
+                $hostname = '' + $kv.Key
+                $parts = $hostname -split '-'
+                $zonePart = if ($parts.Length -ge 2) { $parts[1] } else { '' }
+                if (-not [string]::IsNullOrWhiteSpace($zoneTarget) -and [System.StringComparer]::OrdinalIgnoreCase.Compare($zonePart, $zoneTarget) -ne 0) {
+                    continue
+                }
+            }
             & $appendRows $kv.Key $kv.Value
         }
     } else {
@@ -4442,28 +4468,21 @@ function Get-InterfacesForSite {
         [object]$Connection
     )
 
-    $snapshot = Get-GlobalInterfaceSnapshot @PSBoundParameters
-    if ($snapshot -and $snapshot.Length -gt 0) {
-        $global:AllInterfaces = [System.Collections.Generic.List[object]]::new($snapshot)
-    } else {
-        $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
+    # If zone filtering arguments are provided, reuse the global snapshot path and keep
+    # $global:AllInterfaces in sync rather than hitting the database.
+    if ($PSBoundParameters.ContainsKey('ZoneSelection') -or $PSBoundParameters.ContainsKey('ZoneToLoad')) {
+        $snapshotParams = @{ Site = $Site }
+        if ($PSBoundParameters.ContainsKey('ZoneSelection')) { $snapshotParams.ZoneSelection = $ZoneSelection }
+        if ($PSBoundParameters.ContainsKey('ZoneToLoad'))    { $snapshotParams.ZoneToLoad    = $ZoneToLoad }
+        return Update-GlobalInterfaceList @snapshotParams
     }
-    return $global:AllInterfaces
-}
-
-function Get-InterfacesForSite {
-    [CmdletBinding()]
-    param(
-        [string]$Site,
-        [object]$Connection
-    )
 
     $siteName = if ($Site) { '' + $Site } else { '' }
     if ([string]::IsNullOrWhiteSpace($siteName) -or
         ([System.StringComparer]::OrdinalIgnoreCase.Equals($siteName, 'All Sites')) -or
         ([System.StringComparer]::OrdinalIgnoreCase.Equals($siteName, 'All')))
     {
-        $combined = New-Object 'System.Collections.Generic.List[object]'
+        $combined = [System.Collections.Generic.List[object]]::new()
         $dbPaths = Get-AllSiteDbPaths
         foreach ($p in $dbPaths) {
             $code = ''
@@ -4517,7 +4536,7 @@ function Get-InterfacesForSite {
             Succeeded               = $false
             Timestamp               = Get-Date
         }
-        return (New-Object 'System.Collections.Generic.List[object]')
+        return [System.Collections.Generic.List[object]]::new()
     }
 
     $hydrationDetail = [PSCustomObject]@{
@@ -4558,7 +4577,7 @@ function Get-InterfacesForSite {
         $hydrationDetail.Provider = 'MissingDatabase'
         $hydrationDetail.Succeeded = $true
         $script:LastInterfaceSiteHydrationMetrics = $hydrationDetail
-        return (New-Object 'System.Collections.Generic.List[object]')
+        return [System.Collections.Generic.List[object]]::new()
     }
 
     $siteEsc = $siteCode
@@ -4596,7 +4615,7 @@ WHERE ds.Site $sitePredicate
 ORDER BY i.Hostname, i.Port
 "@
 
-    $rows = New-Object 'System.Collections.Generic.List[object]'
+    $rows = [System.Collections.Generic.List[object]]::new()
     $rowsAreOrdered = $false
 
     $dataSet = $null
@@ -4607,7 +4626,7 @@ ORDER BY i.Hostname, i.Port
     if ($useAdodbConnection) {
         $hydrationDetail.Provider = 'ADODB'
         $recordset = $null
-        $rowsFromConnection = New-Object 'System.Collections.Generic.List[object]'
+        $rowsFromConnection = [System.Collections.Generic.List[object]]::new()
         $executeStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         try {
             $recordset = $Connection.Execute($sqlSite)
@@ -4707,7 +4726,7 @@ ORDER BY i.Hostname, i.Port
             $idxPortColor     = if ($fieldIndexByName.ContainsKey('portcolor'))     { [int]$fieldIndexByName['portcolor'] }     else { -1 }
             $idxToolTip       = if ($fieldIndexByName.ContainsKey('tooltip'))       { [int]$fieldIndexByName['tooltip'] }       else { -1 }
 
-            $rowsFromConnection = New-Object 'System.Collections.Generic.List[object]' $rowCount
+            $rowsFromConnection = [System.Collections.Generic.List[object]]::new($rowCount)
             $recordsetProjectStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
             for ($rowIndex = 0; $rowIndex -lt $rowCount; $rowIndex++) {
                 $hostnameVal = ''
@@ -4918,19 +4937,14 @@ ORDER BY i.Hostname, i.Port
 
     if ($dataSet) {
         $enum = $null
-        if ($dataSet -is [System.Data.DataTable]) {
-            $enum = $dataSet.Rows
-        } elseif ($dataSet -is [System.Data.DataView]) {
-            $enum = $dataSet
-        } elseif ($dataSet -is [System.Collections.IEnumerable]) {
-            $enum = $dataSet
-        }
+        $enumRows = DatabaseModule\ConvertTo-DbRowList -Data $dataSet
+        if ($enumRows -and $enumRows.Count -gt 0) { $enum = $enumRows }
 
         $materializePortSortCacheHits = 0L
         $materializePortSortCacheMisses = 0L
         $materializePortSortCacheSize = 0L
         $portSortUniquePorts = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
-        $portSortMissSamples = New-Object 'System.Collections.Generic.List[object]'
+        $portSortMissSamples = [System.Collections.Generic.List[object]]::new()
         $portSortMissSampleLimit = 20
         $templateApplyCandidateCount = 0L
         $templateApplyDefaultedCount = 0L
@@ -4939,7 +4953,7 @@ ORDER BY i.Hostname, i.Port
         $templateApplyHintAppliedCount = 0L
         $templateApplySetPortColorCount = 0L
         $templateApplySetConfigStatusCount = 0L
-        $templateApplySamples = New-Object 'System.Collections.Generic.List[object]'
+        $templateApplySamples = [System.Collections.Generic.List[object]]::new()
         $templateApplySampleLimit = 20
 
         if ($enum) {
@@ -5538,7 +5552,7 @@ function Get-InterfaceInfo {
             # Update the global cache with the loaded objects for this host.
             try {
                 if (-not $global:DeviceInterfaceCache) { $global:DeviceInterfaceCache = @{} }
-                $listCache = New-Object 'System.Collections.Generic.List[object]'
+                $listCache = [System.Collections.Generic.List[object]]::new()
                 if ($objs) {
                     foreach ($o in $objs) { [void]$listCache.Add($o) }
                 }
@@ -5590,17 +5604,10 @@ function Get-InterfaceConfiguration {
         try {
             $mkDt = Invoke-DbQuery -DatabasePath $dbPath -Sql "SELECT Make FROM DeviceSummary WHERE Hostname = '$escHost'"
             if ($mkDt) {
-                if ($mkDt -is [System.Data.DataTable]) {
-                    if ($mkDt.Rows.Count -gt 0) {
-                        $mk = $mkDt.Rows[0].Make
-                        if ($mk -match '(?i)brocade') { $vendor = 'Brocade' }
-                    }
-                } else {
-                    $mkRow = $mkDt | Select-Object -First 1
-                    if ($mkRow -and $mkRow.PSObject.Properties['Make']) {
-                        $mk = $mkRow.Make
-                        if ($mk -match '(?i)brocade') { $vendor = 'Brocade' }
-                    }
+                $mkRows = DatabaseModule\ConvertTo-DbRowList -Data $mkDt
+                if ($mkRows.Count -gt 0) {
+                    $mk = $mkRows[0].Make
+                    if ($mk -match '(?i)brocade') { $vendor = 'Brocade' }
                 }
             }
         } catch {}
@@ -5616,7 +5623,7 @@ function Get-InterfaceConfiguration {
         # --- Batched query instead of N+1 per-port lookups ---
         $oldConfigs = @{}
         # Build a normalized list of ports without using ForEach-Object pipelines for better performance
-        $portsList = New-Object 'System.Collections.Generic.List[string]'
+        $portsList = [System.Collections.Generic.List[string]]::new()
         foreach ($p in $Interfaces) {
             if ($p -ne $null) {
                 [void]$portsList.Add($p.ToString())
@@ -5624,7 +5631,7 @@ function Get-InterfaceConfiguration {
         }
         if ($portsList.Count -gt 0) {
             # Escape single quotes and build IN list using typed lists
-            $portItems = New-Object 'System.Collections.Generic.List[string]'
+            $portItems = [System.Collections.Generic.List[string]]::new()
             foreach ($item in $portsList) {
                 $escaped = $item
                 try {
@@ -5647,9 +5654,7 @@ function Get-InterfaceConfiguration {
                     Invoke-DbQuery -DatabasePath $dbPath -Sql $sqlCfgAll
                 }
                 if ($dtAll) {
-                    $rows = @()
-                    if ($dtAll -is [System.Data.DataTable]) { $rows = $dtAll.Rows }
-                    elseif ($dtAll -is [System.Collections.IEnumerable]) { $rows = $dtAll }
+                    $rows = DatabaseModule\ConvertTo-DbRowList -Data $dtAll
                     foreach ($row in $rows) {
                         $portVal = $row.Port
                         $cfgText = $row.Config
@@ -5667,7 +5672,7 @@ function Get-InterfaceConfiguration {
         $outLines = foreach ($port in $Interfaces) {
             "interface $port"
             # Use a typed list instead of a PowerShell array when building the set of
-            $pending = New-Object 'System.Collections.Generic.List[string]'
+            $pending = [System.Collections.Generic.List[string]]::new()
             $nameOverride = if ($NewNames.ContainsKey($port)) { $NewNames[$port] } else { $null }
             $vlanOverride = if ($NewVlans.ContainsKey($port)) { $NewVlans[$port] } else { $null }
             if ($nameOverride) {
@@ -5737,7 +5742,7 @@ function Get-InterfacesForHostsBatch {
     }
 
     $seen = @{}
-    $cleanList = New-Object 'System.Collections.Generic.List[string]'
+    $cleanList = [System.Collections.Generic.List[string]]::new()
     foreach ($h in $Hostnames) {
         if ($null -ne $h) {
             $t = ('' + $h).Trim()
@@ -5754,7 +5759,7 @@ function Get-InterfacesForHostsBatch {
     }
 
     Import-DatabaseModule
-    $listItems = New-Object 'System.Collections.Generic.List[string]'
+    $listItems = [System.Collections.Generic.List[string]]::new()
     foreach ($host in $cleanHosts) {
         if ($host -ne $null) {
             $escaped = $host
@@ -5847,16 +5852,11 @@ function Get-SpanningTreeInfo {
 
     if (-not $data) { return @() }
 
-    $rows = @()
-    if ($data -is [System.Data.DataTable]) {
-        $rows = $data.Rows
-    } elseif ($data -is [System.Collections.IEnumerable]) {
-        $rows = @($data)
-    }
+    $rows = DatabaseModule\ConvertTo-DbRowList -Data $data
 
     if (-not $rows -or $rows.Count -eq 0) { return @() }
 
-    $list = New-Object 'System.Collections.Generic.List[object]'
+    $list = [System.Collections.Generic.List[object]]::new()
     foreach ($row in $rows) {
         if (-not $row) { continue }
 
@@ -5909,19 +5909,11 @@ function Get-SpanningTreeInfo {
 
 
     try {
-        $projectRoot = Split-Path -Parent $PSScriptRoot
-        $debugDir = Join-Path $projectRoot 'Logs\Debug'
-        if (-not (Test-Path $debugDir)) { New-Item -ItemType Directory -Path $debugDir -Force | Out-Null }
-        $logPath = Join-Path $debugDir 'SpanDebug.log'
         $rowCount = $list.Count
-        $timestamp = (Get-Date).ToString('yyyy-MM-ddTHH:mm:ss')
-        $line = ("{0} Host={1} Rows={2}" -f $timestamp, $hostTrim, $rowCount)
-        Add-Content -Path $logPath -Value $line -Encoding UTF8
+        TelemetryModule\Write-SpanDebugLog -Message ("Host={0} Rows={1}" -f $hostTrim, $rowCount) -Prefix 'Repo'
     } catch { }
 
     return $list.ToArray()
 }
 
 Export-ModuleMember -Function Get-DataDirectoryPath, Get-SiteFromHostname, Get-DbPathForSite, Get-DbPathForHost, Get-AllSiteDbPaths, Clear-SiteInterfaceCache, Get-InterfaceSiteCache, Get-InterfaceSiteCacheSummary, Get-SharedSiteInterfaceCacheEntry, Set-InterfaceSiteCacheHost, Get-InterfacePortBatchChunkSize, Set-InterfacePortStreamChunkSize, Set-InterfacePortStreamData, Initialize-InterfacePortStream, Get-InterfacePortStreamStatus, Get-InterfacePortBatch, Get-LastInterfacePortStreamMetrics, Get-LastInterfacePortQueueMetrics, Get-LastInterfaceSiteCacheMetrics, Get-LastInterfaceSiteHydrationMetrics, Set-InterfacePortDispatchMetrics, Get-LastInterfacePortDispatchMetrics, Clear-InterfacePortStream, Update-SiteZoneCache, Get-GlobalInterfaceSnapshot, Update-GlobalInterfaceList, Get-InterfacesForSite, Get-InterfaceInfo, Get-InterfaceConfiguration, Get-SpanningTreeInfo, Get-InterfacesForHostsBatch, Invoke-ParallelDbQuery, Import-DatabaseModule
-
-

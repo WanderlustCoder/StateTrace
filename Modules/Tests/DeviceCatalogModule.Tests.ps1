@@ -88,7 +88,7 @@ Describe "DeviceCatalogModule catalog operations" {
             }
             Mock -ModuleName DeviceCatalogModule -CommandName Test-Path { param($Path, $LiteralPath) $true }
             Mock -ModuleName DeviceCatalogModule -CommandName 'DeviceRepositoryModule\Import-DatabaseModule' {}
-            $global:DeviceCatalogQueriedPathsTest = New-Object 'System.Collections.Generic.List[string]'
+            $global:DeviceCatalogQueriedPathsTest = [System.Collections.Generic.List[string]]::new()
             Mock -ModuleName DeviceCatalogModule -CommandName 'DatabaseModule\Invoke-DbQuery' {
                 param($DatabasePath, $Sql)
                 $global:DeviceCatalogQueriedPathsTest.Add($DatabasePath) | Out-Null

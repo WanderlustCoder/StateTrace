@@ -22,6 +22,7 @@ Describe "ViewStateService Get-FilterSnapshot" {
         Remove-Module ViewStateService -Force
         Remove-Variable -Name TestMetadata -Scope Script -ErrorAction SilentlyContinue
         Remove-Variable -Name DeviceHostnameOrder -Scope Global -ErrorAction SilentlyContinue
+        Remove-Variable -Name DeviceMetadata -Scope Global -ErrorAction SilentlyContinue
     }
 
     It "returns sorted unique lists when no rotation is defined" {
@@ -61,5 +62,40 @@ Describe "ViewStateService Get-FilterSnapshot" {
 
         $snapshot.Hostnames | Should Be @('SITE1-Z2-SW3')
         $snapshot.ZoneToLoad | Should Be 'Z2'
+    }
+
+    It "returns an empty snapshot when metadata is null" {
+        $snapshot = ViewStateService\Get-FilterSnapshot -DeviceMetadata $null
+
+        $snapshot.Sites | Should BeNullOrEmpty
+        $snapshot.Zones | Should BeNullOrEmpty
+        $snapshot.Buildings | Should BeNullOrEmpty
+        $snapshot.Rooms | Should BeNullOrEmpty
+        $snapshot.Hostnames | Should BeNullOrEmpty
+        $snapshot.ZoneToLoad | Should Be ''
+    }
+
+    It "uses metadata to satisfy building and room filters when rows omit those fields" {
+        $global:DeviceMetadata = $script:TestMetadata
+        $row = [pscustomobject]@{
+            Hostname = 'SITE1-Z1-SW1'
+            Site     = 'SITE1'
+            Zone     = 'Z1'
+            Port     = 'Et1'
+            Status   = 'up'
+        }
+
+        $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
+        [void]$global:AllInterfaces.Add($row)
+        & (Get-Module ViewStateService) {
+            $script:CachedSite = 'SITE1'
+            $script:CachedZoneSelection = 'Z1'
+            $script:CachedZoneLoad = ''
+        }
+
+        $result = ViewStateService\Get-InterfacesForContext -Site 'SITE1' -ZoneSelection 'Z1' -Building 'B1' -Room 'R101'
+
+        $result.Count | Should Be 1
+        $result[0].Hostname | Should Be 'SITE1-Z1-SW1'
     }
 }

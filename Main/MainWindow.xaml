@@ -9,6 +9,7 @@
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
       <RowDefinition Height="*"/>
       <RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
@@ -27,24 +28,26 @@
       <CheckBox Name="IncludeArchiveCheckbox" Content="Include archives" VerticalAlignment="Center" Margin="10,0" Style="{DynamicResource ToolbarCheckBoxStyle}"/>
       <!-- Checkbox to include historical data from archives -->
       <CheckBox Name="IncludeHistoricalCheckbox" Content="Include history" VerticalAlignment="Center" Margin="5,0" Style="{DynamicResource ToolbarCheckBoxStyle}"/>
-
-      <Label Content="Site:" VerticalAlignment="Center" Margin="15,0,0,0" Style="{DynamicResource ToolbarLabelStyle}"/>
-      <!-- Make the site dropdown editable so users can type to filter sites. -->
-      <ComboBox Name="SiteDropdown" Width="80" Margin="5,0" IsEditable="True" IsTextSearchEnabled="True" Style="{DynamicResource ToolbarComboBoxStyle}"/>
-      <Label Content="Zone:" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
-      <!-- Zone dropdown with search capability -->
-      <ComboBox Name="ZoneDropdown" Width="80" Margin="5,0" IsEditable="True" IsTextSearchEnabled="True" Style="{DynamicResource ToolbarComboBoxStyle}"/>
-      <Label Content="Building:" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
-      <!-- Building dropdown with search capability -->
-      <ComboBox Name="BuildingDropdown" Width="100" Margin="5,0" IsEditable="True" IsTextSearchEnabled="True" Style="{DynamicResource ToolbarComboBoxStyle}"/>
-      <Label Content="Room:" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
-      <!-- Room dropdown with search capability -->
-      <ComboBox Name="RoomDropdown" Width="80" Margin="5,0" IsEditable="True" IsTextSearchEnabled="True" Style="{DynamicResource ToolbarComboBoxStyle}"/>
-      <!-- Show command buttons moved to their own row -->
     </StackPanel>
 
-    <!-- Row 1: Show command controls -->
-    <Grid Grid.Row="1" Margin="5">
+    <!-- Location filter bar directly under the main toolbar -->
+    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="5" Background="{DynamicResource Theme.Toolbar.Background}">
+      <Label Content="Site:" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
+      <!-- Make the site dropdown editable so users can type to filter sites. -->
+      <ComboBox Name="SiteDropdown" Width="100" Margin="5,0" IsEditable="True" IsTextSearchEnabled="True" Style="{DynamicResource ToolbarComboBoxStyle}"/>
+      <Label Content="Zone:" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
+      <!-- Zone dropdown with search capability -->
+      <ComboBox Name="ZoneDropdown" Width="100" Margin="5,0" IsEditable="True" IsTextSearchEnabled="True" Style="{DynamicResource ToolbarComboBoxStyle}"/>
+      <Label Content="Building:" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
+      <!-- Building dropdown with search capability -->
+      <ComboBox Name="BuildingDropdown" Width="120" Margin="5,0" IsEditable="True" IsTextSearchEnabled="True" Style="{DynamicResource ToolbarComboBoxStyle}"/>
+      <Label Content="Room:" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
+      <!-- Room dropdown with search capability -->
+      <ComboBox Name="RoomDropdown" Width="100" Margin="5,0" IsEditable="True" IsTextSearchEnabled="True" Style="{DynamicResource ToolbarComboBoxStyle}"/>
+    </StackPanel>
+
+    <!-- Row 2: Show command controls -->
+    <Grid Grid.Row="2" Margin="5">
       <!-- Use Margin instead of Padding on StackPanel. Padding is not supported on StackPanel in WPF.
            The surrounding Grid already provides margin spacing. -->
       <StackPanel Orientation="Horizontal" Background="{DynamicResource Theme.Toolbar.Background}" Margin="5,0,5,0">
@@ -65,7 +68,7 @@
     </Grid>
 
     <!-- Main content area: primary tabs with a collapsible compare sidebar -->
-    <Grid Grid.Row="2" Margin="5">
+    <Grid Grid.Row="3" Margin="5">
       <Grid.ColumnDefinitions>
         <ColumnDefinition Width="*" />
         <!-- CompareColumn's width is toggled in code-behind to show or hide the compare sidebar -->
@@ -102,7 +105,7 @@
     </Grid>
 
     <!-- Bottom status bar: parser status and site freshness -->
-    <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="10,5" Background="{DynamicResource Theme.Toolbar.Background}" >
+    <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="10,5" Background="{DynamicResource Theme.Toolbar.Background}" >
       <Label Name="ParserStatusText" Content="Parser idle" Margin="0,0,10,0" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
       <Label Name="ParserDetailText" Content="" Margin="0,0,10,0" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
       <Label Name="FreshnessLabel" Content="Freshness: select a site" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}" ToolTip="Displays the last ingest timestamp for the selected site."/>

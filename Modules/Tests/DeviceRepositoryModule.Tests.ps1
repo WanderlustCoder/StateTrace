@@ -226,6 +226,18 @@ Describe "DeviceRepositoryModule core helpers" {
         $snapshot[0].Hostname | Should Be 'SITE1-Z1-SW1'
         (Get-Variable -Name AllInterfaces -Scope Global -ValueOnly).Count | Should Be 0
     }
+    It "filters global snapshots by zone when site is not specified" {
+        $global:DeviceInterfaceCache = @{
+            'SITE1-Z1-SW1' = @([pscustomobject]@{ Hostname = 'SITE1-Z1-SW1'; Site = 'SITE1'; Zone = 'Z1'; Port = 'Gi1'; Status = 'up' })
+            'SITE2-Z2-SW2' = @([pscustomobject]@{ Hostname = 'SITE2-Z2-SW2'; Site = 'SITE2'; Zone = 'Z2'; Port = 'Gi2'; Status = 'down' })
+        }
+
+        $snapshot = DeviceRepositoryModule\Get-GlobalInterfaceSnapshot -ZoneSelection 'Z1'
+
+        $snapshot | Should Not BeNullOrEmpty
+        $snapshot.Length | Should Be 1
+        $snapshot[0].Hostname | Should Be 'SITE1-Z1-SW1'
+    }
     It "builds the global interface list for a site/zone selection" {
         $global:DeviceInterfaceCache = @{
             'SITE1-Z1-SW1' = @([pscustomobject]@{ Hostname = 'SITE1-Z1-SW1'; Site = 'SITE1'; Zone = 'Z1'; Port = 'Gi1'; PortSort = '001'; Status = 'up'; AuthState = 'authorized' })

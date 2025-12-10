@@ -35,7 +35,7 @@ if (-not (Test-Path -LiteralPath $Path)) {
     throw ("Telemetry file not found: {0}" -f $Path)
 }
 
-$errors = New-Object 'System.Collections.Generic.List[psobject]'
+$errors = [System.Collections.Generic.List[psobject]]::new()
 $queueFound = $false
 $syncFound = $false
 $totalLines = 0

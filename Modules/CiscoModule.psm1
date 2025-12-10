@@ -1,4 +1,17 @@
 
+if (-not (Get-Variable -Name CiscoDot1xMacRegex -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:CiscoDot1xMacRegex = [regex]::new('^(?:[0-9A-Fa-f]{4}\.){2}[0-9A-Fa-f]{4}$')
+}
+if (-not (Get-Variable -Name CiscoDot1xModeRegex -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:CiscoDot1xModeRegex = [regex]::new('dot1x|mab', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+}
+if (-not (Get-Variable -Name CiscoDot1xAuthRegex -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:CiscoDot1xAuthRegex = [regex]::new('auth', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+}
+if (-not (Get-Variable -Name CiscoDot1xUnauthRegex -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:CiscoDot1xUnauthRegex = [regex]::new('unauth|fail', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+}
+
 function Get-CiscoDeviceFacts {
     [CmdletBinding()]
     param (
@@ -11,18 +24,8 @@ function Get-CiscoDeviceFacts {
     #-----------------------------------------
     function Get-Hostname      {
         param([string[]]$Lines)
-        # Prefer prompt-derived hostname (supports "SSH@host#", "host#", or "host>")
-        foreach ($l in $Lines) {
-            if ($l -match '^(?:SSH@)?(\S+?)[#>]') {
-                return ($matches[1])
-            }
-        }
-        # Fallback to running-config 'hostname <name>'
-        foreach ($l in $Lines) {
-            if ($l -match '^(?i)\s*hostname\s+(.+)$') {
-                return $matches[1]
-            }
-        }
+        $hostname = DeviceParsingCommon\Get-HostnameFromPrompt -Lines $Lines -RunningConfigPattern '^(?i)\s*hostname\s+(.+)$'
+        if ($hostname) { return $hostname }
         return 'Unknown'
     }
     function Get-ModelAndVersion { param([string[]]$Lines)
@@ -50,7 +53,12 @@ function Get-CiscoDeviceFacts {
         }
         return @($model,$version)
     }
-    function Get-Uptime        { param([string[]]$Lines) foreach ($l in $Lines) { if ($l -match 'uptime is (.+)$') { return $matches[1].Trim() } }; return 'Unknown' }
+    function Get-Uptime        {
+        param([string[]]$Lines)
+        $uptime = DeviceParsingCommon\Get-UptimeFromLines -Lines $Lines
+        if ($uptime) { return $uptime }
+        return 'Unknown'
+    }
     function Get-Location {
         param([string[]]$Lines)
         # Delegate to the shared helper that handles vendor-specific keywords
@@ -65,7 +73,7 @@ function Get-CiscoDeviceFacts {
             if ($l -match '^interface\s+(\S+)') {
                 $fullName = $matches[1]
                 # Use a strongly typed List[string] instead of a PowerShell array.  Using
-                $block    = New-Object 'System.Collections.Generic.List[string]'
+                $block    = [System.Collections.Generic.List[string]]::new()
                 [void]$block.Add($l)
                 $desc     = ''
                 $j        = $i+1
@@ -105,7 +113,7 @@ function Get-CiscoDeviceFacts {
     function Get-AuthBlock {
         param([string[]]$Lines)
         # Use a typed List[string] to avoid O(n^2) behaviour from array '+='
-        $blk = New-Object 'System.Collections.Generic.List[string]'
+        $blk = [System.Collections.Generic.List[string]]::new()
         foreach ($line in $Lines) {
             $trim = $line.Trim()
             if ($trim -match '^(authentication|dot1x|mab|reauthentication)\b') {
@@ -132,7 +140,7 @@ function Get-CiscoDeviceFacts {
             $raw = $tokens[0]
             $statusIdx = -1
             $inMarker = $false
-            $candidateIdxList = New-Object 'System.Collections.Generic.List[int]'
+            $candidateIdxList = [System.Collections.Generic.List[int]]::new()
             for ($i = 1; $i -lt $tokens.Length; $i++) {
                 $tok = $tokens[$i]
                 if ($tok -match '<' -and -not $tok -match '>') { $inMarker = $true }
@@ -204,66 +212,21 @@ function Get-CiscoDeviceFacts {
     # representation into another.  The previous name 'Normalize-PortName'
     # used the unapproved verb 'Normalize', which triggered import
     # warnings.  Calls to the old name have been updated accordingly.
-    function ConvertTo-ShortPortName {
-        param([string]$Port)
-        if ([string]::IsNullOrWhiteSpace($Port)) { return $Port }
-        $p = $Port.Trim()
-        # Collapse any embedded whitespace between the prefix and numbers
-        # (e.g. "GigabitEthernet 1/0/1" ? "GigabitEthernet1/0/1").  Multiple
-        # spaces or tabs are removed.
-        $p = $p -replace '\s+', ''
-        # Convert common long prefixes to short abbreviations.  If a match
-        # occurs, prepend the abbreviation to the remainder of the port name.
-        switch -Regex ($p) {
-            '^(GigabitEthernet)(.+)$'    { return 'Gi' + $matches[2] }
-            '^(FastEthernet)(.+)$'       { return 'Fa' + $matches[2] }
-            '^(TenGigabitEthernet)(.+)$' { return 'Te' + $matches[2] }
-            '^(HundredGigabitEthernet)(.+)$' { return 'Hu' + $matches[2] }
-            Default { return $Port }
-        }
-    }
-
-function Get-MacTable {
+    function Get-MacTable {
         param([string[]]$Lines)
-        $splitRegex = New-Object System.Text.RegularExpressions.Regex('\s+')
-        $propertyMap = [ordered]@{
-            Row = { param($match) $match.Groups[0].Value.Trim() }
+        $portTransform = {
+            param($port)
+            $text = if ($null -ne $port) { ('' + $port).Trim() } else { '' }
+            if (-not $text) { return $text }
+            # Collapse whitespace inside the port column before shortening prefixes.
+            $text = $text -replace '\s+', ''
+            return DeviceParsingCommon\ConvertTo-ShortPortName -Port $text
         }
-        $postProcess = {
-            param($obj, $match)
-            $text = $obj.Row
-            if (-not $text) { return $null }
-            if ($text -match '^(?i)(Vlan|----|Mac\s+Address|Total)') { return $null }
-            $parts = $splitRegex.Split($text)
-            if ($parts.Length -lt 4) { return $null }
-            $vlan = $parts[0]
-            $mac  = $parts[1]
-            $port = $parts[$parts.Length - 1]
-            if ($parts.Length -ge 5) {
-                $last = $parts[$parts.Length - 1]
-                $secondLast = $parts[$parts.Length - 2]
-                if ($last -match '^[0-9]' -and $secondLast -notmatch '[0-9/]') {
-                    $port = ($secondLast + ' ' + $last).Trim()
-                }
-            }
-            if ($vlan -notmatch '^\d+$') { return $null }
-            if ($mac -notmatch '^(?:[0-9A-Fa-f]{4}\.){2}[0-9A-Fa-f]{4}$') { return $null }
-            $normPort = ConvertTo-ShortPortName -Port $port
-            return [PSCustomObject]@{
-                VLAN = $vlan
-                MAC  = $mac
-                Port = $normPort
-            }
-        }
-        return DeviceParsingCommon\Invoke-RegexTableParser -Lines $Lines -HeaderPattern '^(?i)\s*Vlan\s+Mac\s+Address' -RowPattern '^(?<line>.+)$' -PropertyMap $propertyMap -PostProcess $postProcess
+        return DeviceParsingCommon\ConvertFrom-MacTableRegex -Lines $Lines -HeaderPattern '^(?i)\s*Vlan\s+Mac\s+Address' -RowPattern '^(\\d+)\\s+((?:[0-9A-Fa-f]{4}\\.){2}[0-9A-Fa-f]{4})\\s+\\S+\\s+(.+)$' -VlanGroup 1 -MacGroup 2 -PortGroup 3 -PortTransform $portTransform
     }
 
     function Get-Dot1xStatus {
         param([string[]]$Lines)
-        $reMac    = [regex]::new('^(?:[0-9A-Fa-f]{4}\.){2}[0-9A-Fa-f]{4}$')
-        $reMode   = [regex]::new('dot1x|mab', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
-        $reAuth   = [regex]::new('auth', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
-        $reUnauth = [regex]::new('unauth|fail', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
         $propertyMap = [ordered]@{
             Row = { param($match) $match.Groups[0].Value.Trim() }
         }
@@ -278,12 +241,12 @@ function Get-MacTable {
             $iface = $parts[0]
             $mac   = ''
             for ($i = 1; $i -lt $parts.Length; $i++) {
-                if ($reMac.IsMatch($parts[$i])) { $mac = $parts[$i]; break }
+                if ($script:CiscoDot1xMacRegex.IsMatch($parts[$i])) { $mac = $parts[$i]; break }
             }
 
             $method = ''
             for ($i = 1; $i -lt $parts.Length; $i++) {
-                if ($reMode.IsMatch($parts[$i])) { $method = $parts[$i]; break }
+                if ($script:CiscoDot1xModeRegex.IsMatch($parts[$i])) { $method = $parts[$i]; break }
             }
 
             $status = ''
@@ -304,8 +267,8 @@ function Get-MacTable {
 
             $authState = 'Unknown'
             if ($status) {
-                if ($reAuth.IsMatch($status) -and -not $reUnauth.IsMatch($status)) { $authState = 'Authorized' }
-                elseif ($reUnauth.IsMatch($status)) { $authState = 'Unauthorized' }
+                if ($script:CiscoDot1xAuthRegex.IsMatch($status) -and -not $script:CiscoDot1xUnauthRegex.IsMatch($status)) { $authState = 'Authorized' }
+                elseif ($script:CiscoDot1xUnauthRegex.IsMatch($status)) { $authState = 'Unauthorized' }
             }
 
             $authMode = if ($method) { $method } else { 'unknown' }
@@ -332,7 +295,7 @@ function Get-MacTable {
         $result   = @{}
         # list of commands considered part of dual-auth (for compliance).  Use
         # a strongly typed list to avoid array reallocations when appending.
-        $required = New-Object 'System.Collections.Generic.List[string]'
+        $required = [System.Collections.Generic.List[string]]::new()
         foreach ($r in @(
             'authentication event fail action next-method',
             'authentication order mab dot1x',
@@ -356,7 +319,7 @@ function Get-MacTable {
                 # dual (flexible) auth.  Accumulate missing commands using a
                 # strongly typed list to avoid array reallocation.  Convert
                 # the list to an array when storing in the result.
-                $missing = New-Object 'System.Collections.Generic.List[string]'
+                $missing = [System.Collections.Generic.List[string]]::new()
                 foreach ($cmd in $required) {
                     if (-not ($lines -contains $cmd)) { [void]$missing.Add($cmd) }
                 }
@@ -378,7 +341,7 @@ function Get-MacTable {
 
     #-----------------------------------------
     if (-not $Blocks) {
-        try { $Blocks = Get-ShowCommandBlocks -Lines $Lines } catch { $Blocks = @{} }
+        try { $Blocks = DeviceLogParserModule\Get-ShowCommandBlocks -Lines $Lines } catch { $Blocks = @{} }
     }
     $blocks = $Blocks
     # Retrieve show command blocks with graceful fallbacks when the exact
@@ -387,71 +350,11 @@ function Get-MacTable {
     # desired block and, if not found, scan for keys that begin with the
     # expected prefix.  This prevents missing data when commands are spelled
     # differently in the logs.
-    $runCfg = if ($blocks.ContainsKey('show running-config')) {
-        $blocks['show running-config']
-    } else { @() }
-    $verBlk = if ($blocks.ContainsKey('show version')) {
-        $blocks['show version']
-    } else { @() }
-    # Interface status may appear in a variety of forms such as
-    # "show interface status", "show interfaces status", or with additional
-    # qualifiers (e.g. "show interfaces status port-channel").  Check the
-    # common exact keys first, then fall back to the first block whose key
-    # matches the pattern "^show\s+interfaces?\s+status".  This regex
-    # tolerates both singular and plural forms of "interface".
-    if ($blocks.ContainsKey('show interface status')) {
-        $intStat = $blocks['show interface status']
-    } elseif ($blocks.ContainsKey('show interfaces status')) {
-        $intStat = $blocks['show interfaces status']
-    } else {
-        $intStat = @()
-        foreach ($k in $blocks.Keys) {
-            if ($k -match '^show\s+interfaces?\s+status') { $intStat = $blocks[$k]; break }
-        }
-    }
-    # MAC address table commands vary across platforms.  In addition to
-    # "show mac address-table" and "show mac address table", some older
-    # devices (e.g. C880/888) use "show mac-address-table".  Check for
-    # common exact keys first, then search for patterns that match hyphen
-    # or space separated versions.  This captures variants like
-    # "show mac address-table dynamic" and "show mac-address-table".
-    if ($blocks.ContainsKey('show mac address-table')) {
-        $macTbl = $blocks['show mac address-table']
-    } elseif ($blocks.ContainsKey('show mac-address-table')) {
-        $macTbl = $blocks['show mac-address-table']
-    } else {
-        $macTbl = @()
-        foreach ($k in $blocks.Keys) {
-            if ($k -match '^show\s+mac[- ]address[- ]table') { $macTbl = $blocks[$k]; break }
-        }
-    }
-    # Authentication sessions may be singular ("show authentication session")
-    # or plural ("show authentication sessions"), and devices may append
-    # additional qualifiers such as "interface" or "summary".  Try exact
-    # matches for the plural and singular forms first, then fall back to
-    # any key that begins with "show authentication session" or
-    # "show authentication sessions".  The regex
-    # "^show\s+authentication\s+sessions?" matches both forms and will
-    # capture extended commands like "show authentication sessions interface".
-    if ($blocks.ContainsKey('show authentication sessions')) {
-        $authSes = $blocks['show authentication sessions']
-    } elseif ($blocks.ContainsKey('show authentication session')) {
-        $authSes = $blocks['show authentication session']
-    } else {
-        $authSes = @()
-        # First attempt to match keys that begin with "show authentication session[s]" (plural or singular)
-        foreach ($k in $blocks.Keys) {
-            if ($k -match '^show\s+authentication\s+sessions?') { $authSes = $blocks[$k]; break }
-        }
-        # If still not found, attempt to match abbreviated commands such as "show auth ses".
-        if (-not $authSes -or $authSes.Count -eq 0) {
-            foreach ($k in $blocks.Keys) {
-                # This regex matches commands like "show auth ses", "show auth sess", "show auth se"
-                # by looking for 'show', then any word starting with 'auth', then any word starting with 'se'.
-                if ($k -match '^show\s+auth\w*\s+ses\w*') { $authSes = $blocks[$k]; break }
-            }
-        }
-    }
+    $runCfg = DeviceLogParserModule\Get-ShowBlock -Blocks $blocks -Lines $Lines -PreferredKeys @('show running-config') -CommandRegexes @('^[^\s]+[>#]\s*(?:do\s+)?show\s+running-config') -DefaultValue @()
+    $verBlk = DeviceLogParserModule\Get-ShowBlock -Blocks $blocks -Lines $Lines -PreferredKeys @('show version') -CommandRegexes @('^[^\s]+[>#]\s*(?:do\s+)?show\s+version') -DefaultValue @()
+    $intStat = DeviceLogParserModule\Get-ShowBlock -Blocks $blocks -Lines $Lines -PreferredKeys @('show interface status','show interfaces status') -RegexPatterns @('^show\s+interfaces?\s+status') -CommandRegexes @('^[^\s]+[>#]\s*(?:do\s+)?show\s+interfaces?\s+status') -DefaultValue @()
+    $macTbl = DeviceLogParserModule\Get-ShowBlock -Blocks $blocks -Lines $Lines -PreferredKeys @('show mac address-table','show mac-address-table') -RegexPatterns @('^show\s+mac[- ]address[- ]table') -CommandRegexes @('^[^\s]+[>#]\s*(?:do\s+)?show\s+mac[- ]address[- ]table') -DefaultValue @()
+    $authSes = DeviceLogParserModule\Get-ShowBlock -Blocks $blocks -Lines $Lines -PreferredKeys @('show authentication sessions','show authentication session') -RegexPatterns @('^show\s+authentication\s+sessions?','^show\s+auth\w*\s+ses\w*') -CommandRegexes @('^[^\s]+[>#]\s*(?:do\s+)?show\s+authentication\s+sessions?') -DefaultValue @()
 
     # Use the full original lines to derive the hostname rather than just the running-config
     $hostname  = Get-Hostname      -Lines $Lines
@@ -482,7 +385,7 @@ function Get-MacTable {
     foreach ($entry in $macs) {
         $p = $entry.Port
         if (-not $macsByPort.ContainsKey($p)) {
-            $macsByPort[$p]     = New-Object 'System.Collections.Generic.List[string]'
+            $macsByPort[$p]     = [System.Collections.Generic.List[string]]::new()
             # also record the first MAC row for this port
             $firstMacByPort[$p] = $entry
         }
@@ -499,7 +402,7 @@ function Get-MacTable {
     }
 
     # Use a typed list to accumulate interface summary objects.  Using
-    $combinedList = New-Object 'System.Collections.Generic.List[object]'
+    $combinedList = [System.Collections.Generic.List[object]]::new()
     foreach ($iface in $status) {
         $raw      = $iface.RawPort
         $cfgEntry = $configs[$raw]

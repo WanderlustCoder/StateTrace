@@ -16,12 +16,7 @@ $script:SpanStatusLabel        = $null
 $script:WriteSpanDiagAction    = {
     param([string]$Message)
     try {
-        $projectRoot = Split-Path -Parent $PSScriptRoot
-        $debugDir = Join-Path $projectRoot 'Logs\Debug'
-        if (-not (Test-Path $debugDir)) { New-Item -ItemType Directory -Path $debugDir -Force | Out-Null }
-        $logPath = Join-Path $debugDir 'SpanDebug.log'
-        $line = ('{0} DIAG {1}' -f (Get-Date).ToString('yyyy-MM-ddTHH:mm:ss'), $Message)
-        Add-Content -Path $logPath -Value $line -Encoding UTF8
+        TelemetryModule\Write-SpanDebugLog -Message $Message -Prefix 'Diag'
     } catch { }
 }
 
@@ -262,10 +257,8 @@ function Get-SpanInfo {
     if (-not $data) { $data = @() }
 
     try {
-        $spanDebugPath = Join-Path $env:TEMP 'StateTrace_SpanDebug.log'
         $entryCount = @($data).Count
-        $logLine = "{0} Host={1} Rows={2}" -f (Get-Date).ToString('s'), $targetHost, $entryCount
-        Add-Content -Path $spanDebugPath -Value $logLine -Encoding UTF8
+        TelemetryModule\Write-SpanDebugLog -Message ("Host={0} Rows={1}" -f $targetHost, $entryCount) -UseTemp -Prefix 'Fetch'
     } catch { }
 
     $rowsCopy = @($data)
@@ -323,13 +316,8 @@ function Get-SpanInfo {
     } -ArgumentList $gridRef,$dropdownRef,$statusLabelRef,$samplePreviewRef,$rowsCopy,$targetHost,$script:WriteSpanDiagAction | Out-Null
 
     try {
-        $projectRoot = Split-Path -Parent $PSScriptRoot
-        $debugDir = Join-Path $projectRoot 'Logs\Debug'
-        if (-not (Test-Path $debugDir)) { New-Item -ItemType Directory -Path $debugDir -Force | Out-Null }
-        $logPath = Join-Path $debugDir 'SpanDebug.log'
         $count = $rowsCopy.Count
-        $uiLine = ('{0} UI Host={1} Rows={2}' -f (Get-Date).ToString('yyyy-MM-ddTHH:mm:ss'), $targetHost, $count)
-        Add-Content -Path $logPath -Value $uiLine -Encoding UTF8
+        TelemetryModule\Write-SpanDebugLog -Message ("Host={0} Rows={1}" -f $targetHost, $count) -Prefix 'UI'
     } catch { }
 
     $script:SpanLastHostname = $targetHost

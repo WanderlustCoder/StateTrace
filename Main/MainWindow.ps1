@@ -441,7 +441,7 @@ function Update-DeviceInterfaceCacheSnapshot {
         $global:DeviceInterfaceCache = @{}
     }
 
-    $list = New-Object 'System.Collections.Generic.List[object]'
+    $list = [System.Collections.Generic.List[object]]::new()
     foreach ($item in $Collection) {
         if ($null -ne $item) { [void]$list.Add($item) }
     }
@@ -688,7 +688,7 @@ function Populate-SiteDropdownWithAvailableSites {
         $existingSelection = '' + $siteDropdown.SelectedItem
     }
 
-    $items = New-Object 'System.Collections.Generic.List[string]'
+    $items = [System.Collections.Generic.List[string]]::new()
     [void]$items.Add('All Sites')
     foreach ($site in $sites) { [void]$items.Add($site) }
     $siteDropdown.ItemsSource = $items
@@ -992,7 +992,7 @@ function Update-FreshnessIndicator {
     }
     $label.Content = "Freshness: $site @ $($localTime.ToString('g')) ($ageText, source $providerText)"
 
-    $tooltipParts = New-Object 'System.Collections.Generic.List[string]'
+    $tooltipParts = [System.Collections.Generic.List[string]]::new()
     $tooltipParts.Add("Ingestion history: $($info.HistoryPath)") | Out-Null
     if ($providerInfo) {
         $tooltipParts.Add("Metrics: $($providerInfo.MetricsLog)") | Out-Null
@@ -1221,7 +1221,7 @@ function Initialize-DeviceViewFromCatalog {
     }
     if ($SiteFilter -and $catalog -and $catalog.Metadata) {
         $comparison = [System.StringComparer]::OrdinalIgnoreCase
-        $filteredHosts = New-Object 'System.Collections.Generic.List[string]'
+        $filteredHosts = [System.Collections.Generic.List[string]]::new()
         foreach ($hostname in $hostList) {
             $meta = $null
             if ($catalog.Metadata.ContainsKey($hostname)) {
@@ -1901,7 +1901,7 @@ return $res
                         Hostname          = $deviceHost
                         InvokeDurationMs  = $invokeDurationMs
                         StreamDurationMs  = $streamDurationMs
-                        FirstBatchMs      = (if ($firstBatchDelayMs -ne $null) { $firstBatchDelayMs } else { 0.0 })
+                        FirstBatchMs      = $(if ($firstBatchDelayMs -ne $null) { $firstBatchDelayMs } else { 0.0 })
                         BatchesProcessed  = $batchesProcessed
                         InterfaceCount    = $finalCollectionCount
                         AppendWorkMs      = [Math]::Round($totalAppendMs, 3)

@@ -159,7 +159,7 @@ function script:Get-ConfigurationTemplateCacheEntry {
         $templates = @()
     }
 
-    $namesList = New-Object 'System.Collections.Generic.List[string]'
+    $namesList = [System.Collections.Generic.List[string]]::new()
     $lookup = New-Object 'System.Collections.Generic.Dictionary[string,object]' ([System.StringComparer]::OrdinalIgnoreCase)
 
     foreach ($tmpl in $templates) {
@@ -239,11 +239,8 @@ function script:Get-DeviceVendorFromSummary {
         $mkDt = DatabaseModule\Invoke-DbQuery -DatabasePath $DatabasePath -Sql "SELECT Make FROM DeviceSummary WHERE Hostname = '$escHost'"
         $row = $null
         if ($mkDt) {
-            if ($mkDt -is [System.Data.DataTable]) {
-                if ($mkDt.Rows.Count -gt 0) { $row = $mkDt.Rows[0] }
-            } elseif ($mkDt -is [System.Collections.IEnumerable]) {
-                try { $row = ($mkDt | Select-Object -First 1) } catch { $row = $null }
-            }
+            $mkRows = DatabaseModule\ConvertTo-DbRowList -Data $mkDt
+            if ($mkRows.Count -gt 0) { $row = $mkRows[0] }
         }
         $makeVal = $null
         if ($row) {

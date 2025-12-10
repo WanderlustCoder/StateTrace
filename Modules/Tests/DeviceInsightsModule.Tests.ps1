@@ -78,6 +78,10 @@ Describe "DeviceInsightsModule view aggregation" {
         Import-Module (Resolve-Path (Join-Path $moduleRoot "..\DeviceInsightsModule.psm1")) -Force
         Import-Module (Resolve-Path (Join-Path $moduleRoot "..\DeviceRepositoryModule.psm1")) -Force
         Import-Module (Resolve-Path (Join-Path $moduleRoot "..\FilterStateModule.psm1")) -Force
+        $viewStatePath = Resolve-Path (Join-Path $moduleRoot "..\ViewStateService.psm1")
+        if (-not (Get-Module -Name ViewStateService -ErrorAction SilentlyContinue)) {
+            Import-Module $viewStatePath -Force
+        }
 
         foreach ($var in 'AllInterfaces','summaryView','alertsView','window','AlertsList','DeviceMetadata','DeviceInterfaceCache') {
             if (Get-Variable -Scope Global -Name $var -ErrorAction SilentlyContinue) {
@@ -103,7 +107,7 @@ Describe "DeviceInsightsModule view aggregation" {
     }
 
     BeforeEach {
-        $global:AllInterfaces = New-Object 'System.Collections.Generic.List[object]'
+        $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
         $global:summaryView   = $null
         $global:alertsView    = $null
         $global:window        = $null

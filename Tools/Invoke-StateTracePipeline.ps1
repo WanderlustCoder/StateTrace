@@ -185,7 +185,7 @@ function Restore-SharedCacheEntries {
     $entryArray = @($Entries)
     if (-not $entryArray -or $entryArray.Count -eq 0) { return 0 }
 
-    $sitesToWarm = New-Object 'System.Collections.Generic.List[string]'
+    $sitesToWarm = [System.Collections.Generic.List[string]]::new()
     $siteEntryTable = @{}
     foreach ($entry in $entryArray) {
         if (-not $entry) { continue }
@@ -351,8 +351,75 @@ function Write-SharedCacheSnapshotFile {
         [System.Collections.IEnumerable]$Entries
     )
 
-    $entryArray = @($Entries)
-    $sanitizedEntries = New-Object 'System.Collections.Generic.List[psobject]'
+    # Flatten entries, preferring the cache module helper when available to keep formats consistent.
+    $entryArray = $Entries
+    try {
+        $cacheHelper = Get-Command -Name 'DeviceRepository.Cache\ConvertTo-SharedCacheEntryArray' -ErrorAction SilentlyContinue
+        if (-not $cacheHelper) {
+            $cacheHelper = Get-Command -Name 'ConvertTo-SharedCacheEntryArray' -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue
+        }
+        if ($cacheHelper) {
+            $entryArray = & $cacheHelper -Entries $Entries
+        }
+    } catch {
+        $entryArray = $Entries
+    }
+    if (-not ($entryArray -is [System.Collections.IEnumerable])) { $entryArray = @($entryArray) }
+
+    # Prefer the cache module export (shared format) when available.
+    $siteFilter = [System.Collections.Generic.List[string]]::new()
+    foreach ($entry in $entryArray) {
+        if (-not $entry) { continue }
+        $siteValue = ''
+        if ($entry.PSObject.Properties.Name -contains 'Site') {
+            $siteValue = ('' + $entry.Site).Trim()
+        } elseif ($entry.PSObject.Properties.Name -contains 'SiteKey') {
+            $siteValue = ('' + $entry.SiteKey).Trim()
+        }
+        if (-not [string]::IsNullOrWhiteSpace($siteValue)) {
+            $siteFilter.Add($siteValue) | Out-Null
+        }
+    }
+
+    $cacheModule = Get-Module -Name 'DeviceRepository.Cache' -ErrorAction SilentlyContinue
+    if (-not $cacheModule) {
+        try {
+            $cachePath = Join-Path -Path $repositoryRoot -ChildPath 'Modules\DeviceRepository.Cache.psm1'
+            if (Test-Path -LiteralPath $cachePath) {
+                $cacheModule = Import-Module -Name $cachePath -PassThru -ErrorAction SilentlyContinue
+            }
+        } catch { }
+    }
+    if ($cacheModule) {
+        $cacheExport = Get-Command -Name 'DeviceRepository.Cache\Export-SharedCacheSnapshot' -ErrorAction SilentlyContinue
+        if (-not $cacheExport) {
+            $cacheExport = Get-Command -Name 'Export-SharedCacheSnapshot' -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue
+        }
+        if ($cacheExport) {
+            try {
+                $args = @{ OutputPath = $Path }
+                if ($siteFilter.Count -gt 0) { $args['SiteFilter'] = $siteFilter.ToArray() }
+                & $cacheExport @args | Out-Null
+                return
+            } catch {
+                Write-Verbose ("Shared cache snapshot export via DeviceRepository.Cache failed: {0}" -f $_.Exception.Message)
+            }
+        }
+        $fallbackWriter = Get-Command -Name 'DeviceRepository.Cache\Write-SharedCacheSnapshotFileFallback' -ErrorAction SilentlyContinue
+        if (-not $fallbackWriter) {
+            $fallbackWriter = Get-Command -Name 'Write-SharedCacheSnapshotFileFallback' -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue
+        }
+        if ($fallbackWriter) {
+            try {
+                & $fallbackWriter -Path $Path -Entries $entryArray
+                return
+            } catch {
+                Write-Verbose ("Shared cache snapshot fallback export via DeviceRepository.Cache failed: {0}" -f $_.Exception.Message)
+            }
+        }
+    }
+
+    $sanitizedEntries = [System.Collections.Generic.List[psobject]]::new()
 
     foreach ($entry in $entryArray) {
         if (-not $entry) { continue }
@@ -408,7 +475,7 @@ function Get-SharedCacheSnapshotSummary {
         $entries = @($entries)
     }
 
-    $summaries = New-Object 'System.Collections.Generic.List[psobject]'
+    $summaries = [System.Collections.Generic.List[psobject]]::new()
     foreach ($entry in $entries) {
         if (-not $entry) { continue }
         $siteValue = ''

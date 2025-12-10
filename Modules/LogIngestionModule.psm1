@@ -14,7 +14,7 @@ function Split-RawLogs {
     # are present.  Filter in a foreach loop instead of piping into a
     # Where-Object script block.  This approach also maintains the original
     # order of files returned by Get-ChildItem.
-    $rawFiles = New-Object 'System.Collections.Generic.List[System.IO.FileInfo]'
+    $rawFiles = [System.Collections.Generic.List[System.IO.FileInfo]]::new()
     foreach ($f in Get-ChildItem -Path $LogPath -File) {
         # Skip warm-run telemetry helper transcripts/logs; they are for regression output and can remain locked.
         if ($f.Name -like 'WarmRunTelemetry-*') {
@@ -39,7 +39,7 @@ function Split-RawLogs {
         $unknownWriter = $null
         $currentHost = $null
 
-        $buffer = New-Object 'System.Collections.Generic.List[string]'
+        $buffer = [System.Collections.Generic.List[string]]::new()
         $bufferLimit = 4000
 
         try {

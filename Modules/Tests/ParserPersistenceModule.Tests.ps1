@@ -1226,7 +1226,7 @@ Describe "ParserPersistenceModule" {
 
 
 
-            $script:bulkCommands = New-Object 'System.Collections.Generic.List[string]'
+            $script:bulkCommands = [System.Collections.Generic.List[string]]::new()
 
             $script:bulkCommandExecutions = 0
 
@@ -1298,7 +1298,7 @@ Describe "ParserPersistenceModule" {
 
 
 
-                $paramsList = New-Object 'System.Collections.Generic.List[object]'
+                $paramsList = [System.Collections.Generic.List[object]]::new()
 
                 $paramsBag = New-Object PSObject
 
@@ -2014,5 +2014,3 @@ Describe "ParserPersistenceModule" {
     }
 
 }
-
-

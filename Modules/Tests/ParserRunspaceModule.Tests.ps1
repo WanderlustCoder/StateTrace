@@ -1,5 +1,7 @@
 Set-StrictMode -Version Latest
 
+function Get-AutoScaleConcurrencyProfile { }
+
 Describe "ParserRunspaceModule" {
     BeforeAll {
         $modulePath = Join-Path (Split-Path $PSCommandPath) "..\\ParserRunspaceModule.psm1"
@@ -81,7 +83,7 @@ Describe "ParserRunspaceModule" {
     Context "Active worker management" {
         It "cleans up completed workers without ArgumentException" {
             InModuleScope -ModuleName ParserRunspaceModule {
-                $active = New-Object 'System.Collections.Generic.List[object]'
+                $active = [System.Collections.Generic.List[object]]::new()
                 $pipe = [pscustomobject]@{}
                 Add-Member -InputObject $pipe -MemberType ScriptMethod -Name EndInvoke -Value { param($async) } | Out-Null
                 Add-Member -InputObject $pipe -MemberType ScriptMethod -Name Dispose -Value { } | Out-Null
@@ -99,6 +101,131 @@ Describe "ParserRunspaceModule" {
             }
         }
     }
+
+    Context "Auto-scale profile reuse" {
+        It "wraps ParserWorker auto-scale profile lookup" {
+            Mock -ModuleName ParserRunspaceModule -CommandName 'Get-AutoScaleConcurrencyProfile' -MockWith {
+                return [pscustomobject]@{
+                    ThreadCeiling     = 5
+                    MaxWorkersPerSite = 2
+                    MaxActiveSites    = 3
+                    JobsPerThread     = 4
+                    MinRunspaces      = 2
+                }
+            }
+
+            InModuleScope -ModuleName ParserRunspaceModule {
+                $result = Get-ParserAutoScaleProfile -DeviceFiles @('dev1.log','dev2.log') -CpuCount 4
+                $result | Should Not Be $null
+                $result.ThreadCeiling | Should Be 5
+                $result.MaxWorkersPerSite | Should Be 2
+                $result.MaxActiveSites | Should Be 3
+                $result.JobsPerThread | Should Be 4
+                $result.MinRunspaces | Should Be 2
+            }
+
+            Assert-MockCalled -ModuleName ParserRunspaceModule -CommandName 'Get-AutoScaleConcurrencyProfile' -Times 1
+        }
+
+        It "applies auto-scale profile when requested" {
+            Mock -ModuleName ParserRunspaceModule -CommandName Initialize-SchedulerMetricsContext -MockWith {
+                param(
+                    [string]$ModulesPath,
+                    [int]$DeviceCount,
+                    [int]$MaxThreads,
+                    [int]$MaxWorkersPerSite,
+                    [int]$MaxActiveSites,
+                    [int]$MinThreads,
+                    [int]$JobsPerThread,
+                    [int]$CpuCount,
+                    [switch]$AdaptiveThreads,
+                    [int]$MinIntervalSeconds
+                )
+                return [pscustomobject]@{
+                    FilePath         = ''
+                    Buffer           = [System.Collections.Generic.List[object]]::new()
+                    TotalDevices     = $DeviceCount
+                    MaxThreads       = $MaxThreads
+                    MaxWorkersPerSite= $MaxWorkersPerSite
+                    MaxActiveSites   = $MaxActiveSites
+                    MinThreads       = $MinThreads
+                    JobsPerThread    = $JobsPerThread
+                    AdaptiveEnabled  = $AdaptiveThreads.IsPresent
+                    CpuCount         = $CpuCount
+                    CurrentThreadBudget = $null
+                    LastSnapshot     = $null
+                    LastSnapshotTime = [DateTime]::MinValue
+                }
+            }
+            Mock -ModuleName ParserRunspaceModule -CommandName 'Get-AutoScaleConcurrencyProfile' -MockWith {
+                return [pscustomobject]@{
+                    ThreadCeiling     = 3
+                    MaxWorkersPerSite = 2
+                    MaxActiveSites    = 2
+                    JobsPerThread     = 4
+                    MinRunspaces      = 2
+                }
+            }
+            Mock -ModuleName ParserRunspaceModule -CommandName Invoke-DeviceParseWorker -MockWith {}
+            Mock -ModuleName ParserRunspaceModule -CommandName Publish-SchedulerLaunchTelemetry -MockWith {}
+
+            ParserRunspaceModule\Invoke-DeviceParsingJobs -DeviceFiles @('C:\logs\a.log') -ModulesPath 'C:\modules' -ArchiveRoot 'C:\archives' -UseAutoScaleProfile
+
+            Assert-MockCalled -ModuleName ParserRunspaceModule -CommandName Initialize-SchedulerMetricsContext -ParameterFilter {
+                $MaxThreads -eq 3 -and $MaxWorkersPerSite -eq 2 -and $MaxActiveSites -eq 2 -and $MinThreads -eq 2 -and $JobsPerThread -eq 4
+            } -Times 1
+        }
+
+        It "defaults to auto-scale when no concurrency hints are provided" {
+            Mock -ModuleName ParserRunspaceModule -CommandName Initialize-SchedulerMetricsContext -MockWith {
+                param(
+                    [string]$ModulesPath,
+                    [int]$DeviceCount,
+                    [int]$MaxThreads,
+                    [int]$MaxWorkersPerSite,
+                    [int]$MaxActiveSites,
+                    [int]$MinThreads,
+                    [int]$JobsPerThread,
+                    [int]$CpuCount,
+                    [switch]$AdaptiveThreads,
+                    [int]$MinIntervalSeconds
+                )
+                return [pscustomobject]@{
+                    FilePath         = ''
+                    Buffer           = [System.Collections.Generic.List[object]]::new()
+                    TotalDevices     = $DeviceCount
+                    MaxThreads       = $MaxThreads
+                    MaxWorkersPerSite= $MaxWorkersPerSite
+                    MaxActiveSites   = $MaxActiveSites
+                    MinThreads       = $MinThreads
+                    JobsPerThread    = $JobsPerThread
+                    AdaptiveEnabled  = $AdaptiveThreads.IsPresent
+                    CpuCount         = $CpuCount
+                    CurrentThreadBudget = $null
+                    LastSnapshot     = $null
+                    LastSnapshotTime = [DateTime]::MinValue
+                }
+            }
+            Mock -ModuleName ParserRunspaceModule -CommandName 'Get-AutoScaleConcurrencyProfile' -MockWith {
+                return [pscustomobject]@{
+                    ThreadCeiling     = 6
+                    MaxWorkersPerSite = 3
+                    MaxActiveSites    = 2
+                    JobsPerThread     = 5
+                    MinRunspaces      = 2
+                }
+            }
+            Mock -ModuleName ParserRunspaceModule -CommandName Invoke-DeviceParseWorker -MockWith {}
+            Mock -ModuleName ParserRunspaceModule -CommandName Publish-SchedulerLaunchTelemetry -MockWith {}
+
+            ParserRunspaceModule\Invoke-DeviceParsingJobs -DeviceFiles @('C:\logs\a.log') -ModulesPath 'C:\modules' -ArchiveRoot 'C:\archives'
+
+            Assert-MockCalled -ModuleName ParserRunspaceModule -CommandName Initialize-SchedulerMetricsContext -ParameterFilter {
+                $MaxThreads -eq 6 -and $MaxWorkersPerSite -eq 3 -and $MaxActiveSites -eq 2 -and $MinThreads -eq 2 -and $JobsPerThread -eq 5
+            } -Times 1
+            Assert-MockCalled -ModuleName ParserRunspaceModule -CommandName 'Get-AutoScaleConcurrencyProfile' -Times 1
+        }
+    }
     Context "Adaptive thread budgeting" {
         It "scales with queue depth" {
             InModuleScope -ModuleName ParserRunspaceModule {
@@ -111,6 +238,13 @@ Describe "ParserRunspaceModule" {
             InModuleScope -ModuleName ParserRunspaceModule {
                 $budget = Get-AdaptiveThreadBudget -ActiveWorkers 3 -QueuedJobs 0 -CpuCount 4 -MinThreads 2 -MaxThreads 6 -JobsPerThread 2
                 $budget | Should Be 3
+            }
+        }
+
+        It "caps the budget by active site and worker limits" {
+            InModuleScope -ModuleName ParserRunspaceModule {
+                $budget = Get-AdaptiveThreadBudget -ActiveWorkers 0 -QueuedJobs 8 -CpuCount 8 -MinThreads 1 -MaxThreads 6 -JobsPerThread 2 -MaxWorkersPerSite 1 -MaxActiveSites 1
+                $budget | Should Be 1
             }
         }
 
@@ -139,7 +273,7 @@ Describe "ParserRunspaceModule" {
                 $rotation.Enqueue('A')
                 $rotation.Enqueue('B')
 
-                $activeEntries = New-Object 'System.Collections.Generic.List[object]'
+                $activeEntries = [System.Collections.Generic.List[object]]::new()
                 $activeSites = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
 
                 $first = Get-NextSiteQueueJob -SiteQueues $queues -RotationQueue $rotation -ActiveEntries $activeEntries -ActiveSiteSet $activeSites -MaxWorkersPerSite 1 -MaxActiveSites 0
@@ -165,7 +299,7 @@ Describe "ParserRunspaceModule" {
                 $rotation.Enqueue('A')
                 $rotation.Enqueue('B')
 
-                $activeEntries = New-Object 'System.Collections.Generic.List[object]'
+                $activeEntries = [System.Collections.Generic.List[object]]::new()
                 $activeSites = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
                 [void]$activeEntries.Add([pscustomobject]@{ Site = 'A' })
                 $null = $activeSites.Add('A')
@@ -195,7 +329,7 @@ Describe "ParserRunspaceModule" {
                 $rotation.Enqueue('A')
                 $rotation.Enqueue('B')
 
-                $activeEntries = New-Object 'System.Collections.Generic.List[object]'
+                $activeEntries = [System.Collections.Generic.List[object]]::new()
                 $activeSites = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
 
                 $next = Get-NextSiteQueueJob -SiteQueues $queues -RotationQueue $rotation -ActiveEntries $activeEntries -ActiveSiteSet $activeSites -MaxWorkersPerSite 1 -MaxActiveSites 1 -LastLaunchedSite 'A' -LastSiteConsecutive 3 -MaxConsecutivePerSite 3
@@ -213,7 +347,7 @@ Describe "ParserRunspaceModule" {
                 $rotation = [System.Collections.Generic.Queue[string]]::new()
                 $rotation.Enqueue('A')
 
-                $activeEntries = New-Object 'System.Collections.Generic.List[object]'
+                $activeEntries = [System.Collections.Generic.List[object]]::new()
                 $activeSites = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
 
                 $next = Get-NextSiteQueueJob -SiteQueues $queues -RotationQueue $rotation -ActiveEntries $activeEntries -ActiveSiteSet $activeSites -MaxWorkersPerSite 1 -MaxActiveSites 1 -LastLaunchedSite 'A' -LastSiteConsecutive 5 -MaxConsecutivePerSite 4
