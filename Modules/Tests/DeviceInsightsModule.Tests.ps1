@@ -83,7 +83,7 @@ Describe "DeviceInsightsModule view aggregation" {
             Import-Module $viewStatePath -Force
         }
 
-        foreach ($var in 'AllInterfaces','summaryView','alertsView','window','AlertsList','DeviceMetadata','DeviceInterfaceCache') {
+        foreach ($var in 'AllInterfaces','summaryView','alertsView','window','AlertsList','DeviceMetadata','DeviceInterfaceCache','InterfacesLoadAllowed') {
             if (Get-Variable -Scope Global -Name $var -ErrorAction SilentlyContinue) {
                 Set-Variable -Name "Prev_$var" -Scope Script -Value (Get-Variable -Name $var -Scope Global).Value
             } else {
@@ -93,7 +93,7 @@ Describe "DeviceInsightsModule view aggregation" {
     }
 
     AfterAll {
-        foreach ($var in 'AllInterfaces','summaryView','alertsView','window','AlertsList','DeviceMetadata','DeviceInterfaceCache') {
+        foreach ($var in 'AllInterfaces','summaryView','alertsView','window','AlertsList','DeviceMetadata','DeviceInterfaceCache','InterfacesLoadAllowed') {
             $prev = Get-Variable -Name "Prev_$var" -Scope Script -ValueOnly
             if ($prev -ne $null) {
                 Set-Variable -Name $var -Scope Global -Value $prev
@@ -114,6 +114,7 @@ Describe "DeviceInsightsModule view aggregation" {
         $global:AlertsList    = @()
         $global:DeviceMetadata = @{}
         $global:DeviceInterfaceCache = @{}
+        $global:InterfacesLoadAllowed = $true
         DeviceInsightsModule\Set-SearchRegexEnabled -Enabled $false
     }
 

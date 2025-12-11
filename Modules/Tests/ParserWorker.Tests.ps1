@@ -116,7 +116,8 @@ Describe "ParserWorker auto-scaling" {
     It "emits telemetry for concurrency decisions" {
         InModuleScope -ModuleName ParserWorker {
             $projectRoot = (Get-Location).ProviderPath
-            $extractedPath = Join-Path $projectRoot 'Logs\Extracted'
+            $logRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("StateTraceParserTests-{0}" -f ([guid]::NewGuid().ToString('N')))
+            $extractedPath = Join-Path $logRoot 'Extracted'
             New-Item -ItemType Directory -Path $extractedPath -Force | Out-Null
             Get-ChildItem -Path $extractedPath -File -ErrorAction SilentlyContinue | Remove-Item -Force
             $fileNames = @('TESTA-A01-AS-01.log','TESTA-A01-AS-02.log','TESTB-A02-AS-01.log','_unknown.log')
@@ -177,7 +178,7 @@ Describe "ParserWorker auto-scaling" {
                 Set-Item -Path Function:TelemetryModule\Write-StTelemetryEvent -Value { param($Name, $Payload) $script:telemetryEvents += [PSCustomObject]@{ Name = $Name; Payload = $Payload } }
                 Set-Item -Path Function:ParserPersistenceModule\Set-InterfaceBulkChunkSize -Value { param([int]$ChunkSize, [switch]$Reset) if ($Reset) { $script:lastChunkSize = 24; return 24 } else { $script:lastChunkSize = $ChunkSize; return $ChunkSize } }
 
-                Invoke-StateTraceParsing -Synchronous
+                Invoke-StateTraceParsing -Synchronous -LogRoot $logRoot
 
                 $capturedCall = $script:capturedCalls | Select-Object -Last 1
                 $capturedCall | Should Not Be $null
@@ -199,6 +200,7 @@ Describe "ParserWorker auto-scaling" {
                 foreach ($info in $fileInfos) {
                     Remove-Item -LiteralPath $info.FullName -ErrorAction SilentlyContinue
                 }
+                Remove-Item -LiteralPath $logRoot -Recurse -Force -ErrorAction SilentlyContinue
                 if ($splitCommand) { Set-Item -Path Function:LogIngestionModule\Split-RawLogs -Value $splitCommand.ScriptBlock }
                 if ($invokeCommand) { Set-Item -Path Function:ParserRunspaceModule\Invoke-DeviceParsingJobs -Value $invokeCommand.ScriptBlock }
                 if ($clearCommand) { Set-Item -Path Function:LogIngestionModule\Clear-ExtractedLogs -Value $clearCommand.ScriptBlock }
@@ -219,7 +221,8 @@ Describe "ParserWorker auto-scaling" {
     It "applies InterfaceBulkChunkSize from settings" {
         InModuleScope -ModuleName ParserWorker {
             $projectRoot = (Get-Location).ProviderPath
-            $extractedPath = Join-Path $projectRoot 'Logs\Extracted'
+            $logRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("StateTraceParserTests-{0}" -f ([guid]::NewGuid().ToString('N')))
+            $extractedPath = Join-Path $logRoot 'Extracted'
             New-Item -ItemType Directory -Path $extractedPath -Force | Out-Null
             Get-ChildItem -Path $extractedPath -File -ErrorAction SilentlyContinue | Remove-Item -Force
             $fileNames = @('ALPHA-A01-AS-01.log','ALPHA-A01-AS-02.log')
@@ -281,7 +284,7 @@ Describe "ParserWorker auto-scaling" {
                 Set-Item -Path Function:TelemetryModule\Write-StTelemetryEvent -Value { param($Name, $Payload) $script:telemetryEvents += [PSCustomObject]@{ Name = $Name; Payload = $Payload } }
                 Set-Item -Path Function:ParserPersistenceModule\Set-InterfaceBulkChunkSize -Value { param([int]$ChunkSize, [switch]$Reset) if ($Reset) { $script:lastChunkSize = 24; return 24 } else { $script:lastChunkSize = $ChunkSize; return $ChunkSize } }
 
-                Invoke-StateTraceParsing -Synchronous
+                Invoke-StateTraceParsing -Synchronous -LogRoot $logRoot
 
                 $capturedCall = $script:capturedCalls | Select-Object -Last 1
                 $capturedCall | Should Not Be $null
@@ -300,6 +303,7 @@ Describe "ParserWorker auto-scaling" {
                 foreach ($info in $fileInfos) {
                     Remove-Item -LiteralPath $info.FullName -ErrorAction SilentlyContinue
                 }
+                Remove-Item -LiteralPath $logRoot -Recurse -Force -ErrorAction SilentlyContinue
                 if ($splitCommand) { Set-Item -Path Function:LogIngestionModule\Split-RawLogs -Value $splitCommand.ScriptBlock }
                 if ($invokeCommand) { Set-Item -Path Function:ParserRunspaceModule\Invoke-DeviceParsingJobs -Value $invokeCommand.ScriptBlock }
                 if ($clearCommand) { Set-Item -Path Function:LogIngestionModule\Clear-ExtractedLogs -Value $clearCommand.ScriptBlock }
@@ -323,7 +327,8 @@ Describe "ParserWorker auto-scaling" {
     It "disables auto-scale profile when requested" {
         InModuleScope -ModuleName ParserWorker {
             $projectRoot = (Get-Location).ProviderPath
-            $extractedPath = Join-Path $projectRoot 'Logs\Extracted'
+            $logRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("StateTraceParserTests-{0}" -f ([guid]::NewGuid().ToString('N')))
+            $extractedPath = Join-Path $logRoot 'Extracted'
             New-Item -ItemType Directory -Path $extractedPath -Force | Out-Null
             Get-ChildItem -Path $extractedPath -File -ErrorAction SilentlyContinue | Remove-Item -Force
             $fileNames = @('DELTA-A01-AS-01.log','DELTA-A01-AS-02.log')
@@ -379,7 +384,7 @@ Describe "ParserWorker auto-scaling" {
                 Set-Item -Path Function:LogIngestionModule\Clear-ExtractedLogs -Value { param($ExtractedPath) }
                 Set-Item -Path Function:TelemetryModule\Write-StTelemetryEvent -Value { param($Name, $Payload) $script:telemetryEvents += [PSCustomObject]@{ Name = $Name; Payload = $Payload } }
 
-                Invoke-StateTraceParsing -Synchronous -DisableAutoScaleProfile
+                Invoke-StateTraceParsing -Synchronous -DisableAutoScaleProfile -LogRoot $logRoot
 
                 $capturedCall = $script:capturedCalls | Select-Object -Last 1
                 $capturedCall | Should Not Be $null
@@ -394,6 +399,7 @@ Describe "ParserWorker auto-scaling" {
                 foreach ($info in $fileInfos) {
                     Remove-Item -LiteralPath $info.FullName -ErrorAction SilentlyContinue
                 }
+                Remove-Item -LiteralPath $logRoot -Recurse -Force -ErrorAction SilentlyContinue
                 if ($splitCommand) { Set-Item -Path Function:LogIngestionModule\Split-RawLogs -Value $splitCommand.ScriptBlock }
                 if ($invokeCommand) { Set-Item -Path Function:ParserRunspaceModule\Invoke-DeviceParsingJobs -Value $invokeCommand.ScriptBlock }
                 if ($clearCommand) { Set-Item -Path Function:LogIngestionModule\Clear-ExtractedLogs -Value $clearCommand.ScriptBlock }
@@ -412,7 +418,8 @@ Describe "ParserWorker auto-scaling" {
     It "honors manual concurrency overrides" {
         InModuleScope -ModuleName ParserWorker {
             $projectRoot = (Get-Location).ProviderPath
-            $extractedPath = Join-Path $projectRoot 'Logs\Extracted'
+            $logRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("StateTraceParserTests-{0}" -f ([guid]::NewGuid().ToString('N')))
+            $extractedPath = Join-Path $logRoot 'Extracted'
             New-Item -ItemType Directory -Path $extractedPath -Force | Out-Null
             Get-ChildItem -Path $extractedPath -File -ErrorAction SilentlyContinue | Remove-Item -Force
             $fileNames = @('SITEA-A01-AS-01.log','SITEA-A01-AS-02.log','SITEA-A01-AS-03.log','SITEB-A02-AS-01.log','SITEB-A02-AS-02.log','SITEB-A02-AS-03.log')
@@ -468,7 +475,7 @@ Describe "ParserWorker auto-scaling" {
                 Set-Item -Path Function:LogIngestionModule\Clear-ExtractedLogs -Value { param($ExtractedPath) }
                 Set-Item -Path Function:TelemetryModule\Write-StTelemetryEvent -Value { param($Name, $Payload) $script:telemetryEvents += [PSCustomObject]@{ Name = $Name; Payload = $Payload } }
 
-                Invoke-StateTraceParsing -Synchronous -ThreadCeilingOverride 4 -MaxWorkersPerSiteOverride 2 -MaxActiveSitesOverride 2 -MaxConsecutiveSiteLaunchesOverride 5 -JobsPerThreadOverride 1 -MinRunspacesOverride 2
+                Invoke-StateTraceParsing -Synchronous -ThreadCeilingOverride 4 -MaxWorkersPerSiteOverride 2 -MaxActiveSitesOverride 2 -MaxConsecutiveSiteLaunchesOverride 5 -JobsPerThreadOverride 1 -MinRunspacesOverride 2 -LogRoot $logRoot
 
                 $capturedCall = $script:capturedCalls | Select-Object -Last 1
                 $capturedCall | Should Not Be $null
@@ -493,6 +500,7 @@ Describe "ParserWorker auto-scaling" {
                 foreach ($info in $fileInfos) {
                     Remove-Item -LiteralPath $info.FullName -ErrorAction SilentlyContinue
                 }
+                Remove-Item -LiteralPath $logRoot -Recurse -Force -ErrorAction SilentlyContinue
                 if ($splitCommand) { Set-Item -Path Function:LogIngestionModule\Split-RawLogs -Value $splitCommand.ScriptBlock }
                 if ($invokeCommand) { Set-Item -Path Function:ParserRunspaceModule\Invoke-DeviceParsingJobs -Value $invokeCommand.ScriptBlock }
                 if ($clearCommand) { Set-Item -Path Function:LogIngestionModule\Clear-ExtractedLogs -Value $clearCommand.ScriptBlock }
@@ -511,4 +519,3 @@ Describe "ParserWorker auto-scaling" {
     }
 
 }
-

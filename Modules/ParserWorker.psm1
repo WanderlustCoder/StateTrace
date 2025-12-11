@@ -395,7 +395,9 @@ function Invoke-StateTraceParsing {
 
         [switch]$DisableAutoScaleProfile,
 
-        [string]$SharedCacheSnapshotExportPath
+        [string]$SharedCacheSnapshotExportPath,
+
+        [string]$LogRoot
 
     )
 
@@ -417,7 +419,11 @@ function Invoke-StateTraceParsing {
 
     }
 
-    $logPath       = Join-Path $projectRoot 'Logs'
+    $logPath = if (-not [string]::IsNullOrWhiteSpace($LogRoot)) {
+        [System.IO.Path]::GetFullPath($LogRoot)
+    } else {
+        Join-Path $projectRoot 'Logs'
+    }
 
     $extractedPath = Join-Path $logPath 'Extracted'
 
