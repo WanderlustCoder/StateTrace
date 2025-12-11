@@ -4946,6 +4946,9 @@ ORDER BY i.Hostname, i.Port
         } finally {
             if ($recordset) {
                 try { $recordset.Close() } catch {}
+                if ($recordset -is [System.__ComObject]) {
+                    try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($recordset) } catch { }
+                }
             }
         }
 

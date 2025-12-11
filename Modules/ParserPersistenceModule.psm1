@@ -2288,6 +2288,7 @@ $siteCacheTemplateDurationMs = 0.0
         } finally {
             if ($recordsetLocal) {
                 try { $recordsetLocal.Close() } catch { }
+                Release-ComObjectSafe -ComObject $recordsetLocal
             }
         }
 
