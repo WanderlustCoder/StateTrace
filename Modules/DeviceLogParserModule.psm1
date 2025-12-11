@@ -99,7 +99,7 @@ function Update-ShowBlockState {
         if ($State.Recording -and $State.CurrentCmd) {
             $State.Blocks[$State.CurrentCmd] = $State.Buffer
         }
-        $State.CurrentCmd = $promptMatch.Groups[1].Value.Trim().ToLower()
+        $State.CurrentCmd = $promptMatch.Groups[1].Value.Trim().ToLowerInvariant()
         $State.Buffer     = [System.Collections.Generic.List[string]]::new()
         $State.Recording  = $true
         return
@@ -742,7 +742,7 @@ function ConvertFrom-SpanningTree {
 
         if ($line -match '^Port\s+\d+\s+\(([^)]+)\).+?\s+is\s+([A-Za-z]+(?:\s+[A-Za-z]+)?)') {
             $ifaceName = $matches[1]
-            $rolePhrase = $matches[2].Trim().ToLower()
+            $rolePhrase = $matches[2].Trim().ToLowerInvariant()
             if (-not $firstInterface) { $firstInterface = $ifaceName }
             if (-not $firstRole) {
                 switch ($rolePhrase) {
@@ -1084,6 +1084,7 @@ function Invoke-DeviceLogParsing {
                 }
             }
         }
+    }
 
     # At this point we have extracted all necessary information from the raw log
     $lines = $null
@@ -1092,7 +1093,6 @@ function Invoke-DeviceLogParsing {
         [System.GC]::Collect()
     } catch {
         # Ignore GC exceptions; not all hosts permit explicit collection
-    }
     }
 
     if (-not $facts -or -not $facts.Hostname) {

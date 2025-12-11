@@ -9,6 +9,13 @@ function Split-RawLogs {
 
     New-Item -ItemType Directory -Force -Path $ExtractedPath | Out-Null
 
+    # Start with a clean extracted directory so leftover slices from a prior run
+    # cannot be appended into the current parsing session.
+    try {
+        Get-ChildItem -LiteralPath $ExtractedPath -File -ErrorAction SilentlyContinue |
+            Remove-Item -Force -ErrorAction SilentlyContinue
+    } catch { }
+
     # Build a strongly typed list of raw log files.  Avoid the Where-Object
     # pipeline when filtering by extension to reduce overhead when many files
     # are present.  Filter in a foreach loop instead of piping into a
@@ -29,7 +36,8 @@ function Split-RawLogs {
     Write-Host "Split-RawLogs (streaming): found $($rawFiles.Count) file(s) in '$LogPath'."
 
     $reHostname = [regex]::new('(?i)^\s*hostname\s+(\S+)\s*$', 'Compiled')
-    $rePrompt   = [regex]::new('^\s*(?:SSH@)?([^\s#>]+)\s*[#>]\s*$', 'Compiled')
+    # Detect host prompts even when commands follow and when config contexts are present
+    $rePrompt   = [regex]::new('(?i)^\s*(?:SSH@)?([^(#>\s]+)(?:\([^)]*\))?\s*[#>]', 'Compiled')
 
     foreach ($file in $rawFiles) {
         Write-Host "`n--- Streaming file: $($file.FullName) ---"

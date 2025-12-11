@@ -2221,6 +2221,10 @@ function ConvertTo-InterfaceCacheSignature {
         if ($null -ne $rawValue -and $rawValue -ne [System.DBNull]::Value) {
             $text = '' + $rawValue
         }
+        $lengthValue = 0
+        try { $lengthValue = [int]$text.Length } catch { $lengthValue = 0 }
+        [void]$builder.Append($lengthValue)
+        [void]$builder.Append(':')
         [void]$builder.Append($text)
     }
 

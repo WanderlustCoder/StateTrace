@@ -562,6 +562,10 @@ function Get-InterfaceSignatureFromValues {
             $text = '' + $rawValue
         }
 
+        $lengthValue = 0
+        try { $lengthValue = [int]$text.Length } catch { $lengthValue = 0 }
+        [void]$builder.Append($lengthValue)
+        [void]$builder.Append(':')
         [void]$builder.Append($text)
     }
 
@@ -662,7 +666,7 @@ function New-AdodbInterfaceSeedRecordset {
         try { $recordset.LockType = $script:AdLockBatchOptimistic } catch { }
 
         $recordset.ActiveConnection = $Connection
-        $recordset.Source = 'SELECT BatchId, Hostname, RunDateText, Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, PortColor, ConfigStatus, ToolTip FROM InterfaceBulkSeed WHERE 1=0'
+        $recordset.Source = 'SELECT BatchId, Hostname, RunDateText, RunDate, Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, PortColor, ConfigStatus, ToolTip FROM InterfaceBulkSeed WHERE 1=0'
         $recordset.Open()
         $opened = $true
         return $recordset
@@ -3567,6 +3571,15 @@ function Ensure-InterfaceBulkSeedTable {
 
         $Connection.Execute('SELECT TOP 1 BatchId FROM InterfaceBulkSeed') | Out-Null
 
+        # Ensure newer schema columns exist for locale-safe RunDate handling.
+        try {
+            $Connection.Execute('SELECT TOP 1 RunDate FROM InterfaceBulkSeed') | Out-Null
+        } catch {
+            try {
+                Invoke-AdodbNonQuery -Connection $Connection -CommandText 'ALTER TABLE InterfaceBulkSeed ADD COLUMN RunDate DATETIME' | Out-Null
+            } catch { }
+        }
+
         return $true
 
     } catch {
@@ -3582,6 +3595,8 @@ CREATE TABLE InterfaceBulkSeed (
     Hostname TEXT(255),
 
     RunDateText TEXT(32),
+
+    RunDate DATETIME,
 
     Port TEXT(255),
 
@@ -3817,26 +3832,27 @@ function Invoke-InterfaceBulkInsertInternal {
             }
         }
 
-        $rowValues = New-Object object[] 19
+        $rowValues = New-Object object[] 20
         $rowValues[0] = $batchId
         $rowValues[1] = $Hostname
         $rowValues[2] = $runDateText
-        $rowValues[3] = & $extractStringValue $properties 'Port'
-        $rowValues[4] = & $extractStringValue $properties 'Name'
-        $rowValues[5] = & $extractStringValue $properties 'Status'
-        $rowValues[6] = $vlanNumeric
-        $rowValues[7] = & $extractStringValue $properties 'Duplex'
-        $rowValues[8] = & $extractStringValue $properties 'Speed'
-        $rowValues[9] = & $extractStringValue $properties 'Type'
-        $rowValues[10] = & $extractStringValue $properties 'Learned'
-        $rowValues[11] = & $extractStringValue $properties 'AuthState'
-        $rowValues[12] = & $extractStringValue $properties 'AuthMode'
-        $rowValues[13] = & $extractStringValue $properties 'AuthClient'
-        $rowValues[14] = & $extractStringValue $properties 'Template'
-        $rowValues[15] = & $extractStringValue $properties 'Config'
-        $rowValues[16] = & $extractStringValue $properties 'PortColor'
-        $rowValues[17] = & $extractStringValue $properties 'StatusTag'
-        $rowValues[18] = & $extractStringValue $properties 'ToolTip'
+        $rowValues[3] = $RunDate
+        $rowValues[4] = & $extractStringValue $properties 'Port'
+        $rowValues[5] = & $extractStringValue $properties 'Name'
+        $rowValues[6] = & $extractStringValue $properties 'Status'
+        $rowValues[7] = $vlanNumeric
+        $rowValues[8] = & $extractStringValue $properties 'Duplex'
+        $rowValues[9] = & $extractStringValue $properties 'Speed'
+        $rowValues[10] = & $extractStringValue $properties 'Type'
+        $rowValues[11] = & $extractStringValue $properties 'Learned'
+        $rowValues[12] = & $extractStringValue $properties 'AuthState'
+        $rowValues[13] = & $extractStringValue $properties 'AuthMode'
+        $rowValues[14] = & $extractStringValue $properties 'AuthClient'
+        $rowValues[15] = & $extractStringValue $properties 'Template'
+        $rowValues[16] = & $extractStringValue $properties 'Config'
+        $rowValues[17] = & $extractStringValue $properties 'PortColor'
+        $rowValues[18] = & $extractStringValue $properties 'StatusTag'
+        $rowValues[19] = & $extractStringValue $properties 'ToolTip'
 
         $rowsBuffer.Add($rowValues) | Out-Null
 
@@ -3883,7 +3899,7 @@ function Invoke-InterfaceBulkInsertInternal {
         $stageStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         try {
             $parameterBindStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-            $fieldNames = @('BatchId', 'Hostname', 'RunDateText', 'Port', 'Name', 'Status', 'VLAN', 'Duplex', 'Speed', 'Type', 'LearnedMACs', 'AuthState', 'AuthMode', 'AuthClientMAC', 'AuthTemplate', 'Config', 'PortColor', 'ConfigStatus', 'ToolTip')
+            $fieldNames = @('BatchId', 'Hostname', 'RunDateText', 'RunDate', 'Port', 'Name', 'Status', 'VLAN', 'Duplex', 'Speed', 'Type', 'LearnedMACs', 'AuthState', 'AuthMode', 'AuthClientMAC', 'AuthTemplate', 'Config', 'PortColor', 'ConfigStatus', 'ToolTip')
 
             foreach ($rowValues in $rowsBuffer) {
                 $seedRecordset.AddNew($fieldNames, $rowValues)
@@ -3925,7 +3941,7 @@ function Invoke-InterfaceBulkInsertInternal {
         $parameterBindDurationMs = 0.0
         $commandExecuteDurationMs = 0.0
 
-        $insertSql = 'INSERT INTO InterfaceBulkSeed (BatchId, Hostname, RunDateText, Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, PortColor, ConfigStatus, ToolTip) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+        $insertSql = 'INSERT INTO InterfaceBulkSeed (BatchId, Hostname, RunDateText, RunDate, Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, PortColor, ConfigStatus, ToolTip) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         $insertCmd = New-AdodbTextCommand -Connection $Connection -CommandText $insertSql
         if (-not $insertCmd) { return (& $setLastBulkMetrics $false) }
 
@@ -3934,6 +3950,7 @@ function Invoke-InterfaceBulkInsertInternal {
                 Add-AdodbParameter -Command $insertCmd -Name 'BatchId' -Type $script:AdTypeVarWChar -Size 36
                 Add-AdodbParameter -Command $insertCmd -Name 'Hostname' -Type $script:AdTypeVarWChar -Size 255
                 Add-AdodbParameter -Command $insertCmd -Name 'RunDateText' -Type $script:AdTypeVarWChar -Size 32
+                Add-AdodbParameter -Command $insertCmd -Name 'RunDate' -Type $script:AdTypeDate
                 Add-AdodbParameter -Command $insertCmd -Name 'Port' -Type $script:AdTypeVarWChar -Size 255
                 Add-AdodbParameter -Command $insertCmd -Name 'Name' -Type $script:AdTypeVarWChar -Size 255
                 Add-AdodbParameter -Command $insertCmd -Name 'Status' -Type $script:AdTypeVarWChar -Size 255
@@ -3960,6 +3977,7 @@ function Invoke-InterfaceBulkInsertInternal {
             Set-AdodbParameterValue -Parameter $parameters[0] -Value $batchId
             Set-AdodbParameterValue -Parameter $parameters[1] -Value $Hostname
             Set-AdodbParameterValue -Parameter $parameters[2] -Value $runDateText
+            Set-AdodbParameterValue -Parameter $parameters[3] -Value $RunDate
 
             $stageStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
             $bindDurationTotal = 0.0
@@ -3968,7 +3986,6 @@ function Invoke-InterfaceBulkInsertInternal {
                 foreach ($rowValues in $rowsBuffer) {
                     $bindStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
-                    Set-AdodbParameterValue -Parameter $parameters[3] -Value $rowValues[3]
                     Set-AdodbParameterValue -Parameter $parameters[4] -Value $rowValues[4]
                     Set-AdodbParameterValue -Parameter $parameters[5] -Value $rowValues[5]
                     Set-AdodbParameterValue -Parameter $parameters[6] -Value $rowValues[6]
@@ -3984,6 +4001,7 @@ function Invoke-InterfaceBulkInsertInternal {
                     Set-AdodbParameterValue -Parameter $parameters[16] -Value $rowValues[16]
                     Set-AdodbParameterValue -Parameter $parameters[17] -Value $rowValues[17]
                     Set-AdodbParameterValue -Parameter $parameters[18] -Value $rowValues[18]
+                    Set-AdodbParameterValue -Parameter $parameters[19] -Value $rowValues[19]
 
                     $bindStopwatch.Stop()
                     $bindDurationTotal += $bindStopwatch.Elapsed.TotalMilliseconds
@@ -4067,7 +4085,7 @@ LEFT JOIN Interfaces AS Existing ON (Existing.Hostname = Seed.Hostname) AND (Exi
 WHERE Seed.BatchId = '$escBatch' AND Seed.Hostname = '$escHostname' AND Existing.Hostname IS NULL"
 
     $insertHistorySql = "INSERT INTO InterfaceHistory (Hostname, RunDate, Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, PortColor, ConfigStatus, ToolTip)
-SELECT Seed.Hostname, CDate(Seed.RunDateText), Seed.Port, Seed.Name, Seed.Status, Seed.VLAN, Seed.Duplex, Seed.Speed, Seed.Type, Seed.LearnedMACs, Seed.AuthState, Seed.AuthMode, Seed.AuthClientMAC, Seed.AuthTemplate, Seed.Config, Seed.PortColor, Seed.ConfigStatus, Seed.ToolTip
+SELECT Seed.Hostname, IIf(IsNull(Seed.RunDate), CDate(Seed.RunDateText), Seed.RunDate), Seed.Port, Seed.Name, Seed.Status, Seed.VLAN, Seed.Duplex, Seed.Speed, Seed.Type, Seed.LearnedMACs, Seed.AuthState, Seed.AuthMode, Seed.AuthClientMAC, Seed.AuthTemplate, Seed.Config, Seed.PortColor, Seed.ConfigStatus, Seed.ToolTip
 FROM InterfaceBulkSeed AS Seed
 WHERE Seed.BatchId = '$escBatch' AND Seed.Hostname = '$escHostname'"
 
@@ -4332,7 +4350,7 @@ function Invoke-DeviceSummaryParameterized {
     try {
         $parameters = @(
             Add-AdodbParameter -Command $historyCmd -Name 'Hostname' -Type $script:AdTypeVarWChar -Size 255
-            Add-AdodbParameter -Command $historyCmd -Name 'RunDate' -Type $script:AdTypeVarWChar -Size 32
+            Add-AdodbParameter -Command $historyCmd -Name 'RunDate' -Type $script:AdTypeDate
             Add-AdodbParameter -Command $historyCmd -Name 'Make' -Type $script:AdTypeVarWChar -Size 255
             Add-AdodbParameter -Command $historyCmd -Name 'Model' -Type $script:AdTypeVarWChar -Size 255
             Add-AdodbParameter -Command $historyCmd -Name 'Uptime' -Type $script:AdTypeVarWChar -Size 255
@@ -4347,7 +4365,7 @@ function Invoke-DeviceSummaryParameterized {
         if ($parameters -contains $null) { return $false }
 
         Set-AdodbParameterValue -Parameter $parameters[0] -Value $Hostname
-        Set-AdodbParameterValue -Parameter $parameters[1] -Value ($RunDate.ToString('yyyy-MM-dd HH:mm:ss'))
+        Set-AdodbParameterValue -Parameter $parameters[1] -Value $RunDate
         Set-AdodbParameterValue -Parameter $parameters[2] -Value ([string]$Values.Make)
         Set-AdodbParameterValue -Parameter $parameters[3] -Value ([string]$Values.Model)
         Set-AdodbParameterValue -Parameter $parameters[4] -Value ([string]$Values.Uptime)
@@ -4527,7 +4545,7 @@ function Invoke-InterfaceRowParameterized {
 
             Add-AdodbParameter -Command $historyCmd -Name 'Hostname' -Type $script:AdTypeVarWChar -Size 255
 
-            Add-AdodbParameter -Command $historyCmd -Name 'RunDate' -Type $script:AdTypeVarWChar -Size 32
+            Add-AdodbParameter -Command $historyCmd -Name 'RunDate' -Type $script:AdTypeDate
 
             Add-AdodbParameter -Command $historyCmd -Name 'Port' -Type $script:AdTypeVarWChar -Size 255
 
@@ -4571,7 +4589,7 @@ function Invoke-InterfaceRowParameterized {
 
         Set-AdodbParameterValue -Parameter $parameters[0] -Value $Hostname
 
-        Set-AdodbParameterValue -Parameter $parameters[1] -Value ($RunDate.ToString('yyyy-MM-dd HH:mm:ss'))
+        Set-AdodbParameterValue -Parameter $parameters[1] -Value $RunDate
 
         Set-AdodbParameterValue -Parameter $parameters[2] -Value ([string]$Row.Port)
 

@@ -44,11 +44,22 @@ try {
     $events = $raw | ConvertFrom-Json -ErrorAction Stop
 } catch {
     # Fallback for newline-delimited JSON
-    $lines = Get-Content -LiteralPath $Path
+    $lines = Get-Content -LiteralPath $Path -ErrorAction Stop
     $parsed = @()
+    $parseErrors = 0
     foreach ($line in $lines) {
         if ([string]::IsNullOrWhiteSpace($line)) { continue }
-        try { $parsed += ($line | ConvertFrom-Json -ErrorAction Stop) } catch { }
+        try {
+            $parsed += ($line | ConvertFrom-Json -ErrorAction Stop)
+        } catch {
+            $parseErrors++
+            if ($parseErrors -le 3) {
+                Write-Verbose ("[UserAction] Skipping invalid JSON line: {0}" -f $_.Exception.Message)
+            }
+        }
+    }
+    if ($parseErrors -gt 0) {
+        Write-Warning ("[UserAction] Skipped {0} invalid JSON line(s) in {1}" -f $parseErrors, $Path)
     }
     if ($parsed.Count -eq 0) {
         throw "Failed to parse telemetry at ${Path}: $($_.Exception.Message)"

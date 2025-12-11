@@ -309,7 +309,7 @@ function Get-CiscoDeviceFacts {
 
         foreach ($key in $Configs.Keys) {
             # normalize to lower-case trimmed lines
-            $lines = $Configs[$key].Config -split "`r?`n" | ForEach-Object { $_.Trim().ToLower() }
+            $lines = $Configs[$key].Config -split "`r?`n" | ForEach-Object { $_.Trim().ToLowerInvariant() }
 
             # Was originally only checking the 'authentication order ... mab' line:
             $hasDot1x = $lines -contains 'dot1x pae authenticator'
