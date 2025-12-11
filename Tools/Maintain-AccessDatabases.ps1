@@ -56,6 +56,7 @@ function Compact-Database {
     $source = $provider + 'Data Source=' + $DbPath
     $tmpPath = [System.IO.Path]::ChangeExtension($DbPath, '.tmp')
     $dest   = $provider + 'Data Source=' + $tmpPath
+    $jetEngine = $null
     try {
         $jetEngine = New-Object -ComObject 'JRO.JetEngine'
         $jetEngine.CompactDatabase($source, $dest)
@@ -66,6 +67,10 @@ function Compact-Database {
     } catch {
         Write-Log "Failed to compact '$DbPath': $_"
         if (Test-Path -LiteralPath $tmpPath) { Remove-Item -LiteralPath $tmpPath -Force }
+    } finally {
+        if ($jetEngine -is [System.__ComObject]) {
+            try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($jetEngine) } catch { }
+        }
     }
 }
 

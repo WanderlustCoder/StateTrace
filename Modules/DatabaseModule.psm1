@@ -408,6 +408,7 @@ CREATE TABLE InterfaceHistory (
 );
 '@
 
+    $connection = $null
     try {
         $connection = New-Object -ComObject ADODB.Connection
         $opened = $false
@@ -485,10 +486,16 @@ CREATE TABLE InterfaceHistory (
                 # Swallow errors (e.g. column already exists)
             }
         }
-        $connection.Close()
     } catch {
         Write-Warning "Failed to create tables in the Access database. $_"
         throw
+    } finally {
+        if ($connection) {
+            try { $connection.Close() } catch { }
+            if ($connection -is [System.__ComObject]) {
+                try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($connection) } catch { }
+            }
+        }
     }
     return $Path
 }
@@ -555,8 +562,15 @@ function Invoke-DbQuery {
         }
 
         $dataTable = New-Object System.Data.DataTable
-        $adapter = New-Object System.Data.OleDb.OleDbDataAdapter($Sql, $conn)
-        [void]$adapter.Fill($dataTable)
+        $adapter = $null
+        try {
+            $adapter = New-Object System.Data.OleDb.OleDbDataAdapter($Sql, $conn)
+            [void]$adapter.Fill($dataTable)
+        } finally {
+            if ($adapter) {
+                try { $adapter.Dispose() } catch { }
+            }
+        }
         return ,$dataTable
     } finally {
         # Close and dispose connection only if we opened it (mustClose=true).
@@ -570,8 +584,6 @@ function Invoke-DbQuery {
 }
 
 Export-ModuleMember -Function Get-SqlLiteral, ConvertTo-DbRowList, New-AccessDatabase, Invoke-DbQuery, Open-DbReadSession, Close-DbReadSession
-
-
 
 
 

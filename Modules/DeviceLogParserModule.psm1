@@ -221,6 +221,18 @@ function Get-CanonicalDatabaseKey {
     return $candidate.Trim().ToLowerInvariant()
 }
 
+function Release-ComObjectSafe {
+    [CmdletBinding()]
+    param(
+        [Parameter()][object]$ComObject
+    )
+
+    if ($null -eq $ComObject) { return }
+    if ($ComObject -is [System.__ComObject]) {
+        try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($ComObject) } catch { }
+    }
+}
+
 function Get-DatabaseMutexName {
     param([string]$DatabasePath)
 
@@ -341,8 +353,9 @@ function Close-StaleConnections {
 
         if ($entry.Connection -and ($ttlMinutes -eq 0 -or $elapsedMinutes -ge $ttlMinutes)) {
 
-            try { $entry.Connection.Close() } catch { }
-
+            $connectionToRelease = $entry.Connection
+            try { $connectionToRelease.Close() } catch { }
+            Release-ComObjectSafe -ComObject $connectionToRelease
             $entry.Connection = $null
 
         }
@@ -413,8 +426,9 @@ function Get-CachedDbConnection {
 
     if ($entry.Connection -and $entry.Connection.State -ne 1) {
 
-        try { $entry.Connection.Close() } catch { }
-
+        $connectionToRelease = $entry.Connection
+        try { $connectionToRelease.Close() } catch { }
+        Release-ComObjectSafe -ComObject $connectionToRelease
         $entry.Connection = $null
 
     }
@@ -461,7 +475,10 @@ function Get-CachedDbConnection {
 
                 } finally {
 
-                    if ($testConn) { try { $testConn.Close() } catch { } }
+                    if ($testConn) {
+                        try { $testConn.Close() } catch { }
+                        Release-ComObjectSafe -ComObject $testConn
+                    }
 
                 }
 
@@ -545,8 +562,9 @@ function Release-CachedDbConnection {
 
     if ($ForceRemove -and $entry.Connection) {
 
-        try { $entry.Connection.Close() } catch { }
-
+        $connectionToRelease = $entry.Connection
+        try { $connectionToRelease.Close() } catch { }
+        Release-ComObjectSafe -ComObject $connectionToRelease
         $entry.Connection = $null
 
     }
@@ -1413,6 +1431,7 @@ function Invoke-DeviceLogParsing {
                         } catch { }
 
                         $refreshStopwatch = $null
+                        $jet = $null
                         try {
                             $refreshStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
                             $jet = New-Object -ComObject JRO.JetEngine
@@ -1422,6 +1441,9 @@ function Invoke-DeviceLogParsing {
                             }
                         } catch { }
                         finally {
+                            if ($jet) {
+                                Release-ComObjectSafe -ComObject $jet
+                            }
                             if ($refreshStopwatch) {
                                 $refreshStopwatch.Stop()
                                 $refreshDurationMs = [Math]::Round($refreshStopwatch.Elapsed.TotalMilliseconds, 3)

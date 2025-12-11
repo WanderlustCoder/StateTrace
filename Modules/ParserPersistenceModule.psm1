@@ -1025,8 +1025,14 @@ function Update-DeviceSummaryInDb {
     } catch {
         # duplicate key is expected on upsert; ignore
     }
-    # Insert a row into DeviceHistory.  Use the run date literal enclosed
+    # Insert a row into DeviceHistory. When parameterization isn't available,
+    # format the literal from the parsed DateTime to avoid locale issues.
     $runDateLiteral = "#$RunDateString#"
+    if ($runDateValue) {
+        try {
+            $runDateLiteral = "#$($runDateValue.ToString('yyyy-MM-dd HH:mm:ss', [System.Globalization.CultureInfo]::InvariantCulture))#"
+        } catch { }
+    }
     $histSql = "INSERT INTO DeviceHistory (Hostname, RunDate, Make, Model, Uptime, Site, Building, Room, Ports, AuthDefaultVLAN, AuthBlock) VALUES ('$escHostname', $runDateLiteral, '$escMake', '$escModel', '$escUptime', '$escSite', '$escBuilding', '$escRoom', $portCount, '$escAuthVlan', '$escAuthBlock')"
     try {
         Invoke-AdodbNonQuery -Connection $Connection -CommandText $histSql | Out-Null
@@ -2430,8 +2436,13 @@ $siteCacheTemplateDurationMs = 0.0
     $toUpdate = [System.Collections.Generic.List[object]]::new()
     $seenPorts = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
 
-    $runDateLiteral = "#$RunDateString#"
     $runDateValue = ConvertTo-DbDateTime -RunDateString $RunDateString
+    $runDateLiteral = "#$RunDateString#"
+    if ($runDateValue) {
+        try {
+            $runDateLiteral = "#$($runDateValue.ToString('yyyy-MM-dd HH:mm:ss', [System.Globalization.CultureInfo]::InvariantCulture))#"
+        } catch { }
+    }
     $useAdodbParameters = $runDateValue -and (Test-IsAdodbConnection -Connection $Connection)
 
     $toDelete = [System.Collections.Generic.List[string]]::new()
@@ -4691,6 +4702,12 @@ function Update-SpanInfoInDb {
 
     $escHostname = $Hostname -replace "'", "''"
     $runDateLiteral = "#$RunDateString#"
+    $runDateValue = ConvertTo-DbDateTime -RunDateString $RunDateString
+    if ($runDateValue) {
+        try {
+            $runDateLiteral = "#$($runDateValue.ToString('yyyy-MM-dd HH:mm:ss', [System.Globalization.CultureInfo]::InvariantCulture))#"
+        } catch { }
+    }
 
     Ensure-SpanInfoTableExists -Connection $Connection
 
