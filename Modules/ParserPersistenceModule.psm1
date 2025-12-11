@@ -3581,11 +3581,27 @@ function Ensure-InterfaceBulkSeedTable {
 
     try {
 
-        $Connection.Execute('SELECT TOP 1 BatchId FROM InterfaceBulkSeed') | Out-Null
+        $seedCheckRecordset = $null
+        try {
+            $seedCheckRecordset = $Connection.Execute('SELECT TOP 1 BatchId FROM InterfaceBulkSeed')
+        } finally {
+            if ($seedCheckRecordset) {
+                try { $seedCheckRecordset.Close() } catch { }
+                Release-ComObjectSafe -ComObject $seedCheckRecordset
+            }
+        }
 
         # Ensure newer schema columns exist for locale-safe RunDate handling.
         try {
-            $Connection.Execute('SELECT TOP 1 RunDate FROM InterfaceBulkSeed') | Out-Null
+            $runDateCheckRecordset = $null
+            try {
+                $runDateCheckRecordset = $Connection.Execute('SELECT TOP 1 RunDate FROM InterfaceBulkSeed')
+            } finally {
+                if ($runDateCheckRecordset) {
+                    try { $runDateCheckRecordset.Close() } catch { }
+                    Release-ComObjectSafe -ComObject $runDateCheckRecordset
+                }
+            }
         } catch {
             try {
                 Invoke-AdodbNonQuery -Connection $Connection -CommandText 'ALTER TABLE InterfaceBulkSeed ADD COLUMN RunDate DATETIME' | Out-Null
