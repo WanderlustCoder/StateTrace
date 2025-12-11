@@ -8,6 +8,10 @@ if (-not (Get-Variable -Scope Global -Name DeviceHostnameOrder -ErrorAction Sile
     $global:DeviceHostnameOrder = @()
 }
 
+if (-not (Get-Variable -Scope Global -Name DeviceLocationEntries -ErrorAction SilentlyContinue)) {
+    $global:DeviceLocationEntries = @()
+}
+
 function Get-BalancedHostnames {
     [CmdletBinding()]
     param([System.Collections.IEnumerable]$Hostnames)
@@ -166,12 +170,129 @@ function Get-DeviceSummaries {
 
     $global:DeviceMetadata = $metadata
     $balancedHostnames = Get-BalancedHostnames -Hostnames $hostnames
-    $global:DeviceHostnameOrder = $balancedHostnames
+    $balancedHostArray = @($balancedHostnames)
+    $global:DeviceHostnameOrder = $balancedHostArray
 
     return [PSCustomObject]@{
-        Hostnames = $balancedHostnames
+        Hostnames = $balancedHostArray
         Metadata  = $metadata
     }
+}
+
+function Get-DeviceLocationEntries {
+    [CmdletBinding()]
+    param(
+        [string[]]$SiteFilter
+    )
+
+    try {
+        if (-not (Get-Module -Name DeviceRepositoryModule)) {
+            $repoPath = Join-Path $PSScriptRoot 'DeviceRepositoryModule.psm1'
+            if (Test-Path -LiteralPath $repoPath) {
+                Import-Module -Name $repoPath -Global -ErrorAction SilentlyContinue
+            } else {
+                Import-Module DeviceRepositoryModule -Global -ErrorAction SilentlyContinue
+            }
+        }
+    } catch { }
+
+    $normalizedSites = @()
+    if ($PSBoundParameters.ContainsKey('SiteFilter') -and $SiteFilter) {
+        foreach ($siteEntry in $SiteFilter) {
+            if ($null -eq $siteEntry) { continue }
+            $candidates = @($siteEntry -split ',')
+            foreach ($candidate in $candidates) {
+                $trimmed = ('' + $candidate).Trim()
+                if ([string]::IsNullOrWhiteSpace($trimmed)) { continue }
+                if ($trimmed -ieq 'All Sites') { continue }
+                $normalizedSites += $trimmed
+            }
+        }
+        $normalizedSites = @($normalizedSites | Select-Object -Unique)
+    }
+
+    $dbPaths = @()
+    if ($normalizedSites.Count -gt 0) {
+        $paths = [System.Collections.Generic.List[string]]::new()
+        foreach ($siteName in $normalizedSites) {
+            $path = $null
+            try { $path = DeviceRepositoryModule\Get-DbPathForSite -Site $siteName } catch { $path = $null }
+            if ($path -and -not [string]::IsNullOrWhiteSpace($path)) {
+                [void]$paths.Add($path)
+            }
+        }
+        if ($paths.Count -gt 0) {
+            $dbPaths = @($paths | Select-Object -Unique)
+        }
+    } else {
+        try {
+            $dbPaths = DeviceRepositoryModule\Get-AllSiteDbPaths
+        } catch {
+            $dbPaths = @()
+        }
+    }
+
+    if (-not $dbPaths -or $dbPaths.Count -eq 0) {
+        $global:DeviceLocationEntries = @()
+        return @()
+    }
+
+    try { DeviceRepositoryModule\Import-DatabaseModule } catch {}
+
+    $uniqueKeys = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    $locations = [System.Collections.Generic.List[object]]::new()
+
+    foreach ($dbPath in $dbPaths) {
+        if (-not (Test-Path $dbPath)) { continue }
+        $dt = $null
+        try {
+            $dt = DatabaseModule\Invoke-DbQuery -DatabasePath $dbPath -Sql "SELECT Hostname, Site, Building, Room FROM DeviceSummary"
+        } catch {
+            Write-Warning ("DeviceCatalogModule: failed to query location metadata from {0}: {1}" -f $dbPath, $_.Exception.Message)
+            continue
+        }
+        if (-not $dt) { continue }
+        foreach ($row in $dt) {
+            $hostname = '' + $row.Hostname
+            $siteVal = ''
+            $buildingVal = ''
+            $roomVal = ''
+
+            $siteRaw = $row.Site
+            if ($siteRaw -ne $null -and $siteRaw -ne [System.DBNull]::Value) { $siteVal = [string]$siteRaw }
+            $buildingRaw = $row.Building
+            if ($buildingRaw -ne $null -and $buildingRaw -ne [System.DBNull]::Value) { $buildingVal = [string]$buildingRaw }
+            $roomRaw = $row.Room
+            if ($roomRaw -ne $null -and $roomRaw -ne [System.DBNull]::Value) { $roomVal = [string]$roomRaw }
+
+            $zoneVal = ''
+            try {
+                $parts = $hostname -split '-', 3
+                if ($parts.Length -ge 2) { $zoneVal = $parts[1] }
+                if ([string]::IsNullOrWhiteSpace($siteVal) -and $parts.Length -ge 1) {
+                    $siteVal = $parts[0]
+                }
+            } catch {
+                $zoneVal = ''
+                if ([string]::IsNullOrWhiteSpace($siteVal)) {
+                    $siteVal = ''
+                }
+            }
+
+            $key = "{0}|{1}|{2}|{3}" -f $siteVal, $zoneVal, $buildingVal, $roomVal
+            if (-not $uniqueKeys.Add($key)) { continue }
+
+            $locations.Add([PSCustomObject]@{
+                Site     = $siteVal
+                Zone     = $zoneVal
+                Building = $buildingVal
+                Room     = $roomVal
+            }) | Out-Null
+        }
+    }
+
+    $global:DeviceLocationEntries = $locations
+    return $locations
 }
 
 function Get-InterfaceHostnames {
@@ -224,4 +345,4 @@ function Get-InterfaceHostnames {
     return $hostList.ToArray()
 }
 
-Export-ModuleMember -Function Get-DeviceSummaries, Get-InterfaceHostnames
+Export-ModuleMember -Function Get-DeviceSummaries, Get-InterfaceHostnames, Get-DeviceLocationEntries

@@ -20,6 +20,17 @@ function Get-DeviceDetailsData {
     $hostTrim = ('' + $Hostname).Trim()
     if ([string]::IsNullOrWhiteSpace($hostTrim)) { return $null }
 
+    try {
+        if (-not (Get-Module -Name DeviceRepositoryModule)) {
+            $repoPath = Join-Path $PSScriptRoot 'DeviceRepositoryModule.psm1'
+            if (Test-Path -LiteralPath $repoPath) {
+                Import-Module -Name $repoPath -Global -ErrorAction SilentlyContinue | Out-Null
+            } else {
+                Import-Module -Name DeviceRepositoryModule -Global -ErrorAction SilentlyContinue | Out-Null
+            }
+        }
+    } catch {}
+
     $dto = [PSCustomObject]@{
         Summary    = $null
         Interfaces = @()
@@ -46,10 +57,58 @@ function Get-DeviceDetailsData {
         return $dto
     }
 
-    try { DeviceRepositoryModule\Import-DatabaseModule } catch {}
+    try { DeviceRepositoryModule\Import-DatabaseModule } catch {
+        try {
+            $dbModulePath = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
+            if (Test-Path -LiteralPath $dbModulePath) {
+                Import-Module -Name $dbModulePath -Global -ErrorAction SilentlyContinue | Out-Null
+            } else {
+                Import-Module -Name DatabaseModule -Global -ErrorAction SilentlyContinue | Out-Null
+            }
+        } catch {}
+    }
 
     $dto.Summary = Get-DatabaseDeviceSummary -Hostname $hostTrim -DatabasePath $dbPath
     $dto.Interfaces = New-Object 'System.Collections.ObjectModel.ObservableCollection[object]'
+    try {
+        $hostEsc = $hostTrim -replace "'", "''"
+        try {
+            $hostEsc = DatabaseModule\Get-SqlLiteral -Value $hostTrim
+            # Get-SqlLiteral returns a quoted literal; if so, do not add extra quotes.
+            if ($hostEsc -notmatch "^'.*'$") {
+                $hostEsc = "'" + $hostEsc + "'"
+            }
+        } catch {
+            $hostEsc = "'" + $hostEsc + "'"
+        }
+        $portsSql = "SELECT Hostname, Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, ConfigStatus, PortColor, ToolTip FROM Interfaces WHERE Hostname = $hostEsc ORDER BY Port"
+        $dtPorts = DatabaseModule\Invoke-DbQuery -DatabasePath $dbPath -Sql $portsSql
+        if ($dtPorts) {
+            $convertedPorts = $null
+            try {
+                if (Get-Command -Name 'InterfaceModule\New-InterfaceObjectsFromDbRow' -ErrorAction SilentlyContinue) {
+                    $convertedPorts = InterfaceModule\New-InterfaceObjectsFromDbRow -Data $dtPorts -Hostname $hostTrim -TemplatesPath $TemplatesPath
+                }
+            } catch {
+                $convertedPorts = $null
+            }
+
+            if ($convertedPorts -and $convertedPorts.Count -gt 0) {
+                foreach ($row in $convertedPorts) {
+                    if ($null -eq $row) { continue }
+                    $dto.Interfaces.Add($row) | Out-Null
+                }
+            } else {
+                $rows = DatabaseModule\ConvertTo-DbRowList -Data $dtPorts
+                foreach ($row in $rows) {
+                    if ($null -eq $row) { continue }
+                    $dto.Interfaces.Add($row) | Out-Null
+                }
+            }
+        }
+    } catch {
+        # keep summary even if interface query fails
+    }
 
     try {
         $dto.Templates = TemplatesModule\Get-ConfigurationTemplates -Hostname $hostTrim -DatabasePath $dbPath -TemplatesPath $TemplatesPath
@@ -210,6 +269,3 @@ function Get-DeviceVendorFromSummary {
 
 
 Export-ModuleMember -Function Get-DeviceDetails, Get-DeviceDetailsData
-
-
-

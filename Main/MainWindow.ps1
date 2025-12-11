@@ -1,5 +1,7 @@
 Add-Type -AssemblyName PresentationFramework
 
+$scriptDir = $PSScriptRoot
+
 $Global:StateTraceDebug     = $false
 $VerbosePreference          = 'SilentlyContinue'
 $DebugPreference            = 'SilentlyContinue'
@@ -9,8 +11,20 @@ if (-not (Get-Variable -Name InterfacePortCollections -Scope Global -ErrorAction
     $global:InterfacePortCollections = @{}
 }
 
+$startupLogDir = Join-Path $scriptDir '..\Logs\Diagnostics'
+try {
+    if (-not (Test-Path $startupLogDir)) { New-Item -ItemType Directory -Path $startupLogDir -Force | Out-Null }
+    $startupLogPath = Join-Path $startupLogDir ("UiStartup-{0:yyyyMMdd-HHmmss}.log" -f (Get-Date))
+} catch { $startupLogPath = $null }
+function Write-StartupDiag {
+    param([string]$Message)
+    if (-not $startupLogPath) { return }
+    try {
+        $ts = (Get-Date).ToString('o')
+        Add-Content -LiteralPath $startupLogPath -Value ("[$ts] {0}" -f $Message) -ErrorAction SilentlyContinue
+    } catch { }
+}
 
-$scriptDir    = $PSScriptRoot
 if (-not (Get-Variable -Name ModulesDirectory -Scope Script -ErrorAction SilentlyContinue)) {
     try {
         $script:ModulesDirectory = (Resolve-Path -LiteralPath (Join-Path $scriptDir '..\Modules')).Path
@@ -53,6 +67,12 @@ if (-not (Get-Variable -Name ParserJobStartedAt -Scope Script -ErrorAction Silen
 }
 if (-not (Get-Variable -Name ParserPendingSiteFilter -Scope Script -ErrorAction SilentlyContinue)) {
     $script:ParserPendingSiteFilter = $null
+}
+if (-not (Get-Variable -Name InterfacesLoadAllowed -Scope Global -ErrorAction SilentlyContinue)) {
+    $global:InterfacesLoadAllowed = $false
+}
+if (-not (Get-Variable -Name ProgrammaticHostnameUpdate -Scope Global -ErrorAction SilentlyContinue)) {
+    $global:ProgrammaticHostnameUpdate = $false
 }
 
 function Publish-UserActionTelemetry {
@@ -660,14 +680,23 @@ function Set-EnvToggle {
 function Get-AvailableSiteNames {
     $dataDir = Join-Path $scriptDir '..\Data'
     if (-not (Test-Path -LiteralPath $dataDir)) { return @() }
-    $siteNames = @()
+    $siteNames = [System.Collections.Generic.List[string]]::new()
     Get-ChildItem -LiteralPath $dataDir -Directory | ForEach-Object {
         $siteName = $_.Name
         $dbPath = Join-Path $_.FullName ("{0}.accdb" -f $siteName)
         if (Test-Path -LiteralPath $dbPath) {
-            $siteNames += $siteName
+            if (-not $siteNames.Contains($siteName)) { [void]$siteNames.Add($siteName) }
         }
     }
+
+    # Fallback: include any .accdb files found anywhere under Data so non-nested
+    # site databases still appear in the dropdown.
+    Get-ChildItem -LiteralPath $dataDir -Filter '*.accdb' -File -Recurse | ForEach-Object {
+        $leaf = [System.IO.Path]::GetFileNameWithoutExtension($_.Name)
+        if ([string]::IsNullOrWhiteSpace($leaf)) { return }
+        if (-not $siteNames.Contains($leaf)) { [void]$siteNames.Add($leaf) }
+    }
+
     return ($siteNames | Sort-Object -Unique)
 }
 
@@ -714,10 +743,13 @@ function Populate-SiteDropdownWithAvailableSites {
         }
     }
 
-    if ($items.Count -gt 0) {
-        $siteDropdown.SelectedIndex = 0
-    } else {
-        $siteDropdown.SelectedIndex = -1
+    # Preserve any matched selection; only default if nothing is selected.
+    if ($siteDropdown.SelectedIndex -lt 0) {
+        if ($items.Count -gt 0) {
+            $siteDropdown.SelectedIndex = 0
+        } else {
+            $siteDropdown.SelectedIndex = -1
+        }
     }
 
     try { Update-FreshnessIndicator -Window $Window } catch { }
@@ -775,6 +807,193 @@ function Get-SelectedHostname {
     }
     if ([string]::IsNullOrWhiteSpace($selection)) { return $null }
     return $selection
+}
+
+function ConvertTo-PortPsObjectLocal {
+    param(
+        $Row,
+        [string]$Hostname
+    )
+
+    if ($null -eq $Row) { return $null }
+
+    $clone = [pscustomobject]@{}
+    try {
+        if ($Row -is [System.Data.DataRow] -and $Row.Table -and $Row.Table.Columns) {
+            foreach ($col in $Row.Table.Columns) {
+                $clone | Add-Member -NotePropertyName $col.ColumnName -NotePropertyValue $Row[$col.ColumnName] -Force
+            }
+        } elseif ($Row -is [System.Data.DataRowView] -and $Row.Row -and $Row.Row.Table) {
+            foreach ($col in $Row.Row.Table.Columns) {
+                $clone | Add-Member -NotePropertyName $col.ColumnName -NotePropertyValue $Row[$col.ColumnName] -Force
+            }
+        } elseif ($Row -is [psobject]) {
+            foreach ($prop in $Row.PSObject.Properties) {
+                $clone | Add-Member -NotePropertyName $prop.Name -NotePropertyValue $prop.Value -Force
+            }
+        } elseif ($Row -is [System.Collections.IDictionary]) {
+            foreach ($key in $Row.Keys) {
+                $clone | Add-Member -NotePropertyName $key -NotePropertyValue $Row[$key] -Force
+            }
+        }
+    } catch { }
+
+    $hostnameProp = $clone.PSObject.Properties['Hostname']
+    if ($hostnameProp) {
+        if ([string]::IsNullOrWhiteSpace(('' + $hostnameProp.Value))) {
+            $hostnameProp.Value = $Hostname
+        }
+    } elseif ($Hostname) {
+        $clone | Add-Member -NotePropertyName Hostname -NotePropertyValue $Hostname -Force
+    }
+
+    if (-not $clone.PSObject.Properties['IsSelected']) {
+        $clone | Add-Member -NotePropertyName IsSelected -NotePropertyValue $false -Force
+    }
+
+    return $clone
+}
+
+function Convert-InterfaceCollectionForHost {
+    param(
+        $Collection,
+        [string]$Hostname
+    )
+    if (-not $Collection) { return $Collection }
+
+    $needsConversion = $false
+    try {
+        $first = $null
+        foreach ($item in $Collection) { $first = $item; break }
+        if ($first -is [System.Data.DataRow] -or $first -is [System.Data.DataRowView]) {
+            $needsConversion = $true
+        }
+    } catch { $needsConversion = $false }
+
+    if (-not $needsConversion) { return $Collection }
+
+    $converted = New-Object 'System.Collections.ObjectModel.ObservableCollection[object]'
+    foreach ($item in $Collection) {
+        $clone = ConvertTo-PortPsObjectLocal -Row $item -Hostname $Hostname
+        if ($null -ne $clone) { $converted.Add($clone) | Out-Null }
+    }
+    return $converted
+}
+
+function ConvertTo-PortPsObjectLocal {
+    param(
+        $Row,
+        [string]$Hostname
+    )
+
+    if ($null -eq $Row) { return $null }
+
+    $clone = [pscustomobject]@{}
+    try {
+        if ($Row -is [System.Data.DataRow] -and $Row.Table -and $Row.Table.Columns) {
+            foreach ($col in $Row.Table.Columns) {
+                $clone | Add-Member -NotePropertyName $col.ColumnName -NotePropertyValue $Row[$col.ColumnName] -Force
+            }
+        } elseif ($Row -is [System.Data.DataRowView] -and $Row.Row -and $Row.Row.Table) {
+            foreach ($col in $Row.Row.Table.Columns) {
+                $clone | Add-Member -NotePropertyName $col.ColumnName -NotePropertyValue $Row[$col.ColumnName] -Force
+            }
+        } elseif ($Row -is [psobject]) {
+            foreach ($prop in $Row.PSObject.Properties) {
+                $clone | Add-Member -NotePropertyName $prop.Name -NotePropertyValue $prop.Value -Force
+            }
+        } elseif ($Row -is [System.Collections.IDictionary]) {
+            foreach ($key in $Row.Keys) {
+                $clone | Add-Member -NotePropertyName $key -NotePropertyValue $Row[$key] -Force
+            }
+        }
+    } catch { }
+
+    $hostnameProp = $clone.PSObject.Properties['Hostname']
+    if ($hostnameProp) {
+        if ([string]::IsNullOrWhiteSpace(('' + $hostnameProp.Value))) {
+            $hostnameProp.Value = $Hostname
+        }
+    } elseif ($Hostname) {
+        $clone | Add-Member -NotePropertyName Hostname -NotePropertyValue $Hostname -Force
+    }
+
+    if (-not $clone.PSObject.Properties['IsSelected']) {
+        $clone | Add-Member -NotePropertyName IsSelected -NotePropertyValue $false -Force
+    }
+
+    return $clone
+}
+
+function Convert-InterfaceCollectionForHost {
+    param(
+        $Collection,
+        [string]$Hostname
+    )
+    if (-not $Collection) { return $Collection }
+
+    $needsConversion = $false
+    try {
+        $first = $null
+        foreach ($item in $Collection) { $first = $item; break }
+        if ($first -is [System.Data.DataRow] -or $first -is [System.Data.DataRowView]) {
+            $needsConversion = $true
+        }
+    } catch { $needsConversion = $false }
+
+    if (-not $needsConversion) { return $Collection }
+
+    $converted = New-Object 'System.Collections.ObjectModel.ObservableCollection[object]'
+    foreach ($item in $Collection) {
+        $clone = ConvertTo-PortPsObjectLocal -Row $item -Hostname $Hostname
+        if ($null -ne $clone) { $converted.Add($clone) | Out-Null }
+    }
+    return $converted
+}
+
+function Initialize-FilterMetadataAtStartup {
+    param(
+        [Windows.Window]$Window,
+        [object[]]$LocationEntries
+    )
+    if (-not $Window) { return }
+
+    try {
+        if (-not (Get-Module -Name DeviceCatalogModule)) {
+            $modPath = Join-Path $scriptDir '..\\Modules\\DeviceCatalogModule.psm1'
+            if (Test-Path -LiteralPath $modPath) {
+                Import-Module -Name $modPath -Global -ErrorAction SilentlyContinue
+            } else {
+                Import-Module DeviceCatalogModule -ErrorAction SilentlyContinue
+            }
+        }
+    } catch {}
+
+    $locationEntries = @()
+    try {
+        if ($LocationEntries -and $LocationEntries.Count -gt 0) {
+            $locationEntries = $LocationEntries
+        }
+    } catch { $locationEntries = @() }
+    if (-not $locationEntries -or $locationEntries.Count -eq 0) {
+        try { $locationEntries = DeviceCatalogModule\Get-DeviceLocationEntries } catch { $locationEntries = @() }
+    }
+    try { $global:DeviceLocationEntries = $locationEntries } catch { }
+
+    try {
+        FilterStateModule\Initialize-DeviceFilters -Window $Window -Hostnames @() -LocationEntries $locationEntries
+        $hostDD = $Window.FindName('HostnameDropdown')
+        if ($hostDD) {
+            $global:ProgrammaticHostnameUpdate = $true
+            try {
+                $hostDD.ItemsSource = @()
+                $hostDD.SelectedIndex = -1
+            } finally {
+                $global:ProgrammaticHostnameUpdate = $false
+            }
+        }
+    } catch {}
+    try { Update-DeviceFilter } catch {}
 }
 
 function Get-ParserStatusControl {
@@ -1054,6 +1273,28 @@ function Reset-ParserCachesForRefresh {
         try { Write-Diag ("Parser refresh: cleared ingestion history files ({0})" -f $historyTargets.Count) } catch {}
     }
 
+    # Clear site databases so subsequent scans rebuild from logs when force reload is requested.
+    $sitesToClear = @()
+    if (-not [string]::IsNullOrWhiteSpace($SiteFilter)) {
+        $sitesToClear = @($SiteFilter)
+    } else {
+        $dataRoot = Join-Path $repoRoot 'Data'
+        if (Test-Path -LiteralPath $dataRoot) {
+            try {
+                $dirs = Get-ChildItem -LiteralPath $dataRoot -Directory -ErrorAction SilentlyContinue
+                $sitesToClear = @($dirs | ForEach-Object { $_.Name })
+            } catch { $sitesToClear = @() }
+        }
+    }
+    foreach ($site in @($sitesToClear)) {
+        if ([string]::IsNullOrWhiteSpace($site)) { continue }
+        $siteDir = Join-Path $repoRoot ("Data\\{0}" -f $site)
+        if (Test-Path -LiteralPath $siteDir) {
+            try { Remove-Item -LiteralPath $siteDir -Recurse -Force -ErrorAction SilentlyContinue } catch {}
+        }
+    }
+    try { Write-Diag ("Parser refresh: cleared site directories for {0}" -f ([string]::Join(',', $sitesToClear))) } catch {}
+
     $cacheModulePath = Join-Path $script:ModulesDirectory 'DeviceRepository.Cache.psm1'
     if (Test-Path -LiteralPath $cacheModulePath) {
         try { Import-Module -Name $cacheModulePath -Global -ErrorAction SilentlyContinue } catch { }
@@ -1064,6 +1305,7 @@ function Reset-ParserCachesForRefresh {
     try { ParserPersistenceModule\Clear-SiteExistingRowCache } catch { }
 
     try { Write-Diag "Parser refresh: caches cleared" } catch {}
+    $global:InterfacesLoadAllowed = $false
 }
 
 function Start-ParserBackgroundJob {
@@ -1075,6 +1317,8 @@ function Start-ParserBackgroundJob {
         [string]$SiteFilter,
         [bool]$ForceReload
     )
+
+    $global:InterfacesLoadAllowed = $true
 
     if ($script:CurrentParserJob -and ($script:CurrentParserJob.State -in @('Running','NotStarted'))) {
         [System.Windows.MessageBox]::Show('Parsing is already running. Monitor the parser status indicator for progress.', 'Parsing in progress')
@@ -1121,9 +1365,9 @@ function Start-ParserBackgroundJob {
                     FailOnSchedulerFairness     = $true
                     SkipPortDiversityGuard      = $true
                     QuickMode                   = $true
+                    SkipTests                   = $true
                 }
                 if ($ForceReload) {
-                    $pipelineParams.SkipTests                = $true
                     $pipelineParams.DisableSharedCacheSnapshot = $true
                     $pipelineParams.DisablePreserveRunspace  = $true
                     $pipelineParams.DisableSkipSiteCacheUpdate = $true
@@ -1243,14 +1487,6 @@ function Initialize-DeviceViewFromCatalog {
 
     try {
         if ($hostList -and $hostList.Count -gt 0) {
-            $firstHost = $hostList | Select-Object -First 1
-            if ($firstHost) {
-                try {
-                    if (Get-Command -Name 'InterfaceModule\Set-HostLoadingIndicator' -ErrorAction SilentlyContinue) {
-                        InterfaceModule\Set-HostLoadingIndicator -Hostname $firstHost -CurrentIndex 1 -TotalHosts $hostList.Count -State 'Loading'
-                    }
-                } catch {}
-            }
             Initialize-DeviceFilters -Hostnames $hostList -Window $Window
         } else {
             Initialize-DeviceFilters -Window $Window
@@ -1259,6 +1495,30 @@ function Initialize-DeviceViewFromCatalog {
                     InterfaceModule\Set-HostLoadingIndicator -State 'Hidden'
                 }
             } catch {}
+        }
+    } catch {}
+
+    # Ensure the site dropdown reflects the chosen SiteFilter when loading from DB
+    try {
+        $siteDD = $Window.FindName('SiteDropdown')
+        if ($siteDD -and -not [string]::IsNullOrWhiteSpace($SiteFilter)) {
+            $global:ProgrammaticFilterUpdate = $true
+            try {
+                $targetSite = '' + $SiteFilter
+                $match = $null
+                foreach ($item in @($siteDD.Items)) {
+                    $candidate = '' + $item
+                    if ([System.StringComparer]::OrdinalIgnoreCase.Equals($candidate, $targetSite)) {
+                        $match = $item
+                        break
+                    }
+                }
+                if ($match) {
+                    $siteDD.SelectedItem = $match
+                }
+            } finally {
+                $global:ProgrammaticFilterUpdate = $false
+            }
         }
     } catch {}
 
@@ -1285,22 +1545,11 @@ function Initialize-DeviceViewFromCatalog {
 
     try {
         $hostDD = $Window.FindName('HostnameDropdown')
-        $firstHost = $null
-        if ($hostDD -and $hostDD.Items.Count -gt 0) {
-            $firstHost = $hostDD.SelectedItem
-            if (-not $firstHost -and $hostDD.Items.Count -gt 0) {
-                $firstHost = $hostDD.Items[0]
-            }
+        if ($hostDD -and $hostDD.Items -and $hostDD.Items.Count -gt 0 -and $hostDD.SelectedIndex -lt 0) {
+            $hostDD.SelectedIndex = 0
         }
-        if ($firstHost) {
-            Show-DeviceDetails $firstHost
-            if (Get-Command Get-SpanInfo -ErrorAction SilentlyContinue) {
-                Get-SpanInfo $firstHost
-            }
-        } else {
-            if (Get-Command -Name 'InterfaceModule\Set-HostLoadingIndicator' -ErrorAction SilentlyContinue) {
-                InterfaceModule\Set-HostLoadingIndicator -State 'Hidden'
-            }
+        if (Get-Command -Name 'InterfaceModule\Set-HostLoadingIndicator' -ErrorAction SilentlyContinue) {
+            InterfaceModule\Set-HostLoadingIndicator -State 'Hidden'
         }
     } catch {}
 }
@@ -1310,6 +1559,7 @@ function Invoke-DatabaseImport {
     param([Parameter(Mandatory)][Windows.Window]$Window)
 
     try {
+        $global:InterfacesLoadAllowed = $true
         if ($global:StateTraceDb) { $env:StateTraceDbPath = $global:StateTraceDb }
         $siteFilterValue = Get-SelectedSiteFilterValue -Window $Window
         Initialize-DeviceViewFromCatalog -Window $Window -SiteFilter $siteFilterValue
@@ -1374,6 +1624,22 @@ function Show-DeviceDetails {
             try { $dto.Interfaces = $cachedCollection } catch {}
         }
 
+        $convertedCollection = Convert-InterfaceCollectionForHost -Collection $dto.Interfaces -Hostname $hostTrim
+        if ($convertedCollection -ne $dto.Interfaces -and $convertedCollection) {
+            try { $dto.Interfaces = $convertedCollection } catch {}
+            try {
+                if (-not (Get-Variable -Name InterfacePortCollections -Scope Global -ErrorAction SilentlyContinue)) {
+                    $global:InterfacePortCollections = @{}
+                }
+                $global:InterfacePortCollections[$hostTrim] = $convertedCollection
+
+                if (-not (Get-Variable -Name DeviceInterfaceCache -Scope Global -ErrorAction SilentlyContinue)) {
+                    $global:DeviceInterfaceCache = @{}
+                }
+                $global:DeviceInterfaceCache[$hostTrim] = $convertedCollection
+            } catch { }
+        }
+
         InterfaceModule\Set-InterfaceViewData -DeviceDetails $dto -DefaultHostname $hostTrim
         $initialCount = 0
         try { $initialCount = @($dto.Interfaces).Count } catch { $initialCount = 0 }
@@ -1387,6 +1653,17 @@ function Show-DeviceDetails {
 function Get-HostnameChanged {
     [CmdletBinding()]
     param([string]$Hostname)
+
+    if (-not $global:InterfacesLoadAllowed) {
+        try {
+            if (Get-Command -Name 'InterfaceModule\Set-HostLoadingIndicator' -ErrorAction SilentlyContinue) {
+                InterfaceModule\Set-HostLoadingIndicator -State 'Hidden'
+            }
+        } catch {}
+        return
+    }
+
+    if ($global:ProgrammaticHostnameUpdate) { return }
 
     try {
         $currentIndex = 0
@@ -1661,6 +1938,9 @@ return $res
                         if ($data.PSObject.Properties['Interfaces']) { $collection = $data.Interfaces }
                     } catch { $collection = $null }
 
+                    $collection = Convert-InterfaceCollectionForHost -Collection $collection -Hostname $deviceHost
+                    try { $data.Interfaces = $collection } catch { }
+
                     try { DeviceRepositoryModule\Initialize-InterfacePortStream -Hostname $deviceHost } catch { }
                     & $logAsync ("Async stream initialized for host {0}" -f $deviceHost)
 
@@ -1707,161 +1987,261 @@ return $res
                                 $global:DeviceInterfaceCache[$deviceHost] = $collection
                             } catch {}
                         }
-                        while ($true) {
-                            $batch = $null
-                            try { $batch = DeviceRepositoryModule\Get-InterfacePortBatch -Hostname $deviceHost } catch { $batch = $null }
-                            if ($batch) {
-                                $portList = $batch.Ports
-                                $portItems = $portList
-                                if (-not ($portItems -is [System.Collections.ICollection])) {
-                                    $portItems = @($portItems)
+
+                        $collectionCount = 0
+                        try {
+                            if (Get-Command -Name 'ViewStateService\Get-SequenceCount' -ErrorAction SilentlyContinue) {
+                                $collectionCount = ViewStateService\Get-SequenceCount -Value $collection
+                            } elseif ($collection -is [System.Collections.ICollection]) {
+                                $collectionCount = [int]$collection.Count
+                            } else {
+                                $collectionCount = @($collection).Count
+                            }
+                        } catch { $collectionCount = 0 }
+
+                        $streamingRequired = ($collectionCount -le 0)
+
+                        if (-not $streamingRequired) {
+                            $converted = $collection
+                            $needsConversion = $false
+                            try {
+                                $firstItem = $null
+                                foreach ($item in $collection) { $firstItem = $item; break }
+                                if ($firstItem -is [System.Data.DataRow] -or $firstItem -is [System.Data.DataRowView]) {
+                                    $needsConversion = $true
                                 }
-                                $batchCount = 0
-                                try { $batchCount = $portItems.Count } catch { $batchCount = 0 }
-                                & $logAsync ("Async retrieved batch for host {0} with {1} port(s). Completed={2}" -f $deviceHost, $batchCount, $batch.Completed)
+                            } catch { $needsConversion = $false }
 
-                                $batchSize = 0
+                            if ($needsConversion) {
                                 try {
-                                    if ($portItems) { $batchSize = [int]$portItems.Count }
-                                } catch { $batchSize = 0 }
-
-                                $appendDurationMs = 0.0
-                                $indicatorDurationMs = 0.0
-                                $dispatcherDurationMs = 0.0
-
-                                $dispatcherStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-                                $uiMetrics = [System.Windows.Application]::Current.Dispatcher.Invoke([System.Func[object]]{
-                                    $localAppend = 0.0
-                                    $localIndicator = 0.0
-
-                                    try {
-                                        $appendSw = [System.Diagnostics.Stopwatch]::StartNew()
-                                        foreach ($row in $portItems) { $collection.Add($row) }
-                                        $appendSw.Stop()
-                                        $localAppend = [Math]::Round($appendSw.Elapsed.TotalMilliseconds, 3)
-                                    } catch {
-                                        $localAppend = 0.0
+                                    $convertedList = New-Object 'System.Collections.ObjectModel.ObservableCollection[object]'
+                                    foreach ($item in $collection) {
+                                        $clone = $item
+                                        try { $clone = DeviceRepositoryModule\ConvertTo-PortPsObject -Row $item -Hostname $deviceHost } catch { }
+                                        if ($null -ne $clone) { $convertedList.Add($clone) | Out-Null }
                                     }
-
-                                    try {
-                                        $indicatorSw = [System.Diagnostics.Stopwatch]::StartNew()
-                                        InterfaceModule\Set-PortLoadingIndicator -Loaded $batch.PortsDelivered -Total $batch.TotalPorts -BatchesRemaining $batch.BatchesRemaining
-                                        $indicatorSw.Stop()
-                                        $localIndicator = [Math]::Round($indicatorSw.Elapsed.TotalMilliseconds, 3)
-                                    } catch {
-                                        $localIndicator = 0.0
+                                    if ($convertedList) {
+                                        $converted = $convertedList
+                                        try { $data.Interfaces = $converted } catch { }
                                     }
+                                } catch { }
+                            }
+                            $collection = $converted
 
+                            try {
+                                [System.Windows.Application]::Current.Dispatcher.Invoke([System.Action]{
                                     try {
+                                        if (-not (Get-Variable -Name InterfacePortCollections -Scope Global -ErrorAction SilentlyContinue)) {
+                                            $global:InterfacePortCollections = @{}
+                                        }
+                                        $global:InterfacePortCollections[$deviceHost] = $collection
+
+                                        if (-not (Get-Variable -Name DeviceInterfaceCache -Scope Global -ErrorAction SilentlyContinue)) {
+                                            $global:DeviceInterfaceCache = @{}
+                                        }
+                                        $global:DeviceInterfaceCache[$deviceHost] = $collection
+                                    } catch { }
+                                    try {
+                                        $grid = $null
+                                        try { $grid = $global:interfacesGrid } catch { $grid = $null }
+                                        if (-not $grid -and $global:interfacesView) {
+                                            try { $grid = $global:interfacesView.FindName('InterfacesGrid') } catch { $grid = $null }
+                                        }
+                                        if ($grid) { $grid.ItemsSource = $collection }
+                                    } catch { }
+
+                                    try { InterfaceModule\Set-PortLoadingIndicator -Loaded $collectionCount -Total $collectionCount -BatchesRemaining 0 } catch {}
+                                    try {
+                                        $currentLocation = $null
                                         if (Get-Command -Name 'FilterStateModule\Get-SelectedLocation' -ErrorAction SilentlyContinue) {
-                                            $currentLocation = $null
                                             try { $currentLocation = FilterStateModule\Get-SelectedLocation } catch { $currentLocation = $null }
-                                            $updateParams = @{}
-                                            if ($currentLocation) {
-                                                if ($currentLocation.PSObject.Properties['Site'] -and $currentLocation.Site) {
-                                                    $updateParams.Site = '' + $currentLocation.Site
-                                                }
+                                        }
+                                        $updateParams = @{}
+                                        if ($currentLocation) {
+                                            if ($currentLocation.PSObject.Properties['Site'] -and $currentLocation.Site) {
+                                                $updateParams.Site = '' + $currentLocation.Site
+                                            }
                                             if ($currentLocation.PSObject.Properties['Zone'] -and $currentLocation.Zone) {
                                                 $updateParams.ZoneSelection = '' + $currentLocation.Zone
                                                 $updateParams.ZoneToLoad = '' + $currentLocation.Zone
                                             }
                                         }
-                                        if (Get-Command -Name 'DeviceCatalogModule\Get-DeviceSummaries' -ErrorAction SilentlyContinue) {
-                                            $needsCatalogRefresh = $false
-                                            try {
-                                                if (-not (Get-Variable -Name DeviceMetadata -Scope Global -ErrorAction SilentlyContinue)) {
-                                                    $needsCatalogRefresh = $true
-                                                } else {
-                                                    $metaEntry = $null
-                                                    try {
-                                                        if ($global:DeviceMetadata.ContainsKey($deviceHost)) {
-                                                            $metaEntry = $global:DeviceMetadata[$deviceHost]
-                                                        }
-                                                    } catch { $metaEntry = $null }
-                                                    if (-not $metaEntry -or -not $metaEntry.PSObject.Properties['Site'] -or [string]::IsNullOrWhiteSpace($metaEntry.Site)) {
-                                                        $needsCatalogRefresh = $true
-                                                    }
-                                                }
-                                            } catch {
-                                                $needsCatalogRefresh = $true
-                                            }
-                                            if ($needsCatalogRefresh) {
-                                                try { DeviceCatalogModule\Get-DeviceSummaries | Out-Null } catch {}
-                                            }
-                                        }
                                         if (Get-Command -Name 'DeviceRepositoryModule\Update-GlobalInterfaceList' -ErrorAction SilentlyContinue) {
-                                            try { DeviceRepositoryModule\Update-GlobalInterfaceList @updateParams | Out-Null } catch {}
+                                            DeviceRepositoryModule\Update-GlobalInterfaceList @updateParams | Out-Null
                                         }
-                                        } elseif (Get-Command -Name 'DeviceRepositoryModule\Update-GlobalInterfaceList' -ErrorAction SilentlyContinue) {
-                                            try { DeviceRepositoryModule\Update-GlobalInterfaceList | Out-Null } catch {}
-                                        }
-
-                                        $allCount = 0
-                                        try { $allCount = ViewStateService\Get-SequenceCount -Value $global:AllInterfaces } catch { $allCount = 0 }
-                                        try { Write-Diag ("Interface aggregate refreshed | Host={0} | GlobalInterfaces={1}" -f $deviceHost, $allCount) } catch {}
-
                                         if (Get-Command -Name 'DeviceInsightsModule\Update-Summary' -ErrorAction SilentlyContinue) {
-                                            try { DeviceInsightsModule\Update-Summary } catch {}
+                                            DeviceInsightsModule\Update-Summary
                                         }
                                         if (Get-Command -Name 'DeviceInsightsModule\Update-Alerts' -ErrorAction SilentlyContinue) {
-                                            try { DeviceInsightsModule\Update-Alerts } catch {}
+                                            DeviceInsightsModule\Update-Alerts
                                         }
                                         if (Get-Command -Name 'DeviceInsightsModule\Update-SearchGrid' -ErrorAction SilentlyContinue) {
-                                            try { DeviceInsightsModule\Update-SearchGrid } catch {}
+                                            DeviceInsightsModule\Update-SearchGrid
                                         }
-                                    } catch {
-                                        try { Write-Diag ("Interface aggregate refresh failed | Host={0} | Error={1}" -f $deviceHost, $_.Exception.Message) } catch {}
-                                    }
-
-                                    return [pscustomobject]@{
-                                        AppendDurationMs    = $localAppend
-                                        IndicatorDurationMs = $localIndicator
-                                    }
+                                    } catch { }
                                 })
-                                $dispatcherStopwatch.Stop()
-                                $dispatcherDurationMs = [Math]::Round($dispatcherStopwatch.Elapsed.TotalMilliseconds, 3)
-                                $collectionCount = 0
-                                try { $collectionCount = @($collection).Count } catch { $collectionCount = 0 }
-                                try { Write-Diag ("Interface batch appended | Host={0} | BatchSize={1} | CollectionCount={2}" -f $deviceHost, $batchSize, $collectionCount) } catch {}
-
-                                if ($uiMetrics) {
-                                    if ($uiMetrics.PSObject.Properties['AppendDurationMs']) {
-                                        $appendDurationMs = [double]$uiMetrics.AppendDurationMs
-                                    }
-                                    if ($uiMetrics.PSObject.Properties['IndicatorDurationMs']) {
-                                        $indicatorDurationMs = [double]$uiMetrics.IndicatorDurationMs
-                                    }
-                                }
-
-                                try {
-                                    DeviceRepositoryModule\Set-InterfacePortDispatchMetrics -Hostname $deviceHost -BatchId $batch.BatchId -BatchOrdinal $batch.BatchOrdinal -BatchCount $batch.BatchCount -BatchSize $batchSize -PortsDelivered $batch.PortsDelivered -TotalPorts $batch.TotalPorts -DispatcherDurationMs $dispatcherDurationMs -AppendDurationMs $appendDurationMs -IndicatorDurationMs $indicatorDurationMs
-                                } catch { }
-
-                                $batchesProcessed++
-                                try {
-                                    $totalDispatcherMs += $dispatcherDurationMs
-                                    $totalAppendMs += $appendDurationMs
-                                    $totalIndicatorMs += $indicatorDurationMs
-                                } catch { }
-                                if ($firstBatchDelayMs -eq $null -and $firstBatchTimer) {
-                                    try { $firstBatchDelayMs = [Math]::Round($firstBatchTimer.Elapsed.TotalMilliseconds, 3) } catch { $firstBatchDelayMs = 0.0 }
-                                }
-
-                                if ($batch.Completed) { break }
-                                continue
-                            }
-
-                            else {
-                                & $logAsync ("Async Get-InterfacePortBatch returned null for host {0}; exiting loop" -f $deviceHost)
-                                break
-                            }
-
-                            $streamStatus = $null
-                            try { $streamStatus = DeviceRepositoryModule\Get-InterfacePortStreamStatus -Hostname $deviceHost } catch { $streamStatus = $null }
-                            if ($streamStatus -and $streamStatus.Completed) { break }
-                            Start-Sleep -Milliseconds 150
+                            } catch { }
+                            try { Write-Diag ("Port stream skipped | Host={0} | ExistingCount={1}" -f $deviceHost, $collectionCount) } catch {}
                         }
-                    }
+
+                        if ($streamingRequired) {
+                            while ($true) {
+                                $batch = $null
+                                try { $batch = DeviceRepositoryModule\Get-InterfacePortBatch -Hostname $deviceHost } catch { $batch = $null }
+                                if ($batch) {
+                                    $portList = $batch.Ports
+                                    $portItems = $portList
+                                    if (-not ($portItems -is [System.Collections.ICollection])) {
+                                        $portItems = @($portItems)
+                                    }
+                                    $batchCount = 0
+                                    try { $batchCount = $portItems.Count } catch { $batchCount = 0 }
+                                    & $logAsync ("Async retrieved batch for host {0} with {1} port(s). Completed={2}" -f $deviceHost, $batchCount, $batch.Completed)
+
+                                    $batchSize = 0
+                                    try {
+                                        if ($portItems) { $batchSize = [int]$portItems.Count }
+                                    } catch { $batchSize = 0 }
+
+                                    $appendDurationMs = 0.0
+                                    $indicatorDurationMs = 0.0
+                                    $dispatcherDurationMs = 0.0
+
+                                    $dispatcherStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+                                    $uiMetrics = [System.Windows.Application]::Current.Dispatcher.Invoke([System.Func[object]]{
+                                        $localAppend = 0.0
+                                        $localIndicator = 0.0
+
+                                        try {
+                                            $appendSw = [System.Diagnostics.Stopwatch]::StartNew()
+                                            foreach ($row in $portItems) { $collection.Add($row) }
+                                            $appendSw.Stop()
+                                            $localAppend = [Math]::Round($appendSw.Elapsed.TotalMilliseconds, 3)
+                                        } catch {
+                                            $localAppend = 0.0
+                                        }
+
+                                        try {
+                                            $indicatorSw = [System.Diagnostics.Stopwatch]::StartNew()
+                                            InterfaceModule\Set-PortLoadingIndicator -Loaded $batch.PortsDelivered -Total $batch.TotalPorts -BatchesRemaining $batch.BatchesRemaining
+                                            $indicatorSw.Stop()
+                                            $localIndicator = [Math]::Round($indicatorSw.Elapsed.TotalMilliseconds, 3)
+                                        } catch {
+                                            $localIndicator = 0.0
+                                        }
+
+                                        try {
+                                            if (Get-Command -Name 'FilterStateModule\Get-SelectedLocation' -ErrorAction SilentlyContinue) {
+                                                $currentLocation = $null
+                                                try { $currentLocation = FilterStateModule\Get-SelectedLocation } catch { $currentLocation = $null }
+                                                $updateParams = @{}
+                                                if ($currentLocation) {
+                                                    if ($currentLocation.PSObject.Properties['Site'] -and $currentLocation.Site) {
+                                                        $updateParams.Site = '' + $currentLocation.Site
+                                                    }
+                                                    if ($currentLocation.PSObject.Properties['Zone'] -and $currentLocation.Zone) {
+                                                        $updateParams.ZoneSelection = '' + $currentLocation.Zone
+                                                        $updateParams.ZoneToLoad = '' + $currentLocation.Zone
+                                                    }
+                                                }
+                                            }
+                                            if (Get-Command -Name 'DeviceCatalogModule\Get-DeviceSummaries' -ErrorAction SilentlyContinue) {
+                                                $needsCatalogRefresh = $false
+                                                try {
+                                                    if (-not (Get-Variable -Name DeviceMetadata -Scope Global -ErrorAction SilentlyContinue)) {
+                                                        $needsCatalogRefresh = $true
+                                                    } else {
+                                                        $metaEntry = $null
+                                                        try {
+                                                            if ($global:DeviceMetadata.ContainsKey($deviceHost)) {
+                                                                $metaEntry = $global:DeviceMetadata[$deviceHost]
+                                                            }
+                                                        } catch { $metaEntry = $null }
+                                                        if (-not $metaEntry -or -not $metaEntry.PSObject.Properties['Site'] -or [string]::IsNullOrWhiteSpace($metaEntry.Site)) {
+                                                            $needsCatalogRefresh = $true
+                                                        }
+                                                    }
+                                                } catch {
+                                                    $needsCatalogRefresh = $true
+                                                }
+                                                if ($needsCatalogRefresh) {
+                                                    try { DeviceCatalogModule\Get-DeviceSummaries | Out-Null } catch {}
+                                                }
+                                            }
+                                            if (Get-Command -Name 'DeviceRepositoryModule\Update-GlobalInterfaceList' -ErrorAction SilentlyContinue) {
+                                                try { DeviceRepositoryModule\Update-GlobalInterfaceList @updateParams | Out-Null } catch {}
+                                            } elseif (Get-Command -Name 'DeviceRepositoryModule\Update-GlobalInterfaceList' -ErrorAction SilentlyContinue) {
+                                                try { DeviceRepositoryModule\Update-GlobalInterfaceList | Out-Null } catch {}
+                                            }
+
+                                            $allCount = 0
+                                            try { $allCount = ViewStateService\Get-SequenceCount -Value $global:AllInterfaces } catch { $allCount = 0 }
+                                            try { Write-Diag ("Interface aggregate refreshed | Host={0} | GlobalInterfaces={1}" -f $deviceHost, $allCount) } catch {}
+
+                                            if (Get-Command -Name 'DeviceInsightsModule\Update-Summary' -ErrorAction SilentlyContinue) {
+                                                try { DeviceInsightsModule\Update-Summary } catch {}
+                                            }
+                                            if (Get-Command -Name 'DeviceInsightsModule\Update-Alerts' -ErrorAction SilentlyContinue) {
+                                                try { DeviceInsightsModule\Update-Alerts } catch {}
+                                            }
+                                            if (Get-Command -Name 'DeviceInsightsModule\Update-SearchGrid' -ErrorAction SilentlyContinue) {
+                                                try { DeviceInsightsModule\Update-SearchGrid } catch {}
+                                            }
+                                        } catch {
+                                            try { Write-Diag ("Interface aggregate refresh failed | Host={0} | Error={1}" -f $deviceHost, $_.Exception.Message) } catch {}
+                                        }
+
+                                        return [pscustomobject]@{
+                                            AppendDurationMs    = $localAppend
+                                            IndicatorDurationMs = $localIndicator
+                                        }
+                                    })
+                                    $dispatcherStopwatch.Stop()
+                                    $dispatcherDurationMs = [Math]::Round($dispatcherStopwatch.Elapsed.TotalMilliseconds, 3)
+                                    $collectionCount = 0
+                                    try { $collectionCount = @($collection).Count } catch { $collectionCount = 0 }
+                                    try { Write-Diag ("Interface batch appended | Host={0} | BatchSize={1} | CollectionCount={2}" -f $deviceHost, $batchSize, $collectionCount) } catch {}
+
+                                    if ($uiMetrics) {
+                                        if ($uiMetrics.PSObject.Properties['AppendDurationMs']) {
+                                            $appendDurationMs = [double]$uiMetrics.AppendDurationMs
+                                        }
+                                        if ($uiMetrics.PSObject.Properties['IndicatorDurationMs']) {
+                                            $indicatorDurationMs = [double]$uiMetrics.IndicatorDurationMs
+                                        }
+                                    }
+
+                                    try {
+                                        DeviceRepositoryModule\Set-InterfacePortDispatchMetrics -Hostname $deviceHost -BatchId $batch.BatchId -BatchOrdinal $batch.BatchOrdinal -BatchCount $batch.BatchCount -BatchSize $batchSize -PortsDelivered $batch.PortsDelivered -TotalPorts $batch.TotalPorts -DispatcherDurationMs $dispatcherDurationMs -AppendDurationMs $appendDurationMs -IndicatorDurationMs $indicatorDurationMs
+                                    } catch { }
+
+                                    $batchesProcessed++
+                                    try {
+                                        $totalDispatcherMs += $dispatcherDurationMs
+                                        $totalAppendMs += $appendDurationMs
+                                        $totalIndicatorMs += $indicatorDurationMs
+                                    } catch { }
+                                    if ($firstBatchDelayMs -eq $null -and $firstBatchTimer) {
+                                        try { $firstBatchDelayMs = [Math]::Round($firstBatchTimer.Elapsed.TotalMilliseconds, 3) } catch { $firstBatchDelayMs = 0.0 }
+                                    }
+
+                                    if ($batch.Completed) { break }
+                                    continue
+                                }
+
+                                else {
+                                    & $logAsync ("Async Get-InterfacePortBatch returned null for host {0}; exiting loop" -f $deviceHost)
+                                    break
+                                }
+
+                                $streamStatus = $null
+                                try { $streamStatus = DeviceRepositoryModule\Get-InterfacePortStreamStatus -Hostname $deviceHost } catch { $streamStatus = $null }
+                                if ($streamStatus -and $streamStatus.Completed) { break }
+                                Start-Sleep -Milliseconds 150
+                            }
+                        }
+                     }
+
                 }
 
                 if ($streamStopwatch) {
@@ -1922,13 +2302,15 @@ return $res
                 try { DeviceRepositoryModule\Clear-InterfacePortStream -Hostname $deviceHost } catch { }
                 & $logAsync ("Async cleared port stream for host {0}" -f $deviceHost)
                 $hostIndicatorAvailable = $false
+                $deviceHostLocal = $deviceHost
                 try {
                     $hostIndicatorAvailable = (Get-Command -Name 'InterfaceModule\Set-HostLoadingIndicator' -ErrorAction SilentlyContinue) -ne $null
                 } catch { $hostIndicatorAvailable = $false }
+                $hostIndicatorAvailableLocal = $hostIndicatorAvailable
                 [System.Windows.Application]::Current.Dispatcher.Invoke([System.Action]{
                     InterfaceModule\Hide-PortLoadingIndicator
-                    if ($using:hostIndicatorAvailable) {
-                        try { InterfaceModule\Set-HostLoadingIndicator -Hostname $using:deviceHost -State 'Loaded' } catch {}
+                    if ($hostIndicatorAvailableLocal) {
+                        try { InterfaceModule\Set-HostLoadingIndicator -Hostname $deviceHostLocal -State 'Loaded' } catch {}
                     }
                 })
             } catch {
@@ -2006,7 +2388,7 @@ if (-not $script:FilterUpdateTimer) {
             Update-DeviceFilter
 
             # Keep Compare in sync with current filters/hosts
-            if (Get-Command -Name Update-CompareView -ErrorAction SilentlyContinue) {
+            if ($global:InterfacesLoadAllowed -and (Get-Command -Name Update-CompareView -ErrorAction SilentlyContinue)) {
                 try { Update-CompareView -Window $window | Out-Null } catch {}
             }
         } catch {
@@ -2175,9 +2557,45 @@ if ($debugNextToggle) {
 # === BEGIN Window Loaded handler ===
 $window.Add_Loaded({
     try {
+        Write-StartupDiag "Loaded: cwd=$(Get-Location); scriptDir=$scriptDir"
         if ($global:StateTraceDb) { $env:StateTraceDbPath = $global:StateTraceDb }
-        Initialize-DeviceFilters -Window $window
-        Populate-SiteDropdownWithAvailableSites -Window $window
+        try {
+            $sitesAvailable = @()
+            try { $sitesAvailable = Get-AvailableSiteNames } catch { $sitesAvailable = @() }
+            Write-StartupDiag ("Get-AvailableSiteNames -> {0}" -f (($sitesAvailable) -join ', '))
+            Populate-SiteDropdownWithAvailableSites -Window $window
+            $siteDD = $window.FindName('SiteDropdown')
+            if ($siteDD) {
+                $items = @($siteDD.ItemsSource)
+                Write-StartupDiag ("After Populate-SiteDropdownWithAvailableSites items={0}" -f ($items -join ', '))
+            }
+        } catch { Write-StartupDiag ("Populate-SiteDropdownWithAvailableSites failed: {0}" -f $_.Exception.Message) }
+        try {
+            $locationEntries = @()
+            try { $locationEntries = DeviceCatalogModule\Get-DeviceLocationEntries } catch { $locationEntries = @() }
+            Write-StartupDiag ("Location entries count={0}; sample={1}" -f $locationEntries.Count, (($locationEntries | Select-Object -First 3 | ForEach-Object { "Site=$($_.Site);Zone=$($_.Zone);Building=$($_.Building);Room=$($_.Room)" }) -join ' | '))
+            Initialize-FilterMetadataAtStartup -Window $window -LocationEntries $locationEntries
+            $siteDD2 = $window.FindName('SiteDropdown')
+            if ($siteDD2) {
+                $items2 = @($siteDD2.ItemsSource)
+                Write-StartupDiag ("After Initialize-FilterMetadataAtStartup items={0}" -f ($items2 -join ', '))
+            }
+            try {
+                $locCount = 0
+                try { $locCount = $global:DeviceLocationEntries.Count } catch { }
+                Write-StartupDiag ("Global DeviceLocationEntries count={0}" -f $locCount)
+                if (Get-Command -Name 'ViewStateService\Get-FilterSnapshot' -ErrorAction SilentlyContinue) {
+                    $snap = ViewStateService\Get-FilterSnapshot -DeviceMetadata $global:DeviceMetadata -LocationEntries $global:DeviceLocationEntries
+                    $sitesLog      = @($snap.Sites) -join ', '
+                    $zonesLog      = @($snap.Zones) -join ', '
+                    $buildingsLog  = @($snap.Buildings) -join ', '
+                    $roomsLog      = @($snap.Rooms) -join ', '
+                    $hostsLog      = @($snap.Hostnames) -join ', '
+                    $zoneToLoadLog = if ($snap.ZoneToLoad) { '' + $snap.ZoneToLoad } else { '' }
+                    Write-StartupDiag ("FilterSnapshot sites=[{0}] zones=[{1}] buildings=[{2}] rooms=[{3}] hosts=[{4}] zoneToLoad={5}" -f $sitesLog, $zonesLog, $buildingsLog, $roomsLog, $hostsLog, $zoneToLoadLog)
+                }
+            } catch { Write-StartupDiag ("FilterSnapshot probe failed: {0}" -f $_.Exception.Message) }
+        } catch { Write-StartupDiag ("Initialize-FilterMetadataAtStartup failed: {0}" -f $_.Exception.Message) }
         Ensure-ParserStatusTimer -Window $window
         Update-ParserStatusIndicator -Window $window
         try { Update-FreshnessIndicator -Window $window } catch { }

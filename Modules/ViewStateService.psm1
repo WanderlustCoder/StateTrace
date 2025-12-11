@@ -5,6 +5,9 @@ if (-not (Get-Variable -Scope Script -Name CachedSite -ErrorAction SilentlyConti
     $script:CachedZoneSelection = $null
     $script:CachedZoneLoad = $null
 }
+if (-not (Get-Variable -Scope Global -Name InterfacesLoadAllowed -ErrorAction SilentlyContinue)) {
+    $global:InterfacesLoadAllowed = $false
+}
 
 try { TelemetryModule\Import-InterfaceCommon | Out-Null } catch { }
 
@@ -37,8 +40,18 @@ function Get-SequenceCount {
 
     if ($null -eq $Value) { return 0 }
 
-    if ($Value -is [System.Data.DataTable]) { return $Value.Rows.Count }
-    elseif ($Value -is [System.Collections.ICollection]) { return [int]$Value.Count }
+    if ($Value -is [System.Data.DataTable]) {
+        try { return [int]$Value.Rows.Count } catch { return 0 }
+    }
+    elseif ($Value -is [System.Collections.ICollection]) {
+        try { return [int]$Value.Count } catch {
+            try {
+                $count = 0
+                foreach ($item in [System.Collections.IEnumerable]$Value) { $count++ }
+                return $count
+            } catch { return 0 }
+        }
+    }
     elseif ($Value.PSObject -and $Value.PSObject.Properties["Count"]) {
         try { return [int]$Value.Count } catch { }
     }
@@ -91,11 +104,15 @@ function Get-PreferredHostnames {
 
     $rotation = $null
     try { $rotation = $global:DeviceHostnameOrder } catch { $rotation = $null }
+    $rotationList = @()
+    try { $rotationList = @($rotation) } catch { $rotationList = @() }
+    $rotationCount = 0
+    try { $rotationCount = Get-SequenceCount -Value $rotationList } catch { $rotationCount = 0 }
 
     $added = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
 
-    if ($rotation -and ($rotation.Count -gt 0)) {
-        foreach ($entry in $rotation) {
+    if ($rotationCount -gt 0) {
+        foreach ($entry in $rotationList) {
             $candidate = ('' + $entry).Trim()
             if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
             if (-not $HostSet.Contains($candidate)) { continue }
@@ -133,6 +150,11 @@ function Get-InterfacesForContext {
         [string]$Building,
         [string]$Room
     )
+
+    if (-not $global:InterfacesLoadAllowed) {
+        Write-Verbose '[ViewStateService] Interfaces not allowed yet; returning empty context.'
+        return @()
+    }
 
     $siteFilter = ConvertTo-FilterValue -Value $Site -Sentinels @('All Sites')
     $zoneFilter = ConvertTo-FilterValue -Value $ZoneSelection -Sentinels @('All Zones')
@@ -301,7 +323,8 @@ function Get-FilterSnapshot {
         [string]$Site,
         [string]$ZoneSelection,
         [string]$Building,
-        [string]$Room
+        [string]$Room,
+        [object[]]$LocationEntries
     )
 
     $siteFilter = ConvertTo-FilterValue -Value $Site -Sentinels @('All Sites')
@@ -323,120 +346,158 @@ function Get-FilterSnapshot {
 
     $emptySnapshot = { & $buildSnapshot @() @() @() @() @() '' }
 
-    # Fast path: when metadata is null or not enumerable, return an empty snapshot to avoid null derefs.
-    $metadataAvailable = $false
     try {
-        $metadataAvailable = ($DeviceMetadata -is [System.Collections.IDictionary]) -or ($DeviceMetadata -is [System.Collections.IEnumerable])
-    } catch { $metadataAvailable = $false }
-    if (-not $metadataAvailable) {
-        return & $emptySnapshot
-    }
-
-    $siteSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
-    $zoneSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
-    $buildingSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
-    $roomSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
-    $hostSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
-
-    $entries = $null
-    try {
-        if ($DeviceMetadata -is [System.Collections.IDictionary]) {
-            $entries = $DeviceMetadata.GetEnumerator()
-        } elseif ($DeviceMetadata -is [System.Collections.IEnumerable]) {
-            $entries = $DeviceMetadata.GetEnumerator()
+        # Fast path: when metadata is null or not enumerable, return an empty snapshot to avoid null derefs.
+        $metadataAvailable = $false
+        try {
+            if ($DeviceMetadata -is [System.Collections.IDictionary]) {
+                try {
+                    $metaCount = Get-SequenceCount -Value $DeviceMetadata.Keys
+                    $metadataAvailable = ($metaCount -gt 0)
+                } catch { $metadataAvailable = $false }
+            } elseif ($DeviceMetadata -is [System.Collections.IEnumerable]) {
+                try {
+                    $metaCount = Get-SequenceCount -Value $DeviceMetadata
+                    $metadataAvailable = ($metaCount -gt 0)
+                } catch { $metadataAvailable = $false }
+            }
+        } catch { $metadataAvailable = $false }
+        $locationAvailable = $false
+        try {
+            $locCount = Get-SequenceCount -Value $LocationEntries
+            $locationAvailable = ($locCount -ge 0)
+        } catch { $locationAvailable = $false }
+        if (-not $metadataAvailable -and -not $locationAvailable) {
+            return & $emptySnapshot
         }
-    } catch {
+
+        $siteSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+        $zoneSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+        $buildingSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+        $roomSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+        $hostSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+
         $entries = $null
-    }
-    if (-not $entries) {
+        try {
+            if ($metadataAvailable) {
+                if ($DeviceMetadata -is [System.Collections.IDictionary]) {
+                    $entries = $DeviceMetadata.GetEnumerator()
+                } elseif ($DeviceMetadata -is [System.Collections.IEnumerable]) {
+                    $entries = $DeviceMetadata.GetEnumerator()
+                }
+            } elseif ($locationAvailable) {
+                $entries = $LocationEntries.GetEnumerator()
+            }
+        } catch {
+            $entries = $null
+        }
+        if (-not $entries) {
+            return & $emptySnapshot
+        }
+
+        foreach ($entry in $entries) {
+            $hostname = ''
+            $meta = $null
+            if ($entry -is [System.Collections.DictionaryEntry]) {
+                $hostname = '' + $entry.Key
+                $meta = $entry.Value
+            } elseif ($entry -and $entry.PSObject.Properties['Key'] -and $entry.PSObject.Properties['Value']) {
+                $hostname = '' + $entry.Key
+                $meta = $entry.Value
+            } else {
+                $meta = $entry
+                if ($entry -and $entry.PSObject.Properties['Hostname']) {
+                    $hostname = '' + $entry.Hostname
+                }
+            }
+            if ([string]::IsNullOrWhiteSpace($hostname)) { $hostname = '' }
+            if (-not $meta) { continue }
+            $siteValue = if (Get-Command -Name 'InterfaceCommon\Get-StringPropertyValue' -ErrorAction SilentlyContinue) {
+                InterfaceCommon\Get-StringPropertyValue -InputObject $meta -PropertyNames @('Site')
+            } else { '' }
+            if ([string]::IsNullOrWhiteSpace($siteValue) -and $meta -and $meta.PSObject.Properties['Site']) {
+                $siteValue = '' + $meta.Site
+            }
+            if (-not [string]::IsNullOrWhiteSpace($siteValue)) { [void]$siteSet.Add($siteValue) }
+
+            $zoneValue = if (Get-Command -Name 'InterfaceCommon\Get-StringPropertyValue' -ErrorAction SilentlyContinue) {
+                InterfaceCommon\Get-StringPropertyValue -InputObject $meta -PropertyNames @('Zone')
+            } else { '' }
+            if ([string]::IsNullOrWhiteSpace($zoneValue) -and $meta -and $meta.PSObject.Properties['Zone']) {
+                $zoneValue = '' + $meta.Zone
+            }
+            if ([string]::IsNullOrWhiteSpace($zoneValue)) {
+                try {
+                    $parts = $hostname -split '-'
+                    if ($parts.Length -ge 2) { $zoneValue = $parts[1] }
+                } catch { $zoneValue = '' }
+            }
+
+            $buildingValue = if (Get-Command -Name 'InterfaceCommon\Get-StringPropertyValue' -ErrorAction SilentlyContinue) {
+                InterfaceCommon\Get-StringPropertyValue -InputObject $meta -PropertyNames @('Building')
+            } else { '' }
+            if ([string]::IsNullOrWhiteSpace($buildingValue) -and $meta -and $meta.PSObject.Properties['Building']) {
+                $buildingValue = '' + $meta.Building
+            }
+
+            $roomValue = if (Get-Command -Name 'InterfaceCommon\Get-StringPropertyValue' -ErrorAction SilentlyContinue) {
+                InterfaceCommon\Get-StringPropertyValue -InputObject $meta -PropertyNames @('Room')
+            } else { '' }
+            if ([string]::IsNullOrWhiteSpace($roomValue) -and $meta -and $meta.PSObject.Properties['Room']) {
+                $roomValue = '' + $meta.Room
+            }
+
+            $siteMatches = (-not $siteFilter) -or [System.StringComparer]::OrdinalIgnoreCase.Equals($siteValue, $siteFilter)
+            $zoneMatches = (-not $zoneFilter) -or [System.StringComparer]::OrdinalIgnoreCase.Equals($zoneValue, $zoneFilter)
+            $buildingMatches = (-not $buildingFilter) -or [System.StringComparer]::OrdinalIgnoreCase.Equals($buildingValue, $buildingFilter)
+            $roomMatches = (-not $roomFilter) -or [System.StringComparer]::OrdinalIgnoreCase.Equals($roomValue, $roomFilter)
+
+            if ($siteMatches -and -not [string]::IsNullOrWhiteSpace($zoneValue)) {
+                [void]$zoneSet.Add($zoneValue)
+            }
+
+            if ($siteMatches -and $zoneMatches -and -not [string]::IsNullOrWhiteSpace($buildingValue)) {
+                [void]$buildingSet.Add($buildingValue)
+            }
+
+            if ($siteMatches -and $buildingMatches -and -not [string]::IsNullOrWhiteSpace($roomValue)) {
+                [void]$roomSet.Add($roomValue)
+            }
+
+            if ($siteMatches -and $zoneMatches -and $buildingMatches -and $roomMatches) {
+                if (-not [string]::IsNullOrWhiteSpace($hostname)) {
+                    [void]$hostSet.Add($hostname)
+                }
+            }
+        }
+
+        $sites = New-SortedStringList -Set $siteSet
+        $zones = New-SortedStringList -Set $zoneSet
+        $buildings = New-SortedStringList -Set $buildingSet
+        $rooms = New-SortedStringList -Set $roomSet
+        $hosts = Get-PreferredHostnames -HostSet $hostSet
+        $unknownIndex = $hosts.IndexOf('Unknown')
+        if ($unknownIndex -gt 0) {
+            $first = $hosts[0]
+            $hosts[0] = $hosts[$unknownIndex]
+            $hosts[$unknownIndex] = $first
+        }
+
+        $sitesArray     = @($sites)
+        $zonesArray     = @($zones)
+        $buildingsArray = @($buildings)
+        $roomsArray     = @($rooms)
+        $hostsArray     = @($hosts)
+
+        $zoneCandidates = @('All Zones')
+        if ((Get-SequenceCount $zonesArray) -gt 0) { $zoneCandidates += $zonesArray }
+        $zoneToLoad = Get-ZoneLoadHint -SelectedZone $ZoneSelection -AvailableZones $zoneCandidates
+
+        return & $buildSnapshot $sitesArray $zonesArray $buildingsArray $roomsArray $hostsArray $zoneToLoad
+    } catch {
+        Write-Verbose ("[ViewStateService] Get-FilterSnapshot failed: {0}" -f $_.Exception.Message)
         return & $emptySnapshot
     }
-
-    foreach ($entry in $entries) {
-        $hostname = '' + $entry.Key
-        if ([string]::IsNullOrWhiteSpace($hostname)) { continue }
-
-        $meta = $entry.Value
-        $siteValue = if (Get-Command -Name 'InterfaceCommon\Get-StringPropertyValue' -ErrorAction SilentlyContinue) {
-            InterfaceCommon\Get-StringPropertyValue -InputObject $meta -PropertyNames @('Site')
-        } else { '' }
-        if ([string]::IsNullOrWhiteSpace($siteValue) -and $meta -and $meta.PSObject.Properties['Site']) {
-            $siteValue = '' + $meta.Site
-        }
-        if (-not [string]::IsNullOrWhiteSpace($siteValue)) { [void]$siteSet.Add($siteValue) }
-
-        $zoneValue = if (Get-Command -Name 'InterfaceCommon\Get-StringPropertyValue' -ErrorAction SilentlyContinue) {
-            InterfaceCommon\Get-StringPropertyValue -InputObject $meta -PropertyNames @('Zone')
-        } else { '' }
-        if ([string]::IsNullOrWhiteSpace($zoneValue) -and $meta -and $meta.PSObject.Properties['Zone']) {
-            $zoneValue = '' + $meta.Zone
-        }
-        if ([string]::IsNullOrWhiteSpace($zoneValue)) {
-            try {
-                $parts = $hostname -split '-'
-                if ($parts.Length -ge 2) { $zoneValue = $parts[1] }
-            } catch { $zoneValue = '' }
-        }
-
-        $buildingValue = if (Get-Command -Name 'InterfaceCommon\Get-StringPropertyValue' -ErrorAction SilentlyContinue) {
-            InterfaceCommon\Get-StringPropertyValue -InputObject $meta -PropertyNames @('Building')
-        } else { '' }
-        if ([string]::IsNullOrWhiteSpace($buildingValue) -and $meta -and $meta.PSObject.Properties['Building']) {
-            $buildingValue = '' + $meta.Building
-        }
-
-        $roomValue = if (Get-Command -Name 'InterfaceCommon\Get-StringPropertyValue' -ErrorAction SilentlyContinue) {
-            InterfaceCommon\Get-StringPropertyValue -InputObject $meta -PropertyNames @('Room')
-        } else { '' }
-        if ([string]::IsNullOrWhiteSpace($roomValue) -and $meta -and $meta.PSObject.Properties['Room']) {
-            $roomValue = '' + $meta.Room
-        }
-
-        $siteMatches = (-not $siteFilter) -or [System.StringComparer]::OrdinalIgnoreCase.Equals($siteValue, $siteFilter)
-        $zoneMatches = (-not $zoneFilter) -or [System.StringComparer]::OrdinalIgnoreCase.Equals($zoneValue, $zoneFilter)
-        $buildingMatches = (-not $buildingFilter) -or [System.StringComparer]::OrdinalIgnoreCase.Equals($buildingValue, $buildingFilter)
-        $roomMatches = (-not $roomFilter) -or [System.StringComparer]::OrdinalIgnoreCase.Equals($roomValue, $roomFilter)
-
-        if ($siteMatches -and -not [string]::IsNullOrWhiteSpace($zoneValue)) {
-            [void]$zoneSet.Add($zoneValue)
-        }
-
-        if ($siteMatches -and $zoneMatches -and -not [string]::IsNullOrWhiteSpace($buildingValue)) {
-            [void]$buildingSet.Add($buildingValue)
-        }
-
-        if ($siteMatches -and $buildingMatches -and -not [string]::IsNullOrWhiteSpace($roomValue)) {
-            [void]$roomSet.Add($roomValue)
-        }
-
-        if ($siteMatches -and $zoneMatches -and $buildingMatches -and $roomMatches) {
-            [void]$hostSet.Add($hostname)
-        }
-    }
-
-    $sites = New-SortedStringList -Set $siteSet
-    $zones = New-SortedStringList -Set $zoneSet
-    $buildings = New-SortedStringList -Set $buildingSet
-    $rooms = New-SortedStringList -Set $roomSet
-    $hosts = Get-PreferredHostnames -HostSet $hostSet
-    $unknownIndex = $hosts.IndexOf('Unknown')
-    if ($unknownIndex -gt 0) {
-        $first = $hosts[0]
-        $hosts[0] = $hosts[$unknownIndex]
-        $hosts[$unknownIndex] = $first
-    }
-
-    $sitesArray     = @($sites)
-    $zonesArray     = @($zones)
-    $buildingsArray = @($buildings)
-    $roomsArray     = @($rooms)
-    $hostsArray     = @($hosts)
-
-    $zoneCandidates = @('All Zones')
-    if ((Get-SequenceCount $zonesArray) -gt 0) { $zoneCandidates += $zonesArray }
-    $zoneToLoad = Get-ZoneLoadHint -SelectedZone $ZoneSelection -AvailableZones $zoneCandidates
-
-    return & $buildSnapshot $sitesArray $zonesArray $buildingsArray $roomsArray $hostsArray $zoneToLoad
 }
 
 function Get-ZoneLoadHint {
@@ -462,8 +523,3 @@ function Get-ZoneLoadHint {
 }
 
 Export-ModuleMember -Function Import-ViewStateServiceModule, Get-InterfacesForContext, Get-FilterSnapshot, Get-ZoneLoadHint, Get-SequenceCount
-
-
-
-
-
