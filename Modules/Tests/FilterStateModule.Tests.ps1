@@ -7,8 +7,10 @@ Describe "FilterStateModule Update-DeviceFilter" {
         $filterPath = Resolve-Path (Join-Path $testDir "..\FilterStateModule.psm1")
         $viewStatePath = Resolve-Path (Join-Path $testDir "..\ViewStateService.psm1")
         $repoPath = Resolve-Path (Join-Path $testDir "..\DeviceRepositoryModule.psm1")
+        $catalogPath = Resolve-Path (Join-Path $testDir "..\DeviceCatalogModule.psm1")
         Import-Module $viewStatePath -Force
         Import-Module $repoPath -Force
+        Import-Module $catalogPath -Force
         Import-Module $filterPath -Force
     }
 
@@ -16,6 +18,7 @@ Describe "FilterStateModule Update-DeviceFilter" {
         Remove-Module FilterStateModule -Force
         Remove-Module ViewStateService -Force
         Remove-Module DeviceRepositoryModule -Force
+        Remove-Module DeviceCatalogModule -Force
     }
 
     BeforeEach {
@@ -28,6 +31,7 @@ Describe "FilterStateModule Update-DeviceFilter" {
         FilterStateModule\Set-FilterFaulted -Faulted $false
         $global:ProgrammaticFilterUpdate = $false
         $global:AllInterfaces = @()
+        $global:InterfacesLoadAllowed = $true
 
         $siteCombo      = New-Object System.Windows.Controls.ComboBox
         $zoneCombo      = New-Object System.Windows.Controls.ComboBox
@@ -76,6 +80,7 @@ Describe "FilterStateModule Update-DeviceFilter" {
         Remove-Variable -Name window -Scope Global -ErrorAction SilentlyContinue
         Remove-Variable -Name ProgrammaticFilterUpdate -Scope Global -ErrorAction SilentlyContinue
         Remove-Variable -Name AllInterfaces -Scope Global -ErrorAction SilentlyContinue
+        Remove-Variable -Name InterfacesLoadAllowed -Scope Global -ErrorAction SilentlyContinue
         Remove-Variable -Name FilterTestControls -Scope Script -ErrorAction SilentlyContinue
     }
 
@@ -117,16 +122,61 @@ Describe "FilterStateModule Update-DeviceFilter" {
         $global:AllInterfaces.Count | Should Be 0
     }
 
+    It "populates site and zone from location entries without loading interfaces when disabled" {
+        $global:DeviceMetadata = $null
+        $global:InterfacesLoadAllowed = $false
+        Mock -ModuleName ViewStateService -CommandName 'DeviceRepositoryModule\Get-GlobalInterfaceSnapshot' {
+            throw 'DeviceRepositoryModule\Get-GlobalInterfaceSnapshot should not be called when interfaces are disabled.'
+        }
+        $global:DeviceLocationEntries = @(
+            [pscustomobject]@{ Site = 'SITE1'; Zone = 'Z1'; Building = 'B1'; Room = 'R101' },
+            [pscustomobject]@{ Site = 'SITE2'; Zone = 'Z2'; Building = 'B2'; Room = 'R201' }
+        )
+
+        # Do not pass LocationEntries explicitly; exercise fallback to DeviceCatalogModule
+        FilterStateModule\Initialize-DeviceFilters -Window $global:window
+        FilterStateModule\Update-DeviceFilter
+
+        $siteItems = @($script:FilterTestControls['SiteDropdown'].ItemsSource)
+        $zoneItems = @($script:FilterTestControls['ZoneDropdown'].ItemsSource)
+        ($siteItems -contains 'SITE1') | Should Be $true
+        ($zoneItems -contains 'Z1') | Should Be $true
+        $hostItems = $script:FilterTestControls['HostnameDropdown'].ItemsSource
+        $hostCount = if ($hostItems) { $hostItems.Count } else { 0 }
+        $hostCount | Should Be 0
+        $global:AllInterfaces.Count | Should Be 0
+    }
+
+    It "loads site list from Get-DeviceLocationEntries when metadata is empty (integration)" {
+        $global:DeviceMetadata = $null
+        $global:InterfacesLoadAllowed = $false
+        $global:DeviceLocationEntries = @()
+        Mock -ModuleName ViewStateService -CommandName 'DeviceRepositoryModule\Get-GlobalInterfaceSnapshot' {
+            throw 'DeviceRepositoryModule\Get-GlobalInterfaceSnapshot should not be called when interfaces are disabled.'
+        }
+
+        $locations = DeviceCatalogModule\Get-DeviceLocationEntries
+        if (-not $locations -or $locations.Count -eq 0) {
+            Set-ItResult -Skipped -Because "No location entries available from Get-DeviceLocationEntries"
+            return
+        }
+
+        FilterStateModule\Initialize-DeviceFilters -Window $global:window -LocationEntries $locations
+        FilterStateModule\Update-DeviceFilter
+
+        $siteItems = @($script:FilterTestControls['SiteDropdown'].ItemsSource)
+        ($siteItems.Count -ge 2) | Should Be $true # All Sites + at least one real site
+        foreach ($loc in $locations) {
+            if ($loc.Site) {
+                ($siteItems -contains $loc.Site) | Should Be $true
+            }
+        }
+
+        $hostItems = $script:FilterTestControls['HostnameDropdown'].ItemsSource
+        $hostCount = if ($hostItems) { $hostItems.Count } else { 0 }
+        $hostCount | Should Be 0
+        $global:AllInterfaces.Count | Should Be 0
+    }
+
 
 }
-
-
-
-
-
-
-
-
-
-
-

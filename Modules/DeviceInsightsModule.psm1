@@ -4,6 +4,9 @@ try { ViewStateService\Import-ViewStateServiceModule | Out-Null } catch { }
 if (-not (Get-Variable -Scope Script -Name SearchRegexEnabled -ErrorAction SilentlyContinue)) {
     $script:SearchRegexEnabled = $false
 }
+if (-not (Get-Variable -Scope Global -Name InterfacesLoadAllowed -ErrorAction SilentlyContinue)) {
+    $global:InterfacesLoadAllowed = $false
+}
 
 function Get-SearchRegexEnabled {
     [CmdletBinding()]
@@ -22,6 +25,11 @@ function Set-SearchRegexEnabled {
 function Update-SearchResults {
     [CmdletBinding()]
     param([string]$Term)
+
+    if (-not $global:InterfacesLoadAllowed) {
+        Write-Verbose '[DeviceInsights] Interfaces not allowed yet; skipping search.'
+        return @()
+    }
 
     $loc = $null
     try { $loc = FilterStateModule\Get-SelectedLocation } catch { $loc = $null }
@@ -121,6 +129,10 @@ function Update-Summary {
     [CmdletBinding()]
     param()
 
+    if (-not $global:InterfacesLoadAllowed) {
+        Write-Verbose '[DeviceInsights] Interfaces not allowed yet; skipping summary.'
+        return
+    }
 
     $loc = $null
     try { $loc = FilterStateModule\Get-SelectedLocation } catch { $loc = $null }
@@ -236,6 +248,11 @@ function Update-Alerts {
     [CmdletBinding()]
     param()
 
+    if (-not $global:InterfacesLoadAllowed) {
+        Write-Verbose '[DeviceInsights] Interfaces not allowed yet; skipping alerts.'
+        return
+    }
+
     $loc = $null
     try { $loc = FilterStateModule\Get-SelectedLocation } catch { $loc = $null }
     $siteSel = if ($loc) { $loc.Site } else { $null }
@@ -306,6 +323,11 @@ function Update-Alerts {
 function Update-SearchGrid {
     [CmdletBinding()]
     param()
+
+    if (-not $global:InterfacesLoadAllowed) {
+        Write-Verbose '[DeviceInsights] Interfaces not allowed yet; skipping search grid.'
+        return
+    }
 
     $searchHostCtrl = $global:window.FindName('SearchInterfacesHost')
     if (-not $searchHostCtrl) { return }

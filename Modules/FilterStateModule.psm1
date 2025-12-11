@@ -21,6 +21,12 @@ if (-not (Get-Variable -Scope Script -Name LastRoomSel -ErrorAction SilentlyCont
 if (-not (Get-Variable -Scope Global -Name ProgrammaticFilterUpdate -ErrorAction SilentlyContinue)) {
     $global:ProgrammaticFilterUpdate = $false
 }
+if (-not (Get-Variable -Scope Global -Name InterfacesLoadAllowed -ErrorAction SilentlyContinue)) {
+    $global:InterfacesLoadAllowed = $false
+}
+if (-not (Get-Variable -Scope Global -Name DeviceLocationEntries -ErrorAction SilentlyContinue)) {
+    $global:DeviceLocationEntries = @()
+}
 
 try { TelemetryModule\Import-InterfaceCommon | Out-Null } catch { }
 
@@ -120,10 +126,20 @@ function Initialize-DeviceFilters {
     [CmdletBinding()]
     param(
         [object[]]$Hostnames,
-        [object]$Window = $global:window
+        [object]$Window = $global:window,
+        [object[]]$LocationEntries
     )
 
     if (-not $Window) { return }
+    if ($LocationEntries) {
+        $global:DeviceLocationEntries = $LocationEntries
+    } elseif ((ViewStateService\Get-SequenceCount -Value $global:DeviceLocationEntries) -eq 0) {
+        try {
+            if (Get-Command -Name 'DeviceCatalogModule\Get-DeviceLocationEntries' -ErrorAction SilentlyContinue) {
+                $global:DeviceLocationEntries = DeviceCatalogModule\Get-DeviceLocationEntries
+            }
+        } catch { }
+    }
 
     $siteDD      = $Window.FindName('SiteDropdown')
     $zoneDD      = $Window.FindName('ZoneDropdown')
@@ -133,7 +149,7 @@ function Initialize-DeviceFilters {
 
     $snapshot = $null
     try {
-        $snapshot = ViewStateService\Get-FilterSnapshot -DeviceMetadata $global:DeviceMetadata
+        $snapshot = ViewStateService\Get-FilterSnapshot -DeviceMetadata $global:DeviceMetadata -LocationEntries $global:DeviceLocationEntries
     } catch {
         $snapshot = $null
     }
@@ -147,8 +163,26 @@ function Initialize-DeviceFilters {
                 if (-not $siteItems.Contains($site)) { [void]$siteItems.Add($site) }
             }
         }
+        if ($siteItems.Count -le 1) {
+            try {
+                if (Get-Command -Name 'DeviceRepositoryModule\Get-AllSiteDbPaths' -ErrorAction SilentlyContinue) {
+                    $paths = DeviceRepositoryModule\Get-AllSiteDbPaths
+                    foreach ($p in $paths) {
+                        try {
+                            if (-not $p) { continue }
+                            $leaf = [System.IO.Path]::GetFileNameWithoutExtension($p)
+                            if ([string]::IsNullOrWhiteSpace($leaf)) { continue }
+                            if (-not $siteItems.Contains($leaf)) { [void]$siteItems.Add($leaf) }
+                        } catch {}
+                    }
+                }
+            } catch {}
+        }
         $siteDD.ItemsSource = $siteItems
-        if ($siteItems.Count -gt 1) {
+        if (-not $global:InterfacesLoadAllowed) {
+            # When interfaces are blocked, default to "All Sites" so the union of locations is visible immediately.
+            $siteDD.SelectedIndex = 0
+        } elseif ($siteItems.Count -gt 1) {
             $siteDD.SelectedIndex = 1
         } else {
             $siteDD.SelectedIndex = 0
@@ -196,12 +230,16 @@ function Initialize-DeviceFilters {
         Set-DropdownItems -Control $hostnameDD -Items $hostList
     }
 
-    try {
-        $global:AllInterfaces = ViewStateService\Get-InterfacesForContext -Site $null -ZoneSelection $null -ZoneToLoad $null -Building $null -Room $null
-        if (-not $global:AllInterfaces) {
+    if ($global:InterfacesLoadAllowed) {
+        try {
+            $global:AllInterfaces = ViewStateService\Get-InterfacesForContext -Site $null -ZoneSelection $null -ZoneToLoad $null -Building $null -Room $null
+            if (-not $global:AllInterfaces) {
+                $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
+            }
+        } catch {
             $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
         }
-    } catch {
+    } else {
         $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
     }
 
@@ -222,14 +260,27 @@ function Update-DeviceFilter {
     if (-not $window) { return }
     if ($script:DeviceFilterUpdating) { return }
     if (-not (Get-Command -Name 'ViewStateService\Get-FilterSnapshot' -ErrorAction SilentlyContinue)) { return }
+    $interfacesAllowed = $global:InterfacesLoadAllowed
 
     $script:DeviceFilterUpdating = $true
     $___prevProgFlag = $global:ProgrammaticFilterUpdate
     $global:ProgrammaticFilterUpdate = $true
 
     try {
-        if (-not $global:DeviceMetadata) {
-            Write-Verbose 'FilterStateModule: DeviceMetadata not yet loaded; skipping device filter update.'
+        $metadata = $global:DeviceMetadata
+        $locationEntries = $global:DeviceLocationEntries
+        if ((ViewStateService\Get-SequenceCount -Value $locationEntries) -eq 0 -and (Get-Command -Name 'DeviceCatalogModule\Get-DeviceLocationEntries' -ErrorAction SilentlyContinue)) {
+            try {
+                $locationEntries = DeviceCatalogModule\Get-DeviceLocationEntries
+                $global:DeviceLocationEntries = $locationEntries
+            } catch { }
+        }
+        $hasMetadata = $false
+        try { $hasMetadata = $metadata -ne $null -and ($metadata.Count -ge 0 -or $metadata.Keys) } catch { $hasMetadata = $false }
+        $hasLocations = $false
+        try { $hasLocations = (ViewStateService\Get-SequenceCount -Value $locationEntries) -ge 0 } catch { $hasLocations = $false }
+        if (-not $hasMetadata -and -not $hasLocations) {
+            Write-Verbose 'FilterStateModule: Device metadata unavailable; skipping device filter update.'
             return
         }
 
@@ -266,9 +317,7 @@ function Update-DeviceFilter {
             return
         }
 
-        $metadata = $global:DeviceMetadata
-
-        $allSnapshot = ViewStateService\Get-FilterSnapshot -DeviceMetadata $metadata
+        $allSnapshot = ViewStateService\Get-FilterSnapshot -DeviceMetadata $metadata -LocationEntries $locationEntries
         $siteCandidates = if ($allSnapshot -and $allSnapshot.Sites) { @($allSnapshot.Sites) } else { @() }
         $siteSelection = Resolve-SelectionValue -Current $siteInput -Candidates $siteCandidates -Sentinel 'All Sites'
 
@@ -291,10 +340,10 @@ function Update-DeviceFilter {
             }
         }
 
-        $zoneSnapshot = ViewStateService\Get-FilterSnapshot -DeviceMetadata $metadata -Site $siteSelection
+        $zoneSnapshot = ViewStateService\Get-FilterSnapshot -DeviceMetadata $metadata -Site $siteSelection -LocationEntries $locationEntries
         $zoneCandidates = if ($zoneSnapshot -and $zoneSnapshot.Zones) { @($zoneSnapshot.Zones) } else { @() }
         $zoneSelection = Resolve-SelectionValue -Current $zoneInput -Candidates $zoneCandidates -Sentinel 'All Zones'
-        if (($siteChangedCompared -or -not $script:LastZoneSel) -and ($zoneSelection -eq 'All Zones') -and $zoneSnapshot -and $zoneSnapshot.ZoneToLoad) {
+        if ($interfacesAllowed -and ($siteChangedCompared -or -not $script:LastZoneSel) -and ($zoneSelection -eq 'All Zones') -and $zoneSnapshot -and $zoneSnapshot.ZoneToLoad) {
             $zoneSelection = '' + $zoneSnapshot.ZoneToLoad
         }
 
@@ -318,7 +367,7 @@ function Update-DeviceFilter {
             $zoneDD.IsEnabled = $true
         }
 
-        $buildingSnapshot = ViewStateService\Get-FilterSnapshot -DeviceMetadata $metadata -Site $siteSelection -ZoneSelection $zoneSelection
+        $buildingSnapshot = ViewStateService\Get-FilterSnapshot -DeviceMetadata $metadata -Site $siteSelection -ZoneSelection $zoneSelection -LocationEntries $locationEntries
         $buildingCandidates = if ($buildingSnapshot -and $buildingSnapshot.Buildings) { @($buildingSnapshot.Buildings) } else { @() }
         $buildingSelection = Resolve-SelectionValue -Current $buildingInput -Candidates $buildingCandidates -Sentinel ''
 
@@ -342,7 +391,7 @@ function Update-DeviceFilter {
             $buildingDD.IsEnabled = ($siteSelection -and $siteSelection -ne '' -and $siteSelection -ne 'All Sites')
         }
 
-        $roomSnapshot = ViewStateService\Get-FilterSnapshot -DeviceMetadata $metadata -Site $siteSelection -ZoneSelection $zoneSelection -Building $buildingSelection
+        $roomSnapshot = ViewStateService\Get-FilterSnapshot -DeviceMetadata $metadata -Site $siteSelection -ZoneSelection $zoneSelection -Building $buildingSelection -LocationEntries $locationEntries
         $roomCandidates = if ($roomSnapshot -and $roomSnapshot.Rooms) { @($roomSnapshot.Rooms) } else { @() }
         $roomSelection = Resolve-SelectionValue -Current $roomInput -Candidates $roomCandidates -Sentinel ''
 
@@ -366,7 +415,7 @@ function Update-DeviceFilter {
             $roomDD.IsEnabled = ($buildingSelection -and $buildingSelection -ne '')
         }
 
-        $finalSnapshot = ViewStateService\Get-FilterSnapshot -DeviceMetadata $metadata -Site $siteSelection -ZoneSelection $zoneSelection -Building $buildingSelection -Room $roomSelection
+        $finalSnapshot = ViewStateService\Get-FilterSnapshot -DeviceMetadata $metadata -Site $siteSelection -ZoneSelection $zoneSelection -Building $buildingSelection -Room $roomSelection -LocationEntries $locationEntries
         $hostCandidates = if ($finalSnapshot -and $finalSnapshot.Hostnames) { @($finalSnapshot.Hostnames) } else { @() }
         $hostCount = 0
         try {
@@ -409,7 +458,7 @@ function Update-DeviceFilter {
             $zoneToLoad = '' + $finalSnapshot.ZoneToLoad
         }
 
-        if ($siteChanged -or $zoneChanged -or $buildingChanged -or $roomChanged) {
+        if ($interfacesAllowed -and ($siteChanged -or $zoneChanged -or $buildingChanged -or $roomChanged)) {
             try {
                 $global:AllInterfaces = ViewStateService\Get-InterfacesForContext -Site $finalSite -ZoneSelection $finalZone -ZoneToLoad $zoneToLoad -Building $finalBuilding -Room $finalRoom
                 if (-not $global:AllInterfaces) {
@@ -418,12 +467,15 @@ function Update-DeviceFilter {
             } catch {
                 $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
             }
+        } elseif (-not $interfacesAllowed) {
+            $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
         }
-        if (Get-Command Update-SearchGrid -ErrorAction SilentlyContinue) {
+
+        if ($interfacesAllowed -and (Get-Command Update-SearchGrid -ErrorAction SilentlyContinue)) {
             Update-SearchGrid
         }
         $canUpdateSummary = $false
-        if (Get-Command Update-Summary -ErrorAction SilentlyContinue) {
+        if ($interfacesAllowed -and (Get-Command Update-Summary -ErrorAction SilentlyContinue)) {
             try {
                 $summaryVar = Get-Variable -Name summaryView -Scope Global -ErrorAction Stop
                 if ($summaryVar.Value) { $canUpdateSummary = $true }
@@ -432,7 +484,7 @@ function Update-DeviceFilter {
         if ($canUpdateSummary) {
             Update-Summary
         }
-        if (Get-Command Update-Alerts -ErrorAction SilentlyContinue) {
+        if ($interfacesAllowed -and (Get-Command Update-Alerts -ErrorAction SilentlyContinue)) {
             Update-Alerts
         }
 

@@ -351,33 +351,36 @@ function Write-SharedCacheSnapshotFile {
         [System.Collections.IEnumerable]$Entries
     )
 
-    # Flatten entries, preferring the cache module helper when available to keep formats consistent.
-    $entryArray = $Entries
-    try {
-        $cacheHelper = Get-Command -Name 'DeviceRepository.Cache\ConvertTo-SharedCacheEntryArray' -ErrorAction SilentlyContinue
-        if (-not $cacheHelper) {
-            $cacheHelper = Get-Command -Name 'ConvertTo-SharedCacheEntryArray' -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue
-        }
-        if ($cacheHelper) {
-            $entryArray = & $cacheHelper -Entries $Entries
-        }
-    } catch {
-        $entryArray = $Entries
-    }
+    # Flatten entries via module helper to keep formats consistent.
+    $entryArray = @()
+    try { $entryArray = @(ConvertTo-SharedCacheEntryArray -Entries $Entries) } catch { $entryArray = @($Entries) }
     if (-not ($entryArray -is [System.Collections.IEnumerable])) { $entryArray = @($entryArray) }
+
+    if ($deviceRepoModule) {
+        try {
+            $entryArray = @($deviceRepoModule.Invoke({ param($entries) Resolve-SharedSiteInterfaceCacheSnapshotEntries -Entries $entries -RehydrateMissingEntries }, $entryArray))
+            $siteFilterArray = @($deviceRepoModule.Invoke({ param($entries) Get-SharedCacheSiteFilterFromEntries -Entries $entries }, $entryArray))
+        } catch { }
+    }
 
     # Prefer the cache module export (shared format) when available.
     $siteFilter = [System.Collections.Generic.List[string]]::new()
-    foreach ($entry in $entryArray) {
-        if (-not $entry) { continue }
-        $siteValue = ''
-        if ($entry.PSObject.Properties.Name -contains 'Site') {
-            $siteValue = ('' + $entry.Site).Trim()
-        } elseif ($entry.PSObject.Properties.Name -contains 'SiteKey') {
-            $siteValue = ('' + $entry.SiteKey).Trim()
+    if ($siteFilterArray) {
+        foreach ($site in $siteFilterArray) {
+            if (-not [string]::IsNullOrWhiteSpace($site)) { $siteFilter.Add($site) | Out-Null }
         }
-        if (-not [string]::IsNullOrWhiteSpace($siteValue)) {
-            $siteFilter.Add($siteValue) | Out-Null
+    } else {
+        foreach ($entry in $entryArray) {
+            if (-not $entry) { continue }
+            $siteValue = ''
+            if ($entry.PSObject.Properties.Name -contains 'Site') {
+                $siteValue = ('' + $entry.Site).Trim()
+            } elseif ($entry.PSObject.Properties.Name -contains 'SiteKey') {
+                $siteValue = ('' + $entry.SiteKey).Trim()
+            }
+            if (-not [string]::IsNullOrWhiteSpace($siteValue)) {
+                $siteFilter.Add($siteValue) | Out-Null
+            }
         }
     }
 
@@ -419,29 +422,35 @@ function Write-SharedCacheSnapshotFile {
         }
     }
 
-    $sanitizedEntries = [System.Collections.Generic.List[psobject]]::new()
+    $sanitizedEntries = $null
+    if ($deviceRepoModule) {
+        try { $sanitizedEntries = @($deviceRepoModule.Invoke({ param($entries) Resolve-SharedSiteInterfaceCacheSnapshotEntries -Entries $entries }, $entryArray)) } catch { $sanitizedEntries = $null }
+    }
+    if (-not $sanitizedEntries) {
+        $sanitizedEntries = [System.Collections.Generic.List[psobject]]::new()
 
-    foreach ($entry in $entryArray) {
-        if (-not $entry) { continue }
+        foreach ($entry in $entryArray) {
+            if (-not $entry) { continue }
 
-        $siteValue = ''
-        if ($entry.PSObject.Properties.Name -contains 'Site') {
-            $siteValue = ('' + $entry.Site).Trim()
-        } elseif ($entry.PSObject.Properties.Name -contains 'SiteKey') {
-            $siteValue = ('' + $entry.SiteKey).Trim()
+            $siteValue = ''
+            if ($entry.PSObject.Properties.Name -contains 'Site') {
+                $siteValue = ('' + $entry.Site).Trim()
+            } elseif ($entry.PSObject.Properties.Name -contains 'SiteKey') {
+                $siteValue = ('' + $entry.SiteKey).Trim()
+            }
+            if ([string]::IsNullOrWhiteSpace($siteValue)) { continue }
+
+            $entryValue = $null
+            if ($entry.PSObject.Properties.Name -contains 'Entry') {
+                $entryValue = $entry.Entry
+            }
+            if (-not $entryValue) { continue }
+
+            $sanitizedEntries.Add([pscustomobject]@{
+                    Site  = $siteValue
+                    Entry = $entryValue
+                }) | Out-Null
         }
-        if ([string]::IsNullOrWhiteSpace($siteValue)) { continue }
-
-        $entryValue = $null
-        if ($entry.PSObject.Properties.Name -contains 'Entry') {
-            $entryValue = $entry.Entry
-        }
-        if (-not $entryValue) { continue }
-
-        $sanitizedEntries.Add([pscustomobject]@{
-                Site  = $siteValue
-                Entry = $entryValue
-            }) | Out-Null
     }
 
     $directory = $null
@@ -475,6 +484,17 @@ function Get-SharedCacheSnapshotSummary {
         $entries = @($entries)
     }
 
+    $deviceRepoModule = Get-Module -Name 'DeviceRepositoryModule'
+    if (-not $deviceRepoModule) {
+        $repoPath = Join-Path -Path $repositoryRoot -ChildPath 'Modules\DeviceRepositoryModule.psm1'
+        if (Test-Path -LiteralPath $repoPath) {
+            try { $deviceRepoModule = Import-Module -Name $repoPath -PassThru -ErrorAction SilentlyContinue } catch { $deviceRepoModule = $null }
+        }
+    }
+    if ($deviceRepoModule) {
+        try { $entries = @($deviceRepoModule.Invoke({ param($e) Resolve-SharedSiteInterfaceCacheSnapshotEntries -Entries $e }, @($entries))) } catch { }
+    }
+
     $summaries = [System.Collections.Generic.List[psobject]]::new()
     foreach ($entry in $entries) {
         if (-not $entry) { continue }
@@ -494,11 +514,19 @@ function Get-SharedCacheSnapshotSummary {
 
         $hostCount = 0
         $rowCount = 0
+        $stats = $null
+        if ($deviceRepoModule) {
+            try { $stats = $deviceRepoModule.Invoke({ param($value) Get-SharedSiteInterfaceCacheEntryStatistics -Entry $value }, $snapshotEntry) } catch { $stats = $null }
+        }
+        if ($stats) {
+            try { $hostCount = [int]$stats.HostCount } catch { $hostCount = 0 }
+            try { $rowCount = [int]$stats.TotalRows } catch { $rowCount = 0 }
+        }
         $cachedAt = $null
-        if ($snapshotEntry.PSObject.Properties.Name -contains 'HostCount') {
+        if ($hostCount -le 0 -and $snapshotEntry.PSObject.Properties.Name -contains 'HostCount') {
             try { $hostCount = [int]$snapshotEntry.HostCount } catch { $hostCount = 0 }
         }
-        if ($snapshotEntry.PSObject.Properties.Name -contains 'TotalRows') {
+        if ($rowCount -le 0 -and $snapshotEntry.PSObject.Properties.Name -contains 'TotalRows') {
             try { $rowCount = [int]$snapshotEntry.TotalRows } catch { $rowCount = 0 }
         }
         if ($snapshotEntry.PSObject.Properties.Name -contains 'CachedAt') {
@@ -624,12 +652,43 @@ if (-not $SkipTests) {
         throw 'Invoke-Pester is not available in the current session.'
     }
 
-    Write-Host 'Running Pester tests (Modules/Tests)...' -ForegroundColor Cyan
-    $pesterResult = Invoke-Pester -Path $testsPath -PassThru
+    $ranInCurrentSession = $false
+    $currentApartment = $null
+    try { $currentApartment = [System.Threading.Thread]::CurrentThread.GetApartmentState() } catch { }
+    if ($currentApartment -ne [System.Threading.ApartmentState]::STA) {
+        try { [void][System.Threading.Thread]::CurrentThread.TrySetApartmentState([System.Threading.ApartmentState]::STA) } catch { }
+        try { $currentApartment = [System.Threading.Thread]::CurrentThread.GetApartmentState() } catch { }
+    }
+
+    if ($currentApartment -eq [System.Threading.ApartmentState]::STA) {
+        Write-Host 'Running Pester tests (Modules/Tests)...' -ForegroundColor Cyan
+        $pesterResult = Invoke-Pester -Path $testsPath -PassThru
+        $ranInCurrentSession = $true
+    } else {
+        Write-Host 'Running Pester tests (Modules/Tests) in STA helper process...' -ForegroundColor Cyan
+        $pesterCmd = "& { Import-Module Pester -ErrorAction Stop; `$result = Invoke-Pester -Path '$testsPath' -PassThru; if(`$null -ne `$result -and `$result.FailedCount -gt 0){ exit 3 } }"
+        $psi = New-Object System.Diagnostics.ProcessStartInfo
+        $psi.FileName = 'powershell.exe'
+        $psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -Sta -Command `"$pesterCmd`""
+        $psi.RedirectStandardOutput = $false
+        $psi.RedirectStandardError = $false
+        $psi.UseShellExecute = $false
+        $proc = [System.Diagnostics.Process]::Start($psi)
+        $proc.WaitForExit()
+        $pesterResult = $null
+        if ($proc.ExitCode -ne 0) {
+            throw "Pester reported failures in STA helper (exit code $($proc.ExitCode))."
+        }
+    }
+
     if ($null -ne $pesterResult -and $pesterResult.FailedCount -gt 0) {
         throw "Pester reported $($pesterResult.FailedCount) failing tests."
     }
-    Write-Host 'Pester tests completed successfully.' -ForegroundColor Green
+    if ($ranInCurrentSession) {
+        Write-Host 'Pester tests completed successfully.' -ForegroundColor Green
+    } else {
+        Write-Host 'Pester tests completed successfully in STA helper.' -ForegroundColor Green
+    }
 }
 
 if ($SkipParsing) {

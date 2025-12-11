@@ -16,6 +16,7 @@ Describe "ViewStateService Get-FilterSnapshot" {
 
     BeforeEach {
         $global:DeviceHostnameOrder = @()
+        $global:InterfacesLoadAllowed = $true
     }
 
     AfterAll {
@@ -23,6 +24,7 @@ Describe "ViewStateService Get-FilterSnapshot" {
         Remove-Variable -Name TestMetadata -Scope Script -ErrorAction SilentlyContinue
         Remove-Variable -Name DeviceHostnameOrder -Scope Global -ErrorAction SilentlyContinue
         Remove-Variable -Name DeviceMetadata -Scope Global -ErrorAction SilentlyContinue
+        Remove-Variable -Name InterfacesLoadAllowed -Scope Global -ErrorAction SilentlyContinue
     }
 
     It "returns sorted unique lists when no rotation is defined" {
@@ -73,6 +75,35 @@ Describe "ViewStateService Get-FilterSnapshot" {
         $snapshot.Rooms | Should BeNullOrEmpty
         $snapshot.Hostnames | Should BeNullOrEmpty
         $snapshot.ZoneToLoad | Should Be ''
+    }
+
+    It "emits site and zone data when only location entries are provided" {
+        $locations = @(
+            [pscustomobject]@{ Site = 'SITE1'; Zone = 'Z1'; Building = 'B1'; Room = 'R101' },
+            [pscustomobject]@{ Site = 'SITE1'; Zone = 'Z2'; Building = 'B2'; Room = 'R201' },
+            [pscustomobject]@{ Site = 'SITE2'; Zone = 'Z3'; Building = 'B3'; Room = 'R301' }
+        )
+
+        $snapshot = ViewStateService\Get-FilterSnapshot -DeviceMetadata $null -LocationEntries $locations
+
+        $snapshot.Sites | Should Be @('SITE1','SITE2')
+        $snapshot.Zones | Should Be @('Z1','Z2','Z3')
+        $snapshot.Buildings | Should Be @('B1','B2','B3')
+        $snapshot.Rooms | Should Be @('R101','R201','R301')
+        $snapshot.Hostnames | Should BeNullOrEmpty
+    }
+
+    It "falls back to location entries when metadata is an empty dictionary" {
+        $locations = @(
+            [pscustomobject]@{ Site = 'SITE1'; Zone = 'Z1'; Building = 'B1'; Room = 'R101' },
+            [pscustomobject]@{ Site = 'SITE2'; Zone = 'Z2'; Building = 'B2'; Room = 'R201' }
+        )
+
+        $snapshot = ViewStateService\Get-FilterSnapshot -DeviceMetadata @{} -LocationEntries $locations
+
+        $snapshot.Sites | Should Be @('SITE1','SITE2')
+        $snapshot.Zones | Should Be @('Z1','Z2')
+        $snapshot.Hostnames | Should BeNullOrEmpty
     }
 
     It "uses metadata to satisfy building and room filters when rows omit those fields" {

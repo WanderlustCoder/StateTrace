@@ -144,44 +144,51 @@ function Write-SharedCacheSnapshotFileInternal {
         }
     }
 
-    $entryArray = $Entries
+    $entryArray = @()
+    try { $entryArray = @(ConvertTo-SharedCacheEntryArray -Entries $Entries) } catch { $entryArray = @($Entries) }
+    if (-not ($entryArray -is [System.Collections.IEnumerable])) { $entryArray = @($entryArray) }
+    $sanitizedEntries = $null
     try {
-        $cacheHelper = Get-Command -Name 'DeviceRepository.Cache\ConvertTo-SharedCacheEntryArray' -ErrorAction SilentlyContinue
-        if (-not $cacheHelper) {
-            $cacheHelper = Get-Command -Name 'ConvertTo-SharedCacheEntryArray' -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue
+        $repoModule = Get-Module -Name 'DeviceRepositoryModule'
+        if (-not $repoModule) {
+            $repoPath = Join-Path -Path $modulesPath -ChildPath 'DeviceRepositoryModule.psm1'
+            if (Test-Path -LiteralPath $repoPath) {
+                $repoModule = Import-Module -Name $repoPath -PassThru -ErrorAction SilentlyContinue
+            }
         }
-        if ($cacheHelper) {
-            $entryArray = & $cacheHelper -Entries $Entries
+        if ($repoModule) {
+            $sanitizedEntries = @($repoModule.Invoke({ param($entries) Resolve-SharedSiteInterfaceCacheSnapshotEntries -Entries $entries }, $entryArray))
         }
     } catch {
-        $entryArray = $Entries
+        $sanitizedEntries = $null
     }
-    if (-not ($entryArray -is [System.Collections.IEnumerable])) { $entryArray = @($entryArray) }
-    $sanitizedEntries = [System.Collections.Generic.List[psobject]]::new()
+    if (-not $sanitizedEntries) {
+        $sanitizedEntries = [System.Collections.Generic.List[psobject]]::new()
 
-    foreach ($entry in $entryArray) {
-        if (-not $entry) { continue }
+        foreach ($entry in $entryArray) {
+            if (-not $entry) { continue }
 
-        $siteValue = ''
-        if ($entry.PSObject.Properties.Name -contains 'Site') {
-            $siteValue = ('' + $entry.Site).Trim()
-        } elseif ($entry.PSObject.Properties.Name -contains 'SiteKey') {
-            $siteValue = ('' + $entry.SiteKey).Trim()
+            $siteValue = ''
+            if ($entry.PSObject.Properties.Name -contains 'Site') {
+                $siteValue = ('' + $entry.Site).Trim()
+            } elseif ($entry.PSObject.Properties.Name -contains 'SiteKey') {
+                $siteValue = ('' + $entry.SiteKey).Trim()
+            }
+            if ([string]::IsNullOrWhiteSpace($siteValue)) { continue }
+
+            $entryValue = $null
+            if ($entry.PSObject.Properties.Name -contains 'Entry') {
+                $entryValue = $entry.Entry
+            }
+            if (-not $entryValue) {
+                continue
+            }
+
+            $sanitizedEntries.Add([pscustomobject]@{
+                    Site  = $siteValue
+                    Entry = $entryValue
+                }) | Out-Null
         }
-        if ([string]::IsNullOrWhiteSpace($siteValue)) { continue }
-
-        $entryValue = $null
-        if ($entry.PSObject.Properties.Name -contains 'Entry') {
-            $entryValue = $entry.Entry
-        }
-        if (-not $entryValue) {
-            continue
-        }
-
-        $sanitizedEntries.Add([pscustomobject]@{
-                Site  = $siteValue
-                Entry = $entryValue
-            }) | Out-Null
     }
 
     $directory = $null
@@ -1042,6 +1049,35 @@ function Invoke-StateTraceParsing {
 
     if ($PreserveRunspace) { $jobsParams.PreserveRunspacePool = $true }
 
+    function Get-SharedCacheSnapshotEntriesForExport {
+        param($DeviceRepoModule)
+
+        $entries = @()
+        if ($DeviceRepoModule) {
+            try { $entries = @($DeviceRepoModule.Invoke({ Get-SharedSiteInterfaceCacheSnapshotEntries })) } catch { $entries = @() }
+            if ($entries -and $entries.Count -gt 0) { return ,$entries }
+        }
+
+        $cacheSnapshotCmd = Get-Command -Name 'DeviceRepository.Cache\Get-SharedSiteInterfaceCacheSnapshotEntries' -ErrorAction SilentlyContinue
+        if (-not $cacheSnapshotCmd) {
+            $cacheSnapshotCmd = Get-Command -Name 'Get-SharedSiteInterfaceCacheSnapshotEntries' -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue
+        }
+        if ($cacheSnapshotCmd) {
+            try { $entries = @(& $cacheSnapshotCmd) } catch { $entries = @() }
+        }
+
+        if ($entries -and $entries.Count -gt 0) {
+            $cacheHelper = Get-Command -Name 'DeviceRepository.Cache\ConvertTo-SharedCacheEntryArray' -ErrorAction SilentlyContinue
+            if (-not $cacheHelper) {
+                $cacheHelper = Get-Command -Name 'ConvertTo-SharedCacheEntryArray' -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue
+            }
+            if ($cacheHelper) {
+                try { $entries = @(& $cacheHelper -Entries $entries) } catch { }
+            }
+        }
+
+        return ,$entries
+    }
 
 
     if ($deviceFiles.Count -gt 0) {
@@ -1061,6 +1097,20 @@ function Invoke-StateTraceParsing {
     if (-not [string]::IsNullOrWhiteSpace($SharedCacheSnapshotExportPath)) {
         try {
             $exported = $false
+            $deviceRepoModule = Get-Module -Name 'DeviceRepositoryModule'
+            if (-not $deviceRepoModule) {
+                try {
+                    $deviceRepoPath = Join-Path $modulesPath 'DeviceRepositoryModule.psm1'
+                    if (Test-Path -LiteralPath $deviceRepoPath) {
+                        $deviceRepoModule = Import-Module -Name $deviceRepoPath -ErrorAction SilentlyContinue -PassThru
+                    }
+                } catch { $deviceRepoModule = $null }
+            }
+
+            $snapshotEntries = Get-SharedCacheSnapshotEntriesForExport -DeviceRepoModule $deviceRepoModule
+            $snapshotEntryCount = ($snapshotEntries | Measure-Object).Count
+            Write-Verbose ("Shared cache snapshot entries captured: {0}" -f $snapshotEntryCount)
+
             $cacheModule = Get-Module -Name 'DeviceRepository.Cache' -ErrorAction SilentlyContinue
             if (-not $cacheModule) {
                 try {
@@ -1074,19 +1124,26 @@ function Invoke-StateTraceParsing {
             if (-not $cacheExportCmd) {
                 $cacheExportCmd = Get-Command -Name 'Export-SharedCacheSnapshot' -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue
             }
-            if ($cacheExportCmd) {
+            if ($cacheExportCmd -and $snapshotEntryCount -gt 0) {
                 try {
                     $siteFilter = [System.Collections.Generic.List[string]]::new()
-                    foreach ($entry in $snapshotEntries) {
-                        if (-not $entry) { continue }
-                        $siteValue = ''
-                        if ($entry.PSObject.Properties.Name -contains 'Site') {
-                            $siteValue = ('' + $entry.Site).Trim()
-                        } elseif ($entry.PSObject.Properties.Name -contains 'SiteKey') {
-                            $siteValue = ('' + $entry.SiteKey).Trim()
+                    try {
+                        $filterSites = @($deviceRepoModule.Invoke({ param($entries) Get-SharedCacheSiteFilterFromEntries -Entries $entries }, $snapshotEntries))
+                        if ($filterSites -and $filterSites.Count -gt 0) {
+                            foreach ($site in $filterSites) { if (-not [string]::IsNullOrWhiteSpace($site)) { $siteFilter.Add($site) | Out-Null } }
                         }
-                        if (-not [string]::IsNullOrWhiteSpace($siteValue)) {
-                            $siteFilter.Add($siteValue) | Out-Null
+                    } catch {
+                        foreach ($entry in $snapshotEntries) {
+                            if (-not $entry) { continue }
+                            $siteValue = ''
+                            if ($entry.PSObject.Properties.Name -contains 'Site') {
+                                $siteValue = ('' + $entry.Site).Trim()
+                            } elseif ($entry.PSObject.Properties.Name -contains 'SiteKey') {
+                                $siteValue = ('' + $entry.SiteKey).Trim()
+                            }
+                            if (-not [string]::IsNullOrWhiteSpace($siteValue)) {
+                                $siteFilter.Add($siteValue) | Out-Null
+                            }
                         }
                     }
 
@@ -1096,64 +1153,30 @@ function Invoke-StateTraceParsing {
                     & $cacheExportCmd @exportArgs | Out-Null
                     $exported = $true
                     Write-Verbose ("Shared cache snapshot exported via DeviceRepository.Cache to '{0}'." -f $SharedCacheSnapshotExportPath)
+                    if (Test-Path -LiteralPath $SharedCacheSnapshotExportPath) {
+                        $exportCheck = $null
+                        try { $exportCheck = Import-Clixml -Path $SharedCacheSnapshotExportPath } catch { $exportCheck = $null }
+                        $exportedCount = 0
+                        if ($exportCheck) {
+                            try { $exportedCount = ($exportCheck | Measure-Object).Count } catch { $exportedCount = 0 }
+                        }
+                        if ($exportedCount -le 0) {
+                            Write-Verbose ("Shared cache snapshot at '{0}' contained no entries after export; falling back to local writer." -f $SharedCacheSnapshotExportPath)
+                            $exported = $false
+                        }
+                    }
                 } catch {
                     Write-Verbose ("Shared cache snapshot export via DeviceRepository.Cache failed: {0}" -f $_.Exception.Message)
                 }
             }
 
             if (-not $exported) {
-                $snapshotEntries = @()
-                $cacheSnapshotCmd = Get-Command -Name 'DeviceRepository.Cache\Get-SharedSiteInterfaceCacheSnapshotEntries' -ErrorAction SilentlyContinue
-                if (-not $cacheSnapshotCmd) {
-                    $cacheSnapshotCmd = Get-Command -Name 'Get-SharedSiteInterfaceCacheSnapshotEntries' -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue
+                if ($snapshotEntryCount -le 0) {
+                    $snapshotEntries = Get-SharedCacheSnapshotEntriesForExport -DeviceRepoModule $deviceRepoModule
+                    $snapshotEntryCount = ($snapshotEntries | Measure-Object).Count
+                    Write-Verbose ("Shared cache snapshot entries captured: {0}" -f $snapshotEntryCount)
                 }
-                if ($cacheSnapshotCmd) {
-                    try { $snapshotEntries = @(& $cacheSnapshotCmd) } catch { $snapshotEntries = @() }
-                }
-                if (-not $snapshotEntries -or $snapshotEntries.Count -eq 0) {
-                    $deviceRepoModule = Get-Module -Name 'DeviceRepositoryModule'
-                    if ($deviceRepoModule) {
-                        $snapshotEntries = @($deviceRepoModule.Invoke({ Get-SharedSiteInterfaceCacheSnapshotEntries }))
-                    }
-                }
-                $snapshotEntryCount = ($snapshotEntries | Measure-Object).Count
-                Write-Verbose ("Shared cache snapshot entries captured: {0}" -f $snapshotEntryCount)
 
-                $normalizedEntries = $snapshotEntries
-                if ($normalizedEntries -and $normalizedEntries.Count -gt 0) {
-                    # Ensure fallback entries include an Entry payload for legacy writer compatibility.
-                    $normalizedList = [System.Collections.Generic.List[psobject]]::new()
-                    foreach ($entry in $normalizedEntries) {
-                        if (-not $entry) { continue }
-                        $siteValue = ''
-                        if ($entry.PSObject.Properties.Name -contains 'Site') {
-                            $siteValue = $entry.Site
-                        } elseif ($entry.PSObject.Properties.Name -contains 'SiteKey') {
-                            $siteValue = $entry.SiteKey
-                        }
-                        if ([string]::IsNullOrWhiteSpace($siteValue)) { continue }
-
-                        if ($entry.PSObject.Properties.Name -contains 'Entry') {
-                            $normalizedList.Add($entry) | Out-Null
-                            continue
-                        }
-
-                        $hostMap = $null
-                        if ($entry.PSObject.Properties.Name -contains 'HostMap') { $hostMap = $entry.HostMap }
-                        if (-not $hostMap) { continue }
-
-                        $normalizedList.Add([pscustomobject]@{
-                                Site  = $siteValue
-                                Entry = [pscustomobject]@{
-                                    HostMap   = $hostMap
-                                    HostCount = if ($entry.PSObject.Properties.Name -contains 'HostCount') { $entry.HostCount } else { $null }
-                                    TotalRows = if ($entry.PSObject.Properties.Name -contains 'TotalRows') { $entry.TotalRows } else { $null }
-                                }
-                            }) | Out-Null
-                    }
-                    $normalizedEntries = $normalizedList
-                    $snapshotEntryCount = ($normalizedEntries | Measure-Object).Count
-                }
                 if ($snapshotEntryCount -gt 0) {
                     $fallbackWriter = Get-Command -Name 'DeviceRepository.Cache\Write-SharedCacheSnapshotFileFallback' -ErrorAction SilentlyContinue
                     if (-not $fallbackWriter) {
@@ -1161,13 +1184,13 @@ function Invoke-StateTraceParsing {
                     }
                     if ($fallbackWriter) {
                         try {
-                            & $fallbackWriter -Path $SharedCacheSnapshotExportPath -Entries $normalizedEntries
+                            & $fallbackWriter -Path $SharedCacheSnapshotExportPath -Entries $snapshotEntries
                         } catch {
                             Write-Verbose ("Fallback shared cache snapshot export via DeviceRepository.Cache failed: {0}" -f $_.Exception.Message)
-                            Write-SharedCacheSnapshotFileInternal -Path $SharedCacheSnapshotExportPath -Entries $normalizedEntries
+                            Write-SharedCacheSnapshotFileInternal -Path $SharedCacheSnapshotExportPath -Entries $snapshotEntries
                         }
                     } else {
-                        Write-SharedCacheSnapshotFileInternal -Path $SharedCacheSnapshotExportPath -Entries $normalizedEntries
+                        Write-SharedCacheSnapshotFileInternal -Path $SharedCacheSnapshotExportPath -Entries $snapshotEntries
                     }
                 } else {
                     Write-Verbose ("Shared cache snapshot export skipped (no entries).")

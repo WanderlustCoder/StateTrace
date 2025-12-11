@@ -214,6 +214,21 @@ function Resolve-InterfaceDatabasePath {
     }
 }
 
+function Ensure-DeviceRepositoryModule {
+    [CmdletBinding()]
+    param()
+    try {
+        if (-not (Get-Module -Name DeviceRepositoryModule)) {
+            $repoModulePath = Join-Path $PSScriptRoot 'DeviceRepositoryModule.psm1'
+            if (Test-Path $repoModulePath) {
+                Import-Module $repoModulePath -Force -Global -ErrorAction SilentlyContinue | Out-Null
+            }
+        }
+    } catch {
+        # Swallow import errors; callers handle missing cmdlets gracefully.
+    }
+}
+
 function Ensure-DatabaseModule {
     [CmdletBinding()]
     param()
@@ -826,11 +841,38 @@ function Get-InterfaceList {
         }
     } catch {}
 
-    if (-not $global:StateTraceDb) { return @() }
+    Ensure-DeviceRepositoryModule
+
+    $databasePath = $null
+    $stateTraceDbVar = $null
+    $allowMissingPath = $false
+    try { $stateTraceDbVar = Get-Variable -Name StateTraceDb -Scope Global -ErrorAction Stop } catch { $stateTraceDbVar = $null }
+    if ($stateTraceDbVar -and $stateTraceDbVar.Value) {
+        $databasePath = $stateTraceDbVar.Value
+        # Preserve legacy behaviour for callers that pre-seed StateTraceDb even when the file is absent.
+        $allowMissingPath = $true
+    } else {
+        try { $databasePath = DeviceRepositoryModule\Get-DbPathForHost -Hostname $Hostname } catch { $databasePath = $null }
+        if (-not $databasePath -or -not (Test-Path -LiteralPath $databasePath)) {
+            try {
+                $siteFromHost = DeviceRepositoryModule\Get-SiteFromHostname -Hostname $Hostname
+                if ($siteFromHost) {
+                    $candidate = DeviceRepositoryModule\Get-DbPathForSite -Site $siteFromHost
+                    if ($candidate -and (Test-Path -LiteralPath $candidate)) { $databasePath = $candidate }
+                }
+            } catch { $databasePath = $databasePath }
+        }
+        if ($databasePath -and (-not $stateTraceDbVar -or -not $stateTraceDbVar.Value)) {
+            try { Set-Variable -Name StateTraceDb -Scope Global -Value $databasePath -Force } catch { }
+        }
+    }
+
+    if (-not $databasePath) { return @() }
+    if (-not $allowMissingPath -and -not (Test-Path -LiteralPath $databasePath)) { return @() }
     try {
         Ensure-DatabaseModule
         $escHost = $Hostname -replace "'", "''"
-        $dt = Invoke-DbQuery -DatabasePath $global:StateTraceDb -Sql "SELECT Port FROM Interfaces WHERE Hostname = '$escHost' ORDER BY Port"
+        $dt = Invoke-DbQuery -DatabasePath $databasePath -Sql "SELECT Port FROM Interfaces WHERE Hostname = '$escHost' ORDER BY Port"
         $portList = [System.Collections.Generic.List[string]]::new()
         foreach ($row in $dt) {
             [void]$portList.Add([string]$row.Port)

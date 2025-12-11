@@ -1927,16 +1927,22 @@ function Get-SiteCacheState {
 function ConvertTo-SharedCacheEntryArray {
     param([object]$Entries)
 
-    $cacheHelper = $null
-    try { $cacheHelper = Get-Command -Name 'DeviceRepository.Cache\ConvertTo-SharedCacheEntryArray' -ErrorAction SilentlyContinue } catch { }
-    if (-not $cacheHelper) {
-        try { $cacheHelper = Get-Command -Name 'ConvertTo-SharedCacheEntryArray' -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue } catch { }
+    $repoHelper = $null
+    try { $repoHelper = Get-Command -Name 'DeviceRepositoryModule\ConvertTo-SharedCacheEntryArray' -ErrorAction SilentlyContinue } catch { $repoHelper = $null }
+    if (-not $repoHelper) {
+        $repoPath = Join-Path -Path $repositoryRoot -ChildPath 'Modules\DeviceRepositoryModule.psm1'
+        if (Test-Path -LiteralPath $repoPath) {
+            try {
+                Import-Module -Name $repoPath -ErrorAction SilentlyContinue | Out-Null
+                $repoHelper = Get-Command -Name 'DeviceRepositoryModule\ConvertTo-SharedCacheEntryArray' -ErrorAction SilentlyContinue
+            } catch { $repoHelper = $null }
+        }
     }
-    if ($cacheHelper) {
-        try { return @(& $cacheHelper -Entries $Entries) } catch { }
+    if ($repoHelper) {
+        try { return @(& $repoHelper -Entries $Entries) } catch { }
     }
 
-    # Minimal fallback to keep shape stable when cache module is unavailable.
+    # Minimal fallback to keep shape stable when module helper is unavailable.
     if (-not $Entries) { return @() }
     if ($Entries -is [System.Collections.IList]) { return @($Entries) }
     return ,$Entries
@@ -2326,50 +2332,39 @@ function Write-SharedCacheSnapshotFile {
         }
     }
 
-    $sanitizedEntries = [System.Collections.Generic.List[psobject]]::new()
+    $sanitizedEntries = $null
+    try { $sanitizedEntries = @(@(DeviceRepositoryModule\Resolve-SharedSiteInterfaceCacheSnapshotEntries -Entries $entryArray -RehydrateMissingEntries)) } catch { $sanitizedEntries = $null }
+    if (-not $sanitizedEntries) {
+        $sanitizedEntries = [System.Collections.Generic.List[psobject]]::new()
 
-    foreach ($entry in $entryArray) {
-        if (-not $entry) { continue }
+        foreach ($entry in $entryArray) {
+            if (-not $entry) { continue }
 
-        $siteValue = ''
-        if ($entry.PSObject.Properties.Name -contains 'Site') {
-            $siteValue = ('' + $entry.Site).Trim()
-        } elseif ($entry.PSObject.Properties.Name -contains 'SiteKey') {
-            $siteValue = ('' + $entry.SiteKey).Trim()
-        }
-        if ([string]::IsNullOrWhiteSpace($siteValue)) { continue }
-
-        $entryValue = $null
-        if ($entry.PSObject.Properties.Name -contains 'Entry') {
-            $entryValue = $entry.Entry
-        }
-        if (-not $entryValue -or ($entryValue.PSObject.Properties.Name -contains 'HostCount' -and [int]$entryValue.HostCount -le 0)) {
-            # Try to rehydrate missing/empty entries directly from the cache store.
-            $rehydrated = $null
-            try { $rehydrated = DeviceRepositoryModule\Get-InterfaceSiteCache -Site $siteValue -Refresh } catch { $rehydrated = $null }
-            if (-not $rehydrated -and $siteValue) {
-                $alphaPrefix = ($siteValue -replace '[^A-Za-z]').Trim()
-                if ($alphaPrefix -and $alphaPrefix -ne $siteValue) {
-                    try { $rehydrated = DeviceRepositoryModule\Get-InterfaceSiteCache -Site $alphaPrefix -Refresh } catch { $rehydrated = $null }
-                    if ($rehydrated) {
-                        $siteValue = $alphaPrefix
-                    }
-                }
+            $siteValue = ''
+            if ($entry.PSObject.Properties.Name -contains 'Site') {
+                $siteValue = ('' + $entry.Site).Trim()
+            } elseif ($entry.PSObject.Properties.Name -contains 'SiteKey') {
+                $siteValue = ('' + $entry.SiteKey).Trim()
             }
-            if ($rehydrated) {
-                try { $entryValue = Normalize-InterfaceSiteCacheEntry -Entry $rehydrated } catch { $entryValue = $rehydrated }
+            if ([string]::IsNullOrWhiteSpace($siteValue)) { continue }
+
+            $entryValue = $null
+            if ($entry.PSObject.Properties.Name -contains 'Entry') {
+                $entryValue = $entry.Entry
             }
-        }
+            if (-not $entryValue -or ($entryValue.PSObject.Properties.Name -contains 'HostCount' -and [int]$entryValue.HostCount -le 0)) {
+                try { $entryValue = DeviceRepositoryModule\Get-InterfaceSiteCache -Site $siteValue -Refresh } catch { $entryValue = $entryValue }
+            }
+            if (-not $entryValue) {
+                Write-Warning ("Shared cache snapshot entry for site '{0}' is missing cache data and will be skipped." -f $siteValue)
+                continue
+            }
 
-        if (-not $entryValue) {
-            Write-Warning ("Shared cache snapshot entry for site '{0}' is missing cache data and will be skipped." -f $siteValue)
-            continue
+            $sanitizedEntries.Add([pscustomobject]@{
+                    Site  = $siteValue
+                    Entry = $entryValue
+                }) | Out-Null
         }
-
-        $sanitizedEntries.Add([pscustomobject]@{
-                Site  = $siteValue
-                Entry = $entryValue
-            }) | Out-Null
     }
 
     $directory = $null

@@ -108,7 +108,7 @@ foreach ($summary in $queueSummaries) {
     $builder.Add(('  - Source telemetry: `{0}`' -f $sourceTelemetry))
 
     $stats = $summary.Statistics
-    $sampleCount = if ($stats -and $stats.SampleCount -ne $null) { $stats.SampleCount } else { 0 }
+    $sampleCount = Get-SampleCount -Stats $stats -FallbackContainer $summary
     $builder.Add(('  - Samples: {0}' -f $sampleCount))
 
     $delayStats = $stats.QueueBuildDelayMs

@@ -67,9 +67,9 @@ if ($delaySamples.Count -lt $MinimumEventCount) {
     throw ("Queue delay summary requires at least {0} sample(s); found {1} in '{2}'." -f $MinimumEventCount, $delaySamples.Count, $MetricsPath)
 }
 
-$delayStats = New-StatsSummary -Values $delaySamples -Name 'QueueBuildDelayMs' -Percentiles @(50,95,99)
+$delayStats = New-SampleStats -Values $delaySamples -Name 'QueueBuildDelayMs' -Percentiles @(50,95,99)
 $durationStats = if ($durationSamples.Count -gt 0) {
-    New-StatsSummary -Values $durationSamples -Name 'QueueBuildDurationMs' -Percentiles @(50,95,99)
+    New-SampleStats -Values $durationSamples -Name 'QueueBuildDurationMs' -Percentiles @(50,95,99)
 } else {
     $null
 }

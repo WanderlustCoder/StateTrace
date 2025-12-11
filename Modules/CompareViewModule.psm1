@@ -26,6 +26,9 @@ try {
 } catch { }
 
 try { TelemetryModule\Import-InterfaceCommon | Out-Null } catch { }
+if (-not (Get-Variable -Scope Global -Name InterfacesLoadAllowed -ErrorAction SilentlyContinue)) {
+    $global:InterfacesLoadAllowed = $false
+}
 
 function Invoke-InterfaceStringPropertyValue {
     [CmdletBinding()]
@@ -112,10 +115,15 @@ function Get-CompareFilterContext {
     } catch {
         $metadata = $null
     }
+    try {
+        $locationEntries = $global:DeviceLocationEntries
+    } catch {
+        $locationEntries = $null
+    }
 
     $snapshot = $null
     try {
-        $snapshot = ViewStateService\Get-FilterSnapshot -DeviceMetadata $metadata -Site $siteSel -ZoneSelection $zoneSel -Building $bldSel -Room $roomSel
+        $snapshot = ViewStateService\Get-FilterSnapshot -DeviceMetadata $metadata -Site $siteSel -ZoneSelection $zoneSel -Building $bldSel -Room $roomSel -LocationEntries $locationEntries
     } catch {
         Write-Verbose "[CompareView] ViewStateService snapshot failed: $($_.Exception.Message)"
     }
@@ -811,6 +819,10 @@ function Get-CompareHandlers {
 function Update-CompareView {
     [CmdletBinding()]
     param([Parameter(Mandatory=$true)][System.Windows.Window]$Window)
+    if (-not $global:InterfacesLoadAllowed) {
+        Write-Verbose '[CompareView] Interfaces not allowed yet; skipping compare view update.'
+        return
+    }
     # Determine the window reference immediately
     Write-Verbose "[CompareView] Initializing new Compare view..."
     $script:windowRef = $Window
@@ -987,5 +999,3 @@ function Set-CompareSelection {
 }
 
 Export-ModuleMember -Function Resolve-CompareControls, Get-HostString, Get-HostsFromMain, Get-PortSortKey, Get-PortsForHost, Set-PortsForCombo, Get-GridRowFor, Get-AuthTemplateFromTooltip, Get-ThemeBrushForPortColor, Update-CompareThemeBrushes, Set-CompareFromRows, Show-CurrentComparison, Get-CompareHandlers, Update-CompareView, Set-CompareSelection
-
-

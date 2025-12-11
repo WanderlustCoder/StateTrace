@@ -83,11 +83,13 @@ foreach ($summaryPath in $QueueSummaryPaths) {
         continue
     }
 
+    $sampleCountValue = Get-SampleCount -Stats $delayStats -FallbackContainer $summary
+
     $record = [pscustomobject]@{
         GeneratedAtUtc        = '' + $summary.GeneratedAtUtc
         SourceTelemetryPath   = $source
         SummaryPath           = (Resolve-Path -LiteralPath $summaryPath).Path
-        SampleCount           = [int]$delayStats.SampleCount
+        SampleCount           = $sampleCountValue
         AverageQueueDelayMs   = [double]$delayStats.Average
         QueueDelayP95Ms       = [double]$delayStats.P95
         QueueDelayP99Ms       = [double]$delayStats.P99

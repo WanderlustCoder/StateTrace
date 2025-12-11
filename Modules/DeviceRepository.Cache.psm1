@@ -206,7 +206,11 @@ function ConvertTo-SharedCacheEntryArray {
     if (-not $Entries) { return @() }
 
     $current = $Entries
+    $depth = 0
     while ($current -is [System.Collections.IList] -and $current.Count -eq 1 -and ($current[0] -is [System.Collections.IList])) {
+        if ([object]::ReferenceEquals($current, $current[0])) { break }
+        $depth++
+        if ($depth -ge 32) { break }
         $current = $current[0]
     }
 
@@ -525,19 +529,40 @@ function Export-SharedCacheSnapshot {
 }
 
 function Get-SharedSiteInterfaceCacheSnapshotEntries {
-    $store = Get-SharedSiteInterfaceCacheStore
     $entries = [System.Collections.Generic.List[object]]::new()
 
-    foreach ($siteKey in @($store.Keys | Sort-Object)) {
-        $entry = $store[$siteKey]
-        if (-not $entry) { continue }
-        $stats = Get-SharedSiteInterfaceCacheEntryStatistics -Entry $entry
-        $entries.Add([pscustomobject]@{
-                SiteKey   = $siteKey
-                HostCount = $stats.HostCount
-                TotalRows = $stats.TotalRows
-                HostMap   = $entry
-            }) | Out-Null
+    $store = Get-SharedSiteInterfaceCacheStore
+    if ($store -is [System.Collections.IDictionary]) {
+        foreach ($siteKey in @($store.Keys | Sort-Object)) {
+            $entry = $store[$siteKey]
+            if (-not $entry) { continue }
+            $stats = Get-SharedSiteInterfaceCacheEntryStatistics -Entry $entry
+            $entries.Add([pscustomobject]@{
+                    SiteKey   = $siteKey
+                    HostCount = $stats.HostCount
+                    TotalRows = $stats.TotalRows
+                    HostMap   = $entry
+                }) | Out-Null
+        }
+    }
+
+    if ($entries.Count -eq 0) {
+        $snapshotStore = $null
+        try { $snapshotStore = [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::GetSnapshot() } catch { $snapshotStore = $null }
+        if ($snapshotStore -is [System.Collections.IDictionary]) {
+            foreach ($siteKey in @($snapshotStore.Keys | Sort-Object)) {
+                if ([string]::IsNullOrWhiteSpace($siteKey)) { continue }
+                $entry = $snapshotStore[$siteKey]
+                if (-not $entry) { continue }
+                $stats = Get-SharedSiteInterfaceCacheEntryStatistics -Entry $entry
+                $entries.Add([pscustomobject]@{
+                        SiteKey   = $siteKey
+                        HostCount = $stats.HostCount
+                        TotalRows = $stats.TotalRows
+                        HostMap   = $entry
+                    }) | Out-Null
+            }
+        }
     }
 
     return $entries.ToArray()

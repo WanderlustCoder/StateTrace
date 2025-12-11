@@ -1062,6 +1062,126 @@ Describe "DeviceRepositoryModule core helpers" {
             Assert-MockCalled Get-InterfaceSiteCache -ModuleName DeviceRepositoryModule -Times 1 -ParameterFilter { $Site -eq $siteKey -and $Refresh }
         }
 
+        It "returns shared cache snapshot entries when live store is empty but snapshot is preserved" {
+            InModuleScope -ModuleName DeviceRepositoryModule {
+                $originalStore = [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::GetStore()
+                $originalSnapshot = [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::GetSnapshot()
+                try {
+                    $emptyStore = New-Object 'System.Collections.Concurrent.ConcurrentDictionary[string, object]' ([System.StringComparer]::OrdinalIgnoreCase)
+                    [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($emptyStore)
+
+                    $hostMap = New-Object 'System.Collections.Concurrent.ConcurrentDictionary[string, object]' ([System.StringComparer]::OrdinalIgnoreCase)
+                    $hostMap['SNAP-A01-AS-01'] = @{
+                        'Gi1/0/1' = [pscustomobject]@{
+                            Port = 'Gi1/0/1'
+                            Name = 'Snapshot Port'
+                        }
+                    }
+
+                    $snapshotStore = New-Object 'System.Collections.Concurrent.ConcurrentDictionary[string, object]' ([System.StringComparer]::OrdinalIgnoreCase)
+                    $snapshotStore['SNAP'] = @{
+                        HostMap     = $hostMap
+                        CacheStatus = 'SharedOnly'
+                    }
+                    [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetSnapshot($snapshotStore)
+
+                    $results = Get-SharedSiteInterfaceCacheSnapshotEntries
+
+                    $results | Should Not BeNullOrEmpty
+                    $results.Count | Should Be 1
+                    $result = $results[0]
+                    $siteValue = ''
+                    if ($result.PSObject.Properties.Name -contains 'Site') {
+                        $siteValue = $result.Site
+                    } elseif ($result.PSObject.Properties.Name -contains 'SiteKey') {
+                        $siteValue = $result.SiteKey
+                    }
+                    $siteValue | Should Be 'SNAP'
+
+                    $hostMapValue = $null
+                    if ($result.PSObject.Properties.Name -contains 'Entry') {
+                        $hostMapValue = $result.Entry.HostMap
+                    } elseif ($result.PSObject.Properties.Name -contains 'HostMap') {
+                        $hostMapValue = $result.HostMap
+                    }
+                    $hostMapValue | Should Not BeNullOrEmpty
+                    ((($hostMapValue.Keys | Measure-Object).Count) -gt 0) | Should Be $true
+                } finally {
+                    [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($originalStore)
+                    [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetSnapshot($originalSnapshot)
+                }
+            }
+        }
+
+        It "rehydrates snapshot entries missing host data" {
+            InModuleScope -ModuleName DeviceRepositoryModule {
+                Mock -ModuleName DeviceRepositoryModule -CommandName Get-InterfaceSiteCache -MockWith {
+                    param([string]$Site, [switch]$Refresh)
+                    if ($Site -eq 'SITE1' -and $Refresh) {
+                        return [pscustomobject]@{
+                            HostMap     = @{
+                                'HOST1' = @{
+                                    'Gi1/0/1' = [pscustomobject]@{
+                                        Provider = 'Cache'
+                                    }
+                                }
+                            }
+                            HostCount   = 1
+                            TotalRows   = 1
+                            CacheStatus = 'Cache'
+                        }
+                    }
+                    return $null
+                } -Verifiable
+
+                $entries = @(
+                    [pscustomobject]@{
+                        Site  = 'SITE1'
+                        Entry = [pscustomobject]@{
+                            HostCount = 0
+                            HostMap   = $null
+                        }
+                    }
+                )
+
+                $resolved = Resolve-SharedSiteInterfaceCacheSnapshotEntries -Entries $entries -RehydrateMissingEntries
+
+                $resolved | Should Not BeNullOrEmpty
+                $resolved.Count | Should Be 1
+                $resolved[0].Entry.HostMap | Should Not BeNullOrEmpty
+                Assert-MockCalled Get-InterfaceSiteCache -ModuleName DeviceRepositoryModule -Times 1 -ParameterFilter { $Site -eq 'SITE1' -and $Refresh }
+            }
+        }
+
+        It "hydrates fallback sites when snapshot entries are empty" {
+            InModuleScope -ModuleName DeviceRepositoryModule {
+                Mock -ModuleName DeviceRepositoryModule -CommandName Get-InterfaceSiteCache -MockWith {
+                    param([string]$Site, [switch]$Refresh)
+                    if ($Site -eq 'SNAP' -and $Refresh) {
+                        return [pscustomobject]@{
+                            HostMap   = @{
+                                'snap-host' = @{
+                                    'Et1' = [pscustomobject]@{
+                                        Provider = 'Hydrate'
+                                    }
+                                }
+                            }
+                            HostCount = 1
+                            TotalRows = 1
+                        }
+                    }
+                    return $null
+                } -Verifiable
+
+                $resolved = Resolve-SharedSiteInterfaceCacheSnapshotEntries -Entries @() -FallbackSites @('SNAP-01') -RehydrateMissingEntries
+
+                $resolved | Should Not BeNullOrEmpty
+                $resolved.Count | Should Be 1
+                $resolved[0].Site | Should Be 'SNAP'
+                Assert-MockCalled Get-InterfaceSiteCache -ModuleName DeviceRepositoryModule -Times 1 -ParameterFilter { $Site -eq 'SNAP' -and $Refresh }
+            }
+        }
+
         It "skips shared cache entries missing payload during restore" {
             $module = Get-Module DeviceRepositoryModule -ErrorAction Stop
             $validSite = 'RESTORE1'
