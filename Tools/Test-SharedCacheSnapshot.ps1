@@ -60,7 +60,26 @@ function Convert-SnapshotToSummary {
                 $hostCount = @($entryValue.Hosts).Count
             } elseif ($entryValue.PSObject.Properties.Name -contains 'HostMap') {
                 $hostCount = @($entryValue.HostMap.Keys).Count
-                $rowCount = @($entryValue.HostMap.Values | ForEach-Object { @($_).Count }).MeasureObject().Sum
+
+                $hostMap = $entryValue.HostMap
+                if ($hostMap -is [System.Collections.IDictionary]) {
+                    foreach ($hostKey in @($hostMap.Keys)) {
+                        $ports = $hostMap[$hostKey]
+                        if ($null -eq $ports) { continue }
+
+                        if ($ports -is [System.Collections.ICollection]) {
+                            try { $rowCount += [int]$ports.Count } catch { $rowCount++ }
+                        } elseif ($ports -is [System.Collections.IEnumerable] -and -not ($ports -is [string])) {
+                            try { $rowCount += @($ports).Count } catch { $rowCount++ }
+                        } else {
+                            $rowCount++
+                        }
+                    }
+                } elseif ($hostMap -is [System.Collections.ICollection]) {
+                    try { $rowCount = [int]$hostMap.Count } catch { $rowCount = 0 }
+                } elseif ($hostMap -is [System.Collections.IEnumerable] -and -not ($hostMap -is [string])) {
+                    try { $rowCount = @($hostMap).Count } catch { $rowCount = 0 }
+                }
             }
 
             if ($rowCount -le 0 -and $entryValue.PSObject.Properties.Name -contains 'TotalRows') {
