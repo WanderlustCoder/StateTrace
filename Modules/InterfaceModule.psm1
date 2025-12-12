@@ -220,7 +220,7 @@ function Ensure-DeviceRepositoryModule {
     try {
         if (-not (Get-Module -Name DeviceRepositoryModule)) {
             $repoModulePath = Join-Path $PSScriptRoot 'DeviceRepositoryModule.psm1'
-            if (Test-Path $repoModulePath) {
+            if (Test-Path -LiteralPath $repoModulePath) {
                 Import-Module $repoModulePath -Force -Global -ErrorAction SilentlyContinue | Out-Null
             }
         }
@@ -235,7 +235,7 @@ function Ensure-DatabaseModule {
     try {
         if (-not (Get-Module -Name DatabaseModule)) {
             $dbModulePath = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
-            if (Test-Path $dbModulePath) {
+            if (Test-Path -LiteralPath $dbModulePath) {
                 Import-Module $dbModulePath -Force -Global -ErrorAction SilentlyContinue | Out-Null
             }
         }
@@ -515,7 +515,7 @@ function New-InterfaceObjectsFromDbRow {
     # Fallback to query DeviceSummary if vendor still Cisco
     if ($vendor -eq 'Cisco') {
         try {
-            $mkDt = Invoke-DbQuery -DatabasePath $dbPath -Sql "SELECT Make FROM DeviceSummary WHERE Hostname = '$escHost'"
+            $mkDt = DatabaseModule\Invoke-DbQuery -DatabasePath $dbPath -Sql "SELECT Make FROM DeviceSummary WHERE Hostname = '$escHost'"
             if ($mkDt) {
                 $mkRows = DatabaseModule\ConvertTo-DbRowList -Data $mkDt
                 if ($mkRows.Count -gt 0) {
@@ -530,21 +530,21 @@ function New-InterfaceObjectsFromDbRow {
         $abText = $null
         try {
             # Check if the first row exposes an 'AuthBlock' property without constraining MemberType
-        if ($firstRow -and ($firstRow | Get-Member -Name 'AuthBlock' -ErrorAction SilentlyContinue)) {
-            $abText = '' + $firstRow.AuthBlock
-        }
-    } catch {}
-    if (-not $abText) {
-        try {
-            $abDt = Invoke-DbQuery -DatabasePath $dbPath -Sql "SELECT AuthBlock FROM DeviceSummary WHERE Hostname = '$escHost'"
-            if ($abDt) {
-                $abRows = DatabaseModule\ConvertTo-DbRowList -Data $abDt
-                if ($abRows.Count -gt 0) {
-                    try { $abText = '' + $abRows[0].AuthBlock } catch { }
-                }
+            if ($firstRow -and ($firstRow | Get-Member -Name 'AuthBlock' -ErrorAction SilentlyContinue)) {
+                $abText = '' + $firstRow.AuthBlock
             }
         } catch {}
-    }
+        if (-not $abText) {
+            try {
+                $abDt = DatabaseModule\Invoke-DbQuery -DatabasePath $dbPath -Sql "SELECT AuthBlock FROM DeviceSummary WHERE Hostname = '$escHost'"
+                if ($abDt) {
+                    $abRows = DatabaseModule\ConvertTo-DbRowList -Data $abDt
+                    if ($abRows.Count -gt 0) {
+                        try { $abText = '' + $abRows[0].AuthBlock } catch { }
+                    }
+                }
+            } catch {}
+        }
         if ($abText) {
             # Split into non-empty trimmed lines.  Use a typed list instead of ForEach-Object to
             # avoid pipeline overhead when processing large authentication blocks.
@@ -872,7 +872,7 @@ function Get-InterfaceList {
     try {
         Ensure-DatabaseModule
         $escHost = $Hostname -replace "'", "''"
-        $dt = Invoke-DbQuery -DatabasePath $databasePath -Sql "SELECT Port FROM Interfaces WHERE Hostname = '$escHost' ORDER BY Port"
+        $dt = DatabaseModule\Invoke-DbQuery -DatabasePath $databasePath -Sql "SELECT Port FROM Interfaces WHERE Hostname = '$escHost' ORDER BY Port"
         $portList = [System.Collections.Generic.List[string]]::new()
         foreach ($row in $dt) {
             [void]$portList.Add([string]$row.Port)
@@ -967,13 +967,20 @@ function New-InterfacesView {
     }
 
     # Validate that the XAML file exists before proceeding.
-    if (-not (Test-Path $interfacesViewXamlPath)) {
+    if (-not (Test-Path -LiteralPath $interfacesViewXamlPath)) {
         Write-Warning "Missing InterfacesView.xaml at $interfacesViewXamlPath"
         return
     }
-    $ifaceXaml   = Get-Content $interfacesViewXamlPath -Raw
+    $ifaceXaml   = Get-Content -LiteralPath $interfacesViewXamlPath -Raw
     $ifaceReader = New-Object System.Xml.XmlTextReader (New-Object System.IO.StringReader($ifaceXaml))
-    $interfacesView = [Windows.Markup.XamlReader]::Load($ifaceReader)
+    try {
+        $interfacesView = [Windows.Markup.XamlReader]::Load($ifaceReader)
+    } finally {
+        if ($ifaceReader) {
+            try { $ifaceReader.Close() } catch { }
+            try { $ifaceReader.Dispose() } catch { }
+        }
+    }
 
     # Mount view
     $interfacesHost = $Window.FindName('InterfacesHost')
