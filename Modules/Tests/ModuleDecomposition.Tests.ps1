@@ -12,6 +12,37 @@ Describe "Module decomposition shims" -Tag 'Decomposition' {
             $module | Should Not BeNullOrEmpty
             ($module.ExportedFunctions.Count) -gt 0 | Should Be $true
         }
+
+        It "exports shared cache snapshots when store entries are wrapped" {
+            $siteKey = 'EXPORTTEST'
+            $tempPath = Join-Path $env:TEMP ("SharedCacheExportTest-{0}.clixml" -f ([guid]::NewGuid().ToString('N')))
+
+            try {
+                DeviceRepository.Cache\Clear-SharedSiteInterfaceCache -Reason 'test'
+                $store = DeviceRepository.Cache\Get-SharedSiteInterfaceCacheStore
+                $store[$siteKey] = [pscustomobject]@{
+                    HostMap = @{
+                        'host1' = @{
+                            'Gi1/0/1' = [pscustomobject]@{
+                                Provider = 'Cache'
+                            }
+                        }
+                    }
+                }
+
+                DeviceRepository.Cache\Export-SharedCacheSnapshot -OutputPath $tempPath -SiteFilter @($siteKey)
+                (Test-Path -LiteralPath $tempPath) | Should Be $true
+
+                $imported = Import-Clixml -LiteralPath $tempPath
+                $entries = @($imported)
+                $entries.Count | Should Be 1
+                $entries[0].SiteKey | Should Be $siteKey
+                $entries[0].HostMap | Should Not BeNullOrEmpty
+            } finally {
+                try { Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue } catch { }
+                try { DeviceRepository.Cache\Clear-SharedSiteInterfaceCache -Reason 'test' } catch { }
+            }
+        }
     }
 
     Context "ParserPersistence decomposition exports" {

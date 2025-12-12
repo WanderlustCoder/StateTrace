@@ -514,10 +514,30 @@ function Export-SharedCacheSnapshot {
             continue
         }
 
-        $snapshot.Add((New-Object 'StateTrace.Repository.SharedSiteInterfaceCacheEntry' -Property @{
-                        SiteKey = $siteKey
-                        HostMap = $store[$siteKey]
-                    })) | Out-Null
+        $hostMapSource = $null
+        try { $hostMapSource = $store[$siteKey] } catch { $hostMapSource = $null }
+        if ($hostMapSource -and -not ($hostMapSource -is [System.Collections.IDictionary]) -and ($hostMapSource.PSObject.Properties.Name -contains 'HostMap')) {
+            try { $hostMapSource = $hostMapSource.HostMap } catch { }
+        }
+        if (-not $hostMapSource) { continue }
+
+        $hostMap = $hostMapSource
+        if (-not ($hostMap -is [System.Collections.Generic.IDictionary[string, object]])) {
+            $converted = New-Object 'System.Collections.Generic.Dictionary[string, object]' ([System.StringComparer]::OrdinalIgnoreCase)
+            if ($hostMap -is [System.Collections.IDictionary]) {
+                foreach ($key in @($hostMap.Keys)) {
+                    $name = if ($key) { ('' + $key).Trim() } else { '' }
+                    if ([string]::IsNullOrWhiteSpace($name)) { continue }
+                    $converted[$name] = $hostMap[$key]
+                }
+            }
+            $hostMap = $converted
+        }
+
+        $entry = New-Object 'StateTrace.Repository.SharedSiteInterfaceCacheEntry'
+        $entry.SiteKey = $siteKey
+        $entry.HostMap = $hostMap
+        $snapshot.Add($entry) | Out-Null
     }
 
     try {
