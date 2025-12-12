@@ -655,7 +655,8 @@ if ($RequireSharedCacheSnapshotGuard.IsPresent) {
         '-PassThru'
     )
     if ($SharedCacheRequiredSites -and $SharedCacheRequiredSites.Count -gt 0) {
-        $guardParams += @('-RequiredSites', ($SharedCacheRequiredSites -join ','))
+        $guardParams += @('-RequiredSites')
+        $guardParams += @($SharedCacheRequiredSites)
     }
 
     Write-Host ("Shared cache snapshot guard: validating {0}..." -f $snapshotTarget) -ForegroundColor Cyan

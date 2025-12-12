@@ -122,9 +122,19 @@ if ($null -eq $hostCount) { $hostCount = 0 }
 if ($null -eq $rowCount) { $rowCount = 0 }
 
 $missingSites = @()
-if ($RequiredSites -and $RequiredSites.Count -gt 0) {
+
+$normalizedRequiredSites = @()
+foreach ($requiredEntry in @($RequiredSites)) {
+    if ([string]::IsNullOrWhiteSpace($requiredEntry)) { continue }
+    foreach ($candidate in (('' + $requiredEntry) -split ',')) {
+        if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
+        $normalizedRequiredSites += $candidate.Trim()
+    }
+}
+
+if ($normalizedRequiredSites -and $normalizedRequiredSites.Count -gt 0) {
     $present = @($summaryEntries | ForEach-Object { $_.Site }) | Select-Object -Unique
-    foreach ($req in $RequiredSites) {
+    foreach ($req in $normalizedRequiredSites) {
         if ($present -notcontains $req) { $missingSites += $req }
     }
 }

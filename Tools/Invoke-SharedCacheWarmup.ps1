@@ -172,7 +172,8 @@ if (-not $SkipCoverageValidation.IsPresent) {
         '-MinimumTotalRowCount', $MinimumTotalRowCount
     )
     if ($RequiredSites -and $RequiredSites.Count -gt 0) {
-        $snapshotGuardParams += @('-RequiredSites', ($RequiredSites -join ','))
+        $snapshotGuardParams += @('-RequiredSites')
+        $snapshotGuardParams += @($RequiredSites)
     }
     Write-Host ("[SharedCacheWarmup] Validating snapshot coverage via Test-SharedCacheSnapshot.ps1...") -ForegroundColor Cyan
     & pwsh @snapshotGuardParams
