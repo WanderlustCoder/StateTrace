@@ -73,7 +73,7 @@ function Read-SnapshotEntries {
 
 function Get-EntrySummary {
     param(
-        [pscustomobject]$Entry,
+        [object]$Entry,
         [string]$SourcePath
     )
 
@@ -81,11 +81,20 @@ function Get-EntrySummary {
     $rowCount = 0
     $cachedAt = $null
     $hostMapType = ''
+    $siteValue = ''
 
     if ($Entry.PSObject.Properties.Name -contains 'Entry') {
         $snapshotEntry = $Entry.Entry
     } else {
         $snapshotEntry = $Entry
+    }
+
+    if ($Entry.PSObject.Properties.Name -contains 'Site') {
+        try { $siteValue = ('' + $Entry.Site).Trim() } catch { $siteValue = '' }
+    } elseif ($Entry.PSObject.Properties.Name -contains 'SiteKey') {
+        try { $siteValue = ('' + $Entry.SiteKey).Trim() } catch { $siteValue = '' }
+    } elseif ($snapshotEntry -and $snapshotEntry.PSObject.Properties.Name -contains 'SiteKey') {
+        try { $siteValue = ('' + $snapshotEntry.SiteKey).Trim() } catch { $siteValue = '' }
     }
 
     if ($snapshotEntry -and $snapshotEntry.PSObject.Properties.Name -contains 'HostCount') {
@@ -98,15 +107,31 @@ function Get-EntrySummary {
         $cachedAt = $snapshotEntry.CachedAt
     }
     if ($snapshotEntry -and $snapshotEntry.PSObject.Properties.Name -contains 'HostMap') {
+        $hostMap = $null
+        try { $hostMap = $snapshotEntry.HostMap } catch { $hostMap = $null }
         try {
-            $hostMapType = $snapshotEntry.HostMap.GetType().FullName
+            if ($hostMap) {
+                $hostMapType = $hostMap.GetType().FullName
+            }
         } catch {
             $hostMapType = ''
+        }
+        if ($hostCount -le 0 -and $hostMap -is [System.Collections.IDictionary]) {
+            try { $hostCount = [int]$hostMap.Count } catch { $hostCount = 0 }
+        }
+        if ($rowCount -le 0 -and $hostMap -is [System.Collections.IDictionary]) {
+            foreach ($value in $hostMap.Values) {
+                if ($value -is [System.Collections.IDictionary] -or $value -is [System.Collections.ICollection]) {
+                    try { $rowCount += [int]$value.Count } catch { }
+                } elseif ($null -ne $value) {
+                    $rowCount++
+                }
+            }
         }
     }
 
     [pscustomobject]@{
-        Site        = $Entry.Site
+        Site        = $siteValue
         Hosts       = $hostCount
         TotalRows   = $rowCount
         CachedAt    = $cachedAt
@@ -164,6 +189,7 @@ $summaries = [System.Collections.Generic.List[pscustomobject]]::new()
 foreach ($file in $filesToInspect) {
     $entries = Read-SnapshotEntries -FilePath $file
     foreach ($entry in $entries) {
+        if (-not $entry) { continue }
         $summaries.Add((Get-EntrySummary -Entry $entry -SourcePath $file)) | Out-Null
     }
 }
