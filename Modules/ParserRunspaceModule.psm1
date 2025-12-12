@@ -612,7 +612,7 @@ function Invoke-DeviceParseWorker {
     $parseSucceeded = $false
     try {
         & $writeLog ("Parsing: {0}" -f $FilePath)
-        DeviceLogParserModule\Invoke-DeviceLogParsing -FilePath $FilePath -ArchiveRoot $ArchiveRoot -DatabasePath $DatabasePath
+        $null = DeviceLogParserModule\Invoke-DeviceLogParsing -FilePath $FilePath -ArchiveRoot $ArchiveRoot -DatabasePath $DatabasePath
         & $writeLog ("Parsing complete: {0}" -f $FilePath)
         $parseSucceeded = $true
     } catch {
