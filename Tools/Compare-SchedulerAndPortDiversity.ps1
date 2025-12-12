@@ -58,8 +58,13 @@ try {
 if (-not $scheduler.SiteSummaries) {
     throw "Scheduler report '$schedulerPath' does not contain SiteSummaries."
 }
-if (-not $port.SiteStreaks) {
+if (-not ($port -and $port.PSObject.Properties.Name -contains 'SiteStreaks')) {
     throw "Port diversity report '$portPath' does not contain SiteStreaks."
+}
+
+$portStreaks = @($port.SiteStreaks)
+if (-not $portStreaks -or $portStreaks.Count -eq 0) {
+    Write-Warning ("Port diversity report '{0}' contains no SiteStreaks; treating PortBatchReady streaks as zero." -f $portPath)
 }
 
 $schedulerLookup = @{}
@@ -70,7 +75,7 @@ foreach ($entry in $scheduler.SiteSummaries) {
 }
 
 $portLookup = @{}
-foreach ($entry in $port.SiteStreaks) {
+foreach ($entry in $portStreaks) {
     if ($entry.Site) {
         $portLookup[$entry.Site] = [int]$entry.MaxCount
     }
@@ -96,6 +101,18 @@ foreach ($site in $sites) {
 $mismatches = $rows | Where-Object { $_.Mismatch }
 $sortedSites = $rows | Sort-Object -Property @{Expression = 'PortMinusScheduler'; Descending = $true }, @{Expression = 'Site'; Descending = $false }
 
+$maxPortBatchStreak = 0
+if ($portStreaks -and $portStreaks.Count -gt 0) {
+    try {
+        $measure = $portStreaks | Measure-Object -Property MaxCount -Maximum
+        if ($measure -and $measure.PSObject.Properties.Name -contains 'Maximum') {
+            $maxPortBatchStreak = [int]$measure.Maximum
+        }
+    } catch {
+        $maxPortBatchStreak = 0
+    }
+}
+
 $summary = [pscustomobject]@{
     SchedulerReportPath  = $schedulerPath
     PortDiversityPath    = $portPath
@@ -103,7 +120,7 @@ $summary = [pscustomobject]@{
     Sites                = $sortedSites
     MismatchCount        = ($mismatches | Measure-Object).Count
     MaxSchedulerStreak   = [int]($scheduler.SiteSummaries | Measure-Object -Property MaxConsecutive -Maximum).Maximum
-    MaxPortBatchStreak   = [int]($port.SiteStreaks | Measure-Object -Property MaxCount -Maximum).Maximum
+    MaxPortBatchStreak   = $maxPortBatchStreak
 }
 
 Write-Host ("Scheduler max streak: {0}; PortBatchReady max streak: {1}" -f $summary.MaxSchedulerStreak, $summary.MaxPortBatchStreak) -ForegroundColor Cyan

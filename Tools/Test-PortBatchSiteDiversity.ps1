@@ -5,6 +5,8 @@ param(
 
     [int]$MaxAllowedConsecutive = 8,
 
+    [switch]$AllowEmpty,
+
     [string]$OutputPath
 )
 
@@ -54,7 +56,34 @@ Get-Content -LiteralPath $metricsFile -ReadCount 500 | ForEach-Object {
     }
 }
 
-if ($events.Count -eq 0) { throw "No PortBatchReady events found in '$metricsFile'." }
+if ($events.Count -eq 0) {
+    if (-not $AllowEmpty.IsPresent) {
+        throw "No PortBatchReady events found in '$metricsFile'."
+    }
+
+    $result = [pscustomobject]@{
+        MetricsFile              = (Resolve-Path -LiteralPath $metricsFile).Path
+        GeneratedAtUtc           = (Get-Date).ToUniversalTime().ToString('o')
+        MaxAllowedConsecutive    = $MaxAllowedConsecutive
+        EvaluationEnd            = $null
+        TerminalSite             = $null
+        SitesRemainingWhenStopped= 0
+        PortBatchReadyCount      = 0
+        SiteStreaks              = @()
+        Skipped                  = $true
+        SkipReason               = 'NoPortBatchReadyEvents'
+    }
+
+    if ($OutputPath) {
+        $dir = Split-Path -Path $OutputPath -Parent
+        if ($dir -and -not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+        $result | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $OutputPath -Encoding utf8
+        Write-Host ("Site diversity summary written to {0}" -f (Resolve-Path -LiteralPath $OutputPath)) -ForegroundColor DarkCyan
+    }
+
+    Write-Warning ("No PortBatchReady events found in '{0}'; skipping site diversity evaluation." -f $metricsFile)
+    return $result
+}
 
 $sorted = $events | Sort-Object Timestamp
 $streaks = @()
