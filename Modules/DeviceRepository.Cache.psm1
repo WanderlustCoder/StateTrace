@@ -347,7 +347,7 @@ function Initialize-SharedSiteInterfaceCacheStore {
         $store = $script:SharedSiteInterfaceCache
     }
     if (-not $store -or -not ($store -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]])) {
-        $store = New-Object 'System.Collections.Concurrent.ConcurrentDictionary[string, object]'
+        $store = New-Object 'System.Collections.Concurrent.ConcurrentDictionary[string, object]' ([System.StringComparer]::OrdinalIgnoreCase)
     }
 
     try {
@@ -357,7 +357,7 @@ function Initialize-SharedSiteInterfaceCacheStore {
             $store = $existing
         }
     } catch {
-        $store = New-Object 'System.Collections.Concurrent.ConcurrentDictionary[string, object]'
+        $store = New-Object 'System.Collections.Concurrent.ConcurrentDictionary[string, object]' ([System.StringComparer]::OrdinalIgnoreCase)
     }
 
     $count = Import-SharedSiteInterfaceCacheSnapshot -Store $store

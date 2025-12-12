@@ -80,6 +80,33 @@ Describe "Module decomposition shims" -Tag 'Decomposition' {
                 try { DeviceRepository.Cache\Clear-SharedSiteInterfaceCache -Reason 'test' } catch { }
             }
         }
+
+        It "treats shared cache site keys as case-insensitive" {
+            $siteKeyLower = 'casetest'
+            $siteKeyUpper = 'CASETEST'
+            $module = Get-Module -Name 'DeviceRepository.Cache' -ErrorAction Stop
+
+            try {
+                DeviceRepository.Cache\Clear-SharedSiteInterfaceCache -Reason 'test'
+                try { $module.SessionState.PSVariable.Set('SharedSiteInterfaceCache', $null) } catch { }
+
+                $store = DeviceRepository.Cache\Get-SharedSiteInterfaceCacheStore
+                $store | Should Not Be $null
+
+                DeviceRepository.Cache\Set-SharedSiteInterfaceCacheEntry -SiteKey $siteKeyLower -Entry @{
+                    'host1' = @{
+                        'Gi1/0/1' = [pscustomobject]@{ Port = 'Gi1/0/1' }
+                    }
+                }
+
+                $fetched = DeviceRepository.Cache\Get-SharedSiteInterfaceCacheEntry -SiteKey $siteKeyUpper
+                $fetched | Should Not BeNullOrEmpty
+                ($fetched.Keys -contains 'host1') | Should Be $true
+            } finally {
+                try { DeviceRepository.Cache\Clear-SharedSiteInterfaceCache -Reason 'test' } catch { }
+                try { $module.SessionState.PSVariable.Set('SharedSiteInterfaceCache', $null) } catch { }
+            }
+        }
     }
 
     Context "ParserPersistence decomposition exports" {
