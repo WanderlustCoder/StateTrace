@@ -632,6 +632,8 @@ function Clear-SharedSiteInterfaceCache {
         try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::ClearStore() } catch { }
     }
 
+    try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::ClearSnapshot() } catch { }
+
     $postClearHash = [System.Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($store)
     $postClearCount = [int]$store.Count
     Publish-SharedSiteInterfaceCacheStoreState -Operation 'ClearRequested' -EntryCount $preClearCount -StoreHashCode $preClearHash

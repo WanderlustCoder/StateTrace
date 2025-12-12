@@ -84,9 +84,18 @@ Describe "Module decomposition shims" -Tag 'Decomposition' {
             $stats.HostCount | Should Be 2
             $stats.TotalRows | Should Be 2
 
+            $snapshot = New-Object 'System.Collections.Concurrent.ConcurrentDictionary[string, object]' ([System.StringComparer]::OrdinalIgnoreCase)
+            $snapshotEntry = New-Object 'StateTrace.Repository.SharedSiteInterfaceCacheEntry'
+            $snapshotEntry.SiteKey = $siteKey
+            $snapshotEntry.HostMap = New-Object 'System.Collections.Generic.Dictionary[string, object]' ([System.StringComparer]::OrdinalIgnoreCase)
+            $snapshotEntry.HostMap['h1'] = @($rows[0])
+            $snapshot[$siteKey] = $snapshotEntry
+            [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetSnapshot($snapshot)
+
             DeviceRepository.Cache\Clear-SharedSiteInterfaceCache -Reason 'test'
             $cleared = DeviceRepository.Cache\Get-SharedSiteInterfaceCacheEntry -SiteKey $siteKey
             $cleared | Should Be $null
+            [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::GetSnapshot() | Should Be $null
         }
     }
 }
