@@ -26,8 +26,8 @@ pwsh Tools\Analyze-SharedCacheStoreState.ps1 `
 
 Key signals:
 - `SnapshotImported` > 0 confirms the snapshot was restored into the shared store before parsing. `0` means the env var/snapshot was missing.
-- `InitNewStore` counts (per runspace) highlight how often the shared dictionary is rebuilt instead of reused.
-- Compare `GetHit` vs. `GetMiss` for overall reuse, then review the “Top sites” table to see which sites still drive Access hydrations.
+- `InitDelegatedStore` (newer telemetry) tracks runspace store initialization/binding; older logs may instead report `InitNewStore`/`InitReuseStore`.
+- Compare `GetHit` vs. `GetMiss` for overall reuse, then review the "Top sites" table to see which sites still drive Access hydrations.
 
 Include the summary table (or at least SnapshotImported/GetHit/GetMiss counts) in your plan/task update whenever you run the harness.
 

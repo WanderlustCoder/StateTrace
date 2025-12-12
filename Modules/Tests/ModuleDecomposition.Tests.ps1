@@ -107,6 +107,35 @@ Describe "Module decomposition shims" -Tag 'Decomposition' {
                 try { $module.SessionState.PSVariable.Set('SharedSiteInterfaceCache', $null) } catch { }
             }
         }
+
+        It "promotes the shared cache store to the holder and AppDomain" {
+            $module = Get-Module -Name 'DeviceRepository.Cache' -ErrorAction Stop
+            $cacheKey = $module.SessionState.PSVariable.Get('SharedSiteInterfaceCacheKey').Value
+
+            try {
+                DeviceRepository.Cache\Clear-SharedSiteInterfaceCache -Reason 'test'
+                try { [System.AppDomain]::CurrentDomain.SetData($cacheKey, $null) } catch { }
+                try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::ClearStore() } catch { }
+                try { $module.SessionState.PSVariable.Set('SharedSiteInterfaceCache', $null) } catch { }
+
+                $expected = New-Object 'System.Collections.Concurrent.ConcurrentDictionary[string, object]' ([System.StringComparer]::OrdinalIgnoreCase)
+                [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($expected)
+
+                $store = DeviceRepository.Cache\Get-SharedSiteInterfaceCacheStore
+                [object]::ReferenceEquals($store, $expected) | Should Be $true
+
+                $domainStore = [System.AppDomain]::CurrentDomain.GetData($cacheKey)
+                [object]::ReferenceEquals($domainStore, $expected) | Should Be $true
+
+                $holderStore = [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::GetStore()
+                [object]::ReferenceEquals($holderStore, $expected) | Should Be $true
+            } finally {
+                try { DeviceRepository.Cache\Clear-SharedSiteInterfaceCache -Reason 'test' } catch { }
+                try { [System.AppDomain]::CurrentDomain.SetData($cacheKey, $null) } catch { }
+                try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::ClearStore() } catch { }
+                try { $module.SessionState.PSVariable.Set('SharedSiteInterfaceCache', $null) } catch { }
+            }
+        }
     }
 
     Context "ParserPersistence decomposition exports" {

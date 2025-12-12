@@ -143,6 +143,7 @@ function Summarize-SharedCacheEvents {
     $summary = [pscustomobject]@{
         File                = $FilePath
         SnapshotImported    = ($stateCounters['SnapshotImported']  ?? 0)
+        InitDelegatedStore  = ($stateCounters['InitDelegatedStore'] ?? 0)
         InitNewStore        = ($stateCounters['InitNewStore'] ?? 0)
         InitAdoptedStore    = ($stateCounters['InitAdoptedStore'] ?? 0)
         InitReuseStore      = ($stateCounters['InitReuseStore'] ?? 0)
@@ -194,7 +195,7 @@ if (-not $summaries -or $summaries.Count -eq 0) {
 }
 
 $summaries |
-    Select-Object File, SnapshotImported, InitNewStore, InitAdoptedStore, InitReuseStore,
+    Select-Object File, SnapshotImported, InitDelegatedStore, InitNewStore, InitAdoptedStore, InitReuseStore,
                   GetMiss, GetHit, Set, Remove, FirstTimestamp, LastTimestamp |
     Format-Table -AutoSize
 

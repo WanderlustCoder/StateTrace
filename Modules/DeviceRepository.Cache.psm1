@@ -346,19 +346,27 @@ function Initialize-SharedSiteInterfaceCacheStore {
     if (Get-Variable -Scope Script -Name SharedSiteInterfaceCache -ErrorAction SilentlyContinue) {
         $store = $script:SharedSiteInterfaceCache
     }
-    if (-not $store -or -not ($store -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]])) {
-        $store = New-Object 'System.Collections.Concurrent.ConcurrentDictionary[string, object]' ([System.StringComparer]::OrdinalIgnoreCase)
-    }
 
     try {
         $existing = $null
         try { $existing = [System.AppDomain]::CurrentDomain.GetData($storeKey) } catch { $existing = $null }
         if ($existing -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
             $store = $existing
+        } else {
+            $holderStore = $null
+            try { $holderStore = [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::GetStore() } catch { $holderStore = $null }
+            if ($holderStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
+                $store = $holderStore
+            }
         }
-    } catch {
+    } catch { }
+
+    if (-not ($store -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]])) {
         $store = New-Object 'System.Collections.Concurrent.ConcurrentDictionary[string, object]' ([System.StringComparer]::OrdinalIgnoreCase)
     }
+
+    try { [System.AppDomain]::CurrentDomain.SetData($storeKey, $store) } catch { }
+    try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($store) } catch { }
 
     $count = Import-SharedSiteInterfaceCacheSnapshot -Store $store
     $storeHashCode = [System.Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($store)
@@ -372,6 +380,7 @@ function Initialize-SharedSiteInterfaceCacheStore {
 }
 
 function Get-SharedSiteInterfaceCacheStore {
+    $storeKey = $script:SharedSiteInterfaceCacheKey
     if (Get-Variable -Scope Script -Name SharedSiteInterfaceCache -ErrorAction SilentlyContinue) {
         $store = $script:SharedSiteInterfaceCache
     } else {
@@ -379,6 +388,23 @@ function Get-SharedSiteInterfaceCacheStore {
     }
 
     if ($store -and ($store -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]])) {
+        $domainStore = $null
+        try { $domainStore = [System.AppDomain]::CurrentDomain.GetData($storeKey) } catch { $domainStore = $null }
+        if ($domainStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]] -and -not [object]::ReferenceEquals($domainStore, $store)) {
+            $scriptCount = 0
+            $domainCount = 0
+            try { $scriptCount = [int]$store.Count } catch { $scriptCount = 0 }
+            try { $domainCount = [int]$domainStore.Count } catch { $domainCount = 0 }
+            if ($scriptCount -gt $domainCount) {
+                try { [System.AppDomain]::CurrentDomain.SetData($storeKey, $store) } catch { }
+            } else {
+                $store = $domainStore
+                $script:SharedSiteInterfaceCache = $store
+            }
+        } elseif (-not ($domainStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]])) {
+            try { [System.AppDomain]::CurrentDomain.SetData($storeKey, $store) } catch { }
+        }
+        try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($store) } catch { }
         return $store
     }
 
