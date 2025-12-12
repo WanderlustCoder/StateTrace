@@ -1182,6 +1182,31 @@ Describe "DeviceRepositoryModule core helpers" {
             }
         }
 
+        It "returns site filters as strings for snapshot exporters" {
+            InModuleScope -ModuleName DeviceRepositoryModule {
+                $entries = @(
+                    [pscustomobject]@{
+                        Site  = 'SITE1'
+                        Entry = [pscustomobject]@{
+                            HostMap = @{}
+                        }
+                    },
+                    [pscustomobject]@{
+                        SiteKey = 'SITE2'
+                        HostMap = @{}
+                    }
+                )
+
+                $sites = @(Get-SharedCacheSiteFilterFromEntries -Entries $entries)
+
+                $sites | Should Not BeNullOrEmpty
+                $sites.Count | Should Be 2
+                $sites[0] | Should BeOfType System.String
+                ($sites -contains 'SITE1') | Should Be $true
+                ($sites -contains 'SITE2') | Should Be $true
+            }
+        }
+
         It "skips shared cache entries missing payload during restore" {
             $module = Get-Module DeviceRepositoryModule -ErrorAction Stop
             $validSite = 'RESTORE1'

@@ -1176,7 +1176,7 @@ function Get-SharedCacheSiteFilterFromEntries {
     param([System.Collections.IEnumerable]$Entries)
 
     $sites = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
-    if (-not $Entries) { return ,@() }
+    if (-not $Entries) { return @() }
     foreach ($entry in @($Entries)) {
         if (-not $entry) { continue }
         $siteValue = ''
@@ -1189,7 +1189,7 @@ function Get-SharedCacheSiteFilterFromEntries {
             $sites.Add($siteValue) | Out-Null
         }
     }
-    return ,@($sites)
+    return @($sites)
 }
 
 function ConvertTo-SharedCacheEntryArray {
