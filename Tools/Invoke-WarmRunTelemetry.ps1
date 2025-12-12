@@ -2408,6 +2408,8 @@ function Restore-SharedCacheEntries {
         $entryValue = $null
         if ($entry.PSObject.Properties.Name -contains 'Entry') {
             $entryValue = $entry.Entry
+        } elseif ($entry.PSObject.Properties.Name -contains 'HostMap' -and $entry.HostMap) {
+            $entryValue = $entry
         }
         if (-not $entryValue) {
             Write-Warning ("Shared cache snapshot entry for site '{0}' is missing cache data and will be ignored during restore." -f $siteName)

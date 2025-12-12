@@ -365,7 +365,10 @@ function Get-SiteExistingRowCacheSnapshot {
     param()
 
     $snapshot = [System.Collections.Generic.List[object]]::new()
-    if (-not $script:SiteExistingRowCache) { return ,$snapshot }
+    if (-not $script:SiteExistingRowCache) {
+        Write-Output -NoEnumerate ([object[]]@())
+        return
+    }
 
     foreach ($siteKey in $script:SiteExistingRowCache.Keys) {
         $siteEntry = $script:SiteExistingRowCache[$siteKey]
@@ -401,7 +404,7 @@ function Get-SiteExistingRowCacheSnapshot {
         }
     }
 
-    return ,$snapshot
+    Write-Output -NoEnumerate $snapshot.ToArray()
 }
 
 function Set-SiteExistingRowCacheSnapshot {

@@ -716,8 +716,6 @@ Export-ModuleMember -Function `
     Get-SharedSiteInterfaceCacheStore, `
     Get-SharedSiteInterfaceCacheEntry, `
     Get-SharedSiteInterfaceCacheSnapshotEntries, `
-    Restore-SharedCacheEntries, `
-    Restore-SharedCacheEntriesFromFile, `
     Export-SharedCacheSnapshot, `
     Get-SharedSiteInterfaceCache, `
     Set-SharedSiteInterfaceCacheEntry, `

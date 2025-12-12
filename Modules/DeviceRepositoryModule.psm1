@@ -694,12 +694,44 @@ function Normalize-InterfaceSiteCacheEntry {
 
     if (-not $Entry) { return $null }
 
-    $clone = Clone-InterfaceSiteCacheEntry -Entry $Entry
+    $entryCandidate = $Entry
+    if ($Entry -is [System.Collections.IDictionary]) {
+        $hostMapKey = $null
+        try {
+            foreach ($candidateKey in $Entry.Keys) {
+                $candidateName = if ($candidateKey) { '' + $candidateKey } else { '' }
+                if ([string]::Equals($candidateName, 'HostMap', [System.StringComparison]::OrdinalIgnoreCase)) {
+                    $hostMapKey = $candidateKey
+                    break
+                }
+            }
+        } catch {
+            $hostMapKey = $null
+        }
+
+        if ($null -ne $hostMapKey) {
+            $converted = [pscustomobject]@{}
+            foreach ($candidateKey in @($Entry.Keys)) {
+                $name = if ($candidateKey) { '' + $candidateKey } else { '' }
+                if ([string]::IsNullOrWhiteSpace($name)) { continue }
+                try {
+                    $converted | Add-Member -NotePropertyName $name -NotePropertyValue $Entry[$candidateKey] -Force
+                } catch { }
+            }
+            $entryCandidate = $converted
+        } else {
+            $entryCandidate = [pscustomobject]@{
+                HostMap = $Entry
+            }
+        }
+    }
+
+    $clone = Clone-InterfaceSiteCacheEntry -Entry $entryCandidate
     if (-not $clone) { return $null }
 
     $hostMapSource = $null
-    if ($Entry.PSObject.Properties.Name -contains 'HostMap') {
-        $hostMapSource = $Entry.HostMap
+    if ($entryCandidate.PSObject.Properties.Name -contains 'HostMap') {
+        $hostMapSource = $entryCandidate.HostMap
     } elseif ($clone.PSObject.Properties.Name -contains 'HostMap') {
         $hostMapSource = $clone.HostMap
     }

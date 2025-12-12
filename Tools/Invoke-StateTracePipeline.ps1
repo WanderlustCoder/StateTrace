@@ -199,11 +199,14 @@ function Restore-SharedCacheEntries {
         if (-not ($sitesToWarm.Contains($siteName))) {
             $null = $sitesToWarm.Add($siteName)
         }
+        $entryValue = $null
         if ($entry.PSObject.Properties.Name -contains 'Entry') {
             $entryValue = $entry.Entry
-            if ($entryValue) {
-                $siteEntryTable[$siteName] = $entryValue
-            }
+        } elseif ($entry.PSObject.Properties.Name -contains 'HostMap' -and $entry.HostMap) {
+            $entryValue = $entry
+        }
+        if ($entryValue) {
+            $siteEntryTable[$siteName] = $entryValue
         }
     }
 
@@ -245,6 +248,9 @@ function Restore-SharedCacheEntries {
                 $entryValue = $null
                 if ($item.PSObject.Properties.Name -contains 'Entry') {
                     $entryValue = $item.Entry
+                }
+                if (-not $entryValue -and $item.PSObject.Properties.Name -contains 'HostMap' -and $item.HostMap) {
+                    $entryValue = $item
                 }
                 if (-not $entryValue) { continue }
                 $normalizedEntry = Normalize-InterfaceSiteCacheEntry -Entry $entryValue
