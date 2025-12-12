@@ -1255,7 +1255,7 @@ function Invoke-DeviceLogParsing {
                 $vendor = 'Cisco'
                 if ($facts.Make) {
                     if ($facts.Make -match '(?i)brocade') { $vendor = 'Brocade' }
-                    elseif ($facts.Make -match '(?i)arista') { $vendor = 'Brocade' }
+                    elseif ($facts.Make -match '(?i)arista') { $vendor = 'Arista' }
                 }
                 $tplDir = Join-Path $PSScriptRoot '..\Templates'
                 $templates = Get-VendorTemplates -Vendor $vendor -TemplatesRoot $tplDir
