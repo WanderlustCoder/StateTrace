@@ -43,6 +43,43 @@ Describe "Module decomposition shims" -Tag 'Decomposition' {
                 try { DeviceRepository.Cache\Clear-SharedSiteInterfaceCache -Reason 'test' } catch { }
             }
         }
+
+        It "handles wrapped store entries for snapshot enumeration and reads" {
+            $siteKey = 'WRAPPED'
+
+            try {
+                DeviceRepository.Cache\Clear-SharedSiteInterfaceCache -Reason 'test'
+                $store = DeviceRepository.Cache\Get-SharedSiteInterfaceCacheStore
+                $store[$siteKey] = [pscustomobject]@{
+                    HostMap = @{
+                        'host1' = @{
+                            'Gi1/0/1' = [pscustomobject]@{ Port = 'Gi1/0/1'; Provider = 'Cache' }
+                            'Gi1/0/2' = [pscustomobject]@{ Port = 'Gi1/0/2'; Provider = 'Cache' }
+                        }
+                    }
+                }
+
+                $entries = @(DeviceRepository.Cache\Get-SharedSiteInterfaceCacheSnapshotEntries)
+                $entries | Should Not BeNullOrEmpty
+                $entries.Count | Should Be 1
+                $entries[0].SiteKey | Should Be $siteKey
+                $entries[0].HostMap | Should Not BeNullOrEmpty
+                $entries[0].HostCount | Should Be 1
+                $entries[0].TotalRows | Should Be 2
+
+                $fetched = DeviceRepository.Cache\Get-SharedSiteInterfaceCacheEntry -SiteKey $siteKey
+                $fetched | Should Not BeNullOrEmpty
+                ($fetched.Keys -contains 'host1') | Should Be $true
+                ($fetched.Keys -contains 'HostMap') | Should Be $false
+
+                $rows = @(DeviceRepository.Cache\Get-SharedSiteInterfaceCache -Site $siteKey)
+                $rows | Should Not BeNullOrEmpty
+                $rows.Count | Should Be 2
+                ($rows[0] -is [System.Collections.DictionaryEntry]) | Should Be $false
+            } finally {
+                try { DeviceRepository.Cache\Clear-SharedSiteInterfaceCache -Reason 'test' } catch { }
+            }
+        }
     }
 
     Context "ParserPersistence decomposition exports" {

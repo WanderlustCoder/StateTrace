@@ -388,6 +388,32 @@ function Get-SharedSiteInterfaceCacheStore {
     return $store
 }
 
+function Resolve-SharedSiteInterfaceCacheHostMap {
+    param([object]$Entry)
+
+    if (-not $Entry) { return $null }
+
+    if ($Entry -is [System.Collections.IDictionary]) {
+        try {
+            if ($Entry.Contains('HostMap')) {
+                return $Entry['HostMap']
+            }
+            if ($Entry.ContainsKey -and $Entry.ContainsKey('HostMap')) {
+                return $Entry['HostMap']
+            }
+        } catch { }
+        return $Entry
+    }
+
+    try {
+        if ($Entry.PSObject.Properties.Name -contains 'HostMap') {
+            return $Entry.HostMap
+        }
+    } catch { }
+
+    return $null
+}
+
 function Get-SharedSiteInterfaceCacheEntry {
     param([Parameter(Mandatory)][string]$SiteKey)
 
@@ -403,22 +429,15 @@ function Get-SharedSiteInterfaceCacheEntry {
                 Publish-SharedSiteInterfaceCacheEvent -SiteKey $SiteKey -Operation 'GetMiss' -EntryCount $entryCount -StoreHashCode $storeHashCode
                 return $null
             }
+            $hostMap = Resolve-SharedSiteInterfaceCacheHostMap -Entry $entry
+            if (-not ($hostMap -is [System.Collections.IDictionary])) {
+                Publish-SharedSiteInterfaceCacheEvent -SiteKey $SiteKey -Operation 'GetMiss' -EntryCount $entryCount -StoreHashCode $storeHashCode
+                return $null
+            }
             # Clone the host map so downstream consumers do not mutate the shared store.
             $clone = New-Object 'System.Collections.Generic.Dictionary[string, object]'
-            $keyList = @()
-            if ($entry -is [System.Collections.IDictionary]) {
-                $keyList = $entry.Keys
-            } else {
-                try { $keyList = $entry.PSObject.Properties.Name } catch { $keyList = @() }
-            }
-            foreach ($key in @($keyList)) {
-                $value = $null
-                if ($entry -is [System.Collections.IDictionary]) {
-                    $value = $entry[$key]
-                } else {
-                    try { $value = $entry.PSObject.Properties[$key].Value } catch { $value = $null }
-                }
-                $clone[$key] = $value
+            foreach ($key in @($hostMap.Keys)) {
+                $clone[$key] = $hostMap[$key]
             }
             $stats = Get-SharedSiteInterfaceCacheEntryStatistics -Entry $clone
             Publish-SharedSiteInterfaceCacheEvent -SiteKey $SiteKey -Operation 'GetHit' -EntryCount $entryCount -HostCount $stats.HostCount -TotalRows $stats.TotalRows -StoreHashCode $storeHashCode
@@ -556,12 +575,14 @@ function Get-SharedSiteInterfaceCacheSnapshotEntries {
         foreach ($siteKey in @($store.Keys | Sort-Object)) {
             $entry = $store[$siteKey]
             if (-not $entry) { continue }
-            $stats = Get-SharedSiteInterfaceCacheEntryStatistics -Entry $entry
+            $hostMap = Resolve-SharedSiteInterfaceCacheHostMap -Entry $entry
+            if (-not ($hostMap -is [System.Collections.IDictionary])) { continue }
+            $stats = Get-SharedSiteInterfaceCacheEntryStatistics -Entry $hostMap
             $entries.Add([pscustomobject]@{
                     SiteKey   = $siteKey
                     HostCount = $stats.HostCount
                     TotalRows = $stats.TotalRows
-                    HostMap   = $entry
+                    HostMap   = $hostMap
                 }) | Out-Null
         }
     }
@@ -574,12 +595,14 @@ function Get-SharedSiteInterfaceCacheSnapshotEntries {
                 if ([string]::IsNullOrWhiteSpace($siteKey)) { continue }
                 $entry = $snapshotStore[$siteKey]
                 if (-not $entry) { continue }
-                $stats = Get-SharedSiteInterfaceCacheEntryStatistics -Entry $entry
+                $hostMap = Resolve-SharedSiteInterfaceCacheHostMap -Entry $entry
+                if (-not ($hostMap -is [System.Collections.IDictionary])) { continue }
+                $stats = Get-SharedSiteInterfaceCacheEntryStatistics -Entry $hostMap
                 $entries.Add([pscustomobject]@{
                         SiteKey   = $siteKey
                         HostCount = $stats.HostCount
                         TotalRows = $stats.TotalRows
-                        HostMap   = $entry
+                        HostMap   = $hostMap
                     }) | Out-Null
             }
         }
@@ -725,8 +748,16 @@ function Get-SharedSiteInterfaceCache {
     foreach ($hostKey in @($siteCache.Keys | Sort-Object)) {
         $hostRows = $siteCache[$hostKey]
         if (-not $hostRows) { continue }
-        foreach ($row in $hostRows) {
-            $rows.Add($row) | Out-Null
+        if ($hostRows -is [System.Collections.IDictionary]) {
+            foreach ($row in $hostRows.Values) {
+                $rows.Add($row) | Out-Null
+            }
+        } elseif ($hostRows -is [System.Collections.IEnumerable] -and -not ($hostRows -is [string])) {
+            foreach ($row in $hostRows) {
+                $rows.Add($row) | Out-Null
+            }
+        } else {
+            $rows.Add($hostRows) | Out-Null
         }
     }
 

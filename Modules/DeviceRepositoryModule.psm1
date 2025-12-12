@@ -1256,7 +1256,37 @@ function Get-SharedSiteInterfaceCacheSnapshotEntries {
         $snapshotEntries = $result.ToArray()
     }
 
-    return ,(Resolve-SharedSiteInterfaceCacheSnapshotEntries -Entries $snapshotEntries -FallbackSites $FallbackSites -RehydrateMissingEntries:(!$SkipRehydrate.IsPresent))
+    $resolved = Resolve-SharedSiteInterfaceCacheSnapshotEntries -Entries $snapshotEntries -FallbackSites $FallbackSites -RehydrateMissingEntries:(!$SkipRehydrate.IsPresent)
+
+    $converted = [System.Collections.Generic.List[psobject]]::new()
+    foreach ($resolvedEntry in @($resolved)) {
+        if (-not $resolvedEntry) { continue }
+
+        $siteValue = ''
+        if ($resolvedEntry.PSObject.Properties.Name -contains 'Site') {
+            $siteValue = ('' + $resolvedEntry.Site).Trim()
+        } elseif ($resolvedEntry.PSObject.Properties.Name -contains 'SiteKey') {
+            $siteValue = ('' + $resolvedEntry.SiteKey).Trim()
+        }
+        if ([string]::IsNullOrWhiteSpace($siteValue)) { continue }
+
+        $entryValue = $resolvedEntry
+        if ($resolvedEntry.PSObject.Properties.Name -contains 'Entry') {
+            $entryValue = $resolvedEntry.Entry
+        }
+        if (-not $entryValue) { continue }
+
+        $exportEntry = $null
+        try { $exportEntry = Convert-SharedSiteCacheEntryToExportObject -Entry $entryValue } catch { $exportEntry = $null }
+        if (-not $exportEntry) { continue }
+
+        $converted.Add([pscustomobject]@{
+                Site  = $siteValue
+                Entry = $exportEntry
+            }) | Out-Null
+    }
+
+    return ,$converted.ToArray()
 }
 
 function Set-SharedSiteInterfaceCacheEntry {
