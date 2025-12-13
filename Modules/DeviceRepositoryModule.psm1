@@ -4772,6 +4772,29 @@ function Get-InterfacesForSite {
     }
 
     $siteName = if ($Site) { '' + $Site } else { '' }
+    $newHydrationMetrics = {
+        param(
+            [string]$siteValue,
+            [string]$providerValue,
+            [int]$resultRowCount,
+            [bool]$succeeded
+        )
+
+        return [PSCustomObject]@{
+            Site                    = $siteValue
+            Provider                = $providerValue
+            QueryAttempts           = 0
+            QueryDurationMs         = 0.0
+            ExclusiveRetryCount     = 0
+            ExclusiveWaitDurationMs = 0.0
+            ExecuteDurationMs       = 0.0
+            MaterializeDurationMs   = 0.0
+            TemplateLoadDurationMs  = 0.0
+            ResultRowCount          = $resultRowCount
+            Succeeded               = $succeeded
+            Timestamp               = Get-Date
+        }
+    }
     if ([string]::IsNullOrWhiteSpace($siteName) -or
         ([System.StringComparer]::OrdinalIgnoreCase.Equals($siteName, 'All Sites')) -or
         ([System.StringComparer]::OrdinalIgnoreCase.Equals($siteName, 'All')))
@@ -4796,57 +4819,18 @@ function Get-InterfacesForSite {
         }
         try { $combined.Sort($comparison) } catch {}
 
-        $script:LastInterfaceSiteHydrationMetrics = [PSCustomObject]@{
-            Site                    = $siteName
-            Provider                = 'Aggregate'
-            QueryAttempts           = 0
-            QueryDurationMs         = 0.0
-            ExclusiveRetryCount     = 0
-            ExclusiveWaitDurationMs = 0.0
-            ExecuteDurationMs       = 0.0
-            MaterializeDurationMs   = 0.0
-            TemplateLoadDurationMs  = 0.0
-            ResultRowCount          = [int]$combined.Count
-            Succeeded               = $true
-            Timestamp               = Get-Date
-        }
+        $script:LastInterfaceSiteHydrationMetrics = & $newHydrationMetrics $siteName 'Aggregate' ([int]$combined.Count) $true
 
         return $combined
     }
 
     $siteCode = $siteName.Trim()
     if ([string]::IsNullOrWhiteSpace($siteCode)) {
-        $script:LastInterfaceSiteHydrationMetrics = [PSCustomObject]@{
-            Site                    = $siteName
-            Provider                = 'InvalidSite'
-            QueryAttempts           = 0
-            QueryDurationMs         = 0.0
-            ExclusiveRetryCount     = 0
-            ExclusiveWaitDurationMs = 0.0
-            ExecuteDurationMs       = 0.0
-            MaterializeDurationMs   = 0.0
-            TemplateLoadDurationMs  = 0.0
-            ResultRowCount          = 0
-            Succeeded               = $false
-            Timestamp               = Get-Date
-        }
+        $script:LastInterfaceSiteHydrationMetrics = & $newHydrationMetrics $siteName 'InvalidSite' 0 $false
         return [System.Collections.Generic.List[object]]::new()
     }
 
-    $hydrationDetail = [PSCustomObject]@{
-        Site                    = $siteCode
-        Provider                = 'Unknown'
-        QueryAttempts           = 0
-        QueryDurationMs         = 0.0
-        ExclusiveRetryCount     = 0
-        ExclusiveWaitDurationMs = 0.0
-        ExecuteDurationMs       = 0.0
-        MaterializeDurationMs   = 0.0
-        TemplateLoadDurationMs  = 0.0
-        ResultRowCount          = 0
-        Succeeded               = $false
-        Timestamp               = Get-Date
-    }
+    $hydrationDetail = & $newHydrationMetrics $siteCode 'Unknown' 0 $false
 
     try {
         if ($script:SiteInterfaceCache.ContainsKey($siteCode)) {
