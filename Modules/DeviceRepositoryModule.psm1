@@ -4140,30 +4140,22 @@ function Set-InterfacePortStreamData {
     $stateStopwatch.Stop()
     $stateDurationMs = [Math]::Round($stateStopwatch.Elapsed.TotalMilliseconds, 3)
 
-    $script:LastInterfacePortStreamMetrics = [pscustomobject]@{
-        Hostname                   = $hostKey
-        BatchId                    = $normalizedBatchId
-        RunDate                    = $runDateText
-        RowsReceived               = [int]$rowsList.Count
-        StreamCloneDurationMs      = $cloneDurationMs
-        StreamStateUpdateDurationMs= $stateDurationMs
-        RowsReused                 = $rowsReused
-        RowsCloned                 = $rowsCloned
+    $streamMetricsPayload = @{
+        Hostname = $hostKey
+        BatchId  = $normalizedBatchId
+        RunDate  = $runDateText
+        RowsReceived = [int]$rowsList.Count
+        RowsReused   = $rowsReused
+        RowsCloned   = $rowsCloned
+        StreamCloneDurationMs       = $cloneDurationMs
+        StreamStateUpdateDurationMs = $stateDurationMs
     }
 
+    $script:LastInterfacePortStreamMetrics = [pscustomobject]$streamMetricsPayload
     $script:LastInterfacePortQueueMetrics = $null
 
     try {
-        TelemetryModule\Write-StTelemetryEvent -Name 'InterfacePortStreamMetrics' -Payload @{
-            Hostname = $hostKey
-            BatchId  = $normalizedBatchId
-            RunDate  = $runDateText
-            RowsReceived = [int]$rowsList.Count
-            RowsReused   = $rowsReused
-            RowsCloned   = $rowsCloned
-            StreamCloneDurationMs       = $cloneDurationMs
-            StreamStateUpdateDurationMs = $stateDurationMs
-        }
+        TelemetryModule\Write-StTelemetryEvent -Name 'InterfacePortStreamMetrics' -Payload $streamMetricsPayload
     } catch { }
 }
 
@@ -4299,7 +4291,7 @@ function Initialize-InterfacePortStream {
     $state.PortsDelivered = 0
     $state.Completed = ($queue.Count -eq 0)
 
-    $script:LastInterfacePortQueueMetrics = [pscustomobject]@{
+    $queueMetricsPayload = @{
         Hostname             = $hostKey
         BatchId              = $state.BatchId
         QueueBuildDurationMs = $queueBuildDurationMs
@@ -4310,17 +4302,10 @@ function Initialize-InterfacePortStream {
         ChunkSource          = $chunkSource
     }
 
+    $script:LastInterfacePortQueueMetrics = [pscustomobject]$queueMetricsPayload
+
     try {
-        TelemetryModule\Write-StTelemetryEvent -Name 'InterfacePortQueueMetrics' -Payload @{
-            Hostname             = $hostKey
-            BatchId              = $state.BatchId
-            QueueBuildDurationMs = $queueBuildDurationMs
-            QueueBuildDelayMs    = $queueBuildDelayMs
-            BatchCount           = [int]$state.BatchCount
-            TotalPorts           = [int]$state.TotalPorts
-            ChunkSize            = $chunk
-            ChunkSource          = $chunkSource
-        }
+        TelemetryModule\Write-StTelemetryEvent -Name 'InterfacePortQueueMetrics' -Payload $queueMetricsPayload
     } catch { }
 }
 
@@ -4448,7 +4433,7 @@ function Set-InterfacePortDispatchMetrics {
         $normalizedBatchId = ('' + $BatchId).Trim()
     }
 
-    $payload = [pscustomobject]@{
+    $payload = @{
         Hostname             = $hostKey
         BatchId              = $normalizedBatchId
         BatchOrdinal         = if ($BatchOrdinal -gt 0) { [int]$BatchOrdinal } else { 0 }
@@ -4461,21 +4446,10 @@ function Set-InterfacePortDispatchMetrics {
         IndicatorDurationMs  = if ($PSBoundParameters.ContainsKey('IndicatorDurationMs')) { [Math]::Round([double]$IndicatorDurationMs, 3) } else { 0.0 }
     }
 
-    $script:LastInterfacePortDispatchMetrics = $payload
+    $script:LastInterfacePortDispatchMetrics = [pscustomobject]$payload
 
     try {
-        TelemetryModule\Write-StTelemetryEvent -Name 'InterfacePortDispatchMetrics' -Payload @{
-            Hostname             = $payload.Hostname
-            BatchId              = $payload.BatchId
-            BatchOrdinal         = $payload.BatchOrdinal
-            BatchCount           = $payload.BatchCount
-            BatchSize            = $payload.BatchSize
-            PortsDelivered       = $payload.PortsDelivered
-            TotalPorts           = $payload.TotalPorts
-            DispatcherDurationMs = $payload.DispatcherDurationMs
-            AppendDurationMs     = $payload.AppendDurationMs
-            IndicatorDurationMs  = $payload.IndicatorDurationMs
-        }
+        TelemetryModule\Write-StTelemetryEvent -Name 'InterfacePortDispatchMetrics' -Payload $payload
     } catch { }
 }
 
