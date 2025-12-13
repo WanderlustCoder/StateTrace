@@ -139,6 +139,34 @@ function Get-TelemetryLogPath {
     return (Join-Path $dir $name)
 }
 
+function Get-TelemetryWriteMutexName {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Path
+    )
+
+    $normalized = $Path
+    try { $normalized = [System.IO.Path]::GetFullPath($Path) } catch { }
+
+    $bytes = $null
+    try { $bytes = [System.Text.Encoding]::UTF8.GetBytes($normalized.ToLowerInvariant()) } catch { $bytes = [byte[]]@() }
+
+    $sha = $null
+    try {
+        $sha = [System.Security.Cryptography.SHA256]::Create()
+        $hash = $sha.ComputeHash($bytes)
+        $hex = ($hash | ForEach-Object { $_.ToString('x2') }) -join ''
+        if ([string]::IsNullOrWhiteSpace($hex)) {
+            return 'StateTrace.Telemetry.Write'
+        }
+        return ('StateTrace.Telemetry.Write.{0}' -f $hex.Substring(0, 24))
+    } catch {
+        return 'StateTrace.Telemetry.Write'
+    } finally {
+        if ($sha) { $sha.Dispose() }
+    }
+}
+
 function Write-StTelemetryEvent {
     [CmdletBinding()]
     param(
@@ -154,7 +182,25 @@ function Write-StTelemetryEvent {
     }
     $json = ($evt | ConvertTo-Json -Depth 6 -Compress)
     $path = Get-TelemetryLogPath
-    Add-Content -LiteralPath $path -Value $json
+    $mutex = $null
+    $lockAcquired = $false
+    try {
+        $mutexName = Get-TelemetryWriteMutexName -Path $path
+        $mutex = New-Object 'System.Threading.Mutex' $false, $mutexName
+        try {
+            $lockAcquired = $mutex.WaitOne()
+        } catch [System.Threading.AbandonedMutexException] {
+            $lockAcquired = $true
+        }
+        Add-Content -LiteralPath $path -Value $json
+    } finally {
+        if ($mutex) {
+            if ($lockAcquired) {
+                try { $mutex.ReleaseMutex() } catch { }
+            }
+            $mutex.Dispose()
+        }
+    }
 }
 
 Export-ModuleMember -Function Initialize-StateTraceDebug, Import-InterfaceCommon, Get-SpanDebugLogPath, Write-SpanDebugLog, Get-TelemetryLogDirectory, Get-TelemetryLogPath, Write-StTelemetryEvent

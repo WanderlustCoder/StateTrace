@@ -467,17 +467,46 @@ if ($RestrictWarmComparisonToColdHosts.IsPresent) {
     Write-Host 'Warm comparison metrics will be limited to hostnames captured during the cold pass (intersected with any explicit filters).' -ForegroundColor DarkYellow
 }
 
+function Get-TelemetryLogFiles {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$DirectoryPath
+    )
+
+    $telemetryLogPath = $null
+    try {
+        $telemetryPathCmd = Get-Command -Name 'TelemetryModule\Get-TelemetryLogPath' -ErrorAction SilentlyContinue
+        if (-not $telemetryPathCmd) {
+            $telemetryPathCmd = Get-Command -Name 'Get-TelemetryLogPath' -Module 'TelemetryModule' -ErrorAction SilentlyContinue
+        }
+        if ($telemetryPathCmd) {
+            $telemetryLogPath = & $telemetryPathCmd
+        }
+    } catch { }
+
+    if (-not [string]::IsNullOrWhiteSpace($telemetryLogPath) -and (Test-Path -LiteralPath $telemetryLogPath)) {
+        try { return ,(Get-Item -LiteralPath $telemetryLogPath -ErrorAction Stop) } catch { }
+    }
+
+    if (-not (Test-Path -LiteralPath $DirectoryPath)) {
+        return @()
+    }
+
+    return @(
+        Get-ChildItem -Path $DirectoryPath -Filter '*.json' -File |
+            Where-Object { $_.BaseName -match '^\d{4}-\d{2}-\d{2}$' } |
+            Sort-Object FullName
+    )
+}
+
 function Get-MetricsBaseline {
     param(
         [string]$DirectoryPath
     )
 
     $baseline = @{}
-    if (-not (Test-Path -LiteralPath $DirectoryPath)) {
-        return $baseline
-    }
-
-    foreach ($file in Get-ChildItem -Path $DirectoryPath -Filter '*.json' -File) {
+    foreach ($file in Get-TelemetryLogFiles -DirectoryPath $DirectoryPath) {
         $lines = [System.IO.File]::ReadAllLines($file.FullName)
         $baseline[$file.FullName] = [pscustomobject]@{
             LineCount   = $lines.Length
@@ -510,10 +539,7 @@ function Get-AppendedTelemetry {
         }
     }
 
-    foreach ($file in Get-ChildItem -Path $DirectoryPath -Filter '*.json' -File | Sort-Object FullName) {
-        if ($file.BaseName -like 'QueueDelaySummary*') {
-            continue
-        }
+    foreach ($file in Get-TelemetryLogFiles -DirectoryPath $DirectoryPath) {
         $resolved = $null
         try { $resolved = (Resolve-Path -LiteralPath $file.FullName).Path } catch { $resolved = $file.FullName }
         if ($excludeSet.Count -gt 0 -and $excludeSet.Contains($resolved)) {
@@ -575,7 +601,7 @@ function Wait-TelemetryFlush {
     $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     try {
         do {
-            foreach ($file in Get-ChildItem -Path $DirectoryPath -Filter '*.json' -File) {
+            foreach ($file in Get-TelemetryLogFiles -DirectoryPath $DirectoryPath) {
                 $previousLength = 0
                 if ($Baseline.ContainsKey($file.FullName)) {
                     $entry = $Baseline[$file.FullName]
@@ -603,8 +629,11 @@ function Get-TelemetrySince {
     )
 
     $events = @()
-    foreach ($file in Get-ChildItem -Path $DirectoryPath -Filter '*.json' -File | Where-Object { $_.LastWriteTime -ge $Since }) {
+    foreach ($file in Get-TelemetryLogFiles -DirectoryPath $DirectoryPath | Where-Object { $_.LastWriteTime -ge $Since }) {
+        $lineIndex = 0
         foreach ($line in [System.IO.File]::ReadLines($file.FullName)) {
+            $currentIndex = $lineIndex
+            $lineIndex++
             if ([string]::IsNullOrWhiteSpace($line)) { continue }
             try {
                 $parsed = $line | ConvertFrom-Json -ErrorAction Stop
@@ -629,6 +658,7 @@ function Get-TelemetrySince {
                 continue
             }
             $parsed | Add-Member -NotePropertyName '__SourceFile' -NotePropertyValue $file.FullName -Force
+            $parsed | Add-Member -NotePropertyName '__LineIndex' -NotePropertyValue $currentIndex -Force
             $events += $parsed
         }
     }
@@ -688,6 +718,17 @@ function Collect-TelemetryForPass {
     $allEvents = @()
     $eventBuckets = @{}
     $identitySet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    $passLineBaseline = @{}
+    foreach ($file in Get-TelemetryLogFiles -DirectoryPath $DirectoryPath) {
+        $baselineCount = 0
+        if ($Baseline.ContainsKey($file.FullName)) {
+            $entry = $Baseline[$file.FullName]
+            if ($entry -and $entry.PSObject.Properties.Name -contains 'LineCount') {
+                try { $baselineCount = [int]$entry.LineCount } catch { $baselineCount = 0 }
+            }
+        }
+        $passLineBaseline[$file.FullName] = $baselineCount
+    }
     $requiredNames = @()
     if ($RequiredEventNames) {
         foreach ($name in $RequiredEventNames) {
@@ -777,11 +818,11 @@ function Collect-TelemetryForPass {
             if ($evt.PSObject.Properties.Name -contains '__SourceFile') {
                 $sourceFile = ('' + $evt.__SourceFile).Trim()
             }
-            if (-not [string]::IsNullOrWhiteSpace($sourceFile) -and $Baseline.ContainsKey($sourceFile)) {
-                $baselineEntry = $Baseline[$sourceFile]
-                if ($baselineEntry -and $baselineEntry.PSObject.Properties.Name -contains 'LineCount') {
+            if (-not [string]::IsNullOrWhiteSpace($sourceFile) -and $passLineBaseline.ContainsKey($sourceFile)) {
+                $baselineEntry = $passLineBaseline[$sourceFile]
+                if ($baselineEntry -ne $null) {
                     try {
-                        $baselineLineCount = [int]$baselineEntry.LineCount
+                        $baselineLineCount = [int]$baselineEntry
                     } catch {
                         $baselineLineCount = $null
                     }
@@ -2955,6 +2996,8 @@ try {
     } catch {
         Write-Warning ("Failed to seed preserved runspace shared cache: {0}" -f $_.Exception.Message)
     }
+    # Advance the telemetry baseline so WarmPass collection excludes pre-warm cache work.
+    $metricsBaseline = Get-MetricsBaseline -DirectoryPath $metricsDirectory
     Write-Host ("[Diag] WarmPass starting at {0:o}" -f (Get-Date)) -ForegroundColor Magenta
     $results += Invoke-PipelinePass -Label 'WarmPass'
     Write-Host ("[Diag] WarmPass completed at {0:o}" -f (Get-Date)) -ForegroundColor Magenta

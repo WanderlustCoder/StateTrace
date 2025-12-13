@@ -6,6 +6,7 @@ if (-not (Get-Variable -Scope Script -Name WorkerModulesInitialized -ErrorAction
 
 if (-not (Get-Variable -Scope Script -Name ParserModuleNames -ErrorAction SilentlyContinue)) {
     $script:ParserModuleNames = @(
+        'TelemetryModule.psm1',
         'DeviceParsingCommon.psm1',
         'AristaModule.psm1',
         'CiscoModule.psm1',
@@ -845,7 +846,7 @@ function Invoke-DeviceParsingJobs {
         $siteQueues[$siteKeyValue].Enqueue($file)
     }
 
-    if ($Synchronous -or $MaxThreads -le 1) {
+    if ($Synchronous -or ($MaxThreads -le 1 -and -not $PreserveRunspacePool.IsPresent)) {
         $activeEntries = [System.Collections.Generic.List[object]]::new()
         $activeSites = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
         $lastLaunchSite = ''
@@ -945,8 +946,10 @@ function Invoke-DeviceParsingJobs {
         $sessionState = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
         $sessionState.ApartmentState = [System.Threading.ApartmentState]::STA
         $sessionState.LanguageMode = [System.Management.Automation.PSLanguageMode]::FullLanguage
-        $importList = Get-RunspaceModuleImportList -ModulesPath $ModulesPath
-        if ($importList -and $importList.Count -gt 0) { $null = $sessionState.ImportPSModule($importList) }
+        $importList = [string[]]@(
+            Get-RunspaceModuleImportList -ModulesPath $ModulesPath
+        )
+        if ($importList.Length -gt 0) { $null = $sessionState.ImportPSModule($importList) }
         $pool = [runspacefactory]::CreateRunspacePool(1, $MaxThreads, $sessionState, $Host)
         try { $pool.ApartmentState = [System.Threading.ApartmentState]::STA } catch { }
         $pool.Open()

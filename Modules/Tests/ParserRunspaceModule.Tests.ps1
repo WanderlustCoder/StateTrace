@@ -33,6 +33,54 @@ Describe "ParserRunspaceModule" {
         Assert-MockCalled -ModuleName ParserRunspaceModule -CommandName Invoke-DeviceParseWorker -ParameterFilter { $FilePath -eq 'C:\logs\single.log' -and $SiteKey -eq 'single' } -Times 1
     }
 
+    It "creates a preserved runspace pool even when MaxThreads is 1" {
+        $stubProjectRoot = Join-Path $TestDrive 'PreservePoolProject'
+        $stubModulesPath = Join-Path $stubProjectRoot 'Modules'
+        $stubArchiveRoot = Join-Path $stubProjectRoot 'Archives'
+        New-Item -ItemType Directory -Path $stubModulesPath -Force | Out-Null
+        New-Item -ItemType Directory -Path $stubArchiveRoot -Force | Out-Null
+
+        $callLogPath = Join-Path $stubArchiveRoot 'StubWorkerCalls.txt'
+        $stubModulePath = Join-Path $stubModulesPath 'ParserRunspaceModule.psm1'
+        Set-Content -LiteralPath $stubModulePath -Encoding UTF8 -Value @'
+function Invoke-DeviceParseWorker {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$FilePath,
+        [Parameter(Mandatory=$true)][string]$ModulesPath,
+        [Parameter(Mandatory=$true)][string]$ArchiveRoot,
+        [string]$DatabasePath,
+        [string]$SiteKey,
+        [bool]$EnableVerbose = $false
+    )
+
+    try {
+        Add-Content -LiteralPath (Join-Path $ArchiveRoot 'StubWorkerCalls.txt') -Value $FilePath -Encoding UTF8
+    } catch { }
+}
+
+Export-ModuleMember -Function Invoke-DeviceParseWorker
+'@
+
+        InModuleScope -ModuleName ParserRunspaceModule {
+            Reset-DeviceParseRunspacePool
+            $script:PreservedRunspacePool | Should Be $null
+        }
+
+        ParserRunspaceModule\Invoke-DeviceParsingJobs -DeviceFiles @('C:\logs\preserved.log') -ModulesPath $stubModulesPath -ArchiveRoot $stubArchiveRoot -PreserveRunspacePool
+
+        (Test-Path -LiteralPath $callLogPath) | Should Be $true
+        $calls = @(Get-Content -LiteralPath $callLogPath)
+        $calls.Count | Should Be 1
+        $calls[0] | Should Be 'C:\logs\preserved.log'
+
+        InModuleScope -ModuleName ParserRunspaceModule {
+            $script:PreservedRunspacePool | Should Not Be $null
+            ('' + $script:PreservedRunspacePool.RunspacePoolStateInfo.State) | Should Be 'Opened'
+            Reset-DeviceParseRunspacePool
+        }
+    }
+
     Context "Scheduler metrics helpers" {
         It "initializes metrics context" {
             InModuleScope -ModuleName ParserRunspaceModule {

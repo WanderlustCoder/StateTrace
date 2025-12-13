@@ -879,11 +879,24 @@ if ($RunWarmRunRegression) {
 
 $latestIngestionMetricsEntry = $null
 try {
-    if (Test-Path -LiteralPath $ingestionMetricsDirectory) {
+    $telemetryLogPath = $null
+    try {
+        $telemetryPathCmd = Get-Command -Name 'TelemetryModule\Get-TelemetryLogPath' -ErrorAction SilentlyContinue
+        if (-not $telemetryPathCmd) {
+            $telemetryPathCmd = Get-Command -Name 'Get-TelemetryLogPath' -Module 'TelemetryModule' -ErrorAction SilentlyContinue
+        }
+        if ($telemetryPathCmd) {
+            $telemetryLogPath = & $telemetryPathCmd
+        }
+    } catch { }
+
+    if (-not [string]::IsNullOrWhiteSpace($telemetryLogPath) -and (Test-Path -LiteralPath $telemetryLogPath)) {
+        $latestIngestionMetricsEntry = Get-Item -LiteralPath $telemetryLogPath -ErrorAction Stop
+    } elseif (Test-Path -LiteralPath $ingestionMetricsDirectory) {
         $latestIngestionMetricsEntry = Get-ChildItem -LiteralPath $ingestionMetricsDirectory -Filter '*.json' -File |
             Where-Object {
                 $baseName = $_.BaseName
-                (-not [string]::IsNullOrWhiteSpace($baseName)) -and [System.Char]::IsDigit($baseName[0])
+                (-not [string]::IsNullOrWhiteSpace($baseName)) -and ($baseName -match '^\d{4}-\d{2}-\d{2}$')
             } |
             Sort-Object LastWriteTime -Descending |
             Select-Object -First 1
