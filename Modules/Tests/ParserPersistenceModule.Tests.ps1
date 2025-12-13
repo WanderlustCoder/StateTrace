@@ -1438,10 +1438,13 @@ Describe "ParserPersistenceModule" {
 
 
 
-            if ($script:lastTelemetry.Payload.PSObject.Properties.Name -contains 'Rows') {
-                $script:lastTelemetry.Payload.Rows | Should Be 1
-            } else {
-                $script:lastTelemetry.Payload.PortsCommitted | Should Be 1
+            switch ($script:lastTelemetry.Name) {
+                'InterfaceBulkInsert' {
+                    $script:lastTelemetry.Payload.Rows | Should Be 1
+                }
+                'PortBatchReady' {
+                    $script:lastTelemetry.Payload.PortsCommitted | Should Be 1
+                }
             }
 
 

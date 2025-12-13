@@ -785,6 +785,56 @@ function Set-AdodbParameterValue {
     $Parameter.Value = $valueToAssign
 }
 
+function New-AdodbParameterList {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][object]$Command,
+        [Parameter(Mandatory=$true)][hashtable[]]$Definition
+    )
+
+    if (-not $Command) { return @() }
+
+    $parameters = @()
+    foreach ($entry in $Definition) {
+        if (-not $entry) {
+            $parameters += $null
+            continue
+        }
+
+        $name = if ($entry.ContainsKey('Name')) { [string]$entry.Name } else { '' }
+        $type = if ($entry.ContainsKey('Type')) { [int]$entry.Type } else { 0 }
+
+        $parameter = $null
+        if ($entry.ContainsKey('Size')) {
+            $parameter = Add-AdodbParameter -Command $Command -Name $name -Type $type -Size $entry.Size
+        } else {
+            $parameter = Add-AdodbParameter -Command $Command -Name $name -Type $type
+        }
+
+        $parameters += $parameter
+    }
+
+    return $parameters
+}
+
+function Set-AdodbParameterValues {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][object[]]$Parameters,
+        [Parameter(Mandatory=$true)][object[]]$Values
+    )
+
+    if (-not $Parameters) { return $false }
+    if (-not $Values) { return $false }
+    if ($Parameters.Count -ne $Values.Count) { return $false }
+
+    for ($i = 0; $i -lt $Parameters.Count; $i++) {
+        Set-AdodbParameterValue -Parameter $Parameters[$i] -Value $Values[$i]
+    }
+
+    return $true
+}
+
 function Invoke-AdodbNonQuery {
     [CmdletBinding()]
     param(
@@ -3831,38 +3881,46 @@ function Invoke-InterfaceBulkInsertInternal {
         if (-not $insertCmd) { return (& $setLastBulkMetrics $false) }
 
         try {
-            $parameters = @(
-                Add-AdodbParameter -Command $insertCmd -Name 'BatchId' -Type $script:AdTypeVarWChar -Size 36
-                Add-AdodbParameter -Command $insertCmd -Name 'Hostname' -Type $script:AdTypeVarWChar -Size 255
-                Add-AdodbParameter -Command $insertCmd -Name 'RunDateText' -Type $script:AdTypeVarWChar -Size 32
-                Add-AdodbParameter -Command $insertCmd -Name 'RunDate' -Type $script:AdTypeDate
-                Add-AdodbParameter -Command $insertCmd -Name 'Port' -Type $script:AdTypeVarWChar -Size 255
-                Add-AdodbParameter -Command $insertCmd -Name 'Name' -Type $script:AdTypeVarWChar -Size 255
-                Add-AdodbParameter -Command $insertCmd -Name 'Status' -Type $script:AdTypeVarWChar -Size 255
-                Add-AdodbParameter -Command $insertCmd -Name 'VLAN' -Type $script:AdTypeInteger
-                Add-AdodbParameter -Command $insertCmd -Name 'Duplex' -Type $script:AdTypeVarWChar -Size 255
-                Add-AdodbParameter -Command $insertCmd -Name 'Speed' -Type $script:AdTypeVarWChar -Size 255
-                Add-AdodbParameter -Command $insertCmd -Name 'Type' -Type $script:AdTypeVarWChar -Size 255
-                Add-AdodbParameter -Command $insertCmd -Name 'Learned' -Type $script:AdTypeLongVarWChar
-                Add-AdodbParameter -Command $insertCmd -Name 'AuthState' -Type $script:AdTypeVarWChar -Size 255
-                Add-AdodbParameter -Command $insertCmd -Name 'AuthMode' -Type $script:AdTypeVarWChar -Size 255
-                Add-AdodbParameter -Command $insertCmd -Name 'AuthClient' -Type $script:AdTypeVarWChar -Size 255
-                Add-AdodbParameter -Command $insertCmd -Name 'AuthTemplate' -Type $script:AdTypeVarWChar -Size 255
-                Add-AdodbParameter -Command $insertCmd -Name 'Config' -Type $script:AdTypeLongVarWChar
-                Add-AdodbParameter -Command $insertCmd -Name 'PortColor' -Type $script:AdTypeVarWChar -Size 255
-                Add-AdodbParameter -Command $insertCmd -Name 'ConfigStatus' -Type $script:AdTypeVarWChar -Size 255
-                Add-AdodbParameter -Command $insertCmd -Name 'ToolTip' -Type $script:AdTypeLongVarWChar
+            $parameterDefinitions = @(
+                @{ Name = 'BatchId'; Type = $script:AdTypeVarWChar; Size = 36 }
+                @{ Name = 'Hostname'; Type = $script:AdTypeVarWChar; Size = 255 }
+                @{ Name = 'RunDateText'; Type = $script:AdTypeVarWChar; Size = 32 }
+                @{ Name = 'RunDate'; Type = $script:AdTypeDate }
+                @{ Name = 'Port'; Type = $script:AdTypeVarWChar; Size = 255 }
+                @{ Name = 'Name'; Type = $script:AdTypeVarWChar; Size = 255 }
+                @{ Name = 'Status'; Type = $script:AdTypeVarWChar; Size = 255 }
+                @{ Name = 'VLAN'; Type = $script:AdTypeInteger }
+                @{ Name = 'Duplex'; Type = $script:AdTypeVarWChar; Size = 255 }
+                @{ Name = 'Speed'; Type = $script:AdTypeVarWChar; Size = 255 }
+                @{ Name = 'Type'; Type = $script:AdTypeVarWChar; Size = 255 }
+                @{ Name = 'Learned'; Type = $script:AdTypeLongVarWChar }
+                @{ Name = 'AuthState'; Type = $script:AdTypeVarWChar; Size = 255 }
+                @{ Name = 'AuthMode'; Type = $script:AdTypeVarWChar; Size = 255 }
+                @{ Name = 'AuthClient'; Type = $script:AdTypeVarWChar; Size = 255 }
+                @{ Name = 'AuthTemplate'; Type = $script:AdTypeVarWChar; Size = 255 }
+                @{ Name = 'Config'; Type = $script:AdTypeLongVarWChar }
+                @{ Name = 'PortColor'; Type = $script:AdTypeVarWChar; Size = 255 }
+                @{ Name = 'ConfigStatus'; Type = $script:AdTypeVarWChar; Size = 255 }
+                @{ Name = 'ToolTip'; Type = $script:AdTypeLongVarWChar }
             )
 
-            if ($parameters -contains $null) {
+            $parameters = New-AdodbParameterList -Command $insertCmd -Definition $parameterDefinitions
+            if (-not $parameters -or $parameters.Count -lt 4 -or ($parameters -contains $null)) {
                 & $invokeCleanup -RecordDuration
                 return (& $setLastBulkMetrics $false)
             }
 
-            Set-AdodbParameterValue -Parameter $parameters[0] -Value $batchId
-            Set-AdodbParameterValue -Parameter $parameters[1] -Value $Hostname
-            Set-AdodbParameterValue -Parameter $parameters[2] -Value $runDateText
-            Set-AdodbParameterValue -Parameter $parameters[3] -Value $RunDate
+            $seedParameters = $parameters[0..3]
+            $seedValues = @(
+                $batchId,
+                $Hostname,
+                $runDateText,
+                $RunDate
+            )
+            if (-not (Set-AdodbParameterValues -Parameters $seedParameters -Values $seedValues)) {
+                & $invokeCleanup -RecordDuration
+                return (& $setLastBulkMetrics $false)
+            }
 
             $stageStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
             $bindDurationTotal = 0.0
@@ -3871,22 +3929,9 @@ function Invoke-InterfaceBulkInsertInternal {
                 foreach ($rowValues in $rowsBuffer) {
                     $bindStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
-                    Set-AdodbParameterValue -Parameter $parameters[4] -Value $rowValues[4]
-                    Set-AdodbParameterValue -Parameter $parameters[5] -Value $rowValues[5]
-                    Set-AdodbParameterValue -Parameter $parameters[6] -Value $rowValues[6]
-                    Set-AdodbParameterValue -Parameter $parameters[7] -Value $rowValues[7]
-                    Set-AdodbParameterValue -Parameter $parameters[8] -Value $rowValues[8]
-                    Set-AdodbParameterValue -Parameter $parameters[9] -Value $rowValues[9]
-                    Set-AdodbParameterValue -Parameter $parameters[10] -Value $rowValues[10]
-                    Set-AdodbParameterValue -Parameter $parameters[11] -Value $rowValues[11]
-                    Set-AdodbParameterValue -Parameter $parameters[12] -Value $rowValues[12]
-                    Set-AdodbParameterValue -Parameter $parameters[13] -Value $rowValues[13]
-                    Set-AdodbParameterValue -Parameter $parameters[14] -Value $rowValues[14]
-                    Set-AdodbParameterValue -Parameter $parameters[15] -Value $rowValues[15]
-                    Set-AdodbParameterValue -Parameter $parameters[16] -Value $rowValues[16]
-                    Set-AdodbParameterValue -Parameter $parameters[17] -Value $rowValues[17]
-                    Set-AdodbParameterValue -Parameter $parameters[18] -Value $rowValues[18]
-                    Set-AdodbParameterValue -Parameter $parameters[19] -Value $rowValues[19]
+                    for ($paramIndex = 4; $paramIndex -lt $parameters.Count; $paramIndex++) {
+                        Set-AdodbParameterValue -Parameter $parameters[$paramIndex] -Value $rowValues[$paramIndex]
+                    }
 
                     $bindStopwatch.Stop()
                     $bindDurationTotal += $bindStopwatch.Elapsed.TotalMilliseconds
@@ -4029,49 +4074,6 @@ WHERE Seed.BatchId = '$escBatch' AND Seed.Hostname = '$escHostname'"
         & $invokeCleanup -RecordDuration
     }
 
-    try {
-        TelemetryModule\Write-StTelemetryEvent -Name 'InterfaceBulkInsertTiming' -Payload @{
-            Hostname = $Hostname
-            BatchId  = $batchId
-            Rows     = [int]$rowsBuffer.Count
-            RunDate  = $runDateText
-            UiCloneDurationMs = $uiCloneDurationMs
-            StageDurationMs = $stageDurationMs
-            ParameterBindDurationMs = $parameterBindDurationMs
-            CommandExecuteDurationMs = $commandExecuteDurationMs
-            InterfaceUpdateDurationMs = $interfaceUpdateDurationMs
-            InterfaceInsertDurationMs = $interfaceInsertDurationMs
-            HistoryInsertDurationMs = $historyInsertDurationMs
-            CleanupDurationMs = $cleanupDurationMs
-            TransactionUsed = $transactionUsed
-            TransactionLevel = $transactionLevel
-            TransactionCommitted = $transactionCommitted
-            TransactionRolledBack = $transactionRolledBack
-            TransactionCommitDurationMs = $transactionCommitDurationMs
-            RecordsetAttempted = $recordsetAttempted
-            RecordsetUsed = $recordsetSucceeded
-            StreamDispatchDurationMs = $streamDispatchDurationMs
-            StreamCloneDurationMs = $streamCloneDurationMs
-            StreamStateUpdateDurationMs = $streamStateUpdateDurationMs
-            StreamRowsReceived = $streamRowsReceived
-            StreamRowsReused = $streamRowsReused
-            StreamRowsCloned = $streamRowsCloned
-            InsertRowCount = [int]$InsertRowCount
-            UpdateRowCount = [int]$UpdateRowCount
-            Success = $success
-        }
-    } catch { }
-
-    try {
-        TelemetryModule\Write-StTelemetryEvent -Name 'InterfaceBulkInsert' -Payload @{
-            Hostname = $Hostname
-            BatchId  = $batchId
-            Rows     = [int]$rowsBuffer.Count
-            RunDate  = $runDateText
-            Success  = $success
-        }
-    } catch { }
-
     if ($success) {
         $totalPorts = 0
         if ($uiRows -and $uiRows.Count -gt 0) {
@@ -4138,7 +4140,33 @@ WHERE Seed.BatchId = '$escBatch' AND Seed.Hostname = '$escHostname'"
         try { DeviceRepositoryModule\Clear-InterfacePortStream -Hostname $Hostname } catch { }
     }
 
-    return (& $setLastBulkMetrics $success)
+    $bulkResult = (& $setLastBulkMetrics $success)
+
+    $bulkMetrics = $null
+    try { $bulkMetrics = $script:LastInterfaceBulkInsertMetrics } catch { $bulkMetrics = $null }
+    if ($bulkMetrics) {
+        $timingPayload = @{}
+        foreach ($prop in $bulkMetrics.PSObject.Properties) {
+            if ($prop.Name -eq 'RowsStaged') { continue }
+            $timingPayload[$prop.Name] = $prop.Value
+        }
+
+        try {
+            TelemetryModule\Write-StTelemetryEvent -Name 'InterfaceBulkInsertTiming' -Payload $timingPayload
+        } catch { }
+
+        try {
+            TelemetryModule\Write-StTelemetryEvent -Name 'InterfaceBulkInsert' -Payload @{
+                Hostname = $bulkMetrics.Hostname
+                BatchId  = $bulkMetrics.BatchId
+                Rows     = $bulkMetrics.Rows
+                RunDate  = $bulkMetrics.RunDate
+                Success  = [bool]$bulkMetrics.Success
+            }
+        } catch { }
+    }
+
+    return $bulkResult
 }
 
 
@@ -4160,32 +4188,39 @@ function Invoke-DeviceSummaryParameterized {
     $updateCmd = New-AdodbTextCommand -Connection $Connection -CommandText $updateSql
     if (-not $updateCmd) { return $false }
 
+    $commonParameterDefinitions = @(
+        @{ Name = 'Make'; Type = $script:AdTypeVarWChar; Size = 255 }
+        @{ Name = 'Model'; Type = $script:AdTypeVarWChar; Size = 255 }
+        @{ Name = 'Uptime'; Type = $script:AdTypeVarWChar; Size = 255 }
+        @{ Name = 'Site'; Type = $script:AdTypeVarWChar; Size = 255 }
+        @{ Name = 'Building'; Type = $script:AdTypeVarWChar; Size = 255 }
+        @{ Name = 'Room'; Type = $script:AdTypeVarWChar; Size = 255 }
+        @{ Name = 'Ports'; Type = $script:AdTypeInteger }
+        @{ Name = 'AuthDefaultVLAN'; Type = $script:AdTypeVarWChar; Size = 255 }
+        @{ Name = 'AuthBlock'; Type = $script:AdTypeLongVarWChar }
+    )
+    $hostnameParameterDefinition = @{ Name = 'Hostname'; Type = $script:AdTypeVarWChar; Size = 255 }
+    $runDateParameterDefinition = @{ Name = 'RunDate'; Type = $script:AdTypeDate }
+
+    $commonValues = @(
+        [string]$Values.Make,
+        [string]$Values.Model,
+        [string]$Values.Uptime,
+        [string]$Values.Site,
+        [string]$Values.Building,
+        [string]$Values.Room,
+        [int]$Values.Ports,
+        [string]$Values.AuthDefaultVlan,
+        [string]$Values.AuthBlock
+    )
+
     try {
-        $parameters = @(
-            Add-AdodbParameter -Command $updateCmd -Name 'Make' -Type $script:AdTypeVarWChar -Size 255
-            Add-AdodbParameter -Command $updateCmd -Name 'Model' -Type $script:AdTypeVarWChar -Size 255
-            Add-AdodbParameter -Command $updateCmd -Name 'Uptime' -Type $script:AdTypeVarWChar -Size 255
-            Add-AdodbParameter -Command $updateCmd -Name 'Site' -Type $script:AdTypeVarWChar -Size 255
-            Add-AdodbParameter -Command $updateCmd -Name 'Building' -Type $script:AdTypeVarWChar -Size 255
-            Add-AdodbParameter -Command $updateCmd -Name 'Room' -Type $script:AdTypeVarWChar -Size 255
-            Add-AdodbParameter -Command $updateCmd -Name 'Ports' -Type $script:AdTypeInteger
-            Add-AdodbParameter -Command $updateCmd -Name 'AuthDefaultVLAN' -Type $script:AdTypeVarWChar -Size 255
-            Add-AdodbParameter -Command $updateCmd -Name 'AuthBlock' -Type $script:AdTypeLongVarWChar
-            Add-AdodbParameter -Command $updateCmd -Name 'Hostname' -Type $script:AdTypeVarWChar -Size 255
-        )
+        $parameterDefinitions = $commonParameterDefinitions + @($hostnameParameterDefinition)
+        $parameters = New-AdodbParameterList -Command $updateCmd -Definition $parameterDefinitions
+        if (-not $parameters -or ($parameters -contains $null)) { return $false }
 
-        if ($parameters -contains $null) { return $false }
-
-        Set-AdodbParameterValue -Parameter $parameters[0] -Value ([string]$Values.Make)
-        Set-AdodbParameterValue -Parameter $parameters[1] -Value ([string]$Values.Model)
-        Set-AdodbParameterValue -Parameter $parameters[2] -Value ([string]$Values.Uptime)
-        Set-AdodbParameterValue -Parameter $parameters[3] -Value ([string]$Values.Site)
-        Set-AdodbParameterValue -Parameter $parameters[4] -Value ([string]$Values.Building)
-        Set-AdodbParameterValue -Parameter $parameters[5] -Value ([string]$Values.Room)
-        Set-AdodbParameterValue -Parameter $parameters[6] -Value ([int]$Values.Ports)
-        Set-AdodbParameterValue -Parameter $parameters[7] -Value ([string]$Values.AuthDefaultVlan)
-        Set-AdodbParameterValue -Parameter $parameters[8] -Value ([string]$Values.AuthBlock)
-        Set-AdodbParameterValue -Parameter $parameters[9] -Value $Hostname
+        $parameterValues = $commonValues + @($Hostname)
+        if (-not (Set-AdodbParameterValues -Parameters $parameters -Values $parameterValues)) { return $false }
 
         try { $updateCmd.Execute() | Out-Null } catch { }
     } finally {
@@ -4197,31 +4232,12 @@ function Invoke-DeviceSummaryParameterized {
     if (-not $insertCmd) { return $false }
 
     try {
-        $parameters = @(
-            Add-AdodbParameter -Command $insertCmd -Name 'Hostname' -Type $script:AdTypeVarWChar -Size 255
-            Add-AdodbParameter -Command $insertCmd -Name 'Make' -Type $script:AdTypeVarWChar -Size 255
-            Add-AdodbParameter -Command $insertCmd -Name 'Model' -Type $script:AdTypeVarWChar -Size 255
-            Add-AdodbParameter -Command $insertCmd -Name 'Uptime' -Type $script:AdTypeVarWChar -Size 255
-            Add-AdodbParameter -Command $insertCmd -Name 'Site' -Type $script:AdTypeVarWChar -Size 255
-            Add-AdodbParameter -Command $insertCmd -Name 'Building' -Type $script:AdTypeVarWChar -Size 255
-            Add-AdodbParameter -Command $insertCmd -Name 'Room' -Type $script:AdTypeVarWChar -Size 255
-            Add-AdodbParameter -Command $insertCmd -Name 'Ports' -Type $script:AdTypeInteger
-            Add-AdodbParameter -Command $insertCmd -Name 'AuthDefaultVLAN' -Type $script:AdTypeVarWChar -Size 255
-            Add-AdodbParameter -Command $insertCmd -Name 'AuthBlock' -Type $script:AdTypeLongVarWChar
-        )
+        $parameterDefinitions = @($hostnameParameterDefinition) + $commonParameterDefinitions
+        $parameters = New-AdodbParameterList -Command $insertCmd -Definition $parameterDefinitions
+        if (-not $parameters -or ($parameters -contains $null)) { return $false }
 
-        if ($parameters -contains $null) { return $false }
-
-        Set-AdodbParameterValue -Parameter $parameters[0] -Value $Hostname
-        Set-AdodbParameterValue -Parameter $parameters[1] -Value ([string]$Values.Make)
-        Set-AdodbParameterValue -Parameter $parameters[2] -Value ([string]$Values.Model)
-        Set-AdodbParameterValue -Parameter $parameters[3] -Value ([string]$Values.Uptime)
-        Set-AdodbParameterValue -Parameter $parameters[4] -Value ([string]$Values.Site)
-        Set-AdodbParameterValue -Parameter $parameters[5] -Value ([string]$Values.Building)
-        Set-AdodbParameterValue -Parameter $parameters[6] -Value ([string]$Values.Room)
-        Set-AdodbParameterValue -Parameter $parameters[7] -Value ([int]$Values.Ports)
-        Set-AdodbParameterValue -Parameter $parameters[8] -Value ([string]$Values.AuthDefaultVlan)
-        Set-AdodbParameterValue -Parameter $parameters[9] -Value ([string]$Values.AuthBlock)
+        $parameterValues = @($Hostname) + $commonValues
+        if (-not (Set-AdodbParameterValues -Parameters $parameters -Values $parameterValues)) { return $false }
 
         try { $insertCmd.Execute() | Out-Null } catch { }
     } finally {
@@ -4233,33 +4249,12 @@ function Invoke-DeviceSummaryParameterized {
     if (-not $historyCmd) { return $false }
 
     try {
-        $parameters = @(
-            Add-AdodbParameter -Command $historyCmd -Name 'Hostname' -Type $script:AdTypeVarWChar -Size 255
-            Add-AdodbParameter -Command $historyCmd -Name 'RunDate' -Type $script:AdTypeDate
-            Add-AdodbParameter -Command $historyCmd -Name 'Make' -Type $script:AdTypeVarWChar -Size 255
-            Add-AdodbParameter -Command $historyCmd -Name 'Model' -Type $script:AdTypeVarWChar -Size 255
-            Add-AdodbParameter -Command $historyCmd -Name 'Uptime' -Type $script:AdTypeVarWChar -Size 255
-            Add-AdodbParameter -Command $historyCmd -Name 'Site' -Type $script:AdTypeVarWChar -Size 255
-            Add-AdodbParameter -Command $historyCmd -Name 'Building' -Type $script:AdTypeVarWChar -Size 255
-            Add-AdodbParameter -Command $historyCmd -Name 'Room' -Type $script:AdTypeVarWChar -Size 255
-            Add-AdodbParameter -Command $historyCmd -Name 'Ports' -Type $script:AdTypeInteger
-            Add-AdodbParameter -Command $historyCmd -Name 'AuthDefaultVLAN' -Type $script:AdTypeVarWChar -Size 255
-            Add-AdodbParameter -Command $historyCmd -Name 'AuthBlock' -Type $script:AdTypeLongVarWChar
-        )
+        $parameterDefinitions = @($hostnameParameterDefinition, $runDateParameterDefinition) + $commonParameterDefinitions
+        $parameters = New-AdodbParameterList -Command $historyCmd -Definition $parameterDefinitions
+        if (-not $parameters -or ($parameters -contains $null)) { return $false }
 
-        if ($parameters -contains $null) { return $false }
-
-        Set-AdodbParameterValue -Parameter $parameters[0] -Value $Hostname
-        Set-AdodbParameterValue -Parameter $parameters[1] -Value $RunDate
-        Set-AdodbParameterValue -Parameter $parameters[2] -Value ([string]$Values.Make)
-        Set-AdodbParameterValue -Parameter $parameters[3] -Value ([string]$Values.Model)
-        Set-AdodbParameterValue -Parameter $parameters[4] -Value ([string]$Values.Uptime)
-        Set-AdodbParameterValue -Parameter $parameters[5] -Value ([string]$Values.Site)
-        Set-AdodbParameterValue -Parameter $parameters[6] -Value ([string]$Values.Building)
-        Set-AdodbParameterValue -Parameter $parameters[7] -Value ([string]$Values.Room)
-        Set-AdodbParameterValue -Parameter $parameters[8] -Value ([int]$Values.Ports)
-        Set-AdodbParameterValue -Parameter $parameters[9] -Value ([string]$Values.AuthDefaultVlan)
-        Set-AdodbParameterValue -Parameter $parameters[10] -Value ([string]$Values.AuthBlock)
+        $parameterValues = @($Hostname, $RunDate) + $commonValues
+        if (-not (Set-AdodbParameterValues -Parameters $parameters -Values $parameterValues)) { return $false }
 
         try { $historyCmd.Execute() | Out-Null } catch {
             Write-Warning "Failed to insert device history for host ${Hostname}: $($_.Exception.Message)"
@@ -4310,89 +4305,54 @@ function Invoke-InterfaceRowParameterized {
 
     }
 
+    $hostnameParameterDefinition = @{ Name = 'Hostname'; Type = $script:AdTypeVarWChar; Size = 255 }
+    $runDateParameterDefinition = @{ Name = 'RunDate'; Type = $script:AdTypeDate }
+    $interfaceParameterDefinitions = @(
+        @{ Name = 'Port'; Type = $script:AdTypeVarWChar; Size = 255 }
+        @{ Name = 'Name'; Type = $script:AdTypeVarWChar; Size = 255 }
+        @{ Name = 'Status'; Type = $script:AdTypeVarWChar; Size = 255 }
+        @{ Name = 'VLAN'; Type = $script:AdTypeInteger }
+        @{ Name = 'Duplex'; Type = $script:AdTypeVarWChar; Size = 255 }
+        @{ Name = 'Speed'; Type = $script:AdTypeVarWChar; Size = 255 }
+        @{ Name = 'Type'; Type = $script:AdTypeVarWChar; Size = 255 }
+        @{ Name = 'Learned'; Type = $script:AdTypeLongVarWChar }
+        @{ Name = 'AuthState'; Type = $script:AdTypeVarWChar; Size = 255 }
+        @{ Name = 'AuthMode'; Type = $script:AdTypeVarWChar; Size = 255 }
+        @{ Name = 'AuthClient'; Type = $script:AdTypeVarWChar; Size = 255 }
+        @{ Name = 'AuthTemplate'; Type = $script:AdTypeVarWChar; Size = 255 }
+        @{ Name = 'Config'; Type = $script:AdTypeLongVarWChar }
+        @{ Name = 'PortColor'; Type = $script:AdTypeVarWChar; Size = 255 }
+        @{ Name = 'ConfigStatus'; Type = $script:AdTypeVarWChar; Size = 255 }
+        @{ Name = 'ToolTip'; Type = $script:AdTypeLongVarWChar }
+    )
+    $interfaceValues = @(
+        [string]$Row.Port,
+        [string]$Row.Name,
+        [string]$Row.Status,
+        $vlanNumeric,
+        [string]$Row.Duplex,
+        [string]$Row.Speed,
+        [string]$Row.Type,
+        [string]$Row.Learned,
+        [string]$Row.AuthState,
+        [string]$Row.AuthMode,
+        [string]$Row.AuthClient,
+        [string]$Row.Template,
+        [string]$Row.Config,
+        [string]$Row.PortColor,
+        [string]$Row.StatusTag,
+        [string]$Row.ToolTip
+    )
 
 
     try {
 
-        $parameters = @(
+        $parameterDefinitions = @($hostnameParameterDefinition) + $interfaceParameterDefinitions
+        $parameters = New-AdodbParameterList -Command $insertCmd -Definition $parameterDefinitions
+        if (-not $parameters -or ($parameters -contains $null)) { return $false }
 
-            Add-AdodbParameter -Command $insertCmd -Name 'Hostname' -Type $script:AdTypeVarWChar -Size 255
-
-            Add-AdodbParameter -Command $insertCmd -Name 'Port' -Type $script:AdTypeVarWChar -Size 255
-
-            Add-AdodbParameter -Command $insertCmd -Name 'Name' -Type $script:AdTypeVarWChar -Size 255
-
-            Add-AdodbParameter -Command $insertCmd -Name 'Status' -Type $script:AdTypeVarWChar -Size 255
-
-            Add-AdodbParameter -Command $insertCmd -Name 'VLAN' -Type $script:AdTypeInteger
-
-            Add-AdodbParameter -Command $insertCmd -Name 'Duplex' -Type $script:AdTypeVarWChar -Size 255
-
-            Add-AdodbParameter -Command $insertCmd -Name 'Speed' -Type $script:AdTypeVarWChar -Size 255
-
-            Add-AdodbParameter -Command $insertCmd -Name 'Type' -Type $script:AdTypeVarWChar -Size 255
-
-            Add-AdodbParameter -Command $insertCmd -Name 'Learned' -Type $script:AdTypeLongVarWChar
-
-            Add-AdodbParameter -Command $insertCmd -Name 'AuthState' -Type $script:AdTypeVarWChar -Size 255
-
-            Add-AdodbParameter -Command $insertCmd -Name 'AuthMode' -Type $script:AdTypeVarWChar -Size 255
-
-            Add-AdodbParameter -Command $insertCmd -Name 'AuthClient' -Type $script:AdTypeVarWChar -Size 255
-
-            Add-AdodbParameter -Command $insertCmd -Name 'AuthTemplate' -Type $script:AdTypeVarWChar -Size 255
-
-            Add-AdodbParameter -Command $insertCmd -Name 'Config' -Type $script:AdTypeLongVarWChar
-
-            Add-AdodbParameter -Command $insertCmd -Name 'PortColor' -Type $script:AdTypeVarWChar -Size 255
-
-            Add-AdodbParameter -Command $insertCmd -Name 'ConfigStatus' -Type $script:AdTypeVarWChar -Size 255
-
-            Add-AdodbParameter -Command $insertCmd -Name 'ToolTip' -Type $script:AdTypeLongVarWChar
-
-        )
-
-
-
-        if ($parameters -contains $null) { return $false }
-
-
-
-        Set-AdodbParameterValue -Parameter $parameters[0] -Value $Hostname
-
-        Set-AdodbParameterValue -Parameter $parameters[1] -Value ([string]$Row.Port)
-
-        Set-AdodbParameterValue -Parameter $parameters[2] -Value ([string]$Row.Name)
-
-        Set-AdodbParameterValue -Parameter $parameters[3] -Value ([string]$Row.Status)
-
-        Set-AdodbParameterValue -Parameter $parameters[4] -Value $vlanNumeric
-
-        Set-AdodbParameterValue -Parameter $parameters[5] -Value ([string]$Row.Duplex)
-
-        Set-AdodbParameterValue -Parameter $parameters[6] -Value ([string]$Row.Speed)
-
-        Set-AdodbParameterValue -Parameter $parameters[7] -Value ([string]$Row.Type)
-
-        Set-AdodbParameterValue -Parameter $parameters[8] -Value ([string]$Row.Learned)
-
-        Set-AdodbParameterValue -Parameter $parameters[9] -Value ([string]$Row.AuthState)
-
-        Set-AdodbParameterValue -Parameter $parameters[10] -Value ([string]$Row.AuthMode)
-
-        Set-AdodbParameterValue -Parameter $parameters[11] -Value ([string]$Row.AuthClient)
-
-        Set-AdodbParameterValue -Parameter $parameters[12] -Value ([string]$Row.Template)
-
-        Set-AdodbParameterValue -Parameter $parameters[13] -Value ([string]$Row.Config)
-
-        Set-AdodbParameterValue -Parameter $parameters[14] -Value ([string]$Row.PortColor)
-
-        Set-AdodbParameterValue -Parameter $parameters[15] -Value ([string]$Row.StatusTag)
-
-        Set-AdodbParameterValue -Parameter $parameters[16] -Value ([string]$Row.ToolTip)
-
-
+        $parameterValues = @($Hostname) + $interfaceValues
+        if (-not (Set-AdodbParameterValues -Parameters $parameters -Values $parameterValues)) { return $false }
 
         try {
 
@@ -4426,89 +4386,12 @@ function Invoke-InterfaceRowParameterized {
 
     try {
 
-        $parameters = @(
+        $parameterDefinitions = @($hostnameParameterDefinition, $runDateParameterDefinition) + $interfaceParameterDefinitions
+        $parameters = New-AdodbParameterList -Command $historyCmd -Definition $parameterDefinitions
+        if (-not $parameters -or ($parameters -contains $null)) { return $true }
 
-            Add-AdodbParameter -Command $historyCmd -Name 'Hostname' -Type $script:AdTypeVarWChar -Size 255
-
-            Add-AdodbParameter -Command $historyCmd -Name 'RunDate' -Type $script:AdTypeDate
-
-            Add-AdodbParameter -Command $historyCmd -Name 'Port' -Type $script:AdTypeVarWChar -Size 255
-
-            Add-AdodbParameter -Command $historyCmd -Name 'Name' -Type $script:AdTypeVarWChar -Size 255
-
-            Add-AdodbParameter -Command $historyCmd -Name 'Status' -Type $script:AdTypeVarWChar -Size 255
-
-            Add-AdodbParameter -Command $historyCmd -Name 'VLAN' -Type $script:AdTypeInteger
-
-            Add-AdodbParameter -Command $historyCmd -Name 'Duplex' -Type $script:AdTypeVarWChar -Size 255
-
-            Add-AdodbParameter -Command $historyCmd -Name 'Speed' -Type $script:AdTypeVarWChar -Size 255
-
-            Add-AdodbParameter -Command $historyCmd -Name 'Type' -Type $script:AdTypeVarWChar -Size 255
-
-            Add-AdodbParameter -Command $historyCmd -Name 'Learned' -Type $script:AdTypeLongVarWChar
-
-            Add-AdodbParameter -Command $historyCmd -Name 'AuthState' -Type $script:AdTypeVarWChar -Size 255
-
-            Add-AdodbParameter -Command $historyCmd -Name 'AuthMode' -Type $script:AdTypeVarWChar -Size 255
-
-            Add-AdodbParameter -Command $historyCmd -Name 'AuthClient' -Type $script:AdTypeVarWChar -Size 255
-
-            Add-AdodbParameter -Command $historyCmd -Name 'AuthTemplate' -Type $script:AdTypeVarWChar -Size 255
-
-            Add-AdodbParameter -Command $historyCmd -Name 'Config' -Type $script:AdTypeLongVarWChar
-
-            Add-AdodbParameter -Command $historyCmd -Name 'PortColor' -Type $script:AdTypeVarWChar -Size 255
-
-            Add-AdodbParameter -Command $historyCmd -Name 'ConfigStatus' -Type $script:AdTypeVarWChar -Size 255
-
-            Add-AdodbParameter -Command $historyCmd -Name 'ToolTip' -Type $script:AdTypeLongVarWChar
-
-        )
-
-
-
-        if ($parameters -contains $null) { return $true }
-
-
-
-        Set-AdodbParameterValue -Parameter $parameters[0] -Value $Hostname
-
-        Set-AdodbParameterValue -Parameter $parameters[1] -Value $RunDate
-
-        Set-AdodbParameterValue -Parameter $parameters[2] -Value ([string]$Row.Port)
-
-        Set-AdodbParameterValue -Parameter $parameters[3] -Value ([string]$Row.Name)
-
-        Set-AdodbParameterValue -Parameter $parameters[4] -Value ([string]$Row.Status)
-
-        Set-AdodbParameterValue -Parameter $parameters[5] -Value $vlanNumeric
-
-        Set-AdodbParameterValue -Parameter $parameters[6] -Value ([string]$Row.Duplex)
-
-        Set-AdodbParameterValue -Parameter $parameters[7] -Value ([string]$Row.Speed)
-
-        Set-AdodbParameterValue -Parameter $parameters[8] -Value ([string]$Row.Type)
-
-        Set-AdodbParameterValue -Parameter $parameters[9] -Value ([string]$Row.Learned)
-
-        Set-AdodbParameterValue -Parameter $parameters[10] -Value ([string]$Row.AuthState)
-
-        Set-AdodbParameterValue -Parameter $parameters[11] -Value ([string]$Row.AuthMode)
-
-        Set-AdodbParameterValue -Parameter $parameters[12] -Value ([string]$Row.AuthClient)
-
-        Set-AdodbParameterValue -Parameter $parameters[13] -Value ([string]$Row.Template)
-
-        Set-AdodbParameterValue -Parameter $parameters[14] -Value ([string]$Row.Config)
-
-        Set-AdodbParameterValue -Parameter $parameters[15] -Value ([string]$Row.PortColor)
-
-        Set-AdodbParameterValue -Parameter $parameters[16] -Value ([string]$Row.StatusTag)
-
-        Set-AdodbParameterValue -Parameter $parameters[17] -Value ([string]$Row.ToolTip)
-
-
+        $parameterValues = @($Hostname, $RunDate) + $interfaceValues
+        if (-not (Set-AdodbParameterValues -Parameters $parameters -Values $parameterValues)) { return $true }
 
         try {
 
