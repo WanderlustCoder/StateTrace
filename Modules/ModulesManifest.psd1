@@ -27,6 +27,8 @@
         'CiscoModule.psm1',
         # Interface and view modules
         'ViewCompositionModule.psm1',
+        'PortReorgModule.psm1',
+        'PortReorgViewModule.psm1',
         'ViewStateService.psm1',
         'InterfaceModule.psm1',
         'SpanViewModule.psm1',

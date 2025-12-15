@@ -11,10 +11,7 @@ function Split-RawLogs {
 
     # Start with a clean extracted directory so leftover slices from a prior run
     # cannot be appended into the current parsing session.
-    try {
-        Get-ChildItem -LiteralPath $ExtractedPath -File -ErrorAction SilentlyContinue |
-            Remove-Item -Force -ErrorAction SilentlyContinue
-    } catch { }
+    Clear-ExtractedLogs -ExtractedPath $ExtractedPath
 
     # Build a strongly typed list of raw log files.  Avoid the Where-Object
     # pipeline when filtering by extension to reduce overhead when many files
@@ -152,7 +149,14 @@ function Clear-ExtractedLogs {
     param(
         [Parameter(Mandatory=$true)][string]$ExtractedPath
     )
-    Get-ChildItem $ExtractedPath -File | Remove-Item -Force -ErrorAction SilentlyContinue
+
+    if ([string]::IsNullOrWhiteSpace($ExtractedPath)) { return }
+    if (-not (Test-Path -LiteralPath $ExtractedPath)) { return }
+
+    try {
+        Get-ChildItem -LiteralPath $ExtractedPath -File -ErrorAction SilentlyContinue |
+            Remove-Item -Force -ErrorAction SilentlyContinue
+    } catch { }
 }
 
 Export-ModuleMember -Function Split-RawLogs, Clear-ExtractedLogs

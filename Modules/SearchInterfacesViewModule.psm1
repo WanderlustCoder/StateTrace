@@ -1,15 +1,21 @@
-##
+Set-StrictMode -Version Latest
+
 if (-not (Get-Variable -Name SearchUpdateTimer -Scope Script -ErrorAction SilentlyContinue)) {
     $script:SearchUpdateTimer = $null
 }
 
 function New-SearchInterfacesView {
-    
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)][System.Windows.Window]$Window,
         [Parameter(Mandatory=$true)][string]$ScriptDir
     )
-    $searchView = Set-StView -Window $Window -ScriptDir $ScriptDir -ViewName 'SearchInterfacesView' -HostControlName 'SearchInterfacesHost' -GlobalVariableName 'searchInterfacesView'
+
+    $requestSearchUpdate = {
+        try { DeviceInsightsModule\Update-SearchGrid } catch { }
+    }
+
+    $searchView = ViewCompositionModule\Set-StView -Window $Window -ScriptDir $ScriptDir -ViewName 'SearchInterfacesView' -HostControlName 'SearchInterfacesHost' -GlobalVariableName 'searchInterfacesView'
     if (-not $searchView) { return }
     # Acquire controls
     $searchBox      = $searchView.FindName('SearchBox')
@@ -29,38 +35,32 @@ function New-SearchInterfacesView {
         $searchClearBtn.Add_Click({
             # reset the globally scoped search box so the handler always works
             $global:searchBox.Text = ''
-            if (Get-Command Update-SearchGrid -ErrorAction SilentlyContinue) { Update-SearchGrid }
+            & $requestSearchUpdate
         })
     }
     # Text changed triggers debounced search filtering.  A DispatcherTimer is
     if ($searchBox) {
         # Initialise the debounce timer only once per module load
         if (-not $script:SearchUpdateTimer) {
-            $script:SearchUpdateTimer = New-Object System.Windows.Threading.DispatcherTimer
-            # 300ms delay to allow user input to settle before filtering
-            $script:SearchUpdateTimer.Interval = [TimeSpan]::FromMilliseconds(300)
-            $script:SearchUpdateTimer.add_Tick({
-                # Stop the timer until the next request
-                $script:SearchUpdateTimer.Stop()
-                # Perform the actual grid update
-                if (Get-Command Update-SearchGrid -ErrorAction SilentlyContinue) { Update-SearchGrid }
-            })
+            $script:SearchUpdateTimer = ViewCompositionModule\New-StDebounceTimer -DelayMs 300 -Action $requestSearchUpdate
         }
         $searchBox.Add_TextChanged({
             # Each keystroke resets the debounce timer.  Use script scope
-            $script:SearchUpdateTimer.Stop()
-            $script:SearchUpdateTimer.Start()
+            if ($script:SearchUpdateTimer) {
+                $script:SearchUpdateTimer.Stop()
+                $script:SearchUpdateTimer.Start()
+            }
         })
     }
     # Regex checkbox toggles global flag and refreshes
     if ($regexCheckbox) {
         $regexCheckbox.Add_Checked({
             DeviceInsightsModule\Set-SearchRegexEnabled -Enabled:$true
-            if (Get-Command Update-SearchGrid -ErrorAction SilentlyContinue) { Update-SearchGrid }
+            & $requestSearchUpdate
         })
         $regexCheckbox.Add_Unchecked({
             DeviceInsightsModule\Set-SearchRegexEnabled -Enabled:$false
-            if (Get-Command Update-SearchGrid -ErrorAction SilentlyContinue) { Update-SearchGrid }
+            & $requestSearchUpdate
         })
     }
     # Export button writes current search results to CSV
@@ -68,35 +68,26 @@ function New-SearchInterfacesView {
         $exportBtn.Add_Click({
             if (-not $searchGrid) { return }
             $rows = $searchGrid.ItemsSource
-            if (-not $rows -or $rows.Count -eq 0) {
-                [System.Windows.MessageBox]::Show('No results to export.')
-                return
-            }
-            $dlg = New-Object Microsoft.Win32.SaveFileDialog
-            $dlg.Filter = 'CSV files (*.csv)|*.csv|All files (*.*)|*.*'
-            $dlg.FileName = 'SearchResults.csv'
-            if ($dlg.ShowDialog() -eq $true) {
-                $path = $dlg.FileName
-                try {
-                    $rows | Export-Csv -Path $path -NoTypeInformation
-                    [System.Windows.MessageBox]::Show("Exported $($rows.Count) rows to $path", 'Export Complete')
-                } catch {
-                    [System.Windows.MessageBox]::Show("Failed to export: $($_.Exception.Message)")
-                }
-            }
+            ViewCompositionModule\Export-StRowsToCsv -Rows $rows -DefaultFileName 'SearchResults.csv' -EmptyMessage 'No results to export.' -SuccessNoun 'rows' -FailureMessagePrefix 'Failed to export'
         })
     }
     # Status and Auth filter dropdowns refresh the grid.  Use the same
-    if ($statusFilter) {
-        $statusFilter.Add_SelectionChanged({
+    $restartSearchDebounce = {
+        if ($script:SearchUpdateTimer) {
             $script:SearchUpdateTimer.Stop()
             $script:SearchUpdateTimer.Start()
+        } else {
+            & $requestSearchUpdate
+        }
+    }
+    if ($statusFilter) {
+        $statusFilter.Add_SelectionChanged({
+            & $restartSearchDebounce
         })
     }
     if ($authFilter) {
         $authFilter.Add_SelectionChanged({
-            $script:SearchUpdateTimer.Stop()
-            $script:SearchUpdateTimer.Start()
+            & $restartSearchDebounce
         })
     }
     # Delay heavy site-wide load until the user searches.
@@ -104,6 +95,4 @@ function New-SearchInterfacesView {
 }
 
 Export-ModuleMember -Function New-SearchInterfacesView
-
-
 

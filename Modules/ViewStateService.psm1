@@ -28,13 +28,6 @@ function Import-ViewStateServiceModule {
     }
 }
 
-# Backwards compatibility shim for callers using the previous unapproved verb.
-function Ensure-ViewStateServiceLoaded {
-    [CmdletBinding()]
-    param()
-
-    return Import-ViewStateServiceModule
-}
 function Get-SequenceCount {
     param([object]$Value)
 

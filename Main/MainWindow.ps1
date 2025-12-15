@@ -7,10 +7,6 @@ $VerbosePreference          = 'SilentlyContinue'
 $DebugPreference            = 'SilentlyContinue'
 $ErrorActionPreference      = 'Continue'
 
-if (-not (Get-Variable -Name InterfacePortCollections -Scope Global -ErrorAction SilentlyContinue)) {
-    $global:InterfacePortCollections = @{}
-}
-
 $startupLogDir = Join-Path $scriptDir '..\Logs\Diagnostics'
 try {
     if (-not (Test-Path $startupLogDir)) { New-Item -ItemType Directory -Path $startupLogDir -Force | Out-Null }
@@ -880,77 +876,6 @@ function Convert-InterfaceCollectionForHost {
     return $converted
 }
 
-function ConvertTo-PortPsObjectLocal {
-    param(
-        $Row,
-        [string]$Hostname
-    )
-
-    if ($null -eq $Row) { return $null }
-
-    $clone = [pscustomobject]@{}
-    try {
-        if ($Row -is [System.Data.DataRow] -and $Row.Table -and $Row.Table.Columns) {
-            foreach ($col in $Row.Table.Columns) {
-                $clone | Add-Member -NotePropertyName $col.ColumnName -NotePropertyValue $Row[$col.ColumnName] -Force
-            }
-        } elseif ($Row -is [System.Data.DataRowView] -and $Row.Row -and $Row.Row.Table) {
-            foreach ($col in $Row.Row.Table.Columns) {
-                $clone | Add-Member -NotePropertyName $col.ColumnName -NotePropertyValue $Row[$col.ColumnName] -Force
-            }
-        } elseif ($Row -is [psobject]) {
-            foreach ($prop in $Row.PSObject.Properties) {
-                $clone | Add-Member -NotePropertyName $prop.Name -NotePropertyValue $prop.Value -Force
-            }
-        } elseif ($Row -is [System.Collections.IDictionary]) {
-            foreach ($key in $Row.Keys) {
-                $clone | Add-Member -NotePropertyName $key -NotePropertyValue $Row[$key] -Force
-            }
-        }
-    } catch { }
-
-    $hostnameProp = $clone.PSObject.Properties['Hostname']
-    if ($hostnameProp) {
-        if ([string]::IsNullOrWhiteSpace(('' + $hostnameProp.Value))) {
-            $hostnameProp.Value = $Hostname
-        }
-    } elseif ($Hostname) {
-        $clone | Add-Member -NotePropertyName Hostname -NotePropertyValue $Hostname -Force
-    }
-
-    if (-not $clone.PSObject.Properties['IsSelected']) {
-        $clone | Add-Member -NotePropertyName IsSelected -NotePropertyValue $false -Force
-    }
-
-    return $clone
-}
-
-function Convert-InterfaceCollectionForHost {
-    param(
-        $Collection,
-        [string]$Hostname
-    )
-    if (-not $Collection) { return $Collection }
-
-    $needsConversion = $false
-    try {
-        $first = $null
-        foreach ($item in $Collection) { $first = $item; break }
-        if ($first -is [System.Data.DataRow] -or $first -is [System.Data.DataRowView]) {
-            $needsConversion = $true
-        }
-    } catch { $needsConversion = $false }
-
-    if (-not $needsConversion) { return $Collection }
-
-    $converted = New-Object 'System.Collections.ObjectModel.ObservableCollection[object]'
-    foreach ($item in $Collection) {
-        $clone = ConvertTo-PortPsObjectLocal -Row $item -Hostname $Hostname
-        if ($null -ne $clone) { $converted.Add($clone) | Out-Null }
-    }
-    return $converted
-}
-
 function Initialize-FilterMetadataAtStartup {
     param(
         [Windows.Window]$Window,
@@ -1570,86 +1495,6 @@ function Invoke-DatabaseImport {
     }
 }
 
-function Show-DeviceDetails {
-    [CmdletBinding()]
-    param([Parameter()][string]$Hostname)
-
-    $hostTrim = ('' + $Hostname).Trim()
-    if ([string]::IsNullOrWhiteSpace($hostTrim)) { return }
-
-    if (-not (Get-Command -Name 'DeviceDetailsModule\Get-DeviceDetails' -ErrorAction SilentlyContinue)) {
-        try {
-            $modPath = Join-Path $scriptDir '..\\Modules\\DeviceDetailsModule.psm1'
-            if (Test-Path -LiteralPath $modPath) {
-                Import-Module -Name $modPath -Global -ErrorAction Stop
-            } else {
-                Import-Module DeviceDetailsModule -ErrorAction Stop
-            }
-        } catch {
-            Write-Warning ("Failed to import DeviceDetailsModule: {0}" -f $_.Exception.Message)
-        }
-    }
-
-    $dto = $null
-    $hostIndicatorCmd = $null
-    try { $hostIndicatorCmd = Get-Command -Name 'InterfaceModule\Set-HostLoadingIndicator' -ErrorAction SilentlyContinue } catch { $hostIndicatorCmd = $null }
-    if ($hostIndicatorCmd) {
-        try { InterfaceModule\Set-HostLoadingIndicator -Hostname $hostTrim -State 'Loading' } catch {}
-    }
-    try {
-        $dto = DeviceDetailsModule\Get-DeviceDetails -Hostname $hostTrim
-    } catch {
-        [System.Windows.MessageBox]::Show("Error loading ${hostTrim}:`n$($_.Exception.Message)")
-        if ($hostIndicatorCmd) {
-            try { InterfaceModule\Set-HostLoadingIndicator -State 'Hidden' } catch {}
-        }
-        return
-    }
-    if (-not $dto) {
-        [System.Windows.MessageBox]::Show("No device details available for ${hostTrim}.")
-        if ($hostIndicatorCmd) {
-            try { InterfaceModule\Set-HostLoadingIndicator -State 'Hidden' } catch {}
-        }
-        return
-    }
-
-    try {
-        $cachedCollection = $null
-        try {
-            if ($global:InterfacePortCollections -and $global:InterfacePortCollections.ContainsKey($hostTrim)) {
-                $cachedCollection = $global:InterfacePortCollections[$hostTrim]
-            }
-        } catch { $cachedCollection = $null }
-        if ($cachedCollection) {
-            try { $dto.Interfaces = $cachedCollection } catch {}
-        }
-
-        $convertedCollection = Convert-InterfaceCollectionForHost -Collection $dto.Interfaces -Hostname $hostTrim
-        if ($convertedCollection -ne $dto.Interfaces -and $convertedCollection) {
-            try { $dto.Interfaces = $convertedCollection } catch {}
-            try {
-                if (-not (Get-Variable -Name InterfacePortCollections -Scope Global -ErrorAction SilentlyContinue)) {
-                    $global:InterfacePortCollections = @{}
-                }
-                $global:InterfacePortCollections[$hostTrim] = $convertedCollection
-
-                if (-not (Get-Variable -Name DeviceInterfaceCache -Scope Global -ErrorAction SilentlyContinue)) {
-                    $global:DeviceInterfaceCache = @{}
-                }
-                $global:DeviceInterfaceCache[$hostTrim] = $convertedCollection
-            } catch { }
-        }
-
-        InterfaceModule\Set-InterfaceViewData -DeviceDetails $dto -DefaultHostname $hostTrim
-        $initialCount = 0
-        try { $initialCount = @($dto.Interfaces).Count } catch { $initialCount = 0 }
-        try { Write-Diag ("Show-DeviceDetails applied | Host={0} | Interfaces={1}" -f $hostTrim, $initialCount) } catch {}
-    } catch {
-        Write-Warning ("Failed to apply device details for {0}: {1}" -f $hostTrim, $_.Exception.Message)
-        try { Write-Diag ("Show-DeviceDetails failed | Host={0} | Error={1}" -f $hostTrim, $_.Exception.Message) } catch {}
-    }
-}
-
 function Get-HostnameChanged {
     [CmdletBinding()]
     param([string]$Hostname)
@@ -1688,15 +1533,14 @@ function Get-HostnameChanged {
         }
 
         $hostIndicatorCmd = Get-Command -Name 'InterfaceModule\Set-HostLoadingIndicator' -ErrorAction SilentlyContinue
-
-        # Load device details synchronously.  Asynchronous invocation via
+ 
+        # Load device details asynchronously.
         if ($Hostname) {
             if ($hostIndicatorCmd) {
                 try {
                     InterfaceModule\Set-HostLoadingIndicator -Hostname $Hostname -CurrentIndex $currentIndex -TotalHosts $totalHosts -State 'Loading'
                 } catch {}
             }
-            Show-DeviceDetails $Hostname
             try {
                 Import-DeviceDetailsAsync -Hostname $Hostname
             } catch {
@@ -1914,10 +1758,6 @@ return $res
                                 Write-Verbose ("Import-DeviceDetailsAsync: failed to apply device details: {0}" -f $_.Exception.Message)
                             }
                         }
-                        # Load span info using vendor-specific helper if present
-                        if (Get-Command Get-SpanInfo -ErrorAction SilentlyContinue) {
-                            try { Get-SpanInfo $defaultHost } catch {}
-                        }
                     } catch {
                         # Swallow UI update exceptions to prevent crashes
                     }
@@ -1964,11 +1804,6 @@ return $res
                     if ($null -ne $collection) {
                         try {
                             [System.Windows.Application]::Current.Dispatcher.Invoke([System.Action]{
-                                if (-not (Get-Variable -Name InterfacePortCollections -Scope Global -ErrorAction SilentlyContinue)) {
-                                    $global:InterfacePortCollections = @{}
-                                }
-                                $global:InterfacePortCollections[$deviceHost] = $collection
-
                                 if (-not (Get-Variable -Name DeviceInterfaceCache -Scope Global -ErrorAction SilentlyContinue)) {
                                     $global:DeviceInterfaceCache = @{}
                                 }
@@ -1976,11 +1811,6 @@ return $res
                             })
                         } catch {
                             try {
-                                if (-not (Get-Variable -Name InterfacePortCollections -Scope Global -ErrorAction SilentlyContinue)) {
-                                    $global:InterfacePortCollections = @{}
-                                }
-                                $global:InterfacePortCollections[$deviceHost] = $collection
-
                                 if (-not (Get-Variable -Name DeviceInterfaceCache -Scope Global -ErrorAction SilentlyContinue)) {
                                     $global:DeviceInterfaceCache = @{}
                                 }
@@ -2031,11 +1861,6 @@ return $res
                             try {
                                 [System.Windows.Application]::Current.Dispatcher.Invoke([System.Action]{
                                     try {
-                                        if (-not (Get-Variable -Name InterfacePortCollections -Scope Global -ErrorAction SilentlyContinue)) {
-                                            $global:InterfacePortCollections = @{}
-                                        }
-                                        $global:InterfacePortCollections[$deviceHost] = $collection
-
                                         if (-not (Get-Variable -Name DeviceInterfaceCache -Scope Global -ErrorAction SilentlyContinue)) {
                                             $global:DeviceInterfaceCache = @{}
                                         }
@@ -2614,4 +2439,3 @@ $window.Add_Loaded({
 $window.ShowDialog() | Out-Null
 
 # 9) Cleanup
-    $hostTrim = ('' + $Hostname).Trim()

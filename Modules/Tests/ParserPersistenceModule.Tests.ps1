@@ -1278,7 +1278,7 @@ Describe "ParserPersistenceModule" {
 
 
 
-            Mock Release-ComObjectSafe -ModuleName ParserPersistenceModule { }
+            Mock Remove-ComObjectSafe -ModuleName TelemetryModule { }
 
 
 

@@ -612,18 +612,6 @@ function Test-IsAdodbConnection {
     return $false
 }
 
-function Release-ComObjectSafe {
-    [CmdletBinding()]
-    param(
-        [Parameter()][object]$ComObject
-    )
-
-    if ($null -eq $ComObject) { return }
-    if ($ComObject -is [System.__ComObject]) {
-        try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($ComObject) } catch { }
-    }
-}
-
 function New-AdodbTextCommand {
     [CmdletBinding()]
     param(
@@ -643,7 +631,7 @@ function New-AdodbTextCommand {
         $command.CommandText = $CommandText
         return $command
     } catch {
-        Release-ComObjectSafe -ComObject $command
+        TelemetryModule\Remove-ComObjectSafe -ComObject $command
         return $null
     }
 }
@@ -677,7 +665,7 @@ function New-AdodbInterfaceSeedRecordset {
         if ($opened -and $recordset -and $recordset.State -ne 0) {
             try { $recordset.Close() } catch { }
         }
-        Release-ComObjectSafe -ComObject $recordset
+        TelemetryModule\Remove-ComObjectSafe -ComObject $recordset
         return $null
     }
 }
@@ -2341,7 +2329,7 @@ $siteCacheTemplateDurationMs = 0.0
         } finally {
             if ($recordsetLocal) {
                 try { $recordsetLocal.Close() } catch { }
-                Release-ComObjectSafe -ComObject $recordsetLocal
+                TelemetryModule\Remove-ComObjectSafe -ComObject $recordsetLocal
             }
         }
 
@@ -3494,7 +3482,7 @@ function Ensure-InterfaceBulkSeedTable {
         } finally {
             if ($seedCheckRecordset) {
                 try { $seedCheckRecordset.Close() } catch { }
-                Release-ComObjectSafe -ComObject $seedCheckRecordset
+                TelemetryModule\Remove-ComObjectSafe -ComObject $seedCheckRecordset
             }
         }
 
@@ -3506,7 +3494,7 @@ function Ensure-InterfaceBulkSeedTable {
             } finally {
                 if ($runDateCheckRecordset) {
                     try { $runDateCheckRecordset.Close() } catch { }
-                    Release-ComObjectSafe -ComObject $runDateCheckRecordset
+                    TelemetryModule\Remove-ComObjectSafe -ComObject $runDateCheckRecordset
                 }
             }
         } catch {
@@ -3600,6 +3588,23 @@ function Invoke-InterfaceBulkInsertInternal {
 
     $batchId = ([guid]::NewGuid()).ToString()
     $runDateText = $RunDate.ToString('yyyy-MM-dd HH:mm:ss')
+
+    if (-not (Get-Command -Name 'InterfaceCommon\Set-PortRowDefaults' -ErrorAction SilentlyContinue)) {
+        try {
+            if (Get-Command -Name 'TelemetryModule\Import-InterfaceCommon' -ErrorAction SilentlyContinue) {
+                TelemetryModule\Import-InterfaceCommon | Out-Null
+            }
+        } catch { }
+
+        if (-not (Get-Command -Name 'InterfaceCommon\Set-PortRowDefaults' -ErrorAction SilentlyContinue)) {
+            try {
+                $interfaceCommonPath = Join-Path $PSScriptRoot 'InterfaceCommon.psm1'
+                if (Test-Path -LiteralPath $interfaceCommonPath) {
+                    Import-Module -Name $interfaceCommonPath -Force -Global -ErrorAction Stop | Out-Null
+                }
+            } catch { }
+        }
+    }
 
     $rowsBuffer = $null
     $stagedCount = 0
@@ -3716,12 +3721,7 @@ function Invoke-InterfaceBulkInsertInternal {
             }
         }
 
-        if (-not $clone.PSObject.Properties['Hostname']) {
-            $clone | Add-Member -NotePropertyName Hostname -NotePropertyValue $Hostname -Force
-        }
-        if (-not $clone.PSObject.Properties['IsSelected']) {
-            $clone | Add-Member -NotePropertyName IsSelected -NotePropertyValue $false -Force
-        }
+        try { InterfaceCommon\Set-PortRowDefaults -Row $clone -Hostname $Hostname | Out-Null } catch { }
         return $clone
     }
 
@@ -3866,7 +3866,7 @@ function Invoke-InterfaceBulkInsertInternal {
             try {
                 if ($seedRecordset.State -ne 0) { $seedRecordset.Close() }
             } catch { }
-            Release-ComObjectSafe -ComObject $seedRecordset
+            TelemetryModule\Remove-ComObjectSafe -ComObject $seedRecordset
         }
     }
 
@@ -3964,7 +3964,7 @@ function Invoke-InterfaceBulkInsertInternal {
             Write-Warning ("Failed to stage interfaces for host {0}: {1}" -f $Hostname, $_.Exception.Message)
             return (& $setLastBulkMetrics $false)
         } finally {
-            Release-ComObjectSafe -ComObject $insertCmd
+            TelemetryModule\Remove-ComObjectSafe -ComObject $insertCmd
         }
     }
 
@@ -4224,7 +4224,7 @@ function Invoke-DeviceSummaryParameterized {
 
         try { $updateCmd.Execute() | Out-Null } catch { }
     } finally {
-        Release-ComObjectSafe -ComObject $updateCmd
+        TelemetryModule\Remove-ComObjectSafe -ComObject $updateCmd
     }
 
     $insertSql = 'INSERT INTO DeviceSummary (Hostname, Make, Model, Uptime, Site, Building, Room, Ports, AuthDefaultVLAN, AuthBlock) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
@@ -4241,7 +4241,7 @@ function Invoke-DeviceSummaryParameterized {
 
         try { $insertCmd.Execute() | Out-Null } catch { }
     } finally {
-        Release-ComObjectSafe -ComObject $insertCmd
+        TelemetryModule\Remove-ComObjectSafe -ComObject $insertCmd
     }
 
     $historySql = 'INSERT INTO DeviceHistory (Hostname, RunDate, Make, Model, Uptime, Site, Building, Room, Ports, AuthDefaultVLAN, AuthBlock) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
@@ -4261,7 +4261,7 @@ function Invoke-DeviceSummaryParameterized {
             Write-Verbose ("Device history exception details: {0}" -f ($_.Exception | Format-List * | Out-String))
         }
     } finally {
-        Release-ComObjectSafe -ComObject $historyCmd
+        TelemetryModule\Remove-ComObjectSafe -ComObject $historyCmd
     }
 
     return $true
@@ -4370,7 +4370,7 @@ function Invoke-InterfaceRowParameterized {
 
     } finally {
 
-        Release-ComObjectSafe -ComObject $insertCmd
+        TelemetryModule\Remove-ComObjectSafe -ComObject $insertCmd
 
     }
 
@@ -4405,7 +4405,7 @@ function Invoke-InterfaceRowParameterized {
 
     } finally {
 
-        Release-ComObjectSafe -ComObject $historyCmd
+        TelemetryModule\Remove-ComObjectSafe -ComObject $historyCmd
 
     }
 

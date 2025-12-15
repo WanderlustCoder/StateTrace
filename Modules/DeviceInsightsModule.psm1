@@ -8,6 +8,45 @@ if (-not (Get-Variable -Scope Global -Name InterfacesLoadAllowed -ErrorAction Si
     $global:InterfacesLoadAllowed = $false
 }
 
+function script:Get-DeviceInsightsFilterContext {
+    [CmdletBinding()]
+    param()
+
+    $loc = $null
+    try { $loc = FilterStateModule\Get-SelectedLocation } catch { $loc = $null }
+
+    $siteSel = if ($loc) { $loc.Site } else { $null }
+    $zoneSel = if ($loc) { $loc.Zone } else { $null }
+    $bldSel  = if ($loc) { $loc.Building } else { $null }
+    $roomSel = if ($loc) { $loc.Room } else { $null }
+
+    $zoneToLoad = ''
+    if ($zoneSel -and -not [string]::IsNullOrWhiteSpace($zoneSel) -and -not [System.StringComparer]::OrdinalIgnoreCase.Equals($zoneSel, 'All Zones')) {
+        $zoneToLoad = $zoneSel
+    }
+
+    return [pscustomobject]@{
+        Site       = $siteSel
+        Zone       = $zoneSel
+        Building   = $bldSel
+        Room       = $roomSel
+        ZoneToLoad = $zoneToLoad
+    }
+}
+
+function script:Update-DeviceInsightsSiteZoneCache {
+    [CmdletBinding()]
+    param(
+        [string]$Site,
+        [string]$ZoneToLoad
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Site)) { return }
+    if ([System.StringComparer]::OrdinalIgnoreCase.Equals($Site, 'All Sites')) { return }
+
+    try { DeviceRepositoryModule\Update-SiteZoneCache -Site $Site -Zone $ZoneToLoad | Out-Null } catch {}
+}
+
 function Get-SearchRegexEnabled {
     [CmdletBinding()]
     param()
@@ -31,12 +70,12 @@ function Update-SearchResults {
         return @()
     }
 
-    $loc = $null
-    try { $loc = FilterStateModule\Get-SelectedLocation } catch { $loc = $null }
-    $siteSel = if ($loc) { $loc.Site } else { $null }
-    $zoneSel = if ($loc) { $loc.Zone } else { $null }
-    $bldSel  = if ($loc) { $loc.Building } else { $null }
-    $roomSel = if ($loc) { $loc.Room } else { $null }
+    $context = script:Get-DeviceInsightsFilterContext
+    $siteSel = $context.Site
+    $zoneSel = $context.Zone
+    $bldSel  = $context.Building
+    $roomSel = $context.Room
+    $zoneToLoad = $context.ZoneToLoad
 
     $statusFilterVal = 'All'
     $authFilterVal   = 'All'
@@ -57,7 +96,7 @@ function Update-SearchResults {
         }
     } catch {}
 
-    $interfaces = ViewStateService\Get-InterfacesForContext -Site $siteSel -ZoneSelection $zoneSel -ZoneToLoad $zoneSel -Building $bldSel -Room $roomSel
+    $interfaces = ViewStateService\Get-InterfacesForContext -Site $siteSel -ZoneSelection $zoneSel -ZoneToLoad $zoneToLoad -Building $bldSel -Room $roomSel
     $results   = [System.Collections.Generic.List[object]]::new()
     $termEmpty = [string]::IsNullOrWhiteSpace($Term)
 
@@ -134,21 +173,14 @@ function Update-Summary {
         return
     }
 
-    $loc = $null
-    try { $loc = FilterStateModule\Get-SelectedLocation } catch { $loc = $null }
-    $siteSel = if ($loc) { $loc.Site } else { $null }
-    $zoneSel = if ($loc) { $loc.Zone } else { $null }
-    $bldSel  = if ($loc) { $loc.Building } else { $null }
-    $roomSel = if ($loc) { $loc.Room } else { $null }
+    $context = script:Get-DeviceInsightsFilterContext
+    $siteSel = $context.Site
+    $zoneSel = $context.Zone
+    $bldSel  = $context.Building
+    $roomSel = $context.Room
+    $zoneToLoad = $context.ZoneToLoad
 
-    $zoneToLoad = ''
-    if ($zoneSel -and $zoneSel -ne '' -and $zoneSel -ne 'All Zones') {
-        $zoneToLoad = $zoneSel
-    }
-
-    if ($siteSel -and $siteSel -ne '' -and $siteSel -ne 'All Sites') {
-        try { DeviceRepositoryModule\Update-SiteZoneCache -Site $siteSel -Zone $zoneToLoad | Out-Null } catch {}
-    }
+    script:Update-DeviceInsightsSiteZoneCache -Site $siteSel -ZoneToLoad $zoneToLoad
 
     $interfaces = ViewStateService\Get-InterfacesForContext -Site $siteSel -ZoneSelection $zoneSel -ZoneToLoad $zoneToLoad -Building $bldSel -Room $roomSel
     try {
@@ -165,11 +197,25 @@ function Update-Summary {
     foreach ($row in $interfaces) {
         if (-not $row) { continue }
         try {
-            if (Get-Command -Name 'DeviceRepositoryModule\Ensure-PortRowDefaults' -ErrorAction SilentlyContinue) {
-                DeviceRepositoryModule\Ensure-PortRowDefaults -Row $row -Hostname ('' + $row.Hostname)
+            $hostnameValue = ''
+            if (-not $row.PSObject.Properties['Hostname']) {
+                try {
+                    if (Get-Command -Name 'InterfaceCommon\Get-StringPropertyValue' -ErrorAction SilentlyContinue) {
+                        $hostnameValue = InterfaceCommon\Get-StringPropertyValue -InputObject $row -PropertyNames @('Hostname','HostName')
+                    }
+                } catch { $hostnameValue = '' }
+                if (-not $hostnameValue) {
+                    try {
+                        if ($row.PSObject.Properties['HostName']) { $hostnameValue = '' + $row.HostName }
+                    } catch { $hostnameValue = '' }
+                }
+            }
+
+            if (Get-Command -Name 'InterfaceCommon\Set-PortRowDefaults' -ErrorAction SilentlyContinue) {
+                try { InterfaceCommon\Set-PortRowDefaults -Row $row -Hostname $hostnameValue | Out-Null } catch { }
             } else {
                 if (-not $row.PSObject.Properties['Hostname']) {
-                    $row | Add-Member -NotePropertyName Hostname -NotePropertyValue ('' + $row.Hostname) -ErrorAction SilentlyContinue
+                    $row | Add-Member -NotePropertyName Hostname -NotePropertyValue $hostnameValue -ErrorAction SilentlyContinue
                 }
                 if (-not $row.PSObject.Properties['IsSelected']) {
                     $row | Add-Member -NotePropertyName IsSelected -NotePropertyValue $false -ErrorAction SilentlyContinue
@@ -253,26 +299,19 @@ function Update-Alerts {
         return
     }
 
-    $loc = $null
-    try { $loc = FilterStateModule\Get-SelectedLocation } catch { $loc = $null }
-    $siteSel = if ($loc) { $loc.Site } else { $null }
-    $zoneSel = if ($loc) { $loc.Zone } else { $null }
-    $bldSel  = if ($loc) { $loc.Building } else { $null }
-    $roomSel = if ($loc) { $loc.Room } else { $null }
+    $context = script:Get-DeviceInsightsFilterContext
+    $siteSel = $context.Site
+    $zoneSel = $context.Zone
+    $bldSel  = $context.Building
+    $roomSel = $context.Room
+    $zoneToLoad = $context.ZoneToLoad
 
-    $zoneToLoad = ''
-    if ($zoneSel -and $zoneSel -ne '' -and $zoneSel -ne 'All Zones') {
-        $zoneToLoad = $zoneSel
-    }
-
-    if ($siteSel -and $siteSel -ne '' -and $siteSel -ne 'All Sites') {
-        try { DeviceRepositoryModule\Update-SiteZoneCache -Site $siteSel -Zone $zoneToLoad | Out-Null } catch {}
-    }
+    script:Update-DeviceInsightsSiteZoneCache -Site $siteSel -ZoneToLoad $zoneToLoad
 
     $interfaces = ViewStateService\Get-InterfacesForContext -Site $siteSel -ZoneSelection $zoneSel -ZoneToLoad $zoneToLoad -Building $bldSel -Room $roomSel
     if (-not $interfaces) { $interfaces = @() }
 
-        $alerts = [System.Collections.Generic.List[object]]::new()
+    $alerts = [System.Collections.Generic.List[object]]::new()
     foreach ($row in $interfaces) {
         if (-not $row) { continue }
 
@@ -343,10 +382,6 @@ function Update-SearchGrid {
     foreach ($item in $results) {
         if ($item) { [void]$resultList.Add($item) }
     }
-    try {
-        $resCount = $resultList.Count
-        $null = $resCount
-    } catch {}
 
     $gridCtrl.ItemsSource = $resultList
 }

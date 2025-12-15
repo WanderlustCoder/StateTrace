@@ -1,25 +1,13 @@
 Set-StrictMode -Version Latest
 
-Describe 'Invoke-WarmRunTelemetry helper functions' {
+Describe 'WarmRun.Telemetry helper functions' {
     BeforeAll {
-        $script:WarmTelemetryPreviousSkip = $null
-        if (Test-Path -LiteralPath 'variable:global:WarmRunTelemetrySkipMain') {
-            $script:WarmTelemetryPreviousSkip = Get-Variable -Name 'WarmRunTelemetrySkipMain' -Scope Global -ValueOnly
-        }
-        Set-Variable -Name 'WarmRunTelemetrySkipMain' -Scope Global -Value $true
-
-        $repoRoot = Split-Path -Path (Split-Path -Parent (Split-Path -Parent $PSCommandPath)) -Parent
-        $scriptPath = Join-Path -Path $repoRoot -ChildPath 'Tools\Invoke-WarmRunTelemetry.ps1'
-        . (Resolve-Path -LiteralPath $scriptPath)
+        $modulePath = Join-Path (Split-Path $PSCommandPath) "..\WarmRun.Telemetry.psm1"
+        Import-Module (Resolve-Path $modulePath) -Force
     }
 
     AfterAll {
-        if ($null -ne $script:WarmTelemetryPreviousSkip) {
-            Set-Variable -Name 'WarmRunTelemetrySkipMain' -Scope Global -Value $script:WarmTelemetryPreviousSkip
-        } else {
-            Remove-Variable -Name 'WarmRunTelemetrySkipMain' -Scope Global -ErrorAction SilentlyContinue
-        }
-        Remove-Variable -Name 'WarmTelemetryPreviousSkip' -Scope Script -ErrorAction SilentlyContinue
+        Remove-Module WarmRun.Telemetry -Force -ErrorAction SilentlyContinue
     }
 
     function New-SampleInterfaceSiteCacheMetric {
@@ -61,7 +49,7 @@ Describe 'Invoke-WarmRunTelemetry helper functions' {
     It 'sets Hostname from PreviousHostSample when InterfaceSiteCacheMetrics lacks Hostname' {
         $metric = New-SampleInterfaceSiteCacheMetric -PreviousHostSample 'TEST-A01-AS-01'
         $result = @(
-            Convert-MetricsToSummary -PassLabel 'TestPass' -Metrics @($metric)
+            WarmRun.Telemetry\Convert-MetricsToSummary -PassLabel 'TestPass' -Metrics @($metric)
         )
 
         $result.Count | Should Be 1
@@ -71,7 +59,7 @@ Describe 'Invoke-WarmRunTelemetry helper functions' {
     It 'still exposes a Hostname property when no host data is present' {
         $metric = New-SampleInterfaceSiteCacheMetric
         $result = @(
-            Convert-MetricsToSummary -PassLabel 'TestPass' -Metrics @($metric)
+            WarmRun.Telemetry\Convert-MetricsToSummary -PassLabel 'TestPass' -Metrics @($metric)
         )
 
         $result.Count | Should Be 1
@@ -96,7 +84,7 @@ Describe 'Invoke-WarmRunTelemetry helper functions' {
             SiteCacheProviderReason = 'SkipSiteCacheUpdate'
         }
 
-        $result = Resolve-SiteCacheProviderReasons -Summaries @($summary) -InterfaceSyncEvents @($syncEvent)
+        $result = WarmRun.Telemetry\Resolve-SiteCacheProviderReasons -Summaries @($summary) -InterfaceSyncEvents @($syncEvent)
         $result.Count | Should Be 1
         $result[0].SiteCacheProviderReason | Should Be 'SkipSiteCacheUpdate'
     }
@@ -116,7 +104,7 @@ Describe 'Invoke-WarmRunTelemetry helper functions' {
             SiteCacheProviderReason = 'SharedCacheUnavailable'
         }
 
-        $result = Resolve-SiteCacheProviderReasons -Summaries @($summary) -DatabaseEvents @($dbEvent)
+        $result = WarmRun.Telemetry\Resolve-SiteCacheProviderReasons -Summaries @($summary) -DatabaseEvents @($dbEvent)
         $result.Count | Should Be 1
         $result[0].SiteCacheProviderReason | Should Be 'SharedCacheUnavailable'
     }
@@ -135,7 +123,7 @@ Describe 'Invoke-WarmRunTelemetry helper functions' {
             SiteCacheProviderReason = 'SkipSiteCacheUpdate'
         }
 
-        $result = Resolve-SiteCacheProviderReasons -Summaries @($summary) -DatabaseEvents @($dbEvent)
+        $result = WarmRun.Telemetry\Resolve-SiteCacheProviderReasons -Summaries @($summary) -DatabaseEvents @($dbEvent)
         $result[0].SiteCacheProviderReason | Should Be 'SharedCacheOnly'
     }
 
@@ -156,7 +144,7 @@ Describe 'Invoke-WarmRunTelemetry helper functions' {
             SkipSiteCacheUpdate  = $true
         }
 
-        $result = Resolve-SiteCacheProviderReasons -Summaries @($summary) -DatabaseEvents @($dbEvent)
+        $result = WarmRun.Telemetry\Resolve-SiteCacheProviderReasons -Summaries @($summary) -DatabaseEvents @($dbEvent)
         $result[0].SiteCacheProviderReason | Should Be 'SkipSiteCacheUpdate'
     }
 
@@ -177,15 +165,15 @@ Describe 'Invoke-WarmRunTelemetry helper functions' {
             SkipSiteCacheUpdate  = $false
         }
 
-        $result = Resolve-SiteCacheProviderReasons -Summaries @($summary) -DatabaseEvents @($dbEvent)
+        $result = WarmRun.Telemetry\Resolve-SiteCacheProviderReasons -Summaries @($summary) -DatabaseEvents @($dbEvent)
         $result[0].SiteCacheProviderReason | Should Be 'SharedCacheUnavailable'
     }
 
     It 'falls back to summary provider data when no telemetry events match' {
         $metric = New-SampleInterfaceSiteCacheMetric -Provider 'Cache' -PreviousHostSample 'TEST-A01-AS-05'
-        $summary = Convert-MetricsToSummary -PassLabel 'TestPass' -Metrics @($metric)
+        $summary = WarmRun.Telemetry\Convert-MetricsToSummary -PassLabel 'TestPass' -Metrics @($metric)
 
-        $result = Resolve-SiteCacheProviderReasons -Summaries @($summary)
+        $result = WarmRun.Telemetry\Resolve-SiteCacheProviderReasons -Summaries @($summary)
         $result.Count | Should Be 1
         $result[0].SiteCacheProviderReason | Should Be 'AccessCacheHit'
     }
@@ -197,7 +185,7 @@ Describe 'Invoke-WarmRunTelemetry helper functions' {
             [pscustomobject]@{ Provider = $null; HostCount = 0 }
         )
 
-        $metrics = Measure-ProviderMetricsFromSummaries -Summaries $summaries
+        $metrics = WarmRun.Telemetry\Measure-ProviderMetricsFromSummaries -Summaries $summaries
         $metrics | Should Not Be $null
         $metrics.ProviderCounts['Cache'] | Should Be 2
         $metrics.ProviderCounts['Refresh'] | Should Be 1

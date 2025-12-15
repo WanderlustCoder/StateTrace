@@ -1,9 +1,11 @@
 ﻿# Default path: ..\Templates\ShowCommands.json (relative to this module)
+Set-StrictMode -Version Latest
+
 $script:ShowCfgPath  = Join-Path $PSScriptRoot '..\Templates\ShowCommands.json'
 $script:ShowCfg      = $null
 $script:ShowCfgMtime = [datetime]::MinValue
 
-function Get-ShowConfig {
+function script:Get-ShowConfig {
     if (-not (Test-Path -LiteralPath $script:ShowCfgPath)) { return $null }
     $mtime = (Get-Item -LiteralPath $script:ShowCfgPath).LastWriteTimeUtc
     if ($script:ShowCfg -and $script:ShowCfgMtime -eq $mtime) { return $script:ShowCfg }
@@ -26,7 +28,7 @@ function Get-ShowCommandsVersions {
     [CmdletBinding()]
     param([Parameter(Mandatory)][string]$Vendor)
 
-    $cfg = Get-ShowConfig
+    $cfg = script:Get-ShowConfig
     if (-not $cfg) { return @() }
 
     $vendorNode = if ($cfg -is [hashtable]) { $cfg[$Vendor] } else { $cfg.$Vendor }
@@ -51,7 +53,7 @@ function Get-ShowCommands {
         [string]$OSVersion
     )
 
-    $cfg = Get-ShowConfig
+    $cfg = script:Get-ShowConfig
     if (-not $cfg) { throw ("ShowCommands.json missing at {0}" -f $script:ShowCfgPath) }
 
     $vendorNode = if ($cfg -is [hashtable]) { $cfg[$Vendor] } else { $cfg.$Vendor }
@@ -252,8 +254,7 @@ function script:Get-DeviceVendorFromSummary {
         }
         if ($makeVal) {
             $makeText = '' + $makeVal
-            if ($makeText -match '(?i)brocade') { return 'Brocade' }
-            if ($makeText -match '(?i)arista')  { return 'Arista' }
+            if ($makeText) { return (Get-TemplateVendorKeyFromMake -Make $makeText) }
         }
     } catch {
     }
@@ -298,4 +299,17 @@ function Get-ConfigurationTemplates {
     return $entry.Names
 }
 
-Export-ModuleMember -Function Get-ShowCommandsVersions, Get-ShowCommands, Get-ConfigurationTemplates, Get-ConfigurationTemplateData
+function Get-TemplateVendorKeyFromMake {
+    [CmdletBinding()]
+    param(
+        [Parameter()][AllowEmptyString()][string]$Make
+    )
+
+    $text = ('' + $Make).Trim()
+    if ([string]::IsNullOrWhiteSpace($text)) { return 'Cisco' }
+
+    if ($text -match '(?i)brocade') { return 'Brocade' }
+    return 'Cisco'
+}
+
+Export-ModuleMember -Function Get-ShowCommandsVersions, Get-ShowCommands, Get-ConfigurationTemplates, Get-ConfigurationTemplateData, Get-TemplateVendorKeyFromMake

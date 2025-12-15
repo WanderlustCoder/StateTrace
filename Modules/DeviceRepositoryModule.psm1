@@ -8,16 +8,18 @@ if (-not (Get-Variable -Scope Script -Name ModuleRootPath -ErrorAction SilentlyC
     }
 }
 
-if (-not (Get-Variable -Scope Script -Name DataDirPath -ErrorAction SilentlyContinue)) {
-    $rootPath = if ($script:ModuleRootPath) { $script:ModuleRootPath } else { Split-Path -Parent $PSScriptRoot }
-    $script:DataDirPath = Join-Path $rootPath 'Data'
+# Import shared port normalization so repository callers reuse the same port sort key helper in UI and parser contexts.
+if (-not (Get-Variable -Scope Script -Name PortNormalizationAvailable -ErrorAction SilentlyContinue)) {
+    $script:PortNormalizationAvailable = $false
 }
 
-# Import shared port normalization (delegates to InterfaceModule) so consumers can reuse the same port sort key helper.
 try {
     $portNormPath = Join-Path $PSScriptRoot 'PortNormalization.psm1'
     if (Test-Path -LiteralPath $portNormPath) {
-        Import-Module -Name $portNormPath -Force -ErrorAction Stop
+        Import-Module -Name $portNormPath -Prefix 'PortNorm' -Force -ErrorAction Stop | Out-Null
+        if (Get-Command -Name 'Get-PortNormPortSortKey' -ErrorAction SilentlyContinue) {
+            $script:PortNormalizationAvailable = $true
+        }
     }
 } catch {
     Write-Verbose ("[DeviceRepositoryModule] PortNormalization not loaded: {0}" -f $_.Exception.Message)
@@ -33,6 +35,101 @@ if (-not (Get-Module -Name 'DeviceRepository.Cache')) {
     } catch {
         Write-Verbose ("DeviceRepository.Cache could not be imported: {0}" -f $_.Exception.Message)
     }
+}
+
+# Load access module (decomposition boundary) so DB/path helpers can move out of the monolith.
+try {
+    $accessModulePath = Join-Path $PSScriptRoot 'DeviceRepository.Access.psm1'
+    if (Test-Path -LiteralPath $accessModulePath) {
+        $script:DeviceRepositoryAccessModule = Import-Module (Resolve-Path $accessModulePath) -DisableNameChecking -Force -ErrorAction Stop -PassThru
+    }
+} catch {
+    Write-Verbose ("DeviceRepository.Access could not be imported: {0}" -f $_.Exception.Message)
+}
+
+function Get-DataDirectoryPath {
+    [CmdletBinding()]
+    param()
+
+    if (-not (Get-Variable -Scope Script -Name DataDirPath -ErrorAction SilentlyContinue)) {
+        $rootPath = if ($script:ModuleRootPath) { $script:ModuleRootPath } else { Split-Path -Parent $PSScriptRoot }
+        $script:DataDirPath = Join-Path $rootPath 'Data'
+    }
+
+    return $script:DataDirPath
+}
+
+function Get-DbPathForSite {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Site
+    )
+
+    $dataDir = $null
+    if (Get-Variable -Scope Script -Name DataDirPath -ErrorAction SilentlyContinue) {
+        $dataDir = $script:DataDirPath
+    }
+    if ([string]::IsNullOrWhiteSpace($dataDir)) {
+        $dataDir = Get-DataDirectoryPath
+    }
+
+    if ($script:DeviceRepositoryAccessModule) {
+        $resolved = $script:DeviceRepositoryAccessModule.Invoke({
+                param($siteArg, $dataDirArg)
+                Get-DbPathForSite -Site $siteArg -DataDirectoryPath $dataDirArg
+            }, $Site, $dataDir)
+        return ($resolved | Select-Object -First 1)
+    }
+
+    return DeviceRepository.Access\Get-DbPathForSite -Site $Site -DataDirectoryPath $dataDir
+}
+
+function Get-DbPathForHost {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Hostname
+    )
+
+    $dataDir = $null
+    if (Get-Variable -Scope Script -Name DataDirPath -ErrorAction SilentlyContinue) {
+        $dataDir = $script:DataDirPath
+    }
+    if ([string]::IsNullOrWhiteSpace($dataDir)) {
+        $dataDir = Get-DataDirectoryPath
+    }
+
+    if ($script:DeviceRepositoryAccessModule) {
+        $resolved = $script:DeviceRepositoryAccessModule.Invoke({
+                param($hostArg, $dataDirArg)
+                Get-DbPathForHost -Hostname $hostArg -DataDirectoryPath $dataDirArg
+            }, $Hostname, $dataDir)
+        return ($resolved | Select-Object -First 1)
+    }
+
+    return DeviceRepository.Access\Get-DbPathForHost -Hostname $Hostname -DataDirectoryPath $dataDir
+}
+
+function Get-AllSiteDbPaths {
+    [CmdletBinding()]
+    param()
+
+    $dataDir = $null
+    if (Get-Variable -Scope Script -Name DataDirPath -ErrorAction SilentlyContinue) {
+        $dataDir = $script:DataDirPath
+    }
+    if ([string]::IsNullOrWhiteSpace($dataDir)) {
+        $dataDir = Get-DataDirectoryPath
+    }
+
+    if ($script:DeviceRepositoryAccessModule) {
+        $resolved = $script:DeviceRepositoryAccessModule.Invoke({
+                param($dataDirArg)
+                Get-AllSiteDbPaths -DataDirectoryPath $dataDirArg
+            }, $dataDir)
+        return @($resolved)
+    }
+
+    return DeviceRepository.Access\Get-AllSiteDbPaths -DataDirectoryPath $dataDir
 }
 
 function Import-SharedSiteInterfaceCacheSnapshotFromEnv {
@@ -1820,7 +1917,11 @@ function ConvertTo-InterfacePortRecordsFallback {
 
         $portSortKey = $script:PortSortFallbackKey
         try {
-            if (Get-Command -Name 'InterfaceModule\Get-PortSortKey' -ErrorAction SilentlyContinue) {
+            if ($script:PortNormalizationAvailable) {
+                if (-not [string]::IsNullOrWhiteSpace($portValue)) {
+                    $portSortKey = Get-PortNormPortSortKey -Port $portValue
+                }
+            } elseif (Get-Command -Name 'InterfaceModule\Get-PortSortKey' -ErrorAction SilentlyContinue) {
                 if (-not [string]::IsNullOrWhiteSpace($portValue)) {
                     $portSortKey = InterfaceModule\Get-PortSortKey -Port $portValue
                 }
@@ -1931,94 +2032,6 @@ function script:Get-TemplateHintCacheForVendor {
     $hintDictionary = New-Object 'System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceTemplateHint]' ([System.StringComparer]::OrdinalIgnoreCase)
     $script:TemplateHintCache[$cacheKey] = $hintDictionary
     return $hintDictionary
-}
-
-function Get-DataDirectoryPath {
-    [CmdletBinding()]
-    param()
-    if (-not (Get-Variable -Scope Script -Name DataDirPath -ErrorAction SilentlyContinue)) {
-        if (-not (Get-Variable -Scope Script -Name ModuleRootPath -ErrorAction SilentlyContinue)) {
-            try {
-                $script:ModuleRootPath = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
-            } catch {
-                $script:ModuleRootPath = Split-Path -Parent $PSScriptRoot
-            }
-        }
-        $rootPath = if ($script:ModuleRootPath) { $script:ModuleRootPath } else { Split-Path -Parent $PSScriptRoot }
-        $script:DataDirPath = Join-Path $rootPath 'Data'
-    }
-    return $script:DataDirPath
-}
-
-function Get-SiteFromHostname {
-    [CmdletBinding()]
-    param(
-        [string]$Hostname,
-        [int]$FallbackLength = 0
-    )
-
-    if ([string]::IsNullOrWhiteSpace($Hostname)) { return 'Unknown' }
-
-    $clean = ('' + $Hostname).Trim()
-    if ($clean -like 'SSH@*') { $clean = $clean.Substring(4) }
-    $clean = $clean.Trim()
-
-    if ($clean -match '^(?<site>[^-]+)-') {
-        return $matches['site']
-    }
-
-    if ($FallbackLength -gt 0 -and $clean.Length -ge $FallbackLength) {
-        return $clean.Substring(0, $FallbackLength)
-    }
-
-    return $clean
-}
-
-
-function Get-DbPathForSite {
-    [CmdletBinding()]
-    param([Parameter(Mandatory)][string]$Site)
-
-    $siteCode = ('' + $Site).Trim()
-    if ([string]::IsNullOrWhiteSpace($siteCode)) { $siteCode = 'Unknown' }
-
-    $dataDir = Get-DataDirectoryPath
-    $prefix = $siteCode
-    $dashIndex = $prefix.IndexOf('-')
-    if ($dashIndex -gt 0) { $prefix = $prefix.Substring(0, $dashIndex) }
-
-    $invalidChars = [System.IO.Path]::GetInvalidFileNameChars()
-    foreach ($ch in $invalidChars) {
-        $prefix = $prefix.Replace([string]$ch, '_')
-    }
-    if ([string]::IsNullOrWhiteSpace($prefix)) { $prefix = 'Unknown' }
-
-    $modernDir = Join-Path $dataDir $prefix
-    $modernPath = Join-Path $modernDir ("{0}.accdb" -f $siteCode)
-    $legacyPath = Join-Path $dataDir ("{0}.accdb" -f $siteCode)
-
-    if (Test-Path -LiteralPath $modernPath) { return $modernPath }
-    if (Test-Path -LiteralPath $legacyPath) { return $legacyPath }
-
-    return $modernPath
-}
-
-function Get-DbPathForHost {
-    [CmdletBinding()]
-    param([Parameter(Mandatory)][string]$Hostname)
-    $site = Get-SiteFromHostname -Hostname $Hostname
-    return Get-DbPathForSite -Site $site
-}
-
-function Get-AllSiteDbPaths {
-    [CmdletBinding()]
-    param()
-    $dataDir = Get-DataDirectoryPath
-    if (-not (Test-Path $dataDir)) { return @() }
-    $files = Get-ChildItem -Path $dataDir -Filter '*.accdb' -File -Recurse
-    $list = [System.Collections.Generic.List[string]]::new()
-    foreach ($f in $files) { [void]$list.Add($f.FullName) }
-    return $list.ToArray()
 }
 
 function Clear-SiteInterfaceCache {
@@ -2377,17 +2390,19 @@ function ConvertTo-InterfaceCacheEntryObject {
     if ([string]::IsNullOrWhiteSpace($portSortValue)) {
         $portSortValue = $script:PortSortFallbackKey
         if (-not [string]::IsNullOrWhiteSpace($nameValue)) {
-            $getPortSortCommand = $null
-            try { $getPortSortCommand = Get-Command -Name 'InterfaceModule\Get-PortSortKey' -ErrorAction SilentlyContinue } catch { $getPortSortCommand = $null }
-            if ($getPortSortCommand) {
-                try {
+            try {
+                $computedPortSort = $null
+                if ($script:PortNormalizationAvailable) {
+                    $computedPortSort = Get-PortNormPortSortKey -Port $nameValue
+                } elseif (Get-Command -Name 'InterfaceModule\Get-PortSortKey' -ErrorAction SilentlyContinue) {
                     $computedPortSort = InterfaceModule\Get-PortSortKey -Port $nameValue
-                    if (-not [string]::IsNullOrWhiteSpace($computedPortSort)) {
-                        $portSortValue = $computedPortSort
-                    }
-                } catch {
-                    # fall back to the default PortSort placeholder when the computation fails
                 }
+
+                if (-not [string]::IsNullOrWhiteSpace($computedPortSort)) {
+                    $portSortValue = $computedPortSort
+                }
+            } catch {
+                # fall back to the default PortSort placeholder when the computation fails
             }
         }
     }
@@ -3555,8 +3570,8 @@ function Get-InterfaceSiteCache {
 
         if ($needPortSortComputation) {
             $portSortStopwatch.Restart()
-            if (-not [string]::IsNullOrWhiteSpace($port)) {
-                $portSort = InterfaceModule\Get-PortSortKey -Port $port
+            if (-not [string]::IsNullOrWhiteSpace($port) -and $script:PortNormalizationAvailable) {
+                $portSort = Get-PortNormPortSortKey -Port $port
             } else {
                 $portSort = $defaultPortSortValue
             }
@@ -4038,7 +4053,13 @@ function ConvertTo-PortPsObject {
         }
     }
 
-    if ($EnsureHostname) {
+    if ($EnsureHostname -and $EnsureIsSelected) {
+        Ensure-PortRowDefaults -Row $clone -Hostname $Hostname
+        $hostnameProp = $clone.PSObject.Properties['Hostname']
+        if ($hostnameProp -and [string]::IsNullOrWhiteSpace(('' + $hostnameProp.Value))) {
+            $hostnameProp.Value = $Hostname
+        }
+    } elseif ($EnsureHostname) {
         $hostnameProp = $clone.PSObject.Properties['Hostname']
         if ($hostnameProp) {
             if ([string]::IsNullOrWhiteSpace(('' + $hostnameProp.Value))) {
@@ -4047,16 +4068,17 @@ function ConvertTo-PortPsObject {
         } else {
             $clone | Add-Member -NotePropertyName Hostname -NotePropertyValue $Hostname -Force
         }
-    }
-
-    if ($EnsureIsSelected -and -not $clone.PSObject.Properties['IsSelected']) {
-        $clone | Add-Member -NotePropertyName IsSelected -NotePropertyValue $false -Force
+    } elseif ($EnsureIsSelected) {
+        if (-not $clone.PSObject.Properties['IsSelected']) {
+            $clone | Add-Member -NotePropertyName IsSelected -NotePropertyValue $false -Force
+        }
     }
 
     return $clone
 }
 
 function Ensure-PortRowDefaults {
+    [CmdletBinding()]
     param(
         $Row,
         [string]$Hostname
@@ -4064,24 +4086,24 @@ function Ensure-PortRowDefaults {
 
     if ($null -eq $Row) { return }
 
-    try {
-        if (Get-Command -Name 'InterfaceCommon\Ensure-PortRowDefaults' -ErrorAction SilentlyContinue) {
-            InterfaceCommon\Ensure-PortRowDefaults -Row $Row -Hostname $Hostname
-            return
-        }
-    } catch { }
+    if (-not (Get-Command -Name 'InterfaceCommon\Set-PortRowDefaults' -ErrorAction SilentlyContinue)) {
+        try {
+            if (Get-Command -Name 'TelemetryModule\Import-InterfaceCommon' -ErrorAction SilentlyContinue) {
+                TelemetryModule\Import-InterfaceCommon | Out-Null
+            }
+        } catch { }
 
-    try {
-        if (-not $Row.PSObject.Properties['Hostname']) {
-            $Row | Add-Member -NotePropertyName Hostname -NotePropertyValue ($Hostname) -ErrorAction SilentlyContinue
+        if (-not (Get-Command -Name 'InterfaceCommon\Set-PortRowDefaults' -ErrorAction SilentlyContinue)) {
+            try {
+                $interfaceCommonPath = Join-Path $PSScriptRoot 'InterfaceCommon.psm1'
+                if (Test-Path -LiteralPath $interfaceCommonPath) {
+                    Import-Module -Name $interfaceCommonPath -Force -Global -ErrorAction Stop | Out-Null
+                }
+            } catch { }
         }
-    } catch {}
+    }
 
-    try {
-        if (-not $Row.PSObject.Properties['IsSelected']) {
-            $Row | Add-Member -NotePropertyName IsSelected -NotePropertyValue $false -ErrorAction SilentlyContinue
-        }
-    } catch {}
+    try { InterfaceCommon\Set-PortRowDefaults -Row $Row -Hostname $Hostname | Out-Null } catch { }
 }
 
 function Set-InterfacePortStreamData {
@@ -4460,25 +4482,6 @@ function Get-LastInterfacePortDispatchMetrics {
     return $script:LastInterfacePortDispatchMetrics
 }
 
-function Import-DatabaseModule {
-    [CmdletBinding()]
-    param()
-    try {
-        # Check by module name rather than path; avoids multiple loads when
-        # different relative paths point at the same module.  If DatabaseModule
-        # isn't loaded yet, attempt to import it from this folder.  The
-        # Force/Global flags mirror the original behaviour but only run once.
-        if (-not (Get-Module -Name DatabaseModule)) {
-            $dbModulePath = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
-            if (Test-Path $dbModulePath) {
-                Import-Module $dbModulePath -Force -Global -ErrorAction SilentlyContinue | Out-Null
-            }
-        }
-    } catch {
-        # Swallow any import errors; downstream functions will handle missing cmdlets.
-    }
-}
-
 # Retrieve the currently selected site, building and room from the main
 
 
@@ -4553,50 +4556,6 @@ function Update-SiteZoneCache {
         } catch {
         }
     }
-}
-function Invoke-ParallelDbQuery {
-    [CmdletBinding()]
-    param(
-        [string[]]$DbPaths,
-        [string]$Sql
-    )
-    if (-not $DbPaths -or $DbPaths.Count -eq 0) {
-        return @()
-    }
-    try { Import-DatabaseModule } catch {}
-    $modulePath = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
-    $maxThreads = [Math]::Max(1, [Environment]::ProcessorCount)
-    $pool = [runspacefactory]::CreateRunspacePool(1, $maxThreads)
-    $pool.Open()
-    $jobs = @()
-    foreach ($dbPath in $DbPaths) {
-        $ps = [powershell]::Create()
-        $ps.RunspacePool = $pool
-        $null = $ps.AddScript({
-            param($dbPathArg, $sqlArg, $modPath)
-            try { Import-Module -Name $modPath -DisableNameChecking -Force } catch {}
-            try {
-                return Invoke-DbQuery -DatabasePath $dbPathArg -Sql $sqlArg
-            } catch {
-                return $null
-            }
-        }).AddArgument($dbPath).AddArgument($Sql).AddArgument($modulePath)
-        $job = [pscustomobject]@{ PS = $ps; AsyncResult = $ps.BeginInvoke() }
-        $jobs += $job
-    }
-    $results = [System.Collections.Generic.List[object]]::new()
-    foreach ($job in $jobs) {
-        try {
-            $dt = $job.PS.EndInvoke($job.AsyncResult)
-            if ($dt) { [void]$results.Add($dt) }
-        } catch {}
-        finally {
-            $job.PS.Dispose()
-        }
-    }
-    $pool.Close()
-    $pool.Dispose()
-    return $results.ToArray()
 }
 function Get-GlobalInterfaceSnapshot {
     [CmdletBinding()]
@@ -5258,7 +5217,10 @@ ORDER BY i.Hostname, i.Port
             $portSortCacheHitsBaseline = 0L
             $portSortCacheMissBaseline = 0L
             try {
-                $portSortCacheStart = InterfaceModule\Get-PortSortCacheStatistics
+                $portSortCacheStart = $null
+                if ($script:PortNormalizationAvailable) {
+                    $portSortCacheStart = Get-PortNormPortSortCacheStatistics
+                }
                 if ($portSortCacheStart) {
                     if ($portSortCacheStart.PSObject.Properties.Name -contains 'Hits') {
                         $portSortCacheHitsBaseline = [long]$portSortCacheStart.Hits
@@ -5337,11 +5299,7 @@ ORDER BY i.Hostname, i.Port
                     $lastRoomValue = [string]$row.Room
 
                     $lastMakeValue = [string]$row.Make
-                    $lastVendorValue = 'Cisco'
-                    if (-not [string]::IsNullOrWhiteSpace($lastMakeValue)) {
-                        if ($lastMakeValue -match '(?i)brocade') { $lastVendorValue = 'Brocade' }
-                        elseif ($lastMakeValue -match '(?i)arista') { $lastVendorValue = 'Arista' }
-                    }
+                    $lastVendorValue = TemplatesModule\Get-TemplateVendorKeyFromMake -Make $lastMakeValue
                 } else {
                     $tmpBuilding = [string]$row.Building
                     if (-not [string]::IsNullOrWhiteSpace($tmpBuilding)) {
@@ -5358,9 +5316,7 @@ ORDER BY i.Hostname, i.Port
                     $tmpMake = [string]$row.Make
                     if (-not [string]::IsNullOrWhiteSpace($tmpMake) -and -not [System.StringComparer]::OrdinalIgnoreCase.Equals($tmpMake, $lastMakeValue)) {
                         $lastMakeValue = $tmpMake
-                        if ($lastMakeValue -match '(?i)brocade') { $lastVendorValue = 'Brocade' }
-                        elseif ($lastMakeValue -match '(?i)arista') { $lastVendorValue = 'Arista' }
-                        else { $lastVendorValue = 'Cisco' }
+                        $lastVendorValue = TemplatesModule\Get-TemplateVendorKeyFromMake -Make $lastMakeValue
                     }
                 }
 
@@ -5610,7 +5566,10 @@ ORDER BY i.Hostname, i.Port
             $rowsAreOrdered = $true
             $hydrationDetail.TemplateLoadDurationMs = [Math]::Round($templateLoadDuration, 3)
             try {
-                $portSortCacheEnd = InterfaceModule\Get-PortSortCacheStatistics
+                $portSortCacheEnd = $null
+                if ($script:PortNormalizationAvailable) {
+                    $portSortCacheEnd = Get-PortNormPortSortCacheStatistics
+                }
                 if ($portSortCacheEnd) {
                     if ($portSortCacheEnd.PSObject.Properties.Name -contains 'Hits') {
                         $materializePortSortCacheHits = [long][Math]::Max(0, [long]$portSortCacheEnd.Hits - $portSortCacheHitsBaseline)
@@ -5888,7 +5847,7 @@ function Get-InterfaceConfiguration {
                 $mkRows = DatabaseModule\ConvertTo-DbRowList -Data $mkDt
                 if ($mkRows.Count -gt 0) {
                     $mk = $mkRows[0].Make
-                    if ($mk -match '(?i)brocade') { $vendor = 'Brocade' }
+                    $vendor = TemplatesModule\Get-TemplateVendorKeyFromMake -Make $mk
                 }
             }
         } catch {}
@@ -5986,15 +5945,16 @@ function Get-InterfaceConfiguration {
                             $trimOld.Equals('mab',             [System.StringComparison]::OrdinalIgnoreCase)) {
                             " no $trimOld"
                         }
-                    } else {
-                        # For non-Cisco vendors, remove specific dot1x/mac-authentication lines.
-                        if ($trimOld -match '(?i)^dot1x\s+port-control\s+auto' -or
-                            $trimOld -match '(?i)^mac-authentication\s+enable') {
-                            " no $trimOld"
-                        }
-                    }
-                }
-            }
+                     } else {
+                         # For non-Cisco vendors, remove specific dot1x/mac-authentication lines.
+                         if ($trimOld -match '(?i)^dot1x\s+port-control\s+auto' -or
+                            $trimOld -match '(?i)^mac-authentication\s+enable' -or
+                            $trimOld -match '(?i)^spanning-tree\s+edge-port') {
+                             " no $trimOld"
+                         }
+                     }
+                 }
+             }
             if ($nameOverride) {
                 $(if ($vendor -eq 'Cisco') { " description $nameOverride" } else { " port-name $nameOverride" })
             }

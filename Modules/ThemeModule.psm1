@@ -5,6 +5,8 @@ using namespace System.Windows
 using namespace System.Windows.Media
 using namespace System.Windows.Markup
 
+Set-StrictMode -Version Latest
+
 $script:ThemeDirectory           = Join-Path $PSScriptRoot '..\Themes'
 $script:ThemeCache               = @{}
 $script:ResolvedThemeCache       = @{}
@@ -33,7 +35,7 @@ function Get-WpfApplication {
 }
 
 function Get-ThemeDirectory {
-    if (-not (Test-Path $script:ThemeDirectory)) {
+    if (-not (Test-Path -LiteralPath $script:ThemeDirectory)) {
         throw "Theme directory not found at $($script:ThemeDirectory)"
     }
     return $script:ThemeDirectory
@@ -103,15 +105,45 @@ function Resolve-ThemeTokens {
     }
 
     $tokens = @{}
-    if ($definition.extends) {
-        $parentTokens = Resolve-ThemeTokens -Name $definition.extends -Visited $Visited
+    $parentName = $null
+    try {
+        $parentProp = $definition.PSObject.Properties['extends']
+        if ($parentProp) {
+            $parentName = '' + $parentProp.Value
+        }
+    } catch {
+        $parentName = $null
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($parentName)) {
+        $parentTokens = Resolve-ThemeTokens -Name $parentName -Visited $Visited
         foreach ($key in $parentTokens.Keys) {
             $tokens[$key] = $parentTokens[$key]
         }
     }
-    if ($definition.tokens) {
-        foreach ($prop in $definition.tokens.PSObject.Properties) {
-            $tokens[$prop.Name] = '' + $prop.Value
+
+    $tokenNode = $null
+    try {
+        $tokensProp = $definition.PSObject.Properties['tokens']
+        if ($tokensProp) {
+            $tokenNode = $tokensProp.Value
+        }
+    } catch {
+        $tokenNode = $null
+    }
+
+    if ($tokenNode) {
+        if ($tokenNode -is [System.Collections.IDictionary]) {
+            foreach ($key in $tokenNode.Keys) {
+                $keyText = '' + $key
+                if (-not [string]::IsNullOrWhiteSpace($keyText)) {
+                    $tokens[$keyText] = '' + $tokenNode[$key]
+                }
+            }
+        } else {
+            foreach ($prop in $tokenNode.PSObject.Properties) {
+                $tokens[$prop.Name] = '' + $prop.Value
+            }
         }
     }
 
@@ -162,7 +194,6 @@ function Ensure-SharedStylesDictionary {
 
 function Update-ThemeResources {
     if (-not $script:CurrentThemeTokens) { return }
-    if (-not (Ensure-PresentationFrameworkLoaded)) { return }
     $app = Get-WpfApplication
     if (-not $app) {
         # No WPF application yet; resources will be applied later
@@ -302,7 +333,6 @@ function Ensure-ThemeResources {
     if (-not $script:CurrentThemeTokens -or -not $script:CurrentThemeName) {
         return
     }
-    if (-not (Ensure-PresentationFrameworkLoaded)) { return }
     $app = Get-WpfApplication
     if (-not $app) { return }
     if (-not $script:ThemeResourceDictionary -or -not $app.Resources.MergedDictionaries.Contains($script:ThemeResourceDictionary)) {
@@ -391,10 +421,22 @@ function Get-AvailableStateTraceThemes {
         if ($file.BaseName -eq 'base') { continue }
         try {
             $def = Read-ThemeDefinition -Name ($file.BaseName)
-            $display = if ($def.name) { '' + $def.name } else { $file.BaseName }
+            $display = $file.BaseName
+            try {
+                $nameProp = $def.PSObject.Properties['name']
+                if ($nameProp -and -not [string]::IsNullOrWhiteSpace(('' + $nameProp.Value))) {
+                    $display = '' + $nameProp.Value
+                }
+            } catch { }
             $inspiration = if ($def.PSObject.Properties['inspiration']) { $def.inspiration } else { $null }
             $contrastTargets = if ($def.PSObject.Properties['contrastTargets']) { $def.contrastTargets } else { $null }
-            $extends = if ($def.PSObject.Properties['extends']) { '' + $def.extends } else { $null }
+            $extends = $null
+            try {
+                $extendsProp = $def.PSObject.Properties['extends']
+                if ($extendsProp) {
+                    $extends = '' + $extendsProp.Value
+                }
+            } catch { }
             $themes += [PSCustomObject]@{
                 Name            = $file.BaseName
                 Display         = $display

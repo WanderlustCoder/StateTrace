@@ -329,16 +329,6 @@ function Import-SharedSiteInterfaceCacheSnapshot {
     return 0
 }
 
-function Ensure-SharedSiteInterfaceCacheSnapshotImported {
-    param(
-        [Parameter(Mandatory)][System.Collections.Concurrent.ConcurrentDictionary[string, object]]$Store,
-        [switch]$Force
-    )
-
-    Write-Verbose "Ensure-SharedSiteInterfaceCacheSnapshotImported is deprecated; use Import-SharedSiteInterfaceCacheSnapshot instead."
-    return (Import-SharedSiteInterfaceCacheSnapshot -Store $Store -Force:$Force.IsPresent)
-}
-
 function Initialize-SharedSiteInterfaceCacheStore {
     $storeKey = $script:SharedSiteInterfaceCacheKey
     $store = $null

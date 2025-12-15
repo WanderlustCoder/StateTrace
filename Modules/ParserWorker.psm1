@@ -490,7 +490,6 @@ function Invoke-StateTraceParsing {
     $enableAdaptiveThreads = $true
 
     $maxConsecutiveSiteLaunches = 8
-    $hasMaxConsecutiveSiteSetting = $false
 
     $interfaceBulkChunkSize = $null
     $interfaceBulkChunkSizeHint = $null
@@ -595,7 +594,6 @@ function Invoke-StateTraceParsing {
                 } elseif ($limit -eq 0) {
                     $maxConsecutiveSiteLaunches = 0
                 }
-                $hasMaxConsecutiveSiteSetting = $true
 
             } catch { }
 
@@ -725,8 +723,6 @@ function Invoke-StateTraceParsing {
     if ($PSBoundParameters.ContainsKey('MaxConsecutiveSiteLaunchesOverride')) {
 
         $maxConsecutiveSiteLaunches = [int]$MaxConsecutiveSiteLaunchesOverride
-
-        $hasMaxConsecutiveSiteSetting = $true
 
     }
 
@@ -1184,20 +1180,7 @@ function Invoke-StateTraceParsing {
                 }
 
                 if ($snapshotEntryCount -gt 0) {
-                    $fallbackWriter = Get-Command -Name 'DeviceRepository.Cache\Write-SharedCacheSnapshotFileFallback' -ErrorAction SilentlyContinue
-                    if (-not $fallbackWriter) {
-                        $fallbackWriter = Get-Command -Name 'Write-SharedCacheSnapshotFileFallback' -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue
-                    }
-                    if ($fallbackWriter) {
-                        try {
-                            & $fallbackWriter -Path $SharedCacheSnapshotExportPath -Entries $snapshotEntries
-                        } catch {
-                            Write-Verbose ("Fallback shared cache snapshot export via DeviceRepository.Cache failed: {0}" -f $_.Exception.Message)
-                            Write-SharedCacheSnapshotFileInternal -Path $SharedCacheSnapshotExportPath -Entries $snapshotEntries
-                        }
-                    } else {
-                        Write-SharedCacheSnapshotFileInternal -Path $SharedCacheSnapshotExportPath -Entries $snapshotEntries
-                    }
+                    Write-SharedCacheSnapshotFileInternal -Path $SharedCacheSnapshotExportPath -Entries $snapshotEntries
                 } else {
                     Write-Verbose ("Shared cache snapshot export skipped (no entries).")
                 }

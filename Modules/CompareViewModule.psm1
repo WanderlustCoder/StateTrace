@@ -1,3 +1,5 @@
+Set-StrictMode -Version Latest
+
 # CompareViewModule.psm1
 # Loads the Compare sidebar, populates switch/port lists, and renders side-by-side config + diffs.
 
@@ -37,13 +39,14 @@ function Invoke-InterfaceStringPropertyValue {
         [Parameter(Mandatory)][string[]]$PropertyNames
     )
 
+    if ($InputObject -is [string]) {
+        $value = $InputObject.Trim()
+        if (-not [string]::IsNullOrWhiteSpace($value)) { return $value }
+        return ''
+    }
+
     if (-not (Get-Command -Name 'InterfaceCommon\Get-StringPropertyValue' -ErrorAction SilentlyContinue)) {
-        try {
-            $modulePath = Join-Path $PSScriptRoot 'InterfaceCommon.psm1'
-            if (Test-Path -LiteralPath $modulePath) {
-                Import-Module $modulePath -ErrorAction Stop | Out-Null
-            }
-        } catch { }
+        try { TelemetryModule\Import-InterfaceCommon | Out-Null } catch { }
     }
 
     try { return InterfaceCommon\Get-StringPropertyValue @PSBoundParameters } catch { return '' }
@@ -76,6 +79,26 @@ function Get-HostString {
     if (-not [string]::IsNullOrWhiteSpace($val)) { return $val }
     return ('' + $Item)
 }
+
+function Get-HostFromCombo {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][object]$Combo
+    )
+
+    if (-not $Combo) { return '' }
+
+    $selected = $null
+    try { $selected = $Combo.SelectedItem } catch { $selected = $null }
+    if ($null -ne $selected) {
+        return (Get-HostString $selected).Trim()
+    }
+
+    $text = ''
+    try { $text = '' + $Combo.Text } catch { $text = '' }
+    return $text.Trim()
+}
+
 function Get-CompareFilterContext {
     [CmdletBinding()]
     param([System.Windows.Window]$Window = $script:windowRef)
@@ -399,8 +422,8 @@ function Get-PortsForHost {
     # Define a comparison delegate that uses the port sort key for ordering
     $comp = [System.Comparison[string]]{
         param($a,$b)
-        $k1 = InterfaceModule\Get-PortSortKey -Port $a
-        $k2 = InterfaceModule\Get-PortSortKey -Port $b
+        $k1 = Get-PortSortKey -Port $a
+        $k2 = Get-PortSortKey -Port $b
         return [System.StringComparer]::OrdinalIgnoreCase.Compare($k1, $k2)
     }
     $finalList.Sort($comp)
@@ -517,7 +540,7 @@ function Get-ThemeBrushForPortColor {
         default  { $key = 'Theme.Text.Primary' }
     }
     try {
-        $brush = Get-ThemeBrush -Key $key
+        $brush = ThemeModule\Get-ThemeBrush -Key $key
         if ($brush) { return $brush }
     } catch {
         Write-Verbose "[CompareView] Get-ThemeBrush failed for key '$key': $($_.Exception.Message)"
@@ -541,7 +564,7 @@ function Update-CompareThemeBrushes {
 }
 if (-not $script:CompareThemeHandlerRegistered) {
     try {
-        Register-StateTraceThemeChanged -Handler ([System.Action[string]]{ param($themeName) Update-CompareThemeBrushes })
+        ThemeModule\Register-StateTraceThemeChanged -Handler ([System.Action[string]]{ param($themeName) Update-CompareThemeBrushes })
         $script:CompareThemeHandlerRegistered = $true
     } catch {
         Write-Verbose "[CompareView] Theme change handler registration failed: $($_.Exception.Message)"
@@ -666,8 +689,8 @@ function Set-CompareFromRows {
 function Show-CurrentComparison {
     # Gathers current selections and displays the comparison in the text boxes
     try {
-        $s1 = if ($script:switch1Dropdown) { Get-HostString $script:switch1Dropdown.SelectedItem } else { $null }
-        $s2 = if ($script:switch2Dropdown) { Get-HostString $script:switch2Dropdown.SelectedItem } else { $null }
+        $s1 = if ($script:switch1Dropdown) { Get-HostFromCombo -Combo $script:switch1Dropdown } else { $null }
+        $s2 = if ($script:switch2Dropdown) { Get-HostFromCombo -Combo $script:switch2Dropdown } else { $null }
         $p1 = if ($script:port1Dropdown)   { [string]$script:port1Dropdown.SelectedItem } else { $null }
         $p2 = if ($script:port2Dropdown)   { [string]$script:port2Dropdown.SelectedItem } else { $null }
 
@@ -700,9 +723,20 @@ function Show-CurrentComparison {
 
         if ($telemetryCmd) {
             try {
+                $sitePrefix = ''
+                try {
+                    if (Get-Command -Name 'DeviceRepositoryModule\Get-SiteFromHostname' -ErrorAction SilentlyContinue) {
+                        $sitePrefix = DeviceRepositoryModule\Get-SiteFromHostname -Hostname $s1
+                    } else {
+                        $parts = ('' + $s1).Split('-', 2, [System.StringSplitOptions]::RemoveEmptyEntries)
+                        if ($parts.Count -gt 0) { $sitePrefix = $parts[0] }
+                    }
+                } catch { }
+                if (-not $sitePrefix) { $sitePrefix = $s1 }
+
                 TelemetryModule\Write-StTelemetryEvent -Name 'UserAction' -Payload @{
                     Action    = 'CompareView'
-                    Site      = (Get-SitePrefix $s1)
+                    Site      = $sitePrefix
                     Hostname  = $s1
                     Hostname2 = $s2
                     Port1     = $p1
@@ -726,10 +760,7 @@ function Get-CompareHandlers {
     # When Switch1 changes (selection, losing focus after edit, or Enter key in editable mode), rebuild Port1 list and update compare
     if ($script:switch1Dropdown -and $script:port1Dropdown) {
         $rebuildLeft = {
-            ### FIX: inline hostname (avoid Get-HostFromCombo) [switch1Dropdown]
-            $si = $script:switch1Dropdown.SelectedItem
-            $hostname = if ($si) { Invoke-InterfaceStringPropertyValue -InputObject $si -PropertyNames @('Hostname','HostName','Name') } else { ('' + $script:switch1Dropdown.Text).Trim() }
-            ### END FIX
+            $hostname = Get-HostFromCombo -Combo $script:switch1Dropdown
             if ($hostname) {
                 Write-Verbose "[CompareView] Switch1 changed to '$hostname'. Rebuilding Port1 list..."
                 Set-PortsForCombo -Combo $script:port1Dropdown -Hostname $hostname
@@ -750,10 +781,7 @@ function Get-CompareHandlers {
     # When Switch2 changes, rebuild Port2 list and update compare
     if ($script:switch2Dropdown -and $script:port2Dropdown) {
         $rebuildRight = {
-            ### FIX: inline hostname (avoid Get-HostFromCombo) [switch2Dropdown]
-            $si = $script:switch2Dropdown.SelectedItem
-            $hostname = if ($si) { Invoke-InterfaceStringPropertyValue -InputObject $si -PropertyNames @('Hostname','HostName','Name') } else { ('' + $script:switch2Dropdown.Text).Trim() }
-            ### END FIX
+            $hostname = Get-HostFromCombo -Combo $script:switch2Dropdown
             if ($hostname) {
                 Write-Verbose "[CompareView] Switch2 changed to '$hostname'. Rebuilding Port2 list..."
                 Set-PortsForCombo -Combo $script:port2Dropdown -Hostname $hostname
@@ -774,12 +802,7 @@ function Get-CompareHandlers {
     # When Port1 dropdown is opened, refresh the list for current Switch1 (in case user typed a new switch or data changed), then on selection change update compare
     if ($script:port1Dropdown) {
         $script:port1Dropdown.Add_DropDownOpened({
-            ### FIX: inline hostname (avoid Get-HostFromCombo) [opened switch1Dropdown]
-            $hostname = if ($script:switch1Dropdown) {
-                $si = $script:switch1Dropdown.SelectedItem
-                if ($si) { Invoke-InterfaceStringPropertyValue -InputObject $si -PropertyNames @('Hostname','HostName','Name') } else { ('' + $script:switch1Dropdown.Text).Trim() }
-            } else { $null }
-            ### END FIX
+            $hostname = if ($script:switch1Dropdown) { Get-HostFromCombo -Combo $script:switch1Dropdown } else { $null }
             if ($hostname) {
                 Write-Verbose "[CompareView] Port1 dropdown opened; refreshing Port1 list for host '$hostname'."
                 Set-PortsForCombo -Combo $script:port1Dropdown -Hostname $hostname
@@ -796,12 +819,7 @@ function Get-CompareHandlers {
     # When Port2 dropdown is opened, refresh the list for current Switch2, then update compare on selection
     if ($script:port2Dropdown) {
         $script:port2Dropdown.Add_DropDownOpened({
-            ### FIX: inline hostname (avoid Get-HostFromCombo) [opened switch2Dropdown]
-            $hostname = if ($script:switch2Dropdown) {
-                $si = $script:switch2Dropdown.SelectedItem
-                if ($si) { Invoke-InterfaceStringPropertyValue -InputObject $si -PropertyNames @('Hostname','HostName','Name') } else { ('' + $script:switch2Dropdown.Text).Trim() }
-            } else { $null }
-            ### END FIX
+            $hostname = if ($script:switch2Dropdown) { Get-HostFromCombo -Combo $script:switch2Dropdown } else { $null }
             if ($hostname) {
                 Write-Verbose "[CompareView] Port2 dropdown opened; refreshing Port2 list for host '$hostname'."
                 Set-PortsForCombo -Combo $script:port2Dropdown -Hostname $hostname
@@ -881,7 +899,7 @@ function Update-CompareView {
 
     # At this point we either have no compare view yet or the host list has changed,
     # so we need to build a fresh view and populate it.
-    $viewCtrl = Set-StView -Window $Window -ScriptDir $PSScriptRoot -ViewName 'CompareView' -HostControlName 'CompareHost' -GlobalVariableName 'compareView'
+    $viewCtrl = ViewCompositionModule\Set-StView -Window $Window -ScriptDir $PSScriptRoot -ViewName 'CompareView' -HostControlName 'CompareHost' -GlobalVariableName 'compareView'
     if (-not $viewCtrl) { return }
     Write-Verbose "[CompareView] Compare view injected into main window."
     $script:compareHostCtl = $Window.FindName('CompareHost')

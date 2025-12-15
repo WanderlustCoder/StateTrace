@@ -13,6 +13,12 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+$statisticsModulePath = Join-Path -Path (Split-Path -Path $PSScriptRoot -Parent) -ChildPath 'Modules\StatisticsModule.psm1'
+if (-not (Test-Path -LiteralPath $statisticsModulePath)) {
+    throw "StatisticsModule not found at $statisticsModulePath"
+}
+Import-Module -Name $statisticsModulePath -Force -ErrorAction Stop
+
 $script:IncludeSiteCacheMetrics = $IncludeSiteCache.IsPresent
 $script:RequiredUserActions = @('ScanLogs','LoadFromDb','HelpQuickstart','InterfacesView','CompareView','SpanSnapshot')
 
@@ -61,42 +67,6 @@ function New-MetricAccumulator {
     return $accumulator
 }
 
-function Get-PercentileValue {
-    param(
-        [Parameter(Mandatory)]
-        [double[]]$Values,
-        [Parameter(Mandatory)]
-        [ValidateRange(0, 100)]
-        [double]$Percentile
-    )
-
-    if (-not $Values -or $Values.Length -eq 0) {
-        return $null
-    }
-
-    $sorted = @($Values | Sort-Object)
-    if ($sorted.Count -eq 0) {
-        return $null
-    }
-
-    $position = ($Percentile / 100.0) * ($sorted.Count - 1)
-    $lowerIndex = [Math]::Floor($position)
-    $upperIndex = [Math]::Ceiling($position)
-
-    if ($lowerIndex -lt 0) { $lowerIndex = 0 }
-    if ($upperIndex -ge $sorted.Count) { $upperIndex = $sorted.Count - 1 }
-
-    if ($lowerIndex -eq $upperIndex) {
-        return $sorted[$lowerIndex]
-    }
-
-    $fraction = $position - $lowerIndex
-    $lowerValue = $sorted[$lowerIndex]
-    $upperValue = $sorted[$upperIndex]
-
-    return $lowerValue + ($fraction * ($upperValue - $lowerValue))
-}
-
 function Get-RoundedValue {
     param(
         [AllowNull()]
@@ -127,7 +97,7 @@ function Get-SummaryRowsForAccumulator {
     if ($parseCount -gt 0) {
         $parseValues = $Accumulator.ParseDurations.ToArray()
         $parseAverage = $Accumulator.ParseDurationSum / $parseCount
-        $parseP95 = Get-PercentileValue -Values $parseValues -Percentile 95
+        $parseP95 = StatisticsModule\Get-PercentileValue -Values $parseValues -Percentile 95
         $parseMax = if ($Accumulator.ParseDurationMax -eq [double]::NegativeInfinity) { $null } else { $Accumulator.ParseDurationMax }
         $parseNotes = if ($Accumulator.ParseDurationFailure -gt 0) { "Failures=$($Accumulator.ParseDurationFailure)" } else { $null }
 
@@ -149,7 +119,7 @@ function Get-SummaryRowsForAccumulator {
     if ($latencyCount -gt 0) {
         $latencyValues = $Accumulator.WriteLatencies.ToArray()
         $latencyAverage = $Accumulator.WriteLatencySum / $latencyCount
-        $latencyP95 = Get-PercentileValue -Values $latencyValues -Percentile 95
+        $latencyP95 = StatisticsModule\Get-PercentileValue -Values $latencyValues -Percentile 95
         $latencyMax = if ($Accumulator.WriteLatencyMax -eq [double]::NegativeInfinity) { $null } else { $Accumulator.WriteLatencyMax }
 
         $rows.Add([pscustomobject]@{
@@ -205,7 +175,7 @@ function Get-SummaryRowsForAccumulator {
         if ($Accumulator.SiteCacheFetchCount -gt 0) {
             $fetchValues = $Accumulator.SiteCacheFetchDurations.ToArray()
             $fetchAverage = $Accumulator.SiteCacheFetchDurationSum / $Accumulator.SiteCacheFetchCount
-            $fetchP95 = Get-PercentileValue -Values $fetchValues -Percentile 95
+            $fetchP95 = StatisticsModule\Get-PercentileValue -Values $fetchValues -Percentile 95
             $fetchMax = if ($Accumulator.SiteCacheFetchDurationMax -eq [double]::NegativeInfinity) { $null } else { $Accumulator.SiteCacheFetchDurationMax }
             $fetchTotal = $Accumulator.SiteCacheFetchDurationSum
         }

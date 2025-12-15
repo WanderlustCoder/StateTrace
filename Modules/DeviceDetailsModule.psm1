@@ -71,17 +71,9 @@ function Get-DeviceDetailsData {
     $dto.Summary = Get-DatabaseDeviceSummary -Hostname $hostTrim -DatabasePath $dbPath
     $dto.Interfaces = New-Object 'System.Collections.ObjectModel.ObservableCollection[object]'
     try {
-        $hostEsc = $hostTrim -replace "'", "''"
-        try {
-            $hostEsc = DatabaseModule\Get-SqlLiteral -Value $hostTrim
-            # Get-SqlLiteral returns a quoted literal; if so, do not add extra quotes.
-            if ($hostEsc -notmatch "^'.*'$") {
-                $hostEsc = "'" + $hostEsc + "'"
-            }
-        } catch {
-            $hostEsc = "'" + $hostEsc + "'"
-        }
-        $portsSql = "SELECT Hostname, Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, ConfigStatus, PortColor, ToolTip FROM Interfaces WHERE Hostname = $hostEsc ORDER BY Port"
+        $escHost = $hostTrim -replace "'", "''"
+        try { $escHost = DatabaseModule\Get-SqlLiteral -Value $hostTrim } catch { }
+        $portsSql = "SELECT Hostname, Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, ConfigStatus, PortColor, ToolTip FROM Interfaces WHERE Hostname = '$escHost' ORDER BY Port"
         $dtPorts = DatabaseModule\Invoke-DbQuery -DatabasePath $dbPath -Sql $portsSql
         if ($dtPorts) {
             $convertedPorts = $null
@@ -126,6 +118,7 @@ function Get-DatabaseDeviceSummary {
     )
 
     $escHost = $Hostname -replace "'", "''"
+    try { $escHost = DatabaseModule\Get-SqlLiteral -Value $Hostname } catch { }
     $summarySql = "SELECT Hostname, Make, Model, Uptime, Ports, AuthDefaultVLAN, Building, Room FROM DeviceSummary WHERE Hostname = '$escHost' OR Hostname LIKE '*$escHost*'"
     $dtSummary = $null
     try { $dtSummary = DatabaseModule\Invoke-DbQuery -DatabasePath $DatabasePath -Sql $summarySql } catch {}
@@ -183,6 +176,7 @@ function Get-DeviceHistoryFallback {
     }
 
     $escHost = $Hostname -replace "'", "''"
+    try { $escHost = DatabaseModule\Get-SqlLiteral -Value $Hostname } catch { }
     try {
         $hist = DatabaseModule\Invoke-DbQuery -DatabasePath $DatabasePath -Sql "SELECT TOP 1 Make, Model, Uptime, AuthDefaultVLAN, Building, Room FROM DeviceHistory WHERE Trim(Hostname) = '$escHost' ORDER BY RunDate DESC"
         $row = $null
@@ -245,27 +239,5 @@ function script:Get-RowValue {
         return $null
     }
 }
-
-function Get-DeviceVendorFromSummary {
-    param(
-        [Parameter(Mandatory)][string]$Hostname,
-        [Parameter(Mandatory)][string]$DatabasePath
-    )
-
-    $vendor = 'Cisco'
-    $escHost = $Hostname -replace "'", "''"
-    try {
-        $mkDt = DatabaseModule\Invoke-DbQuery -DatabasePath $DatabasePath -Sql "SELECT Make FROM DeviceSummary WHERE Hostname = '$escHost'"
-        $row = $null
-        if ($mkDt) {
-            $mkRows = DatabaseModule\ConvertTo-DbRowList -Data $mkDt
-            if ($mkRows.Count -gt 0) { $row = $mkRows[0] }
-        }
-        $mk = script:Get-RowValue -Row $row -Property 'Make'
-        if ($mk -and ($mk -match '(?i)brocade')) { $vendor = 'Brocade' }
-    } catch {}
-    return $vendor
-}
-
 
 Export-ModuleMember -Function Get-DeviceDetails, Get-DeviceDetailsData

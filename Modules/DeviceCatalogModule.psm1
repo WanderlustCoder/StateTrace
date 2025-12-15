@@ -12,6 +12,93 @@ if (-not (Get-Variable -Scope Global -Name DeviceLocationEntries -ErrorAction Si
     $global:DeviceLocationEntries = @()
 }
 
+function Get-NormalizedSiteFilterList {
+    [CmdletBinding()]
+    param([string[]]$SiteFilter)
+
+    $normalizedSites = @()
+    if (-not $SiteFilter) { return $normalizedSites }
+
+    foreach ($siteEntry in $SiteFilter) {
+        if ($null -eq $siteEntry) { continue }
+        $candidates = @($siteEntry -split ',')
+        foreach ($candidate in $candidates) {
+            $trimmed = ('' + $candidate).Trim()
+            if ([string]::IsNullOrWhiteSpace($trimmed)) { continue }
+            if ($trimmed -ieq 'All Sites') { continue }
+            $normalizedSites += $trimmed
+        }
+    }
+
+    return @($normalizedSites | Select-Object -Unique)
+}
+
+function Get-DbPathsForNormalizedSites {
+    [CmdletBinding()]
+    param([string[]]$NormalizedSites)
+
+    if ($NormalizedSites -and $NormalizedSites.Count -gt 0) {
+        $paths = [System.Collections.Generic.List[string]]::new()
+        foreach ($siteName in $NormalizedSites) {
+            $path = $null
+            try { $path = DeviceRepositoryModule\Get-DbPathForSite -Site $siteName } catch { $path = $null }
+            if ($path -and -not [string]::IsNullOrWhiteSpace($path)) {
+                [void]$paths.Add($path)
+            }
+        }
+        if ($paths.Count -gt 0) {
+            return @($paths | Select-Object -Unique)
+        }
+        return @()
+    }
+
+    try {
+        return @(DeviceRepositoryModule\Get-AllSiteDbPaths)
+    } catch {
+        return @()
+    }
+}
+
+function Get-DeviceCatalogRowLocation {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Hostname,
+        [Parameter(Mandatory)][object]$Row
+    )
+
+    $siteVal = ''
+    $buildingVal = ''
+    $roomVal = ''
+
+    $siteRaw = $Row.Site
+    if ($siteRaw -ne $null -and $siteRaw -ne [System.DBNull]::Value) { $siteVal = [string]$siteRaw }
+    $buildingRaw = $Row.Building
+    if ($buildingRaw -ne $null -and $buildingRaw -ne [System.DBNull]::Value) { $buildingVal = [string]$buildingRaw }
+    $roomRaw = $Row.Room
+    if ($roomRaw -ne $null -and $roomRaw -ne [System.DBNull]::Value) { $roomVal = [string]$roomRaw }
+
+    $zoneVal = ''
+    try {
+        $parts = $Hostname -split '-', 3
+        if ($parts.Length -ge 2) { $zoneVal = $parts[1] }
+        if ([string]::IsNullOrWhiteSpace($siteVal) -and $parts.Length -ge 1) {
+            $siteVal = $parts[0]
+        }
+    } catch {
+        $zoneVal = ''
+        if ([string]::IsNullOrWhiteSpace($siteVal)) {
+            $siteVal = ''
+        }
+    }
+
+    return [PSCustomObject]@{
+        Site     = $siteVal
+        Zone     = $zoneVal
+        Building = $buildingVal
+        Room     = $roomVal
+    }
+}
+
 function Get-BalancedHostnames {
     [CmdletBinding()]
     param([System.Collections.IEnumerable]$Hostnames)
@@ -73,41 +160,8 @@ function Get-DeviceSummaries {
     $metadata = @{}
     $hostnames = [System.Collections.Generic.List[string]]::new()
 
-    $normalizedSites = @()
-    if ($PSBoundParameters.ContainsKey('SiteFilter') -and $SiteFilter) {
-        foreach ($siteEntry in $SiteFilter) {
-            if ($null -eq $siteEntry) { continue }
-            $candidates = @($siteEntry -split ',')
-            foreach ($candidate in $candidates) {
-                $trimmed = ('' + $candidate).Trim()
-                if ([string]::IsNullOrWhiteSpace($trimmed)) { continue }
-                if ($trimmed -ieq 'All Sites') { continue }
-                $normalizedSites += $trimmed
-            }
-        }
-        $normalizedSites = @($normalizedSites | Select-Object -Unique)
-    }
-
-    $dbPaths = @()
-    if ($normalizedSites.Count -gt 0) {
-        $paths = [System.Collections.Generic.List[string]]::new()
-        foreach ($siteName in $normalizedSites) {
-            $path = $null
-            try { $path = DeviceRepositoryModule\Get-DbPathForSite -Site $siteName } catch { $path = $null }
-            if ($path -and -not [string]::IsNullOrWhiteSpace($path)) {
-                [void]$paths.Add($path)
-            }
-        }
-        if ($paths.Count -gt 0) {
-            $dbPaths = @($paths | Select-Object -Unique)
-        }
-    } else {
-        try {
-            $dbPaths = DeviceRepositoryModule\Get-AllSiteDbPaths
-        } catch {
-            $dbPaths = @()
-        }
-    }
+    $normalizedSites = Get-NormalizedSiteFilterList -SiteFilter $SiteFilter
+    $dbPaths = @(Get-DbPathsForNormalizedSites -NormalizedSites $normalizedSites)
 
     if (-not $dbPaths -or $dbPaths.Count -eq 0) {
         $global:DeviceMetadata = @{}
@@ -135,36 +189,7 @@ function Get-DeviceSummaries {
                 [void]$hostnames.Add($name)
             }
 
-            $siteVal = ''
-            $buildingVal = ''
-            $roomVal = ''
-            $siteRaw = $row.Site
-            if ($siteRaw -ne $null -and $siteRaw -ne [System.DBNull]::Value) { $siteVal = [string]$siteRaw }
-            $buildingRaw = $row.Building
-            if ($buildingRaw -ne $null -and $buildingRaw -ne [System.DBNull]::Value) { $buildingVal = [string]$buildingRaw }
-            $roomRaw = $row.Room
-            if ($roomRaw -ne $null -and $roomRaw -ne [System.DBNull]::Value) { $roomVal = [string]$roomRaw }
-
-            $zoneVal = ''
-            try {
-                $parts = $name -split '-', 3
-                if ($parts.Length -ge 2) { $zoneVal = $parts[1] }
-                if ([string]::IsNullOrWhiteSpace($siteVal) -and $parts.Length -ge 1) {
-                    $siteVal = $parts[0]
-                }
-            } catch {
-                $zoneVal = ''
-                if ([string]::IsNullOrWhiteSpace($siteVal)) {
-                    $siteVal = ''
-                }
-            }
-
-            $metadata[$name] = [PSCustomObject]@{
-                Site     = $siteVal
-                Zone     = $zoneVal
-                Building = $buildingVal
-                Room     = $roomVal
-            }
+            $metadata[$name] = Get-DeviceCatalogRowLocation -Hostname $name -Row $row
         }
     }
 
@@ -196,41 +221,8 @@ function Get-DeviceLocationEntries {
         }
     } catch { }
 
-    $normalizedSites = @()
-    if ($PSBoundParameters.ContainsKey('SiteFilter') -and $SiteFilter) {
-        foreach ($siteEntry in $SiteFilter) {
-            if ($null -eq $siteEntry) { continue }
-            $candidates = @($siteEntry -split ',')
-            foreach ($candidate in $candidates) {
-                $trimmed = ('' + $candidate).Trim()
-                if ([string]::IsNullOrWhiteSpace($trimmed)) { continue }
-                if ($trimmed -ieq 'All Sites') { continue }
-                $normalizedSites += $trimmed
-            }
-        }
-        $normalizedSites = @($normalizedSites | Select-Object -Unique)
-    }
-
-    $dbPaths = @()
-    if ($normalizedSites.Count -gt 0) {
-        $paths = [System.Collections.Generic.List[string]]::new()
-        foreach ($siteName in $normalizedSites) {
-            $path = $null
-            try { $path = DeviceRepositoryModule\Get-DbPathForSite -Site $siteName } catch { $path = $null }
-            if ($path -and -not [string]::IsNullOrWhiteSpace($path)) {
-                [void]$paths.Add($path)
-            }
-        }
-        if ($paths.Count -gt 0) {
-            $dbPaths = @($paths | Select-Object -Unique)
-        }
-    } else {
-        try {
-            $dbPaths = DeviceRepositoryModule\Get-AllSiteDbPaths
-        } catch {
-            $dbPaths = @()
-        }
-    }
+    $normalizedSites = Get-NormalizedSiteFilterList -SiteFilter $SiteFilter
+    $dbPaths = @(Get-DbPathsForNormalizedSites -NormalizedSites $normalizedSites)
 
     if (-not $dbPaths -or $dbPaths.Count -eq 0) {
         $global:DeviceLocationEntries = @()
@@ -254,40 +246,13 @@ function Get-DeviceLocationEntries {
         if (-not $dt) { continue }
         foreach ($row in $dt) {
             $hostname = '' + $row.Hostname
-            $siteVal = ''
-            $buildingVal = ''
-            $roomVal = ''
 
-            $siteRaw = $row.Site
-            if ($siteRaw -ne $null -and $siteRaw -ne [System.DBNull]::Value) { $siteVal = [string]$siteRaw }
-            $buildingRaw = $row.Building
-            if ($buildingRaw -ne $null -and $buildingRaw -ne [System.DBNull]::Value) { $buildingVal = [string]$buildingRaw }
-            $roomRaw = $row.Room
-            if ($roomRaw -ne $null -and $roomRaw -ne [System.DBNull]::Value) { $roomVal = [string]$roomRaw }
+            $location = Get-DeviceCatalogRowLocation -Hostname $hostname -Row $row
 
-            $zoneVal = ''
-            try {
-                $parts = $hostname -split '-', 3
-                if ($parts.Length -ge 2) { $zoneVal = $parts[1] }
-                if ([string]::IsNullOrWhiteSpace($siteVal) -and $parts.Length -ge 1) {
-                    $siteVal = $parts[0]
-                }
-            } catch {
-                $zoneVal = ''
-                if ([string]::IsNullOrWhiteSpace($siteVal)) {
-                    $siteVal = ''
-                }
-            }
-
-            $key = "{0}|{1}|{2}|{3}" -f $siteVal, $zoneVal, $buildingVal, $roomVal
+            $key = "{0}|{1}|{2}|{3}" -f $location.Site, $location.Zone, $location.Building, $location.Room
             if (-not $uniqueKeys.Add($key)) { continue }
 
-            $locations.Add([PSCustomObject]@{
-                Site     = $siteVal
-                Zone     = $zoneVal
-                Building = $buildingVal
-                Room     = $roomVal
-            }) | Out-Null
+            $locations.Add($location) | Out-Null
         }
     }
 

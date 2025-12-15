@@ -1,15 +1,17 @@
+Set-StrictMode -Version Latest
+
 function New-AlertsView {
-    
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)][System.Windows.Window]$Window,
         [Parameter(Mandatory=$true)][string]$ScriptDir
     )
     try {
-        $alertsView = Set-StView -Window $Window -ScriptDir $ScriptDir -ViewName 'AlertsView' -HostControlName 'AlertsHost' -GlobalVariableName 'alertsView'
+        $alertsView = ViewCompositionModule\Set-StView -Window $Window -ScriptDir $ScriptDir -ViewName 'AlertsView' -HostControlName 'AlertsHost' -GlobalVariableName 'alertsView'
         if (-not $alertsView) { return }
 
-        if (Get-Command Update-Alerts -ErrorAction SilentlyContinue) {
-            Update-Alerts
+        if (Get-Command -Name 'DeviceInsightsModule\Update-Alerts' -ErrorAction SilentlyContinue) {
+            DeviceInsightsModule\Update-Alerts
         }
 
         $expAlertsBtn = $alertsView.FindName('ExportAlertsButton')
@@ -18,22 +20,7 @@ function New-AlertsView {
                 $grid = $alertsView.FindName('AlertsGrid')
                 if (-not $grid) { return }
                 $rows = $grid.ItemsSource
-                if (-not $rows -or $rows.Count -eq 0) {
-                    [System.Windows.MessageBox]::Show('No alerts to export.')
-                    return
-                }
-                $dlg = New-Object Microsoft.Win32.SaveFileDialog
-                $dlg.Filter = 'CSV files (*.csv)|*.csv|All files (*.*)|*.*'
-                $dlg.FileName = 'Alerts.csv'
-                if ($dlg.ShowDialog() -eq $true) {
-                    $path = $dlg.FileName
-                    try {
-                        $rows | Export-Csv -Path $path -NoTypeInformation
-                        [System.Windows.MessageBox]::Show("Exported $($rows.Count) alerts to $path", 'Export Complete')
-                    } catch {
-                        [System.Windows.MessageBox]::Show("Failed to export alerts: $($_.Exception.Message)")
-                    }
-                }
+                ViewCompositionModule\Export-StRowsToCsv -Rows $rows -DefaultFileName 'Alerts.csv' -EmptyMessage 'No alerts to export.' -SuccessNoun 'alerts' -FailureMessagePrefix 'Failed to export alerts'
             })
         }
     } catch {
@@ -42,8 +29,6 @@ function New-AlertsView {
 }
 
 Export-ModuleMember -Function New-AlertsView
-
-
 
 
 

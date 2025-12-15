@@ -1,4 +1,7 @@
+Set-StrictMode -Version Latest
+
 function Get-AristaDeviceFacts {
+    [CmdletBinding()]
     param (
         [string[]]$Lines,
         [hashtable]$Blocks
@@ -7,7 +10,7 @@ function Get-AristaDeviceFacts {
     #
 
     function Get-Hostname {
-        $hostname = DeviceParsingCommon\Get-HostnameFromPrompt -Lines $Lines
+        $hostname = DeviceParsingCommon\Get-HostnameFromPrompt -Lines $Lines -RunningConfigPattern '^(?i)\s*hostname\s+(.+)$'
         if ($hostname) { return $hostname }
         return "Unknown"
     }
@@ -40,7 +43,7 @@ function Get-AristaDeviceFacts {
     function Get-SnmpLocation {
         param([string[]]$Lines)
         # Delegate to the shared helper that handles vendor-specific keywords
-        return Get-SnmpLocationFromLines -Lines $Lines
+        return DeviceLogParserModule\Get-SnmpLocationFromLines -Lines $Lines
     }
 
     function Get-Interfaces {
@@ -74,29 +77,15 @@ function Get-AristaDeviceFacts {
 
     #
     function Get-InterfaceConfigs {
-    $ht = @{}
-    for ($i = 0; $i -lt $Lines.Count; $i++) {
-        $line = $Lines[$i]
-        if ($line -imatch "^\s*interface\s+(?:Et|Ethernet)(\d+(?:/\d+)*)\b") {
-            $portName    = "Et" + $matches[1]
-            # Accumulate config lines in a typed List[string] for efficiency
-            $configLines = [System.Collections.Generic.List[string]]::new()
-            [void]$configLines.Add($line)
-            $j           = $i + 1
-            while ($j -lt $Lines.Count) {
-                $next = $Lines[$j]
-                if ($next -match "^\s*$" -or $next -imatch "^\s*interface\s+") {
-                    break
-                }
-                [void]$configLines.Add($next)
-                $j++
-            }
-            $ht[$portName] = $configLines -join "`r`n"
-            $i              = $j - 1
+        param([string[]]$Lines)
+        $ht = @{}
+        $blocks = DeviceParsingCommon\Get-InterfaceConfigBlocks -Lines $Lines -InterfacePattern '^\s*interface\s+(?:Et|Ethernet)(\d+(?:/\d+)*)\b' -StopPatterns @('^\s*!', '^\s*interface\s+') -StopOnBlankLine
+        foreach ($block in $blocks) {
+            $portName = 'Et' + $block.Name
+            $ht[$portName] = [string]::Join("`r`n", $block.Lines)
         }
+        return $ht
     }
-    return $ht
-}
 
     #
     if (-not $Blocks) {
@@ -157,7 +146,7 @@ function Get-AristaDeviceFacts {
 
     # Interface configuration blocks come from the running-config
     $Lines = $runCfgLines
-    $configs = Get-InterfaceConfigs
+    $configs = Get-InterfaceConfigs -Lines $runCfgLines
 
     # Restore the original Lines array for any remaining operations.
     $Lines = $origLines

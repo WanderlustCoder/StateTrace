@@ -31,6 +31,13 @@ pwsh Tools\Analyze-ParserSchedulerLaunch.ps1 `
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+$repositoryRoot = Split-Path -Path $PSScriptRoot -Parent
+$statisticsModulePath = Join-Path -Path $repositoryRoot -ChildPath 'Modules\StatisticsModule.psm1'
+if (-not (Test-Path -LiteralPath $statisticsModulePath)) {
+    throw "StatisticsModule not found at $statisticsModulePath"
+}
+Import-Module -Name $statisticsModulePath -Force -ErrorAction Stop
+
 function Get-TargetFiles {
     param([string]$InputPath)
 
@@ -72,25 +79,13 @@ function New-ScalarSummary {
     $count = $sorted.Count
     $avg = ($sorted | Measure-Object -Average).Average
 
-    function Get-PercentileValue {
-        param([double[]]$OrderedValues, [double]$Percent)
-        if ($Percent -le 0) { return $OrderedValues[0] }
-        if ($Percent -ge 100) { return $OrderedValues[-1] }
-        $rank = ($Percent / 100.0) * ($OrderedValues.Count - 1)
-        $lower = [math]::Floor($rank)
-        $upper = [math]::Ceiling($rank)
-        if ($lower -eq $upper) { return $OrderedValues[$lower] }
-        $weight = $rank - $lower
-        return $OrderedValues[$lower] + ($weight * ($OrderedValues[$upper] - $OrderedValues[$lower]))
-    }
-
     return [pscustomobject]@{
         Name    = $Name
         Count   = $count
         Min     = $sorted[0]
         Average = [math]::Round($avg, 3)
-        P50     = [math]::Round((Get-PercentileValue -OrderedValues $sorted -Percent 50), 3)
-        P95     = [math]::Round((Get-PercentileValue -OrderedValues $sorted -Percent 95), 3)
+        P50     = [math]::Round((StatisticsModule\Get-PercentileValue -Values $sorted -Percentile 50), 3)
+        P95     = [math]::Round((StatisticsModule\Get-PercentileValue -Values $sorted -Percentile 95), 3)
         Max     = $sorted[-1]
     }
 }

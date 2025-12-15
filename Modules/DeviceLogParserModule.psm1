@@ -151,13 +151,13 @@ function Get-ShowBlock {
         [string[]]$RegexPatterns = @(),
         [string[]]$Lines,
         [string[]]$CommandRegexes = @(),
-        [object]$DefaultValue = @()
+        [string[]]$DefaultValue = @()
     )
 
     if (-not $Blocks) { $Blocks = @{} }
 
     foreach ($key in $PreferredKeys) {
-        if ($Blocks.ContainsKey($key)) { return $Blocks[$key] }
+        if ($Blocks.ContainsKey($key)) { return ,@($Blocks[$key]) }
     }
 
     $compiledRegexPatterns = @()
@@ -171,7 +171,7 @@ function Get-ShowBlock {
     if ($Blocks.Count -gt 0 -and $compiledRegexPatterns.Count -gt 0) {
         foreach ($re in $compiledRegexPatterns) {
             foreach ($key in $Blocks.Keys) {
-                if ($re.IsMatch($key)) { return $Blocks[$key] }
+                if ($re.IsMatch($key)) { return ,@($Blocks[$key]) }
             }
         }
     }
@@ -199,11 +199,12 @@ function Get-ShowBlock {
                 if ($script:ShowPromptStartRegex.IsMatch($line)) { break }
                 [void]$buffer.Add($line)
             }
-            return $buffer.ToArray()
+            return ,$buffer.ToArray()
         }
     }
 
-    return $DefaultValue
+    if ($null -eq $DefaultValue) { $DefaultValue = @() }
+    return ,$DefaultValue
 }
 
 function Get-CanonicalDatabaseKey {
@@ -219,18 +220,6 @@ function Get-CanonicalDatabaseKey {
     }
 
     return $candidate.Trim().ToLowerInvariant()
-}
-
-function Release-ComObjectSafe {
-    [CmdletBinding()]
-    param(
-        [Parameter()][object]$ComObject
-    )
-
-    if ($null -eq $ComObject) { return }
-    if ($ComObject -is [System.__ComObject]) {
-        try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($ComObject) } catch { }
-    }
 }
 
 function Get-DatabaseMutexName {
@@ -355,7 +344,7 @@ function Close-StaleConnections {
 
             $connectionToRelease = $entry.Connection
             try { $connectionToRelease.Close() } catch { }
-            Release-ComObjectSafe -ComObject $connectionToRelease
+            TelemetryModule\Remove-ComObjectSafe -ComObject $connectionToRelease
             $entry.Connection = $null
 
         }
@@ -428,7 +417,7 @@ function Get-CachedDbConnection {
 
         $connectionToRelease = $entry.Connection
         try { $connectionToRelease.Close() } catch { }
-        Release-ComObjectSafe -ComObject $connectionToRelease
+        TelemetryModule\Remove-ComObjectSafe -ComObject $connectionToRelease
         $entry.Connection = $null
 
     }
@@ -477,7 +466,7 @@ function Get-CachedDbConnection {
 
                     if ($testConn) {
                         try { $testConn.Close() } catch { }
-                        Release-ComObjectSafe -ComObject $testConn
+                        TelemetryModule\Remove-ComObjectSafe -ComObject $testConn
                     }
 
                 }
@@ -564,7 +553,7 @@ function Release-CachedDbConnection {
 
         $connectionToRelease = $entry.Connection
         try { $connectionToRelease.Close() } catch { }
-        Release-ComObjectSafe -ComObject $connectionToRelease
+        TelemetryModule\Remove-ComObjectSafe -ComObject $connectionToRelease
         $entry.Connection = $null
 
     }
@@ -604,8 +593,6 @@ function Get-DeviceLogContext {
         Blocks = $blocks
     }
 }
-# Determine the device vendor from the contents of a "show version" block.  Rather than
-
 function Get-LogParseContext {
     [CmdletBinding()]
     param(
@@ -669,8 +656,6 @@ function Get-DeviceMakeFromBlocks {
     }
     return ''
 }
-
-# Extract the SNMP location string from a log.  Different vendors
 
 function Get-SnmpLocationFromLines {
     [CmdletBinding()]
@@ -884,6 +869,11 @@ function Invoke-DeviceLogParsing {
     if ([string]::IsNullOrWhiteSpace($siteKey)) { $siteKey = 'Unknown' }
     $sanitizedSiteKey = ($siteKey -replace '[^A-Za-z0-9_-]', '_')
 
+    # Default telemetry host/site values from the file name so failures surface
+    # meaningful identifiers even when the vendor parser cannot resolve a prompt.
+    $cleanHostname = $historyKey
+    $siteCode = $siteKey
+
     $historyRoot = Join-Path $projectRoot 'Data\IngestionHistory'
     try { [System.IO.Directory]::CreateDirectory($historyRoot) | Out-Null } catch { }
     $historyFilePath = Join-Path $historyRoot ("{0}.json" -f $sanitizedSiteKey)
@@ -1052,13 +1042,13 @@ function Invoke-DeviceLogParsing {
             }
             "Arista" {
                 $facts = Get-AristaDeviceFacts -Lines $lines -Blocks $blocks
-            }}
-            } catch {
+            }
+        }
+    } catch {
         Write-Warning "Failed to parse $make log '${FilePath}': $($_.Exception.Message)"
         return
     }
 
-    #
     if ($make -eq 'Brocade') {
         # Determine whether the AuthenticationBlock property is missing or empty
         $needBlock = $true
@@ -1111,6 +1101,27 @@ function Invoke-DeviceLogParsing {
         [System.GC]::Collect()
     } catch {
         # Ignore GC exceptions; not all hosts permit explicit collection
+    }
+
+    if ($facts) {
+        $factsHostname = ''
+        try { $factsHostname = '' + $facts.Hostname } catch { $factsHostname = '' }
+
+        if ([string]::IsNullOrWhiteSpace($factsHostname) -and -not [string]::IsNullOrWhiteSpace($historyKey)) {
+            $fallbackHostname = ('' + $historyKey).Trim()
+            if ($fallbackHostname -match '^(?<Host>.+?)[-_]\d{8}[-_]\d{6}$') {
+                $fallbackHostname = ('' + $Matches.Host).Trim()
+            }
+            $fallbackHostname = $fallbackHostname -replace '^SSH@', ''
+
+            if (-not [string]::IsNullOrWhiteSpace($fallbackHostname)) {
+                if ($facts.PSObject.Properties.Name -contains 'Hostname') {
+                    $facts.Hostname = $fallbackHostname
+                } else {
+                    Add-Member -InputObject $facts -NotePropertyName Hostname -NotePropertyValue $fallbackHostname -Force
+                }
+            }
+        }
     }
 
     if (-not $facts -or -not $facts.Hostname) {
@@ -1442,7 +1453,7 @@ function Invoke-DeviceLogParsing {
                         } catch { }
                         finally {
                             if ($jet) {
-                                Release-ComObjectSafe -ComObject $jet
+                                TelemetryModule\Remove-ComObjectSafe -ComObject $jet
                             }
                             if ($refreshStopwatch) {
                                 $refreshStopwatch.Stop()
@@ -2016,8 +2027,5 @@ function Invoke-DeviceLogParsing {
         } catch { }
     }
 }
-
-#
-
 
 Export-ModuleMember -Function Get-LocationDetails, Get-ShowCommandBlocks, Get-ShowBlock, Get-DeviceMakeFromBlocks, Get-SnmpLocationFromLines, ConvertFrom-SpanningTree, Remove-OldArchiveFolder, Get-BrocadeAuthBlockFromLines, Invoke-DeviceLogParsing, Get-LogParseContext, Get-VendorTemplates, Get-DatabaseMutexName

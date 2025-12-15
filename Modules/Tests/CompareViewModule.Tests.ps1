@@ -37,6 +37,7 @@ Describe "CompareViewModule compare workflow" {
     BeforeAll {
         [void][System.Reflection.Assembly]::LoadWithPartialName('PresentationFramework')
         $moduleRoot = Split-Path $PSCommandPath
+        Import-Module (Resolve-Path (Join-Path $moduleRoot "..\TelemetryModule.psm1")) -Force
         Import-Module (Resolve-Path (Join-Path $moduleRoot "..\FilterStateModule.psm1")) -Force
         Import-Module (Resolve-Path (Join-Path $moduleRoot "..\ViewStateService.psm1")) -Force
         Import-Module (Resolve-Path (Join-Path $moduleRoot '..\InterfaceModule.psm1')) -Force
@@ -44,7 +45,7 @@ Describe "CompareViewModule compare workflow" {
     }
 
     AfterAll {
-        foreach ($name in 'CompareViewModule','ViewStateService','FilterStateModule','InterfaceModule') {
+        foreach ($name in 'CompareViewModule','ViewStateService','FilterStateModule','InterfaceModule','TelemetryModule','InterfaceCommon') {
             if (Get-Module $name) { Remove-Module $name -Force }
         }
     }
@@ -67,17 +68,21 @@ Describe "CompareViewModule compare workflow" {
         Set-CompareModuleVar lastWiredViewId 0
         Set-CompareModuleVar closeWiredViewId 0
         Set-CompareModuleVar LastCompareHostList $null
+        Set-CompareModuleVar testRow1 $null
+        Set-CompareModuleVar testRow2 $null
     }
 
     It "Show-CurrentComparison populates compare view when rows are available" {
         $row1 = [pscustomobject]@{ ToolTip = 'A'; PortColor = 'Green' }
         $row2 = [pscustomobject]@{ ToolTip = 'B'; PortColor = 'Blue' }
+        Set-CompareModuleVar testRow1 $row1
+        Set-CompareModuleVar testRow2 $row2
 
         Mock -ModuleName CompareViewModule -CommandName Get-GridRowFor {
             param($Hostname, $Port)
             switch ("$Hostname|$Port") {
-                'sw1|Gi1' { return $row1 }
-                'sw2|Gi2' { return $row2 }
+                'sw1|Gi1' { return $script:testRow1 }
+                'sw2|Gi2' { return $script:testRow2 }
                 default   { return $null }
             }
         }
@@ -92,10 +97,11 @@ Describe "CompareViewModule compare workflow" {
 
     It "Show-CurrentComparison handles missing rows by supplying placeholders" {
         $row1 = [pscustomobject]@{ ToolTip = 'A'; PortColor = $null }
+        Set-CompareModuleVar testRow1 $row1
 
         Mock -ModuleName CompareViewModule -CommandName Get-GridRowFor {
             param($Hostname, $Port)
-            if ($Hostname -eq 'sw1') { return $row1 }
+            if ($Hostname -eq 'sw1') { return $script:testRow1 }
             return $null
         }
         Mock -ModuleName CompareViewModule -CommandName Get-ThemeBrushForPortColor { param($ColorName) return $ColorName }

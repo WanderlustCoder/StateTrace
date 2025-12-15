@@ -335,6 +335,7 @@ function Get-SpanViewSnapshot {
 
     $snapshot = [ordered]@{
         ViewLoaded     = $false
+        Site           = $null
         Hostname       = $script:SpanLastHostname
         LastRefreshed  = $script:SpanLastRefresh
         RowCount       = 0
@@ -344,6 +345,16 @@ function Get-SpanViewSnapshot {
         UsedLastRows   = $false
         StatusText     = $null
     }
+
+    try {
+        $location = FilterStateModule\Get-SelectedLocation -Window $global:window
+        if ($location -and $location.Site) {
+            $siteText = '' + $location.Site
+            if (-not [string]::IsNullOrWhiteSpace($siteText)) {
+                $snapshot.Site = $siteText
+            }
+        }
+    } catch { }
 
     if (-not (Ensure-SpanViewControls)) {
         Write-SpanDiag "Get-SpanViewSnapshot: controls unavailable."

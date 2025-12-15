@@ -30,17 +30,6 @@ if (-not (Get-Variable -Scope Global -Name DeviceLocationEntries -ErrorAction Si
 
 try { TelemetryModule\Import-InterfaceCommon | Out-Null } catch { }
 
-function Test-StringListEqualCI {
-    param([System.Collections.IEnumerable]$A, [System.Collections.IEnumerable]$B)
-    $la = @($A); $lb = @($B)
-    if ($la.Count -ne $lb.Count) { return $false }
-    for ($i = 0; $i -lt $la.Count; $i++) {
-        $sa = '' + $la[$i]; $sb = '' + $lb[$i]
-        if ([System.StringComparer]::OrdinalIgnoreCase.Compare($sa, $sb) -ne 0) { return $false }
-    }
-    return $true
-}
-
 function Get-SelectedLocation {
     [CmdletBinding()]
     param([object]$Window = $global:window)
@@ -512,4 +501,4 @@ function Get-FilterFaulted {
     return [bool]$script:DeviceFilterFaulted
 }
 
-Export-ModuleMember -Function Test-StringListEqualCI, Get-SelectedLocation, Get-LastLocation, Set-DropdownItems, Initialize-DeviceFilters, Update-DeviceFilter, Set-FilterFaulted, Get-FilterFaulted
+Export-ModuleMember -Function Get-SelectedLocation, Get-LastLocation, Set-DropdownItems, Initialize-DeviceFilters, Update-DeviceFilter, Set-FilterFaulted, Get-FilterFaulted

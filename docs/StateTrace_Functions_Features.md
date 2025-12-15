@@ -80,53 +80,80 @@
 - `Modules/FilterStateModule.psm1:212` `Update-DeviceFilter` - core filter engine triggered by UI events; uses ViewStateService snapshots to populate dropdowns and refreshes search/summary/alerts.
 - `Modules/FilterStateModule.psm1:426` `Set-FilterFaulted` / `Get-FilterFaulted` - toggle and read the guard flag used by the filter debounce timer.
 ### `Modules/InterfaceModule.psm1`
-- `Modules/InterfaceModule.psm1:14` `Get-SelectedInterfaceRows` - returns checked or selected rows from the Interfaces DataGrid (used for copy/export/compare actions).
-- `Modules/InterfaceModule.psm1:53` `Get-InterfaceSiteCode` / `Modules/InterfaceModule.psm1:60` `Resolve-InterfaceDatabasePath` - map hostnames to site database paths.
-- `Modules/InterfaceModule.psm1:66` `Ensure-DatabaseModule` - one-time import guard for `DatabaseModule`.
-- `Modules/InterfaceModule.psm1:102` `Get-PortSortKey` - canonical port sorting key reused by DeviceData and Compare modules.
-- `Modules/InterfaceModule.psm1:144` `Get-InterfaceHostnames` - retrieves catalog data via `DeviceCatalogModule::Get-InterfaceHostnames`. 
-- `Modules/InterfaceModule.psm1:153` `New-InterfaceObjectsFromDbRow` - converts DB rows into PSCustomObjects enriched with template/tooltips, location metadata, and `IsSelected` property.
-- `Modules/InterfaceModule.psm1:390` `Get-InterfaceInfo` - module-level helper returning cached interface objects.
-- `Modules/InterfaceModule.psm1:411` `Get-InterfaceList` - prefers ViewStateService snapshots for the active site/zone context and falls back to cached or database data to return sorted port names for Compare view dropdowns.
-- `Modules/InterfaceModule.psm1:435` `Compare-InterfaceConfigs` - produces diff output between two port configs for display in Compare view.
-- `Modules/InterfaceModule.psm1:451` `Get-InterfaceConfiguration` - delegates to `DeviceRepositoryModule::Get-InterfaceConfiguration`. 
-- `Modules/InterfaceModule.psm1:464` `Get-SpanningTreeInfo` - currently returns an empty set (CSV exports were retired); SPAN view shows data only when future persistence is added.
-- `Modules/InterfaceModule.psm1:487` `Get-ConfigurationTemplates` - forwards to `TemplatesModule` so the Interfaces view uses the shared cache.
-- `Modules/InterfaceModule.psm1:773` `Set-InterfaceViewData` - applies device detail DTOs to the Interfaces view (summary fields, grid, template dropdown).
-- `Modules/InterfaceModule.psm1:501` `New-InterfacesView` - loads Interfaces tab XAML, wires filter debounce, config dropdown binding, copy button, and integrates with Compare selection.
+- `Modules/InterfaceModule.psm1:88` `Get-SelectedInterfaceRows` - returns checked or selected rows from the Interfaces DataGrid (used for copy/export/compare actions).
+- `Modules/InterfaceModule.psm1:127` `Get-InterfaceSiteCode` / `Modules/InterfaceModule.psm1:134` `Resolve-InterfaceDatabasePath` - map hostnames to site database paths.
+- `Modules/InterfaceModule.psm1:159` `Ensure-DatabaseModule` - one-time import guard for `DatabaseModule`.
+- `Modules/InterfaceModule.psm1:224` `Get-PortSortKey` - wrapper over the shared port-sort helper in `Modules/PortNormalization.psm1`.
+- `Modules/InterfaceModule.psm1:263` `New-InterfaceObjectsFromDbRow` - converts DB rows into PSCustomObjects enriched with template/tooltips, location metadata, and `IsSelected` property.
+- `Modules/InterfaceModule.psm1:501` `Get-InterfaceInfo` - module-level helper returning cached interface objects.
+- `Modules/InterfaceModule.psm1:510` `Get-InterfaceList` - prefers ViewStateService snapshots for the active site/zone context and falls back to cached or database data to return sorted port names for Compare view dropdowns.
+- `Modules/InterfaceModule.psm1:680` `Get-InterfaceConfiguration` - delegates to `DeviceRepositoryModule::Get-InterfaceConfiguration`. 
+- `Modules/InterfaceModule.psm1:693` `Get-SpanningTreeInfo` - delegates to `DeviceRepositoryModule\Get-SpanningTreeInfo` (used by the SPAN view).
+- Templates are resolved via `Modules/TemplatesModule.psm1:275` `Get-ConfigurationTemplates` (InterfaceModule no longer re-exports a wrapper).
+- `Modules/InterfaceModule.psm1:982` `Set-InterfaceViewData` - applies device detail DTOs to the Interfaces view (summary fields, grid, template dropdown).
+- `Modules/InterfaceModule.psm1:708` `New-InterfacesView` - loads Interfaces tab XAML, wires filter debounce, config dropdown binding, copy button, and integrates with Compare selection.
+
+### `Modules/PortNormalization.psm1`
+- `Modules/PortNormalization.psm1:106` `Get-PortSortKey` - canonical port sorting key + cache used by InterfaceModule/DeviceRepositoryModule.
+- `Modules/PortNormalization.psm1:235` `Get-PortSortCacheStatistics` - exposes cache hit/miss counters for telemetry.
 ### `Modules/ThemeModule.psm1`
-- `Modules/ThemeModule.psm1:34` `Get-ThemeDirectory` / `Modules/ThemeModule.psm1:54` `Get-ThemeFile` - resolve theme asset locations under `Themes/` and `Resources/SharedStyles.xaml`.
-- `Modules/ThemeModule.psm1:89` `Read-ThemeDefinition` / `Modules/ThemeModule.psm1:123` `Resolve-ThemeTokens` - load theme JSON, apply inheritance, and build token dictionaries cached for reuse.
-- `Modules/ThemeModule.psm1:213` `Set-StateTraceTheme` - applies a theme, updates resource dictionaries, and triggers registered change handlers.
-- `Modules/ThemeModule.psm1:283` `Initialize-StateTraceTheme` - selects a default theme on startup and ensures resources are merged into the application.
-- `Modules/ThemeModule.psm1:341` `Get-AvailableStateTraceThemes` / `Modules/ThemeModule.psm1:367` `Register-StateTraceThemeChanged` - enumerate installed themes and register callbacks for dynamic updates.
+- `Modules/ThemeModule.psm1:37` `Get-ThemeDirectory` / `Modules/ThemeModule.psm1:44` `Get-ThemeFile` - resolve theme asset locations under `Themes/` and `Resources/SharedStyles.xaml`.
+- `Modules/ThemeModule.psm1:63` `Read-ThemeDefinition` / `Modules/ThemeModule.psm1:85` `Resolve-ThemeTokens` - load theme JSON, apply inheritance, and build token dictionaries cached for reuse.
+- `Modules/ThemeModule.psm1:273` `Set-StateTraceTheme` - applies a theme, updates resource dictionaries, and triggers registered change handlers.
+- `Modules/ThemeModule.psm1:343` `Initialize-StateTraceTheme` - selects a default theme on startup and ensures resources are merged into the application.
+- `Modules/ThemeModule.psm1:416` `Get-AvailableStateTraceThemes` / `Modules/ThemeModule.psm1:455` `Register-StateTraceThemeChanged` - enumerate installed themes and register callbacks for dynamic updates.
+
+### `Modules/TelemetryModule.psm1`
+- `Modules/TelemetryModule.psm1:3` `Initialize-StateTraceDebug` - ensures `$Global:StateTraceDebug` exists and optionally turns on verbose output when debug mode is enabled.
+- `Modules/TelemetryModule.psm1:29` `Import-InterfaceCommon` - shared import guard for `Modules/InterfaceCommon.psm1` so modules avoid duplicating `Get-Module`/`Import-Module` probes.
+- `Modules/TelemetryModule.psm1:53` `Get-SpanDebugLogPath` / `Modules/TelemetryModule.psm1:82` `Write-SpanDebugLog` - centralized span debug logging helpers used by SpanView/DeviceRepository.
+- `Modules/TelemetryModule.psm1:110` `Get-TelemetryLogDirectory` / `Modules/TelemetryModule.psm1:126` `Get-TelemetryLogPath` - resolves the JSONL telemetry output file (supports `STATETRACE_TELEMETRY_DIR` override for tests).
+- `Modules/TelemetryModule.psm1:160` `Write-StTelemetryEvent` - appends a single JSON event line to the daily telemetry file using a cross-process mutex.
+- `Modules/TelemetryModule.psm1:196` `Remove-ComObjectSafe` - best-effort COM cleanup helper used by persistence/parser modules.
+
+### `Modules/StatisticsModule.psm1`
+- `Modules/StatisticsModule.psm1:3` `Get-PercentileValue` - shared percentile helper (used by VerificationModule and telemetry tooling).
+
+### `Modules/VerificationModule.psm1`
+- `Modules/VerificationModule.psm1:9` `Test-WarmRunRegressionSummary` - evaluates warm-run regression summaries against improvement/hit-ratio/miss thresholds (verification harness).
+- `Modules/VerificationModule.psm1:143` `Test-SharedCacheSummaryCoverage` - validates shared-cache summary coverage and required site lists (shared-cache warmup + verification).
+- `Modules/VerificationModule.psm1:310` `Test-InterfacePortQueueDelay` - evaluates InterfacePortQueueMetrics queue delay P95/P99 thresholds.
+
+### `Modules/WarmRun.Telemetry.psm1`
+- `Modules/WarmRun.Telemetry.psm1:3` `ConvertTo-NormalizedProviderCounts` - normalizes provider count hash tables for reporting.
+- `Modules/WarmRun.Telemetry.psm1:34` `Convert-MetricsToSummary` - converts InterfaceSiteCacheMetrics telemetry events into per-host pass summary objects.
+- `Modules/WarmRun.Telemetry.psm1:103` `Measure-ProviderMetricsFromSummaries` - aggregates provider counts and cache hit ratio, weighting by HostCount.
+- `Modules/WarmRun.Telemetry.psm1:303` `Resolve-SiteCacheProviderReasons` - reconciles provider-reason fields from InterfaceSyncTiming/DatabaseWriteBreakdown telemetry onto summaries.
 
 ### `Modules/ViewCompositionModule.psm1`
 - `Modules/ViewCompositionModule.psm1:3` `Set-StView` - loads a XAML view into a host `ContentControl`, optionally storing the instance in a global for cross-module access.
+- `Modules/ViewCompositionModule.psm1:56` `New-StDebounceTimer` - creates a DispatcherTimer that runs an action after an idle delay (used by the Interfaces/Search debounced filters).
+- `Modules/ViewCompositionModule.psm1:74` `Export-StRowsToCsv` - exports view rows to CSV via a shared SaveFileDialog.
 
 ### `Modules/ViewStateService.psm1`
-- `Modules/ViewStateService.psm1:8` `Get-SequenceCount` / `Modules/ViewStateService.psm1:24` `ConvertTo-FilterValue` - shared helpers used when building filter dropdowns and counts.
-- `Modules/ViewStateService.psm1:59` `Get-InterfacesForContext` - hydrates `$global:AllInterfaces`, caches site/zone selections, and returns filtered interface lists for downstream consumers.
-- `Modules/ViewStateService.psm1:154` `Get-FilterSnapshot` - produces sorted site/zone/building/room collections and determines the suggested `ZoneToLoad` value.
-- `Modules/ViewStateService.psm1:260` `Get-ZoneLoadHint` - resolves the default zone when filters or data are ambiguous.
+- `Modules/ViewStateService.psm1:14` `Import-ViewStateServiceModule` - shared import guard so consumers can depend on `ViewStateService\*` commands without duplicating path probes.
+- `Modules/ViewStateService.psm1:31` `Get-SequenceCount` / `Modules/ViewStateService.psm1:60` `ConvertTo-FilterValue` - shared helpers used when building filter dropdowns and counts.
+- `Modules/ViewStateService.psm1:137` `Get-InterfacesForContext` - hydrates `$global:AllInterfaces`, caches site/zone selections, and returns filtered interface lists for downstream consumers.
+- `Modules/ViewStateService.psm1:312` `Get-FilterSnapshot` - produces sorted site/zone/building/room collections and determines the suggested `ZoneToLoad` value.
+- `Modules/ViewStateService.psm1:496` `Get-ZoneLoadHint` - resolves the default zone when filters or data are ambiguous.
 
 ### `Modules/CompareViewModule.psm1`
-- `Modules/CompareViewModule.psm1:27` `Resolve-CompareControls` - caches references to Compare view dropdowns, textboxes, and labels after XAML load.
-- `Modules/CompareViewModule.psm1:45` `Get-HostString` - normalises combo box items into plain hostnames.
-- `Modules/CompareViewModule.psm1:56` `Get-HostsFromMain` - builds the host list using `ViewStateService` snapshots (with `DeviceMetadata` fallback) so Compare view mirrors current site/zone/building selections.
-- `Modules/CompareViewModule.psm1:173` `Get-PortSortKey` - delegates to `InterfaceModule::Get-PortSortKey`.
-- `Modules/CompareViewModule.psm1:180` `Get-PortsForHost` - derives port names from `ViewStateService` interface snapshots (falling back to `InterfaceModule` helpers when caches are empty).
-- `Modules/CompareViewModule.psm1:244` `Set-PortsForCombo` - populates port dropdowns and preserves selection.
-- `Modules/CompareViewModule.psm1:283` `Get-GridRowFor` - fetches the interface PSCustomObject for a given host/port (using cache or DB query).
-- `Modules/CompareViewModule.psm1:324` `Get-AuthTemplateFromTooltip` - extracts the auth template name from stored tooltips.
-- `Modules/CompareViewModule.psm1:384` `Set-CompareFromRows` - updates config/diff textboxes and auth template labels for both sides.
-- `Modules/CompareViewModule.psm1:499` `Show-CurrentComparison` - orchestrates retrieving selected ports and rendering diffs.
-- `Modules/CompareViewModule.psm1:537` `Get-CompareHandlers` - returns handlers for host/port `SelectionChanged` events (used by `Update-CompareView`).
-- `Modules/CompareViewModule.psm1:660` `Update-CompareView` - ensures the compare view is loaded, populates host/port combos, wires handlers, and toggles the compare sidebar column.
-- `Modules/CompareViewModule.psm1:805` `Set-CompareSelection` - external hook to programmatically sync compare host/port selections (used by Interfaces view buttons).
+- `Modules/CompareViewModule.psm1:55` `Resolve-CompareControls` - caches references to Compare view dropdowns, textboxes, and labels after XAML load.
+- `Modules/CompareViewModule.psm1:73` `Get-HostString` - normalises combo box items into plain hostnames.
+- `Modules/CompareViewModule.psm1:173` `Get-HostsFromMain` - builds the host list using `ViewStateService` snapshots (with `DeviceMetadata` fallback) so Compare view mirrors current site/zone/building selections.
+- `Modules/CompareViewModule.psm1:326` `Get-PortSortKey` - delegates to `InterfaceModule::Get-PortSortKey`.
+- `Modules/CompareViewModule.psm1:333` `Get-PortsForHost` - derives port names from `ViewStateService` interface snapshots (falling back to `InterfaceModule` helpers when caches are empty).
+- `Modules/CompareViewModule.psm1:434` `Set-PortsForCombo` - populates port dropdowns and preserves selection.
+- `Modules/CompareViewModule.psm1:473` `Get-GridRowFor` - fetches the interface PSCustomObject for a given host/port (using cache or DB query).
+- `Modules/CompareViewModule.psm1:514` `Get-AuthTemplateFromTooltip` - extracts the auth template name from stored tooltips.
+- `Modules/CompareViewModule.psm1:574` `Set-CompareFromRows` - updates config/diff textboxes and auth template labels for both sides.
+- `Modules/CompareViewModule.psm1:689` `Show-CurrentComparison` - orchestrates retrieving selected ports and rendering diffs.
+- `Modules/CompareViewModule.psm1:754` `Get-CompareHandlers` - returns handlers for host/port `SelectionChanged` events (used by `Update-CompareView`).
+- `Modules/CompareViewModule.psm1:837` `Update-CompareView` - ensures the compare view is loaded, populates host/port combos, wires handlers, and toggles the compare sidebar column.
+- `Modules/CompareViewModule.psm1:959` `Set-CompareSelection` - external hook to programmatically sync compare host/port selections (used by Interfaces view buttons).
 ### `Modules/ParserWorker.psm1`
-- `Modules/ParserWorker.psm1:5` `New-Directories` - ensures parser staging directories exist before log ingestion and archive work.
-- `Modules/ParserWorker.psm1:14` `Invoke-StateTraceParsing` - top-level orchestrator that prepares paths, splits logs, selects execution mode, and cleans extracted slices.
+- `Modules/ParserWorker.psm1:10` `New-Directories` - ensures parser staging directories exist before log ingestion and archive work.
+- `Modules/ParserWorker.psm1:372` `Invoke-StateTraceParsing` - top-level orchestrator that prepares paths, splits logs, selects execution mode, and cleans extracted slices.
 
 ### `Modules/ParserRunspaceModule.psm1`
 - `Modules/ParserRunspaceModule.psm1:3` `Invoke-DeviceParseWorker` - imports vendor modules and parses a single device log with logging and rich error handling.
@@ -134,6 +161,7 @@
 
 ### `Modules/DeviceParsingCommon.psm1`
 - `Modules/DeviceParsingCommon.psm1:3` `Invoke-RegexTableParser` - shared regex-table extractor used by vendor parsers to convert show-command blocks into strongly typed objects with optional post-processing.
+- `Modules/DeviceParsingCommon.psm1:223` `Get-InterfaceConfigBlocks` - shared running-config stanza extractor used by vendor parsers to collect per-interface config blocks without duplicating scan loops.
 
 ### `Modules/LogIngestionModule.psm1`
 - `Modules/LogIngestionModule.psm1:3` `Split-RawLogs` - streams raw log files and writes per-host slices to the Extracted folder (with overflow handling for unknown hosts).
@@ -154,21 +182,21 @@
 - `Modules/ParserPersistenceModule.psm1:88` `Update-InterfacesInDb` - writes interface rows, history, tooltips, and template hints for each device.
 
 ### Vendor Parsing Modules
-- `Modules/AristaModule.psm1:1` `Get-AristaDeviceFacts` - parses Arista show outputs (prompt detection, version, uptime, interfaces, MAC table, dot1x, configs) and returns a normalised device object.
-- `Modules/BrocadeModule.psm1:4` `Get-BrocadeDeviceFacts` - processes Brocade logs, normalises port identifiers, aggregates MAC/auth/config data, and returns device facts; helper `Modules/BrocadeModule.psm1:272` `Get-MacTable` feeds MAC lookups.
-- `Modules/CiscoModule.psm1:2` `Get-CiscoDeviceFacts` - Cisco-specific parser combining interface status, MAC table, dot1x and config sections; helper `Modules/CiscoModule.psm1:266` `Get-MacTable` normalises MAC entries.
+- `Modules/AristaModule.psm1:3` `Get-AristaDeviceFacts` - parses Arista show outputs (prompt detection, version, uptime, interfaces, MAC table, dot1x, configs) and returns a normalised device object.
+- `Modules/BrocadeModule.psm1:17` `Get-BrocadeDeviceFacts` - processes Brocade logs, normalises port identifiers, aggregates MAC/auth/config data, and returns device facts; helper `Modules/BrocadeModule.psm1:214` `Get-MacTable` feeds MAC lookups.
+- `Modules/CiscoModule.psm1:16` `Get-CiscoDeviceFacts` - Cisco-specific parser combining interface status, MAC table, dot1x and config sections; helper `Modules/CiscoModule.psm1:208` `Get-MacTable` normalises MAC entries.
 ### View Loader Modules
-- `Modules/AlertsViewModule.psm1:1` `New-AlertsView` - loads Alerts tab XAML, sets `AlertsHost.Content`, exposes `$global:alertsView`, wires export-to-CSV button, and immediately calls `Update-Alerts`.
-- `Modules/SummaryViewModule.psm1:1` `New-SummaryView` - loads Summary tab into `SummaryHost` and invokes `Update-Summary`.
-- `Modules/SpanViewModule.psm1:1` `New-SpanView` - loads SPAN tab, exposes `$global:spanView`, defines global `Get-SpanInfo`, wires VLAN filter and refresh button (which reruns parser and refreshes current host data).
-- `Modules/SearchInterfacesViewModule.psm1:6` `New-SearchInterfacesView` - loads Search tab, wires debounced search box, regex toggle, status/auth filters, export button, and seeds `$global:searchInterfacesView`.
-- `Modules/TemplatesViewModule.psm1:1` `New-TemplatesView` - loads Templates tab, lists JSON files, enables reload/save/add operations, and keeps selection/editor in sync.
-- `Modules/InterfaceModule.psm1:501` `New-InterfacesView` - loads Interfaces tab, wires filter debounce, copy button, compare integration, and template dropdown colour coding.
+- `Modules/AlertsViewModule.psm1:3` `New-AlertsView` - loads Alerts tab XAML, sets `AlertsHost.Content`, exposes `$global:alertsView`, wires export-to-CSV button, and immediately calls `Update-Alerts`.
+- `Modules/SummaryViewModule.psm1:3` `New-SummaryView` - loads Summary tab into `SummaryHost` and invokes `Update-Summary`.
+- `Modules/SpanViewModule.psm1:161` `New-SpanView` - loads SPAN tab, exposes `$global:spanView`, defines global `Get-SpanInfo`, wires VLAN filter and refresh button (which reruns parser and refreshes current host data).
+- `Modules/SearchInterfacesViewModule.psm1:7` `New-SearchInterfacesView` - loads Search tab, wires debounced search box, regex toggle, status/auth filters, export button, and seeds `$global:searchInterfacesView`.
+- `Modules/TemplatesViewModule.psm1:3` `New-TemplatesView` - loads Templates tab, lists JSON files, enables reload/save/add operations, and keeps selection/editor in sync.
+- `Modules/InterfaceModule.psm1:708` `New-InterfacesView` - loads Interfaces tab, wires filter debounce, copy button, compare integration, and template dropdown colour coding.
 
 ### `Modules/TemplatesModule.psm1`
-- `Modules/TemplatesModule.psm1:25` `script:Get-ShowConfig` - internal cached loader watching file mtime.
-- `Modules/TemplatesModule.psm1:53` `Get-ShowCommandsVersions` - returns available OS version groups for a vendor.
-- `Modules/TemplatesModule.psm1:75` `Get-ShowCommands` - merges common and version-specific commands, deduping while preserving order (used by Show Commands buttons).
+- `Modules/TemplatesModule.psm1:8` `script:Get-ShowConfig` - internal cached loader watching file mtime.
+- `Modules/TemplatesModule.psm1:27` `Get-ShowCommandsVersions` - returns available OS version groups for a vendor.
+- `Modules/TemplatesModule.psm1:49` `Get-ShowCommands` - merges common and version-specific commands, deduping while preserving order (used by Show Commands buttons).
 ## View Definitions (`Views/*.xaml`)
 - `Views/CompareView.xaml` - Compare sidebar layout with host/port combos, config text boxes, diff panes, copy buttons, and close toggle.
 - `Views/InterfacesView.xaml` - Interfaces tab layout: device summary fields, interface DataGrid with checkboxes, template dropdown, copy-to-clipboard buttons, and Compare shortcuts.
@@ -179,7 +207,8 @@
 - `Views/AlertsView.xaml` - Alerts DataGrid and export button for down/unauthorised interfaces.
 - `Views/HelpWindow.xaml` - Modal documentation for UI sections, opened from the main Help button.
 ## Templates & Configuration Assets
-- `Modules/TemplatesModule.psm1:300` `Get-ConfigurationTemplateData` - supplies cached template objects and lookup dictionaries for repository/device modules.
+- `Modules/TemplatesModule.psm1:264` `Get-ConfigurationTemplateData` - supplies cached template objects and lookup dictionaries for repository/device modules.
+- `Modules/TemplatesModule.psm1:302` `Get-TemplateVendorKeyFromMake` - normalizes `DeviceSummary.Make` strings into template vendor keys (Cisco/Brocade) so callers avoid drift.
 - `Templates/Cisco.json`, `Templates/Brocade.json` - port configuration templates used by `Get-ConfigurationTemplates` and Interfaces tab suggestions.
 - `Templates/ShowCommands.json` - vendor/OS show command definitions backing clipboard buttons and default Brocade OS selection.
 - Template editing UI in `TemplatesViewModule` writes directly to these files; caches in `TemplatesModule` refresh on timestamp changes.
@@ -218,12 +247,3 @@
 - Update this directory whenever new modules, functions, or significant behaviours are added.
 - Before modifying a function, review the dependent modules listed above to avoid breaking UI flows or parser pipelines.
 - When refactoring, confirm that caches (`DeviceInterfaceCache`, `DeviceMetadata`, `AllInterfaces`) and event wiring still function end-to-end by running a parser cycle and exercising each tab.
-
-
-
-
-
-
-
-
-

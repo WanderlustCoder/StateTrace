@@ -1,40 +1,10 @@
 Set-StrictMode -Version Latest
 
-function Get-PercentileValue {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory = $true)]
-        [AllowEmptyCollection()]
-        [double[]]$Values,
-        [Parameter(Mandatory = $true)]
-        [double]$Percentile
-    )
-
-    if (-not $Values -or $Values.Length -eq 0) {
-        return $null
-    }
-
-    if ($Percentile -lt 0) { $Percentile = 0 }
-    if ($Percentile -gt 100) { $Percentile = 100 }
-
-    $sorted = $Values | Sort-Object
-    $count = $sorted.Count
-    if ($count -eq 1) {
-        return [double]$sorted[0]
-    }
-
-    $position = ($Percentile / 100) * ($count - 1)
-    $lowerIndex = [math]::Floor($position)
-    $upperIndex = [math]::Ceiling($position)
-    if ($lowerIndex -eq $upperIndex) {
-        return [double]$sorted[$lowerIndex]
-    }
-
-    $lowerValue = [double]$sorted[$lowerIndex]
-    $upperValue = [double]$sorted[$upperIndex]
-    $fraction = $position - $lowerIndex
-    return $lowerValue + (($upperValue - $lowerValue) * $fraction)
+$statisticsModulePath = Join-Path -Path $PSScriptRoot -ChildPath 'StatisticsModule.psm1'
+if (-not (Test-Path -LiteralPath $statisticsModulePath)) {
+    throw "StatisticsModule not found at $statisticsModulePath"
 }
+Import-Module -Name $statisticsModulePath -Force -ErrorAction Stop
 
 function Test-WarmRunRegressionSummary {
     [CmdletBinding()]
@@ -412,8 +382,8 @@ function Test-InterfacePortQueueDelay {
     $delayStats = [pscustomobject]@{
         SampleCount = $delayArray.Length
         Average     = if ($delayArray.Length -gt 0) { ($delayArray | Measure-Object -Average).Average } else { $null }
-        P95         = Get-PercentileValue -Values $delayArray -Percentile 95
-        P99         = Get-PercentileValue -Values $delayArray -Percentile 99
+        P95         = StatisticsModule\Get-PercentileValue -Values $delayArray -Percentile 95
+        P99         = StatisticsModule\Get-PercentileValue -Values $delayArray -Percentile 99
         Min         = if ($delayArray.Length -gt 0) { ($delayArray | Measure-Object -Minimum).Minimum } else { $null }
         Max         = if ($delayArray.Length -gt 0) { ($delayArray | Measure-Object -Maximum).Maximum } else { $null }
     }
@@ -421,8 +391,8 @@ function Test-InterfacePortQueueDelay {
     $durationStats = [pscustomobject]@{
         SampleCount = $durationArray.Length
         Average     = if ($durationArray.Length -gt 0) { ($durationArray | Measure-Object -Average).Average } else { $null }
-        P95         = Get-PercentileValue -Values $durationArray -Percentile 95
-        P99         = Get-PercentileValue -Values $durationArray -Percentile 99
+        P95         = StatisticsModule\Get-PercentileValue -Values $durationArray -Percentile 95
+        P99         = StatisticsModule\Get-PercentileValue -Values $durationArray -Percentile 99
         Min         = if ($durationArray.Length -gt 0) { ($durationArray | Measure-Object -Minimum).Minimum } else { $null }
         Max         = if ($durationArray.Length -gt 0) { ($durationArray | Measure-Object -Maximum).Maximum } else { $null }
     }

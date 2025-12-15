@@ -50,16 +50,6 @@ function Import-InterfaceCommon {
     }
 }
 
-# Backwards compatibility shim; retained for callers not yet migrated to approved verbs.
-function Ensure-InterfaceCommonLoaded {
-    [CmdletBinding()]
-    param(
-        [string]$ModulesRoot
-    )
-
-    return Import-InterfaceCommon -ModulesRoot $ModulesRoot
-}
-
 function Get-SpanDebugLogPath {
     [CmdletBinding()]
     param(
@@ -203,4 +193,16 @@ function Write-StTelemetryEvent {
     }
 }
 
-Export-ModuleMember -Function Initialize-StateTraceDebug, Import-InterfaceCommon, Get-SpanDebugLogPath, Write-SpanDebugLog, Get-TelemetryLogDirectory, Get-TelemetryLogPath, Write-StTelemetryEvent
+function Remove-ComObjectSafe {
+    [CmdletBinding()]
+    param(
+        [Parameter()][object]$ComObject
+    )
+
+    if ($null -eq $ComObject) { return }
+    if ($ComObject -is [System.__ComObject]) {
+        try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($ComObject) } catch { }
+    }
+}
+
+Export-ModuleMember -Function Initialize-StateTraceDebug, Import-InterfaceCommon, Get-SpanDebugLogPath, Write-SpanDebugLog, Get-TelemetryLogDirectory, Get-TelemetryLogPath, Write-StTelemetryEvent, Remove-ComObjectSafe

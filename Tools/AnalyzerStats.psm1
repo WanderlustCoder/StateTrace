@@ -1,21 +1,24 @@
 Set-StrictMode -Version Latest
 
+$statisticsModulePath = Join-Path -Path (Split-Path -Path $PSScriptRoot -Parent) -ChildPath 'Modules\StatisticsModule.psm1'
+if (-not (Test-Path -LiteralPath $statisticsModulePath)) {
+    throw "StatisticsModule not found at $statisticsModulePath"
+}
+Import-Module -Name $statisticsModulePath -Force -ErrorAction Stop
+
 function Get-PercentileValue {
     [CmdletBinding()]
     param(
+        [Parameter(Mandatory = $true)]
+        [AllowNull()]
+        [AllowEmptyCollection()]
         [double[]]$Values,
+
+        [Parameter(Mandatory = $true)]
         [double]$Percentile
     )
 
-    $normalized = @($Values | Where-Object { $_ -ne $null })
-    if (-not $normalized -or $normalized.Count -eq 0) { return $null }
-    $sorted = @($normalized | Sort-Object)
-    $position = ($Percentile / 100.0) * ($sorted.Count - 1)
-    $lowerIndex = [math]::Floor($position)
-    $upperIndex = [math]::Ceiling($position)
-    if ($lowerIndex -eq $upperIndex) { return $sorted[$lowerIndex] }
-    $weight = $position - $lowerIndex
-    return $sorted[$lowerIndex] + ($weight * ($sorted[$upperIndex] - $sorted[$lowerIndex]))
+    return StatisticsModule\Get-PercentileValue -Values $Values -Percentile $Percentile
 }
 
 function New-StatsSummary {

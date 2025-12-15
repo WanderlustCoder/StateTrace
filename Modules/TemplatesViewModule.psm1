@@ -1,57 +1,82 @@
+Set-StrictMode -Version Latest
+
 function New-TemplatesView {
-    
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)][System.Windows.Window]$Window,
         [Parameter(Mandatory=$true)][string]$ScriptDir
     )
     try {
-        $templatesView = Set-StView -Window $Window -ScriptDir $ScriptDir -ViewName 'TemplatesView' -HostControlName 'TemplatesHost' -GlobalVariableName 'templatesView'
+        $templatesView = ViewCompositionModule\Set-StView -Window $Window -ScriptDir $ScriptDir -ViewName 'TemplatesView' -HostControlName 'TemplatesHost' -GlobalVariableName 'templatesView'
         if (-not $templatesView) { return }
+
         # Directory containing JSON template files
         $script:TemplatesDir = Join-Path $ScriptDir '..\Templates'
+        $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+
         # Acquire key controls
         $templatesList = $templatesView.FindName('TemplatesList')
         $templateEditor = $templatesView.FindName('TemplateEditor')
         $reloadBtn = $templatesView.FindName('ReloadTemplateButton')
         $saveBtn   = $templatesView.FindName('SaveTemplateButton')
-        # Helper to refresh the list of templates
-        function Update-TemplatesList {
+
+        $refreshTemplatesList = {
             if (-not $templatesList) { return }
-            if (-not (Test-Path $script:TemplatesDir)) { return }
-            $files = Get-ChildItem -Path $script:TemplatesDir -Filter '*.json' -File
-            # Build the list of file names using a .NET List instead of piping
+            if (-not $script:TemplatesDir -or -not (Test-Path -LiteralPath $script:TemplatesDir)) {
+                $templatesList.ItemsSource = @()
+                return
+            }
+
+            $files = Get-ChildItem -LiteralPath $script:TemplatesDir -Filter '*.json' -File | Sort-Object Name
             $items = [System.Collections.Generic.List[string]]::new()
             foreach ($f in $files) {
-                [void]$items.Add($f.Name)
+                if ($f -and $f.Name) { [void]$items.Add($f.Name) }
             }
             $templatesList.ItemsSource = $items
         }
+
+        $loadTemplateText = {
+            param([object]$SelectedItem)
+
+            if (-not $templateEditor) { return }
+
+            $selText = if ($SelectedItem) { '' + $SelectedItem } else { '' }
+            if ([string]::IsNullOrWhiteSpace($selText)) {
+                $templateEditor.Text = ''
+                return
+            }
+            if (-not $script:TemplatesDir) {
+                $templateEditor.Text = ''
+                return
+            }
+
+            $path = Join-Path -Path $script:TemplatesDir -ChildPath $selText
+            try {
+                if (-not (Test-Path -LiteralPath $path)) {
+                    $templateEditor.Text = ''
+                    return
+                }
+
+                $templateEditor.Text = [System.IO.File]::ReadAllText($path)
+            } catch {
+                $templateEditor.Text = ''
+            }
+        }
+
         # Load list on startup
-        Update-TemplatesList
+        & $refreshTemplatesList
         # Handle selection change to load file contents
         if ($templatesList) {
             $templatesList.Add_SelectionChanged({
-                $sel = $templatesList.SelectedItem
-                if ($sel) {
-                    $path = Join-Path $script:TemplatesDir $sel
-                    try {
-                        $templateEditor.Text = Get-Content -Path $path -Raw
-                    } catch {
-                        $templateEditor.Text = ''
-                    }
-                } else {
-                    $templateEditor.Text = ''
-                }
+                & $loadTemplateText $templatesList.SelectedItem
             })
         }
         # Reload button reloads selected template
         if ($reloadBtn) {
             $reloadBtn.Add_Click({
-                $sel = $templatesList.SelectedItem
-                if (-not $sel) { return }
-                $path = Join-Path $script:TemplatesDir $sel
                 try {
-                    $templateEditor.Text = Get-Content -Path $path -Raw
+                    if (-not $templatesList -or -not $templatesList.SelectedItem) { return }
+                    & $loadTemplateText $templatesList.SelectedItem
                 } catch {
                     [System.Windows.MessageBox]::Show("Failed to load template: $($_.Exception.Message)")
                 }
@@ -60,16 +85,21 @@ function New-TemplatesView {
         # Save button writes edits back to disk
         if ($saveBtn) {
             $saveBtn.Add_Click({
-                $sel = $templatesList.SelectedItem
-                if (-not $sel) {
+                if (-not $templatesList -or -not $templatesList.SelectedItem) {
                     [System.Windows.MessageBox]::Show('No template selected.')
                     return
                 }
-                $path = Join-Path $script:TemplatesDir $sel
+                $selText = '' + $templatesList.SelectedItem
+                if ([string]::IsNullOrWhiteSpace($selText)) {
+                    [System.Windows.MessageBox]::Show('No template selected.')
+                    return
+                }
+
+                $path = Join-Path -Path $script:TemplatesDir -ChildPath $selText
                 try {
-                    Set-Content -Path $path -Value $templateEditor.Text -Force
-                    [System.Windows.MessageBox]::Show("Saved template $sel.")
-                    Update-TemplatesList
+                    [System.IO.File]::WriteAllText($path, ('' + $templateEditor.Text), $utf8NoBom)
+                    [System.Windows.MessageBox]::Show("Saved template $selText.")
+                    & $refreshTemplatesList
                 } catch {
                     [System.Windows.MessageBox]::Show("Failed to save template: $($_.Exception.Message)")
                 }
@@ -88,8 +118,8 @@ function New-TemplatesView {
                 }
                 # Ensure extension
                 $fileName = if ($name.EndsWith('.json')) { $name } else { "$name.json" }
-                $path = Join-Path $script:TemplatesDir $fileName
-                if (Test-Path $path) {
+                $path = Join-Path -Path $script:TemplatesDir -ChildPath $fileName
+                if (Test-Path -LiteralPath $path) {
                     [System.Windows.MessageBox]::Show('Template already exists.')
                     return
                 }
@@ -99,44 +129,38 @@ function New-TemplatesView {
                         $osType = $newOsCombo.SelectedItem.Content
                     }
                 } catch {}
-                # Create a default template structure based on OS
-                $templateObj = $null
-                switch ($osType) {
-                    'Cisco' {
-                        $templateObj = @{ PortType = 'Cisco'; Commands = @(
-                            'interface {Port}',
-                            'description {Name}',
-                            'switchport access vlan {VLAN}',
-                            'switchport mode access'
-                        ) }
-                    }
-                    'Brocade' {
-                        $templateObj = @{ PortType = 'Brocade'; Commands = @(
-                            'interface ethernet {Port}',
-                            'description {Name}',
-                            'untagged {VLAN}',
-                            'enable'
-                        ) }
-                    }
-                    'Arista' {
-                        $templateObj = @{ PortType = 'Arista'; Commands = @(
-                            'interface Ethernet{Port}',
-                            'description {Name}',
-                            'switchport access vlan {VLAN}',
-                            'switchport mode access'
-                        ) }
-                    }
-                    default {
-                        $templateObj = @{ PortType = $osType; Commands = @() }
-                    }
+
+                # Create a default vendor template file structure compatible with TemplatesModule.
+                # Note: This creates a new JSON file; existing vendor files like Cisco.json/Brocade.json
+                # contain multiple templates under the 'templates' array.
+                $templateObj = @{
+                    templates = @(
+                        @{
+                            name             = 'New Template'
+                            aliases          = @()
+                            vendor           = $osType
+                            match_type       = 'contains_all'
+                            required_commands = @()
+                            excluded_commands = @()
+                            color            = 'Green'
+                            description      = ("New {0} template (edit required/excluded commands)." -f $osType)
+                        }
+                    )
                 }
                 try {
-                    $json = $templateObj | ConvertTo-Json -Depth 4
-                    Set-Content -Path $path -Value $json -Force
-                    Update-TemplatesList
+                    $json = $templateObj | ConvertTo-Json -Depth 6
+                    [System.IO.File]::WriteAllText($path, $json, $utf8NoBom)
+                    & $refreshTemplatesList
                     # Select the newly created file in the list using SelectedIndex rather than SelectedItem.
                     try {
-                        $templatesList.SelectedIndex = [Array]::IndexOf($templatesList.ItemsSource, $fileName)
+                        $idx = -1
+                        $source = $templatesList.ItemsSource
+                        if ($source -is [System.Collections.Generic.List[string]]) {
+                            $idx = $source.IndexOf($fileName)
+                        } else {
+                            $idx = [Array]::IndexOf(@($source), $fileName)
+                        }
+                        if ($idx -ge 0) { $templatesList.SelectedIndex = $idx }
                     } catch {
                         # If selection fails for any reason, leave as-is
                     }
@@ -153,5 +177,3 @@ function New-TemplatesView {
 }
 
 Export-ModuleMember -Function New-TemplatesView
-
-

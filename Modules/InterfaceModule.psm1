@@ -15,19 +15,23 @@ try { TelemetryModule\Import-InterfaceCommon | Out-Null } catch { }
 $script:lastTemplateVendor = 'default'
 $script:TemplateThemeHandlerRegistered = $false
 
-if (-not (Get-Variable -Scope Script -Name PortSortKeyCache -ErrorAction SilentlyContinue)) {
-    try {
-        $script:PortSortKeyCache = [System.Collections.Concurrent.ConcurrentDictionary[string,string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-    } catch {
-        $script:PortSortKeyCache = @{}
+if (-not (Get-Variable -Scope Script -Name PortNormalizationAvailable -ErrorAction SilentlyContinue)) {
+    $script:PortNormalizationAvailable = $false
+}
+
+try {
+    $portNormPath = Join-Path $PSScriptRoot 'PortNormalization.psm1'
+    if (Test-Path -LiteralPath $portNormPath) {
+        Import-Module -Name $portNormPath -ErrorAction Stop -Prefix 'PortNorm' | Out-Null
+        if (Get-Command -Name 'Get-PortNormPortSortKey' -ErrorAction SilentlyContinue) {
+            $script:PortNormalizationAvailable = $true
+        }
     }
+} catch {
+    $script:PortNormalizationAvailable = $false
+    Write-Verbose ("[InterfaceModule] PortNormalization not loaded: {0}" -f $_.Exception.Message)
 }
-if (-not (Get-Variable -Scope Script -Name PortSortCacheHits -ErrorAction SilentlyContinue)) {
-    $script:PortSortCacheHits = [long]0
-}
-if (-not (Get-Variable -Scope Script -Name PortSortCacheMisses -ErrorAction SilentlyContinue)) {
-    $script:PortSortCacheMisses = [long]0
-}
+
 if (-not (Get-Variable -Scope Script -Name PortSortFallbackKey -ErrorAction SilentlyContinue)) {
     try { $script:PortSortFallbackKey = InterfaceCommon\Get-PortSortFallbackKey } catch { $script:PortSortFallbackKey = '99-UNK-99999-99999-99999-99999-99999' }
 }
@@ -72,83 +76,6 @@ namespace StateTrace.Models
     }
 }
 "@ -Language CSharp
-}
-
-$regexOptionsFallback = [System.Text.RegularExpressions.RegexOptions]::CultureInvariant
-if (-not (Get-Variable -Scope Script -Name PortSortRegexOptions -ErrorAction SilentlyContinue)) {
-    try {
-        $script:PortSortRegexOptions = [System.Text.RegularExpressions.RegexOptions]::Compiled -bor $regexOptionsFallback
-    } catch {
-        $script:PortSortRegexOptions = $regexOptionsFallback
-    }
-}
-if (-not (Get-Variable -Scope Script -Name PortSortTypeRegex -ErrorAction SilentlyContinue)) {
-    try {
-        $script:PortSortTypeRegex = [System.Text.RegularExpressions.Regex]::new('^(?<type>[A-Z\-]+)?\s*(?<nums>[\d/.:]+)', $script:PortSortRegexOptions)
-    } catch {
-        $script:PortSortTypeRegex = [regex]'^(?<type>[A-Z\-]+)?\s*(?<nums>[\d/.:]+)'
-    }
-}
-if (-not (Get-Variable -Scope Script -Name PortSortNumberRegex -ErrorAction SilentlyContinue)) {
-    try {
-        $script:PortSortNumberRegex = [System.Text.RegularExpressions.Regex]::new('\d+', $script:PortSortRegexOptions)
-    } catch {
-        $script:PortSortNumberRegex = [regex]'\d+'
-    }
-}
-if (-not (Get-Variable -Scope Script -Name PortSortNormalizationRules -ErrorAction SilentlyContinue)) {
-    try {
-        $options = $script:PortSortRegexOptions
-        $script:PortSortNormalizationRules = @(
-            @{ Regex = [System.Text.RegularExpressions.Regex]::new('HUNDRED\s*GIG(?:ABIT\s*ETHERNET|E)?', $options); Replacement = 'HU' },
-            @{ Regex = [System.Text.RegularExpressions.Regex]::new('FOUR\s*HUNDRED\s*GIG(?:ABIT\s*ETHERNET|E)?', $options); Replacement = 'TH' },
-            @{ Regex = [System.Text.RegularExpressions.Regex]::new('FORTY\s*GIG(?:ABIT\s*ETHERNET|E)?', $options); Replacement = 'FO' },
-            @{ Regex = [System.Text.RegularExpressions.Regex]::new('TWENTY\s*FIVE\s*GIG(?:ABIT\s*ETHERNET|E|IGE)?', $options); Replacement = 'TW' },
-            @{ Regex = [System.Text.RegularExpressions.Regex]::new('TEN\s*GIG(?:ABIT\s*ETHERNET|E)?', $options); Replacement = 'TE' },
-            @{ Regex = [System.Text.RegularExpressions.Regex]::new('GIGABIT\s*ETHERNET', $options); Replacement = 'GI' },
-            @{ Regex = [System.Text.RegularExpressions.Regex]::new('FAST\s*ETHERNET', $options); Replacement = 'FA' },
-            @{ Regex = [System.Text.RegularExpressions.Regex]::new('ETHERNET', $options); Replacement = 'ET' },
-            @{ Regex = [System.Text.RegularExpressions.Regex]::new('MANAGEMENT', $options); Replacement = 'MGMT' },
-            @{ Regex = [System.Text.RegularExpressions.Regex]::new('PORT-?\s*CHANNEL', $options); Replacement = 'PO' },
-            @{ Regex = [System.Text.RegularExpressions.Regex]::new('LOOPBACK', $options); Replacement = 'LO' },
-            @{ Regex = [System.Text.RegularExpressions.Regex]::new('VLAN', $options); Replacement = 'VL' }
-        )
-    } catch {
-        $script:PortSortNormalizationRules = @()
-    }
-}
-if (-not (Get-Variable -Scope Script -Name PortSortTypeWeights -ErrorAction SilentlyContinue)) {
-    try {
-        $weights = [System.Collections.Generic.Dictionary[string,int]]::new([System.StringComparer]::OrdinalIgnoreCase)
-        $weights['MGMT'] = 5
-        $weights['PO'] = 10
-        $weights['TH'] = 22
-        $weights['HU'] = 23
-        $weights['FO'] = 24
-        $weights['TE'] = 25
-        $weights['TW'] = 26
-        $weights['ET'] = 30
-        $weights['GI'] = 40
-        $weights['FA'] = 50
-        $weights['VL'] = 97
-        $weights['LO'] = 98
-        $script:PortSortTypeWeights = $weights
-    } catch {
-        $script:PortSortTypeWeights = @{
-            MGMT = 5
-            PO   = 10
-            TH   = 22
-            HU   = 23
-            FO   = 24
-            TE   = 25
-            TW   = 26
-            ET   = 30
-            GI   = 40
-            FA   = 50
-            VL   = 97
-            LO   = 98
-        }
-    }
 }
 
 
@@ -296,152 +223,29 @@ function Set-TemplateDropdownBrush {
 
 function Get-PortSortKey {
     param([Parameter(Mandatory)][string]$Port)
-    if ([string]::IsNullOrWhiteSpace($Port)) { return $script:PortSortFallbackKey }
 
-    $normalized = $Port.Trim()
-    if ([string]::IsNullOrWhiteSpace($normalized)) { return $script:PortSortFallbackKey }
-    $cacheKey = $normalized.ToUpperInvariant()
-
-    $cacheInstance = $script:PortSortKeyCache
-    if ($cacheInstance -is [System.Collections.Concurrent.ConcurrentDictionary[string,string]]) {
-        $cachedValue = $null
-        if ($cacheInstance.TryGetValue($cacheKey, [ref]$cachedValue)) {
-            [System.Threading.Interlocked]::Increment([ref]$script:PortSortCacheHits) | Out-Null
-            return $cachedValue
-        }
-    } elseif ($cacheInstance -is [hashtable]) {
-        if ($cacheInstance.ContainsKey($cacheKey)) {
-            [System.Threading.Interlocked]::Increment([ref]$script:PortSortCacheHits) | Out-Null
-            return $cacheInstance[$cacheKey]
-        }
+    if ($script:PortNormalizationAvailable) {
+        return Get-PortNormPortSortKey -Port $Port
     }
 
-    $u = $cacheKey
-    $normalizationRules = $script:PortSortNormalizationRules
-    if ($normalizationRules -and $normalizationRules.Count -gt 0) {
-        foreach ($rule in $normalizationRules) {
-            try {
-                $u = $rule.Regex.Replace($u, $rule.Replacement)
-            } catch {
-                # Leave $u unchanged if the compiled regex throws so legacy replacements still apply.
-            }
-        }
-    } else {
-        $u = $u -replace 'HUNDRED\s*GIG(?:ABIT\s*ETHERNET|E)?','HU'
-        $u = $u -replace 'FOUR\s*HUNDRED\s*GIG(?:ABIT\s*ETHERNET|E)?','TH'
-        $u = $u -replace 'FORTY\s*GIG(?:ABIT\s*ETHERNET|E)?','FO'
-        $u = $u -replace 'TWENTY\s*FIVE\s*GIG(?:ABIT\s*ETHERNET|E|IGE)?','TW'
-        $u = $u -replace 'TEN\s*GIG(?:ABIT\s*ETHERNET|E)?','TE'
-        $u = $u -replace 'GIGABIT\s*ETHERNET','GI'
-        $u = $u -replace 'FAST\s*ETHERNET','FA'
-        $u = $u -replace 'ETHERNET','ET'
-        $u = $u -replace 'MANAGEMENT','MGMT'
-        $u = $u -replace 'PORT-?\s*CHANNEL','PO'
-        $u = $u -replace 'LOOPBACK','LO'
-        $u = $u -replace 'VLAN','VL'
-    }
-
-    $typeRegex = $script:PortSortTypeRegex
-    if ($typeRegex) {
-        try {
-            $m = $typeRegex.Match($u)
-        } catch {
-            $m = [regex]::Match($u, '^(?<type>[A-Z\-]+)?\s*(?<nums>[\d/.:]+)')
-        }
-    } else {
-        $m = [regex]::Match($u, '^(?<type>[A-Z\-]+)?\s*(?<nums>[\d/.:]+)')
-    }
-    if ($m.Success -and $m.Groups['type'].Value) {
-        $type = $m.Groups['type'].Value
-        $numsPart = $m.Groups['nums'].Value
-    } else {
-        $type = if ($u -match '^\d') { 'ET' } else { $u -creplace '[^A-Z]','' }
-        $numsPart = $u
-    }
-
-    $w = 60
-    $weights = $script:PortSortTypeWeights
-    if ($weights -is [System.Collections.Generic.Dictionary[string,int]]) {
-        $weightCandidate = 0
-        if ($weights.TryGetValue($type, [ref]$weightCandidate)) {
-            $w = $weightCandidate
-        }
-    } elseif ($weights -is [hashtable]) {
-        if ($weights.ContainsKey($type)) {
-            $w = [int]$weights[$type]
-        }
-    }
-
-    $numberRegex = $script:PortSortNumberRegex
-    if ($numberRegex) {
-        try {
-            $matchesInts = $numberRegex.Matches($numsPart)
-        } catch {
-            $matchesInts = [regex]::Matches($numsPart, '\d+')
-        }
-    } else {
-        $matchesInts = [regex]::Matches($numsPart, '\d+')
-    }
-    $matchCount = if ($matchesInts) { $matchesInts.Count } else { 0 }
-    $segmentLength = if ($matchCount -ge 4) { $matchCount } else { 4 }
-    $segmentCount = if ($segmentLength -gt 6) { 6 } else { $segmentLength }
-    $segments = [string[]]::new($segmentCount)
-    $valuesToCopy = [Math]::Min($matchCount, $segmentCount)
-    for ($i = 0; $i -lt $valuesToCopy; $i++) {
-        $segments[$i] = ([long]$matchesInts[$i].Value).ToString('00000')
-    }
-    for ($i = $valuesToCopy; $i -lt $segmentCount; $i++) {
-        $segments[$i] = '00000'
-    }
-
-    $result = ('{0:00}-{1}-{2}' -f $w, $type, ([string]::Join('-', $segments)))
-
-    if ($cacheInstance -is [System.Collections.Concurrent.ConcurrentDictionary[string,string]]) {
-        if ($cacheInstance.TryAdd($cacheKey, $result)) {
-            [System.Threading.Interlocked]::Increment([ref]$script:PortSortCacheMisses) | Out-Null
-            return $result
-        }
-
-        $concurrentLookup = $null
-        if ($cacheInstance.TryGetValue($cacheKey, [ref]$concurrentLookup)) {
-            [System.Threading.Interlocked]::Increment([ref]$script:PortSortCacheHits) | Out-Null
-            return $concurrentLookup
-        }
-    } elseif ($cacheInstance -is [hashtable]) {
-        if (-not $cacheInstance.ContainsKey($cacheKey)) {
-            $cacheInstance[$cacheKey] = $result
-            [System.Threading.Interlocked]::Increment([ref]$script:PortSortCacheMisses) | Out-Null
-            return $result
-        }
-        [System.Threading.Interlocked]::Increment([ref]$script:PortSortCacheHits) | Out-Null
-        return $cacheInstance[$cacheKey]
-    }
-
-    [System.Threading.Interlocked]::Increment([ref]$script:PortSortCacheMisses) | Out-Null
-    return $result
+    return $script:PortSortFallbackKey
 }
 
 function Get-PortSortCacheStatistics {
     [CmdletBinding()]
     param()
 
-    $cacheInstance = $script:PortSortKeyCache
-    $entryCount = 0
-    $cacheType = ''
-    if ($cacheInstance) {
-        try { $cacheType = $cacheInstance.GetType().FullName } catch { $cacheType = '' }
-        if ($cacheInstance -is [System.Collections.ICollection]) {
-            try { $entryCount = [int]$cacheInstance.Count } catch { $entryCount = 0 }
-        }
+    if ($script:PortNormalizationAvailable) {
+        return Get-PortNormPortSortCacheStatistics
     }
 
     return [pscustomobject]@{
-        Hits       = [long]$script:PortSortCacheHits
-        Misses     = [long]$script:PortSortCacheMisses
-        EntryCount = [long]$entryCount
+        Hits       = 0L
+        Misses     = 0L
+        EntryCount = 0L
         Fallback   = $script:PortSortFallbackKey
-        CacheType  = $cacheType
-        Count      = [long]$entryCount
+        CacheType  = ''
+        Count      = 0L
     }
 }
 
@@ -449,24 +253,11 @@ function Reset-PortSortCache {
     [CmdletBinding()]
     param()
 
-    try {
-        $script:PortSortKeyCache = [System.Collections.Concurrent.ConcurrentDictionary[string,string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-    } catch {
-        $script:PortSortKeyCache = @{}
+    if ($script:PortNormalizationAvailable) {
+        return Reset-PortNormPortSortCache
     }
 
-    $script:PortSortCacheHits = 0
-    $script:PortSortCacheMisses = 0
-
     return Get-PortSortCacheStatistics
-}
-
-function Get-InterfaceHostnames {
-    # .SYNOPSIS
-
-    [CmdletBinding()]
-    param()
-    return DeviceCatalogModule\Get-InterfaceHostnames @PSBoundParameters
 }
 
 function New-InterfaceObjectsFromDbRow {
@@ -509,7 +300,7 @@ function New-InterfaceObjectsFromDbRow {
         # Check if the first row exposes a 'Make' property.  Avoid specifying
         if ($firstRow -and ($firstRow | Get-Member -Name 'Make' -ErrorAction SilentlyContinue)) {
             $mk = '' + $firstRow.Make
-            if ($mk -match '(?i)brocade') { $vendor = 'Brocade' }
+            $vendor = TemplatesModule\Get-TemplateVendorKeyFromMake -Make $mk
         }
     } catch {}
     # Fallback to query DeviceSummary if vendor still Cisco
@@ -520,7 +311,7 @@ function New-InterfaceObjectsFromDbRow {
                 $mkRows = DatabaseModule\ConvertTo-DbRowList -Data $mkDt
                 if ($mkRows.Count -gt 0) {
                     $mk = '' + $mkRows[0].Make
-                    if ($mk -match '(?i)brocade') { $vendor = 'Brocade' }
+                    $vendor = TemplatesModule\Get-TemplateVendorKeyFromMake -Make $mk
                 }
             }
         } catch {}
@@ -886,22 +677,6 @@ function Get-InterfaceList {
 
 
 
-function Compare-InterfaceConfigs {
-    # .SYNOPSIS
-
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][string]$Switch1,
-        [Parameter(Mandatory)][string]$Interface1,
-        [Parameter(Mandatory)][string]$Switch2,
-        [Parameter(Mandatory)][string]$Interface2,
-        [string]$ScriptPath = (Join-Path $PSScriptRoot '..\Main\CompareConfigs.ps1')
-    )
-    # Prior to the refactor this function launched an external PowerShell
-
-    throw "External compare script invocation has been removed. Please use the Compare sidebar to view diffs."
-}
-
 function Get-InterfaceConfiguration {
     [CmdletBinding()]
     param(
@@ -928,20 +703,6 @@ function Get-SpanningTreeInfo {
         Write-Verbose ("[InterfaceModule] Failed to load spanning tree data for '{0}': {1}" -f $hostTrim, $_.Exception.Message)
         return @()
     }
-}
-
-function Get-ConfigurationTemplates {
-    # .SYNOPSIS
-
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory)][string]$Hostname,
-        [string]$TemplatesPath = (Join-Path $PSScriptRoot '..\Templates')
-    )
-    # Delegate to TemplatesModule implementation.  This wrapper calls the
-    return TemplatesModule\Get-ConfigurationTemplates @PSBoundParameters
-    # The legacy implementation that queried the DeviceSummary table and
-
 }
 
 function New-InterfacesView {
@@ -995,6 +756,7 @@ function New-InterfacesView {
     $interfacesGrid    = $interfacesView.FindName('InterfacesGrid')
     $configureButton   = $interfacesView.FindName('ConfigureButton')
     $templateDropdown  = $interfacesView.FindName('ConfigOptionsDropdown')
+    $reorgButton       = $interfacesView.FindName('ReorgButton')
     $filterBox         = $interfacesView.FindName('FilterBox')
     $clearBtn          = $interfacesView.FindName('ClearFilterButton')
     $copyDetailsButton = $interfacesView.FindName('CopyDetailsButton')
@@ -1017,8 +779,9 @@ function New-InterfacesView {
         # Commit any pending edits before reading selections
         [void]$grid.CommitEdit([System.Windows.Controls.DataGridEditingUnit]::Cell, $true)
         [void]$grid.CommitEdit([System.Windows.Controls.DataGridEditingUnit]::Row,  $true)
-        # Gather checked or selected rows using typed-list helper
-        $rows = Get-SelectedInterfaceRows -Grid $grid
+        # Retrieve selected rows. Do not assume the result exposes a .Count property on
+        # the object itself; instead wrap it as an array to ensure Count always exists.
+        $rows = @(Get-SelectedInterfaceRows -Grid $grid)
         if ($rows.Count -ne 2) {
             [System.Windows.MessageBox]::Show("Select (or check) exactly two interfaces to compare.")
             return
@@ -1053,6 +816,31 @@ function New-InterfacesView {
 
     }
 
+    # ------------------------------
+    if ($reorgButton) {
+        $reorgButton.Add_Click({
+            try {
+                $hostname = ''
+                try { $hostname = ('' + $interfacesView.FindName('HostnameBox').Text).Trim() } catch { $hostname = '' }
+                if ([string]::IsNullOrWhiteSpace($hostname)) {
+                    [System.Windows.MessageBox]::Show('No hostname selected.') | Out-Null
+                    return
+                }
+
+                if (-not (Get-Command -Name 'PortReorgViewModule\Show-PortReorgWindow' -ErrorAction SilentlyContinue)) {
+                    $modPath = Join-Path -Path $PSScriptRoot -ChildPath 'PortReorgViewModule.psm1'
+                    if (Test-Path -LiteralPath $modPath) {
+                        Import-Module -Name $modPath -Force -Global -ErrorAction Stop | Out-Null
+                    }
+                }
+
+                PortReorgViewModule\Show-PortReorgWindow -OwnerWindow $Window -Hostname $hostname
+            } catch {
+                [System.Windows.MessageBox]::Show(("Port reorg failed:`n{0}" -f $_.Exception.Message)) | Out-Null
+            }
+        })
+    }
+
     if ($interfacesGrid) {
         # With SelectionUnit="CellOrRowHeader" and a two-way checkbox binding defined in the XAML, DataGrid checkboxes
     }
@@ -1062,8 +850,9 @@ function New-InterfacesView {
         $configureButton.Add_Click({
             # Use globally scoped grid and dropdown to avoid out-of-scope errors
             $grid = $global:interfacesGrid
-            # Gather rows using helper; prefer checked rows
-            $selectedRows = Get-SelectedInterfaceRows -Grid $grid
+            # Retrieve selected rows. Do not assume the result exposes a .Count property on
+            # the object itself; instead wrap it as an array to ensure Count always exists.
+            $selectedRows = @(Get-SelectedInterfaceRows -Grid $grid)
             if ($selectedRows.Count -eq 0) {
                 [System.Windows.MessageBox]::Show("No interfaces selected.")
                 return
@@ -1102,12 +891,7 @@ function New-InterfacesView {
     if ($filterBox -and $interfacesGrid) {
         # Initialise a debounce timer for the filter box if it does not exist.  This
         if (-not $script:InterfacesFilterTimer) {
-            $script:InterfacesFilterTimer = New-Object System.Windows.Threading.DispatcherTimer
-            # Use a 300ms interval to match the search debounce and allow the user
-            $script:InterfacesFilterTimer.Interval = [TimeSpan]::FromMilliseconds(300)
-            $script:InterfacesFilterTimer.add_Tick({
-                # Stop the timer so it can be restarted by the next key press
-                $script:InterfacesFilterTimer.Stop()
+            $script:InterfacesFilterTimer = ViewCompositionModule\New-StDebounceTimer -DelayMs 300 -Action {
                 try {
                     # Safely coerce the filter box text to a string.  Avoid calling
                     $txt  = ('' + $global:filterBox.Text)
@@ -1128,7 +912,7 @@ function New-InterfacesView {
                 } catch {
                     # Swallow exceptions to avoid crashing the UI on bad filter values
                 }
-            })
+            }
         }
         # On every key press, restart the debounce timer; the filter will
         $filterBox.Add_TextChanged({
@@ -1457,4 +1241,4 @@ function Hide-PortLoadingIndicator {
     } catch { }
 }
 
-Export-ModuleMember -Function Get-PortSortKey,Get-PortSortCacheStatistics,Reset-PortSortCache,Get-InterfaceHostnames,Get-InterfaceInfo,Get-InterfaceList,New-InterfaceObjectsFromDbRow,Compare-InterfaceConfigs,Get-InterfaceConfiguration,Get-ConfigurationTemplates,Set-InterfaceViewData,Get-SpanningTreeInfo,New-InterfacesView,Set-PortLoadingIndicator,Hide-PortLoadingIndicator,Set-HostLoadingIndicator
+Export-ModuleMember -Function Get-PortSortKey,Get-PortSortCacheStatistics,Reset-PortSortCache,Get-InterfaceInfo,Get-InterfaceList,New-InterfaceObjectsFromDbRow,Get-InterfaceConfiguration,Set-InterfaceViewData,Get-SpanningTreeInfo,New-InterfacesView,Set-PortLoadingIndicator,Hide-PortLoadingIndicator,Set-HostLoadingIndicator

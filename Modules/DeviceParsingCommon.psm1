@@ -220,20 +220,78 @@ function ConvertFrom-MacTableRegex {
     return $parsed
 }
 
-# Backwards compatibility wrapper to ease migration off the unapproved verb.
-function Parse-MacTableFromRegex {
+function Get-InterfaceConfigBlocks {
     [CmdletBinding()]
     param(
         [Parameter()][AllowEmptyString()][string[]]$Lines,
-        [Parameter(Mandatory)][string]$HeaderPattern,
-        [Parameter(Mandatory)][string]$RowPattern,
-        [Parameter(Mandatory)][int]$VlanGroup,
-        [Parameter(Mandatory)][int]$MacGroup,
-        [Parameter(Mandatory)][int]$PortGroup,
-        [scriptblock]$PortTransform
+        [Parameter(Mandatory)][string]$InterfacePattern,
+        [string[]]$StopPatterns = @('^interface', '^!'),
+        [switch]$StopOnBlankLine
     )
 
-    return ConvertFrom-MacTableRegex @PSBoundParameters
+    if (-not $Lines) { return ,@() }
+
+    $interfaceRegex = $null
+    try {
+        $interfaceRegex = [regex]::new($InterfacePattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+    } catch {
+        return ,@()
+    }
+
+    $stopRegexes = @()
+    foreach ($p in $StopPatterns) {
+        if ([string]::IsNullOrWhiteSpace($p)) { continue }
+        try {
+            $stopRegexes += [regex]::new($p, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+        } catch {
+        }
+    }
+
+    $blocks = [System.Collections.Generic.List[object]]::new()
+    for ($i = 0; $i -lt $Lines.Count; $i++) {
+        $line = $Lines[$i]
+        $text = if ($null -ne $line) { [string]$line } else { '' }
+        if ([string]::IsNullOrWhiteSpace($text)) { continue }
+
+        $match = $interfaceRegex.Match($text)
+        if (-not $match.Success -or $match.Groups.Count -lt 2) { continue }
+
+        $name = ('' + $match.Groups[1].Value).Trim()
+        if ([string]::IsNullOrWhiteSpace($name)) { continue }
+
+        $blockLines = [System.Collections.Generic.List[string]]::new()
+        [void]$blockLines.Add($text)
+
+        $j = $i + 1
+        while ($j -lt $Lines.Count) {
+            $nextLine = $Lines[$j]
+            $nextText = if ($null -ne $nextLine) { [string]$nextLine } else { '' }
+
+            if ($StopOnBlankLine -and [string]::IsNullOrWhiteSpace($nextText)) {
+                break
+            }
+
+            $shouldStop = $false
+            foreach ($re in $stopRegexes) {
+                if ($re.IsMatch($nextText)) {
+                    $shouldStop = $true
+                    break
+                }
+            }
+            if ($shouldStop) { break }
+
+            [void]$blockLines.Add($nextText)
+            $j++
+        }
+
+        [void]$blocks.Add([PSCustomObject]@{
+            Name  = $name
+            Lines = $blockLines.ToArray()
+        })
+        $i = $j - 1
+    }
+
+    return ,$blocks.ToArray()
 }
 
-Export-ModuleMember -Function Invoke-RegexTableParser, Get-HostnameFromPrompt, ConvertTo-ShortPortName, Get-UptimeFromLines, ConvertFrom-MacTableRegex
+Export-ModuleMember -Function Invoke-RegexTableParser, Get-HostnameFromPrompt, ConvertTo-ShortPortName, Get-UptimeFromLines, ConvertFrom-MacTableRegex, Get-InterfaceConfigBlocks

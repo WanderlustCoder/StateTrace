@@ -23,11 +23,15 @@ if (-not (Get-Variable -Scope Script -Name PreservedRunspacePool -ErrorAction Si
     $script:PreservedRunspaceConfig = $null
 }
 
-if (-not (Get-Variable -Scope Script -Name SchedulerTelemetryWriter -ErrorAction SilentlyContinue)) {
-    $script:SchedulerTelemetryWriter = {
+if (-not (Get-Variable -Scope Script -Name DefaultSchedulerTelemetryWriter -ErrorAction SilentlyContinue)) {
+    $script:DefaultSchedulerTelemetryWriter = {
         param([string]$Name, $Payload)
         TelemetryModule\Write-StTelemetryEvent -Name $Name -Payload $Payload
     }
+}
+
+if (-not (Get-Variable -Scope Script -Name SchedulerTelemetryWriter -ErrorAction SilentlyContinue)) {
+    $script:SchedulerTelemetryWriter = $script:DefaultSchedulerTelemetryWriter
 }
 
 function Set-SchedulerTelemetryWriter {
@@ -37,10 +41,7 @@ function Set-SchedulerTelemetryWriter {
     if ($Writer) {
         $script:SchedulerTelemetryWriter = $Writer
     } else {
-        $script:SchedulerTelemetryWriter = {
-            param([string]$Name, $Payload)
-            TelemetryModule\Write-StTelemetryEvent -Name $Name -Payload $Payload
-        }
+        $script:SchedulerTelemetryWriter = $script:DefaultSchedulerTelemetryWriter
     }
 }
 

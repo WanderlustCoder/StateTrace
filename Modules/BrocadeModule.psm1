@@ -1,5 +1,7 @@
 # Brocade Device Parsing Module
 
+Set-StrictMode -Version Latest
+
 # Precompile frequently reused regexes to avoid repeated allocations.
 if (-not (Get-Variable -Name BrocadeAuthPortRangeRegex -Scope Script -ErrorAction SilentlyContinue)) {
     $script:BrocadeAuthPortRangeRegex = [regex]::new('(?i)eth(?:e)?\s+(\d+/\d+/\d+)(?:\s+to\s+(\d+/\d+/\d+))?')
@@ -13,6 +15,7 @@ if (-not (Get-Variable -Name BrocadeTypeAccessRegex -Scope Script -ErrorAction S
 
 # (Debug code removed)
 function Get-BrocadeDeviceFacts {
+    [CmdletBinding()]
     param (
         [string[]]$Lines,
         [hashtable]$Blocks
@@ -66,7 +69,7 @@ function Get-BrocadeDeviceFacts {
     }
 
     function Get-Hostname {
-        $hostname = DeviceParsingCommon\Get-HostnameFromPrompt -Lines $Lines
+        $hostname = DeviceParsingCommon\Get-HostnameFromPrompt -Lines $Lines -RunningConfigPattern '^(?i)\s*hostname\s+(.+)$'
         if ($hostname) { return $hostname }
         return "Unknown"
     }
@@ -91,18 +94,7 @@ function Get-BrocadeDeviceFacts {
     function Get-Location {
         param ($Block)
         # Delegate to the shared helper that handles vendor-specific keywords
-        return Get-SnmpLocationFromLines -Lines $Block
-    }
-
-    function Get-VlanMap {
-        param ($Block)
-        $vlanMap = @{}
-        foreach ($line in $Block) {
-            if ($line -match "^vlan (\d+) name (.+?) by port") {
-                $vlanMap[$matches[1]] = $matches[2].Trim()
-            }
-        }
-        return $vlanMap
+        return DeviceLogParserModule\Get-SnmpLocationFromLines -Lines $Block
     }
 
     function Get-AuthModes {
@@ -179,7 +171,6 @@ function Get-BrocadeDeviceFacts {
             }
         }
 
-        # Dedupe while preserving order.  Use hashtables as sets.
         # Dedupe while preserving order.  Use hashtables as sets.
         $dotSeen = @{}
         $dotUniq = [System.Collections.Generic.List[string]]::new()
@@ -372,7 +363,7 @@ function Get-BrocadeDeviceFacts {
         return @($configs, $names)
     }
 
-    # The spanning-tree parsing helper has been moved to ParserWorker.psm1.
+    # Spanning-tree parsing is delegated to DeviceLogParserModule\ConvertFrom-SpanningTree.
 
     #
     $versionBlock    = DeviceLogParserModule\Get-ShowBlock -Blocks $blocks -Lines $Lines -PreferredKeys @('show version') -CommandRegexes @('#\s*show\s+version') -DefaultValue @()
@@ -400,21 +391,8 @@ function Get-BrocadeDeviceFacts {
     $modelVer   = Get-ModelAndVersion $versionBlock
     $uptime     = Get-Uptime $versionBlock
     $location   = Get-Location $configBlock
-    $vlanMap    = Get-VlanMap $configBlock
     $authBlockRaw   = Get-AuthenticationBlock $configBlock
     $authDefaultVlan = Get-AuthDefaultVlan $authBlockRaw
-    # Brocade FCX platforms (8.0.80+ and later) support a global "mac-authentication dot1x override"
-    # command which forces MAC authentication to take precedence over 802.1X when both are
-    # enabled on a port.  If present, ports that appear in both the dot1x and macauth lists
-    # should be classified as macauth rather than flexible.  Scan the configuration block
-    # for this command once and store the result for use in the per-interface loop below.
-    $macOverridesDot1x = $false
-    foreach ($line in $configBlock) {
-        if ($line -match '(?i)^\s*mac-authentication\s+dot1x\s+override') {
-            $macOverridesDot1x = $true
-            break
-        }
-    }
     # Retrieve interface configs and names before determining auth modes.  The per-interface
     # config text is required to detect dot1x/mac-auth enable lines on older software.
     $cfgResults = Get-InterfaceConfigsAndNames $configBlock
@@ -574,10 +552,9 @@ function Get-BrocadeDeviceFacts {
         # Look up the list of MAC addresses learned on this port.  Use a normalized
         # key for dictionary access to handle minor variations in port prefixes.
         $normPort = ConvertTo-PortKey $port
-        $macArr = if ($macsByPort.ContainsKey($normPort)) {
-            $macsByPort[$normPort]
-        } else {
-            @()
+        $macArr = @()
+        if ($macsByPort.ContainsKey($normPort)) {
+            $macArr = $macsByPort[$normPort]
         }
         # Capture the number of learned MAC addresses so that the UI can display a
         # count instead of interpreting a MAC string as a numeric value.  When
@@ -656,8 +633,8 @@ function Get-BrocadeDeviceFacts {
 
     # Attempt to parse spanning-tree information if present.  Locate the
     $spanBlock = DeviceLogParserModule\Get-ShowBlock -Blocks $blocks -Lines $Lines -PreferredKeys @('show spanning-tree') -RegexPatterns @('^show\s+span(\b|$)') -CommandRegexes @('#\s*show\s+span(?:ning-tree)?') -DefaultValue @()
-    # Parse spanning tree information using the shared ConvertFrom-SpanningTree helper
-    $spanInfo = if ($spanBlock.Count -gt 0) { ConvertFrom-SpanningTree -SpanLines $spanBlock } else { @() }
+    # Parse spanning tree information using the shared DeviceLogParserModule\ConvertFrom-SpanningTree helper
+    $spanInfo = if ($spanBlock.Count -gt 0) { DeviceLogParserModule\ConvertFrom-SpanningTree -SpanLines $spanBlock } else { @() }
 
     return [PSCustomObject]@{
         Hostname = $hostname; 

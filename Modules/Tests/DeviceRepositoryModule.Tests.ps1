@@ -1,14 +1,21 @@
 Set-StrictMode -Version Latest
 
 function Set-RepositoryVar {
-    param([string]$Name, $Value)
-    $module = Get-Module DeviceRepositoryModule -ErrorAction Stop
+    param(
+        [string]$Name,
+        $Value,
+        [string]$ModuleName = 'DeviceRepositoryModule'
+    )
+    $module = Get-Module $ModuleName -ErrorAction Stop
     $module.SessionState.PSVariable.Set($Name, $Value)
 }
 
 function Remove-RepositoryVar {
-    param([string]$Name)
-    $module = Get-Module DeviceRepositoryModule -ErrorAction Stop
+    param(
+        [string]$Name,
+        [string]$ModuleName = 'DeviceRepositoryModule'
+    )
+    $module = Get-Module $ModuleName -ErrorAction Stop
     try { $module.SessionState.PSVariable.Remove($Name) } catch {}
 }
 

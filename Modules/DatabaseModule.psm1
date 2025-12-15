@@ -7,9 +7,6 @@ try {
     TelemetryModule\Initialize-StateTraceDebug
 } catch { }
 
-# Cache the last time we forced a Jet/ACE cache refresh
-if (-not (Get-Variable -Name LastCacheRefresh -Scope Script -ErrorAction SilentlyContinue)) { $script:LastCacheRefresh = Get-Date '2000-01-01' }
-
 # Escape single quotes when embedding values into SQL statements.
 function Get-SqlLiteral {
     param([Parameter(Mandatory)][string]$Value)
@@ -110,7 +107,54 @@ try {
         throw "32-bit fallback completed but database '$Path' was not created."
     }
 }
-###
+
+function Open-OleDbConnectionWithFallback {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$DatabasePath,
+        [Parameter(Mandatory)][string]$FailureContext,
+        [Parameter(Mandatory)][string]$SuccessDebugTemplate,
+        [Parameter(Mandatory)][string]$FailureDebugTemplate
+    )
+
+    $connection = New-Object System.Data.OleDb.OleDbConnection
+    $providerErrors = [System.Collections.Generic.List[object]]::new()
+    foreach ($prov in @('Microsoft.ACE.OLEDB.12.0','Microsoft.Jet.OLEDB.4.0')) {
+        try {
+            $connection.ConnectionString = "Provider=$prov;Data Source=$DatabasePath"
+            $connection.Open()
+            if ($Global:StateTraceDebug) {
+                Write-Host ($SuccessDebugTemplate -f $prov) -ForegroundColor Cyan
+            }
+            return $connection
+        } catch {
+            $errorMessage = $_.Exception.Message
+            $hresult = $null
+            try { $hresult = ('0x{0:X8}' -f $_.Exception.HResult) } catch { }
+            $providerErrors.Add([PSCustomObject]@{
+                Provider = $prov
+                Message  = $errorMessage
+                HResult  = $hresult
+            })
+            if ($Global:StateTraceDebug) {
+                Write-Host ($FailureDebugTemplate -f $prov, $errorMessage) -ForegroundColor Cyan
+            }
+        }
+    }
+
+    try { $connection.Dispose() } catch { }
+
+    $candidateList = 'Microsoft.ACE.OLEDB.12.0, Microsoft.Jet.OLEDB.4.0'
+    $detailText = 'No provider-specific diagnostics were captured.'
+    if ($providerErrors.Count -gt 0) {
+        $detailLines = foreach ($entry in $providerErrors) {
+            $hrNote = if ($entry.HResult) { " (HRESULT=$($entry.HResult))" } else { '' }
+            "- Provider '{0}': {1}{2}" -f $entry.Provider, $entry.Message, $hrNote
+        }
+        $detailText = [string]::Join([System.Environment]::NewLine, $detailLines)
+    }
+    throw "Failed to open Access database '$DatabasePath' $FailureContext. Tried providers: $candidateList.`n$detailText"
+}
 
 function Open-DbReadSession {
     
@@ -118,46 +162,10 @@ function Open-DbReadSession {
     param(
         [Parameter(Mandatory)][string]$DatabasePath
     )
+
     $conn = $null
-    $opened = $false
     try {
-        $conn = New-Object System.Data.OleDb.OleDbConnection
-        $providerErrors = [System.Collections.Generic.List[object]]::new()
-        foreach ($prov in @('Microsoft.ACE.OLEDB.12.0','Microsoft.Jet.OLEDB.4.0')) {
-            try {
-                $conn.ConnectionString = "Provider=$prov;Data Source=$DatabasePath"
-                $conn.Open()
-                $opened = $true
-                if ($Global:StateTraceDebug) {
-                    Write-Host ("[DEBUG] Opened read session using provider '{0}'" -f $prov) -ForegroundColor Cyan
-                }
-                break
-            } catch {
-                $errorMessage = $_.Exception.Message
-                $hresult = $null
-                try { $hresult = ('0x{0:X8}' -f $_.Exception.HResult) } catch { }
-                $providerErrors.Add([PSCustomObject]@{
-                    Provider = $prov
-                    Message  = $errorMessage
-                    HResult  = $hresult
-                })
-                if ($Global:StateTraceDebug) {
-                    Write-Host ("[DEBUG] Provider '{0}' failed to open read session: {1}" -f $prov, $errorMessage) -ForegroundColor Cyan
-                }
-            }
-        }
-        if (-not $opened) {
-            $candidateList = 'Microsoft.ACE.OLEDB.12.0, Microsoft.Jet.OLEDB.4.0'
-            $detailText = 'No provider-specific diagnostics were captured.'
-            if ($providerErrors.Count -gt 0) {
-                $detailLines = foreach ($entry in $providerErrors) {
-                    $hrNote = if ($entry.HResult) { " (HRESULT=$($entry.HResult))" } else { '' }
-                    "- Provider '{0}': {1}{2}" -f $entry.Provider, $entry.Message, $hrNote
-                }
-                $detailText = [string]::Join([System.Environment]::NewLine, $detailLines)
-            }
-            throw "Failed to open Access database '$DatabasePath' for read operations. Tried providers: $candidateList.`n$detailText"
-        }
+        $conn = Open-OleDbConnectionWithFallback -DatabasePath $DatabasePath -FailureContext 'for read operations' -SuccessDebugTemplate "[DEBUG] Opened read session using provider '{0}'" -FailureDebugTemplate "[DEBUG] Provider '{0}' failed to open read session: {1}"
 
         # Construct a disposable session object.  The Close and Dispose
         $session = [PSCustomObject]@{
@@ -275,7 +283,7 @@ function New-AccessDatabase {
                     break
                 }
             } catch {
-                $creationDiagnostics.Add("Provider '$providerCandidate': `$($_.Exception.Message)")
+                $creationDiagnostics.Add("Provider '$providerCandidate': $($_.Exception.Message)")
                 if ([Environment]::Is64BitProcess) {
                     try {
                         Invoke-AccessDatabase32BitCreation -Path $Path -Provider $providerCandidate -Engine $engine
@@ -287,7 +295,7 @@ function New-AccessDatabase {
                             break
                         }
                     } catch {
-                        $creationDiagnostics.Add("32-bit fallback for provider '$providerCandidate': `$($_.Exception.Message)")
+                        $creationDiagnostics.Add("32-bit fallback for provider '$providerCandidate': $($_.Exception.Message)")
                     }
                 }
             } finally {
@@ -520,44 +528,7 @@ function Invoke-DbQuery {
             $conn = $Session.Connection
         } else {
             # Open a one-shot connection
-            $conn = New-Object System.Data.OleDb.OleDbConnection
-            $opened = $false
-            $providerErrors = [System.Collections.Generic.List[object]]::new()
-            foreach ($prov in @('Microsoft.ACE.OLEDB.12.0','Microsoft.Jet.OLEDB.4.0')) {
-                try {
-                    $conn.ConnectionString = "Provider=$prov;Data Source=$DatabasePath"
-                    $conn.Open()
-                    $opened = $true
-                    if ($Global:StateTraceDebug) {
-                        Write-Host ("[DEBUG] Opened ad-hoc query connection using provider '{0}'" -f $prov) -ForegroundColor Cyan
-                    }
-                    break
-                } catch {
-                    $errorMessage = $_.Exception.Message
-                    $hresult = $null
-                    try { $hresult = ('0x{0:X8}' -f $_.Exception.HResult) } catch { }
-                    $providerErrors.Add([PSCustomObject]@{
-                        Provider = $prov
-                        Message  = $errorMessage
-                        HResult  = $hresult
-                    })
-                    if ($Global:StateTraceDebug) {
-                        Write-Host ("[DEBUG] Provider '{0}' failed to open ad-hoc query connection: {1}" -f $prov, $errorMessage) -ForegroundColor Cyan
-                    }
-                }
-            }
-            if (-not $opened) {
-                $candidateList = 'Microsoft.ACE.OLEDB.12.0, Microsoft.Jet.OLEDB.4.0'
-                $detailText = 'No provider-specific diagnostics were captured.'
-                if ($providerErrors.Count -gt 0) {
-                    $detailLines = foreach ($entry in $providerErrors) {
-                        $hrNote = if ($entry.HResult) { " (HRESULT=$($entry.HResult))" } else { '' }
-                        "- Provider '{0}': {1}{2}" -f $entry.Provider, $entry.Message, $hrNote
-                    }
-                    $detailText = [string]::Join([System.Environment]::NewLine, $detailLines)
-                }
-                throw "Failed to open Access database '$DatabasePath' for query execution. Tried providers: $candidateList.`n$detailText"
-            }
+            $conn = Open-OleDbConnectionWithFallback -DatabasePath $DatabasePath -FailureContext 'for query execution' -SuccessDebugTemplate "[DEBUG] Opened ad-hoc query connection using provider '{0}'" -FailureDebugTemplate "[DEBUG] Provider '{0}' failed to open ad-hoc query connection: {1}"
             $mustClose = $true
         }
 
@@ -584,6 +555,4 @@ function Invoke-DbQuery {
 }
 
 Export-ModuleMember -Function Get-SqlLiteral, ConvertTo-DbRowList, New-AccessDatabase, Invoke-DbQuery, Open-DbReadSession, Close-DbReadSession
-
-
 

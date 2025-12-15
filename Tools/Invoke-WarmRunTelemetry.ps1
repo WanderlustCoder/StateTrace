@@ -43,6 +43,19 @@ if (-not (Test-Path -LiteralPath $skipSiteCacheGuardModule)) {
 Import-Module -Name $skipSiteCacheGuardModule -Force -ErrorAction Stop
 
 $repositoryRoot = Split-Path -Path $PSScriptRoot -Parent
+
+$statisticsModulePath = Join-Path -Path $repositoryRoot -ChildPath 'Modules\StatisticsModule.psm1'
+if (-not (Test-Path -LiteralPath $statisticsModulePath)) {
+    throw "StatisticsModule not found at $statisticsModulePath"
+}
+Import-Module -Name $statisticsModulePath -Force -ErrorAction Stop
+
+$warmRunTelemetryModulePath = Join-Path -Path $repositoryRoot -ChildPath 'Modules\WarmRun.Telemetry.psm1'
+if (-not (Test-Path -LiteralPath $warmRunTelemetryModulePath)) {
+    throw "WarmRun.Telemetry module not found at $warmRunTelemetryModulePath"
+}
+Import-Module -Name $warmRunTelemetryModulePath -Force -ErrorAction Stop
+
 $pipelineScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Invoke-StateTracePipeline.ps1'
 if (-not (Test-Path -LiteralPath $pipelineScript)) {
     throw "Pipeline harness not found at $pipelineScript."
@@ -864,54 +877,6 @@ function Collect-TelemetryForPass {
     }
 }
 
-function Get-PercentileValue {
-    param(
-        [Parameter(Mandatory)]
-        [double[]]$Values,
-        [Parameter(Mandatory)]
-        [double]$Percentile
-    )
-
-    $valueArray = @()
-    if ($null -ne $Values) {
-        $valueArray = @($Values)
-    }
-
-    if (-not $valueArray -or $valueArray.Count -eq 0) {
-        return $null
-    }
-
-    $ordered = @($valueArray | Sort-Object)
-    $maxIndex = $ordered.Count - 1
-    if ($maxIndex -lt 0) {
-        return $null
-    }
-
-    $clampedPercentile = if ($Percentile -lt 0) {
-        0
-    } elseif ($Percentile -gt 100) {
-        100
-    } else {
-        $Percentile
-    }
-
-    if ($clampedPercentile -eq 100) {
-        return [double]$ordered[$maxIndex]
-    }
-
-    $position = ($clampedPercentile / 100) * $maxIndex
-    $lowerIndex = [math]::Floor($position)
-    $upperIndex = [math]::Ceiling($position)
-    if ($lowerIndex -eq $upperIndex) {
-        return [double]$ordered[$lowerIndex]
-    }
-
-    $fraction = $position - $lowerIndex
-    $lowerValue = [double]$ordered[$lowerIndex]
-    $upperValue = [double]$ordered[$upperIndex]
-    return $lowerValue + (($upperValue - $lowerValue) * $fraction)
-}
-
 function Measure-InterfaceCallDurationMetrics {
     param(
         [Parameter(Mandatory)]
@@ -962,7 +927,7 @@ function Measure-InterfaceCallDurationMetrics {
     if ($count -gt 0) {
         $averageRaw = ($durations | Measure-Object -Average).Average
         $maxRaw = ($durations | Measure-Object -Maximum).Maximum
-        $p95Raw = Get-PercentileValue -Values $durations.ToArray() -Percentile 95
+        $p95Raw = StatisticsModule\Get-PercentileValue -Values $durations.ToArray() -Percentile 95
     }
 
     $averageRounded = $null
@@ -992,389 +957,6 @@ function Measure-InterfaceCallDurationMetrics {
         MaxRaw         = if ($maxRaw -ne $null) { [double]$maxRaw } else { $null }
         ProviderCounts = $providerCounts
     }
-}
-
-function ConvertTo-NormalizedProviderCounts {
-    param(
-        [hashtable]$ProviderCounts
-    )
-
-    $normalized = @{}
-    if (-not $ProviderCounts) {
-        return $normalized
-    }
-
-    foreach ($key in $ProviderCounts.Keys) {
-        $label = ('' + $key).Trim()
-        if ([string]::IsNullOrWhiteSpace($label)) {
-            $label = 'Unknown'
-        }
-        $value = 0
-        try {
-            $value = [int]$ProviderCounts[$key]
-        } catch {
-            $value = 0
-        }
-        if ($normalized.ContainsKey($label)) {
-            $normalized[$label] += $value
-        } else {
-            $normalized[$label] = $value
-        }
-    }
-
-    return $normalized
-}
-
-function Convert-MetricsToSummary {
-    param(
-        [Parameter(Mandatory)]
-        [string]$PassLabel,
-        [Parameter(Mandatory)]
-        [System.Collections.IEnumerable]$Metrics
-    )
-
-    $summaries = foreach ($metric in $Metrics | Sort-Object { $_.Timestamp }) {
-        $timestamp = $metric.Timestamp
-        if ($timestamp -isnot [datetime] -and -not [string]::IsNullOrWhiteSpace($timestamp)) {
-            $timestamp = [datetime]::Parse($timestamp)
-        }
-
-        $providerReason = $null
-        if ($metric -and $metric.PSObject -and $metric.PSObject.Properties.Name -contains 'SiteCacheProviderReason') {
-            $providerReason = $metric.SiteCacheProviderReason
-        }
-
-        $hostName = $null
-        if ($metric -and $metric.PSObject) {
-            $metricProperties = $metric.PSObject.Properties.Name
-            if ($metricProperties -contains 'Hostname') {
-                $hostName = $metric.Hostname
-            } elseif ($metricProperties -contains 'HostName') {
-                $hostName = $metric.HostName
-            } elseif ($metricProperties -contains 'Host') {
-                $hostName = $metric.Host
-            }
-
-            if ([string]::IsNullOrWhiteSpace($hostName) -and $metricProperties -contains 'PreviousHostSample') {
-                $hostName = $metric.PreviousHostSample
-            } elseif ([string]::IsNullOrWhiteSpace($hostName) -and $metricProperties -contains 'HostSample') {
-                $hostName = $metric.HostSample
-            }
-        }
-        if (-not [string]::IsNullOrWhiteSpace($hostName)) {
-            $hostName = ('' + $hostName).Trim()
-        } else {
-            $hostName = $null
-        }
-
-        [pscustomobject]@{
-            PassLabel                     = $PassLabel
-            Site                          = $metric.Site
-            Hostname                      = $hostName
-            Timestamp                     = $timestamp
-            CacheStatus                   = $metric.CacheStatus
-            Provider                      = $metric.Provider
-            SiteCacheProviderReason       = $providerReason
-            HydrationDurationMs           = $metric.HydrationDurationMs
-            SnapshotDurationMs            = $metric.SnapshotDurationMs
-            HostMapDurationMs             = $metric.HostMapDurationMs
-            HostCount                     = $metric.HostCount
-            TotalRows                     = $metric.TotalRows
-            HostMapSignatureMatchCount    = $metric.HostMapSignatureMatchCount
-            HostMapSignatureRewriteCount  = $metric.HostMapSignatureRewriteCount
-            HostMapCandidateMissingCount  = $metric.HostMapCandidateMissingCount
-            HostMapCandidateFromPrevious  = $metric.HostMapCandidateFromPreviousCount
-            PreviousHostCount             = $metric.PreviousHostCount
-            PreviousSnapshotStatus        = $metric.PreviousSnapshotStatus
-            PreviousSnapshotHostMapType   = $metric.PreviousSnapshotHostMapType
-            Metrics                       = $metric
-        }
-    }
-
-    return $summaries
-}
-
-function Measure-ProviderMetricsFromSummaries {
-    param(
-        [System.Collections.IEnumerable]$Summaries
-    )
-
-    if (-not $Summaries) {
-        return $null
-    }
-
-    $providerCounts = @{}
-    $totalWeight = 0
-
-    foreach ($summary in $Summaries) {
-        if (-not $summary) { continue }
-
-        $providerValue = ''
-        if ($summary.PSObject.Properties.Name -contains 'Provider') {
-            $providerValue = ('' + $summary.Provider).Trim()
-        }
-        if ([string]::IsNullOrWhiteSpace($providerValue)) {
-            $providerValue = 'Unknown'
-        }
-
-        $weight = 1
-        if ($summary.PSObject.Properties.Name -contains 'HostCount') {
-            try {
-                $hostWeight = [int]$summary.HostCount
-                if ($hostWeight -gt 0) {
-                    $weight = $hostWeight
-                }
-            } catch { }
-        }
-
-        if ($providerCounts.ContainsKey($providerValue)) {
-            $providerCounts[$providerValue] += $weight
-        } else {
-            $providerCounts[$providerValue] = $weight
-        }
-        $totalWeight += $weight
-    }
-
-    $hitCount = 0
-    if ($providerCounts.ContainsKey('Cache')) {
-        $hitCount = [int]$providerCounts['Cache']
-    }
-    $missCount = [Math]::Max(0, $totalWeight - $hitCount)
-    $hitRatio = $null
-    if ($totalWeight -gt 0) {
-        $hitRatio = [Math]::Round(($hitCount / $totalWeight) * 100, 2)
-    }
-
-    return [pscustomobject]@{
-        ProviderCounts = $providerCounts
-        TotalWeight    = $totalWeight
-        HitCount       = $hitCount
-        MissCount      = $missCount
-        HitRatio       = $hitRatio
-    }
-}
-
-function Get-HostKeyFromTelemetryEvent {
-    param(
-        [Parameter(Mandatory)]
-        $Event
-    )
-
-    if (-not $Event -or -not $Event.PSObject) {
-        return $null
-    }
-
-    $hostKey = $null
-    foreach ($property in @('Hostname','HostName','Host','PreviousHostSample','HostSample')) {
-        if ($Event.PSObject.Properties.Name -contains $property) {
-            $candidate = ('' + $Event.$property).Trim()
-            if (-not [string]::IsNullOrWhiteSpace($candidate)) {
-                $hostKey = $candidate
-                break
-            }
-        }
-    }
-
-    if ([string]::IsNullOrWhiteSpace($hostKey)) {
-        return $null
-    }
-
-    return $hostKey
-}
-
-function Get-HostKeyFromMetricsSummary {
-    param(
-        [Parameter(Mandatory)]
-        $Summary
-    )
-
-    if (-not $Summary -or -not $Summary.PSObject) {
-        return $null
-    }
-
-    $hostKey = $null
-    if ($Summary.PSObject.Properties.Name -contains 'Hostname') {
-        $hostKey = ('' + $Summary.Hostname).Trim()
-    }
-
-    if ([string]::IsNullOrWhiteSpace($hostKey) -and $Summary.PSObject.Properties.Name -contains 'Metrics') {
-        $metricsRecord = $Summary.Metrics
-        if ($metricsRecord -and $metricsRecord.PSObject) {
-            foreach ($property in @('PreviousHostSample','Hostname','HostName','Host','HostSample')) {
-                if ($metricsRecord.PSObject.Properties.Name -contains $property) {
-                    $candidate = ('' + $metricsRecord.$property).Trim()
-                    if (-not [string]::IsNullOrWhiteSpace($candidate)) {
-                        $hostKey = $candidate
-                        break
-                    }
-                }
-            }
-        }
-    }
-
-    if ([string]::IsNullOrWhiteSpace($hostKey)) {
-        return $null
-    }
-
-    return $hostKey
-}
-
-function Get-SiteCacheProviderReasonFallback {
-    param(
-        $Record
-    )
-
-    if (-not $Record -or -not $Record.PSObject) {
-        return $null
-    }
-
-    $getTrimmedValue = {
-        param($target, [string[]]$PropertyNames)
-
-        if (-not $target -or -not $target.PSObject) { return $null }
-        foreach ($name in $PropertyNames) {
-            if ($target.PSObject.Properties.Name -contains $name) {
-                $candidate = ('' + $target.$name)
-                if (-not [string]::IsNullOrWhiteSpace($candidate)) {
-                    return $candidate.Trim()
-                }
-            }
-        }
-        return $null
-    }
-
-    $provider = & $getTrimmedValue $Record @('SiteCacheProvider','Provider')
-    $status = & $getTrimmedValue $Record @('SiteCacheFetchStatus','CacheStatus')
-    $skipFlag = $false
-    if ($Record.PSObject.Properties.Name -contains 'SkipSiteCacheUpdate') {
-        try {
-            $skipFlag = [bool]$Record.SkipSiteCacheUpdate
-        } catch {
-            $skipFlag = $false
-        }
-    }
-
-    $normalize = {
-        param($value)
-        if ([string]::IsNullOrWhiteSpace($value)) { return $null }
-        return $value.Trim().ToLowerInvariant()
-    }
-
-    $providerKey = & $normalize $provider
-    $statusKey = & $normalize $status
-
-    switch ($providerKey) {
-        'sharedcache' { return 'SharedCacheMatch' }
-        'sharedonly' { return 'SharedCacheMatch' }
-        'cache' { return 'AccessCacheHit' }
-        'refreshed' { return 'AccessRefresh' }
-        'refresh' { return 'AccessRefresh' }
-        'missingdatabase' { return 'SharedCacheUnavailable' }
-    }
-
-    if ($skipFlag) {
-        return 'SkipSiteCacheUpdate'
-    }
-
-    switch ($statusKey) {
-        'sharedonly' { return 'SharedCacheMatch' }
-        'hit' { return 'AccessCacheHit' }
-        'refreshed' { return 'AccessRefresh' }
-        'disabled' { return 'SkipSiteCacheUpdate' }
-        'skippedempty' { return 'SharedCacheUnavailable' }
-    }
-
-    if ($providerKey -eq 'unknown') {
-        if ($statusKey -eq 'skippedempty') {
-            return 'SharedCacheUnavailable'
-        }
-        return 'DatabaseQueryFallback'
-    }
-
-    return $null
-}
-
-function Resolve-SiteCacheProviderReasons {
-    param(
-        [System.Collections.IEnumerable]$Summaries,
-        [System.Collections.IEnumerable]$DatabaseEvents,
-        [System.Collections.IEnumerable]$InterfaceSyncEvents
-    )
-
-    $results = @()
-    if ($Summaries) {
-        $results = @($Summaries)
-    }
-    if (-not $results -or $results.Count -eq 0) {
-        return $results
-    }
-
-    $providerReasonMap = @{}
-    $addReason = {
-        param($eventRecord)
-        if (-not $eventRecord) { return }
-
-        $reasonValue = $null
-        if ($eventRecord.PSObject.Properties.Name -contains 'SiteCacheProviderReason') {
-            $reasonValue = ('' + $eventRecord.SiteCacheProviderReason).Trim()
-        }
-        if ([string]::IsNullOrWhiteSpace($reasonValue)) {
-            $reasonValue = Get-SiteCacheProviderReasonFallback -Record $eventRecord
-        }
-        if ([string]::IsNullOrWhiteSpace($reasonValue)) { return }
-
-        $siteKey = ''
-        if ($eventRecord.PSObject.Properties.Name -contains 'Site') {
-            $siteKey = ('' + $eventRecord.Site).Trim()
-        }
-        if ([string]::IsNullOrWhiteSpace($siteKey)) { return }
-
-        $hostKey = Get-HostKeyFromTelemetryEvent -Event $eventRecord
-        if ([string]::IsNullOrWhiteSpace($hostKey)) { return }
-
-        $mapKey = '{0}|{1}' -f $siteKey, $hostKey
-        if (-not $providerReasonMap.ContainsKey($mapKey)) {
-            $providerReasonMap[$mapKey] = $reasonValue
-        }
-    }
-
-    foreach ($eventRecord in @($InterfaceSyncEvents)) {
-        & $addReason $eventRecord
-    }
-    foreach ($eventRecord in @($DatabaseEvents)) {
-        & $addReason $eventRecord
-    }
-
-    foreach ($summary in $results) {
-        if (-not $summary) { continue }
-        $currentReason = $summary.SiteCacheProviderReason
-        if (-not [string]::IsNullOrWhiteSpace($currentReason)) { continue }
-
-        $siteKey = ''
-        if ($summary.PSObject.Properties.Name -contains 'Site') {
-            $siteKey = ('' + $summary.Site).Trim()
-        }
-        $mapApplied = $false
-        if (-not [string]::IsNullOrWhiteSpace($siteKey)) {
-            $hostKey = Get-HostKeyFromMetricsSummary -Summary $summary
-            if (-not [string]::IsNullOrWhiteSpace($hostKey)) {
-                $mapKey = '{0}|{1}' -f $siteKey, $hostKey
-                if ($providerReasonMap.ContainsKey($mapKey)) {
-                    $summary.SiteCacheProviderReason = $providerReasonMap[$mapKey]
-                    $mapApplied = $true
-                }
-            }
-        }
-
-        if (-not $mapApplied -and [string]::IsNullOrWhiteSpace($summary.SiteCacheProviderReason)) {
-            $fallbackReason = Get-SiteCacheProviderReasonFallback -Record $summary
-            if (-not [string]::IsNullOrWhiteSpace($fallbackReason)) {
-                $summary.SiteCacheProviderReason = $fallbackReason
-            }
-        }
-    }
-
-    return $results
 }
 
 $perHostDatabaseProperties = @(
@@ -1439,7 +1021,7 @@ function Merge-PerHostTelemetry {
             }
             if ([string]::IsNullOrWhiteSpace($siteKey)) { continue }
 
-            $hostKey = Get-HostKeyFromTelemetryEvent -Event $eventRecord
+            $hostKey = WarmRun.Telemetry\Get-HostKeyFromTelemetryEvent -Event $eventRecord
             if ([string]::IsNullOrWhiteSpace($hostKey)) { continue }
 
             $mapKey = '{0}|{1}' -f $siteKey, $hostKey
@@ -1470,7 +1052,7 @@ function Merge-PerHostTelemetry {
         }
         if ([string]::IsNullOrWhiteSpace($siteKey)) { continue }
 
-        $hostKey = Get-HostKeyFromMetricsSummary -Summary $summary
+        $hostKey = WarmRun.Telemetry\Get-HostKeyFromMetricsSummary -Summary $summary
         if ([string]::IsNullOrWhiteSpace($hostKey)) { continue }
 
         $mapKey = '{0}|{1}' -f $siteKey, $hostKey
@@ -1622,7 +1204,7 @@ function Invoke-PipelinePass {
     if (-not $cacheMetrics) {
         Write-Warning "No InterfaceSiteCacheMetrics events were captured for pass '$Label'."
     } else {
-        $passResults += Convert-MetricsToSummary -PassLabel $Label -Metrics $cacheMetrics
+        $passResults += WarmRun.Telemetry\Convert-MetricsToSummary -PassLabel $Label -Metrics $cacheMetrics
     }
 
     $breakdownEvents = @()
@@ -1729,7 +1311,7 @@ function Invoke-PipelinePass {
         }
     }
 
-    $passResults = Resolve-SiteCacheProviderReasons -Summaries $passResults -DatabaseEvents $breakdownEvents -InterfaceSyncEvents $syncEvents
+    $passResults = WarmRun.Telemetry\Resolve-SiteCacheProviderReasons -Summaries $passResults -DatabaseEvents $breakdownEvents -InterfaceSyncEvents $syncEvents
     $passResults = Merge-PerHostTelemetry -Summaries $passResults -DatabaseEvents $breakdownEvents -InterfaceSyncEvents $syncEvents
     $script:PassSummaries[$Label] = @($passResults)
 
@@ -1779,7 +1361,7 @@ function Invoke-SiteCacheRefresh {
         return @()
     }
 
-    return Convert-MetricsToSummary -PassLabel $Label -Metrics $cacheMetrics
+    return WarmRun.Telemetry\Convert-MetricsToSummary -PassLabel $Label -Metrics $cacheMetrics
 }
 
 function Invoke-SiteCacheProbe {
@@ -1826,7 +1408,7 @@ function Invoke-SiteCacheProbe {
         return @()
     }
 
-    return Convert-MetricsToSummary -PassLabel $Label -Metrics $cacheMetrics
+    return WarmRun.Telemetry\Convert-MetricsToSummary -PassLabel $Label -Metrics $cacheMetrics
 }
 
 function Get-SiteCacheState {
@@ -3066,7 +2648,7 @@ if (($coldMetrics -or $coldSummaries) -and ($warmMetrics -or $warmSummaries)) {
     $coldCountSource = 0
 
     if ($warmMetrics) {
-        $normalizedWarmProviderCounts = ConvertTo-NormalizedProviderCounts -ProviderCounts $warmMetrics.ProviderCounts
+        $normalizedWarmProviderCounts = WarmRun.Telemetry\ConvertTo-NormalizedProviderCounts -ProviderCounts $warmMetrics.ProviderCounts
         if ($warmPassHostnames -and $warmPassHostnames.Count -gt 0) {
             $warmCountSource = $warmPassHostnames.Count
         } else {
@@ -3076,7 +2658,7 @@ if (($coldMetrics -or $coldSummaries) -and ($warmMetrics -or $warmSummaries)) {
         $warmCountSource = $warmPassHostnames.Count
     }
     if ($coldMetrics) {
-        $normalizedColdProviderCounts = ConvertTo-NormalizedProviderCounts -ProviderCounts $coldMetrics.ProviderCounts
+        $normalizedColdProviderCounts = WarmRun.Telemetry\ConvertTo-NormalizedProviderCounts -ProviderCounts $coldMetrics.ProviderCounts
         if ($coldPassHostnames -and $coldPassHostnames.Count -gt 0) {
             $coldCountSource = $coldPassHostnames.Count
         } else {
@@ -3117,7 +2699,7 @@ if (($coldMetrics -or $coldSummaries) -and ($warmMetrics -or $warmSummaries)) {
     $warmCacheProviderMissCount = $warmCacheProviderMissCountRaw
     $warmCacheHitRatioPercent = $warmCacheHitRatioPercentRaw
 
-    $warmSummaryMetrics = Measure-ProviderMetricsFromSummaries -Summaries $warmSummaries
+    $warmSummaryMetrics = WarmRun.Telemetry\Measure-ProviderMetricsFromSummaries -Summaries $warmSummaries
     if (-not $hostFilterApplied -and $warmSummaryMetrics) {
         $warmProviderCounts = $warmSummaryMetrics.ProviderCounts
         $warmCacheProviderHitCount = [int]$warmSummaryMetrics.HitCount
@@ -3151,7 +2733,7 @@ if (($coldMetrics -or $coldSummaries) -and ($warmMetrics -or $warmSummaries)) {
     }
 
     $coldProviderCounts = $normalizedColdProviderCounts
-    $coldSummaryMetrics = Measure-ProviderMetricsFromSummaries -Summaries $coldSummaries
+    $coldSummaryMetrics = WarmRun.Telemetry\Measure-ProviderMetricsFromSummaries -Summaries $coldSummaries
     if (-not $hostFilterApplied -and $coldSummaryMetrics) {
         $coldProviderCounts = $coldSummaryMetrics.ProviderCounts
         if ($coldSummaryMetrics.TotalWeight -gt 0) {
@@ -3419,7 +3001,7 @@ function Update-ComparisonSummaryFromResults {
         if ($warmSnapshot.Durations.Length -gt 0) {
             $comparison.WarmInterfaceCallAvgMs = [math]::Round(($warmSnapshot.Durations | Measure-Object -Average).Average, 3)
             $comparison.WarmInterfaceCallMaxMs = [math]::Round(($warmSnapshot.Durations | Measure-Object -Maximum).Maximum, 3)
-            $comparison.WarmInterfaceCallP95Ms = [math]::Round((Get-PercentileValue -Values $warmSnapshot.Durations -Percentile 95), 3)
+            $comparison.WarmInterfaceCallP95Ms = [math]::Round((StatisticsModule\Get-PercentileValue -Values $warmSnapshot.Durations -Percentile 95), 3)
         }
     }
 
@@ -3431,7 +3013,7 @@ function Update-ComparisonSummaryFromResults {
         if ($coldSnapshot.Durations.Length -gt 0) {
             $comparison.ColdInterfaceCallAvgMs = [math]::Round(($coldSnapshot.Durations | Measure-Object -Average).Average, 3)
             $comparison.ColdInterfaceCallMaxMs = [math]::Round(($coldSnapshot.Durations | Measure-Object -Maximum).Maximum, 3)
-            $comparison.ColdInterfaceCallP95Ms = [math]::Round((Get-PercentileValue -Values $coldSnapshot.Durations -Percentile 95), 3)
+            $comparison.ColdInterfaceCallP95Ms = [math]::Round((StatisticsModule\Get-PercentileValue -Values $coldSnapshot.Durations -Percentile 95), 3)
         }
     }
 

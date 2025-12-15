@@ -1,3 +1,4 @@
+Set-StrictMode -Version Latest
 
 if (-not (Get-Variable -Name CiscoDot1xMacRegex -Scope Script -ErrorAction SilentlyContinue)) {
     $script:CiscoDot1xMacRegex = [regex]::new('^(?:[0-9A-Fa-f]{4}\.){2}[0-9A-Fa-f]{4}$')
@@ -62,42 +63,32 @@ function Get-CiscoDeviceFacts {
     function Get-Location {
         param([string[]]$Lines)
         # Delegate to the shared helper that handles vendor-specific keywords
-        return Get-SnmpLocationFromLines -Lines $Lines
+        return DeviceLogParserModule\Get-SnmpLocationFromLines -Lines $Lines
     }
 
     function Get-InterfaceConfigs {
         param([string[]]$Lines)
         $ht = @{}
-        for ($i=0; $i -lt $Lines.Count; $i++) {
-            $l = $Lines[$i]
-            if ($l -match '^interface\s+(\S+)') {
-                $fullName = $matches[1]
-                # Use a strongly typed List[string] instead of a PowerShell array.  Using
-                $block    = [System.Collections.Generic.List[string]]::new()
-                [void]$block.Add($l)
-                $desc     = ''
-                $j        = $i+1
-                while ($j -lt $Lines.Count -and $Lines[$j] -notmatch '^interface' -and $Lines[$j] -notmatch '^!') {
-                    [void]$block.Add($Lines[$j])
-                    if ($Lines[$j] -match '^\s*description\s+(.+)$') { $desc=$matches[1].Trim() }
-                    $j++
-                }
-                # Convert the typed list to a single string using Join instead of array -join
-                $cfgObj = @{ Config=[string]::Join("`r`n", $block); Description=$desc }
-                $ht[$fullName] = $cfgObj
-                if ($fullName -match '^(GigabitEthernet|FastEthernet|TenGigabitEthernet)(\S+)$') {
-                    $shortType = switch ($matches[1]) {
-                        'GigabitEthernet'    {'Gi'}
-                        'FastEthernet'       {'Fa'}
-                        'TenGigabitEthernet' {'Te'}
-                        Default              {$matches[1]}
-                    }
-                    $alias = $shortType + $matches[2]
-                    if (-not $ht.ContainsKey($alias)) { $ht[$alias]=$cfgObj }
-                }
-                $i = $j - 1
+        $blocks = DeviceParsingCommon\Get-InterfaceConfigBlocks -Lines $Lines -InterfacePattern '^interface\s+(\S+)' -StopPatterns @('^interface', '^!')
+        foreach ($block in $blocks) {
+            $fullName = $block.Name
+            $desc = ''
+            foreach ($line in $block.Lines) {
+                if ($line -match '^\s*description\s+(.+)$') { $desc = $matches[1].Trim() }
+            }
+
+            $cfgObj = @{
+                Config      = [string]::Join("`r`n", $block.Lines)
+                Description = $desc
+            }
+            $ht[$fullName] = $cfgObj
+
+            $alias = DeviceParsingCommon\ConvertTo-ShortPortName -Port $fullName
+            if ($alias -and $alias -ne $fullName -and -not $ht.ContainsKey($alias)) {
+                $ht[$alias] = $cfgObj
             }
         }
+
         return $ht
     }
 
@@ -286,9 +277,6 @@ function Get-CiscoDeviceFacts {
         return DeviceParsingCommon\Invoke-RegexTableParser -Lines $Lines -HeaderPattern '(?i)^Interface\s+MAC' -RowPattern '^(?<line>.+)$' -PropertyMap $propertyMap -PostProcess $postProcess
     }
 
-    # Parse show spanning-tree output into a collection of summary rows.  Each
-
-    #
     function Get-PortAuthTemplates {
         param([hashtable]$Configs)
 
@@ -474,30 +462,9 @@ function Get-CiscoDeviceFacts {
     # Assign the combined list to a variable with the original name for
     $combined = $combinedList
 
-    # Gather spanning tree information if the log included a 'show spanning-tree'
-    $spanLines = @()
-    if ($blocks.ContainsKey('show spanning-tree')) {
-        $spanLines = $blocks['show spanning-tree']
-    } elseif ($blocks.ContainsKey('show span')) {
-        $spanLines = $blocks['show span']
-    } else {
-        foreach ($k in $blocks.Keys) {
-            if ($k -match '^show\s+spanning-tree') {
-                $spanLines = $blocks[$k]
-                break
-            }
-        }
-        if (-not $spanLines -or $spanLines.Count -eq 0) {
-            foreach ($k in $blocks.Keys) {
-                if ($k -match '^show\s+span(\b|$)') {
-                    $spanLines = $blocks[$k]
-                    break
-                }
-            }
-        }
-    }
-    # Parse spanning tree information using the shared ConvertFrom-SpanningTree helper
-    $spanInfo = if ($spanLines.Count -gt 0) { ConvertFrom-SpanningTree -SpanLines $spanLines } else { @() }
+    # Gather spanning tree information when the log included 'show spanning-tree'.
+    $spanLines = DeviceLogParserModule\Get-ShowBlock -Blocks $blocks -Lines $Lines -PreferredKeys @('show spanning-tree','show spanning tree','show span') -RegexPatterns @('^show\s+spanning[- ]tree','^show\s+span(\b|$)') -CommandRegexes @('^[^\s]+[>#]\s*(?:do\s+)?show\s+spanning[- ]tree','^[^\s]+[>#]\s*(?:do\s+)?show\s+span(\b|$)') -DefaultValue @()
+    $spanInfo = if ($spanLines -and $spanLines.Count -gt 0) { DeviceLogParserModule\ConvertFrom-SpanningTree -SpanLines $spanLines } else { @() }
 
     return [PSCustomObject]@{
         Hostname           = $hostname
@@ -508,8 +475,10 @@ function Get-CiscoDeviceFacts {
         Location           = $location
         InterfaceCount     = $combined.Count
         AuthDefaultVLAN    = $authDefaultVLAN
-        AuthBlock          = $authBlock
+        AuthenticationBlock = if ($authBlock) { @($authBlock) } else { @() }
         InterfacesCombined = $combined
         SpanInfo           = $spanInfo
     }
 }
+
+Export-ModuleMember -Function Get-CiscoDeviceFacts

@@ -7,8 +7,7 @@ function Set-StView {
         [Parameter(Mandatory)][string]$ScriptDir,
         [string]$ViewName,
         [Parameter(Mandatory)][string]$HostControlName,
-        [string]$GlobalVariableName,
-        [switch]$PassThruHost
+        [string]$GlobalVariableName
     )
 
     if ([string]::IsNullOrWhiteSpace($ViewName)) {
@@ -51,11 +50,126 @@ function Set-StView {
         Set-Variable -Scope Global -Name $GlobalVariableName -Value $view -Force
     }
 
-    if ($PassThruHost) {
-        return [PSCustomObject]@{ View = $view; Host = $host }
-    }
-
     return $view
 }
 
-Export-ModuleMember -Function Set-StView
+function New-StDebounceTimer {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][int]$DelayMs,
+        [Parameter(Mandatory)][scriptblock]$Action
+    )
+
+    $timer = New-Object System.Windows.Threading.DispatcherTimer
+    $timer.Interval = [TimeSpan]::FromMilliseconds([Math]::Max(0, $DelayMs))
+    $timer.add_Tick({
+        param($sender, $args)
+        try { $sender.Stop() } catch { }
+        try { & $Action } catch { }
+    })
+
+    return $timer
+}
+
+function Export-StRowsToCsv {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][object]$Rows,
+        [string]$DefaultFileName = 'Export.csv',
+        [string]$DialogFilter = 'CSV files (*.csv)|*.csv|All files (*.*)|*.*',
+        [string]$EmptyMessage = 'No rows to export.',
+        [string]$SuccessNoun = 'rows',
+        [string]$SuccessTitle = 'Export Complete',
+        [string]$FailureMessagePrefix = 'Failed to export'
+    )
+
+    $rowArray = @()
+    try {
+        $rowArray = @($Rows)
+    } catch {
+        $rowArray = @()
+    }
+
+    if (-not $rowArray -or $rowArray.Count -eq 0) {
+        try { [System.Windows.MessageBox]::Show($EmptyMessage) | Out-Null } catch { }
+        return
+    }
+
+    $dlg = $null
+    try {
+        $dlg = New-Object Microsoft.Win32.SaveFileDialog
+        $dlg.Filter = $DialogFilter
+        $dlg.FileName = $DefaultFileName
+        $dlg.DefaultExt = '.csv'
+        $dlg.AddExtension = $true
+    } catch {
+        try { [System.Windows.MessageBox]::Show(("Failed to open save dialog: {0}" -f $_.Exception.Message)) | Out-Null } catch { }
+        return
+    }
+
+    $confirmed = $false
+    try { $confirmed = ($dlg.ShowDialog() -eq $true) } catch { $confirmed = $false }
+    if (-not $confirmed) { return }
+
+    $path = $dlg.FileName
+    if ([string]::IsNullOrWhiteSpace($path)) { return }
+
+    try {
+        $rowArray | Export-Csv -Path $path -NoTypeInformation
+        $msg = "Exported {0} {1} to {2}" -f $rowArray.Count, $SuccessNoun, $path
+        [System.Windows.MessageBox]::Show($msg, $SuccessTitle) | Out-Null
+    } catch {
+        $prefix = $FailureMessagePrefix
+        if ([string]::IsNullOrWhiteSpace($prefix)) { $prefix = 'Failed to export' }
+        try { [System.Windows.MessageBox]::Show(("{0}: {1}" -f $prefix, $_.Exception.Message)) | Out-Null } catch { }
+    }
+}
+
+function Export-StTextToFile {
+    [CmdletBinding()]
+    param(
+        [Parameter()][AllowEmptyString()][string]$Text,
+        [string]$DefaultFileName = 'Export.txt',
+        [string]$DialogFilter = 'Text files (*.txt)|*.txt|All files (*.*)|*.*',
+        [string]$EmptyMessage = 'Nothing to save.',
+        [string]$SuccessTitle = 'Save Complete',
+        [string]$FailureMessagePrefix = 'Failed to save'
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Text)) {
+        try { [System.Windows.MessageBox]::Show($EmptyMessage) | Out-Null } catch { }
+        return
+    }
+
+    $dlg = $null
+    try {
+        $dlg = New-Object Microsoft.Win32.SaveFileDialog
+        $dlg.Filter = $DialogFilter
+        $dlg.FileName = $DefaultFileName
+        $dlg.DefaultExt = '.txt'
+        $dlg.AddExtension = $true
+    } catch {
+        try { [System.Windows.MessageBox]::Show(("Failed to open save dialog: {0}" -f $_.Exception.Message)) | Out-Null } catch { }
+        return
+    }
+
+    $confirmed = $false
+    try { $confirmed = ($dlg.ShowDialog() -eq $true) } catch { $confirmed = $false }
+    if (-not $confirmed) { return }
+
+    $path = $dlg.FileName
+    if ([string]::IsNullOrWhiteSpace($path)) { return }
+
+    try {
+        $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+        [System.IO.File]::WriteAllText($path, ('' + $Text), $utf8NoBom)
+        $msg = "Saved to {0}" -f $path
+        [System.Windows.MessageBox]::Show($msg, $SuccessTitle) | Out-Null
+    } catch {
+        $prefix = $FailureMessagePrefix
+        if ([string]::IsNullOrWhiteSpace($prefix)) { $prefix = 'Failed to save' }
+        try { [System.Windows.MessageBox]::Show(("{0}: {1}" -f $prefix, $_.Exception.Message)) | Out-Null } catch { }
+    }
+}
+
+Export-ModuleMember -Function Set-StView, New-StDebounceTimer, Export-StRowsToCsv, Export-StTextToFile

@@ -2,12 +2,16 @@
 
 Describe "DeviceLogParserModule" {
     BeforeAll {
+        $telemetryPath = Join-Path (Split-Path $PSCommandPath) "..\\TelemetryModule.psm1"
+        Import-Module (Resolve-Path $telemetryPath) -Force
+
         $modulePath = Join-Path (Split-Path $PSCommandPath) "..\\DeviceLogParserModule.psm1"
         Import-Module (Resolve-Path $modulePath) -Force
     }
 
     AfterAll {
         Remove-Module DeviceLogParserModule -Force
+        if (Get-Module TelemetryModule) { Remove-Module TelemetryModule -Force }
     }
 
     It "parses location tokens from SNMP strings" {

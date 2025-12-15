@@ -116,6 +116,55 @@ Describe "DeviceParsingCommon Invoke-RegexTableParser" {
         }
     }
 
+    Context "Get-InterfaceConfigBlocks" {
+        It "extracts Cisco-style interface stanzas and excludes terminators" {
+            $lines = @(
+                "interface GigabitEthernet1/0/1",
+                " description Uplink",
+                " switchport mode access",
+                "!",
+                "interface GigabitEthernet1/0/2",
+                " shutdown",
+                "!",
+                "hostname ignored"
+            )
+
+            $blocks = DeviceParsingCommon\Get-InterfaceConfigBlocks -Lines $lines -InterfacePattern '^interface\s+(\S+)' -StopPatterns @('^interface', '^!')
+
+            $blocks.Count | Should Be 2
+            $blocks[0].Name | Should Be "GigabitEthernet1/0/1"
+            $blocks[0].Lines.Count | Should Be 3
+            $blocks[0].Lines[0] | Should Be "interface GigabitEthernet1/0/1"
+            $blocks[1].Name | Should Be "GigabitEthernet1/0/2"
+            $blocks[1].Lines.Count | Should Be 2
+        }
+
+        It "supports stopping on blank lines for Arista-style configs" {
+            $lines = @(
+                "interface Ethernet1/1",
+                " description Test",
+                "",
+                "service unsupported-transceiver",
+                "interface Ethernet1/2",
+                " shutdown"
+            )
+
+            $blocks = DeviceParsingCommon\Get-InterfaceConfigBlocks -Lines $lines -InterfacePattern '^\s*interface\s+(?:Et|Ethernet)(\d+(?:/\d+)*)\b' -StopPatterns @('^\s*!', '^\s*interface\s+') -StopOnBlankLine
+
+            $blocks.Count | Should Be 2
+            $blocks[0].Name | Should Be "1/1"
+            $blocks[0].Lines.Count | Should Be 2
+            $blocks[1].Name | Should Be "1/2"
+        }
+
+        It "returns an empty array (not null) when no stanzas match" {
+            $lines = @("no interfaces here")
+            $blocks = DeviceParsingCommon\Get-InterfaceConfigBlocks -Lines $lines -InterfacePattern '^interface\s+(\S+)' -StopPatterns @('^interface', '^!')
+            ($blocks -is [System.Array]) | Should Be $true
+            $blocks.Count | Should Be 0
+        }
+    }
+
     Context "Get-HostnameFromPrompt" {
         It "extracts hostname from prompts with config context" {
             $lines = @(
