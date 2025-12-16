@@ -435,6 +435,22 @@ function Invoke-StateTraceParsing {
 
     New-Directories @($logPath, $extractedPath, $archiveRoot)
 
+    $logIngestionLoaded = $false
+    try { $logIngestionLoaded = ($null -ne (Get-Module -Name 'LogIngestionModule' -ErrorAction SilentlyContinue)) } catch { $logIngestionLoaded = $false }
+    $logIngestionStub = $false
+    try {
+        $logIngestionStub = (Test-Path -Path 'Function:LogIngestionModule\Split-RawLogs' -ErrorAction SilentlyContinue) -or
+            (Test-Path -Path 'Function:LogIngestionModule\Clear-ExtractedLogs' -ErrorAction SilentlyContinue)
+    } catch { $logIngestionStub = $false }
+    if (-not $logIngestionLoaded -and -not $logIngestionStub) {
+        $logIngestionModulePath = Join-Path $modulesPath 'LogIngestionModule.psm1'
+        if (Test-Path -LiteralPath $logIngestionModulePath) {
+            Import-Module -Name $logIngestionModulePath -Force -ErrorAction Stop | Out-Null
+        } else {
+            throw "LogIngestionModule.psm1 not found at '$logIngestionModulePath'. Ensure the Modules directory is present alongside ParserWorker.psm1."
+        }
+    }
+
     LogIngestionModule\Split-RawLogs -LogPath $logPath -ExtractedPath $extractedPath
 
 
@@ -1087,6 +1103,19 @@ function Invoke-StateTraceParsing {
         $mode = if ($Synchronous) { "synchronously" } else { "in parallel" }
 
         Write-Host "Processing $($deviceFiles.Count) logs $mode..." -ForegroundColor Yellow
+
+        $runspaceModuleLoaded = $false
+        try { $runspaceModuleLoaded = ($null -ne (Get-Module -Name 'ParserRunspaceModule' -ErrorAction SilentlyContinue)) } catch { $runspaceModuleLoaded = $false }
+        $runspaceModuleStub = $false
+        try { $runspaceModuleStub = Test-Path -Path 'Function:ParserRunspaceModule\Invoke-DeviceParsingJobs' -ErrorAction SilentlyContinue } catch { $runspaceModuleStub = $false }
+        if (-not $runspaceModuleLoaded -and -not $runspaceModuleStub) {
+            $runspaceModulePath = Join-Path $modulesPath 'ParserRunspaceModule.psm1'
+            if (Test-Path -LiteralPath $runspaceModulePath) {
+                Import-Module -Name $runspaceModulePath -Force -ErrorAction Stop | Out-Null
+            } else {
+                throw "ParserRunspaceModule.psm1 not found at '$runspaceModulePath'. Ensure the Modules directory is present alongside ParserWorker.psm1."
+            }
+        }
 
         ParserRunspaceModule\Invoke-DeviceParsingJobs @jobsParams
 
