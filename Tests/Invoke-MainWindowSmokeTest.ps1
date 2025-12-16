@@ -47,42 +47,51 @@ try {
     [void]$errors.Add($msg)
 }
 
+$modulesDir = Join-Path $repoRoot 'Modules'
+$moduleLoaderPath = Join-Path $modulesDir 'ModuleLoaderModule.psm1'
+$moduleLoaderAvailable = $false
+$modulesToImport = @()
+if (-not (Test-Path -LiteralPath $moduleLoaderPath)) {
+    $msg = 'Module loader missing at {0}' -f $moduleLoaderPath
+    Add-Log $msg
+    [void]$errors.Add($msg)
+} else {
+    try {
+        Import-Module -Name $moduleLoaderPath -Force -ErrorAction Stop | Out-Null
+        $moduleLoaderAvailable = $true
+        Add-Log 'Loaded module loader.'
+    } catch {
+        $msg = 'Failed to load module loader: {0}' -f $_.Exception.Message
+        Add-Log $msg
+        [void]$errors.Add($msg)
+        $moduleLoaderAvailable = $false
+    }
+}
+
 $manifestPath = Join-Path $repoRoot 'Modules\ModulesManifest.psd1'
 if (-not (Test-Path -LiteralPath $manifestPath)) {
     $msg = 'Module manifest missing at {0}' -f $manifestPath
     Add-Log $msg
     [void]$errors.Add($msg)
-    $manifest = $null
 } else {
     try {
-        if (Get-Command -Name Import-PowerShellDataFile -ErrorAction SilentlyContinue) {
-            $manifest = Import-PowerShellDataFile -Path $manifestPath
+        if ($moduleLoaderAvailable) {
+            $modulesToImport = ModuleLoaderModule\Get-StateTraceModulesFromManifest -ManifestPath $manifestPath
+            Add-Log 'Loaded module manifest.'
         } else {
-            $manifest = . $manifestPath
+            $modulesToImport = @()
+            $msg = 'Module manifest load skipped because module loader is unavailable.'
+            Add-Log $msg
+            [void]$errors.Add($msg)
         }
-        Add-Log 'Loaded module manifest.'
     } catch {
         $msg = 'Failed to load module manifest: {0}' -f $_.Exception.Message
         Add-Log $msg
         [void]$errors.Add($msg)
-        $manifest = $null
+        $modulesToImport = @()
     }
 }
 
-$modulesToImport = @()
-if ($manifest) {
-    if ($manifest.ModulesToImport) {
-        $modulesToImport = @($manifest.ModulesToImport)
-    } elseif ($manifest.Modules) {
-        $modulesToImport = @($manifest.Modules)
-    } else {
-        $msg = 'Module manifest does not define ModulesToImport or Modules.'
-        Add-Log $msg
-        [void]$errors.Add($msg)
-    }
-}
-
-$modulesDir = Join-Path $repoRoot 'Modules'
 $importedModules = [System.Collections.Generic.List[string]]::new()
 
 foreach ($moduleName in $modulesToImport) {

@@ -713,20 +713,12 @@ if (-not (Test-Path -LiteralPath $manifestPath)) {
     throw "Module manifest not found at $manifestPath"
 }
 
-if (Get-Command -Name Import-PowerShellDataFile -ErrorAction SilentlyContinue) {
-    $manifest = Import-PowerShellDataFile -Path $manifestPath
-} else {
-    $manifest = . $manifestPath
+$moduleLoaderPath = Join-Path -Path $modulesPath -ChildPath 'ModuleLoaderModule.psm1'
+if (-not (Test-Path -LiteralPath $moduleLoaderPath)) {
+    throw "Module loader not found at $moduleLoaderPath"
 }
-
-$modulesToImport = @()
-if ($manifest -is [hashtable] -and $manifest.ContainsKey('ModulesToImport') -and $manifest['ModulesToImport']) {
-    $modulesToImport = $manifest['ModulesToImport']
-} elseif ($manifest -is [hashtable] -and $manifest.ContainsKey('Modules') -and $manifest['Modules']) {
-    $modulesToImport = $manifest['Modules']
-} else {
-    throw 'No modules defined in ModulesManifest.psd1.'
-}
+Import-Module -Name $moduleLoaderPath -Force -ErrorAction Stop | Out-Null
+$modulesToImport = ModuleLoaderModule\Get-StateTraceModulesFromManifest -ManifestPath $manifestPath
 
 foreach ($moduleEntry in $modulesToImport) {
     if ([string]::IsNullOrWhiteSpace($moduleEntry)) { continue }

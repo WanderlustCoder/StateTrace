@@ -23,33 +23,12 @@ if (-not [System.Windows.Application]::Current) {
     $script:harnessApp.ShutdownMode = [System.Windows.ShutdownMode]::OnExplicitShutdown
 }
 
-$manifestPath = Join-Path $modulesDir 'ModulesManifest.psd1'
-if (-not (Test-Path -LiteralPath $manifestPath)) {
-    throw "Module manifest not found at $manifestPath"
+$moduleLoaderPath = Join-Path $modulesDir 'ModuleLoaderModule.psm1'
+if (-not (Test-Path -LiteralPath $moduleLoaderPath)) {
+    throw "Module loader not found at $moduleLoaderPath"
 }
-
-if (Get-Command -Name Import-PowerShellDataFile -ErrorAction SilentlyContinue) {
-    $manifest = Import-PowerShellDataFile -Path $manifestPath
-} else {
-    $manifest = . $manifestPath
-}
-
-$moduleList = @()
-if ($manifest -and ($manifest -is [System.Collections.IDictionary]) -and $manifest.Contains('ModulesToImport')) {
-    $moduleList = @($manifest['ModulesToImport'])
-} elseif ($manifest -and ($manifest -is [System.Collections.IDictionary]) -and $manifest.Contains('Modules')) {
-    $moduleList = @($manifest['Modules'])
-} else {
-    throw "ModulesManifest.psd1 does not define ModulesToImport or Modules entries."
-}
-
-foreach ($moduleName in $moduleList) {
-    $modulePath = Join-Path $modulesDir $moduleName
-    if (-not (Test-Path -LiteralPath $modulePath)) {
-        throw "Module '$moduleName' missing at $modulePath"
-    }
-    Import-Module -Name $modulePath -Global -Force -ErrorAction Stop
-}
+Import-Module -Name $moduleLoaderPath -Force -ErrorAction Stop | Out-Null
+ModuleLoaderModule\Import-StateTraceModulesFromManifest -RepositoryRoot $repoRoot -Force | Out-Null
 
 $windowXaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"

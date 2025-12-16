@@ -206,23 +206,19 @@ function Invoke-SourceIntegrityPhase {
 
     Write-PhaseLog -Logger $logger -Message 'Loading module manifest.'
     try {
-        if (Get-Command Import-PowerShellDataFile -ErrorAction SilentlyContinue) {
-            $Context.Manifest = Import-PowerShellDataFile -Path $manifestPath
-        } else {
-            $Context.Manifest = . $manifestPath
+        $moduleLoaderPath = Join-Path $Context.RepositoryRoot 'Modules\\ModuleLoaderModule.psm1'
+        if (-not (Test-Path -LiteralPath $moduleLoaderPath)) {
+            throw "Module loader missing at $moduleLoaderPath"
         }
+
+        Import-Module -Name $moduleLoaderPath -Force -ErrorAction Stop | Out-Null
+        $modules = ModuleLoaderModule\Get-StateTraceModulesFromManifest -ManifestPath $manifestPath
         $phaseResults.Add((New-DiagnosticResult -Phase $phaseName -Check 'ModulesManifest' -Status 'Pass' -Evidence 'Manifest parsed successfully.' -Remediation $null -NextSteps $null))
     } catch {
         $phaseResults.Add((New-DiagnosticResult -Phase $phaseName -Check 'ModulesManifest' -Status 'Fail' -Evidence $_.Exception.Message -Remediation 'Fix syntax errors in ModulesManifest.psd1.' -NextSteps $null))
         return $phaseResults
     }
 
-    $modules = @()
-    if ($Context.Manifest.ModulesToImport) {
-        $modules = @($Context.Manifest.ModulesToImport)
-    } elseif ($Context.Manifest.Modules) {
-        $modules = @($Context.Manifest.Modules)
-    }
     $Context.ManifestModules = $modules
 
     if (-not $modules -or $modules.Count -eq 0) {

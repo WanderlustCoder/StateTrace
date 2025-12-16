@@ -230,77 +230,22 @@ namespace StateTrace.Threading
 
 if ($null -eq $Global:StateTraceDebug) { $Global:StateTraceDebug = $false }
 
-$manifestPath = Join-Path $scriptDir '..\Modules\ModulesManifest.psd1'
-
+$repoRoot = $null
 try {
-    if (-not (Test-Path $manifestPath)) {
-        throw "Module manifest not found at ${manifestPath}"
-    }
-
-    $manifest = $null
-    try {
-        if (Get-Command Import-PowerShellDataFile -ErrorAction SilentlyContinue) {
-            $manifest = Import-PowerShellDataFile -Path $manifestPath
-        } else {
-            $manifest = . $manifestPath
-        }
-    } catch {
-        Write-Warning ("Failed to parse manifest with Import-PowerShellDataFile: {0}" -f $_.Exception.Message)
-        try { $manifest = . $manifestPath } catch { $manifest = $null }
-    }
-
-    $modulesToImport = @()
-    if ($manifest -and $manifest.ModulesToImport) {
-        $modulesToImport = $manifest.ModulesToImport
-    } elseif ($manifest -and $manifest.Modules) {
-        $modulesToImport = $manifest.Modules
-    } else {
-        Write-Warning "No ModulesToImport/Modules defined in manifest; falling back to default list."
-        $modulesToImport = @(
-            'ThemeModule.psm1',
-            'TelemetryModule.psm1',
-            'LogIngestionModule.psm1',
-            'ParserPersistenceModule.psm1',
-            'ParserRunspaceModule.psm1',
-            'DeviceLogParserModule.psm1',
-            'ParserWorker.psm1',
-            'DatabaseModule.psm1',
-            'DeviceRepositoryModule.psm1',
-            'DeviceCatalogModule.psm1',
-            'FilterStateModule.psm1',
-            'DeviceDetailsModule.psm1',
-            'DeviceInsightsModule.psm1',
-            'DeviceParsingCommon.psm1',
-            'AristaModule.psm1',
-            'BrocadeModule.psm1',
-            'CiscoModule.psm1',
-            'ViewCompositionModule.psm1',
-            'ViewStateService.psm1',
-            'InterfaceModule.psm1',
-            'SpanViewModule.psm1',
-            'SearchInterfacesViewModule.psm1',
-            'SummaryViewModule.psm1',
-            'TemplatesViewModule.psm1',
-            'AlertsViewModule.psm1',
-            'CompareViewModule.psm1',
-            'TemplatesModule.psm1'
-        )
-    }
-
-    # Import each module listed in the manifest
-    foreach ($mod in $modulesToImport) {
-        $modulePath = Join-Path $scriptDir "..\Modules\$mod"
-        $moduleName = [System.IO.Path]::GetFileNameWithoutExtension($mod)
-        Write-Host "Loading module: $mod"
-        try {
-            Import-Module -Name $modulePath -Force -ErrorAction Stop
-        } catch {
-            Write-Warning ("Failed to import module {0} from {1}: {2}" -f $moduleName, $modulePath, $_.Exception.Message)
-            throw
-        }
-    }
+    $repoRoot = (Resolve-Path (Join-Path $scriptDir '..')).Path
+} catch {
+    $repoRoot = (Split-Path -Parent $scriptDir)
 }
-catch {
+
+$moduleLoaderPath = Join-Path $repoRoot 'Modules\ModuleLoaderModule.psm1'
+try {
+    if (-not (Test-Path -LiteralPath $moduleLoaderPath)) {
+        throw "Module loader not found at ${moduleLoaderPath}"
+    }
+
+    Import-Module -Name $moduleLoaderPath -Force -ErrorAction Stop | Out-Null
+    ModuleLoaderModule\Import-StateTraceModulesFromManifest -RepositoryRoot $repoRoot -Force | Out-Null
+} catch {
     Write-Error "Failed to load modules from manifest: $($_.Exception.Message)"
     return
 }
@@ -1307,26 +1252,13 @@ function Start-ParserBackgroundJob {
                 & $pipeline @pipelineParams -ErrorAction Stop *>&1 |
                     Tee-Object -FilePath $LogPath -Append
             } else {
-                $manifestPath = Join-Path $RepoRoot 'Modules\ModulesManifest.psd1'
-                if (Test-Path -LiteralPath $manifestPath) {
+                $moduleLoaderPath = Join-Path $RepoRoot 'Modules\ModuleLoaderModule.psm1'
+                if (Test-Path -LiteralPath $moduleLoaderPath) {
                     try {
-                        $manifest = Import-PowerShellDataFile -Path $manifestPath -ErrorAction Stop
-                        $modulesToImport = @()
-                        if ($manifest -is [hashtable] -and $manifest.ContainsKey('ModulesToImport') -and $manifest['ModulesToImport']) {
-                            $modulesToImport = $manifest['ModulesToImport']
-                        } elseif ($manifest -is [hashtable] -and $manifest.ContainsKey('Modules') -and $manifest['Modules']) {
-                            $modulesToImport = $manifest['Modules']
-                        }
-                        $modulesRoot = Join-Path $RepoRoot 'Modules'
-                        foreach ($moduleEntry in $modulesToImport) {
-                            if ([string]::IsNullOrWhiteSpace($moduleEntry)) { continue }
-                            if ([System.StringComparer]::OrdinalIgnoreCase.Equals($moduleEntry.Trim(), 'ParserWorker.psm1')) { continue }
-                            $candidatePath = Join-Path -Path $modulesRoot -ChildPath $moduleEntry
-                            if (-not (Test-Path -LiteralPath $candidatePath)) { continue }
-                            Import-Module -Name $candidatePath -Force -ErrorAction Stop | Out-Null
-                        }
+                        Import-Module -Name $moduleLoaderPath -Force -ErrorAction Stop | Out-Null
+                        ModuleLoaderModule\Import-StateTraceModulesFromManifest -RepositoryRoot $RepoRoot -Exclude @('ParserWorker.psm1') -Force | Out-Null
                     } catch {
-                        $msg = "Failed to import module manifest at {0}: {1}" -f $manifestPath, $_.Exception.Message
+                        $msg = "Failed to import module manifest modules: {0}" -f $_.Exception.Message
                         try { Add-Content -LiteralPath $LogPath -Value $msg } catch { }
                         try { Write-Warning $msg } catch { }
 
@@ -1337,7 +1269,7 @@ function Start-ParserBackgroundJob {
                         foreach ($fallbackModulePath in $fallbackModules) {
                             if (-not (Test-Path -LiteralPath $fallbackModulePath)) { continue }
                             try {
-                                Import-Module -Name $fallbackModulePath -Force -ErrorAction Stop | Out-Null
+                                Import-Module -Name $fallbackModulePath -Force -Global -ErrorAction Stop | Out-Null
                             } catch {
                                 $fallbackMsg = "Failed to import fallback module at {0}: {1}" -f $fallbackModulePath, $_.Exception.Message
                                 try { Add-Content -LiteralPath $LogPath -Value $fallbackMsg } catch { }

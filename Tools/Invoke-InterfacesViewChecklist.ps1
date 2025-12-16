@@ -40,33 +40,12 @@ $SiteFilter = if ($SiteFilter -and $SiteFilter.Count -eq 1) {
 
 $repoRoot = (Resolve-Path -LiteralPath $RepositoryRoot).Path
 $modulesDir = Join-Path $repoRoot 'Modules'
-$manifestPath = Join-Path $modulesDir 'ModulesManifest.psd1'
-if (-not (Test-Path -LiteralPath $manifestPath)) {
-    throw "Module manifest not found at '$manifestPath'."
+$moduleLoaderPath = Join-Path $modulesDir 'ModuleLoaderModule.psm1'
+if (-not (Test-Path -LiteralPath $moduleLoaderPath)) {
+    throw "Module loader not found at '$moduleLoaderPath'."
 }
-
-if (Get-Command -Name Import-PowerShellDataFile -ErrorAction SilentlyContinue) {
-    $manifest = Import-PowerShellDataFile -Path $manifestPath
-} else {
-    $manifest = . $manifestPath
-}
-
-$moduleList = @()
-if ($manifest -and ($manifest -is [System.Collections.IDictionary]) -and $manifest.Contains('ModulesToImport')) {
-    $moduleList = @($manifest['ModulesToImport'])
-} elseif ($manifest -and ($manifest -is [System.Collections.IDictionary]) -and $manifest.Contains('Modules')) {
-    $moduleList = @($manifest['Modules'])
-} else {
-    throw "ModulesManifest.psd1 does not define ModulesToImport/Modules entries."
-}
-
-foreach ($moduleName in $moduleList) {
-    $modulePath = Join-Path $modulesDir $moduleName
-    if (-not (Test-Path -LiteralPath $modulePath)) {
-        throw "Module '$moduleName' missing at '$modulePath'."
-    }
-    Import-Module -Name $modulePath -Global -ErrorAction Stop
-}
+Import-Module -Name $moduleLoaderPath -Force -ErrorAction Stop | Out-Null
+ModuleLoaderModule\Import-StateTraceModulesFromManifest -RepositoryRoot $repoRoot | Out-Null
 
 Add-Type -AssemblyName PresentationFramework -ErrorAction Stop
 
