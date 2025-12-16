@@ -76,6 +76,11 @@ function Show-PortReorgWindow {
     $statusText = $win.FindName('ReorgStatusText')
     $chunkBy12 = $win.FindName('ReorgChunkBy12CheckBox')
     $chunkSizeBox = $win.FindName('ReorgChunkSizeBox')
+    $pagedViewCheckBox = $win.FindName('ReorgPagedViewCheckBox')
+    $pagePrevButton = $win.FindName('ReorgPagePrevButton')
+    $pageComboBox = $win.FindName('ReorgPageComboBox')
+    $pageNextButton = $win.FindName('ReorgPageNextButton')
+    $pageInfoText = $win.FindName('ReorgPageInfoText')
 
     $parkingList = $win.FindName('ReorgParkingList')
     $grid = $win.FindName('ReorgGrid')
@@ -187,6 +192,213 @@ function Show-PortReorgWindow {
 
     $availablePorts = @($rows | ForEach-Object { $_.TargetPort })
 
+    $pagingIsAvailable = $false
+    try {
+        $pagingIsAvailable = ($null -ne $pagedViewCheckBox -and $null -ne $pagePrevButton -and $null -ne $pageComboBox -and $null -ne $pageNextButton -and $null -ne $pageInfoText)
+    } catch {
+        $pagingIsAvailable = $false
+    }
+
+    $orderedRows = @()
+    try {
+        $orderedRows = @($rows.ToArray() | Sort-Object TargetPortSort, TargetPort)
+    } catch {
+        try { $orderedRows = @($rows.ToArray()) } catch { $orderedRows = @() }
+    }
+
+    $visibleRows = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+    $pageChoices = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
+
+    $pagingState = [pscustomobject]@{
+        Enabled           = $false
+        PageSize          = 12
+        PageNumber        = 1
+        PageCount         = 1
+        SuppressPageEvent = $false
+    }
+
+    if ($pagingIsAvailable) {
+        try { $pageComboBox.ItemsSource = $pageChoices } catch { }
+        try { $pageComboBox.DisplayMemberPath = 'Label' } catch { }
+        try { $pageComboBox.SelectedValuePath = 'Page' } catch { }
+    }
+
+    $setPagingControlsVisible = {
+        param([bool]$Enabled)
+        if (-not $pagingIsAvailable) { return }
+
+        $vis = if ($Enabled) { [System.Windows.Visibility]::Visible } else { [System.Windows.Visibility]::Collapsed }
+        foreach ($ctrl in @($pagePrevButton, $pageComboBox, $pageNextButton, $pageInfoText)) {
+            if ($ctrl) {
+                try { $ctrl.Visibility = $vis } catch { }
+            }
+        }
+    }.GetNewClosure()
+
+    $rebuildPageChoices = {
+        if (-not $pagingIsAvailable) { return }
+
+        $total = $orderedRows.Count
+        $pageSize = [int]$pagingState.PageSize
+        if ($pageSize -lt 1) {
+            $pageSize = 12
+            $pagingState.PageSize = 12
+        }
+
+        $pageCount = 1
+        if ($total -gt 0) {
+            $pageCount = [int][Math]::Ceiling($total / [double]$pageSize)
+        }
+        if ($pageCount -lt 1) { $pageCount = 1 }
+        $pagingState.PageCount = $pageCount
+
+        try { $pageChoices.Clear() } catch { }
+        for ($page = 1; $page -le $pageCount; $page++) {
+            $startIndex = ($page - 1) * $pageSize
+            $endIndex = [Math]::Min($total - 1, $startIndex + $pageSize - 1)
+
+            $startPort = ''
+            $endPort = ''
+            try {
+                if ($total -gt 0 -and $startIndex -ge 0 -and $startIndex -lt $total) {
+                    $startPort = ('' + $orderedRows[$startIndex].TargetPort).Trim()
+                }
+                if ($total -gt 0 -and $endIndex -ge 0 -and $endIndex -lt $total) {
+                    $endPort = ('' + $orderedRows[$endIndex].TargetPort).Trim()
+                }
+            } catch { }
+
+            $label = if (-not [string]::IsNullOrWhiteSpace($startPort) -and -not [string]::IsNullOrWhiteSpace($endPort)) {
+                ("{0}: {1} - {2}" -f $page, $startPort, $endPort)
+            } else {
+                ("Page {0}" -f $page)
+            }
+
+            try {
+                $pageChoices.Add([pscustomobject]@{
+                    Page       = $page
+                    StartIndex = $startIndex
+                    EndIndex   = $endIndex
+                    Label      = $label
+                }) | Out-Null
+            } catch { }
+        }
+
+        if ($pagingState.PageNumber -lt 1) { $pagingState.PageNumber = 1 }
+        if ($pagingState.PageNumber -gt $pageCount) { $pagingState.PageNumber = $pageCount }
+    }.GetNewClosure()
+
+    $getPageForRow = {
+        param($Row)
+
+        if (-not $Row) { return 1 }
+        $target = ''
+        try { $target = ('' + $Row.TargetPort).Trim() } catch { $target = '' }
+        if ([string]::IsNullOrWhiteSpace($target)) { return 1 }
+
+        $total = $orderedRows.Count
+        for ($i = 0; $i -lt $total; $i++) {
+            $rowTarget = ''
+            try { $rowTarget = ('' + $orderedRows[$i].TargetPort).Trim() } catch { $rowTarget = '' }
+            if ($rowTarget.Equals($target, [System.StringComparison]::OrdinalIgnoreCase)) {
+                return ([int][Math]::Floor($i / [double]$pagingState.PageSize) + 1)
+            }
+        }
+
+        return 1
+    }.GetNewClosure()
+
+    $updateVisibleRowsForCurrentPage = {
+        if (-not ($pagingState.Enabled -eq $true)) { return }
+
+        $total = $orderedRows.Count
+        $pageSize = [int]$pagingState.PageSize
+        $pageCount = [int]$pagingState.PageCount
+        $pageNumber = [int]$pagingState.PageNumber
+
+        if ($pageCount -lt 1) { $pageCount = 1; $pagingState.PageCount = 1 }
+        if ($pageNumber -lt 1) { $pageNumber = 1 }
+        if ($pageNumber -gt $pageCount) { $pageNumber = $pageCount }
+        $pagingState.PageNumber = $pageNumber
+
+        try { $visibleRows.Clear() } catch { }
+        if ($total -le 0) { return }
+
+        $startIndex = ($pageNumber - 1) * $pageSize
+        if ($startIndex -lt 0) { $startIndex = 0 }
+        if ($startIndex -ge $total) { $startIndex = [Math]::Max(0, $total - 1) }
+        $endIndex = [Math]::Min($total - 1, $startIndex + $pageSize - 1)
+
+        for ($i = $startIndex; $i -le $endIndex; $i++) {
+            try { $visibleRows.Add($orderedRows[$i]) | Out-Null } catch { }
+        }
+    }.GetNewClosure()
+
+    $updatePagingControls = {
+        if (-not $pagingIsAvailable) { return }
+        if (-not ($pagingState.Enabled -eq $true)) { return }
+
+        $pageCount = [int]$pagingState.PageCount
+        $pageNumber = [int]$pagingState.PageNumber
+        $pageSize = [int]$pagingState.PageSize
+        $total = $orderedRows.Count
+
+        $startIndex = ($pageNumber - 1) * $pageSize
+        $endIndex = [Math]::Min($total - 1, $startIndex + $pageSize - 1)
+
+        $startPort = ''
+        $endPort = ''
+        try {
+            if ($total -gt 0 -and $startIndex -ge 0 -and $startIndex -lt $total) {
+                $startPort = ('' + $orderedRows[$startIndex].TargetPort).Trim()
+            }
+            if ($total -gt 0 -and $endIndex -ge 0 -and $endIndex -lt $total) {
+                $endPort = ('' + $orderedRows[$endIndex].TargetPort).Trim()
+            }
+        } catch { }
+
+        $range = if (-not [string]::IsNullOrWhiteSpace($startPort) -and -not [string]::IsNullOrWhiteSpace($endPort)) {
+            ("{0} - {1}" -f $startPort, $endPort)
+        } else {
+            'No ports'
+        }
+
+        try { if ($pageInfoText) { $pageInfoText.Text = ("Page {0}/{1} ({2})" -f $pageNumber, $pageCount, $range) } } catch { }
+        try { if ($pagePrevButton) { $pagePrevButton.IsEnabled = ($pageNumber -gt 1) } } catch { }
+        try { if ($pageNextButton) { $pageNextButton.IsEnabled = ($pageNumber -lt $pageCount) } } catch { }
+        try { if ($pageComboBox) { $pageComboBox.IsEnabled = ($pageCount -gt 1) } } catch { }
+
+        if ($pageComboBox) {
+            try {
+                $pagingState.SuppressPageEvent = $true
+                $pageComboBox.SelectedValue = $pageNumber
+            } catch { } finally {
+                $pagingState.SuppressPageEvent = $false
+            }
+        }
+    }.GetNewClosure()
+
+    if ($pagingIsAvailable) {
+        if (-not (Get-Variable -Name StateTracePortReorgPagingEnabled -Scope Global -ErrorAction SilentlyContinue)) {
+            $global:StateTracePortReorgPagingEnabled = $false
+        }
+
+        $initialPagingEnabled = $false
+        try { $initialPagingEnabled = [bool]$global:StateTracePortReorgPagingEnabled } catch { $initialPagingEnabled = $false }
+        if ($pagedViewCheckBox) {
+            try { $pagedViewCheckBox.IsChecked = $initialPagingEnabled } catch { }
+        }
+
+        $pagingState.Enabled = ($initialPagingEnabled -eq $true)
+
+        try { & $rebuildPageChoices } catch { }
+        try { & $setPagingControlsVisible -Enabled ($pagingState.Enabled -eq $true) } catch { }
+        if ($pagingState.Enabled -eq $true) {
+            try { & $updateVisibleRowsForCurrentPage } catch { }
+            try { & $updatePagingControls } catch { }
+        }
+    }
+
     $getRowByTargetPort = {
         param([string]$TargetPort)
         $t = ('' + $TargetPort).Trim()
@@ -287,8 +499,14 @@ function Show-PortReorgWindow {
             $selectedItem = $null
             try { $selectedItem = $grid.SelectedItem } catch { $selectedItem = $null }
 
+            $itemsSource = $rows
+            if ($pagingIsAvailable -and ($pagingState.Enabled -eq $true)) {
+                try { & $updateVisibleRowsForCurrentPage } catch { }
+                $itemsSource = $visibleRows
+            }
+
             $grid.ItemsSource = $null
-            $grid.ItemsSource = $rows
+            $grid.ItemsSource = $itemsSource
 
             $gridView = $null
             try {
@@ -313,6 +531,7 @@ function Show-PortReorgWindow {
         try { $grid.Items.Refresh() } catch { }
         try { $grid.UpdateLayout() } catch { }
         try { & $updateScriptControls } catch { }
+        try { & $updatePagingControls } catch { }
     }.GetNewClosure()
 
     $setStatus = {
@@ -325,6 +544,31 @@ function Show-PortReorgWindow {
                 $statusText.Foreground = $win.Resources[$ColorKey]
             }
         } catch { }
+    }.GetNewClosure()
+
+    $setPagingEnabled = {
+        param([bool]$Enabled)
+
+        if (-not $pagingIsAvailable) { return }
+
+        $selectedRow = $null
+        try { if ($grid) { $selectedRow = $grid.SelectedItem } } catch { $selectedRow = $null }
+
+        $pagingState.Enabled = ($Enabled -eq $true)
+        try { $global:StateTracePortReorgPagingEnabled = ($pagingState.Enabled -eq $true) } catch { }
+
+        try { & $rebuildPageChoices } catch { }
+        try { & $setPagingControlsVisible -Enabled ($pagingState.Enabled -eq $true) } catch { }
+
+        if ($pagingState.Enabled -eq $true) {
+            if ($selectedRow) {
+                try { $pagingState.PageNumber = & $getPageForRow $selectedRow } catch { $pagingState.PageNumber = 1 }
+            }
+            try { & $updateVisibleRowsForCurrentPage } catch { }
+        }
+
+        try { & $refreshGrid } catch { }
+        try { & $updatePagingControls } catch { }
     }.GetNewClosure()
 
     if ($grid) {
@@ -998,6 +1242,66 @@ function Show-PortReorgWindow {
     if ($generateBtn) { $generateBtn.Add_Click($generateAction.GetNewClosure()) }
     if ($chunkBy12) { $chunkBy12.Add_Click({ try { & $markScriptsDirty } catch { } }.GetNewClosure()) }
     if ($chunkSizeBox) { $chunkSizeBox.Add_TextChanged({ try { & $markScriptsDirty } catch { } }.GetNewClosure()) }
+
+    if ($pagedViewCheckBox) {
+        $pagedViewCheckBox.Add_Click({
+            try {
+                $enabled = ($pagedViewCheckBox.IsChecked -eq $true)
+                & $setPagingEnabled $enabled
+            } catch { }
+        }.GetNewClosure())
+    }
+
+    if ($pagePrevButton) {
+        $pagePrevButton.Add_Click({
+            try {
+                if (-not ($pagingState.Enabled -eq $true)) { return }
+                $page = 1
+                try { $page = [int]$pagingState.PageNumber } catch { $page = 1 }
+                $page--
+                if ($page -lt 1) { $page = 1 }
+                $pagingState.PageNumber = $page
+                & $refreshGrid
+            } catch { }
+        }.GetNewClosure())
+    }
+
+    if ($pageNextButton) {
+        $pageNextButton.Add_Click({
+            try {
+                if (-not ($pagingState.Enabled -eq $true)) { return }
+                $page = 1
+                $maxPage = 1
+                try { $page = [int]$pagingState.PageNumber } catch { $page = 1 }
+                try { $maxPage = [int]$pagingState.PageCount } catch { $maxPage = 1 }
+                $page++
+                if ($page -gt $maxPage) { $page = $maxPage }
+                if ($page -lt 1) { $page = 1 }
+                $pagingState.PageNumber = $page
+                & $refreshGrid
+            } catch { }
+        }.GetNewClosure())
+    }
+
+    if ($pageComboBox) {
+        $pageComboBox.Add_SelectionChanged({
+            param($sender, $e)
+            try {
+                if (-not ($pagingState.Enabled -eq $true)) { return }
+                if ($pagingState.SuppressPageEvent -eq $true) { return }
+
+                $page = 0
+                try { $page = [int]$sender.SelectedValue } catch { $page = 0 }
+                if ($page -lt 1) {
+                    try { $page = [int]$sender.SelectedIndex + 1 } catch { $page = 1 }
+                }
+                if ($page -lt 1) { $page = 1 }
+
+                $pagingState.PageNumber = $page
+                & $refreshGrid
+            } catch { }
+        }.GetNewClosure())
+    }
 
     if ($copyChangeBtn) {
         $copyChangeBtn.Add_Click({

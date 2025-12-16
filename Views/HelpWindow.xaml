@@ -160,7 +160,9 @@
             <LineBreak/>
             <Run Text="- Drag labels between ports to swap/move assignments."/>
             <LineBreak/>
-            <Run Text="- Drag a label into Parking to unassign it (useful for “clear this port” workflows)."/>
+            <Run Text="- Drag a label into Parking to unassign it (useful for &quot;clear this port&quot; workflows)."/>
+            <LineBreak/>
+            <Run Text="- Optional: enable Paged view (12 ports) to work in 12-port blocks; use Parking for cross-page moves."/>
             <LineBreak/>
             <Run Text="- Edit target ports/labels directly if needed, then click Generate Scripts."/>
             <LineBreak/>
@@ -170,7 +172,7 @@
             <LineBreak/>
             <Run Text="- Cisco scripts reset the destination interface using default interface before applying the moved profile."/>
             <LineBreak/>
-            <Run Text="- Brocade scripts use best-effort “no &lt;cmd&gt;” resets (no default interface support) so stale profile commands do not linger."/>
+            <Run Text="- Brocade scripts use best-effort &quot;no &lt;cmd&gt;&quot; resets (no default interface support) so stale profile commands do not linger."/>
           </TextBlock>
         </ScrollViewer>
       </TabItem>

@@ -26,7 +26,8 @@
                 Content="Chunk by 12 ports"
                 IsChecked="True"
                 Margin="0,0,18,0"
-                VerticalAlignment="Center"/>
+                VerticalAlignment="Center"
+                ToolTip="When enabled, generated scripts are grouped into numbered blocks of N ports for easier review."/>
 
       <TextBlock Text="Chunk size:" Margin="0,0,6,0" VerticalAlignment="Center"/>
       <TextBox Name="ReorgChunkSizeBox"
@@ -37,6 +38,35 @@
                Foreground="{DynamicResource Theme.Input.Text}"
                BorderBrush="{DynamicResource Theme.Input.Border}"
                BorderThickness="1"/>
+
+      <CheckBox Name="ReorgPagedViewCheckBox"
+                Content="Paged view (12 ports)"
+                IsChecked="False"
+                Margin="0,0,10,0"
+                VerticalAlignment="Center"
+                ToolTip="When enabled, ports are shown in 12-port pages. Use Parking to move profiles between pages."/>
+
+      <Button Name="ReorgPagePrevButton"
+              Content="Prev"
+              Width="55"
+              Margin="0,0,5,0"
+              VerticalAlignment="Center"
+              Style="{DynamicResource SecondaryButtonStyle}"/>
+
+      <ComboBox Name="ReorgPageComboBox"
+                Width="200"
+                Margin="0,0,5,0"
+                VerticalAlignment="Center"
+                Style="{DynamicResource ToolbarComboBoxStyle}"/>
+
+      <Button Name="ReorgPageNextButton"
+              Content="Next"
+              Width="55"
+              Margin="0,0,18,0"
+              VerticalAlignment="Center"
+              Style="{DynamicResource SecondaryButtonStyle}"/>
+
+      <TextBlock Name="ReorgPageInfoText" Margin="0,0,18,0" VerticalAlignment="Center"/>
 
       <TextBlock Name="ReorgStatusText" VerticalAlignment="Center" Foreground="{DynamicResource Theme.Status.Warning}"/>
     </StackPanel>
@@ -50,7 +80,7 @@
                 HorizontalContentAlignment="Stretch"
                 ScrollViewer.VerticalScrollBarVisibility="Auto"
                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                ToolTip="Drag labels here to park/unassign them. Drag parked labels onto ports to assign.">
+                ToolTip="Drag labels here to park/unassign them (also useful for cross-page moves). Drag parked labels onto ports to assign.">
        <ListBox.ItemTemplate>
           <DataTemplate>
              <Border Padding="6,2"
@@ -100,10 +130,10 @@
                AllowDrop="True"
                CanUserSortColumns="False"
                CanUserReorderColumns="False"
-               SelectionMode="Extended"
-               SelectionUnit="FullRow"
-               ToolTip="Drag a label block onto another port to move it; the displaced label goes to Parking. Hold Shift to swap FromPort + label."
-               Style="{DynamicResource PrimaryDataGridStyle}"
+                SelectionMode="Extended"
+                SelectionUnit="FullRow"
+                ToolTip="Drag a label block onto another port to move it; the displaced label goes to Parking. Hold Shift to swap FromPort + label. When paging is enabled, use Parking for cross-page moves."
+                Style="{DynamicResource PrimaryDataGridStyle}"
                ScrollViewer.VerticalScrollBarVisibility="Auto"
                ScrollViewer.HorizontalScrollBarVisibility="Auto"
               VirtualizingPanel.IsVirtualizing="True"

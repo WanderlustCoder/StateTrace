@@ -212,7 +212,7 @@
 - `Views/SummaryView.xaml` - Summary metrics labels (devices, interfaces, up/down counts, VLAN diversity, up percentage).
 - `Views/TemplatesView.xaml` - Template file list, editor, OS selector, reload/save/add controls for managing JSON templates.
 - `Views/AlertsView.xaml` - Alerts DataGrid and export button for down/unauthorised interfaces.
-- `Views/PortReorgWindow.xaml` - Port Reorg workflow window (label parking + drag/drop mapping + change/rollback script generation).
+- `Views/PortReorgWindow.xaml` - Port Reorg workflow window (label parking + drag/drop mapping + optional 12-port paging mode + change/rollback script generation).
 - `Views/HelpWindow.xaml` - Modal documentation for UI sections, opened from the main Help button (the button also opens the Operators Runbook quickstart in your browser).
 ## Templates & Configuration Assets
 - `Modules/TemplatesModule.psm1:264` `Get-ConfigurationTemplateData` - supplies cached template objects and lookup dictionaries for repository/device modules.
