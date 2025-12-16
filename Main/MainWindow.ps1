@@ -1257,6 +1257,13 @@ function Start-ParserBackgroundJob {
     }
     $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
     $logPath = Join-Path $logDir ("ParserJob-{0}.log" -f $timestamp)
+    try { Write-StartupDiag ("Starting parser job (RepoRoot={0}, LogPath={1})" -f $repoRoot, $logPath) } catch { }
+    try {
+        $queuedHeader = "Parser job queued at {0:o} (IncludeArchive={1}, IncludeHistorical={2}, ForceReload={3})" -f (Get-Date), $IncludeArchive, $IncludeHistorical, $ForceReload
+        Set-Content -LiteralPath $logPath -Value $queuedHeader -ErrorAction Stop
+    } catch {
+        try { Write-StartupDiag ("Failed to initialize parser job log at {0}: {1}" -f $logPath, $_.Exception.Message) } catch { }
+    }
 
     $job = $null
     try {
@@ -1300,7 +1307,47 @@ function Start-ParserBackgroundJob {
                 & $pipeline @pipelineParams -ErrorAction Stop *>&1 |
                     Tee-Object -FilePath $LogPath -Append
             } else {
-                Import-Module (Join-Path $RepoRoot 'Modules\ParserWorker.psm1') -Force
+                $manifestPath = Join-Path $RepoRoot 'Modules\ModulesManifest.psd1'
+                if (Test-Path -LiteralPath $manifestPath) {
+                    try {
+                        $manifest = Import-PowerShellDataFile -Path $manifestPath -ErrorAction Stop
+                        $modulesToImport = @()
+                        if ($manifest -is [hashtable] -and $manifest.ContainsKey('ModulesToImport') -and $manifest['ModulesToImport']) {
+                            $modulesToImport = $manifest['ModulesToImport']
+                        } elseif ($manifest -is [hashtable] -and $manifest.ContainsKey('Modules') -and $manifest['Modules']) {
+                            $modulesToImport = $manifest['Modules']
+                        }
+                        $modulesRoot = Join-Path $RepoRoot 'Modules'
+                        foreach ($moduleEntry in $modulesToImport) {
+                            if ([string]::IsNullOrWhiteSpace($moduleEntry)) { continue }
+                            if ([System.StringComparer]::OrdinalIgnoreCase.Equals($moduleEntry.Trim(), 'ParserWorker.psm1')) { continue }
+                            $candidatePath = Join-Path -Path $modulesRoot -ChildPath $moduleEntry
+                            if (-not (Test-Path -LiteralPath $candidatePath)) { continue }
+                            Import-Module -Name $candidatePath -Force -ErrorAction Stop | Out-Null
+                        }
+                    } catch {
+                        $msg = "Failed to import module manifest at {0}: {1}" -f $manifestPath, $_.Exception.Message
+                        try { Add-Content -LiteralPath $LogPath -Value $msg } catch { }
+                        try { Write-Warning $msg } catch { }
+
+                        $fallbackModules = @(
+                            (Join-Path $RepoRoot 'Modules\LogIngestionModule.psm1'),
+                            (Join-Path $RepoRoot 'Modules\ParserRunspaceModule.psm1')
+                        )
+                        foreach ($fallbackModulePath in $fallbackModules) {
+                            if (-not (Test-Path -LiteralPath $fallbackModulePath)) { continue }
+                            try {
+                                Import-Module -Name $fallbackModulePath -Force -ErrorAction Stop | Out-Null
+                            } catch {
+                                $fallbackMsg = "Failed to import fallback module at {0}: {1}" -f $fallbackModulePath, $_.Exception.Message
+                                try { Add-Content -LiteralPath $LogPath -Value $fallbackMsg } catch { }
+                                try { Write-Warning $fallbackMsg } catch { }
+                            }
+                        }
+                    }
+                }
+
+                Import-Module (Join-Path $RepoRoot 'Modules\ParserWorker.psm1') -Force -ErrorAction Stop | Out-Null
                 Invoke-StateTraceParsing -Synchronous -ErrorAction Stop *>&1 | Tee-Object -FilePath $LogPath -Append
             }
             $footer = "Parser job completed successfully at {0:o}" -f (Get-Date)
