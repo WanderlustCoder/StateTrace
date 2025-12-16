@@ -10,6 +10,7 @@
 - UI modules share state through globals (e.g. `$global:DeviceMetadata`, `$global:DeviceInterfaceCache`, `$global:AllInterfaces`, `$global:alertsView`) populated by `DeviceCatalogModule`/`DeviceRepositoryModule` and initialised for the UI by `FilterStateModule::Initialize-DeviceFilters`.
 - Vendor-specific parsing (`Modules/CiscoModule.psm1`, `Modules/BrocadeModule.psm1`, `Modules/AristaModule.psm1`) uses helpers from `Modules/DeviceParsingCommon.psm1` (e.g. `Invoke-RegexTableParser`) and produces normalized interface objects consumed across the UI.
 - Theming infrastructure (`Themes/*.json` via `Modules/ThemeModule.psm1`) supplies brushes/styles merged into WPF resources at startup.
+- Port Reorg workflow (`Modules/PortReorgModule.psm1` + `Modules/PortReorgViewModule.psm1` + `Views/PortReorgWindow.xaml`) provides an interactive label-driven mapping UI and generates vendor-specific change + rollback scripts.
 
 ## Data Stores & Core Caches
 - `Data/*.accdb`: per-site Access databases with `DeviceSummary`, `Interfaces`, and history tables created/maintained by `DatabaseModule` + `ParserWorker`.
@@ -18,22 +19,27 @@
 ## Main Application Shell
 
 ### Layout (`Main/MainWindow.xaml`)
-- Row 0 toolbar: host dropdown, `Scan Logs` button, archive/history checkboxes, and site/zone/building/room filters.
-- Row 1 command bar: Show Commands buttons (`ShowCiscoButton`, `ShowBrocadeButton`), `BrocadeOSDropdown`, and `HelpButton`.
-- Row 2 content: TabControl hosting Summary, Interfaces, SPAN, Search Interfaces, Templates, Alerts; Compare sidebar lives in grid column `CompareHost` (width toggled in code).
+- Row 0 toolbar: host dropdown, `Scan Logs`, `Clear cache before scan`, `Load from DB`, archive/history checkboxes.
+- Row 1 location filters: site/zone/building/room dropdowns (scopes Summary/Interfaces/Search/Alerts).
+- Row 2 command bar: Show Commands buttons (`ShowCiscoButton`, `ShowBrocadeButton`), `BrocadeOSDropdown`, `HelpButton`, `ThemeSelector`, debug toggle.
+- Row 3 content: TabControl hosting Summary, Interfaces, SPAN, Search Interfaces, Templates, Alerts; Compare sidebar lives in grid column `CompareHost` (width toggled in code).
+- Row 4 status: parser status strip + site freshness indicator.
 
 ### Script Logic (`Main/MainWindow.ps1`)
 - `Main/MainWindow.ps1:19` `Write-Diag` - gated logger that writes verbose lines and timestamped files when `$Global:StateTraceDebug` is true.
 - `Main/MainWindow.ps1:256` `Set-ShowCommandsOSVersions` - populates the Brocade OS dropdown using `TemplatesModule::Get-ShowCommandsVersions`.
 - `Main/MainWindow.ps1:271` `Set-BrocadeOSFromConfig` - selects the default Brocade OS based on `ShowCommands.json` metadata.
 - `Main/MainWindow.ps1:280` `Initialize-View` - invokes each `New-*View` module with `Window` and `ScriptDir`; drives tab initialisation.
+- `Main/MainWindow.ps1:483` `Initialize-ThemeSelector` - populates the theme selector and applies themes via `ThemeModule::Set-StateTraceTheme`.
 - `Main/MainWindow.ps1:342` `Set-EnvToggle` - writes boolean toggles (`IncludeArchive`, `IncludeHistorical`) into the process environment for the parser to read.
 - `Main/MainWindow.ps1:357` `Invoke-StateTraceRefresh` - handler for `Scan Logs`; updates env flags, calls `Invoke-StateTraceParsing`, then refreshes summaries, filters, and Compare view.
+- `Main/MainWindow.ps1:1101` `Update-FreshnessIndicator` - updates the bottom-of-window freshness label from ingest history/telemetry.
+- `Main/MainWindow.ps1:1183` `Reset-ParserCachesForRefresh` - clears cached ingestion history/interfaces before a refresh when requested.
 - `Main/MainWindow.ps1:441` `Get-HostnameChanged` - synchronous device selection handler; loads device details and SPAN info for the chosen host.
 - `Main/MainWindow.ps1:464` `Import-DeviceDetailsAsync` - background loader that fetches summary/interface/template data via `DeviceDetailsModule::Get-DeviceDetailsData` and marshals results to the UI thread through `InterfaceModule::Set-InterfaceViewData`.
 - `Main/MainWindow.ps1:686` `Request-DeviceFilterUpdate` - debounced filter refresh guarded by `FilterStateModule::Get-FilterFaulted` and `$global:ProgrammaticFilterUpdate`.
 - `Main/MainWindow.ps1:705` `Get-FilterDropdowns` - resolves site/zone/building/room combo boxes so change handlers can be wired once.
-- Event wiring: refresh button ? `Invoke-StateTraceRefresh`; hostname dropdown ? `Get-HostnameChanged`; filter combos ? `Request-DeviceFilterUpdate`; Show Commands buttons ? clipboard exporters; Help button opens `Views/HelpWindow.xaml`.
+- Event wiring: Scan Logs ? `Invoke-StateTraceRefresh`; Load from DB ? catalog refresh without parsing; hostname dropdown ? `Get-HostnameChanged`; filter combos ? `Request-DeviceFilterUpdate`; Show Commands buttons ? clipboard exporters; Theme selector ? `Set-StateTraceTheme`; Help opens `Views/HelpWindow.xaml` and launches the Operators Runbook quickstart anchor.
 ## Module Reference
 
 ### `Modules/DatabaseModule.psm1`
@@ -192,6 +198,7 @@
 - `Modules/SearchInterfacesViewModule.psm1:7` `New-SearchInterfacesView` - loads Search tab, wires debounced search box, regex toggle, status/auth filters, export button, and seeds `$global:searchInterfacesView`.
 - `Modules/TemplatesViewModule.psm1:3` `New-TemplatesView` - loads Templates tab, lists JSON files, enables reload/save/add operations, and keeps selection/editor in sync.
 - `Modules/InterfaceModule.psm1:708` `New-InterfacesView` - loads Interfaces tab, wires filter debounce, copy button, compare integration, and template dropdown colour coding.
+- `Modules/PortReorgViewModule.psm1:3` `Show-PortReorgWindow` - opens the Port Reorg window (drag/drop mapping + script generation) from the Interfaces tab.
 
 ### `Modules/TemplatesModule.psm1`
 - `Modules/TemplatesModule.psm1:8` `script:Get-ShowConfig` - internal cached loader watching file mtime.
@@ -205,22 +212,28 @@
 - `Views/SummaryView.xaml` - Summary metrics labels (devices, interfaces, up/down counts, VLAN diversity, up percentage).
 - `Views/TemplatesView.xaml` - Template file list, editor, OS selector, reload/save/add controls for managing JSON templates.
 - `Views/AlertsView.xaml` - Alerts DataGrid and export button for down/unauthorised interfaces.
-- `Views/HelpWindow.xaml` - Modal documentation for UI sections, opened from the main Help button.
+- `Views/PortReorgWindow.xaml` - Port Reorg workflow window (label parking + drag/drop mapping + change/rollback script generation).
+- `Views/HelpWindow.xaml` - Modal documentation for UI sections, opened from the main Help button (the button also opens the Operators Runbook quickstart in your browser).
 ## Templates & Configuration Assets
 - `Modules/TemplatesModule.psm1:264` `Get-ConfigurationTemplateData` - supplies cached template objects and lookup dictionaries for repository/device modules.
 - `Modules/TemplatesModule.psm1:302` `Get-TemplateVendorKeyFromMake` - normalizes `DeviceSummary.Make` strings into template vendor keys (Cisco/Brocade) so callers avoid drift.
 - `Templates/Cisco.json`, `Templates/Brocade.json` - port configuration templates used by `Get-ConfigurationTemplates` and Interfaces tab suggestions.
 - `Templates/ShowCommands.json` - vendor/OS show command definitions backing clipboard buttons and default Brocade OS selection.
+- `Themes/*.json` - theme token dictionaries consumed by `ThemeModule` and the toolbar Theme selector (add a new file and restart to install a theme).
 - Template editing UI in `TemplatesViewModule` writes directly to these files; caches in `TemplatesModule` refresh on timestamp changes.
 ## Event & Feature Map
 - `Scan Logs` button ? `Invoke-StateTraceRefresh` ? `Invoke-StateTraceParsing` ? DB updates ? `Get-DeviceSummaries` / `Update-DeviceFilter` / `Update-CompareView`.
+- `Load from DB` button ? `Get-DeviceSummaries` + `Update-DeviceFilter` without invoking the parser.
+- `Clear cache before scan` checkbox ? `Reset-ParserCachesForRefresh` clears cached ingestion history and interface snapshots before parsing.
 - Hostname dropdown change ? `Get-HostnameChanged` (sync) + `Import-DeviceDetailsAsync` (background) ? updates Interfaces tab and SPAN data.
 - Site/zone/building/room dropdowns ? `Request-DeviceFilterUpdate` ? `Update-DeviceFilter` \? cascades to `Get-GlobalInterfaceSnapshot`/`Update-GlobalInterfaceList`, Summary/Search/Alerts/Compare refreshes.
 - `Include archives` / `Include history` checkboxes ? `Set-EnvToggle` writes env vars consumed by the parser when choosing log folders.
 - Show Commands buttons (`ShowCiscoButton`, `ShowBrocadeButton`) ? `TemplatesModule::Get-ShowCommands` ? clipboard export with success dialogs.
+- Theme selector ? `Set-StateTraceTheme` + `Register-StateTraceThemeChanged` handlers update brushes in view modules.
 - Templates tab save/add ? writes JSON files, triggers `Update-TemplatesList`, cached templates refresh when timestamps change.
 - Interfaces grid `Copy Selected` button ? `Get-SelectedInterfaceRows` ? clipboard export of detailed port data.
 - Compare view combos ? handlers from `Get-CompareHandlers` ? `Show-CurrentComparison` / `Set-CompareFromRows` update diffs.
+- Port Reorg button (Interfaces tab) ? `PortReorgViewModule::Show-PortReorgWindow` ? `PortReorgModule::New-PortReorgScripts` emits vendor-specific change + rollback scripts.
 - Search tab text/filters ? `Update-SearchGrid` ? `Update-SearchResults` (respects regex toggle, status/auth filters, location filters).
 - SPAN refresh button ? `Invoke-StateTraceParsing` + `Get-DeviceSummaries` / `Update-DeviceFilter` ? `Get-SpanInfo` for current host.
 ## Core Feature Safeguards

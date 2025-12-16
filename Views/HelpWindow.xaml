@@ -1,6 +1,6 @@
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Help" Height="500" Width="650"
+        Title="Help" Height="520" Width="700"
         WindowStartupLocation="CenterOwner" Background="{DynamicResource Theme.Window.Background}">
 
   <Grid Background="{DynamicResource Theme.Surface.Secondary}" TextElement.Foreground="{DynamicResource Theme.Text.Primary}">
@@ -9,48 +9,112 @@
       <TabItem Header="Overview">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <TextBlock TextWrapping="Wrap" Margin="10" FontSize="12">
-            <Run Text="Overview" FontWeight="Bold" FontSize="14"/>
+            <Run Text="StateTrace Overview" FontWeight="Bold" FontSize="14"/>
             <LineBreak/><LineBreak/>
-            <Run Text="Network Reader is a static log reader for network engineers. It processes collected switch logs and presents a consolidated view of a branch's network state."/>
+            <Run Text="StateTrace is an offline-first log analysis tool for network engineers. It parses pre-collected switch logs (no live device access) and presents a consolidated view of a site's network state."/>
+            <LineBreak/><LineBreak/>
+            <Run Text="Core workflows:" FontWeight="Bold"/>
             <LineBreak/>
-            <Run Text="Use this tool to:"/>
+            <Run Text="- Scan Logs to parse logs and refresh the database-backed views."/>
             <LineBreak/>
-            <Run Text="- Scan log files for multiple switches and parse interface details."/>
+            <Run Text="- Load from DB to reuse existing ingested data without re-scanning logs."/>
             <LineBreak/>
-            <Run Text="- Browse individual switches and configure ports using predefined templates."/>
+            <Run Text="- Use Site/Zone/Building/Room filters to scope Summary, Interfaces, Search, and Alerts."/>
             <LineBreak/>
-            <Run Text="- Search across all interfaces for devices, port names or MAC addresses."/>
+            <Run Text="- Generate configuration text using templates, then review before applying on devices."/>
             <LineBreak/>
-            <Run Text="- Generate a high-level summary of the network branch filtered by site, building or room."/>
+            <Run Text="- Compare two port configs with diffs (Compare sidebar)."/>
             <LineBreak/>
-            <Run Text="- Detect potential issues such as down ports, half duplex links or unauthorized connections."/>
+            <Run Text="- Use Port Reorg to move labels/profiles between ports and generate change + rollback scripts."/>
             <LineBreak/>
-            <Run Text="- Manage configuration templates and create new ones for specific operating systems."/>
-            <LineBreak/>
-            <Run Text="The application is designed to work with pre-collected logs and does not perform any live retrieval of data."/>
+            <Run Text="- Switch UI themes from the toolbar Theme selector (themes are JSON under Themes/)."/>
+            <LineBreak/><LineBreak/>
+            <Run Text="Tip:" FontWeight="Bold"/>
+            <Run Text=" the Help button also opens the Operators Runbook quickstart in your browser for the fastest “time to Interfaces” workflow."/>
           </TextBlock>
         </ScrollViewer>
       </TabItem>
+
+      <TabItem Header="Main Window">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <TextBlock TextWrapping="Wrap" Margin="10" FontSize="12">
+            <Run Text="Main Window &amp; Toolbar" FontWeight="Bold" FontSize="14"/>
+            <LineBreak/><LineBreak/>
+            <Run Text="Device selection:" FontWeight="Bold"/>
+            <LineBreak/>
+            <Run Text="- Device dropdown selects the active switch/host for Interfaces and SPAN."/>
+            <LineBreak/><LineBreak/>
+            <Run Text="Ingestion:" FontWeight="Bold"/>
+            <LineBreak/>
+            <Run Text="- Scan Logs parses logs and updates the per-site database."/>
+            <LineBreak/>
+            <Run Text="- Clear cache before scan clears cached ingestion history and interface snapshots so a scan starts clean."/>
+            <LineBreak/>
+            <Run Text="- Load from DB loads devices from existing databases without scanning logs."/>
+            <LineBreak/>
+            <Run Text="- Include archives / Include history expands where the parser looks for logs."/>
+            <LineBreak/><LineBreak/>
+            <Run Text="Show Commands:" FontWeight="Bold"/>
+            <LineBreak/>
+            <Run Text="- Cisco/Brocade buttons copy curated show-command sequences to the clipboard."/>
+            <LineBreak/>
+            <Run Text="- Brocade OS selector controls which command set is copied."/>
+            <LineBreak/><LineBreak/>
+            <Run Text="Status strip:" FontWeight="Bold"/>
+            <LineBreak/>
+            <Run Text="- Parser status shows scan progress; Freshness shows last ingest timestamp for the selected site (and cache/provider when available)."/>
+            <LineBreak/><LineBreak/>
+            <Run Text="Theme:" FontWeight="Bold"/>
+            <LineBreak/>
+            <Run Text="- Theme selector switches themes; restart after adding new theme JSON files."/>
+          </TextBlock>
+        </ScrollViewer>
+      </TabItem>
+
       <TabItem Header="Interfaces">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <TextBlock TextWrapping="Wrap" Margin="10" FontSize="12">
             <Run Text="Interfaces View" FontWeight="Bold" FontSize="14"/>
+            <LineBreak/><LineBreak/>
+            <Run Text="The Interfaces tab displays details for the selected switch. You can:"/>
             <LineBreak/>
+            <Run Text="- View status, VLAN, speed, and authentication state for each port."/>
             <LineBreak/>
-            <Run Text="The Interfaces tab displays details for the currently selected switch. You can: "/>
-            <LineBreak/>
-            <Run Text="- View status, VLAN, speed and authentication state for each port."/>
-            <LineBreak/>
-            <Run Text="- Edit port names and VLAN IDs directly in the grid."/>
+            <Run Text="- Edit Name and VLAN directly in the grid (used by generated scripts/templates; does not push live changes)."/>
             <LineBreak/>
             <Run Text="- Filter the list using the filter box above the table."/>
             <LineBreak/>
-            <Run Text="- Select ports and click Compare Configs to compare two ports or Copy Details to copy information to the clipboard."/>
+            <Run Text="- Select ports and click Compare Configs to open the Compare sidebar."/>
             <LineBreak/>
             <Run Text="- Use Configure to generate a configuration using the selected template."/>
+            <LineBreak/>
+            <Run Text="- Use Port Reorg to open the interactive Port Reorg workflow for label-based moves and script generation."/>
+            <LineBreak/><LineBreak/>
+            <Run Text="Incremental loading:" FontWeight="Bold"/>
+            <LineBreak/>
+            <Run Text="- Large devices may stream ports in batches; watch the “Loading ports” indicator and progress bar at the bottom of the tab."/>
           </TextBlock>
         </ScrollViewer>
       </TabItem>
+
+      <TabItem Header="Compare">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <TextBlock TextWrapping="Wrap" Margin="10" FontSize="12">
+            <Run Text="Compare Configs" FontWeight="Bold" FontSize="14"/>
+            <LineBreak/><LineBreak/>
+            <Run Text="Compare shows two ports side-by-side with config text and diffs."/>
+            <LineBreak/>
+            <Run Text="- Launch it from Interfaces by selecting ports and clicking Compare Configs."/>
+            <LineBreak/>
+            <Run Text="- Use the dropdowns to pick two switches/ports if you need to compare across hosts."/>
+            <LineBreak/>
+            <Run Text="- Copy buttons export raw configs or diffs to the clipboard."/>
+            <LineBreak/>
+            <Run Text="- Close the sidebar using the X button in the Compare header."/>
+          </TextBlock>
+        </ScrollViewer>
+      </TabItem>
+
       <TabItem Header="Search">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <TextBlock TextWrapping="Wrap" Margin="10" FontSize="12">
@@ -58,29 +122,59 @@
             <LineBreak/><LineBreak/>
             <Run Text="Search across all switches and ports using the search box."/>
             <LineBreak/>
-            <Run Text="- Enter a port name, description or MAC address to find matching interfaces."/>
+            <Run Text="- Enter a port name, description, label, or MAC address to find matching interfaces."/>
             <LineBreak/>
             <Run Text="- Enable Regex to treat the search term as a regular expression."/>
             <LineBreak/>
             <Run Text="- Filter by status (All, Up, Down) and authorization state (All, Authorized, Unauthorized)."/>
             <LineBreak/>
             <Run Text="- Export results to CSV using the Export button."/>
+            <LineBreak/>
+            <Run Text="- Search respects the Site/Zone/Building/Room filters in the main window."/>
           </TextBlock>
         </ScrollViewer>
       </TabItem>
+
       <TabItem Header="Summary">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <TextBlock TextWrapping="Wrap" Margin="10" FontSize="12">
             <Run Text="Summary" FontWeight="Bold" FontSize="14"/>
             <LineBreak/><LineBreak/>
-            <Run Text="Provides a quick overview of the branch, including number of devices, interfaces and other counts."/>
+            <Run Text="Provides a quick overview of the selected scope, including device/interface counts and other metrics."/>
             <LineBreak/>
-            <Run Text="The summary automatically respects the Site/Building/Room filters set at the top of the main window."/>
+            <Run Text="The summary respects the Site/Zone/Building/Room filters set in the main window."/>
             <LineBreak/>
             <Run Text="Use this tab to gauge overall health at a glance."/>
           </TextBlock>
         </ScrollViewer>
       </TabItem>
+
+      <TabItem Header="Port Reorg">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <TextBlock TextWrapping="Wrap" Margin="10" FontSize="12">
+            <Run Text="Port Reorg Workflow" FontWeight="Bold" FontSize="14"/>
+            <LineBreak/><LineBreak/>
+            <Run Text="Port Reorg helps you move port labels/profiles between ports and generate vendor-safe change + rollback scripts."/>
+            <LineBreak/>
+            <Run Text="- Open Port Reorg from the Interfaces tab."/>
+            <LineBreak/>
+            <Run Text="- Drag labels between ports to swap/move assignments."/>
+            <LineBreak/>
+            <Run Text="- Drag a label into Parking to unassign it (useful for “clear this port” workflows)."/>
+            <LineBreak/>
+            <Run Text="- Edit target ports/labels directly if needed, then click Generate Scripts."/>
+            <LineBreak/>
+            <Run Text="- Review scripts before applying. Change + Rollback can be exported to files."/>
+            <LineBreak/><LineBreak/>
+            <Run Text="Vendor notes:" FontWeight="Bold"/>
+            <LineBreak/>
+            <Run Text="- Cisco scripts reset the destination interface using default interface before applying the moved profile."/>
+            <LineBreak/>
+            <Run Text="- Brocade scripts use best-effort “no &lt;cmd&gt;” resets (no default interface support) so stale profile commands do not linger."/>
+          </TextBlock>
+        </ScrollViewer>
+      </TabItem>
+
       <TabItem Header="Templates">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <TextBlock TextWrapping="Wrap" Margin="10" FontSize="12">
@@ -95,17 +189,22 @@
             <Run Text="- Create new templates by entering a name, choosing an OS and clicking Add. A default skeleton will be generated."/>
             <LineBreak/>
             <Run Text="Templates are stored as JSON files in the Templates directory."/>
+            <LineBreak/><LineBreak/>
+            <Run Text="Show Commands:" FontWeight="Bold"/>
+            <LineBreak/>
+            <Run Text="- The toolbar Show Commands buttons are driven by Templates/ShowCommands.json (vendor + OS variants)."/>
           </TextBlock>
         </ScrollViewer>
       </TabItem>
+
       <TabItem Header="Alerts">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <TextBlock TextWrapping="Wrap" Margin="10" FontSize="12">
             <Run Text="Alerts" FontWeight="Bold" FontSize="14"/>
             <LineBreak/><LineBreak/>
-            <Run Text="Lists potential issues detected in the branch."/>
+            <Run Text="Lists potential issues detected in the current scope."/>
             <LineBreak/>
-            <Run Text="- A port is flagged if it is Down or NotConnect, unauthorized or half duplex."/>
+            <Run Text="- A port is flagged if it is Down or NotConnect, unauthorized, or half duplex."/>
             <LineBreak/>
             <Run Text="- Use the Export button to save the current list of alerts to CSV."/>
             <LineBreak/>
@@ -113,16 +212,33 @@
           </TextBlock>
         </ScrollViewer>
       </TabItem>
+
       <TabItem Header="SPAN">
         <ScrollViewer VerticalScrollBarVisibility="Auto">
           <TextBlock TextWrapping="Wrap" Margin="10" FontSize="12">
             <Run Text="SPAN" FontWeight="Bold" FontSize="14"/>
             <LineBreak/><LineBreak/>
-            <Run Text="Displays information about configured SPAN or port mirror sessions."/>
+            <Run Text="Displays information about configured SPAN or port mirror sessions for the selected device."/>
             <LineBreak/>
             <Run Text="Use this tab to review SPAN source and destination ports."/>
             <LineBreak/>
-            <Run Text="Select a device from the top drop-downs to load its SPAN configuration."/>
+            <Run Text="Select a device from the dropdowns to load its SPAN configuration."/>
+          </TextBlock>
+        </ScrollViewer>
+      </TabItem>
+
+      <TabItem Header="Themes">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+          <TextBlock TextWrapping="Wrap" Margin="10" FontSize="12">
+            <Run Text="Themes" FontWeight="Bold" FontSize="14"/>
+            <LineBreak/><LineBreak/>
+            <Run Text="StateTrace supports dynamic themes (colors/brushes) loaded from Themes/*.json."/>
+            <LineBreak/>
+            <Run Text="- Use the Theme selector in the toolbar to switch themes."/>
+            <LineBreak/>
+            <Run Text="- Themes can define window/surface/input/button/datagrid colors and can extend base.json."/>
+            <LineBreak/>
+            <Run Text="- If you add a new theme JSON file, restart StateTrace so it appears in the selector."/>
           </TextBlock>
         </ScrollViewer>
       </TabItem>
