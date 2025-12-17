@@ -4571,74 +4571,110 @@ function Update-SiteZoneCache {
         }
 
         if ($hostBatchData -ne $null) {
-            $siteRows = [System.Collections.Generic.List[object]]::new()
-            $getRawValue = {
-                param(
-                    [object]$source,
-                    [string]$name
-                )
+            $newRows = [System.Collections.Generic.List[object]]::new()
+            $hostBuckets = New-Object 'System.Collections.Generic.Dictionary[string, System.Collections.Generic.List[object]]' ([System.StringComparer]::OrdinalIgnoreCase)
+            $zoneCache = New-Object 'System.Collections.Generic.Dictionary[string,string]' ([System.StringComparer]::OrdinalIgnoreCase)
 
-                if (-not $source -or [string]::IsNullOrWhiteSpace($name)) { return $null }
-
-                try {
-                    if ($source -is [System.Data.DataRow]) {
-                        $table = $source.Table
-                        if ($table -and $table.Columns -and $table.Columns.Contains($name)) {
-                            return $source[$name]
-                        }
-                    }
-                } catch { }
-
-                try {
-                    if ($source.PSObject -and $source.PSObject.Properties[$name]) {
-                        return $source.$name
-                    }
-                } catch { }
-
-                return $null
-            }
-            $toString = {
-                param($value)
-                if ($null -eq $value -or $value -eq [System.DBNull]::Value) { return '' }
-                return '' + $value
-            }
             foreach ($row in $hostBatchData) {
                 if (-not $row) { continue }
 
                 $hostname = ''
-                try { $hostname = & $toString (& $getRawValue $row 'Hostname') } catch { $hostname = '' }
+                if ($row -is [System.Data.DataRow]) {
+                    try { $hostname = '' + $row['Hostname'] } catch { $hostname = '' }
+                } else {
+                    try {
+                        if ($row.PSObject -and $row.PSObject.Properties['Hostname']) { $hostname = '' + $row.Hostname }
+                    } catch { $hostname = '' }
+                }
+
                 if ([string]::IsNullOrWhiteSpace($hostname)) { continue }
                 if (-not $missingHosts.Contains($hostname)) { continue }
 
                 $zoneValue = ''
-                try {
-                    $parts = $hostname.Split('-', [System.StringSplitOptions]::RemoveEmptyEntries)
-                    if ($parts.Length -ge 2) { $zoneValue = $parts[1] }
-                } catch { $zoneValue = '' }
-
-                $rowObj = [PSCustomObject]@{
-                    Hostname      = $hostname
-                    Port          = (& $toString (& $getRawValue $row 'Port'))
-                    Name          = (& $toString (& $getRawValue $row 'Name'))
-                    Status        = (& $toString (& $getRawValue $row 'Status'))
-                    VLAN          = (& $toString (& $getRawValue $row 'VLAN'))
-                    Duplex        = (& $toString (& $getRawValue $row 'Duplex'))
-                    Speed         = (& $toString (& $getRawValue $row 'Speed'))
-                    Type          = (& $toString (& $getRawValue $row 'Type'))
-                    LearnedMACs   = (& $toString (& $getRawValue $row 'LearnedMACs'))
-                    AuthState     = (& $toString (& $getRawValue $row 'AuthState'))
-                    AuthMode      = (& $toString (& $getRawValue $row 'AuthMode'))
-                    AuthClientMAC = (& $toString (& $getRawValue $row 'AuthClientMAC'))
-                    Site          = (& $toString (& $getRawValue $row 'Site'))
-                    Building      = (& $toString (& $getRawValue $row 'Building'))
-                    Room          = (& $toString (& $getRawValue $row 'Room'))
-                    Zone          = $zoneValue
-                    Make          = (& $toString (& $getRawValue $row 'Make'))
-                    IsSelected    = $false
+                if (-not $zoneCache.TryGetValue($hostname, [ref]$zoneValue)) {
+                    $zoneValue = ''
+                    try {
+                        $parts = $hostname.Split('-', [System.StringSplitOptions]::RemoveEmptyEntries)
+                        if ($parts.Length -ge 2) { $zoneValue = $parts[1] }
+                    } catch { $zoneValue = '' }
+                    $zoneCache[$hostname] = $zoneValue
                 }
 
-                [void]$siteRows.Add($rowObj)
+                $rowObj = $null
+                if ($row -is [System.Data.DataRow]) {
+                    $rowObj = [PSCustomObject]@{
+                        Hostname      = $hostname
+                        Port          = '' + $row['Port']
+                        Name          = '' + $row['Name']
+                        Status        = '' + $row['Status']
+                        VLAN          = '' + $row['VLAN']
+                        Duplex        = '' + $row['Duplex']
+                        Speed         = '' + $row['Speed']
+                        Type          = '' + $row['Type']
+                        LearnedMACs   = '' + $row['LearnedMACs']
+                        AuthState     = '' + $row['AuthState']
+                        AuthMode      = '' + $row['AuthMode']
+                        AuthClientMAC = '' + $row['AuthClientMAC']
+                        Site          = '' + $row['Site']
+                        Building      = '' + $row['Building']
+                        Room          = '' + $row['Room']
+                        Zone          = $zoneValue
+                        Make          = '' + $row['Make']
+                        IsSelected    = $false
+                    }
+                } else {
+                    $rowObj = [PSCustomObject]@{
+                        Hostname      = $hostname
+                        Port          = '' + $row.Port
+                        Name          = '' + $row.Name
+                        Status        = '' + $row.Status
+                        VLAN          = '' + $row.VLAN
+                        Duplex        = '' + $row.Duplex
+                        Speed         = '' + $row.Speed
+                        Type          = '' + $row.Type
+                        LearnedMACs   = '' + $row.LearnedMACs
+                        AuthState     = '' + $row.AuthState
+                        AuthMode      = '' + $row.AuthMode
+                        AuthClientMAC = '' + $row.AuthClientMAC
+                        Site          = '' + $row.Site
+                        Building      = '' + $row.Building
+                        Room          = '' + $row.Room
+                        Zone          = $zoneValue
+                        Make          = '' + $row.Make
+                        IsSelected    = $false
+                    }
+                }
+
+                $bucket = $null
+                if (-not $hostBuckets.TryGetValue($hostname, [ref]$bucket)) {
+                    $bucket = [System.Collections.Generic.List[object]]::new()
+                    $hostBuckets[$hostname] = $bucket
+                }
+
+                [void]$bucket.Add($rowObj)
+                [void]$newRows.Add($rowObj)
             }
+
+            foreach ($hn in $missingHosts) {
+                $bucket = $null
+                if ($hostBuckets.TryGetValue($hn, [ref]$bucket)) {
+                    $global:DeviceInterfaceCache[$hn] = $bucket
+                } else {
+                    $global:DeviceInterfaceCache[$hn] = [System.Collections.Generic.List[object]]::new()
+                }
+            }
+
+            if ($newRows.Count -gt 0) {
+                try {
+                    if (-not $global:AllInterfaces) {
+                        $global:AllInterfaces = $newRows
+                    } else {
+                        foreach ($r in $newRows) { [void]$global:AllInterfaces.Add($r) }
+                    }
+                } catch { }
+            }
+
+            return
         } else {
             $siteRows = Get-InterfacesForSite -Site $Site
         }
