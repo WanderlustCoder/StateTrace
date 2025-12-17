@@ -79,6 +79,7 @@ Describe "FilterStateModule Update-DeviceFilter" {
 
     AfterEach {
         Remove-Variable -Name DeviceMetadata -Scope Global -ErrorAction SilentlyContinue
+        Remove-Variable -Name DeviceLocationEntries -Scope Global -ErrorAction SilentlyContinue
         Remove-Variable -Name window -Scope Global -ErrorAction SilentlyContinue
         Remove-Variable -Name ProgrammaticFilterUpdate -Scope Global -ErrorAction SilentlyContinue
         Remove-Variable -Name ProgrammaticHostnameUpdate -Scope Global -ErrorAction SilentlyContinue

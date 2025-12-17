@@ -111,6 +111,53 @@ function Set-DropdownItems {
     }
 }
 
+function script:Get-LocationEntriesFromMetadata {
+    [CmdletBinding()]
+    param([object]$Metadata)
+
+    if (-not ($Metadata -is [System.Collections.IDictionary])) { return $null }
+    if ($Metadata.Count -eq 0) { return $null }
+
+    $keys = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    $list = [System.Collections.Generic.List[object]]::new()
+
+    foreach ($entry in $Metadata.GetEnumerator()) {
+        $hostname = '' + $entry.Key
+        $meta = $entry.Value
+        if (-not $meta) { continue }
+
+        $siteVal = ''
+        $zoneVal = ''
+        $buildingVal = ''
+        $roomVal = ''
+        try { if ($meta.PSObject.Properties['Site']) { $siteVal = '' + $meta.Site } } catch { $siteVal = '' }
+        try { if ($meta.PSObject.Properties['Zone']) { $zoneVal = '' + $meta.Zone } } catch { $zoneVal = '' }
+        try { if ($meta.PSObject.Properties['Building']) { $buildingVal = '' + $meta.Building } } catch { $buildingVal = '' }
+        try { if ($meta.PSObject.Properties['Room']) { $roomVal = '' + $meta.Room } } catch { $roomVal = '' }
+
+        if ([string]::IsNullOrWhiteSpace($siteVal) -or [string]::IsNullOrWhiteSpace($zoneVal)) {
+            try {
+                $parts = $hostname -split '-', 3
+                if ([string]::IsNullOrWhiteSpace($siteVal) -and $parts.Length -ge 1) { $siteVal = $parts[0] }
+                if ([string]::IsNullOrWhiteSpace($zoneVal) -and $parts.Length -ge 2) { $zoneVal = $parts[1] }
+            } catch { }
+        }
+
+        $key = "{0}|{1}|{2}|{3}" -f $siteVal, $zoneVal, $buildingVal, $roomVal
+        if (-not $keys.Add($key)) { continue }
+
+        $list.Add([pscustomobject]@{
+            Site     = $siteVal
+            Zone     = $zoneVal
+            Building = $buildingVal
+            Room     = $roomVal
+        }) | Out-Null
+    }
+
+    if ($list.Count -eq 0) { return $null }
+    return $list
+}
+
 function Initialize-DeviceFilters {
     [CmdletBinding()]
     param(
@@ -127,11 +174,24 @@ function Initialize-DeviceFilters {
     try {
     if ($LocationEntries) {
         $global:DeviceLocationEntries = $LocationEntries
-    } elseif ((ViewStateService\Get-SequenceCount -Value $global:DeviceLocationEntries) -eq 0) {
-        try {
-            $global:DeviceLocationEntries = DeviceCatalogModule\Get-DeviceLocationEntries
-        } catch [System.Management.Automation.CommandNotFoundException] {
-        } catch { }
+    } else {
+        $existingLocations = $null
+        try { $existingLocations = $global:DeviceLocationEntries } catch { $existingLocations = $null }
+        $locationCount = 0
+        try { $locationCount = ViewStateService\Get-SequenceCount -Value $existingLocations } catch { $locationCount = 0 }
+        if ($locationCount -eq 0) {
+            $derivedLocations = $null
+            try { $derivedLocations = script:Get-LocationEntriesFromMetadata -Metadata $global:DeviceMetadata } catch { $derivedLocations = $null }
+
+            if ($derivedLocations) {
+                $global:DeviceLocationEntries = $derivedLocations
+            } else {
+                try {
+                    $global:DeviceLocationEntries = DeviceCatalogModule\Get-DeviceLocationEntries
+                } catch [System.Management.Automation.CommandNotFoundException] {
+                } catch { }
+            }
+        }
     }
 
     $siteDD      = $Window.FindName('SiteDropdown')
@@ -259,12 +319,22 @@ function Update-DeviceFilter {
     try {
         $metadata = $global:DeviceMetadata
         $locationEntries = $global:DeviceLocationEntries
-        if ((ViewStateService\Get-SequenceCount -Value $locationEntries) -eq 0) {
-            try {
-                $locationEntries = DeviceCatalogModule\Get-DeviceLocationEntries
-                $global:DeviceLocationEntries = $locationEntries
-            } catch [System.Management.Automation.CommandNotFoundException] {
-            } catch { }
+        $locationCount = 0
+        try { $locationCount = ViewStateService\Get-SequenceCount -Value $locationEntries } catch { $locationCount = 0 }
+        if ($locationCount -eq 0) {
+            $derivedLocations = $null
+            try { $derivedLocations = script:Get-LocationEntriesFromMetadata -Metadata $metadata } catch { $derivedLocations = $null }
+
+            if ($derivedLocations) {
+                $locationEntries = $derivedLocations
+                try { $global:DeviceLocationEntries = $derivedLocations } catch { }
+            } else {
+                try {
+                    $locationEntries = DeviceCatalogModule\Get-DeviceLocationEntries
+                    $global:DeviceLocationEntries = $locationEntries
+                } catch [System.Management.Automation.CommandNotFoundException] {
+                } catch { }
+            }
         }
         $hasMetadata = $false
         try { $hasMetadata = $metadata -ne $null -and ($metadata.Count -ge 0 -or $metadata.Keys) } catch { $hasMetadata = $false }

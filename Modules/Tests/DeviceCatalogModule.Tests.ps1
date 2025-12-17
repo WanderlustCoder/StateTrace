@@ -18,6 +18,12 @@ Describe "DeviceCatalogModule catalog operations" {
         } else {
             $script:PrevDeviceHostnameOrder = $null
         }
+
+        if (Get-Variable -Name DeviceLocationEntries -Scope Global -ErrorAction SilentlyContinue) {
+            $script:PrevDeviceLocationEntries = $global:DeviceLocationEntries
+        } else {
+            $script:PrevDeviceLocationEntries = $null
+        }
     }
 
     AfterAll {
@@ -31,6 +37,11 @@ Describe "DeviceCatalogModule catalog operations" {
         } else {
             Remove-Variable -Name DeviceHostnameOrder -Scope Global -ErrorAction SilentlyContinue
         }
+        if ($script:PrevDeviceLocationEntries -ne $null) {
+            $global:DeviceLocationEntries = $script:PrevDeviceLocationEntries
+        } else {
+            Remove-Variable -Name DeviceLocationEntries -Scope Global -ErrorAction SilentlyContinue
+        }
         Remove-Module DeviceCatalogModule -Force
         Remove-Module DeviceRepositoryModule -Force
         Remove-Module DatabaseModule -Force
@@ -39,6 +50,7 @@ Describe "DeviceCatalogModule catalog operations" {
     BeforeEach {
         $global:DeviceMetadata = @{}
         $global:DeviceHostnameOrder = @()
+        $global:DeviceLocationEntries = @()
     }
 
     It "aggregates device summaries from all site databases" {

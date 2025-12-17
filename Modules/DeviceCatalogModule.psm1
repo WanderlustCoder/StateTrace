@@ -184,12 +184,15 @@ function Get-DeviceSummaries {
     $metadata = @{}
     $hostnames = [System.Collections.Generic.List[string]]::new()
     $hostnameSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    $locationKeys = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    $locations = [System.Collections.Generic.List[object]]::new()
 
     $normalizedSites = Get-NormalizedSiteFilterList -SiteFilter $SiteFilter
     $dbPaths = @(Get-DbPathsForNormalizedSites -NormalizedSites $normalizedSites)
 
     if (-not $dbPaths -or $dbPaths.Count -eq 0) {
         $global:DeviceMetadata = @{}
+        $global:DeviceLocationEntries = @()
         return [PSCustomObject]@{
             Hostnames = @()
             Metadata  = $global:DeviceMetadata
@@ -212,11 +215,18 @@ function Get-DeviceSummaries {
             if ([string]::IsNullOrWhiteSpace($name)) { continue }
             if ($hostnameSet.Add($name)) { [void]$hostnames.Add($name) }
 
-            $metadata[$name] = Get-DeviceCatalogRowLocation -Hostname $name -Row $row
+            $location = Get-DeviceCatalogRowLocation -Hostname $name -Row $row
+            $metadata[$name] = $location
+
+            $key = "{0}|{1}|{2}|{3}" -f $location.Site, $location.Zone, $location.Building, $location.Room
+            if ($locationKeys.Add($key)) {
+                $locations.Add($location) | Out-Null
+            }
         }
     }
 
     $global:DeviceMetadata = $metadata
+    $global:DeviceLocationEntries = $locations
     $balancedHostnames = Get-BalancedHostnames -Hostnames $hostnames
     $balancedHostArray = @($balancedHostnames)
     $global:DeviceHostnameOrder = $balancedHostArray
