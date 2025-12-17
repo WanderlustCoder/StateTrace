@@ -188,26 +188,23 @@ function Restore-SiteExistingRowCacheSnapshot {
     }
 }
 
-$script:PassInterfaceAnalysis = @{}
-$script:PassSummaries = @{}
-
 function Get-IngestionHistorySnapshot {
     param(
         [string]$DirectoryPath
     )
 
-    $snapshot = @()
+    $snapshot = [System.Collections.Generic.List[psobject]]::new()
     foreach ($file in Get-ChildItem -Path $DirectoryPath -Filter '*.json' -File) {
         $content = [System.IO.File]::ReadAllText($file.FullName)
-        $snapshot += [pscustomobject]@{
+        $snapshot.Add([pscustomobject]@{
             Path    = $file.FullName
             Content = $content
-        }
+        }) | Out-Null
     }
-    if (-not $snapshot) {
+    if ($snapshot.Count -eq 0) {
         throw "No ingestion history JSON files found under $DirectoryPath."
     }
-    return ,$snapshot
+    return $snapshot.ToArray()
 }
 
 function Get-IngestionHistoryWarmRunSnapshot {
@@ -218,7 +215,7 @@ function Get-IngestionHistoryWarmRunSnapshot {
         [System.Collections.IEnumerable]$FallbackSnapshot
     )
 
-    $warmRunSnapshot = @()
+    $warmRunSnapshot = [System.Collections.Generic.List[psobject]]::new()
     foreach ($entry in $FallbackSnapshot) {
         $targetPath = $entry.Path
         $fileName = [System.IO.Path]::GetFileName($targetPath)
@@ -241,21 +238,21 @@ function Get-IngestionHistoryWarmRunSnapshot {
                     Write-Warning ("Failed to sanitize warm-run backup for {0}: {1}. Using raw content." -f $fileName, $_.Exception.Message)
                 }
             }
-            $warmRunSnapshot += [pscustomobject]@{
+            $warmRunSnapshot.Add([pscustomobject]@{
                 Path    = $targetPath
                 Content = $content
-            }
+            }) | Out-Null
         } else {
             Write-Warning "No warm-run backup found for $fileName; falling back to the current snapshot."
-            $warmRunSnapshot += $entry
+            $warmRunSnapshot.Add($entry) | Out-Null
         }
     }
 
-    if (-not $warmRunSnapshot) {
+    if ($warmRunSnapshot.Count -eq 0) {
         throw "Failed to build warm-run snapshot from $DirectoryPath."
     }
 
-    return ,$warmRunSnapshot
+    return $warmRunSnapshot.ToArray()
 }
 
 function Restore-IngestionHistory {
@@ -576,7 +573,7 @@ function Get-AppendedTelemetry {
         [string[]]$ExcludePaths
     )
 
-    $events = @()
+    $events = [System.Collections.Generic.List[psobject]]::new()
 
     $excludeSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
     foreach ($path in @($ExcludePaths)) {
@@ -625,7 +622,7 @@ function Get-AppendedTelemetry {
                 $parsed = $line | ConvertFrom-Json -ErrorAction Stop
                 $parsed | Add-Member -NotePropertyName '__SourceFile' -NotePropertyValue $file.FullName
                 $parsed | Add-Member -NotePropertyName '__LineIndex' -NotePropertyValue $index
-                $events += $parsed
+                $events.Add($parsed) | Out-Null
             } catch {
                 Write-Warning "Failed to parse telemetry line $($file.Name):$index. $($_.Exception.Message)"
             }
@@ -637,7 +634,7 @@ function Get-AppendedTelemetry {
         }
     }
 
-    return $events
+    return $events.ToArray()
 }
 
 function Wait-TelemetryFlush {
@@ -678,7 +675,7 @@ function Get-TelemetrySince {
         [switch]$IgnoreEventTimestamp
     )
 
-    $events = @()
+    $events = [System.Collections.Generic.List[psobject]]::new()
     foreach ($file in Get-TelemetryLogFiles -DirectoryPath $DirectoryPath | Where-Object { $_.LastWriteTime -ge $Since }) {
         $lineIndex = 0
         foreach ($line in [System.IO.File]::ReadLines($file.FullName)) {
@@ -709,10 +706,10 @@ function Get-TelemetrySince {
             }
             $parsed | Add-Member -NotePropertyName '__SourceFile' -NotePropertyValue $file.FullName -Force
             $parsed | Add-Member -NotePropertyName '__LineIndex' -NotePropertyValue $currentIndex -Force
-            $events += $parsed
+            $events.Add($parsed) | Out-Null
         }
     }
-    return $events
+    return $events.ToArray()
 }
 
 function Get-TelemetryIdentityKey {
@@ -765,7 +762,7 @@ function Collect-TelemetryForPass {
         [int]$FallbackLookbackSeconds = 2
     )
 
-    $allEvents = @()
+    $allEvents = [System.Collections.Generic.List[psobject]]::new()
     $eventBuckets = @{}
     $identitySet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
     $passLineBaseline = @{}
@@ -784,7 +781,7 @@ function Collect-TelemetryForPass {
         foreach ($name in $RequiredEventNames) {
             if ([string]::IsNullOrWhiteSpace($name)) { continue }
             if (-not $eventBuckets.ContainsKey($name)) {
-                $eventBuckets[$name] = @()
+                $eventBuckets[$name] = [System.Collections.Generic.List[psobject]]::new()
             }
             $requiredNames += $name
         }
@@ -802,12 +799,12 @@ function Collect-TelemetryForPass {
             [void]$identitySet.Add($key)
         }
 
-        $allEvents += $evt
+        $allEvents.Add($evt) | Out-Null
 
         if ($requiredNames -and $evt.PSObject.Properties.Name -contains 'EventName') {
             $evtName = ('' + $evt.EventName).Trim()
             if (-not [string]::IsNullOrWhiteSpace($evtName) -and $eventBuckets.ContainsKey($evtName)) {
-                $eventBuckets[$evtName] += $evt
+                $eventBuckets[$evtName].Add($evt) | Out-Null
             }
         }
     }
@@ -825,11 +822,9 @@ function Collect-TelemetryForPass {
 
         $complete = $true
         foreach ($name in $requiredNames) {
-            $bucket = @()
-            if ($eventBuckets.ContainsKey($name)) {
-                $bucket = $eventBuckets[$name]
-            }
-            if (-not $bucket -or ($bucket | Measure-Object).Count -eq 0) {
+            $bucket = $null
+            if ($eventBuckets.ContainsKey($name)) { $bucket = $eventBuckets[$name] }
+            if (-not $bucket -or $bucket.Count -eq 0) {
                 $complete = $false
                 break
             }
@@ -844,11 +839,9 @@ function Collect-TelemetryForPass {
 
     $missingNames = @()
     foreach ($name in $requiredNames) {
-        $bucket = @()
-        if ($eventBuckets.ContainsKey($name)) {
-            $bucket = $eventBuckets[$name]
-        }
-        if (-not $bucket -or ($bucket | Measure-Object).Count -eq 0) {
+        $bucket = $null
+        if ($eventBuckets.ContainsKey($name)) { $bucket = $eventBuckets[$name] }
+        if (-not $bucket -or $bucket.Count -eq 0) {
             $missingNames += $name
         }
     }
@@ -897,19 +890,27 @@ function Collect-TelemetryForPass {
 
         $missingNames = @()
         foreach ($name in $requiredNames) {
-            $bucket = @()
-            if ($eventBuckets.ContainsKey($name)) {
-                $bucket = $eventBuckets[$name]
-            }
-            if (-not $bucket -or ($bucket | Measure-Object).Count -eq 0) {
+            $bucket = $null
+            if ($eventBuckets.ContainsKey($name)) { $bucket = $eventBuckets[$name] }
+            if (-not $bucket -or $bucket.Count -eq 0) {
                 $missingNames += $name
             }
         }
     }
 
+    $bucketArrays = @{}
+    foreach ($key in @($eventBuckets.Keys)) {
+        $value = $eventBuckets[$key]
+        if ($value -and $value -is [System.Collections.Generic.List[psobject]]) {
+            $bucketArrays[$key] = $value.ToArray()
+        } else {
+            $bucketArrays[$key] = @($value)
+        }
+    }
+
     return [pscustomobject]@{
-        Events            = $allEvents
-        Buckets           = $eventBuckets
+        Events            = $allEvents.ToArray()
+        Buckets           = $bucketArrays
         MissingEventNames = $missingNames
     }
 }
@@ -922,14 +923,14 @@ function Measure-InterfaceCallDurationMetrics {
 
     $durations = [System.Collections.Generic.List[double]]::new()
     $providerCounts = @{}
-    $capturedEvents = @()
+    $capturedEvents = [System.Collections.Generic.List[psobject]]::new()
 
     foreach ($event in @($Events)) {
         if (-not $event) {
             continue
         }
 
-        $capturedEvents += $event
+        $capturedEvents.Add($event) | Out-Null
 
         $provider = ''
         if ($event.PSObject.Properties.Name -contains 'SiteCacheProvider') {
@@ -983,7 +984,7 @@ function Measure-InterfaceCallDurationMetrics {
     }
 
     return [pscustomobject]@{
-        Events         = $capturedEvents
+        Events         = $capturedEvents.ToArray()
         Durations      = $durations.ToArray()
         Count          = $count
         Average        = $averageRounded

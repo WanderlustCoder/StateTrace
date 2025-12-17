@@ -16,3 +16,7 @@ docs/performance/SchedulerVsPortDiversity-*.md
 
 # Generated logs
 *.log
+
+# Local scratch artifacts
+.gittest_perm/
+tmp_ro_test/
