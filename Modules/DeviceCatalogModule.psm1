@@ -183,6 +183,7 @@ function Get-DeviceSummaries {
 
     $metadata = @{}
     $hostnames = [System.Collections.Generic.List[string]]::new()
+    $hostnameSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 
     $normalizedSites = Get-NormalizedSiteFilterList -SiteFilter $SiteFilter
     $dbPaths = @(Get-DbPathsForNormalizedSites -NormalizedSites $normalizedSites)
@@ -209,9 +210,7 @@ function Get-DeviceSummaries {
         foreach ($row in $dt) {
             $name = '' + $row.Hostname
             if ([string]::IsNullOrWhiteSpace($name)) { continue }
-            if (-not $hostnames.Contains($name)) {
-                [void]$hostnames.Add($name)
-            }
+            if ($hostnameSet.Add($name)) { [void]$hostnames.Add($name) }
 
             $metadata[$name] = Get-DeviceCatalogRowLocation -Hostname $name -Row $row
         }

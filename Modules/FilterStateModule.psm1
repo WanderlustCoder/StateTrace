@@ -217,18 +217,9 @@ function Initialize-DeviceFilters {
         Set-DropdownItems -Control $hostnameDD -Items $hostList
     }
 
-    if ($global:InterfacesLoadAllowed) {
-        try {
-            $global:AllInterfaces = ViewStateService\Get-InterfacesForContext -Site $null -ZoneSelection $null -ZoneToLoad $null -Building $null -Room $null
-            if (-not $global:AllInterfaces) {
-                $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
-            }
-        } catch {
-            $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
-        }
-    } else {
-        $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
-    }
+    # Avoid hydrating interfaces during filter initialization; Update-DeviceFilter (and the Search view)
+    # will populate the global interface snapshot when needed. This keeps large device sets responsive.
+    $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
 
     try {
         $searchHostCtrl = $Window.FindName('SearchInterfacesHost')
@@ -444,10 +435,24 @@ function Update-DeviceFilter {
 
         if ($interfacesAllowed -and ($siteChanged -or $zoneChanged -or $buildingChanged -or $roomChanged)) {
             try {
+                $refreshStopwatch = $null
+                try { $refreshStopwatch = [System.Diagnostics.Stopwatch]::StartNew() } catch { $refreshStopwatch = $null }
                 $global:AllInterfaces = ViewStateService\Get-InterfacesForContext -Site $finalSite -ZoneSelection $finalZone -ZoneToLoad $zoneToLoad -Building $finalBuilding -Room $finalRoom
+                $refreshDurationMs = 0.0
+                if ($refreshStopwatch) {
+                    try { $refreshStopwatch.Stop() } catch { }
+                    try { $refreshDurationMs = [math]::Round($refreshStopwatch.Elapsed.TotalMilliseconds, 3) } catch { $refreshDurationMs = 0.0 }
+                }
                 if (-not $global:AllInterfaces) {
                     $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
                 }
+
+                try {
+                    $ifaceCount = 0
+                    try { $ifaceCount = ViewStateService\Get-SequenceCount -Value $global:AllInterfaces } catch { $ifaceCount = 0 }
+                    $diagRefresh = "Update-DeviceFilter refreshed interfaces | DurationMs={0} | Interfaces={1}" -f $refreshDurationMs, $ifaceCount
+                    try { Write-Diag $diagRefresh } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $diagRefresh } catch { }
+                } catch { }
             } catch {
                 $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
             }

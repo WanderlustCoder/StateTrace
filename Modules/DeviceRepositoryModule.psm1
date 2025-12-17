@@ -4505,23 +4505,23 @@ function Update-SiteZoneCache {
     if ($global:LoadedSiteZones.ContainsKey($key)) { return }
     $global:LoadedSiteZones[$key] = $true
 
-    $hostNames = @()
+    $hostNames = [System.Collections.Generic.List[string]]::new()
     try {
         if ($global:DeviceMetadata) {
             foreach ($entry in $global:DeviceMetadata.GetEnumerator()) {
-                $hn = $entry.Key
+                $hostname = $entry.Key
                 $meta = $entry.Value
                 if ($meta.Site -and $meta.Site -ne $Site) { continue }
                 if ($zoneKey -ne '') {
-                    $mZone = $null
+                    $metaZone = $null
                     try {
-                        if ($meta.PSObject.Properties['Zone']) { $mZone = '' + $meta.Zone }
+                        if ($meta.PSObject.Properties['Zone']) { $metaZone = '' + $meta.Zone }
                     } catch {
-                        $mZone = $null
+                        $metaZone = $null
                     }
-                    if ($mZone -and $mZone -ne $zoneKey) { continue }
+                    if ($metaZone -and $metaZone -ne $zoneKey) { continue }
                 }
-                $hostNames += $hn
+                [void]$hostNames.Add($hostname)
             }
         } else {
             try {
@@ -4534,7 +4534,7 @@ function Update-SiteZoneCache {
                             if ($zonePart -ne $zoneKey) { continue }
                         }
                     }
-                    $hostNames += $n
+                    [void]$hostNames.Add($n)
                 }
             } catch [System.Management.Automation.CommandNotFoundException] {
             }
@@ -4545,15 +4545,57 @@ function Update-SiteZoneCache {
 
     if (-not $hostNames -or $hostNames.Count -eq 0) { return }
 
-    $newRows = [System.Collections.Generic.List[object]]::new()
+    if (-not $global:DeviceInterfaceCache) { $global:DeviceInterfaceCache = @{} }
+    $missingHosts = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
     foreach ($hn in $hostNames) {
-        if ($global:DeviceInterfaceCache.ContainsKey($hn)) { continue }
-        try {
-            $ifaceList = Get-InterfaceInfo -Hostname $hn
-            if ($ifaceList) {
-                foreach ($row in $ifaceList) { [void]$newRows.Add($row) }
-            }
-        } catch {
+        if (-not $global:DeviceInterfaceCache.ContainsKey($hn)) {
+            [void]$missingHosts.Add($hn)
+        }
+    }
+
+    if ($missingHosts.Count -eq 0) { return }
+
+    $siteRows = $null
+    try {
+        $siteRows = Get-InterfacesForSite -Site $Site
+    } catch {
+        $siteRows = $null
+    }
+
+    if (-not $siteRows) {
+        foreach ($hn in $missingHosts) {
+            $global:DeviceInterfaceCache[$hn] = [System.Collections.Generic.List[object]]::new()
+        }
+        return
+    }
+
+    $newRows = [System.Collections.Generic.List[object]]::new()
+    $hostBuckets = New-Object 'System.Collections.Generic.Dictionary[string, System.Collections.Generic.List[object]]' ([System.StringComparer]::OrdinalIgnoreCase)
+
+    foreach ($row in $siteRows) {
+        if (-not $row) { continue }
+
+        $hostname = ''
+        try { $hostname = '' + $row.Hostname } catch { $hostname = '' }
+        if ([string]::IsNullOrWhiteSpace($hostname)) { continue }
+        if (-not $missingHosts.Contains($hostname)) { continue }
+
+        $bucket = $null
+        if (-not $hostBuckets.TryGetValue($hostname, [ref]$bucket)) {
+            $bucket = [System.Collections.Generic.List[object]]::new()
+            $hostBuckets[$hostname] = $bucket
+        }
+
+        [void]$bucket.Add($row)
+        [void]$newRows.Add($row)
+    }
+
+    foreach ($hn in $missingHosts) {
+        $bucket = $null
+        if ($hostBuckets.TryGetValue($hn, [ref]$bucket)) {
+            $global:DeviceInterfaceCache[$hn] = $bucket
+        } else {
+            $global:DeviceInterfaceCache[$hn] = [System.Collections.Generic.List[object]]::new()
         }
     }
 
@@ -4564,8 +4606,7 @@ function Update-SiteZoneCache {
             } else {
                 foreach ($r in $newRows) { [void]$global:AllInterfaces.Add($r) }
             }
-        } catch {
-        }
+        } catch { }
     }
 }
 function Get-GlobalInterfaceSnapshot {

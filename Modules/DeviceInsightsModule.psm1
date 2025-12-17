@@ -90,7 +90,10 @@ function Set-SearchRegexEnabled {
 
 function Update-SearchResults {
     [CmdletBinding()]
-    param([string]$Term)
+    param(
+        [string]$Term,
+        [object]$Interfaces
+    )
 
     if (-not $global:InterfacesLoadAllowed) {
         Write-Verbose '[DeviceInsights] Interfaces not allowed yet; skipping search.'
@@ -123,9 +126,27 @@ function Update-SearchResults {
         }
     } catch {}
 
-    $interfaces = ViewStateService\Get-InterfacesForContext -Site $siteSel -ZoneSelection $zoneSel -ZoneToLoad $zoneToLoad -Building $bldSel -Room $roomSel
-    $results   = [System.Collections.Generic.List[object]]::new()
     $termEmpty = [string]::IsNullOrWhiteSpace($Term)
+    if ($termEmpty -and
+        [System.StringComparer]::OrdinalIgnoreCase.Equals(('' + $statusFilterVal), 'All') -and
+        [System.StringComparer]::OrdinalIgnoreCase.Equals(('' + $authFilterVal), 'All'))
+    {
+        return @()
+    }
+
+    $interfaces = $null
+    $interfaceCount = 0
+
+    if ($PSBoundParameters.ContainsKey('Interfaces') -and $Interfaces) {
+        $interfaces = $Interfaces
+    } else {
+        try { $interfaces = $global:AllInterfaces } catch { $interfaces = $null }
+    }
+    try { $interfaceCount = ViewStateService\Get-SequenceCount -Value $interfaces } catch { $interfaceCount = 0 }
+    if ($interfaceCount -le 0) {
+        $interfaces = ViewStateService\Get-InterfacesForContext -Site $siteSel -ZoneSelection $zoneSel -ZoneToLoad $zoneToLoad -Building $bldSel -Room $roomSel
+    }
+    $results   = [System.Collections.Generic.List[object]]::new()
 
     foreach ($row in $interfaces) {
         if (-not $row) { continue }
@@ -193,7 +214,9 @@ function Update-SearchResults {
 
 function Update-Summary {
     [CmdletBinding()]
-    param()
+    param(
+        [object]$Interfaces
+    )
 
     if (-not $global:InterfacesLoadAllowed) {
         Write-Verbose '[DeviceInsights] Interfaces not allowed yet; skipping summary.'
@@ -207,9 +230,19 @@ function Update-Summary {
     $roomSel = $context.Room
     $zoneToLoad = $context.ZoneToLoad
 
-    script:Update-DeviceInsightsSiteZoneCache -Site $siteSel -ZoneToLoad $zoneToLoad
+    $interfaces = $null
+    $interfaceCount = 0
 
-    $interfaces = ViewStateService\Get-InterfacesForContext -Site $siteSel -ZoneSelection $zoneSel -ZoneToLoad $zoneToLoad -Building $bldSel -Room $roomSel
+    if ($PSBoundParameters.ContainsKey('Interfaces') -and $Interfaces) {
+        $interfaces = $Interfaces
+    } else {
+        try { $interfaces = $global:AllInterfaces } catch { $interfaces = $null }
+    }
+    try { $interfaceCount = ViewStateService\Get-SequenceCount -Value $interfaces } catch { $interfaceCount = 0 }
+    if ($interfaceCount -le 0) {
+        script:Update-DeviceInsightsSiteZoneCache -Site $siteSel -ZoneToLoad $zoneToLoad
+        $interfaces = ViewStateService\Get-InterfacesForContext -Site $siteSel -ZoneSelection $zoneSel -ZoneToLoad $zoneToLoad -Building $bldSel -Room $roomSel
+    }
     try {
         $locSite = if ($siteSel) { '' + $siteSel } else { '' }
         $locZone = if ($zoneSel) { '' + $zoneSel } else { '' }
@@ -322,7 +355,9 @@ function Update-Summary {
 
 function Update-Alerts {
     [CmdletBinding()]
-    param()
+    param(
+        [object]$Interfaces
+    )
 
     if (-not $global:InterfacesLoadAllowed) {
         Write-Verbose '[DeviceInsights] Interfaces not allowed yet; skipping alerts.'
@@ -336,9 +371,19 @@ function Update-Alerts {
     $roomSel = $context.Room
     $zoneToLoad = $context.ZoneToLoad
 
-    script:Update-DeviceInsightsSiteZoneCache -Site $siteSel -ZoneToLoad $zoneToLoad
+    $interfaces = $null
+    $interfaceCount = 0
 
-    $interfaces = ViewStateService\Get-InterfacesForContext -Site $siteSel -ZoneSelection $zoneSel -ZoneToLoad $zoneToLoad -Building $bldSel -Room $roomSel
+    if ($PSBoundParameters.ContainsKey('Interfaces') -and $Interfaces) {
+        $interfaces = $Interfaces
+    } else {
+        try { $interfaces = $global:AllInterfaces } catch { $interfaces = $null }
+    }
+    try { $interfaceCount = ViewStateService\Get-SequenceCount -Value $interfaces } catch { $interfaceCount = 0 }
+    if ($interfaceCount -le 0) {
+        script:Update-DeviceInsightsSiteZoneCache -Site $siteSel -ZoneToLoad $zoneToLoad
+        $interfaces = ViewStateService\Get-InterfacesForContext -Site $siteSel -ZoneSelection $zoneSel -ZoneToLoad $zoneToLoad -Building $bldSel -Room $roomSel
+    }
     if (-not $interfaces) { $interfaces = @() }
 
     $alerts = [System.Collections.Generic.List[object]]::new()
@@ -391,7 +436,9 @@ function Update-Alerts {
 
 function Update-SearchGrid {
     [CmdletBinding()]
-    param()
+    param(
+        [object]$Interfaces
+    )
 
     if (-not $global:InterfacesLoadAllowed) {
         Write-Verbose '[DeviceInsights] Interfaces not allowed yet; skipping search grid.'
@@ -407,7 +454,7 @@ function Update-SearchGrid {
     if (-not $gridCtrl -or -not $boxCtrl) { return }
 
     $term = $boxCtrl.Text
-    $results = Update-SearchResults -Term $term
+    $results = Update-SearchResults -Term $term -Interfaces $Interfaces
     $resultList = [System.Collections.Generic.List[object]]::new()
     foreach ($item in $results) {
         if ($item) { [void]$resultList.Add($item) }

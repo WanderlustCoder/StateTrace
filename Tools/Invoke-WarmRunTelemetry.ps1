@@ -112,7 +112,9 @@ function Get-DeviceRepositoryModule {
     if (Test-Path -LiteralPath $modulePath) {
         try {
             return Import-Module -Name $modulePath -PassThru -ErrorAction SilentlyContinue
-        } catch { }
+        } catch {
+            Write-Verbose ("Unable to import DeviceRepositoryModule: {0}" -f $_.Exception.Message) -Verbose:$VerboseParsing
+        }
     }
 
     return $null
@@ -2267,8 +2269,7 @@ function Write-SharedCacheSnapshotFile {
         if ($sanitizedEntries.Count -eq 0) {
             Write-Warning 'Shared cache snapshot contained no valid site entries; exporting empty snapshot.'
         }
-        $exportEntries = if ($sanitizedEntries -is [array]) { $sanitizedEntries } else { @($sanitizedEntries) }
-        Export-Clixml -InputObject $exportEntries -Path $Path -Depth 20
+        Export-Clixml -InputObject $sanitizedEntries.ToArray() -Path $Path -Depth 20
     } catch {
         Write-Warning ("Failed to write shared cache snapshot to '{0}': {1}" -f $Path, $_.Exception.Message)
     }
@@ -2312,18 +2313,18 @@ function Restore-SharedCacheEntries {
         })
     }
 
-    $sanitizedEntries = $validEntries.ToArray()
-    if (-not $sanitizedEntries -or $sanitizedEntries.Count -eq 0) {
+    if ($validEntries.Count -eq 0) {
         Write-Warning 'No valid shared cache entries were available to restore.'
         return 0
     }
 
     $sitesToWarm = [System.Collections.Generic.List[string]]::new()
+    $siteSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
     $siteEntryTable = @{}
     foreach ($entry in $validEntries) {
         $siteName = ('' + $entry.Site).Trim()
         if ([string]::IsNullOrWhiteSpace($siteName)) { continue }
-        if (-not ($sitesToWarm.Contains($siteName))) {
+        if ($siteSet.Add($siteName)) {
             [void]$sitesToWarm.Add($siteName)
         }
         $entryValue = $entry.Entry
@@ -2380,7 +2381,7 @@ function Restore-SharedCacheEntries {
 
             return $restored
         },
-        @{ EntryList = $sanitizedEntries }
+        @{ EntryList = $validEntries.ToArray() }
     )
 
     if ($sitesToWarm.Count -gt 0 -and $siteEntryTable.Count -gt 0) {

@@ -208,9 +208,9 @@ Describe "DeviceRepositoryModule core helpers" {
         $global:DeviceMetadata = @{
             'SITE1-Z1-SW1' = [pscustomobject]@{ Site = 'SITE1'; Zone = 'Z1' }
         }
-        Mock -ModuleName DeviceRepositoryModule -CommandName Get-InterfaceInfo {
-            param([string]$Hostname)
-            @([pscustomobject]@{ Hostname = $Hostname; Site = 'SITE1'; Zone = 'Z1'; Port = 'Gi1' })
+        Mock -ModuleName DeviceRepositoryModule -CommandName Get-InterfacesForSite {
+            param([string]$Site)
+            @([pscustomobject]@{ Hostname = 'SITE1-Z1-SW1'; Site = $Site; Zone = 'Z1'; Port = 'Gi1' })
         }
 
         DeviceRepositoryModule\Update-SiteZoneCache -Site 'SITE1' -Zone 'Z1'
@@ -218,7 +218,7 @@ Describe "DeviceRepositoryModule core helpers" {
 
         $global:LoadedSiteZones.ContainsKey('SITE1|Z1') | Should Be $true
         $global:AllInterfaces.Count | Should Be 1
-        Assert-MockCalled Get-InterfaceInfo -ModuleName DeviceRepositoryModule -Times 1 -ParameterFilter { $Hostname -eq 'SITE1-Z1-SW1' }
+        Assert-MockCalled Get-InterfacesForSite -ModuleName DeviceRepositoryModule -Times 1 -ParameterFilter { $Site -eq 'SITE1' }
     }
 
     It "returns snapshots without mutating global interface cache" {
