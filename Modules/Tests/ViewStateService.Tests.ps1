@@ -122,6 +122,7 @@ Describe "ViewStateService Get-FilterSnapshot" {
             $script:CachedSite = 'SITE1'
             $script:CachedZoneSelection = 'Z1'
             $script:CachedZoneLoad = ''
+            $script:CachedInterfaces = $global:AllInterfaces
         }
 
         $result = ViewStateService\Get-InterfacesForContext -Site 'SITE1' -ZoneSelection 'Z1' -Building 'B1' -Room 'R101'

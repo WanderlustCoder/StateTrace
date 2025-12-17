@@ -1519,11 +1519,39 @@ function Invoke-DatabaseImport {
     try {
         $global:InterfacesLoadAllowed = $true
         if ($global:StateTraceDb) { $env:StateTraceDbPath = $global:StateTraceDb }
+
+        # Preserve the current filter selections (site/zone/building/room) so Load-from-DB does not
+        # reset the user's location scope when we rebuild dropdown contents from catalog metadata.
+        try {
+            $loc = $null
+            try {
+                $loc = FilterStateModule\Get-SelectedLocation -Window $Window
+            } catch {
+                try { $loc = Get-SelectedLocation -Window $Window } catch { $loc = $null }
+            }
+            if ($loc -is [hashtable]) {
+                $global:PendingFilterRestore = @{
+                    Site     = if ($loc.ContainsKey('Site')) { '' + $loc.Site } else { '' }
+                    Zone     = if ($loc.ContainsKey('Zone')) { '' + $loc.Zone } else { '' }
+                    Building = if ($loc.ContainsKey('Building')) { '' + $loc.Building } else { '' }
+                    Room     = if ($loc.ContainsKey('Room')) { '' + $loc.Room } else { '' }
+                }
+            } elseif ($loc) {
+                $global:PendingFilterRestore = @{
+                    Site     = if ($loc.PSObject.Properties['Site']) { '' + $loc.Site } else { '' }
+                    Zone     = if ($loc.PSObject.Properties['Zone']) { '' + $loc.Zone } else { '' }
+                    Building = if ($loc.PSObject.Properties['Building']) { '' + $loc.Building } else { '' }
+                    Room     = if ($loc.PSObject.Properties['Room']) { '' + $loc.Room } else { '' }
+                }
+            }
+        } catch {}
+
         $siteFilterValue = Get-SelectedSiteFilterValue -Window $Window
         Initialize-DeviceViewFromCatalog -Window $Window -SiteFilter $siteFilterValue
         Populate-SiteDropdownWithAvailableSites -Window $Window -PreferredSelection $siteFilterValue -PreserveExistingSelection
         Publish-UserActionTelemetry -Action 'LoadFromDb' -Site $siteFilterValue -Hostname (Get-SelectedHostname -Window $Window) -Context 'MainWindow'
     } catch {
+        try { $global:PendingFilterRestore = $null } catch {}
         Write-Warning ("Database import failed: {0}" -f $_.Exception.Message)
     }
 }

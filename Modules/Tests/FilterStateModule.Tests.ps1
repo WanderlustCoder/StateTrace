@@ -81,6 +81,7 @@ Describe "FilterStateModule Update-DeviceFilter" {
         Remove-Variable -Name ProgrammaticFilterUpdate -Scope Global -ErrorAction SilentlyContinue
         Remove-Variable -Name AllInterfaces -Scope Global -ErrorAction SilentlyContinue
         Remove-Variable -Name InterfacesLoadAllowed -Scope Global -ErrorAction SilentlyContinue
+        Remove-Variable -Name PendingFilterRestore -Scope Global -ErrorAction SilentlyContinue
         Remove-Variable -Name FilterTestControls -Scope Script -ErrorAction SilentlyContinue
     }
 
@@ -93,6 +94,27 @@ Describe "FilterStateModule Update-DeviceFilter" {
         ($script:FilterTestControls['HostnameDropdown'].ItemsSource -contains 'SITE1-Z1-SW1') | Should Be $true
         ($script:FilterTestControls['BuildingDropdown'].ItemsSource -contains 'B1') | Should Be $true
         ($script:FilterTestControls['RoomDropdown'].ItemsSource -contains 'R101') | Should Be $true
+    }
+
+    It "restores the location scope when PendingFilterRestore is set" {
+        $global:PendingFilterRestore = @{
+            Site     = 'SITE1'
+            Zone     = 'Z1'
+            Building = 'B1'
+            Room     = 'R101'
+        }
+
+        FilterStateModule\Update-DeviceFilter
+
+        $script:FilterTestControls['SiteDropdown'].SelectedItem | Should Be 'SITE1'
+        $script:FilterTestControls['ZoneDropdown'].SelectedItem | Should Be 'Z1'
+        $script:FilterTestControls['BuildingDropdown'].SelectedItem | Should Be 'B1'
+        $script:FilterTestControls['RoomDropdown'].SelectedItem | Should Be 'R101'
+
+        ($script:FilterTestControls['HostnameDropdown'].ItemsSource -contains 'SITE1-Z1-SW1') | Should Be $true
+        ($script:FilterTestControls['HostnameDropdown'].ItemsSource -contains 'SITE1-Z2-SW2') | Should Be $false
+
+        ($null -eq $global:PendingFilterRestore) | Should Be $true
     }
 
     It "refreshes interface cache when selection changes" {

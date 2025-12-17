@@ -5,6 +5,9 @@ if (-not (Get-Variable -Scope Script -Name CachedSite -ErrorAction SilentlyConti
     $script:CachedZoneSelection = $null
     $script:CachedZoneLoad = $null
 }
+if (-not (Get-Variable -Scope Script -Name CachedInterfaces -ErrorAction SilentlyContinue)) {
+    $script:CachedInterfaces = $null
+}
 if (-not (Get-Variable -Scope Global -Name InterfacesLoadAllowed -ErrorAction SilentlyContinue)) {
     $global:InterfacesLoadAllowed = $false
 }
@@ -170,17 +173,18 @@ function Get-InterfacesForContext {
     $cachedSite = $script:CachedSite
     $cachedZoneSelection = $script:CachedZoneSelection
     $cachedZoneLoad = $script:CachedZoneLoad
+    $cachedInterfaces = $script:CachedInterfaces
 
     $siteMatch = ([string]::IsNullOrEmpty($siteFilter) -and [string]::IsNullOrEmpty($cachedSite)) -or [string]::Equals($siteFilter, $cachedSite, [System.StringComparison]::OrdinalIgnoreCase)
     $zoneMatch = ([string]::IsNullOrEmpty($zoneFilter) -and [string]::IsNullOrEmpty($cachedZoneSelection)) -or [string]::Equals($zoneFilter, $cachedZoneSelection, [System.StringComparison]::OrdinalIgnoreCase)
     $zoneLoadMatch = ([string]::IsNullOrEmpty($zoneLoadParam) -and [string]::IsNullOrEmpty($cachedZoneLoad)) -or [string]::Equals($zoneLoadParam, $cachedZoneLoad, [System.StringComparison]::OrdinalIgnoreCase)
 
-    $interfaces = $null
-    if ($siteMatch -and $zoneMatch -and $zoneLoadMatch -and (Get-SequenceCount $global:AllInterfaces) -gt 0) {
-        $interfaces = $global:AllInterfaces
+    $interfacesSnapshot = $null
+    if ($siteMatch -and $zoneMatch -and $zoneLoadMatch -and (Get-SequenceCount $cachedInterfaces) -gt 0) {
+        $interfacesSnapshot = $cachedInterfaces
     }
 
-    if (-not $interfaces) {
+    if (-not $interfacesSnapshot) {
         $params = @{}
         if ($null -ne $siteFilter) { $params.Site = $siteFilter }
         if ($null -ne $zoneFilter) { $params.ZoneSelection = $zoneFilter }
@@ -197,19 +201,19 @@ function Get-InterfacesForContext {
             $snapshot = @()
         }
 
-        $interfaces = if ($snapshot -and $snapshot.Length -gt 0) {
+        $interfacesSnapshot = if ($snapshot -and $snapshot.Length -gt 0) {
             [System.Collections.Generic.List[object]]::new($snapshot)
         } else {
             [System.Collections.Generic.List[object]]::new()
         }
 
-        $global:AllInterfaces = $interfaces
+        $script:CachedInterfaces = $interfacesSnapshot
         $script:CachedSite = $siteFilter
         $script:CachedZoneSelection = $zoneFilter
         $script:CachedZoneLoad = $zoneLoadParam
     }
 
-    if (-not $interfaces) { return @() }
+    if (-not $interfacesSnapshot) { return @() }
 
     $buildingFilter = ConvertTo-FilterValue -Value $Building -Sentinels @('')
     $roomFilter = ConvertTo-FilterValue -Value $Room -Sentinels @('')
@@ -219,7 +223,7 @@ function Get-InterfacesForContext {
     try { $metadataLookup = $global:DeviceMetadata } catch { $metadataLookup = $null }
     $stringPropertyCmd = script:Get-InterfaceStringPropertyValueCommand
 
-    foreach ($row in $interfaces) {
+    foreach ($row in $interfacesSnapshot) {
         if (-not $row) { continue }
 
         $rowMetadata = $null

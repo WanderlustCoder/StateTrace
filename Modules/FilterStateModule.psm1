@@ -281,6 +281,41 @@ function Update-DeviceFilter {
         $buildingInput  = if ($locInitial) { '' + $locInitial.Building } else { '' }
         $roomInput      = if ($locInitial) { '' + $locInitial.Room } else { '' }
 
+        $pendingRestore = $null
+        try { $pendingRestore = $global:PendingFilterRestore } catch { $pendingRestore = $null }
+        if ($pendingRestore) {
+            try {
+                $pendingSite = $null
+                $pendingZone = $null
+                $pendingBuilding = $null
+                $pendingRoom = $null
+
+                if ($pendingRestore -is [hashtable]) {
+                    if ($pendingRestore.ContainsKey('Site')) { $pendingSite = $pendingRestore.Site }
+                    if ($pendingRestore.ContainsKey('Zone')) { $pendingZone = $pendingRestore.Zone }
+                    if ($pendingRestore.ContainsKey('Building')) { $pendingBuilding = $pendingRestore.Building }
+                    if ($pendingRestore.ContainsKey('Room')) { $pendingRoom = $pendingRestore.Room }
+                } else {
+                    if ($pendingRestore.PSObject.Properties['Site']) { $pendingSite = $pendingRestore.Site }
+                    if ($pendingRestore.PSObject.Properties['Zone']) { $pendingZone = $pendingRestore.Zone }
+                    if ($pendingRestore.PSObject.Properties['Building']) { $pendingBuilding = $pendingRestore.Building }
+                    if ($pendingRestore.PSObject.Properties['Room']) { $pendingRoom = $pendingRestore.Room }
+                }
+
+                if ($null -ne $pendingSite) { $siteInput = '' + $pendingSite }
+                if ($null -ne $pendingZone) { $zoneInput = '' + $pendingZone }
+                if ($null -ne $pendingBuilding) { $buildingInput = '' + $pendingBuilding }
+                if ($null -ne $pendingRoom) { $roomInput = '' + $pendingRoom }
+
+                try {
+                    $diagMsg = "Update-DeviceFilter: applied PendingFilterRestore | site='{0}', zone='{1}', bld='{2}', room='{3}'" -f `
+                        $siteInput, $zoneInput, $buildingInput, $roomInput
+                    try { Write-Diag $diagMsg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $diagMsg } catch { }
+                } catch { }
+            } catch { }
+            try { $global:PendingFilterRestore = $null } catch { }
+        }
+
         $siteChangedCompared = ([System.StringComparer]::OrdinalIgnoreCase.Compare($siteInput, '' + $script:LastSiteSel) -ne 0)
         $zoneChangedCompared = ([System.StringComparer]::OrdinalIgnoreCase.Compare($zoneInput, '' + $script:LastZoneSel) -ne 0)
         $bldChangedCompared  = ([System.StringComparer]::OrdinalIgnoreCase.Compare($buildingInput, '' + $script:LastBuildingSel) -ne 0)
