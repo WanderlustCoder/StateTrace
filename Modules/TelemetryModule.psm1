@@ -157,6 +157,65 @@ function Get-TelemetryWriteMutexName {
     }
 }
 
+if (-not (Get-Variable -Scope Script -Name TelemetryBuffer -ErrorAction SilentlyContinue)) {
+    $script:TelemetryBuffer = [System.Collections.Generic.List[string]]::new()
+}
+if (-not (Get-Variable -Scope Script -Name TelemetryBufferFlushThreshold -ErrorAction SilentlyContinue)) {
+    $script:TelemetryBufferFlushThreshold = 50
+}
+if (-not (Get-Variable -Scope Script -Name TelemetryBufferLastFlushUtc -ErrorAction SilentlyContinue)) {
+    $script:TelemetryBufferLastFlushUtc = [DateTime]::UtcNow
+}
+if (-not (Get-Variable -Scope Script -Name TelemetryWriteMutex -ErrorAction SilentlyContinue)) {
+    $script:TelemetryWriteMutex = $null
+}
+if (-not (Get-Variable -Scope Script -Name TelemetryWriteMutexPath -ErrorAction SilentlyContinue)) {
+    $script:TelemetryWriteMutexPath = $null
+}
+
+function Flush-TelemetryBuffer {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Path
+    )
+
+    if (-not $script:TelemetryBuffer -or $script:TelemetryBuffer.Count -le 0) { return }
+
+    $lines = $script:TelemetryBuffer.ToArray()
+    if (-not $lines -or $lines.Count -le 0) { return }
+
+    $mutex = $null
+    $lockAcquired = $false
+    try {
+        if (-not $script:TelemetryWriteMutex -or -not $script:TelemetryWriteMutexPath -or -not [string]::Equals($script:TelemetryWriteMutexPath, $Path, [System.StringComparison]::OrdinalIgnoreCase)) {
+            if ($script:TelemetryWriteMutex) {
+                try { $script:TelemetryWriteMutex.Dispose() } catch { }
+                $script:TelemetryWriteMutex = $null
+            }
+            $script:TelemetryWriteMutexPath = $Path
+            $mutexName = Get-TelemetryWriteMutexName -Path $Path
+            $script:TelemetryWriteMutex = New-Object 'System.Threading.Mutex' $false, $mutexName
+        }
+
+        $mutex = $script:TelemetryWriteMutex
+        try {
+            $lockAcquired = $mutex.WaitOne()
+        } catch [System.Threading.AbandonedMutexException] {
+            $lockAcquired = $true
+        }
+
+        Add-Content -LiteralPath $Path -Value $lines
+        $script:TelemetryBuffer.Clear()
+        $script:TelemetryBufferLastFlushUtc = [DateTime]::UtcNow
+    } finally {
+        if ($mutex) {
+            if ($lockAcquired) {
+                try { $mutex.ReleaseMutex() } catch { }
+            }
+        }
+    }
+}
+
 function Write-StTelemetryEvent {
     [CmdletBinding()]
     param(
@@ -172,24 +231,33 @@ function Write-StTelemetryEvent {
     }
     $json = ($evt | ConvertTo-Json -Depth 6 -Compress)
     $path = Get-TelemetryLogPath
-    $mutex = $null
-    $lockAcquired = $false
-    try {
-        $mutexName = Get-TelemetryWriteMutexName -Path $path
-        $mutex = New-Object 'System.Threading.Mutex' $false, $mutexName
+
+    if (-not $script:TelemetryBuffer) {
+        $script:TelemetryBuffer = [System.Collections.Generic.List[string]]::new()
+    }
+    $script:TelemetryBuffer.Add($json) | Out-Null
+
+    $flushNow = $false
+    $pesterLoaded = $false
+    try { $pesterLoaded = ($null -ne (Get-Module -Name 'Pester' -ErrorAction SilentlyContinue)) } catch { $pesterLoaded = $false }
+
+    if ($pesterLoaded) {
+        $flushNow = $true
+    } elseif ($script:TelemetryBuffer.Count -ge $script:TelemetryBufferFlushThreshold) {
+        $flushNow = $true
+    } elseif ($Name -eq 'ParseDuration' -or $Name -eq 'SkippedDuplicate') {
+        $flushNow = $true
+    } else {
         try {
-            $lockAcquired = $mutex.WaitOne()
-        } catch [System.Threading.AbandonedMutexException] {
-            $lockAcquired = $true
-        }
-        Add-Content -LiteralPath $path -Value $json
-    } finally {
-        if ($mutex) {
-            if ($lockAcquired) {
-                try { $mutex.ReleaseMutex() } catch { }
+            $elapsedSeconds = ([DateTime]::UtcNow - $script:TelemetryBufferLastFlushUtc).TotalSeconds
+            if ($elapsedSeconds -ge 5) {
+                $flushNow = $true
             }
-            $mutex.Dispose()
-        }
+        } catch { }
+    }
+
+    if ($flushNow) {
+        Flush-TelemetryBuffer -Path $path
     }
 }
 

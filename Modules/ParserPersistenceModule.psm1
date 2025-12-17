@@ -1124,8 +1124,6 @@ function Update-InterfacesInDb {
     }
     if (-not $ifaceRecords) { $ifaceRecords = @() }
 
-    Ensure-InterfaceTableIndexes -Connection $Connection
-
     Import-SiteExistingRowCacheSnapshotFromEnv
 
     $skipSiteCacheUpdateFromParameter = ($SkipSiteCacheUpdate -eq $true)
@@ -1754,11 +1752,18 @@ $siteCacheTemplateDurationMs = 0.0
                 $sharedTotalRows = 0
                 $sharedCacheStatus = ''
                 if ($sharedSummaryEntry) {
-                    if ($sharedSummaryEntry.PSObject.Properties.Name -contains 'HostMap') {
+                    if ($sharedSummaryEntry.PSObject.Properties.Name -contains 'HostCount') {
+                        try { $sharedHostCount = [int]$sharedSummaryEntry.HostCount } catch { $sharedHostCount = 0 }
+                    }
+                    if ($sharedSummaryEntry.PSObject.Properties.Name -contains 'TotalRows') {
+                        try { $sharedTotalRows = [int]$sharedSummaryEntry.TotalRows } catch { $sharedTotalRows = 0 }
+                    }
+                    if (($sharedHostCount -le 0 -or $sharedTotalRows -le 0) -and ($sharedSummaryEntry.PSObject.Properties.Name -contains 'HostMap')) {
                         $sharedHostMap = $sharedSummaryEntry.HostMap
                         if ($sharedHostMap -is [System.Collections.IDictionary]) {
                             try { $sharedHostCount = [int]$sharedHostMap.Count } catch { $sharedHostCount = 0 }
-                            foreach ($sharedHostEntry in @($sharedHostMap.GetEnumerator())) {
+                            $sharedTotalRows = 0
+                            foreach ($sharedHostEntry in $sharedHostMap.GetEnumerator()) {
                                 $sharedPorts = $sharedHostEntry.Value
                                 if ($sharedPorts -is [System.Collections.IDictionary] -or $sharedPorts -is [System.Collections.ICollection]) {
                                     try { $sharedTotalRows += [int]$sharedPorts.Count } catch { }
@@ -1766,14 +1771,13 @@ $siteCacheTemplateDurationMs = 0.0
                             }
                         }
                     }
-                    if ($sharedSummaryEntry.PSObject.Properties.Name -contains 'HostCount' -and $sharedHostCount -le 0) {
-                        try { $sharedHostCount = [int]$sharedSummaryEntry.HostCount } catch { }
-                    }
-                    if ($sharedSummaryEntry.PSObject.Properties.Name -contains 'TotalRows' -and $sharedTotalRows -le 0) {
-                        try { $sharedTotalRows = [int]$sharedSummaryEntry.TotalRows } catch { }
-                    }
                     if ($sharedSummaryEntry.PSObject.Properties.Name -contains 'CacheStatus') {
                         try { $sharedCacheStatus = '' + $sharedSummaryEntry.CacheStatus } catch { $sharedCacheStatus = '' }
+                    }
+
+                    if (-not $sharedSiteCacheEntryAttempted) {
+                        $sharedSiteCacheEntryAttempted = $true
+                        $sharedSiteCacheEntry = $sharedSummaryEntry
                     }
                 }
 
@@ -2249,6 +2253,8 @@ $siteCacheTemplateDurationMs = 0.0
         $siteCacheProviderReason = 'SharedCacheMatch'
     }
     $queryExistingRows = {
+        Ensure-InterfaceTableIndexes -Connection $Connection
+
         $result = @{
             Rows = @{}
             LoadSignatureDurationMs = 0.0
@@ -2802,6 +2808,8 @@ $siteCacheTemplateDurationMs = 0.0
     }
 
     if ($toDelete.Count -gt 0) {
+        Ensure-InterfaceTableIndexes -Connection $Connection
+
         $deleteStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         try {
             & $removeInterfacePorts $toDelete 'stale interface port'
@@ -2899,6 +2907,10 @@ $siteCacheTemplateDurationMs = 0.0
     $bulkMetrics = $null
 
     $script:LastInterfaceBulkInsertMetrics = $null
+
+    if ($rowsToWrite.Count -gt 0) {
+        Ensure-InterfaceTableIndexes -Connection $Connection
+    }
 
     if ($useAdodbParameters -and $rowsToWrite.Count -gt 0) {
 
