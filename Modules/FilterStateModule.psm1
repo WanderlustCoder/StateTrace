@@ -549,11 +549,30 @@ function Update-DeviceFilter {
             $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
         }
 
-        if ($interfacesAllowed) {
+        $summaryVisible = $false
+        $searchVisible = $false
+        $alertsVisible = $false
+        try {
+            $summaryHost = $window.FindName('SummaryHost')
+            if ($summaryHost -and $summaryHost.IsVisible) { $summaryVisible = $true }
+        } catch { $summaryVisible = $false }
+        try {
+            $searchHost = $window.FindName('SearchInterfacesHost')
+            if ($searchHost -and $searchHost.IsVisible) { $searchVisible = $true }
+        } catch { $searchVisible = $false }
+        try {
+            $alertsHost = $window.FindName('AlertsHost')
+            if ($alertsHost -and $alertsHost.IsVisible) { $alertsVisible = $true }
+        } catch { $alertsVisible = $false }
+
+        # Only refresh views that are currently visible. This avoids reprocessing large interface
+        # snapshots when the user is focused on a different tab.
+        if ($interfacesAllowed -and $searchVisible) {
             try { Update-SearchGrid } catch [System.Management.Automation.CommandNotFoundException] { }
         }
+
         $canUpdateSummary = $false
-        if ($interfacesAllowed) {
+        if ($interfacesAllowed -and $summaryVisible) {
             try {
                 $summaryVar = Get-Variable -Name summaryView -Scope Global -ErrorAction Stop
                 if ($summaryVar.Value) { $canUpdateSummary = $true }
@@ -562,7 +581,8 @@ function Update-DeviceFilter {
         if ($canUpdateSummary) {
             try { Update-Summary } catch [System.Management.Automation.CommandNotFoundException] { }
         }
-        if ($interfacesAllowed) {
+
+        if ($interfacesAllowed -and $alertsVisible) {
             try { Update-Alerts } catch [System.Management.Automation.CommandNotFoundException] { }
         }
 

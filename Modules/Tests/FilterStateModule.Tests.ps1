@@ -157,6 +157,69 @@ Describe "FilterStateModule Update-DeviceFilter" {
         $global:AllInterfaces.Count | Should Be 0
     }
 
+    It "only refreshes heavy views when their tabs are visible" {
+        $script:FilterTestControls['SummaryHost'] = [pscustomobject]@{ IsVisible = $false }
+        $script:FilterTestControls['SearchInterfacesHost'] = [pscustomobject]@{ IsVisible = $false }
+        $script:FilterTestControls['AlertsHost'] = [pscustomobject]@{ IsVisible = $false }
+
+        $script:CalledSummary = $false
+        $script:CalledSearch = $false
+        $script:CalledAlerts = $false
+
+        $previousSummaryFn = $null
+        $previousSearchFn = $null
+        $previousAlertsFn = $null
+        try { $previousSummaryFn = Get-Item Function:\Update-Summary -ErrorAction SilentlyContinue } catch { $previousSummaryFn = $null }
+        try { $previousSearchFn = Get-Item Function:\Update-SearchGrid -ErrorAction SilentlyContinue } catch { $previousSearchFn = $null }
+        try { $previousAlertsFn = Get-Item Function:\Update-Alerts -ErrorAction SilentlyContinue } catch { $previousAlertsFn = $null }
+
+        function global:Update-Summary { $script:CalledSummary = $true }
+        function global:Update-SearchGrid { $script:CalledSearch = $true }
+        function global:Update-Alerts { $script:CalledAlerts = $true }
+
+        try {
+            $global:summaryView = [pscustomobject]@{}
+
+            FilterStateModule\Update-DeviceFilter
+
+            $script:CalledSummary | Should Be $false
+            $script:CalledSearch | Should Be $false
+            $script:CalledAlerts | Should Be $false
+
+            $script:FilterTestControls['SearchInterfacesHost'].IsVisible = $true
+            FilterStateModule\Update-DeviceFilter
+            $script:CalledSearch | Should Be $true
+
+            $script:FilterTestControls['AlertsHost'].IsVisible = $true
+            FilterStateModule\Update-DeviceFilter
+            $script:CalledAlerts | Should Be $true
+
+            $script:FilterTestControls['SummaryHost'].IsVisible = $true
+            FilterStateModule\Update-DeviceFilter
+            $script:CalledSummary | Should Be $true
+        } finally {
+            if ($previousSummaryFn -and $previousSummaryFn.ScriptBlock) {
+                Set-Item -Path Function:\Update-Summary -Value $previousSummaryFn.ScriptBlock -ErrorAction SilentlyContinue
+            } else {
+                Remove-Item Function:\Update-Summary -ErrorAction SilentlyContinue
+            }
+            if ($previousSearchFn -and $previousSearchFn.ScriptBlock) {
+                Set-Item -Path Function:\Update-SearchGrid -Value $previousSearchFn.ScriptBlock -ErrorAction SilentlyContinue
+            } else {
+                Remove-Item Function:\Update-SearchGrid -ErrorAction SilentlyContinue
+            }
+            if ($previousAlertsFn -and $previousAlertsFn.ScriptBlock) {
+                Set-Item -Path Function:\Update-Alerts -Value $previousAlertsFn.ScriptBlock -ErrorAction SilentlyContinue
+            } else {
+                Remove-Item Function:\Update-Alerts -ErrorAction SilentlyContinue
+            }
+            Remove-Variable -Name summaryView -Scope Global -ErrorAction SilentlyContinue
+            Remove-Variable -Name CalledSummary -Scope Script -ErrorAction SilentlyContinue
+            Remove-Variable -Name CalledSearch -Scope Script -ErrorAction SilentlyContinue
+            Remove-Variable -Name CalledAlerts -Scope Script -ErrorAction SilentlyContinue
+        }
+    }
+
     It "populates site and zone from location entries without loading interfaces when disabled" {
         $global:DeviceMetadata = $null
         $global:InterfacesLoadAllowed = $false

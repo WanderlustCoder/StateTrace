@@ -56,6 +56,9 @@ if (-not (Get-Variable -Name DeviceLoaderModuleNames -Scope Script -ErrorAction 
 if (-not (Get-Variable -Name DeviceDetailsWarmupQueued -Scope Script -ErrorAction SilentlyContinue)) {
     $script:DeviceDetailsWarmupQueued = $false
 }
+if (-not (Get-Variable -Name TabVisibilityHandlersAttached -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:TabVisibilityHandlersAttached = $false
+}
 $script:StateTraceSettingsPath = Join-Path $scriptDir '..\Data\StateTraceSettings.json'
 
 if (-not (Get-Variable -Name ParserStatusTimer -Scope Script -ErrorAction SilentlyContinue)) {
@@ -655,6 +658,49 @@ if (-not $global:ProgrammaticFilterUpdate) {
     $global:ProgrammaticFilterUpdate = $false
 }
 # === END View initialization helpers (MainWindow.ps1) ===
+
+function Register-TabVisibilityRefreshHandlers {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][Windows.Window]$Window)
+
+    if ($script:TabVisibilityHandlersAttached) { return }
+    $script:TabVisibilityHandlersAttached = $true
+
+    $wire = {
+        param(
+            [string]$HostControlName,
+            [scriptblock]$OnVisible
+        )
+
+        if (-not $HostControlName -or -not $OnVisible) { return }
+
+        $hostControl = $null
+        try { $hostControl = $Window.FindName($HostControlName) } catch { $hostControl = $null }
+        if (-not $hostControl) { return }
+
+        $handler = {
+            param($sender, $e)
+
+            if (-not $sender -or -not $sender.IsVisible) { return }
+            if (-not $global:InterfacesLoadAllowed) { return }
+
+            try { & $OnVisible } catch { }
+        }.GetNewClosure()
+
+        try { $hostControl.Add_IsVisibleChanged($handler) } catch { }
+    }
+
+    & $wire 'SummaryHost'          { Invoke-OptionalCommandSafe -Name 'Update-Summary' | Out-Null }
+    & $wire 'SearchInterfacesHost' { Invoke-OptionalCommandSafe -Name 'Update-SearchGrid' | Out-Null }
+    & $wire 'AlertsHost'           { Invoke-OptionalCommandSafe -Name 'Update-Alerts' | Out-Null }
+    & $wire 'SpanHost'             {
+        $selected = $null
+        try { $selected = Get-SelectedHostname -Window $Window } catch { $selected = $null }
+        Invoke-OptionalCommandSafe -Name 'Get-SpanInfo' -ArgumentList @($selected) | Out-Null
+    }
+}
+
+try { Register-TabVisibilityRefreshHandlers -Window $window } catch { }
 
 # === BEGIN Main window control hooks (MainWindow.ps1) ===
 
@@ -1624,13 +1670,30 @@ function Get-HostnameChanged {
                     try { InterfaceModule\Set-HostLoadingIndicator -State 'Hidden' } catch {}
                 }
             }
-            $null = Invoke-OptionalCommandSafe -Name 'Get-SpanInfo' -ArgumentList @($Hostname)
+
+            $spanVisible = $false
+            try {
+                $spanHostCtrl = $null
+                if ($global:window) { $spanHostCtrl = $global:window.FindName('SpanHost') }
+                if ($spanHostCtrl -and $spanHostCtrl.IsVisible) { $spanVisible = $true }
+            } catch { $spanVisible = $false }
+            if ($spanVisible) {
+                $null = Invoke-OptionalCommandSafe -Name 'Get-SpanInfo' -ArgumentList @($Hostname)
+            }
         } else {
             if ($hostIndicatorCmd) {
                 try { InterfaceModule\Set-HostLoadingIndicator -State 'Hidden' } catch {}
             }
             # Clear span info when hostname is empty
-            $null = Invoke-OptionalCommandSafe -Name 'Get-SpanInfo' -ArgumentList @('')
+            $spanVisible = $false
+            try {
+                $spanHostCtrl = $null
+                if ($global:window) { $spanHostCtrl = $global:window.FindName('SpanHost') }
+                if ($spanHostCtrl -and $spanHostCtrl.IsVisible) { $spanVisible = $true }
+            } catch { $spanVisible = $false }
+            if ($spanVisible) {
+                $null = Invoke-OptionalCommandSafe -Name 'Get-SpanInfo' -ArgumentList @('')
+            }
         }
     } catch {
         Write-Warning ("Hostname change handler failed: {0}" -f $_.Exception.Message)
