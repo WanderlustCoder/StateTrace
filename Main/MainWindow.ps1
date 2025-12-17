@@ -1941,23 +1941,6 @@ return $res
                                     } catch { }
 
                                     try { InterfaceModule\Set-PortLoadingIndicator -Loaded $collectionCount -Total $collectionCount -BatchesRemaining 0 } catch {}
-                                    try {
-                                        $currentLocation = Invoke-OptionalCommandSafe -Name 'FilterStateModule\Get-SelectedLocation'
-                                        $updateParams = @{}
-                                        if ($currentLocation) {
-                                            if ($currentLocation.PSObject.Properties['Site'] -and $currentLocation.Site) {
-                                                $updateParams.Site = '' + $currentLocation.Site
-                                            }
-                                            if ($currentLocation.PSObject.Properties['Zone'] -and $currentLocation.Zone) {
-                                                $updateParams.ZoneSelection = '' + $currentLocation.Zone
-                                                $updateParams.ZoneToLoad = '' + $currentLocation.Zone
-                                            }
-                                        }
-                                        $null = Invoke-OptionalCommandSafe -Name 'DeviceRepositoryModule\Update-GlobalInterfaceList' -Parameters $updateParams -RetryWithoutParameters | Out-Null
-                                        $null = Invoke-OptionalCommandSafe -Name 'DeviceInsightsModule\Update-Summary' | Out-Null
-                                        $null = Invoke-OptionalCommandSafe -Name 'DeviceInsightsModule\Update-Alerts' | Out-Null
-                                        $null = Invoke-OptionalCommandSafe -Name 'DeviceInsightsModule\Update-SearchGrid' | Out-Null
-                                    } catch { }
                                 })
                             } catch { }
                             try { Write-Diag ("Port stream skipped | Host={0} | ExistingCount={1}" -f $deviceHost, $collectionCount) } catch {}
@@ -2007,54 +1990,6 @@ return $res
                                             $localIndicator = [Math]::Round($indicatorSw.Elapsed.TotalMilliseconds, 3)
                                         } catch {
                                             $localIndicator = 0.0
-                                        }
-
-                                        try {
-                                            $currentLocation = Invoke-OptionalCommandSafe -Name 'FilterStateModule\Get-SelectedLocation'
-                                            $updateParams = @{}
-                                            if ($currentLocation) {
-                                                if ($currentLocation.PSObject.Properties['Site'] -and $currentLocation.Site) {
-                                                    $updateParams.Site = '' + $currentLocation.Site
-                                                }
-                                                if ($currentLocation.PSObject.Properties['Zone'] -and $currentLocation.Zone) {
-                                                    $updateParams.ZoneSelection = '' + $currentLocation.Zone
-                                                    $updateParams.ZoneToLoad = '' + $currentLocation.Zone
-                                                }
-                                            }
-                                            if (Test-OptionalCommandAvailable -Name 'DeviceCatalogModule\Get-DeviceSummaries') {
-                                                $needsCatalogRefresh = $false
-                                                try {
-                                                    if (-not (Get-Variable -Name DeviceMetadata -Scope Global -ErrorAction SilentlyContinue)) {
-                                                        $needsCatalogRefresh = $true
-                                                    } else {
-                                                        $metaEntry = $null
-                                                        try {
-                                                            if ($global:DeviceMetadata.ContainsKey($deviceHost)) {
-                                                                $metaEntry = $global:DeviceMetadata[$deviceHost]
-                                                            }
-                                                        } catch { $metaEntry = $null }
-                                                        if (-not $metaEntry -or -not $metaEntry.PSObject.Properties['Site'] -or [string]::IsNullOrWhiteSpace($metaEntry.Site)) {
-                                                            $needsCatalogRefresh = $true
-                                                        }
-                                                    }
-                                                } catch {
-                                                    $needsCatalogRefresh = $true
-                                                }
-                                                if ($needsCatalogRefresh) {
-                                                    try { DeviceCatalogModule\Get-DeviceSummaries | Out-Null } catch {}
-                                                }
-                                            }
-                                            $null = Invoke-OptionalCommandSafe -Name 'DeviceRepositoryModule\Update-GlobalInterfaceList' -Parameters $updateParams -RetryWithoutParameters | Out-Null
-
-                                            $allCount = 0
-                                            try { $allCount = ViewStateService\Get-SequenceCount -Value $global:AllInterfaces } catch { $allCount = 0 }
-                                            try { Write-Diag ("Interface aggregate refreshed | Host={0} | GlobalInterfaces={1}" -f $deviceHost, $allCount) } catch {}
-
-                                            $null = Invoke-OptionalCommandSafe -Name 'DeviceInsightsModule\Update-Summary' | Out-Null
-                                            $null = Invoke-OptionalCommandSafe -Name 'DeviceInsightsModule\Update-Alerts' | Out-Null
-                                            $null = Invoke-OptionalCommandSafe -Name 'DeviceInsightsModule\Update-SearchGrid' | Out-Null
-                                        } catch {
-                                            try { Write-Diag ("Interface aggregate refresh failed | Host={0} | Error={1}" -f $deviceHost, $_.Exception.Message) } catch {}
                                         }
 
                                         return [pscustomobject]@{
