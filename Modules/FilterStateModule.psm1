@@ -592,48 +592,70 @@ function Update-DeviceFilter {
             $zoneToLoad = '' + $finalSnapshot.ZoneToLoad
         }
 
-        if ($interfacesAllowed -and ($siteChanged -or $zoneChanged -or $buildingChanged -or $roomChanged)) {
-            try {
-                $refreshStopwatch = $null
-                try { $refreshStopwatch = [System.Diagnostics.Stopwatch]::StartNew() } catch { $refreshStopwatch = $null }
-                $global:AllInterfaces = ViewStateService\Get-InterfacesForContext -Site $finalSite -ZoneSelection $finalZone -ZoneToLoad $zoneToLoad -Building $finalBuilding -Room $finalRoom
-                $refreshDurationMs = 0.0
-                if ($refreshStopwatch) {
-                    try { $refreshStopwatch.Stop() } catch { }
-                    try { $refreshDurationMs = [math]::Round($refreshStopwatch.Elapsed.TotalMilliseconds, 3) } catch { $refreshDurationMs = 0.0 }
-                }
-                if (-not $global:AllInterfaces) {
+        $summaryVisible = $false
+        $searchVisible = $false
+        $alertsVisible = $false
+        $visibilityProbeSucceeded = $false
+        try {
+            $summaryHost = $window.FindName('SummaryHost')
+            if ($summaryHost) {
+                $visibilityProbeSucceeded = $true
+                if ($summaryHost.IsVisible) { $summaryVisible = $true }
+            }
+        } catch { }
+        try {
+            $searchHost = $window.FindName('SearchInterfacesHost')
+            if ($searchHost) {
+                $visibilityProbeSucceeded = $true
+                if ($searchHost.IsVisible) { $searchVisible = $true }
+            }
+        } catch { }
+        try {
+            $alertsHost = $window.FindName('AlertsHost')
+            if ($alertsHost) {
+                $visibilityProbeSucceeded = $true
+                if ($alertsHost.IsVisible) { $alertsVisible = $true }
+            }
+        } catch { }
+
+        $filtersChanged = ($siteChanged -or $zoneChanged -or $buildingChanged -or $roomChanged)
+        $refreshInterfacesForViews = $true
+        if ($visibilityProbeSucceeded) {
+            $refreshInterfacesForViews = ($summaryVisible -or $searchVisible -or $alertsVisible)
+        }
+
+        if ($interfacesAllowed -and $filtersChanged) {
+            if (-not $refreshInterfacesForViews) {
+                # Defer expensive interface snapshot work until a tab that consumes it is visible.
+                # Clear any previously-loaded snapshot so Summary/Search/Alerts lazily reload for the new context.
+                $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
+            } else {
+                try {
+                    $refreshStopwatch = $null
+                    try { $refreshStopwatch = [System.Diagnostics.Stopwatch]::StartNew() } catch { $refreshStopwatch = $null }
+                    $global:AllInterfaces = ViewStateService\Get-InterfacesForContext -Site $finalSite -ZoneSelection $finalZone -ZoneToLoad $zoneToLoad -Building $finalBuilding -Room $finalRoom
+                    $refreshDurationMs = 0.0
+                    if ($refreshStopwatch) {
+                        try { $refreshStopwatch.Stop() } catch { }
+                        try { $refreshDurationMs = [math]::Round($refreshStopwatch.Elapsed.TotalMilliseconds, 3) } catch { $refreshDurationMs = 0.0 }
+                    }
+                    if (-not $global:AllInterfaces) {
+                        $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
+                    }
+
+                    try {
+                        $ifaceCount = 0
+                        try { $ifaceCount = ViewStateService\Get-SequenceCount -Value $global:AllInterfaces } catch { $ifaceCount = 0 }
+                        $diagRefresh = "Update-DeviceFilter refreshed interfaces | DurationMs={0} | Interfaces={1}" -f $refreshDurationMs, $ifaceCount
+                        try { Write-Diag $diagRefresh } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $diagRefresh } catch { }
+                    } catch { }
+                } catch {
                     $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
                 }
-
-                try {
-                    $ifaceCount = 0
-                    try { $ifaceCount = ViewStateService\Get-SequenceCount -Value $global:AllInterfaces } catch { $ifaceCount = 0 }
-                    $diagRefresh = "Update-DeviceFilter refreshed interfaces | DurationMs={0} | Interfaces={1}" -f $refreshDurationMs, $ifaceCount
-                    try { Write-Diag $diagRefresh } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $diagRefresh } catch { }
-                } catch { }
-            } catch {
-                $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
             }
         } elseif (-not $interfacesAllowed) {
             $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
         }
-
-        $summaryVisible = $false
-        $searchVisible = $false
-        $alertsVisible = $false
-        try {
-            $summaryHost = $window.FindName('SummaryHost')
-            if ($summaryHost -and $summaryHost.IsVisible) { $summaryVisible = $true }
-        } catch { $summaryVisible = $false }
-        try {
-            $searchHost = $window.FindName('SearchInterfacesHost')
-            if ($searchHost -and $searchHost.IsVisible) { $searchVisible = $true }
-        } catch { $searchVisible = $false }
-        try {
-            $alertsHost = $window.FindName('AlertsHost')
-            if ($alertsHost -and $alertsHost.IsVisible) { $alertsVisible = $true }
-        } catch { $alertsVisible = $false }
 
         # Only refresh views that are currently visible. This avoids reprocessing large interface
         # snapshots when the user is focused on a different tab.
