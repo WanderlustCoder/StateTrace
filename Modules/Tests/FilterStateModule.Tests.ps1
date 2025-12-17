@@ -24,12 +24,14 @@ Describe "FilterStateModule Update-DeviceFilter" {
     BeforeEach {
         $global:DeviceMetadata = @{
             'SITE1-Z1-SW1' = [pscustomobject]@{ Site = 'SITE1'; Zone = 'Z1'; Building = 'B1'; Room = 'R101' }
+            'SITE1-Z1-SW2' = [pscustomobject]@{ Site = 'SITE1'; Zone = 'Z1'; Building = 'B1'; Room = 'R102' }
             'SITE1-Z2-SW2' = [pscustomobject]@{ Site = 'SITE1'; Zone = 'Z2'; Building = 'B2'; Room = 'R201' }
             'SITE2-Z3-SW3' = [pscustomobject]@{ Site = 'SITE2'; Zone = 'Z3'; Building = 'B3'; Room = 'R301' }
         }
 
         FilterStateModule\Set-FilterFaulted -Faulted $false
         $global:ProgrammaticFilterUpdate = $false
+        $global:ProgrammaticHostnameUpdate = $false
         $global:AllInterfaces = @()
         $global:InterfacesLoadAllowed = $true
 
@@ -79,6 +81,7 @@ Describe "FilterStateModule Update-DeviceFilter" {
         Remove-Variable -Name DeviceMetadata -Scope Global -ErrorAction SilentlyContinue
         Remove-Variable -Name window -Scope Global -ErrorAction SilentlyContinue
         Remove-Variable -Name ProgrammaticFilterUpdate -Scope Global -ErrorAction SilentlyContinue
+        Remove-Variable -Name ProgrammaticHostnameUpdate -Scope Global -ErrorAction SilentlyContinue
         Remove-Variable -Name AllInterfaces -Scope Global -ErrorAction SilentlyContinue
         Remove-Variable -Name InterfacesLoadAllowed -Scope Global -ErrorAction SilentlyContinue
         Remove-Variable -Name PendingFilterRestore -Scope Global -ErrorAction SilentlyContinue
@@ -94,6 +97,16 @@ Describe "FilterStateModule Update-DeviceFilter" {
         ($script:FilterTestControls['HostnameDropdown'].ItemsSource -contains 'SITE1-Z1-SW1') | Should Be $true
         ($script:FilterTestControls['BuildingDropdown'].ItemsSource -contains 'B1') | Should Be $true
         ($script:FilterTestControls['RoomDropdown'].ItemsSource -contains 'R101') | Should Be $true
+    }
+
+    It "preserves the hostname selection when it is still valid" {
+        FilterStateModule\Update-DeviceFilter
+
+        $script:FilterTestControls['HostnameDropdown'].SelectedItem = 'SITE1-Z1-SW2'
+
+        FilterStateModule\Update-DeviceFilter
+
+        $script:FilterTestControls['HostnameDropdown'].SelectedItem | Should Be 'SITE1-Z1-SW2'
     }
 
     It "restores the location scope when PendingFilterRestore is set" {

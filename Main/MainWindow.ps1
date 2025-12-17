@@ -1498,7 +1498,7 @@ function Initialize-DeviceViewFromCatalog {
 
     try { Update-DeviceFilter } catch {}
 
-    if (Test-OptionalCommandAvailable -Name 'Update-CompareView') {
+    if ((Test-OptionalCommandAvailable -Name 'Update-CompareView') -and (Test-CompareSidebarVisible -Window $Window)) {
         try { Update-CompareView -Window $Window | Out-Null }
         catch { Write-Warning ("Failed to refresh Compare view: {0}" -f $_.Exception.Message) }
     }
@@ -1510,6 +1510,24 @@ function Initialize-DeviceViewFromCatalog {
         }
         $null = Invoke-OptionalCommandSafe -Name 'InterfaceModule\Set-HostLoadingIndicator' -Parameters @{ State = 'Hidden' }
     } catch {}
+}
+
+function Test-CompareSidebarVisible {
+    [CmdletBinding()]
+    param([Windows.Window]$Window)
+
+    if (-not $Window) { return $false }
+
+    try {
+        $compareCol = $Window.FindName('CompareColumn')
+        if ($compareCol -is [System.Windows.Controls.ColumnDefinition]) {
+            try {
+                if ($compareCol.Width.Value -gt 0) { return $true }
+            } catch { }
+        }
+    } catch { }
+
+    return $false
 }
 
 function Invoke-DatabaseImport {
@@ -2235,7 +2253,7 @@ if (-not $script:FilterUpdateTimer) {
             Update-DeviceFilter
 
             # Keep Compare in sync with current filters/hosts
-            if ($global:InterfacesLoadAllowed -and (Test-OptionalCommandAvailable -Name 'Update-CompareView')) {
+            if ($global:InterfacesLoadAllowed -and (Test-OptionalCommandAvailable -Name 'Update-CompareView') -and (Test-CompareSidebarVisible -Window $window)) {
                 try { Update-CompareView -Window $window | Out-Null } catch {}
             }
         } catch {

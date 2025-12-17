@@ -444,11 +444,57 @@ function Update-DeviceFilter {
             $hostCount = ViewStateService\Get-SequenceCount -Value $hostCandidates
         } catch { $hostCount = 0 }
 
-        if ($hostnameDD) {
-            if ($hostCount -eq 0) {
-                Set-DropdownItems -Control $hostnameDD -Items @('')
+        $previousHostnameSelection = ''
+        try {
+            if ($hostnameDD -and $hostnameDD.SelectedItem) {
+                $previousHostnameSelection = '' + $hostnameDD.SelectedItem
+            }
+        } catch {
+            $previousHostnameSelection = ''
+        }
+
+        $targetHostnameSelection = ''
+        if ($hostCount -gt 0 -and -not [string]::IsNullOrWhiteSpace($previousHostnameSelection)) {
+            foreach ($candidate in $hostCandidates) {
+                $candidateText = if ($null -ne $candidate) { '' + $candidate } else { '' }
+                if ([System.StringComparer]::OrdinalIgnoreCase.Equals($candidateText, $previousHostnameSelection)) {
+                    $targetHostnameSelection = $candidateText
+                    break
+                }
+            }
+        }
+
+        if ([string]::IsNullOrWhiteSpace($targetHostnameSelection)) {
+            if ($hostCount -gt 0) {
+                try { $targetHostnameSelection = '' + ($hostCandidates | Select-Object -First 1) } catch { $targetHostnameSelection = '' }
             } else {
-                Set-DropdownItems -Control $hostnameDD -Items $hostCandidates
+                $targetHostnameSelection = ''
+            }
+        }
+
+        $hostnameSelectionChanged = $false
+        if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals($targetHostnameSelection, $previousHostnameSelection)) {
+            $hostnameSelectionChanged = $true
+        }
+
+        if ($hostnameDD) {
+            $previousProgrammaticHostnameUpdate = $false
+            try { $previousProgrammaticHostnameUpdate = [bool]$global:ProgrammaticHostnameUpdate } catch { $previousProgrammaticHostnameUpdate = $false }
+            $global:ProgrammaticHostnameUpdate = $true
+            try {
+                if ($hostCount -eq 0) {
+                    $hostnameDD.ItemsSource = @('')
+                    $hostnameDD.SelectedIndex = 0
+                } else {
+                    $hostnameDD.ItemsSource = $hostCandidates
+                    if (-not [string]::IsNullOrWhiteSpace($targetHostnameSelection)) {
+                        $hostnameDD.SelectedItem = $targetHostnameSelection
+                    } else {
+                        $hostnameDD.SelectedIndex = 0
+                    }
+                }
+            } finally {
+                $global:ProgrammaticHostnameUpdate = $previousProgrammaticHostnameUpdate
             }
         }
 
@@ -518,6 +564,14 @@ function Update-DeviceFilter {
         }
         if ($interfacesAllowed) {
             try { Update-Alerts } catch [System.Management.Automation.CommandNotFoundException] { }
+        }
+
+        if ($interfacesAllowed -and $hostnameSelectionChanged) {
+            $hostnameChangeCmd = $null
+            try { $hostnameChangeCmd = Get-Command -Name 'Get-HostnameChanged' -ErrorAction SilentlyContinue } catch { $hostnameChangeCmd = $null }
+            if ($hostnameChangeCmd) {
+                try { & $hostnameChangeCmd -Hostname $targetHostnameSelection } catch { }
+            }
         }
 
         $script:LastSiteSel     = $finalSite
