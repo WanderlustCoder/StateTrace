@@ -177,6 +177,48 @@ function Get-FileLineCount {
     return $count
 }
 
+function Get-FirstItems {
+    param(
+        [System.Collections.IEnumerable]$Items,
+        [int]$Count = 10
+    )
+
+    if (-not $Items -or $Count -le 0) { return @() }
+
+    $preview = [System.Collections.Generic.List[object]]::new()
+    foreach ($item in $Items) {
+        if ($preview.Count -ge $Count) { break }
+        [void]$preview.Add($item)
+    }
+
+    return $preview.ToArray()
+}
+
+function Initialize-Directory {
+    param([string]$Path)
+
+    if ([string]::IsNullOrWhiteSpace($Path)) { return $null }
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        $null = New-Item -ItemType Directory -Path $Path -Force
+    }
+
+    return $Path
+}
+
+function Initialize-DirectoryForPath {
+    param([string]$Path)
+
+    if ([string]::IsNullOrWhiteSpace($Path)) { return $null }
+
+    $directory = $null
+    try { $directory = Split-Path -Path $Path -Parent } catch { $directory = $null }
+    if ([string]::IsNullOrWhiteSpace($directory)) { return $null }
+
+    $null = Initialize-Directory -Path $directory
+    return $directory
+}
+
 function Get-TrimmedSiteKey {
     param([object]$InputObject)
 
@@ -341,11 +383,8 @@ function Save-SiteExistingRowCacheSnapshot {
             Write-Verbose 'Site existing row cache snapshot skipped (no entries).' -Verbose:$VerboseParsing
             return
         }
-        $directory = Split-Path -Path $SnapshotPath -Parent
-        if ($directory -and -not (Test-Path -LiteralPath $directory)) {
-            $null = New-Item -ItemType Directory -Path $directory -Force
-        }
-        $snapshot | Export-Clixml -Path $SnapshotPath
+        $null = Initialize-DirectoryForPath -Path $SnapshotPath
+        Export-Clixml -InputObject $snapshot -Path $SnapshotPath
         Write-Host ("Site existing row cache snapshot exported to '{0}'." -f $SnapshotPath) -ForegroundColor DarkCyan
     } catch {
         Write-Warning ("Failed to export site existing row cache snapshot: {0}" -f $_.Exception.Message)
@@ -419,9 +458,9 @@ function Get-IngestionHistoryWarmRunSnapshot {
                     if ($parsed) {
                         $records = @($parsed)
                         if ($records.Count -gt 1) {
-                            $content = ($records | ConvertTo-Json -Depth 6)
+                            $content = ConvertTo-Json -InputObject $records -Depth 6
                         } elseif ($records.Count -eq 1) {
-                            $content = ($records[0] | ConvertTo-Json -Depth 6)
+                            $content = ConvertTo-Json -InputObject $records[0] -Depth 6
                         }
                     }
                 } catch {
@@ -709,7 +748,7 @@ function Add-PassLabelToEvents {
 
 $script:ComparisonHostFilter = Get-HostnameFilterSet -Hostnames $HostFilter -Path $HostFilterPath
 if ($script:ComparisonHostFilter -and $script:ComparisonHostFilter.Count -gt 0) {
-    $preview = @($script:ComparisonHostFilter | Select-Object -First 10)
+    $preview = Get-FirstItems -Items $script:ComparisonHostFilter -Count 10
     Write-Host ("Hostname filter active with {0} entr{1}: {2}" -f $script:ComparisonHostFilter.Count, $(if ($script:ComparisonHostFilter.Count -eq 1) { 'y' } else { 'ies' }), [string]::Join(', ', $preview)) -ForegroundColor DarkCyan
 }
 if ($RestrictWarmComparisonToColdHosts.IsPresent) {
@@ -1475,7 +1514,7 @@ function Invoke-PipelinePass {
 
     if ($VerboseParsing.IsPresent) {
         if ($passHostFilter -and $passHostFilter.Count -gt 0) {
-            $preview = @($passHostFilter | Select-Object -First 10)
+            $preview = Get-FirstItems -Items $passHostFilter -Count 10
             Write-Host ("Pass '{0}' applying hostname filter ({1}): {2}" -f $Label, $passHostFilter.Count, [string]::Join(', ', $preview)) -ForegroundColor DarkCyan
         } else {
             Write-Host ("Pass '{0}' running without a hostname filter." -f $Label) -ForegroundColor DarkYellow
@@ -2223,12 +2262,8 @@ function Write-SharedCacheSnapshotFile {
         }
     }
 
-    $directory = $null
-    try { $directory = Split-Path -Parent $Path } catch { $directory = $null }
     try {
-        if (-not [string]::IsNullOrWhiteSpace($directory) -and -not (Test-Path -LiteralPath $directory)) {
-            $null = New-Item -ItemType Directory -Path $directory -Force
-        }
+        $null = Initialize-DirectoryForPath -Path $Path
         if ($sanitizedEntries.Count -eq 0) {
             Write-Warning 'Shared cache snapshot contained no valid site entries; exporting empty snapshot.'
         }
@@ -3247,89 +3282,93 @@ $results = Update-ComparisonSummaryFromResults -Items $results
 if ($OutputPath) {
     $totalResultCount = $results.Count
     Write-Host ("Result count prior to export: {0}" -f $totalResultCount) -ForegroundColor Yellow
-    $directory = Split-Path -Path $OutputPath -Parent
-    if ($directory -and -not (Test-Path -LiteralPath $directory)) {
-        $null = New-Item -ItemType Directory -Path $directory -Force
+    $null = Initialize-DirectoryForPath -Path $OutputPath
+    $exportPayload = [System.Collections.Generic.List[psobject]]::new()
+    foreach ($result in @($results)) {
+        if (-not $result) { continue }
+
+        [void]$exportPayload.Add((Select-Object -InputObject $result -Property `
+            PassLabel,
+            SummaryType,
+            Site,
+            Hostname,
+            Timestamp,
+            CacheStatus,
+            Provider,
+            SiteCacheProviderReason,
+            HydrationDurationMs,
+            SnapshotDurationMs,
+            HostMapDurationMs,
+            HostCount,
+            TotalRows,
+            HostMapSignatureMatchCount,
+            HostMapSignatureRewriteCount,
+            HostMapCandidateMissingCount,
+            HostMapCandidateFromPrevious,
+            PreviousHostCount,
+            PreviousSnapshotStatus,
+            PreviousSnapshotHostMapType,
+            EntryCount,
+            RestoredCount,
+            SourceStage,
+            ColdHostCount,
+            WarmHostCount,
+            ColdInterfaceCallAvgMs,
+            ColdInterfaceCallP95Ms,
+            ColdInterfaceCallMaxMs,
+            WarmInterfaceCallAvgMs,
+            WarmInterfaceCallP95Ms,
+            WarmInterfaceCallMaxMs,
+            ImprovementAverageMs,
+            ImprovementPercent,
+            WarmCacheProviderHitCount,
+            WarmCacheProviderHitCountRaw,
+            WarmCacheProviderMissCount,
+            WarmCacheProviderMissCountRaw,
+            WarmCacheHitRatioPercent,
+            WarmCacheHitRatioPercentRaw,
+            WarmSignatureMatchMissCount,
+            WarmSignatureRewriteTotal,
+            WarmProviderCounts,
+            WarmProviderCountsRaw,
+            ColdProviderCounts,
+            ColdProviderCountsRaw,
+            ScriptCacheCount,
+            ScriptCacheSites,
+            DomainCacheCount,
+            DomainCacheSites,
+            InterfaceCallDurationMs,
+            DatabaseWriteLatencyMs,
+            DiffComparisonDurationMs,
+            DiffDurationMs,
+            LoadExistingDurationMs,
+            LoadExistingRowSetCount,
+            LoadSignatureDurationMs,
+            LoadCacheHit,
+            LoadCacheMiss,
+            LoadCacheRefreshed,
+            CachedRowCount,
+            CachePrimedRowCount,
+            RowsStaged,
+            InsertCandidates,
+            UpdateCandidates,
+            DeleteCandidates,
+            DiffRowsCompared,
+            DiffRowsChanged,
+            DiffRowsInserted,
+            DiffRowsUnchanged,
+            DiffSeenPorts,
+            DiffDuplicatePorts,
+            UiCloneDurationMs,
+            DeleteDurationMs,
+            FallbackDurationMs,
+            FallbackUsed,
+            FactsConsidered,
+            ExistingCount
+        ))
     }
-    $exportPayload = $results | Select-Object `
-        PassLabel,
-        SummaryType,
-        Site,
-        Hostname,
-        Timestamp,
-        CacheStatus,
-        Provider,
-        SiteCacheProviderReason,
-        HydrationDurationMs,
-        SnapshotDurationMs,
-        HostMapDurationMs,
-        HostCount,
-        TotalRows,
-        HostMapSignatureMatchCount,
-        HostMapSignatureRewriteCount,
-        HostMapCandidateMissingCount,
-        HostMapCandidateFromPrevious,
-        PreviousHostCount,
-        PreviousSnapshotStatus,
-        PreviousSnapshotHostMapType,
-        EntryCount,
-        RestoredCount,
-        SourceStage,
-        ColdHostCount,
-        WarmHostCount,
-        ColdInterfaceCallAvgMs,
-        ColdInterfaceCallP95Ms,
-        ColdInterfaceCallMaxMs,
-        WarmInterfaceCallAvgMs,
-        WarmInterfaceCallP95Ms,
-        WarmInterfaceCallMaxMs,
-        ImprovementAverageMs,
-        ImprovementPercent,
-        WarmCacheProviderHitCount,
-        WarmCacheProviderHitCountRaw,
-        WarmCacheProviderMissCount,
-        WarmCacheProviderMissCountRaw,
-        WarmCacheHitRatioPercent,
-        WarmCacheHitRatioPercentRaw,
-        WarmSignatureMatchMissCount,
-        WarmSignatureRewriteTotal,
-        WarmProviderCounts,
-        WarmProviderCountsRaw,
-        ColdProviderCounts,
-        ColdProviderCountsRaw,
-        ScriptCacheCount,
-        ScriptCacheSites,
-        DomainCacheCount,
-        DomainCacheSites,
-        InterfaceCallDurationMs,
-        DatabaseWriteLatencyMs,
-        DiffComparisonDurationMs,
-        DiffDurationMs,
-        LoadExistingDurationMs,
-        LoadExistingRowSetCount,
-        LoadSignatureDurationMs,
-        LoadCacheHit,
-        LoadCacheMiss,
-        LoadCacheRefreshed,
-        CachedRowCount,
-        CachePrimedRowCount,
-        RowsStaged,
-        InsertCandidates,
-        UpdateCandidates,
-        DeleteCandidates,
-        DiffRowsCompared,
-        DiffRowsChanged,
-        DiffRowsInserted,
-        DiffRowsUnchanged,
-        DiffSeenPorts,
-        DiffDuplicatePorts,
-        UiCloneDurationMs,
-        DeleteDurationMs,
-        FallbackDurationMs,
-        FallbackUsed,
-        FactsConsidered,
-        ExistingCount
-    $json = $exportPayload | ConvertTo-Json -Depth 6
+
+    $json = ConvertTo-Json -InputObject $exportPayload.ToArray() -Depth 6
     [System.IO.File]::WriteAllText($OutputPath, $json)
     Write-Host "Warm-run telemetry summary exported to $OutputPath" -ForegroundColor Green
 
@@ -3361,9 +3400,7 @@ if ($OutputPath) {
             }
 
             $diffDirEnsure = Split-Path -Path $targetDiffPath -Parent
-            if ($diffDirEnsure -and -not (Test-Path -LiteralPath $diffDirEnsure)) {
-                $null = New-Item -ItemType Directory -Path $diffDirEnsure -Force
-            }
+            $null = Initialize-Directory -Path $diffDirEnsure
 
             try {
                 & $analyzerScript -TelemetryPath $OutputPath -Top $DiffHotspotTop -OutputPath $targetDiffPath
