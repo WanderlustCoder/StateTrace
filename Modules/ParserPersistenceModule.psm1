@@ -2387,9 +2387,6 @@ $siteCacheTemplateDurationMs = 0.0
                 }
             }
         }
-        if ($siteCodeValue -and -not $skipSiteCacheUpdateSetting) {
-            try { DeviceRepositoryModule\Set-InterfaceSiteCacheHost -Site $siteCodeValue -Hostname $normalizedHostname -RowsByPort $existingRows } catch { }
-        }
     }
     $loadExistingStopwatch.Stop()
     $loadExistingDurationMs = [Math]::Round($loadExistingStopwatch.Elapsed.TotalMilliseconds, 3)
@@ -3050,7 +3047,15 @@ $siteCacheTemplateDurationMs = 0.0
                 if ($trimmedPort) { [void]$finalHostRows.Remove($trimmedPort) }
             }
         }
-        if ($siteCodeValue -and -not $skipSiteCacheUpdateSetting) {
+        $shouldUpdateSiteCache = ($siteCodeValue -and -not $skipSiteCacheUpdateSetting)
+        if ($shouldUpdateSiteCache) {
+            $hasInterfaceChanges = ($toInsert.Count -gt 0 -or $toUpdate.Count -gt 0 -or $toDelete.Count -gt 0)
+            if (-not $hasInterfaceChanges -and $loadCacheHit) {
+                $shouldUpdateSiteCache = $false
+            }
+        }
+
+        if ($shouldUpdateSiteCache) {
             $siteCacheStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
             try { DeviceRepositoryModule\Set-InterfaceSiteCacheHost -Site $siteCodeValue -Hostname $normalizedHostname -RowsByPort $finalHostRows } catch { }
             $siteCacheStopwatch.Stop()

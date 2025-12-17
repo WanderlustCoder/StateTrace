@@ -823,14 +823,19 @@ function Normalize-InterfaceSiteCacheEntry {
         }
     }
 
-    $clone = Clone-InterfaceSiteCacheEntry -Entry $entryCandidate
-    if (-not $clone) { return $null }
+    $clone = [pscustomobject]@{}
+    try {
+        foreach ($prop in $entryCandidate.PSObject.Properties) {
+            if ($prop.Name -eq 'HostMap') { continue }
+            $clone | Add-Member -NotePropertyName $prop.Name -NotePropertyValue (Copy-InterfaceSiteCacheValue -Value $prop.Value) -Force
+        }
+    } catch {
+        $clone = [pscustomobject]@{}
+    }
 
     $hostMapSource = $null
     if ($entryCandidate.PSObject.Properties.Name -contains 'HostMap') {
         $hostMapSource = $entryCandidate.HostMap
-    } elseif ($clone.PSObject.Properties.Name -contains 'HostMap') {
-        $hostMapSource = $clone.HostMap
     }
 
     $typedHostMap = ConvertTo-InterfaceCacheHostMapDictionary -HostMap $hostMapSource
@@ -853,18 +858,51 @@ function Normalize-InterfaceSiteCacheEntry {
     return $clone
 }
 
+function Test-IsNormalizedInterfaceSiteCacheEntry {
+    [CmdletBinding()]
+    param(
+        [Parameter()][object]$Entry
+    )
+
+    if (-not $Entry) { return $false }
+
+    try {
+        $psObject = $Entry.PSObject
+        if (-not $psObject) { return $false }
+
+        if (-not ($psObject.Properties.Name -contains 'HostMap')) { return $false }
+        if (-not ($psObject.Properties.Name -contains 'HostCount')) { return $false }
+        if (-not ($psObject.Properties.Name -contains 'TotalRows')) { return $false }
+
+        $hostMapValue = $Entry.HostMap
+        return ($hostMapValue -is [System.Collections.Generic.Dictionary[string,System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceCacheEntry]]])
+    } catch {
+        return $false
+    }
+}
+
 function Merge-InterfaceSiteCacheEntry {
     param(
         [pscustomobject]$Existing,
         [pscustomobject]$Incoming
     )
 
-    $normalizedIncoming = Normalize-InterfaceSiteCacheEntry -Entry $Incoming
+    $normalizedIncoming = $null
+    if (Test-IsNormalizedInterfaceSiteCacheEntry -Entry $Incoming) {
+        $normalizedIncoming = $Incoming
+    } else {
+        $normalizedIncoming = Normalize-InterfaceSiteCacheEntry -Entry $Incoming
+    }
     if (-not $normalizedIncoming) {
         return (Normalize-InterfaceSiteCacheEntry -Entry $Existing)
     }
 
-    $normalizedExisting = Normalize-InterfaceSiteCacheEntry -Entry $Existing
+    $normalizedExisting = $null
+    if (Test-IsNormalizedInterfaceSiteCacheEntry -Entry $Existing) {
+        $normalizedExisting = $Existing
+    } else {
+        $normalizedExisting = Normalize-InterfaceSiteCacheEntry -Entry $Existing
+    }
     if (-not $normalizedExisting) {
         return $normalizedIncoming
     }
@@ -964,8 +1002,41 @@ function Get-SharedSiteInterfaceCacheEntry {
     $entryCount = 0
     try { $entryCount = [int]$store.Count } catch { $entryCount = 0 }
     if ($store.TryGetValue($key, [ref]$stored) -and $stored) {
-        $clone = Normalize-InterfaceSiteCacheEntry -Entry $stored
-        $stats = Get-SharedSiteInterfaceCacheEntryStatistics -Entry $clone
+        $clone = $null
+        $stats = $null
+        if (Test-IsNormalizedInterfaceSiteCacheEntry -Entry $stored) {
+            $clone = [pscustomobject]@{}
+            try {
+                foreach ($prop in $stored.PSObject.Properties) {
+                    if ($prop.Name -eq 'HostMap') {
+                        $clone | Add-Member -NotePropertyName 'HostMap' -NotePropertyValue $prop.Value -Force
+                        continue
+                    }
+                    $clone | Add-Member -NotePropertyName $prop.Name -NotePropertyValue (Copy-InterfaceSiteCacheValue -Value $prop.Value) -Force
+                }
+            } catch {
+                $clone = [pscustomobject]@{ HostMap = $stored.HostMap }
+            }
+
+            $hostCount = 0
+            $totalRows = 0
+            if ($stored.PSObject.Properties.Name -contains 'HostCount') {
+                try { $hostCount = [int]$stored.HostCount } catch { $hostCount = 0 }
+            }
+            if ($stored.PSObject.Properties.Name -contains 'TotalRows') {
+                try { $totalRows = [int]$stored.TotalRows } catch { $totalRows = 0 }
+            }
+            $stats = [pscustomobject]@{
+                HostCount = $hostCount
+                TotalRows = $totalRows
+            }
+        } else {
+            $clone = Normalize-InterfaceSiteCacheEntry -Entry $stored
+            $stats = Get-SharedSiteInterfaceCacheEntryStatistics -Entry $clone
+        }
+        if (-not $stats) {
+            $stats = [pscustomobject]@{ HostCount = 0; TotalRows = 0 }
+        }
         Publish-SharedSiteInterfaceCacheEvent -SiteKey $key -Operation 'GetHit' -EntryCount $entryCount -HostCount $stats.HostCount -TotalRows $stats.TotalRows -StoreHashCode $storeHashCode
         return $clone
     }
@@ -1423,7 +1494,29 @@ function Set-SharedSiteInterfaceCacheEntry {
                 return $incoming
             }
         )
-        $normalized = Normalize-InterfaceSiteCacheEntry -Entry $updated
+        $normalized = $updated
+        $requiresNormalization = $false
+        if (-not $normalized) {
+            $requiresNormalization = $true
+        } else {
+            $hostMapCandidate = $null
+            try {
+                if ($normalized.PSObject.Properties.Name -contains 'HostMap') {
+                    $hostMapCandidate = $normalized.HostMap
+                }
+            } catch {
+                $hostMapCandidate = $null
+            }
+            if (-not ($hostMapCandidate -is [System.Collections.IDictionary])) {
+                $requiresNormalization = $true
+            }
+        }
+        if ($requiresNormalization) {
+            $normalized = Normalize-InterfaceSiteCacheEntry -Entry $updated
+        }
+        if (-not $normalized) {
+            $normalized = $incoming
+        }
         $stats = Get-SharedSiteInterfaceCacheEntryStatistics -Entry $normalized
         $entryCount = 0
         try { $entryCount = [int]$store.Count } catch { $entryCount = 0 }
@@ -2141,31 +2234,37 @@ function Get-InterfaceSiteCacheSummary {
             $hostMap = $entry.HostMap
         }
 
-        if ($hostMap -is [System.Collections.IDictionary]) {
-            $hostCount = $hostMap.Count
+        if ($hostMap) {
             $hostMapType = $hostMap.GetType().FullName
+        }
+
+        $hostCountResolved = $false
+        if ($entry.PSObject.Properties.Name -contains 'HostCount') {
+            try {
+                $hostCount = [int]$entry.HostCount
+                $hostCountResolved = $true
+            } catch { }
+        }
+        if (-not $hostCountResolved -and $hostMap -is [System.Collections.IDictionary]) {
+            $hostCount = $hostMap.Count
+        }
+
+        $totalRowsResolved = $false
+        if ($entry.PSObject.Properties.Name -contains 'TotalRows') {
+            try {
+                $totalRows = [int]$entry.TotalRows
+                $totalRowsResolved = $true
+            } catch { }
+        }
+        if (-not $totalRowsResolved -and $hostMap -is [System.Collections.IDictionary]) {
             $calculatedTotal = 0
-            foreach ($hostEntry in @($hostMap.GetEnumerator())) {
+            foreach ($hostEntry in $hostMap.GetEnumerator()) {
                 $portMap = $hostEntry.Value
                 if ($portMap -is [System.Collections.IDictionary] -or $portMap -is [System.Collections.ICollection]) {
                     try { $calculatedTotal += $portMap.Count } catch { }
                 }
             }
             $totalRows = $calculatedTotal
-        } elseif ($hostMap) {
-            $hostMapType = $hostMap.GetType().FullName
-        }
-
-        if ($entry.PSObject.Properties.Name -contains 'HostCount') {
-            try {
-                $hostCount = [int]$entry.HostCount
-            } catch { }
-        }
-
-        if ($entry.PSObject.Properties.Name -contains 'TotalRows') {
-            try {
-                $totalRows = [int]$entry.TotalRows
-            } catch { }
         }
     }
 
@@ -3943,19 +4042,24 @@ function Set-InterfaceSiteCacheHost {
     }
 
     $persistedPortCount = [int]$normalizedRows.Count
+
+    $previousHostPortCount = 0
+    try {
+        if ($typedHostMap -and $typedHostMap.ContainsKey($hostKey)) {
+            $existingPortMap = $typedHostMap[$hostKey]
+            if ($existingPortMap -is [System.Collections.IDictionary] -or $existingPortMap -is [System.Collections.ICollection]) {
+                $previousHostPortCount = $existingPortMap.Count
+            }
+        }
+    } catch { }
+
     $typedHostMap[$hostKey] = $normalizedRows
     $entry.CachedAt = Get-Date
 
-    $total = 0
-    foreach ($hostEntry in $entry.HostMap.Values) {
-        if ($hostEntry -is [System.Collections.IDictionary]) {
-            $total += $hostEntry.Count
-        } elseif ($hostEntry -is [System.Collections.ICollection]) {
-            $total += $hostEntry.Count
-        }
-    }
-    $entry.TotalRows = $total
-    $entry.HostCount = $entry.HostMap.Count
+    $newTotalRows = $previousPortCount - $previousHostPortCount + $persistedPortCount
+    if ($newTotalRows -lt 0) { $newTotalRows = 0 }
+    $entry.TotalRows = [int]$newTotalRows
+    $entry.HostCount = $typedHostMap.Count
     Set-SharedSiteInterfaceCacheEntry -SiteKey $siteKey -Entry $entry
 
     $typedHostMapType = ''
