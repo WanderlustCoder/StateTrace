@@ -153,7 +153,8 @@ function Save-SiteExistingRowCacheSnapshot {
 
     try {
         $snapshot = ParserPersistenceModule\Get-SiteExistingRowCacheSnapshot
-        if (-not $snapshot -or ($snapshot | Measure-Object).Count -le 0) {
+        $entryCount = ($snapshot | Measure-Object).Count
+        if ($entryCount -le 0) {
             Write-Verbose 'Site existing row cache snapshot skipped (no entries).' -Verbose:$VerboseParsing
             return
         }
@@ -177,12 +178,13 @@ function Restore-SiteExistingRowCacheSnapshot {
 
     try {
         $snapshot = Import-Clixml -Path $SnapshotPath
-        if (-not $snapshot -or ($snapshot | Measure-Object).Count -le 0) {
+        $entryCount = ($snapshot | Measure-Object).Count
+        if ($entryCount -le 0) {
             Write-Warning ("Site existing row cache snapshot '{0}' did not contain any entries." -f $SnapshotPath)
             return
         }
         ParserPersistenceModule\Set-SiteExistingRowCacheSnapshot -Snapshot $snapshot
-        Write-Host ("Restored site existing row cache snapshot from '{0}' ({1} entr{2})." -f $SnapshotPath, ($snapshot | Measure-Object).Count, $(if (($snapshot | Measure-Object).Count -eq 1) { 'y' } else { 'ies' })) -ForegroundColor DarkCyan
+        Write-Host ("Restored site existing row cache snapshot from '{0}' ({1} entr{2})." -f $SnapshotPath, $entryCount, $(if ($entryCount -eq 1) { 'y' } else { 'ies' })) -ForegroundColor DarkCyan
     } catch {
         Write-Warning ("Failed to restore site existing row cache snapshot '{0}': {1}" -f $SnapshotPath, $_.Exception.Message)
     }
@@ -302,31 +304,35 @@ function Get-HostnameTokens {
         [object]$Value
     )
 
-    $tokens = @()
     if ($null -eq $Value) {
-        return $tokens
+        return [string[]]@()
     }
 
     if ($Value -is [System.Collections.IEnumerable] -and -not ($Value -is [string])) {
+        $tokens = [System.Collections.Generic.List[string]]::new()
         foreach ($item in $Value) {
-            $tokens += Get-HostnameTokens -Value $item
+            $childTokens = Get-HostnameTokens -Value $item
+            if ($childTokens.Count -gt 0) {
+                [void]$tokens.AddRange($childTokens)
+            }
         }
-        return $tokens
+        return $tokens.ToArray()
     }
 
     $text = '' + $Value
     if ([string]::IsNullOrWhiteSpace($text)) {
-        return $tokens
+        return [string[]]@()
     }
 
+    $tokens = [System.Collections.Generic.List[string]]::new()
     foreach ($part in ($text -split ',')) {
         $candidate = $part.Trim()
         if (-not [string]::IsNullOrWhiteSpace($candidate)) {
-            $tokens += $candidate
+            [void]$tokens.Add($candidate)
         }
     }
 
-    return $tokens
+    return $tokens.ToArray()
 }
 
 function Get-HostnameFilterSet {
@@ -421,38 +427,31 @@ function Filter-EventsByHostname {
         } elseif ($event.PSObject.Properties.Name -contains 'Host') {
             $hosts = Get-HostnameTokens -Value $event.Host
         }
-        if (-not $hosts -or ($hosts | Measure-Object).Count -le 0) {
+        if (-not $hosts -or $hosts.Count -le 0) {
             # Preserve host-less events so pass-level summaries retain cold coverage even when host filter is active.
             $filtered.Add($event) | Out-Null
             continue
         }
-        $matchingHosts = @()
+
         foreach ($hostNameCandidate in $hosts) {
             if ([string]::IsNullOrWhiteSpace($hostNameCandidate)) { continue }
             $trimmed = $hostNameCandidate.Trim()
-            if ($AllowedHostnames.Contains($trimmed)) {
-                $matchingHosts += $trimmed
-            }
-        }
-        if (-not $matchingHosts -or ($matchingHosts | Measure-Object).Count -le 0) {
-            continue
-        }
+            if (-not $AllowedHostnames.Contains($trimmed)) { continue }
 
-        foreach ($match in $matchingHosts) {
             $clone = $event.PSObject.Copy()
             if ($clone.PSObject.Properties.Match('Hostname').Count -gt 0) {
-                $clone.Hostname = $match
+                $clone.Hostname = $trimmed
             } else {
-                Add-Member -InputObject $clone -NotePropertyName 'Hostname' -NotePropertyValue $match -Force
+                Add-Member -InputObject $clone -NotePropertyName 'Hostname' -NotePropertyValue $trimmed -Force
             }
             if ($clone.PSObject.Properties.Match('Hostnames').Count -gt 0) {
-                $clone.Hostnames = $match
+                $clone.Hostnames = $trimmed
             }
             $filtered.Add($clone) | Out-Null
         }
     }
 
-    return $filtered
+    return $filtered.ToArray()
 }
 
 function Add-PassLabelToEvents {
@@ -505,7 +504,7 @@ function Add-PassLabelToEvents {
         }
         $labeled.Add($evt) | Out-Null
     }
-    return $labeled
+    return $labeled.ToArray()
 }
 
 $script:ComparisonHostFilter = Get-HostnameFilterSet -Hostnames $HostFilter -Path $HostFilterPath
@@ -776,14 +775,14 @@ function Collect-TelemetryForPass {
         }
         $passLineBaseline[$file.FullName] = $baselineCount
     }
-    $requiredNames = @()
+    $requiredNames = [System.Collections.Generic.List[string]]::new()
     if ($RequiredEventNames) {
         foreach ($name in $RequiredEventNames) {
             if ([string]::IsNullOrWhiteSpace($name)) { continue }
             if (-not $eventBuckets.ContainsKey($name)) {
                 $eventBuckets[$name] = [System.Collections.Generic.List[psobject]]::new()
             }
-            $requiredNames += $name
+            $requiredNames.Add($name) | Out-Null
         }
     }
 
@@ -801,7 +800,7 @@ function Collect-TelemetryForPass {
 
         $allEvents.Add($evt) | Out-Null
 
-        if ($requiredNames -and $evt.PSObject.Properties.Name -contains 'EventName') {
+        if ($requiredNames.Count -gt 0 -and $evt.PSObject.Properties.Name -contains 'EventName') {
             $evtName = ('' + $evt.EventName).Trim()
             if (-not [string]::IsNullOrWhiteSpace($evtName) -and $eventBuckets.ContainsKey($evtName)) {
                 $eventBuckets[$evtName].Add($evt) | Out-Null
@@ -837,22 +836,22 @@ function Collect-TelemetryForPass {
         Wait-TelemetryFlush -DirectoryPath $DirectoryPath -Baseline $Baseline -TimeoutMilliseconds $pollTimeout -PollMilliseconds $pollInner
     } while ($true)
 
-    $missingNames = @()
+    $missingNames = [System.Collections.Generic.List[string]]::new()
     foreach ($name in $requiredNames) {
         $bucket = $null
         if ($eventBuckets.ContainsKey($name)) { $bucket = $eventBuckets[$name] }
         if (-not $bucket -or $bucket.Count -eq 0) {
-            $missingNames += $name
+            $missingNames.Add($name) | Out-Null
         }
     }
 
-    if ($missingNames -and $PassStartTime) {
+    if ($missingNames.Count -gt 0 -and $PassStartTime) {
         $fallbackSince = $PassStartTime
         if ($FallbackLookbackSeconds -gt 0) {
             $fallbackSince = $PassStartTime.AddSeconds(-1 * [math]::Abs($FallbackLookbackSeconds))
         }
 
-        $fallbackEvents = Get-TelemetrySince -Since $fallbackSince -DirectoryPath $DirectoryPath -EventNames $requiredNames -IgnoreEventTimestamp
+        $fallbackEvents = Get-TelemetrySince -Since $fallbackSince -DirectoryPath $DirectoryPath -EventNames $requiredNames.ToArray() -IgnoreEventTimestamp
         foreach ($evt in @($fallbackEvents)) {
             if (-not $evt) { continue }
 
@@ -888,12 +887,12 @@ function Collect-TelemetryForPass {
             & $addEvent $evt
         }
 
-        $missingNames = @()
+        $missingNames = [System.Collections.Generic.List[string]]::new()
         foreach ($name in $requiredNames) {
             $bucket = $null
             if ($eventBuckets.ContainsKey($name)) { $bucket = $eventBuckets[$name] }
             if (-not $bucket -or $bucket.Count -eq 0) {
-                $missingNames += $name
+                $missingNames.Add($name) | Out-Null
             }
         }
     }
@@ -911,7 +910,7 @@ function Collect-TelemetryForPass {
     return [pscustomobject]@{
         Events            = $allEvents.ToArray()
         Buckets           = $bucketArrays
-        MissingEventNames = $missingNames
+        MissingEventNames = $missingNames.ToArray()
     }
 }
 
@@ -1117,7 +1116,7 @@ function Merge-PerHostTelemetry {
     return $results
 }
 
-$results = @()
+$results = [System.Collections.Generic.List[psobject]]::new()
 $postColdSnapshot = $null
 $warmPassSnapshot = $null
 
@@ -1226,29 +1225,22 @@ function Invoke-PipelinePass {
     Wait-TelemetryFlush -DirectoryPath $metricsDirectory -Baseline $metricsBaseline
 
     $collection = Collect-TelemetryForPass -DirectoryPath $metricsDirectory -Baseline $metricsBaseline -PassStartTime $passStartTime -RequiredEventNames @('InterfaceSiteCacheMetrics','DatabaseWriteBreakdown','InterfaceSyncTiming')
-    $telemetry = @()
-    if ($collection -and $collection.Events) {
-        $collection.Events = Add-PassLabelToEvents -Events @($collection.Events) -PassLabel $Label
-        $telemetry = @($collection.Events)
-    }
 
     $cacheMetrics = @()
     if ($collection -and $collection.Buckets.ContainsKey('InterfaceSiteCacheMetrics')) {
-        $cacheMetrics = Add-PassLabelToEvents -Events @($collection.Buckets['InterfaceSiteCacheMetrics']) -PassLabel $Label
-        $collection.Buckets['InterfaceSiteCacheMetrics'] = $cacheMetrics
+        $cacheMetrics = @(Add-PassLabelToEvents -Events @($collection.Buckets['InterfaceSiteCacheMetrics']) -PassLabel $Label)
     }
 
     $passResults = @()
     if (-not $cacheMetrics) {
         Write-Warning "No InterfaceSiteCacheMetrics events were captured for pass '$Label'."
     } else {
-        $passResults += WarmRun.Telemetry\Convert-MetricsToSummary -PassLabel $Label -Metrics $cacheMetrics
+        $passResults = @(WarmRun.Telemetry\Convert-MetricsToSummary -PassLabel $Label -Metrics $cacheMetrics)
     }
 
     $breakdownEvents = @()
     if ($collection -and $collection.Buckets.ContainsKey('DatabaseWriteBreakdown')) {
-        $breakdownEvents = Add-PassLabelToEvents -Events @($collection.Buckets['DatabaseWriteBreakdown']) -PassLabel $Label
-        $collection.Buckets['DatabaseWriteBreakdown'] = $breakdownEvents
+        $breakdownEvents = @(Add-PassLabelToEvents -Events @($collection.Buckets['DatabaseWriteBreakdown']) -PassLabel $Label)
     }
     if ($collection -and $collection.MissingEventNames -and $collection.MissingEventNames.Count -gt 0) {
         Write-Warning ("Telemetry still missing after polling for pass '{0}': {1}" -f $Label, ($collection.MissingEventNames -join ', '))
@@ -1281,9 +1273,9 @@ function Invoke-PipelinePass {
     }
 
     if ($passHostFilter -and $passHostFilter.Count -gt 0 -and $cacheMetrics) {
-        $originalCacheCount = ($cacheMetrics | Measure-Object).Count
-        $cacheMetrics = Filter-EventsByHostname -Events @($cacheMetrics) -AllowedHostnames $passHostFilter
-        $filteredCacheCount = ($cacheMetrics | Measure-Object).Count
+        $originalCacheCount = $cacheMetrics.Count
+        $cacheMetrics = @(Filter-EventsByHostname -Events $cacheMetrics -AllowedHostnames $passHostFilter)
+        $filteredCacheCount = $cacheMetrics.Count
         if ($filteredCacheCount -le 0 -and $originalCacheCount -gt 0) {
             Write-Warning ("Hostname filter removed all InterfaceSiteCacheMetrics events for pass '{0}' ({1} -> 0)." -f $Label, $originalCacheCount)
         } elseif ($originalCacheCount -ne $filteredCacheCount) {
@@ -1291,9 +1283,9 @@ function Invoke-PipelinePass {
         }
     }
 
-    $originalBreakdownCount = (@($breakdownEvents) | Measure-Object).Count
-    $breakdownEvents = Filter-EventsByHostname -Events @($breakdownEvents) -AllowedHostnames $passHostFilter
-    $filteredBreakdownCount = ($breakdownEvents | Measure-Object).Count
+    $originalBreakdownCount = $breakdownEvents.Count
+    $breakdownEvents = @(Filter-EventsByHostname -Events $breakdownEvents -AllowedHostnames $passHostFilter)
+    $filteredBreakdownCount = $breakdownEvents.Count
     if ($passHostFilter -and $passHostFilter.Count -gt 0 -and $originalBreakdownCount -ne $filteredBreakdownCount) {
         Write-Host ("Filtered DatabaseWriteBreakdown events for pass '{0}': {1} -> {2}." -f $Label, $originalBreakdownCount, $filteredBreakdownCount) -ForegroundColor DarkCyan
     }
@@ -1305,21 +1297,21 @@ function Invoke-PipelinePass {
     }
 
     if ($passHostFilter -and $passHostFilter.Count -gt 0 -and $Label -eq 'ColdPass') {
-        $breakdownCount = ($breakdownEvents | Measure-Object).Count
+        $breakdownCount = $breakdownEvents.Count
         if ($breakdownCount -eq 0) {
             throw "No DatabaseWriteBreakdown events remained for cold pass after applying the hostname filter; cannot produce a valid warm-run comparison."
         }
 
-        $missingHosts = @()
+        $missingHosts = [System.Collections.Generic.List[string]]::new()
         foreach ($expected in $passHostFilter) {
             if ([string]::IsNullOrWhiteSpace($expected)) { continue }
             if (-not $passHostnames.Contains($expected)) {
-                $missingHosts += $expected
+                $missingHosts.Add($expected) | Out-Null
             }
         }
 
-        if ($missingHosts -and $missingHosts.Count -gt 0) {
-            $message = ("Hostname filter required cold coverage for: {0}. Only saw: {1}" -f ([string]::Join(', ', $missingHosts)), ([string]::Join(', ', $passHostnames)))
+        if ($missingHosts.Count -gt 0) {
+            $message = ("Hostname filter required cold coverage for: {0}. Only saw: {1}" -f ([string]::Join(', ', $missingHosts.ToArray())), ([string]::Join(', ', $passHostnames)))
             if ($AllowPartialHostFilterCoverage.IsPresent) {
                 Write-Warning $message
             } else {
@@ -1328,7 +1320,7 @@ function Invoke-PipelinePass {
         }
     }
 
-    if ($breakdownEvents -and ($breakdownEvents | Measure-Object).Count -gt 0) {
+    if ($breakdownEvents -and $breakdownEvents.Count -gt 0) {
         $script:PassInterfaceAnalysis[$Label] = Measure-InterfaceCallDurationMetrics -Events @($breakdownEvents)
     } else {
         $script:PassInterfaceAnalysis[$Label] = $null
@@ -1337,13 +1329,12 @@ function Invoke-PipelinePass {
 
     $syncEvents = @()
     if ($collection -and $collection.Buckets.ContainsKey('InterfaceSyncTiming')) {
-        $syncEvents = Add-PassLabelToEvents -Events @($collection.Buckets['InterfaceSyncTiming']) -PassLabel $Label
-        $collection.Buckets['InterfaceSyncTiming'] = $syncEvents
+        $syncEvents = @(Add-PassLabelToEvents -Events @($collection.Buckets['InterfaceSyncTiming']) -PassLabel $Label)
     }
     if ($passHostFilter -and $passHostFilter.Count -gt 0 -and $syncEvents) {
-        $originalSyncCount = ($syncEvents | Measure-Object).Count
-        $syncEvents = Filter-EventsByHostname -Events @($syncEvents) -AllowedHostnames $passHostFilter
-        $filteredSyncCount = ($syncEvents | Measure-Object).Count
+        $originalSyncCount = $syncEvents.Count
+        $syncEvents = @(Filter-EventsByHostname -Events $syncEvents -AllowedHostnames $passHostFilter)
+        $filteredSyncCount = $syncEvents.Count
         if ($originalSyncCount -ne $filteredSyncCount) {
             Write-Host ("Filtered InterfaceSyncTiming events for pass '{0}': {1} -> {2}." -f $Label, $originalSyncCount, $filteredSyncCount) -ForegroundColor DarkCyan
         }
@@ -1453,7 +1444,7 @@ function Get-SiteCacheState {
         return @()
     }
 
-    $stateSummaries = @()
+    $stateSummaries = [System.Collections.Generic.List[psobject]]::new()
     foreach ($site in $Sites) {
         $siteKey = '' + $site
         if ([string]::IsNullOrWhiteSpace($siteKey)) { continue }
@@ -1534,7 +1525,7 @@ function Get-SiteCacheState {
         Write-Host ("Inspecting site cache entry '{0}': {1}" -f $siteKey, $(if ($perSiteSummary -and $perSiteSummary.State -eq 'Present') { 'present' } else { 'missing' })) -ForegroundColor DarkGray
 
         if ($perSiteSummary) {
-            $stateSummaries += $perSiteSummary
+            $stateSummaries.Add($perSiteSummary) | Out-Null
         }
     }
 
@@ -1699,10 +1690,10 @@ function Get-SharedCacheEntriesSnapshot {
             {
                 param($sitesFallback, [bool]$verboseFlag)
 
-                $normalizedFallbackSites = @()
+                $normalizedFallbackSites = [System.Collections.Generic.List[string]]::new()
                 foreach ($siteCandidate in @($sitesFallback)) {
                     if ([string]::IsNullOrWhiteSpace($siteCandidate)) { continue }
-                    $normalizedFallbackSites += ('' + $siteCandidate).Trim()
+                    $normalizedFallbackSites.Add(('' + $siteCandidate).Trim()) | Out-Null
                 }
 
                 $result = [System.Collections.Generic.List[psobject]]::new()
@@ -1766,7 +1757,7 @@ function Get-SharedCacheEntriesSnapshot {
                 }
 
                 if ($verboseFlag) {
-                    $storeSummary = @()
+                    $storeSummary = [System.Collections.Generic.List[psobject]]::new()
                     if ($store -is [System.Collections.IDictionary]) {
                         foreach ($key in @($store.Keys)) {
                             $hostCount = 0
@@ -1774,7 +1765,7 @@ function Get-SharedCacheEntriesSnapshot {
                             try {
                                 $entry = Get-SharedSiteInterfaceCacheEntry -SiteKey $key
                                 if ($entry -and $entry.HostMap -is [System.Collections.IDictionary]) {
-                                    $hostCount = ($entry.HostMap.Keys | Measure-Object).Count
+                                    try { $hostCount = [int]$entry.HostMap.Count } catch { $hostCount = 0 }
                                     foreach ($map in $entry.HostMap.Values) {
                                         if ($map -is [System.Collections.IDictionary]) {
                                             $rowSum += $map.Count
@@ -1782,11 +1773,11 @@ function Get-SharedCacheEntriesSnapshot {
                                     }
                                 }
                             } catch { }
-                            $storeSummary += [pscustomobject]@{ Site = $key; HostCount = $hostCount; TotalRows = $rowSum }
+                            $storeSummary.Add([pscustomobject]@{ Site = $key; HostCount = $hostCount; TotalRows = $rowSum }) | Out-Null
                         }
                     }
-                    if ($storeSummary -and $storeSummary.Count -gt 0) {
-                        $storeSummaryText = ($storeSummary | Sort-Object Site | ForEach-Object { "{0}:hosts={1},rows={2}" -f $_.Site, $_.HostCount, $_.TotalRows }) -join '; '
+                    if ($storeSummary.Count -gt 0) {
+                        $storeSummaryText = ($storeSummary.ToArray() | Sort-Object Site | ForEach-Object { "{0}:hosts={1},rows={2}" -f $_.Site, $_.HostCount, $_.TotalRows }) -join '; '
                         Write-Host ("Shared cache store snapshot (pre-export): {0}" -f $storeSummaryText) -ForegroundColor DarkCyan
                     } else {
                         Write-Host 'Shared cache store snapshot (pre-export): empty or unavailable.' -ForegroundColor DarkYellow
@@ -1851,7 +1842,7 @@ function Get-SharedCacheEntriesSnapshot {
                             try { $totalRows = [int]$entry.Entry.TotalRows } catch { $totalRows = 0 }
                         }
                         if ($hostCount -le 0 -and $entry.Entry.HostMap -is [System.Collections.IDictionary]) {
-                            try { $hostCount = ($entry.Entry.HostMap.Keys | Measure-Object).Count } catch { $hostCount = 0 }
+                            try { $hostCount = [int]$entry.Entry.HostMap.Count } catch { $hostCount = 0 }
                             foreach ($map in $entry.Entry.HostMap.Values) {
                                 if ($map -is [System.Collections.IDictionary]) {
                                     try { $totalRows += $map.Count } catch { }
@@ -1897,7 +1888,7 @@ function Write-SharedCacheSnapshotFile {
     $entryArray = ConvertTo-SharedCacheEntryArray -Entries $Entries
 
     # Prefer the cache module export (keeps format aligned) when the module is available.
-    $siteFilter = @()
+    $siteFilter = [System.Collections.Generic.List[string]]::new()
     foreach ($entry in $entryArray) {
         if (-not $entry) { continue }
         $siteValue = ''
@@ -1906,7 +1897,7 @@ function Write-SharedCacheSnapshotFile {
         } elseif ($entry.PSObject.Properties.Name -contains 'SiteKey') {
             $siteValue = ('' + $entry.SiteKey).Trim()
         }
-        if (-not [string]::IsNullOrWhiteSpace($siteValue)) { $siteFilter += $siteValue }
+        if (-not [string]::IsNullOrWhiteSpace($siteValue)) { $siteFilter.Add($siteValue) | Out-Null }
     }
 
     $cacheModule = Get-Module -Name 'DeviceRepository.Cache' -ErrorAction SilentlyContinue
@@ -1923,7 +1914,7 @@ function Write-SharedCacheSnapshotFile {
         if ($cacheExport) {
             try {
                 $args = @{ OutputPath = $Path }
-                if ($siteFilter -and $siteFilter.Count -gt 0) { $args['SiteFilter'] = $siteFilter }
+                if ($siteFilter.Count -gt 0) { $args['SiteFilter'] = $siteFilter.ToArray() }
                 & $cacheExport @args | Out-Null
                 return
             } catch {
@@ -2187,7 +2178,7 @@ try {
 
     $pipelineArguments['SharedCacheSnapshotExportPath'] = $sharedCacheSnapshotPath
     Set-IngestionHistoryForPass -SeedMode $ColdHistorySeed -Snapshot $ingestionHistorySnapshot -PassLabel 'ColdPass'
-    $results += Invoke-PipelinePass -Label 'ColdPass'
+    $results.AddRange(@(Invoke-PipelinePass -Label 'ColdPass')) | Out-Null
 
     if ($pipelineArguments.ContainsKey('SharedCacheSnapshotExportPath')) {
         $pipelineArguments.Remove('SharedCacheSnapshotExportPath')
@@ -2195,7 +2186,7 @@ try {
     Write-SharedCacheSnapshot -Label 'PostColdPass'
     $postColdSummary = Get-SharedCacheSummary -Label 'SharedCacheState:PostColdPass'
     if ($postColdSummary) {
-        $results += $postColdSummary
+        $results.AddRange(@($postColdSummary)) | Out-Null
     }
     if ($SiteExistingRowCacheSnapshotPath) {
         Save-SiteExistingRowCacheSnapshot -SnapshotPath $SiteExistingRowCacheSnapshotPath
@@ -2206,30 +2197,34 @@ try {
     if ($initialSiteCandidates -and $initialSiteCandidates.Count -gt 0) {
         $postColdProbe = Invoke-SiteCacheProbe -Sites $initialSiteCandidates -Label 'CacheProbe:PostColdPass'
         if ($postColdProbe -and $postColdProbe.Count -gt 0) {
-            $results += $postColdProbe
+            $results.AddRange(@($postColdProbe)) | Out-Null
         }
     }
     $usingExportedSnapshot = $false
+    $capturedAfterCold = 0
     if ($sharedCacheSnapshotPath -and (Test-Path -LiteralPath $sharedCacheSnapshotPath)) {
         try {
             $sharedCacheEntries = ConvertTo-SharedCacheEntryArray -Entries (Import-Clixml -Path $sharedCacheSnapshotPath)
-            if ($sharedCacheEntries -and ($sharedCacheEntries | Measure-Object).Count -gt 0) {
+            $capturedAfterCold = ($sharedCacheEntries | Measure-Object).Count
+            if ($capturedAfterCold -gt 0) {
                 $usingExportedSnapshot = $true
             } else {
                 $sharedCacheEntries = @()
+                $capturedAfterCold = 0
             }
         } catch {
             Write-Warning ("Failed to import shared cache snapshot exported by the cold pass: {0}" -f $_.Exception.Message)
             $sharedCacheEntries = @()
+            $capturedAfterCold = 0
         }
     }
     if ($SiteExistingRowCacheSnapshotPath -and (Test-Path -LiteralPath $SiteExistingRowCacheSnapshotPath)) {
         Restore-SiteExistingRowCacheSnapshot -SnapshotPath $SiteExistingRowCacheSnapshotPath
     }
-    if (-not $sharedCacheEntries -or ($sharedCacheEntries | Measure-Object).Count -eq 0) {
+    if ($capturedAfterCold -le 0) {
         $sharedCacheEntries = ConvertTo-SharedCacheEntryArray -Entries (Get-SharedCacheEntriesSnapshot -FallbackSites $initialSiteCandidates)
+        $capturedAfterCold = ($sharedCacheEntries | Measure-Object).Count
     }
-    $capturedAfterCold = ($sharedCacheEntries | Measure-Object).Count
 
     try {
         Write-Host 'Capturing ingestion history produced by cold pass for potential warm-run reuse...' -ForegroundColor Yellow
@@ -2262,12 +2257,12 @@ try {
         Write-Warning 'Shared cache snapshot after cold pass contained no entries.'
     }
     try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::ClearSnapshot() } catch { }
-    $results += [pscustomobject]@{
+    $results.Add([pscustomobject]@{
         PassLabel   = 'SharedCacheSnapshot:PostColdPass'
         Timestamp   = Get-Date
         EntryCount  = $capturedAfterCold
         SourceStage = 'ColdPass'
-    }
+    }) | Out-Null
 
     if ($RefreshSiteCaches.IsPresent) {
         try {
@@ -2283,12 +2278,12 @@ try {
                 Write-Host ("Refreshing site caches for warm-run metrics ({0})..." -f ([string]::Join(', ', $sitesForRefresh))) -ForegroundColor Cyan
                 $warmRefreshResults = Invoke-SiteCacheRefresh -Sites $sitesForRefresh -Label 'CacheRefresh'
                 if ($warmRefreshResults -and $warmRefreshResults.Count -gt 0) {
-                    $results += $warmRefreshResults
+                    $results.AddRange(@($warmRefreshResults)) | Out-Null
                 }
                 Write-SharedCacheSnapshot -Label 'PostRefresh'
                 $postRefreshSummary = Get-SharedCacheSummary -Label 'SharedCacheState:PostRefresh'
                 if ($postRefreshSummary) {
-                    $results += $postRefreshSummary
+                    $results.AddRange(@($postRefreshSummary)) | Out-Null
                 }
                 Write-Host 'Recording site cache state after refresh...' -ForegroundColor Cyan
                 $cacheStateAfterRefresh = Get-SiteCacheState -Sites $sitesForRefresh -Label 'CacheState:PostRefresh'
@@ -2298,12 +2293,12 @@ try {
                     if ($count -gt 0) {
                         Write-Host ("  -> {0}" -f (($cacheStateAfterRefresh | ForEach-Object { '{0}:{1}' -f $_.Site, $_.CacheStatus }) -join ', ')) -ForegroundColor DarkCyan
                     }
-                    $results += @($cacheStateAfterRefresh)
+                    $results.AddRange(@($cacheStateAfterRefresh)) | Out-Null
                 }
                 Write-Host 'Probing site caches after refresh to verify cache entries persisted...' -ForegroundColor Cyan
                 $probeResults = Invoke-SiteCacheProbe -Sites $sitesForRefresh -Label 'CacheProbe'
                 if ($probeResults -and $probeResults.Count -gt 0) {
-                    $results += $probeResults
+                    $results.AddRange(@($probeResults)) | Out-Null
                 }
                 Write-Host 'Warming preserved parser runspaces with refreshed site caches...' -ForegroundColor Cyan
                 $refreshedEntries = ConvertTo-SharedCacheEntryArray -Entries (Get-SharedCacheEntriesSnapshot -FallbackSites $sitesForRefresh)
@@ -2347,12 +2342,12 @@ try {
         } else {
             Write-Warning 'Shared cache snapshot after refresh contained no entries.'
         }
-        $results += [pscustomobject]@{
+        $results.Add([pscustomobject]@{
             PassLabel   = 'SharedCacheSnapshot:PostRefresh'
             Timestamp   = Get-Date
             EntryCount  = $capturedAfterRefresh
             SourceStage = 'PostRefresh'
-        }
+        }) | Out-Null
     }
 
     $sharedCacheSites = @($sharedCacheEntries | ForEach-Object {
@@ -2447,21 +2442,21 @@ try {
     } elseif ($sharedCacheEntries -and ($sharedCacheEntries | Measure-Object).Count -gt 0) {
         Write-Warning 'Cached site entries were captured after the cold pass but none were restored before the warm pass.'
     }
-    $results += [pscustomobject]@{
+    $results.Add([pscustomobject]@{
         PassLabel    = 'SharedCacheRestore:PreWarmPass'
         Timestamp    = Get-Date
         RestoredCount= $restoredCacheCount
-    }
+    }) | Out-Null
     $postRestoreSummary = Get-SharedCacheSummary -Label 'SharedCacheState:PostRestore'
     if ($postRestoreSummary) {
-        $results += $postRestoreSummary
+        $results.AddRange(@($postRestoreSummary)) | Out-Null
     }
     if ($script:WarmRunSites -and $script:WarmRunSites.Count -gt 0) {
         Write-Host ("Preparing cache state check for sites: {0}" -f ([string]::Join(', ', $script:WarmRunSites))) -ForegroundColor DarkCyan
         Write-Host 'Recording site cache state before warm pass...' -ForegroundColor Cyan
         $preWarmSummary = Get-SharedCacheSummary -Label 'SharedCacheState:PreWarmPass'
         if ($preWarmSummary) {
-            $results += $preWarmSummary
+            $results.AddRange(@($preWarmSummary)) | Out-Null
         }
         $cacheStatePreWarm = Get-SiteCacheState -Sites $script:WarmRunSites -Label 'CacheState:PreWarmPass'
         if ($cacheStatePreWarm) {
@@ -2470,7 +2465,7 @@ try {
             if ($count -gt 0) {
                 Write-Host ("  -> {0}" -f (($cacheStatePreWarm | ForEach-Object { '{0}:{1}' -f $_.Site, $_.CacheStatus }) -join ', ')) -ForegroundColor DarkCyan
             }
-            $results += @($cacheStatePreWarm)
+            $results.AddRange(@($cacheStatePreWarm)) | Out-Null
         }
 
         try {
@@ -2505,15 +2500,15 @@ try {
     try {
         $runspaceSharedCache = ParserRunspaceModule\Get-RunspaceSharedCacheSummary
         if ($runspaceSharedCache -and $runspaceSharedCache.Count -gt 0) {
-            $runspaceSharedCache = $runspaceSharedCache | ForEach-Object {
-                $_ | Add-Member -NotePropertyName 'PassLabel' -NotePropertyValue 'SharedCacheState:PreservedRunspace' -PassThru
-            }
-            $results += @($runspaceSharedCache)
-            $runspaceSharedText = ($runspaceSharedCache | Sort-Object Site | ForEach-Object { '{0}:hosts={1},rows={2}' -f $_.Site, $_.HostCount, $_.TotalRows }) -join '; '
-            Write-Host ("Preserved runspace shared cache store: {0}" -f $runspaceSharedText) -ForegroundColor DarkCyan
-        } else {
-            Write-Host 'Preserved runspace shared cache store: empty or unavailable.' -ForegroundColor DarkYellow
+        $runspaceSharedCache = $runspaceSharedCache | ForEach-Object {
+            $_ | Add-Member -NotePropertyName 'PassLabel' -NotePropertyValue 'SharedCacheState:PreservedRunspace' -PassThru
         }
+        $results.AddRange(@($runspaceSharedCache)) | Out-Null
+        $runspaceSharedText = ($runspaceSharedCache | Sort-Object Site | ForEach-Object { '{0}:hosts={1},rows={2}' -f $_.Site, $_.HostCount, $_.TotalRows }) -join '; '
+        Write-Host ("Preserved runspace shared cache store: {0}" -f $runspaceSharedText) -ForegroundColor DarkCyan
+    } else {
+        Write-Host 'Preserved runspace shared cache store: empty or unavailable.' -ForegroundColor DarkYellow
+    }
     } catch {
         Write-Warning ("Failed to capture preserved runspace shared cache state: {0}" -f $_.Exception.Message)
     }
@@ -2548,7 +2543,7 @@ try {
             if ($postSeedSummary -and $postSeedSummary.Count -gt 0) {
                 $postSeedText = ($postSeedSummary | Sort-Object Site | ForEach-Object { '{0}:hosts={1},rows={2}' -f $_.Site, $_.HostCount, $_.TotalRows }) -join '; '
                 Write-Host ("Preserved runspace shared cache after seeding: {0}" -f $postSeedText) -ForegroundColor DarkCyan
-                $results += @($postSeedSummary | ForEach-Object { $_ | Add-Member -NotePropertyName 'PassLabel' -NotePropertyValue 'SharedCacheState:PreservedRunspacePostSeed' -PassThru })
+                $results.AddRange(@($postSeedSummary | ForEach-Object { $_ | Add-Member -NotePropertyName 'PassLabel' -NotePropertyValue 'SharedCacheState:PreservedRunspacePostSeed' -PassThru })) | Out-Null
             } else {
                 Write-Host 'Preserved runspace shared cache after seeding: empty or unavailable.' -ForegroundColor DarkYellow
             }
@@ -2561,7 +2556,7 @@ try {
     # Advance the telemetry baseline so WarmPass collection excludes pre-warm cache work.
     $metricsBaseline = Get-MetricsBaseline -DirectoryPath $metricsDirectory
     Write-Host ("[Diag] WarmPass starting at {0:o}" -f (Get-Date)) -ForegroundColor Magenta
-    $results += Invoke-PipelinePass -Label 'WarmPass'
+    $results.AddRange(@(Invoke-PipelinePass -Label 'WarmPass')) | Out-Null
     Write-Host ("[Diag] WarmPass completed at {0:o}" -f (Get-Date)) -ForegroundColor Magenta
 } finally {
     $restoreStart = Get-Date
@@ -2809,7 +2804,7 @@ if (($coldMetrics -or $coldSummaries) -and ($warmMetrics -or $warmSummaries)) {
         ColdProviderCountsRaw          = $normalizedColdProviderCounts
     }
 
-    $results += $comparisonSummary
+    $results.Add($comparisonSummary) | Out-Null
 }
 
 if ($AssertWarmCache.IsPresent -and -not $SkipWarmValidation.IsPresent) {
@@ -2856,7 +2851,7 @@ function Get-PassHostnameFilter {
 
 if ($script:ComparisonHostFilter -and $script:ComparisonHostFilter.Count -gt 0) {
     $filteredResults = [System.Collections.Generic.List[psobject]]::new()
-    foreach ($result in @($results)) {
+    foreach ($result in $results) {
         if ($result.PSObject.Properties.Name -contains 'SummaryType' -and $result.SummaryType) {
             $filteredResults.Add($result) | Out-Null
             continue
@@ -2884,7 +2879,7 @@ if ($script:ComparisonHostFilter -and $script:ComparisonHostFilter.Count -gt 0) 
             $filteredResults.Add($result) | Out-Null
         }
     }
-    $results = @($filteredResults)
+    $results = $filteredResults.ToArray()
 }
 
 function Update-ComparisonSummaryFromResults {
@@ -3017,7 +3012,7 @@ function Update-ComparisonSummaryFromResults {
 $results = Update-ComparisonSummaryFromResults -Items $results
 
 if ($OutputPath) {
-    $totalResultCount = ($results | Measure-Object).Count
+    $totalResultCount = $results.Count
     Write-Host ("Result count prior to export: {0}" -f $totalResultCount) -ForegroundColor Yellow
     $directory = Split-Path -Path $OutputPath -Parent
     if ($directory -and -not (Test-Path -LiteralPath $directory)) {
