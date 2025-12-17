@@ -4729,6 +4729,176 @@ function Update-SiteZoneCache {
         } catch { }
     }
 }
+
+function Update-HostInterfaceCache {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Site,
+        [string]$Zone,
+        [Parameter(Mandatory)][string[]]$Hostnames
+    )
+    $siteValue = ('' + $Site).Trim()
+    if ([string]::IsNullOrWhiteSpace($siteValue)) { return }
+
+    $zoneKey = ''
+    if (-not [string]::IsNullOrWhiteSpace($Zone) -and -not ($Zone -ieq 'All Zones')) {
+        $zoneKey = ('' + $Zone).Trim()
+    }
+
+    if (-not $Hostnames -or $Hostnames.Count -eq 0) { return }
+
+    if (-not $global:DeviceInterfaceCache) { $global:DeviceInterfaceCache = @{} }
+
+    $targetHosts = [System.Collections.Generic.List[string]]::new()
+    $seenHosts = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($rawHost in $Hostnames) {
+        if ($null -eq $rawHost) { continue }
+        $hostname = ('' + $rawHost).Trim()
+        if ([string]::IsNullOrWhiteSpace($hostname)) { continue }
+        if (-not $seenHosts.Add($hostname)) { continue }
+
+        $parts = $null
+        try { $parts = $hostname.Split('-', [System.StringSplitOptions]::RemoveEmptyEntries) } catch { $parts = $null }
+
+        if ($parts -and $parts.Length -ge 1) {
+            if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals($parts[0], $siteValue)) { continue }
+            if ($zoneKey) {
+                if ($parts.Length -lt 2) { continue }
+                if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals($parts[1], $zoneKey)) { continue }
+            }
+        } elseif ($zoneKey) {
+            continue
+        }
+
+        [void]$targetHosts.Add($hostname)
+    }
+
+    if ($targetHosts.Count -eq 0) { return }
+
+    $missingHosts = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($hostname in $targetHosts) {
+        if (-not $global:DeviceInterfaceCache.ContainsKey($hostname)) {
+            [void]$missingHosts.Add($hostname)
+        }
+    }
+    if ($missingHosts.Count -eq 0) { return }
+
+    $dbPath = $null
+    try { $dbPath = Get-DbPathForSite -Site $siteValue } catch { $dbPath = $null }
+    if ([string]::IsNullOrWhiteSpace($dbPath)) {
+        foreach ($hn in $missingHosts) {
+            $global:DeviceInterfaceCache[$hn] = [System.Collections.Generic.List[object]]::new()
+        }
+        return
+    }
+
+    $hostBatchData = $null
+    try {
+        $missingHostList = [System.Collections.Generic.List[string]]::new()
+        foreach ($hn in $missingHosts) { [void]$missingHostList.Add($hn) }
+        $hostBatchData = Get-InterfacesForHostsBatch -DatabasePath $dbPath -Hostnames $missingHostList.ToArray() -SkipAuthBlock
+    } catch {
+        $hostBatchData = $null
+    }
+
+    if ($hostBatchData -eq $null) {
+        foreach ($hn in $missingHosts) {
+            $global:DeviceInterfaceCache[$hn] = [System.Collections.Generic.List[object]]::new()
+        }
+        return
+    }
+
+    $hostBuckets = New-Object 'System.Collections.Generic.Dictionary[string, System.Collections.Generic.List[object]]' ([System.StringComparer]::OrdinalIgnoreCase)
+    $zoneCache = New-Object 'System.Collections.Generic.Dictionary[string,string]' ([System.StringComparer]::OrdinalIgnoreCase)
+
+    foreach ($row in $hostBatchData) {
+        if (-not $row) { continue }
+
+        $hostname = ''
+        if ($row -is [System.Data.DataRow]) {
+            try { $hostname = '' + $row['Hostname'] } catch { $hostname = '' }
+        } else {
+            try {
+                if ($row.PSObject -and $row.PSObject.Properties['Hostname']) { $hostname = '' + $row.Hostname }
+            } catch { $hostname = '' }
+        }
+
+        if ([string]::IsNullOrWhiteSpace($hostname)) { continue }
+        if (-not $missingHosts.Contains($hostname)) { continue }
+
+        $zoneValue = ''
+        if (-not $zoneCache.TryGetValue($hostname, [ref]$zoneValue)) {
+            $zoneValue = ''
+            try {
+                $parts = $hostname.Split('-', [System.StringSplitOptions]::RemoveEmptyEntries)
+                if ($parts.Length -ge 2) { $zoneValue = $parts[1] }
+            } catch { $zoneValue = '' }
+            $zoneCache[$hostname] = $zoneValue
+        }
+
+        $rowObj = $null
+        if ($row -is [System.Data.DataRow]) {
+            $rowObj = [PSCustomObject]@{
+                Hostname      = $hostname
+                Port          = '' + $row['Port']
+                Name          = '' + $row['Name']
+                Status        = '' + $row['Status']
+                VLAN          = '' + $row['VLAN']
+                Duplex        = '' + $row['Duplex']
+                Speed         = '' + $row['Speed']
+                Type          = '' + $row['Type']
+                LearnedMACs   = '' + $row['LearnedMACs']
+                AuthState     = '' + $row['AuthState']
+                AuthMode      = '' + $row['AuthMode']
+                AuthClientMAC = '' + $row['AuthClientMAC']
+                Site          = '' + $row['Site']
+                Building      = '' + $row['Building']
+                Room          = '' + $row['Room']
+                Zone          = $zoneValue
+                Make          = '' + $row['Make']
+                IsSelected    = $false
+            }
+        } else {
+            $rowObj = [PSCustomObject]@{
+                Hostname      = $hostname
+                Port          = '' + $row.Port
+                Name          = '' + $row.Name
+                Status        = '' + $row.Status
+                VLAN          = '' + $row.VLAN
+                Duplex        = '' + $row.Duplex
+                Speed         = '' + $row.Speed
+                Type          = '' + $row.Type
+                LearnedMACs   = '' + $row.LearnedMACs
+                AuthState     = '' + $row.AuthState
+                AuthMode      = '' + $row.AuthMode
+                AuthClientMAC = '' + $row.AuthClientMAC
+                Site          = '' + $row.Site
+                Building      = '' + $row.Building
+                Room          = '' + $row.Room
+                Zone          = $zoneValue
+                Make          = '' + $row.Make
+                IsSelected    = $false
+            }
+        }
+
+        $bucket = $null
+        if (-not $hostBuckets.TryGetValue($hostname, [ref]$bucket)) {
+            $bucket = [System.Collections.Generic.List[object]]::new()
+            $hostBuckets[$hostname] = $bucket
+        }
+
+        [void]$bucket.Add($rowObj)
+    }
+
+    foreach ($hn in $missingHosts) {
+        $bucket = $null
+        if ($hostBuckets.TryGetValue($hn, [ref]$bucket)) {
+            $global:DeviceInterfaceCache[$hn] = $bucket
+        } else {
+            $global:DeviceInterfaceCache[$hn] = [System.Collections.Generic.List[object]]::new()
+        }
+    }
+}
 function Get-GlobalInterfaceSnapshot {
     [CmdletBinding()]
     param(
@@ -6336,4 +6506,4 @@ function Get-SpanningTreeInfo {
     return $list.ToArray()
 }
 
-Export-ModuleMember -Function Get-DataDirectoryPath, Get-SiteFromHostname, Get-DbPathForSite, Get-DbPathForHost, Get-AllSiteDbPaths, Clear-SiteInterfaceCache, Get-InterfaceSiteCache, Get-InterfaceSiteCacheSummary, Get-SharedSiteInterfaceCacheStore, Get-SharedSiteInterfaceCacheEntry, Set-InterfaceSiteCacheHost, Get-InterfacePortBatchChunkSize, Set-InterfacePortStreamChunkSize, Set-InterfacePortStreamData, Initialize-InterfacePortStream, Get-InterfacePortStreamStatus, Get-InterfacePortBatch, Get-LastInterfacePortStreamMetrics, Get-LastInterfacePortQueueMetrics, Get-LastInterfaceSiteCacheMetrics, Get-LastInterfaceSiteHydrationMetrics, Set-InterfacePortDispatchMetrics, Get-LastInterfacePortDispatchMetrics, Clear-InterfacePortStream, Update-SiteZoneCache, Get-GlobalInterfaceSnapshot, Update-GlobalInterfaceList, Get-InterfacesForSite, Get-InterfaceInfo, Get-InterfaceConfiguration, Get-SpanningTreeInfo, Get-InterfacesForHostsBatch, Invoke-ParallelDbQuery, Import-DatabaseModule, Resolve-SharedSiteInterfaceCacheSnapshotEntries, Get-SharedCacheSiteFilterFromEntries, ConvertTo-SharedCacheEntryArray
+Export-ModuleMember -Function Get-DataDirectoryPath, Get-SiteFromHostname, Get-DbPathForSite, Get-DbPathForHost, Get-AllSiteDbPaths, Clear-SiteInterfaceCache, Get-InterfaceSiteCache, Get-InterfaceSiteCacheSummary, Get-SharedSiteInterfaceCacheStore, Get-SharedSiteInterfaceCacheEntry, Set-InterfaceSiteCacheHost, Get-InterfacePortBatchChunkSize, Set-InterfacePortStreamChunkSize, Set-InterfacePortStreamData, Initialize-InterfacePortStream, Get-InterfacePortStreamStatus, Get-InterfacePortBatch, Get-LastInterfacePortStreamMetrics, Get-LastInterfacePortQueueMetrics, Get-LastInterfaceSiteCacheMetrics, Get-LastInterfaceSiteHydrationMetrics, Set-InterfacePortDispatchMetrics, Get-LastInterfacePortDispatchMetrics, Clear-InterfacePortStream, Update-SiteZoneCache, Update-HostInterfaceCache, Get-GlobalInterfaceSnapshot, Update-GlobalInterfaceList, Get-InterfacesForSite, Get-InterfaceInfo, Get-InterfaceConfiguration, Get-SpanningTreeInfo, Get-InterfacesForHostsBatch, Invoke-ParallelDbQuery, Import-DatabaseModule, Resolve-SharedSiteInterfaceCacheSnapshotEntries, Get-SharedCacheSiteFilterFromEntries, ConvertTo-SharedCacheEntryArray

@@ -17,12 +17,14 @@ Describe "ViewStateService Get-FilterSnapshot" {
     BeforeEach {
         $global:DeviceHostnameOrder = @()
         $global:InterfacesLoadAllowed = $true
+        Remove-Variable -Name DeviceInterfaceCache -Scope Global -ErrorAction SilentlyContinue
     }
 
     AfterAll {
         Remove-Module ViewStateService -Force
         Remove-Variable -Name TestMetadata -Scope Script -ErrorAction SilentlyContinue
         Remove-Variable -Name DeviceHostnameOrder -Scope Global -ErrorAction SilentlyContinue
+        Remove-Variable -Name DeviceInterfaceCache -Scope Global -ErrorAction SilentlyContinue
         Remove-Variable -Name DeviceMetadata -Scope Global -ErrorAction SilentlyContinue
         Remove-Variable -Name InterfacesLoadAllowed -Scope Global -ErrorAction SilentlyContinue
     }
@@ -129,5 +131,35 @@ Describe "ViewStateService Get-FilterSnapshot" {
 
         $result.Count | Should Be 1
         $result[0].Hostname | Should Be 'SITE1-Z1-SW1'
+    }
+
+    It "avoids hydrating full snapshots when host cache is available" {
+        $global:DeviceMetadata = $script:TestMetadata
+        $global:DeviceInterfaceCache = @{
+            'SITE1-Z1-SW1' = @(
+                [pscustomobject]@{
+                    Hostname = 'SITE1-Z1-SW1'
+                    Site     = 'SITE1'
+                    Zone     = 'Z1'
+                    Port     = 'Et1'
+                    Status   = 'up'
+                }
+            )
+        }
+
+        & (Get-Module ViewStateService) {
+            $script:CachedSite = $null
+            $script:CachedZoneSelection = $null
+            $script:CachedZoneLoad = $null
+            $script:CachedInterfaces = $null
+        }
+
+        $result = ViewStateService\Get-InterfacesForContext -Site 'SITE1' -ZoneSelection 'Z1' -Building 'B1' -Room 'R101'
+
+        $result.Count | Should Be 1
+        $result[0].Hostname | Should Be 'SITE1-Z1-SW1'
+
+        $cachedAfter = & (Get-Module ViewStateService) { $script:CachedInterfaces }
+        $cachedAfter | Should Be $null
     }
 }

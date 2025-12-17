@@ -169,6 +169,8 @@ function Get-InterfacesForContext {
     $siteFilter = ConvertTo-FilterValue -Value $Site -Sentinels @('All Sites')
     $zoneFilter = ConvertTo-FilterValue -Value $ZoneSelection -Sentinels @('All Zones')
     $zoneLoadParam = ConvertTo-FilterValue -Value $ZoneToLoad -Sentinels @('All Zones')
+    $buildingFilter = ConvertTo-FilterValue -Value $Building -Sentinels @('', 'All Buildings')
+    $roomFilter = ConvertTo-FilterValue -Value $Room -Sentinels @('', 'All Rooms')
 
     $cachedSite = $script:CachedSite
     $cachedZoneSelection = $script:CachedZoneSelection
@@ -180,8 +182,123 @@ function Get-InterfacesForContext {
     $zoneLoadMatch = ([string]::IsNullOrEmpty($zoneLoadParam) -and [string]::IsNullOrEmpty($cachedZoneLoad)) -or [string]::Equals($zoneLoadParam, $cachedZoneLoad, [System.StringComparison]::OrdinalIgnoreCase)
 
     $interfacesSnapshot = $null
-    if ($siteMatch -and $zoneMatch -and $zoneLoadMatch -and (Get-SequenceCount $cachedInterfaces) -gt 0) {
-        $interfacesSnapshot = $cachedInterfaces
+    $hostScopedSnapshotSelected = $false
+
+    if (($buildingFilter -or $roomFilter) -and $siteFilter) {
+        $zoneHostFilter = $null
+        if ($zoneFilter) {
+            $zoneHostFilter = $zoneFilter
+        } elseif ($zoneLoadParam) {
+            $zoneHostFilter = $zoneLoadParam
+        }
+
+        $metadataLookupForHosts = $null
+        try { $metadataLookupForHosts = $global:DeviceMetadata } catch { $metadataLookupForHosts = $null }
+        $metadataAvailableForHosts = $false
+        try {
+            if ($metadataLookupForHosts -is [System.Collections.IDictionary]) {
+                $metadataAvailableForHosts = ($metadataLookupForHosts.Count -gt 0)
+            }
+        } catch { $metadataAvailableForHosts = $false }
+
+        if ($metadataAvailableForHosts) {
+            $hostCandidates = @()
+            try {
+                $hostParams = @{ DeviceMetadata = $metadataLookupForHosts; Site = $siteFilter }
+                if ($zoneHostFilter) { $hostParams.ZoneSelection = $zoneHostFilter }
+                if ($buildingFilter) { $hostParams.Building = $buildingFilter }
+                if ($roomFilter) { $hostParams.Room = $roomFilter }
+                $hostSnapshot = Get-FilterSnapshot @hostParams
+                if ($hostSnapshot -and $hostSnapshot.Hostnames) { $hostCandidates = @($hostSnapshot.Hostnames) }
+            } catch {
+                $hostCandidates = @()
+            }
+
+            $filteredHostList = [System.Collections.Generic.List[string]]::new()
+            $seenHostnames = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+            foreach ($candidate in $hostCandidates) {
+                $candidateValue = if ($null -ne $candidate) { ('' + $candidate).Trim() } else { '' }
+                if ([string]::IsNullOrWhiteSpace($candidateValue)) { continue }
+                if (-not $seenHostnames.Add($candidateValue)) { continue }
+
+                $parts = $null
+                try { $parts = $candidateValue.Split('-', [System.StringSplitOptions]::RemoveEmptyEntries) } catch { $parts = $null }
+
+                if ($parts -and $parts.Length -ge 1) {
+                    if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals($parts[0], $siteFilter)) { continue }
+                    if ($zoneHostFilter) {
+                        if ($parts.Length -lt 2) { continue }
+                        if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals($parts[1], $zoneHostFilter)) { continue }
+                    }
+                } elseif ($zoneHostFilter) {
+                    continue
+                }
+
+                [void]$filteredHostList.Add($candidateValue)
+            }
+
+            $hostCandidates = $filteredHostList.ToArray()
+            if ($filteredHostList.Count -eq 0) {
+                return ,([System.Collections.Generic.List[object]]::new())
+            }
+
+            $interfaceCache = $null
+            try { $interfaceCache = $global:DeviceInterfaceCache } catch { $interfaceCache = $null }
+
+            $missingHosts = $null
+            if ($interfaceCache -is [System.Collections.IDictionary]) {
+                $missingHosts = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+                foreach ($hn in $hostCandidates) {
+                    $hnValue = if ($null -ne $hn) { ('' + $hn).Trim() } else { '' }
+                    if ([string]::IsNullOrWhiteSpace($hnValue)) { continue }
+                    if (-not $interfaceCache.Contains($hnValue)) { [void]$missingHosts.Add($hnValue) }
+                }
+            }
+
+            if (($missingHosts -and $missingHosts.Count -gt 0) -or -not ($interfaceCache -is [System.Collections.IDictionary])) {
+                try {
+                    DeviceRepositoryModule\Update-HostInterfaceCache -Site $siteFilter -Zone $zoneHostFilter -Hostnames $hostCandidates
+                } catch { }
+            }
+
+            $interfaceCache = $null
+            try { $interfaceCache = $global:DeviceInterfaceCache } catch { $interfaceCache = $null }
+
+            if ($interfaceCache -is [System.Collections.IDictionary]) {
+                $cacheComplete = $true
+                foreach ($hn in $hostCandidates) {
+                    $hnValue = if ($null -ne $hn) { ('' + $hn).Trim() } else { '' }
+                    if ([string]::IsNullOrWhiteSpace($hnValue)) { continue }
+                    if (-not $interfaceCache.Contains($hnValue)) {
+                        $cacheComplete = $false
+                        break
+                    }
+                }
+
+                if ($cacheComplete) {
+                    $hostInterfaces = [System.Collections.Generic.List[object]]::new()
+                    foreach ($hn in $hostCandidates) {
+                        $hnValue = if ($null -ne $hn) { ('' + $hn).Trim() } else { '' }
+                        if ([string]::IsNullOrWhiteSpace($hnValue)) { continue }
+                        $rows = $interfaceCache[$hnValue]
+                        if (-not $rows) { continue }
+                        foreach ($row in $rows) {
+                            if (-not $row) { continue }
+                            [void]$hostInterfaces.Add($row)
+                        }
+                    }
+
+                    $interfacesSnapshot = $hostInterfaces
+                    $hostScopedSnapshotSelected = $true
+                }
+            }
+        }
+    }
+
+    if (-not $hostScopedSnapshotSelected) {
+        if ($siteMatch -and $zoneMatch -and $zoneLoadMatch -and (Get-SequenceCount $cachedInterfaces) -gt 0) {
+            $interfacesSnapshot = $cachedInterfaces
+        }
     }
 
     if (-not $interfacesSnapshot) {
@@ -213,10 +330,7 @@ function Get-InterfacesForContext {
         $script:CachedZoneLoad = $zoneLoadParam
     }
 
-    if (-not $interfacesSnapshot) { return @() }
-
-    $buildingFilter = ConvertTo-FilterValue -Value $Building -Sentinels @('')
-    $roomFilter = ConvertTo-FilterValue -Value $Room -Sentinels @('')
+    if ($null -eq $interfacesSnapshot) { return @() }
 
     $results = [System.Collections.Generic.List[object]]::new()
     $metadataLookup = $null
