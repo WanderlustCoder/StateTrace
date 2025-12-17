@@ -274,7 +274,7 @@ function Get-SitesFromSnapshot {
         [System.Collections.IEnumerable]$Snapshot
     )
 
-    $sites = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    $sites = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
     foreach ($entry in $Snapshot) {
         if (-not $entry) { continue }
         $content = $entry.Content
@@ -341,7 +341,7 @@ function Get-HostnameFilterSet {
         [string]$Path
     )
 
-    $set = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    $set = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 
     foreach ($name in @($Hostnames)) {
         if ([string]::IsNullOrWhiteSpace($name)) { continue }
@@ -383,7 +383,7 @@ function Get-HostnamesFromEvents {
         [System.Collections.IEnumerable]$Events
     )
 
-    $hostnames = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    $hostnames = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
     foreach ($event in @($Events)) {
         if (-not $event) { continue }
         $value = $null
@@ -574,7 +574,7 @@ function Get-AppendedTelemetry {
 
     $events = [System.Collections.Generic.List[psobject]]::new()
 
-    $excludeSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    $excludeSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
     foreach ($path in @($ExcludePaths)) {
         if ([string]::IsNullOrWhiteSpace($path)) { continue }
         if (-not (Test-Path -LiteralPath $path)) { continue }
@@ -763,7 +763,7 @@ function Collect-TelemetryForPass {
 
     $allEvents = [System.Collections.Generic.List[psobject]]::new()
     $eventBuckets = @{}
-    $identitySet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    $identitySet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
     $passLineBaseline = @{}
     foreach ($file in Get-TelemetryLogFiles -DirectoryPath $DirectoryPath) {
         $baselineCount = 0
@@ -929,7 +929,7 @@ function Measure-InterfaceCallDurationMetrics {
             continue
         }
 
-        $capturedEvents.Add($event) | Out-Null
+        [void]$capturedEvents.Add($event)
 
         $provider = ''
         if ($event.PSObject.Properties.Name -contains 'SiteCacheProvider') {
@@ -956,15 +956,16 @@ function Measure-InterfaceCallDurationMetrics {
         }
     }
 
-    $count = $durations.Count
+    $durationArray = $durations.ToArray()
+    $count = $durationArray.Length
     $averageRaw = $null
     $p95Raw = $null
     $maxRaw = $null
 
     if ($count -gt 0) {
-        $averageRaw = ($durations | Measure-Object -Average).Average
-        $maxRaw = ($durations | Measure-Object -Maximum).Maximum
-        $p95Raw = StatisticsModule\Get-PercentileValue -Values $durations.ToArray() -Percentile 95
+        $averageRaw = [System.Linq.Enumerable]::Average($durationArray)
+        $maxRaw = [System.Linq.Enumerable]::Max($durationArray)
+        $p95Raw = StatisticsModule\Get-PercentileValue -Values $durationArray -Percentile 95
     }
 
     $averageRounded = $null
@@ -984,7 +985,7 @@ function Measure-InterfaceCallDurationMetrics {
 
     return [pscustomobject]@{
         Events         = $capturedEvents.ToArray()
-        Durations      = $durations.ToArray()
+        Durations      = $durationArray
         Count          = $count
         Average        = $averageRounded
         AverageRaw     = if ($averageRaw -ne $null) { [double]$averageRaw } else { $null }
@@ -1249,7 +1250,7 @@ function Invoke-PipelinePass {
     $passHostFilter = $script:ComparisonHostFilter
     if ($RestrictWarmComparisonToColdHosts.IsPresent -and $Label -eq 'WarmPass') {
         if ($script:ColdPassHostnames -and $script:ColdPassHostnames.Count -gt 0) {
-            $passHostFilter = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+            $passHostFilter = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
             foreach ($hostNameCandidate in @($script:ColdPassHostnames)) {
                 if ([string]::IsNullOrWhiteSpace($hostNameCandidate)) { continue }
                 if (-not $script:ComparisonHostFilter -or $script:ComparisonHostFilter.Count -le 0 -or $script:ComparisonHostFilter.Contains($hostNameCandidate)) {
@@ -1366,7 +1367,7 @@ function Invoke-SiteCacheRefresh {
     foreach ($site in $Sites) {
         if ([string]::IsNullOrWhiteSpace($site)) { continue }
         try {
-            DeviceRepositoryModule\Get-InterfaceSiteCache -Site $site -Refresh | Out-Null
+            $null = DeviceRepositoryModule\Get-InterfaceSiteCache -Site $site -Refresh
             $refreshCount++
         } catch {
             Write-Warning "Failed to refresh site cache for '$site': $($_.Exception.Message)"
@@ -1384,7 +1385,7 @@ function Invoke-SiteCacheRefresh {
         return @()
     }
 
-    return WarmRun.Telemetry\Convert-MetricsToSummary -PassLabel $Label -Metrics $cacheMetrics
+    return @(WarmRun.Telemetry\Convert-MetricsToSummary -PassLabel $Label -Metrics $cacheMetrics)
 }
 
 function Invoke-SiteCacheProbe {
@@ -1403,8 +1404,8 @@ function Invoke-SiteCacheProbe {
     foreach ($site in $Sites) {
         if ([string]::IsNullOrWhiteSpace($site)) { continue }
         try {
-            DeviceRepositoryModule\Get-InterfaceSiteCache -Site $site | Out-Null
-            $probedSites.Add($site) | Out-Null
+            $null = DeviceRepositoryModule\Get-InterfaceSiteCache -Site $site
+            [void]$probedSites.Add($site)
         } catch {
             Write-Warning "Failed to probe site cache for '$site': $($_.Exception.Message)"
         }
@@ -1425,7 +1426,7 @@ function Invoke-SiteCacheProbe {
         return @()
     }
 
-    return WarmRun.Telemetry\Convert-MetricsToSummary -PassLabel $Label -Metrics $cacheMetrics
+    return @(WarmRun.Telemetry\Convert-MetricsToSummary -PassLabel $Label -Metrics $cacheMetrics)
 }
 
 function Get-SiteCacheState {
@@ -1525,37 +1526,40 @@ function Get-SiteCacheState {
         Write-Host ("Inspecting site cache entry '{0}': {1}" -f $siteKey, $(if ($perSiteSummary -and $perSiteSummary.State -eq 'Present') { 'present' } else { 'missing' })) -ForegroundColor DarkGray
 
         if ($perSiteSummary) {
-            $stateSummaries.Add($perSiteSummary) | Out-Null
+            [void]$stateSummaries.Add($perSiteSummary)
         }
     }
 
-    if (-not $stateSummaries) {
+    if ($stateSummaries.Count -le 0) {
         return @()
     }
 
     $now = Get-Date
-    return $stateSummaries | ForEach-Object {
-        [pscustomobject]@{
-            PassLabel                   = $Label
-            Site                        = $_.Site
-            Timestamp                   = $now
-            CacheStatus                 = if ([string]::IsNullOrWhiteSpace($_.CacheStatus)) { $_.State } else { $_.CacheStatus }
-            Provider                    = 'CacheState'
-            HydrationDurationMs         = $null
-            SnapshotDurationMs          = $null
-            HostMapDurationMs           = $null
-            HostCount                   = $_.HostCount
-            TotalRows                   = $_.TotalRows
-            HostMapSignatureMatchCount  = $null
-            HostMapSignatureRewriteCount= $null
-            HostMapCandidateMissingCount= $null
-            HostMapCandidateFromPrevious= $null
-            PreviousHostCount           = $null
-            PreviousSnapshotStatus      = $_.State
-            PreviousSnapshotHostMapType = $null
-            CacheStateDetails           = $_
-        }
+    $cacheStateRows = [System.Collections.Generic.List[psobject]]::new()
+    foreach ($state in $stateSummaries) {
+        [void]$cacheStateRows.Add([pscustomobject]@{
+            PassLabel                    = $Label
+            Site                         = $state.Site
+            Timestamp                    = $now
+            CacheStatus                  = if ([string]::IsNullOrWhiteSpace($state.CacheStatus)) { $state.State } else { $state.CacheStatus }
+            Provider                     = 'CacheState'
+            HydrationDurationMs          = $null
+            SnapshotDurationMs           = $null
+            HostMapDurationMs            = $null
+            HostCount                    = $state.HostCount
+            TotalRows                    = $state.TotalRows
+            HostMapSignatureMatchCount   = $null
+            HostMapSignatureRewriteCount = $null
+            HostMapCandidateMissingCount = $null
+            HostMapCandidateFromPrevious = $null
+            PreviousHostCount            = $null
+            PreviousSnapshotStatus       = $state.State
+            PreviousSnapshotHostMapType  = $null
+            CacheStateDetails            = $state
+        })
     }
+
+    return $cacheStateRows.ToArray()
 }
 
 function ConvertTo-SharedCacheEntryArray {
@@ -1697,7 +1701,7 @@ function Get-SharedCacheEntriesSnapshot {
                 }
 
                 $result = [System.Collections.Generic.List[psobject]]::new()
-                $seenSites = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+                $seenSites = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 
                 $appendEntry = {
                     param([string]$siteKey, [psobject]$entryValue)
@@ -2288,7 +2292,7 @@ try {
                 Write-Host 'Recording site cache state after refresh...' -ForegroundColor Cyan
                 $cacheStateAfterRefresh = Get-SiteCacheState -Sites $sitesForRefresh -Label 'CacheState:PostRefresh'
                 if ($cacheStateAfterRefresh) {
-                    $count = ($cacheStateAfterRefresh | Measure-Object).Count
+                    $count = $cacheStateAfterRefresh.Count
                     Write-Host ("Cache state entries after refresh: {0}" -f $count) -ForegroundColor DarkCyan
                     if ($count -gt 0) {
                         Write-Host ("  -> {0}" -f (($cacheStateAfterRefresh | ForEach-Object { '{0}:{1}' -f $_.Site, $_.CacheStatus }) -join ', ')) -ForegroundColor DarkCyan
@@ -2366,7 +2370,7 @@ try {
         Write-Warning 'Shared cache snapshot did not include any site keys.'
     }
 
-    $warmRunSiteSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    $warmRunSiteSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
     foreach ($existingSite in @($script:WarmRunSites)) {
         if ([string]::IsNullOrWhiteSpace($existingSite)) { continue }
         [void]$warmRunSiteSet.Add($existingSite.Trim())
@@ -2460,7 +2464,7 @@ try {
         }
         $cacheStatePreWarm = Get-SiteCacheState -Sites $script:WarmRunSites -Label 'CacheState:PreWarmPass'
         if ($cacheStatePreWarm) {
-            $count = ($cacheStatePreWarm | Measure-Object).Count
+            $count = $cacheStatePreWarm.Count
             Write-Host ("Cache state entries before warm pass: {0}" -f $count) -ForegroundColor DarkCyan
             if ($count -gt 0) {
                 Write-Host ("  -> {0}" -f (($cacheStatePreWarm | ForEach-Object { '{0}:{1}' -f $_.Site, $_.CacheStatus }) -join ', ')) -ForegroundColor DarkCyan
@@ -2902,7 +2906,7 @@ function Update-ComparisonSummaryFromResults {
     function Get-ProviderSnapshot {
         param([System.Collections.IEnumerable]$Events)
         $providerCounts = @{}
-        $hostSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+        $hostSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
         $durations = [System.Collections.Generic.List[double]]::new()
         $signatureMisses = 0
 
@@ -2974,8 +2978,10 @@ function Update-ComparisonSummaryFromResults {
         $comparison.WarmSignatureMatchMissCount = $warmSnapshot.SignatureMisses
 
         if ($warmSnapshot.Durations.Length -gt 0) {
-            $comparison.WarmInterfaceCallAvgMs = [math]::Round(($warmSnapshot.Durations | Measure-Object -Average).Average, 3)
-            $comparison.WarmInterfaceCallMaxMs = [math]::Round(($warmSnapshot.Durations | Measure-Object -Maximum).Maximum, 3)
+            $warmAverage = [System.Linq.Enumerable]::Average($warmSnapshot.Durations)
+            $warmMax = [System.Linq.Enumerable]::Max($warmSnapshot.Durations)
+            $comparison.WarmInterfaceCallAvgMs = [math]::Round($warmAverage, 3)
+            $comparison.WarmInterfaceCallMaxMs = [math]::Round($warmMax, 3)
             $comparison.WarmInterfaceCallP95Ms = [math]::Round((StatisticsModule\Get-PercentileValue -Values $warmSnapshot.Durations -Percentile 95), 3)
         }
     }
@@ -2986,8 +2992,10 @@ function Update-ComparisonSummaryFromResults {
         $comparison.ColdHostCount = $coldSnapshot.HostCount
 
         if ($coldSnapshot.Durations.Length -gt 0) {
-            $comparison.ColdInterfaceCallAvgMs = [math]::Round(($coldSnapshot.Durations | Measure-Object -Average).Average, 3)
-            $comparison.ColdInterfaceCallMaxMs = [math]::Round(($coldSnapshot.Durations | Measure-Object -Maximum).Maximum, 3)
+            $coldAverage = [System.Linq.Enumerable]::Average($coldSnapshot.Durations)
+            $coldMax = [System.Linq.Enumerable]::Max($coldSnapshot.Durations)
+            $comparison.ColdInterfaceCallAvgMs = [math]::Round($coldAverage, 3)
+            $comparison.ColdInterfaceCallMaxMs = [math]::Round($coldMax, 3)
             $comparison.ColdInterfaceCallP95Ms = [math]::Round((StatisticsModule\Get-PercentileValue -Values $coldSnapshot.Durations -Percentile 95), 3)
         }
     }
