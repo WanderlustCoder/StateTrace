@@ -4557,7 +4557,91 @@ function Update-SiteZoneCache {
 
     $siteRows = $null
     try {
-        $siteRows = Get-InterfacesForSite -Site $Site
+        $hostBatchData = $null
+        $dbPath = $null
+        try { $dbPath = Get-DbPathForSite -Site $Site } catch { $dbPath = $null }
+        if (-not [string]::IsNullOrWhiteSpace($dbPath)) {
+            try {
+                $missingHostList = [System.Collections.Generic.List[string]]::new()
+                foreach ($hn in $missingHosts) { [void]$missingHostList.Add($hn) }
+                $hostBatchData = Get-InterfacesForHostsBatch -DatabasePath $dbPath -Hostnames $missingHostList.ToArray() -SkipAuthBlock
+            } catch {
+                $hostBatchData = $null
+            }
+        }
+
+        if ($hostBatchData -ne $null) {
+            $siteRows = [System.Collections.Generic.List[object]]::new()
+            $getRawValue = {
+                param(
+                    [object]$source,
+                    [string]$name
+                )
+
+                if (-not $source -or [string]::IsNullOrWhiteSpace($name)) { return $null }
+
+                try {
+                    if ($source -is [System.Data.DataRow]) {
+                        $table = $source.Table
+                        if ($table -and $table.Columns -and $table.Columns.Contains($name)) {
+                            return $source[$name]
+                        }
+                    }
+                } catch { }
+
+                try {
+                    if ($source.PSObject -and $source.PSObject.Properties[$name]) {
+                        return $source.$name
+                    }
+                } catch { }
+
+                return $null
+            }
+            $toString = {
+                param($value)
+                if ($null -eq $value -or $value -eq [System.DBNull]::Value) { return '' }
+                return '' + $value
+            }
+            foreach ($row in $hostBatchData) {
+                if (-not $row) { continue }
+
+                $hostname = ''
+                try { $hostname = & $toString (& $getRawValue $row 'Hostname') } catch { $hostname = '' }
+                if ([string]::IsNullOrWhiteSpace($hostname)) { continue }
+                if (-not $missingHosts.Contains($hostname)) { continue }
+
+                $zoneValue = ''
+                try {
+                    $parts = $hostname.Split('-', [System.StringSplitOptions]::RemoveEmptyEntries)
+                    if ($parts.Length -ge 2) { $zoneValue = $parts[1] }
+                } catch { $zoneValue = '' }
+
+                $rowObj = [PSCustomObject]@{
+                    Hostname      = $hostname
+                    Port          = (& $toString (& $getRawValue $row 'Port'))
+                    Name          = (& $toString (& $getRawValue $row 'Name'))
+                    Status        = (& $toString (& $getRawValue $row 'Status'))
+                    VLAN          = (& $toString (& $getRawValue $row 'VLAN'))
+                    Duplex        = (& $toString (& $getRawValue $row 'Duplex'))
+                    Speed         = (& $toString (& $getRawValue $row 'Speed'))
+                    Type          = (& $toString (& $getRawValue $row 'Type'))
+                    LearnedMACs   = (& $toString (& $getRawValue $row 'LearnedMACs'))
+                    AuthState     = (& $toString (& $getRawValue $row 'AuthState'))
+                    AuthMode      = (& $toString (& $getRawValue $row 'AuthMode'))
+                    AuthClientMAC = (& $toString (& $getRawValue $row 'AuthClientMAC'))
+                    Site          = (& $toString (& $getRawValue $row 'Site'))
+                    Building      = (& $toString (& $getRawValue $row 'Building'))
+                    Room          = (& $toString (& $getRawValue $row 'Room'))
+                    Zone          = $zoneValue
+                    Make          = (& $toString (& $getRawValue $row 'Make'))
+                    IsSelected    = $false
+                }
+
+                [void]$siteRows.Add($rowObj)
+            }
+        } else {
+            $siteRows = Get-InterfacesForSite -Site $Site
+        }
     } catch {
         $siteRows = $null
     }
@@ -6030,7 +6114,8 @@ function Get-InterfacesForHostsBatch {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$DatabasePath,
-        [Parameter(Mandatory)][string[]]$Hostnames
+        [Parameter(Mandatory)][string[]]$Hostnames,
+        [switch]$SkipAuthBlock
     )
     if (-not $Hostnames -or $Hostnames.Count -eq 0) {
         return (New-Object System.Data.DataTable)
@@ -6072,6 +6157,11 @@ function Get-InterfacesForHostsBatch {
         return (New-Object System.Data.DataTable)
     }
 
+    $authBlockColumn = ''
+    if (-not $SkipAuthBlock.IsPresent) {
+        $authBlockColumn = ",`r`n    ds.AuthBlock"
+    }
+
     $sql = @"
 SELECT
     i.Hostname,
@@ -6089,8 +6179,7 @@ SELECT
     ds.Site,
     ds.Building,
     ds.Room,
-    ds.Make,
-    ds.AuthBlock
+    ds.Make$authBlockColumn
 FROM Interfaces AS i
 LEFT JOIN DeviceSummary AS ds ON i.Hostname = ds.Hostname
 WHERE i.Hostname IN ($inList)

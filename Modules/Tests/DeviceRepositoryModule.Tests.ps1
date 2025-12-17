@@ -208,9 +208,32 @@ Describe "DeviceRepositoryModule core helpers" {
         $global:DeviceMetadata = @{
             'SITE1-Z1-SW1' = [pscustomobject]@{ Site = 'SITE1'; Zone = 'Z1' }
         }
-        Mock -ModuleName DeviceRepositoryModule -CommandName Get-InterfacesForSite {
-            param([string]$Site)
-            @([pscustomobject]@{ Hostname = 'SITE1-Z1-SW1'; Site = $Site; Zone = 'Z1'; Port = 'Gi1' })
+        Mock -ModuleName DeviceRepositoryModule -CommandName Get-DbPathForSite { 'C:\\fake\\SITE1.accdb' }
+        Mock -ModuleName DeviceRepositoryModule -CommandName Get-InterfacesForHostsBatch {
+            param([string]$DatabasePath, [string[]]$Hostnames, [switch]$SkipAuthBlock)
+            $dt = New-Object System.Data.DataTable
+            foreach ($name in 'Hostname','Port','Name','Status','VLAN','Duplex','Speed','Type','LearnedMACs','AuthState','AuthMode','AuthClientMAC','Site','Building','Room','Make') {
+                $null = $dt.Columns.Add($name, [string])
+            }
+            $row = $dt.NewRow()
+            $row['Hostname'] = 'SITE1-Z1-SW1'
+            $row['Port'] = 'Gi1'
+            $row['Name'] = 'P1'
+            $row['Status'] = 'up'
+            $row['VLAN'] = '10'
+            $row['Duplex'] = 'full'
+            $row['Speed'] = '1G'
+            $row['Type'] = 'access'
+            $row['LearnedMACs'] = ''
+            $row['AuthState'] = 'authorized'
+            $row['AuthMode'] = 'dot1x'
+            $row['AuthClientMAC'] = ''
+            $row['Site'] = 'SITE1'
+            $row['Building'] = 'B1'
+            $row['Room'] = 'R1'
+            $row['Make'] = 'Cisco'
+            $null = $dt.Rows.Add($row)
+            return $dt
         }
 
         DeviceRepositoryModule\Update-SiteZoneCache -Site 'SITE1' -Zone 'Z1'
@@ -218,7 +241,7 @@ Describe "DeviceRepositoryModule core helpers" {
 
         $global:LoadedSiteZones.ContainsKey('SITE1|Z1') | Should Be $true
         $global:AllInterfaces.Count | Should Be 1
-        Assert-MockCalled Get-InterfacesForSite -ModuleName DeviceRepositoryModule -Times 1 -ParameterFilter { $Site -eq 'SITE1' }
+        Assert-MockCalled Get-InterfacesForHostsBatch -ModuleName DeviceRepositoryModule -Times 1 -ParameterFilter { $DatabasePath -eq 'C:\\fake\\SITE1.accdb' -and ($Hostnames -contains 'SITE1-Z1-SW1') -and $SkipAuthBlock }
     }
 
     It "returns snapshots without mutating global interface cache" {
