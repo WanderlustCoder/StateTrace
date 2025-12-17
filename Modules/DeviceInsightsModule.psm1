@@ -348,7 +348,6 @@ function Update-Summary {
         ($sv.FindName("SummaryUniqueVlansCount")).Text  = $uniqueCount.ToString()
         $ratio = if ($intCount -gt 0) { [math]::Round(($upCount / $intCount) * 100, 1) } else { 0 }
         ($sv.FindName("SummaryExtra")).Text = "Up %: $ratio%"
-        Write-Host "[Update-Summary] Devices=$devCount, Interfaces=$intCount, Up=$upCount, Down=$downCount, Auth=$authCount, Unauth=$unauthCount, UniqueVlans=$uniqueCount, Up%=$ratio%"
         try { Write-Diag ("Update-Summary metrics | Devices={0} | Interfaces={1} | Up={2} | Down={3} | Auth={4} | Unauth={5} | UniqueVlans={6} | UpPct={7}" -f $devCount, $intCount, $upCount, $downCount, $authCount, $unauthCount, $uniqueCount, $ratio) } catch {}
     } catch {}
 }

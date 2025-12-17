@@ -120,6 +120,11 @@ function Initialize-DeviceFilters {
     )
 
     if (-not $Window) { return }
+
+    $previousProgrammaticFilterUpdate = $false
+    try { $previousProgrammaticFilterUpdate = [bool]$global:ProgrammaticFilterUpdate } catch { $previousProgrammaticFilterUpdate = $false }
+    $global:ProgrammaticFilterUpdate = $true
+    try {
     if ($LocationEntries) {
         $global:DeviceLocationEntries = $LocationEntries
     } elseif ((ViewStateService\Get-SequenceCount -Value $global:DeviceLocationEntries) -eq 0) {
@@ -231,6 +236,9 @@ function Initialize-DeviceFilters {
             }
         }
     } catch {}
+    } finally {
+        $global:ProgrammaticFilterUpdate = $previousProgrammaticFilterUpdate
+    }
 }
 function Update-DeviceFilter {
     if ($script:DeviceFilterFaulted) { return }

@@ -708,6 +708,10 @@ function Populate-SiteDropdownWithAvailableSites {
     $sites = Get-AvailableSiteNames
     if (-not $sites -or $sites.Count -eq 0) { return }
 
+    $previousProgrammaticFilterUpdate = $false
+    try { $previousProgrammaticFilterUpdate = [bool]$global:ProgrammaticFilterUpdate } catch { $previousProgrammaticFilterUpdate = $false }
+    $global:ProgrammaticFilterUpdate = $true
+    try {
     $existingSelection = $null
     if ($PreserveExistingSelection -and $siteDropdown.SelectedItem) {
         $existingSelection = '' + $siteDropdown.SelectedItem
@@ -746,6 +750,9 @@ function Populate-SiteDropdownWithAvailableSites {
         } else {
             $siteDropdown.SelectedIndex = -1
         }
+    }
+    } finally {
+        $global:ProgrammaticFilterUpdate = $previousProgrammaticFilterUpdate
     }
 
     try { Update-FreshnessIndicator -Window $Window } catch { }
