@@ -163,6 +163,20 @@ function Get-NonNullItemCount {
     return 1
 }
 
+function Get-FileLineCount {
+    param([Parameter(Mandatory)][string]$Path)
+
+    if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path)) {
+        return 0
+    }
+
+    $count = 0
+    foreach ($line in [System.IO.File]::ReadLines($Path)) {
+        $count++
+    }
+    return $count
+}
+
 function Get-TrimmedSiteKey {
     param([object]$InputObject)
 
@@ -179,6 +193,138 @@ function Get-TrimmedSiteKey {
     }
 
     return ''
+}
+
+function Format-SiteCacheStatusText {
+    param([System.Collections.IEnumerable]$CacheStates)
+
+    if (-not $CacheStates) { return '' }
+
+    $items = [System.Collections.Generic.List[string]]::new()
+    foreach ($state in $CacheStates) {
+        if (-not $state) { continue }
+        $site = Get-TrimmedSiteKey -InputObject $state
+        if ([string]::IsNullOrWhiteSpace($site)) { continue }
+        $cacheStatus = ''
+        $cacheStatusProp = $state.PSObject.Properties['CacheStatus']
+        if ($cacheStatusProp) { $cacheStatus = ('' + $cacheStatusProp.Value).Trim() }
+        if ([string]::IsNullOrWhiteSpace($cacheStatus)) { continue }
+        [void]$items.Add(('{0}:{1}' -f $site, $cacheStatus))
+    }
+
+    $result = $items.ToArray()
+    if ($result.Length -gt 1) {
+        [array]::Sort($result, [System.StringComparer]::OrdinalIgnoreCase)
+    }
+    return [string]::Join(', ', $result)
+}
+
+function Format-SharedCacheSummaryText {
+    param([System.Collections.IEnumerable]$Entries)
+
+    if (-not $Entries) { return '' }
+
+    $items = [System.Collections.Generic.List[string]]::new()
+    foreach ($entry in $Entries) {
+        if (-not $entry) { continue }
+
+        $site = Get-TrimmedSiteKey -InputObject $entry
+        $siteProp = $entry.PSObject.Properties['Site']
+        if ([string]::IsNullOrWhiteSpace($site) -and $siteProp) {
+            $site = ('' + $siteProp.Value).Trim()
+        }
+        if ([string]::IsNullOrWhiteSpace($site)) { continue }
+
+        $hostCount = 0
+        $totalRows = 0
+
+        $hostCountProp = $entry.PSObject.Properties['HostCount']
+        if ($hostCountProp) {
+            try { $hostCount = [int]$hostCountProp.Value } catch { $hostCount = 0 }
+        }
+        $totalRowsProp = $entry.PSObject.Properties['TotalRows']
+        if ($totalRowsProp) {
+            try { $totalRows = [int]$totalRowsProp.Value } catch { $totalRows = 0 }
+        }
+
+        $entryValue = $entry
+        $entryValueProp = $entry.PSObject.Properties['Entry']
+        if ($entryValueProp -and $entryValueProp.Value) {
+            $entryValue = $entryValueProp.Value
+        }
+
+        $hostMap = $null
+        $hostMapProp = $entryValue.PSObject.Properties['HostMap']
+        if ($hostMapProp) { $hostMap = $hostMapProp.Value }
+        if (-not $hostMap -and $entryValue -is [System.Collections.IDictionary]) {
+            $hostMap = $entryValue
+        }
+
+        if ($hostCount -le 0 -and $hostMap -is [System.Collections.IDictionary]) {
+            try { $hostCount = [int]$hostMap.Count } catch { $hostCount = 0 }
+        } elseif ($hostCount -le 0) {
+            $entryHostCountProp = $entryValue.PSObject.Properties['HostCount']
+            if ($entryHostCountProp) {
+                try { $hostCount = [int]$entryHostCountProp.Value } catch { $hostCount = 0 }
+            }
+        }
+
+        if ($totalRows -le 0 -and $hostMap -is [System.Collections.IDictionary]) {
+            foreach ($map in $hostMap.Values) {
+                if ($map -is [System.Collections.IDictionary]) {
+                    $totalRows += $map.Count
+                } elseif ($map -is [System.Collections.ICollection]) {
+                    $totalRows += $map.Count
+                }
+            }
+        } elseif ($totalRows -le 0) {
+            $entryTotalRowsProp = $entryValue.PSObject.Properties['TotalRows']
+            if ($entryTotalRowsProp) {
+                try { $totalRows = [int]$entryTotalRowsProp.Value } catch { $totalRows = 0 }
+            }
+        }
+
+        [void]$items.Add(('{0}:hosts={1},rows={2}' -f $site, $hostCount, $totalRows))
+    }
+
+    $result = $items.ToArray()
+    if ($result.Length -gt 1) {
+        [array]::Sort($result, [System.StringComparer]::OrdinalIgnoreCase)
+    }
+    return [string]::Join('; ', $result)
+}
+
+function Resolve-CacheProviderMetrics {
+    param(
+        [Parameter(Mandatory)][hashtable]$ProviderCounts,
+        [int]$CountSource = 0
+    )
+
+    $hitCount = 0
+    if ($ProviderCounts.ContainsKey('Cache')) {
+        $hitCount = [int]$ProviderCounts['Cache']
+    }
+
+    $missCount = 0
+    foreach ($entry in $ProviderCounts.GetEnumerator()) {
+        if ($entry.Key -ne 'Cache') {
+            $missCount += [int]$entry.Value
+        }
+    }
+
+    $hitRatioPercent = $null
+    $samples = $hitCount + $missCount
+    if ($samples -gt 0) {
+        $hitRatioPercent = [math]::Round(($hitCount / $samples) * 100, 2)
+    } elseif ($CountSource -gt 0) {
+        $hitRatioPercent = [math]::Round(($hitCount / $CountSource) * 100, 2)
+    }
+
+    return [pscustomobject]@{
+        HitCount        = $hitCount
+        MissCount       = $missCount
+        HitRatioPercent = $hitRatioPercent
+    }
 }
 
 function Save-SiteExistingRowCacheSnapshot {
@@ -259,12 +405,17 @@ function Get-IngestionHistoryWarmRunSnapshot {
         $targetPath = $entry.Path
         $fileName = [System.IO.Path]::GetFileName($targetPath)
         $pattern = "${fileName}.warmrun.*.bak"
-        $backup = Get-ChildItem -Path $DirectoryPath -Filter $pattern -File | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        $backup = $null
+        foreach ($candidate in Get-ChildItem -Path $DirectoryPath -Filter $pattern -File) {
+            if (-not $backup -or $candidate.LastWriteTime -gt $backup.LastWriteTime) {
+                $backup = $candidate
+            }
+        }
         if ($backup) {
             $content = [System.IO.File]::ReadAllText($backup.FullName)
             if (-not [string]::IsNullOrWhiteSpace($content)) {
                 try {
-                    $parsed = $content | ConvertFrom-Json -ErrorAction Stop
+                    $parsed = ConvertFrom-Json -InputObject $content -ErrorAction Stop
                     if ($parsed) {
                         $records = @($parsed)
                         if ($records.Count -gt 1) {
@@ -318,17 +469,15 @@ function Get-SitesFromSnapshot {
         if ([string]::IsNullOrWhiteSpace($content)) { continue }
         $records = $null
         try {
-            $records = $content | ConvertFrom-Json -ErrorAction Stop
+            $records = ConvertFrom-Json -InputObject $content -ErrorAction Stop
         } catch {
             continue
         }
         foreach ($record in @($records)) {
             if ($null -eq $record) { continue }
-            if ($record.PSObject.Properties.Name -contains 'Site') {
-                $siteValue = '' + $record.Site
-                if (-not [string]::IsNullOrWhiteSpace($siteValue)) {
-                    [void]$sites.Add($siteValue.Trim())
-                }
+            $siteValue = Get-TrimmedSiteKey -InputObject $record
+            if (-not [string]::IsNullOrWhiteSpace($siteValue)) {
+                [void]$sites.Add($siteValue)
             }
         }
     }
@@ -396,8 +545,7 @@ function Get-HostnameFilterSet {
             Write-Warning ("Hostname filter file '{0}' was not found; proceeding without file-based entries." -f $Path)
         } else {
             try {
-                $rawLines = Get-Content -LiteralPath $Path -ErrorAction Stop
-                foreach ($line in @($rawLines)) {
+                foreach ($line in [System.IO.File]::ReadLines($Path)) {
                     foreach ($token in (Get-HostnameTokens -Value $line)) {
                         [void]$set.Add($token)
                     }
@@ -424,10 +572,14 @@ function Get-HostnamesFromEvents {
     foreach ($event in @($Events)) {
         if (-not $event) { continue }
         $value = $null
-        if ($event.PSObject.Properties.Name -contains 'Hostname') {
-            $value = $event.Hostname
-        } elseif ($event.PSObject.Properties.Name -contains 'Hostnames') {
-            $value = $event.Hostnames
+        $hostnameProp = $event.PSObject.Properties['Hostname']
+        if ($hostnameProp) {
+            $value = $hostnameProp.Value
+        } else {
+            $hostnamesProp = $event.PSObject.Properties['Hostnames']
+            if ($hostnamesProp) {
+                $value = $hostnamesProp.Value
+            }
         }
         foreach ($token in (Get-HostnameTokens -Value $value)) {
             if (-not [string]::IsNullOrWhiteSpace($token)) {
@@ -455,14 +607,24 @@ function Filter-EventsByHostname {
     foreach ($event in @($Events)) {
         if (-not $event) { continue }
         $hosts = @()
-        if ($event.PSObject.Properties.Name -contains 'Hostname') {
-            $hosts = Get-HostnameTokens -Value $event.Hostname
-        } elseif ($event.PSObject.Properties.Name -contains 'Hostnames') {
-            $hosts = Get-HostnameTokens -Value $event.Hostnames
-        } elseif ($event.PSObject.Properties.Name -contains 'HostName') {
-            $hosts = Get-HostnameTokens -Value $event.HostName
-        } elseif ($event.PSObject.Properties.Name -contains 'Host') {
-            $hosts = Get-HostnameTokens -Value $event.Host
+        $hostnameProp = $event.PSObject.Properties['Hostname']
+        if ($hostnameProp) {
+            $hosts = Get-HostnameTokens -Value $hostnameProp.Value
+        } else {
+            $hostnamesProp = $event.PSObject.Properties['Hostnames']
+            if ($hostnamesProp) {
+                $hosts = Get-HostnameTokens -Value $hostnamesProp.Value
+            } else {
+                $legacyHostnameProp = $event.PSObject.Properties['HostName']
+                if ($legacyHostnameProp) {
+                    $hosts = Get-HostnameTokens -Value $legacyHostnameProp.Value
+                } else {
+                    $hostProp = $event.PSObject.Properties['Host']
+                    if ($hostProp) {
+                        $hosts = Get-HostnameTokens -Value $hostProp.Value
+                    }
+                }
+            }
         }
         if (-not $hosts -or $hosts.Count -le 0) {
             # Preserve host-less events so pass-level summaries retain cold coverage even when host filter is active.
@@ -476,12 +638,13 @@ function Filter-EventsByHostname {
             if (-not $AllowedHostnames.Contains($trimmed)) { continue }
 
             $clone = $event.PSObject.Copy()
-            if ($clone.PSObject.Properties.Match('Hostname').Count -gt 0) {
+            $cloneHostname = $clone.PSObject.Properties['Hostname']
+            if ($cloneHostname) {
                 $clone.Hostname = $trimmed
             } else {
                 Add-Member -InputObject $clone -NotePropertyName 'Hostname' -NotePropertyValue $trimmed -Force
             }
-            if ($clone.PSObject.Properties.Match('Hostnames').Count -gt 0) {
+            if ($clone.PSObject.Properties['Hostnames']) {
                 $clone.Hostnames = $trimmed
             }
             [void]$filtered.Add($clone)
@@ -513,15 +676,15 @@ function Add-PassLabelToEvents {
             }
         }
 
-        $passLabelProp = $evt.PSObject.Properties.Match('PassLabel')
         $passLabelValue = $null
-        if ($passLabelProp -and $passLabelProp.Count -gt 0) {
-            try { $passLabelValue = $passLabelProp[0].Value } catch { $passLabelValue = $null }
+        $passLabelProp = $evt.PSObject.Properties['PassLabel']
+        if ($passLabelProp) {
+            try { $passLabelValue = $passLabelProp.Value } catch { $passLabelValue = $null }
         }
 
         if ([string]::IsNullOrWhiteSpace($passLabelValue)) {
             $target = $evt
-            if (-not $passLabelProp -or $passLabelProp.Count -le 0) {
+            if (-not $passLabelProp) {
                 try { $target = $evt.PSObject.Copy() } catch { $target = $evt }
             }
             $added = $false
@@ -576,11 +739,18 @@ function Get-TelemetryLogFiles {
         return @()
     }
 
-    return @(
-        Get-ChildItem -Path $DirectoryPath -Filter '*.json' -File |
-            Where-Object { $_.BaseName -match '^\d{4}-\d{2}-\d{2}$' } |
-            Sort-Object FullName
-    )
+    $candidates = [System.Collections.Generic.List[System.IO.FileInfo]]::new()
+    foreach ($file in Get-ChildItem -Path $DirectoryPath -Filter '*.json' -File) {
+        if ($file.BaseName -match '^\d{4}-\d{2}-\d{2}$') {
+            [void]$candidates.Add($file)
+        }
+    }
+
+    if ($candidates.Count -gt 1) {
+        $candidates.Sort({ param($left, $right) [string]::Compare($left.FullName, $right.FullName, [System.StringComparison]::OrdinalIgnoreCase) })
+    }
+
+    return $candidates.ToArray()
 }
 
 function Get-MetricsBaseline {
@@ -590,9 +760,9 @@ function Get-MetricsBaseline {
 
     $baseline = @{}
     foreach ($file in Get-TelemetryLogFiles -DirectoryPath $DirectoryPath) {
-        $lines = [System.IO.File]::ReadAllLines($file.FullName)
+        $lineCount = Get-FileLineCount -Path $file.FullName
         $baseline[$file.FullName] = [pscustomobject]@{
-            LineCount   = $lines.Length
+            LineCount   = $lineCount
             LengthBytes = $file.Length
         }
     }
@@ -622,22 +792,26 @@ function Get-AppendedTelemetry {
         }
     }
 
+    $shouldApplyExcludes = $excludeSet.Count -gt 0
     foreach ($file in Get-TelemetryLogFiles -DirectoryPath $DirectoryPath) {
-        $resolved = $null
-        try { $resolved = (Resolve-Path -LiteralPath $file.FullName).Path } catch { $resolved = $file.FullName }
-        if ($excludeSet.Count -gt 0 -and $excludeSet.Contains($resolved)) {
-            continue
+        $filePath = $file.FullName
+        if ($shouldApplyExcludes) {
+            $resolved = $filePath
+            try { $resolved = (Resolve-Path -LiteralPath $filePath).Path } catch { $resolved = $filePath }
+            if ($excludeSet.Contains($resolved)) { continue }
         }
 
         $previousCount = 0
         $previousLength = 0
-        if ($Baseline.ContainsKey($file.FullName)) {
-            $entry = $Baseline[$file.FullName]
-            if ($entry.PSObject.Properties.Name -contains 'LineCount') {
-                $previousCount = [int]$entry.LineCount
+        if ($Baseline.ContainsKey($filePath)) {
+            $entry = $Baseline[$filePath]
+            $lineCountProp = $entry.PSObject.Properties['LineCount']
+            if ($lineCountProp) {
+                try { $previousCount = [int]$lineCountProp.Value } catch { $previousCount = 0 }
             }
-            if ($entry.PSObject.Properties.Name -contains 'LengthBytes') {
-                $previousLength = [long]$entry.LengthBytes
+            $lengthProp = $entry.PSObject.Properties['LengthBytes']
+            if ($lengthProp) {
+                try { $previousLength = [long]$lengthProp.Value } catch { $previousLength = 0 }
             }
         }
 
@@ -653,23 +827,23 @@ function Get-AppendedTelemetry {
         }
 
         $lineIndex = 0
-        foreach ($line in [System.IO.File]::ReadLines($file.FullName)) {
+        foreach ($line in [System.IO.File]::ReadLines($filePath)) {
             $currentIndex = $lineIndex
             $lineIndex++
             if ($currentIndex -lt $previousCount) { continue }
             if ([string]::IsNullOrWhiteSpace($line)) { continue }
 
             try {
-                $parsed = $line | ConvertFrom-Json -ErrorAction Stop
-                $parsed | Add-Member -NotePropertyName '__SourceFile' -NotePropertyValue $file.FullName
-                $parsed | Add-Member -NotePropertyName '__LineIndex' -NotePropertyValue $currentIndex
+                $parsed = ConvertFrom-Json -InputObject $line -ErrorAction Stop
+                Add-Member -InputObject $parsed -NotePropertyName '__SourceFile' -NotePropertyValue $filePath
+                Add-Member -InputObject $parsed -NotePropertyName '__LineIndex' -NotePropertyValue $currentIndex
                 [void]$events.Add($parsed)
             } catch {
                 Write-Warning "Failed to parse telemetry line $($file.Name):$currentIndex. $($_.Exception.Message)"
             }
         }
 
-        $Baseline[$file.FullName] = [pscustomobject]@{
+        $Baseline[$filePath] = [pscustomobject]@{
             LineCount   = $lineIndex
             LengthBytes = $currentLength
         }
@@ -693,8 +867,9 @@ function Wait-TelemetryFlush {
                 $previousLength = 0
                 if ($Baseline.ContainsKey($file.FullName)) {
                     $entry = $Baseline[$file.FullName]
-                    if ($entry.PSObject.Properties.Name -contains 'LengthBytes') {
-                        try { $previousLength = [long]$entry.LengthBytes } catch { $previousLength = 0 }
+                    $lengthProp = $entry.PSObject.Properties['LengthBytes']
+                    if ($lengthProp) {
+                        try { $previousLength = [long]$lengthProp.Value } catch { $previousLength = 0 }
                     }
                 }
                 if ($file.Length -gt $previousLength) {
@@ -717,19 +892,31 @@ function Get-TelemetrySince {
     )
 
     $events = [System.Collections.Generic.List[psobject]]::new()
-    foreach ($file in Get-TelemetryLogFiles -DirectoryPath $DirectoryPath | Where-Object { $_.LastWriteTime -ge $Since }) {
+    $eventNameSet = $null
+    if ($EventNames -and $EventNames.Count -gt 0) {
+        $eventNameSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+        foreach ($name in $EventNames) {
+            if ([string]::IsNullOrWhiteSpace($name)) { continue }
+            [void]$eventNameSet.Add(('' + $name).Trim())
+        }
+    }
+
+    foreach ($file in Get-TelemetryLogFiles -DirectoryPath $DirectoryPath) {
+        if ($file.LastWriteTime -lt $Since) { continue }
         $lineIndex = 0
         foreach ($line in [System.IO.File]::ReadLines($file.FullName)) {
             $currentIndex = $lineIndex
             $lineIndex++
             if ([string]::IsNullOrWhiteSpace($line)) { continue }
             try {
-                $parsed = $line | ConvertFrom-Json -ErrorAction Stop
+                $parsed = ConvertFrom-Json -InputObject $line -ErrorAction Stop
             } catch {
                 continue
             }
             if (-not $parsed) { continue }
-            $timestamp = $parsed.Timestamp
+            $timestampProp = $parsed.PSObject.Properties['Timestamp']
+            if (-not $timestampProp) { continue }
+            $timestamp = $timestampProp.Value
             if (-not $IgnoreEventTimestamp.IsPresent) {
                 if ($timestamp -isnot [datetime]) {
                     if (-not [string]::IsNullOrWhiteSpace($timestamp)) {
@@ -742,11 +929,16 @@ function Get-TelemetrySince {
                     continue
                 }
             }
-            if ($EventNames -and $EventNames.Count -gt 0 -and -not ($EventNames -contains ('' + $parsed.EventName))) {
-                continue
+            if ($eventNameSet) {
+                $parsedEventName = ''
+                $eventNameProp = $parsed.PSObject.Properties['EventName']
+                if ($eventNameProp) {
+                    $parsedEventName = ('' + $eventNameProp.Value).Trim()
+                }
+                if ([string]::IsNullOrWhiteSpace($parsedEventName) -or -not $eventNameSet.Contains($parsedEventName)) { continue }
             }
-            $parsed | Add-Member -NotePropertyName '__SourceFile' -NotePropertyValue $file.FullName -Force
-            $parsed | Add-Member -NotePropertyName '__LineIndex' -NotePropertyValue $currentIndex -Force
+            Add-Member -InputObject $parsed -NotePropertyName '__SourceFile' -NotePropertyValue $file.FullName -Force
+            Add-Member -InputObject $parsed -NotePropertyName '__LineIndex' -NotePropertyValue $currentIndex -Force
             [void]$events.Add($parsed)
         }
     }
@@ -760,18 +952,15 @@ function Get-TelemetryIdentityKey {
     )
 
     $eventName = ''
-    if ($Event.PSObject.Properties.Name -contains 'EventName') {
-        $eventName = ('' + $Event.EventName).Trim()
-    }
+    $eventNameProp = $Event.PSObject.Properties['EventName']
+    if ($eventNameProp) { $eventName = ('' + $eventNameProp.Value).Trim() }
 
-    $site = ''
-    if ($Event.PSObject.Properties.Name -contains 'Site') {
-        $site = ('' + $Event.Site).Trim()
-    }
+    $site = Get-TrimmedSiteKey -InputObject $Event
 
     $timestampKey = ''
-    if ($Event.PSObject.Properties.Name -contains 'Timestamp') {
-        $timestampValue = $Event.Timestamp
+    $timestampProp = $Event.PSObject.Properties['Timestamp']
+    if ($timestampProp) {
+        $timestampValue = $timestampProp.Value
         if ($timestampValue -is [datetime]) {
             $timestampKey = $timestampValue.ToString('o')
         } elseif (-not [string]::IsNullOrWhiteSpace($timestampValue)) {
@@ -780,14 +969,12 @@ function Get-TelemetryIdentityKey {
     }
 
     $sourceFile = ''
-    if ($Event.PSObject.Properties.Name -contains '__SourceFile') {
-        $sourceFile = ('' + $Event.__SourceFile).Trim()
-    }
+    $sourceFileProp = $Event.PSObject.Properties['__SourceFile']
+    if ($sourceFileProp) { $sourceFile = ('' + $sourceFileProp.Value).Trim() }
 
     $lineIndex = ''
-    if ($Event.PSObject.Properties.Name -contains '__LineIndex') {
-        $lineIndex = ('' + $Event.__LineIndex).Trim()
-    }
+    $lineIndexProp = $Event.PSObject.Properties['__LineIndex']
+    if ($lineIndexProp) { $lineIndex = ('' + $lineIndexProp.Value).Trim() }
 
     return [string]::Format('{0}|{1}|{2}|{3}|{4}', $eventName, $site, $timestampKey, $sourceFile, $lineIndex)
 }
@@ -811,8 +998,11 @@ function Collect-TelemetryForPass {
         $baselineCount = 0
         if ($Baseline.ContainsKey($file.FullName)) {
             $entry = $Baseline[$file.FullName]
-            if ($entry -and $entry.PSObject.Properties.Name -contains 'LineCount') {
-                try { $baselineCount = [int]$entry.LineCount } catch { $baselineCount = 0 }
+            if ($entry) {
+                $lineCountProp = $entry.PSObject.Properties['LineCount']
+                if ($lineCountProp) {
+                    try { $baselineCount = [int]$lineCountProp.Value } catch { $baselineCount = 0 }
+                }
             }
         }
         $passLineBaseline[$file.FullName] = $baselineCount
@@ -842,12 +1032,26 @@ function Collect-TelemetryForPass {
 
         [void]$allEvents.Add($evt)
 
-        if ($requiredNames.Count -gt 0 -and $evt.PSObject.Properties.Name -contains 'EventName') {
-            $evtName = ('' + $evt.EventName).Trim()
+        if ($requiredNames.Count -gt 0) {
+            $evtNameProp = $evt.PSObject.Properties['EventName']
+            if (-not $evtNameProp) { return }
+            $evtName = ('' + $evtNameProp.Value).Trim()
             if (-not [string]::IsNullOrWhiteSpace($evtName) -and $eventBuckets.ContainsKey($evtName)) {
                 [void]$eventBuckets[$evtName].Add($evt)
             }
         }
+    }
+
+    $getMissingEventNames = {
+        $missing = [System.Collections.Generic.List[string]]::new()
+        foreach ($name in $requiredNames) {
+            $bucket = $null
+            if ($eventBuckets.ContainsKey($name)) { $bucket = $eventBuckets[$name] }
+            if (-not $bucket -or $bucket.Count -eq 0) {
+                [void]$missing.Add($name)
+            }
+        }
+        return $missing
     }
 
     $maxAttempts = if ($MaxAttempts -gt 0) { $MaxAttempts } else { 1 }
@@ -878,14 +1082,7 @@ function Collect-TelemetryForPass {
         Wait-TelemetryFlush -DirectoryPath $DirectoryPath -Baseline $Baseline -TimeoutMilliseconds $pollTimeout -PollMilliseconds $pollInner
     } while ($true)
 
-    $missingNames = [System.Collections.Generic.List[string]]::new()
-    foreach ($name in $requiredNames) {
-        $bucket = $null
-        if ($eventBuckets.ContainsKey($name)) { $bucket = $eventBuckets[$name] }
-        if (-not $bucket -or $bucket.Count -eq 0) {
-            [void]$missingNames.Add($name)
-        }
-    }
+    $missingNames = & $getMissingEventNames
 
     if ($missingNames.Count -gt 0 -and $PassStartTime) {
         $fallbackSince = $PassStartTime
@@ -899,27 +1096,16 @@ function Collect-TelemetryForPass {
 
             $baselineLineCount = $null
             $sourceFile = ''
-            if ($evt.PSObject.Properties.Name -contains '__SourceFile') {
-                $sourceFile = ('' + $evt.__SourceFile).Trim()
-            }
+            $sourceFileProp = $evt.PSObject.Properties['__SourceFile']
+            if ($sourceFileProp) { $sourceFile = ('' + $sourceFileProp.Value).Trim() }
             if (-not [string]::IsNullOrWhiteSpace($sourceFile) -and $passLineBaseline.ContainsKey($sourceFile)) {
-                $baselineEntry = $passLineBaseline[$sourceFile]
-                if ($baselineEntry -ne $null) {
-                    try {
-                        $baselineLineCount = [int]$baselineEntry
-                    } catch {
-                        $baselineLineCount = $null
-                    }
-                }
+                $baselineLineCount = [int]$passLineBaseline[$sourceFile]
             }
 
             $lineIndex = $null
-            if ($evt.PSObject.Properties.Name -contains '__LineIndex') {
-                try {
-                    $lineIndex = [int]$evt.__LineIndex
-                } catch {
-                    $lineIndex = $null
-                }
+            $lineIndexProp = $evt.PSObject.Properties['__LineIndex']
+            if ($lineIndexProp) {
+                try { $lineIndex = [int]$lineIndexProp.Value } catch { $lineIndex = $null }
             }
 
             if ($baselineLineCount -ne $null -and $lineIndex -ne $null -and $lineIndex -lt $baselineLineCount) {
@@ -929,14 +1115,7 @@ function Collect-TelemetryForPass {
             & $addEvent $evt
         }
 
-        $missingNames = [System.Collections.Generic.List[string]]::new()
-        foreach ($name in $requiredNames) {
-            $bucket = $null
-            if ($eventBuckets.ContainsKey($name)) { $bucket = $eventBuckets[$name] }
-            if (-not $bucket -or $bucket.Count -eq 0) {
-                [void]$missingNames.Add($name)
-            }
-        }
+        $missingNames = & $getMissingEventNames
     }
 
     $bucketArrays = @{}
@@ -974,9 +1153,8 @@ function Measure-InterfaceCallDurationMetrics {
         [void]$capturedEvents.Add($event)
 
         $provider = ''
-        if ($event.PSObject.Properties.Name -contains 'SiteCacheProvider') {
-            $provider = ('' + $event.SiteCacheProvider).Trim()
-        }
+        $providerProp = $event.PSObject.Properties['SiteCacheProvider']
+        if ($providerProp) { $provider = ('' + $providerProp.Value).Trim() }
         if ([string]::IsNullOrWhiteSpace($provider)) {
             $provider = 'Unknown'
         }
@@ -986,14 +1164,11 @@ function Measure-InterfaceCallDurationMetrics {
             $providerCounts[$provider] = 1
         }
 
-        if ($event.PSObject.Properties.Name -contains 'InterfaceCallDurationMs') {
-            $durationValue = $event.InterfaceCallDurationMs
+        $durationProp = $event.PSObject.Properties['InterfaceCallDurationMs']
+        if ($durationProp) {
+            $durationValue = $durationProp.Value
             if ($null -ne $durationValue) {
-                try {
-                    [void]$durations.Add([double]$durationValue)
-                } catch {
-                    # Ignore values that do not convert to double
-                }
+                try { [void]$durations.Add([double]$durationValue) } catch { }
             }
         }
     }
@@ -1095,10 +1270,7 @@ function Merge-PerHostTelemetry {
         foreach ($eventRecord in @($events)) {
             if (-not $eventRecord -or -not $eventRecord.PSObject) { continue }
 
-            $siteKey = ''
-            if ($eventRecord.PSObject.Properties.Name -contains 'Site') {
-                $siteKey = ('' + $eventRecord.Site).Trim()
-            }
+            $siteKey = Get-TrimmedSiteKey -InputObject $eventRecord
             if ([string]::IsNullOrWhiteSpace($siteKey)) { continue }
 
             $hostKey = WarmRun.Telemetry\Get-HostKeyFromTelemetryEvent -Event $eventRecord
@@ -1126,10 +1298,7 @@ function Merge-PerHostTelemetry {
     foreach ($summary in $results) {
         if (-not $summary) { continue }
 
-        $siteKey = ''
-        if ($summary.PSObject.Properties.Name -contains 'Site') {
-            $siteKey = ('' + $summary.Site).Trim()
-        }
+        $siteKey = Get-TrimmedSiteKey -InputObject $summary
         if ([string]::IsNullOrWhiteSpace($siteKey)) { continue }
 
         $hostKey = WarmRun.Telemetry\Get-HostKeyFromMetricsSummary -Summary $summary
@@ -1140,18 +1309,16 @@ function Merge-PerHostTelemetry {
         if ($databaseEventMap.ContainsKey($mapKey)) {
             $databaseEvent = $databaseEventMap[$mapKey]
             foreach ($propertyName in $perHostDatabaseProperties) {
-                if ($databaseEvent.PSObject.Properties.Name -contains $propertyName) {
-                    $summary | Add-Member -MemberType NoteProperty -Name $propertyName -Value $databaseEvent.$propertyName -Force
-                }
+                $property = $databaseEvent.PSObject.Properties[$propertyName]
+                if ($property) { Add-Member -InputObject $summary -MemberType NoteProperty -Name $propertyName -Value $property.Value -Force }
             }
         }
 
         if ($interfaceEventMap.ContainsKey($mapKey)) {
             $interfaceEvent = $interfaceEventMap[$mapKey]
             foreach ($propertyName in $perHostInterfaceProperties) {
-                if ($interfaceEvent.PSObject.Properties.Name -contains $propertyName) {
-                    $summary | Add-Member -MemberType NoteProperty -Name $propertyName -Value $interfaceEvent.$propertyName -Force
-                }
+                $property = $interfaceEvent.PSObject.Properties[$propertyName]
+                if ($property) { Add-Member -InputObject $summary -MemberType NoteProperty -Name $propertyName -Value $property.Value -Force }
             }
         }
     }
@@ -1418,11 +1585,29 @@ function Invoke-SiteCacheRefresh {
     if ($refreshCount -le 0) { return @() }
 
     $telemetry = Get-AppendedTelemetry -DirectoryPath $metricsDirectory -Baseline $metricsBaseline -ExcludePaths @($OutputPath)
-    $cacheMetrics = $telemetry | Where-Object {
-        $_.EventName -eq 'InterfaceSiteCacheMetrics' -and
-        $_.Site -and ($Sites -contains ('' + $_.Site))
+    $siteSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($site in $Sites) {
+        $siteValue = ('' + $site).Trim()
+        if (-not [string]::IsNullOrWhiteSpace($siteValue)) {
+            [void]$siteSet.Add($siteValue)
+        }
     }
-    if (-not $cacheMetrics) {
+
+    $cacheMetrics = [System.Collections.Generic.List[psobject]]::new()
+    foreach ($evt in @($telemetry)) {
+        if (-not $evt) { continue }
+        $eventNameProp = $evt.PSObject.Properties['EventName']
+        if (-not $eventNameProp -or ('' + $eventNameProp.Value) -ne 'InterfaceSiteCacheMetrics') { continue }
+        $siteProp = $evt.PSObject.Properties['Site']
+        if (-not $siteProp) { continue }
+        $siteValue = ('' + $siteProp.Value).Trim()
+        if ([string]::IsNullOrWhiteSpace($siteValue)) { continue }
+        if ($siteSet.Contains($siteValue)) {
+            [void]$cacheMetrics.Add($evt)
+        }
+    }
+
+    if ($cacheMetrics.Count -le 0) {
         Write-Warning 'No InterfaceSiteCacheMetrics events were captured during cache refresh.'
         return @()
     }
@@ -1443,13 +1628,17 @@ function Invoke-SiteCacheProbe {
     $null = Get-DeviceRepositoryModule
 
     $probedSites = [System.Collections.Generic.List[string]]::new()
+    $probedSiteSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
     foreach ($site in $Sites) {
-        if ([string]::IsNullOrWhiteSpace($site)) { continue }
+        $siteValue = ('' + $site).Trim()
+        if ([string]::IsNullOrWhiteSpace($siteValue)) { continue }
         try {
-            $null = DeviceRepositoryModule\Get-InterfaceSiteCache -Site $site
-            [void]$probedSites.Add($site)
+            $null = DeviceRepositoryModule\Get-InterfaceSiteCache -Site $siteValue
+            if ($probedSiteSet.Add($siteValue)) {
+                [void]$probedSites.Add($siteValue)
+            }
         } catch {
-            Write-Warning "Failed to probe site cache for '$site': $($_.Exception.Message)"
+            Write-Warning "Failed to probe site cache for '$siteValue': $($_.Exception.Message)"
         }
     }
 
@@ -1459,11 +1648,21 @@ function Invoke-SiteCacheProbe {
     }
 
     $telemetry = Get-AppendedTelemetry -DirectoryPath $metricsDirectory -Baseline $metricsBaseline -ExcludePaths @($OutputPath)
-    $cacheMetrics = $telemetry | Where-Object {
-        $_.EventName -eq 'InterfaceSiteCacheMetrics' -and
-        $_.Site -and ($probedSites -contains ('' + $_.Site))
+    $cacheMetrics = [System.Collections.Generic.List[psobject]]::new()
+    foreach ($evt in @($telemetry)) {
+        if (-not $evt) { continue }
+        $eventNameProp = $evt.PSObject.Properties['EventName']
+        if (-not $eventNameProp -or ('' + $eventNameProp.Value) -ne 'InterfaceSiteCacheMetrics') { continue }
+        $siteProp = $evt.PSObject.Properties['Site']
+        if (-not $siteProp) { continue }
+        $siteValue = ('' + $siteProp.Value).Trim()
+        if ([string]::IsNullOrWhiteSpace($siteValue)) { continue }
+        if ($probedSiteSet.Contains($siteValue)) {
+            [void]$cacheMetrics.Add($evt)
+        }
     }
-    if (-not $cacheMetrics) {
+
+    if ($cacheMetrics.Count -le 0) {
         Write-Warning 'No InterfaceSiteCacheMetrics events were captured during the cache probe.'
         return @()
     }
@@ -1504,19 +1703,20 @@ function Get-SiteCacheState {
 
                 if ($entry) {
                     $hostCount = 0
-                    if ($entry.PSObject.Properties.Name -contains 'HostCount') {
-                        try { $hostCount = [int]$entry.HostCount } catch { $hostCount = 0 }
+                    $hostCountProp = $entry.PSObject.Properties['HostCount']
+                    if ($hostCountProp) {
+                        try { $hostCount = [int]$hostCountProp.Value } catch { $hostCount = 0 }
                     }
 
                     $totalRows = 0
-                    if ($entry.PSObject.Properties.Name -contains 'TotalRows') {
-                        try { $totalRows = [int]$entry.TotalRows } catch { $totalRows = 0 }
+                    $totalRowsProp = $entry.PSObject.Properties['TotalRows']
+                    if ($totalRowsProp) {
+                        try { $totalRows = [int]$totalRowsProp.Value } catch { $totalRows = 0 }
                     }
 
                     $hostMap = $null
-                    if ($entry.PSObject.Properties.Name -contains 'HostMap') {
-                        $hostMap = $entry.HostMap
-                    }
+                    $hostMapProp = $entry.PSObject.Properties['HostMap']
+                    if ($hostMapProp) { $hostMap = $hostMapProp.Value }
 
                     if ($hostCount -le 0 -and $hostMap -is [System.Collections.IDictionary]) {
                         try { $hostCount = [int]$hostMap.Count } catch { $hostCount = 0 }
@@ -1531,14 +1731,12 @@ function Get-SiteCacheState {
                     }
 
                     $cacheStatus = ''
-                    if ($entry.PSObject.Properties.Name -contains 'CacheStatus') {
-                        $cacheStatus = '' + $entry.CacheStatus
-                    }
+                    $cacheStatusProp = $entry.PSObject.Properties['CacheStatus']
+                    if ($cacheStatusProp) { $cacheStatus = '' + $cacheStatusProp.Value }
 
                     $cachedAt = $null
-                    if ($entry.PSObject.Properties.Name -contains 'CachedAt') {
-                        $cachedAt = $entry.CachedAt
-                    }
+                    $cachedAtProp = $entry.PSObject.Properties['CachedAt']
+                    if ($cachedAtProp) { $cachedAt = $cachedAtProp.Value }
 
                     return [pscustomobject]@{
                         Site        = $siteArg
@@ -1766,16 +1964,19 @@ function Get-SharedCacheEntriesSnapshot {
                 foreach ($snapshotEntry in $snapshotEntries) {
                     if (-not $snapshotEntry) { continue }
                     $snapshotSite = $null
-                    if ($snapshotEntry.PSObject.Properties.Name -contains 'Site') {
-                        $snapshotSite = ('' + $snapshotEntry.Site).Trim()
-                    } elseif ($snapshotEntry.PSObject.Properties.Name -contains 'SiteKey') {
-                        $snapshotSite = ('' + $snapshotEntry.SiteKey).Trim()
+                    $snapshotSiteProp = $snapshotEntry.PSObject.Properties['Site']
+                    if ($snapshotSiteProp) {
+                        $snapshotSite = ('' + $snapshotSiteProp.Value).Trim()
+                    } else {
+                        $snapshotSiteKeyProp = $snapshotEntry.PSObject.Properties['SiteKey']
+                        if ($snapshotSiteKeyProp) {
+                            $snapshotSite = ('' + $snapshotSiteKeyProp.Value).Trim()
+                        }
                     }
                     if ([string]::IsNullOrWhiteSpace($snapshotSite)) { continue }
                     $snapshotValue = $snapshotEntry
-                    if ($snapshotEntry.PSObject.Properties.Name -contains 'Entry') {
-                        $snapshotValue = $snapshotEntry.Entry
-                    }
+                    $snapshotValueProp = $snapshotEntry.PSObject.Properties['Entry']
+                    if ($snapshotValueProp) { $snapshotValue = $snapshotValueProp.Value }
                     if (-not $snapshotValue) { continue }
                     & $appendEntry $snapshotSite $snapshotValue
                 }
@@ -1820,7 +2021,7 @@ function Get-SharedCacheEntriesSnapshot {
                         }
                     }
                     if ($storeSummary.Count -gt 0) {
-                        $storeSummaryText = ($storeSummary.ToArray() | Sort-Object Site | ForEach-Object { "{0}:hosts={1},rows={2}" -f $_.Site, $_.HostCount, $_.TotalRows }) -join '; '
+                        $storeSummaryText = Format-SharedCacheSummaryText -Entries $storeSummary
                         Write-Host ("Shared cache store snapshot (pre-export): {0}" -f $storeSummaryText) -ForegroundColor DarkCyan
                     } else {
                         Write-Host 'Shared cache store snapshot (pre-export): empty or unavailable.' -ForegroundColor DarkYellow
@@ -1875,26 +2076,35 @@ function Get-SharedCacheEntriesSnapshot {
                 if ($verboseFlag -and $result.Count -gt 0) {
                     Write-Host ("Shared cache snapshot candidates: {0}" -f $result.Count) -ForegroundColor DarkCyan
                     foreach ($entry in @($result)) {
-                        if (-not $entry -or -not $entry.Entry) { continue }
+                        if (-not $entry) { continue }
+                        $entryValueProp = $entry.PSObject.Properties['Entry']
+                        if (-not $entryValueProp -or -not $entryValueProp.Value) { continue }
+                        $entryValue = $entryValueProp.Value
                         $hostCount = 0
                         $totalRows = 0
-                        if ($entry.Entry.PSObject.Properties.Name -contains 'HostCount') {
-                            try { $hostCount = [int]$entry.Entry.HostCount } catch { $hostCount = 0 }
+                        $hostCountProp = $entryValue.PSObject.Properties['HostCount']
+                        if ($hostCountProp) {
+                            try { $hostCount = [int]$hostCountProp.Value } catch { $hostCount = 0 }
                         }
-                        if ($entry.Entry.PSObject.Properties.Name -contains 'TotalRows') {
-                            try { $totalRows = [int]$entry.Entry.TotalRows } catch { $totalRows = 0 }
+                        $totalRowsProp = $entryValue.PSObject.Properties['TotalRows']
+                        if ($totalRowsProp) {
+                            try { $totalRows = [int]$totalRowsProp.Value } catch { $totalRows = 0 }
                         }
-                        if ($hostCount -le 0 -and $entry.Entry.HostMap -is [System.Collections.IDictionary]) {
-                            try { $hostCount = [int]$entry.Entry.HostMap.Count } catch { $hostCount = 0 }
-                            foreach ($map in $entry.Entry.HostMap.Values) {
+                        $hostMap = $null
+                        $hostMapProp = $entryValue.PSObject.Properties['HostMap']
+                        if ($hostMapProp) { $hostMap = $hostMapProp.Value }
+                        if ($hostCount -le 0 -and $hostMap -is [System.Collections.IDictionary]) {
+                            try { $hostCount = [int]$hostMap.Count } catch { $hostCount = 0 }
+                            foreach ($map in $hostMap.Values) {
                                 if ($map -is [System.Collections.IDictionary]) {
                                     try { $totalRows += $map.Count } catch { }
                                 }
                             }
                         }
                         $cacheStatus = ''
-                        if ($entry.Entry.PSObject.Properties.Name -contains 'CacheStatus') {
-                            try { $cacheStatus = '' + $entry.Entry.CacheStatus } catch { $cacheStatus = '' }
+                        $cacheStatusProp = $entryValue.PSObject.Properties['CacheStatus']
+                        if ($cacheStatusProp) {
+                            try { $cacheStatus = '' + $cacheStatusProp.Value } catch { $cacheStatus = '' }
                         }
                         if ([string]::IsNullOrWhiteSpace($cacheStatus)) {
                             $cacheStatus = 'Unknown'
@@ -1982,10 +2192,23 @@ function Write-SharedCacheSnapshotFile {
             if ([string]::IsNullOrWhiteSpace($siteValue)) { continue }
 
             $entryValue = $null
-            if ($entry.PSObject.Properties.Name -contains 'Entry') {
-                $entryValue = $entry.Entry
+            $entryValueProp = $entry.PSObject.Properties['Entry']
+            if ($entryValueProp) {
+                $entryValue = $entryValueProp.Value
             }
-            if (-not $entryValue -or ($entryValue.PSObject.Properties.Name -contains 'HostCount' -and [int]$entryValue.HostCount -le 0)) {
+
+            $shouldRefresh = $false
+            if (-not $entryValue) {
+                $shouldRefresh = $true
+            } else {
+                $hostCountProp = $entryValue.PSObject.Properties['HostCount']
+                if ($hostCountProp) {
+                    try {
+                        if ([int]$hostCountProp.Value -le 0) { $shouldRefresh = $true }
+                    } catch { }
+                }
+            }
+            if ($shouldRefresh) {
                 try { $entryValue = DeviceRepositoryModule\Get-InterfaceSiteCache -Site $siteValue -Refresh } catch { $entryValue = $entryValue }
             }
             if (-not $entryValue) {
@@ -2034,10 +2257,14 @@ function Restore-SharedCacheEntries {
         if ([string]::IsNullOrWhiteSpace($siteName)) { continue }
 
         $entryValue = $null
-        if ($entry.PSObject.Properties.Name -contains 'Entry') {
-            $entryValue = $entry.Entry
-        } elseif ($entry.PSObject.Properties.Name -contains 'HostMap' -and $entry.HostMap) {
-            $entryValue = $entry
+        $entryValueProp = $entry.PSObject.Properties['Entry']
+        if ($entryValueProp) {
+            $entryValue = $entryValueProp.Value
+        } else {
+            $hostMapProp = $entry.PSObject.Properties['HostMap']
+            if ($hostMapProp -and $hostMapProp.Value) {
+                $entryValue = $entry
+            }
         }
         if (-not $entryValue) {
             Write-Warning ("Shared cache snapshot entry for site '{0}' is missing cache data and will be ignored during restore." -f $siteName)
@@ -2091,14 +2318,12 @@ function Restore-SharedCacheEntries {
             foreach ($item in @($entryList)) {
                 if (-not $item) { continue }
                 $siteKey = ''
-                if ($item.PSObject.Properties.Name -contains 'Site') {
-                    $siteKey = ('' + $item.Site).Trim()
-                }
+                $siteProp = $item.PSObject.Properties['Site']
+                if ($siteProp) { $siteKey = ('' + $siteProp.Value).Trim() }
                 if ([string]::IsNullOrWhiteSpace($siteKey)) { continue }
                 $entryValue = $null
-                if ($item.PSObject.Properties.Name -contains 'Entry') {
-                    $entryValue = $item.Entry
-                }
+                $entryProp = $item.PSObject.Properties['Entry']
+                if ($entryProp) { $entryValue = $entryProp.Value }
                 if (-not $entryValue) { continue }
                 $normalizedEntry = Normalize-InterfaceSiteCacheEntry -Entry $entryValue
                 if (-not $script:SiteInterfaceSignatureCache) {
@@ -2112,9 +2337,8 @@ function Restore-SharedCacheEntries {
             foreach ($item in @($entryList)) {
                 if (-not $item) { continue }
                 $siteKey = ''
-                if ($item.PSObject.Properties.Name -contains 'Site') {
-                    $siteKey = ('' + $item.Site).Trim()
-                }
+                $siteProp = $item.PSObject.Properties['Site']
+                if ($siteProp) { $siteKey = ('' + $siteProp.Value).Trim() }
                 if ([string]::IsNullOrWhiteSpace($siteKey)) { continue }
                 try { $null = Get-InterfaceSiteCache -Site $siteKey } catch { }
             }
@@ -2319,7 +2543,7 @@ try {
                     $count = $cacheStateAfterRefresh.Count
                     Write-Host ("Cache state entries after refresh: {0}" -f $count) -ForegroundColor DarkCyan
                     if ($count -gt 0) {
-                        Write-Host ("  -> {0}" -f (($cacheStateAfterRefresh | ForEach-Object { '{0}:{1}' -f $_.Site, $_.CacheStatus }) -join ', ')) -ForegroundColor DarkCyan
+                        Write-Host ("  -> {0}" -f (Format-SiteCacheStatusText -CacheStates $cacheStateAfterRefresh)) -ForegroundColor DarkCyan
                     }
                     $results.AddRange(@($cacheStateAfterRefresh))
                 }
@@ -2335,9 +2559,9 @@ try {
                     if (-not $entry) { continue }
                     $siteKey = Get-TrimmedSiteKey -InputObject $entry
                     if ([string]::IsNullOrWhiteSpace($siteKey)) { continue }
-                    if ($entry.PSObject.Properties.Name -contains 'Entry') {
-                        $entryValue = $entry.Entry
-                        if ($entryValue) { $refreshEntryTable[$siteKey] = $entryValue }
+                    $entryValueProp = $entry.PSObject.Properties['Entry']
+                    if ($entryValueProp -and $entryValueProp.Value) {
+                        $refreshEntryTable[$siteKey] = $entryValueProp.Value
                     }
                 }
                 try {
@@ -2490,7 +2714,7 @@ try {
             $count = $cacheStatePreWarm.Count
             Write-Host ("Cache state entries before warm pass: {0}" -f $count) -ForegroundColor DarkCyan
             if ($count -gt 0) {
-                Write-Host ("  -> {0}" -f (($cacheStatePreWarm | ForEach-Object { '{0}:{1}' -f $_.Site, $_.CacheStatus }) -join ', ')) -ForegroundColor DarkCyan
+                Write-Host ("  -> {0}" -f (Format-SiteCacheStatusText -CacheStates $cacheStatePreWarm)) -ForegroundColor DarkCyan
             }
             $results.AddRange(@($cacheStatePreWarm))
         }
@@ -2498,23 +2722,7 @@ try {
         try {
             $preWarmEntries = Get-SharedCacheEntriesSnapshot -FallbackSites $script:WarmRunSites
             if ($preWarmEntries -and $preWarmEntries.Count -gt 0) {
-                $hostSummary = ($preWarmEntries | Sort-Object Site | ForEach-Object {
-                        $entryValue = if ($_.Entry) { $_.Entry } else { $_ }
-                        $hostCount = 0
-                        $rowCount = 0
-                        if ($entryValue.HostMap -is [System.Collections.IDictionary]) {
-                            $hostCount = $entryValue.HostMap.Count
-                            foreach ($m in @($entryValue.HostMap.Values)) {
-                                if ($m -is [System.Collections.IDictionary]) { $rowCount += $m.Count }
-                            }
-                        } elseif ($entryValue.PSObject.Properties.Name -contains 'HostCount') {
-                            try { $hostCount = [int]$entryValue.HostCount } catch { }
-                        }
-                        if ($entryValue.PSObject.Properties.Name -contains 'TotalRows' -and $rowCount -eq 0) {
-                            try { $rowCount = [int]$entryValue.TotalRows } catch { }
-                        }
-                        '{0}:hosts={1},rows={2}' -f $_.Site, $hostCount, $rowCount
-                    }) -join '; '
+                $hostSummary = Format-SharedCacheSummaryText -Entries $preWarmEntries
                 Write-Host ("Shared cache entries before warm pass: {0}" -f $hostSummary) -ForegroundColor DarkCyan
             } else {
                 Write-Host 'Shared cache entries before warm pass: none captured.' -ForegroundColor DarkYellow
@@ -2527,11 +2735,9 @@ try {
     try {
         $runspaceSharedCache = ParserRunspaceModule\Get-RunspaceSharedCacheSummary
         if ($runspaceSharedCache -and $runspaceSharedCache.Count -gt 0) {
-            $runspaceSharedCache = $runspaceSharedCache | ForEach-Object {
-                $_ | Add-Member -NotePropertyName 'PassLabel' -NotePropertyValue 'SharedCacheState:PreservedRunspace' -PassThru
-            }
+            $runspaceSharedCache = Add-PassLabelToEvents -Events @($runspaceSharedCache) -PassLabel 'SharedCacheState:PreservedRunspace'
             $results.AddRange(@($runspaceSharedCache))
-            $runspaceSharedText = ($runspaceSharedCache | Sort-Object Site | ForEach-Object { '{0}:hosts={1},rows={2}' -f $_.Site, $_.HostCount, $_.TotalRows }) -join '; '
+            $runspaceSharedText = Format-SharedCacheSummaryText -Entries $runspaceSharedCache
             Write-Host ("Preserved runspace shared cache store: {0}" -f $runspaceSharedText) -ForegroundColor DarkCyan
         } else {
             Write-Host 'Preserved runspace shared cache store: empty or unavailable.' -ForegroundColor DarkYellow
@@ -2551,12 +2757,11 @@ try {
                 if ($store -is [System.Collections.IDictionary]) {
                     foreach ($entry in @($sharedCacheEntries)) {
                         if (-not $entry) { continue }
-                        $siteKey = ''
-                        if ($entry.PSObject.Properties.Name -contains 'Site') { $siteKey = ('' + $entry.Site).Trim() }
-                        elseif ($entry.PSObject.Properties.Name -contains 'SiteKey') { $siteKey = ('' + $entry.SiteKey).Trim() }
+                        $siteKey = Get-TrimmedSiteKey -InputObject $entry
                         if ([string]::IsNullOrWhiteSpace($siteKey)) { continue }
                         $payload = $entry
-                        if ($entry.PSObject.Properties.Name -contains 'Entry') { $payload = $entry.Entry }
+                        $payloadProp = $entry.PSObject.Properties['Entry']
+                        if ($payloadProp) { $payload = $payloadProp.Value }
                         if (-not $payload) { continue }
                         try { DeviceRepositoryModule\Set-SharedSiteInterfaceCacheEntry -SiteKey $siteKey -Entry $payload } catch { }
                     }
@@ -2568,9 +2773,9 @@ try {
             Write-Host ("Seeded preserved runspace shared cache with {0} entr{1}." -f $sharedCacheEntries.Count, $(if ($sharedCacheEntries.Count -eq 1) { 'y' } else { 'ies' })) -ForegroundColor DarkCyan
             $postSeedSummary = ParserRunspaceModule\Get-RunspaceSharedCacheSummary
             if ($postSeedSummary -and $postSeedSummary.Count -gt 0) {
-                $postSeedText = ($postSeedSummary | Sort-Object Site | ForEach-Object { '{0}:hosts={1},rows={2}' -f $_.Site, $_.HostCount, $_.TotalRows }) -join '; '
+                $postSeedText = Format-SharedCacheSummaryText -Entries $postSeedSummary
                 Write-Host ("Preserved runspace shared cache after seeding: {0}" -f $postSeedText) -ForegroundColor DarkCyan
-                $results.AddRange(@($postSeedSummary | ForEach-Object { $_ | Add-Member -NotePropertyName 'PassLabel' -NotePropertyValue 'SharedCacheState:PreservedRunspacePostSeed' -PassThru }))
+                $results.AddRange(@(Add-PassLabelToEvents -Events @($postSeedSummary) -PassLabel 'SharedCacheState:PreservedRunspacePostSeed'))
             } else {
                 Write-Host 'Preserved runspace shared cache after seeding: empty or unavailable.' -ForegroundColor DarkYellow
             }
@@ -2676,25 +2881,10 @@ if (($coldMetrics -or $coldSummaries) -and ($warmMetrics -or $warmSummaries)) {
         $warmCountSource = $script:ComparisonHostFilter.Count
     }
 
-    $warmCacheProviderHitCountRaw = 0
-    if ($normalizedWarmProviderCounts.ContainsKey('Cache')) {
-        $warmCacheProviderHitCountRaw = [int]$normalizedWarmProviderCounts['Cache']
-    }
-
-    $warmCacheProviderMissCountRaw = 0
-    foreach ($entry in $normalizedWarmProviderCounts.GetEnumerator()) {
-        if ($entry.Key -ne 'Cache') {
-            $warmCacheProviderMissCountRaw += [int]$entry.Value
-        }
-    }
-
-    $warmCacheHitRatioPercentRaw = $null
-    $warmProviderSamples = $warmCacheProviderHitCountRaw + $warmCacheProviderMissCountRaw
-    if ($warmProviderSamples -gt 0) {
-        $warmCacheHitRatioPercentRaw = [math]::Round(($warmCacheProviderHitCountRaw / $warmProviderSamples) * 100, 2)
-    } elseif ($warmCountSource -gt 0) {
-        $warmCacheHitRatioPercentRaw = [math]::Round(($warmCacheProviderHitCountRaw / $warmCountSource) * 100, 2)
-    }
+    $warmProviderRawMetrics = Resolve-CacheProviderMetrics -ProviderCounts $normalizedWarmProviderCounts -CountSource $warmCountSource
+    $warmCacheProviderHitCountRaw = [int]$warmProviderRawMetrics.HitCount
+    $warmCacheProviderMissCountRaw = [int]$warmProviderRawMetrics.MissCount
+    $warmCacheHitRatioPercentRaw = $warmProviderRawMetrics.HitRatioPercent
 
     $warmProviderCounts = $normalizedWarmProviderCounts
     $warmCacheProviderHitCount = $warmCacheProviderHitCountRaw
@@ -2714,24 +2904,10 @@ if (($coldMetrics -or $coldSummaries) -and ($warmMetrics -or $warmSummaries)) {
         }
         # Prefer summary-derived provider counts for normalized/raw reporting when breakdown events are sparse.
         $normalizedWarmProviderCounts = $warmProviderCounts
-        $warmCacheProviderHitCountRaw = 0
-        if ($normalizedWarmProviderCounts.ContainsKey('Cache')) {
-            $warmCacheProviderHitCountRaw = [int]$normalizedWarmProviderCounts['Cache']
-        }
-
-        $warmCacheProviderMissCountRaw = 0
-        foreach ($entry in $normalizedWarmProviderCounts.GetEnumerator()) {
-            if ($entry.Key -ne 'Cache') {
-                $warmCacheProviderMissCountRaw += [int]$entry.Value
-            }
-        }
-        $warmCacheHitRatioPercentRaw = $null
-        $warmProviderSamples = $warmCacheProviderHitCountRaw + $warmCacheProviderMissCountRaw
-        if ($warmProviderSamples -gt 0) {
-            $warmCacheHitRatioPercentRaw = [math]::Round(($warmCacheProviderHitCountRaw / $warmProviderSamples) * 100, 2)
-        } elseif ($warmCountSource -gt 0) {
-            $warmCacheHitRatioPercentRaw = [math]::Round(($warmCacheProviderHitCountRaw / $warmCountSource) * 100, 2)
-        }
+        $warmProviderRawMetrics = Resolve-CacheProviderMetrics -ProviderCounts $normalizedWarmProviderCounts -CountSource $warmCountSource
+        $warmCacheProviderHitCountRaw = [int]$warmProviderRawMetrics.HitCount
+        $warmCacheProviderMissCountRaw = [int]$warmProviderRawMetrics.MissCount
+        $warmCacheHitRatioPercentRaw = $warmProviderRawMetrics.HitRatioPercent
     }
 
     $coldProviderCounts = $normalizedColdProviderCounts
@@ -2756,38 +2932,32 @@ if (($coldMetrics -or $coldSummaries) -and ($warmMetrics -or $warmSummaries)) {
             }
 
             $matchCount = 0
-            if ($event.PSObject.Properties.Name -contains 'SiteCacheHostMapSignatureMatchCount') {
-                try {
-                    $matchCount = [int]$event.SiteCacheHostMapSignatureMatchCount
-                } catch {
-                    $matchCount = 0
-                }
+            $matchCountProp = $event.PSObject.Properties['SiteCacheHostMapSignatureMatchCount']
+            if ($matchCountProp) {
+                try { $matchCount = [int]$matchCountProp.Value } catch { $matchCount = 0 }
             }
             if ($matchCount -le 0) {
                 $warmSignatureMatchMissCount++
             }
 
-            if ($event.PSObject.Properties.Name -contains 'SiteCacheHostMapSignatureRewriteCount') {
-                try {
-                    $warmSignatureRewriteTotal += [int]$event.SiteCacheHostMapSignatureRewriteCount
-                } catch {
-                    # Ignore conversion issues
-                }
+            $rewriteCountProp = $event.PSObject.Properties['SiteCacheHostMapSignatureRewriteCount']
+            if ($rewriteCountProp) {
+                try { $warmSignatureRewriteTotal += [int]$rewriteCountProp.Value } catch { }
             }
         }
     } elseif ($warmSummaries) {
         foreach ($summary in @($warmSummaries)) {
             if (-not $summary) { continue }
             $matchCount = 0
-            if ($summary.PSObject.Properties.Name -contains 'HostMapSignatureMatchCount') {
-                try { $matchCount = [int]$summary.HostMapSignatureMatchCount } catch { $matchCount = 0 }
-            }
+            $matchCountProp = $summary.PSObject.Properties['HostMapSignatureMatchCount']
+            if ($matchCountProp) { try { $matchCount = [int]$matchCountProp.Value } catch { $matchCount = 0 } }
             if ($matchCount -le 0) {
                 $warmSignatureMatchMissCount++
             }
 
-            if ($summary.PSObject.Properties.Name -contains 'HostMapSignatureRewriteCount') {
-                try { $warmSignatureRewriteTotal += [int]$summary.HostMapSignatureRewriteCount } catch { }
+            $rewriteProp = $summary.PSObject.Properties['HostMapSignatureRewriteCount']
+            if ($rewriteProp) {
+                try { $warmSignatureRewriteTotal += [int]$rewriteProp.Value } catch { }
             }
         }
     }
@@ -2879,7 +3049,8 @@ function Get-PassHostnameFilter {
 if ($script:ComparisonHostFilter -and $script:ComparisonHostFilter.Count -gt 0) {
     $filteredResults = [System.Collections.Generic.List[psobject]]::new()
     foreach ($result in $results) {
-        if ($result.PSObject.Properties.Name -contains 'SummaryType' -and $result.SummaryType) {
+        $summaryTypeProp = $result.PSObject.Properties['SummaryType']
+        if ($summaryTypeProp -and $summaryTypeProp.Value) {
             [void]$filteredResults.Add($result)
             continue
         }
@@ -2892,9 +3063,8 @@ if ($script:ComparisonHostFilter -and $script:ComparisonHostFilter.Count -gt 0) 
         }
 
         $hostnameValue = $null
-        if ($result.PSObject.Properties.Name -contains 'Hostname') {
-            $hostnameValue = $result.Hostname
-        }
+        $hostnameProp = $result.PSObject.Properties['Hostname']
+        if ($hostnameProp) { $hostnameValue = $hostnameProp.Value }
 
         if ([string]::IsNullOrWhiteSpace($hostnameValue)) {
             # Retain hostless rows so cold metrics are not dropped entirely when filtered logs omit hostnames.
@@ -2917,14 +3087,38 @@ function Update-ComparisonSummaryFromResults {
     $itemsArray = @($Items)
     if (-not $itemsArray) { return $Items }
 
-    $comparison = $itemsArray | Where-Object { $_.PSObject -and $_.PSObject.Properties.Name -contains 'SummaryType' -and $_.SummaryType -eq 'InterfaceCallDuration' } | Select-Object -First 1
+    $comparison = $null
+    $warmEventsList = [System.Collections.Generic.List[psobject]]::new()
+    $coldEventsList = [System.Collections.Generic.List[psobject]]::new()
+    foreach ($item in $itemsArray) {
+        if (-not $item -or -not $item.PSObject) { continue }
+
+        $summaryTypeProp = $item.PSObject.Properties['SummaryType']
+        $summaryTypeValue = $null
+        if ($summaryTypeProp) { $summaryTypeValue = $summaryTypeProp.Value }
+        if (-not [string]::IsNullOrWhiteSpace('' + $summaryTypeValue)) {
+            if (-not $comparison -and ('' + $summaryTypeValue) -eq 'InterfaceCallDuration') {
+                $comparison = $item
+            }
+            continue
+        }
+
+        $passLabelProp = $item.PSObject.Properties['PassLabel']
+        if (-not $passLabelProp) { continue }
+        $passLabel = '' + $passLabelProp.Value
+        if ($passLabel -eq 'WarmPass') {
+            [void]$warmEventsList.Add($item)
+        } elseif ($passLabel -eq 'ColdPass') {
+            [void]$coldEventsList.Add($item)
+        }
+    }
     if (-not $comparison) { return $Items }
 
     $originalColdHostCount = $comparison.ColdHostCount
     $originalWarmHostCount = $comparison.WarmHostCount
 
-    $warmEvents = @($itemsArray | Where-Object { $_.PSObject -and $_.PSObject.Properties.Name -contains 'PassLabel' -and $_.PassLabel -eq 'WarmPass' -and -not ($_.PSObject.Properties.Name -contains 'SummaryType' -and $_.SummaryType) })
-    $coldEvents = @($itemsArray | Where-Object { $_.PSObject -and $_.PSObject.Properties.Name -contains 'PassLabel' -and $_.PassLabel -eq 'ColdPass' -and -not ($_.PSObject.Properties.Name -contains 'SummaryType' -and $_.SummaryType) })
+    $warmEvents = $warmEventsList.ToArray()
+    $coldEvents = $coldEventsList.ToArray()
 
     function Get-ProviderSnapshot {
         param([System.Collections.IEnumerable]$Events)
@@ -2935,10 +3129,14 @@ function Update-ComparisonSummaryFromResults {
 
         foreach ($evt in @($Events)) {
             if (-not $evt) { continue }
-            $provider = '' + ($evt.Provider)
-            if ([string]::IsNullOrWhiteSpace($provider) -and $evt.PSObject.Properties.Name -contains 'SiteCacheProvider') {
-                $provider = '' + $evt.SiteCacheProvider
+            $provider = ''
+            $providerProp = $evt.PSObject.Properties['Provider']
+            if ($providerProp) { $provider = '' + $providerProp.Value }
+            if ([string]::IsNullOrWhiteSpace($provider)) {
+                $siteCacheProviderProp = $evt.PSObject.Properties['SiteCacheProvider']
+                if ($siteCacheProviderProp) { $provider = '' + $siteCacheProviderProp.Value }
             }
+            $provider = $provider.Trim()
             if ([string]::IsNullOrWhiteSpace($provider)) {
                 $provider = 'Unknown'
             }
@@ -2948,22 +3146,26 @@ function Update-ComparisonSummaryFromResults {
                 $providerCounts[$provider] = 1
             }
 
-            if ($evt.PSObject.Properties.Name -contains 'Hostname' -and -not [string]::IsNullOrWhiteSpace($evt.Hostname)) {
-                [void]$hostSet.Add(($evt.Hostname).Trim())
-            }
-
-            if ($evt.PSObject.Properties.Name -contains 'InterfaceCallDurationMs') {
-                $val = $evt.InterfaceCallDurationMs
-                if ($null -ne $val) {
-                    try { [void]$durations.Add([double]$val) } catch { }
+            $hostnameProp = $evt.PSObject.Properties['Hostname']
+            if ($hostnameProp) {
+                $hostnameValue = ('' + $hostnameProp.Value).Trim()
+                if (-not [string]::IsNullOrWhiteSpace($hostnameValue)) {
+                    [void]$hostSet.Add($hostnameValue)
                 }
             }
 
-            if ($evt.PSObject.Properties.Name -contains 'SiteCacheHostMapSignatureMatchCount') {
+            $durationProp = $evt.PSObject.Properties['InterfaceCallDurationMs']
+            if ($durationProp -and $durationProp.Value -ne $null) {
+                try { [void]$durations.Add([double]$durationProp.Value) } catch { }
+            }
+
+            $matchCountProp = $evt.PSObject.Properties['SiteCacheHostMapSignatureMatchCount']
+            if ($matchCountProp) {
                 try {
-                    $matchCount = [int]$evt.SiteCacheHostMapSignatureMatchCount
-                    if ($matchCount -le 0) { $signatureMisses++ }
-                } catch { $signatureMisses++ }
+                    if ([int]$matchCountProp.Value -le 0) { $signatureMisses++ }
+                } catch {
+                    $signatureMisses++
+                }
             }
         }
 
