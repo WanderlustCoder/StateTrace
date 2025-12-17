@@ -115,11 +115,11 @@ function Import-DatabaseModule {
         # different relative paths point at the same module.  If DatabaseModule
         # isn't loaded yet, attempt to import it from this folder.  The
         # Force/Global flags mirror the original behaviour but only run once.
-        if (-not (Get-Module -Name DatabaseModule)) {
-            $dbModulePath = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
-            if (Test-Path $dbModulePath) {
-                Import-Module $dbModulePath -Force -Global -ErrorAction SilentlyContinue | Out-Null
-            }
+        if (Get-Module -Name DatabaseModule -ErrorAction SilentlyContinue) { return }
+
+        $dbModulePath = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
+        if (Test-Path -LiteralPath $dbModulePath) {
+            Import-Module $dbModulePath -Force -Global -ErrorAction SilentlyContinue | Out-Null
         }
     } catch {
         # Swallow any import errors; downstream functions will handle missing cmdlets.

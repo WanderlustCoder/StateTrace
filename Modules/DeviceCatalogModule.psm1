@@ -12,12 +12,36 @@ if (-not (Get-Variable -Scope Global -Name DeviceLocationEntries -ErrorAction Si
     $global:DeviceLocationEntries = @()
 }
 
+function script:Ensure-LocalStateTraceModule {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$ModuleName,
+        [Parameter(Mandatory)][string]$ModuleFileName
+    )
+
+    try {
+        if (Get-Module -Name $ModuleName -ErrorAction SilentlyContinue) { return }
+
+        $modulePath = Join-Path $PSScriptRoot $ModuleFileName
+        if (Test-Path -LiteralPath $modulePath) {
+            Import-Module -Name $modulePath -Global -ErrorAction SilentlyContinue | Out-Null
+        } else {
+            Import-Module -Name $ModuleName -Global -ErrorAction SilentlyContinue | Out-Null
+        }
+    } catch { }
+}
+
+function script:Ensure-DeviceRepositoryModule {
+    script:Ensure-LocalStateTraceModule -ModuleName 'DeviceRepositoryModule' -ModuleFileName 'DeviceRepositoryModule.psm1'
+}
+
 function Get-NormalizedSiteFilterList {
     [CmdletBinding()]
     param([string[]]$SiteFilter)
 
-    $normalizedSites = @()
-    if (-not $SiteFilter) { return $normalizedSites }
+    $uniqueSites = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    $normalizedSites = [System.Collections.Generic.List[string]]::new()
+    if (-not $SiteFilter) { return $normalizedSites.ToArray() }
 
     foreach ($siteEntry in $SiteFilter) {
         if ($null -eq $siteEntry) { continue }
@@ -26,11 +50,11 @@ function Get-NormalizedSiteFilterList {
             $trimmed = ('' + $candidate).Trim()
             if ([string]::IsNullOrWhiteSpace($trimmed)) { continue }
             if ($trimmed -ieq 'All Sites') { continue }
-            $normalizedSites += $trimmed
+            if ($uniqueSites.Add($trimmed)) { [void]$normalizedSites.Add($trimmed) }
         }
     }
 
-    return @($normalizedSites | Select-Object -Unique)
+    return $normalizedSites.ToArray()
 }
 
 function Get-DbPathsForNormalizedSites {
@@ -210,16 +234,7 @@ function Get-DeviceLocationEntries {
         [string[]]$SiteFilter
     )
 
-    try {
-        if (-not (Get-Module -Name DeviceRepositoryModule)) {
-            $repoPath = Join-Path $PSScriptRoot 'DeviceRepositoryModule.psm1'
-            if (Test-Path -LiteralPath $repoPath) {
-                Import-Module -Name $repoPath -Global -ErrorAction SilentlyContinue
-            } else {
-                Import-Module DeviceRepositoryModule -Global -ErrorAction SilentlyContinue
-            }
-        }
-    } catch { }
+    script:Ensure-DeviceRepositoryModule
 
     $normalizedSites = Get-NormalizedSiteFilterList -SiteFilter $SiteFilter
     $dbPaths = @(Get-DbPathsForNormalizedSites -NormalizedSites $normalizedSites)

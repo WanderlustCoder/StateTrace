@@ -8,19 +8,32 @@ try {
 
 
 function New-Directories {
+    [CmdletBinding()]
+    param(
+        [Parameter()][string[]]$Paths
+    )
 
-    param ([string[]]$Paths)
-
-    foreach ($path in $Paths) {
-
-        if (-not (Test-Path $path)) {
-
-            New-Item -ItemType Directory -Path $path | Out-Null
-
-        }
-
+    foreach ($path in @($Paths)) {
+        if ([string]::IsNullOrWhiteSpace($path)) { continue }
+        try {
+            [System.IO.Directory]::CreateDirectory($path) | Out-Null
+        } catch { }
     }
+}
 
+function script:Get-DeviceRepositoryCacheCommand {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Name
+    )
+
+    $cmd = $null
+    $qualifiedName = 'DeviceRepository.Cache\{0}' -f $Name
+    try { $cmd = Get-Command -Name $qualifiedName -ErrorAction SilentlyContinue } catch { $cmd = $null }
+    if (-not $cmd) {
+        try { $cmd = Get-Command -Name $Name -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue } catch { $cmd = $null }
+    }
+    return $cmd
 }
 
 
@@ -131,10 +144,7 @@ function Write-SharedCacheSnapshotFileInternal {
         [System.Collections.IEnumerable]$Entries
     )
 
-    $cacheFallbackWriter = Get-Command -Name 'DeviceRepository.Cache\Write-SharedCacheSnapshotFileFallback' -ErrorAction SilentlyContinue
-    if (-not $cacheFallbackWriter) {
-        $cacheFallbackWriter = Get-Command -Name 'Write-SharedCacheSnapshotFileFallback' -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue
-    }
+    $cacheFallbackWriter = Get-DeviceRepositoryCacheCommand -Name 'Write-SharedCacheSnapshotFileFallback'
     if ($cacheFallbackWriter) {
         try {
             & $cacheFallbackWriter -Path $Path -Entries $Entries
@@ -1076,19 +1086,13 @@ function Invoke-StateTraceParsing {
             if ($entries -and $entries.Count -gt 0) { return ,$entries }
         }
 
-        $cacheSnapshotCmd = Get-Command -Name 'DeviceRepository.Cache\Get-SharedSiteInterfaceCacheSnapshotEntries' -ErrorAction SilentlyContinue
-        if (-not $cacheSnapshotCmd) {
-            $cacheSnapshotCmd = Get-Command -Name 'Get-SharedSiteInterfaceCacheSnapshotEntries' -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue
-        }
+        $cacheSnapshotCmd = Get-DeviceRepositoryCacheCommand -Name 'Get-SharedSiteInterfaceCacheSnapshotEntries'
         if ($cacheSnapshotCmd) {
             try { $entries = @(& $cacheSnapshotCmd) } catch { $entries = @() }
         }
 
         if ($entries -and $entries.Count -gt 0) {
-            $cacheHelper = Get-Command -Name 'DeviceRepository.Cache\ConvertTo-SharedCacheEntryArray' -ErrorAction SilentlyContinue
-            if (-not $cacheHelper) {
-                $cacheHelper = Get-Command -Name 'ConvertTo-SharedCacheEntryArray' -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue
-            }
+            $cacheHelper = Get-DeviceRepositoryCacheCommand -Name 'ConvertTo-SharedCacheEntryArray'
             if ($cacheHelper) {
                 try { $entries = @(& $cacheHelper -Entries $entries) } catch { }
             }
@@ -1151,10 +1155,7 @@ function Invoke-StateTraceParsing {
                     }
                 } catch { }
             }
-            $cacheExportCmd = Get-Command -Name 'DeviceRepository.Cache\Export-SharedCacheSnapshot' -ErrorAction SilentlyContinue
-            if (-not $cacheExportCmd) {
-                $cacheExportCmd = Get-Command -Name 'Export-SharedCacheSnapshot' -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue
-            }
+            $cacheExportCmd = Get-DeviceRepositoryCacheCommand -Name 'Export-SharedCacheSnapshot'
             if ($cacheExportCmd -and $snapshotEntryCount -gt 0) {
                 try {
                     $siteFilter = [System.Collections.Generic.List[string]]::new()

@@ -10,8 +10,9 @@ function New-AlertsView {
         $alertsView = ViewCompositionModule\Set-StView -Window $Window -ScriptDir $ScriptDir -ViewName 'AlertsView' -HostControlName 'AlertsHost' -GlobalVariableName 'alertsView'
         if (-not $alertsView) { return }
 
-        if (Get-Command -Name 'DeviceInsightsModule\Update-Alerts' -ErrorAction SilentlyContinue) {
+        try {
             DeviceInsightsModule\Update-Alerts
+        } catch [System.Management.Automation.CommandNotFoundException] {
         }
 
         $expAlertsBtn = $alertsView.FindName('ExportAlertsButton')

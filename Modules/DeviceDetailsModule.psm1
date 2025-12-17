@@ -1,5 +1,34 @@
 Set-StrictMode -Version Latest
 
+function script:Ensure-LocalStateTraceModule {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$ModuleName,
+        [Parameter(Mandatory)][string]$ModuleFileName
+    )
+
+    try {
+        if (Get-Module -Name $ModuleName -ErrorAction SilentlyContinue) { return }
+
+        $modulePath = Join-Path $PSScriptRoot $ModuleFileName
+        if (Test-Path -LiteralPath $modulePath) {
+            Import-Module -Name $modulePath -Global -ErrorAction SilentlyContinue | Out-Null
+        } else {
+            Import-Module -Name $ModuleName -Global -ErrorAction SilentlyContinue | Out-Null
+        }
+    } catch { }
+}
+
+function script:Ensure-DeviceRepositoryModule {
+    script:Ensure-LocalStateTraceModule -ModuleName 'DeviceRepositoryModule' -ModuleFileName 'DeviceRepositoryModule.psm1'
+}
+
+function script:Ensure-DatabaseModule {
+    try { DeviceRepositoryModule\Import-DatabaseModule } catch {
+        script:Ensure-LocalStateTraceModule -ModuleName 'DatabaseModule' -ModuleFileName 'DatabaseModule.psm1'
+    }
+}
+
 function Get-DeviceDetails {
     [CmdletBinding()]
     param([Parameter()][string]$Hostname)
@@ -20,16 +49,7 @@ function Get-DeviceDetailsData {
     $hostTrim = ('' + $Hostname).Trim()
     if ([string]::IsNullOrWhiteSpace($hostTrim)) { return $null }
 
-    try {
-        if (-not (Get-Module -Name DeviceRepositoryModule)) {
-            $repoPath = Join-Path $PSScriptRoot 'DeviceRepositoryModule.psm1'
-            if (Test-Path -LiteralPath $repoPath) {
-                Import-Module -Name $repoPath -Global -ErrorAction SilentlyContinue | Out-Null
-            } else {
-                Import-Module -Name DeviceRepositoryModule -Global -ErrorAction SilentlyContinue | Out-Null
-            }
-        }
-    } catch {}
+    script:Ensure-DeviceRepositoryModule
 
     $dto = [PSCustomObject]@{
         Summary    = $null
@@ -57,16 +77,7 @@ function Get-DeviceDetailsData {
         return $dto
     }
 
-    try { DeviceRepositoryModule\Import-DatabaseModule } catch {
-        try {
-            $dbModulePath = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
-            if (Test-Path -LiteralPath $dbModulePath) {
-                Import-Module -Name $dbModulePath -Global -ErrorAction SilentlyContinue | Out-Null
-            } else {
-                Import-Module -Name DatabaseModule -Global -ErrorAction SilentlyContinue | Out-Null
-            }
-        } catch {}
-    }
+    script:Ensure-DatabaseModule
 
     $dto.Summary = Get-DatabaseDeviceSummary -Hostname $hostTrim -DatabasePath $dbPath
     $dto.Interfaces = New-Object 'System.Collections.ObjectModel.ObservableCollection[object]'
@@ -78,9 +89,9 @@ function Get-DeviceDetailsData {
         if ($dtPorts) {
             $convertedPorts = $null
             try {
-                if (Get-Command -Name 'InterfaceModule\New-InterfaceObjectsFromDbRow' -ErrorAction SilentlyContinue) {
-                    $convertedPorts = InterfaceModule\New-InterfaceObjectsFromDbRow -Data $dtPorts -Hostname $hostTrim -TemplatesPath $TemplatesPath
-                }
+                $convertedPorts = InterfaceModule\New-InterfaceObjectsFromDbRow -Data $dtPorts -Hostname $hostTrim -TemplatesPath $TemplatesPath
+            } catch [System.Management.Automation.CommandNotFoundException] {
+                $convertedPorts = $null
             } catch {
                 $convertedPorts = $null
             }

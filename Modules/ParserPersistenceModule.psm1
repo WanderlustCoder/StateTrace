@@ -3589,22 +3589,31 @@ function Invoke-InterfaceBulkInsertInternal {
     $batchId = ([guid]::NewGuid()).ToString()
     $runDateText = $RunDate.ToString('yyyy-MM-dd HH:mm:ss')
 
-    if (-not (Get-Command -Name 'InterfaceCommon\Set-PortRowDefaults' -ErrorAction SilentlyContinue)) {
-        try {
-            if (Get-Command -Name 'TelemetryModule\Import-InterfaceCommon' -ErrorAction SilentlyContinue) {
-                TelemetryModule\Import-InterfaceCommon | Out-Null
-            }
-        } catch { }
+    $setPortRowDefaultsCmd = $null
+    try { $setPortRowDefaultsCmd = Get-Command -Name 'InterfaceCommon\Set-PortRowDefaults' -ErrorAction SilentlyContinue } catch { $setPortRowDefaultsCmd = $null }
 
-        if (-not (Get-Command -Name 'InterfaceCommon\Set-PortRowDefaults' -ErrorAction SilentlyContinue)) {
+    if (-not $setPortRowDefaultsCmd) {
+        $importInterfaceCommonCmd = $null
+        try { $importInterfaceCommonCmd = Get-Command -Name 'TelemetryModule\Import-InterfaceCommon' -ErrorAction SilentlyContinue } catch { $importInterfaceCommonCmd = $null }
+        if ($importInterfaceCommonCmd) {
+            try { TelemetryModule\Import-InterfaceCommon | Out-Null } catch { }
+        }
+
+        try { $setPortRowDefaultsCmd = Get-Command -Name 'InterfaceCommon\Set-PortRowDefaults' -ErrorAction SilentlyContinue } catch { $setPortRowDefaultsCmd = $null }
+
+        if (-not $setPortRowDefaultsCmd) {
             try {
                 $interfaceCommonPath = Join-Path $PSScriptRoot 'InterfaceCommon.psm1'
                 if (Test-Path -LiteralPath $interfaceCommonPath) {
                     Import-Module -Name $interfaceCommonPath -Force -Global -ErrorAction Stop | Out-Null
                 }
             } catch { }
+            try { $setPortRowDefaultsCmd = Get-Command -Name 'InterfaceCommon\Set-PortRowDefaults' -ErrorAction SilentlyContinue } catch { $setPortRowDefaultsCmd = $null }
         }
     }
+
+    $convertToPortPsObjectCmd = $null
+    try { $convertToPortPsObjectCmd = Get-Command -Name 'DeviceRepositoryModule\ConvertTo-PortPsObject' -ErrorAction SilentlyContinue } catch { $convertToPortPsObjectCmd = $null }
 
     $rowsBuffer = $null
     $stagedCount = 0
@@ -3696,11 +3705,9 @@ function Invoke-InterfaceBulkInsertInternal {
 
         if ($null -eq $row) { return $null }
 
-        try {
-            if (Get-Command -Name 'DeviceRepositoryModule\ConvertTo-PortPsObject' -ErrorAction SilentlyContinue) {
-                return DeviceRepositoryModule\ConvertTo-PortPsObject -Row $row -Hostname $Hostname -EnsureHostname -EnsureIsSelected
-            }
-        } catch { }
+        if ($convertToPortPsObjectCmd) {
+            try { return DeviceRepositoryModule\ConvertTo-PortPsObject -Row $row -Hostname $Hostname -EnsureHostname -EnsureIsSelected } catch { }
+        }
 
         $clone = $null
         if ($row -is [psobject]) {
@@ -3721,7 +3728,9 @@ function Invoke-InterfaceBulkInsertInternal {
             }
         }
 
-        try { InterfaceCommon\Set-PortRowDefaults -Row $clone -Hostname $Hostname | Out-Null } catch { }
+        if ($setPortRowDefaultsCmd) {
+            try { & $setPortRowDefaultsCmd -Row $clone -Hostname $Hostname | Out-Null } catch { }
+        }
         return $clone
     }
 

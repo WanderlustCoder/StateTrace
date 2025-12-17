@@ -104,6 +104,46 @@ function Get-ParserPersistenceModule {
     return $null
 }
 
+function Get-DeviceRepositoryModule {
+    $module = Get-Module -Name 'DeviceRepositoryModule' -ErrorAction SilentlyContinue
+    if ($module) { return $module }
+
+    $modulePath = Join-Path -Path $repositoryRoot -ChildPath 'Modules\DeviceRepositoryModule.psm1'
+    if (Test-Path -LiteralPath $modulePath) {
+        try {
+            return Import-Module -Name $modulePath -PassThru -ErrorAction SilentlyContinue
+        } catch { }
+    }
+
+    return $null
+}
+
+function Get-DeviceRepositoryCacheCommand {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Name)
+
+    $cmd = $null
+    $qualifiedName = 'DeviceRepository.Cache\{0}' -f $Name
+    try { $cmd = Get-Command -Name $qualifiedName -ErrorAction SilentlyContinue } catch { $cmd = $null }
+    if (-not $cmd) {
+        try { $cmd = Get-Command -Name $Name -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue } catch { $cmd = $null }
+    }
+    return $cmd
+}
+
+function Get-TelemetryModuleCommand {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Name)
+
+    $cmd = $null
+    $qualifiedName = 'TelemetryModule\{0}' -f $Name
+    try { $cmd = Get-Command -Name $qualifiedName -ErrorAction SilentlyContinue } catch { $cmd = $null }
+    if (-not $cmd) {
+        try { $cmd = Get-Command -Name $Name -Module 'TelemetryModule' -ErrorAction SilentlyContinue } catch { $cmd = $null }
+    }
+    return $cmd
+}
+
 function Save-SiteExistingRowCacheSnapshot {
     param([string]$SnapshotPath)
 
@@ -489,10 +529,7 @@ function Get-TelemetryLogFiles {
 
     $telemetryLogPath = $null
     try {
-        $telemetryPathCmd = Get-Command -Name 'TelemetryModule\Get-TelemetryLogPath' -ErrorAction SilentlyContinue
-        if (-not $telemetryPathCmd) {
-            $telemetryPathCmd = Get-Command -Name 'Get-TelemetryLogPath' -Module 'TelemetryModule' -ErrorAction SilentlyContinue
-        }
+        $telemetryPathCmd = Get-TelemetryModuleCommand -Name 'Get-TelemetryLogPath'
         if ($telemetryPathCmd) {
             $telemetryLogPath = & $telemetryPathCmd
         }
@@ -1331,13 +1368,7 @@ function Invoke-SiteCacheRefresh {
         return @()
     }
 
-    $moduleLoaded = Get-Module -Name 'DeviceRepositoryModule'
-    if (-not $moduleLoaded) {
-        $modulePath = Join-Path -Path $repositoryRoot -ChildPath 'Modules\DeviceRepositoryModule.psm1'
-        if (Test-Path -LiteralPath $modulePath) {
-            Import-Module -Name $modulePath -ErrorAction SilentlyContinue | Out-Null
-        }
-    }
+    $null = Get-DeviceRepositoryModule
 
     $refreshCount = 0
     foreach ($site in $Sites) {
@@ -1374,13 +1405,7 @@ function Invoke-SiteCacheProbe {
         return @()
     }
 
-    $moduleLoaded = Get-Module -Name 'DeviceRepositoryModule'
-    if (-not $moduleLoaded) {
-        $modulePath = Join-Path -Path $repositoryRoot -ChildPath 'Modules\DeviceRepositoryModule.psm1'
-        if (Test-Path -LiteralPath $modulePath) {
-            Import-Module -Name $modulePath -ErrorAction SilentlyContinue | Out-Null
-        }
-    }
+    $null = Get-DeviceRepositoryModule
 
     $probedSites = [System.Collections.Generic.List[string]]::new()
     foreach ($site in $Sites) {
@@ -1421,13 +1446,7 @@ function Get-SiteCacheState {
         return @()
     }
 
-    $module = Get-Module -Name 'DeviceRepositoryModule'
-    if (-not $module) {
-        $modulePath = Join-Path -Path $repositoryRoot -ChildPath 'Modules\DeviceRepositoryModule.psm1'
-        if (Test-Path -LiteralPath $modulePath) {
-            $module = Import-Module -Name $modulePath -PassThru -ErrorAction SilentlyContinue
-        }
-    }
+    $module = Get-DeviceRepositoryModule
     if (-not $module) {
         Write-Warning 'Unable to inspect site cache state because DeviceRepositoryModule is not loaded.'
         return @()
@@ -1550,19 +1569,12 @@ function Get-SiteCacheState {
 function ConvertTo-SharedCacheEntryArray {
     param([object]$Entries)
 
-    $repoHelper = $null
-    try { $repoHelper = Get-Command -Name 'DeviceRepositoryModule\ConvertTo-SharedCacheEntryArray' -ErrorAction SilentlyContinue } catch { $repoHelper = $null }
-    if (-not $repoHelper) {
-        $repoPath = Join-Path -Path $repositoryRoot -ChildPath 'Modules\DeviceRepositoryModule.psm1'
-        if (Test-Path -LiteralPath $repoPath) {
-            try {
-                Import-Module -Name $repoPath -ErrorAction SilentlyContinue | Out-Null
-                $repoHelper = Get-Command -Name 'DeviceRepositoryModule\ConvertTo-SharedCacheEntryArray' -ErrorAction SilentlyContinue
-            } catch { $repoHelper = $null }
-        }
-    }
-    if ($repoHelper) {
-        try { return @(& $repoHelper -Entries $Entries) } catch { }
+    $module = Get-DeviceRepositoryModule
+    if ($module) {
+        try {
+            return @(DeviceRepositoryModule\ConvertTo-SharedCacheEntryArray -Entries $Entries)
+        } catch [System.Management.Automation.CommandNotFoundException] {
+        } catch { }
     }
 
     # Minimal fallback to keep shape stable when module helper is unavailable.
@@ -1576,13 +1588,7 @@ function Write-SharedCacheSnapshot {
         [Parameter(Mandatory)][string]$Label
     )
 
-    $module = Get-Module -Name 'DeviceRepositoryModule'
-    if (-not $module) {
-        $modulePath = Join-Path -Path $repositoryRoot -ChildPath 'Modules\DeviceRepositoryModule.psm1'
-        if (Test-Path -LiteralPath $modulePath) {
-            $module = Import-Module -Name $modulePath -PassThru -ErrorAction SilentlyContinue
-        }
-    }
+    $module = Get-DeviceRepositoryModule
     if (-not $module) {
         Write-Warning ("Shared cache snapshot '{0}' skipped: DeviceRepositoryModule not loaded." -f $Label)
         return
@@ -1621,13 +1627,7 @@ function Get-SharedCacheSummary {
         [switch]$SuppressWarnings
     )
 
-    $module = Get-Module -Name 'DeviceRepositoryModule'
-    if (-not $module) {
-        $modulePath = Join-Path -Path $repositoryRoot -ChildPath 'Modules\DeviceRepositoryModule.psm1'
-        if (Test-Path -LiteralPath $modulePath) {
-            $module = Import-Module -Name $modulePath -PassThru -ErrorAction SilentlyContinue
-        }
-    }
+    $module = Get-DeviceRepositoryModule
     if (-not $module) {
         if (-not $SuppressWarnings.IsPresent) {
             Write-Warning ("Shared cache summary '{0}' skipped: DeviceRepositoryModule not loaded." -f $Label)
@@ -1686,13 +1686,7 @@ function Get-SharedCacheEntriesSnapshot {
     $verboseFlag = $false
     try { $verboseFlag = [bool]$VerboseParsing.IsPresent } catch { $verboseFlag = $false }
 
-    $module = Get-Module -Name 'DeviceRepositoryModule'
-    if (-not $module) {
-        $modulePath = Join-Path -Path $repositoryRoot -ChildPath 'Modules\DeviceRepositoryModule.psm1'
-        if (Test-Path -LiteralPath $modulePath) {
-            $module = Import-Module -Name $modulePath -PassThru -ErrorAction SilentlyContinue
-        }
-    }
+    $module = Get-DeviceRepositoryModule
     if (-not $module) {
         Write-Warning 'Unable to capture shared cache entries because DeviceRepositoryModule is not loaded.'
         return @()
@@ -1727,10 +1721,7 @@ function Get-SharedCacheEntriesSnapshot {
 
                 $snapshotEntries = @()
                 $cacheSnapshotCmd = $null
-                try { $cacheSnapshotCmd = Get-Command -Name 'DeviceRepository.Cache\Get-SharedSiteInterfaceCacheSnapshotEntries' -ErrorAction SilentlyContinue } catch { }
-                if (-not $cacheSnapshotCmd) {
-                    try { $cacheSnapshotCmd = Get-Command -Name 'Get-SharedSiteInterfaceCacheSnapshotEntries' -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue } catch { }
-                }
+                try { $cacheSnapshotCmd = script:Get-DeviceRepositoryCacheCommand -Name 'Get-SharedSiteInterfaceCacheSnapshotEntries' } catch { $cacheSnapshotCmd = $null }
                 if ($cacheSnapshotCmd) {
                     try { $snapshotEntries = @(& $cacheSnapshotCmd) } catch { $snapshotEntries = @() }
                 }
@@ -1927,10 +1918,7 @@ function Write-SharedCacheSnapshotFile {
         } catch { }
     }
     if ($cacheModule) {
-        $cacheExport = Get-Command -Name 'DeviceRepository.Cache\Export-SharedCacheSnapshot' -ErrorAction SilentlyContinue
-        if (-not $cacheExport) {
-            $cacheExport = Get-Command -Name 'Export-SharedCacheSnapshot' -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue
-        }
+        $cacheExport = Get-DeviceRepositoryCacheCommand -Name 'Export-SharedCacheSnapshot'
         if ($cacheExport) {
             try {
                 $args = @{ OutputPath = $Path }
@@ -1941,10 +1929,7 @@ function Write-SharedCacheSnapshotFile {
                 Write-Verbose ("Shared cache snapshot export via DeviceRepository.Cache failed: {0}" -f $_.Exception.Message)
             }
         }
-        $fallbackWriter = Get-Command -Name 'DeviceRepository.Cache\Write-SharedCacheSnapshotFileFallback' -ErrorAction SilentlyContinue
-        if (-not $fallbackWriter) {
-            $fallbackWriter = Get-Command -Name 'Write-SharedCacheSnapshotFileFallback' -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue
-        }
+        $fallbackWriter = Get-DeviceRepositoryCacheCommand -Name 'Write-SharedCacheSnapshotFileFallback'
         if ($fallbackWriter) {
             try {
                 & $fallbackWriter -Path $Path -Entries $entryArray
@@ -2065,13 +2050,7 @@ function Restore-SharedCacheEntries {
         }
     }
 
-    $module = Get-Module -Name 'DeviceRepositoryModule'
-    if (-not $module) {
-        $modulePath = Join-Path -Path $repositoryRoot -ChildPath 'Modules\DeviceRepositoryModule.psm1'
-        if (Test-Path -LiteralPath $modulePath) {
-            $module = Import-Module -Name $modulePath -PassThru -ErrorAction SilentlyContinue
-        }
-    }
+    $module = Get-DeviceRepositoryModule
     if (-not $module) {
         Write-Warning 'Unable to restore shared cache entries because DeviceRepositoryModule is not loaded.'
         return 0

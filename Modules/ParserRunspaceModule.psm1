@@ -287,22 +287,20 @@ function Get-ParserAutoScaleProfile {
         [int]$MinRunspaces = 0
     )
 
-    try {
-        $cmd = Get-Command -Name 'ParserWorker\Get-AutoScaleConcurrencyProfile' -ErrorAction SilentlyContinue
-        if (-not $cmd) { $cmd = Get-Command -Name 'Get-AutoScaleConcurrencyProfile' -Module 'ParserWorker' -ErrorAction SilentlyContinue }
-        if (-not $cmd) { $cmd = Get-Command -Name 'Get-AutoScaleConcurrencyProfile' -ErrorAction SilentlyContinue }
-        if (-not $cmd) { return $null }
+    $args = @{
+        DeviceFiles       = $DeviceFiles
+        CpuCount          = $CpuCount
+        ThreadCeiling     = $ThreadCeiling
+        MaxWorkersPerSite = $MaxWorkersPerSite
+        MaxActiveSites    = $MaxActiveSites
+        JobsPerThread     = $JobsPerThread
+        MinRunspaces      = $MinRunspaces
+    }
 
-        $args = @{
-            DeviceFiles       = $DeviceFiles
-            CpuCount          = $CpuCount
-            ThreadCeiling     = $ThreadCeiling
-            MaxWorkersPerSite = $MaxWorkersPerSite
-            MaxActiveSites    = $MaxActiveSites
-            JobsPerThread     = $JobsPerThread
-            MinRunspaces      = $MinRunspaces
-        }
-        return & $cmd @args
+    try {
+        try { return ParserWorker\Get-AutoScaleConcurrencyProfile @args } catch [System.Management.Automation.CommandNotFoundException] { }
+        try { return Get-AutoScaleConcurrencyProfile @args } catch [System.Management.Automation.CommandNotFoundException] { }
+        return $null
     } catch {
         return $null
     }
@@ -591,13 +589,13 @@ function Invoke-DeviceParseWorker {
             $hostToken = [System.IO.Path]::GetFileNameWithoutExtension($FilePath)
             if (-not [string]::IsNullOrWhiteSpace($hostToken)) {
                 $resolvedSiteKey = $hostToken
-                $siteCmd = Get-Command -Name 'DeviceRepositoryModule\Get-SiteFromHostname' -ErrorAction SilentlyContinue
-                if ($siteCmd) {
-                    $candidateSite = & $siteCmd -Hostname $hostToken
+                try {
+                    $candidateSite = DeviceRepositoryModule\Get-SiteFromHostname -Hostname $hostToken
                     if (-not [string]::IsNullOrWhiteSpace($candidateSite)) {
                         $resolvedSiteKey = ('' + $candidateSite).Trim()
                     }
-                }
+                } catch [System.Management.Automation.CommandNotFoundException] {
+                } catch { }
             }
         } catch {
             $resolvedSiteKey = ''
@@ -765,9 +763,9 @@ function Invoke-DeviceParsingJobs {
     function Get-SiteKeyFromHostname([string]$Hostname) {
         if ([string]::IsNullOrWhiteSpace($Hostname)) { return 'Unknown' }
         try {
-            $cmd = Get-Command -Name 'DeviceRepositoryModule\Get-SiteFromHostname' -ErrorAction Stop
-            $site = & $cmd -Hostname $Hostname
+            $site = DeviceRepositoryModule\Get-SiteFromHostname -Hostname $Hostname
             if (-not [string]::IsNullOrWhiteSpace($site)) { return $site }
+        } catch [System.Management.Automation.CommandNotFoundException] {
         } catch { }
         return $Hostname
     }

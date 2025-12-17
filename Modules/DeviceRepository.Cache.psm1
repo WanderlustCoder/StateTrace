@@ -265,24 +265,15 @@ function Write-SharedCacheSnapshotFileFallback {
             New-Item -ItemType Directory -Path $directory -Force | Out-Null
         }
         $exportEntries = if ($sanitizedEntries.Count -gt 0) { $sanitizedEntries.ToArray() } else { @() }
-        # Use the cache module's Clixml export when available to keep depth/shape aligned.
-        $cacheExport = Get-Command -Name 'DeviceRepository.Cache\Export-SharedCacheSnapshot' -ErrorAction SilentlyContinue
-        if (-not $cacheExport) {
-            $cacheExport = Get-Command -Name 'Export-SharedCacheSnapshot' -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue
-        }
-        if ($cacheExport) {
-            try {
-                $sites = @()
-                foreach ($entry in $exportEntries) {
-                    if ($entry.Site) { $sites += ('' + $entry.Site).Trim() }
-                }
-                $args = @{ OutputPath = $targetPath }
-                if ($sites.Count -gt 0) { $args['SiteFilter'] = $sites }
-                & $cacheExport @args | Out-Null
-            } catch {
-                Export-Clixml -InputObject $exportEntries -Path $targetPath -Depth 20
+        try {
+            $sites = @()
+            foreach ($entry in $exportEntries) {
+                if ($entry.Site) { $sites += ('' + $entry.Site).Trim() }
             }
-        } else {
+            $args = @{ OutputPath = $targetPath }
+            if ($sites.Count -gt 0) { $args['SiteFilter'] = $sites }
+            Export-SharedCacheSnapshot @args | Out-Null
+        } catch {
             Export-Clixml -InputObject $exportEntries -Path $targetPath -Depth 20
         }
     } catch {

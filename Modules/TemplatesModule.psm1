@@ -216,16 +216,30 @@ function script:Get-ConfigurationTemplateDbPath {
     return Join-Path $script:ConfigurationTemplateDataDir ("{0}.accdb" -f $site)
 }
 
-function script:Ensure-DatabaseModule {
+function script:Ensure-LocalStateTraceModule {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$ModuleName,
+        [Parameter(Mandatory)][string]$ModuleFileName
+    )
+
+    if ([string]::IsNullOrWhiteSpace($ModuleName) -or [string]::IsNullOrWhiteSpace($ModuleFileName)) {
+        return
+    }
+
     try {
-        if (-not (Get-Module -Name DatabaseModule)) {
-            $dbModulePath = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
-            if (Test-Path -LiteralPath $dbModulePath) {
-                Import-Module $dbModulePath -Force -Global -ErrorAction SilentlyContinue | Out-Null
-            }
+        if (Get-Module -Name $ModuleName -ErrorAction SilentlyContinue) { return }
+
+        $modulePath = Join-Path $PSScriptRoot $ModuleFileName
+        if (Test-Path -LiteralPath $modulePath) {
+            Import-Module $modulePath -Force -Global -ErrorAction SilentlyContinue | Out-Null
         }
     } catch {
     }
+}
+
+function script:Ensure-DatabaseModule {
+    script:Ensure-LocalStateTraceModule -ModuleName 'DatabaseModule' -ModuleFileName 'DatabaseModule.psm1'
 }
 
 function script:Get-DeviceVendorFromSummary {

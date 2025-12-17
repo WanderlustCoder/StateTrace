@@ -8,6 +8,33 @@ if (-not (Get-Variable -Scope Global -Name InterfacesLoadAllowed -ErrorAction Si
     $global:InterfacesLoadAllowed = $false
 }
 
+$script:InterfaceStringPropertyValueCmd = $null
+$script:InterfaceSetPortRowDefaultsCmd = $null
+
+function script:Get-InterfaceStringPropertyValueCommand {
+    [CmdletBinding()]
+    param()
+
+    $cmd = $script:InterfaceStringPropertyValueCmd
+    if ($cmd) { return $cmd }
+
+    try { $cmd = Get-Command -Name 'InterfaceCommon\Get-StringPropertyValue' -ErrorAction SilentlyContinue } catch { $cmd = $null }
+    if ($cmd) { $script:InterfaceStringPropertyValueCmd = $cmd }
+    return $cmd
+}
+
+function script:Get-InterfaceSetPortRowDefaultsCommand {
+    [CmdletBinding()]
+    param()
+
+    $cmd = $script:InterfaceSetPortRowDefaultsCmd
+    if ($cmd) { return $cmd }
+
+    try { $cmd = Get-Command -Name 'InterfaceCommon\Set-PortRowDefaults' -ErrorAction SilentlyContinue } catch { $cmd = $null }
+    if ($cmd) { $script:InterfaceSetPortRowDefaultsCmd = $cmd }
+    return $cmd
+}
+
 function script:Get-DeviceInsightsFilterContext {
     [CmdletBinding()]
     param()
@@ -194,14 +221,17 @@ function Update-Summary {
     } catch {}
     if (-not $interfaces) { $interfaces = @() }
 
+    $stringPropertyCmd = script:Get-InterfaceStringPropertyValueCommand
+    $setDefaultsCmd = script:Get-InterfaceSetPortRowDefaultsCommand
+
     foreach ($row in $interfaces) {
         if (-not $row) { continue }
         try {
             $hostnameValue = ''
             if (-not $row.PSObject.Properties['Hostname']) {
                 try {
-                    if (Get-Command -Name 'InterfaceCommon\Get-StringPropertyValue' -ErrorAction SilentlyContinue) {
-                        $hostnameValue = InterfaceCommon\Get-StringPropertyValue -InputObject $row -PropertyNames @('Hostname','HostName')
+                    if ($stringPropertyCmd) {
+                        $hostnameValue = & $stringPropertyCmd -InputObject $row -PropertyNames @('Hostname','HostName')
                     }
                 } catch { $hostnameValue = '' }
                 if (-not $hostnameValue) {
@@ -211,8 +241,8 @@ function Update-Summary {
                 }
             }
 
-            if (Get-Command -Name 'InterfaceCommon\Set-PortRowDefaults' -ErrorAction SilentlyContinue) {
-                try { InterfaceCommon\Set-PortRowDefaults -Row $row -Hostname $hostnameValue | Out-Null } catch { }
+            if ($setDefaultsCmd) {
+                try { & $setDefaultsCmd -Row $row -Hostname $hostnameValue | Out-Null } catch { }
             } else {
                 if (-not $row.PSObject.Properties['Hostname']) {
                     $row | Add-Member -NotePropertyName Hostname -NotePropertyValue $hostnameValue -ErrorAction SilentlyContinue

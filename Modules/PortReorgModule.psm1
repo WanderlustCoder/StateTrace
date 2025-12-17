@@ -1,42 +1,36 @@
 Set-StrictMode -Version Latest
 
-function script:Ensure-DeviceRepositoryModule {
+function script:Ensure-LocalStateTraceModule {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$ModuleName,
+        [Parameter(Mandatory)][string]$ModuleFileName
+    )
+
     try {
-        if (-not (Get-Module -Name DeviceRepositoryModule)) {
-            $path = Join-Path -Path $PSScriptRoot -ChildPath 'DeviceRepositoryModule.psm1'
-            if (Test-Path -LiteralPath $path) {
-                Import-Module -Name $path -Force -Global -ErrorAction Stop | Out-Null
-            }
+        if (Get-Module -Name $ModuleName -ErrorAction SilentlyContinue) {
+            return
+        }
+
+        $path = Join-Path -Path $PSScriptRoot -ChildPath $ModuleFileName
+        if (Test-Path -LiteralPath $path) {
+            Import-Module -Name $path -Force -Global -ErrorAction Stop | Out-Null
         }
     } catch {
         throw
     }
+}
+
+function script:Ensure-DeviceRepositoryModule {
+    script:Ensure-LocalStateTraceModule -ModuleName 'DeviceRepositoryModule' -ModuleFileName 'DeviceRepositoryModule.psm1'
 }
 
 function script:Ensure-DatabaseModule {
-    try {
-        if (-not (Get-Module -Name DatabaseModule)) {
-            $path = Join-Path -Path $PSScriptRoot -ChildPath 'DatabaseModule.psm1'
-            if (Test-Path -LiteralPath $path) {
-                Import-Module -Name $path -Force -Global -ErrorAction Stop | Out-Null
-            }
-        }
-    } catch {
-        throw
-    }
+    script:Ensure-LocalStateTraceModule -ModuleName 'DatabaseModule' -ModuleFileName 'DatabaseModule.psm1'
 }
 
 function script:Ensure-TemplatesModule {
-    try {
-        if (-not (Get-Module -Name TemplatesModule)) {
-            $path = Join-Path -Path $PSScriptRoot -ChildPath 'TemplatesModule.psm1'
-            if (Test-Path -LiteralPath $path) {
-                Import-Module -Name $path -Force -Global -ErrorAction Stop | Out-Null
-            }
-        }
-    } catch {
-        throw
-    }
+    script:Ensure-LocalStateTraceModule -ModuleName 'TemplatesModule' -ModuleFileName 'TemplatesModule.psm1'
 }
 
 function script:Get-PortReorgVendorFromDb {

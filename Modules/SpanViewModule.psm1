@@ -8,7 +8,6 @@ $script:SpanDiagnosticsButton  = $null
 $script:SpanSamplePreview      = $null
 $script:SpanDispatcher         = $null
 $script:SpanHandlersRegistered = $false
-$script:SpanRepoModulePath     = $null
 $script:SpanLastHostname       = $null
 $script:SpanLastRefresh        = $null
 $script:SpanLastRows           = @()
@@ -108,25 +107,20 @@ function Import-SpanRepositoryModule {
         return
     }
 
-    if (-not $script:SpanRepoModulePath) {
-        try {
-            $script:SpanRepoModulePath = Join-Path -Path $PSScriptRoot -ChildPath 'DeviceRepositoryModule.psm1'
-            if (-not (Test-Path -LiteralPath $script:SpanRepoModulePath)) {
-                $script:SpanRepoModulePath = Join-Path -Path (Split-Path -Parent $PSScriptRoot) -ChildPath 'Modules\DeviceRepositoryModule.psm1'
-            }
-        } catch {
-            $script:SpanRepoModulePath = $null
-        }
-    }
+    $candidatePaths = [System.Collections.Generic.List[string]]::new()
+    try { [void]$candidatePaths.Add((Join-Path -Path $PSScriptRoot -ChildPath 'DeviceRepositoryModule.psm1')) } catch { }
+    try { [void]$candidatePaths.Add((Join-Path -Path (Split-Path -Parent $PSScriptRoot) -ChildPath 'Modules\DeviceRepositoryModule.psm1')) } catch { }
 
-    if ($script:SpanRepoModulePath -and (Test-Path -LiteralPath $script:SpanRepoModulePath)) {
+    foreach ($candidate in $candidatePaths) {
+        if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
+        if (-not (Test-Path -LiteralPath $candidate)) { continue }
         try {
-            Import-Module -Name $script:SpanRepoModulePath -ErrorAction Stop
+            Import-Module -Name $candidate -Force -Global -ErrorAction Stop | Out-Null
             return
         } catch { }
     }
 
-    try { Import-Module -Name DeviceRepositoryModule -ErrorAction Stop } catch { }
+    try { Import-Module -Name DeviceRepositoryModule -Force -Global -ErrorAction SilentlyContinue | Out-Null } catch { }
 }
 
 function Reset-SpanViewState {
@@ -192,27 +186,24 @@ function New-SpanView {
 
         if ($script:SpanRefreshButton) {
             $script:SpanRefreshButton.Add_Click({
-                if (Get-Command Invoke-StateTraceParsing -ErrorAction SilentlyContinue) {
+                try {
                     Invoke-StateTraceParsing
-                } else {
+                } catch [System.Management.Automation.CommandNotFoundException] {
                     Write-Error "Invoke-StateTraceParsing not found (module load failed)"
                 }
 
                 $catalog = $null
-                if (Get-Command Get-DeviceSummaries -ErrorAction SilentlyContinue) {
-                    try { $catalog = Get-DeviceSummaries } catch { $catalog = $null }
-                }
-                if (Get-Command Initialize-DeviceFilters -ErrorAction SilentlyContinue) {
-                    try {
-                        $hostList = if ($catalog -and $catalog.PSObject.Properties['Hostnames']) { $catalog.Hostnames } else { $null }
-                        if ($hostList) {
-                            Initialize-DeviceFilters -Hostnames $hostList -Window $Window
-                        } else {
-                            Initialize-DeviceFilters -Window $Window
-                        }
-                    } catch {}
-                }
-                if (Get-Command Update-DeviceFilter -ErrorAction SilentlyContinue) { Update-DeviceFilter }
+                try { $catalog = Get-DeviceSummaries } catch [System.Management.Automation.CommandNotFoundException] { $catalog = $null } catch { $catalog = $null }
+                try {
+                    $hostList = if ($catalog -and $catalog.PSObject.Properties['Hostnames']) { $catalog.Hostnames } else { $null }
+                    if ($hostList) {
+                        Initialize-DeviceFilters -Hostnames $hostList -Window $Window
+                    } else {
+                        Initialize-DeviceFilters -Window $Window
+                    }
+                } catch [System.Management.Automation.CommandNotFoundException] {
+                } catch {}
+                try { Update-DeviceFilter } catch [System.Management.Automation.CommandNotFoundException] { }
                 $currentHost = $Window.FindName('HostnameDropdown').SelectedItem
                 if ($currentHost) { Get-SpanInfo $currentHost }
             }.GetNewClosure())
@@ -410,18 +401,16 @@ function Get-SpanViewSnapshot {
         Write-SpanDiag ("Get-SpanViewSnapshot used cached rows ({0})." -f $snapshot.RowCount)
     }
 
-    $telemetryCmd = Get-Command -Name 'TelemetryModule\Write-StTelemetryEvent' -ErrorAction SilentlyContinue
-    if ($telemetryCmd) {
-        try {
-            TelemetryModule\Write-StTelemetryEvent -Name 'UserAction' -Payload @{
-                Action    = 'SpanSnapshot'
-                Hostname  = $snapshot.Hostname
-                Site      = $snapshot.Site
-                RowsBound = $snapshot.RowCount
-                Timestamp = (Get-Date).ToString('o')
-            }
-        } catch { }
-    }
+    try {
+        TelemetryModule\Write-StTelemetryEvent -Name 'UserAction' -Payload @{
+            Action    = 'SpanSnapshot'
+            Hostname  = $snapshot.Hostname
+            Site      = $snapshot.Site
+            RowsBound = $snapshot.RowCount
+            Timestamp = (Get-Date).ToString('o')
+        }
+    } catch [System.Management.Automation.CommandNotFoundException] {
+    } catch { }
 
     return [pscustomobject]$snapshot
 }

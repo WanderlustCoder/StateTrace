@@ -14,6 +14,7 @@ try { TelemetryModule\Import-InterfaceCommon | Out-Null } catch { }
 
 $script:lastTemplateVendor = 'default'
 $script:TemplateThemeHandlerRegistered = $false
+$script:InterfaceStringPropertyValueCmd = $null
 
 if (-not (Get-Variable -Scope Script -Name PortNormalizationAvailable -ErrorAction SilentlyContinue)) {
     $script:PortNormalizationAvailable = $false
@@ -141,14 +142,22 @@ function Resolve-InterfaceDatabasePath {
     }
 }
 
-function Ensure-DeviceRepositoryModule {
+function Ensure-LocalStateTraceModule {
     [CmdletBinding()]
-    param()
+    param(
+        [Parameter(Mandatory)][string]$ModuleName,
+        [Parameter(Mandatory)][string]$ModuleFileName
+    )
+
+    if ([string]::IsNullOrWhiteSpace($ModuleName) -or [string]::IsNullOrWhiteSpace($ModuleFileName)) {
+        return
+    }
+
     try {
-        if (-not (Get-Module -Name DeviceRepositoryModule)) {
-            $repoModulePath = Join-Path $PSScriptRoot 'DeviceRepositoryModule.psm1'
-            if (Test-Path -LiteralPath $repoModulePath) {
-                Import-Module $repoModulePath -Force -Global -ErrorAction SilentlyContinue | Out-Null
+        if (-not (Get-Module -Name $ModuleName -ErrorAction SilentlyContinue)) {
+            $modulePath = Join-Path $PSScriptRoot $ModuleFileName
+            if (Test-Path -LiteralPath $modulePath) {
+                Import-Module $modulePath -Force -Global -ErrorAction SilentlyContinue | Out-Null
             }
         }
     } catch {
@@ -156,19 +165,16 @@ function Ensure-DeviceRepositoryModule {
     }
 }
 
+function Ensure-DeviceRepositoryModule {
+    [CmdletBinding()]
+    param()
+    Ensure-LocalStateTraceModule -ModuleName 'DeviceRepositoryModule' -ModuleFileName 'DeviceRepositoryModule.psm1'
+}
+
 function Ensure-DatabaseModule {
     [CmdletBinding()]
     param()
-    try {
-        if (-not (Get-Module -Name DatabaseModule)) {
-            $dbModulePath = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
-            if (Test-Path -LiteralPath $dbModulePath) {
-                Import-Module $dbModulePath -Force -Global -ErrorAction SilentlyContinue | Out-Null
-            }
-        }
-    } catch {
-        # Swallow import errors; callers handle missing cmdlets gracefully.
-    }
+    Ensure-LocalStateTraceModule -ModuleName 'DatabaseModule' -ModuleFileName 'DatabaseModule.psm1'
 }
 
 function Get-PropertyStringValue {
@@ -177,11 +183,19 @@ function Get-PropertyStringValue {
         [Parameter(Mandatory)][string[]]$PropertyNames
     )
 
-    try {
-        if (Get-Command -Name 'InterfaceCommon\Get-StringPropertyValue' -ErrorAction SilentlyContinue) {
-            return InterfaceCommon\Get-StringPropertyValue @PSBoundParameters
+    $stringPropertyCmd = $script:InterfaceStringPropertyValueCmd
+    if (-not $stringPropertyCmd) {
+        try { $stringPropertyCmd = Get-Command -Name 'InterfaceCommon\Get-StringPropertyValue' -ErrorAction SilentlyContinue } catch { $stringPropertyCmd = $null }
+        if (-not $stringPropertyCmd) {
+            try { TelemetryModule\Import-InterfaceCommon | Out-Null } catch { }
+            try { $stringPropertyCmd = Get-Command -Name 'InterfaceCommon\Get-StringPropertyValue' -ErrorAction SilentlyContinue } catch { $stringPropertyCmd = $null }
         }
-    } catch { }
+        if ($stringPropertyCmd) { $script:InterfaceStringPropertyValueCmd = $stringPropertyCmd }
+    }
+
+    if ($stringPropertyCmd) {
+        try { return (& $stringPropertyCmd @PSBoundParameters) } catch { }
+    }
 
     foreach ($name in $PropertyNames) {
         try {
@@ -827,14 +841,15 @@ function New-InterfacesView {
                     return
                 }
 
-                if (-not (Get-Command -Name 'PortReorgViewModule\Show-PortReorgWindow' -ErrorAction SilentlyContinue)) {
-                    $modPath = Join-Path -Path $PSScriptRoot -ChildPath 'PortReorgViewModule.psm1'
+                $modPath = Join-Path -Path $PSScriptRoot -ChildPath 'PortReorgViewModule.psm1'
+                try {
+                    PortReorgViewModule\Show-PortReorgWindow -OwnerWindow $Window -Hostname $hostname
+                } catch [System.Management.Automation.CommandNotFoundException] {
                     if (Test-Path -LiteralPath $modPath) {
                         Import-Module -Name $modPath -Force -Global -ErrorAction Stop | Out-Null
                     }
+                    PortReorgViewModule\Show-PortReorgWindow -OwnerWindow $Window -Hostname $hostname
                 }
-
-                PortReorgViewModule\Show-PortReorgWindow -OwnerWindow $Window -Hostname $hostname
             } catch {
                 [System.Windows.MessageBox]::Show(("Port reorg failed:`n{0}" -f $_.Exception.Message)) | Out-Null
             }
@@ -1117,22 +1132,20 @@ function Set-InterfaceViewData {
         }
     } catch {}
 
-    $telemetryCmd = Get-Command -Name 'TelemetryModule\Write-StTelemetryEvent' -ErrorAction SilentlyContinue
-    if ($telemetryCmd) {
-        try {
-            $siteCode = $null
-            if (-not [string]::IsNullOrWhiteSpace($hostnameValue)) {
-                $parts = $hostnameValue -split '-', 2
-                if ($parts.Count -gt 0) { $siteCode = $parts[0] }
-            }
-            TelemetryModule\Write-StTelemetryEvent -Name 'UserAction' -Payload @{
-                Action    = 'InterfacesView'
-                Hostname  = $hostnameValue
-                Site      = $siteCode
-                Timestamp = (Get-Date).ToString('o')
-            }
-        } catch { }
-    }
+    try {
+        $siteCode = $null
+        if (-not [string]::IsNullOrWhiteSpace($hostnameValue)) {
+            $parts = $hostnameValue -split '-', 2
+            if ($parts.Count -gt 0) { $siteCode = $parts[0] }
+        }
+        TelemetryModule\Write-StTelemetryEvent -Name 'UserAction' -Payload @{
+            Action    = 'InterfacesView'
+            Hostname  = $hostnameValue
+            Site      = $siteCode
+            Timestamp = (Get-Date).ToString('o')
+        }
+    } catch [System.Management.Automation.CommandNotFoundException] {
+    } catch { }
 }
 
 function Set-PortLoadingIndicator {

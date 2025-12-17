@@ -23,6 +23,7 @@ $script:LastCompareHostList = $null
 
 $script:lastCompareColors       = @{}
 $script:CompareThemeHandlerRegistered = $false
+$script:InterfaceStringPropertyValueCmd = $null
 try {
     TelemetryModule\Initialize-StateTraceDebug -EnableVerbosePreference
 } catch { }
@@ -45,11 +46,18 @@ function Invoke-InterfaceStringPropertyValue {
         return ''
     }
 
-    if (-not (Get-Command -Name 'InterfaceCommon\Get-StringPropertyValue' -ErrorAction SilentlyContinue)) {
-        try { TelemetryModule\Import-InterfaceCommon | Out-Null } catch { }
+    $stringPropertyCmd = $script:InterfaceStringPropertyValueCmd
+    if (-not $stringPropertyCmd) {
+        try { $stringPropertyCmd = Get-Command -Name 'InterfaceCommon\Get-StringPropertyValue' -ErrorAction SilentlyContinue } catch { $stringPropertyCmd = $null }
+        if (-not $stringPropertyCmd) {
+            try { TelemetryModule\Import-InterfaceCommon | Out-Null } catch { }
+            try { $stringPropertyCmd = Get-Command -Name 'InterfaceCommon\Get-StringPropertyValue' -ErrorAction SilentlyContinue } catch { $stringPropertyCmd = $null }
+        }
+        if ($stringPropertyCmd) { $script:InterfaceStringPropertyValueCmd = $stringPropertyCmd }
     }
 
-    try { return InterfaceCommon\Get-StringPropertyValue @PSBoundParameters } catch { return '' }
+    if (-not $stringPropertyCmd) { return '' }
+    try { return (& $stringPropertyCmd @PSBoundParameters) } catch { return '' }
 }
 
 function Resolve-CompareControls {
@@ -306,15 +314,11 @@ function Get-HostsFromMain {
 
         $msg = "CompareHostFilter | site='{0}', zone='{1}', building='{2}', room='{3}', count={4}, sample=[{5}]" -f $siteDbg, $zoneDbg, $bldDbg, $roomDbg, $hCount, $hSample
 
-        if (Get-Command -Name Write-Diag -ErrorAction SilentlyContinue) {
-
+        try {
             Write-Diag $msg
-
-        } else {
-
+        } catch [System.Management.Automation.CommandNotFoundException] {
             Write-Verbose $msg
-
-        }
+        } catch { }
 
     } catch { }
 
@@ -374,15 +378,14 @@ function Get-PortsForHost {
 
     if ($portsList.Count -eq 0) {
         try {
-            if (Get-Command -Name 'Get-InterfaceList' -ErrorAction SilentlyContinue) {
-                $list = @(InterfaceModule\Get-InterfaceList -Hostname $Hostname)
-                if ($list -and $list.Count -gt 0) {
-                    foreach ($it in $list) {
-                        [void]$portsList.Add(('' + $it))
-                    }
-                    Write-Verbose "[CompareView] Get-InterfaceList returned $($portsList.Count) port(s) for '$Hostname'."
+            $list = @(InterfaceModule\Get-InterfaceList -Hostname $Hostname)
+            if ($list -and $list.Count -gt 0) {
+                foreach ($it in $list) {
+                    [void]$portsList.Add(('' + $it))
                 }
+                Write-Verbose "[CompareView] Get-InterfaceList returned $($portsList.Count) port(s) for '$Hostname'."
             }
+        } catch [System.Management.Automation.CommandNotFoundException] {
         } catch {
             Write-Warning "[CompareView] Error calling Get-InterfaceList for '$Hostname': $($_.Exception.Message)"
         }
@@ -390,22 +393,21 @@ function Get-PortsForHost {
 
     if ($portsList.Count -eq 0) {
         try {
-            if (Get-Command -Name 'Get-InterfaceInfo' -ErrorAction SilentlyContinue) {
-                $info = @(InterfaceModule\Get-InterfaceInfo -Hostname $Hostname)
-                if ($info -and $info.Count -gt 0) {
-                    foreach ($r in $info) {
-                        $val = $null
-                        if     ($r -is [string])                                { $val = '' + $r }
-                        elseif ($r.PSObject.Properties['Port'])                 { $val = '' + $r.Port }
-                        elseif ($r.PSObject.Properties['Interface'])            { $val = '' + $r.Interface }
-                        elseif ($r.PSObject.Properties['IfName'])               { $val = '' + $r.IfName }
-                        elseif ($r.PSObject.Properties['Name'])                 { $val = '' + $r.Name }
-                        else                                                    { $val = '' + $r }
-                        if ($val) { [void]$portsList.Add($val) }
-                    }
-                    Write-Verbose "[CompareView] Get-InterfaceInfo returned $($portsList.Count) port(s) for '$Hostname'."
+            $info = @(InterfaceModule\Get-InterfaceInfo -Hostname $Hostname)
+            if ($info -and $info.Count -gt 0) {
+                foreach ($r in $info) {
+                    $val = $null
+                    if     ($r -is [string])                                { $val = '' + $r }
+                    elseif ($r.PSObject.Properties['Port'])                 { $val = '' + $r.Port }
+                    elseif ($r.PSObject.Properties['Interface'])            { $val = '' + $r.Interface }
+                    elseif ($r.PSObject.Properties['IfName'])               { $val = '' + $r.IfName }
+                    elseif ($r.PSObject.Properties['Name'])                 { $val = '' + $r.Name }
+                    else                                                    { $val = '' + $r }
+                    if ($val) { [void]$portsList.Add($val) }
                 }
+                Write-Verbose "[CompareView] Get-InterfaceInfo returned $($portsList.Count) port(s) for '$Hostname'."
             }
+        } catch [System.Management.Automation.CommandNotFoundException] {
         } catch {
             Write-Warning "[CompareView] Error calling Get-InterfaceInfo for '$Hostname': $($_.Exception.Message)"
         }
@@ -478,33 +480,32 @@ function Get-GridRowFor {
     )
     # Find the data object (row) for the given Hostname and Port by querying the
     try {
-        if (Get-Command -Name 'Get-InterfaceInfo' -ErrorAction SilentlyContinue) {
-            # Retrieve all interface objects for the specified host
-            $ifaceList = InterfaceModule\Get-InterfaceInfo -Hostname $Hostname
-            if ($ifaceList) {
-                # Normalize the requested port by trimming and uppercasing for comparison
-                $tgt = ('' + $Port).Trim().ToUpperInvariant()
-                foreach ($iface in $ifaceList) {
-                    # Determine the interface's port identifier.  Different data sources
-                    # may expose the port name under different property names (Port,
-                    # Interface, IfName, Name).  Fall back to the object's string
-                    # representation when no explicit property is available.  This
-                    # improves robustness when comparing ports from heterogeneous sources.
-                    $pVal = $null
-                    try {
-                        if ($iface.PSObject.Properties['Port'])          { $pVal = '' + $iface.Port }
-                        elseif ($iface.PSObject.Properties['Interface']) { $pVal = '' + $iface.Interface }
-                        elseif ($iface.PSObject.Properties['IfName'])    { $pVal = '' + $iface.IfName }
-                        elseif ($iface.PSObject.Properties['Name'])      { $pVal = '' + $iface.Name }
-                    } catch {}
-                    if (-not $pVal) { $pVal = '' + $iface }
-                    $p = ('' + $pVal).Trim().ToUpperInvariant()
-                    if ($p -eq $tgt) {
-                        return $iface
-                    }
+        # Retrieve all interface objects for the specified host
+        $ifaceList = InterfaceModule\Get-InterfaceInfo -Hostname $Hostname
+        if ($ifaceList) {
+            # Normalize the requested port by trimming and uppercasing for comparison
+            $tgt = ('' + $Port).Trim().ToUpperInvariant()
+            foreach ($iface in $ifaceList) {
+                # Determine the interface's port identifier.  Different data sources
+                # may expose the port name under different property names (Port,
+                # Interface, IfName, Name).  Fall back to the object's string
+                # representation when no explicit property is available.  This
+                # improves robustness when comparing ports from heterogeneous sources.
+                $pVal = $null
+                try {
+                    if ($iface.PSObject.Properties['Port'])          { $pVal = '' + $iface.Port }
+                    elseif ($iface.PSObject.Properties['Interface']) { $pVal = '' + $iface.Interface }
+                    elseif ($iface.PSObject.Properties['IfName'])    { $pVal = '' + $iface.IfName }
+                    elseif ($iface.PSObject.Properties['Name'])      { $pVal = '' + $iface.Name }
+                } catch {}
+                if (-not $pVal) { $pVal = '' + $iface }
+                $p = ('' + $pVal).Trim().ToUpperInvariant()
+                if ($p -eq $tgt) {
+                    return $iface
                 }
             }
         }
+    } catch [System.Management.Automation.CommandNotFoundException] {
     } catch {
         Write-Verbose "[CompareView] Exception in Get-GridRowFor DB lookup: $($_.Exception.Message)"
     }
@@ -703,8 +704,6 @@ function Show-CurrentComparison {
             return
         }
 
-        $telemetryCmd = Get-Command -Name 'TelemetryModule\Write-StTelemetryEvent' -ErrorAction SilentlyContinue
-
         # If both sides have selections, retrieve the corresponding data rows (if possible) and show comparison
         $row1 = Get-GridRowFor -Hostname $s1 -Port $p1
         $row2 = Get-GridRowFor -Hostname $s2 -Port $p2
@@ -721,30 +720,27 @@ function Show-CurrentComparison {
             Write-Verbose "[CompareView] Partial data: one or both rows not found in grid for $s1/$p1 vs $s2/$p2."
         }
 
-        if ($telemetryCmd) {
+        try {
+            $sitePrefix = ''
             try {
-                $sitePrefix = ''
-                try {
-                    if (Get-Command -Name 'DeviceRepositoryModule\Get-SiteFromHostname' -ErrorAction SilentlyContinue) {
-                        $sitePrefix = DeviceRepositoryModule\Get-SiteFromHostname -Hostname $s1
-                    } else {
-                        $parts = ('' + $s1).Split('-', 2, [System.StringSplitOptions]::RemoveEmptyEntries)
-                        if ($parts.Count -gt 0) { $sitePrefix = $parts[0] }
-                    }
-                } catch { }
-                if (-not $sitePrefix) { $sitePrefix = $s1 }
-
-                TelemetryModule\Write-StTelemetryEvent -Name 'UserAction' -Payload @{
-                    Action    = 'CompareView'
-                    Site      = $sitePrefix
-                    Hostname  = $s1
-                    Hostname2 = $s2
-                    Port1     = $p1
-                    Port2     = $p2
-                    Timestamp = (Get-Date).ToString('o')
-                }
+                $sitePrefix = DeviceRepositoryModule\Get-SiteFromHostname -Hostname $s1
+            } catch [System.Management.Automation.CommandNotFoundException] {
+                $parts = ('' + $s1).Split('-', 2, [System.StringSplitOptions]::RemoveEmptyEntries)
+                if ($parts.Count -gt 0) { $sitePrefix = $parts[0] }
             } catch { }
-        }
+            if (-not $sitePrefix) { $sitePrefix = $s1 }
+
+            TelemetryModule\Write-StTelemetryEvent -Name 'UserAction' -Payload @{
+                Action    = 'CompareView'
+                Site      = $sitePrefix
+                Hostname  = $s1
+                Hostname2 = $s2
+                Port1     = $p1
+                Port2     = $p2
+                Timestamp = (Get-Date).ToString('o')
+            }
+        } catch [System.Management.Automation.CommandNotFoundException] {
+        } catch { }
     }
     catch {
         Write-Warning "[CompareView] Failed to compute comparison: $($_.Exception.Message)"

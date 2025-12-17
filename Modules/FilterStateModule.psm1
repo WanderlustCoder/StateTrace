@@ -124,9 +124,8 @@ function Initialize-DeviceFilters {
         $global:DeviceLocationEntries = $LocationEntries
     } elseif ((ViewStateService\Get-SequenceCount -Value $global:DeviceLocationEntries) -eq 0) {
         try {
-            if (Get-Command -Name 'DeviceCatalogModule\Get-DeviceLocationEntries' -ErrorAction SilentlyContinue) {
-                $global:DeviceLocationEntries = DeviceCatalogModule\Get-DeviceLocationEntries
-            }
+            $global:DeviceLocationEntries = DeviceCatalogModule\Get-DeviceLocationEntries
+        } catch [System.Management.Automation.CommandNotFoundException] {
         } catch { }
     }
 
@@ -154,17 +153,16 @@ function Initialize-DeviceFilters {
         }
         if ($siteItems.Count -le 1) {
             try {
-                if (Get-Command -Name 'DeviceRepositoryModule\Get-AllSiteDbPaths' -ErrorAction SilentlyContinue) {
-                    $paths = DeviceRepositoryModule\Get-AllSiteDbPaths
-                    foreach ($p in $paths) {
-                        try {
-                            if (-not $p) { continue }
-                            $leaf = [System.IO.Path]::GetFileNameWithoutExtension($p)
-                            if ([string]::IsNullOrWhiteSpace($leaf)) { continue }
-                            if (-not $siteItems.Contains($leaf)) { [void]$siteItems.Add($leaf) }
-                        } catch {}
-                    }
+                $paths = DeviceRepositoryModule\Get-AllSiteDbPaths
+                foreach ($p in $paths) {
+                    try {
+                        if (-not $p) { continue }
+                        $leaf = [System.IO.Path]::GetFileNameWithoutExtension($p)
+                        if ([string]::IsNullOrWhiteSpace($leaf)) { continue }
+                        if (-not $siteItems.Contains($leaf)) { [void]$siteItems.Add($leaf) }
+                    } catch {}
                 }
+            } catch [System.Management.Automation.CommandNotFoundException] {
             } catch {}
         }
         $siteDD.ItemsSource = $siteItems
@@ -248,7 +246,11 @@ function Update-DeviceFilter {
     $window = $global:window
     if (-not $window) { return }
     if ($script:DeviceFilterUpdating) { return }
-    if (-not (Get-Command -Name 'ViewStateService\Get-FilterSnapshot' -ErrorAction SilentlyContinue)) { return }
+
+    $filterSnapshotCmd = $null
+    try { $filterSnapshotCmd = Get-Command -Name 'ViewStateService\Get-FilterSnapshot' -ErrorAction SilentlyContinue } catch { $filterSnapshotCmd = $null }
+    if (-not $filterSnapshotCmd) { return }
+
     $interfacesAllowed = $global:InterfacesLoadAllowed
 
     $script:DeviceFilterUpdating = $true
@@ -258,10 +260,11 @@ function Update-DeviceFilter {
     try {
         $metadata = $global:DeviceMetadata
         $locationEntries = $global:DeviceLocationEntries
-        if ((ViewStateService\Get-SequenceCount -Value $locationEntries) -eq 0 -and (Get-Command -Name 'DeviceCatalogModule\Get-DeviceLocationEntries' -ErrorAction SilentlyContinue)) {
+        if ((ViewStateService\Get-SequenceCount -Value $locationEntries) -eq 0) {
             try {
                 $locationEntries = DeviceCatalogModule\Get-DeviceLocationEntries
                 $global:DeviceLocationEntries = $locationEntries
+            } catch [System.Management.Automation.CommandNotFoundException] {
             } catch { }
         }
         $hasMetadata = $false
@@ -287,11 +290,7 @@ function Update-DeviceFilter {
         try {
             $diagMsg = "Update-DeviceFilter: siteSel='{0}', zoneSel='{1}', bldSel='{2}', roomSel='{3}', siteChanged={4}, zoneChanged={5}, bldChanged={6}, roomChanged={7}" -f `
                 $siteInput, $zoneInput, $buildingInput, $roomInput, $siteChangedCompared, $zoneChangedCompared, $bldChangedCompared, $roomChangedCompared
-            if (Get-Command -Name Write-Diag -ErrorAction SilentlyContinue) {
-                Write-Diag $diagMsg
-            } else {
-                Write-Verbose $diagMsg
-            }
+            try { Write-Diag $diagMsg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $diagMsg } catch { }
         } catch {}
 
         $siteDD     = $window.FindName('SiteDropdown')
@@ -423,11 +422,7 @@ function Update-DeviceFilter {
             $sampleList = if ($hostCount -gt 0) { (@($hostCandidates) | Select-Object -First ([System.Math]::Min(3, $hostCount))) -join ', ' } else { '' }
             $diagMsgHosts = "HostFilter | site='{0}', zone='{1}', building='{2}', room='{3}', count={4}, examples=[{5}]" -f `
                 $siteSelection, $zoneSelection, $buildingSelection, $roomSelection, $hostCount, $sampleList
-            if (Get-Command -Name Write-Diag -ErrorAction SilentlyContinue) {
-                Write-Diag $diagMsgHosts
-            } else {
-                Write-Verbose $diagMsgHosts
-            }
+            try { Write-Diag $diagMsgHosts } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $diagMsgHosts } catch { }
         } catch {}
 
         $finalSite      = $siteSelection
@@ -460,21 +455,21 @@ function Update-DeviceFilter {
             $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
         }
 
-        if ($interfacesAllowed -and (Get-Command Update-SearchGrid -ErrorAction SilentlyContinue)) {
-            Update-SearchGrid
+        if ($interfacesAllowed) {
+            try { Update-SearchGrid } catch [System.Management.Automation.CommandNotFoundException] { }
         }
         $canUpdateSummary = $false
-        if ($interfacesAllowed -and (Get-Command Update-Summary -ErrorAction SilentlyContinue)) {
+        if ($interfacesAllowed) {
             try {
                 $summaryVar = Get-Variable -Name summaryView -Scope Global -ErrorAction Stop
                 if ($summaryVar.Value) { $canUpdateSummary = $true }
             } catch { $canUpdateSummary = $false }
         }
         if ($canUpdateSummary) {
-            Update-Summary
+            try { Update-Summary } catch [System.Management.Automation.CommandNotFoundException] { }
         }
-        if ($interfacesAllowed -and (Get-Command Update-Alerts -ErrorAction SilentlyContinue)) {
-            Update-Alerts
+        if ($interfacesAllowed) {
+            try { Update-Alerts } catch [System.Management.Automation.CommandNotFoundException] { }
         }
 
         $script:LastSiteSel     = $finalSite

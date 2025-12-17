@@ -94,30 +94,6 @@ $reportsDirectory = Join-Path -Path $repositoryRoot -ChildPath 'Logs\Reports'
 $settingsPath = Join-Path -Path $repositoryRoot -ChildPath 'Data\StateTraceSettings.json'
 $skipSiteCacheGuard = $null
 
-$pathSeparator = [System.IO.Path]::PathSeparator
-$resolvedModulesPath = [System.IO.Path]::GetFullPath($modulesPath)
-$modulePathEntries = @()
-if ($env:PSModulePath) {
-    $modulePathEntries = $env:PSModulePath -split [System.IO.Path]::PathSeparator
-}
-$alreadyPresent = $false
-foreach ($entry in $modulePathEntries) {
-    if (-not [string]::IsNullOrWhiteSpace($entry)) {
-        $normalizedEntry = [System.IO.Path]::GetFullPath($entry)
-        if ([System.StringComparer]::OrdinalIgnoreCase.Equals($normalizedEntry.TrimEnd('\'), $resolvedModulesPath.TrimEnd('\'))) {
-            $alreadyPresent = $true
-            break
-        }
-    }
-}
-if (-not $alreadyPresent) {
-    if ([string]::IsNullOrWhiteSpace($env:PSModulePath)) {
-        $env:PSModulePath = $resolvedModulesPath
-    } else {
-        $env:PSModulePath = $resolvedModulesPath + $pathSeparator + $env:PSModulePath
-    }
-}
-
 function Invoke-WarmRunRegressionInternal {
     $warmRunRegressionScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Invoke-WarmRunRegression.ps1'
     if (-not (Test-Path -LiteralPath $warmRunRegressionScript)) {
@@ -351,6 +327,32 @@ function Restore-SharedCacheEntriesFromFile {
     return Restore-SharedCacheEntries -Entries @($entries)
 }
 
+function Get-DeviceRepositoryCacheCommand {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Name)
+
+    $cmd = $null
+    $qualifiedName = 'DeviceRepository.Cache\{0}' -f $Name
+    try { $cmd = Get-Command -Name $qualifiedName -ErrorAction SilentlyContinue } catch { $cmd = $null }
+    if (-not $cmd) {
+        try { $cmd = Get-Command -Name $Name -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue } catch { $cmd = $null }
+    }
+    return $cmd
+}
+
+function Get-TelemetryModuleCommand {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Name)
+
+    $cmd = $null
+    $qualifiedName = 'TelemetryModule\{0}' -f $Name
+    try { $cmd = Get-Command -Name $qualifiedName -ErrorAction SilentlyContinue } catch { $cmd = $null }
+    if (-not $cmd) {
+        try { $cmd = Get-Command -Name $Name -Module 'TelemetryModule' -ErrorAction SilentlyContinue } catch { $cmd = $null }
+    }
+    return $cmd
+}
+
 function Write-SharedCacheSnapshotFile {
     param(
         [Parameter(Mandatory)][string]$Path,
@@ -400,10 +402,7 @@ function Write-SharedCacheSnapshotFile {
         } catch { }
     }
     if ($cacheModule) {
-        $cacheExport = Get-Command -Name 'DeviceRepository.Cache\Export-SharedCacheSnapshot' -ErrorAction SilentlyContinue
-        if (-not $cacheExport) {
-            $cacheExport = Get-Command -Name 'Export-SharedCacheSnapshot' -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue
-        }
+        $cacheExport = Get-DeviceRepositoryCacheCommand -Name 'Export-SharedCacheSnapshot'
         if ($cacheExport) {
             try {
                 $args = @{ OutputPath = $Path }
@@ -414,10 +413,7 @@ function Write-SharedCacheSnapshotFile {
                 Write-Verbose ("Shared cache snapshot export via DeviceRepository.Cache failed: {0}" -f $_.Exception.Message)
             }
         }
-        $fallbackWriter = Get-Command -Name 'DeviceRepository.Cache\Write-SharedCacheSnapshotFileFallback' -ErrorAction SilentlyContinue
-        if (-not $fallbackWriter) {
-            $fallbackWriter = Get-Command -Name 'Write-SharedCacheSnapshotFileFallback' -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue
-        }
+        $fallbackWriter = Get-DeviceRepositoryCacheCommand -Name 'Write-SharedCacheSnapshotFileFallback'
         if ($fallbackWriter) {
             try {
                 & $fallbackWriter -Path $Path -Entries $entryArray
@@ -708,46 +704,21 @@ if ($SkipParsing) {
 }
 
 # Load modules from manifest so module-qualified calls resolve during ingestion
-$manifestPath = Join-Path -Path $modulesPath -ChildPath 'ModulesManifest.psd1'
-if (-not (Test-Path -LiteralPath $manifestPath)) {
-    throw "Module manifest not found at $manifestPath"
-}
-
 $moduleLoaderPath = Join-Path -Path $modulesPath -ChildPath 'ModuleLoaderModule.psm1'
 if (-not (Test-Path -LiteralPath $moduleLoaderPath)) {
     throw "Module loader not found at $moduleLoaderPath"
 }
 Import-Module -Name $moduleLoaderPath -Force -ErrorAction Stop | Out-Null
-$modulesToImport = ModuleLoaderModule\Get-StateTraceModulesFromManifest -ManifestPath $manifestPath
-
-foreach ($moduleEntry in $modulesToImport) {
-    if ([string]::IsNullOrWhiteSpace($moduleEntry)) { continue }
-    if ([System.StringComparer]::OrdinalIgnoreCase.Equals($moduleEntry.Trim(), 'ParserWorker.psm1')) { continue }
-    $candidatePath = if ([System.IO.Path]::IsPathRooted($moduleEntry)) {
-        $moduleEntry
-    } else {
-        Join-Path -Path $modulesPath -ChildPath $moduleEntry
-    }
-    if (-not (Test-Path -LiteralPath $candidatePath)) {
-        throw "Module entry '$moduleEntry' not found at $candidatePath"
-    }
-    $moduleName = [System.IO.Path]::GetFileNameWithoutExtension($candidatePath)
-    $loadedModule = $null
-    if (-not [string]::IsNullOrWhiteSpace($moduleName)) {
-        $loadedModule = Get-Module -Name $moduleName -ErrorAction SilentlyContinue
-    }
-    if ($PreserveModuleSession -and $loadedModule) {
-        continue
-    }
-    $importArgs = @{
-        Name        = $candidatePath
-        ErrorAction = 'Stop'
-    }
-    if (-not $PreserveModuleSession -or -not $loadedModule) {
-        $importArgs['Force'] = $true
-    }
-    Import-Module @importArgs | Out-Null
+$manifestImportParams = @{
+    RepositoryRoot = $repositoryRoot
+    Exclude        = @('ParserWorker.psm1')
 }
+if ($PreserveModuleSession) {
+    $manifestImportParams['PreserveIfLoaded'] = $true
+} else {
+    $manifestImportParams['Force'] = $true
+}
+ModuleLoaderModule\Import-StateTraceModulesFromManifest @manifestImportParams | Out-Null
 
 if (-not (Test-Path -LiteralPath $parserWorkerModule)) {
     throw "ParserWorker module not found at $parserWorkerModule"
@@ -870,17 +841,14 @@ if ($RunWarmRunRegression) {
 }
 
 $latestIngestionMetricsEntry = $null
-try {
-    $telemetryLogPath = $null
     try {
-        $telemetryPathCmd = Get-Command -Name 'TelemetryModule\Get-TelemetryLogPath' -ErrorAction SilentlyContinue
-        if (-not $telemetryPathCmd) {
-            $telemetryPathCmd = Get-Command -Name 'Get-TelemetryLogPath' -Module 'TelemetryModule' -ErrorAction SilentlyContinue
-        }
-        if ($telemetryPathCmd) {
-            $telemetryLogPath = & $telemetryPathCmd
-        }
-    } catch { }
+        $telemetryLogPath = $null
+        try {
+            $telemetryPathCmd = Get-TelemetryModuleCommand -Name 'Get-TelemetryLogPath'
+            if ($telemetryPathCmd) {
+                $telemetryLogPath = & $telemetryPathCmd
+            }
+        } catch { }
 
     if (-not [string]::IsNullOrWhiteSpace($telemetryLogPath) -and (Test-Path -LiteralPath $telemetryLogPath)) {
         $latestIngestionMetricsEntry = Get-Item -LiteralPath $telemetryLogPath -ErrorAction Stop

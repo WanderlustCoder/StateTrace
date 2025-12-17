@@ -1,5 +1,27 @@
 Set-StrictMode -Version Latest
 
+function script:Import-LocalStateTraceModule {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$ModuleName,
+        [Parameter(Mandatory)][string]$ModuleFileName,
+        [switch]$Optional
+    )
+
+    if (Get-Module -Name $ModuleName -ErrorAction SilentlyContinue) {
+        return $true
+    }
+
+    $modPath = Join-Path -Path $PSScriptRoot -ChildPath $ModuleFileName
+    if (-not (Test-Path -LiteralPath $modPath)) {
+        if ($Optional) { return $false }
+        throw "Module file not found at $modPath"
+    }
+
+    Import-Module -Name $modPath -Force -Global -ErrorAction Stop | Out-Null
+    return $true
+}
+
 function Show-PortReorgWindow {
     [CmdletBinding()]
     param(
@@ -21,36 +43,21 @@ function Show-PortReorgWindow {
     }
 
     try {
-        if (-not (Get-Module -Name PortReorgModule)) {
-            $modPath = Join-Path -Path $PSScriptRoot -ChildPath 'PortReorgModule.psm1'
-            if (Test-Path -LiteralPath $modPath) {
-                Import-Module -Name $modPath -Force -Global -ErrorAction Stop | Out-Null
-            }
-        }
+        script:Import-LocalStateTraceModule -ModuleName 'PortReorgModule' -ModuleFileName 'PortReorgModule.psm1' | Out-Null
     } catch {
         [System.Windows.MessageBox]::Show(("Failed to load PortReorgModule: {0}" -f $_.Exception.Message)) | Out-Null
         return
     }
 
     try {
-        if (-not (Get-Module -Name DeviceRepositoryModule)) {
-            $repoPath = Join-Path -Path $PSScriptRoot -ChildPath 'DeviceRepositoryModule.psm1'
-            if (Test-Path -LiteralPath $repoPath) {
-                Import-Module -Name $repoPath -Force -Global -ErrorAction Stop | Out-Null
-            }
-        }
+        script:Import-LocalStateTraceModule -ModuleName 'DeviceRepositoryModule' -ModuleFileName 'DeviceRepositoryModule.psm1' | Out-Null
     } catch {
         [System.Windows.MessageBox]::Show(("Failed to load DeviceRepositoryModule: {0}" -f $_.Exception.Message)) | Out-Null
         return
     }
 
     try {
-        if (-not (Get-Module -Name PortNormalization)) {
-            $portNormPath = Join-Path -Path $PSScriptRoot -ChildPath 'PortNormalization.psm1'
-            if (Test-Path -LiteralPath $portNormPath) {
-                Import-Module -Name $portNormPath -Force -Global -ErrorAction Stop | Out-Null
-            }
-        }
+        script:Import-LocalStateTraceModule -ModuleName 'PortNormalization' -ModuleFileName 'PortNormalization.psm1' -Optional | Out-Null
     } catch {
         # Optional: used only to compute stable port ordering keys when PortSort is missing.
     }
@@ -152,9 +159,9 @@ function Show-PortReorgWindow {
         } catch { $portSort = '' }
         if ([string]::IsNullOrWhiteSpace($portSort)) {
             try {
-                if (Get-Command -Name 'PortNormalization\Get-PortSortKey' -ErrorAction SilentlyContinue) {
-                    $portSort = PortNormalization\Get-PortSortKey -Port $port
-                }
+                $portSort = PortNormalization\Get-PortSortKey -Port $port
+            } catch [System.Management.Automation.CommandNotFoundException] {
+                $portSort = ''
             } catch { $portSort = '' }
         }
         if ([string]::IsNullOrWhiteSpace($portSort)) { $portSort = $port }
@@ -1328,23 +1335,15 @@ function Show-PortReorgWindow {
         }.GetNewClosure())
     }
 
-    if (-not (Get-Module -Name ViewCompositionModule)) {
-        try {
-            $vcPath = Join-Path -Path $PSScriptRoot -ChildPath 'ViewCompositionModule.psm1'
-            if (Test-Path -LiteralPath $vcPath) {
-                Import-Module -Name $vcPath -Force -Global -ErrorAction Stop | Out-Null
-            }
-        } catch {
-        }
-    }
+    try { script:Import-LocalStateTraceModule -ModuleName 'ViewCompositionModule' -ModuleFileName 'ViewCompositionModule.psm1' -Optional | Out-Null } catch { }
 
     if ($saveChangeBtn) {
         $saveChangeBtn.Add_Click({
             try {
                 if (-not $changeBox -or [string]::IsNullOrWhiteSpace($changeBox.Text)) { return }
-                if (Get-Command -Name 'ViewCompositionModule\Export-StTextToFile' -ErrorAction SilentlyContinue) {
+                try {
                     ViewCompositionModule\Export-StTextToFile -Text $changeBox.Text -DefaultFileName ("{0}-PortReorg-Change.txt" -f $hostTrim)
-                } else {
+                } catch [System.Management.Automation.CommandNotFoundException] {
                     Set-Clipboard -Value ('' + $changeBox.Text)
                     [System.Windows.MessageBox]::Show('Export helper missing; script copied to clipboard instead.') | Out-Null
                 }
@@ -1357,9 +1356,9 @@ function Show-PortReorgWindow {
         $saveRollbackBtn.Add_Click({
             try {
                 if (-not $rollbackBox -or [string]::IsNullOrWhiteSpace($rollbackBox.Text)) { return }
-                if (Get-Command -Name 'ViewCompositionModule\Export-StTextToFile' -ErrorAction SilentlyContinue) {
+                try {
                     ViewCompositionModule\Export-StTextToFile -Text $rollbackBox.Text -DefaultFileName ("{0}-PortReorg-Rollback.txt" -f $hostTrim)
-                } else {
+                } catch [System.Management.Automation.CommandNotFoundException] {
                     Set-Clipboard -Value ('' + $rollbackBox.Text)
                     [System.Windows.MessageBox]::Show('Export helper missing; script copied to clipboard instead.') | Out-Null
                 }

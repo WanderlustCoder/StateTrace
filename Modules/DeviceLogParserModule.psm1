@@ -23,6 +23,21 @@ if (-not (Get-Variable -Name ConnectionCacheTtlMinutes -Scope Script -ErrorActio
 
 }
 
+function script:Get-QualifiedOrFallbackCommand {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$QualifiedName,
+        [string]$FallbackName
+    )
+
+    $cmd = $null
+    try { $cmd = Get-Command -Name $QualifiedName -ErrorAction SilentlyContinue } catch { $cmd = $null }
+    if (-not $cmd -and -not [string]::IsNullOrWhiteSpace($FallbackName)) {
+        try { $cmd = Get-Command -Name $FallbackName -ErrorAction SilentlyContinue } catch { $cmd = $null }
+    }
+    return $cmd
+}
+
 
 
 function Get-LocationDetails {
@@ -618,16 +633,18 @@ function Get-VendorTemplates {
     }
 
     try {
-        if (-not (Get-Command -Name 'TemplatesModule\Get-ConfigurationTemplateData' -ErrorAction SilentlyContinue)) {
+        $templateCmd = script:Get-QualifiedOrFallbackCommand -QualifiedName 'TemplatesModule\Get-ConfigurationTemplateData'
+        if (-not $templateCmd) {
             $templatesModulePath = Join-Path $PSScriptRoot 'TemplatesModule.psm1'
             if (Test-Path -LiteralPath $templatesModulePath) {
                 Import-Module -Name $templatesModulePath -Force -Global -ErrorAction SilentlyContinue | Out-Null
             }
+            $templateCmd = script:Get-QualifiedOrFallbackCommand -QualifiedName 'TemplatesModule\Get-ConfigurationTemplateData'
         }
 
         $entry = $null
-        if (Get-Command -Name 'TemplatesModule\Get-ConfigurationTemplateData' -ErrorAction SilentlyContinue) {
-            $entry = TemplatesModule\Get-ConfigurationTemplateData -Vendor $vendorKey -TemplatesPath $resolvedTemplatesPath
+        if ($templateCmd) {
+            $entry = & $templateCmd -Vendor $vendorKey -TemplatesPath $resolvedTemplatesPath
         }
 
         if ($entry -and $entry.Templates) {
@@ -940,11 +957,7 @@ function Invoke-DeviceLogParsing {
     if ($skipProcessing) {
         # Ensure we do not skip when the per-site database is missing.
         $expectedDbPath = $null
-        $dbPathCmd = $null
-        try {
-            $dbPathCmd = Get-Command -Name 'DeviceRepositoryModule\Get-DbPathForSite' -ErrorAction SilentlyContinue
-            if (-not $dbPathCmd) { $dbPathCmd = Get-Command -Name 'Get-DbPathForSite' -ErrorAction SilentlyContinue }
-        } catch { $dbPathCmd = $null }
+        $dbPathCmd = script:Get-QualifiedOrFallbackCommand -QualifiedName 'DeviceRepositoryModule\Get-DbPathForSite' -FallbackName 'Get-DbPathForSite'
         if ($dbPathCmd) {
             $siteForDb = $null
             if ($matchedHistoryRecord -and $matchedHistoryRecord.PSObject.Properties.Name -contains 'Site' -and -not [string]::IsNullOrWhiteSpace($matchedHistoryRecord.Site)) {
@@ -1165,20 +1178,19 @@ function Invoke-DeviceLogParsing {
         $dbCreateMutex = New-Object System.Threading.Mutex($false, $createMutexName)
         try {
             $null = $dbCreateMutex.WaitOne()
-            if (Get-Command -Name New-DatabaseIfMissing -ErrorAction SilentlyContinue) {
-                try {
-                    New-DatabaseIfMissing -Path $DatabasePath
-                } catch {
-                    # Swallow errors related to existing database to avoid noisy warnings.
-                }
-            } elseif (Get-Command -Name New-AccessDatabase -ErrorAction SilentlyContinue) {
+            try {
+                New-DatabaseIfMissing -Path $DatabasePath
+            } catch [System.Management.Automation.CommandNotFoundException] {
                 if (-not (Test-Path -LiteralPath $DatabasePath)) {
                     try {
                         New-AccessDatabase -Path $DatabasePath | Out-Null
+                    } catch [System.Management.Automation.CommandNotFoundException] {
                     } catch {
                         # Ignore failures caused by concurrent creation.
                     }
                 }
+            } catch {
+                # Swallow errors related to existing database to avoid noisy warnings.
             }
         } finally {
             try { $dbCreateMutex.ReleaseMutex() } catch { }
@@ -1325,9 +1337,7 @@ function Invoke-DeviceLogParsing {
 
                         # Persist the parsed data using centralized helpers.  These
 
-                        $summaryCmd = Get-Command -Name 'ParserPersistenceModule\Update-DeviceSummaryInDb' -ErrorAction SilentlyContinue
-
-                        if (-not $summaryCmd) { $summaryCmd = Get-Command -Name 'Update-DeviceSummaryInDb' -ErrorAction SilentlyContinue }
+                        $summaryCmd = script:Get-QualifiedOrFallbackCommand -QualifiedName 'ParserPersistenceModule\Update-DeviceSummaryInDb' -FallbackName 'Update-DeviceSummaryInDb'
 
                         if (-not $summaryCmd) { throw "Required parser persistence helper 'Update-DeviceSummaryInDb' is not available. Ensure ParserPersistenceModule.psm1 is imported." }
 
@@ -1362,9 +1372,7 @@ function Invoke-DeviceLogParsing {
                             $summaryDurationMs = [Math]::Round($summaryStopwatch.Elapsed.TotalMilliseconds, 3)
                         }
 
-                        $ifaceCmd = Get-Command -Name 'ParserPersistenceModule\Update-InterfacesInDb' -ErrorAction SilentlyContinue
-
-                        if (-not $ifaceCmd) { $ifaceCmd = Get-Command -Name 'Update-InterfacesInDb' -ErrorAction SilentlyContinue }
+                        $ifaceCmd = script:Get-QualifiedOrFallbackCommand -QualifiedName 'ParserPersistenceModule\Update-InterfacesInDb' -FallbackName 'Update-InterfacesInDb'
 
                         if (-not $ifaceCmd) { throw "Required parser persistence helper 'Update-InterfacesInDb' is not available. Ensure ParserPersistenceModule.psm1 is imported." }
 
@@ -1392,8 +1400,7 @@ function Invoke-DeviceLogParsing {
                             $interfaceDurationMs = [Math]::Round($interfaceStopwatch.Elapsed.TotalMilliseconds, 3)
                         }
 
-                        $spanCmd = Get-Command -Name 'ParserPersistenceModule\Update-SpanInfoInDb' -ErrorAction SilentlyContinue
-                        if (-not $spanCmd) { $spanCmd = Get-Command -Name 'Update-SpanInfoInDb' -ErrorAction SilentlyContinue }
+                        $spanCmd = script:Get-QualifiedOrFallbackCommand -QualifiedName 'ParserPersistenceModule\Update-SpanInfoInDb' -FallbackName 'Update-SpanInfoInDb'
                         if (-not $spanCmd) { throw "Required parser persistence helper 'Update-SpanInfoInDb' is not available. Ensure ParserPersistenceModule.psm1 is imported." }
 
                         $spanParams = @{
@@ -1410,8 +1417,7 @@ function Invoke-DeviceLogParsing {
                         }
 
                         try {
-                            $metricsCmd = Get-Command -Name 'ParserPersistenceModule\Get-LastInterfaceSyncTelemetry' -ErrorAction SilentlyContinue
-                            if (-not $metricsCmd) { $metricsCmd = Get-Command -Name 'Get-LastInterfaceSyncTelemetry' -ErrorAction SilentlyContinue }
+                            $metricsCmd = script:Get-QualifiedOrFallbackCommand -QualifiedName 'ParserPersistenceModule\Get-LastInterfaceSyncTelemetry' -FallbackName 'Get-LastInterfaceSyncTelemetry'
                             if ($metricsCmd) {
                                 $latestSyncTelemetry = & $metricsCmd
                             }

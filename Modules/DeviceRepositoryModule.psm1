@@ -1289,15 +1289,27 @@ function Get-SharedCacheSiteFilterFromEntries {
     return @($sites)
 }
 
+function script:Get-DeviceRepositoryCacheCommand {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Name
+    )
+
+    $cmd = $null
+    $qualifiedName = 'DeviceRepository.Cache\{0}' -f $Name
+    try { $cmd = Get-Command -Name $qualifiedName -ErrorAction SilentlyContinue } catch { $cmd = $null }
+    if (-not $cmd) {
+        try { $cmd = Get-Command -Name $Name -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue } catch { $cmd = $null }
+    }
+    return $cmd
+}
+
 function ConvertTo-SharedCacheEntryArray {
     param([System.Collections.IEnumerable]$Entries)
 
     $entryArray = $Entries
     try {
-        $cacheHelper = Get-Command -Name 'DeviceRepository.Cache\ConvertTo-SharedCacheEntryArray' -ErrorAction SilentlyContinue
-        if (-not $cacheHelper) {
-            $cacheHelper = Get-Command -Name 'ConvertTo-SharedCacheEntryArray' -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue
-        }
+        $cacheHelper = Get-DeviceRepositoryCacheCommand -Name 'ConvertTo-SharedCacheEntryArray'
         if ($cacheHelper) {
             $entryArray = & $cacheHelper -Entries $Entries
         }
@@ -1316,11 +1328,7 @@ function Get-SharedSiteInterfaceCacheSnapshotEntries {
     )
 
     # Prefer the cache module's snapshot enumeration to keep snapshot format aligned across exporters.
-    $cacheSnapshotCmd = $null
-    try { $cacheSnapshotCmd = Get-Command -Name 'DeviceRepository.Cache\Get-SharedSiteInterfaceCacheSnapshotEntries' -ErrorAction SilentlyContinue } catch { }
-    if (-not $cacheSnapshotCmd) {
-        try { $cacheSnapshotCmd = Get-Command -Name 'Get-SharedSiteInterfaceCacheSnapshotEntries' -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue } catch { }
-    }
+    $cacheSnapshotCmd = Get-DeviceRepositoryCacheCommand -Name 'Get-SharedSiteInterfaceCacheSnapshotEntries'
 
     $snapshotEntries = @()
     if ($cacheSnapshotCmd) {
@@ -1620,11 +1628,7 @@ function Publish-InterfaceSiteCacheTelemetry {
 function Get-SharedSiteInterfaceCacheEntryStatistics {
     param([pscustomobject]$Entry)
 
-    $cacheStatsCmd = $null
-    try { $cacheStatsCmd = Get-Command -Name 'DeviceRepository.Cache\Get-SharedSiteInterfaceCacheEntryStatistics' -ErrorAction SilentlyContinue } catch { }
-    if (-not $cacheStatsCmd) {
-        try { $cacheStatsCmd = Get-Command -Name 'Get-SharedSiteInterfaceCacheEntryStatistics' -Module 'DeviceRepository.Cache' -ErrorAction SilentlyContinue } catch { }
-    }
+    $cacheStatsCmd = Get-DeviceRepositoryCacheCommand -Name 'Get-SharedSiteInterfaceCacheEntryStatistics'
     if ($cacheStatsCmd) {
         try { return & $cacheStatsCmd -Entry $Entry } catch { }
     }
@@ -1823,14 +1827,6 @@ function Ensure-InterfaceModuleBridge {
         if (Get-Command -Name $commandName -ErrorAction SilentlyContinue) { return $true }
     } catch { }
 
-    $interfaceModule = $null
-    try { $interfaceModule = Get-Module -Name 'InterfaceModule' -ErrorAction SilentlyContinue } catch { $interfaceModule = $null }
-    if ($interfaceModule) {
-        try {
-            if (Get-Command -Name $commandName -ErrorAction SilentlyContinue) { return $true }
-        } catch { }
-    }
-
     $candidatePath = $null
     try {
         $candidatePath = Join-Path $script:ModuleRootPath 'Modules\InterfaceModule.psm1'
@@ -1873,6 +1869,11 @@ function ConvertTo-InterfacePortRecordsFallback {
     if (-not $Data) { return $list }
 
     $rows = DatabaseModule\ConvertTo-DbRowList -Data $Data
+
+    $portSortKeyCmd = $null
+    if (-not $script:PortNormalizationAvailable) {
+        try { $portSortKeyCmd = Get-Command -Name 'InterfaceModule\Get-PortSortKey' -ErrorAction SilentlyContinue } catch { $portSortKeyCmd = $null }
+    }
 
     foreach ($row in $rows) {
         if ($null -eq $row) { continue }
@@ -1921,9 +1922,9 @@ function ConvertTo-InterfacePortRecordsFallback {
                 if (-not [string]::IsNullOrWhiteSpace($portValue)) {
                     $portSortKey = Get-PortNormPortSortKey -Port $portValue
                 }
-            } elseif (Get-Command -Name 'InterfaceModule\Get-PortSortKey' -ErrorAction SilentlyContinue) {
+            } elseif ($portSortKeyCmd) {
                 if (-not [string]::IsNullOrWhiteSpace($portValue)) {
-                    $portSortKey = InterfaceModule\Get-PortSortKey -Port $portValue
+                    $portSortKey = & $portSortKeyCmd -Port $portValue
                 }
             }
         } catch { }
@@ -2394,7 +2395,7 @@ function ConvertTo-InterfaceCacheEntryObject {
                 $computedPortSort = $null
                 if ($script:PortNormalizationAvailable) {
                     $computedPortSort = Get-PortNormPortSortKey -Port $nameValue
-                } elseif (Get-Command -Name 'InterfaceModule\Get-PortSortKey' -ErrorAction SilentlyContinue) {
+                } else {
                     $computedPortSort = InterfaceModule\Get-PortSortKey -Port $nameValue
                 }
 
@@ -4086,24 +4087,31 @@ function Ensure-PortRowDefaults {
 
     if ($null -eq $Row) { return }
 
-    if (-not (Get-Command -Name 'InterfaceCommon\Set-PortRowDefaults' -ErrorAction SilentlyContinue)) {
+    $setDefaultsCmd = $null
+    try { $setDefaultsCmd = Get-Command -Name 'InterfaceCommon\Set-PortRowDefaults' -ErrorAction SilentlyContinue } catch { $setDefaultsCmd = $null }
+
+    if (-not $setDefaultsCmd) {
         try {
-            if (Get-Command -Name 'TelemetryModule\Import-InterfaceCommon' -ErrorAction SilentlyContinue) {
-                TelemetryModule\Import-InterfaceCommon | Out-Null
-            }
+            TelemetryModule\Import-InterfaceCommon | Out-Null
+        } catch [System.Management.Automation.CommandNotFoundException] {
         } catch { }
 
-        if (-not (Get-Command -Name 'InterfaceCommon\Set-PortRowDefaults' -ErrorAction SilentlyContinue)) {
+        try { $setDefaultsCmd = Get-Command -Name 'InterfaceCommon\Set-PortRowDefaults' -ErrorAction SilentlyContinue } catch { $setDefaultsCmd = $null }
+
+        if (-not $setDefaultsCmd) {
             try {
                 $interfaceCommonPath = Join-Path $PSScriptRoot 'InterfaceCommon.psm1'
                 if (Test-Path -LiteralPath $interfaceCommonPath) {
                     Import-Module -Name $interfaceCommonPath -Force -Global -ErrorAction Stop | Out-Null
                 }
             } catch { }
+            try { $setDefaultsCmd = Get-Command -Name 'InterfaceCommon\Set-PortRowDefaults' -ErrorAction SilentlyContinue } catch { $setDefaultsCmd = $null }
         }
     }
 
-    try { InterfaceCommon\Set-PortRowDefaults -Row $Row -Hostname $Hostname | Out-Null } catch { }
+    if ($setDefaultsCmd) {
+        try { & $setDefaultsCmd -Row $Row -Hostname $Hostname | Out-Null } catch { }
+    }
 }
 
 function Set-InterfacePortStreamData {
@@ -4515,17 +4523,20 @@ function Update-SiteZoneCache {
                 }
                 $hostNames += $hn
             }
-        } elseif (Get-Command -Name Get-InterfaceHostnames -ErrorAction SilentlyContinue) {
-            $names = Get-InterfaceHostnames -Site $Site
-            foreach ($n in $names) {
-                if ($zoneKey -ne '') {
-                    $parts = ($n -split '-')
-                    if ($parts.Count -ge 2) {
-                        $zonePart = $parts[1]
-                        if ($zonePart -ne $zoneKey) { continue }
+        } else {
+            try {
+                $names = Get-InterfaceHostnames -Site $Site
+                foreach ($n in $names) {
+                    if ($zoneKey -ne '') {
+                        $parts = ($n -split '-')
+                        if ($parts.Count -ge 2) {
+                            $zonePart = $parts[1]
+                            if ($zonePart -ne $zoneKey) { continue }
+                        }
                     }
+                    $hostNames += $n
                 }
-                $hostNames += $n
+            } catch [System.Management.Automation.CommandNotFoundException] {
             }
         }
     } catch {
@@ -5724,12 +5735,14 @@ function Get-InterfaceInfo {
         $conversionSucceeded = $false
         $objs = @()
         try {
-            if (Get-Command -Name 'InterfaceModule\New-InterfaceObjectsFromDbRow' -ErrorAction SilentlyContinue) {
+            try {
                 $objs = InterfaceModule\New-InterfaceObjectsFromDbRow -Data $dt -Hostname $Hostname -TemplatesPath $TemplatesPath
                 $conversionSucceeded = $true
-            } elseif (Ensure-InterfaceModuleBridge) {
-                $objs = InterfaceModule\New-InterfaceObjectsFromDbRow -Data $dt -Hostname $Hostname -TemplatesPath $TemplatesPath
-                $conversionSucceeded = $true
+            } catch [System.Management.Automation.CommandNotFoundException] {
+                if (Ensure-InterfaceModuleBridge) {
+                    $objs = InterfaceModule\New-InterfaceObjectsFromDbRow -Data $dt -Hostname $Hostname -TemplatesPath $TemplatesPath
+                    $conversionSucceeded = $true
+                }
             }
         } catch {
             Write-Verbose ("[DeviceRepository] InterfaceModule conversion failed for '{0}': {1}" -f $Hostname, $_.Exception.Message)

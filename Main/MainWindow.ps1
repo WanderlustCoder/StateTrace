@@ -7,9 +7,25 @@ $VerbosePreference          = 'SilentlyContinue'
 $DebugPreference            = 'SilentlyContinue'
 $ErrorActionPreference      = 'Continue'
 
+function Ensure-StateTraceDirectory {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Path
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) { return $null }
+
+    $resolvedPath = $Path
+    try { $resolvedPath = [System.IO.Path]::GetFullPath($Path) } catch { $resolvedPath = $Path }
+
+    try { [System.IO.Directory]::CreateDirectory($resolvedPath) | Out-Null } catch { }
+
+    return $resolvedPath
+}
+
 $startupLogDir = Join-Path $scriptDir '..\Logs\Diagnostics'
 try {
-    if (-not (Test-Path $startupLogDir)) { New-Item -ItemType Directory -Path $startupLogDir -Force | Out-Null }
+    $null = Ensure-StateTraceDirectory -Path $startupLogDir
     $startupLogPath = Join-Path $startupLogDir ("UiStartup-{0:yyyyMMdd-HHmmss}.log" -f (Get-Date))
 } catch { $startupLogPath = $null }
 function Write-StartupDiag {
@@ -78,15 +94,16 @@ function Publish-UserActionTelemetry {
         [string]$Hostname,
         [string]$Context
     )
-    $cmd = Get-Command -Name 'TelemetryModule\Write-StTelemetryEvent' -ErrorAction SilentlyContinue
-    if (-not $cmd) { return }
     $payload = @{}
     if ($Action) { $payload['Action'] = $Action }
     if ($Site) { $payload['Site'] = $Site }
     if ($Hostname) { $payload['Hostname'] = $Hostname }
     if ($Context) { $payload['Context'] = $Context }
     $payload['Timestamp'] = (Get-Date).ToString('o')
-    try { TelemetryModule\Write-StTelemetryEvent -Name 'UserAction' -Payload $payload } catch { }
+    $null = Invoke-OptionalCommandSafe -Name 'TelemetryModule\Write-StTelemetryEvent' -Parameters @{
+        Name    = 'UserAction'
+        Payload = $payload
+    }
 }
 
 function Load-StateTraceSettings {
@@ -116,7 +133,7 @@ function Save-StateTraceSettings {
     try {
         $json = $Settings | ConvertTo-Json -Depth 5
         $settingsDir = Split-Path -Parent $script:StateTraceSettingsPath
-        if (-not (Test-Path $settingsDir)) { New-Item -ItemType Directory -Path $settingsDir -Force | Out-Null }
+        $null = Ensure-StateTraceDirectory -Path $settingsDir
         $json | Out-File -LiteralPath $script:StateTraceSettingsPath -Encoding utf8
     } catch { }
 }
@@ -142,10 +159,7 @@ function Write-Diag {
 if ($Global:StateTraceDebug) {
     try {
         $userDocs = [Environment]::GetFolderPath('MyDocuments')
-        $logRoot  = Join-Path $userDocs 'StateTrace\Logs'
-        if (-not (Test-Path $logRoot)) {
-            New-Item -ItemType Directory -Force -Path $logRoot | Out-Null
-        }
+        $logRoot  = Ensure-StateTraceDirectory -Path (Join-Path $userDocs 'StateTrace\Logs')
         $script:DiagLogPath = Join-Path $logRoot (
             "StateTrace_Debug_{0}.log" -f (Get-Date -Format 'yyyyMMdd_HHmmss')
         )
@@ -251,10 +265,7 @@ try {
 }
 
 try {
-    $dataDir = Join-Path $scriptDir '..\Data'
-    if (-not (Test-Path $dataDir)) {
-        New-Item -ItemType Directory -Path $dataDir -Force | Out-Null
-    }
+    $dataDir = Ensure-StateTraceDirectory -Path (Join-Path $scriptDir '..\Data')
 } catch {
     Write-Warning ("Failed to ensure Data directory exists: {0}" -f $_.Exception.Message)
 }
@@ -540,6 +551,50 @@ function Set-BrocadeOSFromConfig {
 }
 
 # === BEGIN View initialization helpers (MainWindow.ps1) ===
+function Get-OptionalCommandSafe {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Name)
+
+    try { return Get-Command -Name $Name -ErrorAction SilentlyContinue } catch { return $null }
+}
+
+function Test-OptionalCommandAvailable {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)][string]$Name)
+
+    return (Get-OptionalCommandSafe -Name $Name) -ne $null
+}
+
+function Invoke-OptionalCommandSafe {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Name,
+        [hashtable]$Parameters,
+        [object[]]$ArgumentList,
+        [switch]$RetryWithoutParameters
+    )
+
+    $hasParameters = $PSBoundParameters.ContainsKey('Parameters')
+    $hasArgumentList = $PSBoundParameters.ContainsKey('ArgumentList')
+    if ($hasParameters -and $hasArgumentList) {
+        throw "Invoke-OptionalCommandSafe accepts either -Parameters or -ArgumentList, not both."
+    }
+
+    $cmd = Get-OptionalCommandSafe -Name $Name
+    if (-not $cmd) { return $null }
+
+    try {
+        if ($hasParameters) { return & $cmd @Parameters }
+        if ($hasArgumentList) { return & $cmd @ArgumentList }
+        return & $cmd
+    } catch {
+        if ($RetryWithoutParameters.IsPresent -and ($hasParameters -or $hasArgumentList)) {
+            try { return & $cmd } catch { return $null }
+        }
+        return $null
+    }
+}
+
 function Initialize-View {
     [CmdletBinding()]
     param(
@@ -549,7 +604,7 @@ function Initialize-View {
     )
 
     $viewName = ((($CommandName -replace '^New-','') -replace 'View$',''))
-    $cmd = Get-Command -Name $CommandName -ErrorAction SilentlyContinue
+    $cmd = Get-OptionalCommandSafe -Name $CommandName
     if (-not $cmd) {
         Write-Warning ("{0} view module not loaded or {1} unavailable." -f $viewName, $CommandName)
         return
@@ -578,7 +633,7 @@ if (-not $script:ViewsInitialized) {
     # Auto-discover any additional New-*View commands, excluding Compare for now
     # Exclude helper commands that require extra mandatory parameters
     $excludeInitially = @('Update-CompareView')
-    $discovered = Get-Command -Name 'New-*View' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name
+    $discovered = Get-OptionalCommandSafe -Name 'New-*View' | Select-Object -ExpandProperty Name
     if ($discovered) {
         $extra = $discovered | Where-Object { ($viewsInOrder -notcontains $_) -and ($_ -notin $excludeInitially) }
         foreach ($v in ($extra | Sort-Object)) { $viewsInOrder += $v }
@@ -1197,9 +1252,7 @@ function Start-ParserBackgroundJob {
 
     $repoRoot = (Resolve-Path (Join-Path $scriptDir '..')).Path
     $logDir = Join-Path $repoRoot 'Logs\UI'
-    if (-not (Test-Path -LiteralPath $logDir)) {
-        New-Item -ItemType Directory -Path $logDir -Force | Out-Null
-    }
+    $null = Ensure-StateTraceDirectory -Path $logDir
     $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
     $logPath = Join-Path $logDir ("ParserJob-{0}.log" -f $timestamp)
     try { Write-StartupDiag ("Starting parser job (RepoRoot={0}, LogPath={1})" -f $repoRoot, $logPath) } catch { }
@@ -1223,8 +1276,8 @@ function Start-ParserBackgroundJob {
         Push-Location $RepoRoot
         try {
             $logParent = Split-Path -Parent $LogPath
-            if (-not (Test-Path -LiteralPath $logParent)) {
-                New-Item -ItemType Directory -Path $logParent -Force | Out-Null
+            if ($logParent) {
+                try { [System.IO.Directory]::CreateDirectory($logParent) | Out-Null } catch { }
             }
             $pipeline = Join-Path $RepoRoot 'Tools\Invoke-StateTracePipeline.ps1'
             $env:IncludeArchive    = if ($IncludeArchive)    { '1' } else { '0' }
@@ -1394,11 +1447,7 @@ function Initialize-DeviceViewFromCatalog {
             Initialize-DeviceFilters -Hostnames $hostList -Window $Window
         } else {
             Initialize-DeviceFilters -Window $Window
-            try {
-                if (Get-Command -Name 'InterfaceModule\Set-HostLoadingIndicator' -ErrorAction SilentlyContinue) {
-                    InterfaceModule\Set-HostLoadingIndicator -State 'Hidden'
-                }
-            } catch {}
+            $null = Invoke-OptionalCommandSafe -Name 'InterfaceModule\Set-HostLoadingIndicator' -Parameters @{ State = 'Hidden' }
         }
     } catch {}
 
@@ -1442,7 +1491,7 @@ function Initialize-DeviceViewFromCatalog {
 
     try { Update-DeviceFilter } catch {}
 
-    if (Get-Command -Name Update-CompareView -ErrorAction SilentlyContinue) {
+    if (Test-OptionalCommandAvailable -Name 'Update-CompareView') {
         try { Update-CompareView -Window $Window | Out-Null }
         catch { Write-Warning ("Failed to refresh Compare view: {0}" -f $_.Exception.Message) }
     }
@@ -1452,9 +1501,7 @@ function Initialize-DeviceViewFromCatalog {
         if ($hostDD -and $hostDD.Items -and $hostDD.Items.Count -gt 0 -and $hostDD.SelectedIndex -lt 0) {
             $hostDD.SelectedIndex = 0
         }
-        if (Get-Command -Name 'InterfaceModule\Set-HostLoadingIndicator' -ErrorAction SilentlyContinue) {
-            InterfaceModule\Set-HostLoadingIndicator -State 'Hidden'
-        }
+        $null = Invoke-OptionalCommandSafe -Name 'InterfaceModule\Set-HostLoadingIndicator' -Parameters @{ State = 'Hidden' }
     } catch {}
 }
 
@@ -1479,11 +1526,7 @@ function Get-HostnameChanged {
     param([string]$Hostname)
 
     if (-not $global:InterfacesLoadAllowed) {
-        try {
-            if (Get-Command -Name 'InterfaceModule\Set-HostLoadingIndicator' -ErrorAction SilentlyContinue) {
-                InterfaceModule\Set-HostLoadingIndicator -State 'Hidden'
-            }
-        } catch {}
+        $null = Invoke-OptionalCommandSafe -Name 'InterfaceModule\Set-HostLoadingIndicator' -Parameters @{ State = 'Hidden' }
         return
     }
 
@@ -1511,8 +1554,8 @@ function Get-HostnameChanged {
             $totalHosts = 0
         }
 
-        $hostIndicatorCmd = Get-Command -Name 'InterfaceModule\Set-HostLoadingIndicator' -ErrorAction SilentlyContinue
- 
+        $hostIndicatorCmd = Get-OptionalCommandSafe -Name 'InterfaceModule\Set-HostLoadingIndicator'
+  
         # Load device details asynchronously.
         if ($Hostname) {
             if ($hostIndicatorCmd) {
@@ -1528,17 +1571,13 @@ function Get-HostnameChanged {
                     try { InterfaceModule\Set-HostLoadingIndicator -State 'Hidden' } catch {}
                 }
             }
-            if (Get-Command Get-SpanInfo -ErrorAction SilentlyContinue) {
-                Get-SpanInfo $Hostname
-            }
+            $null = Invoke-OptionalCommandSafe -Name 'Get-SpanInfo' -ArgumentList @($Hostname)
         } else {
             if ($hostIndicatorCmd) {
                 try { InterfaceModule\Set-HostLoadingIndicator -State 'Hidden' } catch {}
             }
             # Clear span info when hostname is empty
-            if (Get-Command Get-SpanInfo -ErrorAction SilentlyContinue) {
-                Get-SpanInfo ''
-            }
+            $null = Invoke-OptionalCommandSafe -Name 'Get-SpanInfo' -ArgumentList @('')
         }
     } catch {
         Write-Warning ("Hostname change handler failed: {0}" -f $_.Exception.Message)
@@ -1562,14 +1601,8 @@ function Import-DeviceDetailsAsync {
     try { Write-Diag ("Import-DeviceDetailsAsync start | Host={0}" -f $hostTrim) } catch {}
     # If no host is provided, clear span info and return
     if ([string]::IsNullOrWhiteSpace($hostTrim)) {
-        try {
-            if (Get-Command -Name 'InterfaceModule\Set-HostLoadingIndicator' -ErrorAction SilentlyContinue) {
-                InterfaceModule\Set-HostLoadingIndicator -State 'Hidden'
-            }
-        } catch {}
-        if (Get-Command Get-SpanInfo -ErrorAction SilentlyContinue) {
-            try { [System.Windows.Application]::Current.Dispatcher.Invoke([System.Action]{ Get-SpanInfo '' }) } catch {}
-        }
+        $null = Invoke-OptionalCommandSafe -Name 'InterfaceModule\Set-HostLoadingIndicator' -Parameters @{ State = 'Hidden' }
+        try { [System.Windows.Application]::Current.Dispatcher.Invoke([System.Action]{ Invoke-OptionalCommandSafe -Name 'Get-SpanInfo' -ArgumentList @('') | Out-Null }) } catch {}
         return
     }
 
@@ -1799,7 +1832,7 @@ return $res
 
                         $collectionCount = 0
                         try {
-                            if (Get-Command -Name 'ViewStateService\Get-SequenceCount' -ErrorAction SilentlyContinue) {
+                            if (Test-OptionalCommandAvailable -Name 'ViewStateService\Get-SequenceCount') {
                                 $collectionCount = ViewStateService\Get-SequenceCount -Value $collection
                             } elseif ($collection -is [System.Collections.ICollection]) {
                                 $collectionCount = [int]$collection.Count
@@ -1856,10 +1889,7 @@ return $res
 
                                     try { InterfaceModule\Set-PortLoadingIndicator -Loaded $collectionCount -Total $collectionCount -BatchesRemaining 0 } catch {}
                                     try {
-                                        $currentLocation = $null
-                                        if (Get-Command -Name 'FilterStateModule\Get-SelectedLocation' -ErrorAction SilentlyContinue) {
-                                            try { $currentLocation = FilterStateModule\Get-SelectedLocation } catch { $currentLocation = $null }
-                                        }
+                                        $currentLocation = Invoke-OptionalCommandSafe -Name 'FilterStateModule\Get-SelectedLocation'
                                         $updateParams = @{}
                                         if ($currentLocation) {
                                             if ($currentLocation.PSObject.Properties['Site'] -and $currentLocation.Site) {
@@ -1870,18 +1900,10 @@ return $res
                                                 $updateParams.ZoneToLoad = '' + $currentLocation.Zone
                                             }
                                         }
-                                        if (Get-Command -Name 'DeviceRepositoryModule\Update-GlobalInterfaceList' -ErrorAction SilentlyContinue) {
-                                            DeviceRepositoryModule\Update-GlobalInterfaceList @updateParams | Out-Null
-                                        }
-                                        if (Get-Command -Name 'DeviceInsightsModule\Update-Summary' -ErrorAction SilentlyContinue) {
-                                            DeviceInsightsModule\Update-Summary
-                                        }
-                                        if (Get-Command -Name 'DeviceInsightsModule\Update-Alerts' -ErrorAction SilentlyContinue) {
-                                            DeviceInsightsModule\Update-Alerts
-                                        }
-                                        if (Get-Command -Name 'DeviceInsightsModule\Update-SearchGrid' -ErrorAction SilentlyContinue) {
-                                            DeviceInsightsModule\Update-SearchGrid
-                                        }
+                                        $null = Invoke-OptionalCommandSafe -Name 'DeviceRepositoryModule\Update-GlobalInterfaceList' -Parameters $updateParams -RetryWithoutParameters | Out-Null
+                                        $null = Invoke-OptionalCommandSafe -Name 'DeviceInsightsModule\Update-Summary' | Out-Null
+                                        $null = Invoke-OptionalCommandSafe -Name 'DeviceInsightsModule\Update-Alerts' | Out-Null
+                                        $null = Invoke-OptionalCommandSafe -Name 'DeviceInsightsModule\Update-SearchGrid' | Out-Null
                                     } catch { }
                                 })
                             } catch { }
@@ -1935,21 +1957,18 @@ return $res
                                         }
 
                                         try {
-                                            if (Get-Command -Name 'FilterStateModule\Get-SelectedLocation' -ErrorAction SilentlyContinue) {
-                                                $currentLocation = $null
-                                                try { $currentLocation = FilterStateModule\Get-SelectedLocation } catch { $currentLocation = $null }
-                                                $updateParams = @{}
-                                                if ($currentLocation) {
-                                                    if ($currentLocation.PSObject.Properties['Site'] -and $currentLocation.Site) {
-                                                        $updateParams.Site = '' + $currentLocation.Site
-                                                    }
-                                                    if ($currentLocation.PSObject.Properties['Zone'] -and $currentLocation.Zone) {
-                                                        $updateParams.ZoneSelection = '' + $currentLocation.Zone
-                                                        $updateParams.ZoneToLoad = '' + $currentLocation.Zone
-                                                    }
+                                            $currentLocation = Invoke-OptionalCommandSafe -Name 'FilterStateModule\Get-SelectedLocation'
+                                            $updateParams = @{}
+                                            if ($currentLocation) {
+                                                if ($currentLocation.PSObject.Properties['Site'] -and $currentLocation.Site) {
+                                                    $updateParams.Site = '' + $currentLocation.Site
+                                                }
+                                                if ($currentLocation.PSObject.Properties['Zone'] -and $currentLocation.Zone) {
+                                                    $updateParams.ZoneSelection = '' + $currentLocation.Zone
+                                                    $updateParams.ZoneToLoad = '' + $currentLocation.Zone
                                                 }
                                             }
-                                            if (Get-Command -Name 'DeviceCatalogModule\Get-DeviceSummaries' -ErrorAction SilentlyContinue) {
+                                            if (Test-OptionalCommandAvailable -Name 'DeviceCatalogModule\Get-DeviceSummaries') {
                                                 $needsCatalogRefresh = $false
                                                 try {
                                                     if (-not (Get-Variable -Name DeviceMetadata -Scope Global -ErrorAction SilentlyContinue)) {
@@ -1972,25 +1991,15 @@ return $res
                                                     try { DeviceCatalogModule\Get-DeviceSummaries | Out-Null } catch {}
                                                 }
                                             }
-                                            if (Get-Command -Name 'DeviceRepositoryModule\Update-GlobalInterfaceList' -ErrorAction SilentlyContinue) {
-                                                try { DeviceRepositoryModule\Update-GlobalInterfaceList @updateParams | Out-Null } catch {}
-                                            } elseif (Get-Command -Name 'DeviceRepositoryModule\Update-GlobalInterfaceList' -ErrorAction SilentlyContinue) {
-                                                try { DeviceRepositoryModule\Update-GlobalInterfaceList | Out-Null } catch {}
-                                            }
+                                            $null = Invoke-OptionalCommandSafe -Name 'DeviceRepositoryModule\Update-GlobalInterfaceList' -Parameters $updateParams -RetryWithoutParameters | Out-Null
 
                                             $allCount = 0
                                             try { $allCount = ViewStateService\Get-SequenceCount -Value $global:AllInterfaces } catch { $allCount = 0 }
                                             try { Write-Diag ("Interface aggregate refreshed | Host={0} | GlobalInterfaces={1}" -f $deviceHost, $allCount) } catch {}
 
-                                            if (Get-Command -Name 'DeviceInsightsModule\Update-Summary' -ErrorAction SilentlyContinue) {
-                                                try { DeviceInsightsModule\Update-Summary } catch {}
-                                            }
-                                            if (Get-Command -Name 'DeviceInsightsModule\Update-Alerts' -ErrorAction SilentlyContinue) {
-                                                try { DeviceInsightsModule\Update-Alerts } catch {}
-                                            }
-                                            if (Get-Command -Name 'DeviceInsightsModule\Update-SearchGrid' -ErrorAction SilentlyContinue) {
-                                                try { DeviceInsightsModule\Update-SearchGrid } catch {}
-                                            }
+                                            $null = Invoke-OptionalCommandSafe -Name 'DeviceInsightsModule\Update-Summary' | Out-Null
+                                            $null = Invoke-OptionalCommandSafe -Name 'DeviceInsightsModule\Update-Alerts' | Out-Null
+                                            $null = Invoke-OptionalCommandSafe -Name 'DeviceInsightsModule\Update-SearchGrid' | Out-Null
                                         } catch {
                                             try { Write-Diag ("Interface aggregate refresh failed | Host={0} | Error={1}" -f $deviceHost, $_.Exception.Message) } catch {}
                                         }
@@ -2080,35 +2089,36 @@ return $res
                     Write-Diag ("Device load metrics | Host={0} | InvokeMs={1} | StreamMs={2} | FirstBatchMs={3} | Batches={4} | Interfaces={5}" -f $deviceHost, $invokeDurationMs, $streamDurationMs, $firstBatchDelayMs, $batchesProcessed, $finalCollectionCount)
                 } catch {}
 
-                if (Get-Command -Name 'TelemetryModule\Write-StTelemetryEvent' -ErrorAction SilentlyContinue) {
-                    $telemetryPayload = @{
-                        Hostname          = $deviceHost
-                        InvokeDurationMs  = $invokeDurationMs
-                        StreamDurationMs  = $streamDurationMs
-                        FirstBatchMs      = $(if ($firstBatchDelayMs -ne $null) { $firstBatchDelayMs } else { 0.0 })
-                        BatchesProcessed  = $batchesProcessed
-                        InterfaceCount    = $finalCollectionCount
-                        AppendWorkMs      = [Math]::Round($totalAppendMs, 3)
-                        DispatcherWorkMs  = [Math]::Round($totalDispatcherMs, 3)
-                        IndicatorWorkMs   = [Math]::Round($totalIndicatorMs, 3)
-                    }
-                    if ($queueMetrics) {
-                        try {
-                            if ($queueMetrics.PSObject.Properties['ChunkSize']) { $telemetryPayload.ChunkSize = [int]$queueMetrics.ChunkSize }
-                            if ($queueMetrics.PSObject.Properties['ChunkSource']) { $telemetryPayload.ChunkSource = '' + $queueMetrics.ChunkSource }
-                            if ($queueMetrics.PSObject.Properties['BatchCount']) { $telemetryPayload.PlannedBatchCount = [int]$queueMetrics.BatchCount }
-                            if ($queueMetrics.PSObject.Properties['TotalPorts']) { $telemetryPayload.QueuePorts = [int]$queueMetrics.TotalPorts }
-                        } catch { }
-                    }
-                    try { TelemetryModule\Write-StTelemetryEvent -Name 'DeviceDetailsLoadMetrics' -Payload $telemetryPayload } catch { }
+                $telemetryPayload = @{
+                    Hostname          = $deviceHost
+                    InvokeDurationMs  = $invokeDurationMs
+                    StreamDurationMs  = $streamDurationMs
+                    FirstBatchMs      = $(if ($firstBatchDelayMs -ne $null) { $firstBatchDelayMs } else { 0.0 })
+                    BatchesProcessed  = $batchesProcessed
+                    InterfaceCount    = $finalCollectionCount
+                    AppendWorkMs      = [Math]::Round($totalAppendMs, 3)
+                    DispatcherWorkMs  = [Math]::Round($totalDispatcherMs, 3)
+                    IndicatorWorkMs   = [Math]::Round($totalIndicatorMs, 3)
                 }
+                if ($queueMetrics) {
+                    try {
+                        if ($queueMetrics.PSObject.Properties['ChunkSize']) { $telemetryPayload.ChunkSize = [int]$queueMetrics.ChunkSize }
+                        if ($queueMetrics.PSObject.Properties['ChunkSource']) { $telemetryPayload.ChunkSource = '' + $queueMetrics.ChunkSource }
+                        if ($queueMetrics.PSObject.Properties['BatchCount']) { $telemetryPayload.PlannedBatchCount = [int]$queueMetrics.BatchCount }
+                        if ($queueMetrics.PSObject.Properties['TotalPorts']) { $telemetryPayload.QueuePorts = [int]$queueMetrics.TotalPorts }
+                    } catch { }
+                }
+                $null = Invoke-OptionalCommandSafe -Name 'TelemetryModule\Write-StTelemetryEvent' -Parameters @{
+                    Name    = 'DeviceDetailsLoadMetrics'
+                    Payload = $telemetryPayload
+                } | Out-Null
 
                 try { DeviceRepositoryModule\Clear-InterfacePortStream -Hostname $deviceHost } catch { }
                 & $logAsync ("Async cleared port stream for host {0}" -f $deviceHost)
                 $hostIndicatorAvailable = $false
                 $deviceHostLocal = $deviceHost
                 try {
-                    $hostIndicatorAvailable = (Get-Command -Name 'InterfaceModule\Set-HostLoadingIndicator' -ErrorAction SilentlyContinue) -ne $null
+                    $hostIndicatorAvailable = Test-OptionalCommandAvailable -Name 'InterfaceModule\Set-HostLoadingIndicator'
                 } catch { $hostIndicatorAvailable = $false }
                 $hostIndicatorAvailableLocal = $hostIndicatorAvailable
                 [System.Windows.Application]::Current.Dispatcher.Invoke([System.Action]{
@@ -2121,9 +2131,7 @@ return $res
                 # Log any exceptions thrown during Invoke
                 Write-Warning ("Import-DeviceDetailsAsync thread encountered an exception: {0}" -f $_.Exception.Message)
                 try {
-                    if (Get-Command -Name 'InterfaceModule\Set-HostLoadingIndicator' -ErrorAction SilentlyContinue) {
-                        InterfaceModule\Set-HostLoadingIndicator -State 'Hidden'
-                    }
+                    $null = Invoke-OptionalCommandSafe -Name 'InterfaceModule\Set-HostLoadingIndicator' -Parameters @{ State = 'Hidden' }
                 } catch {}
                 try {
                     if ($script:DeviceDetailsRunspace -and
@@ -2192,7 +2200,7 @@ if (-not $script:FilterUpdateTimer) {
             Update-DeviceFilter
 
             # Keep Compare in sync with current filters/hosts
-            if ($global:InterfacesLoadAllowed -and (Get-Command -Name Update-CompareView -ErrorAction SilentlyContinue)) {
+            if ($global:InterfacesLoadAllowed -and (Test-OptionalCommandAvailable -Name 'Update-CompareView')) {
                 try { Update-CompareView -Window $window | Out-Null } catch {}
             }
         } catch {
@@ -2388,8 +2396,11 @@ $window.Add_Loaded({
                 $locCount = 0
                 try { $locCount = $global:DeviceLocationEntries.Count } catch { }
                 Write-StartupDiag ("Global DeviceLocationEntries count={0}" -f $locCount)
-                if (Get-Command -Name 'ViewStateService\Get-FilterSnapshot' -ErrorAction SilentlyContinue) {
-                    $snap = ViewStateService\Get-FilterSnapshot -DeviceMetadata $global:DeviceMetadata -LocationEntries $global:DeviceLocationEntries
+                $snap = Invoke-OptionalCommandSafe -Name 'ViewStateService\Get-FilterSnapshot' -Parameters @{
+                    DeviceMetadata  = $global:DeviceMetadata
+                    LocationEntries = $global:DeviceLocationEntries
+                }
+                if ($snap) {
                     $sitesLog      = @($snap.Sites) -join ', '
                     $zonesLog      = @($snap.Zones) -join ', '
                     $buildingsLog  = @($snap.Buildings) -join ', '
@@ -2404,9 +2415,7 @@ $window.Add_Loaded({
         Update-ParserStatusIndicator -Window $window
         try { Update-FreshnessIndicator -Window $window } catch { }
         try {
-            if (Get-Command -Name 'InterfaceModule\Set-HostLoadingIndicator' -ErrorAction SilentlyContinue) {
-                InterfaceModule\Set-HostLoadingIndicator -State 'Hidden'
-            }
+            $null = Invoke-OptionalCommandSafe -Name 'InterfaceModule\Set-HostLoadingIndicator' -Parameters @{ State = 'Hidden' }
         } catch {}
     } catch {
         Write-Warning ("Initialization failed: {0}" -f $_.Exception.Message)

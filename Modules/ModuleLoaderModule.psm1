@@ -15,11 +15,7 @@ function Get-StateTraceModulesFromManifest {
 
     $manifest = $null
     try {
-        if (Get-Command -Name Import-PowerShellDataFile -ErrorAction SilentlyContinue) {
-            $manifest = Import-PowerShellDataFile -Path $resolvedManifestPath -ErrorAction Stop
-        } else {
-            $manifest = . $resolvedManifestPath
-        }
+        $manifest = Import-PowerShellDataFile -Path $resolvedManifestPath -ErrorAction Stop
     } catch {
         try {
             $manifest = . $resolvedManifestPath
@@ -63,6 +59,7 @@ function Import-StateTraceModulesFromManifest {
     param(
         [Parameter(Mandatory)][string]$RepositoryRoot,
         [string[]]$Exclude,
+        [switch]$PreserveIfLoaded,
         [switch]$Force
     )
 
@@ -103,6 +100,17 @@ function Import-StateTraceModulesFromManifest {
             throw "Module '$trimmedEntry' missing at '$candidatePath'."
         }
 
+        $moduleName = $null
+        try { $moduleName = [System.IO.Path]::GetFileNameWithoutExtension($candidatePath) } catch { $moduleName = $null }
+        if ($PreserveIfLoaded.IsPresent -and -not [string]::IsNullOrWhiteSpace($moduleName)) {
+            $loadedModule = $null
+            try { $loadedModule = Get-Module -Name $moduleName -ErrorAction SilentlyContinue } catch { $loadedModule = $null }
+            if ($loadedModule) {
+                $imported.Add($trimmedEntry) | Out-Null
+                continue
+            }
+        }
+
         $importArgs = @{
             Name        = $candidatePath
             Global      = $true
@@ -120,4 +128,3 @@ function Import-StateTraceModulesFromManifest {
 }
 
 Export-ModuleMember -Function Get-StateTraceModulesFromManifest, Import-StateTraceModulesFromManifest
-
