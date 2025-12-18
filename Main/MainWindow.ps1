@@ -286,11 +286,11 @@ if (-not (Get-Variable -Name DatabaseImportRunspaceLock -Scope Script -ErrorActi
 if (-not (Get-Variable -Name DatabaseImportRunspace -Scope Script -ErrorAction SilentlyContinue)) {
     $script:DatabaseImportRunspace = $null
 }
-if (-not (Get-Variable -Name DatabaseImportInProgress -Scope Script -ErrorAction SilentlyContinue)) {
-    $script:DatabaseImportInProgress = $false
+if (-not (Get-Variable -Name DatabaseImportInProgress -Scope Global -ErrorAction SilentlyContinue)) {
+    $global:DatabaseImportInProgress = $false
 }
-if (-not (Get-Variable -Name DatabaseImportRequestId -Scope Script -ErrorAction SilentlyContinue)) {
-    $script:DatabaseImportRequestId = 0
+if (-not (Get-Variable -Name DatabaseImportRequestId -Scope Global -ErrorAction SilentlyContinue)) {
+    $global:DatabaseImportRequestId = 0
 }
 
 function Get-DeviceDetailsRunspace {
@@ -1782,18 +1782,19 @@ function Invoke-DatabaseImport {
     )
 
     try {
-        if ($script:DatabaseImportInProgress) {
-            try { Write-Diag "Database import already in progress; ignoring request." } catch {}
+        if ($global:DatabaseImportInProgress) {
+            try { Write-Diag ("Database import already in progress; ignoring request. CurrentRequestId={0}" -f $global:DatabaseImportRequestId) } catch {}
             return
         }
 
-        $script:DatabaseImportInProgress = $true
+        $global:DatabaseImportInProgress = $true
         $requestId = 0
         try {
-            $script:DatabaseImportRequestId = [int]$script:DatabaseImportRequestId + 1
-            $requestId = [int]$script:DatabaseImportRequestId
+            $global:DatabaseImportRequestId = [int]$global:DatabaseImportRequestId + 1
+            $requestId = [int]$global:DatabaseImportRequestId
         } catch {
             $requestId = [int][Environment]::TickCount
+            try { $global:DatabaseImportRequestId = $requestId } catch { }
         }
 
         $global:InterfacesLoadAllowed = $true
@@ -1925,8 +1926,27 @@ return [pscustomobject]@{
                 param($dto)
                 $shouldFinalize = $false
                 try {
-                    if ($applyRequestId -ne $script:DatabaseImportRequestId) {
-                        try { Write-Diag ("Invoke-DatabaseImport stale completion ignored | RequestId={0} | Current={1}" -f $applyRequestId, $script:DatabaseImportRequestId) } catch {}
+                    $defaultRunspaceId = ''
+                    try {
+                        $defaultRunspace = [System.Management.Automation.Runspaces.Runspace]::DefaultRunspace
+                        if ($defaultRunspace) { $defaultRunspaceId = '' + $defaultRunspace.Id }
+                    } catch { $defaultRunspaceId = '' }
+
+                    $threadId = 0
+                    try { $threadId = [System.Threading.Thread]::CurrentThread.ManagedThreadId } catch { $threadId = 0 }
+
+                    $globalRequestId = $null
+                    try { $globalRequestId = [int]$global:DatabaseImportRequestId } catch { $globalRequestId = $null }
+
+                    $scriptRequestId = $null
+                    try { $scriptRequestId = $script:DatabaseImportRequestId } catch { $scriptRequestId = $null }
+
+                    try {
+                        Write-Diag ("Invoke-DatabaseImport UI apply start | RequestId={0} | GlobalCurrent={1} | ScriptCurrent={2} | ThreadId={3} | DefaultRunspaceId={4}" -f $applyRequestId, $globalRequestId, $scriptRequestId, $threadId, $defaultRunspaceId)
+                    } catch {}
+
+                    if ($null -ne $globalRequestId -and ($applyRequestId -ne $globalRequestId)) {
+                        try { Write-Diag ("Invoke-DatabaseImport stale completion ignored | RequestId={0} | GlobalCurrent={1}" -f $applyRequestId, $globalRequestId) } catch {}
                         return
                     }
 
@@ -1965,7 +1985,7 @@ return [pscustomobject]@{
                             $loadBtn = $applyWindow.FindName('LoadDatabaseButton')
                             if ($loadBtn) { $loadBtn.IsEnabled = $true }
                         } catch { }
-                        $script:DatabaseImportInProgress = $false
+                        $global:DatabaseImportInProgress = $false
                     }
                 }
             }.GetNewClosure()
@@ -2036,7 +2056,7 @@ return [pscustomobject]@{
             $loadBtn = $Window.FindName('LoadDatabaseButton')
             if ($loadBtn) { $loadBtn.IsEnabled = $true }
         } catch { }
-        $script:DatabaseImportInProgress = $false
+        $global:DatabaseImportInProgress = $false
         Write-Warning ("Database import failed: {0}" -f $_.Exception.Message)
     }
 }
