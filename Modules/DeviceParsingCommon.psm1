@@ -1,5 +1,30 @@
 Set-StrictMode -Version Latest
 
+if (-not (Get-Variable -Name DeviceParsingRegexCache -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:DeviceParsingRegexCache = [System.Collections.Concurrent.ConcurrentDictionary[string,System.Text.RegularExpressions.Regex]]::new([System.StringComparer]::Ordinal)
+}
+if (-not (Get-Variable -Name RegexCacheKeySeparator -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:RegexCacheKeySeparator = [char]0x1F
+}
+
+function script:Get-CachedRegex {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Pattern,
+        [System.Text.RegularExpressions.RegexOptions]$Options = [System.Text.RegularExpressions.RegexOptions]::Compiled
+    )
+
+    $key = "$([int]$Options)$($script:RegexCacheKeySeparator)$Pattern"
+    $cached = $null
+    if ($script:DeviceParsingRegexCache.TryGetValue($key, [ref]$cached)) {
+        return $cached
+    }
+
+    $regex = [regex]::new($Pattern, $Options)
+    $script:DeviceParsingRegexCache[$key] = $regex
+    return $regex
+}
+
 function Invoke-RegexTableParser {
     [CmdletBinding()]
     param(
@@ -16,11 +41,11 @@ function Invoke-RegexTableParser {
         return [System.Collections.Generic.List[object]]::new()
     }
 
-    $headerRegex = [regex]::new($HeaderPattern)
-    $rowRegex    = [regex]::new($RowPattern)
+    $headerRegex = script:Get-CachedRegex -Pattern $HeaderPattern
+    $rowRegex    = script:Get-CachedRegex -Pattern $RowPattern
     $terminatorRegex = $null
     if ($TerminatorPattern -and $TerminatorPattern -ne '') {
-        $terminatorRegex = [regex]::new($TerminatorPattern)
+        $terminatorRegex = script:Get-CachedRegex -Pattern $TerminatorPattern
     }
 
     $results = [System.Collections.Generic.List[object]]::new()
@@ -107,7 +132,7 @@ function Get-HostnameFromPrompt {
 
     if (-not $Lines) { return $null }
 
-    $promptRegex = [regex]'^(?:SSH@)?(?<host>[^(#>\s]+)(?:\([^)]*\))?[#>]'
+    $promptRegex = script:Get-CachedRegex -Pattern '^(?:SSH@)?(?<host>[^(#>\s]+)(?:\([^)]*\))?[#>]'
     foreach ($line in $Lines) {
         $text = if ($null -ne $line) { [string]$line } else { '' }
         if ([string]::IsNullOrWhiteSpace($text)) { continue }
@@ -119,7 +144,7 @@ function Get-HostnameFromPrompt {
     }
 
     if ($RunningConfigPattern) {
-        $configRegex = [regex]$RunningConfigPattern
+        $configRegex = script:Get-CachedRegex -Pattern $RunningConfigPattern
         foreach ($line in $Lines) {
             $text = if ($null -ne $line) { [string]$line } else { '' }
             if ([string]::IsNullOrWhiteSpace($text)) { continue }
@@ -162,9 +187,13 @@ function Get-UptimeFromLines {
     if (-not $Lines) { return $null }
     if (-not $Patterns -or $Patterns.Count -eq 0) { return $null }
 
-    $regexes = @()
+    $regexes = [System.Collections.Generic.List[regex]]::new()
     foreach ($p in $Patterns) {
-        try { $regexes += [regex]::new($p) } catch { }
+        if ([string]::IsNullOrWhiteSpace($p)) { continue }
+        try {
+            $re = script:Get-CachedRegex -Pattern $p
+            if ($re) { [void]$regexes.Add($re) }
+        } catch { }
     }
     if ($regexes.Count -eq 0) { return $null }
 
@@ -233,18 +262,18 @@ function Get-InterfaceConfigBlocks {
 
     $interfaceRegex = $null
     try {
-        $interfaceRegex = [regex]::new($InterfacePattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+        $interfaceRegex = script:Get-CachedRegex -Pattern $InterfacePattern -Options ([System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor [System.Text.RegularExpressions.RegexOptions]::Compiled)
     } catch {
         return ,@()
     }
 
-    $stopRegexes = @()
+    $stopRegexes = [System.Collections.Generic.List[regex]]::new()
     foreach ($p in $StopPatterns) {
         if ([string]::IsNullOrWhiteSpace($p)) { continue }
         try {
-            $stopRegexes += [regex]::new($p, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
-        } catch {
-        }
+            $re = script:Get-CachedRegex -Pattern $p -Options ([System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor [System.Text.RegularExpressions.RegexOptions]::Compiled)
+            if ($re) { [void]$stopRegexes.Add($re) }
+        } catch { }
     }
 
     $blocks = [System.Collections.Generic.List[object]]::new()

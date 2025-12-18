@@ -94,10 +94,51 @@ function New-ShowBlockState {
 # repeated parsing of the same patterns on every line.
 if (-not (Get-Variable -Name ShowPromptWithCommandRegex -Scope Script -ErrorAction SilentlyContinue)) {
     # Allow prompts with or without host tokens (e.g., "switch# show ..." or "# show ...").
-    $script:ShowPromptWithCommandRegex = [regex]::new('^\s*[^\s]*[>#]\s*(?:do\s+)?(show\s+.+)$', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+    $script:ShowPromptWithCommandRegex = [regex]::new(
+        '^\s*[^\s]*[>#]\s*(?:do\s+)?(show\s+.+)$',
+        ([System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor [System.Text.RegularExpressions.RegexOptions]::Compiled)
+    )
 }
 if (-not (Get-Variable -Name ShowPromptStartRegex -Scope Script -ErrorAction SilentlyContinue)) {
-    $script:ShowPromptStartRegex = [regex]::new('^\s*[^\s]*[>#]', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+    $script:ShowPromptStartRegex = [regex]::new(
+        '^\s*[^\s]*[>#]',
+        ([System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor [System.Text.RegularExpressions.RegexOptions]::Compiled)
+    )
+}
+
+# Cache compiled regex instances used across parsing helpers to avoid per-host recompilation.
+if (-not (Get-Variable -Name DeviceLogParserRegexCache -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:DeviceLogParserRegexCache = [System.Collections.Concurrent.ConcurrentDictionary[string,System.Text.RegularExpressions.Regex]]::new([System.StringComparer]::Ordinal)
+}
+if (-not (Get-Variable -Name RegexCacheKeySeparator -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:RegexCacheKeySeparator = [char]0x1F
+}
+
+function script:Get-CachedRegex {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Pattern,
+        [System.Text.RegularExpressions.RegexOptions]$Options = ([System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor [System.Text.RegularExpressions.RegexOptions]::Compiled)
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Pattern)) { return $null }
+
+    $key = "$([int]$Options)$($script:RegexCacheKeySeparator)$Pattern"
+    $cached = $null
+    if ($script:DeviceLogParserRegexCache.TryGetValue($key, [ref]$cached)) {
+        return $cached
+    }
+
+    $regex = [regex]::new($Pattern, $Options)
+    $script:DeviceLogParserRegexCache[$key] = $regex
+    return $regex
+}
+
+if (-not (Get-Variable -Name BrocadeAuthBlockRegex -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:BrocadeAuthBlockRegex = [regex]::new(
+        '^\s*(?:auth-?default-?vlan\s*\d+|re-?authentication|dot1x\s+enable(?:\s+ethe.+)?|dot1x\s+port-?control\s+auto(?:\s+ethe.+)?|mac-?authentication\s+enable(?:\s+ethe.+)?|mac-?authentication\s+dot1x\s+override)\s*$',
+        ([System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor [System.Text.RegularExpressions.RegexOptions]::Compiled)
+    )
 }
 
 function Update-ShowBlockState {
@@ -108,30 +149,42 @@ function Update-ShowBlockState {
 
     if (-not $State) { return }
 
-    # Match a prompt followed by a show command.  Accept both '#' and '>'
-    $promptMatch = $script:ShowPromptWithCommandRegex.Match($Line)
-    if ($promptMatch.Success) {
-        if ($State.Recording -and $State.CurrentCmd) {
-            $State.Blocks[$State.CurrentCmd] = $State.Buffer
+    $lineText = if ($null -ne $Line) { [string]$Line } else { '' }
+
+    # Avoid regex work for the vast majority of lines that cannot be prompts.
+    $hasPromptToken = $false
+    if ($lineText) {
+        if ($lineText.IndexOf('#') -ge 0 -or $lineText.IndexOf('>') -ge 0) {
+            $hasPromptToken = $true
         }
-        $State.CurrentCmd = $promptMatch.Groups[1].Value.Trim().ToLowerInvariant()
-        $State.Buffer     = [System.Collections.Generic.List[string]]::new()
-        $State.Recording  = $true
-        return
     }
 
-    # Detect the start of the next prompt which signals the end of the current block
-    if ($State.Recording -and $script:ShowPromptStartRegex.IsMatch($Line)) {
-        $State.Blocks[$State.CurrentCmd] = $State.Buffer
-        $State.CurrentCmd = ''
-        $State.Buffer     = [System.Collections.Generic.List[string]]::new()
-        $State.Recording  = $false
-        return
+    if ($hasPromptToken) {
+        # Match a prompt followed by a show command.  Accept both '#' and '>'
+        $promptMatch = $script:ShowPromptWithCommandRegex.Match($lineText)
+        if ($promptMatch.Success) {
+            if ($State.Recording -and $State.CurrentCmd) {
+                $State.Blocks[$State.CurrentCmd] = $State.Buffer
+            }
+            $State.CurrentCmd = $promptMatch.Groups[1].Value.Trim().ToLowerInvariant()
+            $State.Buffer     = [System.Collections.Generic.List[string]]::new()
+            $State.Recording  = $true
+            return
+        }
+
+        # Detect the start of the next prompt which signals the end of the current block
+        if ($State.Recording -and $script:ShowPromptStartRegex.IsMatch($lineText)) {
+            $State.Blocks[$State.CurrentCmd] = $State.Buffer
+            $State.CurrentCmd = ''
+            $State.Buffer     = [System.Collections.Generic.List[string]]::new()
+            $State.Recording  = $false
+            return
+        }
     }
 
     # Append lines to the current buffer if we are within a block
     if ($State.Recording) {
-        [void]$State.Buffer.Add($Line)
+        [void]$State.Buffer.Add($lineText)
     }
 }
 
@@ -175,11 +228,14 @@ function Get-ShowBlock {
         if ($Blocks.ContainsKey($key)) { return ,@($Blocks[$key]) }
     }
 
-    $compiledRegexPatterns = @()
+    $compiledRegexPatterns = [System.Collections.Generic.List[regex]]::new()
     if ($RegexPatterns -and $RegexPatterns.Count -gt 0) {
         foreach ($pattern in $RegexPatterns) {
             if ([string]::IsNullOrWhiteSpace($pattern)) { continue }
-            try { $compiledRegexPatterns += [regex]::new($pattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase) } catch { }
+            try {
+                $re = script:Get-CachedRegex -Pattern $pattern
+                if ($re) { [void]$compiledRegexPatterns.Add($re) }
+            } catch { }
         }
     }
 
@@ -192,11 +248,14 @@ function Get-ShowBlock {
     }
 
     # Fallback: derive the block directly from raw lines when a regex matches a command
-    $compiledCommandRegexes = @()
+    $compiledCommandRegexes = [System.Collections.Generic.List[regex]]::new()
     if ($CommandRegexes -and $CommandRegexes.Count -gt 0) {
         foreach ($pattern in $CommandRegexes) {
             if ([string]::IsNullOrWhiteSpace($pattern)) { continue }
-            try { $compiledCommandRegexes += [regex]::new($pattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase) } catch { }
+            try {
+                $re = script:Get-CachedRegex -Pattern $pattern
+                if ($re) { [void]$compiledCommandRegexes.Add($re) }
+            } catch { }
         }
     }
 
@@ -825,23 +884,16 @@ function Get-BrocadeAuthBlockFromLines {
 
     if (-not $Lines) { return @() }
 
-    # Patterns to match the Brocade auth block.  Allow optional dashes
-    $patterns = @(
-        '^\s*auth-?default-?vlan\s*\d+\s*$',
-        '^\s*re-?authentication\s*$',
-        '^\s*dot1x\s+enable(?:\s+ethe.+)?\s*$',
-        '^\s*dot1x\s+port-?control\s+auto(?:\s+ethe.+)?\s*$',
-        '^\s*mac-?authentication\s+enable(?:\s+ethe.+)?\s*$',
-        '^\s*mac-?authentication\s+dot1x\s+override\s*$'
-    )
-    $regex = [string]::Join('|', $patterns)
+    $regex = $script:BrocadeAuthBlockRegex
+    if (-not $regex) { return @() }
 
-    $found = New-Object System.Collections.Generic.List[string]
+    $seen  = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+    $found = [System.Collections.Generic.List[string]]::new()
     foreach ($ln in $Lines) {
-        if ($ln -match $regex) {
+        if ($regex.IsMatch($ln)) {
             # Normalize whitespace and remove extra spaces
             $norm = ($ln -replace '\s+', ' ').Trim()
-            if (-not $found.Contains($norm)) { $found.Add($norm) }
+            if ($seen.Add($norm)) { [void]$found.Add($norm) }
         }
     }
     return ,$found.ToArray()
@@ -1035,10 +1087,33 @@ function Invoke-DeviceLogParsing {
     $make = Get-DeviceMakeFromBlocks -Blocks $blocks
     if (-not $make) {
         # Fallback heuristic: scan the entire log for vendor keywords in a
-        if ($lines -match "Arista") { $make = "Arista" }
-        elseif ($lines -match "Brocade" -or $lines -match "IronWare" -or $lines -match "Stackable") { $make = "Brocade" }
-        elseif ($lines -match "Cisco") { $make = "Cisco" }
-        else {
+        $foundCisco = $false
+        $foundBrocade = $false
+        foreach ($ln in $lines) {
+            if ([string]::IsNullOrWhiteSpace($ln)) { continue }
+
+            if (-not $foundCisco -and $ln.IndexOf('Cisco', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+                $foundCisco = $true
+            }
+            if (-not $foundBrocade) {
+                if ($ln.IndexOf('Brocade', [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+                    $ln.IndexOf('IronWare', [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+                    $ln.IndexOf('Stackable', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+                    $foundBrocade = $true
+                }
+            }
+            if ($ln.IndexOf('Arista', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+                $make = 'Arista'
+                break
+            }
+        }
+
+        if (-not $make) {
+            if ($foundBrocade) { $make = 'Brocade' }
+            elseif ($foundCisco) { $make = 'Cisco' }
+        }
+
+        if (-not $make) {
             Write-Warning "Unknown vendor for file $FilePath"
             return
         }
@@ -1111,7 +1186,9 @@ function Invoke-DeviceLogParsing {
     $lines = $null
     $blocks = $null
     try {
-        [System.GC]::Collect()
+        if ($sourceLength -gt 5MB) {
+            [System.GC]::Collect([System.GC]::MaxGeneration, [System.GCCollectionMode]::Optimized)
+        }
     } catch {
         # Ignore GC exceptions; not all hosts permit explicit collection
     }
@@ -1287,7 +1364,6 @@ function Invoke-DeviceLogParsing {
             }
 
             #---------------------------------------------------------------------
-            $databaseKey = Get-CanonicalDatabaseKey -DatabasePath $DatabasePath
             $mutexName = Get-DatabaseMutexName -DatabasePath $DatabasePath
             $dbMutex = New-Object System.Threading.Mutex($false, $mutexName)
             try {
