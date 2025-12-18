@@ -642,11 +642,21 @@ function Update-DeviceFilter {
             $refreshInterfacesForViews = ($summaryVisible -or $searchVisible -or $alertsVisible)
         }
 
+        $insightsAsyncCmd = $null
+        try { $insightsAsyncCmd = Get-Command -Name 'Update-InsightsAsync' -ErrorAction SilentlyContinue } catch { $insightsAsyncCmd = $null }
+
         if ($interfacesAllowed -and $filtersChanged) {
             if (-not $refreshInterfacesForViews) {
                 # Defer expensive interface snapshot work until a tab that consumes it is visible.
                 # Clear any previously-loaded snapshot so Summary/Search/Alerts lazily reload for the new context.
                 $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
+            } elseif ($insightsAsyncCmd) {
+                # Keep the UI thread responsive: defer interface hydration to the Insights worker when available.
+                $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
+                try {
+                    $diagDefer = "Update-DeviceFilter deferred interface refresh to Insights worker | Site='{0}', Zone='{1}', Building='{2}', Room='{3}'" -f $finalSite, $finalZone, $finalBuilding, $finalRoom
+                    try { Write-Diag $diagDefer } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $diagDefer } catch { }
+                } catch { }
             } else {
                 try {
                     $refreshStopwatch = $null
@@ -700,9 +710,6 @@ function Update-DeviceFilter {
                 if ($summaryVar.Value) { $canUpdateSummary = $true }
             } catch { $canUpdateSummary = $false }
         }
-
-        $insightsAsyncCmd = $null
-        try { $insightsAsyncCmd = Get-Command -Name 'Update-InsightsAsync' -ErrorAction SilentlyContinue } catch { $insightsAsyncCmd = $null }
 
         if ($interfacesAllowed -and $insightsAsyncCmd) {
             $needSearchRefresh = $searchVisible

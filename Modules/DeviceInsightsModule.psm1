@@ -587,6 +587,11 @@ function script:Ensure-InsightsWorker {
         $script:InsightsWorkerSignal = New-Object System.Threading.AutoResetEvent $false
     }
 
+    $modulesRoot = $PSScriptRoot
+    $telemetryModulePath = Join-Path $modulesRoot 'TelemetryModule.psm1'
+    $databaseModulePath = Join-Path $modulesRoot 'DatabaseModule.psm1'
+    $repoModulePath = Join-Path $modulesRoot 'DeviceRepositoryModule.psm1'
+
     $queueRef = $script:InsightsWorkerQueue
     $signalRef = $script:InsightsWorkerSignal
 
@@ -611,6 +616,95 @@ function script:Ensure-InsightsWorker {
 
             $interfaces = $request.Interfaces
             if (-not $interfaces) { $interfaces = @() }
+
+            $loadedInterfacesPayload = $null
+            $interfaceLoadMs = $null
+            $interfaceLoadSite = $null
+
+            $loadInterfaces = $false
+            try { $loadInterfaces = [bool]$request.LoadInterfaces } catch { $loadInterfaces = $false }
+            if ($loadInterfaces) {
+                $ifaceCount = 0
+                try {
+                    if ($interfaces -is [System.Collections.ICollection]) {
+                        $ifaceCount = [int]$interfaces.Count
+                    } else {
+                        $ifaceCount = @($interfaces).Count
+                    }
+                } catch { $ifaceCount = 0 }
+
+                if ($ifaceCount -le 0) {
+                    if (-not (Get-Variable -Name InsightsWorkerModulesLoaded -Scope Script -ErrorAction SilentlyContinue)) {
+                        $script:InsightsWorkerModulesLoaded = $false
+                    }
+
+                    if (-not $script:InsightsWorkerModulesLoaded) {
+                        try {
+                            if (Test-Path -LiteralPath $telemetryModulePath) { Import-Module -Name $telemetryModulePath -Global -Force -ErrorAction Stop | Out-Null }
+                        } catch { }
+                        try {
+                            if (Test-Path -LiteralPath $databaseModulePath) { Import-Module -Name $databaseModulePath -Global -Force -ErrorAction Stop | Out-Null }
+                        } catch { }
+                        try {
+                            if (Test-Path -LiteralPath $repoModulePath) { Import-Module -Name $repoModulePath -Global -Force -ErrorAction Stop | Out-Null }
+                        } catch { }
+                        $script:InsightsWorkerModulesLoaded = $true
+                    }
+
+                    $siteToLoad = ''
+                    try { $siteToLoad = '' + $request.SiteToLoad } catch { $siteToLoad = '' }
+                    if (-not [string]::IsNullOrWhiteSpace($siteToLoad) -and -not $equalsIgnoreCase.Equals($siteToLoad, 'All Sites')) {
+                        $interfaceLoadSite = $siteToLoad
+
+                        $hostnamesToLoad = @()
+                        try { if ($request.HostnamesToLoad) { $hostnamesToLoad = @($request.HostnamesToLoad) } } catch { $hostnamesToLoad = @() }
+
+                        $loadStopwatch = $null
+                        try { $loadStopwatch = [System.Diagnostics.Stopwatch]::StartNew() } catch { $loadStopwatch = $null }
+                        $siteInterfaces = $null
+                        try {
+                            $siteInterfaces = DeviceRepositoryModule\Get-InterfacesForSite -Site $siteToLoad
+                        } catch {
+                            $siteInterfaces = $null
+                        }
+                        if ($loadStopwatch) {
+                            try { $loadStopwatch.Stop() } catch { }
+                            try { $interfaceLoadMs = [Math]::Round($loadStopwatch.Elapsed.TotalMilliseconds, 3) } catch { $interfaceLoadMs = $null }
+                        }
+
+                        $filtered = [System.Collections.Generic.List[object]]::new()
+                        if ($siteInterfaces) {
+                            $useFilter = $false
+                            $hostSet = $null
+                            if ($hostnamesToLoad -and $hostnamesToLoad.Count -gt 0) {
+                                $useFilter = $true
+                                $hostSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+                                foreach ($hn in $hostnamesToLoad) {
+                                    if ($null -eq $hn) { continue }
+                                    $hnValue = ('' + $hn).Trim()
+                                    if ([string]::IsNullOrWhiteSpace($hnValue)) { continue }
+                                    [void]$hostSet.Add($hnValue)
+                                }
+                                if ($hostSet.Count -eq 0) { $useFilter = $false }
+                            }
+
+                            foreach ($row in $siteInterfaces) {
+                                if (-not $row) { continue }
+                                if ($useFilter) {
+                                    $hnValue = ''
+                                    try { $hnValue = ('' + $row.Hostname).Trim() } catch { $hnValue = '' }
+                                    if ([string]::IsNullOrWhiteSpace($hnValue)) { continue }
+                                    if (-not $hostSet.Contains($hnValue)) { continue }
+                                }
+                                [void]$filtered.Add($row)
+                            }
+                        }
+
+                        $interfaces = $filtered
+                        $loadedInterfacesPayload = $filtered
+                    }
+                }
+            }
 
             $requestId = 0
             try { $requestId = [int]$request.RequestId } catch { $requestId = 0 }
@@ -810,6 +904,9 @@ function script:Ensure-InsightsWorker {
                 SearchResults = $searchResults
                 Summary       = $summary
                 Alerts        = $alerts
+                Interfaces    = $loadedInterfacesPayload
+                InterfaceLoadMs = $interfaceLoadMs
+                InterfaceLoadSite = $interfaceLoadSite
             }
 
             $dispatcher = $null
@@ -883,11 +980,13 @@ function Update-InsightsAsync {
 
     $ifaceCount = 0
     try { $ifaceCount = ViewStateService\Get-SequenceCount -Value $interfacesToUse } catch { $ifaceCount = 0 }
+    $loadInterfaces = $false
+    $siteToLoad = ''
+    $hostnamesToLoad = @()
     if ($ifaceCount -le 0) {
         $context = script:Get-DeviceInsightsFilterContext
 
-        $siteValue = ''
-        try { $siteValue = if ($context -and $context.Site) { ('' + $context.Site).Trim() } else { '' } } catch { $siteValue = '' }
+        try { $siteToLoad = if ($context -and $context.Site) { ('' + $context.Site).Trim() } else { '' } } catch { $siteToLoad = '' }
 
         $hasInterfaceCache = $false
         try {
@@ -895,14 +994,38 @@ function Update-InsightsAsync {
             if ($cacheProbe -is [System.Collections.IDictionary] -and $cacheProbe.Count -gt 0) { $hasInterfaceCache = $true }
         } catch { $hasInterfaceCache = $false }
 
-        if (([string]::IsNullOrWhiteSpace($siteValue) -or [System.StringComparer]::OrdinalIgnoreCase.Equals($siteValue, 'All Sites')) -and -not $hasInterfaceCache) {
-            # Avoid implicit "load every site database" behavior during Load-from-DB when no interface cache exists.
+        if (([string]::IsNullOrWhiteSpace($siteToLoad) -or [System.StringComparer]::OrdinalIgnoreCase.Equals($siteToLoad, 'All Sites')) -and -not $hasInterfaceCache) {
+            # Avoid implicit "load every site database" behavior when no cache exists.
             return
         }
 
-        script:Update-DeviceInsightsSiteZoneCache -Site $context.Site -ZoneToLoad $context.ZoneToLoad
-        $interfacesToUse = ViewStateService\Get-InterfacesForContext -Site $context.Site -ZoneSelection $context.Zone -ZoneToLoad $context.ZoneToLoad -Building $context.Building -Room $context.Room
-        try { $global:AllInterfaces = $interfacesToUse } catch { }
+        if (-not [string]::IsNullOrWhiteSpace($siteToLoad) -and -not [System.StringComparer]::OrdinalIgnoreCase.Equals($siteToLoad, 'All Sites')) {
+            $metadata = $null
+            $locationEntries = $null
+            try { $metadata = $global:DeviceMetadata } catch { $metadata = $null }
+            try { $locationEntries = $global:DeviceLocationEntries } catch { $locationEntries = $null }
+
+            $snapshot = $null
+            try {
+                $snapshotParams = @{ DeviceMetadata = $metadata; Site = $siteToLoad; LocationEntries = $locationEntries }
+                if ($context.Zone -and -not [string]::IsNullOrWhiteSpace($context.Zone) -and -not [System.StringComparer]::OrdinalIgnoreCase.Equals($context.Zone, 'All Zones')) {
+                    $snapshotParams.ZoneSelection = $context.Zone
+                }
+                if ($context.Building -and -not [string]::IsNullOrWhiteSpace($context.Building)) { $snapshotParams.Building = $context.Building }
+                if ($context.Room -and -not [string]::IsNullOrWhiteSpace($context.Room)) { $snapshotParams.Room = $context.Room }
+                $snapshot = ViewStateService\Get-FilterSnapshot @snapshotParams
+            } catch {
+                $snapshot = $null
+            }
+
+            if ($snapshot -and $snapshot.Hostnames) {
+                try { $hostnamesToLoad = @($snapshot.Hostnames) } catch { $hostnamesToLoad = @() }
+            }
+
+            if ($hostnamesToLoad -and $hostnamesToLoad.Count -gt 0) {
+                $loadInterfaces = $true
+            }
+        }
     }
 
     $term = ''
@@ -942,6 +1065,15 @@ function Update-InsightsAsync {
         $requestId = 0
     }
 
+    if ($loadInterfaces) {
+        try {
+            $hostCount = 0
+            try { $hostCount = @($hostnamesToLoad).Count } catch { $hostCount = 0 }
+            $msg = "[DeviceInsights] Interface snapshot scheduled | RequestId={0} | Site={1} | Hosts={2}" -f $requestId, $siteToLoad, $hostCount
+            try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { }
+        } catch { }
+    }
+
     $applyUiUpdates = {
         param($state)
 
@@ -950,6 +1082,22 @@ function Update-InsightsAsync {
         if ($stateId -gt 0) {
             try {
                 if ($stateId -ne $script:InsightsLatestRequestId) { return }
+            } catch { }
+        }
+
+        $loadedInterfaces = $null
+        try { if ($state.PSObject.Properties['Interfaces']) { $loadedInterfaces = $state.Interfaces } } catch { $loadedInterfaces = $null }
+        if ($loadedInterfaces) {
+            try { $global:AllInterfaces = $loadedInterfaces } catch { }
+            try {
+                $loadMs = $null
+                $loadSite = ''
+                try { $loadMs = $state.InterfaceLoadMs } catch { $loadMs = $null }
+                try { $loadSite = '' + $state.InterfaceLoadSite } catch { $loadSite = '' }
+                if ($null -ne $loadMs) {
+                    $msg = "[DeviceInsights] Interface snapshot loaded | Site={0} | Interfaces={1} | LoadMs={2}" -f $loadSite, (ViewStateService\Get-SequenceCount -Value $loadedInterfaces), $loadMs
+                    try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { }
+                }
             } catch { }
         }
 
@@ -1000,6 +1148,9 @@ function Update-InsightsAsync {
         Dispatcher     = $dispatcher
         ApplyDelegate  = $applyUiDelegate
         Interfaces     = $interfacesToUse
+        LoadInterfaces = $loadInterfaces
+        SiteToLoad     = $siteToLoad
+        HostnamesToLoad = $hostnamesToLoad
         IncludeSearch  = $needSearch
         IncludeSummary = $needSummary
         IncludeAlerts  = $needAlerts
