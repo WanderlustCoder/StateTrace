@@ -996,6 +996,10 @@ function Update-InsightsAsync {
 
         if (([string]::IsNullOrWhiteSpace($siteToLoad) -or [System.StringComparer]::OrdinalIgnoreCase.Equals($siteToLoad, 'All Sites')) -and -not $hasInterfaceCache) {
             # Avoid implicit "load every site database" behavior when no cache exists.
+            try {
+                $msg = "[DeviceInsights] Interface snapshot skipped | Reason=AllSitesNoCache | Site={0}" -f $siteToLoad
+                try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { }
+            } catch { }
             return
         }
 
@@ -1026,6 +1030,19 @@ function Update-InsightsAsync {
                 $loadInterfaces = $true
             }
         }
+
+        if (-not $loadInterfaces -and -not [string]::IsNullOrWhiteSpace($siteToLoad) -and -not [System.StringComparer]::OrdinalIgnoreCase.Equals($siteToLoad, 'All Sites')) {
+            try {
+                $zoneValue = ''
+                $buildingValue = ''
+                $roomValue = ''
+                try { $zoneValue = '' + $context.Zone } catch { $zoneValue = '' }
+                try { $buildingValue = '' + $context.Building } catch { $buildingValue = '' }
+                try { $roomValue = '' + $context.Room } catch { $roomValue = '' }
+                $msg = "[DeviceInsights] Interface snapshot not scheduled | Reason=NoHostnames | Site={0} | Zone={1} | Building={2} | Room={3}" -f $siteToLoad, $zoneValue, $buildingValue, $roomValue
+                try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { }
+            } catch { }
+        }
     }
 
     $term = ''
@@ -1054,7 +1071,13 @@ function Update-InsightsAsync {
         } catch { }
     }
 
-    if (-not (script:Ensure-InsightsWorker)) { return }
+    if (-not (script:Ensure-InsightsWorker)) {
+        try {
+            $msg = "[DeviceInsights] Insights worker unavailable; skipping async refresh."
+            try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { }
+        } catch { }
+        return
+    }
 
     $requestId = 0
     try {

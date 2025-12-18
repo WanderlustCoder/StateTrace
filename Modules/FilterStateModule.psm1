@@ -713,11 +713,18 @@ function Update-DeviceFilter {
 
         if ($interfacesAllowed -and $insightsAsyncCmd) {
             $needSearchRefresh = $searchVisible
-            $needSummaryRefresh = $canUpdateSummary
+            $needSummaryRefresh = $summaryVisible
             $needAlertsRefresh = $alertsVisible
 
             if ($needSearchRefresh -or $needSummaryRefresh -or $needAlertsRefresh) {
                 try {
+                    try {
+                        $ifaceCount = 0
+                        try { $ifaceCount = ViewStateService\Get-SequenceCount -Value $global:AllInterfaces } catch { $ifaceCount = 0 }
+                        $diagInsights = "Update-DeviceFilter scheduling insights | Search={0} Summary={1} Alerts={2} | Interfaces={3} | Site='{4}' Zone='{5}'" -f `
+                            $needSearchRefresh, $needSummaryRefresh, $needAlertsRefresh, $ifaceCount, $finalSite, $finalZone
+                        try { Write-Diag $diagInsights } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $diagInsights } catch { }
+                    } catch { }
                     Update-InsightsAsync -Interfaces $global:AllInterfaces -IncludeSearch:$needSearchRefresh -IncludeSummary:$needSummaryRefresh -IncludeAlerts:$needAlertsRefresh
                 } catch { }
             }
