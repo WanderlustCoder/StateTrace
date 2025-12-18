@@ -556,7 +556,7 @@ function Update-DeviceFilter {
                     $hostnameDD.ItemsSource = @('')
                     $hostnameDD.SelectedIndex = 0
                 } else {
-                    $hostnameDD.ItemsSource = $hostCandidates
+                    $hostnameDD.ItemsSource = @($hostCandidates)
                     if (-not [string]::IsNullOrWhiteSpace($targetHostnameSelection)) {
                         $hostnameDD.SelectedItem = $targetHostnameSelection
                     } else {
