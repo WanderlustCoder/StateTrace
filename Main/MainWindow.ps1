@@ -1568,6 +1568,17 @@ function Initialize-DeviceViewFromCatalog {
         [object]$CatalogData
     )
 
+    $initStopwatch = $null
+    try { $initStopwatch = [System.Diagnostics.Stopwatch]::StartNew() } catch { $initStopwatch = $null }
+    try { Write-Diag ("Initialize-DeviceViewFromCatalog start | SiteFilter={0} | HasCatalog={1}" -f $SiteFilter, [bool]$CatalogData) } catch { }
+
+    $previousProgrammaticHostnameUpdate = $false
+    try { $previousProgrammaticHostnameUpdate = [bool]$global:ProgrammaticHostnameUpdate } catch { $previousProgrammaticHostnameUpdate = $false }
+    $global:ProgrammaticHostnameUpdate = $true
+    try {
+
+    $hostList = @()
+    $targetHostnameToLoad = $null
     # Call the unified device helper functions directly (no module qualifier).
     $catalog = $null
     if ($CatalogData) {
@@ -1590,7 +1601,7 @@ function Initialize-DeviceViewFromCatalog {
             }
         } catch { $catalog = $null }
     }
-    $hostList = @()
+
     if ($catalog -and $catalog.PSObject.Properties['Hostnames']) {
         $hostList = @($catalog.Hostnames)
     }
@@ -1636,6 +1647,12 @@ function Initialize-DeviceViewFromCatalog {
         }
     } catch {}
 
+    try {
+        if ($initStopwatch) {
+            Write-Diag ("Initialize-DeviceViewFromCatalog after Initialize-DeviceFilters | HostCount={0} | ElapsedMs={1}" -f @($hostList).Count, [Math]::Round($initStopwatch.Elapsed.TotalMilliseconds, 3))
+        }
+    } catch { }
+
     # Ensure the site dropdown reflects the chosen SiteFilter when loading from DB
     try {
         $siteDD = $Window.FindName('SiteDropdown')
@@ -1676,6 +1693,12 @@ function Initialize-DeviceViewFromCatalog {
 
     try { Update-DeviceFilter } catch {}
 
+    try {
+        if ($initStopwatch) {
+            Write-Diag ("Initialize-DeviceViewFromCatalog after Update-DeviceFilter | ElapsedMs={0}" -f [Math]::Round($initStopwatch.Elapsed.TotalMilliseconds, 3))
+        }
+    } catch { }
+
     if ((Test-OptionalCommandAvailable -Name 'Update-CompareView') -and (Test-CompareSidebarVisible -Window $Window)) {
         try { Update-CompareView -Window $Window | Out-Null }
         catch { Write-Warning ("Failed to refresh Compare view: {0}" -f $_.Exception.Message) }
@@ -1683,11 +1706,55 @@ function Initialize-DeviceViewFromCatalog {
 
     try {
         $hostDD = $Window.FindName('HostnameDropdown')
-        if ($hostDD -and $hostDD.Items -and $hostDD.Items.Count -gt 0 -and $hostDD.SelectedIndex -lt 0) {
-            $hostDD.SelectedIndex = 0
+        if ($hostDD) {
+            $selected = $null
+            try { $selected = '' + $hostDD.SelectedItem } catch { $selected = $null }
+
+            $isAllSites = [string]::IsNullOrWhiteSpace($SiteFilter)
+            $hostCount = 0
+            try { $hostCount = [int]$hostDD.Items.Count } catch { $hostCount = 0 }
+
+            # Avoid auto-loading device details when loading All Sites (often very large).
+            if ($isAllSites) {
+                try { $hostDD.SelectedIndex = -1 } catch { }
+            } else {
+                if ($hostCount -gt 0 -and ($hostDD.SelectedIndex -lt 0)) {
+                    try { $hostDD.SelectedIndex = 0 } catch { }
+                }
+
+                # Auto-load for small scoped sets when no prior selection exists.
+                if ([string]::IsNullOrWhiteSpace($selected) -and $hostCount -gt 0 -and $hostCount -le 50) {
+                    try { $selected = '' + $hostDD.SelectedItem } catch { $selected = $null }
+                }
+                if (-not [string]::IsNullOrWhiteSpace($selected)) {
+                    $targetHostnameToLoad = $selected
+                }
+            }
         }
         $null = Invoke-OptionalCommandSafe -Name 'InterfaceModule\Set-HostLoadingIndicator' -Parameters @{ State = 'Hidden' }
     } catch {}
+    } finally {
+        $global:ProgrammaticHostnameUpdate = $previousProgrammaticHostnameUpdate
+    }
+
+    if ($targetHostnameToLoad) {
+        try {
+            $hostToLoadLocal = $targetHostnameToLoad
+            [System.Windows.Application]::Current.Dispatcher.BeginInvoke(
+                [System.Windows.Threading.DispatcherPriority]::Background,
+                [System.Action]{
+                    try { Get-HostnameChanged -Hostname $hostToLoadLocal } catch { }
+                }
+            ) | Out-Null
+        } catch { }
+    }
+
+    try {
+        if ($initStopwatch) {
+            $initStopwatch.Stop()
+            Write-Diag ("Initialize-DeviceViewFromCatalog end | ElapsedMs={0}" -f [Math]::Round($initStopwatch.Elapsed.TotalMilliseconds, 3))
+        }
+    } catch { }
 }
 
 function Test-CompareSidebarVisible {
