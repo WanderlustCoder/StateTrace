@@ -651,7 +651,25 @@ function Update-DeviceFilter {
                 try {
                     $refreshStopwatch = $null
                     try { $refreshStopwatch = [System.Diagnostics.Stopwatch]::StartNew() } catch { $refreshStopwatch = $null }
-                    $global:AllInterfaces = ViewStateService\Get-InterfacesForContext -Site $finalSite -ZoneSelection $finalZone -ZoneToLoad $zoneToLoad -Building $finalBuilding -Room $finalRoom
+
+                    $allSitesSelected = $false
+                    if ([string]::IsNullOrWhiteSpace($finalSite) -or [System.StringComparer]::OrdinalIgnoreCase.Equals($finalSite, 'All Sites')) {
+                        $allSitesSelected = $true
+                    }
+
+                    $hasInterfaceCache = $false
+                    try {
+                        $cacheProbe = $global:DeviceInterfaceCache
+                        if ($cacheProbe -is [System.Collections.IDictionary] -and $cacheProbe.Count -gt 0) { $hasInterfaceCache = $true }
+                    } catch { $hasInterfaceCache = $false }
+
+                    if ($allSitesSelected -and -not $hasInterfaceCache) {
+                        # Avoid hydrating every site database during Load-from-DB when no interface cache is present.
+                        # Users can select a specific site (or run a scan) to populate interfaces.
+                        $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
+                    } else {
+                        $global:AllInterfaces = ViewStateService\Get-InterfacesForContext -Site $finalSite -ZoneSelection $finalZone -ZoneToLoad $zoneToLoad -Building $finalBuilding -Room $finalRoom
+                    }
                     $refreshDurationMs = 0.0
                     if ($refreshStopwatch) {
                         try { $refreshStopwatch.Stop() } catch { }

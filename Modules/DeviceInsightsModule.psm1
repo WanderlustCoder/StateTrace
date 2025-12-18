@@ -885,6 +885,21 @@ function Update-InsightsAsync {
     try { $ifaceCount = ViewStateService\Get-SequenceCount -Value $interfacesToUse } catch { $ifaceCount = 0 }
     if ($ifaceCount -le 0) {
         $context = script:Get-DeviceInsightsFilterContext
+
+        $siteValue = ''
+        try { $siteValue = if ($context -and $context.Site) { ('' + $context.Site).Trim() } else { '' } } catch { $siteValue = '' }
+
+        $hasInterfaceCache = $false
+        try {
+            $cacheProbe = $global:DeviceInterfaceCache
+            if ($cacheProbe -is [System.Collections.IDictionary] -and $cacheProbe.Count -gt 0) { $hasInterfaceCache = $true }
+        } catch { $hasInterfaceCache = $false }
+
+        if (([string]::IsNullOrWhiteSpace($siteValue) -or [System.StringComparer]::OrdinalIgnoreCase.Equals($siteValue, 'All Sites')) -and -not $hasInterfaceCache) {
+            # Avoid implicit "load every site database" behavior during Load-from-DB when no interface cache exists.
+            return
+        }
+
         script:Update-DeviceInsightsSiteZoneCache -Site $context.Site -ZoneToLoad $context.ZoneToLoad
         $interfacesToUse = ViewStateService\Get-InterfacesForContext -Site $context.Site -ZoneSelection $context.Zone -ZoneToLoad $context.ZoneToLoad -Building $context.Building -Room $context.Room
         try { $global:AllInterfaces = $interfacesToUse } catch { }
