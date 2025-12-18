@@ -410,16 +410,34 @@ function Update-DeviceFilter {
         }
 
         $allSnapshot = ViewStateService\Get-FilterSnapshot -DeviceMetadata $metadata -LocationEntries $locationEntries
-        $siteCandidates = if ($allSnapshot -and $allSnapshot.Sites) { @($allSnapshot.Sites) } else { @() }
+        $snapshotSiteCandidates = if ($allSnapshot -and $allSnapshot.Sites) { @($allSnapshot.Sites) } else { @() }
+
+        # Preserve any existing sites already shown in the Site dropdown so selecting a scoped site does not
+        # collapse the available site list (e.g., when only one site is currently loaded into metadata).
+        $existingSiteCandidates = @()
+        if ($siteDD) {
+            try { $existingSiteCandidates = @($siteDD.ItemsSource) } catch { $existingSiteCandidates = @() }
+            if (-not $existingSiteCandidates -or $existingSiteCandidates.Count -eq 0) {
+                try { $existingSiteCandidates = @($siteDD.Items) } catch { $existingSiteCandidates = @() }
+            }
+        }
+
+        $siteCandidates = [System.Collections.Generic.List[string]]::new()
+        $seenSiteCandidates = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+        foreach ($candidate in @($existingSiteCandidates) + @($snapshotSiteCandidates)) {
+            $candidateText = if ($null -ne $candidate) { ('' + $candidate).Trim() } else { '' }
+            if ([string]::IsNullOrWhiteSpace($candidateText)) { continue }
+            if ([System.StringComparer]::OrdinalIgnoreCase.Equals($candidateText, 'All Sites')) { continue }
+            if ($seenSiteCandidates.Add($candidateText)) { [void]$siteCandidates.Add($candidateText) }
+        }
+
         $siteSelection = Resolve-SelectionValue -Current $siteInput -Candidates $siteCandidates -Sentinel 'All Sites'
 
         $siteItems = [System.Collections.Generic.List[string]]::new()
-        $seenSites = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
         [void]$siteItems.Add('All Sites')
-        [void]$seenSites.Add('All Sites')
         foreach ($candidate in $siteCandidates) {
             if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
-            if ($seenSites.Add($candidate)) { [void]$siteItems.Add($candidate) }
+            [void]$siteItems.Add($candidate)
         }
 
         if ($siteDD) {

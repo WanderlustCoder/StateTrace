@@ -246,6 +246,22 @@ Describe "FilterStateModule Update-DeviceFilter" {
         $global:AllInterfaces.Count | Should Be 0
     }
 
+    It "does not collapse the site dropdown when metadata is scoped" {
+        $global:InterfacesLoadAllowed = $false
+        $global:DeviceMetadata = @{
+            'SITE1-Z1-SW1' = [pscustomobject]@{ Site = 'SITE1'; Zone = 'Z1'; Building = 'B1'; Room = 'R101' }
+        }
+
+        $script:FilterTestControls['SiteDropdown'].ItemsSource = @('All Sites', 'SITE1', 'SITE2')
+        $script:FilterTestControls['SiteDropdown'].SelectedItem = 'SITE1'
+
+        FilterStateModule\Update-DeviceFilter
+
+        $siteItems = @($script:FilterTestControls['SiteDropdown'].ItemsSource)
+        ($siteItems -contains 'SITE1') | Should Be $true
+        ($siteItems -contains 'SITE2') | Should Be $true
+    }
+
     It "loads site list from Get-DeviceLocationEntries when metadata is empty (integration)" {
         $global:DeviceMetadata = $null
         $global:InterfacesLoadAllowed = $false
