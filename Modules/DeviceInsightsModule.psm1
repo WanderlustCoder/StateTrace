@@ -26,8 +26,11 @@ if (-not (Get-Variable -Scope Script -Name InsightsWorkerQueue -ErrorAction Sile
 if (-not (Get-Variable -Scope Script -Name InsightsWorkerSignal -ErrorAction SilentlyContinue)) {
     $script:InsightsWorkerSignal = $null
 }
-if (-not (Get-Variable -Scope Script -Name InsightsDefaultsAppliedForInterfaces -ErrorAction SilentlyContinue)) {
-    $script:InsightsDefaultsAppliedForInterfaces = $null
+if (-not (Get-Variable -Scope Script -Name InsightsRequestCounter -ErrorAction SilentlyContinue)) {
+    $script:InsightsRequestCounter = 0
+}
+if (-not (Get-Variable -Scope Script -Name InsightsLatestRequestId -ErrorAction SilentlyContinue)) {
+    $script:InsightsLatestRequestId = 0
 }
 
 function script:Get-InterfaceStringPropertyValueCommand {
@@ -596,22 +599,21 @@ function script:Ensure-InsightsWorker {
         $equalsIgnoreCase = [System.StringComparer]::OrdinalIgnoreCase
 
         while ($true) {
-            try { $null = $signalLocal.WaitOne() } catch { continue }
-
             $item = $null
             $request = $null
-            try {
-                while ($queueLocal.TryDequeue([ref]$item)) {
-                    $request = $item
-                }
-            } catch {
-                $request = $null
+            try { while ($queueLocal.TryDequeue([ref]$item)) { $request = $item } } catch { $request = $null }
+            if (-not $request) {
+                try { $null = $signalLocal.WaitOne() } catch { }
+                continue
             }
 
             if (-not $request) { continue }
 
             $interfaces = $request.Interfaces
             if (-not $interfaces) { $interfaces = @() }
+
+            $requestId = 0
+            try { $requestId = [int]$request.RequestId } catch { $requestId = 0 }
 
             $includeSearch = [bool]$request.IncludeSearch
             $includeSummary = [bool]$request.IncludeSummary
@@ -651,11 +653,15 @@ function script:Ensure-InsightsWorker {
             foreach ($row in $interfaces) {
                 if (-not $row) { continue }
 
+                $hostname = ''
+                try { $hostname = '' + $row.Hostname } catch { $hostname = '' }
+                if (-not $hostname) {
+                    try { $hostname = '' + $row.HostName } catch { $hostname = '' }
+                }
+
                 if ($includeSummary) {
                     $intCount++
 
-                    $hostname = ''
-                    try { $hostname = '' + $row.Hostname } catch { $hostname = '' }
                     if (-not [string]::IsNullOrWhiteSpace($hostname)) { [void]$devSet.Add($hostname) }
 
                     $status = ''
@@ -701,7 +707,7 @@ function script:Ensure-InsightsWorker {
 
                     if ($reasonParts.Count -gt 0) {
                         $alert = [PSCustomObject]@{
-                            Hostname  = $row.Hostname
+                            Hostname  = $hostname
                             Port      = $row.Port
                             Name      = $row.Name
                             Status    = $row.Status
@@ -797,6 +803,7 @@ function script:Ensure-InsightsWorker {
             } catch { }
 
             $payload = [PSCustomObject]@{
+                RequestId     = $requestId
                 IncludeSearch = $includeSearch
                 IncludeSummary = $includeSummary
                 IncludeAlerts = $includeAlerts
@@ -812,56 +819,12 @@ function script:Ensure-InsightsWorker {
             }
             if (-not $dispatcher) { continue }
 
-            $uiAction = {
-                param($state)
-
-                try {
-                    if (-not $queueRef.IsEmpty) { return }
-                } catch { }
-
-                if ($state.IncludeSummary -and $state.Summary) {
-                    $sv = $null
-                    try { $sv = (Get-Variable -Name summaryView -Scope Global -ErrorAction SilentlyContinue).Value } catch { $sv = $null }
-                    if ($sv) {
-                        try {
-                            ($sv.FindName("SummaryDevicesCount")).Text      = ('' + $state.Summary.Devices)
-                            ($sv.FindName("SummaryInterfacesCount")).Text   = ('' + $state.Summary.Interfaces)
-                            ($sv.FindName("SummaryUpCount")).Text           = ('' + $state.Summary.Up)
-                            ($sv.FindName("SummaryDownCount")).Text         = ('' + $state.Summary.Down)
-                            ($sv.FindName("SummaryAuthorizedCount")).Text   = ('' + $state.Summary.Authorized)
-                            ($sv.FindName("SummaryUnauthorizedCount")).Text = ('' + $state.Summary.Unauthorized)
-                            ($sv.FindName("SummaryUniqueVlansCount")).Text  = ('' + $state.Summary.UniqueVlans)
-                            ($sv.FindName("SummaryExtra")).Text             = ("Up %: {0}%" -f $state.Summary.UpPct)
-                        } catch { }
-                    }
-                }
-
-                if ($state.IncludeAlerts) {
-                    try { $global:AlertsList = $state.Alerts } catch { }
-                    if ($global:alertsView) {
-                        try {
-                            $grid = $global:alertsView.FindName('AlertsGrid')
-                            if ($grid) { $grid.ItemsSource = $global:AlertsList }
-                        } catch { }
-                    }
-                }
-
-                if ($state.IncludeSearch) {
-                    try {
-                        $searchHostCtrl = $global:window.FindName('SearchInterfacesHost')
-                        if ($searchHostCtrl) {
-                            $view = $searchHostCtrl.Content
-                            if ($view) {
-                                $gridCtrl = $view.FindName('SearchInterfacesGrid')
-                                if ($gridCtrl) { $gridCtrl.ItemsSource = $state.SearchResults }
-                            }
-                        }
-                    } catch { }
-                }
-            }.GetNewClosure()
+            $applyDelegate = $null
+            try { $applyDelegate = $request.ApplyDelegate } catch { $applyDelegate = $null }
+            if (-not $applyDelegate) { continue }
 
             try {
-                $dispatcher.Invoke([System.Action[object]]$uiAction, $payload)
+                $null = $dispatcher.BeginInvoke([System.Windows.Threading.DispatcherPriority]::Background, $applyDelegate, $payload)
             } catch { }
         }
     }.GetNewClosure()
@@ -878,51 +841,6 @@ function script:Ensure-InsightsWorker {
     $script:InsightsWorkerThread = $workerThread
     $script:InsightsWorkerInitialized = $true
     return $true
-}
-
-function script:Ensure-InsightsInterfaceDefaults {
-    [CmdletBinding()]
-    param(
-        [object]$Interfaces
-    )
-
-    if (-not $Interfaces) { return }
-    if ([object]::ReferenceEquals($script:InsightsDefaultsAppliedForInterfaces, $Interfaces)) { return }
-
-    $stringPropertyCmd = script:Get-InterfaceStringPropertyValueCommand
-    $setDefaultsCmd = script:Get-InterfaceSetPortRowDefaultsCommand
-
-    foreach ($row in $Interfaces) {
-        if (-not $row) { continue }
-        try {
-            $hostnameValue = ''
-            if (-not $row.PSObject.Properties['Hostname']) {
-                try {
-                    if ($stringPropertyCmd) {
-                        $hostnameValue = & $stringPropertyCmd -InputObject $row -PropertyNames @('Hostname','HostName')
-                    }
-                } catch { $hostnameValue = '' }
-                if (-not $hostnameValue) {
-                    try {
-                        if ($row.PSObject.Properties['HostName']) { $hostnameValue = '' + $row.HostName }
-                    } catch { $hostnameValue = '' }
-                }
-            }
-
-            if ($setDefaultsCmd) {
-                try { & $setDefaultsCmd -Row $row -Hostname $hostnameValue | Out-Null } catch { }
-            } else {
-                if (-not $row.PSObject.Properties['Hostname']) {
-                    $row | Add-Member -NotePropertyName Hostname -NotePropertyValue $hostnameValue -ErrorAction SilentlyContinue
-                }
-                if (-not $row.PSObject.Properties['IsSelected']) {
-                    $row | Add-Member -NotePropertyName IsSelected -NotePropertyValue $false -ErrorAction SilentlyContinue
-                }
-            }
-        } catch { }
-    }
-
-    $script:InsightsDefaultsAppliedForInterfaces = $Interfaces
 }
 
 function Update-InsightsAsync {
@@ -972,8 +890,6 @@ function Update-InsightsAsync {
         try { $global:AllInterfaces = $interfacesToUse } catch { }
     }
 
-    script:Ensure-InsightsInterfaceDefaults -Interfaces $interfacesToUse
-
     $term = ''
     $statusFilterVal = 'All'
     $authFilterVal = 'All'
@@ -1002,8 +918,72 @@ function Update-InsightsAsync {
 
     if (-not (script:Ensure-InsightsWorker)) { return }
 
+    $requestId = 0
+    try {
+        $script:InsightsRequestCounter++
+        $requestId = $script:InsightsRequestCounter
+        $script:InsightsLatestRequestId = $requestId
+    } catch {
+        $requestId = 0
+    }
+
+    $applyUiUpdates = {
+        param($state)
+
+        $stateId = 0
+        try { $stateId = [int]$state.RequestId } catch { $stateId = 0 }
+        if ($stateId -gt 0) {
+            try {
+                if ($stateId -ne $script:InsightsLatestRequestId) { return }
+            } catch { }
+        }
+
+        if ($state.IncludeSummary -and $state.Summary) {
+            $sv = $null
+            try { $sv = (Get-Variable -Name summaryView -Scope Global -ErrorAction SilentlyContinue).Value } catch { $sv = $null }
+            if ($sv) {
+                try {
+                    ($sv.FindName("SummaryDevicesCount")).Text      = ('' + $state.Summary.Devices)
+                    ($sv.FindName("SummaryInterfacesCount")).Text   = ('' + $state.Summary.Interfaces)
+                    ($sv.FindName("SummaryUpCount")).Text           = ('' + $state.Summary.Up)
+                    ($sv.FindName("SummaryDownCount")).Text         = ('' + $state.Summary.Down)
+                    ($sv.FindName("SummaryAuthorizedCount")).Text   = ('' + $state.Summary.Authorized)
+                    ($sv.FindName("SummaryUnauthorizedCount")).Text = ('' + $state.Summary.Unauthorized)
+                    ($sv.FindName("SummaryUniqueVlansCount")).Text  = ('' + $state.Summary.UniqueVlans)
+                    ($sv.FindName("SummaryExtra")).Text             = ("Up %: {0}%" -f $state.Summary.UpPct)
+                } catch { }
+            }
+        }
+
+        if ($state.IncludeAlerts) {
+            try { $global:AlertsList = $state.Alerts } catch { }
+            if ($global:alertsView) {
+                try {
+                    $grid = $global:alertsView.FindName('AlertsGrid')
+                    if ($grid) { $grid.ItemsSource = $global:AlertsList }
+                } catch { }
+            }
+        }
+
+        if ($state.IncludeSearch) {
+            try {
+                $searchHostCtrl = $global:window.FindName('SearchInterfacesHost')
+                if ($searchHostCtrl) {
+                    $view = $searchHostCtrl.Content
+                    if ($view) {
+                        $gridCtrl = $view.FindName('SearchInterfacesGrid')
+                        if ($gridCtrl) { $gridCtrl.ItemsSource = $state.SearchResults }
+                    }
+                }
+            } catch { }
+        }
+    }.GetNewClosure()
+    $applyUiDelegate = [System.Action[object]]$applyUiUpdates
+
     $request = [PSCustomObject]@{
+        RequestId      = $requestId
         Dispatcher     = $dispatcher
+        ApplyDelegate  = $applyUiDelegate
         Interfaces     = $interfacesToUse
         IncludeSearch  = $needSearch
         IncludeSummary = $needSummary
