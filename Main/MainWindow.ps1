@@ -1145,9 +1145,7 @@ function Update-ParserStatusIndicator {
         }
         $refreshFilter = $script:ParserPendingSiteFilter
         $script:ParserPendingSiteFilter = $null
-        try { Initialize-DeviceViewFromCatalog -Window $Window -SiteFilter $refreshFilter } catch { }
-        try { Populate-SiteDropdownWithAvailableSites -Window $Window -PreferredSelection $refreshFilter -PreserveExistingSelection } catch { }
-        try { Update-FreshnessIndicator -Window $Window } catch { }
+        try { Invoke-DatabaseImport -Window $Window -SiteFilterOverride $refreshFilter -SkipTelemetry } catch { }
     } else {
         if ($logPath) {
             $indicator.Content = ("Parsing {0}. See {1}" -f $state.ToLower(), $logPath)
@@ -1777,7 +1775,11 @@ function Test-CompareSidebarVisible {
 
 function Invoke-DatabaseImport {
     [CmdletBinding()]
-    param([Parameter(Mandatory)][Windows.Window]$Window)
+    param(
+        [Parameter(Mandatory)][Windows.Window]$Window,
+        [string]$SiteFilterOverride,
+        [switch]$SkipTelemetry
+    )
 
     try {
         if ($script:DatabaseImportInProgress) {
@@ -1823,7 +1825,16 @@ function Invoke-DatabaseImport {
             }
         } catch {}
 
-        $siteFilterValue = Get-SelectedSiteFilterValue -Window $Window
+        $siteFilterValue = $null
+        if ($PSBoundParameters.ContainsKey('SiteFilterOverride')) {
+            if ([string]::IsNullOrWhiteSpace($SiteFilterOverride) -or [System.StringComparer]::OrdinalIgnoreCase.Equals($SiteFilterOverride, 'All Sites')) {
+                $siteFilterValue = $null
+            } else {
+                $siteFilterValue = '' + $SiteFilterOverride
+            }
+        } else {
+            $siteFilterValue = Get-SelectedSiteFilterValue -Window $Window
+        }
 
         try {
             $loadBtn = $Window.FindName('LoadDatabaseButton')
@@ -1906,6 +1917,60 @@ return [pscustomobject]@{
             $diagSite = $siteFilterValue
             try { Write-Diag ("Invoke-DatabaseImport async dispatch | RequestId={0} | SiteFilter={1}" -f $diagRequestId, $diagSite) } catch {}
 
+            $applyRequestId = $diagRequestId
+            $applySiteFilterValue = $siteFilterValue
+            $applyWindow = $Window
+            $applySkipTelemetry = [bool]$SkipTelemetry
+            $applyDelegateAction = {
+                param($dto)
+                $shouldFinalize = $false
+                try {
+                    if ($applyRequestId -ne $script:DatabaseImportRequestId) {
+                        try { Write-Diag ("Invoke-DatabaseImport stale completion ignored | RequestId={0} | Current={1}" -f $applyRequestId, $script:DatabaseImportRequestId) } catch {}
+                        return
+                    }
+
+                    $shouldFinalize = $true
+
+                    if (-not $dto -or ($dto -is [System.Management.Automation.ErrorRecord])) {
+                        if ($dto -and $dto.Exception) {
+                            Write-Warning ("Database import failed: {0}" -f $dto.Exception.Message)
+                        } else {
+                            Write-Warning "Database import failed: no result returned."
+                        }
+                        return
+                    }
+
+                    $catalog = $null
+                    $sites = @()
+                    try { if ($dto.PSObject.Properties['Catalog']) { $catalog = $dto.Catalog } } catch { $catalog = $null }
+                    try { if ($dto.PSObject.Properties['Sites']) { $sites = @($dto.Sites) } } catch { $sites = @() }
+
+                    Initialize-DeviceViewFromCatalog -Window $applyWindow -SiteFilter $applySiteFilterValue -CatalogData $catalog
+
+                    if ($sites -and $sites.Count -gt 0) {
+                        Populate-SiteDropdownWithAvailableSites -Window $applyWindow -Sites $sites -PreferredSelection $applySiteFilterValue -PreserveExistingSelection
+                    } else {
+                        Populate-SiteDropdownWithAvailableSites -Window $applyWindow -PreferredSelection $applySiteFilterValue -PreserveExistingSelection
+                    }
+
+                    if (-not $applySkipTelemetry) {
+                        Publish-UserActionTelemetry -Action 'LoadFromDb' -Site $applySiteFilterValue -Hostname (Get-SelectedHostname -Window $applyWindow) -Context 'MainWindow'
+                    }
+                } catch {
+                    Write-Warning ("Database import UI apply failed: {0}" -f $_.Exception.Message)
+                } finally {
+                    if ($shouldFinalize) {
+                        try {
+                            $loadBtn = $applyWindow.FindName('LoadDatabaseButton')
+                            if ($loadBtn) { $loadBtn.IsEnabled = $true }
+                        } catch { }
+                        $script:DatabaseImportInProgress = $false
+                    }
+                }
+            }.GetNewClosure()
+            $applyDelegate = [System.Action[object]]$applyDelegateAction
+
             $diagPathLocal = $script:DiagLogPath
             $threadScript = {
                 param([System.Management.Automation.PowerShell]$psCmd, [string]$tag)
@@ -1937,78 +2002,16 @@ return [pscustomobject]@{
                     try { $invokeDurationMs = [Math]::Round($invokeStopwatch.Elapsed.TotalMilliseconds, 3) } catch { $invokeDurationMs = 0.0 }
                     try { Write-Diag ("Invoke-DatabaseImport async result | RequestId={0} | InvokeMs={1}" -f $diagRequestId, $invokeDurationMs) } catch {}
 
-                    $uiAction = {
-                        param($dto)
-                        try {
-                            if (-not $dto -or ($dto -is [System.Management.Automation.ErrorRecord])) {
-                                if ($dto -and $dto.Exception) {
-                                    Write-Warning ("Database import failed: {0}" -f $dto.Exception.Message)
-                                } else {
-                                    Write-Warning "Database import failed: no result returned."
-                                }
-                                return
-                            }
-
-                            if ($diagRequestId -ne $script:DatabaseImportRequestId) {
-                                try { Write-Diag ("Invoke-DatabaseImport stale completion ignored | RequestId={0} | Current={1}" -f $diagRequestId, $script:DatabaseImportRequestId) } catch {}
-                                return
-                            }
-
-                            $catalog = $null
-                            $sites = @()
-                            try { if ($dto.PSObject.Properties['Catalog']) { $catalog = $dto.Catalog } } catch { $catalog = $null }
-                            try { if ($dto.PSObject.Properties['Sites']) { $sites = @($dto.Sites) } } catch { $sites = @() }
-
-                            Initialize-DeviceViewFromCatalog -Window $Window -SiteFilter $siteFilterValue -CatalogData $catalog
-
-                            if ($sites -and $sites.Count -gt 0) {
-                                Populate-SiteDropdownWithAvailableSites -Window $Window -Sites $sites -PreferredSelection $siteFilterValue -PreserveExistingSelection
-                            } else {
-                                Populate-SiteDropdownWithAvailableSites -Window $Window -PreferredSelection $siteFilterValue -PreserveExistingSelection
-                            }
-
-                            Publish-UserActionTelemetry -Action 'LoadFromDb' -Site $siteFilterValue -Hostname (Get-SelectedHostname -Window $Window) -Context 'MainWindow'
-                        } catch {
-                            Write-Warning ("Database import UI apply failed: {0}" -f $_.Exception.Message)
-                        } finally {
-                            try {
-                                $loadBtn = $Window.FindName('LoadDatabaseButton')
-                                if ($loadBtn) { $loadBtn.IsEnabled = $true }
-                            } catch { }
-                            $script:DatabaseImportInProgress = $false
-                        }
-                    }
-                    $uiAction = $uiAction.GetNewClosure()
-                    $uiDelegate = [System.Action[object]]$uiAction
                     try {
-                        [System.Windows.Application]::Current.Dispatcher.BeginInvoke($uiDelegate, $payload) | Out-Null
+                        [System.Windows.Application]::Current.Dispatcher.BeginInvoke($applyDelegate, $payload) | Out-Null
                     } catch {
                         Write-Warning ("Database import dispatcher invocation failed: {0}" -f $_.Exception.Message)
-                        $script:DatabaseImportInProgress = $false
                     }
                 } catch {
                     try {
                         $err = $_
-                        $uiAction = {
-                            param($dto)
-                            try {
-                                if ($dto -and $dto.Exception) {
-                                    Write-Warning ("Database import failed: {0}" -f $dto.Exception.Message)
-                                } else {
-                                    Write-Warning "Database import failed."
-                                }
-                            } finally {
-                                try {
-                                    $loadBtn = $Window.FindName('LoadDatabaseButton')
-                                    if ($loadBtn) { $loadBtn.IsEnabled = $true }
-                                } catch { }
-                                $script:DatabaseImportInProgress = $false
-                            }
-                        }.GetNewClosure()
-                        $uiDelegate = [System.Action[object]]$uiAction
-                        [System.Windows.Application]::Current.Dispatcher.BeginInvoke($uiDelegate, $err) | Out-Null
+                        [System.Windows.Application]::Current.Dispatcher.BeginInvoke($applyDelegate, $err) | Out-Null
                     } catch {
-                        $script:DatabaseImportInProgress = $false
                     }
                 } finally {
                     try { if ($psCmd) { $psCmd.Commands.Clear() } } catch {}
