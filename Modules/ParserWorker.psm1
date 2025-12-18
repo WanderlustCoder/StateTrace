@@ -661,6 +661,8 @@ function Invoke-StateTraceParsing {
 
                 if ($val -gt 0) { $jobsPerThread = $val }
 
+                elseif ($val -eq 0) { $jobsPerThread = 0 }
+
                 $hasJobsPerThreadSetting = $true
 
             } catch { }
@@ -836,13 +838,19 @@ function Invoke-StateTraceParsing {
 
     $threadCeiling = [Math]::Min($threadCeiling, $cpuLimit)
 
+    if ($maxActiveSites -lt 0) { $maxActiveSites = 0 }
+
     if ($maxActiveSites -gt 0) {
 
         $threadCeiling = [Math]::Min($threadCeiling, [Math]::Max($minRunspaces, $maxActiveSites * [Math]::Max(1, $maxWorkersPerSite)))
 
-    } elseif ($maxWorkersPerSite -gt 0) {
+    } elseif ($maxActiveSites -eq 0 -and $maxWorkersPerSite -gt 0) {
 
-        $threadCeiling = [Math]::Min($threadCeiling, [Math]::Max($minRunspaces, $maxWorkersPerSite))
+        # MaxActiveSites=0 means "no cap" (all sites may be active). Preserve
+        # parallelism across sites by bounding threads to SiteCount * MaxWorkersPerSite.
+        $siteLimit = $rawSiteCountForTelemetry
+        if ($siteLimit -le 0) { $siteLimit = 1 }
+        $threadCeiling = [Math]::Min($threadCeiling, [Math]::Max($minRunspaces, $siteLimit * [Math]::Max(1, $maxWorkersPerSite)))
 
     }
 
@@ -1073,7 +1081,11 @@ function Invoke-StateTraceParsing {
     if ($enableAdaptiveThreads) { $jobsParams.AdaptiveThreads = $true }
     if ($useAutoScaleProfile) { $jobsParams.UseAutoScaleProfile = $true }
 
-    if ($Synchronous) { $jobsParams.Synchronous = $true }
+    # Preserved runspace pools require the scheduler; synchronous parsing bypasses
+    # the pool entirely so treat PreserveRunspace as authoritative.
+    $useSynchronous = $Synchronous.IsPresent
+    if ($PreserveRunspace) { $useSynchronous = $false }
+    if ($useSynchronous) { $jobsParams.Synchronous = $true }
 
     if ($PreserveRunspace) { $jobsParams.PreserveRunspacePool = $true }
 
@@ -1104,7 +1116,7 @@ function Invoke-StateTraceParsing {
 
     if ($deviceFiles.Count -gt 0) {
 
-        $mode = if ($Synchronous) { "synchronously" } else { "in parallel" }
+        $mode = if ($useSynchronous) { "synchronously" } else { "in parallel" }
 
         Write-Host "Processing $($deviceFiles.Count) logs $mode..." -ForegroundColor Yellow
 

@@ -296,6 +296,13 @@ Export-ModuleMember -Function Invoke-DeviceParseWorker
             }
         }
 
+        It "treats MaxActiveSites=0 as uncapped across sites" {
+            InModuleScope -ModuleName ParserRunspaceModule {
+                $budget = Get-AdaptiveThreadBudget -ActiveWorkers 0 -QueuedJobs 2 -SiteCount 2 -CpuCount 8 -MinThreads 1 -MaxThreads 2 -JobsPerThread 1 -MaxWorkersPerSite 1 -MaxActiveSites 0
+                $budget | Should Be 2
+            }
+        }
+
         It "honors the ceiling" {
             InModuleScope -ModuleName ParserRunspaceModule {
                 $budget = Get-AdaptiveThreadBudget -ActiveWorkers 1 -QueuedJobs 50 -CpuCount 2 -MinThreads 1 -MaxThreads 4 -JobsPerThread 1

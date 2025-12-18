@@ -451,6 +451,7 @@ function Get-AdaptiveThreadBudget {
     param(
         [Parameter(Mandatory)][int]$ActiveWorkers,
         [Parameter(Mandatory)][int]$QueuedJobs,
+        [int]$SiteCount = 0,
         [Parameter(Mandatory)][int]$CpuCount,
         [Parameter(Mandatory)][int]$MinThreads,
         [Parameter(Mandatory)][int]$MaxThreads,
@@ -463,6 +464,7 @@ function Get-AdaptiveThreadBudget {
     if ($JobsPerThread -lt 1) { $JobsPerThread = 1 }
     if ($MaxThreads -lt $MinThreads) { $MaxThreads = $MinThreads }
     if ($CpuCount -lt 1) { $CpuCount = 1 }
+    if ($SiteCount -lt 0) { $SiteCount = 0 }
     if ($MaxWorkersPerSite -lt 0) { $MaxWorkersPerSite = 0 }
     if ($MaxActiveSites -lt 0) { $MaxActiveSites = 0 }
 
@@ -479,8 +481,10 @@ function Get-AdaptiveThreadBudget {
     $siteBound = $MaxThreads
     if ($MaxActiveSites -gt 0) {
         $siteBound = [Math]::Min($siteBound, [Math]::Max($MinThreads, $MaxActiveSites * [Math]::Max(1, $MaxWorkersPerSite)))
-    } elseif ($MaxWorkersPerSite -gt 0) {
-        $siteBound = [Math]::Min($siteBound, [Math]::Max($MinThreads, $MaxWorkersPerSite))
+    } elseif ($MaxActiveSites -eq 0 -and $MaxWorkersPerSite -gt 0 -and $SiteCount -gt 0) {
+        # MaxActiveSites=0 means "no cap" (all sites may be active). Preserve
+        # parallelism across sites by bounding threads to SiteCount * MaxWorkersPerSite.
+        $siteBound = [Math]::Min($siteBound, [Math]::Max($MinThreads, $SiteCount * [Math]::Max(1, $MaxWorkersPerSite)))
     }
 
     if ($desired -gt $cpuBound) { $desired = $cpuBound }
@@ -774,14 +778,8 @@ function Invoke-DeviceParsingJobs {
 
     # When a preserved runspace pool is requested, force the multi-runspace path even for single-threaded runs.
     if ($PreserveRunspacePool) {
-        # Force a single runspace to maximize cache reuse across passes when preservation is requested.
-        $MaxThreads = 1
-        $MinThreads = 1
-        $MaxWorkersPerSite = 1
-        $MaxActiveSites = 1
-
-        if ($MaxThreads -lt 1) { $MaxThreads = 1 }
-        if ($MinThreads -lt 1) { $MinThreads = 1 }
+        # Preserve runspace pools are used to retain module state across passes. Always
+        # route through the scheduler even if the caller requested synchronous parsing.
         $Synchronous = $false
     }
 
@@ -972,7 +970,7 @@ function Invoke-DeviceParsingJobs {
             if ($queue.Count -gt 0) { $initialQueuedSites++ }
         }
         if ($AdaptiveThreads) {
-            $currentThreadLimit = Get-AdaptiveThreadBudget -ActiveWorkers 0 -QueuedJobs $initialQueued -CpuCount $cpuCount -MinThreads $MinThreads -MaxThreads $MaxThreads -JobsPerThread $JobsPerThread -MaxWorkersPerSite $MaxWorkersPerSite -MaxActiveSites $MaxActiveSites
+            $currentThreadLimit = Get-AdaptiveThreadBudget -ActiveWorkers 0 -QueuedJobs $initialQueued -SiteCount $siteQueues.Count -CpuCount $cpuCount -MinThreads $MinThreads -MaxThreads $MaxThreads -JobsPerThread $JobsPerThread -MaxWorkersPerSite $MaxWorkersPerSite -MaxActiveSites $MaxActiveSites
         } else {
             $currentThreadLimit = $MaxThreads
         }
@@ -995,7 +993,7 @@ function Invoke-DeviceParsingJobs {
             }
 
             if ($AdaptiveThreads) {
-                $currentThreadLimit = Get-AdaptiveThreadBudget -ActiveWorkers $active.Count -QueuedJobs $totalQueued -CpuCount $cpuCount -MinThreads $MinThreads -MaxThreads $MaxThreads -JobsPerThread $JobsPerThread -MaxWorkersPerSite $MaxWorkersPerSite -MaxActiveSites $MaxActiveSites
+                $currentThreadLimit = Get-AdaptiveThreadBudget -ActiveWorkers $active.Count -QueuedJobs $totalQueued -SiteCount $siteQueues.Count -CpuCount $cpuCount -MinThreads $MinThreads -MaxThreads $MaxThreads -JobsPerThread $JobsPerThread -MaxWorkersPerSite $MaxWorkersPerSite -MaxActiveSites $MaxActiveSites
             } else {
                 $currentThreadLimit = $MaxThreads
             }
