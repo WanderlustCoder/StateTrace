@@ -229,6 +229,12 @@ namespace StateTrace.Threading
                 {
                     if (runspace != null)
                     {
+                        var state = runspace.RunspaceStateInfo.State;
+                        if (state == RunspaceState.BeforeOpen)
+                        {
+                            runspace.Open();
+                        }
+
                         Runspace.DefaultRunspace = runspace;
                     }
 

@@ -516,6 +516,12 @@ namespace StateTrace.Threading
                 {
                     if (runspace != null)
                     {
+                        var state = runspace.RunspaceStateInfo.State;
+                        if (state == RunspaceState.BeforeOpen)
+                        {
+                            runspace.Open();
+                        }
+
                         Runspace.DefaultRunspace = runspace;
                     }
 
@@ -542,7 +548,11 @@ function script:Get-InsightsWorkerRunspace {
 
     if ($script:InsightsWorkerRunspace) {
         try {
-            if ($script:InsightsWorkerRunspace.RunspaceStateInfo.State -eq [System.Management.Automation.Runspaces.RunspaceState]::Opened) {
+            $state = $script:InsightsWorkerRunspace.RunspaceStateInfo.State
+            if ($state -eq [System.Management.Automation.Runspaces.RunspaceState]::Opened -or
+                $state -eq [System.Management.Automation.Runspaces.RunspaceState]::BeforeOpen -or
+                $state -eq [System.Management.Automation.Runspaces.RunspaceState]::Opening -or
+                $state -eq [System.Management.Automation.Runspaces.RunspaceState]::Connecting) {
                 return $script:InsightsWorkerRunspace
             }
         } catch { }
@@ -551,18 +561,16 @@ function script:Get-InsightsWorkerRunspace {
     }
 
     $iss = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
+    try { $iss.LanguageMode = [System.Management.Automation.PSLanguageMode]::FullLanguage } catch { }
     $rs = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace($iss)
     $rs.ThreadOptions  = [System.Management.Automation.Runspaces.PSThreadOptions]::ReuseThread
     $rs.ApartmentState = [System.Threading.ApartmentState]::STA
 
     try {
-        $rs.Open()
-    } catch {
-        try { $rs.Dispose() } catch { }
-        return $null
-    }
+        $msg = "[DeviceInsights] Insights worker runspace created (deferred open) | Id={0} | LangMode={1}" -f $rs.Id, $iss.LanguageMode
+        try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { }
+    } catch { }
 
-    try { $rs.SessionStateProxy.LanguageMode = [System.Management.Automation.PSLanguageMode]::FullLanguage } catch { }
     $script:InsightsWorkerRunspace = $rs
     return $script:InsightsWorkerRunspace
 }
@@ -572,7 +580,17 @@ function script:Ensure-InsightsWorker {
     param()
 
     if ($script:InsightsWorkerInitialized -and $script:InsightsWorkerThread) {
-        return $true
+        try {
+            if ($script:InsightsWorkerThread.IsAlive) { return $true }
+        } catch { }
+
+        try {
+            $msg = "[DeviceInsights] Insights worker thread not alive; resetting initialization."
+            try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { }
+        } catch { }
+
+        $script:InsightsWorkerInitialized = $false
+        $script:InsightsWorkerThread = $null
     }
 
     $rs = script:Get-InsightsWorkerRunspace
@@ -1016,6 +1034,12 @@ function script:Ensure-InsightsWorker {
 
     $script:InsightsWorkerThread = $workerThread
     $script:InsightsWorkerInitialized = $true
+
+    try {
+        $msg = "[DeviceInsights] Insights worker started | ThreadId={0}" -f $workerThread.ManagedThreadId
+        try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { }
+    } catch { }
+
     return $true
 }
 
@@ -1138,12 +1162,39 @@ function Update-InsightsAsync {
         } catch { }
     }
 
-    if (-not (script:Ensure-InsightsWorker)) {
+    $workerEnsureOk = $false
+    $workerEnsureMs = $null
+    $ensureStopwatch = $null
+    try { $ensureStopwatch = [System.Diagnostics.Stopwatch]::StartNew() } catch { $ensureStopwatch = $null }
+    try { $workerEnsureOk = [bool](script:Ensure-InsightsWorker) } catch { $workerEnsureOk = $false }
+    try {
+        if ($ensureStopwatch) {
+            try { $ensureStopwatch.Stop() } catch { }
+            try { $workerEnsureMs = [math]::Round($ensureStopwatch.Elapsed.TotalMilliseconds, 3) } catch { $workerEnsureMs = $null }
+        }
+    } catch { }
+
+    if (-not $workerEnsureOk) {
         try {
             $msg = "[DeviceInsights] Insights worker unavailable; skipping async refresh."
             try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { }
         } catch { }
         return
+    }
+
+    if ($null -ne $workerEnsureMs) {
+        $emitEnsureDiag = $false
+        try { if ($global:StateTraceDebug) { $emitEnsureDiag = $true } } catch { $emitEnsureDiag = $false }
+        if (-not $emitEnsureDiag) {
+            try { $emitEnsureDiag = ($workerEnsureMs -ge 250) } catch { $emitEnsureDiag = $false }
+        }
+
+        if ($emitEnsureDiag) {
+            try {
+                $msg = "[DeviceInsights] Ensure-InsightsWorker completed | DurationMs={0}" -f $workerEnsureMs
+                try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { }
+            } catch { }
+        }
     }
 
     $requestId = 0
