@@ -58,20 +58,26 @@ Describe "DeviceCatalogModule catalog operations" {
         Mock -ModuleName DeviceCatalogModule -CommandName Test-Path { param($Path, $LiteralPath) $true }
         Mock -ModuleName DeviceCatalogModule -CommandName 'DeviceRepositoryModule\Import-DatabaseModule' {}
         Mock -ModuleName DeviceCatalogModule -CommandName 'DatabaseModule\Invoke-DbQuery' {
-            param($DatabasePath, $Sql)
-            if ($DatabasePath -like '*site1.accdb') {
-                return @(
-                    [pscustomobject]@{ Hostname = 'SITE1-Z1-SW1'; Site = 'SITE1'; Building = 'B1'; Room = '101' },
-                    [pscustomobject]@{ Hostname = 'SITE1-Z1-SW2'; Site = 'SITE1'; Building = 'B1'; Room = '102' }
-                )
-            }
-            if ($DatabasePath -like '*site2.accdb') {
-                return @(
-                    [pscustomobject]@{ Hostname = 'SITE2-Z3-EDGE'; Site = 'SITE2'; Building = 'B2'; Room = '201' },
-                    [pscustomobject]@{ Hostname = 'SITE1-Z1-SW1'; Site = 'SITE1'; Building = 'B1'; Room = '101' }
-                )
-            }
-            return @()
+            throw 'DatabaseModule\\Invoke-DbQuery should not be called when multiple DBs are queried in parallel.'
+        }
+        Mock -ModuleName DeviceCatalogModule -CommandName 'DeviceRepositoryModule\Invoke-ParallelDbQuery' {
+            param([string[]]$DbPaths, [string]$Sql, [switch]$IncludeDbPath)
+            return @(
+                [pscustomobject]@{
+                    DatabasePath = 'C:\data\site1.accdb'
+                    Data = @(
+                        [pscustomobject]@{ Hostname = 'SITE1-Z1-SW1'; Site = 'SITE1'; Building = 'B1'; Room = '101' },
+                        [pscustomobject]@{ Hostname = 'SITE1-Z1-SW2'; Site = 'SITE1'; Building = 'B1'; Room = '102' }
+                    )
+                },
+                [pscustomobject]@{
+                    DatabasePath = 'C:\data\site2.accdb'
+                    Data = @(
+                        [pscustomobject]@{ Hostname = 'SITE2-Z3-EDGE'; Site = 'SITE2'; Building = 'B2'; Room = '201' },
+                        [pscustomobject]@{ Hostname = 'SITE1-Z1-SW1'; Site = 'SITE1'; Building = 'B1'; Room = '101' }
+                    )
+                }
+            )
         }
 
         $result = DeviceCatalogModule\Get-DeviceSummaries
@@ -87,6 +93,8 @@ Describe "DeviceCatalogModule catalog operations" {
         $global:DeviceMetadata['SITE2-Z3-EDGE'].Building | Should Be 'B2'
         $global:DeviceMetadata['SITE1-Z1-SW2'].Zone | Should Be 'Z1'
         @($global:DeviceHostnameOrder) | Should Be $ordered
+
+        Assert-MockCalled -ModuleName DeviceCatalogModule -CommandName 'DeviceRepositoryModule\Invoke-ParallelDbQuery' -Times 1
     }
 
     It "limits catalog aggregation to the requested site filter" {

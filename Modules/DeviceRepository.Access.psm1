@@ -130,18 +130,39 @@ function Invoke-ParallelDbQuery {
     [CmdletBinding()]
     param(
         [string[]]$DbPaths,
-        [string]$Sql
+        [string]$Sql,
+        [switch]$IncludeDbPath,
+        [int]$MaxThreads = 0
     )
 
     if (-not $DbPaths -or $DbPaths.Count -eq 0) {
         return @()
     }
 
-    try { Import-DatabaseModule } catch { }
-    $modulePath = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
+    $existingDbPaths = [System.Collections.Generic.List[string]]::new()
+    foreach ($dbPath in $DbPaths) {
+        if ([string]::IsNullOrWhiteSpace($dbPath)) { continue }
+        if (-not (Test-Path -LiteralPath $dbPath)) { continue }
+        [void]$existingDbPaths.Add($dbPath)
+    }
 
-    $maxThreads = [Math]::Max(1, [Environment]::ProcessorCount)
-    $pool = [runspacefactory]::CreateRunspacePool(1, $maxThreads)
+    if ($existingDbPaths.Count -eq 0) {
+        return @()
+    }
+
+    $DbPaths = $existingDbPaths.ToArray()
+
+    $requestedThreads = $MaxThreads
+    if ($requestedThreads -le 0) { $requestedThreads = [Environment]::ProcessorCount }
+    $requestedThreads = [Math]::Max(1, $requestedThreads)
+    $requestedThreads = [Math]::Min($requestedThreads, $DbPaths.Count)
+
+    $sessionState = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
+    $sessionState.ApartmentState = [System.Threading.ApartmentState]::STA
+    $sessionState.LanguageMode = [System.Management.Automation.PSLanguageMode]::FullLanguage
+
+    $pool = [runspacefactory]::CreateRunspacePool(1, $requestedThreads, $sessionState, $Host)
+    try { $pool.ApartmentState = [System.Threading.ApartmentState]::STA } catch { }
     $pool.Open()
 
     $jobs = @()
@@ -149,14 +170,92 @@ function Invoke-ParallelDbQuery {
         $ps = [powershell]::Create()
         $ps.RunspacePool = $pool
         $null = $ps.AddScript({
-                param($dbPathArg, $sqlArg, $modPath)
-                try { Import-Module -Name $modPath -DisableNameChecking -Force } catch { }
+                param($dbPathArg, $sqlArg, $includeDbPathArg)
+                $ErrorActionPreference = 'Stop'
+
+                $payload = $null
+                $connection = $null
+                $recordset = $null
                 try {
-                    return DatabaseModule\Invoke-DbQuery -DatabasePath $dbPathArg -Sql $sqlArg
+                    $connection = New-Object -ComObject ADODB.Connection
+                    $opened = $false
+                    foreach ($prov in @('Microsoft.ACE.OLEDB.12.0','Microsoft.Jet.OLEDB.4.0')) {
+                        try {
+                            $connection.Open(("Provider={0};Data Source={1}" -f $prov, $dbPathArg))
+                            $opened = $true
+                            break
+                        } catch {
+                            try { $connection.Close() } catch { }
+                        }
+                    }
+
+                    if (-not $opened) {
+                        $payload = $null
+                    } else {
+                        $recordset = $connection.Execute($sqlArg)
+                        $rowsList = [System.Collections.Generic.List[object]]::new()
+
+                        if ($recordset -and $recordset.State -eq 1) {
+                            $fieldCount = 0
+                            try { $fieldCount = [int]$recordset.Fields.Count } catch { $fieldCount = 0 }
+                            if ($fieldCount -gt 0) {
+                                $fieldNames = New-Object string[] $fieldCount
+                                for ($fieldIndex = 0; $fieldIndex -lt $fieldCount; $fieldIndex++) {
+                                    $fieldName = ''
+                                    try { $fieldName = '' + $recordset.Fields.Item($fieldIndex).Name } catch { $fieldName = '' }
+                                    $fieldNames[$fieldIndex] = $fieldName
+                                }
+
+                                $rawRows = $null
+                                try { $rawRows = $recordset.GetRows() } catch { $rawRows = $null }
+
+                                if ($rawRows -and ($rawRows.Rank -ge 2)) {
+                                    $rowCount = 0
+                                    try { $rowCount = $rawRows.GetUpperBound(1) + 1 } catch { $rowCount = 0 }
+
+                                    for ($rowIndex = 0; $rowIndex -lt $rowCount; $rowIndex++) {
+                                        $rowMap = [ordered]@{}
+                                        for ($fieldIndex = 0; $fieldIndex -lt $fieldCount; $fieldIndex++) {
+                                            $name = $fieldNames[$fieldIndex]
+                                            if ([string]::IsNullOrWhiteSpace($name)) { continue }
+
+                                            $value = $null
+                                            try { $value = $rawRows[$fieldIndex, $rowIndex] } catch { $value = $null }
+                                            if ($value -eq [System.DBNull]::Value) { $value = $null }
+                                            $rowMap[$name] = $value
+                                        }
+                                        [void]$rowsList.Add([pscustomobject]$rowMap)
+                                    }
+                                }
+                            }
+                        }
+
+                        $payload = $rowsList.ToArray()
+                    }
                 } catch {
-                    return $null
+                    $payload = $null
+                } finally {
+                    if ($recordset) {
+                        try { $recordset.Close() } catch { }
+                        if ($recordset -is [System.__ComObject]) {
+                            try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($recordset) } catch { }
+                        }
+                    }
+                    if ($connection) {
+                        try { $connection.Close() } catch { }
+                        if ($connection -is [System.__ComObject]) {
+                            try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($connection) } catch { }
+                        }
+                    }
                 }
-            }).AddArgument($dbPath).AddArgument($Sql).AddArgument($modulePath)
+                if ($includeDbPathArg) {
+                    return [pscustomobject]@{
+                        DatabasePath = $dbPathArg
+                        Data         = $payload
+                    }
+                }
+                return $payload
+            }).AddArgument($dbPath).AddArgument($Sql).AddArgument($IncludeDbPath.IsPresent)
         $job = [pscustomobject]@{ PS = $ps; AsyncResult = $ps.BeginInvoke() }
         $jobs += $job
     }
@@ -164,8 +263,12 @@ function Invoke-ParallelDbQuery {
     $results = [System.Collections.Generic.List[object]]::new()
     foreach ($job in $jobs) {
         try {
-            $dt = $job.PS.EndInvoke($job.AsyncResult)
-            if ($dt) { [void]$results.Add($dt) }
+            $payload = $job.PS.EndInvoke($job.AsyncResult)
+            if ($payload) {
+                foreach ($item in $payload) {
+                    if ($item) { [void]$results.Add($item) }
+                }
+            }
         } catch { }
         finally {
             $job.PS.Dispose()

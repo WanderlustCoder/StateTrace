@@ -132,6 +132,74 @@ function Get-AllSiteDbPaths {
     return DeviceRepository.Access\Get-AllSiteDbPaths -DataDirectoryPath $dataDir
 }
 
+function Import-DatabaseModule {
+    [CmdletBinding()]
+    param()
+
+    if ($script:DeviceRepositoryAccessModule) {
+        try {
+            $script:DeviceRepositoryAccessModule.Invoke({
+                    Import-DatabaseModule
+                }) | Out-Null
+            return
+        } catch {
+            return
+        }
+    }
+
+    try { DeviceRepository.Access\Import-DatabaseModule } catch { }
+}
+
+function Invoke-ParallelDbQuery {
+    [CmdletBinding()]
+    param(
+        [string[]]$DbPaths,
+        [string]$Sql,
+        [switch]$IncludeDbPath,
+        [int]$MaxThreads = 0
+    )
+
+    if (-not $DbPaths -or $DbPaths.Count -eq 0) {
+        return @()
+    }
+
+    $includeFlag = $IncludeDbPath.IsPresent
+    $hasMaxThreads = $PSBoundParameters.ContainsKey('MaxThreads')
+    $maxThreadsValue = 0
+    if ($hasMaxThreads) { $maxThreadsValue = [int]$MaxThreads }
+
+    if ($script:DeviceRepositoryAccessModule) {
+        try {
+            $resolved = $script:DeviceRepositoryAccessModule.Invoke({
+                    param($dbPathsArg, $sqlArg, $includeArg, $hasMaxThreadsArg, $maxThreadsArg)
+                    $args = @{
+                        DbPaths = $dbPathsArg
+                        Sql     = $sqlArg
+                    }
+                    if ($includeArg) { $args['IncludeDbPath'] = $true }
+                    if ($hasMaxThreadsArg) { $args['MaxThreads'] = [int]$maxThreadsArg }
+                    return Invoke-ParallelDbQuery @args
+                }, $DbPaths, $Sql, $includeFlag, $hasMaxThreads, $maxThreadsValue)
+            return @($resolved)
+        } catch {
+            return @()
+        }
+    }
+
+    $args = @{
+        DbPaths = $DbPaths
+        Sql     = $Sql
+    }
+    if ($includeFlag) { $args['IncludeDbPath'] = $true }
+    if ($hasMaxThreads) { $args['MaxThreads'] = [int]$MaxThreads }
+
+    try {
+        return @(DeviceRepository.Access\Invoke-ParallelDbQuery @args)
+    } catch {
+        return @()
+    }
+}
+
 function Import-SharedSiteInterfaceCacheSnapshotFromEnv {
     param([System.Collections.Concurrent.ConcurrentDictionary[string, object]]$TargetStore)
 

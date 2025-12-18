@@ -181,6 +181,8 @@ function Get-DeviceSummaries {
         [string[]]$SiteFilter
     )
 
+    script:Ensure-DeviceRepositoryModule
+
     $metadata = @{}
     $hostnames = [System.Collections.Generic.List[string]]::new()
     $hostnameSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
@@ -199,28 +201,89 @@ function Get-DeviceSummaries {
         }
     }
 
+    $existingDbPaths = [System.Collections.Generic.List[string]]::new()
+    foreach ($dbPath in $dbPaths) {
+        if ([string]::IsNullOrWhiteSpace($dbPath)) { continue }
+        if (-not (Test-Path -LiteralPath $dbPath)) { continue }
+        [void]$existingDbPaths.Add($dbPath)
+    }
+
+    if ($existingDbPaths.Count -eq 0) {
+        $global:DeviceMetadata = @{}
+        $global:DeviceLocationEntries = @()
+        return [PSCustomObject]@{
+            Hostnames = @()
+            Metadata  = $global:DeviceMetadata
+        }
+    }
+
     try { DeviceRepositoryModule\Import-DatabaseModule } catch {}
 
-    foreach ($dbPath in $dbPaths) {
-        if (-not (Test-Path $dbPath)) { continue }
+    $deviceSummarySql = "SELECT Hostname, Site, Building, Room FROM DeviceSummary"
+
+    if ($existingDbPaths.Count -gt 1) {
+        $parallelResults = @()
         try {
-            $dt = DatabaseModule\Invoke-DbQuery -DatabasePath $dbPath -Sql "SELECT Hostname, Site, Building, Room FROM DeviceSummary"
+            $parallelResults = @(DeviceRepositoryModule\Invoke-ParallelDbQuery -DbPaths $existingDbPaths.ToArray() -Sql $deviceSummarySql -IncludeDbPath)
         } catch {
-            Write-Warning ("DeviceCatalogModule: failed to query device summaries from {0}: {1}" -f $dbPath, $_.Exception.Message)
-            continue
+            $parallelResults = @()
         }
-        if (-not $dt) { continue }
-        foreach ($row in $dt) {
-            $name = '' + $row.Hostname
-            if ([string]::IsNullOrWhiteSpace($name)) { continue }
-            if ($hostnameSet.Add($name)) { [void]$hostnames.Add($name) }
 
-            $location = Get-DeviceCatalogRowLocation -Hostname $name -Row $row
-            $metadata[$name] = $location
+        foreach ($result in $parallelResults) {
+            if (-not $result) { continue }
 
-            $key = "{0}|{1}|{2}|{3}" -f $location.Site, $location.Zone, $location.Building, $location.Room
-            if ($locationKeys.Add($key)) {
-                $locations.Add($location) | Out-Null
+            $dt = $null
+            $sourcePath = ''
+            if ($result.PSObject.Properties.Name -contains 'Data') {
+                $dt = $result.Data
+                try { $sourcePath = '' + $result.DatabasePath } catch { $sourcePath = '' }
+            } else {
+                $dt = $result
+            }
+            if (-not $dt) {
+                if (-not [string]::IsNullOrWhiteSpace($sourcePath)) {
+                    Write-Warning ("DeviceCatalogModule: failed to query device summaries from {0} (parallel query returned no data)." -f $sourcePath)
+                }
+                continue
+            }
+
+            foreach ($row in $dt) {
+                $name = '' + $row.Hostname
+                if ([string]::IsNullOrWhiteSpace($name)) { continue }
+                if ($hostnameSet.Add($name)) { [void]$hostnames.Add($name) }
+
+                $location = Get-DeviceCatalogRowLocation -Hostname $name -Row $row
+                $metadata[$name] = $location
+
+                $key = "{0}|{1}|{2}|{3}" -f $location.Site, $location.Zone, $location.Building, $location.Room
+                if ($locationKeys.Add($key)) {
+                    $locations.Add($location) | Out-Null
+                }
+            }
+        }
+    } else {
+        foreach ($dbPath in $existingDbPaths) {
+            $dt = $null
+            try {
+                $dt = DatabaseModule\Invoke-DbQuery -DatabasePath $dbPath -Sql $deviceSummarySql
+            } catch {
+                Write-Warning ("DeviceCatalogModule: failed to query device summaries from {0}: {1}" -f $dbPath, $_.Exception.Message)
+                continue
+            }
+            if (-not $dt) { continue }
+
+            foreach ($row in $dt) {
+                $name = '' + $row.Hostname
+                if ([string]::IsNullOrWhiteSpace($name)) { continue }
+                if ($hostnameSet.Add($name)) { [void]$hostnames.Add($name) }
+
+                $location = Get-DeviceCatalogRowLocation -Hostname $name -Row $row
+                $metadata[$name] = $location
+
+                $key = "{0}|{1}|{2}|{3}" -f $location.Site, $location.Zone, $location.Building, $location.Room
+                if ($locationKeys.Add($key)) {
+                    $locations.Add($location) | Out-Null
+                }
             }
         }
     }
@@ -253,30 +316,82 @@ function Get-DeviceLocationEntries {
         return @()
     }
 
-    try { DeviceRepositoryModule\Import-DatabaseModule } catch {}
-
     $uniqueKeys = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
     $locations = [System.Collections.Generic.List[object]]::new()
 
+    $existingDbPaths = [System.Collections.Generic.List[string]]::new()
     foreach ($dbPath in $dbPaths) {
-        if (-not (Test-Path $dbPath)) { continue }
-        $dt = $null
+        if ([string]::IsNullOrWhiteSpace($dbPath)) { continue }
+        if (-not (Test-Path -LiteralPath $dbPath)) { continue }
+        [void]$existingDbPaths.Add($dbPath)
+    }
+
+    if ($existingDbPaths.Count -eq 0) {
+        $global:DeviceLocationEntries = @()
+        return @()
+    }
+
+    try { DeviceRepositoryModule\Import-DatabaseModule } catch {}
+    $deviceSummarySql = "SELECT Hostname, Site, Building, Room FROM DeviceSummary"
+
+    if ($existingDbPaths.Count -gt 1) {
+        $parallelResults = @()
         try {
-            $dt = DatabaseModule\Invoke-DbQuery -DatabasePath $dbPath -Sql "SELECT Hostname, Site, Building, Room FROM DeviceSummary"
+            $parallelResults = @(DeviceRepositoryModule\Invoke-ParallelDbQuery -DbPaths $existingDbPaths.ToArray() -Sql $deviceSummarySql -IncludeDbPath)
         } catch {
-            Write-Warning ("DeviceCatalogModule: failed to query location metadata from {0}: {1}" -f $dbPath, $_.Exception.Message)
-            continue
+            $parallelResults = @()
         }
-        if (-not $dt) { continue }
-        foreach ($row in $dt) {
-            $hostname = '' + $row.Hostname
 
-            $location = Get-DeviceCatalogRowLocation -Hostname $hostname -Row $row
+        foreach ($result in $parallelResults) {
+            if (-not $result) { continue }
 
-            $key = "{0}|{1}|{2}|{3}" -f $location.Site, $location.Zone, $location.Building, $location.Room
-            if (-not $uniqueKeys.Add($key)) { continue }
+            $dt = $null
+            $sourcePath = ''
+            if ($result.PSObject.Properties.Name -contains 'Data') {
+                $dt = $result.Data
+                try { $sourcePath = '' + $result.DatabasePath } catch { $sourcePath = '' }
+            } else {
+                $dt = $result
+            }
+            if (-not $dt) {
+                if (-not [string]::IsNullOrWhiteSpace($sourcePath)) {
+                    Write-Warning ("DeviceCatalogModule: failed to query location metadata from {0} (parallel query returned no data)." -f $sourcePath)
+                }
+                continue
+            }
 
-            $locations.Add($location) | Out-Null
+            foreach ($row in $dt) {
+                $hostname = '' + $row.Hostname
+
+                $location = Get-DeviceCatalogRowLocation -Hostname $hostname -Row $row
+
+                $key = "{0}|{1}|{2}|{3}" -f $location.Site, $location.Zone, $location.Building, $location.Room
+                if (-not $uniqueKeys.Add($key)) { continue }
+
+                $locations.Add($location) | Out-Null
+            }
+        }
+    } else {
+        foreach ($dbPath in $existingDbPaths) {
+            $dt = $null
+            try {
+                $dt = DatabaseModule\Invoke-DbQuery -DatabasePath $dbPath -Sql $deviceSummarySql
+            } catch {
+                Write-Warning ("DeviceCatalogModule: failed to query location metadata from {0}: {1}" -f $dbPath, $_.Exception.Message)
+                continue
+            }
+            if (-not $dt) { continue }
+
+            foreach ($row in $dt) {
+                $hostname = '' + $row.Hostname
+
+                $location = Get-DeviceCatalogRowLocation -Hostname $hostname -Row $row
+
+                $key = "{0}|{1}|{2}|{3}" -f $location.Site, $location.Zone, $location.Building, $location.Room
+                if (-not $uniqueKeys.Add($key)) { continue }
+
+                $locations.Add($location) | Out-Null
+            }
         }
     }
 
