@@ -1311,7 +1311,7 @@ function Start-ParserBackgroundJob {
     try { Write-StartupDiag ("Starting parser job (RepoRoot={0}, LogPath={1})" -f $repoRoot, $logPath) } catch { }
     try {
         $queuedHeader = "Parser job queued at {0:o} (IncludeArchive={1}, IncludeHistorical={2}, ForceReload={3})" -f (Get-Date), $IncludeArchive, $IncludeHistorical, $ForceReload
-        Set-Content -LiteralPath $logPath -Value $queuedHeader -ErrorAction Stop
+        Set-Content -LiteralPath $logPath -Value $queuedHeader -Encoding UTF8 -ErrorAction Stop
     } catch {
         try { Write-StartupDiag ("Failed to initialize parser job log at {0}: {1}" -f $logPath, $_.Exception.Message) } catch { }
     }
@@ -1338,7 +1338,7 @@ function Start-ParserBackgroundJob {
             if ($ForceReload) { $env:STATETRACE_SHARED_CACHE_SNAPSHOT = '' }
             $ErrorActionPreference = 'Stop'
             $header = "Parser job started at {0:o} (IncludeArchive={1}, IncludeHistorical={2})" -f (Get-Date), $IncludeArchive, $IncludeHistorical
-            Set-Content -LiteralPath $LogPath -Value $header
+            Set-Content -LiteralPath $LogPath -Value $header -Encoding UTF8
             if (Test-Path -LiteralPath $pipeline) {
                 $pipelineParams = @{
                     VerboseParsing              = $true
@@ -1356,7 +1356,7 @@ function Start-ParserBackgroundJob {
                     $pipelineParams.DisableSkipSiteCacheUpdate = $true
                 }
                 & $pipeline @pipelineParams -ErrorAction Stop *>&1 |
-                    Tee-Object -FilePath $LogPath -Append
+                    Out-File -FilePath $LogPath -Append -Encoding UTF8
             } else {
                 $moduleLoaderPath = Join-Path $RepoRoot 'Modules\ModuleLoaderModule.psm1'
                 if (Test-Path -LiteralPath $moduleLoaderPath) {
@@ -1365,7 +1365,7 @@ function Start-ParserBackgroundJob {
                         ModuleLoaderModule\Import-StateTraceModulesFromManifest -RepositoryRoot $RepoRoot -Exclude @('ParserWorker.psm1') -Force | Out-Null
                     } catch {
                         $msg = "Failed to import module manifest modules: {0}" -f $_.Exception.Message
-                        try { Add-Content -LiteralPath $LogPath -Value $msg } catch { }
+                        try { Add-Content -LiteralPath $LogPath -Value $msg -Encoding UTF8 } catch { }
                         try { Write-Warning $msg } catch { }
 
                         $fallbackModules = @(
@@ -1378,7 +1378,7 @@ function Start-ParserBackgroundJob {
                                 Import-Module -Name $fallbackModulePath -Force -Global -ErrorAction Stop | Out-Null
                             } catch {
                                 $fallbackMsg = "Failed to import fallback module at {0}: {1}" -f $fallbackModulePath, $_.Exception.Message
-                                try { Add-Content -LiteralPath $LogPath -Value $fallbackMsg } catch { }
+                                try { Add-Content -LiteralPath $LogPath -Value $fallbackMsg -Encoding UTF8 } catch { }
                                 try { Write-Warning $fallbackMsg } catch { }
                             }
                         }
@@ -1386,13 +1386,14 @@ function Start-ParserBackgroundJob {
                 }
 
                 Import-Module (Join-Path $RepoRoot 'Modules\ParserWorker.psm1') -Force -ErrorAction Stop | Out-Null
-                Invoke-StateTraceParsing -Synchronous -ErrorAction Stop *>&1 | Tee-Object -FilePath $LogPath -Append
+                Invoke-StateTraceParsing -Synchronous -ErrorAction Stop *>&1 |
+                    Out-File -FilePath $LogPath -Append -Encoding UTF8
             }
             $footer = "Parser job completed successfully at {0:o}" -f (Get-Date)
-            Add-Content -LiteralPath $LogPath -Value $footer
+            Add-Content -LiteralPath $LogPath -Value $footer -Encoding UTF8
         } catch {
             $errorText = "Parser job failed at {0:o}: {1}" -f (Get-Date), ($_ | Out-String)
-            Add-Content -LiteralPath $LogPath -Value $errorText
+            Add-Content -LiteralPath $LogPath -Value $errorText -Encoding UTF8
             throw
         } finally {
             Pop-Location
