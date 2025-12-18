@@ -825,6 +825,7 @@ function Get-AvailableSiteNames {
         foreach ($file in @($rootDbFiles)) {
             $leaf = [System.IO.Path]::GetFileNameWithoutExtension($file.Name)
             if ([string]::IsNullOrWhiteSpace($leaf)) { continue }
+            if ($leaf -like 'PerfPipeline-*' -or [System.StringComparer]::OrdinalIgnoreCase.Equals($leaf, 'PerfPipeline')) { continue }
             [void]$siteNames.Add($leaf)
         }
     } catch { }
@@ -836,6 +837,7 @@ function Get-AvailableSiteNames {
             foreach ($file in @($deepDbFiles)) {
                 $leaf = [System.IO.Path]::GetFileNameWithoutExtension($file.Name)
                 if ([string]::IsNullOrWhiteSpace($leaf)) { continue }
+                if ($leaf -like 'PerfPipeline-*' -or [System.StringComparer]::OrdinalIgnoreCase.Equals($leaf, 'PerfPipeline')) { continue }
                 [void]$siteNames.Add($leaf)
             }
         } catch { }

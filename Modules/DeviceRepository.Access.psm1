@@ -106,7 +106,15 @@ function Get-AllSiteDbPaths {
     try {
         $rootFiles = Get-ChildItem -LiteralPath $dataDir -Filter '*.accdb' -File -ErrorAction SilentlyContinue
         foreach ($f in @($rootFiles)) {
-            if ($f -and $f.FullName) { [void]$paths.Add(('' + $f.FullName)) }
+            if (-not $f -or [string]::IsNullOrWhiteSpace($f.FullName)) { continue }
+            $leaf = $null
+            try { $leaf = [System.IO.Path]::GetFileNameWithoutExtension($f.Name) } catch { $leaf = $null }
+            if (-not [string]::IsNullOrWhiteSpace($leaf)) {
+                if ($leaf -like 'PerfPipeline-*' -or [System.StringComparer]::OrdinalIgnoreCase.Equals($leaf, 'PerfPipeline')) {
+                    continue
+                }
+            }
+            [void]$paths.Add(('' + $f.FullName))
         }
     } catch { }
 
@@ -128,7 +136,15 @@ function Get-AllSiteDbPaths {
         try {
             $deepFiles = Get-ChildItem -LiteralPath $dataDir -Filter '*.accdb' -File -Recurse -ErrorAction SilentlyContinue
             foreach ($f in @($deepFiles)) {
-                if ($f -and $f.FullName) { [void]$paths.Add(('' + $f.FullName)) }
+                if (-not $f -or [string]::IsNullOrWhiteSpace($f.FullName)) { continue }
+                $leaf = $null
+                try { $leaf = [System.IO.Path]::GetFileNameWithoutExtension($f.Name) } catch { $leaf = $null }
+                if (-not [string]::IsNullOrWhiteSpace($leaf)) {
+                    if ($leaf -like 'PerfPipeline-*' -or [System.StringComparer]::OrdinalIgnoreCase.Equals($leaf, 'PerfPipeline')) {
+                        continue
+                    }
+                }
+                [void]$paths.Add(('' + $f.FullName))
             }
         } catch { }
     }

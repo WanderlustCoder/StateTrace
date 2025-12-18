@@ -86,6 +86,35 @@ Describe "DeviceRepositoryModule core helpers" {
         }
     }
 
+    It "skips PerfPipeline databases when discovering site paths" {
+        $dataRoot = Join-Path $TestDrive 'DbPathsFiltered'
+        New-Item -ItemType Directory -Path $dataRoot -Force | Out-Null
+        $pipelineDb = Join-Path $dataRoot 'PerfPipeline-abc123.accdb'
+        New-Item -ItemType File -Path $pipelineDb -Force | Out-Null
+        $legacy = Join-Path $dataRoot 'SITE1.accdb'
+        New-Item -ItemType File -Path $legacy -Force | Out-Null
+
+        Set-RepositoryVar -Name 'DataDirPath' -Value $dataRoot
+
+        $paths = DeviceRepositoryModule\Get-AllSiteDbPaths
+
+        ($paths -contains $legacy) | Should Be $true
+        ($paths -contains $pipelineDb) | Should Be $false
+    }
+
+    It "does not return PerfPipeline databases via deep scan fallback" {
+        $dataRoot = Join-Path $TestDrive 'DbPathsDeepScanFiltered'
+        New-Item -ItemType Directory -Path $dataRoot -Force | Out-Null
+        $pipelineDb = Join-Path $dataRoot 'PerfPipeline-abc123.accdb'
+        New-Item -ItemType File -Path $pipelineDb -Force | Out-Null
+
+        Set-RepositoryVar -Name 'DataDirPath' -Value $dataRoot
+
+        $paths = DeviceRepositoryModule\Get-AllSiteDbPaths
+
+        $paths | Should BeNullOrEmpty
+    }
+
     It "prefers grouped directories when deriving new database paths" {
         $dataRoot = Join-Path $TestDrive 'GroupedLayouts'
         New-Item -ItemType Directory -Path $dataRoot -Force | Out-Null
