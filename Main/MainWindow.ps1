@@ -280,6 +280,19 @@ if (-not (Get-Variable -Name DeviceDetailsRunspace -Scope Script -ErrorAction Si
     $script:DeviceDetailsRunspace = $null
 }
 
+if (-not (Get-Variable -Name DatabaseImportRunspaceLock -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:DatabaseImportRunspaceLock = New-Object System.Threading.SemaphoreSlim 1, 1
+}
+if (-not (Get-Variable -Name DatabaseImportRunspace -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:DatabaseImportRunspace = $null
+}
+if (-not (Get-Variable -Name DatabaseImportInProgress -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:DatabaseImportInProgress = $false
+}
+if (-not (Get-Variable -Name DatabaseImportRequestId -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:DatabaseImportRequestId = 0
+}
+
 function Get-DeviceDetailsRunspace {
     if ($script:DeviceDetailsRunspace) {
         try {
@@ -328,6 +341,58 @@ function Get-DeviceDetailsRunspace {
         return $script:DeviceDetailsRunspace
     } catch {
         try { Write-Diag ("Device loader runspace creation failed | Error={0}" -f $_.Exception.Message) } catch {}
+        return $null
+    }
+}
+
+function Get-DatabaseImportRunspace {
+    if ($script:DatabaseImportRunspace) {
+        try {
+            $state = $script:DatabaseImportRunspace.RunspaceStateInfo.State
+            if ($state -eq [System.Management.Automation.Runspaces.RunspaceState]::Opened) {
+                $langMode = $null
+                try { $langMode = $script:DatabaseImportRunspace.SessionStateProxy.LanguageMode } catch { $langMode = $null }
+                if ($langMode -ne [System.Management.Automation.PSLanguageMode]::FullLanguage) {
+                    try { Write-Diag ("DB import runspace language mode mismatch | Mode={0}" -f $langMode) } catch {}
+                    try { $script:DatabaseImportRunspace.SessionStateProxy.LanguageMode = [System.Management.Automation.PSLanguageMode]::FullLanguage } catch {}
+                    try { $langMode = $script:DatabaseImportRunspace.SessionStateProxy.LanguageMode } catch { $langMode = $null }
+                    if ($langMode -ne [System.Management.Automation.PSLanguageMode]::FullLanguage) {
+                        try { Write-Diag ("DB import runspace discarded due to language mode reset failure | Mode={0}" -f $langMode) } catch {}
+                        try { $script:DatabaseImportRunspace.Dispose() } catch {}
+                        $script:DatabaseImportRunspace = $null
+                    }
+                }
+                if ($script:DatabaseImportRunspace) {
+                    return $script:DatabaseImportRunspace
+                }
+            }
+            if ($state -eq [System.Management.Automation.Runspaces.RunspaceState]::Opening -or
+                $state -eq [System.Management.Automation.Runspaces.RunspaceState]::Connecting) {
+                $script:DatabaseImportRunspace.Open()
+                return $script:DatabaseImportRunspace
+            }
+        } catch {
+            try { Write-Diag ("DB import runspace state check failed | Error={0}" -f $_.Exception.Message) } catch {}
+            try { $script:DatabaseImportRunspace.Dispose() } catch {}
+            $script:DatabaseImportRunspace = $null
+        }
+    }
+
+    try {
+        $iss = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
+        $iss.LanguageMode = [System.Management.Automation.PSLanguageMode]::FullLanguage
+        $rs = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace($iss)
+        $rs.ApartmentState = [System.Threading.ApartmentState]::STA
+        $rs.ThreadOptions  = [System.Management.Automation.Runspaces.PSThreadOptions]::ReuseThread
+        $rs.Open()
+        try { $rs.SessionStateProxy.LanguageMode = [System.Management.Automation.PSLanguageMode]::FullLanguage } catch {}
+        $script:DatabaseImportRunspace = $rs
+        try {
+            Write-Diag ("DB import runspace created | Id={0} | LangMode={1}" -f $rs.Id, $rs.SessionStateProxy.LanguageMode)
+        } catch {}
+        return $script:DatabaseImportRunspace
+    } catch {
+        try { Write-Diag ("DB import runspace creation failed | Error={0}" -f $_.Exception.Message) } catch {}
         return $null
     }
 }
@@ -740,36 +805,59 @@ function Set-EnvToggle {
 function Get-AvailableSiteNames {
     $dataDir = Join-Path $scriptDir '..\Data'
     if (-not (Test-Path -LiteralPath $dataDir)) { return @() }
-    $siteNames = [System.Collections.Generic.List[string]]::new()
-    Get-ChildItem -LiteralPath $dataDir -Directory | ForEach-Object {
-        $siteName = $_.Name
-        $dbPath = Join-Path $_.FullName ("{0}.accdb" -f $siteName)
-        if (Test-Path -LiteralPath $dbPath) {
-            if (-not $siteNames.Contains($siteName)) { [void]$siteNames.Add($siteName) }
+
+    $siteNames = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+
+    # Preferred layout: Data\<Site>\<Site>.accdb
+    try {
+        $siteDirs = Get-ChildItem -LiteralPath $dataDir -Directory -ErrorAction SilentlyContinue
+        foreach ($dir in @($siteDirs)) {
+            $siteName = $dir.Name
+            if ([string]::IsNullOrWhiteSpace($siteName)) { continue }
+            $dbPath = Join-Path $dir.FullName ("{0}.accdb" -f $siteName)
+            if (Test-Path -LiteralPath $dbPath) { [void]$siteNames.Add($siteName) }
         }
+    } catch { }
+
+    # Legacy layout: Data\<Site>.accdb (no recursion needed).
+    try {
+        $rootDbFiles = Get-ChildItem -LiteralPath $dataDir -Filter '*.accdb' -File -ErrorAction SilentlyContinue
+        foreach ($file in @($rootDbFiles)) {
+            $leaf = [System.IO.Path]::GetFileNameWithoutExtension($file.Name)
+            if ([string]::IsNullOrWhiteSpace($leaf)) { continue }
+            [void]$siteNames.Add($leaf)
+        }
+    } catch { }
+
+    # Rare fallback: deep nested .accdb files (avoid unless the common paths yielded nothing).
+    if ($siteNames.Count -eq 0) {
+        try {
+            $deepDbFiles = Get-ChildItem -LiteralPath $dataDir -Filter '*.accdb' -File -Recurse -ErrorAction SilentlyContinue
+            foreach ($file in @($deepDbFiles)) {
+                $leaf = [System.IO.Path]::GetFileNameWithoutExtension($file.Name)
+                if ([string]::IsNullOrWhiteSpace($leaf)) { continue }
+                [void]$siteNames.Add($leaf)
+            }
+        } catch { }
     }
 
-    # Fallback: include any .accdb files found anywhere under Data so non-nested
-    # site databases still appear in the dropdown.
-    Get-ChildItem -LiteralPath $dataDir -Filter '*.accdb' -File -Recurse | ForEach-Object {
-        $leaf = [System.IO.Path]::GetFileNameWithoutExtension($_.Name)
-        if ([string]::IsNullOrWhiteSpace($leaf)) { return }
-        if (-not $siteNames.Contains($leaf)) { [void]$siteNames.Add($leaf) }
-    }
-
-    return ($siteNames | Sort-Object -Unique)
+    return (@($siteNames) | Sort-Object -Unique)
 }
 
 function Populate-SiteDropdownWithAvailableSites {
     param(
         [Windows.Window]$Window,
+        [string[]]$Sites,
         [string]$PreferredSelection,
         [switch]$PreserveExistingSelection
     )
     if (-not $Window) { return }
     $siteDropdown = $Window.FindName('SiteDropdown')
     if (-not $siteDropdown) { return }
-    $sites = Get-AvailableSiteNames
+    $sites = $Sites
+    if (-not $sites -or $sites.Count -eq 0) {
+        $sites = Get-AvailableSiteNames
+    }
     if (-not $sites -or $sites.Count -eq 0) { return }
 
     $previousProgrammaticFilterUpdate = $false
@@ -1476,18 +1564,32 @@ function Initialize-DeviceViewFromCatalog {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][Windows.Window]$Window,
-        [string]$SiteFilter
+        [string]$SiteFilter,
+        [object]$CatalogData
     )
 
     # Call the unified device helper functions directly (no module qualifier).
     $catalog = $null
-    try {
-        if ([string]::IsNullOrWhiteSpace($SiteFilter)) {
-            $catalog = Get-DeviceSummaries
-        } else {
-            $catalog = Get-DeviceSummaries -SiteFilter $SiteFilter
-        }
-    } catch { $catalog = $null }
+    if ($CatalogData) {
+        $catalog = $CatalogData
+        try {
+            if ($catalog.PSObject.Properties['Metadata']) { $global:DeviceMetadata = $catalog.Metadata }
+            if ($catalog.PSObject.Properties['LocationEntries']) { $global:DeviceLocationEntries = $catalog.LocationEntries }
+            if ($catalog.PSObject.Properties['HostnameOrder']) {
+                $global:DeviceHostnameOrder = @($catalog.HostnameOrder)
+            } elseif ($catalog.PSObject.Properties['Hostnames']) {
+                $global:DeviceHostnameOrder = @($catalog.Hostnames)
+            }
+        } catch { }
+    } else {
+        try {
+            if ([string]::IsNullOrWhiteSpace($SiteFilter)) {
+                $catalog = Get-DeviceSummaries
+            } else {
+                $catalog = Get-DeviceSummaries -SiteFilter $SiteFilter
+            }
+        } catch { $catalog = $null }
+    }
     $hostList = @()
     if ($catalog -and $catalog.PSObject.Properties['Hostnames']) {
         $hostList = @($catalog.Hostnames)
@@ -1515,8 +1617,19 @@ function Initialize-DeviceViewFromCatalog {
     }
 
     try {
+        $locationEntries = $null
+        try {
+            if ($catalog -and $catalog.PSObject.Properties['LocationEntries']) {
+                $locationEntries = $catalog.LocationEntries
+            }
+        } catch { $locationEntries = $null }
+
         if ($hostList -and $hostList.Count -gt 0) {
-            Initialize-DeviceFilters -Hostnames $hostList -Window $Window
+            if ($locationEntries) {
+                Initialize-DeviceFilters -Hostnames $hostList -Window $Window -LocationEntries $locationEntries
+            } else {
+                Initialize-DeviceFilters -Hostnames $hostList -Window $Window
+            }
         } else {
             Initialize-DeviceFilters -Window $Window
             $null = Invoke-OptionalCommandSafe -Name 'InterfaceModule\Set-HostLoadingIndicator' -Parameters @{ State = 'Hidden' }
@@ -1600,6 +1713,20 @@ function Invoke-DatabaseImport {
     param([Parameter(Mandatory)][Windows.Window]$Window)
 
     try {
+        if ($script:DatabaseImportInProgress) {
+            try { Write-Diag "Database import already in progress; ignoring request." } catch {}
+            return
+        }
+
+        $script:DatabaseImportInProgress = $true
+        $requestId = 0
+        try {
+            $script:DatabaseImportRequestId = [int]$script:DatabaseImportRequestId + 1
+            $requestId = [int]$script:DatabaseImportRequestId
+        } catch {
+            $requestId = [int][Environment]::TickCount
+        }
+
         $global:InterfacesLoadAllowed = $true
         if ($global:StateTraceDb) { $env:StateTraceDbPath = $global:StateTraceDb }
 
@@ -1630,11 +1757,216 @@ function Invoke-DatabaseImport {
         } catch {}
 
         $siteFilterValue = Get-SelectedSiteFilterValue -Window $Window
-        Initialize-DeviceViewFromCatalog -Window $Window -SiteFilter $siteFilterValue
-        Populate-SiteDropdownWithAvailableSites -Window $Window -PreferredSelection $siteFilterValue -PreserveExistingSelection
-        Publish-UserActionTelemetry -Action 'LoadFromDb' -Site $siteFilterValue -Hostname (Get-SelectedHostname -Window $Window) -Context 'MainWindow'
+
+        try {
+            $loadBtn = $Window.FindName('LoadDatabaseButton')
+            if ($loadBtn) { $loadBtn.IsEnabled = $false }
+        } catch { }
+
+        $modulesDir = $script:ModulesDirectory
+        if (-not $modulesDir) {
+            try {
+                $modulesDir = (Resolve-Path -LiteralPath (Join-Path $scriptDir '..\Modules')).Path
+            } catch {
+                $modulesDir = Join-Path $scriptDir '..\Modules'
+            }
+        }
+
+        $rs = Get-DatabaseImportRunspace
+        if (-not $rs) {
+            throw "Database import runspace unavailable."
+        }
+
+        $ps = $null
+        try {
+            $ps = [System.Management.Automation.PowerShell]::Create()
+            $ps.Runspace = $rs
+
+            $scriptText = @'
+param(
+    [string]$modulesDir,
+    [string]$siteFilter
+)
+$ErrorActionPreference = 'Stop'
+
+if (-not $script:CatalogModulesLoaded) {
+    $moduleList = @(
+        'DeviceRepositoryModule.psm1',
+        'DeviceCatalogModule.psm1'
+    )
+    foreach ($name in $moduleList) {
+        $modulePath = Join-Path $modulesDir $name
+        if (Test-Path -LiteralPath $modulePath) {
+            Import-Module -Name $modulePath -Global -Force -ErrorAction Stop
+        }
+    }
+    $script:CatalogModulesLoaded = $true
+}
+
+$catalog = $null
+if ([string]::IsNullOrWhiteSpace($siteFilter)) {
+    $catalog = DeviceCatalogModule\Get-DeviceSummaries
+} else {
+    $catalog = DeviceCatalogModule\Get-DeviceSummaries -SiteFilter $siteFilter
+}
+
+$sites = @()
+try {
+    $paths = DeviceRepositoryModule\Get-AllSiteDbPaths
+    $set = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($p in @($paths)) {
+        if ([string]::IsNullOrWhiteSpace($p)) { continue }
+        $leaf = [System.IO.Path]::GetFileNameWithoutExtension($p)
+        if ([string]::IsNullOrWhiteSpace($leaf)) { continue }
+        [void]$set.Add($leaf)
+    }
+    $sites = @($set | Sort-Object -Unique)
+} catch {
+    $sites = @()
+}
+
+return [pscustomobject]@{
+    Catalog = $catalog
+    Sites   = $sites
+}
+'@
+
+            [void]$ps.AddScript($scriptText)
+            [void]$ps.AddArgument($modulesDir)
+            [void]$ps.AddArgument($siteFilterValue)
+
+            $diagRequestId = $requestId
+            $diagSite = $siteFilterValue
+            try { Write-Diag ("Invoke-DatabaseImport async dispatch | RequestId={0} | SiteFilter={1}" -f $diagRequestId, $diagSite) } catch {}
+
+            $diagPathLocal = $script:DiagLogPath
+            $threadScript = {
+                param([System.Management.Automation.PowerShell]$psCmd, [string]$tag)
+
+                $semaphore = $script:DatabaseImportRunspaceLock
+                $heldLock = $false
+                try {
+                    if ($semaphore) {
+                        try {
+                            $semaphore.Wait()
+                            $heldLock = $true
+                        } catch {
+                            $heldLock = $false
+                        }
+                    }
+
+                    $invokeStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+                    $results = $psCmd.Invoke()
+                    $invokeStopwatch.Stop()
+
+                    $payload = $null
+                    if ($results -is [System.Collections.IEnumerable]) {
+                        $payload = $results | Select-Object -First 1
+                    } else {
+                        $payload = $results
+                    }
+
+                    $invokeDurationMs = 0.0
+                    try { $invokeDurationMs = [Math]::Round($invokeStopwatch.Elapsed.TotalMilliseconds, 3) } catch { $invokeDurationMs = 0.0 }
+                    try { Write-Diag ("Invoke-DatabaseImport async result | RequestId={0} | InvokeMs={1}" -f $diagRequestId, $invokeDurationMs) } catch {}
+
+                    $uiAction = {
+                        param($dto)
+                        try {
+                            if (-not $dto -or ($dto -is [System.Management.Automation.ErrorRecord])) {
+                                if ($dto -and $dto.Exception) {
+                                    Write-Warning ("Database import failed: {0}" -f $dto.Exception.Message)
+                                } else {
+                                    Write-Warning "Database import failed: no result returned."
+                                }
+                                return
+                            }
+
+                            if ($diagRequestId -ne $script:DatabaseImportRequestId) {
+                                try { Write-Diag ("Invoke-DatabaseImport stale completion ignored | RequestId={0} | Current={1}" -f $diagRequestId, $script:DatabaseImportRequestId) } catch {}
+                                return
+                            }
+
+                            $catalog = $null
+                            $sites = @()
+                            try { if ($dto.PSObject.Properties['Catalog']) { $catalog = $dto.Catalog } } catch { $catalog = $null }
+                            try { if ($dto.PSObject.Properties['Sites']) { $sites = @($dto.Sites) } } catch { $sites = @() }
+
+                            Initialize-DeviceViewFromCatalog -Window $Window -SiteFilter $siteFilterValue -CatalogData $catalog
+
+                            if ($sites -and $sites.Count -gt 0) {
+                                Populate-SiteDropdownWithAvailableSites -Window $Window -Sites $sites -PreferredSelection $siteFilterValue -PreserveExistingSelection
+                            } else {
+                                Populate-SiteDropdownWithAvailableSites -Window $Window -PreferredSelection $siteFilterValue -PreserveExistingSelection
+                            }
+
+                            Publish-UserActionTelemetry -Action 'LoadFromDb' -Site $siteFilterValue -Hostname (Get-SelectedHostname -Window $Window) -Context 'MainWindow'
+                        } catch {
+                            Write-Warning ("Database import UI apply failed: {0}" -f $_.Exception.Message)
+                        } finally {
+                            try {
+                                $loadBtn = $Window.FindName('LoadDatabaseButton')
+                                if ($loadBtn) { $loadBtn.IsEnabled = $true }
+                            } catch { }
+                            $script:DatabaseImportInProgress = $false
+                        }
+                    }
+                    $uiAction = $uiAction.GetNewClosure()
+                    $uiDelegate = [System.Action[object]]$uiAction
+                    try {
+                        [System.Windows.Application]::Current.Dispatcher.BeginInvoke($uiDelegate, $payload) | Out-Null
+                    } catch {
+                        Write-Warning ("Database import dispatcher invocation failed: {0}" -f $_.Exception.Message)
+                        $script:DatabaseImportInProgress = $false
+                    }
+                } catch {
+                    try {
+                        $err = $_
+                        $uiAction = {
+                            param($dto)
+                            try {
+                                if ($dto -and $dto.Exception) {
+                                    Write-Warning ("Database import failed: {0}" -f $dto.Exception.Message)
+                                } else {
+                                    Write-Warning "Database import failed."
+                                }
+                            } finally {
+                                try {
+                                    $loadBtn = $Window.FindName('LoadDatabaseButton')
+                                    if ($loadBtn) { $loadBtn.IsEnabled = $true }
+                                } catch { }
+                                $script:DatabaseImportInProgress = $false
+                            }
+                        }.GetNewClosure()
+                        $uiDelegate = [System.Action[object]]$uiAction
+                        [System.Windows.Application]::Current.Dispatcher.BeginInvoke($uiDelegate, $err) | Out-Null
+                    } catch {
+                        $script:DatabaseImportInProgress = $false
+                    }
+                } finally {
+                    try { if ($psCmd) { $psCmd.Commands.Clear() } } catch {}
+                    try { if ($psCmd) { $psCmd.Dispose() } } catch {}
+                    if ($heldLock -and $semaphore) {
+                        try { $semaphore.Release() } catch {}
+                    }
+                }
+            }.GetNewClosure()
+
+            $threadStart = [StateTrace.Threading.PowerShellThreadStartFactory]::Create($threadScript, $ps, ('DBImport-{0}' -f $requestId))
+            $workerThread = [System.Threading.Thread]::new($threadStart)
+            $workerThread.ApartmentState = [System.Threading.ApartmentState]::STA
+            $workerThread.Start()
+        } catch {
+            try { if ($ps) { $ps.Dispose() } } catch {}
+            throw
+        }
     } catch {
         try { $global:PendingFilterRestore = $null } catch {}
+        try {
+            $loadBtn = $Window.FindName('LoadDatabaseButton')
+            if ($loadBtn) { $loadBtn.IsEnabled = $true }
+        } catch { }
+        $script:DatabaseImportInProgress = $false
         Write-Warning ("Database import failed: {0}" -f $_.Exception.Message)
     }
 }

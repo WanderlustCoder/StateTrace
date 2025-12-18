@@ -262,16 +262,15 @@ function Get-DeviceSummaries {
             }
         }
     } else {
-        foreach ($dbPath in $existingDbPaths) {
+        $dbPath = $existingDbPaths[0]
+        $dt = $null
+        try {
+            $dt = @(DeviceRepositoryModule\Invoke-ParallelDbQuery -DbPaths @($dbPath) -Sql $deviceSummarySql)
+        } catch {
+            Write-Warning ("DeviceCatalogModule: failed to query device summaries from {0}: {1}" -f $dbPath, $_.Exception.Message)
             $dt = $null
-            try {
-                $dt = DatabaseModule\Invoke-DbQuery -DatabasePath $dbPath -Sql $deviceSummarySql
-            } catch {
-                Write-Warning ("DeviceCatalogModule: failed to query device summaries from {0}: {1}" -f $dbPath, $_.Exception.Message)
-                continue
-            }
-            if (-not $dt) { continue }
-
+        }
+        if ($dt) {
             foreach ($row in $dt) {
                 $name = '' + $row.Hostname
                 if ([string]::IsNullOrWhiteSpace($name)) { continue }
@@ -295,8 +294,10 @@ function Get-DeviceSummaries {
     $global:DeviceHostnameOrder = $balancedHostArray
 
     return [PSCustomObject]@{
-        Hostnames = $balancedHostArray
-        Metadata  = $metadata
+        Hostnames       = $balancedHostArray
+        HostnameOrder   = $balancedHostArray
+        Metadata        = $metadata
+        LocationEntries = $locations
     }
 }
 
@@ -372,16 +373,15 @@ function Get-DeviceLocationEntries {
             }
         }
     } else {
-        foreach ($dbPath in $existingDbPaths) {
+        $dbPath = $existingDbPaths[0]
+        $dt = $null
+        try {
+            $dt = @(DeviceRepositoryModule\Invoke-ParallelDbQuery -DbPaths @($dbPath) -Sql $deviceSummarySql)
+        } catch {
+            Write-Warning ("DeviceCatalogModule: failed to query location metadata from {0}: {1}" -f $dbPath, $_.Exception.Message)
             $dt = $null
-            try {
-                $dt = DatabaseModule\Invoke-DbQuery -DatabasePath $dbPath -Sql $deviceSummarySql
-            } catch {
-                Write-Warning ("DeviceCatalogModule: failed to query location metadata from {0}: {1}" -f $dbPath, $_.Exception.Message)
-                continue
-            }
-            if (-not $dt) { continue }
-
+        }
+        if ($dt) {
             foreach ($row in $dt) {
                 $hostname = '' + $row.Hostname
 

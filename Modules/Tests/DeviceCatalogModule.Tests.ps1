@@ -109,9 +109,9 @@ Describe "DeviceCatalogModule catalog operations" {
             Mock -ModuleName DeviceCatalogModule -CommandName Test-Path { param($Path, $LiteralPath) $true }
             Mock -ModuleName DeviceCatalogModule -CommandName 'DeviceRepositoryModule\Import-DatabaseModule' {}
             $global:DeviceCatalogQueriedPathsTest = [System.Collections.Generic.List[string]]::new()
-            Mock -ModuleName DeviceCatalogModule -CommandName 'DatabaseModule\Invoke-DbQuery' {
-                param($DatabasePath, $Sql)
-                $global:DeviceCatalogQueriedPathsTest.Add($DatabasePath) | Out-Null
+            Mock -ModuleName DeviceCatalogModule -CommandName 'DeviceRepositoryModule\Invoke-ParallelDbQuery' {
+                param([string[]]$DbPaths, [string]$Sql)
+                $global:DeviceCatalogQueriedPathsTest.Add(($DbPaths | Select-Object -First 1)) | Out-Null
                 return @(
                     [pscustomobject]@{ Hostname = 'SITE2-Z1-SW1'; Site = 'SITE2'; Building = 'B2'; Room = '201' }
                 )
@@ -124,6 +124,7 @@ Describe "DeviceCatalogModule catalog operations" {
             $global:DeviceMetadata['SITE2-Z1-SW1'].Building | Should Be 'B2'
             $global:DeviceCatalogQueriedPathsTest.Count | Should Be 1
 
+            Assert-MockCalled -ModuleName DeviceCatalogModule -CommandName 'DeviceRepositoryModule\Invoke-ParallelDbQuery' -Times 1 -Scope It
             Assert-MockCalled -ModuleName DeviceCatalogModule -CommandName 'DeviceRepositoryModule\Get-DbPathForSite' -Times 1 -Scope It -ParameterFilter { $Site -eq 'SITE2' }
             Assert-MockCalled -ModuleName DeviceCatalogModule -CommandName 'DeviceRepositoryModule\Get-AllSiteDbPaths' -Times 0 -Scope It
         } finally {

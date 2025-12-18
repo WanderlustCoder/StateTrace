@@ -100,10 +100,40 @@ function Get-AllSiteDbPaths {
     }
     if (-not (Test-Path $dataDir)) { return @() }
 
-    $files = Get-ChildItem -Path $dataDir -Filter '*.accdb' -File -Recurse
-    $list = [System.Collections.Generic.List[string]]::new()
-    foreach ($f in $files) { [void]$list.Add($f.FullName) }
-    return $list.ToArray()
+    $paths = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+
+    # Legacy layout: Data\<Site>.accdb
+    try {
+        $rootFiles = Get-ChildItem -LiteralPath $dataDir -Filter '*.accdb' -File -ErrorAction SilentlyContinue
+        foreach ($f in @($rootFiles)) {
+            if ($f -and $f.FullName) { [void]$paths.Add(('' + $f.FullName)) }
+        }
+    } catch { }
+
+    # Preferred layout: Data\<Site>\<Site>.accdb (site DBs live directly under the site directory).
+    try {
+        $dirs = Get-ChildItem -LiteralPath $dataDir -Directory -ErrorAction SilentlyContinue
+        foreach ($dir in @($dirs)) {
+            if (-not $dir -or [string]::IsNullOrWhiteSpace($dir.FullName)) { continue }
+            $dirFiles = $null
+            try { $dirFiles = Get-ChildItem -LiteralPath $dir.FullName -Filter '*.accdb' -File -ErrorAction SilentlyContinue } catch { $dirFiles = $null }
+            foreach ($f in @($dirFiles)) {
+                if ($f -and $f.FullName) { [void]$paths.Add(('' + $f.FullName)) }
+            }
+        }
+    } catch { }
+
+    # Rare fallback: deep nested DBs (avoid unless the common layouts yielded nothing).
+    if ($paths.Count -eq 0) {
+        try {
+            $deepFiles = Get-ChildItem -LiteralPath $dataDir -Filter '*.accdb' -File -Recurse -ErrorAction SilentlyContinue
+            foreach ($f in @($deepFiles)) {
+                if ($f -and $f.FullName) { [void]$paths.Add(('' + $f.FullName)) }
+            }
+        } catch { }
+    }
+
+    return @($paths)
 }
 
 function Import-DatabaseModule {
