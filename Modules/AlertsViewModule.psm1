@@ -11,8 +11,9 @@ function New-AlertsView {
         if (-not $alertsView) { return }
 
         try {
-            DeviceInsightsModule\Update-Alerts
+            DeviceInsightsModule\Update-AlertsAsync
         } catch [System.Management.Automation.CommandNotFoundException] {
+            try { DeviceInsightsModule\Update-Alerts } catch [System.Management.Automation.CommandNotFoundException] { }
         }
 
         $expAlertsBtn = $alertsView.FindName('ExportAlertsButton')

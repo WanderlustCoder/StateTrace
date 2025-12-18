@@ -675,12 +675,6 @@ function Update-DeviceFilter {
             $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
         }
 
-        # Only refresh views that are currently visible. This avoids reprocessing large interface
-        # snapshots when the user is focused on a different tab.
-        if ($interfacesAllowed -and $searchVisible) {
-            try { Update-SearchGrid } catch [System.Management.Automation.CommandNotFoundException] { }
-        }
-
         $canUpdateSummary = $false
         if ($interfacesAllowed -and $summaryVisible) {
             try {
@@ -688,12 +682,34 @@ function Update-DeviceFilter {
                 if ($summaryVar.Value) { $canUpdateSummary = $true }
             } catch { $canUpdateSummary = $false }
         }
-        if ($canUpdateSummary) {
-            try { Update-Summary } catch [System.Management.Automation.CommandNotFoundException] { }
-        }
 
-        if ($interfacesAllowed -and $alertsVisible) {
-            try { Update-Alerts } catch [System.Management.Automation.CommandNotFoundException] { }
+        $insightsAsyncCmd = $null
+        try { $insightsAsyncCmd = Get-Command -Name 'Update-InsightsAsync' -ErrorAction SilentlyContinue } catch { $insightsAsyncCmd = $null }
+
+        if ($interfacesAllowed -and $insightsAsyncCmd) {
+            $needSearchRefresh = $searchVisible
+            $needSummaryRefresh = $canUpdateSummary
+            $needAlertsRefresh = $alertsVisible
+
+            if ($needSearchRefresh -or $needSummaryRefresh -or $needAlertsRefresh) {
+                try {
+                    Update-InsightsAsync -Interfaces $global:AllInterfaces -IncludeSearch:$needSearchRefresh -IncludeSummary:$needSummaryRefresh -IncludeAlerts:$needAlertsRefresh
+                } catch { }
+            }
+        } else {
+            # Only refresh views that are currently visible. This avoids reprocessing large interface
+            # snapshots when the user is focused on a different tab.
+            if ($interfacesAllowed -and $searchVisible) {
+                try { Update-SearchGrid } catch [System.Management.Automation.CommandNotFoundException] { }
+            }
+
+            if ($canUpdateSummary) {
+                try { Update-Summary } catch [System.Management.Automation.CommandNotFoundException] { }
+            }
+
+            if ($interfacesAllowed -and $alertsVisible) {
+                try { Update-Alerts } catch [System.Management.Automation.CommandNotFoundException] { }
+            }
         }
 
         if ($interfacesAllowed -and $hostnameSelectionChanged) {

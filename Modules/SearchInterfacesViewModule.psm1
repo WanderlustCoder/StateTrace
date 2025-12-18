@@ -12,7 +12,9 @@ function New-SearchInterfacesView {
     )
 
     $requestSearchUpdate = {
-        try { DeviceInsightsModule\Update-SearchGrid } catch { }
+        try { DeviceInsightsModule\Update-SearchGridAsync } catch {
+            try { DeviceInsightsModule\Update-SearchGrid } catch { }
+        }
     }
 
     $searchView = ViewCompositionModule\Set-StView -Window $Window -ScriptDir $ScriptDir -ViewName 'SearchInterfacesView' -HostControlName 'SearchInterfacesHost' -GlobalVariableName 'searchInterfacesView'

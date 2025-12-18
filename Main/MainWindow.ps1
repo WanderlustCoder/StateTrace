@@ -690,9 +690,27 @@ function Register-TabVisibilityRefreshHandlers {
         try { $hostControl.Add_IsVisibleChanged($handler) } catch { }
     }
 
-    & $wire 'SummaryHost'          { Invoke-OptionalCommandSafe -Name 'Update-Summary' | Out-Null }
-    & $wire 'SearchInterfacesHost' { Invoke-OptionalCommandSafe -Name 'Update-SearchGrid' | Out-Null }
-    & $wire 'AlertsHost'           { Invoke-OptionalCommandSafe -Name 'Update-Alerts' | Out-Null }
+    & $wire 'SummaryHost'          {
+        if (Test-OptionalCommandAvailable -Name 'Update-SummaryAsync') {
+            Invoke-OptionalCommandSafe -Name 'Update-SummaryAsync' | Out-Null
+        } else {
+            Invoke-OptionalCommandSafe -Name 'Update-Summary' | Out-Null
+        }
+    }
+    & $wire 'SearchInterfacesHost' {
+        if (Test-OptionalCommandAvailable -Name 'Update-SearchGridAsync') {
+            Invoke-OptionalCommandSafe -Name 'Update-SearchGridAsync' | Out-Null
+        } else {
+            Invoke-OptionalCommandSafe -Name 'Update-SearchGrid' | Out-Null
+        }
+    }
+    & $wire 'AlertsHost'           {
+        if (Test-OptionalCommandAvailable -Name 'Update-AlertsAsync') {
+            Invoke-OptionalCommandSafe -Name 'Update-AlertsAsync' | Out-Null
+        } else {
+            Invoke-OptionalCommandSafe -Name 'Update-Alerts' | Out-Null
+        }
+    }
     & $wire 'SpanHost'             {
         $selected = $null
         try { $selected = Get-SelectedHostname -Window $Window } catch { $selected = $null }

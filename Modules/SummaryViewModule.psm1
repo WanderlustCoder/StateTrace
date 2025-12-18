@@ -10,7 +10,9 @@ function New-SummaryView {
     $summaryView = ViewCompositionModule\Set-StView -Window $Window -ScriptDir $ScriptDir -ViewName 'SummaryView' -HostControlName 'SummaryHost' -GlobalVariableName 'summaryView'
     if (-not $summaryView) { return }
 
-    try { DeviceInsightsModule\Update-Summary } catch { }
+    try { DeviceInsightsModule\Update-SummaryAsync } catch {
+        try { DeviceInsightsModule\Update-Summary } catch { }
+    }
 }
 
 Export-ModuleMember -Function New-SummaryView
