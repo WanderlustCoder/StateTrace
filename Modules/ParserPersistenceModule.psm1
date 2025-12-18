@@ -113,6 +113,18 @@ if (-not (Get-Variable -Name InterfaceIndexesEnsureAttempted -Scope Script -Erro
     $script:InterfaceIndexesEnsureAttempted = $false
 }
 
+if (-not (Get-Variable -Name InterfaceIndexesEnsuredByDb -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:InterfaceIndexesEnsuredByDb = [System.Collections.Concurrent.ConcurrentDictionary[string, bool]]::new([System.StringComparer]::OrdinalIgnoreCase)
+}
+
+if (-not (Get-Variable -Name InterfaceIndexesEnsureAttemptedByDb -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:InterfaceIndexesEnsureAttemptedByDb = [System.Collections.Concurrent.ConcurrentDictionary[string, bool]]::new([System.StringComparer]::OrdinalIgnoreCase)
+}
+
+if (-not (Get-Variable -Name InterfaceBulkSeedTableEnsuredByDb -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:InterfaceBulkSeedTableEnsuredByDb = [System.Collections.Concurrent.ConcurrentDictionary[string, bool]]::new([System.StringComparer]::OrdinalIgnoreCase)
+}
+
 if (-not (Get-Variable -Name InterfaceComparisonProperties -Scope Script -ErrorAction SilentlyContinue)) {
     $script:InterfaceComparisonProperties = @(
         'Name',
@@ -612,6 +624,49 @@ function Test-IsAdodbConnection {
     return $false
 }
 
+function Get-AdodbConnectionDatabaseKey {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][object]$Connection
+    )
+
+    if (-not (Test-IsAdodbConnection -Connection $Connection)) { return $null }
+
+    $connectionString = $null
+    try { $connectionString = [string]$Connection.ConnectionString } catch { $connectionString = $null }
+    if ([string]::IsNullOrWhiteSpace($connectionString)) { return $null }
+
+    $match = [regex]::Match($connectionString, '(?i)(?:^|;)\\s*Data Source\\s*=\\s*([^;]+)')
+    if (-not $match.Success) { return $connectionString.Trim() }
+
+    $pathValue = $match.Groups[1].Value
+    if ($null -ne $pathValue) {
+        $pathValue = $pathValue.Trim()
+    } else {
+        $pathValue = ''
+    }
+
+    if ($pathValue.Length -ge 2) {
+        $firstChar = $pathValue[0]
+        $lastChar = $pathValue[$pathValue.Length - 1]
+        if (($firstChar -eq '"' -and $lastChar -eq '"') -or ($firstChar -eq "'" -and $lastChar -eq "'")) {
+            $pathValue = $pathValue.Substring(1, $pathValue.Length - 2)
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($pathValue)) {
+        return $connectionString.Trim()
+    }
+
+    try { $pathValue = [System.IO.Path]::GetFullPath($pathValue) } catch { }
+
+    if ([string]::IsNullOrWhiteSpace($pathValue)) {
+        return $connectionString.Trim()
+    }
+
+    return $pathValue
+}
+
 function New-AdodbTextCommand {
     [CmdletBinding()]
     param(
@@ -921,10 +976,20 @@ function Ensure-InterfaceTableIndexes {
         [Parameter(Mandatory=$true)][object]$Connection
     )
 
-    if ($script:InterfaceIndexesEnsured -or $script:InterfaceIndexesEnsureAttempted) { return }
     if (-not (Test-IsAdodbConnection -Connection $Connection)) { return }
 
+    $databaseKey = $null
+    try { $databaseKey = Get-AdodbConnectionDatabaseKey -Connection $Connection } catch { $databaseKey = $null }
+    if ([string]::IsNullOrWhiteSpace($databaseKey)) { $databaseKey = 'UnknownConnection' }
+
+    if (($script:InterfaceIndexesEnsuredByDb -and $script:InterfaceIndexesEnsuredByDb.ContainsKey($databaseKey)) -or ($script:InterfaceIndexesEnsureAttemptedByDb -and $script:InterfaceIndexesEnsureAttemptedByDb.ContainsKey($databaseKey))) {
+        return
+    }
+
     $script:InterfaceIndexesEnsureAttempted = $true
+    if ($script:InterfaceIndexesEnsureAttemptedByDb) {
+        $script:InterfaceIndexesEnsureAttemptedByDb[$databaseKey] = $true
+    }
 
     $indexStatements = @(
         "CREATE INDEX IX_Interfaces_Hostname ON Interfaces (Hostname)",
@@ -946,6 +1011,9 @@ function Ensure-InterfaceTableIndexes {
     }
 
     $script:InterfaceIndexesEnsured = $true
+    if ($script:InterfaceIndexesEnsuredByDb) {
+        $script:InterfaceIndexesEnsuredByDb[$databaseKey] = $true
+    }
 }
 
 function ConvertTo-DbDateTime {
@@ -1113,6 +1181,7 @@ function Update-InterfacesInDb {
     $diffRowsUnchanged = 0
     $diffRowsChanged = 0
     $diffRowsInserted = 0
+    $indexEnsureDurationMs = 0.0
 
     $escHostname = $Hostname -replace "'", "''"
 
@@ -2253,7 +2322,16 @@ $siteCacheTemplateDurationMs = 0.0
         $siteCacheProviderReason = 'SharedCacheMatch'
     }
     $queryExistingRows = {
-        Ensure-InterfaceTableIndexes -Connection $Connection
+        $indexEnsureStopwatch = $null
+        try {
+            $indexEnsureStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+            Ensure-InterfaceTableIndexes -Connection $Connection
+        } finally {
+            if ($indexEnsureStopwatch) {
+                $indexEnsureStopwatch.Stop()
+                $indexEnsureDurationMs = [Math]::Round($indexEnsureStopwatch.Elapsed.TotalMilliseconds, 3)
+            }
+        }
 
         $result = @{
             Rows = @{}
@@ -3429,6 +3507,7 @@ $siteCacheTemplateDurationMs = 0.0
         DiffDurationMs = $diffDurationMs
         DiffComparisonDurationMs = [Math]::Round($diffComparisonDurationMs, 3)
         DiffSignatureDurationMs = [Math]::Round($diffSignatureDurationMs, 3)
+        IndexEnsureDurationMs = [Math]::Round($indexEnsureDurationMs, 3)
         DeleteDurationMs = [Math]::Round($deleteDurationMs, 3)
         FallbackDurationMs = $fallbackDurationMs
         FactsConsidered = $totalFactsCount
@@ -3453,6 +3532,8 @@ $siteCacheTemplateDurationMs = 0.0
         BulkInterfaceInsertDurationMs = if ($bulkMetrics) { [double]$bulkMetrics.InterfaceInsertDurationMs } else { 0.0 }
         BulkHistoryInsertDurationMs = if ($bulkMetrics) { [double]$bulkMetrics.HistoryInsertDurationMs } else { 0.0 }
         BulkCleanupDurationMs = if ($bulkMetrics) { [double]$bulkMetrics.CleanupDurationMs } else { 0.0 }
+        BulkSeedEnsureDurationMs = if ($bulkMetricsPropertyNames -contains 'SeedEnsureDurationMs') { [double]$bulkMetrics.SeedEnsureDurationMs } else { 0.0 }
+        BulkSeedRecordsetOpenDurationMs = if ($bulkMetricsPropertyNames -contains 'SeedRecordsetOpenDurationMs') { [double]$bulkMetrics.SeedRecordsetOpenDurationMs } else { 0.0 }
         BulkTransactionCommitDurationMs = if ($bulkMetrics) { [double]$bulkMetrics.TransactionCommitDurationMs } else { 0.0 }
         BulkRecordsetAttempted = if ($bulkMetrics) { [bool]$bulkMetrics.RecordsetAttempted } else { $false }
         BulkRecordsetUsed = if ($bulkMetrics) { [bool]$bulkMetrics.RecordsetUsed } else { $false }
@@ -3491,6 +3572,12 @@ function Ensure-InterfaceBulkSeedTable {
 
     if (-not (Test-IsAdodbConnection -Connection $Connection)) { return $false }
 
+    $databaseKey = $null
+    try { $databaseKey = Get-AdodbConnectionDatabaseKey -Connection $Connection } catch { $databaseKey = $null }
+    if (-not [string]::IsNullOrWhiteSpace($databaseKey) -and $script:InterfaceBulkSeedTableEnsuredByDb -and $script:InterfaceBulkSeedTableEnsuredByDb.ContainsKey($databaseKey)) {
+        return $true
+    }
+
     try {
 
         $seedCheckRecordset = $null
@@ -3520,6 +3607,9 @@ function Ensure-InterfaceBulkSeedTable {
             } catch { }
         }
 
+        if (-not [string]::IsNullOrWhiteSpace($databaseKey) -and $script:InterfaceBulkSeedTableEnsuredByDb) {
+            $script:InterfaceBulkSeedTableEnsuredByDb[$databaseKey] = $true
+        }
         return $true
 
     } catch {
@@ -3578,6 +3668,9 @@ CREATE TABLE InterfaceBulkSeed (
 
             try { Invoke-AdodbNonQuery -Connection $Connection -CommandText 'CREATE INDEX IX_InterfaceBulkSeed_BatchId ON InterfaceBulkSeed (BatchId)' | Out-Null } catch { }
 
+            if (-not [string]::IsNullOrWhiteSpace($databaseKey) -and $script:InterfaceBulkSeedTableEnsuredByDb) {
+                $script:InterfaceBulkSeedTableEnsuredByDb[$databaseKey] = $true
+            }
             return $true
 
         } catch {
@@ -3635,6 +3728,8 @@ function Invoke-InterfaceBulkInsertInternal {
     $rowsBuffer = $null
     $stagedCount = 0
 
+    $seedEnsureDurationMs = 0.0
+    $seedRecordsetOpenDurationMs = 0.0
     $stageDurationMs = 0.0
     $interfaceUpdateDurationMs = 0.0
     $interfaceInsertDurationMs = 0.0
@@ -3668,6 +3763,8 @@ function Invoke-InterfaceBulkInsertInternal {
             InsertRowCount = [int]$InsertRowCount
             UpdateRowCount = [int]$UpdateRowCount
             UiCloneDurationMs = $uiCloneDurationMs
+            SeedEnsureDurationMs = $seedEnsureDurationMs
+            SeedRecordsetOpenDurationMs = $seedRecordsetOpenDurationMs
             StageDurationMs = $stageDurationMs
             ParameterBindDurationMs = $parameterBindDurationMs
             CommandExecuteDurationMs = $commandExecuteDurationMs
@@ -3826,7 +3923,18 @@ function Invoke-InterfaceBulkInsertInternal {
     $uiCloneDurationMs = [Math]::Round($uiCloneStopwatch.Elapsed.TotalMilliseconds, 3)
 
     if ($rowsBuffer.Count -eq 0) { return (& $setLastBulkMetrics $true) }
-    if (-not (Ensure-InterfaceBulkSeedTable -Connection $Connection)) { return (& $setLastBulkMetrics $false) }
+    $seedEnsureStopwatch = $null
+    $seedEnsureSucceeded = $false
+    try {
+        $seedEnsureStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+        $seedEnsureSucceeded = Ensure-InterfaceBulkSeedTable -Connection $Connection
+    } finally {
+        if ($seedEnsureStopwatch) {
+            $seedEnsureStopwatch.Stop()
+            $seedEnsureDurationMs = [Math]::Round($seedEnsureStopwatch.Elapsed.TotalMilliseconds, 3)
+        }
+    }
+    if (-not $seedEnsureSucceeded) { return (& $setLastBulkMetrics $false) }
 
     $escBatch = $batchId -replace "'", "''"
     $escHostname = $Hostname -replace "'", "''"
@@ -3854,7 +3962,17 @@ function Invoke-InterfaceBulkInsertInternal {
     $streamRowsReused = 0
     $streamRowsCloned = 0
 
-    $seedRecordset = New-AdodbInterfaceSeedRecordset -Connection $Connection
+    $seedRecordsetOpenStopwatch = $null
+    $seedRecordset = $null
+    try {
+        $seedRecordsetOpenStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+        $seedRecordset = New-AdodbInterfaceSeedRecordset -Connection $Connection
+    } finally {
+        if ($seedRecordsetOpenStopwatch) {
+            $seedRecordsetOpenStopwatch.Stop()
+            $seedRecordsetOpenDurationMs = [Math]::Round($seedRecordsetOpenStopwatch.Elapsed.TotalMilliseconds, 3)
+        }
+    }
     if ($seedRecordset) {
         $recordsetAttempted = $true
         $stageStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
