@@ -653,11 +653,90 @@ function script:Ensure-InsightsWorker {
 
                     $siteToLoad = ''
                     try { $siteToLoad = '' + $request.SiteToLoad } catch { $siteToLoad = '' }
-                    if (-not [string]::IsNullOrWhiteSpace($siteToLoad) -and -not $equalsIgnoreCase.Equals($siteToLoad, 'All Sites')) {
-                        $interfaceLoadSite = $siteToLoad
+                    $zoneSelection = ''
+                    try { if ($request.PSObject.Properties['ZoneSelection']) { $zoneSelection = ('' + $request.ZoneSelection).Trim() } } catch { $zoneSelection = '' }
+                    if ([string]::IsNullOrWhiteSpace($zoneSelection) -or $equalsIgnoreCase.Equals($zoneSelection, 'All Zones')) {
+                        $zoneSelection = ''
+                    }
 
-                        $hostnamesToLoad = @()
-                        try { if ($request.HostnamesToLoad) { $hostnamesToLoad = @($request.HostnamesToLoad) } } catch { $hostnamesToLoad = @() }
+                    $hostnamesToLoad = @()
+                    try { if ($request.HostnamesToLoad) { $hostnamesToLoad = @($request.HostnamesToLoad) } } catch { $hostnamesToLoad = @() }
+
+                    if ([string]::IsNullOrWhiteSpace($siteToLoad) -or $equalsIgnoreCase.Equals($siteToLoad, 'All Sites')) {
+                        $interfaceLoadSite = if ([string]::IsNullOrWhiteSpace($siteToLoad)) { 'All Sites' } else { $siteToLoad }
+
+                        $orderedHosts = [System.Collections.Generic.List[string]]::new()
+                        $seenHosts = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+                        $siteBuckets = New-Object 'System.Collections.Generic.Dictionary[string, System.Collections.Generic.List[string]]' ([System.StringComparer]::OrdinalIgnoreCase)
+
+                        foreach ($hn in $hostnamesToLoad) {
+                            if ($null -eq $hn) { continue }
+                            $hnValue = ('' + $hn).Trim()
+                            if ([string]::IsNullOrWhiteSpace($hnValue)) { continue }
+                            if (-not $seenHosts.Add($hnValue)) { continue }
+                            [void]$orderedHosts.Add($hnValue)
+
+                            $siteKey = ''
+                            try { $siteKey = DeviceRepositoryModule\Get-SiteFromHostname -Hostname $hnValue } catch { $siteKey = '' }
+                            if ([string]::IsNullOrWhiteSpace($siteKey)) { continue }
+
+                            $bucket = $null
+                            if (-not $siteBuckets.TryGetValue($siteKey, [ref]$bucket)) {
+                                $bucket = [System.Collections.Generic.List[string]]::new()
+                                $siteBuckets[$siteKey] = $bucket
+                            }
+                            [void]$bucket.Add($hnValue)
+                        }
+
+                        # Ensure we only keep rows for the current request scope.
+                        $global:DeviceInterfaceCache = @{}
+
+                        $loadStopwatch = $null
+                        try { $loadStopwatch = [System.Diagnostics.Stopwatch]::StartNew() } catch { $loadStopwatch = $null }
+
+                        $batchSize = 75
+                        foreach ($kv in $siteBuckets.GetEnumerator()) {
+                            $siteKey = $kv.Key
+                            $bucket = $kv.Value
+                            if (-not $bucket -or $bucket.Count -eq 0) { continue }
+                            $hostsArray = $bucket.ToArray()
+
+                            for ($idx = 0; $idx -lt $hostsArray.Length; $idx += $batchSize) {
+                                $take = [System.Math]::Min($batchSize, ($hostsArray.Length - $idx))
+                                if ($take -le 0) { break }
+                                $slice = $hostsArray[$idx..($idx + $take - 1)]
+
+                                try {
+                                    if ($zoneSelection) {
+                                        DeviceRepositoryModule\Update-HostInterfaceCache -Site $siteKey -Zone $zoneSelection -Hostnames $slice
+                                    } else {
+                                        DeviceRepositoryModule\Update-HostInterfaceCache -Site $siteKey -Hostnames $slice
+                                    }
+                                } catch { }
+                            }
+                        }
+
+                        if ($loadStopwatch) {
+                            try { $loadStopwatch.Stop() } catch { }
+                            try { $interfaceLoadMs = [Math]::Round($loadStopwatch.Elapsed.TotalMilliseconds, 3) } catch { $interfaceLoadMs = $null }
+                        }
+
+                        $filtered = [System.Collections.Generic.List[object]]::new()
+                        foreach ($hnValue in $orderedHosts) {
+                            if ([string]::IsNullOrWhiteSpace($hnValue)) { continue }
+                            $rows = $null
+                            try { $rows = $global:DeviceInterfaceCache[$hnValue] } catch { $rows = $null }
+                            if (-not $rows) { continue }
+                            foreach ($row in $rows) {
+                                if (-not $row) { continue }
+                                [void]$filtered.Add($row)
+                            }
+                        }
+
+                        $interfaces = $filtered
+                        $loadedInterfacesPayload = $filtered
+                    } elseif (-not [string]::IsNullOrWhiteSpace($siteToLoad)) {
+                        $interfaceLoadSite = $siteToLoad
 
                         $loadStopwatch = $null
                         try { $loadStopwatch = [System.Diagnostics.Stopwatch]::StartNew() } catch { $loadStopwatch = $null }
@@ -982,53 +1061,41 @@ function Update-InsightsAsync {
     try { $ifaceCount = ViewStateService\Get-SequenceCount -Value $interfacesToUse } catch { $ifaceCount = 0 }
     $loadInterfaces = $false
     $siteToLoad = ''
+    $zoneSelectionValue = ''
     $hostnamesToLoad = @()
     if ($ifaceCount -le 0) {
         $context = script:Get-DeviceInsightsFilterContext
 
         try { $siteToLoad = if ($context -and $context.Site) { ('' + $context.Site).Trim() } else { '' } } catch { $siteToLoad = '' }
+        try { $zoneSelectionValue = if ($context -and $context.Zone) { ('' + $context.Zone).Trim() } else { '' } } catch { $zoneSelectionValue = '' }
 
-        $hasInterfaceCache = $false
+        $metadata = $null
+        $locationEntries = $null
+        try { $metadata = $global:DeviceMetadata } catch { $metadata = $null }
+        try { $locationEntries = $global:DeviceLocationEntries } catch { $locationEntries = $null }
+
+        $snapshot = $null
         try {
-            $cacheProbe = $global:DeviceInterfaceCache
-            if ($cacheProbe -is [System.Collections.IDictionary] -and $cacheProbe.Count -gt 0) { $hasInterfaceCache = $true }
-        } catch { $hasInterfaceCache = $false }
-
-        if (([string]::IsNullOrWhiteSpace($siteToLoad) -or [System.StringComparer]::OrdinalIgnoreCase.Equals($siteToLoad, 'All Sites')) -and -not $hasInterfaceCache) {
-            # Avoid implicit "load every site database" behavior when no cache exists.
-            try {
-                $msg = "[DeviceInsights] Interface snapshot skipped | Reason=AllSitesNoCache | Site={0}" -f $siteToLoad
-                try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { }
-            } catch { }
-            return
+            $snapshotParams = @{ DeviceMetadata = $metadata; LocationEntries = $locationEntries }
+            if (-not [string]::IsNullOrWhiteSpace($siteToLoad) -and -not [System.StringComparer]::OrdinalIgnoreCase.Equals($siteToLoad, 'All Sites')) {
+                $snapshotParams.Site = $siteToLoad
+            }
+            if ($zoneSelectionValue -and -not [System.StringComparer]::OrdinalIgnoreCase.Equals($zoneSelectionValue, 'All Zones')) {
+                $snapshotParams.ZoneSelection = $zoneSelectionValue
+            }
+            if ($context.Building -and -not [string]::IsNullOrWhiteSpace($context.Building)) { $snapshotParams.Building = $context.Building }
+            if ($context.Room -and -not [string]::IsNullOrWhiteSpace($context.Room)) { $snapshotParams.Room = $context.Room }
+            $snapshot = ViewStateService\Get-FilterSnapshot @snapshotParams
+        } catch {
+            $snapshot = $null
         }
 
-        if (-not [string]::IsNullOrWhiteSpace($siteToLoad) -and -not [System.StringComparer]::OrdinalIgnoreCase.Equals($siteToLoad, 'All Sites')) {
-            $metadata = $null
-            $locationEntries = $null
-            try { $metadata = $global:DeviceMetadata } catch { $metadata = $null }
-            try { $locationEntries = $global:DeviceLocationEntries } catch { $locationEntries = $null }
+        if ($snapshot -and $snapshot.Hostnames) {
+            try { $hostnamesToLoad = @($snapshot.Hostnames) } catch { $hostnamesToLoad = @() }
+        }
 
-            $snapshot = $null
-            try {
-                $snapshotParams = @{ DeviceMetadata = $metadata; Site = $siteToLoad; LocationEntries = $locationEntries }
-                if ($context.Zone -and -not [string]::IsNullOrWhiteSpace($context.Zone) -and -not [System.StringComparer]::OrdinalIgnoreCase.Equals($context.Zone, 'All Zones')) {
-                    $snapshotParams.ZoneSelection = $context.Zone
-                }
-                if ($context.Building -and -not [string]::IsNullOrWhiteSpace($context.Building)) { $snapshotParams.Building = $context.Building }
-                if ($context.Room -and -not [string]::IsNullOrWhiteSpace($context.Room)) { $snapshotParams.Room = $context.Room }
-                $snapshot = ViewStateService\Get-FilterSnapshot @snapshotParams
-            } catch {
-                $snapshot = $null
-            }
-
-            if ($snapshot -and $snapshot.Hostnames) {
-                try { $hostnamesToLoad = @($snapshot.Hostnames) } catch { $hostnamesToLoad = @() }
-            }
-
-            if ($hostnamesToLoad -and $hostnamesToLoad.Count -gt 0) {
-                $loadInterfaces = $true
-            }
+        if ($hostnamesToLoad -and $hostnamesToLoad.Count -gt 0) {
+            $loadInterfaces = $true
         }
 
         if (-not $loadInterfaces -and -not [string]::IsNullOrWhiteSpace($siteToLoad) -and -not [System.StringComparer]::OrdinalIgnoreCase.Equals($siteToLoad, 'All Sites')) {
@@ -1173,6 +1240,7 @@ function Update-InsightsAsync {
         Interfaces     = $interfacesToUse
         LoadInterfaces = $loadInterfaces
         SiteToLoad     = $siteToLoad
+        ZoneSelection  = $zoneSelectionValue
         HostnamesToLoad = $hostnamesToLoad
         IncludeSearch  = $needSearch
         IncludeSummary = $needSummary
