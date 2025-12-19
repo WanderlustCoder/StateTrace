@@ -579,6 +579,14 @@ function script:Ensure-InsightsWorker {
     [CmdletBinding()]
     param()
 
+    $emitInitVerbose = $false
+    try { if ($global:StateTraceDebug) { $emitInitVerbose = $true } } catch { $emitInitVerbose = $false }
+    if ($emitInitVerbose) {
+        try {
+            Write-Verbose ("[DeviceInsights] Ensure-InsightsWorker stage=Enter | ThreadId={0}" -f [System.Threading.Thread]::CurrentThread.ManagedThreadId)
+        } catch { }
+    }
+
     if ($script:InsightsWorkerInitialized -and $script:InsightsWorkerThread) {
         try {
             if ($script:InsightsWorkerThread.IsAlive) { return $true }
@@ -596,13 +604,27 @@ function script:Ensure-InsightsWorker {
     $rs = script:Get-InsightsWorkerRunspace
     if (-not $rs) { return $false }
 
+    if ($emitInitVerbose) {
+        try {
+            Write-Verbose ("[DeviceInsights] Ensure-InsightsWorker stage=GotRunspace | RunspaceId={0} | State={1}" -f $rs.Id, $rs.RunspaceStateInfo.State)
+        } catch { }
+    }
+
     if (-not (script:Ensure-PowerShellThreadStartFactory)) { return $false }
+
+    if ($emitInitVerbose) {
+        try { Write-Verbose "[DeviceInsights] Ensure-InsightsWorker stage=ThreadStartFactoryReady" } catch { }
+    }
 
     if (-not $script:InsightsWorkerQueue) {
         $script:InsightsWorkerQueue = [System.Collections.Concurrent.ConcurrentQueue[object]]::new()
     }
     if (-not $script:InsightsWorkerSignal) {
         $script:InsightsWorkerSignal = New-Object System.Threading.AutoResetEvent $false
+    }
+
+    if ($emitInitVerbose) {
+        try { Write-Verbose "[DeviceInsights] Ensure-InsightsWorker stage=QueueReady" } catch { }
     }
 
     $modulesRoot = $PSScriptRoot
@@ -612,6 +634,10 @@ function script:Ensure-InsightsWorker {
 
     $queueRef = $script:InsightsWorkerQueue
     $signalRef = $script:InsightsWorkerSignal
+
+    if ($emitInitVerbose) {
+        try { Write-Verbose "[DeviceInsights] Ensure-InsightsWorker stage=BeforeThreadScript" } catch { }
+    }
 
     $threadScript = {
         param([System.Management.Automation.PowerShell]$psCmd, [string]$token)
@@ -1008,9 +1034,6 @@ function script:Ensure-InsightsWorker {
 
             $dispatcher = $null
             try { $dispatcher = $request.Dispatcher } catch { $dispatcher = $null }
-            if (-not $dispatcher) {
-                try { $dispatcher = [System.Windows.Application]::Current.Dispatcher } catch { $dispatcher = $null }
-            }
             if (-not $dispatcher) { continue }
 
             $applyDelegate = $null
@@ -1018,19 +1041,38 @@ function script:Ensure-InsightsWorker {
             if (-not $applyDelegate) { continue }
 
             try {
-                $null = $dispatcher.BeginInvoke([System.Windows.Threading.DispatcherPriority]::Background, $applyDelegate, $payload)
+                $null = $dispatcher.BeginInvoke($applyDelegate, $payload)
             } catch { }
         }
     }.GetNewClosure()
 
+    if ($emitInitVerbose) {
+        try { Write-Verbose "[DeviceInsights] Ensure-InsightsWorker stage=ThreadScriptReady" } catch { }
+    }
+
     $ps = [System.Management.Automation.PowerShell]::Create()
     $ps.Runspace = $rs
 
+    if ($emitInitVerbose) {
+        try { Write-Verbose "[DeviceInsights] Ensure-InsightsWorker stage=PowerShellReady" } catch { }
+    }
+
     $threadStart = [StateTrace.Threading.PowerShellThreadStartFactory]::Create($threadScript, $ps, 'InsightsWorker')
+    if ($emitInitVerbose) {
+        try { Write-Verbose "[DeviceInsights] Ensure-InsightsWorker stage=ThreadStartCreated" } catch { }
+    }
+
     $workerThread = [System.Threading.Thread]::new($threadStart)
     $workerThread.IsBackground = $true
     $workerThread.ApartmentState = [System.Threading.ApartmentState]::STA
+
+    if ($emitInitVerbose) {
+        try { Write-Verbose "[DeviceInsights] Ensure-InsightsWorker stage=ThreadStarting" } catch { }
+    }
     $workerThread.Start()
+    if ($emitInitVerbose) {
+        try { Write-Verbose ("[DeviceInsights] Ensure-InsightsWorker stage=ThreadStarted | ThreadId={0}" -f $workerThread.ManagedThreadId) } catch { }
+    }
 
     $script:InsightsWorkerThread = $workerThread
     $script:InsightsWorkerInitialized = $true
@@ -1039,6 +1081,10 @@ function script:Ensure-InsightsWorker {
         $msg = "[DeviceInsights] Insights worker started | ThreadId={0}" -f $workerThread.ManagedThreadId
         try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { }
     } catch { }
+
+    if ($emitInitVerbose) {
+        try { Write-Verbose "[DeviceInsights] Ensure-InsightsWorker stage=ReturnTrue" } catch { }
+    }
 
     return $true
 }
