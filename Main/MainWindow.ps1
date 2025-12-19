@@ -146,6 +146,70 @@ if ($script:StateTraceSettings.ContainsKey('DebugOnNextLaunch') -and $script:Sta
     $Global:StateTraceDebug = $true
 }
 
+if (-not (Get-Variable -Name DiagQueue -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:DiagQueue = [System.Collections.Concurrent.ConcurrentQueue[string]]::new()
+}
+if (-not (Get-Variable -Name DiagSignal -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:DiagSignal = New-Object System.Threading.AutoResetEvent $false
+}
+if (-not (Get-Variable -Name DiagWriterThread -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:DiagWriterThread = $null
+}
+if (-not (Get-Variable -Name DiagWriterStartedFlag -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:DiagWriterStartedFlag = 0
+}
+
+function Start-DiagWriterThread {
+    if (-not $Global:StateTraceDebug) { return }
+    if (-not $script:DiagLogPath) { return }
+
+    $alreadyStarted = 0
+    try {
+        $alreadyStarted = [System.Threading.Interlocked]::CompareExchange([ref]$script:DiagWriterStartedFlag, 1, 0)
+    } catch {
+        $alreadyStarted = if ($script:DiagWriterThread) { 1 } else { 0 }
+        if ($alreadyStarted -ne 0) { return }
+        $script:DiagWriterStartedFlag = 1
+    }
+    if ($alreadyStarted -ne 0) { return }
+
+    $queueRef = $script:DiagQueue
+    $signalRef = $script:DiagSignal
+    $pathLocal = $script:DiagLogPath
+
+    $threadScript = {
+        $batch = [System.Collections.Generic.List[string]]::new()
+        $item = $null
+
+        while ($true) {
+            try { $null = $signalRef.WaitOne(250) } catch { }
+
+            try {
+                $batch.Clear()
+                while ($queueRef.TryDequeue([ref]$item)) {
+                    if ($null -ne $item -and $item -ne '') {
+                        [void]$batch.Add($item)
+                    }
+                }
+
+                if ($batch.Count -gt 0) {
+                    [System.IO.File]::AppendAllLines($pathLocal, $batch, [System.Text.Encoding]::UTF8)
+                }
+            } catch {
+            }
+        }
+    }.GetNewClosure()
+
+    try {
+        $writerThread = [System.Threading.Thread]::new([System.Threading.ThreadStart]$threadScript)
+        $writerThread.IsBackground = $true
+        $writerThread.Start()
+        $script:DiagWriterThread = $writerThread
+    } catch {
+        try { [void][System.Threading.Interlocked]::Exchange([ref]$script:DiagWriterStartedFlag, 0) } catch { $script:DiagWriterStartedFlag = 0 }
+    }
+}
+
 function Write-Diag {
     param([string]$Message)
     if (-not $Global:StateTraceDebug) { return }
@@ -154,7 +218,9 @@ function Write-Diag {
         $line = "[$ts] $Message"
         Write-Verbose $line
         if ($script:DiagLogPath) {
-            Add-Content -LiteralPath $script:DiagLogPath -Value $line -ErrorAction SilentlyContinue
+            try { Start-DiagWriterThread } catch { }
+            try { $script:DiagQueue.Enqueue($line) } catch { }
+            try { $null = $script:DiagSignal.Set() } catch { }
         }
     } catch { }
 }
@@ -167,6 +233,7 @@ if ($Global:StateTraceDebug) {
             "StateTrace_Debug_{0}.log" -f (Get-Date -Format 'yyyyMMdd_HHmmss')
         )
         '--- StateTrace diagnostic log ---' | Out-File -LiteralPath $script:DiagLogPath -Encoding utf8 -Force
+        Start-DiagWriterThread
         Write-Diag ("Logging to: $script:DiagLogPath")
     } catch { }
 }

@@ -1206,6 +1206,13 @@ function Update-InsightsAsync {
         $requestId = 0
     }
 
+    try {
+        $hostCount = 0
+        try { $hostCount = @($hostnamesToLoad).Count } catch { $hostCount = 0 }
+        $msg = "[DeviceInsights] Insights request building | RequestId={0} | LoadInterfaces={1} | Hosts={2} | Interfaces={3}" -f $requestId, $loadInterfaces, $hostCount, $ifaceCount
+        try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { }
+    } catch { }
+
     if ($loadInterfaces) {
         try {
             $hostCount = 0
@@ -1304,6 +1311,11 @@ function Update-InsightsAsync {
 
     try { $script:InsightsWorkerQueue.Enqueue($request) } catch { return }
     try { $null = $script:InsightsWorkerSignal.Set() } catch { }
+
+    try {
+        $msg = "[DeviceInsights] Insights request enqueued | RequestId={0}" -f $requestId
+        try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { }
+    } catch { }
 }
 
 function Update-SearchGridAsync {
