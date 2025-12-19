@@ -1162,6 +1162,88 @@ function Update-InsightsAsync {
         } catch { }
     }
 
+    $emitStageVerbose = $false
+    try { if ($global:StateTraceDebug) { $emitStageVerbose = $true } } catch { $emitStageVerbose = $false }
+
+    $applyUiDelegate = $null
+    try {
+        $applyUiUpdates = {
+            param($state)
+
+            $stateId = 0
+            try { $stateId = [int]$state.RequestId } catch { $stateId = 0 }
+            if ($stateId -gt 0) {
+                try {
+                    if ($stateId -ne $script:InsightsLatestRequestId) { return }
+                } catch { }
+            }
+
+            $loadedInterfaces = $null
+            try { if ($state.PSObject.Properties['Interfaces']) { $loadedInterfaces = $state.Interfaces } } catch { $loadedInterfaces = $null }
+            if ($loadedInterfaces) {
+                try { $global:AllInterfaces = $loadedInterfaces } catch { }
+                try {
+                    $loadMs = $null
+                    $loadSite = ''
+                    try { $loadMs = $state.InterfaceLoadMs } catch { $loadMs = $null }
+                    try { $loadSite = '' + $state.InterfaceLoadSite } catch { $loadSite = '' }
+                    if ($null -ne $loadMs) {
+                        $msg = "[DeviceInsights] Interface snapshot loaded | Site={0} | Interfaces={1} | LoadMs={2}" -f $loadSite, (ViewStateService\Get-SequenceCount -Value $loadedInterfaces), $loadMs
+                        try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { }
+                    }
+                } catch { }
+            }
+
+            if ($state.IncludeSummary -and $state.Summary) {
+                $sv = $null
+                try { $sv = (Get-Variable -Name summaryView -Scope Global -ErrorAction SilentlyContinue).Value } catch { $sv = $null }
+                if ($sv) {
+                    try {
+                        ($sv.FindName("SummaryDevicesCount")).Text      = ('' + $state.Summary.Devices)
+                        ($sv.FindName("SummaryInterfacesCount")).Text   = ('' + $state.Summary.Interfaces)
+                        ($sv.FindName("SummaryUpCount")).Text           = ('' + $state.Summary.Up)
+                        ($sv.FindName("SummaryDownCount")).Text         = ('' + $state.Summary.Down)
+                        ($sv.FindName("SummaryAuthorizedCount")).Text   = ('' + $state.Summary.Authorized)
+                        ($sv.FindName("SummaryUnauthorizedCount")).Text = ('' + $state.Summary.Unauthorized)
+                        ($sv.FindName("SummaryUniqueVlansCount")).Text  = ('' + $state.Summary.UniqueVlans)
+                        ($sv.FindName("SummaryExtra")).Text             = ("Up %: {0}%" -f $state.Summary.UpPct)
+                    } catch { }
+                }
+            }
+
+            if ($state.IncludeAlerts) {
+                try { $global:AlertsList = $state.Alerts } catch { }
+                if ($global:alertsView) {
+                    try {
+                        $grid = $global:alertsView.FindName('AlertsGrid')
+                        if ($grid) { $grid.ItemsSource = $global:AlertsList }
+                    } catch { }
+                }
+            }
+
+            if ($state.IncludeSearch) {
+                try {
+                    $searchHostCtrl = $global:window.FindName('SearchInterfacesHost')
+                    if ($searchHostCtrl) {
+                        $view = $searchHostCtrl.Content
+                        if ($view) {
+                            $gridCtrl = $view.FindName('SearchInterfacesGrid')
+                            if ($gridCtrl) { $gridCtrl.ItemsSource = $state.SearchResults }
+                        }
+                    }
+                } catch { }
+            }
+        }.GetNewClosure()
+        $applyUiDelegate = [System.Action[object]]$applyUiUpdates
+    } catch {
+        $applyUiDelegate = $null
+    }
+
+    if (-not $applyUiDelegate) { return }
+    if ($emitStageVerbose) {
+        try { Write-Verbose ("[DeviceInsights] Update-InsightsAsync stage=ApplyDelegateReady | ThreadId={0}" -f [System.Threading.Thread]::CurrentThread.ManagedThreadId) } catch { }
+    }
+
     $workerEnsureOk = $false
     $workerEnsureMs = $null
     $ensureStopwatch = $null
@@ -1180,6 +1262,10 @@ function Update-InsightsAsync {
             try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { }
         } catch { }
         return
+    }
+
+    if ($emitStageVerbose) {
+        try { Write-Verbose ("[DeviceInsights] Update-InsightsAsync stage=WorkerReady | ThreadId={0}" -f [System.Threading.Thread]::CurrentThread.ManagedThreadId) } catch { }
     }
 
     if ($null -ne $workerEnsureMs) {
@@ -1222,75 +1308,6 @@ function Update-InsightsAsync {
         } catch { }
     }
 
-    $applyUiUpdates = {
-        param($state)
-
-        $stateId = 0
-        try { $stateId = [int]$state.RequestId } catch { $stateId = 0 }
-        if ($stateId -gt 0) {
-            try {
-                if ($stateId -ne $script:InsightsLatestRequestId) { return }
-            } catch { }
-        }
-
-        $loadedInterfaces = $null
-        try { if ($state.PSObject.Properties['Interfaces']) { $loadedInterfaces = $state.Interfaces } } catch { $loadedInterfaces = $null }
-        if ($loadedInterfaces) {
-            try { $global:AllInterfaces = $loadedInterfaces } catch { }
-            try {
-                $loadMs = $null
-                $loadSite = ''
-                try { $loadMs = $state.InterfaceLoadMs } catch { $loadMs = $null }
-                try { $loadSite = '' + $state.InterfaceLoadSite } catch { $loadSite = '' }
-                if ($null -ne $loadMs) {
-                    $msg = "[DeviceInsights] Interface snapshot loaded | Site={0} | Interfaces={1} | LoadMs={2}" -f $loadSite, (ViewStateService\Get-SequenceCount -Value $loadedInterfaces), $loadMs
-                    try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { }
-                }
-            } catch { }
-        }
-
-        if ($state.IncludeSummary -and $state.Summary) {
-            $sv = $null
-            try { $sv = (Get-Variable -Name summaryView -Scope Global -ErrorAction SilentlyContinue).Value } catch { $sv = $null }
-            if ($sv) {
-                try {
-                    ($sv.FindName("SummaryDevicesCount")).Text      = ('' + $state.Summary.Devices)
-                    ($sv.FindName("SummaryInterfacesCount")).Text   = ('' + $state.Summary.Interfaces)
-                    ($sv.FindName("SummaryUpCount")).Text           = ('' + $state.Summary.Up)
-                    ($sv.FindName("SummaryDownCount")).Text         = ('' + $state.Summary.Down)
-                    ($sv.FindName("SummaryAuthorizedCount")).Text   = ('' + $state.Summary.Authorized)
-                    ($sv.FindName("SummaryUnauthorizedCount")).Text = ('' + $state.Summary.Unauthorized)
-                    ($sv.FindName("SummaryUniqueVlansCount")).Text  = ('' + $state.Summary.UniqueVlans)
-                    ($sv.FindName("SummaryExtra")).Text             = ("Up %: {0}%" -f $state.Summary.UpPct)
-                } catch { }
-            }
-        }
-
-        if ($state.IncludeAlerts) {
-            try { $global:AlertsList = $state.Alerts } catch { }
-            if ($global:alertsView) {
-                try {
-                    $grid = $global:alertsView.FindName('AlertsGrid')
-                    if ($grid) { $grid.ItemsSource = $global:AlertsList }
-                } catch { }
-            }
-        }
-
-        if ($state.IncludeSearch) {
-            try {
-                $searchHostCtrl = $global:window.FindName('SearchInterfacesHost')
-                if ($searchHostCtrl) {
-                    $view = $searchHostCtrl.Content
-                    if ($view) {
-                        $gridCtrl = $view.FindName('SearchInterfacesGrid')
-                        if ($gridCtrl) { $gridCtrl.ItemsSource = $state.SearchResults }
-                    }
-                }
-            } catch { }
-        }
-    }.GetNewClosure()
-    $applyUiDelegate = [System.Action[object]]$applyUiUpdates
-
     $request = [PSCustomObject]@{
         RequestId      = $requestId
         Dispatcher     = $dispatcher
@@ -1316,6 +1333,10 @@ function Update-InsightsAsync {
         $msg = "[DeviceInsights] Insights request enqueued | RequestId={0}" -f $requestId
         try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { }
     } catch { }
+
+    if ($emitStageVerbose) {
+        try { Write-Verbose ("[DeviceInsights] Update-InsightsAsync stage=Enqueued | RequestId={0}" -f $requestId) } catch { }
+    }
 }
 
 function Update-SearchGridAsync {

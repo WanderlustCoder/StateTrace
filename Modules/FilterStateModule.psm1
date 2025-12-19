@@ -725,7 +725,20 @@ function Update-DeviceFilter {
                             $needSearchRefresh, $needSummaryRefresh, $needAlertsRefresh, $ifaceCount, $finalSite, $finalZone
                         try { Write-Diag $diagInsights } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $diagInsights } catch { }
                     } catch { }
+                    $insightsStopwatch = $null
+                    try { $insightsStopwatch = [System.Diagnostics.Stopwatch]::StartNew() } catch { $insightsStopwatch = $null }
                     Update-InsightsAsync -Interfaces $global:AllInterfaces -IncludeSearch:$needSearchRefresh -IncludeSummary:$needSummaryRefresh -IncludeAlerts:$needAlertsRefresh
+                    if ($insightsStopwatch) {
+                        try { $insightsStopwatch.Stop() } catch { }
+                        $durationMs = 0.0
+                        try { $durationMs = [math]::Round($insightsStopwatch.Elapsed.TotalMilliseconds, 3) } catch { $durationMs = 0.0 }
+                        try {
+                            if ($global:StateTraceDebug) {
+                                $diag = "Update-DeviceFilter Update-InsightsAsync returned | DurationMs={0}" -f $durationMs
+                                try { Write-Diag $diag } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $diag } catch { }
+                            }
+                        } catch { }
+                    }
                 } catch { }
             }
         } else {
