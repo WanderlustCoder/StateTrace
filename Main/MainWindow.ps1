@@ -149,6 +149,12 @@ if ($script:StateTraceSettings.ContainsKey('DebugOnNextLaunch') -and $script:Sta
 if (-not (Get-Variable -Name DiagWriter -Scope Script -ErrorAction SilentlyContinue)) {
     $script:DiagWriter = $null
 }
+if (-not (Get-Variable -Name DiagWriterFallbackNotified -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:DiagWriterFallbackNotified = $false
+}
+if (-not (Get-Variable -Name DiagWriterCreatedNotified -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:DiagWriterCreatedNotified = $false
+}
 
 if (-not ('StateTrace.Diagnostics.AsyncDiagWriter' -as [type])) {
     Add-Type -Language CSharp -TypeDefinition @'
@@ -250,6 +256,10 @@ function Get-DiagWriter {
 
     try {
         $script:DiagWriter = [StateTrace.Diagnostics.AsyncDiagWriter]::new($script:DiagLogPath)
+        if ($script:DiagWriter -and -not $script:DiagWriterCreatedNotified) {
+            $script:DiagWriterCreatedNotified = $true
+            Write-Verbose "[Write-Diag] AsyncDiagWriter enabled."
+        }
     } catch {
         $script:DiagWriter = $null
     }
@@ -269,8 +279,9 @@ function Write-Diag {
                 $writer = Get-DiagWriter
                 if ($writer) {
                     $writer.Enqueue($line)
-                } else {
-                    Add-Content -LiteralPath $script:DiagLogPath -Value $line -ErrorAction SilentlyContinue
+                } elseif (-not $script:DiagWriterFallbackNotified) {
+                    $script:DiagWriterFallbackNotified = $true
+                    Write-Verbose "[Write-Diag] AsyncDiagWriter unavailable; skipping file diagnostics."
                 }
             } catch { }
         }
