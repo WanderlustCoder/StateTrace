@@ -173,7 +173,7 @@ namespace StateTrace.Diagnostics
         {
             if (string.IsNullOrWhiteSpace(path))
             {
-                throw new ArgumentNullException(nameof(path));
+                throw new ArgumentNullException("path");
             }
 
             _path = path;
@@ -196,7 +196,8 @@ namespace StateTrace.Diagnostics
 
         private void WriterLoop()
         {
-            var batch = new List<string>(64);
+            List<string> batch = new List<string>(64);
+            string item = null;
 
             while (!_disposed)
             {
@@ -205,7 +206,7 @@ namespace StateTrace.Diagnostics
                 try
                 {
                     batch.Clear();
-                    while (_queue.TryDequeue(out var item))
+                    while (_queue.TryDequeue(out item))
                     {
                         if (!string.IsNullOrEmpty(item))
                         {
