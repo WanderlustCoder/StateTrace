@@ -6275,6 +6275,11 @@ function Get-InterfaceInfo {
         # missing.  Without this defensive injection, callers like Get-SelectedInterfaceRows may receive
         # non-PSCustomObject types (e.g. DataRow) that do not have PSObject.Properties defined, which
         # manifests as black boxes in the Interfaces grid or errors when accessing the Hostname property.
+        #
+        # Note: `$global:DeviceInterfaceCache` can hold "snapshot" port rows (loaded via Update-HostInterfaceCache / Update-SiteZoneCache)
+        # that intentionally omit config payloads like ToolTip/Config.  For Get-InterfaceInfo callers (Compare view, device details),
+        # treat those entries as a cache miss so we hydrate full records from Access on demand.
+        $cachedFallback = $null
         try {
             if ($global:DeviceInterfaceCache -and $global:DeviceInterfaceCache.ContainsKey($Hostname)) {
                 $cached = $global:DeviceInterfaceCache[$Hostname]
@@ -6285,15 +6290,32 @@ function Get-InterfaceInfo {
                     $cachedCount = @($cached).Count
                 }
                 if ($cachedCount -gt 0) {
-                    foreach ($o in $cached) { Ensure-PortRowDefaults -Row $o -Hostname $Hostname }
-                    try {
-                        if ($cachedCount -gt 0) {
-                            $script:InterfaceCacheHydrationTracker[$Hostname] = $true
-                        } else {
-                            $script:InterfaceCacheHydrationTracker.Remove($Hostname) | Out-Null
+                    $cacheLooksHydrated = $false
+                    $sample = $null
+                    foreach ($candidate in $cached) {
+                        if ($null -ne $candidate) {
+                            $sample = $candidate
+                            break
                         }
-                    } catch {}
-                    return $cached
+                    }
+                    if ($sample) {
+                        try {
+                            $cacheLooksHydrated = ($sample.PSObject.Properties['ToolTip'] -or
+                                                   $sample.PSObject.Properties['Config'])
+                        } catch {
+                            $cacheLooksHydrated = $false
+                        }
+                    }
+
+                    if ($cacheLooksHydrated) {
+                        foreach ($o in $cached) { Ensure-PortRowDefaults -Row $o -Hostname $Hostname }
+                        try {
+                            $script:InterfaceCacheHydrationTracker[$Hostname] = $true
+                        } catch {}
+                        return $cached
+                    }
+
+                    $cachedFallback = $cached
                 } else {
                     $hydrated = $false
                     try {
@@ -6309,7 +6331,10 @@ function Get-InterfaceInfo {
         } catch {}
     # Determine the per-site database path and return empty list if missing.
     $dbPath = Get-DbPathForHost $Hostname
-    if (-not (Test-Path $dbPath)) { return @() }
+    if (-not (Test-Path $dbPath)) {
+        if ($cachedFallback) { return $cachedFallback }
+        return @()
+    }
     try {
         # Ensure the database module is loaded once rather than on every call.
         Import-DatabaseModule
@@ -6417,6 +6442,7 @@ function Get-InterfaceInfo {
             return $objs
     } catch {
         Write-Warning ("Failed to load interface information from database for {0}: {1}" -f $Hostname, $_.Exception.Message)
+        if ($cachedFallback) { return $cachedFallback }
         return @()
     }
 }

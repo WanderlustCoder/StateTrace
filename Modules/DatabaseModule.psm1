@@ -41,7 +41,8 @@ function Invoke-AccessDatabase32BitCreation {
     param(
         [Parameter(Mandatory)][string]$Path,
         [Parameter(Mandatory)][string]$Provider,
-        [Parameter(Mandatory)][int]$Engine
+        [Parameter(Mandatory)][int]$Engine,
+        [int]$TimeoutSeconds = 60
     )
 
     $sysWowPath = Join-Path $env:WINDIR 'SysWOW64\WindowsPowerShell\v1.0\powershell.exe'
@@ -90,7 +91,12 @@ try {
             throw "Failed to start 32-bit PowerShell for Access database creation."
         }
 
-        $process.WaitForExit()
+        $timeoutMs = [Math]::Max(1000, ($TimeoutSeconds * 1000))
+        $exited = $process.WaitForExit($timeoutMs)
+        if (-not $exited) {
+            try { $process.Kill() } catch { }
+            throw "32-bit PowerShell timed out after $TimeoutSeconds seconds while creating '$Path'."
+        }
         if ($process.ExitCode -ne 0) {
             throw "32-bit PowerShell exited with code $($process.ExitCode)."
         }
@@ -555,4 +561,3 @@ function Invoke-DbQuery {
 }
 
 Export-ModuleMember -Function Get-SqlLiteral, ConvertTo-DbRowList, New-AccessDatabase, Invoke-DbQuery, Open-DbReadSession, Close-DbReadSession
-

@@ -10,6 +10,11 @@ if (-not (Get-Variable -Scope Global -Name InterfacesLoadAllowed -ErrorAction Si
 
 $script:InterfaceStringPropertyValueCmd = $null
 $script:InterfaceSetPortRowDefaultsCmd = $null
+$script:InsightsPortSortKeyCmd = $null
+
+if (-not (Get-Variable -Scope Script -Name InsightsPortSortFallbackKey -ErrorAction SilentlyContinue)) {
+    try { $script:InsightsPortSortFallbackKey = InterfaceCommon\Get-PortSortFallbackKey } catch { $script:InsightsPortSortFallbackKey = '99-UNK-99999-99999-99999-99999-99999' }
+}
 
 if (-not (Get-Variable -Scope Script -Name InsightsWorkerInitialized -ErrorAction SilentlyContinue)) {
     $script:InsightsWorkerInitialized = $false
@@ -31,6 +36,9 @@ if (-not (Get-Variable -Scope Script -Name InsightsRequestCounter -ErrorAction S
 }
 if (-not (Get-Variable -Scope Script -Name InsightsLatestRequestId -ErrorAction SilentlyContinue)) {
     $script:InsightsLatestRequestId = 0
+}
+if (-not (Get-Variable -Scope Script -Name InsightsApplyCounter -ErrorAction SilentlyContinue)) {
+    $script:InsightsApplyCounter = 0
 }
 
 function script:Get-InterfaceStringPropertyValueCommand {
@@ -55,6 +63,162 @@ function script:Get-InterfaceSetPortRowDefaultsCommand {
     try { $cmd = Get-Command -Name 'InterfaceCommon\Set-PortRowDefaults' -ErrorAction SilentlyContinue } catch { $cmd = $null }
     if ($cmd) { $script:InterfaceSetPortRowDefaultsCmd = $cmd }
     return $cmd
+}
+
+function Write-InsightsDebug {
+    [CmdletBinding()]
+    param([string]$Message)
+
+    $emit = $false
+    try { $emit = [bool]$global:StateTraceDebug } catch { $emit = $false }
+    if (-not $emit) { return }
+
+    try { Write-Diag $Message } catch [System.Management.Automation.CommandNotFoundException] {
+        try { Write-Verbose $Message } catch { }
+    } catch {
+        try { Write-Verbose $Message } catch { }
+    }
+}
+
+function script:Get-InsightsPortSortKeyCommand {
+    [CmdletBinding()]
+    param()
+
+    $cmd = $script:InsightsPortSortKeyCmd
+    if ($cmd) { return $cmd }
+
+    try { $cmd = Get-Command -Name 'InterfaceModule\Get-PortSortKey' -ErrorAction SilentlyContinue } catch { $cmd = $null }
+    if (-not $cmd) {
+        $portNormPath = Join-Path $PSScriptRoot 'PortNormalization.psm1'
+        if (Test-Path -LiteralPath $portNormPath) {
+            try { Import-Module -Name $portNormPath -Prefix 'PortNorm' -Force -Global -ErrorAction Stop | Out-Null } catch { }
+        }
+        try { $cmd = Get-Command -Name 'Get-PortNormPortSortKey' -ErrorAction SilentlyContinue } catch { $cmd = $null }
+    }
+
+    if ($cmd) { $script:InsightsPortSortKeyCmd = $cmd }
+    return $cmd
+}
+
+function script:Get-InsightsHostnameValue {
+    [CmdletBinding()]
+    param([object]$Row)
+
+    if ($null -eq $Row) { return '' }
+
+    $hostname = ''
+    try { if ($Row.PSObject.Properties['Hostname']) { $hostname = '' + $Row.Hostname } } catch { $hostname = '' }
+    if (-not $hostname) {
+        try { if ($Row.PSObject.Properties['HostName']) { $hostname = '' + $Row.HostName } } catch { $hostname = '' }
+    }
+    return $hostname
+}
+
+function script:Get-InsightsPortSortKey {
+    [CmdletBinding()]
+    param([object]$Row)
+
+    if ($null -eq $Row) { return $script:InsightsPortSortFallbackKey }
+
+    $portSort = ''
+    try { if ($Row.PSObject.Properties['PortSort']) { $portSort = '' + $Row.PortSort } } catch { $portSort = '' }
+    if (-not [string]::IsNullOrWhiteSpace($portSort)) { return $portSort }
+
+    $portValue = ''
+    try { if ($Row.PSObject.Properties['Port']) { $portValue = '' + $Row.Port } } catch { $portValue = '' }
+    if ([string]::IsNullOrWhiteSpace($portValue)) { return $script:InsightsPortSortFallbackKey }
+
+    $cmd = script:Get-InsightsPortSortKeyCommand
+    if ($cmd) {
+        try { return (& $cmd -Port $portValue) } catch { }
+    }
+
+    return $script:InsightsPortSortFallbackKey
+}
+
+function script:Sort-InsightsRowsByPort {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][System.Collections.Generic.List[object]]$Rows
+    )
+
+    if (-not $Rows -or $Rows.Count -le 1) { return $Rows }
+
+    $hostOrder = New-Object 'System.Collections.Generic.Dictionary[string,int]' ([System.StringComparer]::OrdinalIgnoreCase)
+    $index = 0
+    foreach ($row in $Rows) {
+        if (-not $row) { continue }
+        $hostValue = script:Get-InsightsHostnameValue -Row $row
+        if ([string]::IsNullOrWhiteSpace($hostValue)) { continue }
+        if (-not $hostOrder.ContainsKey($hostValue)) {
+            $hostOrder[$hostValue] = $index
+            $index++
+        }
+    }
+
+    $comparison = [System.Comparison[object]]{
+        param($a, $b)
+
+        $hostA = script:Get-InsightsHostnameValue -Row $a
+        $hostB = script:Get-InsightsHostnameValue -Row $b
+
+        $indexA = [int]::MaxValue
+        $indexB = [int]::MaxValue
+        if (-not [string]::IsNullOrWhiteSpace($hostA)) {
+            $tmpA = 0
+            if ($hostOrder.TryGetValue($hostA, [ref]$tmpA)) { $indexA = $tmpA }
+        }
+        if (-not [string]::IsNullOrWhiteSpace($hostB)) {
+            $tmpB = 0
+            if ($hostOrder.TryGetValue($hostB, [ref]$tmpB)) { $indexB = $tmpB }
+        }
+
+        if ($indexA -ne $indexB) { return ($indexA - $indexB) }
+
+        $portKeyA = script:Get-InsightsPortSortKey -Row $a
+        $portKeyB = script:Get-InsightsPortSortKey -Row $b
+        $portCompare = [System.StringComparer]::OrdinalIgnoreCase.Compare($portKeyA, $portKeyB)
+        if ($portCompare -ne 0) { return $portCompare }
+
+        $portA = ''
+        $portB = ''
+        try { if ($a -and $a.PSObject.Properties['Port']) { $portA = '' + $a.Port } } catch { $portA = '' }
+        try { if ($b -and $b.PSObject.Properties['Port']) { $portB = '' + $b.Port } } catch { $portB = '' }
+
+        return [System.StringComparer]::OrdinalIgnoreCase.Compare($portA, $portB)
+    }
+
+    try { $Rows.Sort($comparison) } catch { }
+
+    return $Rows
+}
+
+function script:New-InsightsSortedList {
+    [CmdletBinding()]
+    param([object]$Rows)
+
+    $list = [System.Collections.Generic.List[object]]::new()
+    $copied = $false
+    if ($Rows) {
+        try {
+            foreach ($row in $Rows) {
+                if ($row) { [void]$list.Add($row) }
+            }
+            $copied = $true
+        } catch {
+            $copied = $false
+        }
+    }
+
+    if (-not $copied) {
+        return $Rows
+    }
+
+    if ($list.Count -gt 1) {
+        script:Sort-InsightsRowsByPort -Rows $list | Out-Null
+    }
+
+    return $list
 }
 
 function script:Get-DeviceInsightsFilterContext {
@@ -149,12 +313,6 @@ function Update-SearchResults {
     } catch {}
 
     $termEmpty = [string]::IsNullOrWhiteSpace($Term)
-    if ($termEmpty -and
-        [System.StringComparer]::OrdinalIgnoreCase.Equals(('' + $statusFilterVal), 'All') -and
-        [System.StringComparer]::OrdinalIgnoreCase.Equals(('' + $authFilterVal), 'All'))
-    {
-        return @()
-    }
 
     $interfaces = $null
     $interfaceCount = 0
@@ -231,7 +389,7 @@ function Update-SearchResults {
         [void]$results.Add($row)
     }
 
-    return ,$results
+    return ,(script:New-InsightsSortedList -Rows $results)
 }
 
 function Update-Summary {
@@ -440,7 +598,7 @@ function Update-Alerts {
         }
     }
 
-    $global:AlertsList = $alerts
+    $global:AlertsList = script:New-InsightsSortedList -Rows $alerts
     if ($global:alertsView) {
         try {
             $grid = $global:alertsView.FindName('AlertsGrid')
@@ -475,15 +633,18 @@ function Update-SearchGrid {
     foreach ($item in $results) {
         if ($item) { [void]$resultList.Add($item) }
     }
+    if ($resultList.Count -gt 1) {
+        script:Sort-InsightsRowsByPort -Rows $resultList | Out-Null
+    }
 
     $gridCtrl.ItemsSource = $resultList
 }
 
-function script:Ensure-PowerShellThreadStartFactory {
+function script:Ensure-PowerShellInvokeThreadStartFactory {
     [CmdletBinding()]
     param()
 
-    if ('StateTrace.Threading.PowerShellThreadStartFactory' -as [type]) { return $true }
+    if ('StateTrace.Threading.PowerShellInvokeThreadStartFactory' -as [type]) { return $true }
 
     try {
         Add-Type -Language CSharp -TypeDefinition @'
@@ -494,15 +655,10 @@ using System.Threading;
 
 namespace StateTrace.Threading
 {
-    public static class PowerShellThreadStartFactory
+    public static class PowerShellInvokeThreadStartFactory
     {
-        public static ThreadStart Create(ScriptBlock action, PowerShell ps, string host)
+        public static ThreadStart Create(PowerShell ps, string host)
         {
-            if (action == null)
-            {
-                throw new ArgumentNullException("action");
-            }
-
             if (ps == null)
             {
                 throw new ArgumentNullException("ps");
@@ -512,6 +668,7 @@ namespace StateTrace.Threading
             {
                 var runspace = ps.Runspace;
                 var previous = Runspace.DefaultRunspace;
+
                 try
                 {
                     if (runspace != null)
@@ -525,7 +682,10 @@ namespace StateTrace.Threading
                         Runspace.DefaultRunspace = runspace;
                     }
 
-                    action.Invoke(ps, host);
+                    ps.Invoke();
+                }
+                catch
+                {
                 }
                 finally
                 {
@@ -610,7 +770,7 @@ function script:Ensure-InsightsWorker {
         } catch { }
     }
 
-    if (-not (script:Ensure-PowerShellThreadStartFactory)) { return $false }
+    if (-not (script:Ensure-PowerShellInvokeThreadStartFactory)) { return $false }
 
     if ($emitInitVerbose) {
         try { Write-Verbose "[DeviceInsights] Ensure-InsightsWorker stage=ThreadStartFactoryReady" } catch { }
@@ -631,6 +791,8 @@ function script:Ensure-InsightsWorker {
     $telemetryModulePath = Join-Path $modulesRoot 'TelemetryModule.psm1'
     $databaseModulePath = Join-Path $modulesRoot 'DatabaseModule.psm1'
     $repoModulePath = Join-Path $modulesRoot 'DeviceRepositoryModule.psm1'
+    $templatesModulePath = Join-Path $modulesRoot 'TemplatesModule.psm1'
+    $interfaceModulePath = Join-Path $modulesRoot 'InterfaceModule.psm1'
 
     $queueRef = $script:InsightsWorkerQueue
     $signalRef = $script:InsightsWorkerSignal
@@ -640,7 +802,17 @@ function script:Ensure-InsightsWorker {
     }
 
     $threadScript = {
-        param([System.Management.Automation.PowerShell]$psCmd, [string]$token)
+        param(
+            [System.Collections.Concurrent.ConcurrentQueue[object]]$queueRef,
+            [System.Threading.AutoResetEvent]$signalRef,
+            [string]$telemetryModulePath,
+            [string]$databaseModulePath,
+            [string]$repoModulePath,
+            [string]$templatesModulePath,
+            [string]$interfaceModulePath
+        )
+
+        $modulesLoaded = $false
 
         $queueLocal = $queueRef
         $signalLocal = $signalRef
@@ -650,16 +822,47 @@ function script:Ensure-InsightsWorker {
         while ($true) {
             $item = $null
             $request = $null
-            try { while ($queueLocal.TryDequeue([ref]$item)) { $request = $item } } catch { $request = $null }
+            $latestRequest = $null
+            $searchRequest = $null
+            $includeSearch = $false
+            $includeSummary = $false
+            $includeAlerts = $false
+            # Drain to the latest request while merging view flags; preserve the newest search filter context.
+            try {
+                while ($queueLocal.TryDequeue([ref]$item)) {
+                    $candidate = $item
+                    if (-not $candidate) { continue }
+                    $latestRequest = $candidate
+
+                    $candidateSearch = $false
+                    $candidateSummary = $false
+                    $candidateAlerts = $false
+                    try { $candidateSearch = [bool]$candidate.IncludeSearch } catch { $candidateSearch = $false }
+                    try { $candidateSummary = [bool]$candidate.IncludeSummary } catch { $candidateSummary = $false }
+                    try { $candidateAlerts = [bool]$candidate.IncludeAlerts } catch { $candidateAlerts = $false }
+
+                    if ($candidateSearch) {
+                        $includeSearch = $true
+                        $searchRequest = $candidate
+                    }
+                    if ($candidateSummary) { $includeSummary = $true }
+                    if ($candidateAlerts) { $includeAlerts = $true }
+                }
+            } catch {
+                $latestRequest = $null
+            }
+
+            $request = $latestRequest
             if (-not $request) {
                 try { $null = $signalLocal.WaitOne() } catch { }
                 continue
             }
 
-            if (-not $request) { continue }
-
             $interfaces = $request.Interfaces
             if (-not $interfaces) { $interfaces = @() }
+
+            $requestSiteToLoad = ''
+            try { $requestSiteToLoad = '' + $request.SiteToLoad } catch { $requestSiteToLoad = '' }
 
             $loadedInterfacesPayload = $null
             $interfaceLoadMs = $null
@@ -678,11 +881,7 @@ function script:Ensure-InsightsWorker {
                 } catch { $ifaceCount = 0 }
 
                 if ($ifaceCount -le 0) {
-                    if (-not (Get-Variable -Name InsightsWorkerModulesLoaded -Scope Script -ErrorAction SilentlyContinue)) {
-                        $script:InsightsWorkerModulesLoaded = $false
-                    }
-
-                    if (-not $script:InsightsWorkerModulesLoaded) {
+                    if (-not $modulesLoaded) {
                         try {
                             if (Test-Path -LiteralPath $telemetryModulePath) { Import-Module -Name $telemetryModulePath -Global -Force -ErrorAction Stop | Out-Null }
                         } catch { }
@@ -692,7 +891,13 @@ function script:Ensure-InsightsWorker {
                         try {
                             if (Test-Path -LiteralPath $repoModulePath) { Import-Module -Name $repoModulePath -Global -Force -ErrorAction Stop | Out-Null }
                         } catch { }
-                        $script:InsightsWorkerModulesLoaded = $true
+                        try {
+                            if (Test-Path -LiteralPath $templatesModulePath) { Import-Module -Name $templatesModulePath -Global -Force -ErrorAction Stop | Out-Null }
+                        } catch { }
+                        try {
+                            if (Test-Path -LiteralPath $interfaceModulePath) { Import-Module -Name $interfaceModulePath -Global -Force -ErrorAction Stop | Out-Null }
+                        } catch { }
+                        $modulesLoaded = $true
                     }
 
                     $siteToLoad = ''
@@ -832,17 +1037,23 @@ function script:Ensure-InsightsWorker {
             $requestId = 0
             try { $requestId = [int]$request.RequestId } catch { $requestId = 0 }
 
-            $includeSearch = [bool]$request.IncludeSearch
-            $includeSummary = [bool]$request.IncludeSummary
-            $includeAlerts = [bool]$request.IncludeAlerts
-
-            $term = '' + $request.SearchTerm
-            $regexEnabled = [bool]$request.RegexEnabled
-            $statusFilterVal = '' + $request.StatusFilter
-            $authFilterVal = '' + $request.AuthFilter
+            $term = ''
+            $regexEnabled = $false
+            $statusFilterVal = 'All'
+            $authFilterVal = 'All'
+            if ($includeSearch) {
+                $searchSource = $searchRequest
+                if (-not $searchSource) { $searchSource = $request }
+                try { $term = '' + $searchSource.SearchTerm } catch { $term = '' }
+                try { $regexEnabled = [bool]$searchSource.RegexEnabled } catch { $regexEnabled = $false }
+                try { $statusFilterVal = '' + $searchSource.StatusFilter } catch { $statusFilterVal = 'All' }
+                try { $authFilterVal = '' + $searchSource.AuthFilter } catch { $authFilterVal = 'All' }
+            }
 
             $termEmpty = [string]::IsNullOrWhiteSpace($term)
-            $searchNeeded = $includeSearch -and (-not ($termEmpty -and $equalsIgnoreCase.Equals($statusFilterVal, 'All') -and $equalsIgnoreCase.Equals($authFilterVal, 'All')))
+            $noSearchFilters = ($termEmpty -and $equalsIgnoreCase.Equals($statusFilterVal, 'All') -and $equalsIgnoreCase.Equals($authFilterVal, 'All'))
+            $searchNeeded = $includeSearch -and (-not $noSearchFilters)
+            $searchCopyAll = $includeSearch -and $noSearchFilters
 
             $searchResults = $null
             if ($includeSearch) {
@@ -867,116 +1078,129 @@ function script:Ensure-InsightsWorker {
                 $vlanSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
             }
 
-            foreach ($row in $interfaces) {
-                if (-not $row) { continue }
+            $skipLoop = (-not $includeSummary) -and (-not $includeAlerts) -and (-not $searchNeeded) -and (-not $searchCopyAll)
+            if (-not $skipLoop) {
+                foreach ($row in $interfaces) {
+                    if (-not $row) { continue }
 
-                $hostname = ''
-                try { $hostname = '' + $row.Hostname } catch { $hostname = '' }
-                if (-not $hostname) {
-                    try { $hostname = '' + $row.HostName } catch { $hostname = '' }
-                }
-
-                if ($includeSummary) {
-                    $intCount++
-
-                    if (-not [string]::IsNullOrWhiteSpace($hostname)) { [void]$devSet.Add($hostname) }
-
-                    $status = ''
-                    try { $status = '' + $row.Status } catch { $status = '' }
-                    if ($status) {
-                        if ($status -match '(?i)^(up|connected)$') { $upCount++ }
-                        elseif ($status -match '(?i)^(down|notconnect)$') { $downCount++ }
+                    $hostname = ''
+                    try { $hostname = '' + $row.Hostname } catch { $hostname = '' }
+                    if (-not $hostname) {
+                        try { $hostname = '' + $row.HostName } catch { $hostname = '' }
                     }
 
-                    $authState = ''
-                    try { $authState = '' + $row.AuthState } catch { $authState = '' }
-                    if ($authState) {
-                        if ($equalsIgnoreCase.Equals($authState, 'authorized')) { $authCount++ } else { $unauthCount++ }
-                    } else {
-                        $unauthCount++
-                    }
+                    if ($includeSummary) {
+                        $intCount++
 
-                    $vlanValue = ''
-                    try { $vlanValue = '' + $row.VLAN } catch { $vlanValue = '' }
-                    if (-not [string]::IsNullOrWhiteSpace($vlanValue)) { [void]$vlanSet.Add($vlanValue) }
-                }
+                        if (-not [string]::IsNullOrWhiteSpace($hostname)) { [void]$devSet.Add($hostname) }
 
-                if ($includeAlerts) {
-                    $reasonParts = [System.Collections.Generic.List[string]]::new()
-
-                    $status = ''
-                    try { $status = '' + $row.Status } catch { $status = '' }
-                    if ($status -and ($equalsIgnoreCase.Equals($status, 'down') -or $equalsIgnoreCase.Equals($status, 'notconnect'))) {
-                        [void]$reasonParts.Add('Port down')
-                    }
-
-                    $duplex = ''
-                    try { $duplex = '' + $row.Duplex } catch { $duplex = '' }
-                    if ($duplex -and ($duplex -match '(?i)half')) { [void]$reasonParts.Add('Half duplex') }
-
-                    $authState = ''
-                    try { $authState = '' + $row.AuthState } catch { $authState = '' }
-                    if ($authState) {
-                        if (-not $equalsIgnoreCase.Equals($authState, 'authorized')) { [void]$reasonParts.Add('Unauthorized') }
-                    } else {
-                        [void]$reasonParts.Add('Unauthorized')
-                    }
-
-                    if ($reasonParts.Count -gt 0) {
-                        $alert = [PSCustomObject]@{
-                            Hostname  = $hostname
-                            Port      = $row.Port
-                            Name      = $row.Name
-                            Status    = $row.Status
-                            VLAN      = $row.VLAN
-                            Duplex    = $row.Duplex
-                            AuthState = $row.AuthState
-                            Reason    = ($reasonParts -join '; ')
+                        $status = ''
+                        try { $status = '' + $row.Status } catch { $status = '' }
+                        if ($status) {
+                            if ($status -match '(?i)^(up|connected)$') { $upCount++ }
+                            elseif ($status -match '(?i)^(down|notconnect)$') { $downCount++ }
                         }
-                        [void]$alerts.Add($alert)
+
+                        $authState = ''
+                        try { $authState = '' + $row.AuthState } catch { $authState = '' }
+                        if ($authState) {
+                            if ($equalsIgnoreCase.Equals($authState, 'authorized')) { $authCount++ } else { $unauthCount++ }
+                        } else {
+                            $unauthCount++
+                        }
+
+                        $vlanValue = ''
+                        try { $vlanValue = '' + $row.VLAN } catch { $vlanValue = '' }
+                        if (-not [string]::IsNullOrWhiteSpace($vlanValue)) { [void]$vlanSet.Add($vlanValue) }
                     }
-                }
 
-                if ($searchNeeded) {
-                    if (-not $equalsIgnoreCase.Equals($statusFilterVal, 'All')) {
-                        $st = ''
-                        try { $st = '' + $row.Status } catch { $st = '' }
+                    if ($includeAlerts) {
+                        $reasonParts = [System.Collections.Generic.List[string]]::new()
 
-                        if ($equalsIgnoreCase.Equals($statusFilterVal, 'Up')) {
-                            if (-not ($equalsIgnoreCase.Equals($st, 'up') -or $equalsIgnoreCase.Equals($st, 'connected'))) {
-                                continue
+                        $status = ''
+                        try { $status = '' + $row.Status } catch { $status = '' }
+                        if ($status -and ($equalsIgnoreCase.Equals($status, 'down') -or $equalsIgnoreCase.Equals($status, 'notconnect'))) {
+                            [void]$reasonParts.Add('Port down')
+                        }
+
+                        $duplex = ''
+                        try { $duplex = '' + $row.Duplex } catch { $duplex = '' }
+                        if ($duplex -and ($duplex -match '(?i)half')) { [void]$reasonParts.Add('Half duplex') }
+
+                        $authState = ''
+                        try { $authState = '' + $row.AuthState } catch { $authState = '' }
+                        if ($authState) {
+                            if (-not $equalsIgnoreCase.Equals($authState, 'authorized')) { [void]$reasonParts.Add('Unauthorized') }
+                        } else {
+                            [void]$reasonParts.Add('Unauthorized')
+                        }
+
+                        if ($reasonParts.Count -gt 0) {
+                            $alert = [PSCustomObject]@{
+                                Hostname  = $hostname
+                                Port      = $row.Port
+                                Name      = $row.Name
+                                Status    = $row.Status
+                                VLAN      = $row.VLAN
+                                Duplex    = $row.Duplex
+                                AuthState = $row.AuthState
+                                Reason    = ($reasonParts -join '; ')
                             }
-                        } elseif ($equalsIgnoreCase.Equals($statusFilterVal, 'Down')) {
-                            if (-not ($equalsIgnoreCase.Equals($st, 'down') -or $equalsIgnoreCase.Equals($st, 'notconnect'))) {
-                                continue
-                            }
+                            [void]$alerts.Add($alert)
                         }
                     }
 
-                    if (-not $equalsIgnoreCase.Equals($authFilterVal, 'All')) {
-                        $as = ''
-                        try { $as = '' + $row.AuthState } catch { $as = '' }
+                    if ($searchCopyAll) {
+                        [void]$searchResults.Add($row)
+                    } elseif ($searchNeeded) {
+                        if (-not $equalsIgnoreCase.Equals($statusFilterVal, 'All')) {
+                            $st = ''
+                            try { $st = '' + $row.Status } catch { $st = '' }
 
-                        if ($equalsIgnoreCase.Equals($authFilterVal, 'Authorized')) {
-                            if (-not $equalsIgnoreCase.Equals($as, 'authorized')) { continue }
-                        } elseif ($equalsIgnoreCase.Equals($authFilterVal, 'Unauthorized')) {
-                            if ($equalsIgnoreCase.Equals($as, 'authorized')) { continue }
-                        }
-                    }
-
-                    if (-not $termEmpty) {
-                        if ($regexEnabled) {
-                            $matched = $false
-                            try {
-                                if ( ('' + $row.Port) -match $term -or
-                                     ('' + $row.Name) -match $term -or
-                                     ('' + $row.LearnedMACs) -match $term -or
-                                     ('' + $row.AuthClientMAC) -match $term ) {
-                                    $matched = $true
+                            if ($equalsIgnoreCase.Equals($statusFilterVal, 'Up')) {
+                                if (-not ($equalsIgnoreCase.Equals($st, 'up') -or $equalsIgnoreCase.Equals($st, 'connected'))) {
+                                    continue
                                 }
-                            } catch { $matched = $false }
+                            } elseif ($equalsIgnoreCase.Equals($statusFilterVal, 'Down')) {
+                                if (-not ($equalsIgnoreCase.Equals($st, 'down') -or $equalsIgnoreCase.Equals($st, 'notconnect'))) {
+                                    continue
+                                }
+                            }
+                        }
 
-                            if (-not $matched) {
+                        if (-not $equalsIgnoreCase.Equals($authFilterVal, 'All')) {
+                            $as = ''
+                            try { $as = '' + $row.AuthState } catch { $as = '' }
+
+                            if ($equalsIgnoreCase.Equals($authFilterVal, 'Authorized')) {
+                                if (-not $equalsIgnoreCase.Equals($as, 'authorized')) { continue }
+                            } elseif ($equalsIgnoreCase.Equals($authFilterVal, 'Unauthorized')) {
+                                if ($equalsIgnoreCase.Equals($as, 'authorized')) { continue }
+                            }
+                        }
+
+                        if (-not $termEmpty) {
+                            if ($regexEnabled) {
+                                $matched = $false
+                                try {
+                                    if ( ('' + $row.Port) -match $term -or
+                                         ('' + $row.Name) -match $term -or
+                                         ('' + $row.LearnedMACs) -match $term -or
+                                         ('' + $row.AuthClientMAC) -match $term ) {
+                                        $matched = $true
+                                    }
+                                } catch { $matched = $false }
+
+                                if (-not $matched) {
+                                    $q = $term
+                                    if (-not ((('' + $row.Port).IndexOf($q, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
+                                              (('' + $row.Name).IndexOf($q, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
+                                              (('' + $row.LearnedMACs).IndexOf($q, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
+                                              (('' + $row.AuthClientMAC).IndexOf($q, [System.StringComparison]::OrdinalIgnoreCase) -ge 0))) {
+                                        continue
+                                    }
+                                }
+                            } else {
                                 $q = $term
                                 if (-not ((('' + $row.Port).IndexOf($q, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
                                           (('' + $row.Name).IndexOf($q, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
@@ -985,18 +1209,10 @@ function script:Ensure-InsightsWorker {
                                     continue
                                 }
                             }
-                        } else {
-                            $q = $term
-                            if (-not ((('' + $row.Port).IndexOf($q, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
-                                      (('' + $row.Name).IndexOf($q, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
-                                      (('' + $row.LearnedMACs).IndexOf($q, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
-                                      (('' + $row.AuthClientMAC).IndexOf($q, [System.StringComparison]::OrdinalIgnoreCase) -ge 0))) {
-                                continue
-                            }
                         }
-                    }
 
-                    [void]$searchResults.Add($row)
+                        [void]$searchResults.Add($row)
+                    }
                 }
             }
 
@@ -1014,17 +1230,17 @@ function script:Ensure-InsightsWorker {
                 }
             }
 
-            # Suppress stale results when a newer request is already pending.
-            try {
-                if (-not $queueLocal.IsEmpty) { continue }
-            } catch { }
-
             $payload = [PSCustomObject]@{
                 RequestId     = $requestId
                 IncludeSearch = $includeSearch
                 IncludeSummary = $includeSummary
                 IncludeAlerts = $includeAlerts
+                SiteToLoad    = $requestSiteToLoad
                 SearchResults = $searchResults
+                SearchTerm    = $term
+                StatusFilter  = $statusFilterVal
+                AuthFilter    = $authFilterVal
+                RegexEnabled  = $regexEnabled
                 Summary       = $summary
                 Alerts        = $alerts
                 Interfaces    = $loadedInterfacesPayload
@@ -1044,7 +1260,7 @@ function script:Ensure-InsightsWorker {
                 $null = $dispatcher.BeginInvoke($applyDelegate, $payload)
             } catch { }
         }
-    }.GetNewClosure()
+    }
 
     if ($emitInitVerbose) {
         try { Write-Verbose "[DeviceInsights] Ensure-InsightsWorker stage=ThreadScriptReady" } catch { }
@@ -1053,11 +1269,20 @@ function script:Ensure-InsightsWorker {
     $ps = [System.Management.Automation.PowerShell]::Create()
     $ps.Runspace = $rs
 
+    $workerScriptText = $null
+    try { $workerScriptText = $threadScript.ToString() } catch { $workerScriptText = $null }
+    if ([string]::IsNullOrWhiteSpace($workerScriptText)) { return $false }
+    try {
+        $null = $ps.AddScript($workerScriptText).AddArgument($queueRef).AddArgument($signalRef).AddArgument($telemetryModulePath).AddArgument($databaseModulePath).AddArgument($repoModulePath).AddArgument($templatesModulePath).AddArgument($interfaceModulePath)
+    } catch {
+        return $false
+    }
+
     if ($emitInitVerbose) {
         try { Write-Verbose "[DeviceInsights] Ensure-InsightsWorker stage=PowerShellReady" } catch { }
     }
 
-    $threadStart = [StateTrace.Threading.PowerShellThreadStartFactory]::Create($threadScript, $ps, 'InsightsWorker')
+    $threadStart = [StateTrace.Threading.PowerShellInvokeThreadStartFactory]::Create($ps, 'InsightsWorker')
     if ($emitInitVerbose) {
         try { Write-Verbose "[DeviceInsights] Ensure-InsightsWorker stage=ThreadStartCreated" } catch { }
     }
@@ -1099,8 +1324,19 @@ function Update-InsightsAsync {
     )
 
     if (-not $global:InterfacesLoadAllowed) {
-        Write-Verbose '[DeviceInsights] Interfaces not allowed yet; skipping async insights refresh.'
-        return
+        $interfacesSnapshot = $null
+        if ($PSBoundParameters.ContainsKey('Interfaces') -and $Interfaces) {
+            $interfacesSnapshot = $Interfaces
+        } else {
+            try { $interfacesSnapshot = $global:AllInterfaces } catch { $interfacesSnapshot = $null }
+        }
+
+        $ifaceCount = 0
+        try { $ifaceCount = ViewStateService\Get-SequenceCount -Value $interfacesSnapshot } catch { $ifaceCount = 0 }
+        if ($ifaceCount -le 0) {
+            Write-Verbose '[DeviceInsights] Interfaces not allowed yet; skipping async insights refresh.'
+            return
+        }
     }
 
     $needSearch = $IncludeSearch.IsPresent
@@ -1129,16 +1365,16 @@ function Update-InsightsAsync {
 
     $ifaceCount = 0
     try { $ifaceCount = ViewStateService\Get-SequenceCount -Value $interfacesToUse } catch { $ifaceCount = 0 }
+
+    $context = $null
+    try { $context = script:Get-DeviceInsightsFilterContext } catch { $context = $null }
     $loadInterfaces = $false
     $siteToLoad = ''
     $zoneSelectionValue = ''
     $hostnamesToLoad = @()
+    try { $siteToLoad = if ($context -and $context.Site) { ('' + $context.Site).Trim() } else { '' } } catch { $siteToLoad = '' }
+    try { $zoneSelectionValue = if ($context -and $context.Zone) { ('' + $context.Zone).Trim() } else { '' } } catch { $zoneSelectionValue = '' }
     if ($ifaceCount -le 0) {
-        $context = script:Get-DeviceInsightsFilterContext
-
-        try { $siteToLoad = if ($context -and $context.Site) { ('' + $context.Site).Trim() } else { '' } } catch { $siteToLoad = '' }
-        try { $zoneSelectionValue = if ($context -and $context.Zone) { ('' + $context.Zone).Trim() } else { '' } } catch { $zoneSelectionValue = '' }
-
         $metadata = $null
         $locationEntries = $null
         try { $metadata = $global:DeviceMetadata } catch { $metadata = $null }
@@ -1211,22 +1447,98 @@ function Update-InsightsAsync {
     $emitStageVerbose = $false
     try { if ($global:StateTraceDebug) { $emitStageVerbose = $true } } catch { $emitStageVerbose = $false }
 
+    $diagWriter = $null
+    try { $diagWriter = ${function:Write-InsightsDebug} } catch { $diagWriter = $null }
+    $sortedListCmd = $null
+    try { $sortedListCmd = ${function:New-InsightsSortedList} } catch { $sortedListCmd = $null }
+
     $applyUiDelegate = $null
     try {
         $applyUiUpdates = {
             param($state)
 
+            $emitInsightsDiag = $false
+            try { $emitInsightsDiag = [bool]$global:StateTraceDebug } catch { $emitInsightsDiag = $false }
+
+            try { $script:InsightsApplyCounter++ } catch { }
+
             $stateId = 0
             try { $stateId = [int]$state.RequestId } catch { $stateId = 0 }
+
+            $isLatest = $true
             if ($stateId -gt 0) {
                 try {
-                    if ($stateId -ne $script:InsightsLatestRequestId) { return }
-                } catch { }
+                    if ($stateId -ne $script:InsightsLatestRequestId) { $isLatest = $false }
+                } catch { $isLatest = $true }
+            }
+
+            $siteMatches = $true
+            if (-not $isLatest) {
+                $siteMatches = $false
+                $currentSite = ''
+                try {
+                    $locCmd = $null
+                    try { $locCmd = Get-Command -Name 'FilterStateModule\Get-SelectedLocation' -ErrorAction SilentlyContinue } catch { $locCmd = $null }
+                    if ($locCmd) {
+                        $loc = $null
+                        try { $loc = FilterStateModule\Get-SelectedLocation } catch { $loc = $null }
+                        if ($loc -and $loc.PSObject.Properties['Site']) { $currentSite = '' + $loc.Site }
+                    }
+                } catch { $currentSite = '' }
+
+                $payloadSite = ''
+                try {
+                    if ($state.PSObject.Properties['SiteToLoad']) {
+                        $payloadSite = '' + $state.SiteToLoad
+                    } elseif ($state.PSObject.Properties['InterfaceLoadSite']) {
+                        $payloadSite = '' + $state.InterfaceLoadSite
+                    }
+                } catch { $payloadSite = '' }
+
+                $normalizeSite = {
+                    param([string]$value)
+                    $v = if ($value) { ('' + $value).Trim() } else { '' }
+                    if ([string]::IsNullOrWhiteSpace($v) -or
+                        [System.StringComparer]::OrdinalIgnoreCase.Equals($v, 'All Sites') -or
+                        [System.StringComparer]::OrdinalIgnoreCase.Equals($v, 'All'))
+                    {
+                        return 'All Sites'
+                    }
+                    return $v
+                }
+
+                $currentNorm = & $normalizeSite $currentSite
+                $payloadNorm = & $normalizeSite $payloadSite
+                if ([System.StringComparer]::OrdinalIgnoreCase.Equals($currentNorm, $payloadNorm)) {
+                    $siteMatches = $true
+                } elseif ([string]::IsNullOrWhiteSpace($currentSite)) {
+                    # Fallback: avoid starving the UI if selection probing fails.
+                    $siteMatches = $true
+                }
+            }
+
+            $applyDerived = ($isLatest -or $siteMatches)
+            if ($emitInsightsDiag) {
+                $diagSearchCount = 0
+                $diagAlertCount = 0
+                try {
+                    if ($state.PSObject.Properties['SearchResults']) {
+                        $diagSearchCount = ViewStateService\Get-SequenceCount -Value $state.SearchResults
+                    }
+                } catch { $diagSearchCount = 0 }
+                try {
+                    if ($state.PSObject.Properties['Alerts']) {
+                        $diagAlertCount = ViewStateService\Get-SequenceCount -Value $state.Alerts
+                    }
+                } catch { $diagAlertCount = 0 }
+                $msg = "[DeviceInsights] ApplyInsights | RequestId={0} Latest={1} ApplyDerived={2} Search={3} Alerts={4} Summary={5} SearchCount={6} AlertsCount={7}" -f `
+                    $stateId, $script:InsightsLatestRequestId, $applyDerived, [bool]$state.IncludeSearch, [bool]$state.IncludeAlerts, [bool]$state.IncludeSummary, $diagSearchCount, $diagAlertCount
+                if ($diagWriter) { & $diagWriter $msg }
             }
 
             $loadedInterfaces = $null
             try { if ($state.PSObject.Properties['Interfaces']) { $loadedInterfaces = $state.Interfaces } } catch { $loadedInterfaces = $null }
-            if ($loadedInterfaces) {
+            if ($loadedInterfaces -and $applyDerived) {
                 try { $global:AllInterfaces = $loadedInterfaces } catch { }
                 try {
                     $loadMs = $null
@@ -1240,7 +1552,7 @@ function Update-InsightsAsync {
                 } catch { }
             }
 
-            if ($state.IncludeSummary -and $state.Summary) {
+            if ($applyDerived -and $state.IncludeSummary -and $state.Summary) {
                 $sv = $null
                 try { $sv = (Get-Variable -Name summaryView -Scope Global -ErrorAction SilentlyContinue).Value } catch { $sv = $null }
                 if ($sv) {
@@ -1257,27 +1569,101 @@ function Update-InsightsAsync {
                 }
             }
 
-            if ($state.IncludeAlerts) {
-                try { $global:AlertsList = $state.Alerts } catch { }
+            if ($applyDerived -and $state.IncludeAlerts) {
+                $alertsList = $null
+                if ($sortedListCmd) {
+                    try { $alertsList = & $sortedListCmd -Rows $state.Alerts } catch { $alertsList = $null }
+                } else {
+                    try { $alertsList = $state.Alerts } catch { $alertsList = $null }
+                }
+                if ($null -eq $alertsList) { $alertsList = @() }
+                $global:AlertsList = $alertsList
                 if ($global:alertsView) {
                     try {
                         $grid = $global:alertsView.FindName('AlertsGrid')
                         if ($grid) { $grid.ItemsSource = $global:AlertsList }
+                        if ($emitInsightsDiag) {
+                            $alertCount = 0
+                            try { $alertCount = ViewStateService\Get-SequenceCount -Value $global:AlertsList } catch { $alertCount = 0 }
+                            $gridFound = [bool]$grid
+                            if ($diagWriter) { & $diagWriter ("[DeviceInsights] ApplyAlerts | GridFound={0} | Count={1}" -f $gridFound, $alertCount) }
+                        }
                     } catch { }
+                } elseif ($emitInsightsDiag) {
+                    if ($diagWriter) { & $diagWriter "[DeviceInsights] ApplyAlerts | AlertsViewMissing" }
                 }
             }
 
-            if ($state.IncludeSearch) {
+            if ($applyDerived -and $state.IncludeSearch) {
+                $payloadTerm = ''
+                $payloadStatus = 'All'
+                $payloadAuth = 'All'
+                $payloadRegexEnabled = $false
+                try { if ($state.PSObject.Properties['SearchTerm']) { $payloadTerm = '' + $state.SearchTerm } } catch { $payloadTerm = '' }
+                try { if ($state.PSObject.Properties['StatusFilter']) { $payloadStatus = '' + $state.StatusFilter } } catch { $payloadStatus = 'All' }
+                try { if ($state.PSObject.Properties['AuthFilter']) { $payloadAuth = '' + $state.AuthFilter } } catch { $payloadAuth = 'All' }
+                try { if ($state.PSObject.Properties['RegexEnabled']) { $payloadRegexEnabled = [bool]$state.RegexEnabled } } catch { $payloadRegexEnabled = $false }
+
+                $currentTerm = ''
+                $currentStatus = 'All'
+                $currentAuth = 'All'
+                $currentRegexEnabled = $false
+                try { $currentRegexEnabled = [bool]$script:SearchRegexEnabled } catch { $currentRegexEnabled = $false }
+
+                $gridCtrl = $null
                 try {
                     $searchHostCtrl = $global:window.FindName('SearchInterfacesHost')
                     if ($searchHostCtrl) {
                         $view = $searchHostCtrl.Content
                         if ($view) {
+                            $boxCtrl = $view.FindName('SearchBox')
+                            if ($boxCtrl) { $currentTerm = '' + $boxCtrl.Text }
+
+                            $statusCtrl = $view.FindName('StatusFilter')
+                            $authCtrl   = $view.FindName('AuthFilter')
+                            if ($statusCtrl -and $statusCtrl.SelectedItem) {
+                                $currentStatus = '' + $statusCtrl.SelectedItem.Content
+                            }
+                            if ($authCtrl -and $authCtrl.SelectedItem) {
+                                $currentAuth = '' + $authCtrl.SelectedItem.Content
+                            }
+
                             $gridCtrl = $view.FindName('SearchInterfacesGrid')
-                            if ($gridCtrl) { $gridCtrl.ItemsSource = $state.SearchResults }
                         }
                     }
                 } catch { }
+
+                if ($gridCtrl) {
+                    $termMatches = $false
+                    $statusMatches = $false
+                    $authMatches = $false
+                    try { $termMatches = [System.StringComparer]::Ordinal.Equals(('' + $currentTerm), ('' + $payloadTerm)) } catch { $termMatches = $false }
+                    try { $statusMatches = [System.StringComparer]::OrdinalIgnoreCase.Equals(('' + $currentStatus), ('' + $payloadStatus)) } catch { $statusMatches = $false }
+                    try { $authMatches = [System.StringComparer]::OrdinalIgnoreCase.Equals(('' + $currentAuth), ('' + $payloadAuth)) } catch { $authMatches = $false }
+
+                    $regexMatches = ($currentRegexEnabled -eq $payloadRegexEnabled)
+
+                    if ($emitInsightsDiag) {
+                        $diagMsg = "[DeviceInsights] ApplySearch | GridFound=True | TermMatch={0} StatusMatch={1} AuthMatch={2} RegexMatch={3} | Term='{4}' Status='{5}' Auth='{6}'" -f `
+                            $termMatches, $statusMatches, $authMatches, $regexMatches, $currentTerm, $currentStatus, $currentAuth
+                        if ($diagWriter) { & $diagWriter $diagMsg }
+                    }
+
+                    if ($termMatches -and $statusMatches -and $authMatches -and $regexMatches) {
+                        if ($sortedListCmd) {
+                            try { $gridCtrl.ItemsSource = & $sortedListCmd -Rows $state.SearchResults } catch { }
+                        } else {
+                            try { $gridCtrl.ItemsSource = $state.SearchResults } catch { }
+                        }
+                        if ($emitInsightsDiag) {
+                            $searchCount = 0
+                            try { $searchCount = ViewStateService\Get-SequenceCount -Value $state.SearchResults } catch { $searchCount = 0 }
+                            if ($diagWriter) { & $diagWriter ("[DeviceInsights] ApplySearch bound | Count={0}" -f $searchCount) }
+                        }
+                    }
+                } elseif ($emitInsightsDiag) {
+                    if ($diagWriter) { & $diagWriter "[DeviceInsights] ApplySearch | GridFound=False" }
+                }
             }
         }.GetNewClosure()
         $applyUiDelegate = [System.Action[object]]$applyUiUpdates

@@ -66,7 +66,7 @@ function New-StDebounceTimer {
         param($sender, $args)
         try { $sender.Stop() } catch { }
         try { & $Action } catch { }
-    })
+    }.GetNewClosure())
 
     return $timer
 }

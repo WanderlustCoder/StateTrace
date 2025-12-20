@@ -3,7 +3,9 @@ param(
     [string]$WorkingDirectory = (Split-Path -Parent $PSScriptRoot),
     [string]$ScreenshotDir = 'docs\performance\screenshots',
     [string]$Timestamp = (Get-Date).ToString('yyyyMMdd-HHmmss'),
-    [int]$WaitSeconds = 8
+    [int]$WaitSeconds = 8,
+    [int]$WindowTimeoutSeconds = 30,
+    [int]$MaxRuntimeSeconds = 60
 )
 
 <#
@@ -35,7 +37,7 @@ function Start-MainWindowProcess {
 }
 
 function Get-MainWindow {
-    param([int]$ProcessId, [int]$TimeoutSeconds = 20)
+    param([int]$ProcessId, [int]$TimeoutSeconds = 30)
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     while ((Get-Date) -lt $deadline) {
         $root = [System.Windows.Automation.AutomationElement]::RootElement
@@ -93,35 +95,53 @@ if (-not (Test-Path -LiteralPath $ScreenshotDir)) {
 }
 
 $proc = Start-MainWindowProcess -WorkingDirectory $WorkingDirectory
-Start-Sleep -Seconds $WaitSeconds
-$window = Get-MainWindow -ProcessId $proc.Id
+$runWatch = [System.Diagnostics.Stopwatch]::StartNew()
 
-# Interact: Scan Logs, Load from DB, Interfaces tab, Help
-Invoke-ButtonByName -Window $window -Name 'Scan Logs'
-Invoke-ButtonByName -Window $window -Name 'Load from DB'
-Select-TabByName -Window $window -Name 'Interfaces'
-
-$mainShot = Join-Path $ScreenshotDir ("onboarding-{0}-interfaces.png" -f $Timestamp)
-Capture-WindowScreenshot -Window $window -Path $mainShot
-
-# Help window
-Invoke-ButtonByName -Window $window -Name 'Help'
-Start-Sleep -Seconds 2
-$helpWindow = $null
 try {
-    $root = [System.Windows.Automation.AutomationElement]::RootElement
-    $helpCond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, 'Help')
-    $helpWindow = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, $helpCond)
-} catch {}
-if ($helpWindow) {
-    $helpShot = Join-Path $ScreenshotDir ("onboarding-{0}-help.png" -f $Timestamp)
-    Capture-WindowScreenshot -Window $helpWindow -Path $helpShot
-} else {
-    Write-Warning "Help window not found; screenshot skipped."
+    Start-Sleep -Seconds $WaitSeconds
+    $window = Get-MainWindow -ProcessId $proc.Id -TimeoutSeconds $WindowTimeoutSeconds
+
+    # Interact: Scan Logs, Load from DB, Interfaces tab, Help
+    Invoke-ButtonByName -Window $window -Name 'Scan Logs'
+    Invoke-ButtonByName -Window $window -Name 'Load from DB'
+    Select-TabByName -Window $window -Name 'Interfaces'
+
+    $mainShot = Join-Path $ScreenshotDir ("onboarding-{0}-interfaces.png" -f $Timestamp)
+    Capture-WindowScreenshot -Window $window -Path $mainShot
+
+    # Help window
+    Invoke-ButtonByName -Window $window -Name 'Help'
+    Start-Sleep -Seconds 2
+    $helpWindow = $null
+    try {
+        $root = [System.Windows.Automation.AutomationElement]::RootElement
+        $helpCond = New-Object System.Windows.Automation.PropertyCondition([System.Windows.Automation.AutomationElement]::NameProperty, 'Help')
+        $helpWindow = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, $helpCond)
+    } catch {}
+    if ($helpWindow) {
+        $helpShot = Join-Path $ScreenshotDir ("onboarding-{0}-help.png" -f $Timestamp)
+        Capture-WindowScreenshot -Window $helpWindow -Path $helpShot
+    } else {
+        Write-Warning "Help window not found; screenshot skipped."
+    }
+
+    # Freshness tooltip requires hover; instead capture main window again as toolbar evidence
+    $toolbarShot = Join-Path $ScreenshotDir ("onboarding-{0}-toolbar.png" -f $Timestamp)
+    Capture-WindowScreenshot -Window $window -Path $toolbarShot
+
+    if ($runWatch.Elapsed.TotalSeconds -gt $MaxRuntimeSeconds) {
+        throw "Plan H UI automation exceeded $MaxRuntimeSeconds seconds; aborting."
+    }
+
+    Write-Host "[PlanH] UI automation run complete. Screenshots under $ScreenshotDir." -ForegroundColor Green
+} finally {
+    if ($proc -and -not $proc.HasExited) {
+        try { $proc.CloseMainWindow() | Out-Null } catch { }
+        try {
+            if (-not $proc.WaitForExit(5000)) {
+                $proc.Kill()
+            }
+        } catch { }
+    }
+    if ($proc) { $proc.Dispose() }
 }
-
-# Freshness tooltip requires hover; instead capture main window again as toolbar evidence
-$toolbarShot = Join-Path $ScreenshotDir ("onboarding-{0}-toolbar.png" -f $Timestamp)
-Capture-WindowScreenshot -Window $window -Path $toolbarShot
-
-Write-Host "[PlanH] UI automation run complete. Screenshots under $ScreenshotDir." -ForegroundColor Green

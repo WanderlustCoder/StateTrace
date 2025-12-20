@@ -579,8 +579,23 @@ function Set-CompareFromRows {
         [Parameter(Mandatory)][psobject]$Row2
     )
     # Given two data rows (interfaces), update the compare view text boxes and diff boxes.
-    $tooltip1 = '' + ($Row1.ToolTip)
-    $tooltip2 = '' + ($Row2.ToolTip)
+    $tooltip1 = ''
+    try {
+        if ($Row1.PSObject.Properties['ToolTip'] -and $Row1.ToolTip) {
+            $tooltip1 = '' + $Row1.ToolTip
+        } elseif ($Row1.PSObject.Properties['Config'] -and $Row1.Config) {
+            $tooltip1 = '' + $Row1.Config
+        }
+    } catch { $tooltip1 = '' }
+
+    $tooltip2 = ''
+    try {
+        if ($Row2.PSObject.Properties['ToolTip'] -and $Row2.ToolTip) {
+            $tooltip2 = '' + $Row2.ToolTip
+        } elseif ($Row2.PSObject.Properties['Config'] -and $Row2.Config) {
+            $tooltip2 = '' + $Row2.Config
+        }
+    } catch { $tooltip2 = '' }
 
     $color1 = if ($Row1.PSObject.Properties['PortColor'] -and $Row1.PortColor) { '' + $Row1.PortColor } else { 'Gray' }
     $color2 = if ($Row2.PSObject.Properties['PortColor'] -and $Row2.PortColor) { '' + $Row2.PortColor } else { 'Gray' }
@@ -960,15 +975,27 @@ function Set-CompareSelection {
         [Parameter(Mandatory)][string]$Switch2,
         [Parameter(Mandatory)][string]$Interface2,
         [psobject]$Row1,
-        [psobject]$Row2
+        [psobject]$Row2,
+        [System.Windows.Window]$Window
     )
     # Updates an existing Compare view with given switches and interfaces selected.
     if (-not $script:compareView) {
-        # Emit a message that accurately reflects the calling function.  Previously
-        # this log incorrectly referenced Update-CompareView, which could
-        # confuse debugging.  Use the current function name instead.
-        Write-Verbose "[CompareView] Set-CompareSelection called but compareView is not initialized."
-        return
+        $windowRef = $Window
+        if (-not $windowRef) {
+            try { $windowRef = $script:windowRef } catch { $windowRef = $null }
+        }
+        if (-not $windowRef) {
+            try { $windowRef = $global:window } catch { $windowRef = $null }
+        }
+
+        if ($windowRef) {
+            try { Update-CompareView -Window $windowRef | Out-Null } catch { }
+        }
+
+        if (-not $script:compareView) {
+            Write-Verbose "[CompareView] Set-CompareSelection called but compareView is not initialized."
+            return
+        }
     }
 
     Resolve-CompareControls | Out-Null

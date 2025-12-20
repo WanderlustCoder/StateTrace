@@ -29,6 +29,7 @@ pwsh -NoLogo -NoProfile -File .\Main\MainWindow.ps1
 
 ## Headless spot-checks (optional)
 - `pwsh -STA -File Tools\Invoke-SpanViewSmokeTest.ps1 -Hostname <host> -PassThru` to validate SPAN binding without the main window.
+- `pwsh -STA -File Tools\Invoke-SearchAlertsSmokeTest.ps1 -SiteFilter <site> -PassThru` to validate Search/Alerts binding without the main window.
 - `Tools\Invoke-AllChecks.ps1` to run Pester + span smoke test in one command.
 
 ## Troubleshooting tips

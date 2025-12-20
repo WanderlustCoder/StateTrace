@@ -330,10 +330,10 @@ try {
 
 if (-not ('StateTrace.Threading.PowerShellThreadStartFactory' -as [type])) {
     Add-Type -Language CSharp -TypeDefinition @'
-using System;
-using System.Management.Automation;
-using System.Management.Automation.Runspaces;
-using System.Threading;
+ using System;
+ using System.Management.Automation;
+ using System.Management.Automation.Runspaces;
+ using System.Threading;
 
 namespace StateTrace.Threading
 {
@@ -373,6 +373,110 @@ namespace StateTrace.Threading
                 finally
                 {
                     Runspace.DefaultRunspace = previous;
+                }
+            };
+        }
+    }
+ }
+'@
+}
+
+if (-not ('StateTrace.Threading.PowerShellInvokeWithUiCallbackThreadStartFactory' -as [type])) {
+    Add-Type -Language CSharp -TypeDefinition @'
+using System;
+using System.Collections.ObjectModel;
+using System.Management.Automation;
+using System.Management.Automation.Runspaces;
+using System.Threading;
+
+namespace StateTrace.Threading
+{
+    public static class PowerShellInvokeWithUiCallbackThreadStartFactory
+    {
+        public static ThreadStart Create(PowerShell ps, SemaphoreSlim semaphore, SynchronizationContext uiContext, Action<object> callback, string tag)
+        {
+            if (ps == null)
+            {
+                throw new ArgumentNullException("ps");
+            }
+            if (uiContext == null)
+            {
+                throw new ArgumentNullException("uiContext");
+            }
+            if (callback == null)
+            {
+                throw new ArgumentNullException("callback");
+            }
+
+            return delegate
+            {
+                bool heldLock = false;
+
+                try
+                {
+                    if (semaphore != null)
+                    {
+                        semaphore.Wait();
+                        heldLock = true;
+                    }
+
+                    var runspace = ps.Runspace;
+                    var previous = Runspace.DefaultRunspace;
+
+                    try
+                    {
+                        if (runspace != null)
+                        {
+                            var state = runspace.RunspaceStateInfo.State;
+                            if (state == RunspaceState.BeforeOpen)
+                            {
+                                runspace.Open();
+                            }
+
+                            Runspace.DefaultRunspace = runspace;
+                        }
+
+                        object payload = null;
+                        try
+                        {
+                            Collection<PSObject> results = ps.Invoke();
+                            if (results != null && results.Count > 0)
+                            {
+                                payload = results[0];
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            payload = new ErrorRecord(ex, "PowerShellInvokeFailed", ErrorCategory.NotSpecified, tag);
+                        }
+
+                        uiContext.Post(stateObj => callback(stateObj), payload);
+                    }
+                    finally
+                    {
+                        Runspace.DefaultRunspace = previous;
+                    }
+                }
+                catch (Exception exOuter)
+                {
+                    try
+                    {
+                        var err = new ErrorRecord(exOuter, "PowerShellInvokeThreadStartFailed", ErrorCategory.NotSpecified, tag);
+                        uiContext.Post(stateObj => callback(stateObj), err);
+                    }
+                    catch
+                    {
+                    }
+                }
+                finally
+                {
+                    try { ps.Commands.Clear(); } catch { }
+                    try { ps.Dispose(); } catch { }
+
+                    if (heldLock && semaphore != null)
+                    {
+                        try { semaphore.Release(); } catch { }
+                    }
                 }
             };
         }
@@ -1858,9 +1962,13 @@ function Initialize-DeviceViewFromCatalog {
                     try { $hostDD.SelectedIndex = 0 } catch { }
                 }
 
-                # Auto-load for small scoped sets when no prior selection exists.
-                if ([string]::IsNullOrWhiteSpace($selected) -and $hostCount -gt 0 -and $hostCount -le 50) {
+                # Auto-load the selected hostname when a site scope is selected.  Device details are
+                # loaded asynchronously, so this is safe even for large site catalogs.
+                if ([string]::IsNullOrWhiteSpace($selected) -and $hostCount -gt 0) {
                     try { $selected = '' + $hostDD.SelectedItem } catch { $selected = $null }
+                }
+                if ([string]::IsNullOrWhiteSpace($selected) -and $hostCount -gt 0) {
+                    try { $selected = '' + ($hostDD.Items | Select-Object -First 1) } catch { $selected = $null }
                 }
                 if (-not [string]::IsNullOrWhiteSpace($selected)) {
                     $targetHostnameToLoad = $selected
@@ -1875,13 +1983,23 @@ function Initialize-DeviceViewFromCatalog {
 
     if ($targetHostnameToLoad) {
         try {
-            $hostToLoadLocal = $targetHostnameToLoad
-            [System.Windows.Application]::Current.Dispatcher.BeginInvoke(
-                [System.Windows.Threading.DispatcherPriority]::Background,
-                [System.Action]{
-                    try { Get-HostnameChanged -Hostname $hostToLoadLocal } catch { }
-                }
-            ) | Out-Null
+            $hostToLoadLocal = '' + $targetHostnameToLoad
+            $invokeHostnameChanged = {
+                try { Get-HostnameChanged -Hostname $hostToLoadLocal } catch { }
+            }.GetNewClosure()
+
+            $dispatcher = $null
+            try { if ($Window -and $Window.Dispatcher) { $dispatcher = $Window.Dispatcher } } catch { $dispatcher = $null }
+            if (-not $dispatcher) {
+                try { $dispatcher = [System.Windows.Application]::Current.Dispatcher } catch { $dispatcher = $null }
+            }
+
+            if ($dispatcher) {
+                $null = $dispatcher.BeginInvoke(
+                    [System.Windows.Threading.DispatcherPriority]::Background,
+                    [System.Action]$invokeHostnameChanged
+                )
+            }
         } catch { }
     }
 
@@ -2129,59 +2247,29 @@ return [pscustomobject]@{
             }.GetNewClosure()
             $applyDelegate = [System.Action[object]]$applyDelegateAction
 
-            $diagPathLocal = $script:DiagLogPath
-            $threadScript = {
-                param([System.Management.Automation.PowerShell]$psCmd, [string]$tag)
-
-                $semaphore = $script:DatabaseImportRunspaceLock
-                $heldLock = $false
+            $uiContext = $null
+            try { $uiContext = [System.Threading.SynchronizationContext]::Current } catch { $uiContext = $null }
+            if (-not $uiContext) {
                 try {
-                    if ($semaphore) {
-                        try {
-                            $semaphore.Wait()
-                            $heldLock = $true
-                        } catch {
-                            $heldLock = $false
-                        }
-                    }
-
-                    $invokeStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-                    $results = $psCmd.Invoke()
-                    $invokeStopwatch.Stop()
-
-                    $payload = $null
-                    if ($results -is [System.Collections.IEnumerable]) {
-                        $payload = $results | Select-Object -First 1
-                    } else {
-                        $payload = $results
-                    }
-
-                    $invokeDurationMs = 0.0
-                    try { $invokeDurationMs = [Math]::Round($invokeStopwatch.Elapsed.TotalMilliseconds, 3) } catch { $invokeDurationMs = 0.0 }
-                    try { Write-Diag ("Invoke-DatabaseImport async result | RequestId={0} | InvokeMs={1}" -f $diagRequestId, $invokeDurationMs) } catch {}
-
-                    try {
-                        [System.Windows.Application]::Current.Dispatcher.BeginInvoke($applyDelegate, $payload) | Out-Null
-                    } catch {
-                        Write-Warning ("Database import dispatcher invocation failed: {0}" -f $_.Exception.Message)
-                    }
+                    $uiContext = [System.Windows.Threading.DispatcherSynchronizationContext]::new([System.Windows.Application]::Current.Dispatcher)
                 } catch {
-                    try {
-                        $err = $_
-                        [System.Windows.Application]::Current.Dispatcher.BeginInvoke($applyDelegate, $err) | Out-Null
-                    } catch {
-                    }
-                } finally {
-                    try { if ($psCmd) { $psCmd.Commands.Clear() } } catch {}
-                    try { if ($psCmd) { $psCmd.Dispose() } } catch {}
-                    if ($heldLock -and $semaphore) {
-                        try { $semaphore.Release() } catch {}
-                    }
+                    $uiContext = $null
                 }
-            }.GetNewClosure()
+            }
+            if (-not $uiContext) {
+                throw "Database import cannot start: UI synchronization context unavailable."
+            }
 
-            $threadStart = [StateTrace.Threading.PowerShellThreadStartFactory]::Create($threadScript, $ps, ('DBImport-{0}' -f $requestId))
+            $threadTag = 'DBImport-{0}' -f $requestId
+            $threadStart = [StateTrace.Threading.PowerShellInvokeWithUiCallbackThreadStartFactory]::Create(
+                $ps,
+                $script:DatabaseImportRunspaceLock,
+                $uiContext,
+                $applyDelegate,
+                $threadTag
+            )
             $workerThread = [System.Threading.Thread]::new($threadStart)
+            $workerThread.IsBackground = $true
             $workerThread.ApartmentState = [System.Threading.ApartmentState]::STA
             $workerThread.Start()
         } catch {
@@ -2382,6 +2470,89 @@ return $res
             Write-Verbose ("Import-DeviceDetailsAsync: starting background thread for '{0}'" -f $hostTrim)
         }
         try { Write-Diag ("Import-DeviceDetailsAsync thread launching | Host={0}" -f $hostTrim) } catch {}
+
+        $uiContext = $null
+        try { $uiContext = [System.Threading.SynchronizationContext]::Current } catch { $uiContext = $null }
+        if (-not $uiContext) {
+            try {
+                $uiContext = [System.Windows.Threading.DispatcherSynchronizationContext]::new([System.Windows.Application]::Current.Dispatcher)
+            } catch {
+                $uiContext = $null
+            }
+        }
+        if (-not $uiContext) {
+            throw "Import-DeviceDetailsAsync cannot start: UI synchronization context unavailable."
+        }
+
+        $deviceHostForUi = $hostTrim
+        $uiCallback = {
+            param($dto)
+            try {
+                if (-not $dto -or ($dto -is [System.Management.Automation.ErrorRecord])) {
+                    if ($dto -and $dto.Exception) {
+                        Write-Warning ("Import-DeviceDetailsAsync error: {0}" -f $dto.Exception.Message)
+                        try { Write-Diag ("Import-DeviceDetailsAsync error detail | Host={0} | Error={1}" -f $deviceHostForUi, $dto.Exception.ToString()) } catch {}
+                    }
+
+                    try {
+                        if ($global:interfacesView) {
+                            $view = $global:interfacesView
+                            $grid = $view.FindName('InterfacesGrid')
+                            if ($grid) { $grid.ItemsSource = $null }
+                        }
+                    } catch { }
+
+                    $null = Invoke-OptionalCommandSafe -Name 'InterfaceModule\Hide-PortLoadingIndicator'
+                    $null = Invoke-OptionalCommandSafe -Name 'InterfaceModule\Set-HostLoadingIndicator' -Parameters @{ State = 'Hidden' }
+                    return
+                }
+
+                $defaultHost = $deviceHostForUi
+                try {
+                    if ($dto.PSObject.Properties['Summary'] -and $dto.Summary -and $dto.Summary.PSObject.Properties['Hostname']) {
+                        $candidate = ('' + $dto.Summary.Hostname).Trim()
+                        if (-not [string]::IsNullOrWhiteSpace($candidate)) { $defaultHost = $candidate }
+                    }
+                } catch { $defaultHost = $deviceHostForUi }
+
+                try {
+                    InterfaceModule\Set-InterfaceViewData -DeviceDetails $dto -DefaultHostname $defaultHost
+                } catch {
+                    try { Write-Diag ("InterfaceViewData failed | Host={0} | Error={1}" -f $defaultHost, $_.Exception.Message) } catch {}
+                }
+
+                try {
+                    $interfaces = $null
+                    if ($dto.PSObject.Properties['Interfaces']) { $interfaces = $dto.Interfaces }
+                    if ($interfaces) {
+                        if (-not (Get-Variable -Name DeviceInterfaceCache -Scope Global -ErrorAction SilentlyContinue)) {
+                            $global:DeviceInterfaceCache = @{}
+                        }
+                        $global:DeviceInterfaceCache[$deviceHostForUi] = $interfaces
+                    }
+                } catch { }
+
+                $null = Invoke-OptionalCommandSafe -Name 'InterfaceModule\Hide-PortLoadingIndicator'
+                $null = Invoke-OptionalCommandSafe -Name 'InterfaceModule\Set-HostLoadingIndicator' -Parameters @{ Hostname = $deviceHostForUi; State = 'Loaded' }
+                try { Request-DeviceFilterUpdate } catch { }
+            } catch {
+            }
+        }
+        $uiDelegate = [System.Action[object]]$uiCallback
+
+        $threadTag = $hostTrim
+        $threadStart = [StateTrace.Threading.PowerShellInvokeWithUiCallbackThreadStartFactory]::Create(
+            $ps,
+            $script:DeviceDetailsRunspaceLock,
+            $uiContext,
+            $uiDelegate,
+            $threadTag
+        )
+        $workerThread = [System.Threading.Thread]::new($threadStart)
+        $workerThread.IsBackground = $true
+        $workerThread.ApartmentState = [System.Threading.ApartmentState]::STA
+        $workerThread.Start()
+        return
         $diagPathLocal = $script:DiagLogPath
         $threadScript = {
             param([System.Management.Automation.PowerShell]$psCmd, [string]$deviceHost)

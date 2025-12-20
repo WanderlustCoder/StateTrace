@@ -3,6 +3,8 @@ param(
     [string]$RepositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')),
     [string]$Hostname = 'LABS-A01-AS-01',
     [int]$SampleCount = 5,
+    [int]$TimeoutSeconds = 20,
+    [int]$NoProgressTimeoutSeconds = 5,
     [switch]$PassThru,
     [switch]$AsJson
 )
@@ -30,6 +32,43 @@ if (-not (Test-Path -LiteralPath $moduleLoaderPath)) {
 Import-Module -Name $moduleLoaderPath -Force -ErrorAction Stop | Out-Null
 ModuleLoaderModule\Import-StateTraceModulesFromManifest -RepositoryRoot $repoRoot -Force | Out-Null
 
+function Resolve-SpanHost {
+    param([string]$PreferredHost)
+
+    if (-not [string]::IsNullOrWhiteSpace($PreferredHost)) {
+        return $PreferredHost
+    }
+
+    try {
+        $catalog = DeviceCatalogModule\Get-DeviceSummaries
+        if ($catalog -and $catalog.PSObject.Properties['Hostnames']) {
+            foreach ($candidate in @($catalog.Hostnames)) {
+                if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
+                $rows = DeviceRepositoryModule\Get-SpanningTreeInfo -Hostname $candidate
+                if ($rows -and @($rows).Count -gt 0) {
+                    return $candidate
+                }
+            }
+        }
+    } catch { }
+
+    $dbPaths = DeviceRepositoryModule\Get-AllSiteDbPaths
+    foreach ($dbPath in $dbPaths) {
+        try {
+            $hostname = (Split-Path -Leaf $dbPath) -replace '\.accdb$',''
+            if ([string]::IsNullOrWhiteSpace($hostname)) { continue }
+            $rows = DeviceRepositoryModule\Get-SpanningTreeInfo -Hostname $hostname
+            if ($rows -and @($rows).Count -gt 0) {
+                return $hostname
+            }
+        } catch { }
+    }
+
+    throw "Unable to locate a host with spanning-tree data. Provide -Hostname explicitly."
+}
+
+$targetHost = Resolve-SpanHost -PreferredHost $Hostname
+
 $windowXaml = @"
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -47,7 +86,7 @@ $reader = New-Object System.Xml.XmlTextReader (New-Object System.IO.StringReader
 $window = [Windows.Markup.XamlReader]::Load($reader)
 
 SpanViewModule\New-SpanView -Window $window -ScriptDir $mainDir
-SpanViewModule\Get-SpanInfo -Hostname $Hostname
+SpanViewModule\Get-SpanInfo -Hostname $targetHost
 $window.Show()
 
 function Invoke-DispatcherPump {
@@ -64,15 +103,48 @@ function Invoke-DispatcherPump {
     [System.Windows.Threading.Dispatcher]::PushFrame($frame)
 }
 
-Invoke-DispatcherPump -Milliseconds 250
+function Get-SpanGridRowCount {
+    param([object]$Grid)
+
+    if (-not $Grid) { return 0 }
+    $gridRows = @()
+    if ($Grid.ItemsSource) {
+        foreach ($item in $Grid.ItemsSource) { $gridRows += $item }
+    } elseif ($Grid.Items) {
+        foreach ($item in $Grid.Items) { $gridRows += $item }
+    }
+    return $gridRows.Count
+}
+
+$timeoutMs = [Math]::Max(1000, ($TimeoutSeconds * 1000))
+$noProgressMs = if ($NoProgressTimeoutSeconds -gt 0) { [Math]::Max(1000, ($NoProgressTimeoutSeconds * 1000)) } else { 0 }
+$waitWatch = [System.Diagnostics.Stopwatch]::StartNew()
+$lastProgressMs = 0
+$lastCount = 0
+$spanView = $null
+$grid = $null
+
+while ($waitWatch.ElapsedMilliseconds -lt $timeoutMs) {
+    Invoke-DispatcherPump -Milliseconds 200
+    $spanView = $global:spanView
+    if ($spanView) {
+        $grid = $spanView.FindName('SpanGrid')
+    }
+    $currentCount = Get-SpanGridRowCount -Grid $grid
+    if ($currentCount -ne $lastCount) {
+        $lastCount = $currentCount
+        $lastProgressMs = $waitWatch.ElapsedMilliseconds
+    }
+    if ($currentCount -gt 0) { break }
+    if ($noProgressMs -gt 0 -and ($waitWatch.ElapsedMilliseconds - $lastProgressMs) -ge $noProgressMs) { break }
+}
+
 $window.Hide()
 
-$spanView = $global:spanView
 if (-not $spanView) {
     throw "Span view failed to load; global spanView is null."
 }
 
-$grid = $spanView.FindName('SpanGrid')
 if (-not $grid) {
     throw "Span grid control not found in rendered view."
 }
@@ -122,7 +194,7 @@ $moduleInfo = InModuleScope SpanViewModule {
 $snapshot = SpanViewModule\Get-SpanViewSnapshot -IncludeRows -SampleCount $SampleCount
 
 $result = [pscustomobject]@{
-    Hostname         = $Hostname
+    Hostname         = $targetHost
     GridRowCount     = $gridRowCount
     SnapshotRowCount = $snapshot.RowCount
     SnapshotCached   = $snapshot.CachedRowCount

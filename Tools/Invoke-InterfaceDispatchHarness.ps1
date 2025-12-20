@@ -40,7 +40,9 @@ param(
     [int]$ChunkSize = 0,
     [double]$QueueDelayWarningMs = 120,
     [double]$QueueDelayCriticalMs = 200,
-    [switch]$SkipQueueDelayCheck
+    [switch]$SkipQueueDelayCheck,
+    [int]$TimeoutSeconds = 30,
+    [int]$NoProgressTimeoutSeconds = 5
 )
 
 Set-StrictMode -Version Latest
@@ -88,16 +90,29 @@ $collection = New-Object 'System.Collections.ObjectModel.ObservableCollection[ob
 
 Write-HarnessVerbose ("[Harness] Beginning dispatcher loop for '{0}'." -f $cleanHost)
 
+$timeoutMs = [Math]::Max(1000, ($TimeoutSeconds * 1000))
+$noProgressMs = if ($NoProgressTimeoutSeconds -gt 0) { [Math]::Max(1000, ($NoProgressTimeoutSeconds * 1000)) } else { 0 }
+$streamWatch = [System.Diagnostics.Stopwatch]::StartNew()
+$lastProgressMs = 0
+
 while ($true) {
+    if ($streamWatch.ElapsedMilliseconds -ge $timeoutMs) {
+        throw ("[Harness] Timed out after {0} seconds while streaming '{1}'." -f $TimeoutSeconds, $cleanHost)
+    }
+
     $batch = DeviceRepositoryModule\Get-InterfacePortBatch -Hostname $cleanHost
     if (-not $batch) {
         $status = $null
         try { $status = DeviceRepositoryModule\Get-InterfacePortStreamStatus -Hostname $cleanHost } catch { $status = $null }
         if ($status -and $status.Completed) { break }
+        if ($noProgressMs -gt 0 -and ($streamWatch.ElapsedMilliseconds - $lastProgressMs) -ge $noProgressMs) {
+            throw ("[Harness] Stalled for {0} seconds without batch progress (Hostname: {1})." -f $NoProgressTimeoutSeconds, $cleanHost)
+        }
         Start-Sleep -Milliseconds 100
         continue
     }
 
+    $lastProgressMs = $streamWatch.ElapsedMilliseconds
     $portItems = $batch.Ports
     if (-not ($portItems -is [System.Collections.ICollection])) {
         $portItems = @($portItems)

@@ -2,6 +2,8 @@
 param(
     [string]$RepositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')),
     [string]$Hostname,
+    [int]$TimeoutSeconds = 30,
+    [int]$NoProgressTimeoutSeconds = 5,
     [switch]$PassThru
 )
 
@@ -101,13 +103,39 @@ if (-not $collection) {
     $dto.Interfaces = $collection
 }
 
-DeviceRepositoryModule\Initialize-InterfacePortStream -Hostname $targetHost
-while ($true) {
-    $batch = DeviceRepositoryModule\Get-InterfacePortBatch -Hostname $targetHost
-    if (-not $batch) { break }
-    foreach ($row in @($batch.Ports)) {
-        $collection.Add($row) | Out-Null
+$timeoutMs = [Math]::Max(1000, ($TimeoutSeconds * 1000))
+$noProgressMs = if ($NoProgressTimeoutSeconds -gt 0) { [Math]::Max(1000, ($NoProgressTimeoutSeconds * 1000)) } else { 0 }
+$streamWatch = [System.Diagnostics.Stopwatch]::StartNew()
+$lastProgressMs = 0
+
+try {
+    DeviceRepositoryModule\Initialize-InterfacePortStream -Hostname $targetHost
+    while ($true) {
+        if ($streamWatch.ElapsedMilliseconds -ge $timeoutMs) {
+            throw "InterfacesView smoke test timed out after $TimeoutSeconds seconds for host '$targetHost'."
+        }
+
+        $batch = DeviceRepositoryModule\Get-InterfacePortBatch -Hostname $targetHost
+        if (-not $batch) {
+            $status = $null
+            try { $status = DeviceRepositoryModule\Get-InterfacePortStreamStatus -Hostname $targetHost } catch { $status = $null }
+            if ($status -and -not $status.Completed) {
+                if ($noProgressMs -gt 0 -and ($streamWatch.ElapsedMilliseconds - $lastProgressMs) -ge $noProgressMs) {
+                    throw "InterfacesView smoke test stalled for $NoProgressTimeoutSeconds seconds without batch progress (host '$targetHost')."
+                }
+                Start-Sleep -Milliseconds 100
+                continue
+            }
+            break
+        }
+
+        $lastProgressMs = $streamWatch.ElapsedMilliseconds
+        foreach ($row in @($batch.Ports)) {
+            $collection.Add($row) | Out-Null
+        }
     }
+} finally {
+    try { DeviceRepositoryModule\Clear-InterfacePortStream -Hostname $targetHost } catch { }
 }
 
 $grid = $global:interfacesGrid

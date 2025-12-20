@@ -38,7 +38,7 @@ function New-SearchInterfacesView {
             # reset the globally scoped search box so the handler always works
             $global:searchBox.Text = ''
             & $requestSearchUpdate
-        })
+        }.GetNewClosure())
     }
     # Text changed triggers debounced search filtering.  A DispatcherTimer is
     if ($searchBox) {
@@ -59,11 +59,11 @@ function New-SearchInterfacesView {
         $regexCheckbox.Add_Checked({
             DeviceInsightsModule\Set-SearchRegexEnabled -Enabled:$true
             & $requestSearchUpdate
-        })
+        }.GetNewClosure())
         $regexCheckbox.Add_Unchecked({
             DeviceInsightsModule\Set-SearchRegexEnabled -Enabled:$false
             & $requestSearchUpdate
-        })
+        }.GetNewClosure())
     }
     # Export button writes current search results to CSV
     if ($exportBtn) {
@@ -71,7 +71,7 @@ function New-SearchInterfacesView {
             if (-not $searchGrid) { return }
             $rows = $searchGrid.ItemsSource
             ViewCompositionModule\Export-StRowsToCsv -Rows $rows -DefaultFileName 'SearchResults.csv' -EmptyMessage 'No results to export.' -SuccessNoun 'rows' -FailureMessagePrefix 'Failed to export'
-        })
+        }.GetNewClosure())
     }
     # Status and Auth filter dropdowns refresh the grid.  Use the same
     $restartSearchDebounce = {
@@ -81,16 +81,16 @@ function New-SearchInterfacesView {
         } else {
             & $requestSearchUpdate
         }
-    }
+    }.GetNewClosure()
     if ($statusFilter) {
         $statusFilter.Add_SelectionChanged({
             & $restartSearchDebounce
-        })
+        }.GetNewClosure())
     }
     if ($authFilter) {
         $authFilter.Add_SelectionChanged({
             & $restartSearchDebounce
-        })
+        }.GetNewClosure())
     }
     # Delay heavy site-wide load until the user searches.
     if ($searchGrid) { $searchGrid.ItemsSource = @() }

@@ -6,8 +6,14 @@ param(
     [switch]$SkipUnusedExportLint,
     [string[]]$UnusedExportAllowlist = @(),
     [switch]$SkipSpanHarness,
-    [string]$SpanHostname = 'LABS-A01-AS-01',
+    [string]$SpanHostname = '',
     [int]$SpanSampleCount = 5,
+    [switch]$SkipSearchAlertsHarness,
+    [string[]]$SearchAlertsHostnames = @(),
+    [string[]]$SearchAlertsSiteFilter = @(),
+    [int]$SearchAlertsMaxHosts = 3,
+    [int]$SearchAlertsTimeoutSeconds = 20,
+    [switch]$SearchAlertsRequireAlerts,
     [switch]$SkipNetOpsLint,
     [switch]$RequireNetOpsEvidence,
     [string]$NetOpsSessionLogPath,
@@ -129,6 +135,64 @@ try {
         $results += $spanSummary
         if ($spanResult.SnapshotRowCount -le 0) {
             throw "Span harness found zero rows for host $SpanHostname."
+        }
+    }
+
+    if (-not $SkipSearchAlertsHarness) {
+        Write-Host "===> Running Search/Alerts smoke harness" -ForegroundColor Cyan
+        $searchHarnessPath = Join-Path $repoRoot 'Tools\Invoke-SearchAlertsSmokeTest.ps1'
+        if (-not (Test-Path -LiteralPath $searchHarnessPath)) {
+            throw "Search/Alerts harness missing at $searchHarnessPath"
+        }
+
+        $searchArgs = @(
+            '-NoLogo', '-STA',
+            '-File', $searchHarnessPath,
+            '-RepositoryRoot', $repoRoot,
+            '-PassThru',
+            '-AsJson',
+            '-ForceExit',
+            '-TimeoutSeconds', $SearchAlertsTimeoutSeconds,
+            '-MaxHosts', $SearchAlertsMaxHosts
+        )
+        if ($SearchAlertsHostnames -and $SearchAlertsHostnames.Count -gt 0) {
+            $searchArgs += '-Hostnames'
+            $searchArgs += $SearchAlertsHostnames
+        }
+        if ($SearchAlertsSiteFilter -and $SearchAlertsSiteFilter.Count -gt 0) {
+            $searchArgs += '-SiteFilter'
+            $searchArgs += $SearchAlertsSiteFilter
+        }
+        if ($SearchAlertsRequireAlerts) {
+            $searchArgs += '-RequireAlerts'
+        }
+
+        $json = & pwsh.exe @searchArgs
+        $searchExit = $LASTEXITCODE
+        if ($searchExit -ne 0) {
+            throw ("Search/Alerts harness failed with exit code {0}: {1}" -f $searchExit, ($json -join [Environment]::NewLine))
+        }
+        if (-not $json) {
+            throw "Search/Alerts harness returned no data."
+        }
+
+        $jsonLine = $json | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Last 1
+        if (-not $jsonLine) {
+            throw "Search/Alerts harness did not return JSON output."
+        }
+
+        $searchResult = $jsonLine | ConvertFrom-Json
+        $results += [pscustomobject]@{
+            Check       = 'SearchAlertsHarness'
+            Hosts       = $searchResult.HostsAttempted
+            SearchCount = $searchResult.SearchCount
+            AlertsCount = $searchResult.AlertsCount
+            SearchBound = [bool]$searchResult.SearchResultsBound
+            AlertsBound = [bool]$searchResult.AlertsResultsBound
+        }
+
+        if (-not $searchResult.Success) {
+            throw "Search/Alerts harness reported failure."
         }
     }
 

@@ -166,6 +166,23 @@ Describe "DeviceInsightsModule view aggregation" {
         $results[0].Name | Should Be 'Sensor'
     }
 
+    It "sorts search results by port order within a host" {
+        Mock -ModuleName DeviceInsightsModule -CommandName 'FilterStateModule\Get-SelectedLocation' {
+            [pscustomobject]@{ Site = 'All Sites'; Zone = 'All Zones'; Building = $null; Room = $null }
+        }
+        $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
+        $global:AllInterfaces.Add([pscustomobject]@{ Hostname = 'SITE1-Z1-SW1'; Status = 'up'; AuthState = 'authorized'; Port = 'E 1/1/10'; Name = 'Port10' }) | Out-Null
+        $global:AllInterfaces.Add([pscustomobject]@{ Hostname = 'SITE1-Z1-SW1'; Status = 'up'; AuthState = 'authorized'; Port = 'E1/1/2'; Name = 'Port2' }) | Out-Null
+        $global:AllInterfaces.Add([pscustomobject]@{ Hostname = 'SITE1-Z1-SW1'; Status = 'up'; AuthState = 'authorized'; Port = 'E 1/1/1'; Name = 'Port1' }) | Out-Null
+
+        $results = DeviceInsightsModule\Update-SearchResults -Term ''
+
+        $results.Count | Should Be 3
+        $results[0].Port | Should Be 'E 1/1/1'
+        $results[1].Port | Should Be 'E1/1/2'
+        $results[2].Port | Should Be 'E 1/1/10'
+    }
+
     It "updates summary counters from the global interface list" {
         Mock -ModuleName DeviceInsightsModule -CommandName 'FilterStateModule\Get-SelectedLocation' {
             [pscustomobject]@{ Site = 'All Sites'; Zone = 'All Zones'; Building = $null; Room = $null }
@@ -215,6 +232,23 @@ Describe "DeviceInsightsModule view aggregation" {
         $global:AlertsList[0].Reason | Should Match 'Half duplex'
         $global:AlertsList[0].Reason | Should Match 'Unauthorized'
         $alerts.Grid.ItemsSource | Should Be $global:AlertsList
+    }
+
+    It "sorts alert rows by port order within a host" {
+        Mock -ModuleName DeviceInsightsModule -CommandName 'FilterStateModule\Get-SelectedLocation' {
+            [pscustomobject]@{ Site = 'All Sites'; Zone = 'All Zones'; Building = $null; Room = $null }
+        }
+        $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
+        $global:AllInterfaces.Add([pscustomobject]@{ Hostname = 'SITE4-Z1-SW4'; Status = 'down'; Duplex = 'half'; AuthState = 'unauthorized'; Port = 'E 1/1/10'; Name = 'Port10'; VLAN = '30' }) | Out-Null
+        $global:AllInterfaces.Add([pscustomobject]@{ Hostname = 'SITE4-Z1-SW4'; Status = 'down'; Duplex = 'half'; AuthState = 'unauthorized'; Port = 'E1/1/2'; Name = 'Port2'; VLAN = '30' }) | Out-Null
+        $global:AllInterfaces.Add([pscustomobject]@{ Hostname = 'SITE4-Z1-SW4'; Status = 'down'; Duplex = 'half'; AuthState = 'unauthorized'; Port = 'E 1/1/1'; Name = 'Port1'; VLAN = '30' }) | Out-Null
+
+        DeviceInsightsModule\Update-Alerts
+
+        $global:AlertsList.Count | Should Be 3
+        $global:AlertsList[0].Port | Should Be 'E 1/1/1'
+        $global:AlertsList[1].Port | Should Be 'E1/1/2'
+        $global:AlertsList[2].Port | Should Be 'E 1/1/10'
     }
 
     It "refreshes the search grid and primes interface data when empty" {

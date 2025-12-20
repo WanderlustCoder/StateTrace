@@ -4,6 +4,8 @@ param(
     [string[]]$Hostnames,
     [string[]]$SiteFilter = @(),
     [int]$MaxHosts = 12,
+    [int]$HostTimeoutSeconds = 30,
+    [int]$NoProgressTimeoutSeconds = 5,
     [string]$OutputPath,
     [string]$SummaryPath,
     [switch]$PassThru
@@ -201,7 +203,12 @@ function Resolve-TargetHosts {
 }
 
 function Invoke-InterfacesViewForHost {
-    param([string]$Hostname, [Windows.Window]$Window)
+    param(
+        [string]$Hostname,
+        [Windows.Window]$Window,
+        [int]$TimeoutSeconds = 30,
+        [int]$NoProgressTimeoutSeconds = 5
+    )
 
     $statusText = $Window.FindName('StatusText')
     if ($statusText) {
@@ -236,6 +243,9 @@ function Invoke-InterfacesViewForHost {
         if ($grid) { $grid.ItemsSource = $collection }
     }
 
+    $timeoutMs = [Math]::Max(1000, ($TimeoutSeconds * 1000))
+    $noProgressMs = if ($NoProgressTimeoutSeconds -gt 0) { [Math]::Max(1000, ($NoProgressTimeoutSeconds * 1000)) } else { 0 }
+
     try {
         DeviceRepositoryModule\Initialize-InterfacePortStream -Hostname $Hostname | Out-Null
     } catch {
@@ -246,33 +256,46 @@ function Invoke-InterfacesViewForHost {
     $batches = 0
     $portsAppended = 0
     $watch = [System.Diagnostics.Stopwatch]::StartNew()
-    while ($true) {
-        $batch = $null
-        try { $batch = DeviceRepositoryModule\Get-InterfacePortBatch -Hostname $Hostname } catch { $batch = $null }
-        if (-not $batch) {
-            $status = $null
-            try { $status = DeviceRepositoryModule\Get-InterfacePortStreamStatus -Hostname $Hostname } catch {}
-            if ($status -and -not $status.Completed) {
-                Start-Sleep -Milliseconds 50
-                continue
+    $lastProgressMs = 0
+
+    try {
+        while ($true) {
+            if ($watch.ElapsedMilliseconds -ge $timeoutMs) {
+                throw "Interfaces checklist timed out after $TimeoutSeconds seconds for host '$Hostname'."
             }
-            break
+
+            $batch = $null
+            try { $batch = DeviceRepositoryModule\Get-InterfacePortBatch -Hostname $Hostname } catch { $batch = $null }
+            if (-not $batch) {
+                $status = $null
+                try { $status = DeviceRepositoryModule\Get-InterfacePortStreamStatus -Hostname $Hostname } catch {}
+                if ($status -and -not $status.Completed) {
+                    if ($noProgressMs -gt 0 -and ($watch.ElapsedMilliseconds - $lastProgressMs) -ge $noProgressMs) {
+                        throw "Interfaces checklist stalled for $NoProgressTimeoutSeconds seconds without batch progress (host '$Hostname')."
+                    }
+                    Start-Sleep -Milliseconds 50
+                    continue
+                }
+                break
+            }
+
+            $lastProgressMs = $watch.ElapsedMilliseconds
+            $portItems = $batch.Ports
+            if (-not ($portItems -is [System.Collections.IEnumerable])) {
+                $portItems = @($portItems)
+            }
+            $rows = @($portItems | Where-Object { $_ })
+            $dispatcher.Invoke([System.Action]{
+                foreach ($row in $rows) { $collection.Add($row) }
+            })
+            $portsAppended += $rows.Count
+            $batches++
+            if ($batch.Completed) { break }
         }
-        $portItems = $batch.Ports
-        if (-not ($portItems -is [System.Collections.IEnumerable])) {
-            $portItems = @($portItems)
-        }
-        $rows = @($portItems | Where-Object { $_ })
-        $dispatcher.Invoke([System.Action]{
-            foreach ($row in $rows) { $collection.Add($row) }
-        })
-        $portsAppended += $rows.Count
-        $batches++
-        if ($batch.Completed) { break }
+    } finally {
+        try { DeviceRepositoryModule\Clear-InterfacePortStream -Hostname $Hostname } catch {}
     }
     $watch.Stop()
-
-    try { DeviceRepositoryModule\Clear-InterfacePortStream -Hostname $Hostname } catch {}
 
     $interfaceCount = 0
     try { $interfaceCount = [int]$collection.Count } catch {}
@@ -319,7 +342,7 @@ for ($hostIndex = 0; $hostIndex -lt $targetHosts.Count; $hostIndex++) {
     $progressStatus = "Streaming {0} ({1}/{2})" -f $currentHost, ($hostIndex + 1), $targetHosts.Count
     Write-Progress -Activity "Interfaces view automation" -Status $progressStatus -PercentComplete $percentComplete
     Write-Host ("[InterfacesChecklist] {0}" -f $progressStatus) -ForegroundColor DarkCyan
-    $summary = Invoke-InterfacesViewForHost -Hostname $currentHost -Window $window
+    $summary = Invoke-InterfacesViewForHost -Hostname $currentHost -Window $window -TimeoutSeconds $HostTimeoutSeconds -NoProgressTimeoutSeconds $NoProgressTimeoutSeconds
     $results.Add($summary) | Out-Null
     if (-not $firstRenderMs -and $summary.Success) {
         $firstRenderMs = [Math]::Round($scriptWatch.Elapsed.TotalMilliseconds, 3)
