@@ -23,16 +23,6 @@ function Resolve-ExistingDirectory {
     return $resolved.Path
 }
 
-if ($MaxHours -lt 1) {
-    $MaxHours = 12
-}
-
-$netOpsDirResolved = Resolve-ExistingDirectory -PathValue $NetOpsDirectory -Description 'NetOps'
-if ([string]::IsNullOrWhiteSpace($ResetDirectory)) {
-    $ResetDirectory = Join-Path -Path $netOpsDirResolved -ChildPath 'Resets'
-}
-$resetDirResolved = Resolve-Path -LiteralPath $ResetDirectory -ErrorAction SilentlyContinue
-
 $allowNet = [Environment]::GetEnvironmentVariable('STATETRACE_AGENT_ALLOW_NET')
 $allowInstall = [Environment]::GetEnvironmentVariable('STATETRACE_AGENT_ALLOW_INSTALL')
 $onlineModeActive = $RequireEvidence.IsPresent -or `
@@ -63,6 +53,16 @@ if (-not $onlineModeActive) {
     }
     return
 }
+
+if ($MaxHours -lt 1) {
+    $MaxHours = 12
+}
+
+$netOpsDirResolved = Resolve-ExistingDirectory -PathValue $NetOpsDirectory -Description 'NetOps'
+if ([string]::IsNullOrWhiteSpace($ResetDirectory)) {
+    $ResetDirectory = Join-Path -Path $netOpsDirResolved -ChildPath 'Resets'
+}
+$resetDirResolved = Resolve-Path -LiteralPath $ResetDirectory -ErrorAction SilentlyContinue
 
 $threshold = (Get-Date).AddHours(-1 * $MaxHours)
 $generalLogs = Get-ChildItem -LiteralPath $netOpsDirResolved -Filter '*.json' -File -ErrorAction Stop |
