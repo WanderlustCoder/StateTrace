@@ -5953,26 +5953,9 @@ ORDER BY i.Hostname, i.Port
                     $portSortAdded = $portSortUniquePorts.Add($port)
                 }
 
-                $templateResolveStopwatch.Restart()
-
-                $tmplLookup = $null
-                if (-not $templateLookups.TryGetValue($vendor, [ref]$tmplLookup)) {
-                    $templatesStopwatch.Restart()
-                    $tmplLookup = script:Get-TemplateLookupForVendor -Vendor $vendor -TemplatesPath $templatesDir
-                    $templatesStopwatch.Stop()
-                    $templateLoadDuration += $templatesStopwatch.Elapsed.TotalMilliseconds
-                    $templateLookups[$vendor] = $tmplLookup
-                }
-
-                $vendorHintCache = $null
-                if (-not $templateHintCaches.TryGetValue($vendor, [ref]$vendorHintCache)) {
-                    $vendorHintCache = script:Get-TemplateHintCacheForVendor -Vendor $vendor -TemplatesPath $templatesDir
-                    $templateHintCaches[$vendor] = $vendorHintCache
-                }
-
                 $tipCore = ($tipVal.TrimEnd())
                 if (-not $tipCore) {
-                    if ($cfgVal -and ($cfgVal.Trim() -ne '')) {
+                    if (-not [string]::IsNullOrWhiteSpace($cfgVal)) {
                         $tipCore = "AuthTemplate: $authTmpl`r`n`r`n$cfgVal"
                     } elseif ($authTmpl) {
                         $tipCore = "AuthTemplate: $authTmpl"
@@ -5985,138 +5968,160 @@ ORDER BY i.Hostname, i.Port
                 $finalCfgStatus = $cfgStatVal
                 $hasPortColor = -not [string]::IsNullOrWhiteSpace($finalPortColor)
                 $hasCfgStatus = -not [string]::IsNullOrWhiteSpace($finalCfgStatus)
-                if ((-not $hasPortColor -or -not $hasCfgStatus) -and $cachedPortEntry -and ($cachedPortEntry -is [StateTrace.Models.InterfaceCacheEntry])) {
-                    $reuseTemplateMatches = $true
-                    if (-not [string]::IsNullOrWhiteSpace($authTmpl)) {
-                        try {
-                            if (-not [string]::IsNullOrWhiteSpace($cachedPortEntry.Template) -and -not [System.StringComparer]::OrdinalIgnoreCase.Equals($cachedPortEntry.Template, $authTmpl)) {
+                $needsTemplateResolution = (-not $hasPortColor -or -not $hasCfgStatus)
+                if ($needsTemplateResolution) {
+                    $templateResolveStopwatch.Restart()
+
+                    if ($cachedPortEntry -and ($cachedPortEntry -is [StateTrace.Models.InterfaceCacheEntry])) {
+                        $reuseTemplateMatches = $true
+                        if (-not [string]::IsNullOrWhiteSpace($authTmpl)) {
+                            try {
+                                if (-not [string]::IsNullOrWhiteSpace($cachedPortEntry.Template) -and -not [System.StringComparer]::OrdinalIgnoreCase.Equals($cachedPortEntry.Template, $authTmpl)) {
+                                    $reuseTemplateMatches = $false
+                                }
+                            } catch {
                                 $reuseTemplateMatches = $false
                             }
-                        } catch {
-                            $reuseTemplateMatches = $false
                         }
-                    }
-                    if ($reuseTemplateMatches) {
-                        $templateReuseApplied = $false
-                        if (-not $hasPortColor) {
-                            $cachedColor = ''
-                            try { $cachedColor = '' + $cachedPortEntry.PortColor } catch { $cachedColor = '' }
-                            if (-not [string]::IsNullOrWhiteSpace($cachedColor)) {
-                                $finalPortColor = $cachedColor
-                                $hasPortColor = -not [string]::IsNullOrWhiteSpace($finalPortColor)
-                                if ($hasPortColor) { $templateReuseApplied = $true }
-                            }
-                        }
-                        if (-not $hasCfgStatus) {
-                            $cachedStatus = ''
-                            if ($cachedPortEntry.PSObject.Properties.Name -contains 'StatusTag') {
-                                try { $cachedStatus = '' + $cachedPortEntry.StatusTag } catch { $cachedStatus = '' }
-                            } elseif ($cachedPortEntry.PSObject.Properties.Name -contains 'ConfigStatus') {
-                                try { $cachedStatus = '' + $cachedPortEntry.ConfigStatus } catch { $cachedStatus = '' }
-                            }
-                            if (-not [string]::IsNullOrWhiteSpace($cachedStatus)) {
-                                $finalCfgStatus = $cachedStatus
-                                $hasCfgStatus = -not [string]::IsNullOrWhiteSpace($finalCfgStatus)
-                                if ($hasCfgStatus) { $templateReuseApplied = $true }
-                            }
-                        }
-                        if ($templateReuseApplied) {
-                            $metrics.HydrationMaterializeTemplateReuseCount++
-                        }
-                    }
-                }
-                if (-not $hasPortColor -or -not $hasCfgStatus) {
-                    $templateApplyCandidateCount++
-                    $templateApplyStopwatch.Restart()
-                    $applyReason = 'Unknown'
-                    $hintSource = 'None'
-                    if ([string]::IsNullOrWhiteSpace($authTmpl)) {
-                        $templateApplyDefaultedCount++
-                        $templateApplyAuthTemplateMissingCount++
-                        $applyReason = 'NoAuthTemplate'
-                        if (-not $hasPortColor) { $finalPortColor = 'Gray' }
-                        if (-not $hasCfgStatus) { $finalCfgStatus = 'Unknown' }
-                    } else {
-                        $hint = $null
-                        $hintFromCache = $false
-                        $hintSource = 'Lookup'
-                        $templateLookupStopwatch.Restart()
-                        if ($vendorHintCache -and $vendorHintCache.TryGetValue($authTmpl, [ref]$hint)) {
-                            $hintFromCache = $true
-                            $hintSource = 'Cache'
-                        } else {
-                            $hint = [StateTrace.Models.InterfaceTemplateHint]::new()
-                            $match = $null
-                            if ($tmplLookup -and $tmplLookup -is [System.Collections.Generic.Dictionary[string,object]]) {
-                                $tmpMatch = $null
-                                if ($tmplLookup.TryGetValue($authTmpl, [ref]$tmpMatch)) { $match = $tmpMatch }
-                            } elseif ($tmplLookup -and $tmplLookup.ContainsKey($authTmpl)) {
-                                $match = $tmplLookup[$authTmpl]
-                            }
-
-                            $colorFromTemplate = 'Gray'
-                            if ($match) {
-                                try {
-                                    $colorProp = $match.PSObject.Properties['color']
-                                    if ($colorProp -and $colorProp.Value) { $colorFromTemplate = [string]$colorProp.Value }
-                                } catch {
-                                    $colorFromTemplate = 'Gray'
+                        if ($reuseTemplateMatches) {
+                            $templateReuseApplied = $false
+                            if (-not $hasPortColor) {
+                                $cachedColor = ''
+                                try { $cachedColor = '' + $cachedPortEntry.PortColor } catch { $cachedColor = '' }
+                                if (-not [string]::IsNullOrWhiteSpace($cachedColor)) {
+                                    $finalPortColor = $cachedColor
+                                    $hasPortColor = -not [string]::IsNullOrWhiteSpace($finalPortColor)
+                                    if ($hasPortColor) { $templateReuseApplied = $true }
                                 }
                             }
+                            if (-not $hasCfgStatus) {
+                                $cachedStatus = ''
+                                if ($cachedPortEntry.PSObject.Properties.Name -contains 'StatusTag') {
+                                    try { $cachedStatus = '' + $cachedPortEntry.StatusTag } catch { $cachedStatus = '' }
+                                } elseif ($cachedPortEntry.PSObject.Properties.Name -contains 'ConfigStatus') {
+                                    try { $cachedStatus = '' + $cachedPortEntry.ConfigStatus } catch { $cachedStatus = '' }
+                                }
+                                if (-not [string]::IsNullOrWhiteSpace($cachedStatus)) {
+                                    $finalCfgStatus = $cachedStatus
+                                    $hasCfgStatus = -not [string]::IsNullOrWhiteSpace($finalCfgStatus)
+                                    if ($hasCfgStatus) { $templateReuseApplied = $true }
+                                }
+                            }
+                            if ($templateReuseApplied) {
+                                $metrics.HydrationMaterializeTemplateReuseCount++
+                            }
+                        }
+                    }
 
-                            if ($match) {
-                                $hint.PortColor = $colorFromTemplate
-                                $hint.ConfigStatus = 'Match'
-                                $hint.HasTemplate = $true
-                            } else {
-                                $hint.PortColor = 'Gray'
-                                $hint.ConfigStatus = 'Mismatch'
-                                $hint.HasTemplate = $false
-                            }
-                            if ($vendorHintCache) {
-                                $vendorHintCache[$authTmpl] = $hint
-                            }
+                    if (-not $hasPortColor -or -not $hasCfgStatus) {
+                        $tmplLookup = $null
+                        if (-not $templateLookups.TryGetValue($vendor, [ref]$tmplLookup)) {
+                            $templatesStopwatch.Restart()
+                            $tmplLookup = script:Get-TemplateLookupForVendor -Vendor $vendor -TemplatesPath $templatesDir
+                            $templatesStopwatch.Stop()
+                            $templateLoadDuration += $templatesStopwatch.Elapsed.TotalMilliseconds
+                            $templateLookups[$vendor] = $tmplLookup
                         }
-                        $templateLookupStopwatch.Stop()
-                        $materializeTemplateLookupDuration += $templateLookupStopwatch.Elapsed.TotalMilliseconds
-                        if ($hintFromCache) {
-                            $templateHintCacheHitCount++
-                        } else {
-                            $templateHintCacheMissCount++
+
+                        $vendorHintCache = $null
+                        if (-not $templateHintCaches.TryGetValue($vendor, [ref]$vendorHintCache)) {
+                            $vendorHintCache = script:Get-TemplateHintCacheForVendor -Vendor $vendor -TemplatesPath $templatesDir
+                            $templateHintCaches[$vendor] = $vendorHintCache
                         }
-                        if ($hint -and $hint.HasTemplate) {
-                            $templateApplyHintAppliedCount++
-                            $applyReason = 'TemplateMatched'
-                        } else {
+
+                        $templateApplyCandidateCount++
+                        $templateApplyStopwatch.Restart()
+                        $applyReason = 'Unknown'
+                        $hintSource = 'None'
+                        if ([string]::IsNullOrWhiteSpace($authTmpl)) {
                             $templateApplyDefaultedCount++
-                            $templateApplyNoTemplateMatchCount++
-                            $applyReason = 'TemplateNotFound'
-                        }
+                            $templateApplyAuthTemplateMissingCount++
+                            $applyReason = 'NoAuthTemplate'
+                            if (-not $hasPortColor) { $finalPortColor = 'Gray' }
+                            if (-not $hasCfgStatus) { $finalCfgStatus = 'Unknown' }
+                        } else {
+                            $hint = $null
+                            $hintFromCache = $false
+                            $hintSource = 'Lookup'
+                            $templateLookupStopwatch.Restart()
+                            if ($vendorHintCache -and $vendorHintCache.TryGetValue($authTmpl, [ref]$hint)) {
+                                $hintFromCache = $true
+                                $hintSource = 'Cache'
+                            } else {
+                                $hint = [StateTrace.Models.InterfaceTemplateHint]::new()
+                                $match = $null
+                                if ($tmplLookup -and $tmplLookup -is [System.Collections.Generic.Dictionary[string,object]]) {
+                                    $tmpMatch = $null
+                                    if ($tmplLookup.TryGetValue($authTmpl, [ref]$tmpMatch)) { $match = $tmpMatch }
+                                } elseif ($tmplLookup -and $tmplLookup.ContainsKey($authTmpl)) {
+                                    $match = $tmplLookup[$authTmpl]
+                                }
 
-                        if (-not $hasPortColor) { $finalPortColor = $hint.PortColor }
-                        if (-not $hasCfgStatus) { $finalCfgStatus = $hint.ConfigStatus }
+                                $colorFromTemplate = 'Gray'
+                                if ($match) {
+                                    try {
+                                        $colorProp = $match.PSObject.Properties['color']
+                                        if ($colorProp -and $colorProp.Value) { $colorFromTemplate = [string]$colorProp.Value }
+                                    } catch {
+                                        $colorFromTemplate = 'Gray'
+                                    }
+                                }
+
+                                if ($match) {
+                                    $hint.PortColor = $colorFromTemplate
+                                    $hint.ConfigStatus = 'Match'
+                                    $hint.HasTemplate = $true
+                                } else {
+                                    $hint.PortColor = 'Gray'
+                                    $hint.ConfigStatus = 'Mismatch'
+                                    $hint.HasTemplate = $false
+                                }
+                                if ($vendorHintCache) {
+                                    $vendorHintCache[$authTmpl] = $hint
+                                }
+                            }
+                            $templateLookupStopwatch.Stop()
+                            $materializeTemplateLookupDuration += $templateLookupStopwatch.Elapsed.TotalMilliseconds
+                            if ($hintFromCache) {
+                                $templateHintCacheHitCount++
+                            } else {
+                                $templateHintCacheMissCount++
+                            }
+                            if ($hint -and $hint.HasTemplate) {
+                                $templateApplyHintAppliedCount++
+                                $applyReason = 'TemplateMatched'
+                            } else {
+                                $templateApplyDefaultedCount++
+                                $templateApplyNoTemplateMatchCount++
+                                $applyReason = 'TemplateNotFound'
+                            }
+
+                            if (-not $hasPortColor) { $finalPortColor = $hint.PortColor }
+                            if (-not $hasCfgStatus) { $finalCfgStatus = $hint.ConfigStatus }
+                        }
+                        if (-not $hasPortColor -and -not [string]::IsNullOrWhiteSpace($finalPortColor)) {
+                            $templateApplySetPortColorCount++
+                        }
+                        if (-not $hasCfgStatus -and -not [string]::IsNullOrWhiteSpace($finalCfgStatus)) {
+                            $templateApplySetConfigStatusCount++
+                        }
+                        if ($templateApplySamples.Count -lt $templateApplySampleLimit) {
+                            $templateApplySamples.Add([pscustomobject]@{
+                                Port            = $port
+                                AuthTemplate    = $authTmpl
+                                Reason          = $applyReason
+                                HintSource      = $hintSource
+                                PortColorSet    = (-not $hasPortColor)
+                                ConfigStatusSet = (-not $hasCfgStatus)
+                            }) | Out-Null
+                        }
+                        $templateApplyStopwatch.Stop()
+                        $materializeTemplateApplyDuration += $templateApplyStopwatch.Elapsed.TotalMilliseconds
                     }
-                    if (-not $hasPortColor -and -not [string]::IsNullOrWhiteSpace($finalPortColor)) {
-                        $templateApplySetPortColorCount++
-                    }
-                    if (-not $hasCfgStatus -and -not [string]::IsNullOrWhiteSpace($finalCfgStatus)) {
-                        $templateApplySetConfigStatusCount++
-                    }
-                    if ($templateApplySamples.Count -lt $templateApplySampleLimit) {
-                        $templateApplySamples.Add([pscustomobject]@{
-                            Port            = $port
-                            AuthTemplate    = $authTmpl
-                            Reason          = $applyReason
-                            HintSource      = $hintSource
-                            PortColorSet    = (-not $hasPortColor)
-                            ConfigStatusSet = (-not $hasCfgStatus)
-                        }) | Out-Null
-                    }
-                    $templateApplyStopwatch.Stop()
-                    $materializeTemplateApplyDuration += $templateApplyStopwatch.Elapsed.TotalMilliseconds
+
+                    $templateResolveStopwatch.Stop()
+                    $materializeTemplateDuration += $templateResolveStopwatch.Elapsed.TotalMilliseconds
                 }
-        $templateResolveStopwatch.Stop()
-        $materializeTemplateDuration += $templateResolveStopwatch.Elapsed.TotalMilliseconds
 
         $cacheSignature = ConvertTo-InterfaceCacheSignature -Values @(
             $name,
