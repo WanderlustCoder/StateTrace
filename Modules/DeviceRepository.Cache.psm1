@@ -89,6 +89,26 @@ if (-not (Get-Variable -Scope Script -Name SharedSiteInterfaceCacheKey -ErrorAct
 if (-not (Get-Variable -Scope Script -Name SharedSiteInterfaceCache -ErrorAction SilentlyContinue)) {
     $script:SharedSiteInterfaceCache = $null
 }
+if (-not (Get-Variable -Scope Script -Name SharedSiteInterfaceCacheEventLock -ErrorAction SilentlyContinue)) {
+    $script:SharedSiteInterfaceCacheEventLock = New-Object object
+}
+
+function Invoke-SharedSiteInterfaceCacheEventLock {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][ScriptBlock]$ScriptBlock
+    )
+
+    $lockTaken = $false
+    try {
+        [System.Threading.Monitor]::Enter($script:SharedSiteInterfaceCacheEventLock, [ref]$lockTaken)
+        & $ScriptBlock
+    } finally {
+        if ($lockTaken) {
+            [System.Threading.Monitor]::Exit($script:SharedSiteInterfaceCacheEventLock)
+        }
+    }
+}
 
 function Publish-SharedSiteInterfaceCacheStoreState {
     param(
@@ -128,10 +148,12 @@ function Publish-SharedSiteInterfaceCacheStoreState {
         TimestampUtc   = (Get-Date).ToUniversalTime()
     }
 
-    try {
-        $global:SharedSiteInterfaceCacheEvents += $entry
-    } catch {
-        $global:SharedSiteInterfaceCacheEvents = @($entry)
+    Invoke-SharedSiteInterfaceCacheEventLock {
+        try {
+            $global:SharedSiteInterfaceCacheEvents += $entry
+        } catch {
+            $global:SharedSiteInterfaceCacheEvents = @($entry)
+        }
     }
 }
 
@@ -155,10 +177,12 @@ function Publish-SharedSiteInterfaceCacheClearInvocation {
         Reason         = $Reason
     }
 
-    try {
-        $global:SharedSiteInterfaceCacheClearEvents += $item
-    } catch {
-        $global:SharedSiteInterfaceCacheClearEvents = @($item)
+    Invoke-SharedSiteInterfaceCacheEventLock {
+        try {
+            $global:SharedSiteInterfaceCacheClearEvents += $item
+        } catch {
+            $global:SharedSiteInterfaceCacheClearEvents = @($item)
+        }
     }
 }
 
@@ -735,10 +759,12 @@ function Publish-SharedSiteInterfaceCacheEvent {
         TimestampUtc = (Get-Date).ToUniversalTime()
     }
 
-    try {
-        $global:SharedSiteInterfaceCacheEvents += $entry
-    } catch {
-        $global:SharedSiteInterfaceCacheEvents = @($entry)
+    Invoke-SharedSiteInterfaceCacheEventLock {
+        try {
+            $global:SharedSiteInterfaceCacheEvents += $entry
+        } catch {
+            $global:SharedSiteInterfaceCacheEvents = @($entry)
+        }
     }
 }
 

@@ -172,6 +172,26 @@ if (-not (Get-Variable -Scope Script -Name TelemetryWriteMutex -ErrorAction Sile
 if (-not (Get-Variable -Scope Script -Name TelemetryWriteMutexPath -ErrorAction SilentlyContinue)) {
     $script:TelemetryWriteMutexPath = $null
 }
+if (-not (Get-Variable -Scope Script -Name TelemetryBufferLock -ErrorAction SilentlyContinue)) {
+    $script:TelemetryBufferLock = New-Object object
+}
+
+function Invoke-TelemetryBufferLock {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][ScriptBlock]$ScriptBlock
+    )
+
+    $lockTaken = $false
+    try {
+        [System.Threading.Monitor]::Enter($script:TelemetryBufferLock, [ref]$lockTaken)
+        & $ScriptBlock
+    } finally {
+        if ($lockTaken) {
+            [System.Threading.Monitor]::Exit($script:TelemetryBufferLock)
+        }
+    }
+}
 
 function Flush-TelemetryBuffer {
     [CmdletBinding()]
@@ -179,14 +199,18 @@ function Flush-TelemetryBuffer {
         [Parameter(Mandatory)][string]$Path
     )
 
-    if (-not $script:TelemetryBuffer -or $script:TelemetryBuffer.Count -le 0) { return }
-
-    $lines = $script:TelemetryBuffer.ToArray()
-    if (-not $lines -or $lines.Count -le 0) { return }
+    $lines = $null
 
     $mutex = $null
     $lockAcquired = $false
+    $bufferLockTaken = $false
     try {
+        [System.Threading.Monitor]::Enter($script:TelemetryBufferLock, [ref]$bufferLockTaken)
+        if (-not $script:TelemetryBuffer -or $script:TelemetryBuffer.Count -le 0) { return }
+
+        $lines = $script:TelemetryBuffer.ToArray()
+        if (-not $lines -or $lines.Count -le 0) { return }
+
         if (-not $script:TelemetryWriteMutex -or -not $script:TelemetryWriteMutexPath -or -not [string]::Equals($script:TelemetryWriteMutexPath, $Path, [System.StringComparison]::OrdinalIgnoreCase)) {
             if ($script:TelemetryWriteMutex) {
                 try { $script:TelemetryWriteMutex.Dispose() } catch { }
@@ -208,6 +232,9 @@ function Flush-TelemetryBuffer {
         $script:TelemetryBuffer.Clear()
         $script:TelemetryBufferLastFlushUtc = [DateTime]::UtcNow
     } finally {
+        if ($bufferLockTaken) {
+            [System.Threading.Monitor]::Exit($script:TelemetryBufferLock)
+        }
         if ($mutex) {
             if ($lockAcquired) {
                 try { $mutex.ReleaseMutex() } catch { }
@@ -232,10 +259,16 @@ function Write-StTelemetryEvent {
     $json = ($evt | ConvertTo-Json -Depth 6 -Compress)
     $path = Get-TelemetryLogPath
 
-    if (-not $script:TelemetryBuffer) {
-        $script:TelemetryBuffer = [System.Collections.Generic.List[string]]::new()
+    $bufferCount = 0
+    $elapsedSeconds = $null
+    Invoke-TelemetryBufferLock {
+        if (-not $script:TelemetryBuffer) {
+            $script:TelemetryBuffer = [System.Collections.Generic.List[string]]::new()
+        }
+        $script:TelemetryBuffer.Add($json) | Out-Null
+        try { $bufferCount = $script:TelemetryBuffer.Count } catch { $bufferCount = 0 }
+        try { $elapsedSeconds = ([DateTime]::UtcNow - $script:TelemetryBufferLastFlushUtc).TotalSeconds } catch { $elapsedSeconds = $null }
     }
-    $script:TelemetryBuffer.Add($json) | Out-Null
 
     $flushNow = $false
     $pesterLoaded = $false
@@ -243,17 +276,14 @@ function Write-StTelemetryEvent {
 
     if ($pesterLoaded) {
         $flushNow = $true
-    } elseif ($script:TelemetryBuffer.Count -ge $script:TelemetryBufferFlushThreshold) {
+    } elseif ($bufferCount -ge $script:TelemetryBufferFlushThreshold) {
         $flushNow = $true
     } elseif ($Name -eq 'ParseDuration' -or $Name -eq 'SkippedDuplicate') {
         $flushNow = $true
     } else {
-        try {
-            $elapsedSeconds = ([DateTime]::UtcNow - $script:TelemetryBufferLastFlushUtc).TotalSeconds
-            if ($elapsedSeconds -ge 5) {
-                $flushNow = $true
-            }
-        } catch { }
+        if ($elapsedSeconds -ge 5) {
+            $flushNow = $true
+        }
     }
 
     if ($flushNow) {
