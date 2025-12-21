@@ -140,6 +140,7 @@ Describe "ParserWorker auto-scaling" {
             $script:telemetryEvents = @()
             $existingTelemetry = Get-Command -Name Write-StTelemetryEvent -Module TelemetryModule -ErrorAction SilentlyContinue
             $originalTelemetry = $null
+            $originalChunkSetter = $null
             if ($existingTelemetry) { $originalTelemetry = $existingTelemetry.ScriptBlock }
 
             try {
@@ -247,6 +248,7 @@ Describe "ParserWorker auto-scaling" {
             $script:telemetryEvents = @()
             $existingTelemetry = Get-Command -Name Write-StTelemetryEvent -Module TelemetryModule -ErrorAction SilentlyContinue
             $originalTelemetry = $null
+            $originalChunkSetter = $null
             if ($existingTelemetry) { $originalTelemetry = $existingTelemetry.ScriptBlock }
 
             try {
@@ -350,6 +352,7 @@ Describe "ParserWorker auto-scaling" {
             $script:telemetryEvents = @()
             $existingTelemetry = Get-Command -Name Write-StTelemetryEvent -Module TelemetryModule -ErrorAction SilentlyContinue
             $originalTelemetry = $null
+            $originalChunkSetter = $null
             if ($existingTelemetry) { $originalTelemetry = $existingTelemetry.ScriptBlock }
 
             try {
@@ -441,6 +444,7 @@ Describe "ParserWorker auto-scaling" {
             $script:telemetryEvents = @()
             $existingTelemetry = Get-Command -Name Write-StTelemetryEvent -Module TelemetryModule -ErrorAction SilentlyContinue
             $originalTelemetry = $null
+            $originalChunkSetter = $null
             if ($existingTelemetry) { $originalTelemetry = $existingTelemetry.ScriptBlock }
 
             try {

@@ -30,6 +30,41 @@ if (-not (Get-Variable -Scope Global -Name DeviceLocationEntries -ErrorAction Si
 
 try { TelemetryModule\Import-InterfaceCommon | Out-Null } catch { }
 
+function script:Set-GlobalInterfaces {
+    [CmdletBinding()]
+    param([object]$Interfaces)
+
+    try {
+        DeviceRepositoryModule\Invoke-InterfaceCacheLock { $global:AllInterfaces = $Interfaces }
+    } catch {
+        $global:AllInterfaces = $Interfaces
+    }
+}
+
+function script:Get-InterfaceCacheHasEntries {
+    [CmdletBinding()]
+    param()
+
+    $hasInterfaceCache = $false
+    try {
+        $hasInterfaceCache = [bool](DeviceRepositoryModule\Invoke-InterfaceCacheLock {
+            $cacheProbe = $global:DeviceInterfaceCache
+            return ($cacheProbe -is [System.Collections.IDictionary] -and $cacheProbe.Count -gt 0)
+        })
+    } catch {
+        try {
+            $cacheProbe = $global:DeviceInterfaceCache
+            if ($cacheProbe -is [System.Collections.IDictionary] -and $cacheProbe.Count -gt 0) {
+                $hasInterfaceCache = $true
+            }
+        } catch {
+            $hasInterfaceCache = $false
+        }
+    }
+
+    return $hasInterfaceCache
+}
+
 function Get-SelectedLocation {
     [CmdletBinding()]
     param([object]$Window = $global:window)
@@ -284,7 +319,7 @@ function Initialize-DeviceFilters {
 
     # Avoid hydrating interfaces during filter initialization; Update-DeviceFilter (and the Search view)
     # will populate the global interface snapshot when needed. This keeps large device sets responsive.
-    $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
+    script:Set-GlobalInterfaces -Interfaces ([System.Collections.Generic.List[object]]::new())
 
     try {
         $searchHostCtrl = $Window.FindName('SearchInterfacesHost')
@@ -649,10 +684,10 @@ function Update-DeviceFilter {
             if (-not $refreshInterfacesForViews) {
                 # Defer expensive interface snapshot work until a tab that consumes it is visible.
                 # Clear any previously-loaded snapshot so Summary/Search/Alerts lazily reload for the new context.
-                $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
+                script:Set-GlobalInterfaces -Interfaces ([System.Collections.Generic.List[object]]::new())
             } elseif ($insightsAsyncCmd) {
                 # Keep the UI thread responsive: defer interface hydration to the Insights worker when available.
-                $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
+                script:Set-GlobalInterfaces -Interfaces ([System.Collections.Generic.List[object]]::new())
                 try {
                     $diagDefer = "Update-DeviceFilter deferred interface refresh to Insights worker | Site='{0}', Zone='{1}', Building='{2}', Room='{3}'" -f $finalSite, $finalZone, $finalBuilding, $finalRoom
                     try { Write-Diag $diagDefer } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $diagDefer } catch { }
@@ -667,18 +702,14 @@ function Update-DeviceFilter {
                         $allSitesSelected = $true
                     }
 
-                    $hasInterfaceCache = $false
-                    try {
-                        $cacheProbe = $global:DeviceInterfaceCache
-                        if ($cacheProbe -is [System.Collections.IDictionary] -and $cacheProbe.Count -gt 0) { $hasInterfaceCache = $true }
-                    } catch { $hasInterfaceCache = $false }
+                    $hasInterfaceCache = script:Get-InterfaceCacheHasEntries
 
                     if ($allSitesSelected -and -not $hasInterfaceCache) {
                         # Avoid hydrating every site database during Load-from-DB when no interface cache is present.
                         # Users can select a specific site (or run a scan) to populate interfaces.
-                        $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
+                        script:Set-GlobalInterfaces -Interfaces ([System.Collections.Generic.List[object]]::new())
                     } else {
-                        $global:AllInterfaces = ViewStateService\Get-InterfacesForContext -Site $finalSite -ZoneSelection $finalZone -ZoneToLoad $zoneToLoad -Building $finalBuilding -Room $finalRoom
+                        script:Set-GlobalInterfaces -Interfaces (ViewStateService\Get-InterfacesForContext -Site $finalSite -ZoneSelection $finalZone -ZoneToLoad $zoneToLoad -Building $finalBuilding -Room $finalRoom)
                     }
                     $refreshDurationMs = 0.0
                     if ($refreshStopwatch) {
@@ -686,7 +717,7 @@ function Update-DeviceFilter {
                         try { $refreshDurationMs = [math]::Round($refreshStopwatch.Elapsed.TotalMilliseconds, 3) } catch { $refreshDurationMs = 0.0 }
                     }
                     if (-not $global:AllInterfaces) {
-                        $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
+                        script:Set-GlobalInterfaces -Interfaces ([System.Collections.Generic.List[object]]::new())
                     }
 
                     try {
@@ -696,11 +727,11 @@ function Update-DeviceFilter {
                         try { Write-Diag $diagRefresh } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $diagRefresh } catch { }
                     } catch { }
                 } catch {
-                    $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
+                    script:Set-GlobalInterfaces -Interfaces ([System.Collections.Generic.List[object]]::new())
                 }
             }
         } elseif (-not $interfacesAllowed) {
-            $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
+            script:Set-GlobalInterfaces -Interfaces ([System.Collections.Generic.List[object]]::new())
         }
 
         $canUpdateSummary = $false

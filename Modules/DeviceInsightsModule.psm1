@@ -65,6 +65,37 @@ function script:Get-InterfaceSetPortRowDefaultsCommand {
     return $cmd
 }
 
+function script:Get-InsightsInterfacesSnapshot {
+    [CmdletBinding()]
+    param()
+
+    $snapshot = $null
+    try {
+        $snapshot = @(DeviceRepositoryModule\Invoke-InterfaceCacheLock {
+            if ($global:AllInterfaces) {
+                return @($global:AllInterfaces)
+            }
+            return @()
+        })
+    } catch {
+        try { $snapshot = @($global:AllInterfaces) } catch { $snapshot = $null }
+    }
+
+    if ($null -eq $snapshot) { $snapshot = @() }
+    return $snapshot
+}
+
+function script:Set-InsightsInterfacesSnapshot {
+    [CmdletBinding()]
+    param([object]$Interfaces)
+
+    try {
+        DeviceRepositoryModule\Invoke-InterfaceCacheLock { $global:AllInterfaces = $Interfaces }
+    } catch {
+        $global:AllInterfaces = $Interfaces
+    }
+}
+
 function Write-InsightsDebug {
     [CmdletBinding()]
     param([string]$Message)
@@ -320,9 +351,12 @@ function Update-SearchResults {
     if ($PSBoundParameters.ContainsKey('Interfaces') -and $Interfaces) {
         $interfaces = $Interfaces
     } else {
-        try { $interfaces = $global:AllInterfaces } catch { $interfaces = $null }
+        $interfaces = script:Get-InsightsInterfacesSnapshot
     }
     try { $interfaceCount = ViewStateService\Get-SequenceCount -Value $interfaces } catch { $interfaceCount = 0 }
+    if ($interfaceCount -le 0 -and $interfaces) {
+        try { $interfaceCount = @($interfaces).Count } catch { $interfaceCount = 0 }
+    }
     if ($interfaceCount -le 0) {
         $interfaces = ViewStateService\Get-InterfacesForContext -Site $siteSel -ZoneSelection $zoneSel -ZoneToLoad $zoneToLoad -Building $bldSel -Room $roomSel
     }
@@ -389,7 +423,11 @@ function Update-SearchResults {
         [void]$results.Add($row)
     }
 
-    return ,(script:New-InsightsSortedList -Rows $results)
+    $sortedResults = script:New-InsightsSortedList -Rows $results
+    if ($null -eq $sortedResults) {
+        $sortedResults = [System.Collections.Generic.List[object]]::new()
+    }
+    return ,$sortedResults
 }
 
 function Update-Summary {
@@ -416,9 +454,12 @@ function Update-Summary {
     if ($PSBoundParameters.ContainsKey('Interfaces') -and $Interfaces) {
         $interfaces = $Interfaces
     } else {
-        try { $interfaces = $global:AllInterfaces } catch { $interfaces = $null }
+        $interfaces = script:Get-InsightsInterfacesSnapshot
     }
     try { $interfaceCount = ViewStateService\Get-SequenceCount -Value $interfaces } catch { $interfaceCount = 0 }
+    if ($interfaceCount -le 0 -and $interfaces) {
+        try { $interfaceCount = @($interfaces).Count } catch { $interfaceCount = 0 }
+    }
     if ($interfaceCount -le 0) {
         script:Update-DeviceInsightsSiteZoneCache -Site $siteSel -ZoneToLoad $zoneToLoad
         $interfaces = ViewStateService\Get-InterfacesForContext -Site $siteSel -ZoneSelection $zoneSel -ZoneToLoad $zoneToLoad -Building $bldSel -Room $roomSel
@@ -467,7 +508,7 @@ function Update-Summary {
         } catch {}
     }
 
-    $global:AllInterfaces = $interfaces
+    script:Set-InsightsInterfacesSnapshot -Interfaces $interfaces
 
     $deviceSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
     foreach ($row in $interfaces) {
@@ -551,9 +592,12 @@ function Update-Alerts {
     if ($PSBoundParameters.ContainsKey('Interfaces') -and $Interfaces) {
         $interfaces = $Interfaces
     } else {
-        try { $interfaces = $global:AllInterfaces } catch { $interfaces = $null }
+        $interfaces = script:Get-InsightsInterfacesSnapshot
     }
     try { $interfaceCount = ViewStateService\Get-SequenceCount -Value $interfaces } catch { $interfaceCount = 0 }
+    if ($interfaceCount -le 0 -and $interfaces) {
+        try { $interfaceCount = @($interfaces).Count } catch { $interfaceCount = 0 }
+    }
     if ($interfaceCount -le 0) {
         script:Update-DeviceInsightsSiteZoneCache -Site $siteSel -ZoneToLoad $zoneToLoad
         $interfaces = ViewStateService\Get-InterfacesForContext -Site $siteSel -ZoneSelection $zoneSel -ZoneToLoad $zoneToLoad -Building $bldSel -Room $roomSel
@@ -938,7 +982,11 @@ function script:Ensure-InsightsWorker {
                         }
 
                         # Ensure we only keep rows for the current request scope.
-                        $global:DeviceInterfaceCache = @{}
+                        try {
+                            DeviceRepositoryModule\Invoke-InterfaceCacheLock { $global:DeviceInterfaceCache = [hashtable]::Synchronized(@{}) }
+                        } catch {
+                            $global:DeviceInterfaceCache = [hashtable]::Synchronized(@{})
+                        }
 
                         $loadStopwatch = $null
                         try { $loadStopwatch = [System.Diagnostics.Stopwatch]::StartNew() } catch { $loadStopwatch = $null }
@@ -974,7 +1022,20 @@ function script:Ensure-InsightsWorker {
                         foreach ($hnValue in $orderedHosts) {
                             if ([string]::IsNullOrWhiteSpace($hnValue)) { continue }
                             $rows = $null
-                            try { $rows = $global:DeviceInterfaceCache[$hnValue] } catch { $rows = $null }
+                            try {
+                                $rows = DeviceRepositoryModule\Invoke-InterfaceCacheLock {
+                                    if ($global:DeviceInterfaceCache -and $global:DeviceInterfaceCache.ContainsKey($hnValue)) {
+                                        return @($global:DeviceInterfaceCache[$hnValue])
+                                    }
+                                    return $null
+                                }
+                            } catch {
+                                try {
+                                    if ($global:DeviceInterfaceCache -and $global:DeviceInterfaceCache.ContainsKey($hnValue)) {
+                                        $rows = @($global:DeviceInterfaceCache[$hnValue])
+                                    }
+                                } catch { $rows = $null }
+                            }
                             if (-not $rows) { continue }
                             foreach ($row in $rows) {
                                 if (-not $row) { continue }
@@ -1328,11 +1389,14 @@ function Update-InsightsAsync {
         if ($PSBoundParameters.ContainsKey('Interfaces') -and $Interfaces) {
             $interfacesSnapshot = $Interfaces
         } else {
-            try { $interfacesSnapshot = $global:AllInterfaces } catch { $interfacesSnapshot = $null }
+            $interfacesSnapshot = script:Get-InsightsInterfacesSnapshot
         }
 
         $ifaceCount = 0
         try { $ifaceCount = ViewStateService\Get-SequenceCount -Value $interfacesSnapshot } catch { $ifaceCount = 0 }
+        if ($ifaceCount -le 0 -and $interfacesSnapshot) {
+            try { $ifaceCount = @($interfacesSnapshot).Count } catch { $ifaceCount = 0 }
+        }
         if ($ifaceCount -le 0) {
             Write-Verbose '[DeviceInsights] Interfaces not allowed yet; skipping async insights refresh.'
             return
@@ -1360,11 +1424,14 @@ function Update-InsightsAsync {
     if ($PSBoundParameters.ContainsKey('Interfaces') -and $Interfaces) {
         $interfacesToUse = $Interfaces
     } else {
-        try { $interfacesToUse = $global:AllInterfaces } catch { $interfacesToUse = $null }
+        $interfacesToUse = script:Get-InsightsInterfacesSnapshot
     }
 
     $ifaceCount = 0
     try { $ifaceCount = ViewStateService\Get-SequenceCount -Value $interfacesToUse } catch { $ifaceCount = 0 }
+    if ($ifaceCount -le 0 -and $interfacesToUse) {
+        try { $ifaceCount = @($interfacesToUse).Count } catch { $ifaceCount = 0 }
+    }
 
     $context = $null
     try { $context = script:Get-DeviceInsightsFilterContext } catch { $context = $null }
@@ -1539,7 +1606,7 @@ function Update-InsightsAsync {
             $loadedInterfaces = $null
             try { if ($state.PSObject.Properties['Interfaces']) { $loadedInterfaces = $state.Interfaces } } catch { $loadedInterfaces = $null }
             if ($loadedInterfaces -and $applyDerived) {
-                try { $global:AllInterfaces = $loadedInterfaces } catch { }
+                try { script:Set-InsightsInterfacesSnapshot -Interfaces $loadedInterfaces } catch { }
                 try {
                     $loadMs = $null
                     $loadSite = ''

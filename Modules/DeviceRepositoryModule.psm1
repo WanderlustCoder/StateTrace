@@ -47,6 +47,34 @@ try {
     Write-Verbose ("DeviceRepository.Access could not be imported: {0}" -f $_.Exception.Message)
 }
 
+if (-not (Get-Variable -Scope Global -Name InterfaceCacheLock -ErrorAction SilentlyContinue)) {
+    $global:InterfaceCacheLock = New-Object object
+}
+
+function Invoke-InterfaceCacheLock {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][ScriptBlock]$ScriptBlock
+    )
+
+    $lockTaken = $false
+    $lockObject = $null
+    try { $lockObject = $global:InterfaceCacheLock } catch { $lockObject = $null }
+    if (-not $lockObject) {
+        $lockObject = New-Object object
+        try { $global:InterfaceCacheLock = $lockObject } catch { }
+    }
+
+    try {
+        [System.Threading.Monitor]::Enter($lockObject, [ref]$lockTaken)
+        & $ScriptBlock
+    } finally {
+        if ($lockTaken) {
+            [System.Threading.Monitor]::Exit($lockObject)
+        }
+    }
+}
+
 function Get-DataDirectoryPath {
     [CmdletBinding()]
     param()
@@ -319,7 +347,15 @@ function Ensure-SharedSiteInterfaceCacheSnapshotImported {
 }
 
 if (-not (Get-Variable -Scope Script -Name SiteInterfaceCache -ErrorAction SilentlyContinue)) {
-    $script:SiteInterfaceCache = @{}
+    $script:SiteInterfaceCache = [hashtable]::Synchronized(@{})
+} else {
+    try {
+        if ($script:SiteInterfaceCache -is [hashtable] -and -not $script:SiteInterfaceCache.IsSynchronized) {
+            $script:SiteInterfaceCache = [hashtable]::Synchronized($script:SiteInterfaceCache)
+        }
+    } catch {
+        $script:SiteInterfaceCache = [hashtable]::Synchronized(@{})
+    }
 }
 
 if (-not (Get-Variable -Scope Script -Name SiteInterfaceSignatureCache -ErrorAction SilentlyContinue)) {
@@ -1718,7 +1754,15 @@ function Set-SharedSiteInterfaceCacheEntry {
 }
 
 if (-not (Get-Variable -Scope Global -Name DeviceInterfaceCache -ErrorAction SilentlyContinue)) {
-    $global:DeviceInterfaceCache = @{}
+    $global:DeviceInterfaceCache = [hashtable]::Synchronized(@{})
+} else {
+    try {
+        if ($global:DeviceInterfaceCache -is [hashtable] -and -not $global:DeviceInterfaceCache.IsSynchronized) {
+            $global:DeviceInterfaceCache = [hashtable]::Synchronized($global:DeviceInterfaceCache)
+        }
+    } catch {
+        $global:DeviceInterfaceCache = [hashtable]::Synchronized(@{})
+    }
 }
 
 if (-not (Get-Variable -Scope Global -Name AllInterfaces -ErrorAction SilentlyContinue)) {
@@ -2320,9 +2364,17 @@ function Clear-SiteInterfaceCache {
 
     try { DeviceRepository.Cache\Clear-SharedSiteInterfaceCache -Reason $Reason } catch { }
 
-    try { $script:SiteInterfaceCache = @{} } catch { Set-Variable -Name SiteInterfaceCache -Scope Script -Value @{} }
-    try { $script:SiteInterfaceSignatureCache = @{} } catch { Set-Variable -Name SiteInterfaceSignatureCache -Scope Script -Value @{} }
-    try { $script:InterfaceCacheHydrationTracker = @{} } catch { Set-Variable -Name InterfaceCacheHydrationTracker -Scope Script -Value @{} }
+    try {
+        Invoke-InterfaceCacheLock {
+            $script:SiteInterfaceCache = [hashtable]::Synchronized(@{})
+            $script:SiteInterfaceSignatureCache = @{}
+            $script:InterfaceCacheHydrationTracker = @{}
+        }
+    } catch {
+        try { $script:SiteInterfaceCache = [hashtable]::Synchronized(@{}) } catch { Set-Variable -Name SiteInterfaceCache -Scope Script -Value ([hashtable]::Synchronized(@{})) }
+        try { $script:SiteInterfaceSignatureCache = @{} } catch { Set-Variable -Name SiteInterfaceSignatureCache -Scope Script -Value @{} }
+        try { $script:InterfaceCacheHydrationTracker = @{} } catch { Set-Variable -Name InterfaceCacheHydrationTracker -Scope Script -Value @{} }
+    }
     $script:LastInterfaceSiteCacheMetrics = $null
 
     try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::ClearSnapshot() } catch { }
@@ -4806,11 +4858,13 @@ function Update-SiteZoneCache {
 
     if (-not $hostNames -or $hostNames.Count -eq 0) { return }
 
-    if (-not $global:DeviceInterfaceCache) { $global:DeviceInterfaceCache = @{} }
     $missingHosts = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
-    foreach ($hn in $hostNames) {
-        if (-not $global:DeviceInterfaceCache.ContainsKey($hn)) {
-            [void]$missingHosts.Add($hn)
+    Invoke-InterfaceCacheLock {
+        if (-not $global:DeviceInterfaceCache) { $global:DeviceInterfaceCache = [hashtable]::Synchronized(@{}) }
+        foreach ($hn in $hostNames) {
+            if (-not $global:DeviceInterfaceCache.ContainsKey($hn)) {
+                [void]$missingHosts.Add($hn)
+            }
         }
     }
 
@@ -4916,23 +4970,27 @@ function Update-SiteZoneCache {
                 [void]$newRows.Add($rowObj)
             }
 
-            foreach ($hn in $missingHosts) {
-                $bucket = $null
-                if ($hostBuckets.TryGetValue($hn, [ref]$bucket)) {
-                    $global:DeviceInterfaceCache[$hn] = $bucket
-                } else {
-                    $global:DeviceInterfaceCache[$hn] = [System.Collections.Generic.List[object]]::new()
+            Invoke-InterfaceCacheLock {
+                if (-not $global:DeviceInterfaceCache) { $global:DeviceInterfaceCache = [hashtable]::Synchronized(@{}) }
+                foreach ($hn in $missingHosts) {
+                    $bucket = $null
+                    if ($hostBuckets.TryGetValue($hn, [ref]$bucket)) {
+                        $global:DeviceInterfaceCache[$hn] = $bucket
+                    } else {
+                        $global:DeviceInterfaceCache[$hn] = [System.Collections.Generic.List[object]]::new()
+                    }
                 }
-            }
 
-            if ($newRows.Count -gt 0) {
-                try {
+                if ($newRows.Count -gt 0) {
                     if (-not $global:AllInterfaces) {
                         $global:AllInterfaces = $newRows
                     } else {
-                        foreach ($r in $newRows) { [void]$global:AllInterfaces.Add($r) }
+                        $merged = [System.Collections.Generic.List[object]]::new()
+                        foreach ($r in $global:AllInterfaces) { [void]$merged.Add($r) }
+                        foreach ($r in $newRows) { [void]$merged.Add($r) }
+                        $global:AllInterfaces = $merged
                     }
-                } catch { }
+                }
             }
 
             return
@@ -4944,8 +5002,11 @@ function Update-SiteZoneCache {
     }
 
     if (-not $siteRows) {
-        foreach ($hn in $missingHosts) {
-            $global:DeviceInterfaceCache[$hn] = [System.Collections.Generic.List[object]]::new()
+        Invoke-InterfaceCacheLock {
+            if (-not $global:DeviceInterfaceCache) { $global:DeviceInterfaceCache = [hashtable]::Synchronized(@{}) }
+            foreach ($hn in $missingHosts) {
+                $global:DeviceInterfaceCache[$hn] = [System.Collections.Generic.List[object]]::new()
+            }
         }
         return
     }
@@ -4971,23 +5032,27 @@ function Update-SiteZoneCache {
         [void]$newRows.Add($row)
     }
 
-    foreach ($hn in $missingHosts) {
-        $bucket = $null
-        if ($hostBuckets.TryGetValue($hn, [ref]$bucket)) {
-            $global:DeviceInterfaceCache[$hn] = $bucket
-        } else {
-            $global:DeviceInterfaceCache[$hn] = [System.Collections.Generic.List[object]]::new()
+    Invoke-InterfaceCacheLock {
+        if (-not $global:DeviceInterfaceCache) { $global:DeviceInterfaceCache = [hashtable]::Synchronized(@{}) }
+        foreach ($hn in $missingHosts) {
+            $bucket = $null
+            if ($hostBuckets.TryGetValue($hn, [ref]$bucket)) {
+                $global:DeviceInterfaceCache[$hn] = $bucket
+            } else {
+                $global:DeviceInterfaceCache[$hn] = [System.Collections.Generic.List[object]]::new()
+            }
         }
-    }
 
-    if ($newRows.Count -gt 0) {
-        try {
+        if ($newRows.Count -gt 0) {
             if (-not $global:AllInterfaces) {
                 $global:AllInterfaces = $newRows
             } else {
-                foreach ($r in $newRows) { [void]$global:AllInterfaces.Add($r) }
+                $merged = [System.Collections.Generic.List[object]]::new()
+                foreach ($r in $global:AllInterfaces) { [void]$merged.Add($r) }
+                foreach ($r in $newRows) { [void]$merged.Add($r) }
+                $global:AllInterfaces = $merged
             }
-        } catch { }
+        }
     }
 }
 
@@ -5007,8 +5072,6 @@ function Update-HostInterfaceCache {
     }
 
     if (-not $Hostnames -or $Hostnames.Count -eq 0) { return }
-
-    if (-not $global:DeviceInterfaceCache) { $global:DeviceInterfaceCache = @{} }
 
     $targetHosts = [System.Collections.Generic.List[string]]::new()
     $seenHosts = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
@@ -5037,9 +5100,12 @@ function Update-HostInterfaceCache {
     if ($targetHosts.Count -eq 0) { return }
 
     $missingHosts = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
-    foreach ($hostname in $targetHosts) {
-        if (-not $global:DeviceInterfaceCache.ContainsKey($hostname)) {
-            [void]$missingHosts.Add($hostname)
+    Invoke-InterfaceCacheLock {
+        if (-not $global:DeviceInterfaceCache) { $global:DeviceInterfaceCache = [hashtable]::Synchronized(@{}) }
+        foreach ($hostname in $targetHosts) {
+            if (-not $global:DeviceInterfaceCache.ContainsKey($hostname)) {
+                [void]$missingHosts.Add($hostname)
+            }
         }
     }
     if ($missingHosts.Count -eq 0) { return }
@@ -5047,8 +5113,11 @@ function Update-HostInterfaceCache {
     $dbPath = $null
     try { $dbPath = Get-DbPathForSite -Site $siteValue } catch { $dbPath = $null }
     if ([string]::IsNullOrWhiteSpace($dbPath)) {
-        foreach ($hn in $missingHosts) {
-            $global:DeviceInterfaceCache[$hn] = [System.Collections.Generic.List[object]]::new()
+        Invoke-InterfaceCacheLock {
+            if (-not $global:DeviceInterfaceCache) { $global:DeviceInterfaceCache = [hashtable]::Synchronized(@{}) }
+            foreach ($hn in $missingHosts) {
+                $global:DeviceInterfaceCache[$hn] = [System.Collections.Generic.List[object]]::new()
+            }
         }
         return
     }
@@ -5063,8 +5132,11 @@ function Update-HostInterfaceCache {
     }
 
     if ($hostBatchData -eq $null) {
-        foreach ($hn in $missingHosts) {
-            $global:DeviceInterfaceCache[$hn] = [System.Collections.Generic.List[object]]::new()
+        Invoke-InterfaceCacheLock {
+            if (-not $global:DeviceInterfaceCache) { $global:DeviceInterfaceCache = [hashtable]::Synchronized(@{}) }
+            foreach ($hn in $missingHosts) {
+                $global:DeviceInterfaceCache[$hn] = [System.Collections.Generic.List[object]]::new()
+            }
         }
         return
     }
@@ -5151,12 +5223,15 @@ function Update-HostInterfaceCache {
         [void]$bucket.Add($rowObj)
     }
 
-    foreach ($hn in $missingHosts) {
-        $bucket = $null
-        if ($hostBuckets.TryGetValue($hn, [ref]$bucket)) {
-            $global:DeviceInterfaceCache[$hn] = $bucket
-        } else {
-            $global:DeviceInterfaceCache[$hn] = [System.Collections.Generic.List[object]]::new()
+    Invoke-InterfaceCacheLock {
+        if (-not $global:DeviceInterfaceCache) { $global:DeviceInterfaceCache = [hashtable]::Synchronized(@{}) }
+        foreach ($hn in $missingHosts) {
+            $bucket = $null
+            if ($hostBuckets.TryGetValue($hn, [ref]$bucket)) {
+                $global:DeviceInterfaceCache[$hn] = $bucket
+            } else {
+                $global:DeviceInterfaceCache[$hn] = [System.Collections.Generic.List[object]]::new()
+            }
         }
     }
 }
@@ -5201,8 +5276,21 @@ function Get-GlobalInterfaceSnapshot {
         $zoneLoadFilter = $zoneLoadValue
     }
 
+    $cacheEntries = [System.Collections.Generic.List[object]]::new()
+    $populateCacheEntries = {
+        $cacheEntries.Clear()
+        Invoke-InterfaceCacheLock {
+            if ($global:DeviceInterfaceCache) {
+                foreach ($kv in $global:DeviceInterfaceCache.GetEnumerator()) {
+                    [void]$cacheEntries.Add($kv)
+                }
+            }
+        }
+    }
+
     if ([string]::IsNullOrWhiteSpace($siteValue) -or [System.StringComparer]::OrdinalIgnoreCase.Equals($siteValue, 'All Sites')) {
-        foreach ($kv in $global:DeviceInterfaceCache.GetEnumerator()) {
+        & $populateCacheEntries
+        foreach ($kv in $cacheEntries) {
             if ($zoneSelectionFilter -or $zoneLoadFilter) {
                 $zoneTarget = if ($zoneSelectionFilter) { $zoneSelectionFilter } else { $zoneLoadFilter }
                 $hostname = '' + $kv.Key
@@ -5217,7 +5305,8 @@ function Get-GlobalInterfaceSnapshot {
     } else {
         $loadArg = $zoneLoadValue
         try { Update-SiteZoneCache -Site $siteValue -Zone $loadArg | Out-Null } catch {}
-        foreach ($kv in $global:DeviceInterfaceCache.GetEnumerator()) {
+        & $populateCacheEntries
+        foreach ($kv in $cacheEntries) {
             $hostname = $kv.Key
             $rows = $kv.Value
             if (-not $rows) { continue }
@@ -5307,11 +5396,12 @@ function Update-GlobalInterfaceList {
     )
 
     $snapshot = Get-GlobalInterfaceSnapshot @PSBoundParameters
-    if ($snapshot -and $snapshot.Length -gt 0) {
-        $global:AllInterfaces = [System.Collections.Generic.List[object]]::new($snapshot)
+    $updatedList = if ($snapshot -and $snapshot.Length -gt 0) {
+        [System.Collections.Generic.List[object]]::new($snapshot)
     } else {
-        $global:AllInterfaces = [System.Collections.Generic.List[object]]::new()
+        [System.Collections.Generic.List[object]]::new()
     }
+    Invoke-InterfaceCacheLock { $global:AllInterfaces = $updatedList }
     return $global:AllInterfaces
 }
 
@@ -5394,20 +5484,26 @@ function Get-InterfacesForSite {
 
     $hydrationDetail = & $newHydrationMetrics $siteCode 'Unknown' 0 $false
 
+    $entry = $null
     try {
-        if ($script:SiteInterfaceCache.ContainsKey($siteCode)) {
-            $entry = $script:SiteInterfaceCache[$siteCode]
-            if ($entry -and $entry.PSObject.Properties['List'] -and $entry.PSObject.Properties['DbTime']) {
-                $dbPath = Get-DbPathForSite -Site $siteCode
-                $currentTime = $null
-                try { $currentTime = (Get-Item -LiteralPath $dbPath).LastWriteTime } catch {}
-                if ($currentTime -and ($entry.DbTime -eq $currentTime)) {
-                    $hydrationDetail.Provider = 'Cache'
-                    $hydrationDetail.ResultRowCount = if ($entry.List) { [int]$entry.List.Count } else { 0 }
-                    $hydrationDetail.Succeeded = $true
-                    $script:LastInterfaceSiteHydrationMetrics = $hydrationDetail
-                    return $entry.List
-                }
+        Invoke-InterfaceCacheLock {
+            if ($script:SiteInterfaceCache -and $script:SiteInterfaceCache.ContainsKey($siteCode)) {
+                $entry = $script:SiteInterfaceCache[$siteCode]
+            }
+        }
+    } catch { $entry = $null }
+
+    try {
+        if ($entry -and $entry.PSObject.Properties['List'] -and $entry.PSObject.Properties['DbTime']) {
+            $dbPath = Get-DbPathForSite -Site $siteCode
+            $currentTime = $null
+            try { $currentTime = (Get-Item -LiteralPath $dbPath).LastWriteTime } catch {}
+            if ($currentTime -and ($entry.DbTime -eq $currentTime)) {
+                $hydrationDetail.Provider = 'Cache'
+                $hydrationDetail.ResultRowCount = if ($entry.List) { [int]$entry.List.Count } else { 0 }
+                $hydrationDetail.Succeeded = $true
+                $script:LastInterfaceSiteHydrationMetrics = $hydrationDetail
+                return $entry.List
             }
         }
     } catch {}
@@ -6251,9 +6347,12 @@ ORDER BY i.Hostname, i.Port
     $dbTime = $null
     try { $dbTime = (Get-Item -LiteralPath $dbFile).LastWriteTime } catch {}
     try {
-        $script:SiteInterfaceCache[$siteCode] = [PSCustomObject]@{
-            List   = $rows
-            DbTime = $dbTime
+        Invoke-InterfaceCacheLock {
+            if (-not $script:SiteInterfaceCache) { $script:SiteInterfaceCache = [hashtable]::Synchronized(@{}) }
+            $script:SiteInterfaceCache[$siteCode] = [PSCustomObject]@{
+                List   = $rows
+                DbTime = $dbTime
+            }
         }
     } catch {}
     if ($hydrationDetail.QueryAttempts -le 0 -and -not [System.StringComparer]::OrdinalIgnoreCase.Equals($hydrationDetail.Provider, 'Cache')) {
@@ -6285,9 +6384,17 @@ function Get-InterfaceInfo {
         # that intentionally omit config payloads like ToolTip/Config.  For Get-InterfaceInfo callers (Compare view, device details),
         # treat those entries as a cache miss so we hydrate full records from Access on demand.
         $cachedFallback = $null
+        $cached = $null
         try {
-            if ($global:DeviceInterfaceCache -and $global:DeviceInterfaceCache.ContainsKey($Hostname)) {
-                $cached = $global:DeviceInterfaceCache[$Hostname]
+            Invoke-InterfaceCacheLock {
+                if ($global:DeviceInterfaceCache -and $global:DeviceInterfaceCache.ContainsKey($Hostname)) {
+                    $cached = $global:DeviceInterfaceCache[$Hostname]
+                }
+            }
+        } catch { $cached = $null }
+
+        try {
+            if ($cached) {
                 $cachedCount = 0
                 if ($cached -is [System.Collections.ICollection]) {
                     try { $cachedCount = [int]$cached.Count } catch { $cachedCount = 0 }
@@ -6426,22 +6533,24 @@ function Get-InterfaceInfo {
             }
             # Update the global cache with the loaded objects for this host.
             try {
-                if (-not $global:DeviceInterfaceCache) { $global:DeviceInterfaceCache = @{} }
-                $listCache = [System.Collections.Generic.List[object]]::new()
-                if ($objs) {
-                    foreach ($o in $objs) { [void]$listCache.Add($o) }
-                }
-                $global:DeviceInterfaceCache[$Hostname] = $listCache
-                $hydrated = $listCache.Count -gt 0
-                try {
-                    if ($hydrated) {
-                        $script:InterfaceCacheHydrationTracker[$Hostname] = $true
-                    } else {
-                        $script:InterfaceCacheHydrationTracker.Remove($Hostname) | Out-Null
+                Invoke-InterfaceCacheLock {
+                    if (-not $global:DeviceInterfaceCache) { $global:DeviceInterfaceCache = [hashtable]::Synchronized(@{}) }
+                    $listCache = [System.Collections.Generic.List[object]]::new()
+                    if ($objs) {
+                        foreach ($o in $objs) { [void]$listCache.Add($o) }
                     }
-                } catch {
-                    $script:InterfaceCacheHydrationTracker = @{}
-                    if ($hydrated) { $script:InterfaceCacheHydrationTracker[$Hostname] = $true }
+                    $global:DeviceInterfaceCache[$Hostname] = $listCache
+                    $hydrated = $listCache.Count -gt 0
+                    try {
+                        if ($hydrated) {
+                            $script:InterfaceCacheHydrationTracker[$Hostname] = $true
+                        } else {
+                            $script:InterfaceCacheHydrationTracker.Remove($Hostname) | Out-Null
+                        }
+                    } catch {
+                        $script:InterfaceCacheHydrationTracker = @{}
+                        if ($hydrated) { $script:InterfaceCacheHydrationTracker[$Hostname] = $true }
+                    }
                 }
             } catch {}
             return $objs
@@ -6798,4 +6907,4 @@ function Get-SpanningTreeInfo {
     return $list.ToArray()
 }
 
-Export-ModuleMember -Function Get-DataDirectoryPath, Get-SiteFromHostname, Get-DbPathForSite, Get-DbPathForHost, Get-AllSiteDbPaths, Clear-SiteInterfaceCache, Get-InterfaceSiteCache, Get-InterfaceSiteCacheSummary, Get-SharedSiteInterfaceCacheStore, Get-SharedSiteInterfaceCacheEntry, Set-InterfaceSiteCacheHost, Get-InterfacePortBatchChunkSize, Set-InterfacePortStreamChunkSize, Set-InterfacePortStreamData, Initialize-InterfacePortStream, Get-InterfacePortStreamStatus, Get-InterfacePortBatch, Get-LastInterfacePortStreamMetrics, Get-LastInterfacePortQueueMetrics, Get-LastInterfaceSiteCacheMetrics, Get-LastInterfaceSiteHydrationMetrics, Set-InterfacePortDispatchMetrics, Get-LastInterfacePortDispatchMetrics, Clear-InterfacePortStream, Update-SiteZoneCache, Update-HostInterfaceCache, Get-GlobalInterfaceSnapshot, Update-GlobalInterfaceList, Get-InterfacesForSite, Get-InterfaceInfo, Get-InterfaceConfiguration, Get-SpanningTreeInfo, Get-InterfacesForHostsBatch, Invoke-ParallelDbQuery, Import-DatabaseModule, Resolve-SharedSiteInterfaceCacheSnapshotEntries, Get-SharedCacheSiteFilterFromEntries, ConvertTo-SharedCacheEntryArray
+Export-ModuleMember -Function Get-DataDirectoryPath, Get-SiteFromHostname, Get-DbPathForSite, Get-DbPathForHost, Get-AllSiteDbPaths, Clear-SiteInterfaceCache, Get-InterfaceSiteCache, Get-InterfaceSiteCacheSummary, Get-SharedSiteInterfaceCacheStore, Get-SharedSiteInterfaceCacheEntry, Set-InterfaceSiteCacheHost, Get-InterfacePortBatchChunkSize, Set-InterfacePortStreamChunkSize, Set-InterfacePortStreamData, Initialize-InterfacePortStream, Get-InterfacePortStreamStatus, Get-InterfacePortBatch, Get-LastInterfacePortStreamMetrics, Get-LastInterfacePortQueueMetrics, Get-LastInterfaceSiteCacheMetrics, Get-LastInterfaceSiteHydrationMetrics, Set-InterfacePortDispatchMetrics, Get-LastInterfacePortDispatchMetrics, Clear-InterfacePortStream, Update-SiteZoneCache, Update-HostInterfaceCache, Get-GlobalInterfaceSnapshot, Update-GlobalInterfaceList, Get-InterfacesForSite, Get-InterfaceInfo, Get-InterfaceConfiguration, Get-SpanningTreeInfo, Get-InterfacesForHostsBatch, Invoke-ParallelDbQuery, Import-DatabaseModule, Resolve-SharedSiteInterfaceCacheSnapshotEntries, Get-SharedCacheSiteFilterFromEntries, ConvertTo-SharedCacheEntryArray, Invoke-InterfaceCacheLock

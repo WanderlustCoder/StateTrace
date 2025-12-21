@@ -242,55 +242,130 @@ function Get-InterfacesForContext {
                 return ,([System.Collections.Generic.List[object]]::new())
             }
 
-            $interfaceCache = $null
-            try { $interfaceCache = $global:DeviceInterfaceCache } catch { $interfaceCache = $null }
-
             $missingHosts = $null
-            if ($interfaceCache -is [System.Collections.IDictionary]) {
-                $missingHosts = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
-                foreach ($hn in $hostCandidates) {
-                    $hnValue = if ($null -ne $hn) { ('' + $hn).Trim() } else { '' }
-                    if ([string]::IsNullOrWhiteSpace($hnValue)) { continue }
-                    if (-not $interfaceCache.Contains($hnValue)) { [void]$missingHosts.Add($hnValue) }
+            $cacheChecked = $false
+            try {
+                $cacheResult = DeviceRepositoryModule\Invoke-InterfaceCacheLock {
+                    $interfaceCache = $global:DeviceInterfaceCache
+                    if ($interfaceCache -is [System.Collections.IDictionary]) {
+                        $missing = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+                        foreach ($hn in $hostCandidates) {
+                            $hnValue = if ($null -ne $hn) { ('' + $hn).Trim() } else { '' }
+                            if ([string]::IsNullOrWhiteSpace($hnValue)) { continue }
+                            if (-not $interfaceCache.Contains($hnValue)) { [void]$missing.Add($hnValue) }
+                        }
+                        return [pscustomobject]@{ CacheChecked = $true; MissingHosts = $missing }
+                    }
+                    return [pscustomobject]@{ CacheChecked = $false; MissingHosts = $null }
+                }
+                if ($cacheResult) {
+                    $cacheChecked = [bool]$cacheResult.CacheChecked
+                    $missingHosts = $cacheResult.MissingHosts
+                }
+            } catch {
+                $missingHosts = $null
+                $cacheChecked = $false
+                try {
+                    $interfaceCache = $global:DeviceInterfaceCache
+                    if ($interfaceCache -is [System.Collections.IDictionary]) {
+                        $cacheChecked = $true
+                        $missingHosts = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+                        foreach ($hn in $hostCandidates) {
+                            $hnValue = if ($null -ne $hn) { ('' + $hn).Trim() } else { '' }
+                            if ([string]::IsNullOrWhiteSpace($hnValue)) { continue }
+                            if (-not $interfaceCache.Contains($hnValue)) { [void]$missingHosts.Add($hnValue) }
+                        }
+                    }
+                } catch {
+                    $missingHosts = $null
+                    $cacheChecked = $false
                 }
             }
 
-            if (($missingHosts -and $missingHosts.Count -gt 0) -or -not ($interfaceCache -is [System.Collections.IDictionary])) {
+            if (($missingHosts -and $missingHosts.Count -gt 0) -or -not $cacheChecked) {
                 try {
                     DeviceRepositoryModule\Update-HostInterfaceCache -Site $siteFilter -Zone $zoneHostFilter -Hostnames $hostCandidates
                 } catch { }
             }
 
-            $interfaceCache = $null
-            try { $interfaceCache = $global:DeviceInterfaceCache } catch { $interfaceCache = $null }
+            $cacheComplete = $false
+            $hostInterfaces = $null
+            try {
+                $cacheResult = DeviceRepositoryModule\Invoke-InterfaceCacheLock {
+                    $interfaceCache = $global:DeviceInterfaceCache
+                    if ($interfaceCache -is [System.Collections.IDictionary]) {
+                        $complete = $true
+                        foreach ($hn in $hostCandidates) {
+                            $hnValue = if ($null -ne $hn) { ('' + $hn).Trim() } else { '' }
+                            if ([string]::IsNullOrWhiteSpace($hnValue)) { continue }
+                            if (-not $interfaceCache.Contains($hnValue)) {
+                                $complete = $false
+                                break
+                            }
+                        }
 
-            if ($interfaceCache -is [System.Collections.IDictionary]) {
-                $cacheComplete = $true
-                foreach ($hn in $hostCandidates) {
-                    $hnValue = if ($null -ne $hn) { ('' + $hn).Trim() } else { '' }
-                    if ([string]::IsNullOrWhiteSpace($hnValue)) { continue }
-                    if (-not $interfaceCache.Contains($hnValue)) {
-                        $cacheComplete = $false
-                        break
+                        if ($complete) {
+                            $collected = [System.Collections.Generic.List[object]]::new()
+                            foreach ($hn in $hostCandidates) {
+                                $hnValue = if ($null -ne $hn) { ('' + $hn).Trim() } else { '' }
+                                if ([string]::IsNullOrWhiteSpace($hnValue)) { continue }
+                                $rows = $interfaceCache[$hnValue]
+                                if (-not $rows) { continue }
+                                foreach ($row in $rows) {
+                                    if (-not $row) { continue }
+                                    [void]$collected.Add($row)
+                                }
+                            }
+                            return [pscustomobject]@{ CacheComplete = $true; HostInterfaces = $collected }
+                        }
+
+                        return [pscustomobject]@{ CacheComplete = $false; HostInterfaces = $null }
                     }
-                }
 
-                if ($cacheComplete) {
-                    $hostInterfaces = [System.Collections.Generic.List[object]]::new()
-                    foreach ($hn in $hostCandidates) {
-                        $hnValue = if ($null -ne $hn) { ('' + $hn).Trim() } else { '' }
-                        if ([string]::IsNullOrWhiteSpace($hnValue)) { continue }
-                        $rows = $interfaceCache[$hnValue]
-                        if (-not $rows) { continue }
-                        foreach ($row in $rows) {
-                            if (-not $row) { continue }
-                            [void]$hostInterfaces.Add($row)
+                    return [pscustomobject]@{ CacheComplete = $false; HostInterfaces = $null }
+                }
+                if ($cacheResult) {
+                    $cacheComplete = [bool]$cacheResult.CacheComplete
+                    $hostInterfaces = $cacheResult.HostInterfaces
+                }
+            } catch {
+                $cacheComplete = $false
+                $hostInterfaces = $null
+                try {
+                    $interfaceCache = $global:DeviceInterfaceCache
+                    if ($interfaceCache -is [System.Collections.IDictionary]) {
+                        $cacheComplete = $true
+                        foreach ($hn in $hostCandidates) {
+                            $hnValue = if ($null -ne $hn) { ('' + $hn).Trim() } else { '' }
+                            if ([string]::IsNullOrWhiteSpace($hnValue)) { continue }
+                            if (-not $interfaceCache.Contains($hnValue)) {
+                                $cacheComplete = $false
+                                break
+                            }
+                        }
+                        if ($cacheComplete) {
+                            $hostInterfaces = [System.Collections.Generic.List[object]]::new()
+                            foreach ($hn in $hostCandidates) {
+                                $hnValue = if ($null -ne $hn) { ('' + $hn).Trim() } else { '' }
+                                if ([string]::IsNullOrWhiteSpace($hnValue)) { continue }
+                                $rows = $interfaceCache[$hnValue]
+                                if (-not $rows) { continue }
+                                foreach ($row in $rows) {
+                                    if (-not $row) { continue }
+                                    [void]$hostInterfaces.Add($row)
+                                }
+                            }
                         }
                     }
-
-                    $interfacesSnapshot = $hostInterfaces
-                    $hostScopedSnapshotSelected = $true
+                } catch {
+                    $cacheComplete = $false
+                    $hostInterfaces = $null
                 }
+            }
+
+            if ($cacheComplete -and $hostInterfaces) {
+                $interfacesSnapshot = $hostInterfaces
+                $hostScopedSnapshotSelected = $true
             }
         }
     }

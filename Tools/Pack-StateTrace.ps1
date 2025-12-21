@@ -21,14 +21,37 @@ if (-not $Version) {
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$distDir = Resolve-Path -Path $Destination
+$root = Split-Path -Parent $PSScriptRoot
+$distDir = if ([System.IO.Path]::IsPathRooted($Destination)) {
+    [System.IO.Path]::GetFullPath($Destination)
+} else {
+    [System.IO.Path]::GetFullPath((Join-Path $root $Destination))
+}
 if (-not (Test-Path -LiteralPath $distDir)) {
     $null = New-Item -ItemType Directory -Path $distDir -Force
 }
 
+function Assert-SafeRemovalPath {
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][string]$Root
+    )
+
+    $resolvedRoot = [System.IO.Path]::GetFullPath($Root)
+    $resolvedPath = [System.IO.Path]::GetFullPath($Path)
+    if (-not $resolvedPath.StartsWith($resolvedRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Refusing to remove '$resolvedPath' because it is outside '$resolvedRoot'."
+    }
+    if ([System.StringComparer]::OrdinalIgnoreCase.Equals($resolvedPath, $resolvedRoot)) {
+        throw "Refusing to remove root path '$resolvedRoot'."
+    }
+    return $resolvedPath
+}
+
 $buildDir = Join-Path $distDir 'build'
 if (Test-Path -LiteralPath $buildDir) {
-    Remove-Item -LiteralPath $buildDir -Recurse -Force
+    $safeBuildDir = Assert-SafeRemovalPath -Path $buildDir -Root $distDir
+    Remove-Item -LiteralPath $safeBuildDir -Recurse -Force
 }
 $null = New-Item -ItemType Directory -Path $buildDir
 
@@ -54,7 +77,6 @@ function Copy-Content {
 }
 
 # Copy core components
-$root = Split-Path -Parent $PSScriptRoot
 Copy-Content -Source (Join-Path $root 'Modules')    -Target (Join-Path $buildDir 'Modules')
 Copy-Content -Source (Join-Path $root 'Views')      -Target (Join-Path $buildDir 'Views')
 Copy-Content -Source (Join-Path $root 'Tools')      -Target (Join-Path $buildDir 'Tools')
@@ -62,8 +84,16 @@ Copy-Content -Source (Join-Path $root 'docs')       -Target (Join-Path $buildDir
 Copy-Content -Source (Join-Path $root 'Data')       -Target (Join-Path $buildDir 'Data')
 
 # Exclude logs and backups
-Remove-Item -Path (Join-Path $buildDir 'Logs') -Recurse -Force -ErrorAction SilentlyContinue
-Remove-Item -Path (Join-Path $buildDir 'Data\Backups') -Recurse -Force -ErrorAction SilentlyContinue
+$logsPath = Join-Path $buildDir 'Logs'
+if (Test-Path -LiteralPath $logsPath) {
+    $safeLogsPath = Assert-SafeRemovalPath -Path $logsPath -Root $buildDir
+    Remove-Item -LiteralPath $safeLogsPath -Recurse -Force -ErrorAction SilentlyContinue
+}
+$backupsPath = Join-Path $buildDir 'Data\Backups'
+if (Test-Path -LiteralPath $backupsPath) {
+    $safeBackupsPath = Assert-SafeRemovalPath -Path $backupsPath -Root $buildDir
+    Remove-Item -LiteralPath $safeBackupsPath -Recurse -Force -ErrorAction SilentlyContinue
+}
 
 # Write version file
 $versionFile = Join-Path $buildDir 'VERSION.txt'

@@ -1,3 +1,5 @@
+Set-StrictMode -Version Latest
+
 if (-not (Get-Variable -Name StateTraceDebug -Scope Global -ErrorAction SilentlyContinue)) {
     Set-Variable -Scope Global -Name StateTraceDebug -Value $false -Option None
 }
@@ -949,6 +951,8 @@ function Invoke-StateTraceParsing {
         HintJobsPerThread     = [int]$autoScaleJobsHint
 
         HintMinRunspaces      = [int]$autoScaleMinHint
+
+        HintInterfaceBulkChunkSize = $null
 
     }
 

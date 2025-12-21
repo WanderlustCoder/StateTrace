@@ -632,17 +632,29 @@ function Get-InterfaceList {
     }
 
     try {
-        if ($global:DeviceInterfaceCache -and $global:DeviceInterfaceCache.ContainsKey($Hostname)) {
-            $items = $global:DeviceInterfaceCache[$Hostname]
-            if ($items) {
-                $plist = [System.Collections.Generic.List[string]]::new()
-                foreach ($it in $items) {
-                    if (-not $it) { continue }
-                    $pVal = Get-PropertyStringValue -InputObject $it -PropertyNames @('Port')
-                    if (-not [string]::IsNullOrWhiteSpace($pVal)) { [void]$plist.Add($pVal) }
+        $items = $null
+        try {
+            $items = DeviceRepositoryModule\Invoke-InterfaceCacheLock {
+                if ($global:DeviceInterfaceCache -and $global:DeviceInterfaceCache.ContainsKey($Hostname)) {
+                    return @($global:DeviceInterfaceCache[$Hostname])
                 }
-                return $plist.ToArray()
+                return $null
             }
+        } catch {
+            try {
+                if ($global:DeviceInterfaceCache -and $global:DeviceInterfaceCache.ContainsKey($Hostname)) {
+                    $items = @($global:DeviceInterfaceCache[$Hostname])
+                }
+            } catch { $items = $null }
+        }
+        if ($items) {
+            $plist = [System.Collections.Generic.List[string]]::new()
+            foreach ($it in $items) {
+                if (-not $it) { continue }
+                $pVal = Get-PropertyStringValue -InputObject $it -PropertyNames @('Port')
+                if (-not [string]::IsNullOrWhiteSpace($pVal)) { [void]$plist.Add($pVal) }
+            }
+            return $plist.ToArray()
         }
     } catch {}
 

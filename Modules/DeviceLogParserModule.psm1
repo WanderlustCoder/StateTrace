@@ -1976,16 +1976,23 @@ function Invoke-DeviceLogParsing {
                         $ingestionSucceeded = $true
 
                     } catch {
+                        $transactionError = $_
 
                         if ($Global:StateTraceDebug) {
 
-                            Write-Host ("[DEBUG] Transaction failed for host '{0}', rolling back: {1}" -f $cleanHostname, $_.Exception.Message) -ForegroundColor Yellow
+                            Write-Host ("[DEBUG] Transaction failed for host '{0}', rolling back: {1}" -f $cleanHostname, $transactionError.Exception.Message) -ForegroundColor Yellow
 
                         }
 
-                        try { $__dbConn.RollbackTrans() } catch {}
+                        try {
+                            $__dbConn.RollbackTrans()
+                        } catch {
+                            $rollbackMessage = $_.Exception.Message
+                            if ([string]::IsNullOrWhiteSpace($rollbackMessage)) { $rollbackMessage = 'Rollback failed without a message.' }
+                            Write-Warning ("Rollback failed for host '{0}': {1}" -f $cleanHostname, $rollbackMessage)
+                        }
 
-                        throw
+                        throw $transactionError
 
                     }
 
