@@ -8,7 +8,8 @@ function New-SearchInterfacesView {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)][System.Windows.Window]$Window,
-        [Parameter(Mandatory=$true)][string]$ScriptDir
+        [Parameter(Mandatory=$true)][string]$ScriptDir,
+        [switch]$SuppressDialogs
     )
 
     $requestSearchUpdate = {
@@ -70,7 +71,7 @@ function New-SearchInterfacesView {
         $exportBtn.Add_Click({
             if (-not $searchGrid) { return }
             $rows = $searchGrid.ItemsSource
-            ViewCompositionModule\Export-StRowsToCsv -Rows $rows -DefaultFileName 'SearchResults.csv' -EmptyMessage 'No results to export.' -SuccessNoun 'rows' -FailureMessagePrefix 'Failed to export'
+            ViewCompositionModule\Export-StRowsToCsv -Rows $rows -DefaultFileName 'SearchResults.csv' -EmptyMessage 'No results to export.' -SuccessNoun 'rows' -FailureMessagePrefix 'Failed to export' -SuppressDialogs:$SuppressDialogs
         }.GetNewClosure())
     }
     # Status and Auth filter dropdowns refresh the grid.  Use the same

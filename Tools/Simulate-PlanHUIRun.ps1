@@ -3,7 +3,8 @@ param(
     [string[]]$Sites = @('WLLS','BOYO'),
     [string]$TelemetryPath = (Join-Path (Join-Path (Split-Path -Parent $PSScriptRoot) 'Logs\IngestionMetrics') ((Get-Date).ToString('yyyy-MM-dd') + '.json')),
     [string]$ScreenshotTimestamp = (Get-Date).ToString('yyyyMMdd-HHmmss'),
-    [string]$BundleName = ("UI-{0}-planh-sim" -f (Get-Date -Format 'yyyyMMdd'))
+    [string]$BundleName = ("UI-{0}-planh-sim" -f (Get-Date -Format 'yyyyMMdd')),
+    [int]$TimestampStepMilliseconds = 25
 )
 
 <#
@@ -27,6 +28,15 @@ $ErrorActionPreference = 'Stop'
 
 Import-Module (Join-Path $PSScriptRoot '..\Modules\TelemetryModule.psm1') -Force
 
+$script:PlanHTimestampBase = Get-Date
+$script:PlanHTimestampStepMs = [Math]::Max(1, $TimestampStepMilliseconds)
+$script:PlanHTimestampOffsetMs = 0
+function Get-PlanHTimestamp {
+    $timestamp = $script:PlanHTimestampBase.AddMilliseconds($script:PlanHTimestampOffsetMs)
+    $script:PlanHTimestampOffsetMs += $script:PlanHTimestampStepMs
+    return $timestamp.ToString('o')
+}
+
 function Emit-UserActions {
     param([string]$Path, [string[]]$SiteList)
     $actions = @(
@@ -44,9 +54,8 @@ function Emit-UserActions {
         @{ Action='SpanSnapshot';  Site=$SiteList[1]; Hostname="$($SiteList[1])-SW02"; RowsBound=96 }
     )
     foreach ($payload in $actions) {
-        $payload['Timestamp'] = (Get-Date).ToString('o')
+        $payload['Timestamp'] = Get-PlanHTimestamp
         TelemetryModule\Write-StTelemetryEvent -Name 'UserAction' -Payload $payload
-        Start-Sleep -Milliseconds 25
     }
 }
 
@@ -63,9 +72,8 @@ function Emit-FreshnessTelemetry {
     foreach ($evt in $events) {
         $payload = @{}
         foreach ($k in $evt.Keys) { if ($k -ne 'EventName') { $payload[$k] = $evt[$k] } }
-        $payload['Timestamp'] = (Get-Date).ToString('o')
+        $payload['Timestamp'] = Get-PlanHTimestamp
         TelemetryModule\Write-StTelemetryEvent -Name $evt.EventName -Payload $payload
-        Start-Sleep -Milliseconds 25
     }
 }
 

@@ -34,14 +34,20 @@ pwsh Tools\Analyze-DispatcherGaps.ps1 `
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+$toolingJsonPath = Join-Path -Path $PSScriptRoot -ChildPath 'ToolingJson.psm1'
+if (Test-Path -LiteralPath $toolingJsonPath) {
+    Import-Module -Name $toolingJsonPath -Force
+} else {
+    throw "ToolingJson module not found at '$toolingJsonPath'."
+}
+
 function Get-QueueSummary {
     param([string]$Path)
     if (-not (Test-Path -LiteralPath $Path)) {
         throw "Queue summary '$Path' does not exist."
     }
     $resolved = Resolve-Path -LiteralPath $Path
-    $json = Get-Content -LiteralPath $resolved.Path -Raw -ErrorAction Stop
-    $summary = $json | ConvertFrom-Json -Depth 5
+    $summary = Read-ToolingJson -Path $resolved.Path -Label 'Queue summary'
     if (-not $summary) {
         throw "Queue summary '$Path' is empty or invalid."
     }
@@ -54,8 +60,7 @@ function Get-IntervalReport {
     if (-not (Test-Path -LiteralPath $ReportPath)) {
         throw "Interval report '$ReportPath' does not exist."
     }
-    $json = Get-Content -LiteralPath $ReportPath -Raw -ErrorAction Stop
-    $report = $json | ConvertFrom-Json -Depth 5
+    $report = Read-ToolingJson -Path $ReportPath -Label 'Interval report'
     if (-not $report) {
         throw "Interval report '$ReportPath' is empty or invalid."
     }

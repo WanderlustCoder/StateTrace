@@ -32,6 +32,13 @@ pwsh Tools\Show-TelemetryBundleSummary.ps1 `
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+$toolingJsonPath = Join-Path -Path $PSScriptRoot -ChildPath 'ToolingJson.psm1'
+if (Test-Path -LiteralPath $toolingJsonPath) {
+    Import-Module -Name $toolingJsonPath -Force
+} else {
+    throw "ToolingJson module not found at '$toolingJsonPath'."
+}
+
 function Resolve-SummaryPath {
     param(
         [string]$BundlePath,
@@ -66,8 +73,7 @@ $resolvedSummaryPath = Resolve-SummaryPath -BundlePath $resolvedBundlePath -Summ
 
 Write-Host ("Using verification summary: {0}" -f $resolvedSummaryPath) -ForegroundColor DarkCyan
 
-$rawJson = Get-Content -LiteralPath $resolvedSummaryPath -Raw -ErrorAction Stop
-$summaryObjects = $rawJson | ConvertFrom-Json -Depth 6
+$summaryObjects = Read-ToolingJson -Path $resolvedSummaryPath -Label 'Telemetry bundle summary'
 if (-not $summaryObjects) {
     throw "Summary file '$resolvedSummaryPath' did not contain any entries."
 }

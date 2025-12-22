@@ -255,7 +255,9 @@ function Restore-SharedCacheEntries {
                     $siteKey = ('' + $item.SiteKey).Trim()
                 }
                 if ([string]::IsNullOrWhiteSpace($siteKey)) { continue }
-                try { Get-InterfaceSiteCache -Site $siteKey | Out-Null } catch { }
+                try { Get-InterfaceSiteCache -Site $siteKey | Out-Null } catch {
+                    Write-Warning ("Failed to warm interface site cache for '{0}': {1}" -f $siteKey, $_.Exception.Message)
+                }
             }
 
             return $restored
@@ -523,10 +525,16 @@ if (-not $SkipTests) {
 
     $ranInCurrentSession = $false
     $currentApartment = $null
-    try { $currentApartment = [System.Threading.Thread]::CurrentThread.GetApartmentState() } catch { }
+    try { $currentApartment = [System.Threading.Thread]::CurrentThread.GetApartmentState() } catch {
+        Write-Warning ("Failed to read current apartment state: {0}" -f $_.Exception.Message)
+    }
     if ($currentApartment -ne [System.Threading.ApartmentState]::STA) {
-        try { [void][System.Threading.Thread]::CurrentThread.TrySetApartmentState([System.Threading.ApartmentState]::STA) } catch { }
-        try { $currentApartment = [System.Threading.Thread]::CurrentThread.GetApartmentState() } catch { }
+        try { [void][System.Threading.Thread]::CurrentThread.TrySetApartmentState([System.Threading.ApartmentState]::STA) } catch {
+            Write-Warning ("Failed to set apartment state to STA: {0}" -f $_.Exception.Message)
+        }
+        try { $currentApartment = [System.Threading.Thread]::CurrentThread.GetApartmentState() } catch {
+            Write-Warning ("Failed to re-read apartment state after update: {0}" -f $_.Exception.Message)
+        }
     }
 
     if ($currentApartment -eq [System.Threading.ApartmentState]::STA) {

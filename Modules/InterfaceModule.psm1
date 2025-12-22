@@ -20,17 +20,34 @@ if (-not (Get-Variable -Scope Script -Name PortNormalizationAvailable -ErrorActi
     $script:PortNormalizationAvailable = $false
 }
 
+if (-not (Get-Variable -Scope Script -Name PortNormalizationWarned -ErrorAction SilentlyContinue)) {
+    $script:PortNormalizationWarned = $false
+}
+
+if (-not (Get-Variable -Scope Script -Name InterfaceModuleImportWarnings -ErrorAction SilentlyContinue)) {
+    $script:InterfaceModuleImportWarnings = @{}
+}
+
 try {
-    $portNormPath = Join-Path $PSScriptRoot 'PortNormalization.psm1'
+    $portNormPath = Join-Path $PSScriptRoot 'PortNormalization.psm1'        
     if (Test-Path -LiteralPath $portNormPath) {
         Import-Module -Name $portNormPath -ErrorAction Stop -Prefix 'PortNorm' | Out-Null
         if (Get-Command -Name 'Get-PortNormPortSortKey' -ErrorAction SilentlyContinue) {
             $script:PortNormalizationAvailable = $true
         }
+    } else {
+        $script:PortNormalizationAvailable = $false
+        if (-not $script:PortNormalizationWarned) {
+            $script:PortNormalizationWarned = $true
+            Write-Warning ("[InterfaceModule] PortNormalization module not found at '{0}'; using fallback port sort keys." -f $portNormPath)
+        }
     }
 } catch {
     $script:PortNormalizationAvailable = $false
-    Write-Verbose ("[InterfaceModule] PortNormalization not loaded: {0}" -f $_.Exception.Message)
+    if (-not $script:PortNormalizationWarned) {
+        $script:PortNormalizationWarned = $true
+        Write-Warning ("[InterfaceModule] PortNormalization not loaded: {0}" -f $_.Exception.Message)
+    }
 }
 
 if (-not (Get-Variable -Scope Script -Name PortSortFallbackKey -ErrorAction SilentlyContinue)) {
@@ -154,14 +171,32 @@ function Ensure-LocalStateTraceModule {
     }
 
     try {
-        if (-not (Get-Module -Name $ModuleName -ErrorAction SilentlyContinue)) {
-            $modulePath = Join-Path $PSScriptRoot $ModuleFileName
-            if (Test-Path -LiteralPath $modulePath) {
-                Import-Module $modulePath -Force -Global -ErrorAction SilentlyContinue | Out-Null
-            }
+        if (Get-Module -Name $ModuleName -ErrorAction SilentlyContinue) { return }
+    } catch { }
+
+    $alreadyWarned = $false
+    try { $alreadyWarned = $script:InterfaceModuleImportWarnings.ContainsKey($ModuleName) } catch { $alreadyWarned = $false }
+
+    $modulePath = Join-Path $PSScriptRoot $ModuleFileName
+    $modulePathExists = $false
+    try { $modulePathExists = Test-Path -LiteralPath $modulePath } catch { $modulePathExists = $false }
+
+    $lastError = $null
+    if ($modulePathExists) {
+        try {
+            Import-Module $modulePath -Force -Global -ErrorAction Stop | Out-Null
+            return
+        } catch {
+            $lastError = $_.Exception.Message
         }
-    } catch {
-        # Swallow import errors; callers handle missing cmdlets gracefully.
+    } else {
+        $lastError = "Module path not found."
+    }
+
+    if (-not $alreadyWarned) {
+        $script:InterfaceModuleImportWarnings[$ModuleName] = $true
+        $detail = if ($lastError) { $lastError } else { 'Unknown import failure.' }
+        Write-Warning ("[InterfaceModule] Failed to import module '{0}' from '{1}': {2}" -f $ModuleName, $modulePath, $detail)
     }
 }
 

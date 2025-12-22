@@ -26,6 +26,12 @@ pwsh Tools\Update-PortBatchHistory.ps1 -ReportPaths `
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+$toolingJsonPath = Join-Path -Path $PSScriptRoot -ChildPath 'ToolingJson.psm1'
+if (-not (Test-Path -LiteralPath $toolingJsonPath)) {
+    throw "ToolingJson module not found at '$toolingJsonPath'."
+}
+Import-Module -Name $toolingJsonPath -Force -ErrorAction Stop
+
 function ConvertTo-HistoryRecord {
     param(
         [string]$ReportPath,
@@ -88,12 +94,14 @@ foreach ($reportPath in $ReportPaths) {
         continue
     }
 
-    $json = Get-Content -LiteralPath $resolvedReport -Raw -ErrorAction Stop
     try {
-        $reportObject = ConvertFrom-Json -InputObject $json
+        $reportObject = Read-ToolingJson -Path $resolvedReport -Label 'Port batch report'
     } catch {
         Write-Warning ("Report '{0}' could not be parsed as JSON: {1}" -f $resolvedReport, $_.Exception.Message)
         continue
+    }
+    if ($reportObject -is [System.Collections.IEnumerable] -and -not ($reportObject -is [string])) {
+        $reportObject = $reportObject | Select-Object -First 1
     }
     if (-not $reportObject) {
         Write-Warning ("Report '{0}' is empty or invalid; skipping." -f $resolvedReport)

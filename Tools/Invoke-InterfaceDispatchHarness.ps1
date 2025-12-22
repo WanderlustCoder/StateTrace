@@ -42,7 +42,8 @@ param(
     [double]$QueueDelayCriticalMs = 200,
     [switch]$SkipQueueDelayCheck,
     [int]$TimeoutSeconds = 30,
-    [int]$NoProgressTimeoutSeconds = 5
+    [int]$NoProgressTimeoutSeconds = 5,
+    [int]$PollIntervalMilliseconds = 100
 )
 
 Set-StrictMode -Version Latest
@@ -92,6 +93,7 @@ Write-HarnessVerbose ("[Harness] Beginning dispatcher loop for '{0}'." -f $clean
 
 $timeoutMs = [Math]::Max(1000, ($TimeoutSeconds * 1000))
 $noProgressMs = if ($NoProgressTimeoutSeconds -gt 0) { [Math]::Max(1000, ($NoProgressTimeoutSeconds * 1000)) } else { 0 }
+$pollMs = [Math]::Max(10, $PollIntervalMilliseconds)
 $streamWatch = [System.Diagnostics.Stopwatch]::StartNew()
 $lastProgressMs = 0
 
@@ -108,7 +110,7 @@ while ($true) {
         if ($noProgressMs -gt 0 -and ($streamWatch.ElapsedMilliseconds - $lastProgressMs) -ge $noProgressMs) {
             throw ("[Harness] Stalled for {0} seconds without batch progress (Hostname: {1})." -f $NoProgressTimeoutSeconds, $cleanHost)
         }
-        Start-Sleep -Milliseconds 100
+        Start-Sleep -Milliseconds $pollMs
         continue
     }
 

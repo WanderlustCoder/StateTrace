@@ -509,15 +509,8 @@ function Finalize-SchedulerMetricsContext {
         $combined = [System.Collections.Generic.List[object]]::new()
         try {
             if (Test-Path -LiteralPath $Context.FilePath) {
-                $existingRaw = Get-Content -LiteralPath $Context.FilePath -Raw -ErrorAction Stop
-                if (-not [string]::IsNullOrWhiteSpace($existingRaw)) {
-                    $existing = $existingRaw | ConvertFrom-Json -ErrorAction Stop
-                    if ($existing -is [System.Collections.IEnumerable] -and -not ($existing -is [string])) {
-                        foreach ($item in $existing) { $combined.Add($item) }
-                    } elseif ($existing) {
-                        $combined.Add($existing)
-                    }
-                }
+                $existingEntries = Read-SchedulerMetricsEntries -Path $Context.FilePath
+                foreach ($item in $existingEntries) { $combined.Add($item) }
             }
         } catch {
             $combined.Clear()
@@ -530,6 +523,80 @@ function Finalize-SchedulerMetricsContext {
     } catch {
         # Swallow telemetry write errors to keep ingestion resilient.
     }
+}
+
+function Read-SchedulerMetricsEntries {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Path
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return @()
+    }
+
+    $entries = New-Object System.Collections.Generic.List[object]
+    $reader = $null
+    try {
+        $reader = [System.IO.StreamReader]::new($Path)
+        $buffer = New-Object System.Text.StringBuilder
+        $inString = $false
+        $escape = $false
+        $depth = 0
+
+        while (($line = $reader.ReadLine()) -ne $null) {
+            if ([string]::IsNullOrWhiteSpace($line)) { continue }
+            foreach ($ch in $line.ToCharArray()) {
+                $appendChar = $false
+                if ($inString) {
+                    if ($escape) {
+                        $escape = $false
+                    } elseif ($ch -eq '\') {
+                        $escape = $true
+                    } elseif ($ch -eq '"') {
+                        $inString = $false
+                    }
+                    $appendChar = ($depth -gt 0)
+                } else {
+                    if ($ch -eq '"') {
+                        $inString = $true
+                        $appendChar = ($depth -gt 0)
+                    } elseif ($ch -eq '{') {
+                        if ($depth -eq 0) { $null = $buffer.Clear() }
+                        $depth++
+                        $appendChar = $true
+                    } elseif ($ch -eq '}') {
+                        if ($depth -gt 0) {
+                            $appendChar = $true
+                            $depth--
+                        }
+                    } else {
+                        $appendChar = ($depth -gt 0)
+                    }
+                }
+
+                if ($appendChar) {
+                    $null = $buffer.Append($ch)
+                }
+
+                if ($depth -eq 0 -and $buffer.Length -gt 0) {
+                    $entry = $null
+                    try {
+                        $entry = $buffer.ToString() | ConvertFrom-Json -ErrorAction Stop
+                    } catch {
+                        $entry = $null
+                    }
+                    if ($entry) { $entries.Add($entry) | Out-Null }
+                    $null = $buffer.Clear()
+                }
+            }
+            if ($depth -gt 0) { $null = $buffer.AppendLine() }
+        }
+    } finally {
+        if ($reader) { $reader.Dispose() }
+    }
+
+    return ,$entries.ToArray()
 }
 
 
@@ -750,7 +817,9 @@ function Invoke-DeviceParsingJobs {
         [switch]$AdaptiveThreads,
         [switch]$Synchronous,
         [switch]$UseAutoScaleProfile,
-        [switch]$PreserveRunspacePool
+        [switch]$PreserveRunspacePool,
+        [int]$SchedulerIdlePollMilliseconds = 25,
+        [int]$SchedulerStallTimeoutSeconds = 300
     )
 
     function Get-HostnameFromPath([string]$PathValue) {
@@ -977,6 +1046,12 @@ function Invoke-DeviceParsingJobs {
         Write-ParserSchedulerMetricSnapshot -Context $metricsContext -ActiveWorkers 0 -ActiveSites 0 -QueuedJobs $initialQueued -QueuedSites $initialQueuedSites -ThreadBudget $currentThreadLimit -Force
     }
 
+    $schedulerPollMs = [Math]::Max(5, $SchedulerIdlePollMilliseconds)
+    $stallTimeoutMs = if ($SchedulerStallTimeoutSeconds -gt 0) { [Math]::Max(1000, ($SchedulerStallTimeoutSeconds * 1000)) } else { 0 }
+    $schedulerWatch = [System.Diagnostics.Stopwatch]::StartNew()
+    $lastProgressMs = $schedulerWatch.ElapsedMilliseconds
+    $stallDetected = $false
+
     $active = [System.Collections.Generic.List[object]]::new()
     $lastLaunchSite = ''
     $lastLaunchCount = 0
@@ -1044,6 +1119,7 @@ function Invoke-DeviceParsingJobs {
                     } else {
                         $lastLaunchCount++
                     }
+                    $lastProgressMs = $schedulerWatch.ElapsedMilliseconds
                 }
             }
 
@@ -1055,11 +1131,24 @@ function Invoke-DeviceParsingJobs {
                 }
             }
             if ($completed.Count -gt 0) {
+                $lastProgressMs = $schedulerWatch.ElapsedMilliseconds
                 foreach ($entry in $completed) { [void]$active.Remove($entry) }
                 continue
             }
 
-            if (-not $launched) { Start-Sleep -Milliseconds 25 }
+            if ($stallTimeoutMs -gt 0 -and -not $stallDetected) {
+                $idleMs = $schedulerWatch.ElapsedMilliseconds - $lastProgressMs
+                if ($idleMs -ge $stallTimeoutMs -and ($totalQueued -gt 0 -or $active.Count -gt 0)) {
+                    $stallDetected = $true
+                    Write-Warning ("Parser scheduler stalled for {0} seconds (QueuedJobs={1}, ActiveWorkers={2}); stopping active workers." -f $SchedulerStallTimeoutSeconds, $totalQueued, $active.Count)
+                    foreach ($entry in $active.ToArray()) {
+                        try { $entry.Pipe.Stop() } catch { }
+                    }
+                }
+            }
+
+            if ($stallDetected) { break }
+            if (-not $launched) { Start-Sleep -Milliseconds $schedulerPollMs }
         }
 
 

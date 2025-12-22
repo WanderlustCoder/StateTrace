@@ -31,38 +31,64 @@ function Get-LatestTelemetryPath {
         ForEach-Object { $_.FullName }
 }
 
+function Read-TelemetryEvents {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [string[]]$EventNames,
+        [string]$Label = 'Telemetry'
+    )
+
+    $parsed = New-Object System.Collections.Generic.List[object]
+    $parseErrors = 0
+    $parsedLines = 0
+    $lineAttempts = 0
+    $maxLineAttempts = 10
+
+    foreach ($line in (Get-Content -LiteralPath $Path -ReadCount 1 -ErrorAction Stop)) {
+        if ([string]::IsNullOrWhiteSpace($line)) { continue }
+        $lineAttempts++
+        try {
+            $obj = $line | ConvertFrom-Json -ErrorAction Stop
+            $parsedLines++
+            if (-not $EventNames -or ($EventNames -contains $obj.EventName)) {
+                $null = $parsed.Add($obj)
+            }
+        } catch {
+            $parseErrors++
+            if ($parseErrors -le 3) {
+                Write-Verbose ("[{0}] Skipping invalid JSON line: {1}" -f $Label, $_.Exception.Message)
+            }
+        }
+        if ($parsedLines -eq 0 -and $lineAttempts -ge $maxLineAttempts) {
+            break
+        }
+    }
+
+    if ($parsedLines -gt 0) {
+        if ($parseErrors -gt 0) {
+            Write-Warning ("[{0}] Skipped {1} invalid JSON line(s) in {2}" -f $Label, $parseErrors, $Path)
+        }
+        return $parsed.ToArray()
+    }
+
+    $rawJson = Get-Content -LiteralPath $Path -Raw -ErrorAction Stop
+    $events = $rawJson | ConvertFrom-Json -ErrorAction Stop
+    if (-not $events) {
+        throw "Failed to parse telemetry at $Path."
+    }
+    if ($EventNames) {
+        $events = @($events | Where-Object { $EventNames -contains $_.EventName })
+    }
+    return $events
+}
+
 if (-not $Path) { $Path = Get-LatestTelemetryPath }
 if (-not $Path) { throw "No telemetry file found. Provide -Path or ensure Logs\IngestionMetrics exists." }
 if (-not (Test-Path -LiteralPath $Path)) { throw "Telemetry file not found: $Path" }
 
-$events = $null
-try {
-    $events = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json -ErrorAction Stop
-} catch {
-    $lines = Get-Content -LiteralPath $Path -ErrorAction Stop
-    $parsed = @()
-    $parseErrors = 0
-    foreach ($line in $lines) {
-        if ([string]::IsNullOrWhiteSpace($line)) { continue }
-        try {
-            $parsed += ($line | ConvertFrom-Json -ErrorAction Stop)
-        } catch {
-            $parseErrors++
-            if ($parseErrors -le 3) {
-                Write-Verbose ("[Freshness] Skipping invalid JSON line: {0}" -f $_.Exception.Message)
-            }
-        }
-    }
-    if ($parseErrors -gt 0) {
-        Write-Warning ("[Freshness] Skipped {0} invalid JSON line(s) in {1}" -f $parseErrors, $Path)
-    }
-    if ($parsed.Count -eq 0) { throw "Failed to parse telemetry at ${Path}" }
-    $events = $parsed
-}
-
-$targetEvents = @($events | Where-Object {
-        $_.EventName -in @('InterfaceSiteCacheMetrics','InterfaceSiteCacheRunspaceState','InterfaceSyncTiming','DatabaseWriteBreakdown')
-    })
+$targetEventNames = @('InterfaceSiteCacheMetrics','InterfaceSiteCacheRunspaceState','InterfaceSyncTiming','DatabaseWriteBreakdown')
+$targetEvents = Read-TelemetryEvents -Path $Path -EventNames $targetEventNames -Label 'Freshness'
 
 $siteSummary = @{}
 foreach ($evt in $targetEvents) {

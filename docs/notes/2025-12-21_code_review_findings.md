@@ -5,6 +5,17 @@ Scope: static review of Modules/ and Tools/ for reliability, safety, and maintai
 Status updates:
 - 2025-12-21: Addressed findings 18, 78, 79, 80, 87 (rollback warning, pack deletion guards, ParserWorker strict mode).
 - 2025-12-21: Addressed findings 55-63 (interface cache synchronization, AllInterfaces snapshot merging, ViewState/FilterState/Insights locking).
+- 2025-12-21: Addressed findings 4-6 (schema creation failures now warn/throw; index creation warnings surfaced).
+- 2025-12-21: Addressed findings 43, 46, 47 (streamed telemetry parsing for freshness, user action, warm diff hotspots).
+- 2025-12-21: Addressed findings 34-42, 44-45, 50 (shared tooling JSON reader; removed ConvertFrom-Json -Depth, added NDJSON streaming with large-file warnings).
+- 2025-12-21: Addressed findings 48, 49, 51, 52 (shared cache warmup + verification + history updates now avoid full raw JSON reads).
+- 2025-12-21: Addressed findings 53-54 (streamed ingestion history + scheduler metrics JSON parsing).
+- 2025-12-21: Addressed findings 7-14, 72 (DeviceDetails/Insights import/query/sort/default/cache warnings).
+- 2025-12-21: Addressed findings 70-76 (module import warnings for DeviceCatalog, DeviceRepository.Access, InterfaceModule, TemplatesModule, SpanView).
+- 2025-12-21: Addressed findings 65-69 (added retention caps for shared cache event lists).
+- 2025-12-21: Addressed findings 88-98 (scheduler stall timeout, bounded polling intervals, UI automation waits, and Plan H simulation timestamp sequencing).
+- 2025-12-21: Addressed findings 15-33 (cleanup/logging warnings for parser, filter state, repository, and tooling operations).
+- 2025-12-21: Addressed findings 99-100 (export helpers now suppress dialogs when headless or explicitly requested, with view modules/headless smoke test opt-in).
 
 ## Findings (100)
 1. [Medium] Silent catch hides failures to initialize debug telemetry; misconfigurations go unnoticed. `Modules/DatabaseModule.psm1:8`

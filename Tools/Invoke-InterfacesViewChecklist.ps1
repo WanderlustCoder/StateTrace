@@ -6,6 +6,7 @@ param(
     [int]$MaxHosts = 12,
     [int]$HostTimeoutSeconds = 30,
     [int]$NoProgressTimeoutSeconds = 5,
+    [int]$PollIntervalMilliseconds = 50,
     [string]$OutputPath,
     [string]$SummaryPath,
     [switch]$PassThru
@@ -245,6 +246,7 @@ function Invoke-InterfacesViewForHost {
 
     $timeoutMs = [Math]::Max(1000, ($TimeoutSeconds * 1000))
     $noProgressMs = if ($NoProgressTimeoutSeconds -gt 0) { [Math]::Max(1000, ($NoProgressTimeoutSeconds * 1000)) } else { 0 }
+    $pollMs = [Math]::Max(10, $PollIntervalMilliseconds)
 
     try {
         DeviceRepositoryModule\Initialize-InterfacePortStream -Hostname $Hostname | Out-Null
@@ -268,12 +270,14 @@ function Invoke-InterfacesViewForHost {
             try { $batch = DeviceRepositoryModule\Get-InterfacePortBatch -Hostname $Hostname } catch { $batch = $null }
             if (-not $batch) {
                 $status = $null
-                try { $status = DeviceRepositoryModule\Get-InterfacePortStreamStatus -Hostname $Hostname } catch {}
+                try { $status = DeviceRepositoryModule\Get-InterfacePortStreamStatus -Hostname $Hostname } catch {
+                    Write-Verbose ("Failed to query port stream status for '{0}': {1}" -f $Hostname, $_.Exception.Message)
+                }
                 if ($status -and -not $status.Completed) {
                     if ($noProgressMs -gt 0 -and ($watch.ElapsedMilliseconds - $lastProgressMs) -ge $noProgressMs) {
                         throw "Interfaces checklist stalled for $NoProgressTimeoutSeconds seconds without batch progress (host '$Hostname')."
                     }
-                    Start-Sleep -Milliseconds 50
+                    Start-Sleep -Milliseconds $pollMs
                     continue
                 }
                 break

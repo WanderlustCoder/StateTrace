@@ -26,6 +26,12 @@ if (-not (Test-Path -LiteralPath $skipSiteCacheGuardModule)) {
 }
 Import-Module -Name $skipSiteCacheGuardModule -Force -ErrorAction Stop
 
+$toolingJsonPath = Join-Path -Path $PSScriptRoot -ChildPath 'ToolingJson.psm1'
+if (-not (Test-Path -LiteralPath $toolingJsonPath)) {
+    throw "ToolingJson module not found at '$toolingJsonPath'."
+}
+Import-Module -Name $toolingJsonPath -Force -ErrorAction Stop
+
 $repositoryRoot = Split-Path -Path $PSScriptRoot -Parent
 $pipelineScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Invoke-StateTracePipeline.ps1'
 if (-not (Test-Path -LiteralPath $pipelineScript)) {
@@ -89,9 +95,8 @@ if (-not $PreserveIngestionHistory.IsPresent) {
         if (Test-Path -LiteralPath $ingestionHistoryDir) {
             $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
             foreach ($file in Get-ChildItem -Path $ingestionHistoryDir -Filter '*.json' -File) {
-                $originalHistory = Get-Content -LiteralPath $file.FullName -Raw
                 $backupPath = Join-Path -Path $ingestionHistoryDir -ChildPath ("{0}.warmup.{1}.bak" -f $file.BaseName, $timestamp)
-                Set-Content -LiteralPath $backupPath -Value $originalHistory -Encoding utf8
+                Copy-Item -LiteralPath $file.FullName -Destination $backupPath -Force
                 Set-Content -LiteralPath $file.FullName -Value '[]' -Encoding utf8
                 $ingestionHistoryReset = $true
             }
@@ -139,7 +144,7 @@ if (-not (Test-Path -LiteralPath $summaryPath)) {
 
 $summaryEntries = @()
 try {
-    $summaryEntries = (Get-Content -LiteralPath $summaryPath -Raw | ConvertFrom-Json)
+    $summaryEntries = Read-ToolingJson -Path $summaryPath -Label 'Shared cache summary'
     if ($summaryEntries -and -not ($summaryEntries -is [System.Collections.IEnumerable])) {
         $summaryEntries = @($summaryEntries)
     }

@@ -23,6 +23,10 @@ if (-not (Get-Variable -Name ConnectionCacheTtlMinutes -Scope Script -ErrorActio
 
 }
 
+if (-not (Get-Variable -Name TemplatesModuleImportWarned -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:TemplatesModuleImportWarned = $false
+}
+
 function script:Get-QualifiedOrFallbackCommand {
     [CmdletBinding()]
     param(
@@ -417,7 +421,9 @@ function Close-StaleConnections {
         if ($entry.Connection -and ($ttlMinutes -eq 0 -or $elapsedMinutes -ge $ttlMinutes)) {
 
             $connectionToRelease = $entry.Connection
-            try { $connectionToRelease.Close() } catch { }
+            try { $connectionToRelease.Close() } catch {
+                Write-Warning ("Failed to close cached database connection for key '{0}': {1}" -f $key, $_.Exception.Message)
+            }
             TelemetryModule\Remove-ComObjectSafe -ComObject $connectionToRelease
             $entry.Connection = $null
 
@@ -490,7 +496,9 @@ function Get-CachedDbConnection {
     if ($entry.Connection -and $entry.Connection.State -ne 1) {
 
         $connectionToRelease = $entry.Connection
-        try { $connectionToRelease.Close() } catch { }
+        try { $connectionToRelease.Close() } catch {
+            Write-Warning ("Failed to close cached database connection for key '{0}': {1}" -f $key, $_.Exception.Message)
+        }
         TelemetryModule\Remove-ComObjectSafe -ComObject $connectionToRelease
         $entry.Connection = $null
 
@@ -539,7 +547,9 @@ function Get-CachedDbConnection {
                 } finally {
 
                     if ($testConn) {
-                        try { $testConn.Close() } catch { }
+                        try { $testConn.Close() } catch {
+                            Write-Warning ("Failed to close provider probe connection for '{0}' ({1}): {2}" -f $DatabasePath, $provCandidate, $_.Exception.Message)
+                        }
                         TelemetryModule\Remove-ComObjectSafe -ComObject $testConn
                     }
 
@@ -626,7 +636,9 @@ function Release-CachedDbConnection {
     if ($ForceRemove -and $entry.Connection) {
 
         $connectionToRelease = $entry.Connection
-        try { $connectionToRelease.Close() } catch { }
+        try { $connectionToRelease.Close() } catch {
+            Write-Warning ("Failed to close cached database connection for key '{0}': {1}" -f $key, $_.Exception.Message)
+        }
         TelemetryModule\Remove-ComObjectSafe -ComObject $connectionToRelease
         $entry.Connection = $null
 
@@ -696,9 +708,23 @@ function Get-VendorTemplates {
         if (-not $templateCmd) {
             $templatesModulePath = Join-Path $PSScriptRoot 'TemplatesModule.psm1'
             if (Test-Path -LiteralPath $templatesModulePath) {
-                Import-Module -Name $templatesModulePath -Force -Global -ErrorAction SilentlyContinue | Out-Null
+                try {
+                    Import-Module -Name $templatesModulePath -Force -Global -ErrorAction Stop | Out-Null
+                } catch {
+                    if (-not $script:TemplatesModuleImportWarned) {
+                        $script:TemplatesModuleImportWarned = $true
+                        Write-Warning ("[DeviceLogParser] Failed to import TemplatesModule from '{0}': {1}" -f $templatesModulePath, $_.Exception.Message)
+                    }
+                }
+            } elseif (-not $script:TemplatesModuleImportWarned) {
+                $script:TemplatesModuleImportWarned = $true
+                Write-Warning ("[DeviceLogParser] TemplatesModule not found at '{0}'; vendor templates unavailable." -f $templatesModulePath)
             }
             $templateCmd = script:Get-QualifiedOrFallbackCommand -QualifiedName 'TemplatesModule\Get-ConfigurationTemplateData'
+        }
+        if (-not $templateCmd -and -not $script:TemplatesModuleImportWarned) {
+            $script:TemplatesModuleImportWarned = $true
+            Write-Warning "[DeviceLogParser] TemplatesModule command unavailable; vendor templates may be missing."
         }
 
         $entry = $null
@@ -899,6 +925,80 @@ function Get-BrocadeAuthBlockFromLines {
     return ,$found.ToArray()
 }
 
+function Read-IngestionHistoryRecords {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Path
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return @()
+    }
+
+    $records = New-Object System.Collections.Generic.List[object]
+    $reader = $null
+    try {
+        $reader = [System.IO.StreamReader]::new($Path)
+        $buffer = New-Object System.Text.StringBuilder
+        $inString = $false
+        $escape = $false
+        $depth = 0
+
+        while (($line = $reader.ReadLine()) -ne $null) {
+            if ([string]::IsNullOrWhiteSpace($line)) { continue }
+            foreach ($ch in $line.ToCharArray()) {
+                $appendChar = $false
+                if ($inString) {
+                    if ($escape) {
+                        $escape = $false
+                    } elseif ($ch -eq '\') {
+                        $escape = $true
+                    } elseif ($ch -eq '"') {
+                        $inString = $false
+                    }
+                    $appendChar = ($depth -gt 0)
+                } else {
+                    if ($ch -eq '"') {
+                        $inString = $true
+                        $appendChar = ($depth -gt 0)
+                    } elseif ($ch -eq '{') {
+                        if ($depth -eq 0) { $null = $buffer.Clear() }
+                        $depth++
+                        $appendChar = $true
+                    } elseif ($ch -eq '}') {
+                        if ($depth -gt 0) {
+                            $appendChar = $true
+                            $depth--
+                        }
+                    } else {
+                        $appendChar = ($depth -gt 0)
+                    }
+                }
+
+                if ($appendChar) {
+                    $null = $buffer.Append($ch)
+                }
+
+                if ($depth -eq 0 -and $buffer.Length -gt 0) {
+                    $record = $null
+                    try {
+                        $record = $buffer.ToString() | ConvertFrom-Json -ErrorAction Stop
+                    } catch {
+                        $record = $null
+                    }
+                    if ($record) { $records.Add($record) | Out-Null }
+                    $null = $buffer.Clear()
+                }
+            }
+            if ($depth -gt 0) { $null = $buffer.AppendLine() }
+        }
+    } finally {
+        if ($reader) { $reader.Dispose() }
+    }
+
+    return ,$records.ToArray()
+}
+
 
 
 
@@ -944,7 +1044,9 @@ function Invoke-DeviceLogParsing {
     $siteCode = $siteKey
 
     $historyRoot = Join-Path $projectRoot 'Data\IngestionHistory'
-    try { [System.IO.Directory]::CreateDirectory($historyRoot) | Out-Null } catch { }
+    try { [System.IO.Directory]::CreateDirectory($historyRoot) | Out-Null } catch {
+        Write-Warning ("Failed to create ingestion history directory '{0}': {1}" -f $historyRoot, $_.Exception.Message)
+    }
     $historyFilePath = Join-Path $historyRoot ("{0}.json" -f $sanitizedSiteKey)
     $historyMutexName = "StateTraceHistory_{0}" -f $sanitizedSiteKey
 
@@ -983,14 +1085,7 @@ function Invoke-DeviceLogParsing {
             $historyRecords = @()
             if (Test-Path -LiteralPath $historyFilePath) {
                 try {
-                    $rawHistory = Get-Content -LiteralPath $historyFilePath -Raw
-                    if (-not [string]::IsNullOrWhiteSpace($rawHistory)) {
-                        $parsed = $rawHistory | ConvertFrom-Json
-                        if ($parsed) {
-                            if ($parsed -is [System.Array]) { $historyRecords = @($parsed) }
-                            else { $historyRecords = @($parsed) }
-                        }
-                    }
+                    $historyRecords = Read-IngestionHistoryRecords -Path $historyFilePath
                 } catch { $historyRecords = @() }
             }
 
@@ -1002,7 +1097,12 @@ function Invoke-DeviceLogParsing {
                 }
             }
         } finally {
-            if ($historyMutex) { try { $historyMutex.ReleaseMutex() } catch { } ; $historyMutex.Dispose() }
+            if ($historyMutex) {
+                try { $historyMutex.ReleaseMutex() } catch {
+                    Write-Warning ("Failed to release ingestion history mutex '{0}': {1}" -f $historyMutexName, $_.Exception.Message)
+                }
+                $historyMutex.Dispose()
+            }
         }
     }
 
@@ -1270,7 +1370,9 @@ function Invoke-DeviceLogParsing {
                 # Swallow errors related to existing database to avoid noisy warnings.
             }
         } finally {
-            try { $dbCreateMutex.ReleaseMutex() } catch { }
+            try { $dbCreateMutex.ReleaseMutex() } catch {
+                Write-Warning ("Failed to release database create mutex '{0}': {1}" -f $createMutexName, $_.Exception.Message)
+            }
             $dbCreateMutex.Dispose()
         }
     } catch {
@@ -2032,7 +2134,9 @@ function Invoke-DeviceLogParsing {
                         Write-Host "[DEBUG] Releasing DB write mutex for host '$cleanHostname'" -ForegroundColor Yellow
                     }
                     $dbMutex.ReleaseMutex()
-                } catch {}
+                } catch {
+                    Write-Warning ("Failed to release DB write mutex for host '{0}': {1}" -f $cleanHostname, $_.Exception.Message)
+                }
                 $dbMutex.Dispose()
             }
         } catch {
@@ -2055,14 +2159,7 @@ function Invoke-DeviceLogParsing {
             $historyRecords = @()
             if (Test-Path -LiteralPath $historyContext.FilePath) {
                 try {
-                    $rawHistory = Get-Content -LiteralPath $historyContext.FilePath -Raw
-                    if (-not [string]::IsNullOrWhiteSpace($rawHistory)) {
-                        $parsed = $rawHistory | ConvertFrom-Json
-                        if ($parsed) {
-                            if ($parsed -is [System.Array]) { $historyRecords = @($parsed) }
-                            else { $historyRecords = @($parsed) }
-                        }
-                    }
+                    $historyRecords = Read-IngestionHistoryRecords -Path $historyContext.FilePath
                 } catch { $historyRecords = @() }
             }
 
@@ -2088,7 +2185,14 @@ function Invoke-DeviceLogParsing {
         } catch {
             Write-Warning "Failed to update ingestion history for ${cleanHostname}: $($_.Exception.Message)"
         } finally {
-            if ($historyMutex) { try { $historyMutex.ReleaseMutex() } catch { } ; $historyMutex.Dispose() }
+            if ($historyMutex) {
+                try { $historyMutex.ReleaseMutex() } catch {
+                    $mutexName = if ($historyContext) { $historyContext.MutexName } else { $null }
+                    $label = if ([string]::IsNullOrWhiteSpace($mutexName)) { 'StateTraceHistory' } else { $mutexName }
+                    Write-Warning ("Failed to release ingestion history mutex '{0}': {1}" -f $label, $_.Exception.Message)
+                }
+                $historyMutex.Dispose()
+            }
         }
     }
 

@@ -140,9 +140,13 @@ function Set-DropdownItems {
 
     $Control.ItemsSource = $Items
     if ($Items -and $Items.Count -gt 0) {
-        try { $Control.SelectedIndex = 0 } catch { }
+        try { $Control.SelectedIndex = 0 } catch {
+            Write-Verbose ("Failed to set dropdown SelectedIndex=0: {0}" -f $_.Exception.Message)
+        }
     } else {
-        try { $Control.SelectedIndex = -1 } catch { }
+        try { $Control.SelectedIndex = -1 } catch {
+            Write-Verbose ("Failed to clear dropdown SelectedIndex: {0}" -f $_.Exception.Message)
+        }
     }
 }
 
@@ -224,7 +228,10 @@ function Initialize-DeviceFilters {
                 try {
                     $global:DeviceLocationEntries = DeviceCatalogModule\Get-DeviceLocationEntries
                 } catch [System.Management.Automation.CommandNotFoundException] {
-                } catch { }
+                    Write-Verbose 'DeviceCatalogModule not available; using empty location entries.'
+                } catch {
+                    Write-Warning ("Failed to load device location entries: {0}" -f $_.Exception.Message)
+                }
             }
         }
     }
@@ -362,13 +369,18 @@ function Update-DeviceFilter {
 
             if ($derivedLocations) {
                 $locationEntries = $derivedLocations
-                try { $global:DeviceLocationEntries = $derivedLocations } catch { }
+                try { $global:DeviceLocationEntries = $derivedLocations } catch {
+                    Write-Warning ("Failed to update global DeviceLocationEntries from derived metadata: {0}" -f $_.Exception.Message)
+                }
             } else {
                 try {
                     $locationEntries = DeviceCatalogModule\Get-DeviceLocationEntries
                     $global:DeviceLocationEntries = $locationEntries
                 } catch [System.Management.Automation.CommandNotFoundException] {
-                } catch { }
+                    Write-Verbose 'DeviceCatalogModule not available; using empty location entries.'
+                } catch {
+                    Write-Warning ("Failed to load device location entries: {0}" -f $_.Exception.Message)
+                }
             }
         }
         $hasMetadata = $false
@@ -415,7 +427,9 @@ function Update-DeviceFilter {
                 try {
                     $diagMsg = "Update-DeviceFilter: applied PendingFilterRestore | site='{0}', zone='{1}', bld='{2}', room='{3}'" -f `
                         $siteInput, $zoneInput, $buildingInput, $roomInput
-                    try { Write-Diag $diagMsg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $diagMsg } catch { }
+                    try { Write-Diag $diagMsg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $diagMsg } catch {
+                        Write-Verbose ("Failed to emit diagnostics: {0}" -f $_.Exception.Message)
+                    }
                 } catch { }
             } catch { }
             try { $global:PendingFilterRestore = $null } catch { }
@@ -429,7 +443,9 @@ function Update-DeviceFilter {
         try {
             $diagMsg = "Update-DeviceFilter: siteSel='{0}', zoneSel='{1}', bldSel='{2}', roomSel='{3}', siteChanged={4}, zoneChanged={5}, bldChanged={6}, roomChanged={7}" -f `
                 $siteInput, $zoneInput, $buildingInput, $roomInput, $siteChangedCompared, $zoneChangedCompared, $bldChangedCompared, $roomChangedCompared
-            try { Write-Diag $diagMsg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $diagMsg } catch { }
+            try { Write-Diag $diagMsg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $diagMsg } catch {
+                Write-Verbose ("Failed to emit diagnostics: {0}" -f $_.Exception.Message)
+            }
         } catch {}
 
         $siteDD     = $window.FindName('SiteDropdown')
@@ -625,7 +641,9 @@ function Update-DeviceFilter {
             $sampleList = if ($hostCount -gt 0) { (@($hostCandidates) | Select-Object -First ([System.Math]::Min(3, $hostCount))) -join ', ' } else { '' }
             $diagMsgHosts = "HostFilter | site='{0}', zone='{1}', building='{2}', room='{3}', count={4}, examples=[{5}]" -f `
                 $siteSelection, $zoneSelection, $buildingSelection, $roomSelection, $hostCount, $sampleList
-            try { Write-Diag $diagMsgHosts } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $diagMsgHosts } catch { }
+            try { Write-Diag $diagMsgHosts } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $diagMsgHosts } catch {
+                Write-Verbose ("Failed to emit diagnostics: {0}" -f $_.Exception.Message)
+            }
         } catch {}
 
         $finalSite      = $siteSelection
@@ -690,7 +708,9 @@ function Update-DeviceFilter {
                 script:Set-GlobalInterfaces -Interfaces ([System.Collections.Generic.List[object]]::new())
                 try {
                     $diagDefer = "Update-DeviceFilter deferred interface refresh to Insights worker | Site='{0}', Zone='{1}', Building='{2}', Room='{3}'" -f $finalSite, $finalZone, $finalBuilding, $finalRoom
-                    try { Write-Diag $diagDefer } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $diagDefer } catch { }
+                    try { Write-Diag $diagDefer } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $diagDefer } catch {
+                        Write-Verbose ("Failed to emit diagnostics: {0}" -f $_.Exception.Message)
+                    }
                 } catch { }
             } else {
                 try {
@@ -713,7 +733,9 @@ function Update-DeviceFilter {
                     }
                     $refreshDurationMs = 0.0
                     if ($refreshStopwatch) {
-                        try { $refreshStopwatch.Stop() } catch { }
+                        try { $refreshStopwatch.Stop() } catch {
+                            Write-Verbose ("Failed to stop refresh stopwatch: {0}" -f $_.Exception.Message)
+                        }
                         try { $refreshDurationMs = [math]::Round($refreshStopwatch.Elapsed.TotalMilliseconds, 3) } catch { $refreshDurationMs = 0.0 }
                     }
                     if (-not $global:AllInterfaces) {
@@ -724,7 +746,9 @@ function Update-DeviceFilter {
                         $ifaceCount = 0
                         try { $ifaceCount = ViewStateService\Get-SequenceCount -Value $global:AllInterfaces } catch { $ifaceCount = 0 }
                         $diagRefresh = "Update-DeviceFilter refreshed interfaces | DurationMs={0} | Interfaces={1}" -f $refreshDurationMs, $ifaceCount
-                        try { Write-Diag $diagRefresh } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $diagRefresh } catch { }
+                        try { Write-Diag $diagRefresh } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $diagRefresh } catch {
+                            Write-Verbose ("Failed to emit diagnostics: {0}" -f $_.Exception.Message)
+                        }  
                     } catch { }
                 } catch {
                     script:Set-GlobalInterfaces -Interfaces ([System.Collections.Generic.List[object]]::new())
@@ -754,19 +778,25 @@ function Update-DeviceFilter {
                         try { $ifaceCount = ViewStateService\Get-SequenceCount -Value $global:AllInterfaces } catch { $ifaceCount = 0 }
                         $diagInsights = "Update-DeviceFilter scheduling insights | Search={0} Summary={1} Alerts={2} | Interfaces={3} | Site='{4}' Zone='{5}'" -f `
                             $needSearchRefresh, $needSummaryRefresh, $needAlertsRefresh, $ifaceCount, $finalSite, $finalZone
-                        try { Write-Diag $diagInsights } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $diagInsights } catch { }
+                        try { Write-Diag $diagInsights } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $diagInsights } catch {
+                            Write-Verbose ("Failed to emit diagnostics: {0}" -f $_.Exception.Message)
+                        }
                     } catch { }
                     $insightsStopwatch = $null
                     try { $insightsStopwatch = [System.Diagnostics.Stopwatch]::StartNew() } catch { $insightsStopwatch = $null }
                     Update-InsightsAsync -Interfaces $global:AllInterfaces -IncludeSearch:$needSearchRefresh -IncludeSummary:$needSummaryRefresh -IncludeAlerts:$needAlertsRefresh
                     if ($insightsStopwatch) {
-                        try { $insightsStopwatch.Stop() } catch { }
+                        try { $insightsStopwatch.Stop() } catch {
+                            Write-Verbose ("Failed to stop insights stopwatch: {0}" -f $_.Exception.Message)
+                        }
                         $durationMs = 0.0
                         try { $durationMs = [math]::Round($insightsStopwatch.Elapsed.TotalMilliseconds, 3) } catch { $durationMs = 0.0 }
                         try {
                             if ($global:StateTraceDebug) {
                                 $diag = "Update-DeviceFilter Update-InsightsAsync returned | DurationMs={0}" -f $durationMs
-                                try { Write-Diag $diag } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $diag } catch { }
+                                try { Write-Diag $diag } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $diag } catch {
+                                    Write-Verbose ("Failed to emit diagnostics: {0}" -f $_.Exception.Message)
+                                }
                             }
                         } catch { }
                     }

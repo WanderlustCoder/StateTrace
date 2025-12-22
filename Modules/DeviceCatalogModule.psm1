@@ -12,6 +12,10 @@ if (-not (Get-Variable -Scope Global -Name DeviceLocationEntries -ErrorAction Si
     $global:DeviceLocationEntries = @()
 }
 
+if (-not (Get-Variable -Scope Script -Name DeviceCatalogImportWarnings -ErrorAction SilentlyContinue)) {
+    $script:DeviceCatalogImportWarnings = @{}
+}
+
 function script:Ensure-LocalStateTraceModule {
     [CmdletBinding()]
     param(
@@ -21,14 +25,40 @@ function script:Ensure-LocalStateTraceModule {
 
     try {
         if (Get-Module -Name $ModuleName -ErrorAction SilentlyContinue) { return }
-
-        $modulePath = Join-Path $PSScriptRoot $ModuleFileName
-        if (Test-Path -LiteralPath $modulePath) {
-            Import-Module -Name $modulePath -Global -ErrorAction SilentlyContinue | Out-Null
-        } else {
-            Import-Module -Name $ModuleName -Global -ErrorAction SilentlyContinue | Out-Null
-        }
     } catch { }
+
+    $alreadyWarned = $false
+    try { $alreadyWarned = $script:DeviceCatalogImportWarnings.ContainsKey($ModuleName) } catch { $alreadyWarned = $false }
+
+    $modulePath = Join-Path $PSScriptRoot $ModuleFileName
+    $modulePathExists = $false
+    try { $modulePathExists = Test-Path -LiteralPath $modulePath } catch { $modulePathExists = $false }
+
+    $imported = $false
+    $lastError = $null
+    if ($modulePathExists) {
+        try {
+            Import-Module -Name $modulePath -Global -ErrorAction Stop | Out-Null
+            $imported = $true
+        } catch {
+            $lastError = $_.Exception.Message
+        }
+    }
+
+    if (-not $imported) {
+        try {
+            Import-Module -Name $ModuleName -Global -ErrorAction Stop | Out-Null
+            $imported = $true
+        } catch {
+            $lastError = $_.Exception.Message
+        }
+    }
+
+    if (-not $imported -and -not $alreadyWarned) {
+        $script:DeviceCatalogImportWarnings[$ModuleName] = $true
+        $detail = if ($lastError) { $lastError } else { 'Unknown import failure.' }
+        Write-Warning ("[DeviceCatalog] Failed to import module '{0}' from '{1}' or by name: {2}" -f $ModuleName, $modulePath, $detail)
+    }
 }
 
 function script:Ensure-DeviceRepositoryModule {

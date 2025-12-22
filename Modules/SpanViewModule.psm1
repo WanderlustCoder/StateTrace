@@ -19,6 +19,10 @@ $script:WriteSpanDiagAction    = {
     } catch { }
 }
 
+if (-not (Get-Variable -Scope Script -Name SpanRepositoryImportWarned -ErrorAction SilentlyContinue)) {
+    $script:SpanRepositoryImportWarned = $false
+}
+
 function Get-GlobalSpanView {
     try {
         $value = (Get-Variable -Name spanView -Scope Global -ErrorAction Stop).Value
@@ -107,6 +111,7 @@ function Import-SpanRepositoryModule {
         return
     }
 
+    $lastError = $null
     $candidatePaths = [System.Collections.Generic.List[string]]::new()
     try { [void]$candidatePaths.Add((Join-Path -Path $PSScriptRoot -ChildPath 'DeviceRepositoryModule.psm1')) } catch { }
     try { [void]$candidatePaths.Add((Join-Path -Path (Split-Path -Parent $PSScriptRoot) -ChildPath 'Modules\DeviceRepositoryModule.psm1')) } catch { }
@@ -117,10 +122,23 @@ function Import-SpanRepositoryModule {
         try {
             Import-Module -Name $candidate -Force -Global -ErrorAction Stop | Out-Null
             return
-        } catch { }
+        } catch {
+            $lastError = $_.Exception.Message
+        }
     }
 
-    try { Import-Module -Name DeviceRepositoryModule -Force -Global -ErrorAction SilentlyContinue | Out-Null } catch { }
+    try {
+        Import-Module -Name DeviceRepositoryModule -Force -Global -ErrorAction Stop | Out-Null
+        return
+    } catch {
+        $lastError = $_.Exception.Message
+    }
+
+    if (-not $script:SpanRepositoryImportWarned) {
+        $script:SpanRepositoryImportWarned = $true
+        $detail = if ($lastError) { $lastError } else { 'Unknown import failure.' }
+        Write-Warning ("[SpanView] Failed to import DeviceRepositoryModule: {0}" -f $detail)
+    }
 }
 
 function Reset-SpanViewState {

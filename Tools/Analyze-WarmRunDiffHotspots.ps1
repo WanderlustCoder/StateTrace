@@ -16,13 +16,52 @@ if (-not (Test-Path -LiteralPath $TelemetryPath)) {
 
 Write-Host ("Reading telemetry from '{0}'..." -f (Resolve-Path -LiteralPath $TelemetryPath)) -ForegroundColor Cyan
 
-$rawContent = Get-Content -LiteralPath $TelemetryPath -Raw
-if ([string]::IsNullOrWhiteSpace($rawContent)) {
-    throw "Telemetry file '$TelemetryPath' was empty."
+function Read-WarmPassEvents {
+    [CmdletBinding()]
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    $parsed = New-Object System.Collections.Generic.List[object]
+    $parseErrors = 0
+    $parsedLines = 0
+    $lineAttempts = 0
+    $maxLineAttempts = 10
+
+    foreach ($line in (Get-Content -LiteralPath $Path -ReadCount 1 -ErrorAction Stop)) {
+        if ([string]::IsNullOrWhiteSpace($line)) { continue }
+        $lineAttempts++
+        try {
+            $obj = $line | ConvertFrom-Json -ErrorAction Stop
+            $parsedLines++
+            if ($obj -and $obj.PassLabel -eq 'WarmPass' -and $obj.Site) {
+                $null = $parsed.Add($obj)
+            }
+        } catch {
+            $parseErrors++
+            if ($parseErrors -le 3) {
+                Write-Verbose ("[WarmRunDiff] Skipping invalid JSON line: {0}" -f $_.Exception.Message)
+            }
+        }
+        if ($parsedLines -eq 0 -and $lineAttempts -ge $maxLineAttempts) {
+            break
+        }
+    }
+
+    if ($parsedLines -gt 0) {
+        if ($parseErrors -gt 0) {
+            Write-Warning ("[WarmRunDiff] Skipped {0} invalid JSON line(s) in {1}" -f $parseErrors, $Path)
+        }
+        return $parsed.ToArray()
+    }
+
+    $rawContent = Get-Content -LiteralPath $Path -Raw -ErrorAction Stop
+    if ([string]::IsNullOrWhiteSpace($rawContent)) {
+        throw "Telemetry file '$Path' was empty."
+    }
+    $allEvents = $rawContent | ConvertFrom-Json -ErrorAction Stop
+    return @($allEvents | Where-Object { $_.PassLabel -eq 'WarmPass' -and $_.Site })
 }
 
-$allEvents = $rawContent | ConvertFrom-Json
-$warmEvents = @($allEvents | Where-Object { $_.PassLabel -eq 'WarmPass' -and $_.Site })
+$warmEvents = Read-WarmPassEvents -Path $TelemetryPath
 if (-not $warmEvents -or $warmEvents.Count -eq 0) {
     Write-Warning 'No WarmPass entries were found in the telemetry file.'
     return

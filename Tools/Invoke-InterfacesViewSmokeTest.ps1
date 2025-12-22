@@ -4,6 +4,7 @@ param(
     [string]$Hostname,
     [int]$TimeoutSeconds = 30,
     [int]$NoProgressTimeoutSeconds = 5,
+    [int]$PollIntervalMilliseconds = 100,
     [switch]$PassThru
 )
 
@@ -105,6 +106,7 @@ if (-not $collection) {
 
 $timeoutMs = [Math]::Max(1000, ($TimeoutSeconds * 1000))
 $noProgressMs = if ($NoProgressTimeoutSeconds -gt 0) { [Math]::Max(1000, ($NoProgressTimeoutSeconds * 1000)) } else { 0 }
+$pollMs = [Math]::Max(10, $PollIntervalMilliseconds)
 $streamWatch = [System.Diagnostics.Stopwatch]::StartNew()
 $lastProgressMs = 0
 
@@ -123,7 +125,7 @@ try {
                 if ($noProgressMs -gt 0 -and ($streamWatch.ElapsedMilliseconds - $lastProgressMs) -ge $noProgressMs) {
                     throw "InterfacesView smoke test stalled for $NoProgressTimeoutSeconds seconds without batch progress (host '$targetHost')."
                 }
-                Start-Sleep -Milliseconds 100
+                Start-Sleep -Milliseconds $pollMs
                 continue
             }
             break

@@ -1,6 +1,36 @@
 Set-StrictMode -Version Latest
+if (-not (Get-Variable -Scope Script -Name InsightsViewStateImportWarned -ErrorAction SilentlyContinue)) {
+    $script:InsightsViewStateImportWarned = $false
+}
+if (-not (Get-Variable -Scope Script -Name InsightsPortSortWarned -ErrorAction SilentlyContinue)) {
+    $script:InsightsPortSortWarned = $false
+}
+if (-not (Get-Variable -Scope Script -Name InsightsSortFailureWarned -ErrorAction SilentlyContinue)) {
+    $script:InsightsSortFailureWarned = $false
+}
+if (-not (Get-Variable -Scope Script -Name InsightsCacheUpdateWarned -ErrorAction SilentlyContinue)) {
+    $script:InsightsCacheUpdateWarned = $false
+}
 
-try { ViewStateService\Import-ViewStateServiceModule | Out-Null } catch { }
+try {
+    $viewStateModule = $null
+    try { $viewStateModule = Get-Module -Name 'ViewStateService' -ErrorAction SilentlyContinue } catch { $viewStateModule = $null }
+    if (-not $viewStateModule) {
+        $viewStatePath = Join-Path $PSScriptRoot 'ViewStateService.psm1'
+        if (Test-Path -LiteralPath $viewStatePath) {
+            Import-Module -Name $viewStatePath -Force -Global -ErrorAction Stop | Out-Null
+            try { $viewStateModule = Get-Module -Name 'ViewStateService' -ErrorAction SilentlyContinue } catch { $viewStateModule = $null }
+        }
+    }
+    if (-not $viewStateModule) {
+        throw 'ViewStateService module not loaded.'
+    }
+} catch {
+    if (-not $script:InsightsViewStateImportWarned) {
+        $script:InsightsViewStateImportWarned = $true
+        Write-Warning ("[DeviceInsights] Failed to import ViewStateService: {0}" -f $_.Exception.Message)
+    }
+}
 if (-not (Get-Variable -Scope Script -Name SearchRegexEnabled -ErrorAction SilentlyContinue)) {
     $script:SearchRegexEnabled = $false
 }
@@ -92,7 +122,15 @@ function script:Set-InsightsInterfacesSnapshot {
     try {
         DeviceRepositoryModule\Invoke-InterfaceCacheLock { $global:AllInterfaces = $Interfaces }
     } catch {
-        $global:AllInterfaces = $Interfaces
+        if (-not $script:InsightsCacheUpdateWarned) {
+            $script:InsightsCacheUpdateWarned = $true
+            Write-Warning ("[DeviceInsights] Failed to update interface cache under lock; using fallback assignment. {0}" -f $_.Exception.Message)
+        }
+        try {
+            $global:AllInterfaces = $Interfaces
+        } catch {
+            Write-Warning ("[DeviceInsights] Failed to update interface cache: {0}" -f $_.Exception.Message)
+        }
     }
 }
 
@@ -122,9 +160,25 @@ function script:Get-InsightsPortSortKeyCommand {
     if (-not $cmd) {
         $portNormPath = Join-Path $PSScriptRoot 'PortNormalization.psm1'
         if (Test-Path -LiteralPath $portNormPath) {
-            try { Import-Module -Name $portNormPath -Prefix 'PortNorm' -Force -Global -ErrorAction Stop | Out-Null } catch { }
+            try {
+                Import-Module -Name $portNormPath -Prefix 'PortNorm' -Force -Global -ErrorAction Stop | Out-Null
+            } catch {
+                if (-not $script:InsightsPortSortWarned) {
+                    $script:InsightsPortSortWarned = $true
+                    Write-Warning ("[DeviceInsights] Failed to import PortNormalization from '{0}': {1}" -f $portNormPath, $_.Exception.Message)
+                }
+            }
+        } else {
+            if (-not $script:InsightsPortSortWarned) {
+                $script:InsightsPortSortWarned = $true
+                Write-Warning ("[DeviceInsights] PortNormalization module not found at '{0}'; port sort fallback keys will be used." -f $portNormPath)
+            }
         }
         try { $cmd = Get-Command -Name 'Get-PortNormPortSortKey' -ErrorAction SilentlyContinue } catch { $cmd = $null }
+        if (-not $cmd -and -not $script:InsightsPortSortWarned) {
+            $script:InsightsPortSortWarned = $true
+            Write-Warning "[DeviceInsights] Port sort key command unavailable; using fallback keys for sorting."
+        }
     }
 
     if ($cmd) { $script:InsightsPortSortKeyCmd = $cmd }
@@ -219,7 +273,12 @@ function script:Sort-InsightsRowsByPort {
         return [System.StringComparer]::OrdinalIgnoreCase.Compare($portA, $portB)
     }
 
-    try { $Rows.Sort($comparison) } catch { }
+    try { $Rows.Sort($comparison) } catch {
+        if (-not $script:InsightsSortFailureWarned) {
+            $script:InsightsSortFailureWarned = $true
+            Write-Warning ("[DeviceInsights] Failed to sort interface rows: {0}" -f $_.Exception.Message)
+        }
+    }
 
     return $Rows
 }
@@ -477,6 +536,7 @@ function Update-Summary {
 
     $stringPropertyCmd = script:Get-InterfaceStringPropertyValueCommand
     $setDefaultsCmd = script:Get-InterfaceSetPortRowDefaultsCommand
+    $defaultFailureLogged = $false
 
     foreach ($row in $interfaces) {
         if (-not $row) { continue }
@@ -496,7 +556,14 @@ function Update-Summary {
             }
 
             if ($setDefaultsCmd) {
-                try { & $setDefaultsCmd -Row $row -Hostname $hostnameValue | Out-Null } catch { }
+                try {
+                    & $setDefaultsCmd -Row $row -Hostname $hostnameValue | Out-Null
+                } catch {
+                    if (-not $defaultFailureLogged) {
+                        $defaultFailureLogged = $true
+                        Write-Warning ("[DeviceInsights] Failed to apply port row defaults: {0}" -f $_.Exception.Message)
+                    }
+                }
             } else {
                 if (-not $row.PSObject.Properties['Hostname']) {
                     $row | Add-Member -NotePropertyName Hostname -NotePropertyValue $hostnameValue -ErrorAction SilentlyContinue

@@ -33,6 +33,13 @@ pwsh Tools\Compare-SchedulerAndPortDiversity.ps1 `
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+$toolingJsonPath = Join-Path -Path $PSScriptRoot -ChildPath 'ToolingJson.psm1'
+if (Test-Path -LiteralPath $toolingJsonPath) {
+    Import-Module -Name $toolingJsonPath -Force
+} else {
+    throw "ToolingJson module not found at '$toolingJsonPath'."
+}
+
 function Resolve-ExistingFile {
     param([string]$PathValue, [string]$Name)
     if (-not (Test-Path -LiteralPath $PathValue)) {
@@ -45,12 +52,12 @@ $schedulerPath = Resolve-ExistingFile -PathValue $SchedulerReportPath -Name 'Sch
 $portPath = Resolve-ExistingFile -PathValue $PortDiversityReportPath -Name 'Port diversity report'
 
 try {
-    $scheduler = (Get-Content -LiteralPath $schedulerPath -Raw | ConvertFrom-Json -Depth 5)
+    $scheduler = Read-ToolingJson -Path $schedulerPath -Label 'Scheduler report'
 } catch {
     throw "Failed to parse scheduler report '$schedulerPath': $($_.Exception.Message)"
 }
 try {
-    $port = (Get-Content -LiteralPath $portPath -Raw | ConvertFrom-Json -Depth 5)
+    $port = Read-ToolingJson -Path $portPath -Label 'Port diversity report'
 } catch {
     throw "Failed to parse port diversity report '$portPath': $($_.Exception.Message)"
 }

@@ -4,7 +4,8 @@ function New-AlertsView {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)][System.Windows.Window]$Window,
-        [Parameter(Mandatory=$true)][string]$ScriptDir
+        [Parameter(Mandatory=$true)][string]$ScriptDir,
+        [switch]$SuppressDialogs
     )
     try {
         $alertsView = ViewCompositionModule\Set-StView -Window $Window -ScriptDir $ScriptDir -ViewName 'AlertsView' -HostControlName 'AlertsHost' -GlobalVariableName 'alertsView'
@@ -22,7 +23,7 @@ function New-AlertsView {
                 $grid = $alertsView.FindName('AlertsGrid')
                 if (-not $grid) { return }
                 $rows = $grid.ItemsSource
-                ViewCompositionModule\Export-StRowsToCsv -Rows $rows -DefaultFileName 'Alerts.csv' -EmptyMessage 'No alerts to export.' -SuccessNoun 'alerts' -FailureMessagePrefix 'Failed to export alerts'
+                ViewCompositionModule\Export-StRowsToCsv -Rows $rows -DefaultFileName 'Alerts.csv' -EmptyMessage 'No alerts to export.' -SuccessNoun 'alerts' -FailureMessagePrefix 'Failed to export alerts' -SuppressDialogs:$SuppressDialogs
             })
         }
     } catch {

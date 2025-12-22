@@ -13,6 +13,38 @@ function Get-SqlLiteral {
     return $Value.Replace("'", "''")
 }
 
+function Invoke-DbSchemaStatement {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][object]$Connection,
+        [Parameter(Mandatory)][string]$Statement,
+        [Parameter()][string]$Label,
+        [switch]$IgnoreIfExists,
+        [switch]$ContinueOnFailure
+    )
+
+    try {
+        $null = $Connection.Execute($Statement)
+        return $true
+    } catch {
+        $message = $_.Exception.Message
+        if ($IgnoreIfExists -and $null -ne $message -and $message -match '(?i)already exists|duplicate') {
+            return $false
+        }
+
+        $labelText = if ($Label) { $Label } else { $Statement }
+        $hresultText = ''
+        try { $hresultText = ' (HRESULT=0x{0:X8})' -f $_.Exception.HResult } catch { }
+        $detailText = if ($hresultText) { "$message$hresultText" } else { $message }
+        $warningText = "Failed to apply schema change '$labelText': $detailText"
+        if ($ContinueOnFailure) {
+            Write-Warning $warningText
+            return $false
+        }
+        throw $warningText
+    }
+}
+
 function ConvertTo-DbRowList {
     [CmdletBinding()]
     param(
@@ -463,16 +495,17 @@ CREATE TABLE InterfaceHistory (
             }
             throw "Failed to open Access database '$Path'. Tried providers: $candidateList.`n$detailText"
         }
-        # Attempt to create DeviceSummary table if it doesn't exist
-        try { $connection.Execute($createSummaryTable) | Out-Null } catch { }
-        # Attempt to create Interfaces table if it doesn't exist
-        try { $connection.Execute($createInterfacesTable) | Out-Null } catch { }
-        # Attempt to create history tables if they don't exist
-        try { $connection.Execute($createDeviceHistoryTable) | Out-Null } catch { }
-        try { $connection.Execute($createInterfaceHistoryTable) | Out-Null } catch { }
-        # Attempt to create SpanInfo table if it doesn't exist
-        try { $connection.Execute($createSpanInfoTable) | Out-Null } catch { }
-        try { $connection.Execute($createSpanHistoryTable) | Out-Null } catch { }
+        $schemaStatements = @(
+            @{ Label = 'Create DeviceSummary table'; Statement = $createSummaryTable }
+            @{ Label = 'Create Interfaces table'; Statement = $createInterfacesTable }
+            @{ Label = 'Create DeviceHistory table'; Statement = $createDeviceHistoryTable }
+            @{ Label = 'Create InterfaceHistory table'; Statement = $createInterfaceHistoryTable }
+            @{ Label = 'Create SpanInfo table'; Statement = $createSpanInfoTable }
+            @{ Label = 'Create SpanHistory table'; Statement = $createSpanHistoryTable }
+        )
+        foreach ($entry in $schemaStatements) {
+            Invoke-DbSchemaStatement -Connection $connection -Statement $entry.Statement -Label $entry.Label -IgnoreIfExists
+        }
 
         # Helpful indexes (ignore if they already exist)
         $createIndexes = @(
@@ -482,7 +515,7 @@ CREATE TABLE InterfaceHistory (
             "CREATE INDEX idx_spanhistory_host ON SpanHistory (Hostname)"
         )
         foreach ($stmt in $createIndexes) {
-            try { $connection.Execute($stmt) | Out-Null } catch { }
+            Invoke-DbSchemaStatement -Connection $connection -Statement $stmt -Label $stmt -IgnoreIfExists -ContinueOnFailure
         }
         $alterStmts = @(
             "ALTER TABLE Interfaces ADD COLUMN AuthTemplate TEXT(64)",

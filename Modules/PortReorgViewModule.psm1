@@ -26,12 +26,32 @@ function Show-PortReorgWindow {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][System.Windows.Window]$OwnerWindow,
-        [Parameter(Mandatory)][string]$Hostname
+        [Parameter(Mandatory)][string]$Hostname,
+        [switch]$SuppressDialogs
     )
 
     $hostTrim = ('' + $Hostname).Trim()
+    $suppressDialogsResolved = $false
+    if ($SuppressDialogs.IsPresent) {
+        $suppressDialogsResolved = $true
+    } else {
+        $globalSetting = $null
+        try { $globalSetting = Get-Variable -Name StateTraceSuppressDialogs -Scope Global -ErrorAction SilentlyContinue } catch { $globalSetting = $null }
+        if ($globalSetting -and $null -ne $globalSetting.Value) {
+            try { if ([bool]$globalSetting.Value) { $suppressDialogsResolved = $true } } catch { }
+        }
+        if (-not $suppressDialogsResolved) {
+            $envValue = $env:STATETRACE_SUPPRESS_DIALOGS
+            if (-not [string]::IsNullOrWhiteSpace($envValue) -and $envValue -match '^(1|true|yes)$') {
+                $suppressDialogsResolved = $true
+            }
+        }
+        if (-not $suppressDialogsResolved) {
+            try { if (-not [System.Environment]::UserInteractive) { $suppressDialogsResolved = $true } } catch { }
+        }
+    }
     if ([string]::IsNullOrWhiteSpace($hostTrim)) {
-        [System.Windows.MessageBox]::Show('No hostname selected.') | Out-Null
+        [System.Windows.MessageBox]::Show('No hostname selected.') | Out-Null   
         return
     }
 
@@ -1342,10 +1362,14 @@ function Show-PortReorgWindow {
             try {
                 if (-not $changeBox -or [string]::IsNullOrWhiteSpace($changeBox.Text)) { return }
                 try {
-                    ViewCompositionModule\Export-StTextToFile -Text $changeBox.Text -DefaultFileName ("{0}-PortReorg-Change.txt" -f $hostTrim)
+                    ViewCompositionModule\Export-StTextToFile -Text $changeBox.Text -DefaultFileName ("{0}-PortReorg-Change.txt" -f $hostTrim) -SuppressDialogs:$SuppressDialogs
                 } catch [System.Management.Automation.CommandNotFoundException] {
                     Set-Clipboard -Value ('' + $changeBox.Text)
-                    [System.Windows.MessageBox]::Show('Export helper missing; script copied to clipboard instead.') | Out-Null
+                    if ($suppressDialogsResolved) {
+                        Write-Warning 'Export helper missing; script copied to clipboard instead.'
+                    } else {
+                        [System.Windows.MessageBox]::Show('Export helper missing; script copied to clipboard instead.') | Out-Null
+                    }
                 }
             } catch {
                 & $setStatus ("Save failed: {0}" -f $_.Exception.Message) ''
@@ -1357,10 +1381,14 @@ function Show-PortReorgWindow {
             try {
                 if (-not $rollbackBox -or [string]::IsNullOrWhiteSpace($rollbackBox.Text)) { return }
                 try {
-                    ViewCompositionModule\Export-StTextToFile -Text $rollbackBox.Text -DefaultFileName ("{0}-PortReorg-Rollback.txt" -f $hostTrim)
+                    ViewCompositionModule\Export-StTextToFile -Text $rollbackBox.Text -DefaultFileName ("{0}-PortReorg-Rollback.txt" -f $hostTrim) -SuppressDialogs:$SuppressDialogs
                 } catch [System.Management.Automation.CommandNotFoundException] {
                     Set-Clipboard -Value ('' + $rollbackBox.Text)
-                    [System.Windows.MessageBox]::Show('Export helper missing; script copied to clipboard instead.') | Out-Null
+                    if ($suppressDialogsResolved) {
+                        Write-Warning 'Export helper missing; script copied to clipboard instead.'
+                    } else {
+                        [System.Windows.MessageBox]::Show('Export helper missing; script copied to clipboard instead.') | Out-Null
+                    }
                 }
             } catch {
                 & $setStatus ("Save failed: {0}" -f $_.Exception.Message) ''

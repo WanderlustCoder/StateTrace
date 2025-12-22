@@ -20,6 +20,7 @@ param(
     [int]$NoProgressTimeoutSeconds = 5,
     [switch]$RequireAlerts,
     [switch]$EnableDiagnostics,
+    [switch]$SuppressDialogs,
     [switch]$ForceExit,
     [switch]$PassThru,
     [switch]$AsJson
@@ -266,8 +267,8 @@ try {
         $global:InterfacesLoadAllowed = $true
         $global:AllInterfaces = $allInterfaces
 
-        SearchInterfacesViewModule\New-SearchInterfacesView -Window $window -ScriptDir $mainDir
-        AlertsViewModule\New-AlertsView -Window $window -ScriptDir $mainDir
+        SearchInterfacesViewModule\New-SearchInterfacesView -Window $window -ScriptDir $mainDir -SuppressDialogs:$SuppressDialogs
+        AlertsViewModule\New-AlertsView -Window $window -ScriptDir $mainDir -SuppressDialogs:$SuppressDialogs
 
         $searchGrid = $window.FindName('SearchInterfacesGrid')
         if (-not $searchGrid) {
@@ -388,11 +389,17 @@ try {
 } finally {
     try {
         if ($windowRef) {
-            try { $windowRef.Close() } catch { }
+            try { $windowRef.Close() } catch {
+                Write-Warning ("Failed to close alerts/search window: {0}" -f $_.Exception.Message)
+            }
         }
         if ([System.Windows.Application]::Current) {
-            try { [System.Windows.Application]::Current.Dispatcher.InvokeShutdown() } catch { }
-            try { [System.Windows.Application]::Current.Shutdown() } catch { }
+            try { [System.Windows.Application]::Current.Dispatcher.InvokeShutdown() } catch {
+                Write-Warning ("Failed to shutdown dispatcher: {0}" -f $_.Exception.Message)
+            }
+            try { [System.Windows.Application]::Current.Shutdown() } catch {
+                Write-Warning ("Failed to shutdown application: {0}" -f $_.Exception.Message)
+            }
         }
     } catch { }
 }

@@ -22,8 +22,12 @@ $resolvedLogDir = $LogDirectory
 if ([string]::IsNullOrWhiteSpace($resolvedLogDir)) {
     $resolvedLogDir = Join-Path $projectRoot 'Logs\Diagnostics'
 }
-try { $resolvedLogDir = [System.IO.Path]::GetFullPath($resolvedLogDir) } catch { }
-try { [System.IO.Directory]::CreateDirectory($resolvedLogDir) | Out-Null } catch { }
+try { $resolvedLogDir = [System.IO.Path]::GetFullPath($resolvedLogDir) } catch {
+    Write-Warning ("Failed to normalize diagnostics log directory '{0}': {1}" -f $resolvedLogDir, $_.Exception.Message)
+}
+try { [System.IO.Directory]::CreateDirectory($resolvedLogDir) | Out-Null } catch {
+    Write-Warning ("Failed to create diagnostics log directory '{0}': {1}" -f $resolvedLogDir, $_.Exception.Message)
+}
 
 $timestamp = (Get-Date).ToString('yyyyMMdd-HHmmss')
 $transcriptPath = Join-Path $resolvedLogDir ("UiSession-{0}.log" -f $timestamp)

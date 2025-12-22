@@ -36,6 +36,13 @@ pwsh Tools\Test-TelemetryBundleReadiness.ps1 -BundlePath Logs/TelemetryBundles/R
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+$toolingJsonPath = Join-Path -Path $PSScriptRoot -ChildPath 'ToolingJson.psm1'
+if (Test-Path -LiteralPath $toolingJsonPath) {
+    Import-Module -Name $toolingJsonPath -Force
+} else {
+    throw "ToolingJson module not found at '$toolingJsonPath'."
+}
+
 function Resolve-AreaContexts {
     param(
         [Parameter(Mandatory = $true)][string]$BundlePath,
@@ -54,7 +61,7 @@ function Resolve-AreaContexts {
     $contexts = @()
 
     if (Test-Path -LiteralPath $manifestPath) {
-        $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json -Depth 10
+        $manifest = Read-ToolingJson -Path $manifestPath -Label 'Telemetry bundle manifest'
         $areaName = if ($manifest.AreaName) { $manifest.AreaName } else { 'Telemetry' }
         if ($RequestedAreas -and $RequestedAreas.Count -gt 0 -and ($RequestedAreas -notcontains $areaName)) {
             Write-Warning "Bundle path '$bundleFullPath' points to area '$areaName'. Ignoring requested areas '$($RequestedAreas -join ', ')'."
@@ -95,7 +102,7 @@ function Resolve-AreaContexts {
                 throw "Area '$areaName' is missing TelemetryBundle.json."
             }
 
-            $manifest = Get-Content -LiteralPath $areaManifestPath -Raw | ConvertFrom-Json -Depth 10
+            $manifest = Read-ToolingJson -Path $areaManifestPath -Label ("Telemetry bundle manifest ({0})" -f $areaName)
             $contexts += [pscustomobject]@{
                 Name = $areaName
                 Path = $areaPath

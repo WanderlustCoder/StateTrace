@@ -37,6 +37,13 @@ if (Test-Path -LiteralPath $statsModulePath) {
     throw "AnalyzerStats module not found at '$statsModulePath'."
 }
 
+$toolingJsonPath = Join-Path -Path $PSScriptRoot -ChildPath 'ToolingJson.psm1'
+if (Test-Path -LiteralPath $toolingJsonPath) {
+    Import-Module -Name $toolingJsonPath -Force
+} else {
+    throw "ToolingJson module not found at '$toolingJsonPath'."
+}
+
 function Get-TargetFiles {
     param([string]$InputPath)
     if (-not (Test-Path -LiteralPath $InputPath)) {
@@ -198,8 +205,7 @@ if ($BaselineSummaryPath) {
     if (-not (Test-Path -LiteralPath $BaselineSummaryPath)) {
         throw "Baseline summary '$BaselineSummaryPath' was not found."
     }
-    $baselineJson = Get-Content -LiteralPath $BaselineSummaryPath -Raw -ErrorAction Stop
-    $baselineSummary = $baselineJson | ConvertFrom-Json -Depth 6
+    $baselineSummary = Read-ToolingJson -Path $BaselineSummaryPath -Label 'Baseline summary'
     if (-not $baselineSummary) {
         throw "Baseline summary '$BaselineSummaryPath' is empty or invalid."
     }

@@ -93,6 +93,13 @@ if (-not (Get-Variable -Scope Script -Name SharedSiteInterfaceCacheEventLock -Er
     $script:SharedSiteInterfaceCacheEventLock = New-Object object
 }
 
+if (-not (Get-Variable -Scope Script -Name SharedSiteInterfaceCacheEventsMaxEntries -ErrorAction SilentlyContinue)) {
+    $script:SharedSiteInterfaceCacheEventsMaxEntries = 2000
+}
+if (-not (Get-Variable -Scope Script -Name SharedSiteInterfaceCacheClearEventsMaxEntries -ErrorAction SilentlyContinue)) {
+    $script:SharedSiteInterfaceCacheClearEventsMaxEntries = 2000
+}
+
 function Invoke-SharedSiteInterfaceCacheEventLock {
     [CmdletBinding()]
     param(
@@ -108,6 +115,22 @@ function Invoke-SharedSiteInterfaceCacheEventLock {
             [System.Threading.Monitor]::Exit($script:SharedSiteInterfaceCacheEventLock)
         }
     }
+}
+
+function script:Limit-SharedCacheEventList {
+    [CmdletBinding()]
+    param(
+        [Parameter()][object]$List,
+        [Parameter(Mandatory)][int]$MaxEntries
+    )
+
+    if (-not $List) { return @() }
+    if ($MaxEntries -le 0) { return @($List) }
+
+    $current = @($List)
+    if ($current.Count -le $MaxEntries) { return $current }
+
+    return @($current | Select-Object -Last $MaxEntries)
 }
 
 function Publish-SharedSiteInterfaceCacheStoreState {
@@ -154,6 +177,7 @@ function Publish-SharedSiteInterfaceCacheStoreState {
         } catch {
             $global:SharedSiteInterfaceCacheEvents = @($entry)
         }
+        $global:SharedSiteInterfaceCacheEvents = script:Limit-SharedCacheEventList -List $global:SharedSiteInterfaceCacheEvents -MaxEntries $script:SharedSiteInterfaceCacheEventsMaxEntries
     }
 }
 
@@ -183,6 +207,7 @@ function Publish-SharedSiteInterfaceCacheClearInvocation {
         } catch {
             $global:SharedSiteInterfaceCacheClearEvents = @($item)
         }
+        $global:SharedSiteInterfaceCacheClearEvents = script:Limit-SharedCacheEventList -List $global:SharedSiteInterfaceCacheClearEvents -MaxEntries $script:SharedSiteInterfaceCacheClearEventsMaxEntries
     }
 }
 
@@ -335,7 +360,9 @@ function Import-SharedSiteInterfaceCacheSnapshot {
 
     $imported = Import-SharedSiteInterfaceCacheSnapshotFromEnv -TargetStore $Store
     if ($imported -gt 0) {
-        try { [System.AppDomain]::CurrentDomain.SetData($storeKey, $Store) } catch { }
+        try { [System.AppDomain]::CurrentDomain.SetData($storeKey, $Store) } catch {
+            Write-Warning ("Failed to publish shared cache store to AppDomain ({0}): {1}" -f $storeKey, $_.Exception.Message)
+        }
         $hashCode = [System.Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($Store)
         Publish-SharedSiteInterfaceCacheStoreState -Operation 'SnapshotImported' -EntryCount ([int]$Store.Count) -StoreHashCode $hashCode
         return $Store.Count
@@ -370,8 +397,12 @@ function Initialize-SharedSiteInterfaceCacheStore {
         $store = New-Object 'System.Collections.Concurrent.ConcurrentDictionary[string, object]' ([System.StringComparer]::OrdinalIgnoreCase)
     }
 
-    try { [System.AppDomain]::CurrentDomain.SetData($storeKey, $store) } catch { }
-    try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($store) } catch { }
+    try { [System.AppDomain]::CurrentDomain.SetData($storeKey, $store) } catch {
+        Write-Warning ("Failed to publish shared cache store to AppDomain ({0}): {1}" -f $storeKey, $_.Exception.Message)
+    }
+    try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($store) } catch {
+        Write-Warning ("Failed to publish shared cache store to holder: {0}" -f $_.Exception.Message)
+    }
 
     $count = Import-SharedSiteInterfaceCacheSnapshot -Store $store
     $storeHashCode = [System.Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($store)
@@ -401,15 +432,21 @@ function Get-SharedSiteInterfaceCacheStore {
             try { $scriptCount = [int]$store.Count } catch { $scriptCount = 0 }
             try { $domainCount = [int]$domainStore.Count } catch { $domainCount = 0 }
             if ($scriptCount -gt $domainCount) {
-                try { [System.AppDomain]::CurrentDomain.SetData($storeKey, $store) } catch { }
+                try { [System.AppDomain]::CurrentDomain.SetData($storeKey, $store) } catch {
+                    Write-Warning ("Failed to publish shared cache store to AppDomain ({0}): {1}" -f $storeKey, $_.Exception.Message)
+                }
             } else {
                 $store = $domainStore
                 $script:SharedSiteInterfaceCache = $store
             }
         } elseif (-not ($domainStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]])) {
-            try { [System.AppDomain]::CurrentDomain.SetData($storeKey, $store) } catch { }
+            try { [System.AppDomain]::CurrentDomain.SetData($storeKey, $store) } catch {
+                Write-Warning ("Failed to publish shared cache store to AppDomain ({0}): {1}" -f $storeKey, $_.Exception.Message)
+            }
         }
-        try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($store) } catch { }
+        try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($store) } catch {
+            Write-Warning ("Failed to publish shared cache store to holder: {0}" -f $_.Exception.Message)
+        }
         return $store
     }
 
@@ -681,7 +718,9 @@ function Clear-SharedSiteInterfaceCache {
     $preClearHash = [System.Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($store)
 
     if ($store -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
-        try { [System.AppDomain]::CurrentDomain.SetData($script:SharedSiteInterfaceCacheKey, $null) } catch { }
+        try { [System.AppDomain]::CurrentDomain.SetData($script:SharedSiteInterfaceCacheKey, $null) } catch {
+            Write-Warning ("Failed to clear shared cache AppDomain store ({0}): {1}" -f $script:SharedSiteInterfaceCacheKey, $_.Exception.Message)
+        }
         try { $store.Clear() } catch { }
         try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::ClearStore() } catch { }
     }
@@ -765,6 +804,7 @@ function Publish-SharedSiteInterfaceCacheEvent {
         } catch {
             $global:SharedSiteInterfaceCacheEvents = @($entry)
         }
+        $global:SharedSiteInterfaceCacheEvents = script:Limit-SharedCacheEventList -List $global:SharedSiteInterfaceCacheEvents -MaxEntries $script:SharedSiteInterfaceCacheEventsMaxEntries
     }
 }
 

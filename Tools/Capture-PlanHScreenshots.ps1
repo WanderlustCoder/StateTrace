@@ -36,11 +36,15 @@ if (-not (Test-Path -LiteralPath $OutputDirectory)) {
 
 $quickstart = $null
 if (Test-Path -LiteralPath $QuickstartSummaryPath) {
-    try { $quickstart = Get-Content -LiteralPath $QuickstartSummaryPath -Raw | ConvertFrom-Json -ErrorAction Stop } catch { }
+    try { $quickstart = Get-Content -LiteralPath $QuickstartSummaryPath -Raw | ConvertFrom-Json -ErrorAction Stop } catch {
+        Write-Warning ("Failed to parse quickstart summary '{0}': {1}" -f $QuickstartSummaryPath, $_.Exception.Message)
+    }
 }
 $freshness = $null
 if ($FreshnessSummaryPath -and (Test-Path -LiteralPath $FreshnessSummaryPath)) {
-    try { $freshness = Get-Content -LiteralPath $FreshnessSummaryPath -Raw | ConvertFrom-Json -ErrorAction Stop } catch { }
+    try { $freshness = Get-Content -LiteralPath $FreshnessSummaryPath -Raw | ConvertFrom-Json -ErrorAction Stop } catch {
+        Write-Warning ("Failed to parse freshness summary '{0}': {1}" -f $FreshnessSummaryPath, $_.Exception.Message)
+    }
 }
 
 function New-Shot {

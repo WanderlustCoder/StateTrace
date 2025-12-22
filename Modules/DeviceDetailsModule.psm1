@@ -8,24 +8,44 @@ function script:Ensure-LocalStateTraceModule {
     )
 
     try {
-        if (Get-Module -Name $ModuleName -ErrorAction SilentlyContinue) { return }
-
-        $modulePath = Join-Path $PSScriptRoot $ModuleFileName
-        if (Test-Path -LiteralPath $modulePath) {
-            Import-Module -Name $modulePath -Global -ErrorAction SilentlyContinue | Out-Null
-        } else {
-            Import-Module -Name $ModuleName -Global -ErrorAction SilentlyContinue | Out-Null
-        }
+        if (Get-Module -Name $ModuleName -ErrorAction SilentlyContinue) { return $true }
     } catch { }
+
+    $modulePath = Join-Path $PSScriptRoot $ModuleFileName
+    $imported = $false
+    if (Test-Path -LiteralPath $modulePath) {
+        try {
+            Import-Module -Name $modulePath -Global -ErrorAction Stop | Out-Null
+            $imported = $true
+        } catch {
+            Write-Warning ("[DeviceDetailsModule] Failed to import module '{0}' from '{1}': {2}" -f $ModuleName, $modulePath, $_.Exception.Message)
+        }
+    } else {
+        try {
+            Import-Module -Name $ModuleName -Global -ErrorAction Stop | Out-Null
+            $imported = $true
+        } catch {
+            Write-Warning ("[DeviceDetailsModule] Failed to import module '{0}': {1}" -f $ModuleName, $_.Exception.Message)
+        }
+    }
+
+    return $imported
 }
 
 function script:Ensure-DeviceRepositoryModule {
-    script:Ensure-LocalStateTraceModule -ModuleName 'DeviceRepositoryModule' -ModuleFileName 'DeviceRepositoryModule.psm1'
+    $null = script:Ensure-LocalStateTraceModule -ModuleName 'DeviceRepositoryModule' -ModuleFileName 'DeviceRepositoryModule.psm1'
 }
 
 function script:Ensure-DatabaseModule {
-    try { DeviceRepositoryModule\Import-DatabaseModule } catch {
-        script:Ensure-LocalStateTraceModule -ModuleName 'DatabaseModule' -ModuleFileName 'DatabaseModule.psm1'
+    $imported = $false
+    try {
+        DeviceRepositoryModule\Import-DatabaseModule | Out-Null
+        $imported = $true
+    } catch {
+        Write-Warning ("[DeviceDetailsModule] Failed to import DatabaseModule via DeviceRepositoryModule: {0}" -f $_.Exception.Message)
+    }
+    if (-not $imported) {
+        $imported = [bool](script:Ensure-LocalStateTraceModule -ModuleName 'DatabaseModule' -ModuleFileName 'DatabaseModule.psm1')
     }
 }
 
@@ -110,7 +130,7 @@ function Get-DeviceDetailsData {
             }
         }
     } catch {
-        # keep summary even if interface query fails
+        Write-Warning ("[DeviceDetailsModule] Interface query failed for '{0}' in '{1}': {2}" -f $hostTrim, $dbPath, $_.Exception.Message)
     }
 
     try {
@@ -132,7 +152,9 @@ function Get-DatabaseDeviceSummary {
     try { $escHost = DatabaseModule\Get-SqlLiteral -Value $Hostname } catch { }
     $summarySql = "SELECT Hostname, Make, Model, Uptime, Ports, AuthDefaultVLAN, Building, Room FROM DeviceSummary WHERE Hostname = '$escHost' OR Hostname LIKE '*$escHost*'"
     $dtSummary = $null
-    try { $dtSummary = DatabaseModule\Invoke-DbQuery -DatabasePath $DatabasePath -Sql $summarySql } catch {}
+    try { $dtSummary = DatabaseModule\Invoke-DbQuery -DatabasePath $DatabasePath -Sql $summarySql } catch {
+        Write-Warning ("[DeviceDetailsModule] Summary query failed for '{0}' in '{1}': {2}" -f $Hostname, $DatabasePath, $_.Exception.Message)
+    }
 
     $row = $null
     if ($dtSummary) {

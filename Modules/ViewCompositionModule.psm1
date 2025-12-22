@@ -71,16 +71,67 @@ function New-StDebounceTimer {
     return $timer
 }
 
+function script:Test-ViewCompositionDialogSuppression {
+    [CmdletBinding()]
+    param([switch]$SuppressDialogs)
+
+    if ($SuppressDialogs.IsPresent) { return $true }
+
+    $globalSetting = $null
+    try { $globalSetting = Get-Variable -Name StateTraceSuppressDialogs -Scope Global -ErrorAction SilentlyContinue } catch { $globalSetting = $null }
+    if ($globalSetting -and $null -ne $globalSetting.Value) {
+        try { if ([bool]$globalSetting.Value) { return $true } } catch { }
+    }
+
+    $envValue = $env:STATETRACE_SUPPRESS_DIALOGS
+    if (-not [string]::IsNullOrWhiteSpace($envValue)) {
+        if ($envValue -match '^(1|true|yes)$') { return $true }
+    }
+
+    try { if (-not [System.Environment]::UserInteractive) { return $true } } catch { }
+
+    return $false
+}
+
+function script:Show-ViewCompositionMessage {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Message,
+        [string]$Title,
+        [ValidateSet('Info','Warning','Error')][string]$Severity = 'Info',
+        [switch]$SuppressDialogs
+    )
+
+    $suppress = Test-ViewCompositionDialogSuppression -SuppressDialogs:$SuppressDialogs
+    if ($suppress) {
+        $prefix = if ([string]::IsNullOrWhiteSpace($Title)) { '' } else { "${Title}: " }
+        $text = "$prefix$Message"
+        switch ($Severity) {
+            'Warning' { Write-Warning $text }
+            'Error' { Write-Error $text }
+            default { Write-Verbose $text }
+        }
+        return
+    }
+
+    if ([string]::IsNullOrWhiteSpace($Title)) {
+        [System.Windows.MessageBox]::Show($Message) | Out-Null
+    } else {
+        [System.Windows.MessageBox]::Show($Message, $Title) | Out-Null
+    }
+}
+
 function Export-StRowsToCsv {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][object]$Rows,
         [string]$DefaultFileName = 'Export.csv',
-        [string]$DialogFilter = 'CSV files (*.csv)|*.csv|All files (*.*)|*.*',
+        [string]$DialogFilter = 'CSV files (*.csv)|*.csv|All files (*.*)|*.*',  
         [string]$EmptyMessage = 'No rows to export.',
         [string]$SuccessNoun = 'rows',
         [string]$SuccessTitle = 'Export Complete',
-        [string]$FailureMessagePrefix = 'Failed to export'
+        [string]$FailureMessagePrefix = 'Failed to export',
+        [switch]$SuppressDialogs
     )
 
     $rowArray = @()
@@ -91,37 +142,49 @@ function Export-StRowsToCsv {
     }
 
     if (-not $rowArray -or $rowArray.Count -eq 0) {
-        try { [System.Windows.MessageBox]::Show($EmptyMessage) | Out-Null } catch { }
+        try { Show-ViewCompositionMessage -Message $EmptyMessage -SuppressDialogs:$SuppressDialogs } catch { }
         return
     }
+
+    $suppressDialogsResolved = Test-ViewCompositionDialogSuppression -SuppressDialogs:$SuppressDialogs
 
     $dlg = $null
     try {
-        $dlg = New-Object Microsoft.Win32.SaveFileDialog
-        $dlg.Filter = $DialogFilter
-        $dlg.FileName = $DefaultFileName
-        $dlg.DefaultExt = '.csv'
-        $dlg.AddExtension = $true
+        if (-not $suppressDialogsResolved) {
+            $dlg = New-Object Microsoft.Win32.SaveFileDialog
+            $dlg.Filter = $DialogFilter
+            $dlg.FileName = $DefaultFileName
+            $dlg.DefaultExt = '.csv'
+            $dlg.AddExtension = $true
+        }
     } catch {
-        try { [System.Windows.MessageBox]::Show(("Failed to open save dialog: {0}" -f $_.Exception.Message)) | Out-Null } catch { }
+        try { Show-ViewCompositionMessage -Message ("Failed to open save dialog: {0}" -f $_.Exception.Message) -Severity Warning -SuppressDialogs:$SuppressDialogs } catch { }
         return
     }
 
+    if ($suppressDialogsResolved) {
+        if ([string]::IsNullOrWhiteSpace($DefaultFileName) -or -not ([System.IO.Path]::IsPathRooted($DefaultFileName))) {
+            Show-ViewCompositionMessage -Message 'Export dialog suppressed; provide an absolute -DefaultFileName to export.' -Severity Warning -SuppressDialogs:$SuppressDialogs
+            return
+        }
+        $path = $DefaultFileName
+    } else {
     $confirmed = $false
     try { $confirmed = ($dlg.ShowDialog() -eq $true) } catch { $confirmed = $false }
     if (-not $confirmed) { return }
 
-    $path = $dlg.FileName
+        $path = $dlg.FileName
+    }
     if ([string]::IsNullOrWhiteSpace($path)) { return }
 
     try {
         $rowArray | Export-Csv -Path $path -NoTypeInformation
         $msg = "Exported {0} {1} to {2}" -f $rowArray.Count, $SuccessNoun, $path
-        [System.Windows.MessageBox]::Show($msg, $SuccessTitle) | Out-Null
+        Show-ViewCompositionMessage -Message $msg -Title $SuccessTitle -SuppressDialogs:$SuppressDialogs
     } catch {
         $prefix = $FailureMessagePrefix
         if ([string]::IsNullOrWhiteSpace($prefix)) { $prefix = 'Failed to export' }
-        try { [System.Windows.MessageBox]::Show(("{0}: {1}" -f $prefix, $_.Exception.Message)) | Out-Null } catch { }
+        try { Show-ViewCompositionMessage -Message ("{0}: {1}" -f $prefix, $_.Exception.Message) -Severity Warning -SuppressDialogs:$SuppressDialogs } catch { }
     }
 }
 
@@ -130,45 +193,58 @@ function Export-StTextToFile {
     param(
         [Parameter()][AllowEmptyString()][string]$Text,
         [string]$DefaultFileName = 'Export.txt',
-        [string]$DialogFilter = 'Text files (*.txt)|*.txt|All files (*.*)|*.*',
+        [string]$DialogFilter = 'Text files (*.txt)|*.txt|All files (*.*)|*.*', 
         [string]$EmptyMessage = 'Nothing to save.',
         [string]$SuccessTitle = 'Save Complete',
-        [string]$FailureMessagePrefix = 'Failed to save'
+        [string]$FailureMessagePrefix = 'Failed to save',
+        [switch]$SuppressDialogs
     )
 
     if ([string]::IsNullOrWhiteSpace($Text)) {
-        try { [System.Windows.MessageBox]::Show($EmptyMessage) | Out-Null } catch { }
+        try { Show-ViewCompositionMessage -Message $EmptyMessage -SuppressDialogs:$SuppressDialogs } catch { }
         return
     }
+
+    $suppressDialogsResolved = Test-ViewCompositionDialogSuppression -SuppressDialogs:$SuppressDialogs
 
     $dlg = $null
     try {
-        $dlg = New-Object Microsoft.Win32.SaveFileDialog
-        $dlg.Filter = $DialogFilter
-        $dlg.FileName = $DefaultFileName
-        $dlg.DefaultExt = '.txt'
-        $dlg.AddExtension = $true
+        if (-not $suppressDialogsResolved) {
+            $dlg = New-Object Microsoft.Win32.SaveFileDialog
+            $dlg.Filter = $DialogFilter
+            $dlg.FileName = $DefaultFileName
+            $dlg.DefaultExt = '.txt'
+            $dlg.AddExtension = $true
+        }
     } catch {
-        try { [System.Windows.MessageBox]::Show(("Failed to open save dialog: {0}" -f $_.Exception.Message)) | Out-Null } catch { }
+        try { Show-ViewCompositionMessage -Message ("Failed to open save dialog: {0}" -f $_.Exception.Message) -Severity Warning -SuppressDialogs:$SuppressDialogs } catch { }
         return
     }
 
+    if ($suppressDialogsResolved) {
+        if ([string]::IsNullOrWhiteSpace($DefaultFileName) -or -not ([System.IO.Path]::IsPathRooted($DefaultFileName))) {
+            Show-ViewCompositionMessage -Message 'Save dialog suppressed; provide an absolute -DefaultFileName to write.' -Severity Warning -SuppressDialogs:$SuppressDialogs
+            return
+        }
+        $path = $DefaultFileName
+    } else {
     $confirmed = $false
     try { $confirmed = ($dlg.ShowDialog() -eq $true) } catch { $confirmed = $false }
     if (-not $confirmed) { return }
 
-    $path = $dlg.FileName
+        $path = $dlg.FileName
+    }
     if ([string]::IsNullOrWhiteSpace($path)) { return }
 
     try {
         $utf8NoBom = New-Object System.Text.UTF8Encoding $false
         [System.IO.File]::WriteAllText($path, ('' + $Text), $utf8NoBom)
         $msg = "Saved to {0}" -f $path
-        [System.Windows.MessageBox]::Show($msg, $SuccessTitle) | Out-Null
+        Show-ViewCompositionMessage -Message $msg -Title $SuccessTitle -SuppressDialogs:$SuppressDialogs
     } catch {
         $prefix = $FailureMessagePrefix
         if ([string]::IsNullOrWhiteSpace($prefix)) { $prefix = 'Failed to save' }
-        try { [System.Windows.MessageBox]::Show(("{0}: {1}" -f $prefix, $_.Exception.Message)) | Out-Null } catch { }
+        try { Show-ViewCompositionMessage -Message ("{0}: {1}" -f $prefix, $_.Exception.Message) -Severity Warning -SuppressDialogs:$SuppressDialogs } catch { }
     }
 }
 

@@ -26,6 +26,13 @@ pwsh Tools\Analyze-DispatchHarnessSweep.ps1 `
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+$toolingJsonPath = Join-Path -Path $PSScriptRoot -ChildPath 'ToolingJson.psm1'
+if (Test-Path -LiteralPath $toolingJsonPath) {
+    Import-Module -Name $toolingJsonPath -Force
+} else {
+    throw "ToolingJson module not found at '$toolingJsonPath'."
+}
+
 function Get-SiteFromHostname {
     param([string]$Hostname)
     if ([string]::IsNullOrWhiteSpace($Hostname)) { return '(unknown)' }
@@ -38,8 +45,7 @@ if (-not (Test-Path -LiteralPath $SweepPath)) {
     throw "Sweep file '$SweepPath' not found."
 }
 
-$json = Get-Content -LiteralPath $SweepPath -Raw -ErrorAction Stop
-$entries = $json | ConvertFrom-Json -ErrorAction Stop
+$entries = Read-ToolingJson -Path $SweepPath -Label 'Dispatch sweep'
 if (-not $entries -or $entries.Count -eq 0) {
     throw "Sweep file '$SweepPath' does not contain any entries."
 }
@@ -151,3 +157,4 @@ if ($OutputPath) {
 else {
     $builder -join [Environment]::NewLine | Write-Host
 }
+

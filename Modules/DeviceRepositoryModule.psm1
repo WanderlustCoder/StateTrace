@@ -2502,12 +2502,14 @@ function Invoke-WithAccessExclusiveRetry {
         [Parameter(Mandatory)][ScriptBlock]$Operation,
         [int]$MaxAttempts = 5,
         [int]$RetryDelayMilliseconds = 100,
+        [int]$MaxExclusiveWaitMilliseconds = 2000,
         [ref]$TelemetrySink
     )
 
     $attempt = 0
     $exclusiveRetryCount = 0
     $totalWaitMilliseconds = 0.0
+    $maxExclusiveWaitMs = if ($MaxExclusiveWaitMilliseconds -gt 0) { [Math]::Max(0, $MaxExclusiveWaitMilliseconds) } else { 0 }
     $operationStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     while ($attempt -lt $MaxAttempts) {
         try {
@@ -2536,10 +2538,22 @@ function Invoke-WithAccessExclusiveRetry {
 
             if ($isExclusiveLock -and $attempt -lt $MaxAttempts) {
                 $delay = [Math]::Min(500, $RetryDelayMilliseconds * $attempt)
-                $totalWaitMilliseconds += $delay
-                $exclusiveRetryCount++
-                Start-Sleep -Milliseconds $delay
-                continue
+                if ($maxExclusiveWaitMs -gt 0) {
+                    $remainingWait = $maxExclusiveWaitMs - $totalWaitMilliseconds
+                    if ($remainingWait -le 0) {
+                        $message = "Exclusive lock wait exceeded ${maxExclusiveWaitMs}ms"
+                        $isExclusiveLock = $false
+                    } else {
+                        $delay = [Math]::Min($delay, [int]$remainingWait)
+                    }
+                }
+
+                if ($isExclusiveLock) {
+                    if ($delay -gt 0) { Start-Sleep -Milliseconds $delay }
+                    $totalWaitMilliseconds += $delay
+                    $exclusiveRetryCount++
+                    continue
+                }
             }
 
             if ($TelemetrySink) {

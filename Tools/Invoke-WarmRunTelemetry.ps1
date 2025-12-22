@@ -901,6 +901,10 @@ function Wait-TelemetryFlush {
         [int]$PollMilliseconds = 100
     )
 
+    $timeoutMs = if ($TimeoutMilliseconds -gt 0) { $TimeoutMilliseconds } else { 5000 }
+    $pollMs = if ($PollMilliseconds -gt 0) { $PollMilliseconds } else { 100 }
+    if ($pollMs -gt $timeoutMs) { $pollMs = [Math]::Max(25, [int]($timeoutMs / 5)) }
+
     $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
     try {
         do {
@@ -917,8 +921,8 @@ function Wait-TelemetryFlush {
                     return
                 }
             }
-            Start-Sleep -Milliseconds $PollMilliseconds
-        } while ($stopwatch.ElapsedMilliseconds -lt $TimeoutMilliseconds)
+            Start-Sleep -Milliseconds $pollMs
+        } while ($stopwatch.ElapsedMilliseconds -lt $timeoutMs)
     } finally {
         $stopwatch.Stop()
     }
@@ -2427,7 +2431,9 @@ function Restore-SharedCacheEntries {
                 $siteProp = $item.PSObject.Properties['Site']
                 if ($siteProp) { $siteKey = ('' + $siteProp.Value).Trim() }
                 if ([string]::IsNullOrWhiteSpace($siteKey)) { continue }
-                try { $null = Get-InterfaceSiteCache -Site $siteKey } catch { }
+                try { $null = Get-InterfaceSiteCache -Site $siteKey } catch {
+                    Write-Warning ("Failed to hydrate interface site cache for '{0}': {1}" -f $siteKey, $_.Exception.Message)
+                }
             }
 
             return $restored

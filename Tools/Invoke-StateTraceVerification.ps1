@@ -61,6 +61,11 @@ if (-not (Test-Path -LiteralPath $pipelineScript)) {
     throw "Pipeline harness not found at $pipelineScript."
 }
 $verificationModulePath = Join-Path -Path $repositoryRoot -ChildPath 'Modules\VerificationModule.psm1'
+$toolingJsonPath = Join-Path -Path $repositoryRoot -ChildPath 'Tools\ToolingJson.psm1'
+if (-not (Test-Path -LiteralPath $toolingJsonPath)) {
+    throw "ToolingJson module not found at '$toolingJsonPath'."
+}
+Import-Module -Name $toolingJsonPath -Force -ErrorAction Stop
 
 function Ensure-VerificationModuleLoaded {
     param([Parameter(Mandatory)][string]$ModulePath)
@@ -389,12 +394,16 @@ if ($computedWarmRunPath) {
             Write-Warning ("Failed to update warm-run telemetry latest pointer: {0}" -f $_.Exception.Message)
         }
         try {
-            $rawTelemetry = Get-Content -LiteralPath $computedWarmRunPath -Raw
-            if (-not [string]::IsNullOrWhiteSpace($rawTelemetry)) {
-                $telemetryObjects = $rawTelemetry | ConvertFrom-Json
-                $comparison = $telemetryObjects | Where-Object {
-                    $_.PassLabel -eq 'WarmRunComparison' -and $_.SummaryType -eq 'InterfaceCallDuration'
-                } | Select-Object -First 1
+            $telemetryObjects = Read-ToolingJson -Path $computedWarmRunPath -Label 'Warm-run telemetry' -FilterScript {
+                param($obj)
+                $obj -and $obj.PassLabel -eq 'WarmRunComparison' -and $obj.SummaryType -eq 'InterfaceCallDuration'
+            }
+            if ($telemetryObjects) {
+                if ($telemetryObjects -is [System.Collections.IEnumerable] -and -not ($telemetryObjects -is [string])) {
+                    $comparison = $telemetryObjects | Select-Object -First 1
+                } else {
+                    $comparison = $telemetryObjects
+                }
                 if ($null -ne $comparison) {
                     $warmRunSummaryData = [pscustomobject]@{
                         GeneratedAtUtc                = (Get-Date).ToUniversalTime()

@@ -1,5 +1,9 @@
 Set-StrictMode -Version Latest
 
+if (-not (Get-Variable -Scope Script -Name DatabaseModuleImportWarned -ErrorAction SilentlyContinue)) {
+    $script:DatabaseModuleImportWarned = $false
+}
+
 function Get-DataDirectoryPath {
     [CmdletBinding()]
     param()
@@ -165,10 +169,24 @@ function Import-DatabaseModule {
 
         $dbModulePath = Join-Path $PSScriptRoot 'DatabaseModule.psm1'
         if (Test-Path -LiteralPath $dbModulePath) {
-            Import-Module $dbModulePath -Force -Global -ErrorAction SilentlyContinue | Out-Null
+            try {
+                Import-Module $dbModulePath -Force -Global -ErrorAction Stop | Out-Null
+                return
+            } catch {
+                if (-not $script:DatabaseModuleImportWarned) {
+                    $script:DatabaseModuleImportWarned = $true
+                    Write-Warning ("[DeviceRepository.Access] Failed to import DatabaseModule from '{0}': {1}" -f $dbModulePath, $_.Exception.Message)
+                }
+            }
+        } elseif (-not $script:DatabaseModuleImportWarned) {
+            $script:DatabaseModuleImportWarned = $true
+            Write-Warning ("[DeviceRepository.Access] DatabaseModule not found at '{0}'." -f $dbModulePath)
         }
     } catch {
-        # Swallow any import errors; downstream functions will handle missing cmdlets.
+        if (-not $script:DatabaseModuleImportWarned) {
+            $script:DatabaseModuleImportWarned = $true
+            Write-Warning ("[DeviceRepository.Access] DatabaseModule import failed: {0}" -f $_.Exception.Message)
+        }
     }
 }
 
@@ -231,7 +249,9 @@ function Invoke-ParallelDbQuery {
                             $opened = $true
                             break
                         } catch {
-                            try { $connection.Close() } catch { }
+                            try { $connection.Close() } catch {
+                                Write-Verbose ("Failed to close provider probe connection for '{0}': {1}" -f $dbPathArg, $_.Exception.Message)
+                            }
                         }
                     }
 
@@ -282,13 +302,17 @@ function Invoke-ParallelDbQuery {
                     $payload = $null
                 } finally {
                     if ($recordset) {
-                        try { $recordset.Close() } catch { }
+                        try { $recordset.Close() } catch {
+                            Write-Warning ("Failed to close ADODB recordset for '{0}': {1}" -f $dbPathArg, $_.Exception.Message)
+                        }
                         if ($recordset -is [System.__ComObject]) {
                             try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($recordset) } catch { }
                         }
                     }
                     if ($connection) {
-                        try { $connection.Close() } catch { }
+                        try { $connection.Close() } catch {
+                            Write-Warning ("Failed to close ADODB connection for '{0}': {1}" -f $dbPathArg, $_.Exception.Message)
+                        }
                         if ($connection -is [System.__ComObject]) {
                             try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($connection) } catch { }
                         }

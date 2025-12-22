@@ -40,3 +40,73 @@ Describe "DatabaseModule ConvertTo-DbRowList" {
         $rows.Count | Should Be 0
     }
 }
+
+Describe "DatabaseModule Invoke-DbSchemaStatement" {
+    BeforeAll {
+        $modulePath = Join-Path (Split-Path $PSCommandPath) "..\\DatabaseModule.psm1"
+        Import-Module (Resolve-Path $modulePath) -Force
+    }
+
+    AfterAll {
+        Remove-Module DatabaseModule -Force
+    }
+
+    It "returns true when Execute succeeds" {
+        InModuleScope DatabaseModule {
+            $calls = [System.Collections.Generic.List[string]]::new()
+            $connection = [pscustomobject]@{}
+            $connection | Add-Member -MemberType ScriptMethod -Name Execute -Value {
+                param($statement)
+                $calls.Add($statement) | Out-Null
+                return $null
+            }
+
+            $result = Invoke-DbSchemaStatement -Connection $connection -Statement 'SELECT 1' -Label 'Test'
+            $result | Should Be $true
+            $calls.Count | Should Be 1
+        }
+    }
+
+    It "ignores already exists when requested" {
+        InModuleScope DatabaseModule {
+            $connection = [pscustomobject]@{}
+            $connection | Add-Member -MemberType ScriptMethod -Name Execute -Value {
+                throw [System.Exception]::new('Table already exists')
+            }
+
+            $result = Invoke-DbSchemaStatement -Connection $connection -Statement 'CREATE TABLE X' -IgnoreIfExists
+            $result | Should Be $false
+        }
+    }
+
+    It "warns and continues when ContinueOnFailure is set" {
+        InModuleScope DatabaseModule {
+            $connection = [pscustomobject]@{}
+            $connection | Add-Member -MemberType ScriptMethod -Name Execute -Value {
+                throw [System.Exception]::new('boom')
+            }
+
+            Mock -CommandName Write-Warning -ModuleName DatabaseModule
+            $result = Invoke-DbSchemaStatement -Connection $connection -Statement 'CREATE TABLE X' -ContinueOnFailure
+            $result | Should Be $false
+            Assert-MockCalled Write-Warning -ModuleName DatabaseModule -Times 1
+        }
+    }
+
+    It "throws when failure is not ignored" {
+        InModuleScope DatabaseModule {
+            $connection = [pscustomobject]@{}
+            $connection | Add-Member -MemberType ScriptMethod -Name Execute -Value {
+                throw [System.Exception]::new('boom')
+            }
+
+            $threw = $false
+            try {
+                Invoke-DbSchemaStatement -Connection $connection -Statement 'CREATE TABLE X' -Label 'Test'
+            } catch {
+                $threw = $true
+            }
+            $threw | Should Be $true
+        }
+    }
+}

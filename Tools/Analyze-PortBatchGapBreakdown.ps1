@@ -30,16 +30,18 @@ pwsh Tools\Analyze-PortBatchGapBreakdown.ps1 `
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+$toolingJsonPath = Join-Path -Path $PSScriptRoot -ChildPath 'ToolingJson.psm1'
+if (Test-Path -LiteralPath $toolingJsonPath) {
+    Import-Module -Name $toolingJsonPath -Force
+} else {
+    throw "ToolingJson module not found at '$toolingJsonPath'."
+}
+
 if (-not (Test-Path -LiteralPath $IntervalReportPath)) {
     throw "Interval report '$IntervalReportPath' does not exist."
 }
 
-$json = Get-Content -LiteralPath $IntervalReportPath -Raw -ErrorAction Stop
-if (-not $json) {
-    throw "Interval report '$IntervalReportPath' is empty."
-}
-
-$report = $json | ConvertFrom-Json -Depth 6
+$report = Read-ToolingJson -Path $IntervalReportPath -Label 'Interval report'
 if (-not $report) {
     throw "Interval report '$IntervalReportPath' could not be parsed."
 }
