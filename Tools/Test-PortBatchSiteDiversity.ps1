@@ -48,11 +48,27 @@ Get-Content -LiteralPath $metricsFile -ReadCount 500 | ForEach-Object {
         try { $record = $line | ConvertFrom-Json -ErrorAction Stop }
         catch { Write-Warning ("Skipping malformed line: {0}" -f $_.Exception.Message); continue }
         if ($record.EventName -ne 'PortBatchReady') { continue }
+        $isSynthesized = $false
+        if ($record.PSObject.Properties.Name -contains 'Synthesized') {
+            $isSynthesized = [bool]$record.Synthesized
+        }
         $events.Add([pscustomobject]@{
-            Timestamp = [datetime]$record.Timestamp
-            Hostname  = $record.Hostname
-            Site      = Get-Site $record.Hostname
+            Timestamp   = [datetime]$record.Timestamp
+            Hostname    = $record.Hostname
+            Site        = Get-Site $record.Hostname
+            Synthesized = $isSynthesized
         }) | Out-Null
+    }
+}
+
+$totalEventCount = $events.Count
+$usedSynthesized = $false
+if ($totalEventCount -gt 0) {
+    $synthesizedEvents = @($events | Where-Object { $_.Synthesized })
+    if ($synthesizedEvents.Count -gt 0) {
+        $events = $synthesizedEvents
+        $usedSynthesized = $true
+        Write-Host ("Using {0} synthesized PortBatchReady event(s) for diversity evaluation." -f $events.Count) -ForegroundColor DarkGray
     }
 }
 
@@ -69,6 +85,8 @@ if ($events.Count -eq 0) {
         TerminalSite             = $null
         SitesRemainingWhenStopped= 0
         PortBatchReadyCount      = 0
+        EvaluatedPortBatchReadyCount = 0
+        UsedSynthesizedEvents    = $false
         SiteStreaks              = @()
         Skipped                  = $true
         SkipReason               = 'NoPortBatchReadyEvents'
@@ -168,6 +186,9 @@ $result = [pscustomobject]@{
     EvaluationEnd = $evaluationEnd
     TerminalSite = $terminalSite
     SitesRemainingWhenStopped = $terminalActiveSites
+    PortBatchReadyCount = $totalEventCount
+    EvaluatedPortBatchReadyCount = $events.Count
+    UsedSynthesizedEvents = $usedSynthesized
     SiteStreaks = $summary
 }
 

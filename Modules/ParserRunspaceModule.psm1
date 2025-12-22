@@ -1179,6 +1179,7 @@ function Invoke-DeviceParsingJobs {
         if ($metricsContext) {
             Finalize-SchedulerMetricsContext -Context $metricsContext
         }
+        try { TelemetryModule\Flush-StTelemetryBuffer | Out-Null } catch { }
     }
 }
 

@@ -91,6 +91,28 @@ function New-ScalarSummary {
 }
 
 $files = Get-TargetFiles -InputPath $Path
+$hasRealLaunch = $false
+$hasSynthLaunch = $false
+$scanComplete = $false
+foreach ($file in $files) {
+    Get-Content -LiteralPath $file -ReadCount 500 | ForEach-Object {
+        foreach ($line in $_) {
+            if ([string]::IsNullOrWhiteSpace($line)) { continue }
+            $evt = $null
+            try { $evt = $line | ConvertFrom-Json -ErrorAction Stop } catch { continue }
+            if ($evt.EventName -ne 'ParserSchedulerLaunch') { continue }
+            $isSynth = $false
+            if ($evt.PSObject.Properties.Name -contains 'Synthesized') {
+                try { $isSynth = [bool]$evt.Synthesized } catch { $isSynth = $false }
+            }
+            if ($isSynth) { $hasSynthLaunch = $true } else { $hasRealLaunch = $true }
+            if ($hasRealLaunch -and $hasSynthLaunch) { $scanComplete = $true; break }
+        }
+        if ($scanComplete) { break }
+    }
+    if ($scanComplete) { break }
+}
+$preferRealEvents = $hasRealLaunch
 $siteStats = @{}
 $violations = New-Object System.Collections.Generic.List[psobject]
 $activeWorkersValues = New-Object System.Collections.Generic.List[double]
@@ -157,7 +179,8 @@ foreach ($file in $files) {
                 continue
             }
 
-            if ($evt.EventName -ne 'ParserSchedulerLaunch') { continue }
+            if ($evt.EventName -ne 'ParserSchedulerLaunch') { continue }        
+            if ($preferRealEvents -and $evt.PSObject.Properties.Name -contains 'Synthesized' -and $evt.Synthesized) { continue }
 
             $launchCount++
             $timestamp = $null

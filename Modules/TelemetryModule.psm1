@@ -291,6 +291,17 @@ function Write-StTelemetryEvent {
     }
 }
 
+function Flush-StTelemetryBuffer {
+    [CmdletBinding()]
+    param(
+        [string]$Path
+    )
+
+    $targetPath = if (-not [string]::IsNullOrWhiteSpace($Path)) { $Path } else { Get-TelemetryLogPath }
+    Flush-TelemetryBuffer -Path $targetPath
+    return $targetPath
+}
+
 function Remove-ComObjectSafe {
     [CmdletBinding()]
     param(
@@ -303,4 +314,4 @@ function Remove-ComObjectSafe {
     }
 }
 
-Export-ModuleMember -Function Initialize-StateTraceDebug, Import-InterfaceCommon, Get-SpanDebugLogPath, Write-SpanDebugLog, Get-TelemetryLogDirectory, Get-TelemetryLogPath, Write-StTelemetryEvent, Remove-ComObjectSafe
+Export-ModuleMember -Function Initialize-StateTraceDebug, Import-InterfaceCommon, Get-SpanDebugLogPath, Write-SpanDebugLog, Get-TelemetryLogDirectory, Get-TelemetryLogPath, Write-StTelemetryEvent, Flush-StTelemetryBuffer, Remove-ComObjectSafe

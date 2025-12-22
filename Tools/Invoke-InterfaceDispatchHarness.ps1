@@ -190,4 +190,5 @@ if (-not $SkipQueueDelayCheck.IsPresent) {
     }
 }
 
+try { TelemetryModule\Flush-StTelemetryBuffer | Out-Null } catch { }
 Write-HarnessVerbose ("[Harness] Completed dispatcher simulation for '{0}'." -f $cleanHost)
