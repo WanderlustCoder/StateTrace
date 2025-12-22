@@ -35,6 +35,14 @@ Before tagging a release, run the following smoke tests to verify that the packa
 
 Document the outcome of each smoke test in the release checklist and attach any relevant logs.
 
+## Shared cache snapshot verification
+
+Release candidates must confirm shared cache snapshot coverage before sign-off:
+
+1. Run `Tools\Invoke-SharedCacheWarmup.ps1 -ShowSharedCacheSummary -RequiredSites BOYO,WLLS` (or run the pipeline with `-ShowSharedCacheSummary`) to write `Logs\SharedCacheSnapshot\SharedCacheSnapshot-*-summary.json` and update `SharedCacheSnapshot-latest-summary.json`.
+2. Validate the summary with `pwsh -NoLogo -File Tools\Test-SharedCacheSnapshot.ps1 -Path Logs\SharedCacheSnapshot\SharedCacheSnapshot-latest-summary.json -MinimumSiteCount 2 -MinimumHostCount 37 -MinimumTotalRowCount 1200 -RequiredSites BOYO,WLLS`.
+3. Attach the summary JSON path and guard output to the release checklist.
+
 ## Telemetry bundle verification
 
 Release candidates must include a verified telemetry bundle before approvals (Plan G ST-G-007). After exporting telemetry via `Tools\Publish-TelemetryBundle.ps1`, follow `docs/runbooks/Telemetry_Bundle_Verification.md`:
