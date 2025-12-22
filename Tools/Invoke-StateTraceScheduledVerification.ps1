@@ -48,6 +48,34 @@ function Resolve-OptionalPath {
     }
 }
 
+function Write-VerificationSummary {
+    param(
+        [Parameter(Mandatory = $true)][object]$Summary,
+        [Parameter(Mandatory = $true)][string]$SummaryPath,
+        [string]$LatestPath
+    )
+
+    $jsonPayload = $Summary | ConvertTo-Json -Depth 8
+    Set-Content -LiteralPath $SummaryPath -Value $jsonPayload -Encoding utf8
+    if (-not [string]::IsNullOrWhiteSpace($LatestPath)) {
+        Set-Content -LiteralPath $LatestPath -Value $jsonPayload -Encoding utf8
+    }
+}
+
+function Get-ResultPropertyValue {
+    param(
+        [Parameter(Mandatory = $true)][object]$Source,
+        [Parameter(Mandatory = $true)][string]$Name
+    )
+
+    $property = $Source.PSObject.Properties[$Name]
+    if ($property) {
+        return $property.Value
+    }
+
+    return $null
+}
+
 $verificationParameters = @{}
 
 if (-not $IncludeTests.IsPresent) {
@@ -150,6 +178,8 @@ if (-not (Test-Path -LiteralPath $verificationLogDir)) {
     New-Item -ItemType Directory -Path $verificationLogDir -Force | Out-Null
 }
 $transcriptPath = Join-Path -Path $verificationLogDir -ChildPath ("StateTraceVerification-{0}.log" -f $timestamp)
+$verificationSummaryPath = Join-Path -Path $verificationLogDir -ChildPath ("VerificationSummary-{0}.json" -f $timestamp)
+$verificationSummaryLatestPath = Join-Path -Path $verificationLogDir -ChildPath 'VerificationSummary-latest.json'
 
 Start-Transcript -Path $transcriptPath -Force | Out-Null
 try {
@@ -284,10 +314,91 @@ try {
         }
     }
 
+    $verificationSummaryPayload = $null
+    if ($result) {
+        $warmRunSummary = [pscustomobject]@{
+            TelemetryPath = $result.WarmRunTelemetryPath
+            SummaryPath   = $result.WarmRunTelemetrySummaryPath
+            Summary       = $result.WarmRunSummary
+            Evaluation    = $result.WarmRunEvaluation
+        }
+        $queueDelaySummary = [pscustomobject]@{
+            MetricsPath = $result.QueueMetricsPath
+            SummaryPath = $result.QueueDelaySummaryPath
+            Evaluation  = $result.QueueDelayEvaluation
+        }
+        $sharedCacheSummary = [pscustomobject]@{
+            SnapshotDirectory = $result.SharedCacheSnapshotDirectory
+            SummaryPath       = $result.SharedCacheSummaryPath
+            SummaryLatestPath = Get-ResultPropertyValue -Source $result -Name 'SharedCacheSummaryLatestPath'
+            CoveragePath      = $result.SharedCacheCoveragePath
+            CoverageArchivePath = Get-ResultPropertyValue -Source $result -Name 'SharedCacheCoverageArchivePath'
+            GuardPath         = $result.SharedCacheSnapshotGuardPath
+            Evaluation        = $result.SharedCacheSummaryEvaluation
+        }
+        $sharedCacheDiagnostics = [pscustomobject]@{
+            Directory   = $result.SharedCacheDiagnosticsDirectory
+            StorePath   = $result.SharedCacheStoreDiagnosticsPath
+            ProviderPath = $result.SiteCacheProviderDiagnosticsPath
+        }
+        $verificationSummaryPayload = [pscustomobject]@{
+            GeneratedAtUtc         = (Get-Date).ToUniversalTime()
+            Timestamp              = $timestamp
+            Status                 = 'Pass'
+            TranscriptPath         = $transcriptPath
+            SummaryPath            = $verificationSummaryPath
+            Parameters             = $verificationParameters
+            WarmRun                = $warmRunSummary
+            QueueDelay             = $queueDelaySummary
+            SharedCache            = $sharedCacheSummary
+            SharedCacheDiagnostics = $sharedCacheDiagnostics
+            DiffHotspotReportPath  = $result.DiffHotspotReportPath
+            TelemetryBundleReadiness = $result.TelemetryBundleReadiness
+        }
+    } else {
+        $verificationSummaryPayload = [pscustomobject]@{
+            GeneratedAtUtc = (Get-Date).ToUniversalTime()
+            Timestamp      = $timestamp
+            Status         = 'Unknown'
+            TranscriptPath = $transcriptPath
+            SummaryPath    = $verificationSummaryPath
+            Parameters     = $verificationParameters
+        }
+    }
+
+    if ($verificationSummaryPayload) {
+        try {
+            Write-VerificationSummary -Summary $verificationSummaryPayload -SummaryPath $verificationSummaryPath -LatestPath $verificationSummaryLatestPath
+            Write-Host ("Verification summary stored at {0}" -f $verificationSummaryPath) -ForegroundColor DarkYellow
+            if ($result) {
+                $result | Add-Member -NotePropertyName 'VerificationSummaryPath' -NotePropertyValue $verificationSummaryPath -Force
+                $result | Add-Member -NotePropertyName 'VerificationSummaryLatestPath' -NotePropertyValue $verificationSummaryLatestPath -Force
+            }
+        } catch {
+            Write-Warning ("Failed to write verification summary: {0}" -f $_.Exception.Message)
+        }
+    }
+
     if ($PassThru.IsPresent) {
         $result
     }
 } catch {
+    if ($verificationSummaryPath) {
+        $failureSummaryPayload = [pscustomobject]@{
+            GeneratedAtUtc = (Get-Date).ToUniversalTime()
+            Timestamp      = $timestamp
+            Status         = 'Fail'
+            TranscriptPath = $transcriptPath
+            SummaryPath    = $verificationSummaryPath
+            Parameters     = $verificationParameters
+            ErrorMessage   = $_.Exception.Message
+        }
+        try {
+            Write-VerificationSummary -Summary $failureSummaryPayload -SummaryPath $verificationSummaryPath -LatestPath $verificationSummaryLatestPath
+        } catch {
+            Write-Warning ("Failed to write failure summary: {0}" -f $_.Exception.Message)
+        }
+    }
     Write-Host ("[{0}] Scheduled verification failed: {1}" -f (Get-Date).ToString('u'), $_.Exception.Message) -ForegroundColor Red
     throw
 } finally {
