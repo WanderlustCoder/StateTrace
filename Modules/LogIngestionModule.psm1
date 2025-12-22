@@ -153,6 +153,23 @@ function Clear-ExtractedLogs {
     if ([string]::IsNullOrWhiteSpace($ExtractedPath)) { return }
     if (-not (Test-Path -LiteralPath $ExtractedPath)) { return }
 
+    $resolvedExtractedPath = $null
+    try { $resolvedExtractedPath = [System.IO.Path]::GetFullPath($ExtractedPath) } catch { $resolvedExtractedPath = $null }
+    if ($resolvedExtractedPath) {
+        $rootPath = $null
+        try { $rootPath = [System.IO.Path]::GetPathRoot($resolvedExtractedPath) } catch { $rootPath = $null }
+        if ($rootPath -and [System.StringComparer]::OrdinalIgnoreCase.Equals($resolvedExtractedPath.TrimEnd('\'), $rootPath.TrimEnd('\'))) {
+            Write-Warning ("Extracted log cleanup skipped for root path '{0}'." -f $resolvedExtractedPath)
+            return
+        }
+
+        $leafName = [System.IO.Path]::GetFileName($resolvedExtractedPath.TrimEnd('\'))
+        if ([string]::IsNullOrWhiteSpace($leafName) -or -not $leafName.StartsWith('Extracted', [System.StringComparison]::OrdinalIgnoreCase)) {
+            Write-Warning ("Extracted log cleanup skipped for unexpected path '{0}'." -f $resolvedExtractedPath)
+            return
+        }
+    }
+
     try {
         Get-ChildItem -LiteralPath $ExtractedPath -File -ErrorAction SilentlyContinue |
             Remove-Item -Force -ErrorAction SilentlyContinue

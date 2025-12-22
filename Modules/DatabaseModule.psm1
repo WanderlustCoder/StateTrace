@@ -5,7 +5,9 @@ if (-not (Get-Variable -Name StateTraceDebug -Scope Global -ErrorAction Silently
 }
 try {
     TelemetryModule\Initialize-StateTraceDebug
-} catch { }
+} catch {
+    Write-Warning ("Failed to initialize debug telemetry: {0}" -f $_.Exception.Message)
+}
 
 # Escape single quotes when embedding values into SQL statements.
 function Get-SqlLiteral {
@@ -126,7 +128,16 @@ try {
         $timeoutMs = [Math]::Max(1000, ($TimeoutSeconds * 1000))
         $exited = $process.WaitForExit($timeoutMs)
         if (-not $exited) {
-            try { $process.Kill() } catch { }
+            $killError = $null
+            try {
+                $process.Kill()
+                $process.WaitForExit(5000)
+            } catch {
+                $killError = $_.Exception.Message
+            }
+            if ($killError) {
+                Write-Warning ("Failed to terminate 32-bit PowerShell after timeout while creating '{0}': {1}" -f $Path, $killError)
+            }
             throw "32-bit PowerShell timed out after $TimeoutSeconds seconds while creating '$Path'."
         }
         if ($process.ExitCode -ne 0) {
@@ -180,7 +191,11 @@ function Open-OleDbConnectionWithFallback {
         }
     }
 
-    try { $connection.Dispose() } catch { }
+    $disposeError = $null
+    try { $connection.Dispose() } catch { $disposeError = $_.Exception.Message }
+    if ($disposeError) {
+        Write-Warning ("Failed to dispose Access connection after provider failures: {0}" -f $disposeError)
+    }
 
     $candidateList = 'Microsoft.ACE.OLEDB.12.0, Microsoft.Jet.OLEDB.4.0'
     $detailText = 'No provider-specific diagnostics were captured.'
@@ -538,9 +553,15 @@ CREATE TABLE InterfaceHistory (
         throw
     } finally {
         if ($connection) {
-            try { $connection.Close() } catch { }
+            $closeError = $null
+            try { $connection.Close() } catch { $closeError = $_.Exception.Message }
+            if ($closeError) {
+                Write-Warning ("Failed to close Access schema connection for '{0}': {1}" -f $Path, $closeError)
+            }
             if ($connection -is [System.__ComObject]) {
-                try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($connection) } catch { }
+                try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($connection) } catch {
+                    Write-Warning ("Failed to release COM connection for '{0}': {1}" -f $Path, $_.Exception.Message)
+                }
             }
         }
     }

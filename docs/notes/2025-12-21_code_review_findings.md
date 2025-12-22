@@ -3,6 +3,7 @@
 Scope: static review of Modules/ and Tools/ for reliability, safety, and maintainability. Fixes applied starting 2025-12-21; see status updates.
 
 Status updates:
+- 2025-12-21: Addressed findings 1-3, 77, 81-86 (DatabaseModule warnings, archive/extracted cleanup guards, ADODB cleanup hooks + dispose helpers); verified finding 64 already locked via InterfaceCacheLock.
 - 2025-12-21: Addressed findings 18, 78, 79, 80, 87 (rollback warning, pack deletion guards, ParserWorker strict mode).
 - 2025-12-21: Addressed findings 55-63 (interface cache synchronization, AllInterfaces snapshot merging, ViewState/FilterState/Insights locking).
 - 2025-12-21: Addressed findings 4-6 (schema creation failures now warn/throw; index creation warnings surfaced).

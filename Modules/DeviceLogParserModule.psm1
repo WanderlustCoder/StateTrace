@@ -22,6 +22,9 @@ if (-not (Get-Variable -Name ConnectionCacheTtlMinutes -Scope Script -ErrorActio
     $script:ConnectionCacheTtlMinutes = 5
 
 }
+if (-not (Get-Variable -Name ConnectionCacheShutdownRegistered -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:ConnectionCacheShutdownRegistered = $false
+}
 
 if (-not (Get-Variable -Name TemplatesModuleImportWarned -Scope Script -ErrorAction SilentlyContinue)) {
     $script:TemplatesModuleImportWarned = $false
@@ -447,6 +450,53 @@ function Close-StaleConnections {
 
 }
 
+function Clear-ConnectionCache {
+    [CmdletBinding()]
+    param(
+        [switch]$Force
+    )
+
+    if (-not $script:ConnectionCache) { return }
+
+    foreach ($key in @($script:ConnectionCache.Keys)) {
+        $entry = $script:ConnectionCache[$key]
+        if (-not $entry) { continue }
+
+        if ($entry.RefCount -gt 0 -and -not $Force) { continue }
+
+        if ($entry.Connection) {
+            $connectionToRelease = $entry.Connection
+            try { $connectionToRelease.Close() } catch {
+                Write-Warning ("Failed to close cached database connection for key '{0}': {1}" -f $key, $_.Exception.Message)
+            }
+            try {
+                TelemetryModule\Remove-ComObjectSafe -ComObject $connectionToRelease
+            } catch {
+                Write-Warning ("Failed to release cached database connection for key '{0}': {1}" -f $key, $_.Exception.Message)
+            }
+            $entry.Connection = $null
+        }
+
+        if ($entry.RefCount -le 0 -or $Force) {
+            $null = $script:ConnectionCache.Remove($key)
+        }
+    }
+}
+
+if (-not $script:ConnectionCacheShutdownRegistered) {
+    try {
+        $null = Register-EngineEvent -SourceIdentifier PowerShell.Exiting -Action {
+            try {
+                $cleanup = Get-Command -Name 'DeviceLogParserModule\Clear-ConnectionCache' -ErrorAction SilentlyContinue
+                if ($cleanup) { & $cleanup -Force }
+            } catch { }
+        }
+        $script:ConnectionCacheShutdownRegistered = $true
+    } catch {
+        Write-Verbose ("[DeviceLogParserModule] Failed to register connection cache shutdown hook: {0}" -f $_.Exception.Message)
+    }
+}
+
 
 
 function Get-CachedDbConnection {
@@ -550,7 +600,11 @@ function Get-CachedDbConnection {
                         try { $testConn.Close() } catch {
                             Write-Warning ("Failed to close provider probe connection for '{0}' ({1}): {2}" -f $DatabasePath, $provCandidate, $_.Exception.Message)
                         }
-                        TelemetryModule\Remove-ComObjectSafe -ComObject $testConn
+                        try {
+                            TelemetryModule\Remove-ComObjectSafe -ComObject $testConn
+                        } catch {
+                            Write-Warning ("Failed to release provider probe connection for '{0}' ({1}): {2}" -f $DatabasePath, $provCandidate, $_.Exception.Message)
+                        }
                     }
 
                 }
@@ -877,14 +931,46 @@ function ConvertFrom-SpanningTree {
 function Remove-OldArchiveFolder {
     param (
         [string]$DeviceArchivePath,
+        [string]$ArchiveRoot,
         [int]$RetentionDays = 30
     )
-    # If the archive path does not exist, do nothing.
-    if (-not (Test-Path $DeviceArchivePath)) { return }
+    if ([string]::IsNullOrWhiteSpace($DeviceArchivePath)) { return }
 
-    # Precompute the cutoff date once.  Any archive folder with a date older
+    $resolvedDevicePath = $null
+    $resolvedArchiveRoot = $null
+    try { $resolvedDevicePath = [System.IO.Path]::GetFullPath($DeviceArchivePath) } catch { $resolvedDevicePath = $null }
+    if ($ArchiveRoot) {
+        try { $resolvedArchiveRoot = [System.IO.Path]::GetFullPath($ArchiveRoot) } catch { $resolvedArchiveRoot = $null }
+    }
+
+    if ($resolvedDevicePath) {
+        $pathRoot = $null
+        try { $pathRoot = [System.IO.Path]::GetPathRoot($resolvedDevicePath) } catch { $pathRoot = $null }
+        if ($pathRoot -and [System.StringComparer]::OrdinalIgnoreCase.Equals($resolvedDevicePath.TrimEnd('\'), $pathRoot.TrimEnd('\'))) {
+            Write-Warning ("Archive cleanup skipped for root path '{0}'." -f $resolvedDevicePath)
+            return
+        }
+        if ($resolvedArchiveRoot) {
+            $rootNormalized = $resolvedArchiveRoot.TrimEnd('\')
+            $deviceNormalized = $resolvedDevicePath.TrimEnd('\')
+            if (-not $deviceNormalized.StartsWith($rootNormalized, [System.StringComparison]::OrdinalIgnoreCase)) {
+                Write-Warning ("Archive cleanup skipped because '{0}' is outside '{1}'." -f $resolvedDevicePath, $resolvedArchiveRoot)
+                return
+            }
+            $relative = $deviceNormalized.Substring($rootNormalized.Length).TrimStart('\')
+            if ([string]::IsNullOrWhiteSpace($relative)) {
+                Write-Warning ("Archive cleanup skipped because device path matches archive root '{0}'." -f $resolvedArchiveRoot)
+                return
+            }
+        }
+    }
+
+    # If the archive path does not exist, do nothing.
+    if (-not (Test-Path -LiteralPath $DeviceArchivePath)) { return }
+
+    # Precompute the cutoff date once.  Any archive folder with a date older    
     $cutoff = (Get-Date).AddDays(-$RetentionDays)
-    foreach ($folder in (Get-ChildItem -Path $DeviceArchivePath -Directory)) {
+    foreach ($folder in (Get-ChildItem -LiteralPath $DeviceArchivePath -Directory)) {
         $folderDate = $null
         try {
             $folderDate = [datetime]::ParseExact($folder.Name, 'yyyy-MM-dd', [System.Globalization.CultureInfo]::InvariantCulture)
@@ -2196,7 +2282,7 @@ function Invoke-DeviceLogParsing {
         }
     }
 
-    Remove-OldArchiveFolder -DeviceArchivePath $devicePath -RetentionDays 30
+    Remove-OldArchiveFolder -DeviceArchivePath $devicePath -ArchiveRoot $ArchiveRoot -RetentionDays 30
     }
     finally {
         try {

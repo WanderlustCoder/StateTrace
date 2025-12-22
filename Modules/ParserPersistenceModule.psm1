@@ -667,6 +667,55 @@ function Get-AdodbConnectionDatabaseKey {
     return $pathValue
 }
 
+function Add-AdodbDisposeMethod {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][object]$ComObject,
+        [switch]$CloseRecordset
+    )
+
+    if (-not $ComObject) { return }
+
+    try {
+        if (-not ($ComObject.PSObject.Methods.Name -contains 'Dispose')) {
+            if ($CloseRecordset) {
+                Add-Member -InputObject $ComObject -MemberType ScriptMethod -Name Dispose -Value {
+                    try {
+                        if ($this.State -ne 0) { $this.Close() }
+                    } catch { }
+                    try { TelemetryModule\Remove-ComObjectSafe -ComObject $this } catch { }
+                } -Force
+            } else {
+                Add-Member -InputObject $ComObject -MemberType ScriptMethod -Name Dispose -Value {
+                    try { TelemetryModule\Remove-ComObjectSafe -ComObject $this } catch { }
+                } -Force
+            }
+        }
+    } catch { }
+}
+
+function Invoke-AdodbDispose {
+    [CmdletBinding()]
+    param(
+        [Parameter()][object]$ComObject,
+        [string]$Label
+    )
+
+    if (-not $ComObject) { return }
+
+    try {
+        if ($ComObject.PSObject.Methods.Name -contains 'Dispose') {
+            $ComObject.Dispose()
+        } else {
+            TelemetryModule\Remove-ComObjectSafe -ComObject $ComObject
+        }
+    } catch {
+        $target = if ($Label) { $Label } else { 'ADODB object' }
+        Write-Warning ("Failed to dispose {0}: {1}" -f $target, $_.Exception.Message)
+        try { TelemetryModule\Remove-ComObjectSafe -ComObject $ComObject } catch { }
+    }
+}
+
 function New-AdodbTextCommand {
     [CmdletBinding()]
     param(
@@ -684,9 +733,10 @@ function New-AdodbTextCommand {
         $command.ActiveConnection = $Connection
         $command.CommandType = $script:AdCmdText
         $command.CommandText = $CommandText
+        Add-AdodbDisposeMethod -ComObject $command
         return $command
     } catch {
-        TelemetryModule\Remove-ComObjectSafe -ComObject $command
+        Invoke-AdodbDispose -ComObject $command -Label 'ADODB command'
         return $null
     }
 }
@@ -715,12 +765,13 @@ function New-AdodbInterfaceSeedRecordset {
         $recordset.Source = 'SELECT BatchId, Hostname, RunDateText, RunDate, Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, PortColor, ConfigStatus, ToolTip FROM InterfaceBulkSeed WHERE 1=0'
         $recordset.Open()
         $opened = $true
+        Add-AdodbDisposeMethod -ComObject $recordset -CloseRecordset
         return $recordset
     } catch {
         if ($opened -and $recordset -and $recordset.State -ne 0) {
             try { $recordset.Close() } catch { }
         }
-        TelemetryModule\Remove-ComObjectSafe -ComObject $recordset
+        Invoke-AdodbDispose -ComObject $recordset -Label 'interface seed recordset'
         return $null
     }
 }
@@ -4008,9 +4059,9 @@ function Invoke-InterfaceBulkInsertInternal {
                 $stageDurationMs = [Math]::Round($stageStopwatch.Elapsed.TotalMilliseconds, 3)
             }
             try {
-                if ($seedRecordset.State -ne 0) { $seedRecordset.Close() }
+                if ($seedRecordset.State -ne 0) { $seedRecordset.Close() }      
             } catch { }
-            TelemetryModule\Remove-ComObjectSafe -ComObject $seedRecordset
+            Invoke-AdodbDispose -ComObject $seedRecordset -Label 'interface seed recordset'
         }
     }
 
@@ -4108,7 +4159,7 @@ function Invoke-InterfaceBulkInsertInternal {
             Write-Warning ("Failed to stage interfaces for host {0}: {1}" -f $Hostname, $_.Exception.Message)
             return (& $setLastBulkMetrics $false)
         } finally {
-            TelemetryModule\Remove-ComObjectSafe -ComObject $insertCmd
+            Invoke-AdodbDispose -ComObject $insertCmd -Label 'interface seed insert command'
         }
     }
 
@@ -4368,7 +4419,7 @@ function Invoke-DeviceSummaryParameterized {
 
         try { $updateCmd.Execute() | Out-Null } catch { }
     } finally {
-        TelemetryModule\Remove-ComObjectSafe -ComObject $updateCmd
+        Invoke-AdodbDispose -ComObject $updateCmd -Label 'device summary update command'
     }
 
     $insertSql = 'INSERT INTO DeviceSummary (Hostname, Make, Model, Uptime, Site, Building, Room, Ports, AuthDefaultVLAN, AuthBlock) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
@@ -4385,7 +4436,7 @@ function Invoke-DeviceSummaryParameterized {
 
         try { $insertCmd.Execute() | Out-Null } catch { }
     } finally {
-        TelemetryModule\Remove-ComObjectSafe -ComObject $insertCmd
+        Invoke-AdodbDispose -ComObject $insertCmd -Label 'device summary insert command'
     }
 
     $historySql = 'INSERT INTO DeviceHistory (Hostname, RunDate, Make, Model, Uptime, Site, Building, Room, Ports, AuthDefaultVLAN, AuthBlock) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
@@ -4405,7 +4456,7 @@ function Invoke-DeviceSummaryParameterized {
             Write-Verbose ("Device history exception details: {0}" -f ($_.Exception | Format-List * | Out-String))
         }
     } finally {
-        TelemetryModule\Remove-ComObjectSafe -ComObject $historyCmd
+        Invoke-AdodbDispose -ComObject $historyCmd -Label 'device history insert command'
     }
 
     return $true
@@ -4514,7 +4565,7 @@ function Invoke-InterfaceRowParameterized {
 
     } finally {
 
-        TelemetryModule\Remove-ComObjectSafe -ComObject $insertCmd
+        Invoke-AdodbDispose -ComObject $insertCmd -Label 'interface insert command'
 
     }
 
@@ -4549,7 +4600,7 @@ function Invoke-InterfaceRowParameterized {
 
     } finally {
 
-        TelemetryModule\Remove-ComObjectSafe -ComObject $historyCmd
+        Invoke-AdodbDispose -ComObject $historyCmd -Label 'interface history command'
 
     }
 
