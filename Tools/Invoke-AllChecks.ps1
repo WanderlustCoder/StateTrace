@@ -18,6 +18,12 @@ param(
     [switch]$RequireNetOpsEvidence,
     [string]$NetOpsSessionLogPath,
     [int]$NetOpsEvidenceMaxHours = 12,
+    [string]$DocSyncTaskId,
+    [string]$DocSyncSessionLogPath,
+    [string]$DocSyncPlanPath,
+    [string]$DocSyncOutputPath,
+    [switch]$DocSyncRequireBacklogEntry,
+    [switch]$RequireDocSyncChecklist,
     [string]$TelemetryBundlePath,
     [string[]]$TelemetryBundleArea = @('Telemetry','Routing'),
     [switch]$RequireTelemetryBundleReady,
@@ -234,6 +240,54 @@ try {
                 Passed = $true
                 Note   = $netOpsResult.Message
             }
+        }
+    }
+
+    if ($DocSyncTaskId -or $RequireDocSyncChecklist) {
+        Write-Host "===> Running doc-sync checklist" -ForegroundColor Cyan
+        $docSyncScript = Join-Path $repoRoot 'Tools\Test-DocSyncChecklist.ps1'
+        if (-not (Test-Path -LiteralPath $docSyncScript)) {
+            throw "Doc-sync checklist script missing at $docSyncScript"
+        }
+        if ([string]::IsNullOrWhiteSpace($DocSyncTaskId)) {
+            throw "Specify -DocSyncTaskId when requesting doc-sync checks."
+        }
+        if ($RequireDocSyncChecklist -and [string]::IsNullOrWhiteSpace($DocSyncSessionLogPath)) {
+            throw "Specify -DocSyncSessionLogPath when using -RequireDocSyncChecklist."
+        }
+
+        $docSyncParams = @{
+            TaskId   = $DocSyncTaskId
+            PassThru = $true
+            Quiet    = $true
+        }
+        if ($RequireDocSyncChecklist) {
+            $docSyncParams['RequireSessionLog'] = $true
+        }
+        if ($DocSyncRequireBacklogEntry) {
+            $docSyncParams['RequireBacklogEntry'] = $true
+        }
+        if (-not [string]::IsNullOrWhiteSpace($DocSyncSessionLogPath)) {
+            $docSyncParams['SessionLogPath'] = $DocSyncSessionLogPath
+        }
+        if (-not [string]::IsNullOrWhiteSpace($DocSyncPlanPath)) {
+            $docSyncParams['PlanPath'] = $DocSyncPlanPath
+        }
+
+        $docSyncOutput = $DocSyncOutputPath
+        if ($RequireDocSyncChecklist -and [string]::IsNullOrWhiteSpace($docSyncOutput)) {
+            $docSyncOutput = Join-Path $repoRoot ("Logs\Reports\DocSyncChecklist-{0}.json" -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
+        }
+        if (-not [string]::IsNullOrWhiteSpace($docSyncOutput)) {
+            $docSyncParams['OutputPath'] = $docSyncOutput
+        }
+
+        $docSyncResult = & $docSyncScript @docSyncParams
+        $results += [pscustomobject]@{
+            Check      = 'DocSyncChecklist'
+            TaskId     = $DocSyncTaskId
+            OutputPath = $docSyncOutput
+            Missing    = if ($docSyncResult.Missing) { ($docSyncResult.Missing -join ', ') } else { '' }
         }
     }
 

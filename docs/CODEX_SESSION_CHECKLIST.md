@@ -30,6 +30,7 @@ Use this one-pager as the quick command-and-control loop for every Codex session
 - [ ] Update `docs/StateTrace_TaskBoard.md` and `docs/taskboard/TaskBoard.csv` (status, notes, links).
 - [ ] Update `docs/CODEX_BACKLOG.md` (close or move the row; add follow-ups).
 - [ ] Save your session log under `docs/agents/sessions/<date>_session-XXXX.md`.
+- [ ] Run `Tools\Test-DocSyncChecklist.ps1 -TaskId <id> -SessionLogPath docs/agents/sessions/<date>_session-XXXX.md -RequireSessionLog -OutputPath Logs/Reports/DocSyncChecklist-<timestamp>.json` (or `Tools\Invoke-AllChecks.ps1 -DocSyncTaskId <id> -DocSyncSessionLogPath ... -RequireDocSyncChecklist`) and record the output path in your session log.
 - [ ] Produce the CLI summary (`PATCH SUMMARY`, `TEST RESULTS`, `TASKBOARD UPDATE`, `NEXT STEP`) referencing the plan entry and telemetry artifacts.
 
 Complete every box above and Codex has executed the session end-to-end with the required evidence for autonomous handoff.

@@ -56,6 +56,11 @@ ST-X-123,Title,Column,Owner,"Deliverable or status sentence.",docs/plans/PlanX_S
 - [ ] Consolidated log (optional) updated for historical trace.
 - [ ] CLI summary references the plan ID and telemetry artifacts.
 
+## Automation helper
+- Run `pwsh -NoLogo -File Tools\Test-DocSyncChecklist.ps1 -TaskId <id> -SessionLogPath docs\agents\sessions\<date>_session-XXXX.md -RequireSessionLog -OutputPath Logs\Reports\DocSyncChecklist-<timestamp>.json` to validate the checklist and emit a JSON summary.
+- Use `pwsh -NoLogo -File Tools\Invoke-AllChecks.ps1 -DocSyncTaskId <id> -DocSyncSessionLogPath docs\agents\sessions\<date>_session-XXXX.md -RequireDocSyncChecklist` when you want the checklist enforced alongside other CI-ready guards.
+- Copy the JSON output into `Logs\TelemetryBundles\<bundle>\DocSync\DocSyncChecklist.json` when producing release evidence bundles.
+
 ## Tips
 - Use `rg -n "ST-X-123" docs/StateTrace_TaskBoard.md` to jump straight to the row you need.
 - Prefer copying Markdown table rows into a temp buffer, editing, then pasting back to avoid alignment issues.

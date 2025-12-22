@@ -84,6 +84,11 @@ if (-not (Test-Path -LiteralPath $skipSiteCacheGuardModule)) {
     throw "Skip-site-cache guard module not found at $skipSiteCacheGuardModule."
 }
 Import-Module -Name $skipSiteCacheGuardModule -Force -ErrorAction Stop
+$concurrencyOverrideGuardModule = Join-Path -Path $PSScriptRoot -ChildPath 'ConcurrencyOverrideGuard.psm1'
+if (-not (Test-Path -LiteralPath $concurrencyOverrideGuardModule)) {
+    throw "Concurrency override guard module not found at $concurrencyOverrideGuardModule."
+}
+Import-Module -Name $concurrencyOverrideGuardModule -Force -ErrorAction Stop
 
 $repositoryRoot = Split-Path -Path $PSScriptRoot -Parent
 $modulesPath = Join-Path -Path $repositoryRoot -ChildPath 'Modules'
@@ -341,6 +346,86 @@ function Get-TelemetryModuleCommand {
     }
     return $cmd
 }
+
+function Get-ConcurrencyOverrideParameters {
+    [CmdletBinding()]
+    param([hashtable]$BoundParameters)
+
+    $overrides = [ordered]@{}
+    if (-not $BoundParameters) { return $overrides }
+
+    if ($BoundParameters.ContainsKey('ThreadCeilingOverride')) {
+        $overrides['ThreadCeilingOverride'] = [int]$BoundParameters.ThreadCeilingOverride
+    }
+    if ($BoundParameters.ContainsKey('MaxWorkersPerSiteOverride')) {
+        $overrides['MaxWorkersPerSiteOverride'] = [int]$BoundParameters.MaxWorkersPerSiteOverride
+    }
+    if ($BoundParameters.ContainsKey('MaxActiveSitesOverride')) {
+        $overrides['MaxActiveSitesOverride'] = [int]$BoundParameters.MaxActiveSitesOverride
+    }
+    if ($BoundParameters.ContainsKey('MaxConsecutiveSiteLaunchesOverride')) {
+        $overrides['MaxConsecutiveSiteLaunchesOverride'] = [int]$BoundParameters.MaxConsecutiveSiteLaunchesOverride
+    }
+    if ($BoundParameters.ContainsKey('JobsPerThreadOverride')) {
+        $overrides['JobsPerThreadOverride'] = [int]$BoundParameters.JobsPerThreadOverride
+    }
+    if ($BoundParameters.ContainsKey('MinRunspacesOverride')) {
+        $overrides['MinRunspacesOverride'] = [int]$BoundParameters.MinRunspacesOverride
+    }
+
+    return $overrides
+}
+
+function Write-ConcurrencyOverrideTelemetry {
+    [CmdletBinding()]
+    param(
+        [hashtable]$ParameterOverrides,
+        [psobject]$ResetResult,
+        [string]$Label
+    )
+
+    $hasParameterOverrides = $ParameterOverrides -and $ParameterOverrides.Count -gt 0
+    $hasSettingsOverrides = $ResetResult -and $ResetResult.Overrides -and $ResetResult.Overrides.Count -gt 0
+    $resetApplied = $ResetResult -and $ResetResult.Changed
+
+    if (-not ($hasParameterOverrides -or $hasSettingsOverrides -or $resetApplied)) {
+        return
+    }
+
+    $payload = [ordered]@{}
+    if ($hasParameterOverrides) {
+        foreach ($entry in $ParameterOverrides.GetEnumerator()) {
+            $payload[$entry.Key] = $entry.Value
+        }
+    }
+
+    if ($hasSettingsOverrides) {
+        foreach ($entry in $ResetResult.Overrides.GetEnumerator()) {
+            $payload['Settings{0}' -f $entry.Key] = $entry.Value
+        }
+        $payload['SettingsResetApplied'] = [bool]$resetApplied
+    } elseif ($resetApplied) {
+        $payload['SettingsResetApplied'] = [bool]$resetApplied
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($Label)) {
+        $payload['Source'] = $Label
+    }
+
+    $telemetryCmd = Get-TelemetryModuleCommand -Name 'Write-StTelemetryEvent'
+    if (-not $telemetryCmd) { return }
+
+    try {
+        & $telemetryCmd -Name 'ConcurrencyOverrideSummary' -Payload $payload
+    } catch { }
+
+    $flushCmd = Get-TelemetryModuleCommand -Name 'Flush-StTelemetryBuffer'
+    if ($flushCmd) {
+        try { & $flushCmd | Out-Null } catch { }
+    }
+}
+
+$parameterOverrides = Get-ConcurrencyOverrideParameters -BoundParameters $PSBoundParameters
 
 function Get-SharedCacheSnapshotSummary {
     param([Parameter(Mandatory)][string]$SnapshotPath)
@@ -1149,6 +1234,15 @@ if ($RequireTelemetryIntegrity) {
     Write-Host ("Telemetry integrity passed. Report: {0}" -f $integrityReportPath) -ForegroundColor Green
 }
 } finally {
+    $overrideReset = $null
+    try {
+        $overrideReset = Reset-ConcurrencyOverrideSettings -SettingsPath $settingsPath -Label 'StateTracePipeline'
+    } catch {
+        Write-Warning ("Failed to reset concurrency overrides: {0}" -f $_.Exception.Message)
+    }
+    try {
+        Write-ConcurrencyOverrideTelemetry -ParameterOverrides $parameterOverrides -ResetResult $overrideReset -Label 'StateTracePipeline'
+    } catch { }
     if ($skipSiteCacheGuard) {
         Restore-SkipSiteCacheUpdateSetting -Guard $skipSiteCacheGuard
     }
