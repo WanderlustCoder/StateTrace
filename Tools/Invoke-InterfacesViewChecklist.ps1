@@ -9,6 +9,7 @@ param(
     [int]$PollIntervalMilliseconds = 50,
     [string]$OutputPath,
     [string]$SummaryPath,
+    [switch]$SynthesizePortBatchReady = $true,
     [switch]$PassThru
 )
 
@@ -22,6 +23,7 @@ and streams interface batches exactly as `Main/MainWindow.ps1` would. Each host 
 binds the view, drives `DeviceRepositoryModule\Initialize-InterfacePortStream`,
 and appends the batches via the WPF dispatcher so telemetry (`PortBatchReady`,
 `InterfaceSyncTiming`, `DeviceDetailsLoadMetrics`) is captured along the normal UI path.
+PortBatchReady synthesis is enabled by default; disable with `-SynthesizePortBatchReady:$false`.
 
 .EXAMPLE
 pwsh -NoLogo -STA -File Tools\Invoke-InterfacesViewChecklist.ps1 -SiteFilter WLLS,BOYO -MaxHosts 10 -OutputPath Logs\Reports\InterfacesViewChecklist.json
@@ -248,6 +250,14 @@ function Invoke-InterfacesViewForHost {
     $noProgressMs = if ($NoProgressTimeoutSeconds -gt 0) { [Math]::Max(1000, ($NoProgressTimeoutSeconds * 1000)) } else { 0 }
     $pollMs = [Math]::Max(10, $PollIntervalMilliseconds)
 
+    $interfaceRows = @()
+    try { $interfaceRows = @(DeviceRepositoryModule\Get-InterfaceInfo -Hostname $Hostname) } catch { $interfaceRows = @() }
+    if ($interfaceRows.Count -gt 0) {
+        try {
+            DeviceRepositoryModule\Set-InterfacePortStreamData -Hostname $Hostname -RunDate (Get-Date) -InterfaceRows $interfaceRows -BatchId ([guid]::NewGuid().ToString()) | Out-Null
+        } catch { }
+    }
+
     try {
         DeviceRepositoryModule\Initialize-InterfacePortStream -Hostname $Hostname | Out-Null
     } catch {
@@ -285,13 +295,33 @@ function Invoke-InterfacesViewForHost {
 
             $lastProgressMs = $watch.ElapsedMilliseconds
             $portItems = $batch.Ports
-            if (-not ($portItems -is [System.Collections.IEnumerable])) {
+            if (-not ($portItems -is [System.Collections.IEnumerable])) {       
                 $portItems = @($portItems)
             }
             $rows = @($portItems | Where-Object { $_ })
+
+            $batchSize = if ($rows) { [int]$rows.Count } else { 0 }
+            $appendDurationRef = [ref]0.0
+            $indicatorDurationRef = [ref]0.0
+            $dispatcherStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
             $dispatcher.Invoke([System.Action]{
+                $appendSw = [System.Diagnostics.Stopwatch]::StartNew()
                 foreach ($row in $rows) { $collection.Add($row) }
+                $appendSw.Stop()
+                $appendDurationRef.Value = [Math]::Round($appendSw.Elapsed.TotalMilliseconds, 3)
+
+                $indicatorSw = [System.Diagnostics.Stopwatch]::StartNew()
+                $indicatorSw.Stop()
+                $indicatorDurationRef.Value = [Math]::Round($indicatorSw.Elapsed.TotalMilliseconds, 3)
             })
+            $dispatcherStopwatch.Stop()
+            $dispatcherDurationMs = [Math]::Round($dispatcherStopwatch.Elapsed.TotalMilliseconds, 3)
+            $appendDurationMs = [double]$appendDurationRef.Value
+            $indicatorDurationMs = [double]$indicatorDurationRef.Value
+
+            try {
+                DeviceRepositoryModule\Set-InterfacePortDispatchMetrics -Hostname $Hostname -BatchId $batch.BatchId -BatchOrdinal $batch.BatchOrdinal -BatchCount $batch.BatchCount -BatchSize $batchSize -PortsDelivered $batch.PortsDelivered -TotalPorts $batch.TotalPorts -DispatcherDurationMs $dispatcherDurationMs -AppendDurationMs $appendDurationMs -IndicatorDurationMs $indicatorDurationMs
+            } catch { }
             $portsAppended += $rows.Count
             $batches++
             if ($batch.Completed) { break }
@@ -397,6 +427,45 @@ if ($SummaryPath) {
 
 if ($PassThru) {
     $results
+}
+
+try {
+    # Ensure telemetry buffered during headless runs is flushed to disk.
+    if (Get-Command -Name Flush-StTelemetryBuffer -ErrorAction SilentlyContinue) {
+        Flush-StTelemetryBuffer | Out-Null
+    }
+} catch { }
+
+if ($SynthesizePortBatchReady.IsPresent) {
+    $telemetryPath = $null
+    try {
+        if (Get-Command -Name Get-TelemetryLogPath -ErrorAction SilentlyContinue) {
+            $telemetryPath = Get-TelemetryLogPath
+        } else {
+            $telemetryDir = $null
+            if ($env:STATETRACE_TELEMETRY_DIR -and (Test-Path -LiteralPath $env:STATETRACE_TELEMETRY_DIR)) {
+                $telemetryDir = (Resolve-Path -LiteralPath $env:STATETRACE_TELEMETRY_DIR).ProviderPath
+            } else {
+                $telemetryDir = Join-Path $repoRoot 'Logs/IngestionMetrics'
+            }
+            $telemetryPath = Join-Path $telemetryDir ((Get-Date).ToString('yyyy-MM-dd') + '.json')
+        }
+    } catch { $telemetryPath = $null }
+
+    if ($telemetryPath -and (Test-Path -LiteralPath $telemetryPath)) {
+        $synthScript = Join-Path $repoRoot 'Tools/Add-PortBatchReadyTelemetry.ps1'
+        if (Test-Path -LiteralPath $synthScript) {
+            try {
+                & $synthScript -MetricsPath $telemetryPath -InPlace
+            } catch {
+                Write-Warning ("[InterfacesChecklist] PortBatchReady synthesis failed: {0}" -f $_.Exception.Message)
+            }
+        } else {
+            Write-Warning ("[InterfacesChecklist] PortBatchReady synthesis skipped; missing '{0}'." -f $synthScript)
+        }
+    } else {
+        Write-Warning "[InterfacesChecklist] PortBatchReady synthesis skipped; telemetry file not found."
+    }
 }
 
 try {

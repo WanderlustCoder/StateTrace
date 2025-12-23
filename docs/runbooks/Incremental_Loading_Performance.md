@@ -23,7 +23,8 @@ Use this runbook to baseline UI incremental-loading throughput whenever the Inte
       -MaxHosts 10 `
       -OutputPath Logs\Reports\InterfacesViewChecklist.json
   ```
-  This command hosts the Interfaces view inside a hidden window, iterates through each host, streams incremental batches via the WPF dispatcher, and records a per-host summary while the standard UI telemetry (`PortBatchReady`, `InterfaceSyncTiming`, `DeviceDetailsLoadMetrics`) is produced. Use it whenever a “real UI” incremental-loading run is required but an interactive desktop is unavailable.
+  This command hosts the Interfaces view inside a hidden window, iterates through each host, streams incremental batches via the WPF dispatcher, and records a per-host summary while the standard UI telemetry (`PortBatchReady`, `InterfaceSyncTiming`, `DeviceDetailsLoadMetrics`) is produced. Use it whenever a “real UI” incremental-loading run is required but an interactive desktop is unavailable.   
+  PortBatchReady synthesis is enabled by default; disable with `-SynthesizePortBatchReady:$false` if you only want raw stream/dispatch/queue telemetry.
 
 ## UI workflow (deferred toolbar actions)
 - At launch the WPF shell now loads instantly and idles until the operator chooses how to hydrate data. Nothing parses automatically, which keeps window creation responsive even on large log sets.
@@ -73,6 +74,16 @@ Use this runbook to baseline UI incremental-loading throughput whenever the Inte
          -OutputPath Logs/Reports/PortBatchIntervals-<timestamp>.json
      ```
      Capture any gaps >= 60 seconds (start/end hosts + duration) in the plan entry and follow-up tasks.
+     - If telemetry spans multiple runs, pass `-StartTimeUtc` / `-EndTimeUtc` (or filter the telemetry first) so gap analysis stays run-scoped.
+       ```powershell
+       pwsh Tools/Analyze-PortBatchIntervals.ps1 `
+           -Path Logs/IngestionMetrics/<timestamp>.json `
+           -StartTimeUtc '2025-12-22T18:36:00Z' `
+           -EndTimeUtc '2025-12-22T18:38:30Z' `
+           -TopIntervals 10 `
+           -ThresholdSeconds 60 `
+           -OutputPath Logs/Reports/PortBatchIntervals-<timestamp>.json
+       ```
    - Correlate dispatcher queue telemetry with the saved intervals:
      ```powershell
    pwsh Tools/Analyze-DispatcherGaps.ps1 `
@@ -94,10 +105,12 @@ Use this runbook to baseline UI incremental-loading throughput whenever the Inte
       ```powershell
       pwsh Tools/Analyze-PortBatchGapTimeline.ps1 `
           -MetricsPath Logs/IngestionMetrics/<timestamp>.json `
+          -StartTimeUtc '2025-12-22T18:36:00Z' ` # optional
+          -EndTimeUtc '2025-12-22T18:38:30Z' `   # optional
           -GapThresholdSeconds 60 `
           -EventsBefore 5 `
           -EventsAfter 5 `
-          -OutputPath docs/performance/WLLS_BOYO_GapTimeline-<timestamp>.md
+          -OutputPath docs/performance/WLLS_BOYO_GapTimeline-<timestamp>.md     
       ```
       Link the timeline in the plan/task board entry and copy it into the telemetry bundle with the other performance artifacts.
    - Run the site-diversity guard so scheduler starvation fails fast:
@@ -162,6 +175,8 @@ Use this runbook to baseline UI incremental-loading throughput whenever the Inte
       ```powershell
       pwsh Tools/Analyze-PortBatchSiteMix.ps1 `
           -MetricsPath Logs/IngestionMetrics/<timestamp>.json `
+          -StartTimeUtc '2025-12-22T18:36:00Z' ` # optional
+          -EndTimeUtc '2025-12-22T18:38:30Z' `   # optional
           -WindowMinutes 5 `
           -TopWindows 6 `
           -OutputPath docs/performance/PortBatchSiteMix-<timestamp>.md
