@@ -3,7 +3,7 @@
 This reference consolidates the success criteria that each plan/task must meet before code can land. Capture the listed metrics in `Logs/IngestionMetrics/<date>.json` (or the referenced CSV/JSON) and link them from your task board update and session log.
 
 ## Plan A - Routing Reliability
-- `InterfacePortQueueMetrics.QueueBuildDurationMs` avg <30 ms; `QueueBuildDelayMs` (queue delay) p95 ≤120 ms and p99 ≤200 ms. `Tools\Invoke-StateTraceVerification.ps1` and `Tools\Invoke-InterfaceDispatchHarness.ps1` enforce these thresholds and produce `Logs\IngestionMetrics\QueueDelaySummary-<timestamp>.json` as evidence.
+- `InterfacePortQueueMetrics.QueueBuildDurationMs` avg <30 ms; `QueueBuildDelayMs` (queue delay) p95 ≤120 ms and p99 ≤200 ms. `Tools\Invoke-StateTraceVerification.ps1` and `Tools\Invoke-InterfaceDispatchHarness.ps1` enforce these thresholds and produce `Logs\IngestionMetrics\QueueDelaySummary-<timestamp>.json` as evidence. `Tools\Invoke-StateTracePipeline.ps1 -RunQueueDelayHarness` now runs the dispatcher sweep to emit queue metrics during standard pipeline passes.
 - `InterfaceSyncTiming` event count matches processed host count (37 for BOYO/WLLS corpus); zero `VariableIsUndefined` errors.
 - Parser scheduler fairness guard passes: `Tools\Test-ParserSchedulerFairness.ps1 -ReportPath Logs/Reports/ParserSchedulerLaunch-<date>.json -MaxAllowedStreak 8 -ThrowOnViolation` must report `MaxObservedStreak <= 8` (current baseline: 86 launch events, max streak 1). `Tools\Invoke-StateTracePipeline.ps1` runs this guard by default; document any run where it is disabled.
 
@@ -18,7 +18,7 @@ This reference consolidates the success criteria that each plan/task must meet b
 
 ## Plan D – Feature Expansion
 - `PortBatchReady` emits per-device records with `PortsCommitted` totals aligning with Access rows.
-- Incremental telemetry completeness + fairness: `Tools\Test-IncrementalTelemetryCompleteness.ps1 -RequirePortBatchReady -RequireInterfaceSync -RequireSchedulerLaunch -ThrowOnMissing` and the scheduler fairness guard must both pass before declaring ST-D-003/ST-D-010 ready. Link the resulting analyzer JSON (`PortBatchReady-*.json`, `InterfaceSyncTiming-*.json`, `ParserSchedulerLaunch-*.json`) and history CSV rows in the task/bundle notes.
+- Incremental telemetry completeness + fairness: `Tools\Test-IncrementalTelemetryCompleteness.ps1 -RequirePortBatchReady -RequireInterfaceSync -RequireSchedulerLaunch -ThrowOnMissing [-AllowNoParse]` and the scheduler fairness guard must both pass before declaring ST-D-003/ST-D-010 ready. Use `-AllowNoParse` only when the telemetry file is duplicate-only (`SkippedDuplicate` entries and no parse activity); otherwise treat missing signals as failures. Link the resulting analyzer JSON (`PortBatchReady-*.json`, `InterfaceSyncTiming-*.json`, `ParserSchedulerLaunch-*.json`) and history CSV rows in the task/bundle notes.
 - Scheduler vs. UI replay comparison: `Logs/Reports/SchedulerVsPortDiversity-*.json` (generated via `Tools\Compare-SchedulerAndPortDiversity.ps1`) accompanies `Logs/Reports/PortBatchSiteDiversity-*.json` for every incremental run so ST-D-010 can prove whether UI streaks still exceed the parser guard.
 - Any new UI telemetry must include a schema snippet in `docs/telemetry/Phase1_metrics.md` before shipping.
 

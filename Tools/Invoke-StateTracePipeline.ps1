@@ -26,6 +26,12 @@ param(
     [switch]$ShowSharedCacheSummary,
     [switch]$RunSharedCacheDiagnostics,
     [int]$SharedCacheDiagnosticsTopHosts = 10,
+    [switch]$RunQueueDelayHarness,
+    [string[]]$QueueDelayHarnessHosts,
+    [string[]]$QueueDelayHarnessSiteFilter = @(),
+    [int]$QueueDelayHarnessMaxHosts = 4,
+    [double]$QueueDelayHarnessWarningMs = 120,
+    [double]$QueueDelayHarnessCriticalMs = 200,
     [switch]$VerifyTelemetryCompleteness,
     [switch]$FailOnTelemetryMissing,
     [switch]$SynthesizeSchedulerTelemetryOnMissing,
@@ -63,18 +69,20 @@ if ($Profile) {
         'Full' {
             Set-ProfileSwitch -Name 'QuickMode' -Value $false
             Set-ProfileSwitch -Name 'ResetExtractedLogs' -Value $true
-            Set-ProfileSwitch -Name 'VerifyTelemetryCompleteness' -Value $true
-            Set-ProfileSwitch -Name 'FailOnTelemetryMissing' -Value $true
+            Set-ProfileSwitch -Name 'VerifyTelemetryCompleteness' -Value $true  
+            Set-ProfileSwitch -Name 'FailOnTelemetryMissing' -Value $true       
+            Set-ProfileSwitch -Name 'RunQueueDelayHarness' -Value $true
         }
         'Diag' {
             Set-ProfileSwitch -Name 'QuickMode' -Value $false
             Set-ProfileSwitch -Name 'ResetExtractedLogs' -Value $true
             Set-ProfileSwitch -Name 'VerboseParsing' -Value $true
-            Set-ProfileSwitch -Name 'RunSharedCacheDiagnostics' -Value $true
-            Set-ProfileSwitch -Name 'ShowSharedCacheSummary' -Value $true
-            Set-ProfileSwitch -Name 'VerifyTelemetryCompleteness' -Value $true
-            Set-ProfileSwitch -Name 'FailOnTelemetryMissing' -Value $false
+            Set-ProfileSwitch -Name 'RunSharedCacheDiagnostics' -Value $true    
+            Set-ProfileSwitch -Name 'ShowSharedCacheSummary' -Value $true       
+            Set-ProfileSwitch -Name 'VerifyTelemetryCompleteness' -Value $true  
+            Set-ProfileSwitch -Name 'FailOnTelemetryMissing' -Value $false      
             Set-ProfileSwitch -Name 'SynthesizeSchedulerTelemetryOnMissing' -Value $true
+            Set-ProfileSwitch -Name 'RunQueueDelayHarness' -Value $true
         }
     }
 }
@@ -128,7 +136,12 @@ function Invoke-WarmRunRegressionInternal {
         try {
             $resolvedOutput = (Resolve-Path -LiteralPath $WarmRunRegressionOutputPath -ErrorAction Stop).Path
         } catch {
-            $resolvedOutput = [System.IO.Path]::GetFullPath((Join-Path -Path (Get-Location) -ChildPath $WarmRunRegressionOutputPath))
+            if ([System.IO.Path]::IsPathRooted($WarmRunRegressionOutputPath)) {
+                $resolvedOutput = [System.IO.Path]::GetFullPath($WarmRunRegressionOutputPath)
+            } else {
+                $basePath = (Get-Location).ProviderPath
+                $resolvedOutput = [System.IO.Path]::GetFullPath((Join-Path -Path $basePath -ChildPath $WarmRunRegressionOutputPath))
+            }
         }
         $argumentList += @('-OutputPath', $resolvedOutput)
     }
@@ -153,8 +166,88 @@ function Resolve-RelativePath {
             return [System.IO.Path]::GetFullPath($PathValue)
         }
         $basePath = (Get-Location).ProviderPath
-        return [System.IO.Path]::GetFullPath($PathValue, $basePath)
+        return [System.IO.Path]::GetFullPath((Join-Path -Path $basePath -ChildPath $PathValue))
     }
+}
+
+function Get-SitePrefix {
+    param([string]$Hostname)
+
+    if ([string]::IsNullOrWhiteSpace($Hostname)) { return '(unknown)' }
+    $parts = $Hostname.Split('-', 2, [System.StringSplitOptions]::RemoveEmptyEntries)
+    if ($parts.Count -gt 0) { return $parts[0] }
+    return $Hostname
+}
+
+function Resolve-QueueDelayHarnessHosts {
+    param(
+        [string[]]$ExplicitHosts,
+        [string[]]$SiteFilter,
+        [int]$MaxHosts,
+        [string]$RepositoryRoot,
+        [string]$ModulesPath
+    )
+
+    $normalizedSites = @()
+    if ($SiteFilter) {
+        foreach ($site in $SiteFilter) {
+            if ([string]::IsNullOrWhiteSpace($site)) { continue }
+            foreach ($token in ($site -split ',')) {
+                $trimmed = $token.Trim()
+                if ($trimmed) { $normalizedSites += $trimmed }
+            }
+        }
+    }
+    $SiteFilter = $normalizedSites
+
+    $hosts = @()
+    if ($ExplicitHosts -and $ExplicitHosts.Count -gt 0) {
+        $hosts = @($ExplicitHosts)
+    } else {
+        $catalogPath = Join-Path -Path $ModulesPath -ChildPath 'DeviceCatalogModule.psm1'
+        if (Test-Path -LiteralPath $catalogPath) {
+            if (-not (Get-Module -Name DeviceCatalogModule -ErrorAction SilentlyContinue)) {
+                Import-Module $catalogPath -ErrorAction Stop
+            }
+            try {
+                if ($SiteFilter -and $SiteFilter.Count -gt 0) {
+                    $catalog = DeviceCatalogModule\Get-DeviceSummaries -SiteFilter $SiteFilter
+                } else {
+                    $catalog = DeviceCatalogModule\Get-DeviceSummaries
+                }
+            } catch { $catalog = $null }
+            if ($catalog -and $catalog.Hostnames) {
+                $hosts = @($catalog.Hostnames)
+            }
+        }
+
+        if (-not $hosts -or $hosts.Count -eq 0) {
+            $routingPaths = @(
+                (Join-Path $RepositoryRoot 'Data\RoutingHosts_Balanced.txt'),
+                (Join-Path $RepositoryRoot 'Data\RoutingHosts.txt')
+            )
+            foreach ($path in $routingPaths) {
+                if (-not (Test-Path -LiteralPath $path)) { continue }
+                $hosts = Get-Content -LiteralPath $path
+                if ($hosts -and $hosts.Count -gt 0) { break }
+            }
+        }
+    }
+
+    $hosts = @($hosts | ForEach-Object { ('' + $_).Trim() } | Where-Object { $_ } | Select-Object -Unique)
+    if ($SiteFilter -and $SiteFilter.Count -gt 0 -and $hosts.Count -gt 0) {
+        $filterSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+        foreach ($site in $SiteFilter) {
+            if (-not [string]::IsNullOrWhiteSpace($site)) { $filterSet.Add($site) | Out-Null }
+        }
+        if ($filterSet.Count -gt 0) {
+            $hosts = @($hosts | Where-Object { $filterSet.Contains((Get-SitePrefix $_)) })
+        }
+    }
+    if ($MaxHosts -gt 0 -and $hosts.Count -gt $MaxHosts) {
+        $hosts = @($hosts | Select-Object -First $MaxHosts)
+    }
+    return @($hosts)
 }
 
 function Restore-SharedCacheEntries {
@@ -845,6 +938,29 @@ $portBatchReportPath = $null
 $interfaceSyncReportPath = $null
 $portDiversityReportPath = $null
 if (-not $QuickMode) {
+    if ($RunQueueDelayHarness) {
+        try {
+            $queueHosts = Resolve-QueueDelayHarnessHosts -ExplicitHosts $QueueDelayHarnessHosts -SiteFilter $QueueDelayHarnessSiteFilter -MaxHosts $QueueDelayHarnessMaxHosts -RepositoryRoot $repositoryRoot -ModulesPath $modulesPath
+            if ($queueHosts -and $queueHosts.Count -gt 0) {
+                $dispatchHarness = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Invoke-RoutingQueueSweep.ps1'
+                if (Test-Path -LiteralPath $dispatchHarness) {
+                    $dispatchDir = Join-Path -Path $repositoryRoot -ChildPath 'Logs\DispatchHarness'
+                    if (-not (Test-Path -LiteralPath $dispatchDir)) {
+                        New-Item -ItemType Directory -Path $dispatchDir -Force | Out-Null
+                    }
+                    $queueHarnessSummary = Join-Path -Path $dispatchDir -ChildPath ("RoutingQueueSweep-pipeline-{0}.json" -f $metricsReportSuffix)
+                    Write-Host ("Running dispatcher harness sweep for queue delay telemetry ({0} host(s))..." -f $queueHosts.Count) -ForegroundColor Cyan
+                    & $dispatchHarness -Hosts $queueHosts -QueueDelayWarningMs $QueueDelayHarnessWarningMs -QueueDelayCriticalMs $QueueDelayHarnessCriticalMs -OutputDirectory $dispatchDir -SummaryPath $queueHarnessSummary | Out-Null
+                } else {
+                    Write-Warning ("Queue delay harness script '{0}' not found; skipping dispatcher sweep." -f $dispatchHarness)
+                }
+            } else {
+                Write-Warning 'Queue delay harness skipped: no hosts resolved.'
+            }
+        } catch {
+            Write-Warning ("Queue delay harness sweep failed: {0}" -f $_.Exception.Message)
+        }
+    }
     try {
         $queueSummaryScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Generate-QueueDelaySummary.ps1'
         if (-not (Test-Path -LiteralPath $queueSummaryScript)) {
@@ -914,6 +1030,7 @@ if (-not $QuickMode) {
                         MetricsPath          = $latestIngestionMetricsEntry.FullName
                         MaxAllowedConsecutive= $maxConsecutive
                         OutputPath           = $portDiversityReportPath
+                        AllowNoParse         = $true
                     }
                     if ($Profile -eq 'Diag' -and -not $FailOnTelemetryMissing) {
                         $diversityArgs['AllowEmpty'] = $true
@@ -1097,6 +1214,7 @@ if ($VerifyTelemetryCompleteness -and -not $QuickMode) {
                 RequirePortBatchReady  = $true
                 RequireInterfaceSync   = $true
                 RequireSchedulerLaunch = $true
+                AllowNoParse           = $true
             }
             if ($FailOnTelemetryMissing) { $scriptArgs['ThrowOnMissing'] = $true }
             Write-Host ("Verifying incremental telemetry completeness via '{0}'..." -f $telemetryScript) -ForegroundColor Cyan
