@@ -3336,6 +3336,9 @@ $siteCacheTemplateDurationMs = 0.0
             $siteCacheResultRowCount = $cachedRowCount
         }
     }
+    if ($siteCacheHostMapSignatureMatchCount -le 0 -and $siteCacheProvider -eq 'SharedCache' -and $siteCacheResultRowCount -gt 0) {
+        $siteCacheHostMapSignatureMatchCount = [long]$siteCacheResultRowCount
+    }
 
     $siteCacheResolveInitialStatus = 'NotCaptured'
     $siteCacheResolveInitialHostCount = 0

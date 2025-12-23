@@ -142,8 +142,10 @@ function Measure-ProviderMetricsFromSummaries {
     }
 
     $hitCount = 0
-    if ($providerCounts.ContainsKey('Cache')) {
-        $hitCount = [int]$providerCounts['Cache']
+    foreach ($cacheKey in @('Cache','SharedCache')) {
+        if ($providerCounts.ContainsKey($cacheKey)) {
+            $hitCount += [int]$providerCounts[$cacheKey]
+        }
     }
     $missCount = [Math]::Max(0, $totalWeight - $hitCount)
     $hitRatio = $null

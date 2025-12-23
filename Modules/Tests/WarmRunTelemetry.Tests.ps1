@@ -52,7 +52,7 @@ Describe 'WarmRun.Telemetry helper functions' {
             WarmRun.Telemetry\Convert-MetricsToSummary -PassLabel 'TestPass' -Metrics @($metric)
         )
 
-        $result.Count | Should Be 1
+        @($result).Count | Should Be 1
         $result[0].Hostname | Should Be 'TEST-A01-AS-01'
     }
 
@@ -62,7 +62,7 @@ Describe 'WarmRun.Telemetry helper functions' {
             WarmRun.Telemetry\Convert-MetricsToSummary -PassLabel 'TestPass' -Metrics @($metric)
         )
 
-        $result.Count | Should Be 1
+        @($result).Count | Should Be 1
         { $null = $result[0].Hostname } | Should Not Throw
         $result[0].Hostname | Should Be $null
     }
@@ -85,7 +85,7 @@ Describe 'WarmRun.Telemetry helper functions' {
         }
 
         $result = WarmRun.Telemetry\Resolve-SiteCacheProviderReasons -Summaries @($summary) -InterfaceSyncEvents @($syncEvent)
-        $result.Count | Should Be 1
+        @($result).Count | Should Be 1
         $result[0].SiteCacheProviderReason | Should Be 'SkipSiteCacheUpdate'
     }
 
@@ -105,7 +105,7 @@ Describe 'WarmRun.Telemetry helper functions' {
         }
 
         $result = WarmRun.Telemetry\Resolve-SiteCacheProviderReasons -Summaries @($summary) -DatabaseEvents @($dbEvent)
-        $result.Count | Should Be 1
+        @($result).Count | Should Be 1
         $result[0].SiteCacheProviderReason | Should Be 'SharedCacheUnavailable'
     }
 
@@ -174,7 +174,7 @@ Describe 'WarmRun.Telemetry helper functions' {
         $summary = WarmRun.Telemetry\Convert-MetricsToSummary -PassLabel 'TestPass' -Metrics @($metric)
 
         $result = WarmRun.Telemetry\Resolve-SiteCacheProviderReasons -Summaries @($summary)
-        $result.Count | Should Be 1
+        @($result).Count | Should Be 1
         $result[0].SiteCacheProviderReason | Should Be 'AccessCacheHit'
     }
 

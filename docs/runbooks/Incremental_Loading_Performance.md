@@ -121,6 +121,7 @@ Use this runbook to baseline UI incremental-loading throughput whenever the Inte
           -OutputPath Logs/Reports/PortBatchSiteDiversity-<timestamp>.json
       ```
       Use the console output/JSON in Plan D ST-D-003 updates and add the JSON to the telemetry bundle; adjust the threshold as needed per runbook/plan guidance.
+      Use `-AllowNoParse` only when the metrics file contains only `SkippedDuplicate` entries and no parse activity (duplicate-only runs).
       > `Tools\Invoke-StateTracePipeline.ps1` now runs this guard automatically and emits `Logs/Reports/PortBatchSiteDiversity-<metrics>.json`; rerun it manually only when you need to inspect historical telemetry or change the threshold.
    - Verify parser scheduler rotation telemetry to confirm `ParserSchedulerLaunch` events show fair alternation:
       ```powershell
@@ -166,9 +167,9 @@ Use this runbook to baseline UI incremental-loading throughput whenever the Inte
      ```powershell
      pwsh Tools/Test-IncrementalTelemetryCompleteness.ps1 `
          -MetricsPath Logs/IngestionMetrics/<timestamp>.json `
-         -RequirePortBatchReady -RequireInterfaceSync -RequireSchedulerLaunch -ThrowOnMissing
+         -RequirePortBatchReady -RequireInterfaceSync -RequireSchedulerLaunch -ThrowOnMissing [-AllowNoParse]
      ```
-     Resolve any missing signals (for example, rerun the UI to capture InterfaceSync events) before marking the run as valid; the script warns when synthetic data (like the 2025-11-14 scheduler gap) needs a follow-up session.
+     Resolve any missing signals (for example, rerun the UI to capture InterfaceSync events) before marking the run as valid; the script warns when synthetic data (like the 2025-11-14 scheduler gap) needs a follow-up session. Use `-AllowNoParse` only when the telemetry file is duplicate-only (`SkippedDuplicate` entries and no parse activity).
      > `Tools/Invoke-StateTracePipeline.ps1 -VerifyTelemetryCompleteness` calls this script automatically (use `-FailOnTelemetryMissing` to stop the run). Invoke it manually only when validating historical telemetry or when the pipeline switches are omitted.
      > When historical telemetry lacks `ParserSchedulerLaunch` events and a new UI session is not feasible, run `Tools/Synthesize-ParserSchedulerTelemetry.ps1 -MetricsPath Logs/IngestionMetrics/<timestamp>.json -InPlace` (the pipeline does this automatically when `-SynthesizeSchedulerTelemetryOnMissing` is supplied) to backfill the scheduler launch stream before rerunning the completeness check.
    - Summarise the per-window site mix to highlight dominant periods:

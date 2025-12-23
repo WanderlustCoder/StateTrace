@@ -6,6 +6,7 @@ param(
     [switch]$RequirePortBatchReady,
     [switch]$RequireInterfaceSync,
     [switch]$RequireSchedulerLaunch,
+    [switch]$AllowNoParse,
     [switch]$ThrowOnMissing
 )
 
@@ -18,6 +19,9 @@ Scans a newline-delimited telemetry JSON file (typically `Logs\IngestionMetrics\
 and counts critical events: `PortBatchReady`, `InterfacePortStreamMetrics`,
 `InterfaceSyncTiming`, and `ParserSchedulerLaunch`. The script reports which
 signals are missing and optionally fails when required event types are absent.
+.PARAMETER AllowNoParse
+Treat missing PortBatchReady/InterfaceSyncTiming as non-fatal when no parse
+events are present but SkippedDuplicate entries exist (all logs were skipped).
 
 .EXAMPLE
 pwsh Tools\Test-IncrementalTelemetryCompleteness.ps1 `
@@ -38,6 +42,8 @@ $counts = @{
     InterfaceSyncTiming        = 0
     ParserSchedulerLaunch      = 0
 }
+$parseEventCount = 0
+$skippedDuplicateCount = 0
 
 Get-Content -LiteralPath $MetricsPath -ReadCount 500 | ForEach-Object {
     foreach ($line in $_) {
@@ -49,19 +55,38 @@ Get-Content -LiteralPath $MetricsPath -ReadCount 500 | ForEach-Object {
             continue
         }
         switch ($evt.EventName) {
-            'PortBatchReady'             { $counts.PortBatchReady++ }
+            'PortBatchReady'             { $counts.PortBatchReady++; $parseEventCount++ }
             'InterfacePortStreamMetrics' { $counts.InterfacePortStreamMetrics++ }
-            'InterfaceSyncTiming'        { $counts.InterfaceSyncTiming++ }
+            'InterfaceSyncTiming'        { $counts.InterfaceSyncTiming++; $parseEventCount++ }
             'ParserSchedulerLaunch'      { $counts.ParserSchedulerLaunch++ }
+            'ParseDuration'              { $parseEventCount++ }
+            'DatabaseWriteBreakdown'     { $parseEventCount++ }
+            'DeviceParsingTiming'        { $parseEventCount++ }
+            'InterfaceBulkInsert'        { $parseEventCount++ }
+            'InterfaceBulkInsertTiming'  { $parseEventCount++ }
+            'SkippedDuplicate'           { $skippedDuplicateCount++ }
         }
     }
 }
 
 $missing = New-Object System.Collections.Generic.List[string]
-if ($RequirePortBatchReady -and $counts.PortBatchReady -le 0) {
+$skipInterfaceRequirements = $false
+if ($AllowNoParse.IsPresent -and $parseEventCount -le 0 -and $skippedDuplicateCount -gt 0) {
+    $skipInterfaceRequirements = $true
+    Write-Warning 'Telemetry completeness: no parse events found (only SkippedDuplicate entries); skipping PortBatchReady/InterfaceSyncTiming requirements.'
+}
+
+$requirePortBatchReady = $RequirePortBatchReady.IsPresent
+$requireInterfaceSync = $RequireInterfaceSync.IsPresent
+if ($skipInterfaceRequirements) {
+    $requirePortBatchReady = $false
+    $requireInterfaceSync = $false
+}
+
+if ($requirePortBatchReady -and $counts.PortBatchReady -le 0) {
     $missing.Add('PortBatchReady') | Out-Null
 }
-if ($RequireInterfaceSync -and $counts.InterfaceSyncTiming -le 0) {
+if ($requireInterfaceSync -and $counts.InterfaceSyncTiming -le 0) {
     $missing.Add('InterfaceSyncTiming') | Out-Null
 }
 if ($RequireSchedulerLaunch -and $counts.ParserSchedulerLaunch -le 0) {
@@ -74,6 +99,10 @@ $result = [pscustomobject]@{
     InterfacePortStreamCount    = $counts.InterfacePortStreamMetrics
     InterfaceSyncTimingCount    = $counts.InterfaceSyncTiming
     ParserSchedulerLaunchCount  = $counts.ParserSchedulerLaunch
+    ParseEventCount             = $parseEventCount
+    SkippedDuplicateCount       = $skippedDuplicateCount
+    Skipped                     = $skipInterfaceRequirements
+    SkipReason                  = if ($skipInterfaceRequirements) { 'NoParseActivity' } else { $null }
     MissingSignals              = $missing.ToArray()
     Pass                        = ($missing.Count -eq 0)
 }

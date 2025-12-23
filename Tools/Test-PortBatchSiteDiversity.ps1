@@ -7,6 +7,8 @@ param(
 
     [switch]$AllowEmpty,
 
+    [switch]$AllowNoParse,
+
     [string]$OutputPath
 )
 
@@ -18,6 +20,8 @@ Validates that PortBatchReady events are not dominated by a single site.
 Reads newline-delimited ingestion metrics JSON, extracts `PortBatchReady` events, and measures the longest consecutive
 sequence per site. If any site repeats more than `-MaxAllowedConsecutive` times, the script throws (fail-fast guard for
 Plan D ST-D-003/ST-D-010). Optionally writes the summary to JSON for telemetry bundles.
+.PARAMETER AllowNoParse
+Allow empty PortBatchReady results when no parse events are present but SkippedDuplicate entries exist.
 #>
 
 Set-StrictMode -Version Latest
@@ -41,13 +45,29 @@ function Get-Site([string]$Hostname) {
 
 $metricsFile = Resolve-MetricsFile -Path $MetricsPath
 $events = New-Object System.Collections.Generic.List[pscustomobject]
+$parseEventNames = @(
+    'ParseDuration',
+    'DatabaseWriteBreakdown',
+    'DeviceParsingTiming',
+    'InterfaceSyncTiming',
+    'InterfaceBulkInsert',
+    'InterfaceBulkInsertTiming'
+)
+$parseEventCount = 0
+$skippedDuplicateCount = 0
 
 Get-Content -LiteralPath $metricsFile -ReadCount 500 | ForEach-Object {
     foreach ($line in $_) {
         if ([string]::IsNullOrWhiteSpace($line)) { continue }
         try { $record = $line | ConvertFrom-Json -ErrorAction Stop }
         catch { Write-Warning ("Skipping malformed line: {0}" -f $_.Exception.Message); continue }
-        if ($record.EventName -ne 'PortBatchReady') { continue }
+        $eventName = $record.EventName
+        if ($eventName -eq 'SkippedDuplicate') {
+            $skippedDuplicateCount++
+        } elseif ($parseEventNames -contains $eventName) {
+            $parseEventCount++
+        }
+        if ($eventName -ne 'PortBatchReady') { continue }
         $isSynthesized = $false
         if ($record.PSObject.Properties.Name -contains 'Synthesized') {
             $isSynthesized = [bool]$record.Synthesized
@@ -72,8 +92,10 @@ if ($totalEventCount -gt 0) {
     }
 }
 
+$noParseActivity = ($parseEventCount -le 0 -and $skippedDuplicateCount -gt 0)
 if ($events.Count -eq 0) {
-    if (-not $AllowEmpty.IsPresent) {
+    $skipForNoParse = ($AllowNoParse.IsPresent -and $noParseActivity)
+    if (-not $AllowEmpty.IsPresent -and -not $skipForNoParse) {
         throw "No PortBatchReady events found in '$metricsFile'."
     }
 
@@ -89,7 +111,9 @@ if ($events.Count -eq 0) {
         UsedSynthesizedEvents    = $false
         SiteStreaks              = @()
         Skipped                  = $true
-        SkipReason               = 'NoPortBatchReadyEvents'
+        SkipReason               = if ($skipForNoParse) { 'NoParseActivity' } else { 'NoPortBatchReadyEvents' }
+        ParseEventCount          = $parseEventCount
+        SkippedDuplicateCount    = $skippedDuplicateCount
     }
 
     if ($OutputPath) {
@@ -99,7 +123,11 @@ if ($events.Count -eq 0) {
         Write-Host ("Site diversity summary written to {0}" -f (Resolve-Path -LiteralPath $OutputPath)) -ForegroundColor DarkCyan
     }
 
-    Write-Warning ("No PortBatchReady events found in '{0}'; skipping site diversity evaluation." -f $metricsFile)
+    if ($skipForNoParse) {
+        Write-Warning ("No parse events detected (SkippedDuplicate only) in '{0}'; skipping site diversity evaluation." -f $metricsFile)
+    } else {
+        Write-Warning ("No PortBatchReady events found in '{0}'; skipping site diversity evaluation." -f $metricsFile)
+    }
     return $result
 }
 
@@ -189,6 +217,8 @@ $result = [pscustomobject]@{
     PortBatchReadyCount = $totalEventCount
     EvaluatedPortBatchReadyCount = $events.Count
     UsedSynthesizedEvents = $usedSynthesized
+    ParseEventCount = $parseEventCount
+    SkippedDuplicateCount = $skippedDuplicateCount
     SiteStreaks = $summary
 }
 

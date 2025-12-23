@@ -263,24 +263,34 @@ function Import-SharedSiteInterfaceCacheSnapshotFromEnv {
         if (-not $entry) { continue }
 
         $siteKey = ''
-        if ($entry.Site) {
+        $entryProperties = $entry.PSObject.Properties.Name
+        if ($entryProperties -contains 'Site') {
             $siteKey = ('' + $entry.Site).Trim()
-        } elseif ($entry.SiteKey) {
+        } elseif ($entryProperties -contains 'SiteKey') {
             $siteKey = ('' + $entry.SiteKey).Trim()
         }
         if ([string]::IsNullOrWhiteSpace($siteKey)) { continue }
 
         $payload = $null
-        if ($entry.Entry) {
+        if ($entryProperties -contains 'Entry' -and $entry.Entry) {
             $payload = $entry.Entry
-        } elseif ($entry.HostMap) {
-            $payload = [pscustomobject]@{ HostMap = $entry.HostMap; CacheStatus = $entry.CacheStatus; CachedAt = $entry.CachedAt }
+        } elseif ($entryProperties -contains 'HostMap' -and $entry.HostMap) {
+            $payload = [pscustomobject]@{
+                HostMap     = $entry.HostMap
+                CacheStatus = if ($entryProperties -contains 'CacheStatus') { $entry.CacheStatus } else { $null }
+                CachedAt    = if ($entryProperties -contains 'CachedAt') { $entry.CachedAt } else { $null }
+            }
         }
         if (-not $payload) { continue }
 
-        if (-not $payload.HostMap) {
-            if ($entry.HostMap) {
-                $payload = [pscustomobject]@{ HostMap = $entry.HostMap; CacheStatus = $entry.CacheStatus; CachedAt = $entry.CachedAt }
+        $payloadProperties = $payload.PSObject.Properties.Name
+        if (-not ($payloadProperties -contains 'HostMap') -or -not $payload.HostMap) {
+            if ($entryProperties -contains 'HostMap' -and $entry.HostMap) {
+                $payload = [pscustomobject]@{
+                    HostMap     = $entry.HostMap
+                    CacheStatus = if ($entryProperties -contains 'CacheStatus') { $entry.CacheStatus } else { $null }
+                    CachedAt    = if ($entryProperties -contains 'CachedAt') { $entry.CachedAt } else { $null }
+                }
             } else {
                 continue
             }
@@ -645,7 +655,7 @@ function Initialize-SharedSiteInterfaceCacheStore {
     try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($bestStore) } catch { }
 
     if ($bestStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
-        [void](Import-SharedSiteInterfaceCacheSnapshot -Store $bestStore -Force)
+        [void](Import-SharedSiteInterfaceCacheSnapshot -Store $bestStore)
         try {
             $hash = [System.Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($bestStore)
             $count = 0
@@ -701,7 +711,7 @@ function Get-SharedSiteInterfaceCacheStore {
         try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($bestStore) } catch { }
         try { [System.AppDomain]::CurrentDomain.SetData($storeKey, $bestStore) } catch { }
         if ($bestStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
-            [void](Import-SharedSiteInterfaceCacheSnapshot -Store $bestStore -Force)
+            [void](Import-SharedSiteInterfaceCacheSnapshot -Store $bestStore)
         }
     }
 
@@ -715,7 +725,7 @@ if (-not (Get-Variable -Scope Script -Name SharedSiteInterfaceCache -ErrorAction
 }
 
 if ($script:SharedSiteInterfaceCache -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
-    [void](Import-SharedSiteInterfaceCacheSnapshot -Store $script:SharedSiteInterfaceCache -Force)
+    [void](Import-SharedSiteInterfaceCacheSnapshot -Store $script:SharedSiteInterfaceCache)
 }
 
 function Copy-InterfaceCacheEntryObject {
@@ -1337,7 +1347,7 @@ function Convert-InterfaceSiteCacheHostMapToExportMap {
         $exportPorts = New-Object 'System.Collections.Hashtable' ([System.StringComparer]::OrdinalIgnoreCase)
 
         $portEntries = ConvertTo-KeyValueEntryList -Source $ports
-        if ($portEntries.Count -gt 0) {
+        if (@($portEntries).Count -gt 0) {
             foreach ($portEntry in $portEntries) {
                 if (-not $portEntry) { continue }
                 $normalizedPortKey = if ($portEntry.Key) { ('' + $portEntry.Key).Trim() } else { '' }
@@ -1544,7 +1554,7 @@ function Resolve-SharedSiteInterfaceCacheSnapshotEntries {
 }
 
 function Get-SharedCacheSiteFilterFromEntries {
-    param([System.Collections.IEnumerable]$Entries)
+    param([object]$Entries)
 
     $sites = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
     if (-not $Entries) { return @() }
@@ -2941,6 +2951,14 @@ function Get-InterfaceSiteCache {
             } else {
                 $cacheStatusForReuse = 'Hit'
             }
+        } else {
+            $normalizedStatus = $cacheStatusForReuse.Trim()
+            $normalizedKey = $normalizedStatus.ToLowerInvariant()
+            if ($normalizedKey -eq 'refreshed' -or $normalizedKey -eq 'hydrated') {
+                $cacheStatusForReuse = if ($adoptedFromSharedStore) { 'SharedOnly' } else { 'Hit' }
+            } elseif ($adoptedFromSharedStore -and $normalizedKey -eq 'hit') {
+                $cacheStatusForReuse = 'SharedOnly'
+            }
         }
         if ($cachedEntry) {
             $metrics.CacheStatus = $cacheStatusForReuse
@@ -3098,12 +3116,6 @@ function Get-InterfaceSiteCache {
             if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationExclusiveWaitDurationMs') {
                 $metrics.HydrationExclusiveWaitDurationMs = [double]$cachedEntry.HydrationExclusiveWaitDurationMs
             }
-            if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationProvider') {
-                $providerValue = '' + $cachedEntry.HydrationProvider
-                if (-not [string]::IsNullOrWhiteSpace($providerValue)) {
-                    $metrics.HydrationProvider = $providerValue
-                }
-            }
             if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationHostMapSignatureMismatchSamples') {
                 $samplesValue = $cachedEntry.HydrationHostMapSignatureMismatchSamples
                 if ($null -ne $samplesValue) {
@@ -3163,9 +3175,10 @@ function Get-InterfaceSiteCache {
             if ($cachedEntry.PSObject.Properties.Name -contains 'HydrationResultRowCount') {
                 $metrics.HydrationResultRowCount = [int]$cachedEntry.HydrationResultRowCount
             }
-            if ($cachedEntry.PSObject.Properties.Name -contains 'CachedAt') {
+            if ($cachedEntry.PSObject.Properties.Name -contains 'CachedAt') {   
                 $metrics.CachedAt = $cachedEntry.CachedAt
             }
+            $metrics.HydrationHostMapSignatureRewriteCount = 0
         } else {
             $metrics.CacheStatus = $cacheStatusForReuse
             $metrics.HydrationProvider = 'Cache'

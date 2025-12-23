@@ -7,6 +7,10 @@ param(
 
     [int]$TopWindows = 5,
 
+    [datetime]$StartTimeUtc,
+
+    [datetime]$EndTimeUtc,
+
     [string]$OutputPath
 )
 
@@ -68,6 +72,13 @@ function Get-WindowStartUtc {
 
 $metricsFile = Resolve-MetricsFile -Path $MetricsPath
 $events = New-Object System.Collections.Generic.List[pscustomobject]
+$startUtc = $null
+$endUtc = $null
+if ($StartTimeUtc) { $startUtc = $StartTimeUtc.ToUniversalTime() }
+if ($EndTimeUtc) { $endUtc = $EndTimeUtc.ToUniversalTime() }
+if ($startUtc -and $endUtc -and $startUtc -gt $endUtc) {
+    throw "StartTimeUtc must be earlier than or equal to EndTimeUtc."
+}
 
 Get-Content -LiteralPath $metricsFile -ReadCount 500 | ForEach-Object {
     foreach ($line in $_) {
@@ -81,6 +92,8 @@ Get-Content -LiteralPath $metricsFile -ReadCount 500 | ForEach-Object {
         }
         if ($record.EventName -ne 'PortBatchReady') { continue }
         $utcTime = ([datetime]$record.Timestamp).ToUniversalTime()
+        if ($startUtc -and $utcTime -lt $startUtc) { continue }
+        if ($endUtc -and $utcTime -gt $endUtc) { continue }
         $events.Add([pscustomobject]@{
             Timestamp = $utcTime
             Hostname  = $record.Hostname
@@ -141,6 +154,9 @@ $builder = New-Object System.Collections.Generic.List[string]
 $builder.Add("# PortBatch site mix summary")
 $builder.Add("")
 $builder.Add([string]::Format('> Metrics file: `{0}`', (Resolve-Path -LiteralPath $metricsFile)))
+if ($startUtc -or $endUtc) {
+    $builder.Add([string]::Format('> Filter (UTC): {0} -> {1}', ($startUtc ? $startUtc.ToString('o') : 'start'), ($endUtc ? $endUtc.ToString('o') : 'end')))
+}
 $builder.Add([string]::Format('> Window size: {0} minutes', $WindowMinutes))
 $builder.Add([string]::Format('> Generated {0}', (Get-Date -Format 'yyyy-MM-dd HH:mm:ss K')))
 $builder.Add("")

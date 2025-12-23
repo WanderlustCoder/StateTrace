@@ -133,7 +133,7 @@ Describe "DeviceInsightsModule view aggregation" {
 
         $results = DeviceInsightsModule\Update-SearchResults -Term 'phone'
 
-        $results.Count | Should Be 1
+        @($results).Count | Should Be 1
         $results[0].Hostname | Should Be 'SITE1-Z1-SW1'
     }
 
@@ -149,7 +149,7 @@ Describe "DeviceInsightsModule view aggregation" {
 
         $results = DeviceInsightsModule\Update-SearchResults -Term ''
 
-        $results.Count | Should Be 1
+        @($results).Count | Should Be 1
         $results[0].Hostname | Should Be 'SITE1-Z1-SW2'
     }
 
@@ -162,7 +162,7 @@ Describe "DeviceInsightsModule view aggregation" {
         DeviceInsightsModule\Set-SearchRegexEnabled -Enabled $true
         $results = DeviceInsightsModule\Update-SearchResults -Term 'CC-\d{2}$'
 
-        $results.Count | Should Be 1
+        @($results).Count | Should Be 1
         $results[0].Name | Should Be 'Sensor'
     }
 
@@ -227,7 +227,7 @@ Describe "DeviceInsightsModule view aggregation" {
 
         DeviceInsightsModule\Update-Alerts
 
-        $global:AlertsList.Count | Should Be 1
+        @($global:AlertsList).Count | Should Be 1
         $global:AlertsList[0].Reason | Should Match 'Port down'
         $global:AlertsList[0].Reason | Should Match 'Half duplex'
         $global:AlertsList[0].Reason | Should Match 'Unauthorized'
@@ -245,7 +245,7 @@ Describe "DeviceInsightsModule view aggregation" {
 
         DeviceInsightsModule\Update-Alerts
 
-        $global:AlertsList.Count | Should Be 3
+        @($global:AlertsList).Count | Should Be 3
         $global:AlertsList[0].Port | Should Be 'E 1/1/1'
         $global:AlertsList[1].Port | Should Be 'E1/1/2'
         $global:AlertsList[2].Port | Should Be 'E 1/1/10'

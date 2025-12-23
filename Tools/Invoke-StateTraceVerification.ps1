@@ -94,7 +94,11 @@ function Resolve-OptionalPath {
         $resolved = (Resolve-Path -LiteralPath $PathValue -ErrorAction Stop).Path
         return $resolved
     } catch {
-        return [System.IO.Path]::GetFullPath((Join-Path -Path (Get-Location) -ChildPath $PathValue))
+        if ([System.IO.Path]::IsPathRooted($PathValue)) {
+            return [System.IO.Path]::GetFullPath($PathValue)
+        }
+        $basePath = (Get-Location).ProviderPath
+        return [System.IO.Path]::GetFullPath((Join-Path -Path $basePath -ChildPath $PathValue))
     }
 }
 
@@ -329,16 +333,7 @@ if (-not $SkipWarmRunRegression.IsPresent) {
     }
 
     $computedWarmRunPath = $targetPath
-    $relativeOutput = $targetPath
-    try {
-        $candidate = [System.IO.Path]::GetRelativePath($repositoryRoot, $targetPath)
-        if (-not [string]::IsNullOrWhiteSpace($candidate) -and -not $candidate.StartsWith('..')) {
-            $relativeOutput = $candidate
-        }
-    } catch {
-        $relativeOutput = $targetPath
-    }
-    $pipelineParameters['WarmRunRegressionOutputPath'] = $relativeOutput
+    $pipelineParameters['WarmRunRegressionOutputPath'] = $targetPath
 }
 
 $argumentPreview = @()
@@ -710,7 +705,8 @@ if (-not $SkipSharedCacheSummaryEvaluation.IsPresent) {
             if ($stats) {
                 Write-Host ("  Site Count / Hosts / Rows : {0} / {1} / {2}" -f $stats.SiteCount, $stats.TotalHostCount, $stats.TotalRowCount) -ForegroundColor Yellow
             }
-            Write-Host ("  Status                  : {0}" -f ($sharedCacheSummaryEvaluation.Pass ? 'Pass' : 'Fail')) -ForegroundColor $statusColor
+            $summaryStatus = if ($sharedCacheSummaryEvaluation.Pass) { 'Pass' } else { 'Fail' }
+            Write-Host ("  Status                  : {0}" -f $summaryStatus) -ForegroundColor $statusColor
             if (-not $sharedCacheSummaryEvaluation.Pass -and $sharedCacheSummaryEvaluation.Messages) {
                 foreach ($msg in $sharedCacheSummaryEvaluation.Messages) {
                     Write-Host ("  - {0}" -f $msg) -ForegroundColor Red

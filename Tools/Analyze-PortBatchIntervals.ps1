@@ -7,6 +7,10 @@ param(
 
     [double]$ThresholdSeconds = 5,
 
+    [datetime]$StartTimeUtc,
+
+    [datetime]$EndTimeUtc,
+
     [switch]$PassThru,
 
     [string]$OutputPath
@@ -46,6 +50,13 @@ function Resolve-InputFiles {
 
 $files = Resolve-InputFiles -InputPath $Path
 $events = New-Object System.Collections.Generic.List[pscustomobject]
+$startUtc = $null
+$endUtc = $null
+if ($StartTimeUtc) { $startUtc = $StartTimeUtc.ToUniversalTime() }
+if ($EndTimeUtc) { $endUtc = $EndTimeUtc.ToUniversalTime() }
+if ($startUtc -and $endUtc -and $startUtc -gt $endUtc) {
+    throw "StartTimeUtc must be earlier than or equal to EndTimeUtc."
+}
 
 foreach ($file in $files) {
     Get-Content -LiteralPath $file -ReadCount 500 | ForEach-Object {
@@ -59,8 +70,12 @@ foreach ($file in $files) {
                 continue
             }
             if ($obj.EventName -ne 'PortBatchReady') { continue }
+            $timestamp = [datetime]$obj.Timestamp
+            $timestampUtc = $timestamp.ToUniversalTime()
+            if ($startUtc -and $timestampUtc -lt $startUtc) { continue }
+            if ($endUtc -and $timestampUtc -gt $endUtc) { continue }
             $events.Add([pscustomobject]@{
-                Timestamp = [datetime]$obj.Timestamp
+                Timestamp = $timestampUtc
                 Hostname  = $obj.Hostname
             }) | Out-Null
         }
@@ -98,6 +113,9 @@ function Get-Count($collection) {
 $sortedCount = Get-Count $sorted
 $fileCount = Get-Count $files
 $thresholdCount = Get-Count $threshold
+if ($startUtc -or $endUtc) {
+    Write-Host ("Filtering events between {0} and {1} (UTC)." -f ($startUtc ? $startUtc.ToString('o') : 'start'), ($endUtc ? $endUtc.ToString('o') : 'end')) -ForegroundColor DarkGray
+}
 
 Write-Host ("Analyzed {0} PortBatchReady events across {1} file(s)." -f $sortedCount, $fileCount)
 Write-Host ("Largest gaps between events (top {0}):" -f $TopIntervals) -ForegroundColor Cyan
@@ -125,6 +143,8 @@ if ($OutputPath) {
         TopSampleSize     = $TopIntervals
         ThresholdSeconds  = $ThresholdSeconds
         ThresholdGapCount = $thresholdCount
+        FilterStartUtc    = if ($startUtc) { $startUtc.ToString('o') } else { $null }
+        FilterEndUtc      = if ($endUtc) { $endUtc.ToString('o') } else { $null }
         Intervals         = $intervals
     }
 

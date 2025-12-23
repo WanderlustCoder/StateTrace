@@ -41,13 +41,13 @@ Describe 'Telemetry history updater scripts' {
         $result = & $script:PortHistoryScript -ReportPaths $reportPath -HistoryPath $historyPath -PassThru
         @($result).Count | Should Be 1
         $history = Import-Csv -LiteralPath $historyPath
-        $history.Count | Should Be 1
+        @($history).Count | Should Be 1
         [int]$history[0].PortsPerMinute | Should Be 60
         [int]$history[0].BatchIntervalP95 | Should Be 123
 
         $second = & $script:PortHistoryScript -ReportPaths $reportPath -HistoryPath $historyPath -PassThru
         @($second).Count | Should Be 0
-        (Import-Csv -LiteralPath $historyPath).Count | Should Be 1
+        @((Import-Csv -LiteralPath $historyPath)).Count | Should Be 1
     }
 
     It 'appends interface sync reports without using deprecated ConvertFrom-Json depth' {
@@ -77,13 +77,13 @@ Describe 'Telemetry history updater scripts' {
         $result = & $script:InterfaceHistoryScript -ReportPaths $reportPath -HistoryPath $historyPath -PassThru
         @($result).Count | Should Be 1
         $history = Import-Csv -LiteralPath $historyPath
-        $history.Count | Should Be 1
+        @($history).Count | Should Be 1
         [int]$history[0].UiCloneP95 | Should Be 15
         $history[0].HottestSite | Should Be 'TEST1'
         $history[0].HottestHost | Should Be 'TEST-HOST'
 
         $second = & $script:InterfaceHistoryScript -ReportPaths $reportPath -HistoryPath $historyPath -PassThru
         @($second).Count | Should Be 0
-        (Import-Csv -LiteralPath $historyPath).Count | Should Be 1
+        @((Import-Csv -LiteralPath $historyPath)).Count | Should Be 1
 }
 }

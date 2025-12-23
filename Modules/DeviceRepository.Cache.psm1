@@ -556,9 +556,40 @@ function Set-SharedSiteInterfaceCacheEntry {
         }
     }
 
-    $store[$SiteKey] = $normalized
+    $mergedHostMap = $normalized
+    $existingEntry = $null
+    try { $existingEntry = $store[$SiteKey] } catch { $existingEntry = $null }
+    $existingHostMap = $null
+    if ($existingEntry) {
+        try { $existingHostMap = Resolve-SharedSiteInterfaceCacheHostMap -Entry $existingEntry } catch { $existingHostMap = $null }
+    }
+    if ($existingHostMap -is [System.Collections.IDictionary]) {
+        $mergedHostMap = New-Object 'System.Collections.Generic.Dictionary[string, object]' ([System.StringComparer]::OrdinalIgnoreCase)
+        foreach ($existingKey in @($existingHostMap.Keys)) {
+            $normalizedExistingKey = if ($existingKey) { ('' + $existingKey).Trim() } else { '' }
+            if ([string]::IsNullOrWhiteSpace($normalizedExistingKey)) { continue }
+            $existingValue = $existingHostMap[$existingKey]
+            if ($null -eq $existingValue) { continue }
+            $mergedHostMap[$normalizedExistingKey] = $existingValue
+        }
+        foreach ($incomingKey in @($normalized.Keys)) {
+            $normalizedIncomingKey = if ($incomingKey) { ('' + $incomingKey).Trim() } else { '' }
+            if ([string]::IsNullOrWhiteSpace($normalizedIncomingKey)) { continue }
+            $incomingValue = $normalized[$incomingKey]
+            if ($null -eq $incomingValue) {
+                $null = $mergedHostMap.Remove($normalizedIncomingKey)
+                continue
+            }
+            if ($incomingValue -is [System.Collections.ICollection] -and $incomingValue.Count -eq 0) {
+                $null = $mergedHostMap.Remove($normalizedIncomingKey)
+                continue
+            }
+            $mergedHostMap[$normalizedIncomingKey] = $incomingValue
+        }
+    }
+    $store[$SiteKey] = $mergedHostMap
     $entryCount = [int]$store.Count
-    $stats = Get-SharedSiteInterfaceCacheEntryStatistics -Entry $normalized
+    $stats = Get-SharedSiteInterfaceCacheEntryStatistics -Entry $mergedHostMap
     Publish-SharedSiteInterfaceCacheEvent -SiteKey $SiteKey -Operation 'Set' -EntryCount $entryCount -HostCount $stats.HostCount -TotalRows $stats.TotalRows -StoreHashCode $storeHashCode
 
     $snapshotStore = $null
@@ -581,7 +612,7 @@ function Set-SharedSiteInterfaceCacheEntry {
             $snapshotStore[$SiteKey] = New-Object 'StateTrace.Repository.SharedSiteInterfaceCacheEntry'
         }
         $snapshotStore[$SiteKey].SiteKey = $SiteKey
-        $snapshotStore[$SiteKey].HostMap = $normalized
+        $snapshotStore[$SiteKey].HostMap = $mergedHostMap
         try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetSnapshot($snapshotStore) } catch { }
     }
 }

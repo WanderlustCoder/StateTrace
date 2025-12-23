@@ -9,6 +9,10 @@ param(
 
     [int]$EventsAfter = 4,
 
+    [datetime]$StartTimeUtc,
+
+    [datetime]$EndTimeUtc,
+
     [string]$OutputPath,
 
     [switch]$PassThru
@@ -64,6 +68,13 @@ function Get-SiteFromHostname {
 
 $files = Resolve-InputFiles -Path $MetricsPath
 $events = New-Object System.Collections.Generic.List[pscustomobject]
+$startUtc = $null
+$endUtc = $null
+if ($StartTimeUtc) { $startUtc = $StartTimeUtc.ToUniversalTime() }
+if ($EndTimeUtc) { $endUtc = $EndTimeUtc.ToUniversalTime() }
+if ($startUtc -and $endUtc -and $startUtc -gt $endUtc) {
+    throw "StartTimeUtc must be earlier than or equal to EndTimeUtc."
+}
 
 foreach ($file in $files) {
     Get-Content -LiteralPath $file -ReadCount 500 | ForEach-Object {
@@ -78,10 +89,13 @@ foreach ($file in $files) {
             }
             if ($record.EventName -ne 'PortBatchReady') { continue }
             $timestamp = [datetime]$record.Timestamp
+            $timestampUtc = $timestamp.ToUniversalTime()
+            if ($startUtc -and $timestampUtc -lt $startUtc) { continue }
+            if ($endUtc -and $timestampUtc -gt $endUtc) { continue }
             $hostname = $record.Hostname
             $events.Add([pscustomobject]@{
                 Index     = $events.Count
-                Timestamp = $timestamp
+                Timestamp = $timestampUtc
                 Hostname  = $hostname
                 Site      = Get-SiteFromHostname -Hostname $hostname
                 Ports     = $record.PortsCommitted
@@ -158,6 +172,9 @@ $builder.Add("# PortBatch gap timeline")
 $builder.Add("")
 $resolvedMetrics = (Resolve-Path -LiteralPath $MetricsPath) | ForEach-Object { $_.Path }
 $builder.Add([string]::Format('> Metrics: `{0}`', ($resolvedMetrics -join '; ')))
+if ($startUtc -or $endUtc) {
+    $builder.Add([string]::Format('> Filter (UTC): {0} -> {1}', ($startUtc ? $startUtc.ToString('o') : 'start'), ($endUtc ? $endUtc.ToString('o') : 'end')))
+}
 $generatedStamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss K'
 $builder.Add("> Generated $generatedStamp")
 $builder.Add("> Gap threshold: $GapThresholdSeconds seconds")

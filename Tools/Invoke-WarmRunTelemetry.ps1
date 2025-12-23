@@ -345,13 +345,15 @@ function Resolve-CacheProviderMetrics {
     )
 
     $hitCount = 0
-    if ($ProviderCounts.ContainsKey('Cache')) {
-        $hitCount = [int]$ProviderCounts['Cache']
+    foreach ($cacheKey in @('Cache','SharedCache')) {
+        if ($ProviderCounts.ContainsKey($cacheKey)) {
+            $hitCount += [int]$ProviderCounts[$cacheKey]
+        }
     }
 
     $missCount = 0
     foreach ($entry in $ProviderCounts.GetEnumerator()) {
-        if ($entry.Key -ne 'Cache') {
+        if ($entry.Key -ne 'Cache' -and $entry.Key -ne 'SharedCache') {
             $missCount += [int]$entry.Value
         }
     }
@@ -1228,6 +1230,9 @@ function Measure-InterfaceCallDurationMetrics {
         if ([string]::IsNullOrWhiteSpace($provider)) {
             $provider = 'Unknown'
         }
+        if ($provider -eq 'SharedCache') {
+            $provider = 'Cache'
+        }
         if ($providerCounts.ContainsKey($provider)) {
             $providerCounts[$provider]++
         } else {
@@ -1455,6 +1460,9 @@ $ingestionHistorySnapshot = Get-IngestionHistorySnapshot -DirectoryPath $ingesti
 $metricsBaseline = Get-MetricsBaseline -DirectoryPath $metricsDirectory
 $sharedCacheEntries = @()
 $sharedCacheSnapshotPath = $null
+$sharedCacheSnapshotDirectory = Join-Path -Path (Join-Path $repositoryRoot 'Logs') -ChildPath 'SharedCacheSnapshot'
+$sharedCacheSnapshotLatestPath = Join-Path -Path $sharedCacheSnapshotDirectory -ChildPath 'SharedCacheSnapshot-latest.clixml'
+$sharedCacheSnapshotCleanupPath = $null
 
 $pipelineArguments = @{
     PreserveModuleSession       = $true
@@ -1654,6 +1662,10 @@ function Invoke-SiteCacheRefresh {
     }
     if ($refreshCount -le 0) { return @() }
 
+    $flushCmd = Get-TelemetryModuleCommand -Name 'Flush-StTelemetryBuffer'
+    if ($flushCmd) {
+        try { & $flushCmd | Out-Null } catch { }
+    }
     $telemetry = Get-AppendedTelemetry -DirectoryPath $metricsDirectory -Baseline $metricsBaseline -ExcludePaths @($OutputPath)
     $siteSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
     foreach ($site in $Sites) {
@@ -1717,6 +1729,10 @@ function Invoke-SiteCacheProbe {
         return @()
     }
 
+    $flushCmd = Get-TelemetryModuleCommand -Name 'Flush-StTelemetryBuffer'
+    if ($flushCmd) {
+        try { & $flushCmd | Out-Null } catch { }
+    }
     $telemetry = Get-AppendedTelemetry -DirectoryPath $metricsDirectory -Baseline $metricsBaseline -ExcludePaths @($OutputPath)
     $cacheMetrics = [System.Collections.Generic.List[psobject]]::new()
     foreach ($evt in @($telemetry)) {
@@ -2330,6 +2346,28 @@ function Write-SharedCacheSnapshotFile {
     }
 }
 
+function Sync-SharedCacheSnapshotPointer {
+    param(
+        [Parameter(Mandatory)][string]$SnapshotPath,
+        [string]$LatestPath
+    )
+
+    if ([string]::IsNullOrWhiteSpace($SnapshotPath)) { return $false }
+    if (-not (Test-Path -LiteralPath $SnapshotPath)) { return $false }
+
+    if (-not [string]::IsNullOrWhiteSpace($LatestPath) -and
+        -not [System.StringComparer]::OrdinalIgnoreCase.Equals($SnapshotPath, $LatestPath)) {
+        try {
+            $null = Initialize-DirectoryForPath -Path $LatestPath
+            Copy-Item -LiteralPath $SnapshotPath -Destination $LatestPath -Force
+        } catch {
+            Write-Warning ("Failed to update shared cache snapshot pointer '{0}': {1}" -f $LatestPath, $_.Exception.Message)
+        }
+    }
+
+    return $true
+}
+
 function Restore-SharedCacheEntries {
     param(
         [System.Collections.IEnumerable]$Entries
@@ -2509,7 +2547,9 @@ try {
     }
     if (-not $sharedCacheSnapshotPath) {
         $snapshotFileName = "SharedCacheSnapshot-{0:yyyyMMdd-HHmmss}.clixml" -f (Get-Date)
-        $sharedCacheSnapshotPath = Join-Path -Path (Join-Path $repositoryRoot 'Logs') -ChildPath $snapshotFileName
+        $sharedCacheSnapshotPath = Join-Path -Path $sharedCacheSnapshotDirectory -ChildPath $snapshotFileName
+        $sharedCacheSnapshotCleanupPath = $sharedCacheSnapshotPath
+        $null = Initialize-DirectoryForPath -Path $sharedCacheSnapshotPath
     }
     if (-not $sharedCacheSnapshotEnvApplied -and $sharedCacheSnapshotPath) {
         try { $sharedCacheSnapshotEnvOriginal = $env:STATETRACE_SHARED_CACHE_SNAPSHOT } catch { $sharedCacheSnapshotEnvOriginal = $null }
@@ -2595,6 +2635,18 @@ try {
     if (-not $usingExportedSnapshot -and $sharedCacheSnapshotPath) {
         Write-SharedCacheSnapshotFile -Path $sharedCacheSnapshotPath -Entries @($sharedCacheEntries)
         Write-Host ("Shared cache snapshot saved to '{0}'." -f $sharedCacheSnapshotPath) -ForegroundColor DarkCyan
+        $snapshotReady = Sync-SharedCacheSnapshotPointer -SnapshotPath $sharedCacheSnapshotPath -LatestPath $sharedCacheSnapshotLatestPath
+        if (-not $snapshotReady) {
+            if ($sharedCacheSnapshotLatestPath -and (Test-Path -LiteralPath $sharedCacheSnapshotLatestPath)) {
+                Write-Warning ("Shared cache snapshot '{0}' was not created; falling back to '{1}'." -f $sharedCacheSnapshotPath, $sharedCacheSnapshotLatestPath)
+                $sharedCacheSnapshotPath = $sharedCacheSnapshotLatestPath
+                if ($sharedCacheSnapshotEnvApplied) {
+                    try { $env:STATETRACE_SHARED_CACHE_SNAPSHOT = $sharedCacheSnapshotPath } catch { }
+                }
+            } else {
+                Write-Warning ("Shared cache snapshot '{0}' was not created and no fallback snapshot was found." -f $sharedCacheSnapshotPath)
+            }
+        }
     }
     if ($capturedAfterCold -gt 0) {
         Write-Host ("Captured {0} shared cache entr{1} after cold pass." -f $capturedAfterCold, $(if ($capturedAfterCold -eq 1) { 'y' } else { 'ies' })) -ForegroundColor DarkCyan
@@ -2667,7 +2719,8 @@ try {
                     $sharedCacheEntries = $refreshedEntries
                     if ($sharedCacheSnapshotPath) {
                         Write-SharedCacheSnapshotFile -Path $sharedCacheSnapshotPath -Entries @($sharedCacheEntries)
-                        Write-Host ("Updated shared cache snapshot at '{0}' with refreshed entries." -f $sharedCacheSnapshotPath) -ForegroundColor DarkCyan
+                        Write-Host ("Updated shared cache snapshot at '{0}' with refreshed entries." -f $sharedCacheSnapshotPath) -ForegroundColor DarkCyan     
+                        $null = Sync-SharedCacheSnapshotPointer -SnapshotPath $sharedCacheSnapshotPath -LatestPath $sharedCacheSnapshotLatestPath
                     }
                 } else {
                     Write-Warning 'Shared cache snapshot after refresh contained no entries; retaining pre-refresh entries.'
@@ -2907,8 +2960,13 @@ try {
         } catch { }
         $sharedCacheSnapshotEnvApplied = $false
     }
-    if (-not $PreserveSharedCacheSnapshot.IsPresent -and $sharedCacheSnapshotPath -and (Test-Path -LiteralPath $sharedCacheSnapshotPath)) {
-        try { Remove-Item -LiteralPath $sharedCacheSnapshotPath -Force } catch { }
+    $cleanupPath = $sharedCacheSnapshotCleanupPath
+    if (-not $cleanupPath -and $sharedCacheSnapshotPath -and
+        -not [System.StringComparer]::OrdinalIgnoreCase.Equals($sharedCacheSnapshotPath, $sharedCacheSnapshotLatestPath)) {
+        $cleanupPath = $sharedCacheSnapshotPath
+    }
+    if (-not $PreserveSharedCacheSnapshot.IsPresent -and $cleanupPath -and (Test-Path -LiteralPath $cleanupPath)) {
+        try { Remove-Item -LiteralPath $cleanupPath -Force } catch { }
     } elseif ($PreserveSharedCacheSnapshot.IsPresent -and $sharedCacheSnapshotPath) {
         Write-Host ("Preserved shared cache snapshot at '{0}' for inspection." -f $sharedCacheSnapshotPath) -ForegroundColor DarkCyan
     }
@@ -3099,6 +3157,56 @@ if (($coldMetrics -or $coldSummaries) -and ($warmMetrics -or $warmSummaries)) {
         ColdProviderCountsRaw          = $normalizedColdProviderCounts
     }
 
+    if ($comparisonSummary -and $warmMetrics -and $warmMetrics.Events) {
+        $providerCounts = @{}
+        $hitCount = 0
+        $missCount = 0
+        foreach ($event in @($warmMetrics.Events)) {
+            if (-not $event) { continue }
+            $provider = ''
+            $providerProp = $event.PSObject.Properties['SiteCacheProvider']
+            if ($providerProp) { $provider = ('' + $providerProp.Value).Trim() }
+            if ([string]::IsNullOrWhiteSpace($provider)) {
+                $provider = 'Unknown'
+            }
+            if ($providerCounts.ContainsKey($provider)) {
+                $providerCounts[$provider]++
+            } else {
+                $providerCounts[$provider] = 1
+            }
+            if ($provider -eq 'Cache' -or $provider -eq 'SharedCache') {
+                $hitCount++
+            } else {
+                $missCount++
+            }
+        }
+        $totalProviders = $hitCount + $missCount
+        $hitRatio = $null
+        if ($totalProviders -gt 0) {
+            $hitRatio = [math]::Round(($hitCount / $totalProviders) * 100, 2)
+        } elseif ($comparisonSummary.WarmHostCount) {
+            $hitRatio = [math]::Round(($hitCount / [int]$comparisonSummary.WarmHostCount) * 100, 2)
+        }
+        $comparisonSummary.WarmProviderCounts = $providerCounts
+        $comparisonSummary.WarmProviderCountsRaw = $providerCounts
+        $comparisonSummary.WarmCacheProviderHitCount = $hitCount
+        $comparisonSummary.WarmCacheProviderHitCountRaw = $hitCount
+        $comparisonSummary.WarmCacheProviderMissCount = $missCount
+        $comparisonSummary.WarmCacheProviderMissCountRaw = $missCount
+        $comparisonSummary.WarmCacheHitRatioPercent = $hitRatio
+        $comparisonSummary.WarmCacheHitRatioPercentRaw = $hitRatio
+    } elseif ($comparisonSummary -and $comparisonSummary.WarmProviderCountsRaw) {
+        $normalizedWarmCounts = WarmRun.Telemetry\ConvertTo-NormalizedProviderCounts -ProviderCounts $comparisonSummary.WarmProviderCountsRaw
+        $warmCountSource = if ($comparisonSummary.WarmHostCount) { [int]$comparisonSummary.WarmHostCount } else { 0 }
+        $warmProviderMetrics = Resolve-CacheProviderMetrics -ProviderCounts $normalizedWarmCounts -CountSource $warmCountSource
+        $comparisonSummary.WarmCacheProviderHitCount = [int]$warmProviderMetrics.HitCount
+        $comparisonSummary.WarmCacheProviderHitCountRaw = [int]$warmProviderMetrics.HitCount
+        $comparisonSummary.WarmCacheProviderMissCount = [int]$warmProviderMetrics.MissCount
+        $comparisonSummary.WarmCacheProviderMissCountRaw = [int]$warmProviderMetrics.MissCount
+        $comparisonSummary.WarmCacheHitRatioPercent = $warmProviderMetrics.HitRatioPercent
+        $comparisonSummary.WarmCacheHitRatioPercentRaw = $warmProviderMetrics.HitRatioPercent
+    }
+
     [void]$results.Add($comparisonSummary)
 }
 
@@ -3275,17 +3383,57 @@ function Update-ComparisonSummaryFromResults {
         }
     }
 
-    $warmSnapshot = Get-ProviderSnapshot -Events @($warmEvents)
+    function Test-CacheRefreshSummary {
+        param($Event)
+
+        if (-not $Event -or -not $Event.PSObject) { return $false }
+
+        $provider = ''
+        $providerProp = $Event.PSObject.Properties['Provider']
+        if ($providerProp) { $provider = ('' + $providerProp.Value).Trim() }
+        if ($provider -ne 'AccessRetry') { return $false }
+
+        $cacheStatus = ''
+        $cacheStatusProp = $Event.PSObject.Properties['CacheStatus']
+        if ($cacheStatusProp) { $cacheStatus = ('' + $cacheStatusProp.Value).Trim() }
+
+        $reason = ''
+        $reasonProp = $Event.PSObject.Properties['SiteCacheProviderReason']
+        if ($reasonProp) { $reason = ('' + $reasonProp.Value).Trim() }
+
+        return ($cacheStatus -eq 'Refreshed' -and $reason -eq 'AccessRefresh')
+    }
+
+    $warmEventsForProviders = $warmEvents
+    if ($warmEvents -and $warmEvents.Count -gt 0) {
+        $filteredWarmEvents = [System.Collections.Generic.List[psobject]]::new()
+        foreach ($evt in @($warmEvents)) {
+            if (-not (Test-CacheRefreshSummary -Event $evt)) {
+                [void]$filteredWarmEvents.Add($evt)
+            }
+        }
+        if ($filteredWarmEvents.Count -gt 0) {
+            $warmEventsForProviders = $filteredWarmEvents.ToArray()
+        }
+    }
+
+    $warmSnapshot = Get-ProviderSnapshot -Events @($warmEventsForProviders)
     $coldSnapshot = Get-ProviderSnapshot -Events @($coldEvents)
 
     if ($warmSnapshot) {
         $comparison.WarmProviderCounts = $warmSnapshot.Providers
         $comparison.WarmProviderCountsRaw = $warmSnapshot.Providers
         $hitCount = 0
-        if ($warmSnapshot.Providers.ContainsKey('Cache')) { $hitCount = [int]$warmSnapshot.Providers['Cache'] }
+        foreach ($cacheKey in @('Cache','SharedCache')) {
+            if ($warmSnapshot.Providers.ContainsKey($cacheKey)) {
+                $hitCount += [int]$warmSnapshot.Providers[$cacheKey]
+            }
+        }
         $missCount = 0
         foreach ($entry in $warmSnapshot.Providers.GetEnumerator()) {
-            if ($entry.Key -ne 'Cache') { $missCount += [int]$entry.Value }
+            if ($entry.Key -ne 'Cache' -and $entry.Key -ne 'SharedCache') {
+                $missCount += [int]$entry.Value
+            }
         }
         $totalProviders = $hitCount + $missCount
         $hitRatio = $null

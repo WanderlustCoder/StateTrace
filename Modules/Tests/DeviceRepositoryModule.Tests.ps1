@@ -430,7 +430,7 @@ Describe "DeviceRepositoryModule core helpers" {
 
             $metrics = DeviceRepositoryModule\Get-LastInterfaceSiteCacheMetrics
             $metrics | Should Not BeNullOrEmpty
-            $metrics.CacheStatus | Should Be 'Hydrated'
+            $metrics.CacheStatus | Should Be 'Hit'
             $metrics.HydrationProvider | Should Be 'Cache'
             $metrics.HydrationHostMapSignatureMatchCount | Should Be 1
             $metrics.HydrationHostMapCandidateMissingCount | Should Be 0
@@ -580,7 +580,7 @@ Describe "DeviceRepositoryModule core helpers" {
             $updatedEntry.HostMap[$hostTwo].ContainsKey('Gi1/0/2') | Should Be $true
 
             $metrics = DeviceRepositoryModule\Get-LastInterfaceSiteCacheMetrics
-            $metrics.CacheStatus | Should Be 'Hydrated'
+            $metrics.CacheStatus | Should Be 'Hit'
             $metrics.HydrationHostMapCandidateFromPreviousCount | Should Be 1
             $metrics.HydrationHostMapSignatureMatchCount | Should Be 1
 
@@ -1187,7 +1187,7 @@ Describe "DeviceRepositoryModule core helpers" {
                     $results = Get-SharedSiteInterfaceCacheSnapshotEntries
 
                     $results | Should Not BeNullOrEmpty
-                    $results.Count | Should Be 1
+                    @($results).Count | Should Be 1
                     $result = $results[0]
                     $siteValue = ''
                     if ($result.PSObject.Properties.Name -contains 'Site') {

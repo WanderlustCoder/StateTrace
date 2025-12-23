@@ -20,6 +20,7 @@ This index provides a high-level map of the active planning and process document
 - **[Architecture Decision Records](adr/)** - authoritative decisions (data store, UI platform, compiled components).
 - **[UI Smoke Checklist](UI_Smoke_Checklist.md)** - step-by-step verification of the WPF shell (Summary, Interfaces, SPAN, Templates, Alerts, Compare, Help).
 - **[Schedule Daily Rollup Runbook](runbooks/Schedule_Daily_Rollup.md)** - instructions for registering the Windows Task Scheduler job that runs Tools/Invoke-DailyRollupScheduled.ps1 (wrapper over Tools/Invoke-DailyMetricRollup.ps1 for Plan E ST-E-003).
+- **[Schedule Verification Runbook](runbooks/Schedule_Verification.md)** - instructions for registering the Windows Task Scheduler job that runs Tools/Invoke-StateTraceScheduledVerification.ps1 and emits `Logs/Verification/VerificationSummary-*.json`.
 - **[Telemetry Bundle Verification Runbook](runbooks/Telemetry_Bundle_Verification.md)** - step-by-step checklist for validating `Logs/TelemetryBundles/<bundle>/` contents (README hashes, required artifacts, readiness scripts) before updating Plans E/G and release notes.
 - **[Incremental Loading Performance Runbook](runbooks/Incremental_Loading_Performance.md)** - captures the Interfaces view telemetry sweep (PortBatchReady + InterfaceSyncTiming + analyzer report) so Plan D can baseline UI throughput whenever changes ship.
 

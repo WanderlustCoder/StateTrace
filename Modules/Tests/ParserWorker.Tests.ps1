@@ -1,11 +1,15 @@
 Set-StrictMode -Version Latest
 
-$script:RepoRoot = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
+$script:RepoRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSCommandPath))
 
 Describe "ParserWorker auto-scaling" {
     BeforeAll {
         $modulePath = Join-Path (Split-Path $PSCommandPath) "..\\ParserWorker.psm1"
         Import-Module (Resolve-Path $modulePath) -Force
+        $module = Get-Module ParserWorker
+        if ($module) {
+            & $module { param($repoRoot) $script:RepoRoot = $repoRoot } $script:RepoRoot
+        }
     }
 
     AfterAll {
@@ -115,7 +119,7 @@ Describe "ParserWorker auto-scaling" {
 
     It "emits telemetry for concurrency decisions" {
         InModuleScope -ModuleName ParserWorker {
-            $projectRoot = (Get-Location).ProviderPath
+            $projectRoot = $script:RepoRoot
             $logRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("StateTraceParserTests-{0}" -f ([guid]::NewGuid().ToString('N')))
             $extractedPath = Join-Path $logRoot 'Extracted'
             New-Item -ItemType Directory -Path $extractedPath -Force | Out-Null
@@ -221,7 +225,7 @@ Describe "ParserWorker auto-scaling" {
 
     It "applies InterfaceBulkChunkSize from settings" {
         InModuleScope -ModuleName ParserWorker {
-            $projectRoot = (Get-Location).ProviderPath
+            $projectRoot = $script:RepoRoot
             $logRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("StateTraceParserTests-{0}" -f ([guid]::NewGuid().ToString('N')))
             $extractedPath = Join-Path $logRoot 'Extracted'
             New-Item -ItemType Directory -Path $extractedPath -Force | Out-Null
@@ -328,7 +332,7 @@ Describe "ParserWorker auto-scaling" {
 
     It "disables auto-scale profile when requested" {
         InModuleScope -ModuleName ParserWorker {
-            $projectRoot = (Get-Location).ProviderPath
+            $projectRoot = $script:RepoRoot
             $logRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("StateTraceParserTests-{0}" -f ([guid]::NewGuid().ToString('N')))
             $extractedPath = Join-Path $logRoot 'Extracted'
             New-Item -ItemType Directory -Path $extractedPath -Force | Out-Null
@@ -420,7 +424,7 @@ Describe "ParserWorker auto-scaling" {
 
     It "honors manual concurrency overrides" {
         InModuleScope -ModuleName ParserWorker {
-            $projectRoot = (Get-Location).ProviderPath
+            $projectRoot = $script:RepoRoot
             $logRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("StateTraceParserTests-{0}" -f ([guid]::NewGuid().ToString('N')))
             $extractedPath = Join-Path $logRoot 'Extracted'
             New-Item -ItemType Directory -Path $extractedPath -Force | Out-Null
