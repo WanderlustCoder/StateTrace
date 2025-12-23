@@ -15,6 +15,9 @@ param(
 [switch]$DisableSharedCacheSnapshot,
 [switch]$ShowSharedCacheSummary,
 [string]$SharedCacheSnapshotDirectory,
+[string]$TelemetryBundlePath,
+[string[]]$TelemetryBundleAreas = @('Telemetry','Routing'),
+[switch]$VerifyTelemetryBundleReadiness,
 [switch]$RequireTelemetryIntegrity,
 [switch]$RequireSharedCacheSnapshotGuard,
 [Nullable[int]]$SharedCacheMinimumSiteCount,
@@ -43,8 +46,11 @@ function Resolve-OptionalPath {
     try {
         return (Resolve-Path -LiteralPath $PathValue -ErrorAction Stop).Path
     } catch {
+        if ([System.IO.Path]::IsPathRooted($PathValue)) {
+            return [System.IO.Path]::GetFullPath($PathValue)
+        }
         $basePath = (Get-Location).ProviderPath
-        return [System.IO.Path]::GetFullPath($PathValue, $basePath)
+        return [System.IO.Path]::GetFullPath((Join-Path -Path $basePath -ChildPath $PathValue))
     }
 }
 
@@ -141,6 +147,20 @@ if ($PSBoundParameters.ContainsKey('SharedCacheRequiredSites')) {
     # Default required sites for coverage; adjust as datasets evolve
     $verificationParameters['SharedCacheRequiredSites'] = @('BOYO','WLLS')
 }
+$resolvedTelemetryBundlePath = $null
+if (-not [string]::IsNullOrWhiteSpace($TelemetryBundlePath)) {
+    $resolvedTelemetryBundlePath = Resolve-OptionalPath -PathValue $TelemetryBundlePath
+    if ($resolvedTelemetryBundlePath) {
+        $verificationParameters['TelemetryBundlePath'] = $resolvedTelemetryBundlePath
+    }
+}
+if ($VerifyTelemetryBundleReadiness.IsPresent) {
+    $verificationParameters['VerifyTelemetryBundleReadiness'] = $true
+}
+if (($resolvedTelemetryBundlePath -or $VerifyTelemetryBundleReadiness.IsPresent) -and
+    $TelemetryBundleAreas -and $TelemetryBundleAreas.Count -gt 0) {
+    $verificationParameters['TelemetryBundleAreas'] = $TelemetryBundleAreas
+}
 if ($SkipSharedCacheSummaryEvaluation.IsPresent) {
     $verificationParameters['SkipSharedCacheSummaryEvaluation'] = $true
 }
@@ -219,7 +239,8 @@ try {
             if ($stats) {
                 Write-Host ("  Site Count / Hosts / Rows : {0} / {1} / {2}" -f $stats.SiteCount, $stats.TotalHostCount, $stats.TotalRowCount) -ForegroundColor Yellow
             }
-            Write-Host ("  Status                  : {0}" -f ($sharedCacheEvaluation.Pass ? 'Pass' : 'Fail')) -ForegroundColor $statusColor
+            $statusLabel = if ($sharedCacheEvaluation.Pass) { 'Pass' } else { 'Fail' }
+            Write-Host ("  Status                  : {0}" -f $statusLabel) -ForegroundColor $statusColor
             if (-not $sharedCacheEvaluation.Pass -and $sharedCacheEvaluation.Messages) {
                 foreach ($msg in $sharedCacheEvaluation.Messages) {
                     Write-Host ("  - {0}" -f $msg) -ForegroundColor Red
