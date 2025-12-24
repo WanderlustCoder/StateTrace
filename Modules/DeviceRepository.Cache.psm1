@@ -489,6 +489,16 @@ function Get-SharedSiteInterfaceCacheEntry {
 
     $storeHashCode = [System.Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($store)
     $entryCount = [int]$store.Count
+    $sharedCacheDisabled = $false
+    try {
+        $sharedCacheDisabled = [string]::Equals($env:STATETRACE_DISABLE_SHARED_CACHE, '1', [System.StringComparison]::OrdinalIgnoreCase)
+    } catch {
+        $sharedCacheDisabled = $false
+    }
+    if ($sharedCacheDisabled) {
+        Publish-SharedSiteInterfaceCacheEvent -SiteKey $SiteKey -Operation 'GetMiss' -EntryCount $entryCount -StoreHashCode $storeHashCode
+        return $null
+    }
 
     try {
         if ($store.ContainsKey($SiteKey)) {
@@ -524,6 +534,14 @@ function Set-SharedSiteInterfaceCacheEntry {
         [Parameter(Mandatory)][string]$SiteKey,
         [Parameter(Mandatory)][System.Collections.IDictionary]$Entry
     )
+
+    $sharedCacheDisabled = $false
+    try {
+        $sharedCacheDisabled = [string]::Equals($env:STATETRACE_DISABLE_SHARED_CACHE, '1', [System.StringComparison]::OrdinalIgnoreCase)
+    } catch {
+        $sharedCacheDisabled = $false
+    }
+    if ($sharedCacheDisabled) { return }
 
     $store = Get-SharedSiteInterfaceCacheStore
     $storeHashCode = [System.Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($store)

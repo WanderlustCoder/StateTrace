@@ -3,6 +3,8 @@ param(
     [string[]]$Path,
     [string]$Directory,
     [int]$TopSites = 10,
+    [datetime]$StartTimeUtc,
+    [datetime]$EndTimeUtc,
     [switch]$IncludeSiteBreakdown
 )
 
@@ -80,7 +82,11 @@ function New-SiteOperationEntry {
 }
 
 function Summarize-SharedCacheEvents {
-    param([string]$FilePath)
+    param(
+        [string]$FilePath,
+        [datetime]$StartTimeUtc,
+        [datetime]$EndTimeUtc
+    )
 
     $stateCounters = @{}
     $storeCounters = @{}
@@ -99,13 +105,22 @@ function Summarize-SharedCacheEvents {
             }
             if (-not $event -or -not $event.EventName) { continue }
 
+            $ts = $null
+            $tsUtc = $null
             if ($event.Timestamp) {
-                $ts = $null
                 try { $ts = [datetime]$event.Timestamp } catch { $ts = $null }
                 if ($ts) {
-                    if (-not $firstTimestamp -or $ts -lt $firstTimestamp) { $firstTimestamp = $ts }
-                    if (-not $lastTimestamp -or $ts -gt $lastTimestamp) { $lastTimestamp = $ts }
+                    $tsUtc = $ts.ToUniversalTime()
                 }
+            }
+            if ($StartTimeUtc -or $EndTimeUtc) {
+                if (-not $tsUtc) { continue }
+                if ($StartTimeUtc -and $tsUtc -lt $StartTimeUtc) { continue }
+                if ($EndTimeUtc -and $tsUtc -gt $EndTimeUtc) { continue }
+            }
+            if ($ts) {
+                if (-not $firstTimestamp -or $ts -lt $firstTimestamp) { $firstTimestamp = $ts }
+                if (-not $lastTimestamp -or $ts -gt $lastTimestamp) { $lastTimestamp = $ts }
             }
 
             switch ($event.EventName) {
@@ -156,6 +171,8 @@ function Summarize-SharedCacheEvents {
         OtherOperations     = $otherOps
         FirstTimestamp      = $firstTimestamp
         LastTimestamp       = $lastTimestamp
+        StartTimeUtc        = $StartTimeUtc
+        EndTimeUtc          = $EndTimeUtc
         TopSites            = @()
         SiteOperations      = $siteCounters
     }
@@ -181,12 +198,22 @@ function Summarize-SharedCacheEvents {
     return $summary
 }
 
-$logFiles = Resolve-LogFiles -ExplicitPaths $Path -DirectoryPath $Directory
+$logFiles = Resolve-LogFiles -ExplicitPaths $Path -DirectoryPath $Directory     
+$startUtc = $null
+$endUtc = $null
+if ($StartTimeUtc) { $startUtc = $StartTimeUtc.ToUniversalTime() }
+if ($EndTimeUtc) { $endUtc = $EndTimeUtc.ToUniversalTime() }
+if ($startUtc -and $endUtc -and $startUtc -gt $endUtc) {
+    throw "StartTimeUtc must be earlier than or equal to EndTimeUtc."
+}
+if ($startUtc -or $endUtc) {
+    Write-Host ("Filtering events between {0} and {1} (UTC)." -f ($startUtc ? $startUtc.ToString('o') : 'start'), ($endUtc ? $endUtc.ToString('o') : 'end')) -ForegroundColor DarkGray
+}
 $summaries = @()
 
 foreach ($file in $logFiles) {
-    Write-Verbose ("Analyzing shared cache events in '{0}'..." -f $file)
-    $summaries += Summarize-SharedCacheEvents -FilePath $file
+    Write-Verbose ("Analyzing shared cache events in '{0}'..." -f $file)        
+    $summaries += Summarize-SharedCacheEvents -FilePath $file -StartTimeUtc $startUtc -EndTimeUtc $endUtc
 }
 
 if (-not $summaries -or $summaries.Count -eq 0) {

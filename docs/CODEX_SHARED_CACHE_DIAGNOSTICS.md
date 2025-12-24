@@ -22,7 +22,20 @@ pwsh Tools\Analyze-SharedCacheStoreState.ps1 `
     -IncludeSiteBreakdown
 ```
 
+If the daily telemetry file contains multiple runs, scope the analysis to a
+known window:
+
+```powershell
+pwsh Tools\Analyze-SharedCacheStoreState.ps1 `
+    -Path Logs\IngestionMetrics\2025-11-12.json `
+    -IncludeSiteBreakdown `
+    -StartTimeUtc '2025-11-12T18:05:00Z' `
+    -EndTimeUtc '2025-11-12T18:15:00Z'
+```
+
 > Shortcut: append `-RunSharedCacheDiagnostics [-SharedCacheDiagnosticsTopHosts <N>]` to `Tools\Invoke-StateTracePipeline.ps1` and the harness will automatically execute both analyzers against the freshest log file once the cold (and optional warm) pass finishes.
+>
+> Warm-run helper: `Tools\Invoke-WarmRunTelemetry.ps1 -GenerateSharedCacheDiagnostics` automatically runs the shared-cache analyzers against the latest ingestion metrics file for the captured ColdPass/WarmPass windows. Use `-SharedCacheDiagnosticsTopHosts <N>` to adjust the host table size.
 
 Key signals:
 - `SnapshotImported` > 0 confirms the snapshot was restored into the shared store before parsing. `0` means the env var/snapshot was missing.
@@ -39,6 +52,18 @@ pwsh Tools\Analyze-SiteCacheProviderReasons.ps1 `
     -Path Logs\IngestionMetrics\2025-11-12.json `
     -IncludeHostBreakdown `
     -TopHosts 10
+```
+
+To focus on a single run inside a daily telemetry file, pass the same window
+filters:
+
+```powershell
+pwsh Tools\Analyze-SiteCacheProviderReasons.ps1 `
+    -Path Logs\IngestionMetrics\2025-11-12.json `
+    -IncludeHostBreakdown `
+    -TopHosts 10 `
+    -StartTimeUtc '2025-11-12T18:05:00Z' `
+    -EndTimeUtc '2025-11-12T18:15:00Z'
 ```
 
 This command reports, per site:
@@ -63,8 +88,8 @@ Log the per-site counts in your plan/task update and paste the host table when A
 | Task | Command | Notes |
 |------|---------|-------|
 | Snapshot seeding (automatic) | `Tools\Invoke-StateTracePipeline.ps1 -SharedCacheSnapshotPath ...` | Harness manages `STATETRACE_SHARED_CACHE_SNAPSHOT` for you. |
-| Shared store summary | `Tools\Analyze-SharedCacheStoreState.ps1 -Path Logs\IngestionMetrics\<file>.json -IncludeSiteBreakdown` | Confirm SnapshotImported hit and review GetHit/GetMiss + top sites. |
-| Provider reason summary | `Tools\Analyze-SiteCacheProviderReasons.ps1 -Path Logs\IngestionMetrics\<file>.json -IncludeHostBreakdown -TopHosts 10` | Quantify AccessRefresh vs. SharedCacheMatch and list worst hosts. |
+| Shared store summary | `Tools\Analyze-SharedCacheStoreState.ps1 -Path Logs\IngestionMetrics\<file>.json -IncludeSiteBreakdown` | Confirm SnapshotImported hit and review GetHit/GetMiss + top sites. Use `-StartTimeUtc`/`-EndTimeUtc` for run-scoped windows. |
+| Provider reason summary | `Tools\Analyze-SiteCacheProviderReasons.ps1 -Path Logs\IngestionMetrics\<file>.json -IncludeHostBreakdown -TopHosts 10` | Quantify AccessRefresh vs. SharedCacheMatch and list worst hosts. Use `-StartTimeUtc`/`-EndTimeUtc` for run-scoped windows. |
 | Manual snapshot sanity check | `pwsh -NoLogo -Command "$env:STATETRACE_SHARED_CACHE_SNAPSHOT='Logs/SharedCacheSnapshot-<timestamp>.clixml'; Import-Module .\Modules\DeviceRepositoryModule.psm1 -Force; (DeviceRepositoryModule\Get-SharedSiteInterfaceCacheStore).Count"` | Confirms DeviceRepository hydrates the expected number of entries before running the harness. |
 
 Keep this playbook alongside `docs/CODEX_RUNBOOK.md` whenever you run the cold/warm harnesses so cache regressions are diagnosed with consistent evidence.

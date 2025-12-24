@@ -25,6 +25,8 @@ param(
     [switch]$GenerateDiffHotspotReport,
     [int]$DiffHotspotTop = 20,
     [string]$DiffHotspotOutputPath,
+    [switch]$GenerateSharedCacheDiagnostics,
+    [int]$SharedCacheDiagnosticsTopHosts = 10,
     [string[]]$HostFilter,
     [string]$HostFilterPath,
     [switch]$RestrictWarmComparisonToColdHosts,
@@ -75,10 +77,13 @@ $settingsPath = Join-Path -Path $repositoryRoot -ChildPath 'Data\StateTraceSetti
 $skipSiteCacheGuard = $null
 $sharedCacheSnapshotEnvOriginal = $null
 $sharedCacheSnapshotEnvApplied = $false
+$sharedCacheDisableEnvOriginal = $null
+$sharedCacheDisableEnvApplied = $false
 
 $script:PassInterfaceAnalysis = @{}
 $script:PassSummaries = @{}
 $script:PassHostnames = @{}
+$script:PassWindows = @{}
 $script:ColdPassHostnames = $null
 
 if (-not $SiteExistingRowCacheSnapshotPath) {
@@ -86,6 +91,12 @@ if (-not $SiteExistingRowCacheSnapshotPath) {
 }
 
 $shouldGenerateDiffHotspots = $GenerateDiffHotspotReport.IsPresent -or -not [string]::IsNullOrWhiteSpace($DiffHotspotOutputPath)
+$shouldGenerateSharedCacheDiagnostics = $GenerateSharedCacheDiagnostics.IsPresent
+
+if ($shouldGenerateSharedCacheDiagnostics -and -not $PSBoundParameters.ContainsKey('ColdHistorySeed') -and $ColdHistorySeed -eq 'Snapshot') {
+    Write-Host 'Shared cache diagnostics requested; forcing ColdHistorySeed=Empty to ensure cold-pass parse telemetry.' -ForegroundColor DarkYellow
+    $ColdHistorySeed = 'Empty'
+}
 
 $originalSiteExistingRowCacheSnapshotEnv = $null
 try { $originalSiteExistingRowCacheSnapshotEnv = $env:STATETRACE_SITE_EXISTING_ROW_CACHE_SNAPSHOT } catch { $originalSiteExistingRowCacheSnapshotEnv = $null }
@@ -1026,6 +1037,29 @@ function Get-TelemetryIdentityKey {
     return [string]::Format('{0}|{1}|{2}|{3}|{4}', $eventName, $site, $timestampKey, $sourceFile, $lineIndex)
 }
 
+function Get-EventNameCount {
+    param(
+        [System.Collections.IEnumerable]$Events,
+        [Parameter(Mandatory)][string]$Name
+    )
+
+    if (-not $Events -or [string]::IsNullOrWhiteSpace($Name)) {
+        return 0
+    }
+
+    $count = 0
+    foreach ($evt in $Events) {
+        if (-not $evt) { continue }
+        $eventNameProp = $evt.PSObject.Properties['EventName']
+        if (-not $eventNameProp) { continue }
+        if ([string]::Equals(('' + $eventNameProp.Value).Trim(), $Name, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $count++
+        }
+    }
+
+    return $count
+}
+
 function Collect-TelemetryForPass {
     param(
         [Parameter(Mandatory)][string]$DirectoryPath,
@@ -1207,6 +1241,79 @@ function Collect-TelemetryForPass {
     }
 }
 
+function Resolve-PassWindow {
+    param(
+        [string]$Label,
+        [System.Collections.IEnumerable]$Events,
+        [datetime]$FallbackStart,
+        [datetime]$FallbackEnd
+    )
+
+    $start = $null
+    $end = $null
+    $timestampCount = 0
+    foreach ($evt in @($Events)) {
+        if (-not $evt) { continue }
+        $timestampProp = $evt.PSObject.Properties['Timestamp']
+        if (-not $timestampProp) { continue }
+        $timestampValue = $timestampProp.Value
+        $ts = $null
+        try {
+            if ($timestampValue -is [datetime]) {
+                $ts = $timestampValue
+            } elseif (-not [string]::IsNullOrWhiteSpace($timestampValue)) {
+                $ts = [datetime]$timestampValue
+            }
+        } catch {
+            $ts = $null
+        }
+        if (-not $ts) { continue }
+        $timestampCount++
+        if (-not $start -or $ts -lt $start) { $start = $ts }
+        if (-not $end -or $ts -gt $end) { $end = $ts }
+    }
+
+    if (-not $start -and $FallbackStart) { $start = $FallbackStart }
+    if (-not $end -and $FallbackEnd) { $end = $FallbackEnd }
+    if ($start -and -not $end) { $end = $start }
+    if ($end -and -not $start) { $start = $end }
+    if ($start -and $end -and $start -gt $end) {
+        $swap = $start
+        $start = $end
+        $end = $swap
+    }
+
+    $startUtc = $null
+    $endUtc = $null
+    if ($start) { $startUtc = $start.ToUniversalTime() }
+    if ($end) { $endUtc = $end.ToUniversalTime() }
+
+    return [pscustomobject]@{
+        PassLabel      = $Label
+        StartLocal     = $start
+        EndLocal       = $end
+        StartUtc       = $startUtc
+        EndUtc         = $endUtc
+        TimestampCount = $timestampCount
+    }
+}
+
+function Get-LatestIngestionMetricsFile {
+    param(
+        [Parameter(Mandatory)]
+        [string]$DirectoryPath
+    )
+
+    if (-not (Test-Path -LiteralPath $DirectoryPath)) {
+        return $null
+    }
+    $entries = Get-ChildItem -LiteralPath $DirectoryPath -Filter '*.json' -File |
+        Where-Object { $_.Name -match '^\d{4}-\d{2}-\d{2}\.json$' } |
+        Sort-Object LastWriteTime -Descending
+    if (-not $entries) { return $null }
+    return $entries[0].FullName
+}
+
 function Measure-InterfaceCallDurationMetrics {
     param(
         [Parameter(Mandatory)]
@@ -1370,6 +1477,126 @@ function Merge-PerHostTelemetry {
         $interfaceEventMap = & $buildMap $InterfaceSyncEvents
     }
 
+    $sitesWithHostEvents = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($mapKey in @($databaseEventMap.Keys + $interfaceEventMap.Keys)) {
+        if ([string]::IsNullOrWhiteSpace($mapKey)) { continue }
+        $parts = $mapKey -split '\|', 2
+        if ($parts.Count -gt 0 -and -not [string]::IsNullOrWhiteSpace($parts[0])) {
+            [void]$sitesWithHostEvents.Add($parts[0].Trim())
+        }
+    }
+
+    $summaryHostKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    $filteredSummaries = [System.Collections.Generic.List[psobject]]::new()
+    foreach ($summary in $results) {
+        if (-not $summary) { continue }
+
+        $siteKey = Get-TrimmedSiteKey -InputObject $summary
+        if ([string]::IsNullOrWhiteSpace($siteKey)) {
+            [void]$filteredSummaries.Add($summary)
+            continue
+        }
+
+        $hostKey = WarmRun.Telemetry\Get-HostKeyFromMetricsSummary -Summary $summary
+        $hostTokens = @()
+        if (-not [string]::IsNullOrWhiteSpace($hostKey)) {
+            $hostTokens = @(Get-HostnameTokens -Value $hostKey)
+        }
+        if ($hostTokens.Count -gt 1 -and $sitesWithHostEvents.Contains($siteKey)) {
+            continue
+        }
+
+        [void]$filteredSummaries.Add($summary)
+        if ($hostTokens.Count -eq 1) {
+            $mapKey = '{0}|{1}' -f $siteKey, $hostTokens[0]
+            [void]$summaryHostKeys.Add($mapKey)
+        }
+    }
+
+    $results = @($filteredSummaries)
+    $buildSummary = {
+        param($eventRecord)
+
+        if (-not $eventRecord -or -not $eventRecord.PSObject) { return $null }
+
+        $siteKey = Get-TrimmedSiteKey -InputObject $eventRecord
+        if ([string]::IsNullOrWhiteSpace($siteKey)) { return $null }
+
+        $hostKey = WarmRun.Telemetry\Get-HostKeyFromTelemetryEvent -Event $eventRecord
+        if ([string]::IsNullOrWhiteSpace($hostKey)) { return $null }
+
+        $timestamp = $eventRecord.Timestamp
+        if ($timestamp -isnot [datetime] -and -not [string]::IsNullOrWhiteSpace($timestamp)) {
+            try { $timestamp = [datetime]::Parse($timestamp) } catch { $timestamp = $null }
+        }
+
+        $provider = $null
+        $providerProp = $eventRecord.PSObject.Properties['SiteCacheProvider']
+        if ($providerProp) {
+            $provider = $providerProp.Value
+        } elseif ($eventRecord.PSObject.Properties['Provider']) {
+            $provider = $eventRecord.Provider
+        }
+
+        $cacheStatus = $null
+        $cacheStatusProp = $eventRecord.PSObject.Properties['SiteCacheFetchStatus']
+        if ($cacheStatusProp) {
+            $cacheStatus = $cacheStatusProp.Value
+        } elseif ($eventRecord.PSObject.Properties['CacheStatus']) {
+            $cacheStatus = $eventRecord.CacheStatus
+        }
+
+        $providerReason = $null
+        if ($eventRecord.PSObject.Properties['SiteCacheProviderReason']) {
+            $providerReason = $eventRecord.SiteCacheProviderReason
+        }
+
+        return [pscustomobject]@{
+            PassLabel                     = $eventRecord.PassLabel
+            Site                          = $siteKey
+            Hostname                      = $hostKey
+            Timestamp                     = $timestamp
+            CacheStatus                   = $cacheStatus
+            Provider                      = $provider
+            SiteCacheProviderReason       = $providerReason
+            HydrationDurationMs           = $null
+            SnapshotDurationMs            = $null
+            HostMapDurationMs             = $null
+            HostCount                     = 1
+            TotalRows                     = $null
+            HostMapSignatureMatchCount    = $null
+            HostMapSignatureRewriteCount  = $null
+            HostMapCandidateMissingCount  = $null
+            HostMapCandidateFromPrevious  = $null
+            PreviousHostCount             = $null
+            PreviousSnapshotStatus        = $null
+            PreviousSnapshotHostMapType   = $null
+            Metrics                       = $null
+        }
+    }
+
+    $newSummaries = [System.Collections.Generic.List[psobject]]::new()
+    foreach ($mapKey in @($databaseEventMap.Keys)) {
+        if ($summaryHostKeys.Contains($mapKey)) { continue }
+        $summary = & $buildSummary $databaseEventMap[$mapKey]
+        if ($summary) {
+            [void]$newSummaries.Add($summary)
+            [void]$summaryHostKeys.Add($mapKey)
+        }
+    }
+    foreach ($mapKey in @($interfaceEventMap.Keys)) {
+        if ($summaryHostKeys.Contains($mapKey)) { continue }
+        $summary = & $buildSummary $interfaceEventMap[$mapKey]
+        if ($summary) {
+            [void]$newSummaries.Add($summary)
+            [void]$summaryHostKeys.Add($mapKey)
+        }
+    }
+
+    if ($newSummaries.Count -gt 0) {
+        $results = @($results + $newSummaries.ToArray())
+    }
+
     foreach ($summary in $results) {
         if (-not $summary) { continue }
 
@@ -1463,6 +1690,8 @@ $sharedCacheSnapshotPath = $null
 $sharedCacheSnapshotDirectory = Join-Path -Path (Join-Path $repositoryRoot 'Logs') -ChildPath 'SharedCacheSnapshot'
 $sharedCacheSnapshotLatestPath = Join-Path -Path $sharedCacheSnapshotDirectory -ChildPath 'SharedCacheSnapshot-latest.clixml'
 $sharedCacheSnapshotCleanupPath = $null
+$coldSharedCacheSnapshotPath = $null
+$coldSharedCacheSnapshotCleanupPath = $null
 
 $pipelineArguments = @{
     PreserveModuleSession       = $true
@@ -1512,7 +1741,16 @@ function Invoke-PipelinePass {
 
     Wait-TelemetryFlush -DirectoryPath $metricsDirectory -Baseline $metricsBaseline
 
+    $passEndTime = Get-Date
     $collection = Collect-TelemetryForPass -DirectoryPath $metricsDirectory -Baseline $metricsBaseline -PassStartTime $passStartTime -RequiredEventNames @('InterfaceSiteCacheMetrics','DatabaseWriteBreakdown','InterfaceSyncTiming')
+
+    if ($collection -and $collection.Events) {
+        $parseDurationCount = Get-EventNameCount -Events $collection.Events -Name 'ParseDuration'
+        $skippedDuplicateCount = Get-EventNameCount -Events $collection.Events -Name 'SkippedDuplicate'
+        if ($Label -eq 'ColdPass' -and $skippedDuplicateCount -gt 0 -and $parseDurationCount -eq 0) {
+            Write-Warning "Cold pass emitted SkippedDuplicate events but no ParseDuration. Ingestion history likely marks these logs as already processed; rerun with -ColdHistorySeed Empty (or clear Data\\IngestionHistory) to force parse telemetry."
+        }
+    }
 
     $cacheMetrics = @()
     if ($collection -and $collection.Buckets.ContainsKey('InterfaceSiteCacheMetrics')) {
@@ -1532,6 +1770,11 @@ function Invoke-PipelinePass {
     }
     if ($collection -and $collection.MissingEventNames -and $collection.MissingEventNames.Count -gt 0) {
         Write-Warning ("Telemetry still missing after polling for pass '{0}': {1}" -f $Label, ($collection.MissingEventNames -join ', '))
+    }
+
+    $passWindow = Resolve-PassWindow -Label $Label -Events $collection.Events -FallbackStart $passStartTime -FallbackEnd $passEndTime
+    if ($passWindow) {
+        $script:PassWindows[$Label] = $passWindow
     }
 
     $passHostFilter = $script:ComparisonHostFilter
@@ -2346,6 +2589,20 @@ function Write-SharedCacheSnapshotFile {
     }
 }
 
+function New-EmptySharedCacheSnapshotFile {
+    param([Parameter(Mandatory)][string]$Path)
+
+    if ([string]::IsNullOrWhiteSpace($Path)) { return $null }
+    $null = Initialize-DirectoryForPath -Path $Path
+    try {
+        @() | Export-Clixml -Path $Path
+        return $Path
+    } catch {
+        Write-Warning ("Failed to write empty shared cache snapshot '{0}': {1}" -f $Path, $_.Exception.Message)
+        return $null
+    }
+}
+
 function Sync-SharedCacheSnapshotPointer {
     param(
         [Parameter(Mandatory)][string]$SnapshotPath,
@@ -2541,6 +2798,36 @@ if ($skipWarmRunTelemetryMain) {
     return
 }
 
+if ($IncludeTests) {
+    Write-Host 'Running Pester tests (Modules/Tests)...' -ForegroundColor Yellow
+    $pesterDisableEnvOriginal = $null
+    $pesterDisableEnvHadValue = $false
+    try {
+        $pesterDisableEnvOriginal = $env:STATETRACE_DISABLE_SHARED_CACHE
+        if ($null -ne $pesterDisableEnvOriginal) {
+            $pesterDisableEnvHadValue = $true
+        }
+    } catch {
+        $pesterDisableEnvOriginal = $null
+        $pesterDisableEnvHadValue = $false
+    }
+
+    try { Remove-Item Env:STATETRACE_DISABLE_SHARED_CACHE -ErrorAction SilentlyContinue } catch { }
+    $pesterResult = Invoke-Pester Modules/Tests -PassThru
+    try {
+        if ($pesterDisableEnvHadValue) {
+            $env:STATETRACE_DISABLE_SHARED_CACHE = $pesterDisableEnvOriginal
+        } else {
+            Remove-Item Env:STATETRACE_DISABLE_SHARED_CACHE -ErrorAction SilentlyContinue
+        }
+    } catch { }
+
+    if ($pesterResult.FailedCount -gt 0) {
+        throw "Pester reported $($pesterResult.FailedCount) failing tests."
+    }
+    $pipelineArguments['SkipTests'] = $true
+}
+
 try {
     if (-not $PreserveSkipSiteCacheSetting.IsPresent) {
         $skipSiteCacheGuard = Disable-SkipSiteCacheUpdateSetting -SettingsPath $settingsPath -Label 'WarmRunTelemetry'
@@ -2551,22 +2838,73 @@ try {
         $sharedCacheSnapshotCleanupPath = $sharedCacheSnapshotPath
         $null = Initialize-DirectoryForPath -Path $sharedCacheSnapshotPath
     }
-    if (-not $sharedCacheSnapshotEnvApplied -and $sharedCacheSnapshotPath) {
+    $pipelineArguments['SharedCacheSnapshotExportPath'] = $sharedCacheSnapshotPath
+    $coldSharedCacheSnapshotPath = $null
+    if (-not $DisableSharedCacheSnapshot.IsPresent) {
+        $coldSnapshotName = "SharedCacheSnapshot-ColdEmpty-{0:yyyyMMdd-HHmmss}.clixml" -f (Get-Date)
+        $coldSharedCacheSnapshotPath = Join-Path -Path $sharedCacheSnapshotDirectory -ChildPath $coldSnapshotName
+        $coldSharedCacheSnapshotPath = New-EmptySharedCacheSnapshotFile -Path $coldSharedCacheSnapshotPath
+        if ($coldSharedCacheSnapshotPath) {
+            $coldSharedCacheSnapshotCleanupPath = $coldSharedCacheSnapshotPath
+            $pipelineArguments['SharedCacheSnapshotPath'] = $coldSharedCacheSnapshotPath
+            Write-Host ("Cold pass shared cache snapshot placeholder created at '{0}'." -f $coldSharedCacheSnapshotPath) -ForegroundColor DarkCyan
+        }
+    }
+    $sharedCacheSnapshotEnvTarget = $sharedCacheSnapshotPath
+    if ($coldSharedCacheSnapshotPath) {
+        $sharedCacheSnapshotEnvTarget = $coldSharedCacheSnapshotPath
+    }
+    if (-not $sharedCacheSnapshotEnvApplied -and $sharedCacheSnapshotEnvTarget) {
         try { $sharedCacheSnapshotEnvOriginal = $env:STATETRACE_SHARED_CACHE_SNAPSHOT } catch { $sharedCacheSnapshotEnvOriginal = $null }
         try {
-            $env:STATETRACE_SHARED_CACHE_SNAPSHOT = $sharedCacheSnapshotPath
+            $env:STATETRACE_SHARED_CACHE_SNAPSHOT = $sharedCacheSnapshotEnvTarget
             $sharedCacheSnapshotEnvApplied = $true
         } catch {
             $sharedCacheSnapshotEnvApplied = $false
         }
     }
-
-    $pipelineArguments['SharedCacheSnapshotExportPath'] = $sharedCacheSnapshotPath
+    if (-not $sharedCacheDisableEnvApplied) {
+        try { $sharedCacheDisableEnvOriginal = $env:STATETRACE_DISABLE_SHARED_CACHE } catch { $sharedCacheDisableEnvOriginal = $null }
+        try {
+            $env:STATETRACE_DISABLE_SHARED_CACHE = '1'
+            $sharedCacheDisableEnvApplied = $true
+        } catch {
+            $sharedCacheDisableEnvApplied = $false
+        }
+    }
+    if ($sharedCacheDisableEnvApplied) {
+        $cacheClearCommand = Get-DeviceRepositoryCacheCommand -Name 'Clear-SharedSiteInterfaceCache'
+        if (-not $cacheClearCommand) {
+            try {
+                $cacheModulePath = Join-Path -Path $repositoryRoot -ChildPath 'Modules\DeviceRepository.Cache.psm1'
+                if (Test-Path -LiteralPath $cacheModulePath) {
+                    Import-Module -Name $cacheModulePath -Force -ErrorAction SilentlyContinue | Out-Null
+                }
+            } catch { }
+            $cacheClearCommand = Get-DeviceRepositoryCacheCommand -Name 'Clear-SharedSiteInterfaceCache'
+        }
+        if ($cacheClearCommand) {
+            try { & $cacheClearCommand -Reason 'WarmRunTelemetryColdPass' } catch { }
+        }
+    }
     Set-IngestionHistoryForPass -SeedMode $ColdHistorySeed -Snapshot $ingestionHistorySnapshot -PassLabel 'ColdPass'
     $results.AddRange([psobject[]]@(Invoke-PipelinePass -Label 'ColdPass'))
 
+    if ($pipelineArguments.ContainsKey('SharedCacheSnapshotPath')) {
+        $pipelineArguments.Remove('SharedCacheSnapshotPath')
+    }
     if ($pipelineArguments.ContainsKey('SharedCacheSnapshotExportPath')) {
         $pipelineArguments.Remove('SharedCacheSnapshotExportPath')
+    }
+    if ($sharedCacheDisableEnvApplied) {
+        try {
+            if ($null -ne $sharedCacheDisableEnvOriginal) {
+                $env:STATETRACE_DISABLE_SHARED_CACHE = $sharedCacheDisableEnvOriginal
+            } else {
+                Remove-Item Env:STATETRACE_DISABLE_SHARED_CACHE -ErrorAction SilentlyContinue
+            }
+        } catch { }
+        $sharedCacheDisableEnvApplied = $false
     }
     Write-SharedCacheSnapshot -Label 'PostColdPass'
     $postColdSummary = Get-SharedCacheSummary -Label 'SharedCacheState:PostColdPass'
@@ -2960,6 +3298,16 @@ try {
         } catch { }
         $sharedCacheSnapshotEnvApplied = $false
     }
+    if ($sharedCacheDisableEnvApplied) {
+        try {
+            if ($null -ne $sharedCacheDisableEnvOriginal) {
+                $env:STATETRACE_DISABLE_SHARED_CACHE = $sharedCacheDisableEnvOriginal
+            } else {
+                Remove-Item Env:STATETRACE_DISABLE_SHARED_CACHE -ErrorAction SilentlyContinue
+            }
+        } catch { }
+        $sharedCacheDisableEnvApplied = $false
+    }
     $cleanupPath = $sharedCacheSnapshotCleanupPath
     if (-not $cleanupPath -and $sharedCacheSnapshotPath -and
         -not [System.StringComparer]::OrdinalIgnoreCase.Equals($sharedCacheSnapshotPath, $sharedCacheSnapshotLatestPath)) {
@@ -2969,6 +3317,9 @@ try {
         try { Remove-Item -LiteralPath $cleanupPath -Force } catch { }
     } elseif ($PreserveSharedCacheSnapshot.IsPresent -and $sharedCacheSnapshotPath) {
         Write-Host ("Preserved shared cache snapshot at '{0}' for inspection." -f $sharedCacheSnapshotPath) -ForegroundColor DarkCyan
+    }
+    if ($coldSharedCacheSnapshotCleanupPath -and (Test-Path -LiteralPath $coldSharedCacheSnapshotCleanupPath)) {
+        try { Remove-Item -LiteralPath $coldSharedCacheSnapshotCleanupPath -Force } catch { }
     }
     if (-not $PreserveSkipSiteCacheSetting.IsPresent -and $skipSiteCacheGuard) {
         Restore-SkipSiteCacheUpdateSetting -Guard $skipSiteCacheGuard
@@ -3621,6 +3972,45 @@ if ($OutputPath) {
                 Write-Host ("Diff hotspot report exported to {0}" -f $targetDiffPath) -ForegroundColor Green
             } catch {
                 throw ("Failed to generate diff hotspot report: {0}" -f $_.Exception.Message)
+            }
+        }
+    }
+}
+
+if ($shouldGenerateSharedCacheDiagnostics) {
+    $sharedStoreScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Analyze-SharedCacheStoreState.ps1'
+    $providerReasonScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Analyze-SiteCacheProviderReasons.ps1'
+    if (-not (Test-Path -LiteralPath $sharedStoreScript)) {
+        throw "Shared cache store analyzer script not found at '$sharedStoreScript'."
+    }
+    if (-not (Test-Path -LiteralPath $providerReasonScript)) {
+        throw "Shared cache provider analyzer script not found at '$providerReasonScript'."
+    }
+
+    $metricsPath = Get-LatestIngestionMetricsFile -DirectoryPath $metricsDirectory
+    if (-not $metricsPath) {
+        Write-Warning ("Shared cache diagnostics requested but no ingestion metrics file was found under '{0}'." -f $metricsDirectory)
+    } else {
+        foreach ($passLabel in @('ColdPass','WarmPass')) {
+            $window = $null
+            if ($script:PassWindows.ContainsKey($passLabel)) {
+                $window = $script:PassWindows[$passLabel]
+            }
+            if (-not $window -or -not $window.StartUtc -or -not $window.EndUtc) {
+                Write-Warning ("Shared cache diagnostics skipped for {0} because pass window timestamps are unavailable." -f $passLabel)
+                continue
+            }
+
+            Write-Host ("Running shared cache diagnostics for {0} window {1} -> {2} (UTC)..." -f $passLabel, $window.StartUtc.ToString('o'), $window.EndUtc.ToString('o')) -ForegroundColor Cyan
+            try {
+                & $sharedStoreScript -Path $metricsPath -IncludeSiteBreakdown -StartTimeUtc $window.StartUtc -EndTimeUtc $window.EndUtc
+            } catch {
+                throw ("Shared cache store diagnostics failed for {0}: {1}" -f $passLabel, $_.Exception.Message)
+            }
+            try {
+                & $providerReasonScript -Path $metricsPath -IncludeHostBreakdown -TopHosts $SharedCacheDiagnosticsTopHosts -StartTimeUtc $window.StartUtc -EndTimeUtc $window.EndUtc
+            } catch {
+                throw ("Shared cache provider diagnostics failed for {0}: {1}" -f $passLabel, $_.Exception.Message)
             }
         }
     }

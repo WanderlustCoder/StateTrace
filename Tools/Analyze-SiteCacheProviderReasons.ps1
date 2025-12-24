@@ -4,6 +4,8 @@ param(
     [string]$Directory,
     [string[]]$Site,
     [int]$TopHosts = 10,
+    [datetime]$StartTimeUtc,
+    [datetime]$EndTimeUtc,
     [switch]$IncludeHostBreakdown
 )
 
@@ -78,6 +80,17 @@ if ($Site -and $Site.Count -gt 0) {
     }
 }
 
+$startUtc = $null
+$endUtc = $null
+if ($StartTimeUtc) { $startUtc = $StartTimeUtc.ToUniversalTime() }
+if ($EndTimeUtc) { $endUtc = $EndTimeUtc.ToUniversalTime() }
+if ($startUtc -and $endUtc -and $startUtc -gt $endUtc) {
+    throw "StartTimeUtc must be earlier than or equal to EndTimeUtc."
+}
+if ($startUtc -or $endUtc) {
+    Write-Host ("Filtering events between {0} and {1} (UTC)." -f ($startUtc ? $startUtc.ToString('o') : 'start'), ($endUtc ? $endUtc.ToString('o') : 'end')) -ForegroundColor DarkGray
+}
+
 $siteStats = @{}
 $hostStats = @{}
 
@@ -95,6 +108,16 @@ foreach ($file in $logFiles) {
                 continue
             }
             if (-not $event -or $event.EventName -ne 'InterfaceSyncTiming') { continue }
+
+            if ($startUtc -or $endUtc) {
+                if (-not $event.Timestamp) { continue }
+                $timestamp = $null
+                try { $timestamp = [datetime]$event.Timestamp } catch { $timestamp = $null }
+                if (-not $timestamp) { continue }
+                $timestampUtc = $timestamp.ToUniversalTime()
+                if ($startUtc -and $timestampUtc -lt $startUtc) { continue }
+                if ($endUtc -and $timestampUtc -gt $endUtc) { continue }
+            }
 
             $siteKey = ''
             if ($event.Site) {
