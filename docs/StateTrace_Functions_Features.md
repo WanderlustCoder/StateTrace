@@ -4,6 +4,32 @@
 - Provide a stable map of modules, functions, and cross-module responsibilities so automated edits do not remove core behaviour.
 - Summaries prioritise critical dependencies, data sources, and side effects that the UI relies on.
 
+## Feature inventory (high-level)
+
+### Core workflows
+- Ingestion and persistence of multi-vendor device outputs into Access (offline-first).
+- Shared cache and warm-run regressions with snapshot import/export and provider diagnostics.
+- Telemetry collection and evidence bundles for performance and governance (Plans E, G, M).
+
+### Operator UI surfaces (WPF)
+- Interfaces, Compare/Diff, SPAN, Search/Alerts, and Port Reorg workflows.
+- Headless validations: `Tools/Invoke-InterfacesViewChecklist.ps1`, `Tools/Invoke-SearchAlertsSmokeTest.ps1`, `Tools/Invoke-SpanViewSmokeTest.ps1`.
+
+### Automation tooling
+- Pipeline harness: `Tools/Invoke-StateTracePipeline.ps1`
+- Warm-run harness: `Tools/Invoke-WarmRunTelemetry.ps1`
+- Verification: `Tools/Invoke-StateTraceVerification.ps1`
+- Rollups: `Tools/Invoke-DailyMetricRollup.ps1`
+- Bundle publishing: `Tools/Publish-TelemetryBundle.ps1`
+
+### Security and compliance
+- Online-mode guardrails and NetOps evidence (`docs/Security.md`, `docs/CODEX_AUTONOMY_PLAN.md`).
+- Sanitization workflows for incident and postmortem data.
+
+### Testing and quality
+- Pester coverage for modules and harness logic.
+- Telemetry integrity and bundle readiness checks (Plan M).
+
 ## Architecture Overview
 - PowerShell 5.x WPF desktop app (`Main/MainWindow.ps1` + XAML) orchestrates view modules listed in `Modules/ModulesManifest.psd1`.
 - Device data is stored per site in Access `.accdb` databases under `Data/`, populated by the parser (`Modules/ParserWorker.psm1`).

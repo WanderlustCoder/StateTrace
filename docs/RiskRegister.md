@@ -2,6 +2,11 @@
 
 This register consolidates the top risks identified across all active plans.  Each entry includes a description of the risk, the trigger or early warning signal, the proposed mitigation, the owner responsible for tracking it and the review cadence.  Update this document whenever new risks are discovered or existing risks are retired.
 
+## How to use
+- Add a new entry when a risk is identified in a plan, task, or incident.
+- Reference the relevant Plan ID and Task Board ID in the risk or mitigation text when available.
+- Update mitigations and evidence links as work progresses.
+
 | # | Risk | Trigger | Mitigation | Owner | Review cadence |
 |---|------|---------|-----------|-------|---------------|
 | 1 | **Telemetry gaps create blind spots** | No data received for a route or ingestion job beyond the defined SLA (e.g. 5 minutes) | Build fallback “unknown” status alerts and prioritise instrumentation of missing probes; expose stale data metrics on dashboards | Platform SRE | Weekly during routing rollout |

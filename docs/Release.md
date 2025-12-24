@@ -2,6 +2,21 @@
 
 This guide describes how to package, version and release StateTrace.  It covers semantic versioning, artefact creation, smoke testing and changelog management.  Follow these steps whenever preparing a new release candidate.
 
+## Release preconditions
+- Plans and Task Board are current (doc sync complete).
+- Telemetry gates are up to date (`docs/telemetry/Automation_Gates.md`).
+- Verification tooling is runnable under PowerShell 5.1.
+- Material risks are recorded in `docs/RiskRegister.md`.
+
+## Release evidence checklist (minimum)
+- [ ] Plan G gates satisfied (`docs/plans/PlanG_ReleaseGovernance.md`).
+- [ ] Verification summary captured (see `Tools/Invoke-StateTraceVerification.ps1` or scheduled verification tasks).
+- [ ] Telemetry bundle published and passes readiness verification (see Telemetry bundle verification).
+- [ ] Shared cache snapshot evidence captured when relevant.
+- [ ] Doc sync completed (plans, Task Board, session logs).
+- [ ] Risk register reviewed/updated if needed.
+- [ ] NetOps evidence recorded and reset if online mode was used.
+
 ## Versioning
 
 StateTrace uses [semantic versioning](https://semver.org/) with the format `MAJOR.MINOR.PATCH`:

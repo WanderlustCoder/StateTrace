@@ -13,3 +13,5 @@ This roadmap outlines the highâ€‘level milestones planned for the fourth qu
 - **Sync with plans:** Each milestone corresponds to workstreams described in the respective plan documents.  Use the scope bullets as a quick reminder of what must be delivered.
 - **Review cadence:** Update progress against each milestone during weekly retrospectives.  Adjust target dates only after discussing impact on downstream milestones.
 - **Exit criteria:** Treat exit criteria as acceptance gates.  A milestone is complete only when all listed criteria are demonstrably met.
+- **Task board linkage:** Keep milestones tied to Task Board IDs and mark entries as done with `Done - YYYY-MM-DD` once exit criteria are met.
+- **Change hygiene:** When milestone scope or dates change, update the relevant plan page and Task Board row alongside this roadmap.

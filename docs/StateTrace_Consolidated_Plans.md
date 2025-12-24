@@ -1,6 +1,31 @@
 # StateTrace Plan Log (Archive)
 > **Read-first:** Active objectives now live under `docs/plans/PlanIndex.md` and the per-plan files in `docs/plans/`. Use this file only for historical context, deep-dive timelines, and investigation transcripts. Append new entries at the end of the relevant section after you have updated the per-plan page.
 
+## Current source of truth
+- Plans: `docs/plans/Plan*.md`
+- Plan index: `docs/plans/PlanIndex.md`
+- Task board: `docs/StateTrace_TaskBoard.md` and `docs/taskboard/TaskBoard.csv`
+- Backlog: `docs/CODEX_BACKLOG.md`
+
+## How to use this file
+- Keep this log focused on historical context, deep-dive timelines, and investigation transcripts.
+- Add new entries only after updating the per-plan page and task board.
+- Store deep narrative writeups under `docs/notes/` or session logs under `docs/agents/sessions/`.
+
+## Initiative pointers
+- Routing reliability: Plan A
+- Performance/warm runs/shared cache: Plans B and Q
+- Change tracking/diff model: Plan C
+- Feature expansion and guided troubleshooting: Plan D
+- Telemetry and rollups: Plan E
+- Security/online mode: Plan F
+- Release governance: Plan G
+- UX/adoption/accessibility: Plans H and O
+- Harness stability/test fixtures/CI readiness: Plans I, J, K
+- Module decomposition/deprecation cleanup: Plans L and S
+- Data quality/doc automation/incident response: Plans M, N, R
+
+## Historical log
 - 2025-11-26 planning: Added Plan H (User Experience & Adoption) to track onboarding, freshness visibility, and user-action telemetry. See `docs/plans/PlanH_UserExperience.md` for objectives and active work; future narrative updates for this plan should land here after plan/task board entries are updated.
 
 - 2025-10-15 15:12 MT planning: Review the 2025-10-15 ingestion telemetry and ParserPersistenceModule instrumentation to understand why  `InterfaceSyncTiming` events are missing before modifying any modules. 
