@@ -146,17 +146,21 @@ function Invoke-DiversityGuards {
     Write-Host "[Checklist] Running PortBatch site diversity guard..." -ForegroundColor Cyan
     & $diversityScript -MetricsPath $MetricsFile -MaxAllowedConsecutive 8 -OutputPath $diversityReport | Out-Null
 
-    $schedulerReport = Get-ChildItem -LiteralPath (Join-Path $repoRoot 'Logs\Reports') -Filter 'ParserSchedulerLaunch-*.json' -File |
-        Sort-Object LastWriteTime | Select-Object -Last 1
-    if (-not $schedulerReport) {
-        throw "Parser scheduler report not found under 'Logs\Reports'; run the parser pipeline with fairness guard enabled."
+    # LANDMARK: Scheduler vs port diversity inputs - align scheduler report to metrics file
+    $schedulerAnalyzer = Join-Path $repoRoot 'Tools\Analyze-ParserSchedulerLaunch.ps1'
+    if (-not (Test-Path -LiteralPath $schedulerAnalyzer)) {
+        throw "Parser scheduler analyzer not found at '$schedulerAnalyzer'."
     }
+    $schedulerReport = Join-Path $repoRoot ("Logs\Reports\ParserSchedulerLaunch-{0}.json" -f $timestamp)
+    Write-Host ("[Checklist] Summarising parser scheduler telemetry into '{0}'..." -f $schedulerReport) -ForegroundColor Cyan
+    & $schedulerAnalyzer -Path $MetricsFile -MaxAllowedStreak 8 -OutputPath $schedulerReport | Out-Null
     $schedulerVsJson = Join-Path $repoRoot ("Logs\Reports\SchedulerVsPortDiversity-{0}.json" -f $timestamp)
     $schedulerVsMd = Join-Path $repoRoot ("docs\performance\SchedulerVsPortDiversity-{0}.md" -f $timestamp)
     $compareScript = Join-Path $repoRoot 'Tools\Compare-SchedulerAndPortDiversity.ps1'
+    # LANDMARK: Checklist compare path - pass scheduler report path string
     Write-Host "[Checklist] Comparing scheduler streaks with PortBatchReady streaks..." -ForegroundColor Cyan
     & $compareScript `
-        -SchedulerReportPath $schedulerReport.FullName `
+        -SchedulerReportPath $schedulerReport `
         -PortDiversityReportPath $diversityReport `
         -OutputPath $schedulerVsJson `
         -MarkdownPath $schedulerVsMd | Out-Null

@@ -1,0 +1,19 @@
+{
+  "SchemaVersion": "1.0",
+  "CapturedAt": "2025-12-29T12:00:00Z",
+  "Site": "WLLS",
+  "Vendor": "CiscoIOSXE",
+  "Vrf": "default",
+  "Hosts": [
+    {
+      "Hostname": "WLLS-A01-AS-01",
+      "Artifacts": [
+        {
+          "Name": "show_ip_route",
+          "Command": "show ip route",
+          "TranscriptPath": "WLLS-A01-AS-01_show_ip_route.txt"
+        }
+      ]
+    }
+  ]
+}

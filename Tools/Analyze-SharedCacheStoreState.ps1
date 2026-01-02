@@ -3,8 +3,9 @@ param(
     [string[]]$Path,
     [string]$Directory,
     [int]$TopSites = 10,
-    [datetime]$StartTimeUtc,
-    [datetime]$EndTimeUtc,
+    # LANDMARK: Shared cache diagnostics - allow null time filters
+    [Nullable[datetime]]$StartTimeUtc,
+    [Nullable[datetime]]$EndTimeUtc,
     [switch]$IncludeSiteBreakdown
 )
 
@@ -70,6 +71,18 @@ function Add-Counter {
     }
 }
 
+# LANDMARK: PS5 compatibility - avoid null-coalescing operator
+function Get-CounterValue {
+    param(
+        [hashtable]$Table,
+        [string]$Key
+    )
+
+    if (-not $Table) { return 0 }
+    if ($Table.ContainsKey($Key)) { return [int]$Table[$Key] }
+    return 0
+}
+
 function New-SiteOperationEntry {
     return @{
         GetHit  = 0
@@ -84,8 +97,8 @@ function New-SiteOperationEntry {
 function Summarize-SharedCacheEvents {
     param(
         [string]$FilePath,
-        [datetime]$StartTimeUtc,
-        [datetime]$EndTimeUtc
+        [Nullable[datetime]]$StartTimeUtc,
+        [Nullable[datetime]]$EndTimeUtc
     )
 
     $stateCounters = @{}
@@ -125,7 +138,9 @@ function Summarize-SharedCacheEvents {
 
             switch ($event.EventName) {
                 'InterfaceSiteCacheSharedStoreState' {
-                    Add-Counter -Table $stateCounters -Key ($event.Operation ?? 'Unknown')
+                    $operation = if ($event.PSObject.Properties.Name -contains 'Operation' -and
+                        -not [string]::IsNullOrWhiteSpace($event.Operation)) { $event.Operation } else { 'Unknown' }
+                    Add-Counter -Table $stateCounters -Key $operation
                 }
                 'InterfaceSiteCacheSharedStore' {
                     $operation = if ($event.Operation) { ('' + $event.Operation).Trim() } else { 'Unknown' }
@@ -157,17 +172,17 @@ function Summarize-SharedCacheEvents {
 
     $summary = [pscustomobject]@{
         File                = $FilePath
-        SnapshotImported    = ($stateCounters['SnapshotImported']  ?? 0)
-        InitDelegatedStore  = ($stateCounters['InitDelegatedStore'] ?? 0)
-        InitNewStore        = ($stateCounters['InitNewStore'] ?? 0)
-        InitAdoptedStore    = ($stateCounters['InitAdoptedStore'] ?? 0)
-        InitReuseStore      = ($stateCounters['InitReuseStore'] ?? 0)
-        ClearRequested      = ($stateCounters['ClearRequested'] ?? 0)
-        Cleared             = ($stateCounters['Cleared'] ?? 0)
-        GetMiss             = ($storeCounters['GetMiss'] ?? 0)
-        GetHit              = ($storeCounters['GetHit'] ?? 0)
-        Set                 = ($storeCounters['Set'] ?? 0)
-        Remove              = ($storeCounters['Remove'] ?? 0)
+        SnapshotImported    = (Get-CounterValue -Table $stateCounters -Key 'SnapshotImported')
+        InitDelegatedStore  = (Get-CounterValue -Table $stateCounters -Key 'InitDelegatedStore')
+        InitNewStore        = (Get-CounterValue -Table $stateCounters -Key 'InitNewStore')
+        InitAdoptedStore    = (Get-CounterValue -Table $stateCounters -Key 'InitAdoptedStore')
+        InitReuseStore      = (Get-CounterValue -Table $stateCounters -Key 'InitReuseStore')
+        ClearRequested      = (Get-CounterValue -Table $stateCounters -Key 'ClearRequested')
+        Cleared             = (Get-CounterValue -Table $stateCounters -Key 'Cleared')
+        GetMiss             = (Get-CounterValue -Table $storeCounters -Key 'GetMiss')
+        GetHit              = (Get-CounterValue -Table $storeCounters -Key 'GetHit')
+        Set                 = (Get-CounterValue -Table $storeCounters -Key 'Set')
+        Remove              = (Get-CounterValue -Table $storeCounters -Key 'Remove')
         OtherOperations     = $otherOps
         FirstTimestamp      = $firstTimestamp
         LastTimestamp       = $lastTimestamp
@@ -207,7 +222,9 @@ if ($startUtc -and $endUtc -and $startUtc -gt $endUtc) {
     throw "StartTimeUtc must be earlier than or equal to EndTimeUtc."
 }
 if ($startUtc -or $endUtc) {
-    Write-Host ("Filtering events between {0} and {1} (UTC)." -f ($startUtc ? $startUtc.ToString('o') : 'start'), ($endUtc ? $endUtc.ToString('o') : 'end')) -ForegroundColor DarkGray
+    $startLabel = if ($startUtc) { $startUtc.ToString('o') } else { 'start' }
+    $endLabel = if ($endUtc) { $endUtc.ToString('o') } else { 'end' }
+    Write-Host ("Filtering events between {0} and {1} (UTC)." -f $startLabel, $endLabel) -ForegroundColor DarkGray
 }
 $summaries = @()
 

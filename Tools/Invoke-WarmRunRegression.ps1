@@ -2,8 +2,10 @@
 param(
     [switch]$IncludeTests,
     [switch]$VerboseParsing,
+    [switch]$UseBalancedHostOrder,
     [switch]$ResetExtractedLogs,
     [switch]$SkipPortDiversityGuard,
+    [switch]$ForcePortBatchReadySynthesis,
     [int]$PortBatchMaxConsecutiveOverride,
     [switch]$SkipWarmValidation,
     [string]$OutputPath,
@@ -45,11 +47,20 @@ if ($PSBoundParameters.ContainsKey('PortBatchMaxConsecutiveOverride')) {
 if ($SkipPortDiversityGuard.IsPresent) {
     $arguments['SkipPortDiversityGuard'] = $true
 }
+if ($ForcePortBatchReadySynthesis.IsPresent) {
+    # LANDMARK: PortBatchReady synthesis - force warm-run helper to append synthesized batches
+    Write-Warning 'PortBatchReady synthesis is enabled for warm-run regression; events will be synthesized for guard evaluation.'
+    $arguments['ForcePortBatchReadySynthesis'] = $true
+}
 if ($SkipWarmValidation.IsPresent) {
     $arguments['SkipWarmValidation'] = $true
 }
 if ($VerboseParsing.IsPresent) {
     $arguments['VerboseParsing'] = $true
+}
+if ($UseBalancedHostOrder.IsPresent) {
+    # LANDMARK: Host sweep balancing - propagate to warm-run telemetry
+    $arguments['UseBalancedHostOrder'] = $true
 }
 if ($ResetExtractedLogs.IsPresent) {
     $arguments['ResetExtractedLogs'] = $true

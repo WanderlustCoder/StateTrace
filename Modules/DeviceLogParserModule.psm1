@@ -499,6 +499,72 @@ if (-not $script:ConnectionCacheShutdownRegistered) {
 
 
 
+function Invoke-ProviderProbe {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$DatabasePath,
+        [Parameter(Mandatory)][string]$Provider,
+        [ScriptBlock]$ConnectionFactory,
+        [ScriptBlock]$ReleaseAction
+    )
+
+    # LANDMARK: Provider probe cleanup - guard close/release and report status
+    $factory = if ($ConnectionFactory) { $ConnectionFactory } else { { New-Object -ComObject ADODB.Connection } }
+    $release = if ($ReleaseAction) { $ReleaseAction } else { { param($conn) TelemetryModule\Remove-ComObjectSafe -ComObject $conn } }
+
+    $connection = $null
+    $opened = $false
+    $status = 'ProbeFailed'
+    $message = $null
+
+    try {
+        $connection = & $factory
+        if (-not $connection) { throw "Connection factory returned null." }
+        try {
+            $connection.Open("Provider=$Provider;Data Source=$DatabasePath;Mode=ReadWrite;Jet OLEDB:Database Locking Mode=1")
+            $opened = $true
+            $status = 'Available'
+        } catch {
+            $status = 'MissingProvider'
+            $message = $_.Exception.Message
+        }
+    } catch {
+        $status = 'ProbeFailed'
+        $message = $_.Exception.Message
+    } finally {
+        if ($connection) {
+            if ($opened) {
+                $shouldClose = $false
+                try {
+                    if ($connection.PSObject.Properties.Name -contains 'State') {
+                        $shouldClose = ($connection.State -eq 1)
+                    } else {
+                        $shouldClose = $true
+                    }
+                } catch {
+                    $shouldClose = $true
+                }
+
+                if ($shouldClose) {
+                    try { $connection.Close() } catch {
+                        Write-Verbose ("Failed to close provider probe connection for '{0}' ({1}): {2}" -f $DatabasePath, $Provider, $_.Exception.Message)
+                    }
+                }
+            }
+
+            try { & $release $connection } catch {
+                Write-Verbose ("Failed to release provider probe connection for '{0}' ({1}): {2}" -f $DatabasePath, $Provider, $_.Exception.Message)
+            }
+        }
+    }
+
+    return [PSCustomObject]@{
+        Status   = $status
+        Provider = $Provider
+        Message  = $message
+    }
+}
+
 function Get-CachedDbConnection {
 
     [CmdletBinding()]
@@ -574,40 +640,16 @@ function Get-CachedDbConnection {
 
             foreach ($provCandidate in $ProviderCandidates) {
 
-                $testConn = $null
+                $probeResult = Invoke-ProviderProbe -DatabasePath $DatabasePath -Provider $provCandidate
 
-                try {
-
-                    $testConn = New-Object -ComObject ADODB.Connection
-
-                    $testConn.Open("Provider=$provCandidate;Data Source=$DatabasePath;Mode=ReadWrite;Jet OLEDB:Database Locking Mode=1")
-
-                    $testConn.Close()
-
+                if ($probeResult.Status -eq 'Available') {
                     $provider = $provCandidate
-
                     break
-
-                } catch {
-
-                    $errors.Add("- Provider '$provCandidate': $($_.Exception.Message)") | Out-Null
-
-                    $provider = $null
-
-                } finally {
-
-                    if ($testConn) {
-                        try { $testConn.Close() } catch {
-                            Write-Warning ("Failed to close provider probe connection for '{0}' ({1}): {2}" -f $DatabasePath, $provCandidate, $_.Exception.Message)
-                        }
-                        try {
-                            TelemetryModule\Remove-ComObjectSafe -ComObject $testConn
-                        } catch {
-                            Write-Warning ("Failed to release provider probe connection for '{0}' ({1}): {2}" -f $DatabasePath, $provCandidate, $_.Exception.Message)
-                        }
-                    }
-
                 }
+
+                $detail = if ([string]::IsNullOrWhiteSpace($probeResult.Message)) { 'No additional detail.' } else { $probeResult.Message }
+                $errors.Add(("- Provider '{0}': {1} - {2}" -f $provCandidate, $probeResult.Status, $detail)) | Out-Null
+                $provider = $null
 
             }
 

@@ -5,11 +5,15 @@ param(
     [string]$RepositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')),
     [string]$TaskBoardPath,
     [string]$TaskBoardCsvPath,
+    [int]$TaskBoardMinimumRowCount = 10,
+    [int]$TaskBoardMaxDeletedRows = 20,
+    [string]$TaskBoardIntegrityOutputPath,
     [string]$BacklogPath,
     [string]$PlanPath,
     [string]$SessionLogPath,
     [switch]$RequireBacklogEntry,
     [switch]$RequireSessionLog,
+    [switch]$AllowLargeTaskBoardEdits,
     [string]$OutputPath,
     [switch]$PassThru,
     [switch]$Quiet
@@ -131,6 +135,7 @@ $result = [ordered]@{
     TaskId        = $TaskId
     TaskBoard     = [ordered]@{ Path = $TaskBoardPath; Exists = $false; ContainsTaskId = $false }
     TaskBoardCsv  = [ordered]@{ Path = $TaskBoardCsvPath; Exists = $false; ContainsTaskId = $false; PlanLink = $planLink }
+    TaskBoardIntegrity = [ordered]@{ Path = $null; Passed = $false; Error = $null; RowCount = $null; MinimumRowCount = $TaskBoardMinimumRowCount }
     Plan          = [ordered]@{ Path = $PlanPath; Exists = $false; ContainsTaskId = $false; Source = $planSource }
     Backlog       = [ordered]@{ Path = $BacklogPath; Exists = $false; ContainsTaskId = $false; Required = $RequireBacklogEntry.IsPresent }
     SessionLog    = [ordered]@{ Path = $SessionLogPath; Exists = $false; ContainsTaskId = $false; References = @(); Required = $RequireSessionLog.IsPresent }
@@ -157,6 +162,49 @@ if (Test-Path -LiteralPath $TaskBoardCsvPath) {
 }
 else {
     $result.Missing += 'TaskBoardCsvMissing'
+}
+
+# LANDMARK: Doc sync - enforce TaskBoard integrity guard
+$integrityScript = Join-Path $repoRoot 'Tools\Test-TaskBoardIntegrity.ps1'
+if (-not (Test-Path -LiteralPath $integrityScript)) {
+    $result.Missing += 'TaskBoardIntegrityScriptMissing'
+}
+else {
+    $integrityOutput = $TaskBoardIntegrityOutputPath
+    if ([string]::IsNullOrWhiteSpace($integrityOutput)) {
+        $integrityOutput = Join-Path $repoRoot ("Logs\Reports\TaskBoardIntegrity-{0}.json" -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
+    }
+
+    $integrityParams = @{
+        RepositoryRoot  = $repoRoot
+        TaskBoardCsvPath = $TaskBoardCsvPath
+        MinimumRowCount = $TaskBoardMinimumRowCount
+        MaxDeletedRows  = $TaskBoardMaxDeletedRows
+        OutputPath      = $integrityOutput
+        PassThru        = $true
+        Quiet           = $true
+    }
+    if ($AllowLargeTaskBoardEdits) {
+        $integrityParams['AllowLargeTaskBoardEdits'] = $true
+    }
+
+    $integrityError = $null
+    $integrityResult = $null
+    try {
+        $integrityResult = & $integrityScript @integrityParams
+    } catch {
+        $integrityError = $_.Exception.Message
+    }
+
+    $result.TaskBoardIntegrity.Path = $integrityOutput
+    if ($integrityResult) {
+        $result.TaskBoardIntegrity.Passed = [bool]$integrityResult.Passed
+        $result.TaskBoardIntegrity.RowCount = $integrityResult.RowCount
+    }
+    $result.TaskBoardIntegrity.Error = $integrityError
+    if (-not $integrityResult -or -not $integrityResult.Passed) {
+        $result.Missing += 'TaskBoardIntegrityFailed'
+    }
 }
 
 if (-not [string]::IsNullOrWhiteSpace($PlanPath)) {

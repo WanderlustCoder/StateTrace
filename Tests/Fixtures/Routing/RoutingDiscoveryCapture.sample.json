@@ -1,0 +1,35 @@
+{
+  "SchemaVersion": "1.0",
+  "CapturedAt": "2025-12-27T18:15:00Z",
+  "Site": "WLLS",
+  "Hostname": "WLLS-A01-AS-21",
+  "Vrf": "default",
+  "Routes": [
+    {
+      "Prefix": "10.10.0.0",
+      "PrefixLength": 24,
+      "NextHop": "10.10.1.1",
+      "Protocol": "OSPF",
+      "RouteRole": "Primary",
+      "RouteState": "Active",
+      "InterfaceName": "Vlan10",
+      "AdminDistance": 110,
+      "Metric": 20,
+      "Tag": "CORE",
+      "AgeSeconds": 120
+    },
+    {
+      "Prefix": "10.20.0.0",
+      "PrefixLength": 24,
+      "NextHop": "10.20.1.1",
+      "Protocol": "BGP",
+      "RouteRole": "Secondary",
+      "RouteState": "Inactive",
+      "InterfaceName": "Vlan20",
+      "AdminDistance": 200,
+      "Metric": 100,
+      "Tag": "EDGE",
+      "AgeSeconds": 240
+    }
+  ]
+}

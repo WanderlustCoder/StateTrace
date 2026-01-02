@@ -1,0 +1,22 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.invalid/statetrace/telemetry_event.schema.json",
+  "title": "StateTrace Telemetry Event",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "EventName",
+    "Timestamp"
+  ],
+  "properties": {
+    "EventName": {
+      "type": "string",
+      "description": "Telemetry event name (e.g., ParseDuration, InterfaceSyncTiming)."
+    },
+    "Timestamp": {
+      "type": "string",
+      "description": "Timestamp emitted by Get-Date -Format o (local or UTC).",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\\.[0-9]+)?(?:Z|[+-][0-9]{2}:[0-9]{2})$"
+    }
+  }
+}

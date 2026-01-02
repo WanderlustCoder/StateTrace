@@ -1,0 +1,53 @@
+[
+  {
+    "SchemaVersion": "1.0",
+    "RecordId": "RR-OLD-002",
+    "CapturedAt": "2025-12-30T09:00:00Z",
+    "Site": "WLLS",
+    "Hostname": "WLLS-A01-AS-01",
+    "Vrf": "default",
+    "Prefix": "10.0.1.0",
+    "PrefixLength": 24,
+    "NextHop": "10.0.1.1",
+    "Protocol": "OSPF",
+    "RouteRole": "Secondary",
+    "RouteState": "Inactive",
+    "InterfaceName": "Gi0/2",
+    "AdminDistance": 110,
+    "Metric": 20
+  },
+  {
+    "SchemaVersion": "1.0",
+    "RecordId": "RR-SHARED-001",
+    "CapturedAt": "2025-12-30T09:00:00Z",
+    "Site": "WLLS",
+    "Hostname": "WLLS-A01-AS-01",
+    "Vrf": "default",
+    "Prefix": "10.0.2.0",
+    "PrefixLength": 24,
+    "NextHop": "10.0.2.254",
+    "Protocol": "OSPF",
+    "RouteRole": "Primary",
+    "RouteState": "Active",
+    "InterfaceName": "Gi0/3",
+    "AdminDistance": 110,
+    "Metric": 5
+  },
+  {
+    "SchemaVersion": "1.0",
+    "RecordId": "RR-NEW-001",
+    "CapturedAt": "2025-12-30T09:00:00Z",
+    "Site": "WLLS",
+    "Hostname": "WLLS-A01-AS-01",
+    "Vrf": "default",
+    "Prefix": "10.0.3.0",
+    "PrefixLength": 24,
+    "NextHop": "10.0.3.1",
+    "Protocol": "STATIC",
+    "RouteRole": "Primary",
+    "RouteState": "Active",
+    "InterfaceName": "Gi0/4",
+    "AdminDistance": 1,
+    "Metric": 0
+  }
+]

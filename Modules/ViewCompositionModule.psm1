@@ -1,5 +1,7 @@
 ﻿Set-StrictMode -Version Latest
 
+$script:LastSetStViewFailure = $null
+
 function Set-StView {
     [CmdletBinding()]
     param(
@@ -19,9 +21,18 @@ function Set-StView {
         }
     }
 
+    # LANDMARK: View composition diagnostics - track last failure details for harnesses
+    $script:LastSetStViewFailure = $null
+
     $viewPath = Join-Path $ScriptDir (Join-Path '..\Views' ("{0}.xaml" -f $ViewName))
     if (-not (Test-Path -LiteralPath $viewPath)) {
-        Write-Warning ("{0}.xaml not found at {1}" -f $ViewName, $viewPath)
+        $script:LastSetStViewFailure = [pscustomobject]@{
+            ViewName = $ViewName
+            ViewPath = $viewPath
+            Reason   = 'ViewNotFound'
+            Message  = ("{0}.xaml not found at {1}" -f $ViewName, $viewPath)
+        }
+        Write-Warning ("{0}.xaml not found at {1}" -f $ViewName, $viewPath)     
         return $null
     }
 
@@ -34,6 +45,20 @@ function Set-StView {
             if ($reader) { $reader.Close(); $reader.Dispose() }
         }
     } catch {
+        $failure = [ordered]@{
+            ViewName      = $ViewName
+            ViewPath      = $viewPath
+            Reason        = 'XamlLoadFailed'
+            ExceptionType = $_.Exception.GetType().FullName
+            Message       = $_.Exception.Message
+            StackTrace    = $_.Exception.StackTrace
+        }
+        if ($_.Exception.GetType().FullName -eq 'System.Windows.Markup.XamlParseException') {
+            try { $failure.LineNumber = $_.Exception.LineNumber } catch { }
+            try { $failure.LinePosition = $_.Exception.LinePosition } catch { }
+            try { $failure.BaseUri = if ($_.Exception.BaseUri) { $_.Exception.BaseUri.ToString() } else { '' } } catch { }
+        }
+        $script:LastSetStViewFailure = [pscustomobject]$failure
         Write-Warning ("Failed to load {0}.xaml: {1}" -f $ViewName, $_.Exception.Message)
         return $null
     }
@@ -42,6 +67,13 @@ function Set-StView {
     if ($host -is [System.Windows.Controls.ContentControl]) {
         $host.Content = $view
     } else {
+        $script:LastSetStViewFailure = [pscustomobject]@{
+            ViewName        = $ViewName
+            ViewPath        = $viewPath
+            Reason          = 'HostControlMissing'
+            HostControlName = $HostControlName
+            Message         = ("Could not find ContentControl '{0}'" -f $HostControlName)
+        }
         Write-Warning ("Could not find ContentControl '{0}'" -f $HostControlName)
         return $null
     }
@@ -71,7 +103,8 @@ function New-StDebounceTimer {
     return $timer
 }
 
-function script:Test-ViewCompositionDialogSuppression {
+# LANDMARK: View composition lint - keep helper names unscoped for usage discovery
+function Test-ViewCompositionDialogSuppression {
     [CmdletBinding()]
     param([switch]$SuppressDialogs)
 
@@ -93,7 +126,7 @@ function script:Test-ViewCompositionDialogSuppression {
     return $false
 }
 
-function script:Show-ViewCompositionMessage {
+function Show-ViewCompositionMessage {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$Message,

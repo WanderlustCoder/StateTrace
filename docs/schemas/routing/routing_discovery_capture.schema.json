@@ -1,0 +1,28 @@
+{
+  "SchemaName": "RoutingDiscoveryCapture",
+  "SchemaVersion": "1.0",
+  "Required": {
+    "SchemaVersion": "string",
+    "CapturedAt": "string",
+    "Site": "string",
+    "Hostname": "string",
+    "Vrf": "string",
+    "Routes": "array"
+  },
+  "Optional": {},
+  "RouteRequired": {
+    "Prefix": "string",
+    "PrefixLength": "integer",
+    "NextHop": "string",
+    "Protocol": "string",
+    "RouteRole": "string",
+    "RouteState": "string"
+  },
+  "RouteOptional": {
+    "InterfaceName": "string",
+    "AdminDistance": "integer",
+    "Metric": "integer",
+    "Tag": "string",
+    "AgeSeconds": "integer"
+  }
+}

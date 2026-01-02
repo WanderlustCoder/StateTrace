@@ -339,6 +339,66 @@ Describe "DeviceLogParserModule" {
             }
         }
 
+        # LANDMARK: Provider probe cleanup - validate status and cleanup handling
+        It "returns MissingProvider without double-close warnings when open fails" {
+            $fakeConn = [pscustomobject]@{ State = 0; CloseCalls = 0 }
+            $fakeConn | Add-Member -MemberType ScriptMethod -Name Open -Value {
+                param($connStr)
+                throw [System.Exception]::new('provider missing')
+            }
+            $fakeConn | Add-Member -MemberType ScriptMethod -Name Close -Value {
+                if ($this.State -ne 1) { throw [System.Exception]::new('Operation is not allowed when the object is closed.') }
+                $this.State = 0
+                $this.CloseCalls++
+            }
+
+            $factory = { $fakeConn }
+            $result = Invoke-InModule {
+                param($path, $provider, $factoryBlock)
+                $WarningPreference = 'Stop'
+                Invoke-ProviderProbe -DatabasePath $path -Provider $provider -ConnectionFactory $factoryBlock
+            } @('C:\\Temp\\missing.accdb', 'Microsoft.ACE.OLEDB.12.0', $factory)
+
+            $result.Status | Should Be 'MissingProvider'
+            $result.Message | Should Match 'provider missing'
+            $fakeConn.CloseCalls | Should Be 0
+        }
+
+        It "returns Available and closes once when the probe succeeds" {
+            $fakeConn = [pscustomobject]@{ State = 0; CloseCalls = 0 }
+            $fakeConn | Add-Member -MemberType ScriptMethod -Name Open -Value {
+                param($connStr)
+                $this.State = 1
+            }
+            $fakeConn | Add-Member -MemberType ScriptMethod -Name Close -Value {
+                if ($this.State -ne 1) { throw [System.Exception]::new('Operation is not allowed when the object is closed.') }
+                $this.State = 0
+                $this.CloseCalls++
+            }
+
+            $factory = { $fakeConn }
+            $result = Invoke-InModule {
+                param($path, $provider, $factoryBlock)
+                $WarningPreference = 'Stop'
+                Invoke-ProviderProbe -DatabasePath $path -Provider $provider -ConnectionFactory $factoryBlock
+            } @('C:\\Temp\\ok.accdb', 'Microsoft.ACE.OLEDB.12.0', $factory)
+
+            $result.Status | Should Be 'Available'
+            $fakeConn.CloseCalls | Should Be 1
+        }
+
+        It "returns ProbeFailed when the connection factory returns null" {
+            $factory = { $null }
+            $result = Invoke-InModule {
+                param($path, $provider, $factoryBlock)
+                $WarningPreference = 'Stop'
+                Invoke-ProviderProbe -DatabasePath $path -Provider $provider -ConnectionFactory $factoryBlock
+            } @('C:\\Temp\\null.accdb', 'Microsoft.ACE.OLEDB.12.0', $factory)
+
+            $result.Status | Should Be 'ProbeFailed'
+            $result.Message | Should Match 'Connection factory returned null'
+        }
+
         It "expires idle cached connections when TTL is zero" {
             Invoke-InModule {
                 $script:ConnectionCache.Clear()

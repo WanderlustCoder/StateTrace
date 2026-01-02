@@ -1,0 +1,4 @@
+Codes: C - connected, S - static, O - OSPF, B - BGP, R - RIP, K - kernel, L - local
+C 10.10.0.0/24 is directly connected, Ethernet1
+O 10.20.0.0/24 [110/20] via 192.0.2.2, Ethernet2
+S 0.0.0.0/0 [1/0] via 192.0.2.254, Ethernet2

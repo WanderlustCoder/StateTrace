@@ -2,6 +2,7 @@
 param(
     [switch]$IncludeTests,
     [switch]$VerboseParsing,
+    [switch]$UseBalancedHostOrder,
     [switch]$ResetExtractedLogs,
     [switch]$SkipSchedulerFairnessGuard,
     [string]$OutputPath,
@@ -15,6 +16,7 @@ param(
     [switch]$AssertWarmCache,
     [switch]$PreserveSkipSiteCacheSetting,
     [switch]$SkipPortDiversityGuard,
+    [switch]$ForcePortBatchReadySynthesis,
     [int]$ThreadCeilingOverride = 1,
     [int]$MaxWorkersPerSiteOverride = 1,
     [int]$MaxActiveSitesOverride = 1,
@@ -466,6 +468,8 @@ function Get-IngestionHistoryWarmRunSnapshot {
             }
         }
         if ($backup) {
+            # LANDMARK: Warm-run history backup selection - record chosen backup path
+            Write-Host ("Warm-run backup selected for {0}: {1}" -f $fileName, $backup.FullName) -ForegroundColor DarkCyan
             $content = [System.IO.File]::ReadAllText($backup.FullName)
             if (-not [string]::IsNullOrWhiteSpace($content)) {
                 try {
@@ -483,12 +487,19 @@ function Get-IngestionHistoryWarmRunSnapshot {
                 }
             }
             [void]$warmRunSnapshot.Add([pscustomobject]@{
-                Path    = $targetPath
-                Content = $content
+                Path         = $targetPath
+                Content      = $content
+                BackupPath   = $backup.FullName
+                BackupStatus = 'Selected'
             })
         } else {
             Write-Warning "No warm-run backup found for $fileName; falling back to the current snapshot."
-            [void]$warmRunSnapshot.Add($entry)
+            [void]$warmRunSnapshot.Add([pscustomobject]@{
+                Path         = $entry.Path
+                Content      = $entry.Content
+                BackupPath   = $null
+                BackupStatus = 'FallbackSnapshot'
+            })
         }
     }
 
@@ -497,6 +508,47 @@ function Get-IngestionHistoryWarmRunSnapshot {
     }
 
     return $warmRunSnapshot.ToArray()
+}
+
+# LANDMARK: Warm-run history backups - persist .warmrun.*.bak files after cold pass
+function Write-IngestionHistoryWarmRunBackups {
+    param(
+        [Parameter(Mandatory)]
+        [string]$DirectoryPath,
+        [Parameter(Mandatory)]
+        [System.Collections.IEnumerable]$Snapshot,
+        [string]$Label = 'WarmRunBackup'
+    )
+
+    if (-not $Snapshot) { return 0 }
+    if ([string]::IsNullOrWhiteSpace($DirectoryPath)) { return 0 }
+
+    $null = Initialize-Directory -Path $DirectoryPath
+    $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+    $written = 0
+
+    foreach ($entry in $Snapshot) {
+        if (-not $entry) { continue }
+        $targetPath = $entry.Path
+        if ([string]::IsNullOrWhiteSpace($targetPath)) { continue }
+        $fileName = [System.IO.Path]::GetFileName($targetPath)
+        if ([string]::IsNullOrWhiteSpace($fileName)) { continue }
+        $backupPath = Join-Path -Path $DirectoryPath -ChildPath ("{0}.warmrun.{1}.bak" -f $fileName, $timestamp)
+        $content = $entry.Content
+        if ($null -eq $content) { $content = '' }
+        try {
+            [System.IO.File]::WriteAllText($backupPath, $content)
+            $written++
+        } catch {
+            Write-Warning ("Failed to write warm-run backup for {0}: {1}" -f $fileName, $_.Exception.Message)
+        }
+    }
+
+    if ($written -gt 0) {
+        Write-Host ("Warm-run backup files written ({0}) [{1}]." -f $written, $Label) -ForegroundColor DarkCyan
+    }
+
+    return $written
 }
 
 function Restore-IngestionHistory {
@@ -1241,6 +1293,81 @@ function Collect-TelemetryForPass {
     }
 }
 
+# LANDMARK: Warm-pass metric status - classify duplicate-only telemetry
+function Resolve-PassTelemetryMetricStatus {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Label,
+        [System.Collections.IEnumerable]$Events,
+        [string[]]$MissingEventNames,
+        [string]$HistorySeedMode
+    )
+
+    $parseDurationCount = Get-EventNameCount -Events $Events -Name 'ParseDuration'
+    $skippedDuplicateCount = Get-EventNameCount -Events $Events -Name 'SkippedDuplicate'
+    $duplicateOnly = ($parseDurationCount -le 0 -and $skippedDuplicateCount -gt 0)
+
+    $optionalMissing = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    if ($Label -eq 'WarmPass' -and $duplicateOnly -and -not [string]::IsNullOrWhiteSpace($HistorySeedMode) -and $HistorySeedMode -ne 'Empty') {
+        foreach ($name in @('DatabaseWriteBreakdown','InterfaceSyncTiming')) {
+            [void]$optionalMissing.Add($name)
+        }
+    }
+
+    $statusEntries = [System.Collections.Generic.List[psobject]]::new()
+    foreach ($metricName in @($MissingEventNames)) {
+        if ([string]::IsNullOrWhiteSpace($metricName)) { continue }
+        if ($optionalMissing.Contains($metricName)) {
+            $statusEntries.Add([pscustomobject]@{
+                PassLabel             = $Label
+                SummaryType           = 'TelemetryMetricStatus'
+                MetricName            = $metricName
+                MetricStatus          = 'NotApplicable'
+                MetricStatusReason    = 'SkippedDuplicateOnly'
+                MetricStatusNotes     = ("HistorySeed={0}; ParseDurationCount={1}; SkippedDuplicateCount={2}" -f $HistorySeedMode, $parseDurationCount, $skippedDuplicateCount)
+                ParseDurationCount    = $parseDurationCount
+                SkippedDuplicateCount = $skippedDuplicateCount
+                HistorySeedMode       = $HistorySeedMode
+            })
+        }
+    }
+
+    return [pscustomobject]@{
+        OptionalMissing     = $optionalMissing
+        Statuses            = $statusEntries.ToArray()
+        ParseDurationCount  = $parseDurationCount
+        SkippedDuplicateCount = $skippedDuplicateCount
+        DuplicateOnly       = $duplicateOnly
+    }
+}
+
+# LANDMARK: Warm-pass telemetry warnings - filter expected missing metrics
+function Get-TelemetryWarningMissingNames {
+    [CmdletBinding()]
+    param(
+        [string[]]$MissingEventNames,
+        [System.Collections.IEnumerable]$OptionalMissing
+    )
+
+    $warnMissing = @()
+    if ($MissingEventNames) {
+        $warnMissing = @($MissingEventNames | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    }
+
+    if ($OptionalMissing) {
+        $optionalSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+        foreach ($name in @($OptionalMissing)) {
+            if ([string]::IsNullOrWhiteSpace($name)) { continue }
+            [void]$optionalSet.Add($name)
+        }
+        if ($optionalSet.Count -gt 0 -and $warnMissing.Count -gt 0) {
+            $warnMissing = @($warnMissing | Where-Object { -not $optionalSet.Contains($_) })
+        }
+    }
+
+    return ,@($warnMissing)
+}
+
 function Resolve-PassWindow {
     param(
         [string]$Label,
@@ -1708,11 +1835,20 @@ if (-not $IncludeTests) {
 if ($VerboseParsing) {
     $pipelineArguments['VerboseParsing'] = $true
 }
+if ($UseBalancedHostOrder.IsPresent) {
+    # LANDMARK: Host sweep balancing - keep warm-run parsing order deterministic
+    $pipelineArguments['UseBalancedHostOrder'] = $true
+}
 if ($ResetExtractedLogs) {
     $pipelineArguments['ResetExtractedLogs'] = $true
 }
 if ($SkipPortDiversityGuard) {
     $pipelineArguments['SkipPortDiversityGuard'] = $true
+}
+if ($ForcePortBatchReadySynthesis.IsPresent) {
+    # LANDMARK: PortBatchReady synthesis - keep warm-run diversity guard aligned with synthesized batches
+    Write-Warning 'PortBatchReady synthesis is enabled for warm-run telemetry; events will be synthesized for guard evaluation.'
+    $pipelineArguments['ForcePortBatchReadySynthesis'] = $true
 }
 if ($PSBoundParameters.ContainsKey('PortBatchMaxConsecutiveOverride')) {
     $pipelineArguments['PortBatchMaxConsecutiveOverride'] = $PortBatchMaxConsecutiveOverride
@@ -1731,7 +1867,8 @@ $pipelineArguments['MinRunspacesOverride']      = $MinRunspacesOverride
 
 function Invoke-PipelinePass {
     param(
-        [string]$Label
+        [string]$Label,
+        [string]$HistorySeedMode
     )
 
     $passStartTime = Get-Date
@@ -1743,6 +1880,28 @@ function Invoke-PipelinePass {
 
     $passEndTime = Get-Date
     $collection = Collect-TelemetryForPass -DirectoryPath $metricsDirectory -Baseline $metricsBaseline -PassStartTime $passStartTime -RequiredEventNames @('InterfaceSiteCacheMetrics','DatabaseWriteBreakdown','InterfaceSyncTiming')
+
+    # LANDMARK: Warm-pass telemetry warnings - suppress expected missing metrics
+    $passEvents = @()
+    if ($collection -and $collection.Events) {
+        $passEvents = $collection.Events
+    }
+    $missingEventNames = @()
+    if ($collection -and $collection.MissingEventNames) {
+        $missingEventNames = $collection.MissingEventNames
+    }
+    $historySeedLabel = if ([string]::IsNullOrWhiteSpace($HistorySeedMode)) { '' } else { $HistorySeedMode }
+    $passMetricStatus = Resolve-PassTelemetryMetricStatus -Label $Label -Events $passEvents -MissingEventNames $missingEventNames -HistorySeedMode $historySeedLabel
+    if ($passMetricStatus -and $passMetricStatus.Statuses -and $passMetricStatus.Statuses.Count -gt 0) {
+        $statusPreview = @()
+        foreach ($entry in @($passMetricStatus.Statuses)) {
+            if (-not $entry) { continue }
+            $statusPreview += ("{0}={1}" -f $entry.MetricName, $entry.MetricStatus)
+        }
+        if ($statusPreview.Count -gt 0) {
+            Write-Host ("Pass '{0}' telemetry status: {1}" -f $Label, ([string]::Join(', ', $statusPreview))) -ForegroundColor DarkCyan
+        }
+    }
 
     if ($collection -and $collection.Events) {
         $parseDurationCount = Get-EventNameCount -Events $collection.Events -Name 'ParseDuration'
@@ -1769,7 +1928,12 @@ function Invoke-PipelinePass {
         $breakdownEvents = @(Add-PassLabelToEvents -Events @($collection.Buckets['DatabaseWriteBreakdown']) -PassLabel $Label)
     }
     if ($collection -and $collection.MissingEventNames -and $collection.MissingEventNames.Count -gt 0) {
-        Write-Warning ("Telemetry still missing after polling for pass '{0}': {1}" -f $Label, ($collection.MissingEventNames -join ', '))
+        $optionalMissing = $null
+        if ($passMetricStatus) { $optionalMissing = $passMetricStatus.OptionalMissing }
+        $warnMissing = Get-TelemetryWarningMissingNames -MissingEventNames $missingEventNames -OptionalMissing $optionalMissing
+        if ($warnMissing -and $warnMissing.Count -gt 0) {
+            Write-Warning ("Telemetry still missing after polling for pass '{0}': {1}" -f $Label, ($warnMissing -join ', '))
+        }
     }
 
     $passWindow = Resolve-PassWindow -Label $Label -Events $collection.Events -FallbackStart $passStartTime -FallbackEnd $passEndTime
@@ -1851,11 +2015,18 @@ function Invoke-PipelinePass {
         }
     }
 
+    $allowMissingBreakdown = $false
+    if ($passMetricStatus -and $passMetricStatus.OptionalMissing -and $passMetricStatus.OptionalMissing.Contains('DatabaseWriteBreakdown')) {
+        $allowMissingBreakdown = $true
+    }
+
     if ($breakdownEvents -and $breakdownEvents.Count -gt 0) {
         $script:PassInterfaceAnalysis[$Label] = Measure-InterfaceCallDurationMetrics -Events @($breakdownEvents)
     } else {
         $script:PassInterfaceAnalysis[$Label] = $null
-        Write-Warning "No DatabaseWriteBreakdown events were captured for pass '$Label'."
+        if (-not $allowMissingBreakdown) {
+            Write-Warning "No DatabaseWriteBreakdown events were captured for pass '$Label'."
+        }
     }
 
     $syncEvents = @()
@@ -1873,6 +2044,10 @@ function Invoke-PipelinePass {
 
     $passResults = WarmRun.Telemetry\Resolve-SiteCacheProviderReasons -Summaries $passResults -DatabaseEvents $breakdownEvents -InterfaceSyncEvents $syncEvents
     $passResults = Merge-PerHostTelemetry -Summaries $passResults -DatabaseEvents $breakdownEvents -InterfaceSyncEvents $syncEvents
+
+    if ($passMetricStatus -and $passMetricStatus.Statuses -and $passMetricStatus.Statuses.Count -gt 0) {
+        $passResults = @($passResults + $passMetricStatus.Statuses)
+    }
     $script:PassSummaries[$Label] = @($passResults)
 
     return $passResults
@@ -1905,7 +2080,8 @@ function Invoke-SiteCacheRefresh {
     }
     if ($refreshCount -le 0) { return @() }
 
-    $flushCmd = Get-TelemetryModuleCommand -Name 'Flush-StTelemetryBuffer'
+    # LANDMARK: Telemetry buffer rename - resolve approved-verb command
+    $flushCmd = Get-TelemetryModuleCommand -Name 'Save-StTelemetryBuffer'
     if ($flushCmd) {
         try { & $flushCmd | Out-Null } catch { }
     }
@@ -1972,7 +2148,8 @@ function Invoke-SiteCacheProbe {
         return @()
     }
 
-    $flushCmd = Get-TelemetryModuleCommand -Name 'Flush-StTelemetryBuffer'
+    # LANDMARK: Telemetry buffer rename - resolve approved-verb command
+    $flushCmd = Get-TelemetryModuleCommand -Name 'Save-StTelemetryBuffer'
     if ($flushCmd) {
         try { & $flushCmd | Out-Null } catch { }
     }
@@ -2627,7 +2804,8 @@ function Sync-SharedCacheSnapshotPointer {
 
 function Restore-SharedCacheEntries {
     param(
-        [System.Collections.IEnumerable]$Entries
+        # LANDMARK: Shared cache restore - accept single-entry snapshot payloads
+        [object]$Entries
     )
 
     if (-not $Entries) { return 0 }
@@ -2888,7 +3066,7 @@ try {
         }
     }
     Set-IngestionHistoryForPass -SeedMode $ColdHistorySeed -Snapshot $ingestionHistorySnapshot -PassLabel 'ColdPass'
-    $results.AddRange([psobject[]]@(Invoke-PipelinePass -Label 'ColdPass'))
+    $results.AddRange([psobject[]]@(Invoke-PipelinePass -Label 'ColdPass' -HistorySeedMode $ColdHistorySeed))
 
     if ($pipelineArguments.ContainsKey('SharedCacheSnapshotPath')) {
         $pipelineArguments.Remove('SharedCacheSnapshotPath')
@@ -2956,6 +3134,13 @@ try {
         Write-Warning "Failed to capture post-cold ingestion history snapshot. $($_.Exception.Message)"
     }
 
+    $backupSnapshot = $postColdSnapshot
+    if (-not $backupSnapshot) { $backupSnapshot = $ingestionHistorySnapshot }
+    if ($backupSnapshot) {
+        # LANDMARK: Warm-run backup seed - snapshot ingestion history after cold pass
+        $null = Write-IngestionHistoryWarmRunBackups -DirectoryPath $ingestionHistoryDir -Snapshot $backupSnapshot -Label 'PostColdPass'
+    }
+
     if ($capturedAfterCold -eq 0) {
         $postColdFallbackSites = @()
         if ($postColdSnapshot) {
@@ -2970,9 +3155,12 @@ try {
         }
     }
 
-    if (-not $usingExportedSnapshot -and $sharedCacheSnapshotPath) {
-        Write-SharedCacheSnapshotFile -Path $sharedCacheSnapshotPath -Entries @($sharedCacheEntries)
-        Write-Host ("Shared cache snapshot saved to '{0}'." -f $sharedCacheSnapshotPath) -ForegroundColor DarkCyan
+    if ($sharedCacheSnapshotPath) {
+        if (-not $usingExportedSnapshot) {
+            Write-SharedCacheSnapshotFile -Path $sharedCacheSnapshotPath -Entries @($sharedCacheEntries)
+            Write-Host ("Shared cache snapshot saved to '{0}'." -f $sharedCacheSnapshotPath) -ForegroundColor DarkCyan
+        }
+        # LANDMARK: Shared cache snapshot pointer - update latest after cold export
         $snapshotReady = Sync-SharedCacheSnapshotPointer -SnapshotPath $sharedCacheSnapshotPath -LatestPath $sharedCacheSnapshotLatestPath
         if (-not $snapshotReady) {
             if ($sharedCacheSnapshotLatestPath -and (Test-Path -LiteralPath $sharedCacheSnapshotLatestPath)) {
@@ -3277,7 +3465,7 @@ try {
     # Advance the telemetry baseline so WarmPass collection excludes pre-warm cache work.
     $metricsBaseline = Get-MetricsBaseline -DirectoryPath $metricsDirectory
     Write-Host ("[Diag] WarmPass starting at {0:o}" -f (Get-Date)) -ForegroundColor Magenta
-    $results.AddRange([psobject[]]@(Invoke-PipelinePass -Label 'WarmPass'))
+    $results.AddRange([psobject[]]@(Invoke-PipelinePass -Label 'WarmPass' -HistorySeedMode $warmSeedMode))
     Write-Host ("[Diag] WarmPass completed at {0:o}" -f (Get-Date)) -ForegroundColor Magenta
 } finally {
     $restoreStart = Get-Date
@@ -3926,7 +4114,14 @@ if ($OutputPath) {
             FallbackDurationMs,
             FallbackUsed,
             FactsConsidered,
-            ExistingCount
+            ExistingCount,
+            MetricName,
+            MetricStatus,
+            MetricStatusReason,
+            MetricStatusNotes,
+            ParseDurationCount,
+            SkippedDuplicateCount,
+            HistorySeedMode
         ))
     }
 

@@ -193,7 +193,8 @@ function Invoke-TelemetryBufferLock {
     }
 }
 
-function Flush-TelemetryBuffer {
+# LANDMARK: Telemetry buffer rename - approved verb for buffer persistence
+function Save-TelemetryBuffer {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][string]$Path
@@ -287,20 +288,24 @@ function Write-StTelemetryEvent {
     }
 
     if ($flushNow) {
-        Flush-TelemetryBuffer -Path $path
+        Save-TelemetryBuffer -Path $path
     }
 }
 
-function Flush-StTelemetryBuffer {
+# LANDMARK: Telemetry buffer rename - public save helper + legacy alias
+function Save-StTelemetryBuffer {
     [CmdletBinding()]
     param(
         [string]$Path
     )
 
     $targetPath = if (-not [string]::IsNullOrWhiteSpace($Path)) { $Path } else { Get-TelemetryLogPath }
-    Flush-TelemetryBuffer -Path $targetPath
+    Save-TelemetryBuffer -Path $targetPath
     return $targetPath
 }
+
+# LANDMARK: Telemetry buffer rename - legacy alias for backwards compatibility
+Set-Alias -Name Flush-StTelemetryBuffer -Value Save-StTelemetryBuffer -Scope Local
 
 function Remove-ComObjectSafe {
     [CmdletBinding()]
@@ -314,4 +319,4 @@ function Remove-ComObjectSafe {
     }
 }
 
-Export-ModuleMember -Function Initialize-StateTraceDebug, Import-InterfaceCommon, Get-SpanDebugLogPath, Write-SpanDebugLog, Get-TelemetryLogDirectory, Get-TelemetryLogPath, Write-StTelemetryEvent, Flush-StTelemetryBuffer, Remove-ComObjectSafe
+Export-ModuleMember -Function Initialize-StateTraceDebug, Import-InterfaceCommon, Get-SpanDebugLogPath, Write-SpanDebugLog, Get-TelemetryLogDirectory, Get-TelemetryLogPath, Write-StTelemetryEvent, Save-StTelemetryBuffer, Remove-ComObjectSafe -Alias Flush-StTelemetryBuffer

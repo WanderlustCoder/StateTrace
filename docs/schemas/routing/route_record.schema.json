@@ -1,0 +1,26 @@
+{
+  "SchemaName": "RouteRecord",
+  "SchemaVersion": "1.0",
+  "Required": {
+    "SchemaVersion": "string",
+    "RecordId": "string",
+    "CapturedAt": "string",
+    "Site": "string",
+    "Hostname": "string",
+    "Vrf": "string",
+    "Prefix": "string",
+    "PrefixLength": "integer",
+    "NextHop": "string",
+    "Protocol": "string",
+    "RouteRole": "string",
+    "RouteState": "string"
+  },
+  "Optional": {
+    "InterfaceName": "string",
+    "AdminDistance": "integer",
+    "Metric": "integer",
+    "Tag": "string",
+    "AgeSeconds": "integer",
+    "SourceSystem": "string"
+  }
+}

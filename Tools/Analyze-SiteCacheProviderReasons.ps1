@@ -71,6 +71,18 @@ function Add-Counter {
     }
 }
 
+# LANDMARK: PS5 compatibility - avoid null-coalescing operator
+function Get-CounterValue {
+    param(
+        [hashtable]$Table,
+        [string]$Key
+    )
+
+    if (-not $Table) { return 0 }
+    if ($Table.ContainsKey($Key)) { return [int]$Table[$Key] }
+    return 0
+}
+
 $siteFilter = $null
 if ($Site -and $Site.Count -gt 0) {
     $siteFilter = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
@@ -88,7 +100,9 @@ if ($startUtc -and $endUtc -and $startUtc -gt $endUtc) {
     throw "StartTimeUtc must be earlier than or equal to EndTimeUtc."
 }
 if ($startUtc -or $endUtc) {
-    Write-Host ("Filtering events between {0} and {1} (UTC)." -f ($startUtc ? $startUtc.ToString('o') : 'start'), ($endUtc ? $endUtc.ToString('o') : 'end')) -ForegroundColor DarkGray
+    $startLabel = if ($startUtc) { $startUtc.ToString('o') } else { 'start' }
+    $endLabel = if ($endUtc) { $endUtc.ToString('o') } else { 'end' }
+    Write-Host ("Filtering events between {0} and {1} (UTC)." -f $startLabel, $endLabel) -ForegroundColor DarkGray
 }
 
 $siteStats = @{}
@@ -203,11 +217,11 @@ $siteSummary = $siteStats.Keys |
         $total = [int]$stats.Total
 
         $reasonCounts = $stats.ReasonCounts
-        $accessRefresh = ($reasonCounts['AccessRefresh'] ?? 0)
-        $accessCacheHit = ($reasonCounts['AccessCacheHit'] ?? 0)
-        $sharedCacheMatch = ($reasonCounts['SharedCacheMatch'] ?? 0)
-        $skipUpdate = ($reasonCounts['SkipSiteCacheUpdate'] ?? 0)
-        $unknown = ($reasonCounts['Unknown'] ?? 0)
+        $accessRefresh = (Get-CounterValue -Table $reasonCounts -Key 'AccessRefresh')
+        $accessCacheHit = (Get-CounterValue -Table $reasonCounts -Key 'AccessCacheHit')
+        $sharedCacheMatch = (Get-CounterValue -Table $reasonCounts -Key 'SharedCacheMatch')
+        $skipUpdate = (Get-CounterValue -Table $reasonCounts -Key 'SkipSiteCacheUpdate')
+        $unknown = (Get-CounterValue -Table $reasonCounts -Key 'Unknown')
 
         [pscustomobject]@{
             Site             = $_

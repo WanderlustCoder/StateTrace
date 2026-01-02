@@ -526,4 +526,85 @@ Describe "ParserWorker auto-scaling" {
         }
     }
 
+    It "balances device file order when requested" {
+        InModuleScope -ModuleName ParserWorker {
+            $projectRoot = $script:RepoRoot
+            $logRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("StateTracePParserTests-{0}" -f ([guid]::NewGuid().ToString('N')))
+            $extractedPath = Join-Path $logRoot 'Extracted'
+            New-Item -ItemType Directory -Path $extractedPath -Force | Out-Null
+            Get-ChildItem -Path $extractedPath -File -ErrorAction SilentlyContinue | Remove-Item -Force
+
+            $fileNames = @('ALPHA-A01-AS-01.log','ALPHA-A01-AS-02.log','BETA-A01-AS-01.log','BETA-A01-AS-02.log')
+            $fileInfos = @()
+            foreach ($name in $fileNames) {
+                $full = Join-Path $extractedPath $name
+                Set-Content -Path $full -Value '' -Encoding ASCII
+                $fileInfos += Get-Item -LiteralPath $full
+            }
+
+            Import-Module (Join-Path $projectRoot 'Modules\LogIngestionModule.psm1') -Force
+            Import-Module (Join-Path $projectRoot 'Modules\ParserRunspaceModule.psm1') -Force
+            Import-Module (Join-Path $projectRoot 'Modules\TelemetryModule.psm1') -Force
+
+            $splitCommand = Get-Command -Name Split-RawLogs -Module LogIngestionModule
+            $invokeCommand = Get-Command -Name Invoke-DeviceParsingJobs -Module ParserRunspaceModule
+            $clearCommand = Get-Command -Name Clear-ExtractedLogs -Module LogIngestionModule
+            $existingTelemetry = Get-Command -Name Write-StTelemetryEvent -Module TelemetryModule -ErrorAction SilentlyContinue
+            $originalTelemetry = $null
+            if ($existingTelemetry) { $originalTelemetry = $existingTelemetry.ScriptBlock }
+
+            $script:capturedCalls = @()
+            try {
+                Set-Item -Path Function:LogIngestionModule\Split-RawLogs -Value { param($LogPath, $ExtractedPath) }
+                Set-Item -Path Function:ParserRunspaceModule\Invoke-DeviceParsingJobs -Value {
+                    param(
+                        [string[]]$DeviceFiles,
+                        [string]$ModulesPath,
+                        [string]$ArchiveRoot,
+                        [string]$DatabasePath,
+                        [int]$MaxThreads,
+                        [int]$MinThreads,
+                        [int]$JobsPerThread,
+                        [int]$MaxWorkersPerSite,
+                        [int]$MaxActiveSites,
+                        [int]$MaxConsecutiveSiteLaunches,
+                        [switch]$AdaptiveThreads,
+                        [switch]$Synchronous,
+                        [switch]$UseAutoScaleProfile
+                    )
+                    $script:capturedCalls += [PSCustomObject]@{
+                        DeviceFiles = $DeviceFiles
+                    }
+                }
+                Set-Item -Path Function:LogIngestionModule\Clear-ExtractedLogs -Value { param($ExtractedPath) }
+                Set-Item -Path Function:TelemetryModule\Write-StTelemetryEvent -Value { param($Name, $Payload) }
+
+                Invoke-StateTraceParsing -Synchronous -UseBalancedHostOrder -LogRoot $logRoot
+
+                $capturedCall = $script:capturedCalls | Select-Object -Last 1
+                $capturedCall | Should Not Be $null
+                $capturedCall.DeviceFiles.Count | Should Be 4
+
+                $sites = @($capturedCall.DeviceFiles | ForEach-Object {
+                        $name = [System.IO.Path]::GetFileNameWithoutExtension($_)
+                        if ([string]::IsNullOrWhiteSpace($name)) { '(unknown)' } else { $name.Split('-', 2)[0] }
+                    })
+                $sites | Should Be @('ALPHA','BETA','ALPHA','BETA')
+            } finally {
+                foreach ($info in $fileInfos) {
+                    Remove-Item -LiteralPath $info.FullName -ErrorAction SilentlyContinue
+                }
+                Remove-Item -LiteralPath $logRoot -Recurse -Force -ErrorAction SilentlyContinue
+                if ($splitCommand) { Set-Item -Path Function:LogIngestionModule\Split-RawLogs -Value $splitCommand.ScriptBlock }
+                if ($invokeCommand) { Set-Item -Path Function:ParserRunspaceModule\Invoke-DeviceParsingJobs -Value $invokeCommand.ScriptBlock }
+                if ($clearCommand) { Set-Item -Path Function:LogIngestionModule\Clear-ExtractedLogs -Value $clearCommand.ScriptBlock }
+                if ($originalTelemetry) {
+                    Set-Item -Path Function:TelemetryModule\Write-StTelemetryEvent -Value $originalTelemetry
+                } else {
+                    Remove-Item Function:TelemetryModule\Write-StTelemetryEvent -ErrorAction SilentlyContinue
+                }
+            }
+        }
+    }
+
 }

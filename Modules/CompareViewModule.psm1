@@ -20,6 +20,7 @@ $script:lastWiredViewId   = 0
 $script:closeWiredViewId  = 0
 $script:compareHostCtl    = $null
 $script:LastCompareHostList = $null
+$script:CompareTelemetryCommandOverride = $null
 
 $script:lastCompareColors       = @{}
 $script:CompareThemeHandlerRegistered = $false
@@ -702,8 +703,447 @@ function Set-CompareFromRows {
     if ($script:diff2Box) { $script:diff2Box.Text = ([string]::Join("`r`n", $diff2)) }
 }
 
+function Get-CompareLineDiffCounts {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][psobject]$Row1,
+        [Parameter(Mandatory)][psobject]$Row2
+    )
+
+    $tooltip1 = ''
+    try {
+        if ($Row1.PSObject.Properties['ToolTip'] -and $Row1.ToolTip) {
+            $tooltip1 = '' + $Row1.ToolTip
+        } elseif ($Row1.PSObject.Properties['Config'] -and $Row1.Config) {
+            $tooltip1 = '' + $Row1.Config
+        }
+    } catch { $tooltip1 = '' }
+
+    $tooltip2 = ''
+    try {
+        if ($Row2.PSObject.Properties['ToolTip'] -and $Row2.ToolTip) {
+            $tooltip2 = '' + $Row2.ToolTip
+        } elseif ($Row2.PSObject.Properties['Config'] -and $Row2.Config) {
+            $tooltip2 = '' + $Row2.Config
+        }
+    } catch { $tooltip2 = '' }
+
+    $auth1 = ''
+    try {
+        if ($Row1.PSObject.Properties['AuthTemplate'] -and $Row1.AuthTemplate) {
+            $auth1 = '' + $Row1.AuthTemplate
+        }
+    } catch { }
+    if (-not $auth1) { $auth1 = Get-AuthTemplateFromTooltip -Text $tooltip1 }
+
+    $auth2 = ''
+    try {
+        if ($Row2.PSObject.Properties['AuthTemplate'] -and $Row2.AuthTemplate) {
+            $auth2 = '' + $Row2.AuthTemplate
+        }
+    } catch { }
+    if (-not $auth2) { $auth2 = Get-AuthTemplateFromTooltip -Text $tooltip2 }
+
+    $clean1 = $tooltip1
+    $clean2 = $tooltip2
+    try {
+        $parts1 = $tooltip1 -split "`r?`n"
+        if ($auth1 -and $parts1.Count -gt 0) {
+            $firstLine = ($parts1[0]).Trim()
+            if ($firstLine -match '(?im)^(?:auth(?:entication)?\s*template|authtemplate|template)\s*:?' ) {
+                $cfgLines = $parts1[1..($parts1.Length-1)]
+                while ($cfgLines.Count -gt 0 -and ($cfgLines[0]).Trim() -eq '') {
+                    $cfgLines = $cfgLines[1..($cfgLines.Length-1)]
+                }
+                $clean1 = $cfgLines -join "`r`n"
+            }
+        }
+    } catch {
+        $clean1 = $tooltip1
+    }
+    try {
+        $parts2 = $tooltip2 -split "`r?`n"
+        if ($auth2 -and $parts2.Count -gt 0) {
+            $firstLine2 = ($parts2[0]).Trim()
+            if ($firstLine2 -match '(?im)^(?:auth(?:entication)?\s*template|authtemplate|template)\s*:?' ) {
+                $cfg2Lines = $parts2[1..($parts2.Length-1)]
+                while ($cfg2Lines.Count -gt 0 -and ($cfg2Lines[0]).Trim() -eq '') {
+                    $cfg2Lines = $cfg2Lines[1..($cfg2Lines.Length-1)]
+                }
+                $clean2 = $cfg2Lines -join "`r`n"
+            }
+        }
+    } catch {
+        $clean2 = $tooltip2
+    }
+
+    $lines1 = [System.Collections.Generic.List[string]]::new()
+    if ($clean1) {
+        foreach ($ln in ($clean1 -split "`r?`n")) {
+            $t = $ln.Trim()
+            if ($t -ne '') { [void]$lines1.Add($t) }
+        }
+    }
+    $lines2 = [System.Collections.Generic.List[string]]::new()
+    if ($clean2) {
+        foreach ($ln in ($clean2 -split "`r?`n")) {
+            $t = $ln.Trim()
+            if ($t -ne '') { [void]$lines2.Add($t) }
+        }
+    }
+
+    $addedCount = 0
+    $removedCount = 0
+    $unchangedCount = 0
+    try {
+        $comp = Compare-Object -ReferenceObject $lines1 -DifferenceObject $lines2 -IncludeEqual
+        if ($comp) {
+            foreach ($entry in $comp) {
+                switch ($entry.SideIndicator) {
+                    '=>' { $addedCount++ }
+                    '<=' { $removedCount++ }
+                    '==' { $unchangedCount++ }
+                }
+            }
+        }
+    } catch {
+        Write-Verbose "[CompareView] Exception during diff count computation: $($_.Exception.Message)"
+    }
+
+    $changedCount = 0
+    $totalCount = $addedCount + $removedCount + $unchangedCount + $changedCount
+    return [pscustomobject]@{
+        TotalCount     = $totalCount
+        AddedCount     = $addedCount
+        RemovedCount   = $removedCount
+        ChangedCount   = $changedCount
+        UnchangedCount = $unchangedCount
+    }
+}
+
+# LANDMARK: Compare view telemetry - DiffUsageRate emission (guarded, offline-safe)
+function Write-CompareDiffUsageTelemetry {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Switch1,
+        [Parameter(Mandatory)][string]$Port1,
+        [Parameter(Mandatory)][string]$Switch2,
+        [Parameter(Mandatory)][string]$Port2,
+        [psobject]$Row1,
+        [psobject]$Row2,
+        $TelemetryCommand
+    )
+
+    $telemetryCmd = $TelemetryCommand
+    if (-not $telemetryCmd) {
+        try {
+            $telemetryCmd = Get-Command -Name 'TelemetryModule\Write-StTelemetryEvent' -ErrorAction SilentlyContinue
+        } catch {
+            $telemetryCmd = $null
+        }
+        if (-not $telemetryCmd) {
+            try {
+                $telemetryCmd = Get-Command -Name 'Write-StTelemetryEvent' -Module TelemetryModule -ErrorAction SilentlyContinue
+            } catch {
+                $telemetryCmd = $null
+            }
+        }
+        if (-not $telemetryCmd) {
+            try {
+                $telemetryCmd = Get-Command -Name 'Write-StTelemetryEvent' -ErrorAction SilentlyContinue
+            } catch {
+                $telemetryCmd = $null
+            }
+        }
+    }
+    if (-not $telemetryCmd) { return }
+
+    $sitePrefix = ''
+    try {
+        $sitePrefix = DeviceRepositoryModule\Get-SiteFromHostname -Hostname $Switch1
+    } catch [System.Management.Automation.CommandNotFoundException] {
+        $parts = ('' + $Switch1).Split('-', 2, [System.StringSplitOptions]::RemoveEmptyEntries)
+        if ($parts.Count -gt 0) { $sitePrefix = $parts[0] }
+    } catch { }
+    if (-not $sitePrefix) { $sitePrefix = '' + $Switch1 }
+
+    $vrf = ''
+    $vrfProps = @('Vrf','VRF','VrfName')
+    if ($Row1) { $vrf = Invoke-InterfaceStringPropertyValue -InputObject $Row1 -PropertyNames $vrfProps }
+    if (-not $vrf -and $Row2) { $vrf = Invoke-InterfaceStringPropertyValue -InputObject $Row2 -PropertyNames $vrfProps }
+    if (-not $vrf) {
+        foreach ($candidate in @($Row1, $Row2)) {
+            if (-not $candidate) { continue }
+            foreach ($name in $vrfProps) {
+                try {
+                    if ($candidate.PSObject.Properties[$name] -and $candidate.$name) {
+                        $vrf = '' + $candidate.$name
+                        break
+                    }
+                } catch { }
+            }
+            if ($vrf) { break }
+        }
+    }
+
+    $payload = @{
+        Timestamp        = (Get-Date).ToString('o')
+        Source           = 'CompareView'
+        Status           = 'Executed'
+        UsageNumerator   = 1
+        UsageDenominator = 1
+        Site             = $sitePrefix
+        Hostname         = '' + $Switch1
+        Hostname2        = '' + $Switch2
+        Port1            = '' + $Port1
+        Port2            = '' + $Port2
+        Vrf              = $vrf
+    }
+
+    try {
+        if ($telemetryCmd -is [scriptblock]) {
+            & $telemetryCmd -Name 'DiffUsageRate' -Payload $payload
+            return
+        }
+        if ($telemetryCmd -is [string]) {
+            & $telemetryCmd -Name 'DiffUsageRate' -Payload $payload
+            return
+        }
+        $telemetryName = $telemetryCmd.Name
+        $telemetryModule = $telemetryCmd.ModuleName
+        if ($telemetryModule) {
+            & "$telemetryModule\$telemetryName" -Name 'DiffUsageRate' -Payload $payload
+        } else {
+            & $telemetryName -Name 'DiffUsageRate' -Payload $payload
+        }
+    } catch { }
+}
+
+# LANDMARK: Compare view telemetry - DiffCompareDurationMs emission (guarded, offline-safe)
+function Write-CompareDiffDurationTelemetry {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Switch1,
+        [Parameter(Mandatory)][string]$Port1,
+        [Parameter(Mandatory)][string]$Switch2,
+        [Parameter(Mandatory)][string]$Port2,
+        [Parameter(Mandatory)][int]$DurationMs,
+        [Parameter(Mandatory)][string]$Status,
+        [psobject]$Row1,
+        [psobject]$Row2,
+        $TelemetryCommand
+    )
+
+    $telemetryCmd = $TelemetryCommand
+    if (-not $telemetryCmd) {
+        try {
+            $telemetryCmd = Get-Command -Name 'TelemetryModule\Write-StTelemetryEvent' -ErrorAction SilentlyContinue
+        } catch {
+            $telemetryCmd = $null
+        }
+        if (-not $telemetryCmd) {
+            try {
+                $telemetryCmd = Get-Command -Name 'Write-StTelemetryEvent' -Module TelemetryModule -ErrorAction SilentlyContinue
+            } catch {
+                $telemetryCmd = $null
+            }
+        }
+        if (-not $telemetryCmd) {
+            try {
+                $telemetryCmd = Get-Command -Name 'Write-StTelemetryEvent' -ErrorAction SilentlyContinue
+            } catch {
+                $telemetryCmd = $null
+            }
+        }
+    }
+    if (-not $telemetryCmd) { return }
+
+    $sitePrefix = ''
+    try {
+        $sitePrefix = DeviceRepositoryModule\Get-SiteFromHostname -Hostname $Switch1
+    } catch [System.Management.Automation.CommandNotFoundException] {
+        $parts = ('' + $Switch1).Split('-', 2, [System.StringSplitOptions]::RemoveEmptyEntries)
+        if ($parts.Count -gt 0) { $sitePrefix = $parts[0] }
+    } catch { }
+    if (-not $sitePrefix) { $sitePrefix = '' + $Switch1 }
+
+    $vrf = ''
+    $vrfProps = @('Vrf','VRF','VrfName')
+    if ($Row1) { $vrf = Invoke-InterfaceStringPropertyValue -InputObject $Row1 -PropertyNames $vrfProps }
+    if (-not $vrf -and $Row2) { $vrf = Invoke-InterfaceStringPropertyValue -InputObject $Row2 -PropertyNames $vrfProps }
+    if (-not $vrf) {
+        foreach ($candidate in @($Row1, $Row2)) {
+            if (-not $candidate) { continue }
+            foreach ($name in $vrfProps) {
+                try {
+                    if ($candidate.PSObject.Properties[$name] -and $candidate.$name) {
+                        $vrf = '' + $candidate.$name
+                        break
+                    }
+                } catch { }
+            }
+            if ($vrf) { break }
+        }
+    }
+
+    $payload = @{
+        TimestampUtc = (Get-Date).ToUniversalTime().ToString('o')
+        Source       = 'CompareView'
+        Status       = $Status
+        DurationMs   = [Math]::Max(0, [int][Math]::Round($DurationMs, 0))
+        Site         = $sitePrefix
+        Hostname     = '' + $Switch1
+        Hostname2    = '' + $Switch2
+        Port1        = '' + $Port1
+        Port2        = '' + $Port2
+        Vrf          = $vrf
+    }
+
+    try {
+        if ($telemetryCmd -is [scriptblock]) {
+            & $telemetryCmd -Name 'DiffCompareDurationMs' -Payload $payload
+            return
+        }
+        if ($telemetryCmd -is [string]) {
+            & $telemetryCmd -Name 'DiffCompareDurationMs' -Payload $payload
+            return
+        }
+        $telemetryName = $telemetryCmd.Name
+        $telemetryModule = $telemetryCmd.ModuleName
+        if ($telemetryModule) {
+            & "$telemetryModule\$telemetryName" -Name 'DiffCompareDurationMs' -Payload $payload
+        } else {
+            & $telemetryName -Name 'DiffCompareDurationMs' -Payload $payload
+        }
+    } catch { }
+}
+
+# LANDMARK: Compare view telemetry - DiffCompareResultCounts emission (guarded, offline-safe)
+function Write-CompareDiffResultCountsTelemetry {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Switch1,
+        [Parameter(Mandatory)][string]$Port1,
+        [Parameter(Mandatory)][string]$Switch2,
+        [Parameter(Mandatory)][string]$Port2,
+        [Parameter(Mandatory)][string]$Status,
+        [psobject]$Row1,
+        [psobject]$Row2,
+        [int]$DurationMs,
+        $TelemetryCommand
+    )
+
+    $telemetryCmd = $TelemetryCommand
+    if (-not $telemetryCmd) {
+        try {
+            $telemetryCmd = Get-Command -Name 'TelemetryModule\Write-StTelemetryEvent' -ErrorAction SilentlyContinue
+        } catch {
+            $telemetryCmd = $null
+        }
+        if (-not $telemetryCmd) {
+            try {
+                $telemetryCmd = Get-Command -Name 'Write-StTelemetryEvent' -Module TelemetryModule -ErrorAction SilentlyContinue
+            } catch {
+                $telemetryCmd = $null
+            }
+        }
+        if (-not $telemetryCmd) {
+            try {
+                $telemetryCmd = Get-Command -Name 'Write-StTelemetryEvent' -ErrorAction SilentlyContinue
+            } catch {
+                $telemetryCmd = $null
+            }
+        }
+    }
+    if (-not $telemetryCmd) { return }
+
+    $sitePrefix = ''
+    try {
+        $sitePrefix = DeviceRepositoryModule\Get-SiteFromHostname -Hostname $Switch1
+    } catch [System.Management.Automation.CommandNotFoundException] {
+        $parts = ('' + $Switch1).Split('-', 2, [System.StringSplitOptions]::RemoveEmptyEntries)
+        if ($parts.Count -gt 0) { $sitePrefix = $parts[0] }
+    } catch { }
+    if (-not $sitePrefix) { $sitePrefix = '' + $Switch1 }
+
+    $vrf = ''
+    $vrfProps = @('Vrf','VRF','VrfName')
+    if ($Row1) { $vrf = Invoke-InterfaceStringPropertyValue -InputObject $Row1 -PropertyNames $vrfProps }
+    if (-not $vrf -and $Row2) { $vrf = Invoke-InterfaceStringPropertyValue -InputObject $Row2 -PropertyNames $vrfProps }
+    if (-not $vrf) {
+        foreach ($candidate in @($Row1, $Row2)) {
+            if (-not $candidate) { continue }
+            foreach ($name in $vrfProps) {
+                try {
+                    if ($candidate.PSObject.Properties[$name] -and $candidate.$name) {
+                        $vrf = '' + $candidate.$name
+                        break
+                    }
+                } catch { }
+            }
+            if ($vrf) { break }
+        }
+    }
+
+    $counts = [pscustomobject]@{
+        TotalCount     = 0
+        AddedCount     = 0
+        RemovedCount   = 0
+        ChangedCount   = 0
+        UnchangedCount = 0
+    }
+    if ($Status -eq 'Executed' -and $Row1 -and $Row2) {
+        $counts = Get-CompareLineDiffCounts -Row1 $Row1 -Row2 $Row2
+    }
+
+    $payload = [ordered]@{
+        TimestampUtc  = (Get-Date).ToUniversalTime().ToString('o')
+        Source        = 'CompareView'
+        Status        = $Status
+        TotalCount    = [Math]::Max(0, [int]$counts.TotalCount)
+        AddedCount    = [Math]::Max(0, [int]$counts.AddedCount)
+        RemovedCount  = [Math]::Max(0, [int]$counts.RemovedCount)
+        ChangedCount  = [Math]::Max(0, [int]$counts.ChangedCount)
+        UnchangedCount = [Math]::Max(0, [int]$counts.UnchangedCount)
+        Site          = $sitePrefix
+        Hostname      = '' + $Switch1
+        Hostname2     = '' + $Switch2
+        Port1         = '' + $Port1
+        Port2         = '' + $Port2
+        Vrf           = $vrf
+    }
+    if ($PSBoundParameters.ContainsKey('DurationMs') -or $Status -ne 'Executed') {
+        $payload['DurationMs'] = [Math]::Max(0, [int][Math]::Round($DurationMs, 0))
+    }
+
+    try {
+        if ($telemetryCmd -is [scriptblock]) {
+            & $telemetryCmd -Name 'DiffCompareResultCounts' -Payload $payload
+            return
+        }
+        if ($telemetryCmd -is [string]) {
+            & $telemetryCmd -Name 'DiffCompareResultCounts' -Payload $payload
+            return
+        }
+        $telemetryName = $telemetryCmd.Name
+        $telemetryModule = $telemetryCmd.ModuleName
+        if ($telemetryModule) {
+            & "$telemetryModule\$telemetryName" -Name 'DiffCompareResultCounts' -Payload $payload
+        } else {
+            & $telemetryName -Name 'DiffCompareResultCounts' -Payload $payload
+        }
+    } catch { }
+}
+
 function Show-CurrentComparison {
-    # Gathers current selections and displays the comparison in the text boxes
+    # Gathers current selections and displays the comparison in the text boxes  
+    $s1 = $null
+    $s2 = $null
+    $p1 = $null
+    $p2 = $null
+    $compareRow1 = $null
+    $compareRow2 = $null
+    $compareStopwatch = $null
     try {
         $s1 = if ($script:switch1Dropdown) { Get-HostFromCombo -Combo $script:switch1Dropdown } else { $null }
         $s2 = if ($script:switch2Dropdown) { Get-HostFromCombo -Combo $script:switch2Dropdown } else { $null }
@@ -722,18 +1162,31 @@ function Show-CurrentComparison {
         # If both sides have selections, retrieve the corresponding data rows (if possible) and show comparison
         $row1 = Get-GridRowFor -Hostname $s1 -Port $p1
         $row2 = Get-GridRowFor -Hostname $s2 -Port $p2
+        $compareRow1 = $row1
+        $compareRow2 = $row2
         if ($row1 -and $row2) {
             # Both rows are available - pass them directly to the comparison helper
+            $compareStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
             Set-CompareFromRows -Row1 $row1 -Row2 $row2
+            $compareStopwatch.Stop()
             Write-Verbose "[CompareView] Comparison updated for $s1/$p1 vs $s2/$p2."
         }
         else {
             # One or both sides are missing - construct placeholder objects for missing rows
-            $resolvedRow1 = if ($row1) { $row1 } else { [pscustomobject]@{ ToolTip = ''; PortColor = $null } }
-            $resolvedRow2 = if ($row2) { $row2 } else { [pscustomobject]@{ ToolTip = ''; PortColor = $null } }
-            Set-CompareFromRows -Row1 $resolvedRow1 -Row2 $resolvedRow2
+            $compareRow1 = if ($row1) { $row1 } else { [pscustomobject]@{ ToolTip = ''; PortColor = $null } }
+            $compareRow2 = if ($row2) { $row2 } else { [pscustomobject]@{ ToolTip = ''; PortColor = $null } }
+            $compareStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+            Set-CompareFromRows -Row1 $compareRow1 -Row2 $compareRow2
+            $compareStopwatch.Stop()
             Write-Verbose "[CompareView] Partial data: one or both rows not found in grid for $s1/$p1 vs $s2/$p2."
         }
+
+        $telemetryOverride = $script:CompareTelemetryCommandOverride
+        Write-CompareDiffUsageTelemetry -Switch1 $s1 -Port1 $p1 -Switch2 $s2 -Port2 $p2 -Row1 $compareRow1 -Row2 $compareRow2 -TelemetryCommand $telemetryOverride
+        if ($compareStopwatch) {
+            Write-CompareDiffDurationTelemetry -Switch1 $s1 -Port1 $p1 -Switch2 $s2 -Port2 $p2 -Row1 $compareRow1 -Row2 $compareRow2 -DurationMs ([int][Math]::Round($compareStopwatch.Elapsed.TotalMilliseconds, 0)) -Status 'Executed' -TelemetryCommand $telemetryOverride
+        }
+        Write-CompareDiffResultCountsTelemetry -Switch1 $s1 -Port1 $p1 -Switch2 $s2 -Port2 $p2 -Row1 $compareRow1 -Row2 $compareRow2 -Status 'Executed' -TelemetryCommand $telemetryOverride
 
         try {
             $sitePrefix = ''
@@ -758,6 +1211,12 @@ function Show-CurrentComparison {
         } catch { }
     }
     catch {
+        if ($compareStopwatch -and $compareStopwatch.IsRunning) { $compareStopwatch.Stop() }
+        if ($compareStopwatch -and -not [string]::IsNullOrWhiteSpace($s1) -and -not [string]::IsNullOrWhiteSpace($p1) -and -not [string]::IsNullOrWhiteSpace($s2) -and -not [string]::IsNullOrWhiteSpace($p2)) {
+            $telemetryOverride = $script:CompareTelemetryCommandOverride
+            Write-CompareDiffDurationTelemetry -Switch1 $s1 -Port1 $p1 -Switch2 $s2 -Port2 $p2 -Row1 $compareRow1 -Row2 $compareRow2 -DurationMs ([int][Math]::Round($compareStopwatch.Elapsed.TotalMilliseconds, 0)) -Status 'Failed' -TelemetryCommand $telemetryOverride
+            Write-CompareDiffResultCountsTelemetry -Switch1 $s1 -Port1 $p1 -Switch2 $s2 -Port2 $p2 -Row1 $compareRow1 -Row2 $compareRow2 -DurationMs ([int][Math]::Round($compareStopwatch.Elapsed.TotalMilliseconds, 0)) -Status 'Failed' -TelemetryCommand $telemetryOverride
+        }
         Write-Warning "[CompareView] Failed to compute comparison: $($_.Exception.Message)"
     }
 }

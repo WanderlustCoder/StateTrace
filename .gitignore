@@ -8,6 +8,14 @@ Desktop.ini
 # Local data stores
 Data/
 Logs/
+!Data/
+!Data/Samples/
+!Data/Samples/DiffPrototype/
+!Data/Samples/DiffPrototype/**
+!Logs/
+!Logs/Research/
+!Logs/Research/DiffPrototype/
+!Logs/Research/DiffPrototype/metrics.csv
 DebugLogs/*
 !DebugLogs/.gitkeep
 !DebugLogs/README.md

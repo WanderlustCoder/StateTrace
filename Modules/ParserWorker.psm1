@@ -409,7 +409,9 @@ function Invoke-StateTraceParsing {
 
         [string]$SharedCacheSnapshotExportPath,
 
-        [string]$LogRoot
+        [string]$LogRoot,
+
+        [switch]$UseBalancedHostOrder
 
     )
 
@@ -478,6 +480,76 @@ function Invoke-StateTraceParsing {
     }
 
     $deviceFiles = @($allExtractedFiles | Where-Object { $_.BaseName -ne '_unknown' } | Select-Object -ExpandProperty FullName)
+
+    function Get-DeviceHostnameFromPath([string]$PathValue) {
+        if ([string]::IsNullOrWhiteSpace($PathValue)) { return 'Unknown' }
+        try {
+            $name = [System.IO.Path]::GetFileNameWithoutExtension($PathValue)
+            if ([string]::IsNullOrWhiteSpace($name)) { return 'Unknown' }
+            return $name
+        } catch {
+            return 'Unknown'
+        }
+    }
+
+    function Get-DeviceSiteKey([string]$Hostname) {
+        if ([string]::IsNullOrWhiteSpace($Hostname)) { return 'Unknown' }
+        try {
+            $parts = $Hostname.Split('-', 2, [System.StringSplitOptions]::RemoveEmptyEntries)
+            if ($parts.Count -gt 0 -and -not [string]::IsNullOrWhiteSpace($parts[0])) {
+                return $parts[0]
+            }
+        } catch { }
+        return 'Unknown'
+    }
+
+    function Get-BalancedDeviceFileOrder {
+        param([string[]]$DeviceFiles)
+
+        if (-not $DeviceFiles -or $DeviceFiles.Count -le 1) { return $DeviceFiles }
+
+        $siteQueues = @{}
+        foreach ($filePath in $DeviceFiles) {
+            if ([string]::IsNullOrWhiteSpace($filePath)) { continue }
+            $hostname = Get-DeviceHostnameFromPath -PathValue $filePath
+            $siteKey = Get-DeviceSiteKey -Hostname $hostname
+            if (-not $siteQueues.ContainsKey($siteKey)) {
+                $siteQueues[$siteKey] = New-Object 'System.Collections.Generic.Queue[string]'
+            }
+            $siteQueues[$siteKey].Enqueue($filePath)
+        }
+
+        if ($siteQueues.Count -le 1) { return $DeviceFiles }
+
+        $siteOrder = $siteQueues.GetEnumerator() |
+            Sort-Object @{ Expression = { $_.Value.Count }; Descending = $true },
+                         @{ Expression = { $_.Key }; Descending = $false } |
+            ForEach-Object { $_.Key }
+
+        $balanced = [System.Collections.Generic.List[string]]::new()
+        while ($true) {
+            $added = $false
+            foreach ($siteKey in $siteOrder) {
+                $queue = $siteQueues[$siteKey]
+                if ($queue.Count -gt 0) {
+                    $balanced.Add($queue.Dequeue()) | Out-Null
+                    $added = $true
+                }
+            }
+            if (-not $added) { break }
+        }
+
+        return $balanced.ToArray()
+    }
+
+    if ($UseBalancedHostOrder.IsPresent -and $deviceFiles.Count -gt 1) {
+        # LANDMARK: Host sweep balancing - deterministic interleaving to reduce site streaks
+        $balancedFiles = Get-BalancedDeviceFileOrder -DeviceFiles $deviceFiles
+        if ($balancedFiles -and $balancedFiles.Count -gt 0) {
+            $deviceFiles = $balancedFiles
+            Write-Host 'Balancing device log order across sites for parsing.' -ForegroundColor DarkCyan
+        }
+    }
 
     $logSetStats = Get-DeviceLogSetStatistics -DeviceFiles $deviceFiles
 

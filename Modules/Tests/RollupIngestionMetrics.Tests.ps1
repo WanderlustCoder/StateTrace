@@ -16,6 +16,11 @@ Describe 'Rollup-IngestionMetrics.ps1' {
             '{"EventName":"SkippedDuplicate","Site":"WLLS","Hostname":"WLLS-A02"}'
             '{"EventName":"InterfaceSyncTiming","Site":"BOYO","Hostname":"BOYO-A01","SiteCacheFetchDurationMs":200.0,"SiteCacheFetchStatus":"Hydrated","SiteCacheProvider":"Refresh"}'
             '{"EventName":"InterfaceSyncTiming","Site":"WLLS","Hostname":"WLLS-A02","SiteCacheFetchDurationMs":0.0,"SiteCacheFetchStatus":"Hit","SiteCacheProvider":"Cache"}'
+            # LANDMARK: Rollup ingestion metrics tests - diff telemetry fixtures
+            '{"EventName":"DiffUsageRate","UsageNumerator":1,"UsageDenominator":1,"Status":"Executed","Site":"BOYO","Hostname":"BOYO-A01"}'
+            '{"EventName":"DiffUsageRate","UsageNumerator":1,"UsageDenominator":2,"Status":"Executed","Site":"WLLS","Hostname":"WLLS-A01"}'
+            '{"EventName":"DriftDetectionTime","DurationMinutes":12.5,"Site":"BOYO","Hostname":"BOYO-A01"}'
+            '{"EventName":"DriftDetectionTime","DurationMinutes":7.5,"Site":"WLLS","Hostname":"WLLS-A01"}'
         )
 
         $samplePath = Join-Path -Path $testMetricsDir -ChildPath '2025-10-03.json'
@@ -97,6 +102,71 @@ Describe 'Rollup-IngestionMetrics.ps1' {
         @($wllsFetch).Count | Should Be 1
         $wllsFetch.Count | Should Be 0
         $wllsFetch.Notes | Should Be 'Statuses=Hit=1; Providers=Cache=1; ZeroCount=1'
+    }
+
+    # LANDMARK: Rollup ingestion metrics tests - diff telemetry coverage
+    It 'summarises diff usage rate events' {
+        $usageRow = $ScriptResults | Where-Object { $_.Metric -eq 'DiffUsageRate' -and $_.Scope -eq 'All' }
+        $usageRow | Should Not BeNullOrEmpty
+        $usageRow.Count | Should Be 2
+        $usageRow.Total | Should Be 2
+        $usageRow.SecondaryTotal | Should Be 3
+        ([Math]::Abs($usageRow.Average - 0.667) -lt 0.01) | Should Be $true
+        $usageRow.Notes | Should Be 'Statuses=Executed=2'
+    }
+
+    It 'summarises drift detection time events' {
+        $driftRow = $ScriptResults | Where-Object { $_.Metric -eq 'DriftDetectionTimeMinutes' -and $_.Scope -eq 'All' }
+        $driftRow | Should Not BeNullOrEmpty
+        $driftRow.Count | Should Be 2
+        $driftRow.Average | Should Be 10
+        $driftRow.Max | Should Be 12.5
+        $driftRow.Total | Should Be 20
+    }
+
+    # LANDMARK: Rollup ingestion metrics tests - diff/compare telemetry fixture coverage
+    Context 'Diff/compare telemetry fixture coverage' {
+        It 'rolls up diff/compare telemetry from the DiffPrototype fixture' {
+            $repoRoot = Split-Path -Path $PSScriptRoot -Parent | Split-Path -Parent
+            $fixturePath = Join-Path -Path $repoRoot -ChildPath 'Data\Samples\DiffPrototype\TelemetrySample.json'
+            $outputPath = Join-Path -Path $TestDrive -ChildPath 'fixture-summary.csv'
+            $rows = & $script:RollupScriptPath -MetricFile $fixturePath -OutputPath $outputPath -IncludePerSite -PassThru
+
+            $usageRow = $rows | Where-Object { $_.Metric -eq 'DiffUsageRate' -and $_.Scope -eq 'All' }
+            $usageRow | Should Not BeNullOrEmpty
+            $usageRow.Count | Should Be 2
+            $usageRow.Total | Should Be 2
+            $usageRow.SecondaryTotal | Should Be 3
+            $usageRow.Notes | Should Be 'Statuses=Executed=2'
+
+            $durationRow = $rows | Where-Object { $_.Metric -eq 'DiffCompareDurationMs' -and $_.Scope -eq 'All' }
+            $durationRow | Should Not BeNullOrEmpty
+            $durationRow.Count | Should Be 1
+            $durationRow.Average | Should Be 150
+            $durationRow.P95 | Should Be 150
+            $durationRow.Max | Should Be 150
+            $durationRow.Total | Should Be 150
+            $durationRow.Notes | Should Be 'Statuses=Executed=1'
+
+            $countsRow = $rows | Where-Object { $_.Metric -eq 'DiffCompareResultCounts' -and $_.Scope -eq 'All' }
+            $countsRow | Should Not BeNullOrEmpty
+            $countsRow.Count | Should Be 1
+            $countsRow.Average | Should Be 4
+            $countsRow.P95 | Should Be 4
+            $countsRow.Max | Should Be 4
+            $countsRow.Total | Should Be 4
+            $countsRow.Notes | Should Match 'Added=1'
+            $countsRow.Notes | Should Match 'Removed=1'
+            $countsRow.Notes | Should Match 'Changed=0'
+            $countsRow.Notes | Should Match 'Unchanged=2'
+            $countsRow.Notes | Should Match 'Statuses=Executed=1'
+
+            $driftRow = $rows | Where-Object { $_.Metric -eq 'DriftDetectionTimeMinutes' -and $_.Scope -eq 'All' }
+            $driftRow | Should Not BeNullOrEmpty
+            $driftRow.Count | Should Be 2
+            $driftRow.Average | Should Be 10
+            $driftRow.Max | Should Be 12.5
+        }
     }
 
     Context 'Filtering switches' {

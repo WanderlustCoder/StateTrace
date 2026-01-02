@@ -15,6 +15,9 @@ param(
     [switch]$DisableSkipSiteCacheUpdate,
     [switch]$SkipPortDiversityGuard,
     [int]$PortBatchMaxConsecutiveOverride,
+    [switch]$ForcePortBatchReadySynthesis,
+    [switch]$UseBalancedHostOrder,
+    [switch]$RawPortDiversityAutoConcurrency,
     [switch]$SkipWarmValidation,
     [switch]$PreserveModuleSession,
     [switch]$RunWarmRunRegression,
@@ -29,7 +32,7 @@ param(
     [switch]$RunQueueDelayHarness,
     [string[]]$QueueDelayHarnessHosts,
     [string[]]$QueueDelayHarnessSiteFilter = @(),
-    [int]$QueueDelayHarnessMaxHosts = 4,
+    [int]$QueueDelayHarnessMaxHosts = 12,
     [double]$QueueDelayHarnessWarningMs = 120,
     [double]$QueueDelayHarnessCriticalMs = 200,
     [switch]$VerifyTelemetryCompleteness,
@@ -46,6 +49,17 @@ $sharedCacheSnapshotEnvApplied = $false
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+$forcePortBatchSynthesis = $ForcePortBatchReadySynthesis.IsPresent
+if ($forcePortBatchSynthesis) {
+    # LANDMARK: PortBatchReady synthesis - warn when enabled
+    Write-Warning 'PortBatchReady synthesis is enabled; telemetry will be modified in-place and a .bak copy will be created.'
+}
+
+$rawPortDiversityAutoConcurrency = $RawPortDiversityAutoConcurrency.IsPresent
+if ($rawPortDiversityAutoConcurrency -and $ForcePortBatchReadySynthesis.IsPresent) {
+    throw 'RawPortDiversityAutoConcurrency cannot be combined with ForcePortBatchReadySynthesis. Run raw mode without synthesis.'
+}
 
 $profileBoundParameters = $PSBoundParameters
 function Set-ProfileSwitch {
@@ -105,7 +119,54 @@ $parserWorkerModule = Join-Path -Path $modulesPath -ChildPath 'ParserWorker.psm1
 $ingestionMetricsDirectory = Join-Path -Path $repositoryRoot -ChildPath 'Logs\IngestionMetrics'
 $reportsDirectory = Join-Path -Path $repositoryRoot -ChildPath 'Logs\Reports'
 $settingsPath = Join-Path -Path $repositoryRoot -ChildPath 'Data\StateTraceSettings.json'
+$rawPortDiversitySnapshot = $null
+$rawPortDiversityReset = $null
+$rawPortDiversityHistorySnapshot = $null
 $skipSiteCacheGuard = $null
+
+if ($rawPortDiversityAutoConcurrency) {
+    # LANDMARK: Raw diversity auto concurrency - disable serialized overrides for this pass
+    try {
+        $rawPortDiversitySnapshot = Get-ConcurrencyOverrideSnapshot -SettingsPath $settingsPath
+    } catch {
+        Write-Warning ("Failed to snapshot concurrency overrides: {0}" -f $_.Exception.Message)
+    }
+    try {
+        $rawPortDiversityReset = Reset-ConcurrencyOverrideSettings -SettingsPath $settingsPath -Label 'RawPortDiversityAutoConcurrency'
+    } catch {
+        Write-Warning ("Failed to reset concurrency overrides for raw diversity: {0}" -f $_.Exception.Message)
+    }
+    Write-Host 'Raw port diversity auto concurrency enabled; manual overrides suppressed for this run.' -ForegroundColor DarkCyan
+    $manualOverrideParamsPresent = ($PSBoundParameters.ContainsKey('ThreadCeilingOverride') -or
+        $PSBoundParameters.ContainsKey('MaxWorkersPerSiteOverride') -or
+        $PSBoundParameters.ContainsKey('MaxActiveSitesOverride') -or
+        $PSBoundParameters.ContainsKey('MaxConsecutiveSiteLaunchesOverride') -or
+        $PSBoundParameters.ContainsKey('JobsPerThreadOverride') -or
+        $PSBoundParameters.ContainsKey('MinRunspacesOverride'))
+    if ($manualOverrideParamsPresent) {
+        Write-Warning 'Raw diversity auto concurrency ignores manual override parameters for this run.'
+    }
+
+    # LANDMARK: Raw diversity auto concurrency - temporary ingestion history reset
+    $historyPath = Join-Path -Path $repositoryRoot -ChildPath 'Data\IngestionHistory'
+    $rawPortDiversityHistorySnapshot = [pscustomobject]@{
+        Path       = $historyPath
+        BackupPath = $null
+        Existed    = $false
+    }
+    try {
+        if (Test-Path -LiteralPath $historyPath) {
+            $rawPortDiversityHistorySnapshot.Existed = $true
+            $backupPath = Join-Path -Path $repositoryRoot -ChildPath ("Data\IngestionHistory.backup-{0}" -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
+            Move-Item -LiteralPath $historyPath -Destination $backupPath -Force
+            $rawPortDiversityHistorySnapshot.BackupPath = $backupPath
+        }
+        New-Item -ItemType Directory -Path $historyPath -Force | Out-Null
+        Write-Host ("Raw port diversity auto concurrency reset ingestion history at '{0}'." -f $historyPath) -ForegroundColor DarkCyan
+    } catch {
+        Write-Warning ("Failed to reset ingestion history for raw diversity: {0}" -f $_.Exception.Message)
+    }
+}
 
 function Invoke-WarmRunRegressionInternal {
     $warmRunRegressionScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Invoke-WarmRunRegression.ps1'
@@ -124,6 +185,14 @@ function Invoke-WarmRunRegressionInternal {
     }
     if ($SkipPortDiversityGuard) {
         $argumentList += '-SkipPortDiversityGuard'
+    }
+    if ($ForcePortBatchReadySynthesis) {
+        # LANDMARK: PortBatchReady synthesis - propagate forced synthesis to warm-run regression
+        $argumentList += '-ForcePortBatchReadySynthesis'
+    }
+    if ($UseBalancedHostOrder.IsPresent) {
+        # LANDMARK: Host sweep balancing - propagate to warm-run regression
+        $argumentList += '-UseBalancedHostOrder'
     }
     if ($PSBoundParameters.ContainsKey('PortBatchMaxConsecutiveOverride')) {
         $argumentList += @('-PortBatchMaxConsecutiveOverride', $PortBatchMaxConsecutiveOverride)
@@ -248,6 +317,79 @@ function Resolve-QueueDelayHarnessHosts {
         $hosts = @($hosts | Select-Object -First $MaxHosts)
     }
     return @($hosts)
+}
+
+# LANDMARK: Telemetry event counts - detect missing queue/stream metrics
+function Get-TelemetryEventCount {
+    param(
+        [string]$MetricsPath,
+        [string]$EventName
+    )
+
+    if ([string]::IsNullOrWhiteSpace($MetricsPath) -or -not (Test-Path -LiteralPath $MetricsPath)) {
+        return 0
+    }
+    if ([string]::IsNullOrWhiteSpace($EventName)) { return 0 }
+
+    $count = 0
+    try {
+        foreach ($line in [System.IO.File]::ReadLines($MetricsPath)) {
+            if ([string]::IsNullOrWhiteSpace($line)) { continue }
+            if ($line.IndexOf($EventName, [System.StringComparison]::OrdinalIgnoreCase) -lt 0) { continue }
+            try {
+                $obj = $line | ConvertFrom-Json -ErrorAction Stop
+                if ($obj -and $obj.EventName -eq $EventName) {
+                    $count++
+                }
+            } catch { }
+        }
+    } catch { }
+
+    return $count
+}
+
+# LANDMARK: Telemetry event timestamps - capture latest PortBatchReady time
+function Get-TelemetryEventLatestTimestamp {
+    param(
+        [string]$MetricsPath,
+        [string]$EventName,
+        [datetime]$SinceTimestamp,
+        [datetime]$UntilTimestamp
+    )
+
+    if ([string]::IsNullOrWhiteSpace($MetricsPath) -or -not (Test-Path -LiteralPath $MetricsPath)) {
+        return $null
+    }
+    if ([string]::IsNullOrWhiteSpace($EventName)) { return $null }
+
+    $latest = $null
+    $sinceUtc = $null
+    if ($PSBoundParameters.ContainsKey('SinceTimestamp')) {
+        $sinceUtc = $SinceTimestamp.ToUniversalTime()
+    }
+    $untilUtc = $null
+    if ($PSBoundParameters.ContainsKey('UntilTimestamp')) {
+        $untilUtc = $UntilTimestamp.ToUniversalTime()
+    }
+    try {
+        foreach ($line in [System.IO.File]::ReadLines($MetricsPath)) {
+            if ([string]::IsNullOrWhiteSpace($line)) { continue }
+            if ($line.IndexOf($EventName, [System.StringComparison]::OrdinalIgnoreCase) -lt 0) { continue }
+            try {
+                $obj = $line | ConvertFrom-Json -ErrorAction Stop
+                if ($obj -and $obj.EventName -eq $EventName -and $obj.Timestamp) {
+                    $stamp = ([datetime]$obj.Timestamp).ToUniversalTime()
+                    if ($sinceUtc -and $stamp -lt $sinceUtc) { continue }
+                    if ($untilUtc -and $stamp -gt $untilUtc) { continue }
+                    if (-not $latest -or $stamp -gt $latest) {
+                        $latest = $stamp
+                    }
+                }
+            } catch { }
+        }
+    } catch { }
+
+    return $latest
 }
 
 function Restore-SharedCacheEntries {
@@ -469,6 +611,60 @@ function Get-ConcurrencyOverrideParameters {
     return $overrides
 }
 
+function Get-ConcurrencyProfileSummaryFromMetrics {
+    [CmdletBinding()]
+    param([string]$MetricsPath)
+
+    if ([string]::IsNullOrWhiteSpace($MetricsPath) -or -not (Test-Path -LiteralPath $MetricsPath)) {
+        return $null
+    }
+
+    $lastEvent = $null
+    try {
+        foreach ($line in [System.IO.File]::ReadLines($MetricsPath)) {
+            if ([string]::IsNullOrWhiteSpace($line)) { continue }
+            if ($line.IndexOf('ConcurrencyProfileResolved', [System.StringComparison]::OrdinalIgnoreCase) -lt 0) { continue }
+            try {
+                $event = $line | ConvertFrom-Json -ErrorAction Stop
+                if ($event -and $event.EventName -eq 'ConcurrencyProfileResolved') {
+                    $lastEvent = $event
+                }
+            } catch { }
+        }
+    } catch { }
+
+    if (-not $lastEvent) { return $null }
+
+    $summaryFields = @(
+        'ManualOverrides',
+        'DecisionSource',
+        'ThreadCeiling',
+        'MaxWorkersPerSite',
+        'MaxActiveSites',
+        'JobsPerThread',
+        'MinRunspaces',
+        'ResolvedThreadCeiling',
+        'ResolvedMaxWorkersPerSite',
+        'ResolvedMaxActiveSites',
+        'ResolvedJobsPerThread',
+        'ResolvedMinRunspaces',
+        'ResolvedMaxConsecutiveSiteLaunches',
+        'OverrideThreadCeiling',
+        'OverrideMaxWorkersPerSite',
+        'OverrideMaxActiveSites',
+        'OverrideJobsPerThread',
+        'OverrideMinRunspaces'
+    )
+    $summary = [ordered]@{}
+    foreach ($field in $summaryFields) {
+        if ($lastEvent.PSObject.Properties.Name -contains $field) {
+            $summary[$field] = $lastEvent.$field
+        }
+    }
+    if ($summary.Count -eq 0) { return $null }
+    return [pscustomobject]$summary
+}
+
 function Write-ConcurrencyOverrideTelemetry {
     [CmdletBinding()]
     param(
@@ -512,13 +708,18 @@ function Write-ConcurrencyOverrideTelemetry {
         & $telemetryCmd -Name 'ConcurrencyOverrideSummary' -Payload $payload
     } catch { }
 
-    $flushCmd = Get-TelemetryModuleCommand -Name 'Flush-StTelemetryBuffer'
+    # LANDMARK: Telemetry buffer rename - resolve approved-verb command
+    $flushCmd = Get-TelemetryModuleCommand -Name 'Save-StTelemetryBuffer'
     if ($flushCmd) {
         try { & $flushCmd | Out-Null } catch { }
     }
 }
 
-$parameterOverrides = Get-ConcurrencyOverrideParameters -BoundParameters $PSBoundParameters
+$parameterOverrides = if ($rawPortDiversityAutoConcurrency) {
+    [ordered]@{}
+} else {
+    Get-ConcurrencyOverrideParameters -BoundParameters $PSBoundParameters
+}
 
 function Get-SharedCacheSnapshotSummary {
     param([Parameter(Mandatory)][string]$SnapshotPath)
@@ -602,7 +803,8 @@ function Write-SharedCacheSnapshotSummaryFiles {
 
     if (-not (Test-Path -LiteralPath $SnapshotPath)) { return }
 
-    $summaryEntries = Get-SharedCacheSnapshotSummary -SnapshotPath $SnapshotPath
+    # LANDMARK: Shared cache summary - ensure collection semantics for single entries
+    $summaryEntries = @(Get-SharedCacheSnapshotSummary -SnapshotPath $SnapshotPath)
     if (-not $summaryEntries -or $summaryEntries.Count -eq 0) {
         Write-Verbose ("Shared cache snapshot '{0}' did not contain any entries to summarise." -f $SnapshotPath)
         return
@@ -816,6 +1018,8 @@ if ($DisablePreserveRunspace) {
 } else {
     Write-Host 'Starting ingestion run via Invoke-StateTraceParsing (preserved runspace pool)...' -ForegroundColor Cyan
 }
+$ingestionStartUtc = (Get-Date).ToUniversalTime().AddSeconds(-2)
+$ingestionEndUtc = $null
 $parserWorkerName = [System.IO.Path]::GetFileNameWithoutExtension($parserWorkerModule)
 $existingParserWorker = $null
 if (-not [string]::IsNullOrWhiteSpace($parserWorkerName)) {
@@ -843,23 +1047,27 @@ if (-not $DisablePreserveRunspace) {
 if ($PSBoundParameters.ContainsKey('DatabasePath')) {
     $invokeParams['DatabasePath'] = $DatabasePath
 }
-if ($PSBoundParameters.ContainsKey('ThreadCeilingOverride')) {
+if (-not $rawPortDiversityAutoConcurrency -and $PSBoundParameters.ContainsKey('ThreadCeilingOverride')) {
     $invokeParams['ThreadCeilingOverride'] = $ThreadCeilingOverride
 }
-if ($PSBoundParameters.ContainsKey('MaxWorkersPerSiteOverride')) {
+if (-not $rawPortDiversityAutoConcurrency -and $PSBoundParameters.ContainsKey('MaxWorkersPerSiteOverride')) {
     $invokeParams['MaxWorkersPerSiteOverride'] = $MaxWorkersPerSiteOverride
 }
-if ($PSBoundParameters.ContainsKey('MaxActiveSitesOverride')) {
+if (-not $rawPortDiversityAutoConcurrency -and $PSBoundParameters.ContainsKey('MaxActiveSitesOverride')) {
     $invokeParams['MaxActiveSitesOverride'] = $MaxActiveSitesOverride
 }
-if ($PSBoundParameters.ContainsKey('MaxConsecutiveSiteLaunchesOverride')) {
+if (-not $rawPortDiversityAutoConcurrency -and $PSBoundParameters.ContainsKey('MaxConsecutiveSiteLaunchesOverride')) {
     $invokeParams['MaxConsecutiveSiteLaunchesOverride'] = $MaxConsecutiveSiteLaunchesOverride
 }
-if ($PSBoundParameters.ContainsKey('JobsPerThreadOverride')) {
+if (-not $rawPortDiversityAutoConcurrency -and $PSBoundParameters.ContainsKey('JobsPerThreadOverride')) {
     $invokeParams['JobsPerThreadOverride'] = $JobsPerThreadOverride
 }
-if ($PSBoundParameters.ContainsKey('MinRunspacesOverride')) {
+if (-not $rawPortDiversityAutoConcurrency -and $PSBoundParameters.ContainsKey('MinRunspacesOverride')) {
     $invokeParams['MinRunspacesOverride'] = $MinRunspacesOverride
+}
+if ($UseBalancedHostOrder.IsPresent) {
+    # LANDMARK: Host sweep balancing - deterministic interleaving to reduce site streaks
+    $invokeParams['UseBalancedHostOrder'] = $true
 }
 if (-not [string]::IsNullOrWhiteSpace($effectiveSharedCacheSnapshotExportPath)) {
     $invokeParams['SharedCacheSnapshotExportPath'] = $effectiveSharedCacheSnapshotExportPath
@@ -888,9 +1096,59 @@ try {
 }
 
 Write-Host 'Ingestion run completed.' -ForegroundColor Green
+# LANDMARK: Port diversity window - capture latest PortBatchReady timestamp from initial run
+$ingestionEndUtc = $null
+$ingestionEndFallbackUsed = $false
+$ingestionMetricsPath = $null
+try {
+    $flushCmd = Get-TelemetryModuleCommand -Name 'Save-StTelemetryBuffer'
+    if ($flushCmd) {
+        & $flushCmd | Out-Null
+    }
+} catch { }
+try {
+    $telemetryPathCmd = Get-TelemetryModuleCommand -Name 'Get-TelemetryLogPath'
+    if ($telemetryPathCmd) {
+        $ingestionMetricsPath = & $telemetryPathCmd
+    }
+} catch { }
+if (-not [string]::IsNullOrWhiteSpace($ingestionMetricsPath) -and (Test-Path -LiteralPath $ingestionMetricsPath)) {
+    for ($attempt = 0; $attempt -lt 5 -and -not $ingestionEndUtc; $attempt++) {
+        try {
+            $flushCmd = Get-TelemetryModuleCommand -Name 'Save-StTelemetryBuffer'
+            if ($flushCmd) {
+                & $flushCmd | Out-Null
+            }
+        } catch { }
+        $ingestionEndUtc = Get-TelemetryEventLatestTimestamp -MetricsPath $ingestionMetricsPath -EventName 'PortBatchReady' -SinceTimestamp $ingestionStartUtc
+        if (-not $ingestionEndUtc) {
+            Start-Sleep -Milliseconds 200
+        }
+    }
+}
+if (-not $ingestionEndUtc -and (Test-Path -LiteralPath $ingestionMetricsDirectory)) {
+    $fallbackMetrics = Get-ChildItem -LiteralPath $ingestionMetricsDirectory -Filter '*.json' -File |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
+    if ($fallbackMetrics) {
+        $ingestionEndUtc = Get-TelemetryEventLatestTimestamp -MetricsPath $fallbackMetrics.FullName -EventName 'PortBatchReady' -SinceTimestamp $ingestionStartUtc
+    }
+}
+if ($ingestionEndUtc -and $ingestionEndUtc -lt $ingestionStartUtc) {
+    Write-Warning 'PortBatchReady timestamps were not detected after the ingestion start; widening window to current time.'
+    $ingestionEndUtc = $null
+}
+if (-not $ingestionEndUtc) {
+    Write-Warning 'Unable to locate latest PortBatchReady timestamp; falling back to current time.'
+    $ingestionEndUtc = (Get-Date).ToUniversalTime()
+    $ingestionEndFallbackUsed = $true
+}
 
-if ($RunWarmRunRegression) {
+if ($RunWarmRunRegression -and -not $rawPortDiversityAutoConcurrency) {
     Invoke-WarmRunRegressionInternal
+} elseif ($RunWarmRunRegression -and $rawPortDiversityAutoConcurrency) {
+    # LANDMARK: Raw diversity auto concurrency - avoid warm-run regression overrides
+    Write-Warning 'Raw port diversity auto concurrency enabled; warm-run regression skipped for this run.'
 }
 
 $latestIngestionMetricsEntry = $null
@@ -939,6 +1197,7 @@ $interfaceSyncReportPath = $null
 $portDiversityReportPath = $null
 if (-not $QuickMode) {
     if ($RunQueueDelayHarness) {
+        # LANDMARK: Queue delay sample floor - expand host sweep for stable sample size
         try {
             $queueHosts = Resolve-QueueDelayHarnessHosts -ExplicitHosts $QueueDelayHarnessHosts -SiteFilter $QueueDelayHarnessSiteFilter -MaxHosts $QueueDelayHarnessMaxHosts -RepositoryRoot $repositoryRoot -ModulesPath $modulesPath
             if ($queueHosts -and $queueHosts.Count -gt 0) {
@@ -961,6 +1220,66 @@ if (-not $QuickMode) {
             Write-Warning ("Queue delay harness sweep failed: {0}" -f $_.Exception.Message)
         }
     }
+
+    $queueMetricsCount = 0
+    $streamMetricsCount = 0
+    if ($latestIngestionMetricsEntry) {
+        $queueMetricsCount = Get-TelemetryEventCount -MetricsPath $latestIngestionMetricsEntry.FullName -EventName 'InterfacePortQueueMetrics'
+        $streamMetricsCount = Get-TelemetryEventCount -MetricsPath $latestIngestionMetricsEntry.FullName -EventName 'InterfacePortStreamMetrics'
+    }
+
+    $queueDelayMinimumEventCount = 10
+    if ($latestIngestionMetricsEntry -and (
+            ($RunQueueDelayHarness -and $queueMetricsCount -lt $queueDelayMinimumEventCount) -or
+            ($ForcePortBatchReadySynthesis.IsPresent -and $queueMetricsCount -eq 0 -and $streamMetricsCount -eq 0)
+        )) {
+        # LANDMARK: Queue delay harness fallback - seed stream/queue metrics via headless checklist
+        $checklistScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Invoke-InterfacesViewChecklist.ps1'
+        if (-not (Test-Path -LiteralPath $checklistScript)) {
+            Write-Warning ("Interfaces view checklist script '{0}' not found; queue delay telemetry may be incomplete." -f $checklistScript)
+        } else {
+            $checklistOutput = Join-Path -Path $reportsDirectory -ChildPath ("InterfacesViewChecklist-{0}.json" -f $metricsReportSuffix)
+            $checklistSummary = Join-Path -Path $reportsDirectory -ChildPath ("InterfacesViewQuickstart-{0}.json" -f $metricsReportSuffix)
+            $checklistArgs = @(
+                '-NoLogo',
+                '-NoProfile',
+                '-STA',
+                '-File',
+                $checklistScript,
+                '-MaxHosts',
+                $QueueDelayHarnessMaxHosts,
+                '-SynthesizePortBatchReady:$false',
+                '-OutputPath',
+                $checklistOutput,
+                '-SummaryPath',
+                $checklistSummary
+            )
+            if ($QueueDelayHarnessSiteFilter -and $QueueDelayHarnessSiteFilter.Count -gt 0) {
+                $siteToken = ($QueueDelayHarnessSiteFilter -join ',')
+                if (-not [string]::IsNullOrWhiteSpace($siteToken)) {
+                    $checklistArgs += @('-SiteFilter', $siteToken)
+                }
+            }
+
+            Write-Host ("Running headless Interfaces checklist to seed telemetry (QueueMetrics={0}, StreamMetrics={1})..." -f $queueMetricsCount, $streamMetricsCount) -ForegroundColor Cyan
+            try {
+                $pwshCommand = Get-Command -Name 'pwsh' -ErrorAction Stop
+                & $pwshCommand.Source @checklistArgs
+                $checklistExit = $LASTEXITCODE
+                if ($checklistExit -ne 0) {
+                    Write-Warning ("Interfaces checklist exited with code {0}; queue delay telemetry may remain incomplete." -f $checklistExit)
+                }
+            } catch {
+                Write-Warning ("Interfaces checklist launch failed: {0}" -f $_.Exception.Message)
+            }
+
+            if ($latestIngestionMetricsEntry) {
+                $queueMetricsCount = Get-TelemetryEventCount -MetricsPath $latestIngestionMetricsEntry.FullName -EventName 'InterfacePortQueueMetrics'
+                $streamMetricsCount = Get-TelemetryEventCount -MetricsPath $latestIngestionMetricsEntry.FullName -EventName 'InterfacePortStreamMetrics'
+                Write-Host ("Queue/stream metrics after checklist: Queue={0}, Stream={1}" -f $queueMetricsCount, $streamMetricsCount) -ForegroundColor DarkCyan
+            }
+        }
+    }
     try {
         $queueSummaryScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Generate-QueueDelaySummary.ps1'
         if (-not (Test-Path -LiteralPath $queueSummaryScript)) {
@@ -975,6 +1294,25 @@ if (-not $QuickMode) {
     } catch {
         Write-Warning ("Queue delay summary generation failed: {0}" -f $_.Exception.Message)
         $queueSummaryPath = $null
+    }
+
+    try {
+        if ($ForcePortBatchReadySynthesis.IsPresent) {
+            # LANDMARK: PortBatchReady synthesis - allow synthesized batches for diversity guard
+            if (-not $latestIngestionMetricsEntry) {
+                Write-Warning 'PortBatchReady synthesis skipped: no ingestion metrics files were found.'
+            } else {
+                $portBatchSynthScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Add-PortBatchReadyTelemetry.ps1'
+                if (-not (Test-Path -LiteralPath $portBatchSynthScript)) {
+                    Write-Warning ("PortBatchReady synthesis script '{0}' not found; skipping synthesis." -f $portBatchSynthScript)
+                } else {
+                    Write-Host ("Forcing PortBatchReady synthesis into '{0}'..." -f $latestIngestionMetricsEntry.FullName) -ForegroundColor Cyan
+                    & $portBatchSynthScript -MetricsPath $latestIngestionMetricsEntry.FullName -InPlace -Force | Out-Null
+                }
+            }
+        }
+    } catch {
+        throw ("PortBatchReady synthesis failed: {0}" -f $_.Exception.Message)
     }
 
     try {
@@ -1023,14 +1361,63 @@ if (-not $QuickMode) {
                  if ($PSBoundParameters.ContainsKey('PortBatchMaxConsecutiveOverride')) {
                      $maxConsecutive = $PortBatchMaxConsecutiveOverride
                  }
-                 $portDiversityReportPath = Join-Path -Path $reportsDirectory -ChildPath ("PortBatchSiteDiversity-{0}.json" -f $metricsReportSuffix)
+                 # LANDMARK: Raw diversity artifacts - stable naming for auto concurrency raw pass
+                 $portDiversityReportSuffix = $metricsReportSuffix
+                 if ($rawPortDiversityAutoConcurrency) {
+                     $portDiversityReportSuffix = "{0}-raw-auto-{1}" -f $metricsReportSuffix, (Get-Date -Format 'yyyyMMdd-HHmmss')
+                 }
+                 $portDiversityReportPath = Join-Path -Path $reportsDirectory -ChildPath ("PortBatchSiteDiversity-{0}.json" -f $portDiversityReportSuffix)
+                 # LANDMARK: Raw diversity report metadata - record effective concurrency + event mode
+                 $concurrencyProfileSummary = Get-ConcurrencyProfileSummaryFromMetrics -MetricsPath $latestIngestionMetricsEntry.FullName
+                 $manualOverridesApplied = $null
+                 if ($concurrencyProfileSummary -and ($concurrencyProfileSummary.PSObject.Properties.Name -contains 'ManualOverrides')) {
+                     $manualOverridesApplied = [bool]$concurrencyProfileSummary.ManualOverrides
+                 }
+                 # LANDMARK: Gate artifact traceability - log exact input paths used for evaluation
+                 Write-Host ("Port batch diversity metrics file: {0}" -f $latestIngestionMetricsEntry.FullName) -ForegroundColor DarkCyan
                  Write-Host ("Validating port batch site diversity into '{0}'..." -f $portDiversityReportPath) -ForegroundColor Cyan
+                 $portDiversityEndUtc = $ingestionEndUtc
+                 if ($latestIngestionMetricsEntry) {
+                    # LANDMARK: Port diversity window - refresh end timestamp once telemetry is flushed
+                    $resolvedEndUtc = Get-TelemetryEventLatestTimestamp -MetricsPath $latestIngestionMetricsEntry.FullName -EventName 'PortBatchReady' -SinceTimestamp $ingestionStartUtc
+                    if ($resolvedEndUtc -and (-not $portDiversityEndUtc -or $resolvedEndUtc -gt $portDiversityEndUtc)) {
+                        $portDiversityEndUtc = $resolvedEndUtc
+                        if ($ingestionEndFallbackUsed) {
+                            Write-Host ("Port batch diversity end resolved from telemetry: {0}" -f $portDiversityEndUtc.ToString('o')) -ForegroundColor DarkCyan
+                        }
+                    }
+                 }
+                 # LANDMARK: Gate artifact traceability - log diversity window selection
+                 $diversityWindowStart = if ($ingestionStartUtc) { $ingestionStartUtc.ToString('o') } else { 'n/a' }
+                 $diversityWindowEnd = if ($portDiversityEndUtc) { $portDiversityEndUtc.ToString('o') } else { 'n/a' }
+                 Write-Host ("Port batch diversity window: start={0} end={1}" -f $diversityWindowStart, $diversityWindowEnd) -ForegroundColor DarkCyan
                  try {
                     $diversityArgs = @{
                         MetricsPath          = $latestIngestionMetricsEntry.FullName
                         MaxAllowedConsecutive= $maxConsecutive
                         OutputPath           = $portDiversityReportPath
                         AllowNoParse         = $true
+                    }
+                    if ($manualOverridesApplied -ne $null) {
+                        $diversityArgs['ManualOverridesApplied'] = $manualOverridesApplied
+                    }
+                    if ($concurrencyProfileSummary) {
+                        $diversityArgs['ConcurrencyProfile'] = $concurrencyProfileSummary
+                    }
+                    if ($rawPortDiversityAutoConcurrency) {
+                        $diversityArgs['RawAutoConcurrencyMode'] = $true
+                    }
+                    if ($ingestionStartUtc) {
+                        # LANDMARK: Port diversity window - limit evaluation to current run
+                        $diversityArgs['SinceTimestamp'] = $ingestionStartUtc
+                    }
+                    if ($portDiversityEndUtc) {
+                        # LANDMARK: Port diversity window - cap evaluation before warm-run regression
+                        $diversityArgs['UntilTimestamp'] = $portDiversityEndUtc
+                    }
+                    if (-not $ForcePortBatchReadySynthesis.IsPresent) {
+                        # LANDMARK: Port diversity raw evaluation - ignore synthesized events when not forced
+                        $diversityArgs['IgnoreSynthesizedEvents'] = $true
                     }
                     if ($Profile -eq 'Diag' -and -not $FailOnTelemetryMissing) {
                         $diversityArgs['AllowEmpty'] = $true
@@ -1361,6 +1748,30 @@ if ($RequireTelemetryIntegrity) {
     try {
         Write-ConcurrencyOverrideTelemetry -ParameterOverrides $parameterOverrides -ResetResult $overrideReset -Label 'StateTracePipeline'
     } catch { }
+    if ($rawPortDiversityAutoConcurrency -and $rawPortDiversitySnapshot) {
+        # LANDMARK: Raw diversity auto concurrency - restore original settings after run
+        try {
+            $restored = Set-ConcurrencyOverrideSnapshot -Snapshot $rawPortDiversitySnapshot
+            if ($restored -and $VerboseParsing) {
+                Write-Host 'Restored concurrency override settings after raw diversity pass.' -ForegroundColor DarkGray
+            }
+        } catch {
+            Write-Warning ("Failed to restore concurrency override snapshot: {0}" -f $_.Exception.Message)
+        }
+    }
+    if ($rawPortDiversityAutoConcurrency -and $rawPortDiversityHistorySnapshot) {
+        # LANDMARK: Raw diversity auto concurrency - restore ingestion history after run
+        try {
+            if ($rawPortDiversityHistorySnapshot.Path -and (Test-Path -LiteralPath $rawPortDiversityHistorySnapshot.Path)) {
+                Remove-Item -LiteralPath $rawPortDiversityHistorySnapshot.Path -Recurse -Force
+            }
+            if ($rawPortDiversityHistorySnapshot.Existed -and $rawPortDiversityHistorySnapshot.BackupPath -and (Test-Path -LiteralPath $rawPortDiversityHistorySnapshot.BackupPath)) {
+                Move-Item -LiteralPath $rawPortDiversityHistorySnapshot.BackupPath -Destination $rawPortDiversityHistorySnapshot.Path -Force
+            }
+        } catch {
+            Write-Warning ("Failed to restore ingestion history snapshot: {0}" -f $_.Exception.Message)
+        }
+    }
     if ($skipSiteCacheGuard) {
         Restore-SkipSiteCacheUpdateSetting -Guard $skipSiteCacheGuard
     }

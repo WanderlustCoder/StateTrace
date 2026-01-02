@@ -1,0 +1,17 @@
+{
+  "SchemaVersion": "1.0",
+  "GeneratedAt": "2025-12-30T10:00:00Z",
+  "Status": "Pass",
+  "Mode": "Offline",
+  "Site": "LAB",
+  "Vendor": "CiscoIOSXE",
+  "Vrf": "default",
+  "HostSummaries": [
+    {
+      "Hostname": "LAB-EDGE-01",
+      "Status": "Pass",
+      "IngestionSummaryPath": "Logs/Reports/RoutingCliIngestionSummary.sample.json",
+      "PipelineSummaryPath": "Logs/Reports/RoutingDiscoveryPipelineSummary.sample.json"
+    }
+  ]
+}

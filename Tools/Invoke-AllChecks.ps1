@@ -35,6 +35,12 @@ Set-StrictMode -Version Latest
 $repoRoot = (Resolve-Path -LiteralPath $RepositoryRoot).Path
 Push-Location $repoRoot
 
+$uiHelperPath = Join-Path $repoRoot 'Tools\UiHarnessHelpers.ps1'
+if (-not (Test-Path -LiteralPath $uiHelperPath)) {
+    throw "UI harness helpers missing at $uiHelperPath"
+}
+. $uiHelperPath
+
 $results = @()
 try {
     if (-not $SkipUnusedExportLint) {
@@ -79,7 +85,17 @@ try {
     if (-not $SkipPester) {
         Write-Host "===> Running Pester suite" -ForegroundColor Cyan
         try {
-            $pester = Invoke-Pester -Path 'Modules/Tests' -Output Detailed -EnableExit:$false -PassThru
+            # LANDMARK: Pester compatibility - avoid -Output on older Pester
+            $pesterParams = @{
+                Path       = 'Modules/Tests'
+                EnableExit = $false
+                PassThru   = $true
+            }
+            $pesterCommand = Get-Command Invoke-Pester -ErrorAction Stop
+            if ($pesterCommand.Parameters.ContainsKey('Output')) {
+                $pesterParams['Output'] = 'Detailed'
+            }
+            $pester = Invoke-Pester @pesterParams
         } catch {
             throw "Invoke-Pester failed: $($_.Exception.Message)"
         }
@@ -121,7 +137,15 @@ try {
         if (-not (Test-Path -LiteralPath $harnessPath)) {
             throw "Span view harness missing at $harnessPath"
         }
-        $json = & pwsh.exe -NoLogo -STA -File $harnessPath -RepositoryRoot $repoRoot -Hostname $SpanHostname -SampleCount $SpanSampleCount -AsJson
+        # LANDMARK: Span harness preflight - avoid headless crashes and point to desktop runner
+        $spanPreflight = Test-StateTraceUiHarnessPreflight -RequireDesktop
+        if ($spanPreflight.Status -ne 'Ready') {
+            throw ("Span harness requires a desktop session ({0}). Run `Tools\Invoke-DesktopUIHarness.ps1` from an interactive desktop." -f $spanPreflight.Reason)
+        }
+
+        $spanExe = Get-Command -Name 'powershell.exe' -ErrorAction SilentlyContinue
+        $spanExePath = if ($spanExe -and $spanExe.Path) { $spanExe.Path } else { 'pwsh.exe' }
+        $json = & $spanExePath -NoLogo -STA -File $harnessPath -RepositoryRoot $repoRoot -Hostname $SpanHostname -SampleCount $SpanSampleCount -AsJson
         $harnessExit = $LASTEXITCODE
         if ($harnessExit -ne 0) {
             throw ("Span harness exited with code {0}: {1}" -f $harnessExit, ($json -join [Environment]::NewLine))
@@ -131,14 +155,22 @@ try {
         }
         $jsonText = ($json -join [Environment]::NewLine)
         $spanResult = $jsonText | ConvertFrom-Json
+        $spanStatus = if ($spanResult.PSObject.Properties['Status']) { $spanResult.Status } else { 'Pass' }
+        if ($spanStatus -in @('RequiresDesktop','RequiresSTA')) {
+            throw ("Span harness {0}. Run `Tools\Invoke-DesktopUIHarness.ps1` in an interactive desktop session." -f $spanStatus)
+        }
         $spanSummary = [pscustomobject]@{
             Check       = 'SpanHarness'
+            Status      = $spanStatus
             Hostname    = $spanResult.Hostname
             Rows        = $spanResult.SnapshotRowCount
             UsedLastRow = [bool]$spanResult.UsedLastRows
             StatusText  = $spanResult.StatusText
         }
         $results += $spanSummary
+        if ($spanStatus -ne 'Pass') {
+            throw ("Span harness failed: {0}" -f $spanResult.FailureMessage)
+        }
         if ($spanResult.SnapshotRowCount -le 0) {
             throw "Span harness found zero rows for host $SpanHostname."
         }

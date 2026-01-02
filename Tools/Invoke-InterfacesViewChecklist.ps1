@@ -431,8 +431,9 @@ if ($PassThru) {
 
 try {
     # Ensure telemetry buffered during headless runs is flushed to disk.
-    if (Get-Command -Name Flush-StTelemetryBuffer -ErrorAction SilentlyContinue) {
-        Flush-StTelemetryBuffer | Out-Null
+    # LANDMARK: Telemetry buffer rename - use Save-StTelemetryBuffer when available
+    if (Get-Command -Name Save-StTelemetryBuffer -ErrorAction SilentlyContinue) {
+        Save-StTelemetryBuffer | Out-Null
     }
 } catch { }
 

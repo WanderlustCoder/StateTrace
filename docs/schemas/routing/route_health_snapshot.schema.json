@@ -1,0 +1,23 @@
+{
+  "SchemaName": "RouteHealthSnapshot",
+  "SchemaVersion": "1.0",
+  "Required": {
+    "SchemaVersion": "string",
+    "SnapshotId": "string",
+    "CapturedAt": "string",
+    "Site": "string",
+    "Hostname": "string",
+    "Vrf": "string",
+    "PrimaryRouteStatus": "string",
+    "SecondaryRouteStatus": "string",
+    "HealthState": "string",
+    "DetectionLatencyMs": "number",
+    "RouteRecordIds": "array"
+  },
+  "Optional": {
+    "FailoverState": "string",
+    "HealthScore": "number",
+    "EvidenceSources": "array",
+    "Notes": "string"
+  }
+}

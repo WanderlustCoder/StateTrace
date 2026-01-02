@@ -1,0 +1,24 @@
+{
+  "SchemaName": "RoutingCliCaptureSession",
+  "SchemaVersion": "1.0",
+  "Required": {
+    "SchemaVersion": "string",
+    "CapturedAt": "string",
+    "Site": "string",
+    "Vendor": "string",
+    "Vrf": "string",
+    "Hosts": "array"
+  },
+  "Optional": {},
+  "HostRequired": {
+    "Hostname": "string",
+    "Artifacts": "array"
+  },
+  "HostOptional": {},
+  "ArtifactRequired": {
+    "Name": "string",
+    "Command": "string",
+    "TranscriptPath": "string"
+  },
+  "ArtifactOptional": {}
+}

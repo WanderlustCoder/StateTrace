@@ -119,6 +119,241 @@ Describe "CompareViewModule compare workflow" {
         $diff2   | Should BeNullOrEmpty
     }
 
+    # LANDMARK: Compare view telemetry tests - DiffUsageRate emission
+    Context "DiffUsageRate telemetry" {
+        It "emits DiffUsageRate telemetry when comparison executes" {
+            $row1 = [pscustomobject]@{ ToolTip = 'A'; PortColor = 'Green'; Vrf = 'default' }
+            $row2 = [pscustomobject]@{ ToolTip = 'B'; PortColor = 'Blue' }
+            Set-CompareModuleVar testRow1 $row1
+            Set-CompareModuleVar testRow2 $row2
+
+            Mock -ModuleName CompareViewModule -CommandName Get-GridRowFor {
+                param($Hostname, $Port)
+                switch ("$Hostname|$Port") {
+                    'sw1|Gi1' { return $script:testRow1 }
+                    'sw2|Gi2' { return $script:testRow2 }
+                    default   { return $null }
+                }
+            }
+            Mock -ModuleName CompareViewModule -CommandName Set-CompareFromRows {}
+            $global:CompareViewTelemetryEvents = @()
+            Set-CompareModuleVar CompareTelemetryCommandOverride {
+                param($Name, $Payload)
+                $global:CompareViewTelemetryEvents += [pscustomobject]@{ Name = $Name; Payload = $Payload }
+            }
+
+            CompareViewModule\Show-CurrentComparison
+
+            $event = $global:CompareViewTelemetryEvents | Where-Object { $_.Name -eq 'DiffUsageRate' } | Select-Object -Last 1
+            $event | Should Not BeNullOrEmpty
+            $event.Payload.Source | Should Be 'CompareView'
+            $event.Payload.Status | Should Be 'Executed'
+            $event.Payload.UsageNumerator | Should Be 1
+            $event.Payload.UsageDenominator | Should Be 1
+            $event.Payload.Hostname | Should Be 'sw1'
+            $event.Payload.Hostname2 | Should Be 'sw2'
+            $event.Payload.Port1 | Should Be 'Gi1'
+            $event.Payload.Port2 | Should Be 'Gi2'
+            $event.Payload.Site | Should Be 'sw1'
+            $event.Payload.Vrf | Should Be 'default'
+            $event.Payload.Timestamp | Should Not BeNullOrEmpty
+            Remove-Variable -Scope Global -Name CompareViewTelemetryEvents -ErrorAction SilentlyContinue
+            Set-CompareModuleVar CompareTelemetryCommandOverride $null
+        }
+
+        It "does not emit DiffUsageRate telemetry when comparison cannot run" {
+            Set-CompareModuleVar port1Dropdown (New-DropdownStub '')
+
+            $global:CompareViewTelemetryEvents = @()
+            Set-CompareModuleVar CompareTelemetryCommandOverride {
+                param($Name, $Payload)
+                $global:CompareViewTelemetryEvents += [pscustomobject]@{ Name = $Name; Payload = $Payload }
+            }
+            CompareViewModule\Show-CurrentComparison
+
+            @($global:CompareViewTelemetryEvents | Where-Object { $_.Name -eq 'DiffUsageRate' }).Count | Should Be 0
+            Remove-Variable -Scope Global -Name CompareViewTelemetryEvents -ErrorAction SilentlyContinue
+            Set-CompareModuleVar CompareTelemetryCommandOverride $null
+        }
+    }
+
+    # LANDMARK: Compare view telemetry tests - DiffCompareDurationMs emission
+    Context "DiffCompareDurationMs telemetry" {
+        It "emits DiffCompareDurationMs telemetry when comparison executes" {
+            $row1 = [pscustomobject]@{ ToolTip = 'A'; PortColor = 'Green'; Vrf = 'default' }
+            $row2 = [pscustomobject]@{ ToolTip = 'B'; PortColor = 'Blue' }
+            Set-CompareModuleVar testRow1 $row1
+            Set-CompareModuleVar testRow2 $row2
+
+            Mock -ModuleName CompareViewModule -CommandName Get-GridRowFor {
+                param($Hostname, $Port)
+                switch ("$Hostname|$Port") {
+                    'sw1|Gi1' { return $script:testRow1 }
+                    'sw2|Gi2' { return $script:testRow2 }
+                    default   { return $null }
+                }
+            }
+            Mock -ModuleName CompareViewModule -CommandName Set-CompareFromRows {}
+            $global:CompareViewTelemetryEvents = @()
+            Set-CompareModuleVar CompareTelemetryCommandOverride {
+                param($Name, $Payload)
+                $global:CompareViewTelemetryEvents += [pscustomobject]@{ Name = $Name; Payload = $Payload }
+            }
+
+            CompareViewModule\Show-CurrentComparison
+
+            $event = $global:CompareViewTelemetryEvents | Where-Object { $_.Name -eq 'DiffCompareDurationMs' } | Select-Object -Last 1
+            $event | Should Not BeNullOrEmpty
+            $event.Payload.Source | Should Be 'CompareView'
+            $event.Payload.Status | Should Be 'Executed'
+            $event.Payload.Hostname | Should Be 'sw1'
+            $event.Payload.Hostname2 | Should Be 'sw2'
+            $event.Payload.Port1 | Should Be 'Gi1'
+            $event.Payload.Port2 | Should Be 'Gi2'
+            $event.Payload.Site | Should Be 'sw1'
+            $event.Payload.Vrf | Should Be 'default'
+            $event.Payload.TimestampUtc | Should Not BeNullOrEmpty
+            ($event.Payload.DurationMs -ge 0) | Should Be $true
+            ($event.Payload.DurationMs -is [int]) | Should Be $true
+            Remove-Variable -Scope Global -Name CompareViewTelemetryEvents -ErrorAction SilentlyContinue
+            Set-CompareModuleVar CompareTelemetryCommandOverride $null
+        }
+
+        It "emits DiffCompareDurationMs telemetry with Failed status when comparison throws" {
+            $row1 = [pscustomobject]@{ ToolTip = 'A'; PortColor = 'Green' }
+            $row2 = [pscustomobject]@{ ToolTip = 'B'; PortColor = 'Blue' }
+            Set-CompareModuleVar testRow1 $row1
+            Set-CompareModuleVar testRow2 $row2
+
+            Mock -ModuleName CompareViewModule -CommandName Get-GridRowFor {
+                param($Hostname, $Port)
+                switch ("$Hostname|$Port") {
+                    'sw1|Gi1' { return $script:testRow1 }
+                    'sw2|Gi2' { return $script:testRow2 }
+                    default   { return $null }
+                }
+            }
+            Mock -ModuleName CompareViewModule -CommandName Set-CompareFromRows { throw 'Compare failed' }
+            $global:CompareViewTelemetryEvents = @()
+            Set-CompareModuleVar CompareTelemetryCommandOverride {
+                param($Name, $Payload)
+                $global:CompareViewTelemetryEvents += [pscustomobject]@{ Name = $Name; Payload = $Payload }
+            }
+
+            CompareViewModule\Show-CurrentComparison
+
+            $event = $global:CompareViewTelemetryEvents | Where-Object { $_.Name -eq 'DiffCompareDurationMs' } | Select-Object -Last 1
+            $event | Should Not BeNullOrEmpty
+            $event.Payload.Source | Should Be 'CompareView'
+            $event.Payload.Status | Should Be 'Failed'
+            $event.Payload.TimestampUtc | Should Not BeNullOrEmpty
+            ($event.Payload.DurationMs -ge 0) | Should Be $true
+            Remove-Variable -Scope Global -Name CompareViewTelemetryEvents -ErrorAction SilentlyContinue
+            Set-CompareModuleVar CompareTelemetryCommandOverride $null
+        }
+    }
+
+    # LANDMARK: Compare view telemetry tests - DiffCompareResultCounts emission
+    Context "DiffCompareResultCounts telemetry" {
+        It "emits DiffCompareResultCounts telemetry with deterministic counts when comparison executes" {
+            $row1 = [pscustomobject]@{ ToolTip = "line1`nline2`nline3"; PortColor = 'Green'; Vrf = 'default' }
+            $row2 = [pscustomobject]@{ ToolTip = "line2`nline3`nline4"; PortColor = 'Blue' }
+            Set-CompareModuleVar testRow1 $row1
+            Set-CompareModuleVar testRow2 $row2
+
+            Mock -ModuleName CompareViewModule -CommandName Get-GridRowFor {
+                param($Hostname, $Port)
+                switch ("$Hostname|$Port") {
+                    'sw1|Gi1' { return $script:testRow1 }
+                    'sw2|Gi2' { return $script:testRow2 }
+                    default   { return $null }
+                }
+            }
+            Mock -ModuleName CompareViewModule -CommandName Set-CompareFromRows {}
+            $global:CompareViewTelemetryEvents = @()
+            Set-CompareModuleVar CompareTelemetryCommandOverride {
+                param($Name, $Payload)
+                $global:CompareViewTelemetryEvents += [pscustomobject]@{ Name = $Name; Payload = $Payload }
+            }
+
+            CompareViewModule\Show-CurrentComparison
+
+            $event = $global:CompareViewTelemetryEvents | Where-Object { $_.Name -eq 'DiffCompareResultCounts' } | Select-Object -Last 1
+            $event | Should Not BeNullOrEmpty
+            $event.Payload.Source | Should Be 'CompareView'
+            $event.Payload.Status | Should Be 'Executed'
+            $event.Payload.TotalCount | Should Be 4
+            $event.Payload.AddedCount | Should Be 1
+            $event.Payload.RemovedCount | Should Be 1
+            $event.Payload.ChangedCount | Should Be 0
+            $event.Payload.UnchangedCount | Should Be 2
+            $event.Payload.Hostname | Should Be 'sw1'
+            $event.Payload.Hostname2 | Should Be 'sw2'
+            $event.Payload.Port1 | Should Be 'Gi1'
+            $event.Payload.Port2 | Should Be 'Gi2'
+            $event.Payload.Site | Should Be 'sw1'
+            $event.Payload.Vrf | Should Be 'default'
+            $event.Payload.TimestampUtc | Should Not BeNullOrEmpty
+            ($event.Payload.TotalCount -is [int]) | Should Be $true
+            Remove-Variable -Scope Global -Name CompareViewTelemetryEvents -ErrorAction SilentlyContinue
+            Set-CompareModuleVar CompareTelemetryCommandOverride $null
+        }
+
+        It "emits DiffCompareResultCounts telemetry with Failed status when comparison throws" {
+            $row1 = [pscustomobject]@{ ToolTip = "line1`nline2"; PortColor = 'Green' }
+            $row2 = [pscustomobject]@{ ToolTip = "line2`nline3"; PortColor = 'Blue' }
+            Set-CompareModuleVar testRow1 $row1
+            Set-CompareModuleVar testRow2 $row2
+
+            Mock -ModuleName CompareViewModule -CommandName Get-GridRowFor {
+                param($Hostname, $Port)
+                switch ("$Hostname|$Port") {
+                    'sw1|Gi1' { return $script:testRow1 }
+                    'sw2|Gi2' { return $script:testRow2 }
+                    default   { return $null }
+                }
+            }
+            Mock -ModuleName CompareViewModule -CommandName Set-CompareFromRows { throw 'Compare failed' }
+            $global:CompareViewTelemetryEvents = @()
+            Set-CompareModuleVar CompareTelemetryCommandOverride {
+                param($Name, $Payload)
+                $global:CompareViewTelemetryEvents += [pscustomobject]@{ Name = $Name; Payload = $Payload }
+            }
+
+            CompareViewModule\Show-CurrentComparison
+
+            $event = $global:CompareViewTelemetryEvents | Where-Object { $_.Name -eq 'DiffCompareResultCounts' } | Select-Object -Last 1
+            $event | Should Not BeNullOrEmpty
+            $event.Payload.Source | Should Be 'CompareView'
+            $event.Payload.Status | Should Be 'Failed'
+            $event.Payload.TotalCount | Should Be 0
+            $event.Payload.AddedCount | Should Be 0
+            $event.Payload.RemovedCount | Should Be 0
+            $event.Payload.ChangedCount | Should Be 0
+            $event.Payload.UnchangedCount | Should Be 0
+            $event.Payload.TimestampUtc | Should Not BeNullOrEmpty
+            ($event.Payload.DurationMs -ge 0) | Should Be $true
+            ($event.Payload.DurationMs -is [int]) | Should Be $true
+            Remove-Variable -Scope Global -Name CompareViewTelemetryEvents -ErrorAction SilentlyContinue
+            Set-CompareModuleVar CompareTelemetryCommandOverride $null
+        }
+
+        It "does not emit DiffCompareResultCounts telemetry when comparison cannot run" {
+            Set-CompareModuleVar port1Dropdown (New-DropdownStub '')
+
+            $global:CompareViewTelemetryEvents = @()
+            Set-CompareModuleVar CompareTelemetryCommandOverride {
+                param($Name, $Payload)
+                $global:CompareViewTelemetryEvents += [pscustomobject]@{ Name = $Name; Payload = $Payload }
+            }
+            CompareViewModule\Show-CurrentComparison
+
+            @($global:CompareViewTelemetryEvents | Where-Object { $_.Name -eq 'DiffCompareResultCounts' }).Count | Should Be 0
+            Remove-Variable -Scope Global -Name CompareViewTelemetryEvents -ErrorAction SilentlyContinue
+            Set-CompareModuleVar CompareTelemetryCommandOverride $null
+        }
+    }
+
     It "Set-CompareSelection refreshes host lists and ports" {
         Set-CompareModuleVar windowRef ([System.Windows.Window]::new())
 

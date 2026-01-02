@@ -9,7 +9,16 @@ param(
 
     [switch]$AllowNoParse,
 
-    [string]$OutputPath
+    [switch]$IgnoreSynthesizedEvents,
+
+    [datetime]$SinceTimestamp,
+
+    [datetime]$UntilTimestamp,
+
+    [string]$OutputPath,
+    [Nullable[bool]]$ManualOverridesApplied,
+    [psobject]$ConcurrencyProfile,
+    [switch]$RawAutoConcurrencyMode
 )
 
 <#
@@ -55,6 +64,14 @@ $parseEventNames = @(
 )
 $parseEventCount = 0
 $skippedDuplicateCount = 0
+$sinceUtc = $null
+if ($PSBoundParameters.ContainsKey('SinceTimestamp')) {
+    $sinceUtc = $SinceTimestamp.ToUniversalTime()
+}
+$untilUtc = $null
+if ($PSBoundParameters.ContainsKey('UntilTimestamp')) {
+    $untilUtc = $UntilTimestamp.ToUniversalTime()
+}
 
 Get-Content -LiteralPath $metricsFile -ReadCount 500 | ForEach-Object {
     foreach ($line in $_) {
@@ -62,6 +79,10 @@ Get-Content -LiteralPath $metricsFile -ReadCount 500 | ForEach-Object {
         try { $record = $line | ConvertFrom-Json -ErrorAction Stop }
         catch { Write-Warning ("Skipping malformed line: {0}" -f $_.Exception.Message); continue }
         $eventName = $record.EventName
+        $timestamp = [datetime]$record.Timestamp
+        if ($sinceUtc -and $timestamp.ToUniversalTime() -lt $sinceUtc) { continue }
+        # LANDMARK: Port diversity window - support upper bound for warm-run isolation
+        if ($untilUtc -and $timestamp.ToUniversalTime() -gt $untilUtc) { continue }
         if ($eventName -eq 'SkippedDuplicate') {
             $skippedDuplicateCount++
         } elseif ($parseEventNames -contains $eventName) {
@@ -73,7 +94,7 @@ Get-Content -LiteralPath $metricsFile -ReadCount 500 | ForEach-Object {
             $isSynthesized = [bool]$record.Synthesized
         }
         $events.Add([pscustomobject]@{
-            Timestamp   = [datetime]$record.Timestamp
+            Timestamp   = $timestamp
             Hostname    = $record.Hostname
             Site        = Get-Site $record.Hostname
             Synthesized = $isSynthesized
@@ -82,13 +103,24 @@ Get-Content -LiteralPath $metricsFile -ReadCount 500 | ForEach-Object {
 }
 
 $totalEventCount = $events.Count
+$observedEventCount = if ($totalEventCount -gt 0) { @($events | Where-Object { -not $_.Synthesized }).Count } else { 0 }
+$synthesizedEventCount = $totalEventCount - $observedEventCount
+$ignoredSynthesized = $IgnoreSynthesizedEvents.IsPresent
 $usedSynthesized = $false
 if ($totalEventCount -gt 0) {
-    $synthesizedEvents = @($events | Where-Object { $_.Synthesized })
-    if ($synthesizedEvents.Count -gt 0) {
-        $events = $synthesizedEvents
-        $usedSynthesized = $true
-        Write-Host ("Using {0} synthesized PortBatchReady event(s) for diversity evaluation." -f $events.Count) -ForegroundColor DarkGray
+    # LANDMARK: Port diversity raw mode - optionally ignore synthesized events
+    if ($ignoredSynthesized) {
+        if ($synthesizedEventCount -gt 0) {
+            Write-Host ("Ignoring {0} synthesized PortBatchReady event(s) for diversity evaluation." -f $synthesizedEventCount) -ForegroundColor DarkGray
+        }
+        $events = @($events | Where-Object { -not $_.Synthesized })
+    } else {
+        $synthesizedEvents = @($events | Where-Object { $_.Synthesized })
+        if ($synthesizedEvents.Count -gt 0) {
+            $events = $synthesizedEvents
+            $usedSynthesized = $true
+            Write-Host ("Using {0} synthesized PortBatchReady event(s) for diversity evaluation." -f $events.Count) -ForegroundColor DarkGray
+        }
     }
 }
 
@@ -99,19 +131,35 @@ if ($events.Count -eq 0) {
         throw "No PortBatchReady events found in '$metricsFile'."
     }
 
+    $skipReason = if ($skipForNoParse) {
+        'NoParseActivity'
+    } elseif ($ignoredSynthesized -and $totalEventCount -gt 0 -and $observedEventCount -le 0) {
+        'NoObservedPortBatchReadyEvents'
+    } else {
+        'NoPortBatchReadyEvents'
+    }
+
     $result = [pscustomobject]@{
         MetricsFile              = (Resolve-Path -LiteralPath $metricsFile).Path
         GeneratedAtUtc           = (Get-Date).ToUniversalTime().ToString('o')
+        EvaluationWindowStartUtc = $sinceUtc
+        EvaluationWindowEndUtc   = $untilUtc
         MaxAllowedConsecutive    = $MaxAllowedConsecutive
         EvaluationEnd            = $null
         TerminalSite             = $null
         SitesRemainingWhenStopped= 0
-        PortBatchReadyCount      = 0
+        PortBatchReadyCount      = $totalEventCount
         EvaluatedPortBatchReadyCount = 0
         UsedSynthesizedEvents    = $false
+        IgnoredSynthesizedEvents = $ignoredSynthesized
+        ManualOverridesApplied   = $ManualOverridesApplied
+        ConcurrencyProfile       = $ConcurrencyProfile
+        RawAutoConcurrencyMode   = $RawAutoConcurrencyMode.IsPresent
+        ObservedPortBatchReadyCount = $observedEventCount
+        SynthesizedPortBatchReadyCount = $synthesizedEventCount
         SiteStreaks              = @()
         Skipped                  = $true
-        SkipReason               = if ($skipForNoParse) { 'NoParseActivity' } else { 'NoPortBatchReadyEvents' }
+        SkipReason               = $skipReason
         ParseEventCount          = $parseEventCount
         SkippedDuplicateCount    = $skippedDuplicateCount
     }
@@ -125,6 +173,8 @@ if ($events.Count -eq 0) {
 
     if ($skipForNoParse) {
         Write-Warning ("No parse events detected (SkippedDuplicate only) in '{0}'; skipping site diversity evaluation." -f $metricsFile)
+    } elseif ($skipReason -eq 'NoObservedPortBatchReadyEvents') {
+        Write-Warning ("No observed PortBatchReady events found in '{0}' (synthesized ignored); skipping site diversity evaluation." -f $metricsFile)
     } else {
         Write-Warning ("No PortBatchReady events found in '{0}'; skipping site diversity evaluation." -f $metricsFile)
     }
@@ -136,6 +186,7 @@ $streaks = @()
 $currentSite = $null
 $currentHosts = @()
 $currentStart = $null
+$currentStartIndex = 0
 $lastProcessedIndex = -1
 $terminalSite = $null
 $terminalActiveSites = 0
@@ -149,17 +200,24 @@ foreach ($evt in $sorted) {
     $remainingCounts[$siteKey]++
 }
 
-function Add-Streak($site, $start, $end, [string[]]$hosts) {
+function Add-Streak($site, $start, $end, [string[]]$hosts, [int]$startIndex, [int]$endIndex) {
     $hostArray = @()
     if ($hosts) {
         $hostArray = @($hosts)
+    }
+    $sequenceSample = @()
+    if ($hostArray.Count -gt 0) {
+        $sequenceSample = @($hostArray | Select-Object -First 12)
     }
     $script:streaks += [pscustomobject]@{
         Site      = $site
         Count     = $hostArray.Count
         StartTime = $start.ToUniversalTime()
         EndTime   = $end.ToUniversalTime()
+        StartIndex = $startIndex
+        EndIndex   = $endIndex
         HostSample= ($hostArray | Select-Object -Unique | Select-Object -First 5) -join ', '
+        HostSequenceSample = $sequenceSample -join ', '
     }
 }
 
@@ -170,10 +228,11 @@ for ($i = 0; $i -lt $sorted.Count; $i++) {
         $currentHosts += $evt.Hostname
     } else {
         if ($currentSite) {
-            Add-Streak -site $currentSite -start $currentStart -end $evt.Timestamp -hosts $currentHosts
+            Add-Streak -site $currentSite -start $currentStart -end $evt.Timestamp -hosts $currentHosts -startIndex $currentStartIndex -endIndex ($i - 1)
         }
         $currentSite = $evt.Site
         $currentStart = $evt.Timestamp
+        $currentStartIndex = $i
         $currentHosts = @($evt.Hostname)
     }
 
@@ -192,7 +251,8 @@ for ($i = 0; $i -lt $sorted.Count; $i++) {
 
 if ($currentSite) {
     $endTimestamp = if ($lastProcessedIndex -ge 0) { $sorted[$lastProcessedIndex].Timestamp } else { $sorted[-1].Timestamp }
-    Add-Streak -site $currentSite -start $currentStart -end $endTimestamp -hosts $currentHosts
+    $endIndex = if ($lastProcessedIndex -ge 0) { $lastProcessedIndex } else { $sorted.Count - 1 }
+    Add-Streak -site $currentSite -start $currentStart -end $endTimestamp -hosts $currentHosts -startIndex $currentStartIndex -endIndex $endIndex
 }
 
 $summary = $streaks | Sort-Object Count -Descending | Group-Object Site | ForEach-Object {
@@ -206,10 +266,17 @@ $summary = $streaks | Sort-Object Count -Descending | Group-Object Site | ForEac
     }
 } | Sort-Object MaxCount -Descending
 
+$maxSegment = $null
+if ($streaks.Count -gt 0) {
+    $maxSegment = $streaks | Sort-Object Count -Descending | Select-Object -First 1
+}
+
 $evaluationEnd = if ($lastProcessedIndex -ge 0) { $sorted[$lastProcessedIndex].Timestamp.ToUniversalTime() } else { $sorted[-1].Timestamp.ToUniversalTime() }
 $result = [pscustomobject]@{
     MetricsFile = (Resolve-Path -LiteralPath $metricsFile).Path
     GeneratedAtUtc = (Get-Date).ToUniversalTime().ToString('o')
+    EvaluationWindowStartUtc = $sinceUtc
+    EvaluationWindowEndUtc = $untilUtc
     MaxAllowedConsecutive = $MaxAllowedConsecutive
     EvaluationEnd = $evaluationEnd
     TerminalSite = $terminalSite
@@ -217,9 +284,16 @@ $result = [pscustomobject]@{
     PortBatchReadyCount = $totalEventCount
     EvaluatedPortBatchReadyCount = $events.Count
     UsedSynthesizedEvents = $usedSynthesized
+    IgnoredSynthesizedEvents = $ignoredSynthesized
+    ManualOverridesApplied = $ManualOverridesApplied
+    ConcurrencyProfile = $ConcurrencyProfile
+    RawAutoConcurrencyMode = $RawAutoConcurrencyMode.IsPresent
+    ObservedPortBatchReadyCount = $observedEventCount
+    SynthesizedPortBatchReadyCount = $synthesizedEventCount
     ParseEventCount = $parseEventCount
     SkippedDuplicateCount = $skippedDuplicateCount
     SiteStreaks = $summary
+    MaxStreakSegment = $maxSegment
 }
 
 if ($terminalSite -and $terminalActiveSites -le 1) {
@@ -233,10 +307,14 @@ if ($OutputPath) {
     Write-Host ("Site diversity summary written to {0}" -f (Resolve-Path -LiteralPath $OutputPath)) -ForegroundColor DarkCyan
 }
 
+# LANDMARK: Port diversity output - keep table output on host while returning summary object
 Write-Host "Max consecutive PortBatchReady events per site:" -ForegroundColor Cyan
-$summary | Format-Table Site, MaxCount, StartTime, EndTime, HostSample -AutoSize
+$summaryTable = $summary | Format-Table Site, MaxCount, StartTime, EndTime, HostSample -AutoSize | Out-String
+Write-Host $summaryTable
 
 $worst = $summary | Select-Object -First 1
 if ($worst.MaxCount -gt $MaxAllowedConsecutive) {
     throw ("Site '{0}' exceeded the max consecutive threshold (found {1}, limit {2})." -f $worst.Site, $worst.MaxCount, $MaxAllowedConsecutive)
 }
+
+return $result

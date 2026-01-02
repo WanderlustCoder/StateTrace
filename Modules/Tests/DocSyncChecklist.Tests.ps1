@@ -18,13 +18,21 @@ Describe 'Test-DocSyncChecklist' {
         $taskBoardPath = Join-Path -Path $docsRoot -ChildPath 'StateTrace_TaskBoard.md'
         $taskBoardCsvPath = Join-Path -Path $docsRoot -ChildPath 'taskboard\TaskBoard.csv'
         $planPath = Join-Path -Path $docsRoot -ChildPath 'plans\PlanG_ReleaseGovernance.md'
+        $fakeToolsPath = Join-Path -Path $fakeRoot -ChildPath 'Tools'
+        $integrityScriptPath = Join-Path -Path $repoRoot -ChildPath 'Tools\Test-TaskBoardIntegrity.ps1'
         $backlogPath = Join-Path -Path $docsRoot -ChildPath 'CODEX_BACKLOG.md'
         $sessionLogPath = Join-Path -Path $docsRoot -ChildPath 'agents\sessions\2025-12-22_session-0007.md'
+        $fakeToolsPath = Join-Path -Path $fakeRoot -ChildPath 'Tools'
+        $integrityScriptPath = Join-Path -Path $repoRoot -ChildPath 'Tools\Test-TaskBoardIntegrity.ps1'
 
         New-Item -ItemType Directory -Path (Split-Path -Path $taskBoardPath -Parent) -Force | Out-Null
         New-Item -ItemType Directory -Path (Split-Path -Path $taskBoardCsvPath -Parent) -Force | Out-Null
         New-Item -ItemType Directory -Path (Split-Path -Path $planPath -Parent) -Force | Out-Null
+        New-Item -ItemType Directory -Path $fakeToolsPath -Force | Out-Null
+        Copy-Item -LiteralPath $integrityScriptPath -Destination (Join-Path -Path $fakeToolsPath -ChildPath 'Test-TaskBoardIntegrity.ps1') -Force
         New-Item -ItemType Directory -Path (Split-Path -Path $sessionLogPath -Parent) -Force | Out-Null
+        New-Item -ItemType Directory -Path $fakeToolsPath -Force | Out-Null
+        Copy-Item -LiteralPath $integrityScriptPath -Destination (Join-Path -Path $fakeToolsPath -ChildPath 'Test-TaskBoardIntegrity.ps1') -Force
 
         Set-Content -LiteralPath $taskBoardPath -Value "| $taskId | Doc sync enforcement | Backlog | Docs | Deliverable | docs/plans/PlanG_ReleaseGovernance.md |" -Encoding utf8
 
@@ -46,7 +54,7 @@ Describe 'Test-DocSyncChecklist' {
 '@
         Set-Content -LiteralPath $sessionLogPath -Value $sessionContent -Encoding utf8
 
-        $result = & $scriptPath -TaskId $taskId -RepositoryRoot $fakeRoot -SessionLogPath $sessionLogPath -RequireSessionLog -RequireBacklogEntry -PassThru
+        $result = & $scriptPath -TaskId $taskId -RepositoryRoot $fakeRoot -SessionLogPath $sessionLogPath -RequireSessionLog -RequireBacklogEntry -TaskBoardMinimumRowCount 1 -PassThru
         $result.Passed | Should Be $true
         $result.Plan.Source | Should Be 'TaskBoardCsv'
         $result.SessionLog.References.Count | Should BeGreaterThan 0
@@ -76,7 +84,7 @@ Describe 'Test-DocSyncChecklist' {
 
         $threw = $false
         try {
-            & $scriptPath -TaskId $taskId -RepositoryRoot $fakeRoot -TaskBoardPath $taskBoardPath -TaskBoardCsvPath $taskBoardCsvPath -PlanPath $planPath
+            & $scriptPath -TaskId $taskId -RepositoryRoot $fakeRoot -TaskBoardPath $taskBoardPath -TaskBoardCsvPath $taskBoardCsvPath -PlanPath $planPath -TaskBoardMinimumRowCount 1
         } catch {
             $threw = $true
         }

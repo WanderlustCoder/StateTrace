@@ -63,10 +63,47 @@ try {
 }
 
 if (-not $scheduler.SiteSummaries) {
-    throw "Scheduler report '$schedulerPath' does not contain SiteSummaries."
+    throw "Scheduler report '$schedulerPath' does not contain SiteSummaries."   
 }
-if (-not ($port -and $port.PSObject.Properties.Name -contains 'SiteStreaks')) {
-    throw "Port diversity report '$portPath' does not contain SiteStreaks."
+if (-not ($port -and $port.PSObject.Properties.Name -contains 'SiteStreaks')) { 
+    throw "Port diversity report '$portPath' does not contain SiteStreaks."     
+}
+
+# LANDMARK: Scheduler vs port diversity metadata - track synthesis and input alignment
+$portUsedSynthesized = $false
+if ($port -and ($port.PSObject.Properties.Name -contains 'UsedSynthesizedEvents')) {
+    try { $portUsedSynthesized = [bool]$port.UsedSynthesizedEvents } catch { $portUsedSynthesized = $false }
+}
+$comparisonMode = if ($portUsedSynthesized) { 'SynthesizedPortBatchReady' } else { 'ObservedPortBatchReady' }
+
+$portMetricsFile = $null
+if ($port -and ($port.PSObject.Properties.Name -contains 'MetricsFile') -and $port.MetricsFile) {
+    $portMetricsFile = $port.MetricsFile
+}
+$schedulerMetricsFiles = @()
+if ($scheduler -and ($scheduler.PSObject.Properties.Name -contains 'FilesAnalyzed') -and $scheduler.FilesAnalyzed) {
+    if ($scheduler.FilesAnalyzed -is [System.Array]) {
+        $schedulerMetricsFiles = @($scheduler.FilesAnalyzed)
+    } else {
+        $schedulerMetricsFiles = @($scheduler.FilesAnalyzed)
+    }
+}
+
+$resolvedPortMetrics = $null
+if ($portMetricsFile) {
+    try { $resolvedPortMetrics = (Resolve-Path -LiteralPath $portMetricsFile).Path } catch { $resolvedPortMetrics = $portMetricsFile }
+}
+$resolvedSchedulerMetrics = @()
+foreach ($file in $schedulerMetricsFiles) {
+    if ([string]::IsNullOrWhiteSpace($file)) { continue }
+    try { $resolvedSchedulerMetrics += (Resolve-Path -LiteralPath $file).Path } catch { $resolvedSchedulerMetrics += $file }
+}
+
+$inputsAligned = $true
+$inputMismatchDetail = $null
+if ($resolvedPortMetrics -and $resolvedSchedulerMetrics.Count -gt 0 -and -not ($resolvedSchedulerMetrics -contains $resolvedPortMetrics)) {
+    $inputsAligned = $false
+    $inputMismatchDetail = "Scheduler files: $($resolvedSchedulerMetrics -join ', '); Port metrics: $resolvedPortMetrics"
 }
 
 $portStreaks = @($port.SiteStreaks)
@@ -120,19 +157,37 @@ if ($portStreaks -and $portStreaks.Count -gt 0) {
     }
 }
 
+$mismatchCount = ($mismatches | Measure-Object).Count
+$mismatchClassification = 'None'
+if ($mismatchCount -gt 0) {
+    $mismatchClassification = if ($portUsedSynthesized) { 'Informational' } else { 'Warning' }
+}
+
 $summary = [pscustomobject]@{
     SchedulerReportPath  = $schedulerPath
     PortDiversityPath    = $portPath
     GeneratedAtUtc       = (Get-Date).ToUniversalTime().ToString('o')
     Sites                = $sortedSites
-    MismatchCount        = ($mismatches | Measure-Object).Count
+    MismatchCount        = $mismatchCount
+    MismatchClassification = $mismatchClassification
     MaxSchedulerStreak   = [int]($scheduler.SiteSummaries | Measure-Object -Property MaxConsecutive -Maximum).Maximum
     MaxPortBatchStreak   = $maxPortBatchStreak
+    PortBatchUsedSynthesizedEvents = $portUsedSynthesized
+    ComparisonMode       = $comparisonMode
+    InputsAligned        = $inputsAligned
+    InputMismatchDetail  = $inputMismatchDetail
 }
 
-Write-Host ("Scheduler max streak: {0}; PortBatchReady max streak: {1}" -f $summary.MaxSchedulerStreak, $summary.MaxPortBatchStreak) -ForegroundColor Cyan
+Write-Host ("Scheduler max streak: {0}; PortBatchReady max streak: {1}" -f $summary.MaxSchedulerStreak, $summary.MaxPortBatchStreak) -ForegroundColor Cyan      
+if (-not $summary.InputsAligned -and $summary.InputMismatchDetail) {
+    Write-Warning ("Scheduler vs. port diversity inputs are misaligned: {0}" -f $summary.InputMismatchDetail)
+}
 if ($summary.MismatchCount -gt 0) {
-    Write-Warning ("{0} site(s) show PortBatchReady streaks longer than scheduler launches. Top offenders: {1}" -f $summary.MismatchCount, (($mismatches | Select-Object -First 3 | ForEach-Object { "{0} (+{1})" -f $_.Site, $_.PortMinusScheduler }) -join ', '))
+    if ($summary.MismatchClassification -eq 'Informational') {
+        Write-Host ("{0} site(s) show PortBatchReady streaks longer than scheduler launches; classification is informational because PortBatchReady events are synthesized. Top offenders: {1}" -f $summary.MismatchCount, (($mismatches | Select-Object -First 3 | ForEach-Object { "{0} (+{1})" -f $_.Site, $_.PortMinusScheduler }) -join ', ')) -ForegroundColor Yellow
+    } else {
+        Write-Warning ("{0} site(s) show PortBatchReady streaks longer than scheduler launches. Top offenders: {1}" -f $summary.MismatchCount, (($mismatches | Select-Object -First 3 | ForEach-Object { "{0} (+{1})" -f $_.Site, $_.PortMinusScheduler }) -join ', '))
+    }
 } else {
     Write-Host 'No scheduler vs. port streak mismatches detected.' -ForegroundColor Green
 }
@@ -172,6 +227,13 @@ if ($markdownPathResolved) {
     $md.Add([string]::Format("Generated: {0}", (Get-Date -Format 'yyyy-MM-dd HH:mm:ss K')))
     $md.Add([string]::Format("Scheduler report: {0}", (Split-Path -Path $schedulerPath -Leaf)))
     $md.Add([string]::Format("Port diversity report: {0}", (Split-Path -Path $portPath -Leaf)))
+    $md.Add([string]::Format("Comparison mode: {0}", $summary.ComparisonMode))
+    $md.Add([string]::Format("Port diversity used synthesized events: {0}", $summary.PortBatchUsedSynthesizedEvents))
+    $md.Add([string]::Format("Inputs aligned: {0}", $summary.InputsAligned))
+    if (-not $summary.InputsAligned -and $summary.InputMismatchDetail) {
+        $md.Add([string]::Format("Input mismatch detail: {0}", $summary.InputMismatchDetail))
+    }
+    $md.Add([string]::Format("Mismatch classification: {0}", $summary.MismatchClassification))
     $md.Add("")
     $md.Add("| Site | Scheduler Max | PortBatchReady Max | Delta |")
     $md.Add("|------|---------------|--------------------|-------|")

@@ -34,11 +34,24 @@ pwsh Tools\Analyze-DispatcherGaps.ps1 `
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$toolingJsonPath = Join-Path -Path $PSScriptRoot -ChildPath 'ToolingJson.psm1'
+$toolingJsonPath = Join-Path -Path $PSScriptRoot -ChildPath 'ToolingJson.psm1'  
 if (Test-Path -LiteralPath $toolingJsonPath) {
     Import-Module -Name $toolingJsonPath -Force
 } else {
     throw "ToolingJson module not found at '$toolingJsonPath'."
+}
+
+$analyzerStatsPath = Join-Path -Path $PSScriptRoot -ChildPath 'AnalyzerStats.psm1'
+if (-not (Get-Command -Name Get-SampleCount -ErrorAction SilentlyContinue)) {
+    # LANDMARK: ST-D-003 dispatcher gaps - auto-import AnalyzerStats dependency when missing
+    if (Test-Path -LiteralPath $analyzerStatsPath) {
+        Import-Module -Name $analyzerStatsPath -Force
+    } else {
+        throw "AnalyzerStats module not found at '$analyzerStatsPath'."
+    }
+    if (-not (Get-Command -Name Get-SampleCount -ErrorAction SilentlyContinue)) {
+        throw "AnalyzerStats module did not expose Get-SampleCount."
+    }
 }
 
 function Get-QueueSummary {
@@ -108,16 +121,19 @@ $builder.Add("## Queue summaries")
 $builder.Add("")
 foreach ($summary in $queueSummaries) {
     $pathDisplay = if ($summary.ResolvedPath) { $summary.ResolvedPath } else { '(unknown)' }
-    $sourceTelemetry = if ($summary.SourceTelemetryPath) { $summary.SourceTelemetryPath } else { '(unknown)' }
+    # LANDMARK: ST-D-003 dispatcher gaps - guard optional SourceTelemetryPath field
+    $sourceTelemetry = if ($summary.PSObject.Properties['SourceTelemetryPath'] -and $summary.SourceTelemetryPath) { $summary.SourceTelemetryPath } else { '(unknown)' }
     $builder.Add(('- Summary file: `{0}`' -f $pathDisplay))
     $builder.Add(('  - Source telemetry: `{0}`' -f $sourceTelemetry))
 
-    $stats = $summary.Statistics
-    $sampleCount = Get-SampleCount -Stats $stats -FallbackContainer $summary
+    # LANDMARK: ST-D-003 dispatcher gaps - allow queue summary without Statistics wrapper
+    $stats = if ($summary.PSObject.Properties['Statistics']) { $summary.Statistics } else { $summary }
+    $sampleCount = Get-SampleCount -Stats $stats -FallbackContainer $summary    
     $builder.Add(('  - Samples: {0}' -f $sampleCount))
 
-    $delayStats = $stats.QueueBuildDelayMs
-    $durationStats = $stats.QueueBuildDurationMs
+    # LANDMARK: ST-D-003 dispatcher gaps - guard optional queue delay stats
+    $delayStats = if ($stats.PSObject.Properties['QueueBuildDelayMs']) { $stats.QueueBuildDelayMs } else { $null }
+    $durationStats = if ($stats.PSObject.Properties['QueueBuildDurationMs']) { $stats.QueueBuildDurationMs } else { $null }
     if ($delayStats) {
         $builder.Add("  - QueueBuildDelay p95/p99: $($delayStats.P95) ms / $($delayStats.P99) ms")
     }
@@ -125,7 +141,8 @@ foreach ($summary in $queueSummaries) {
         $builder.Add("  - QueueBuildDuration p95/p99: $($durationStats.P95) ms / $($durationStats.P99) ms")
     }
 
-    if ($summary.Thresholds) {
+    # LANDMARK: ST-D-003 dispatcher gaps - guard optional Thresholds payload
+    if ($summary.PSObject.Properties['Thresholds'] -and $summary.Thresholds) {
         $builder.Add("  - Thresholds (p95/p99): $($summary.Thresholds.MaximumQueueDelayP95Ms) ms / $($summary.Thresholds.MaximumQueueDelayP99Ms) ms")
     }
 }

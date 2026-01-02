@@ -5,6 +5,8 @@ param(
 
     [string]$HistoryPath = (Join-Path -Path (Split-Path -Parent $PSScriptRoot) -ChildPath 'Logs\Reports\QueueDelayHistory.csv'),
 
+    [int]$MinimumSampleCount = 10,
+
     [switch]$Force
 )
 
@@ -21,6 +23,8 @@ entries (matching `SourceTelemetryPath`) are skipped unless `-Force` is passed.
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+if ($MinimumSampleCount -lt 1) { $MinimumSampleCount = 1 }
 
 if (-not $QueueSummaryPaths -or $QueueSummaryPaths.Count -eq 0) {
     throw 'Specify at least one queue summary JSON path.'
@@ -84,6 +88,11 @@ foreach ($summaryPath in $QueueSummaryPaths) {
     }
 
     $sampleCountValue = Get-SampleCount -Stats $delayStats -FallbackContainer $summary
+    if ($sampleCountValue -lt $MinimumSampleCount) {
+        # LANDMARK: Queue delay sample floor - skip low-sample rollups
+        Write-Warning ("Queue summary '{0}' reports {1} sample(s), below minimum {2}; skipping history append." -f $summaryPath, $sampleCountValue, $MinimumSampleCount)
+        continue
+    }
 
     $record = [pscustomobject]@{
         GeneratedAtUtc        = '' + $summary.GeneratedAtUtc

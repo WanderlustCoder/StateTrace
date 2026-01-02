@@ -9,7 +9,7 @@ param(
 
     [double]$MaximumQueueDelayP99Ms = 200,
 
-    [int]$MinimumEventCount = 1
+    [int]$MinimumEventCount = 10
 )
 
 <#
@@ -63,6 +63,7 @@ Get-Content -LiteralPath $MetricsPath -ReadCount 500 | ForEach-Object {
     }
 }
 
+# LANDMARK: Queue delay sample floor - require minimum sample count
 if ($delaySamples.Count -lt $MinimumEventCount) {
     throw ("Queue delay summary requires at least {0} sample(s); found {1} in '{2}'." -f $MinimumEventCount, $delaySamples.Count, $MetricsPath)
 }
@@ -80,6 +81,7 @@ $summary = [pscustomobject]@{
     GeneratedAtUtc     = (Get-Date).ToUniversalTime().ToString('o')
     SourceTelemetryPath = (Resolve-Path -LiteralPath $MetricsPath).Path
     Pass               = $pass
+    Result             = if ($pass) { 'Pass' } else { 'Fail' }
     Thresholds         = [pscustomobject]@{
         MinimumEventCount      = $MinimumEventCount
         MaximumQueueDelayP95Ms = $MaximumQueueDelayP95Ms

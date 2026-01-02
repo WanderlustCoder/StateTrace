@@ -1,0 +1,18 @@
+{
+  "SchemaVersion": "1.0",
+  "SnapshotId": "RHS-20251230-0001",
+  "CapturedAt": "2025-12-30T08:00:00Z",
+  "Site": "WLLS",
+  "Hostname": "WLLS-A01-AS-01",
+  "Vrf": "default",
+  "PrimaryRouteStatus": "Up",
+  "SecondaryRouteStatus": "Standby",
+  "HealthState": "Healthy",
+  "DetectionLatencyMs": 210,
+  "RouteRecordIds": [
+    "RR-OLD-001",
+    "RR-OLD-002",
+    "RR-SHARED-001"
+  ],
+  "HealthScore": 0.98
+}

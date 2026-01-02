@@ -62,6 +62,26 @@ function New-MetricAccumulator {
         SiteCacheFetchStatusCounts  = @{}
         SiteCacheProviderCounts     = @{}
         UserActionCounts            = @{}
+        # LANDMARK: Diff telemetry rollup - accumulator additions for usage rate and drift detection
+        DiffUsageCount              = 0
+        DiffUsageNumeratorSum       = 0.0
+        DiffUsageDenominatorSum     = 0.0
+        DiffUsageStatusCounts       = @{}
+        DriftDetectionDurations     = [System.Collections.Generic.List[double]]::new()
+        DriftDetectionDurationSum   = 0.0
+        DriftDetectionDurationMax   = [double]::NegativeInfinity
+        # LANDMARK: Rollup ingestion metrics - diff compare accumulators
+        DiffCompareDurationValues       = [System.Collections.Generic.List[double]]::new()
+        DiffCompareDurationSum          = 0.0
+        DiffCompareDurationMax          = [double]::NegativeInfinity
+        DiffCompareDurationStatusCounts = @{}
+        DiffCompareResultTotals         = [System.Collections.Generic.List[double]]::new()
+        DiffCompareResultTotalSum       = 0.0
+        DiffCompareResultAddedSum       = 0.0
+        DiffCompareResultRemovedSum     = 0.0
+        DiffCompareResultChangedSum     = 0.0
+        DiffCompareResultUnchangedSum   = 0.0
+        DiffCompareResultStatusCounts   = @{}
     }
 
     return $accumulator
@@ -214,6 +234,130 @@ function Get-SummaryRowsForAccumulator {
                 Total          = Get-RoundedValue -Value $fetchTotal
                 SecondaryTotal = $null
                 Notes          = if ($noteParts.Count -gt 0) { $noteParts -join '; ' } else { $null }
+            }) | Out-Null
+    }
+
+    # LANDMARK: Diff telemetry rollup - summary rows for usage rate + drift detection
+    if ($Accumulator.DiffUsageCount -gt 0) {
+        $usageRate = $null
+        if ($Accumulator.DiffUsageDenominatorSum -gt 0) {
+            $usageRate = $Accumulator.DiffUsageNumeratorSum / $Accumulator.DiffUsageDenominatorSum
+        }
+
+        $usageNotes = $null
+        if ($Accumulator.DiffUsageStatusCounts.Count -gt 0) {
+            $statusSummary = ($Accumulator.DiffUsageStatusCounts.GetEnumerator() |
+                Sort-Object Name | ForEach-Object {
+                    '{0}={1}' -f $_.Key, $_.Value
+                }) -join ','
+            if (-not [string]::IsNullOrWhiteSpace($statusSummary)) {
+                $usageNotes = "Statuses=$statusSummary"
+            }
+        }
+
+        $rows.Add([pscustomobject]@{
+                Date           = $DateKey
+                Scope          = $Scope
+                Metric         = 'DiffUsageRate'
+                Count          = $Accumulator.DiffUsageCount
+                Average        = Get-RoundedValue -Value $usageRate
+                P95            = $null
+                Max            = $null
+                Total          = [Math]::Round($Accumulator.DiffUsageNumeratorSum, 0)
+                SecondaryTotal = [Math]::Round($Accumulator.DiffUsageDenominatorSum, 0)
+                Notes          = $usageNotes
+            }) | Out-Null
+    }
+
+    $driftCount = $Accumulator.DriftDetectionDurations.Count
+    if ($driftCount -gt 0) {
+        $driftValues = $Accumulator.DriftDetectionDurations.ToArray()
+        $driftAverage = $Accumulator.DriftDetectionDurationSum / $driftCount    
+        $driftP95 = StatisticsModule\Get-PercentileValue -Values $driftValues -Percentile 95
+        $driftMax = if ($Accumulator.DriftDetectionDurationMax -eq [double]::NegativeInfinity) { $null } else { $Accumulator.DriftDetectionDurationMax }        
+
+        $rows.Add([pscustomobject]@{
+                Date           = $DateKey
+                Scope          = $Scope
+                Metric         = 'DriftDetectionTimeMinutes'
+                Count          = $driftCount
+                Average        = Get-RoundedValue -Value $driftAverage
+                P95            = Get-RoundedValue -Value $driftP95
+                Max            = Get-RoundedValue -Value $driftMax
+                Total          = Get-RoundedValue -Value $Accumulator.DriftDetectionDurationSum
+                SecondaryTotal = $null
+                Notes          = $null
+            }) | Out-Null
+    }
+
+    # LANDMARK: Rollup ingestion metrics - diff/compare duration and result counts rollups
+    # LANDMARK: Rollup ingestion metrics - diff compare summary rows
+    $compareDurationCount = $Accumulator.DiffCompareDurationValues.Count
+    if ($compareDurationCount -gt 0) {
+        $compareValues = $Accumulator.DiffCompareDurationValues.ToArray()
+        $compareAverage = $Accumulator.DiffCompareDurationSum / $compareDurationCount
+        $compareP95 = StatisticsModule\Get-PercentileValue -Values $compareValues -Percentile 95
+        $compareMax = if ($Accumulator.DiffCompareDurationMax -eq [double]::NegativeInfinity) { $null } else { $Accumulator.DiffCompareDurationMax }
+
+        $compareNotes = $null
+        if ($Accumulator.DiffCompareDurationStatusCounts.Count -gt 0) {
+            $statusSummary = ($Accumulator.DiffCompareDurationStatusCounts.GetEnumerator() |
+                Sort-Object Name | ForEach-Object {
+                    '{0}={1}' -f $_.Key, $_.Value
+                }) -join ','
+            if (-not [string]::IsNullOrWhiteSpace($statusSummary)) {
+                $compareNotes = "Statuses=$statusSummary"
+            }
+        }
+
+        $rows.Add([pscustomobject]@{
+                Date           = $DateKey
+                Scope          = $Scope
+                Metric         = 'DiffCompareDurationMs'
+                Count          = $compareDurationCount
+                Average        = Get-RoundedValue -Value $compareAverage
+                P95            = Get-RoundedValue -Value $compareP95
+                Max            = Get-RoundedValue -Value $compareMax
+                Total          = Get-RoundedValue -Value $Accumulator.DiffCompareDurationSum
+                SecondaryTotal = $null
+                Notes          = $compareNotes
+            }) | Out-Null
+    }
+
+    $resultCount = $Accumulator.DiffCompareResultTotals.Count
+    if ($resultCount -gt 0) {
+        $resultValues = $Accumulator.DiffCompareResultTotals.ToArray()
+        $resultAverage = $Accumulator.DiffCompareResultTotalSum / $resultCount
+        $resultP95 = StatisticsModule\Get-PercentileValue -Values $resultValues -Percentile 95
+        $resultMax = if ($resultValues.Count -gt 0) { ($resultValues | Measure-Object -Maximum).Maximum } else { $null }
+
+        $notesParts = [System.Collections.Generic.List[string]]::new()
+        $notesParts.Add("Added=$([Math]::Round($Accumulator.DiffCompareResultAddedSum, 0))") | Out-Null
+        $notesParts.Add("Removed=$([Math]::Round($Accumulator.DiffCompareResultRemovedSum, 0))") | Out-Null
+        $notesParts.Add("Changed=$([Math]::Round($Accumulator.DiffCompareResultChangedSum, 0))") | Out-Null
+        $notesParts.Add("Unchanged=$([Math]::Round($Accumulator.DiffCompareResultUnchangedSum, 0))") | Out-Null
+
+        if ($Accumulator.DiffCompareResultStatusCounts.Count -gt 0) {
+            $statusSummary = ($Accumulator.DiffCompareResultStatusCounts.GetEnumerator() |
+                Sort-Object Name | ForEach-Object {
+                    '{0}={1}' -f $_.Key, $_.Value
+                }) -join ','
+            if (-not [string]::IsNullOrWhiteSpace($statusSummary)) {
+                $notesParts.Add("Statuses=$statusSummary") | Out-Null
+            }
+        }
+
+        $rows.Add([pscustomobject]@{
+                Date           = $DateKey
+                Scope          = $Scope
+                Metric         = 'DiffCompareResultCounts'
+                Count          = $resultCount
+                Average        = Get-RoundedValue -Value $resultAverage
+                P95            = Get-RoundedValue -Value $resultP95
+                Max            = Get-RoundedValue -Value $resultMax
+                Total          = [Math]::Round($Accumulator.DiffCompareResultTotalSum, 0)
+                SecondaryTotal = $null
+                Notes          = if ($notesParts.Count -gt 0) { $notesParts -join '; ' } else { $null }
             }) | Out-Null
     }
 
@@ -404,6 +548,161 @@ function Update-AccumulatorFromEvent {
                 $providerValue = ('' + $Event.SiteCacheProvider).Trim()
                 Add-DictionaryCount -Dictionary $Accumulator.SiteCacheProviderCounts -Key $providerValue
             }
+        }
+
+        # LANDMARK: Diff telemetry rollup - event accumulation for usage rate + drift detection
+        'DiffUsageRate' {
+            $numerator = 0.0
+            $denominator = 0.0
+            $parsed = $false
+
+            if ($Event.PSObject.Properties.Name -contains 'UsageNumerator') {
+                try {
+                    $numerator = [double]$Event.UsageNumerator
+                    $parsed = $true
+                } catch {
+                    $numerator = 0.0
+                }
+            }
+            if ($Event.PSObject.Properties.Name -contains 'UsageDenominator') {
+                try {
+                    $denominator = [double]$Event.UsageDenominator
+                    $parsed = $true
+                } catch {
+                    $denominator = 0.0
+                }
+            }
+
+            if (-not $parsed) { break }
+
+            $Accumulator.DiffUsageCount++
+            $Accumulator.DiffUsageNumeratorSum += $numerator
+            $Accumulator.DiffUsageDenominatorSum += $denominator
+
+            if ($Event.PSObject.Properties.Name -contains 'Status') {
+                $statusValue = ('' + $Event.Status).Trim()
+                Add-DictionaryCount -Dictionary $Accumulator.DiffUsageStatusCounts -Key $statusValue
+            }
+        }
+
+        'DriftDetectionTime' {
+            if ($Event.PSObject.Properties.Name -contains 'DurationMinutes') {  
+                try {
+                    $duration = [double]$Event.DurationMinutes
+                } catch {
+                    break
+                }
+
+                $Accumulator.DriftDetectionDurations.Add($duration) | Out-Null
+                $Accumulator.DriftDetectionDurationSum += $duration
+                if ($duration -gt $Accumulator.DriftDetectionDurationMax) {     
+                    $Accumulator.DriftDetectionDurationMax = $duration
+                }
+            }
+        }
+
+        # LANDMARK: Rollup ingestion metrics - align diff/compare telemetry parsing to emitted schema
+        # LANDMARK: Rollup ingestion metrics - diff compare telemetry accumulation
+        'DiffCompareDurationMs' {
+            $statusValue = ''
+            if ($Event.PSObject.Properties.Name -contains 'Status') {
+                $statusValue = ('' + $Event.Status).Trim()
+                Add-DictionaryCount -Dictionary $Accumulator.DiffCompareDurationStatusCounts -Key $statusValue
+            }
+
+            $includeDuration = $true
+            if (-not [string]::IsNullOrWhiteSpace($statusValue) -and $statusValue -ne 'Executed') {
+                $includeDuration = $false
+            }
+            if (-not $includeDuration) { break }
+
+            if ($Event.PSObject.Properties.Name -contains 'DurationMs') {
+                try {
+                    $durationMs = [double]$Event.DurationMs
+                } catch {
+                    break
+                }
+
+                $Accumulator.DiffCompareDurationValues.Add($durationMs) | Out-Null
+                $Accumulator.DiffCompareDurationSum += $durationMs
+                if ($durationMs -gt $Accumulator.DiffCompareDurationMax) {
+                    $Accumulator.DiffCompareDurationMax = $durationMs
+                }
+            }
+        }
+
+        'DiffCompareResultCounts' {
+            $statusValue = ''
+            if ($Event.PSObject.Properties.Name -contains 'Status') {
+                $statusValue = ('' + $Event.Status).Trim()
+                Add-DictionaryCount -Dictionary $Accumulator.DiffCompareResultStatusCounts -Key $statusValue
+            }
+
+            $includeCounts = $true
+            if (-not [string]::IsNullOrWhiteSpace($statusValue) -and $statusValue -ne 'Executed') {
+                $includeCounts = $false
+            }
+            if (-not $includeCounts) { break }
+
+            $totalValue = 0.0
+            $addedValue = 0.0
+            $removedValue = 0.0
+            $changedValue = 0.0
+            $unchangedValue = 0.0
+            $hasAny = $false
+
+            if ($Event.PSObject.Properties.Name -contains 'TotalCount') {
+                try {
+                    $totalValue = [double]$Event.TotalCount
+                    $hasAny = $true
+                } catch {
+                    $totalValue = 0.0
+                }
+            }
+            if ($Event.PSObject.Properties.Name -contains 'AddedCount') {
+                try {
+                    $addedValue = [double]$Event.AddedCount
+                    $hasAny = $true
+                } catch {
+                    $addedValue = 0.0
+                }
+            }
+            if ($Event.PSObject.Properties.Name -contains 'RemovedCount') {
+                try {
+                    $removedValue = [double]$Event.RemovedCount
+                    $hasAny = $true
+                } catch {
+                    $removedValue = 0.0
+                }
+            }
+            if ($Event.PSObject.Properties.Name -contains 'ChangedCount') {
+                try {
+                    $changedValue = [double]$Event.ChangedCount
+                    $hasAny = $true
+                } catch {
+                    $changedValue = 0.0
+                }
+            }
+            if ($Event.PSObject.Properties.Name -contains 'UnchangedCount') {
+                try {
+                    $unchangedValue = [double]$Event.UnchangedCount
+                    $hasAny = $true
+                } catch {
+                    $unchangedValue = 0.0
+                }
+            }
+
+            if (-not $hasAny) { break }
+            if ($totalValue -le 0 -and $hasAny) {
+                $totalValue = $addedValue + $removedValue + $changedValue + $unchangedValue
+            }
+
+            $Accumulator.DiffCompareResultTotals.Add($totalValue) | Out-Null
+            $Accumulator.DiffCompareResultTotalSum += $totalValue
+            $Accumulator.DiffCompareResultAddedSum += $addedValue
+            $Accumulator.DiffCompareResultRemovedSum += $removedValue
+            $Accumulator.DiffCompareResultChangedSum += $changedValue
+            $Accumulator.DiffCompareResultUnchangedSum += $unchangedValue
         }
 
         'UserAction' {

@@ -1179,7 +1179,8 @@ function Invoke-DeviceParsingJobs {
         if ($metricsContext) {
             Finalize-SchedulerMetricsContext -Context $metricsContext
         }
-        try { TelemetryModule\Flush-StTelemetryBuffer | Out-Null } catch { }
+        # LANDMARK: Telemetry buffer rename - use approved verb export
+        try { TelemetryModule\Save-StTelemetryBuffer | Out-Null } catch { }
     }
 }
 

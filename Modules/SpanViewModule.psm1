@@ -35,17 +35,23 @@ function Get-GlobalSpanView {
 function Set-SpanViewControls {
     param([Parameter()][object]$View)
 
-    if ($View) {
+    # LANDMARK: Span view control checks - avoid false negatives on empty WPF enumerables
+    if ($null -ne $View) {
         $script:SpanViewControl = $View
     } elseif (-not $script:SpanViewControl) {
         $globalView = Get-GlobalSpanView
-        if ($globalView) {
+        if ($null -ne $globalView) {
             $script:SpanViewControl = $globalView
         }
     }
 
     if (-not $script:SpanViewControl) {
         return $false
+    }
+
+    $currentGlobal = Get-GlobalSpanView
+    if ($null -eq $currentGlobal -and $script:SpanViewControl) {
+        $global:spanView = $script:SpanViewControl
     }
 
     try {
@@ -180,6 +186,10 @@ function New-SpanView {
     if (-not $spanView) { return }
 
     Set-SpanViewControls -View $spanView | Out-Null
+    # LANDMARK: Span view global cache - keep spanView synced for harnesses
+    if ($null -ne $spanView) {
+        $global:spanView = $spanView
+    }
 
     Import-SpanRepositoryModule
 

@@ -13,6 +13,9 @@ param(
     [switch]$PreserveModuleSession,
     [switch]$SkipSchedulerFairnessGuard,
     [switch]$SkipWarmRunRegression,
+    [switch]$ForcePortBatchReadySynthesis,
+    [switch]$UseBalancedHostOrder,
+    [switch]$RawPortDiversityAutoConcurrency,
     [string]$WarmRunTelemetryDirectory,
     [string]$WarmRunRegressionOutputPath,
     [double]$WarmRunMinimumImprovementPercent = 25,
@@ -33,7 +36,7 @@ param(
     [switch]$RequireSharedCacheSnapshotGuard,
     [switch]$SkipQueueDelayEvaluation,
     [string]$QueueMetricsPath,
-    [int]$QueueDelayMinimumSampleCount = 1,
+    [int]$QueueDelayMinimumSampleCount = 10,
     [double]$QueueDelayP95Maximum = 120,
     [double]$QueueDelayP99Maximum = 200,
     [string]$QueueDelaySummaryPath,
@@ -78,13 +81,60 @@ function Ensure-VerificationModuleLoaded {
     }
 }
 
+# LANDMARK: Queue gate self-sufficiency - decide when to run queue harness
+function Resolve-QueueDelayHarnessPolicy {
+    [CmdletBinding()]
+    param(
+        [switch]$SkipQueueDelayEvaluation,
+        [string]$QueueMetricsPath
+    )
+
+    $shouldRun = $false
+    $reason = ''
+
+    if (-not $SkipQueueDelayEvaluation.IsPresent -and [string]::IsNullOrWhiteSpace($QueueMetricsPath)) {
+        $shouldRun = $true
+        $reason = 'QueueMetricsPath not specified; run queue delay harness to populate InterfacePortQueueMetrics.'
+    }
+
+    return [pscustomobject]@{
+        ShouldRun = $shouldRun
+        Reason    = $reason
+    }
+}
+
 $pipelineParameters = @{}
+
+$rawPortDiversityAutoConcurrency = $RawPortDiversityAutoConcurrency.IsPresent
+if ($rawPortDiversityAutoConcurrency -and $ForcePortBatchReadySynthesis.IsPresent) {
+    throw 'RawPortDiversityAutoConcurrency cannot be combined with ForcePortBatchReadySynthesis. Run raw mode without synthesis.'
+}
+if ($rawPortDiversityAutoConcurrency) {
+    # LANDMARK: Raw diversity auto concurrency - pass scoped mode to pipeline
+    $pipelineParameters['RawPortDiversityAutoConcurrency'] = $true
+}
 
 if ($SkipTests.IsPresent) { $pipelineParameters['SkipTests'] = $true }
 if ($SkipParsing.IsPresent) { $pipelineParameters['SkipParsing'] = $true }
 if ($SkipSchedulerFairnessGuard.IsPresent) {
     $pipelineParameters['FailOnSchedulerFairness'] = $false
     Write-Warning 'Parser scheduler fairness guard disabled for this verification run.'
+}
+if ($ForcePortBatchReadySynthesis.IsPresent) {
+    # LANDMARK: PortBatchReady synthesis - force synthesized batches before diversity guard
+    Write-Warning 'PortBatchReady synthesis is enabled; telemetry will be modified in-place and a .bak copy will be created.'
+    $pipelineParameters['ForcePortBatchReadySynthesis'] = $true
+}
+if ($UseBalancedHostOrder.IsPresent) {
+    # LANDMARK: Host sweep balancing - pass balanced ordering to the pipeline
+    $pipelineParameters['UseBalancedHostOrder'] = $true
+}
+
+$queueDelayHarnessPolicy = Resolve-QueueDelayHarnessPolicy -SkipQueueDelayEvaluation:$SkipQueueDelayEvaluation -QueueMetricsPath $QueueMetricsPath
+if ($queueDelayHarnessPolicy.ShouldRun) {
+    # LANDMARK: Queue gate self-sufficiency - ensure summary exists before evaluation
+    $pipelineParameters['RunQueueDelayHarness'] = $true
+    Write-Host ("Queue delay harness enabled for verification: {0}" -f $queueDelayHarnessPolicy.Reason) -ForegroundColor DarkCyan
 }
 
 function Resolve-OptionalPath {
@@ -221,6 +271,7 @@ function Write-QueueDelaySummary {
         GeneratedAtUtc       = (Get-Date).ToUniversalTime()
         SourceTelemetryPath  = $TelemetryPath
         Pass                 = $Evaluation.Pass
+        Result               = $Evaluation.Result
         Thresholds           = $Evaluation.Thresholds
         Statistics           = $Evaluation.Statistics
     }
@@ -240,6 +291,11 @@ function Write-QueueDelaySummary {
     }
 
     return $SummaryPath
+}
+
+# Support dot-sourcing for tests without running the full verification pipeline.
+if (Test-Path -LiteralPath variable:global:StateTraceVerificationSkipMain) {
+    if ($global:StateTraceVerificationSkipMain) { return }
 }
 
 Set-NumericParameter -Name 'ThreadCeilingOverride' -Value $ThreadCeilingOverride
@@ -296,7 +352,12 @@ $sharedCacheSummaryEvaluation = $null
 $queueMetricsPathUsed = $null
 $queueDelayEvaluation = $null
 $queueDelaySummaryPathUsed = $null
-if (-not $SkipWarmRunRegression.IsPresent) {
+$skipWarmRunForRawDiversity = $rawPortDiversityAutoConcurrency
+if ($skipWarmRunForRawDiversity -and -not $SkipWarmRunRegression.IsPresent) {
+    # LANDMARK: Raw diversity auto concurrency - avoid warm-run regression overrides
+    Write-Warning 'Raw port diversity auto concurrency enabled; skipping warm-run regression for this run.'
+}
+if (-not $SkipWarmRunRegression.IsPresent -and -not $skipWarmRunForRawDiversity) {
     $pipelineParameters['RunWarmRunRegression'] = $true
 
     $targetPath = $WarmRunRegressionOutputPath
@@ -513,18 +574,17 @@ if (-not $SkipQueueDelayEvaluation.IsPresent) {
         throw ("Queue delay evaluation file '{0}' was not found." -f $queueMetricsPathUsed)
     }
 
+    # LANDMARK: Gate artifact traceability - log exact input paths used for evaluation
+    Write-Host ("Queue delay evaluation metrics file: {0}" -f $queueMetricsPathUsed) -ForegroundColor DarkCyan
     $queueEvents = Read-InterfacePortQueueEvents -MetricsPath $queueMetricsPathUsed
     $queueEventCount = if ($queueEvents) { $queueEvents.Count } else { 0 }
-    if ($queueEventCount -lt $QueueDelayMinimumSampleCount) {
-        throw ("Queue delay evaluation found {0} InterfacePortQueueMetrics event(s) in '{1}' (need at least {2})." -f $queueEventCount, $queueMetricsPathUsed, $QueueDelayMinimumSampleCount)
-    }
-
     Ensure-VerificationModuleLoaded -ModulePath $verificationModulePath
     $queueDelayEvaluation = Test-InterfacePortQueueDelay -Events $queueEvents `
         -MaximumP95Ms $QueueDelayP95Maximum `
         -MaximumP99Ms $QueueDelayP99Maximum `
         -MinimumEventCount $QueueDelayMinimumSampleCount
 
+    $delayStats = $null
     if ($queueDelayEvaluation -and $queueDelayEvaluation.Statistics -and $queueDelayEvaluation.Statistics.QueueBuildDelayMs) {
         $delayStats = $queueDelayEvaluation.Statistics.QueueBuildDelayMs
         $avgDisplay = if ($delayStats.Average -ne $null) { ('{0:N3}' -f $delayStats.Average) } else { 'n/a' }
@@ -534,7 +594,17 @@ if (-not $SkipQueueDelayEvaluation.IsPresent) {
         Write-Host 'InterfacePortQueueMetrics evaluation:' -ForegroundColor Yellow
         Write-Host ("  Source file             : {0}" -f $queueMetricsPathUsed) -ForegroundColor Yellow
         Write-Host ("  Samples                 : {0}" -f $delayStats.SampleCount) -ForegroundColor Yellow
+        Write-Host ("  Minimum samples required: {0}" -f $QueueDelayMinimumSampleCount) -ForegroundColor Yellow
         Write-Host ("  Queue delay avg/p95/p99/max (ms): {0} / {1} / {2} / {3}" -f $avgDisplay, $p95Display, $p99Display, $maxDisplay) -ForegroundColor Yellow
+    }
+
+    if ($queueDelayEvaluation -and $queueDelayEvaluation.Result -eq 'InsufficientData') {
+        # LANDMARK: Queue delay sample floor - fail verification on insufficient samples
+        $reportedCount = $queueEventCount
+        if ($delayStats -and $delayStats.SampleCount -ne $null) {
+            $reportedCount = $delayStats.SampleCount
+        }
+        throw ("Queue delay evaluation found {0} InterfacePortQueueMetrics sample(s) in '{1}' (need at least {2})." -f $reportedCount, $queueMetricsPathUsed, $QueueDelayMinimumSampleCount)
     }
 
     if ($queueDelayEvaluation -and -not $queueDelayEvaluation.Pass) {

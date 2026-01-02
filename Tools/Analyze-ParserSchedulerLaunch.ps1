@@ -63,7 +63,9 @@ function New-ScalarSummary {
         [double[]]$Values
     )
 
-    if (-not $Values -or $Values.Count -eq 0) {
+    # LANDMARK: Scheduler metrics summary - normalize scalar inputs to arrays
+    $normalizedValues = @($Values)
+    if (-not $normalizedValues -or $normalizedValues.Count -eq 0) {
         return [pscustomobject]@{
             Name   = $Name
             Count  = 0
@@ -75,7 +77,7 @@ function New-ScalarSummary {
         }
     }
 
-    $sorted = $Values | Sort-Object
+    $sorted = @($normalizedValues | Sort-Object)
     $count = $sorted.Count
     $avg = ($sorted | Measure-Object -Average).Average
 

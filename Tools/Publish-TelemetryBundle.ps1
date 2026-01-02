@@ -6,7 +6,10 @@ param(
     [ValidateNotNullOrEmpty()]
     [string]$OutputRoot = (Join-Path -Path (Split-Path -Path $PSScriptRoot -Parent) -ChildPath 'Logs/TelemetryBundles'),
 
-    [string]$AreaName = 'Performance',
+    [switch]$AllowCustomOutputRoot,
+
+    # LANDMARK: Publish telemetry bundle - default to Telemetry area for readiness compliance
+    [string]$AreaName = 'Telemetry',
 
     [string]$IngestionMetricsDirectory = (Join-Path -Path (Split-Path -Path $PSScriptRoot -Parent) -ChildPath 'Logs\IngestionMetrics'),
     [string]$RollupDirectory = (Join-Path -Path (Split-Path -Path $PSScriptRoot -Parent) -ChildPath 'Logs\IngestionMetrics'),
@@ -34,11 +37,14 @@ param(
 
     [string[]]$PlanReferences,
     [string[]]$TaskBoardIds,
+    # LANDMARK: Telemetry bundle publish - forward risk register references
+    [string[]]$RiskRegisterEntries,
     [string]$Notes,
 
     [string]$ColdTelemetryFilter = '20*.json',
     [string]$WarmTelemetryFilter = 'WarmRunTelemetry*.json',
-    [string[]]$AnalyzerFilter = @('SharedCache*.json'),
+    # LANDMARK: Publish telemetry bundle - include shared-cache analyzers required by readiness
+    [string[]]$AnalyzerFilter = @('SharedCacheStoreState*.json','SiteCacheProviderReasons*.json'),
     [string]$DiffHotspotsFilter = 'WarmRunDiffHotspots*.csv',
     [string]$RollupFilter = 'IngestionMetricsSummary*.csv',
     [string]$QueueSummaryFilter = 'QueueDelaySummary*.json',
@@ -179,7 +185,8 @@ function Get-OptionalArtifacts {
 $schedulerComparisonJson = Get-OptionalArtifacts -Directory $HistoryDirectory -Filter @($SchedulerDiversityReportFilter) -Description 'Scheduler vs Port (JSON)'
 $schedulerComparisonMarkdown = Get-OptionalArtifacts -Directory $PerformanceDocsDirectory -Filter @($SchedulerDiversityMarkdownFilter) -Description 'Scheduler vs Port (Markdown)'
 
-if (@($DocSyncPath).Count -eq 0) {
+# LANDMARK: Publish telemetry bundle - auto-select latest session log for doc-sync evidence
+if (-not $DocSyncPath -or $DocSyncPath.Count -eq 0) {
     if (Test-Path -LiteralPath $DocSyncDirectory) {
         $latestSession = Get-ChildItem -LiteralPath $DocSyncDirectory -Filter '*.md' -File |
             Sort-Object LastWriteTime -Descending |
@@ -204,6 +211,7 @@ $bundleParams = @{
     OutputRoot = $OutputRoot
     Force = $Force
 }
+if ($AllowCustomOutputRoot) { $bundleParams['AllowCustomOutputRoot'] = $true }
 if ($AreaName) { $bundleParams['AreaName'] = $AreaName }
 if ($resolvedCold) { $bundleParams['ColdTelemetryPath'] = $resolvedCold }
 if ($resolvedWarm) { $bundleParams['WarmTelemetryPath'] = $resolvedWarm }
@@ -222,6 +230,7 @@ if (@($AdditionalPath).Count -gt 0) { $aggregatedAdditional += $AdditionalPath }
 if (@($aggregatedAdditional).Count -gt 0) { $bundleParams['AdditionalPath'] = $aggregatedAdditional }
 if (@($PlanReferences).Count -gt 0) { $bundleParams['PlanReferences'] = $PlanReferences }
 if (@($TaskBoardIds).Count -gt 0) { $bundleParams['TaskBoardIds'] = $TaskBoardIds }
+if (@($RiskRegisterEntries).Count -gt 0) { $bundleParams['RiskRegisterEntries'] = $RiskRegisterEntries }
 if ($Notes) { $bundleParams['Notes'] = $Notes }
 if ($PassThru -or $VerifyPlanHReadiness) { $bundleParams['PassThru'] = $true }
 

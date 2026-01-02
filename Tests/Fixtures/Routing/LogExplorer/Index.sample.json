@@ -1,0 +1,61 @@
+{
+  "SchemaVersion": "1.0",
+  "GeneratedAt": "2025-12-30T10:30:00Z",
+  "RootPath": "Tests/Fixtures/Routing/LogExplorer",
+  "Counts": {
+    "Total": 5,
+    "ValidationRuns": 1,
+    "Pipelines": 3,
+    "EvidenceRecords": 0,
+    "Unknown": 1
+  },
+  "Entries": [
+    {
+      "Type": "RoutingDiscoveryPipelineSummary",
+      "Timestamp": "2025-12-30T11:00:00Z",
+      "Status": "Pass",
+      "Site": "WLLS",
+      "Hostname": "WLLS-A01-AS-01",
+      "Vendor": "CiscoIOSXE",
+      "Vrf": "default",
+      "Path": "Tests/Fixtures/Routing/LogExplorer/Compare/RoutingDiscoveryPipelineSummary.new.json"
+    },
+    {
+      "Type": "RoutingDiscoveryPipelineSummary",
+      "Timestamp": "2025-12-30T10:30:00Z",
+      "Status": "Pass",
+      "Site": "WLLS",
+      "Hostname": "WLLS-A01-AS-01",
+      "Vendor": "CiscoIOSXE",
+      "Vrf": "default",
+      "Path": "Tests/Fixtures/Routing/LogExplorer/Compare/RoutingDiscoveryPipelineSummary.old.json"
+    },
+    {
+      "Type": "RoutingValidationRunSummary",
+      "Timestamp": "2025-12-30T10:00:00Z",
+      "Status": "Pass",
+      "Site": "LAB",
+      "Vendor": "CiscoIOSXE",
+      "Vrf": "default",
+      "Path": "Tests/Fixtures/Routing/LogExplorer/RoutingValidationRunSummary.sample.json"
+    },
+    {
+      "Type": "RoutingDiscoveryPipelineSummary",
+      "Timestamp": "2025-12-30T09:00:00Z",
+      "Status": "Pass",
+      "Site": "WLLS",
+      "Vendor": null,
+      "Vrf": "default",
+      "Path": "Tests/Fixtures/Routing/LogExplorer/RoutingDiscoveryPipelineSummary.sample.json"
+    },
+    {
+      "Type": "Unknown",
+      "Timestamp": "2025-12-30T08:00:00Z",
+      "Status": "InvalidJson",
+      "Site": "LAB",
+      "Vendor": "Unknown",
+      "Vrf": "default",
+      "Path": "Tests/Fixtures/Routing/LogExplorer/RoutingValidationRunSummary.sample.json"
+    }
+  ]
+}

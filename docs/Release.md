@@ -11,11 +11,19 @@ This guide describes how to package, version and release StateTrace.  It covers 
 ## Release evidence checklist (minimum)
 - [ ] Plan G gates satisfied (`docs/plans/PlanG_ReleaseGovernance.md`).
 - [ ] Verification summary captured (see `Tools/Invoke-StateTraceVerification.ps1` or scheduled verification tasks).
-- [ ] Telemetry bundle published and passes readiness verification (see Telemetry bundle verification).
+- [ ] Telemetry bundle verification recorded (bundle path, README hashes, readiness summary path, and `Tools/New-TelemetryBundle.ps1` artifact link).
+<!-- LANDMARK: Release checklist telemetry bundle verification artifact link -->
 - [ ] Shared cache snapshot evidence captured when relevant.
 - [ ] Doc sync completed (plans, Task Board, session logs).
 - [ ] Risk register reviewed/updated if needed.
+- [ ] Release candidate summary references Risk Register entries (RR-###) and lists mitigations/owners.
 - [ ] NetOps evidence recorded and reset if online mode was used.
+
+## Release candidate summary (risk register linkage)
+<!-- LANDMARK: Release candidate summary - risk register linkage requirement -->
+Create a release candidate summary using `docs/templates/Release_Candidate_Summary.md` and include the relevant Risk Register entry IDs (RR-###) from `docs/RiskRegister.md` with mitigation + owner notes. Attach the summary path to the release checklist before approvals.
+<!-- LANDMARK: ST-G-007 release checklist ties telemetry bundle verification to RC summary template -->
+Record telemetry bundle verification details (bundle path, areas, readiness summary path, README hashes) in the release candidate summary template so the checklist can reference a single artifact.
 
 ## Versioning
 

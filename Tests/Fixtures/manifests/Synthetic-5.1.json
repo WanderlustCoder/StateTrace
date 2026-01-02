@@ -1,0 +1,16 @@
+{
+  "name": "Synthetic",
+  "version": "5.1",
+  "id": "Synthetic-5.1",
+  "description": "Minimal synthetic metrics corpus for harness smoke (queue delay, port diversity, shared cache diagnostics).",
+  "includes": [
+    { "site": "BOYO", "notes": "Synthetic PortBatchReady + InterfaceSyncTiming events." },
+    { "site": "WLLS", "notes": "Synthetic PortBatchReady + InterfaceSyncTiming events." }
+  ],
+  "generation": {
+    "requiresGeneration": false,
+    "command": null
+  },
+  "metricsPath": "Tests/Fixtures/Synthetic/5.1/IngestionMetrics.json",
+  "notes": "Line-delimited JSON; used by Invoke-ScheduledHarnessSmoke.ps1 -DatasetVersion 5.1."
+}

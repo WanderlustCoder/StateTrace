@@ -1,5 +1,49 @@
 Set-StrictMode -Version Latest
 
+# LANDMARK: Raw diversity auto concurrency - snapshot/restore override settings
+function Get-ConcurrencyOverrideSnapshot {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$SettingsPath
+    )
+
+    $snapshot = [pscustomobject]@{
+        SettingsPath = $SettingsPath
+        Exists       = $false
+        OriginalText = $null
+        OriginalBytes = $null
+    }
+
+    if (-not (Test-Path -LiteralPath $SettingsPath)) {
+        return $snapshot
+    }
+
+    $snapshot.Exists = $true
+    # LANDMARK: Raw auto restore safety - preserve exact settings file bytes
+    $snapshot.OriginalBytes = [System.IO.File]::ReadAllBytes($SettingsPath)
+    $snapshot.OriginalText = [System.Text.Encoding]::UTF8.GetString($snapshot.OriginalBytes)
+    return $snapshot
+}
+
+function Set-ConcurrencyOverrideSnapshot {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][psobject]$Snapshot
+    )
+
+    if (-not $Snapshot) { return $false }
+    if (-not $Snapshot.SettingsPath) { return $false }
+    if (-not $Snapshot.Exists) { return $false }
+    if ($null -ne $Snapshot.OriginalBytes) {
+        [System.IO.File]::WriteAllBytes($Snapshot.SettingsPath, $Snapshot.OriginalBytes)
+        return $true
+    }
+    if ($null -eq $Snapshot.OriginalText) { return $false }
+
+    Set-Content -LiteralPath $Snapshot.SettingsPath -Value $Snapshot.OriginalText -Encoding utf8
+    return $true
+}
+
 function Reset-ConcurrencyOverrideSettings {
     [CmdletBinding()]
     param(
@@ -81,4 +125,4 @@ function Reset-ConcurrencyOverrideSettings {
     return $result
 }
 
-Export-ModuleMember -Function Reset-ConcurrencyOverrideSettings
+Export-ModuleMember -Function Reset-ConcurrencyOverrideSettings, Get-ConcurrencyOverrideSnapshot, Set-ConcurrencyOverrideSnapshot

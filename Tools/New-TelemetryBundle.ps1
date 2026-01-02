@@ -6,6 +6,8 @@ param(
     [ValidateNotNullOrEmpty()]
     [string]$OutputRoot = (Join-Path -Path (Split-Path -Path $PSScriptRoot -Parent) -ChildPath 'Logs/TelemetryBundles'),
 
+    [switch]$AllowCustomOutputRoot,
+
     [string]$AreaName,
 
     [string[]]$ColdTelemetryPath,
@@ -21,6 +23,8 @@ param(
 
     [string[]]$PlanReferences,
     [string[]]$TaskBoardIds,
+    # LANDMARK: Telemetry bundle manifest - capture risk register references
+    [string[]]$RiskRegisterEntries,
     [string]$Notes,
 
     [switch]$Force,
@@ -33,6 +37,26 @@ $ErrorActionPreference = 'Stop'
 if (-not $BundleName) {
     throw 'BundleName cannot be empty.'
 }
+
+# LANDMARK: Telemetry bundle output guard - ensure bundles live under Logs/TelemetryBundles
+$repoRoot = Split-Path -Path $PSScriptRoot -Parent
+$canonicalRoot = Join-Path -Path $repoRoot -ChildPath 'Logs/TelemetryBundles'
+$resolvedOutputRoot = if ([System.IO.Path]::IsPathRooted($OutputRoot)) {
+    [System.IO.Path]::GetFullPath($OutputRoot)
+} else {
+    [System.IO.Path]::GetFullPath((Join-Path -Path $repoRoot -ChildPath $OutputRoot))
+}
+$resolvedCanonicalRoot = [System.IO.Path]::GetFullPath($canonicalRoot)
+$normalizedOutputRoot = $resolvedOutputRoot.TrimEnd('\')
+$normalizedCanonicalRoot = $resolvedCanonicalRoot.TrimEnd('\')
+$allowedPrefix = '{0}\\' -f $normalizedCanonicalRoot
+$isUnderCanonical = $normalizedOutputRoot.Equals($normalizedCanonicalRoot, [System.StringComparison]::OrdinalIgnoreCase) -or
+    $normalizedOutputRoot.StartsWith($allowedPrefix, [System.StringComparison]::OrdinalIgnoreCase)
+if (-not $AllowCustomOutputRoot -and -not $isUnderCanonical) {
+    throw ("OutputRoot '{0}' must be under '{1}' unless -AllowCustomOutputRoot is specified." -f $resolvedOutputRoot, $resolvedCanonicalRoot)
+}
+
+$OutputRoot = $resolvedOutputRoot
 
 $allArtifacts = @()
 $allArtifacts += $ColdTelemetryPath
@@ -141,6 +165,7 @@ $manifest = [ordered]@{
     BundlePath = $bundleDir
     PlanReferences = $PlanReferences
     TaskBoardIds = $TaskBoardIds
+    RiskRegisterEntries = $RiskRegisterEntries
     Notes = $Notes
     Artifacts = $artifactEntries
 }
@@ -155,6 +180,8 @@ $readmeLines += "- Created: $($manifest.CreatedAt)"
 $readmeLines += "- Host: $($manifest.Hostname)"
 if ($PlanReferences) { $readmeLines += "- Plans: $([string]::Join(', ', $PlanReferences))" }
 if ($TaskBoardIds) { $readmeLines += "- Task Board IDs: $([string]::Join(', ', $TaskBoardIds))" }
+# LANDMARK: Telemetry bundle README - include risk register references when supplied
+if ($RiskRegisterEntries) { $readmeLines += "- Risk Register: $([string]::Join(', ', $RiskRegisterEntries))" }
 if ($Notes) { $readmeLines += "- Notes: $Notes" }
 $readmeLines += ''
 $readmeLines += '## Artifacts'

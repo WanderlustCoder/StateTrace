@@ -1,0 +1,17 @@
+{
+  "Timestamp": "2025-12-29T12:00:00Z",
+  "Status": "Pass",
+  "Mode": "Offline",
+  "CaptureMetadata": {
+    "SchemaVersion": "1.0",
+    "CapturedAt": "2025-12-29T00:00:00Z",
+    "Site": "WLLS",
+    "Hostname": "WLLS-A01-AS-01",
+    "Vrf": "default"
+  },
+  "ArtifactPaths": {
+    "PipelineSummaryPath": "Logs/Reports/RoutingDiscoveryPipeline/RoutingDiscoveryPipelineSummary-20251229-120000.json",
+    "RouteRecordsSummaryPath": "Logs/Reports/RoutingDiscoveryPipeline/RoutingDiscoveryConversion-20251229-120000.json"
+  },
+  "Errors": []
+}

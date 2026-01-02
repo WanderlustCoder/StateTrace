@@ -1,0 +1,7 @@
+Hostname: BOYO-A01
+CaptureId: BOYO-A01-003
+TimestampUtc: 2026-01-01T00:00:00Z
+Interface Gi1/0/1: down
+Interface Gi1/0/2: up
+Vlan 10: active
+Vlan 30: active

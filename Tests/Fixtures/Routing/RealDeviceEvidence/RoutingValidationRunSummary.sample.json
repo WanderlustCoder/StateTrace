@@ -1,0 +1,20 @@
+{
+  "Timestamp": "2025-12-29T12:00:00Z",
+  "Status": "Pass",
+  "Mode": "Online",
+  "SessionPath": "Tests/Fixtures/Routing/CliCaptureSession/CiscoIOSXE/Session.json",
+  "RunFolder": "Logs/Reports/RoutingValidationRun/Run-20251229-120000",
+  "Vendor": "CiscoIOSXE",
+  "Site": "WLLS",
+  "Vrf": "default",
+  "HostSummaries": [
+    {
+      "Hostname": "WLLS-A01-AS-01",
+      "CaptureJsonPath": "Logs/Reports/RoutingValidationRun/Run-20251229-120000/CaptureSession/WLLS/WLLS-A01-AS-01/20251229-120000/Capture.json",
+      "IngestionSummaryPath": "Logs/Reports/RoutingValidationRun/Run-20251229-120000/Ingestion/WLLS-A01-AS-01/RoutingCliIngestionSummary-20251229-120000.json",
+      "PipelineSummaryPath": "Logs/Reports/RoutingValidationRun/Run-20251229-120000/Pipeline/WLLS-A01-AS-01/RoutingDiscoveryPipelineSummary-20251229-120000.json",
+      "Status": "Pass",
+      "Errors": []
+    }
+  ]
+}

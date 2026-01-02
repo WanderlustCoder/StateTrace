@@ -1,0 +1,20 @@
+{
+  "SchemaName": "RoutingCliCapture",
+  "SchemaVersion": "1.0",
+  "Required": {
+    "SchemaVersion": "string",
+    "CapturedAt": "string",
+    "Site": "string",
+    "Hostname": "string",
+    "Vendor": "string",
+    "Vrf": "string",
+    "Artifacts": "array"
+  },
+  "Optional": {},
+  "ArtifactRequired": {
+    "Name": "string",
+    "Command": "string",
+    "Path": "string"
+  },
+  "ArtifactOptional": {}
+}

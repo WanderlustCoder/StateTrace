@@ -19,6 +19,7 @@ Deliver a repeatable, offline-friendly developer experience and minimal CI harne
 
 ## Recently delivered
 - Plan created to formalize developer experience and CI readiness.
+- 2025-12-24: Integrated autonomy booster docs (CI_Smoke, Developer_Setup, Repo_Map, Test_Strategy, Definition_of_Done, fixtures, troubleshooting, schema docs) and aligned telemetry/bundle schemas + artifact paths to current tooling outputs.
 
 ## Automation hooks
 - Smoke tests: `Invoke-Pester Modules/Tests -Tag Smoke -SkipErrorActionPreference`; extend tags as coverage grows.

@@ -34,6 +34,51 @@ Describe 'ConcurrencyOverrideGuard' {
         $text | Should Match '"MinRunspaceCount"\s*:\s*1'
     }
 
+    # LANDMARK: Raw diversity auto concurrency tests - snapshot restore
+    It 'restores settings from a snapshot' {
+        $settingsPath = Join-Path -Path $TestDrive -ChildPath 'StateTraceSettings.json'
+        $original = '{ "ParserSettings": { "MaxRunspaceCeiling": 4, "MaxWorkersPerSite": 2, "MaxActiveSites": 3, "JobsPerThread": 5, "MinRunspaceCount": 2 } }'
+        Set-Content -LiteralPath $settingsPath -Value $original -Encoding utf8
+        $originalBytes = [System.IO.File]::ReadAllBytes($settingsPath)
+
+        $snapshot = Get-ConcurrencyOverrideSnapshot -SettingsPath $settingsPath
+        $snapshot.Exists | Should Be $true
+        $snapshot.OriginalText | Should Match '"MaxRunspaceCeiling"\s*:\s*4'
+
+        Set-Content -LiteralPath $settingsPath -Value '{ "ParserSettings": { "MaxRunspaceCeiling": 0, "MaxWorkersPerSite": 0, "MaxActiveSites": 0, "JobsPerThread": 0, "MinRunspaceCount": 1 } }' -Encoding utf8
+
+        $restored = Set-ConcurrencyOverrideSnapshot -Snapshot $snapshot
+        $restored | Should Be $true
+
+        $text = Get-Content -LiteralPath $settingsPath -Raw
+        $text | Should Match '"MaxRunspaceCeiling"\s*:\s*4'
+        $text | Should Match '"MaxWorkersPerSite"\s*:\s*2'
+        $text | Should Match '"MaxActiveSites"\s*:\s*3'
+        $text | Should Match '"JobsPerThread"\s*:\s*5'
+        $text | Should Match '"MinRunspaceCount"\s*:\s*2'
+        [Convert]::ToBase64String([System.IO.File]::ReadAllBytes($settingsPath)) | Should Be ([Convert]::ToBase64String($originalBytes))
+    }
+
+    # LANDMARK: Raw auto restore safety tests - restore after failure
+    It 'restores settings after a failure' {
+        $settingsPath = Join-Path -Path $TestDrive -ChildPath 'StateTraceSettings.json'
+        $original = '{ "ParserSettings": { "MaxRunspaceCeiling": 9, "MaxWorkersPerSite": 1, "MaxActiveSites": 2, "JobsPerThread": 3, "MinRunspaceCount": 4 } }'
+        Set-Content -LiteralPath $settingsPath -Value $original -Encoding utf8
+        $originalBytes = [System.IO.File]::ReadAllBytes($settingsPath)
+
+        $snapshot = Get-ConcurrencyOverrideSnapshot -SettingsPath $settingsPath
+        try {
+            Set-Content -LiteralPath $settingsPath -Value '{ "ParserSettings": { "MaxRunspaceCeiling": 0, "MaxWorkersPerSite": 0, "MaxActiveSites": 0, "JobsPerThread": 0, "MinRunspaceCount": 1 } }' -Encoding utf8
+            throw 'Simulated failure'
+        } catch {
+            $_.Exception.Message | Should Be 'Simulated failure'
+        } finally {
+            Set-ConcurrencyOverrideSnapshot -Snapshot $snapshot | Out-Null
+        }
+
+        [Convert]::ToBase64String([System.IO.File]::ReadAllBytes($settingsPath)) | Should Be ([Convert]::ToBase64String($originalBytes))
+    }
+
     It 'no-ops when settings are already baseline' {
         $settingsPath = Join-Path -Path $TestDrive -ChildPath 'StateTraceSettings.json'
         Set-Content -LiteralPath $settingsPath -Value '{ "ParserSettings": { "MaxRunspaceCeiling": 0, "MaxWorkersPerSite": 0, "MaxActiveSites": 0, "JobsPerThread": 0, "MinRunspaceCount": 1 } }' -Encoding utf8

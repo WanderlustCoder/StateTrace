@@ -314,20 +314,25 @@ function Test-InterfacePortQueueDelay {
         [object[]]$Events,
         [double]$MaximumP95Ms = 120,
         [double]$MaximumP99Ms = 200,
-        [int]$MinimumEventCount = 1
+        [int]$MinimumEventCount = 10
     )
 
     $messages = New-Object System.Collections.Generic.List[string]
     $violations = New-Object System.Collections.Generic.List[string]
     $pass = $true
+    $resultState = 'Pass'
 
     $totalProvided = if ($Events) { $Events.Count } else { 0 }
 
     if (-not $Events -or $Events.Count -lt $MinimumEventCount) {
+        # LANDMARK: Queue delay sample floor - signal insufficient sample data
         $messages.Add(("Only {0} InterfacePortQueueMetrics event(s) supplied (minimum required {1})." -f $totalProvided, $MinimumEventCount))
         $violations.Add('EventCount')
+        $violations.Add('InsufficientData')
+        $resultState = 'InsufficientData'
         return [pscustomobject]@{
             Pass        = $false
+            Result      = $resultState
             Messages    = $messages.ToArray()
             Violations  = $violations.ToArray()
             Statistics  = [pscustomobject]@{
@@ -373,6 +378,10 @@ function Test-InterfacePortQueueDelay {
     if ($delayValues.Count -lt $MinimumEventCount) {
         $messages.Add(("Found {0} InterfacePortQueueMetrics entries with delay data (minimum required {1})." -f $delayValues.Count, $MinimumEventCount))
         $violations.Add('EventCount')
+        if (-not ($violations -contains 'InsufficientData')) {
+            $violations.Add('InsufficientData')
+        }
+        $resultState = 'InsufficientData'
         $pass = $false
     }
 
@@ -399,18 +408,21 @@ function Test-InterfacePortQueueDelay {
 
     if ($delayStats.P95 -ne $null -and $MaximumP95Ms -ge 0 -and $delayStats.P95 -gt $MaximumP95Ms) {
         $pass = $false
+        if ($resultState -eq 'Pass') { $resultState = 'Fail' }
         $violations.Add('QueueDelayP95')
         $messages.Add(("InterfacePortQueueMetrics QueueDelay P95 {0:N3} ms exceeds allowed {1:N3} ms." -f $delayStats.P95, $MaximumP95Ms))
     }
 
     if ($delayStats.P99 -ne $null -and $MaximumP99Ms -ge 0 -and $delayStats.P99 -gt $MaximumP99Ms) {
         $pass = $false
+        if ($resultState -eq 'Pass') { $resultState = 'Fail' }
         $violations.Add('QueueDelayP99')
         $messages.Add(("InterfacePortQueueMetrics QueueDelay P99 {0:N3} ms exceeds allowed {1:N3} ms." -f $delayStats.P99, $MaximumP99Ms))
     }
 
     return [pscustomobject]@{
         Pass       = $pass
+        Result     = $resultState
         Messages   = $messages.ToArray()
         Violations = $violations.ToArray()
         Statistics = [pscustomobject]@{

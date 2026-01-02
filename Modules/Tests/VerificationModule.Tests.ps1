@@ -98,8 +98,33 @@ Describe 'Test-InterfacePortQueueDelay' {
 
         $result = Test-InterfacePortQueueDelay -Events $events -MaximumP95Ms 120 -MaximumP99Ms 200 -MinimumEventCount 3
         $result.Pass | Should Be $true
+        $result.Result | Should Be 'Pass'
         $result.Statistics.QueueBuildDelayMs.SampleCount | Should Be 4
         $result.Violations | Should BeNullOrEmpty
+    }
+
+    # LANDMARK: Queue delay sample floor - validate insufficient data handling
+    It 'flags insufficient data when sample count is below the minimum' {
+        $events = @(
+            [pscustomobject]@{ QueueBuildDelayMs = 15 },
+            [pscustomobject]@{ QueueBuildDelayMs = 20 },
+            [pscustomobject]@{ QueueBuildDelayMs = 18 },
+            [pscustomobject]@{ QueueBuildDelayMs = 22 }
+        )
+
+        $result = Test-InterfacePortQueueDelay -Events $events -MaximumP95Ms 120 -MaximumP99Ms 200 -MinimumEventCount 6
+        $result.Pass | Should Be $false
+        $result.Result | Should Be 'InsufficientData'
+        ($result.Violations -contains 'InsufficientData') | Should Be $true
+    }
+
+    It 'passes when delays meet thresholds and sample count meets minimum' {
+        $events = 1..10 | ForEach-Object { [pscustomobject]@{ QueueBuildDelayMs = 18 } }
+
+        $result = Test-InterfacePortQueueDelay -Events $events -MaximumP95Ms 120 -MaximumP99Ms 200 -MinimumEventCount 10
+        $result.Pass | Should Be $true
+        $result.Result | Should Be 'Pass'
+        $result.Statistics.QueueBuildDelayMs.SampleCount | Should Be 10
     }
 
     It 'fails when P95 exceeds maximum or events missing' {
@@ -111,6 +136,7 @@ Describe 'Test-InterfacePortQueueDelay' {
 
         $result = Test-InterfacePortQueueDelay -Events $events -MaximumP95Ms 100 -MaximumP99Ms 180 -MinimumEventCount 3
         $result.Pass | Should Be $false
+        $result.Result | Should Be 'Fail'
         ($result.Violations -contains 'QueueDelayP95') | Should Be $true
     }
 }

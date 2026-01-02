@@ -66,6 +66,25 @@ Export-ModuleMember -Function Get-InterfaceCommonStub
         $obj.Number | Should Be 42
     }
 
+    # LANDMARK: Telemetry buffer rename - approved verb + legacy alias coverage
+    It "exposes Save-StTelemetryBuffer and legacy alias" {
+        $cmd = Get-Command -Name 'Save-StTelemetryBuffer' -Module TelemetryModule -ErrorAction Stop
+        $cmd.CommandType | Should Be 'Function'
+
+        $legacy = Get-Command -Name 'Flush-StTelemetryBuffer' -ErrorAction Stop
+        $legacy.CommandType | Should Be 'Alias'
+        $legacy.Definition | Should Be 'Save-StTelemetryBuffer'
+    }
+
+    It "returns a path for legacy alias invocation" {
+        $target = Join-Path $testOut 'telemetry-buffer.json'
+        $newPath = TelemetryModule\Save-StTelemetryBuffer -Path $target
+        $legacyPath = Flush-StTelemetryBuffer -Path $target
+
+        $newPath | Should Be $target
+        $legacyPath | Should Be $target
+    }
+
     It "writes span debug entries to custom and temp paths" {
         $customPath = Join-Path $TestDrive 'span.log'
         if (Test-Path -LiteralPath $customPath) { Remove-Item -LiteralPath $customPath -Force }

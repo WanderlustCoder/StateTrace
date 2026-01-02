@@ -1,0 +1,34 @@
+{
+  "SchemaVersion": "1.0",
+  "GeneratedAt": "2025-12-30T12:05:00Z",
+  "RootPath": "Tests/Fixtures/Routing/LogExplorer/LatestCompare",
+  "Counts": {
+    "Total": 2,
+    "ValidationRuns": 0,
+    "Pipelines": 2,
+    "EvidenceRecords": 0,
+    "Unknown": 0
+  },
+  "Entries": [
+    {
+      "Type": "RoutingDiscoveryPipelineSummary",
+      "Timestamp": "2025-12-30T12:00:00Z",
+      "Status": "Pass",
+      "Site": "WLLS",
+      "Hostname": "WLLS-A01-AS-01",
+      "Vendor": "CiscoIOSXE",
+      "Vrf": "default",
+      "Path": "Tests/Fixtures/Routing/LogExplorer/LatestCompare/RoutingDiscoveryPipelineSummary.latest.json"
+    },
+    {
+      "Type": "RoutingDiscoveryPipelineSummary",
+      "Timestamp": "2025-12-30T11:30:00Z",
+      "Status": "Pass",
+      "Site": "WLLS",
+      "Hostname": "WLLS-A01-AS-01",
+      "Vendor": "CiscoIOSXE",
+      "Vrf": "default",
+      "Path": "Tests/Fixtures/Routing/LogExplorer/LatestCompare/RoutingDiscoveryPipelineSummary.previous.json"
+    }
+  ]
+}

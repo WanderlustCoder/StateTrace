@@ -1,0 +1,18 @@
+{
+  "SchemaVersion": "1.0",
+  "RecordId": "RR-20251227-0001",
+  "CapturedAt": "2025-12-27T18:00:00Z",
+  "Site": "WLLS",
+  "Hostname": "WLLS-A01-AS-01",
+  "Vrf": "default",
+  "Prefix": "10.10.0.0",
+  "PrefixLength": 24,
+  "NextHop": "10.10.0.1",
+  "Protocol": "OSPF",
+  "RouteRole": "Primary",
+  "RouteState": "Active",
+  "InterfaceName": "Vlan10",
+  "AdminDistance": 110,
+  "Metric": 20,
+  "SourceSystem": "Parser"
+}

@@ -190,5 +190,6 @@ if (-not $SkipQueueDelayCheck.IsPresent) {
     }
 }
 
-try { TelemetryModule\Flush-StTelemetryBuffer | Out-Null } catch { }
+# LANDMARK: Telemetry buffer rename - use approved verb export
+try { TelemetryModule\Save-StTelemetryBuffer | Out-Null } catch { }
 Write-HarnessVerbose ("[Harness] Completed dispatcher simulation for '{0}'." -f $cleanHost)

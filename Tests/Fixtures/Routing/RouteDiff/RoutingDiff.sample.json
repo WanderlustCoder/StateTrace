@@ -1,0 +1,53 @@
+{
+  "SchemaVersion": "1.0",
+  "Status": "Pass",
+  "GeneratedAt": "2025-12-30T09:15:00Z",
+  "Old": {
+    "Path": "C:\\Bundle\\Logs\\Reports\\RouteHealthSnapshot.old.json",
+    "CapturedAt": "2025-12-30T08:00:00Z",
+    "Site": "WLLS",
+    "Hostname": "WLLS-A01-AS-01",
+    "Vrf": "default",
+    "PrimaryRouteStatus": "Up",
+    "SecondaryRouteStatus": "Standby",
+    "HealthState": "Healthy"
+  },
+  "New": {
+    "Path": "C:\\Bundle\\Logs\\Reports\\RouteHealthSnapshot.new.json",
+    "CapturedAt": "2025-12-30T09:00:00Z",
+    "Site": "WLLS",
+    "Hostname": "WLLS-A01-AS-01",
+    "Vrf": "default",
+    "PrimaryRouteStatus": "Up",
+    "SecondaryRouteStatus": "Up",
+    "HealthState": "Warning"
+  },
+  "Counts": {
+    "Added": 1,
+    "Removed": 0,
+    "ChangedRoutes": 1
+  },
+  "Changes": {
+    "Health": {
+      "PrimaryRouteStatus": {
+        "Old": "Up",
+        "New": "Up"
+      },
+      "SecondaryRouteStatus": {
+        "Old": "Standby",
+        "New": "Up"
+      },
+      "HealthState": {
+        "Old": "Healthy",
+        "New": "Warning"
+      }
+    },
+    "AddedRouteRecordIds": [
+      "RR-NEW-001"
+    ],
+    "RemovedRouteRecordIds": [],
+    "UnchangedCount": 2,
+    "ChangedRoutes": []
+  },
+  "Warnings": []
+}

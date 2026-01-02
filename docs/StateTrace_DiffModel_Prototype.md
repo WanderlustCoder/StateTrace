@@ -33,6 +33,7 @@ Validate the storage footprint, Access schema, and performance characteristics o
 - Capture any Access limitations encountered (e.g., table size, index constraints).
 
 ## Results Summary
+- 2025-12-31: Fixture kit + telemetry schema validated for DiffUsageRate/DriftDetectionTime rollups; ready for Access baseline persistence run.
 - Record overall viability assessment.
 - List follow-up actions (e.g., need for incremental diffing, compression strategies).
 
