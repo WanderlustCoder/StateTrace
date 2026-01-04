@@ -182,9 +182,9 @@ if ($events.Count -eq 0) {
 }
 
 $sorted = $events | Sort-Object Timestamp
-$streaks = @()
+$streaks = [System.Collections.Generic.List[pscustomobject]]::new()
 $currentSite = $null
-$currentHosts = @()
+$currentHosts = [System.Collections.Generic.List[string]]::new()
 $currentStart = $null
 $currentStartIndex = 0
 $lastProcessedIndex = -1
@@ -209,7 +209,7 @@ function Add-Streak($site, $start, $end, [string[]]$hosts, [int]$startIndex, [in
     if ($hostArray.Count -gt 0) {
         $sequenceSample = @($hostArray | Select-Object -First 12)
     }
-    $script:streaks += [pscustomobject]@{
+    $script:streaks.Add([pscustomobject]@{
         Site      = $site
         Count     = $hostArray.Count
         StartTime = $start.ToUniversalTime()
@@ -218,14 +218,14 @@ function Add-Streak($site, $start, $end, [string[]]$hosts, [int]$startIndex, [in
         EndIndex   = $endIndex
         HostSample= ($hostArray | Select-Object -Unique | Select-Object -First 5) -join ', '
         HostSequenceSample = $sequenceSample -join ', '
-    }
+    })
 }
 
 for ($i = 0; $i -lt $sorted.Count; $i++) {
     $evt = $sorted[$i]
 
     if ($evt.Site -eq $currentSite) {
-        $currentHosts += $evt.Hostname
+        $currentHosts.Add($evt.Hostname)
     } else {
         if ($currentSite) {
             Add-Streak -site $currentSite -start $currentStart -end $evt.Timestamp -hosts $currentHosts -startIndex $currentStartIndex -endIndex ($i - 1)
@@ -233,7 +233,8 @@ for ($i = 0; $i -lt $sorted.Count; $i++) {
         $currentSite = $evt.Site
         $currentStart = $evt.Timestamp
         $currentStartIndex = $i
-        $currentHosts = @($evt.Hostname)
+        $currentHosts = [System.Collections.Generic.List[string]]::new()
+        $currentHosts.Add($evt.Hostname)
     }
 
     $lastProcessedIndex = $i

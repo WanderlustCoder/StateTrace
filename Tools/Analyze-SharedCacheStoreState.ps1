@@ -18,20 +18,20 @@ function Resolve-LogFiles {
         [string]$DirectoryPath
     )
 
-    $files = @()
+    $files = [System.Collections.Generic.List[string]]::new()
     if ($ExplicitPaths -and $ExplicitPaths.Count -gt 0) {
         foreach ($item in $ExplicitPaths) {
             if ([string]::IsNullOrWhiteSpace($item)) { continue }
             $resolved = Resolve-Path -LiteralPath $item -ErrorAction Stop
             foreach ($entry in $resolved) {
                 if (Test-Path -LiteralPath $entry.ProviderPath -PathType Leaf) {
-                    $files += $entry.ProviderPath
+                    $files.Add($entry.ProviderPath)
                 }
             }
         }
     }
 
-    if (-not $files -and $DirectoryPath) {
+    if ($files.Count -eq 0 -and $DirectoryPath) {
         $resolvedDirectory = Resolve-Path -LiteralPath $DirectoryPath -ErrorAction SilentlyContinue
         if ($resolvedDirectory) {
             $files = Get-ChildItem -LiteralPath $resolvedDirectory.ProviderPath -Filter '*.json' -File |
@@ -40,7 +40,7 @@ function Resolve-LogFiles {
         }
     }
 
-    if (-not $files -and -not $DirectoryPath) {
+    if ($files.Count -eq 0 -and -not $DirectoryPath) {
         $defaultDir = Join-Path -Path (Split-Path -Parent $PSScriptRoot) -ChildPath 'Logs\IngestionMetrics'
         if (Test-Path -LiteralPath $defaultDir) {
             $files = Get-ChildItem -LiteralPath $defaultDir -Filter '*.json' -File |
@@ -49,7 +49,7 @@ function Resolve-LogFiles {
         }
     }
 
-    if (-not $files -or $files.Count -eq 0) {
+    if ($files.Count -eq 0) {
         throw 'No ingestion metric files were found. Provide -Path or -Directory.'
     }
 
@@ -226,14 +226,14 @@ if ($startUtc -or $endUtc) {
     $endLabel = if ($endUtc) { $endUtc.ToString('o') } else { 'end' }
     Write-Host ("Filtering events between {0} and {1} (UTC)." -f $startLabel, $endLabel) -ForegroundColor DarkGray
 }
-$summaries = @()
+$summaries = [System.Collections.Generic.List[pscustomobject]]::new()
 
 foreach ($file in $logFiles) {
-    Write-Verbose ("Analyzing shared cache events in '{0}'..." -f $file)        
-    $summaries += Summarize-SharedCacheEvents -FilePath $file -StartTimeUtc $startUtc -EndTimeUtc $endUtc
+    Write-Verbose ("Analyzing shared cache events in '{0}'..." -f $file)
+    $summaries.Add((Summarize-SharedCacheEvents -FilePath $file -StartTimeUtc $startUtc -EndTimeUtc $endUtc))
 }
 
-if (-not $summaries -or $summaries.Count -eq 0) {
+if ($summaries.Count -eq 0) {
     Write-Warning 'No shared cache events were discovered in the supplied files.'
     return
 }
