@@ -50,6 +50,9 @@ function Get-BrocadeDeviceFacts {
         param ($start, $end)
         $startParts = $start -split '/'
         $endParts = $end -split '/'
+        if ($startParts.Count -lt 3 -or $endParts.Count -lt 3) {
+            return @()
+        }
         $stack = $startParts[0]; $slot = $startParts[1]
         $startPort = [int]$startParts[2]; $endPort = [int]$endParts[2]
         # Use a typed list to avoid repeated array copying when expanding large port ranges.

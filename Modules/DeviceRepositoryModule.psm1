@@ -5158,7 +5158,7 @@ function Update-HostInterfaceCache {
         $hostBatchData = $null
     }
 
-    if ($hostBatchData -eq $null) {
+    if ($null -eq $hostBatchData) {
         Invoke-InterfaceCacheLock {
             if (-not $global:DeviceInterfaceCache) { $global:DeviceInterfaceCache = [hashtable]::Synchronized(@{}) }
             foreach ($hn in $missingHosts) {
