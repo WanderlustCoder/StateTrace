@@ -41,7 +41,7 @@ if (-not (Test-Path -LiteralPath $uiHelperPath)) {
 }
 . $uiHelperPath
 
-$results = @()
+$results = [System.Collections.Generic.List[pscustomobject]]::new()
 try {
     if (-not $SkipUnusedExportLint) {
         Write-Host "===> Running unused export lint" -ForegroundColor Cyan
@@ -75,11 +75,11 @@ try {
         try { $lintReport = Get-Content -LiteralPath $reportPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop } catch {}
         $unusedCount = if ($lintReport) { (@($lintReport | Where-Object { -not $_.Allowlisted -and $_.ReferenceCount -le 0 })).Count } else { 0 }
 
-        $results += [pscustomobject]@{
+        $results.Add([pscustomobject]@{
             Check       = 'UnusedExports'
             ReportPath  = $reportPath
             UnusedCount = $unusedCount
-        }
+        })
     }
 
     if (-not $SkipPester) {
@@ -106,7 +106,7 @@ try {
             Failed   = $pester.FailedCount
             Duration = if ($pester.Time) { [math]::Round($pester.Time.TotalSeconds, 2) } else { 0 }
         }
-        $results += $pesterSummary
+        $results.Add($pesterSummary)
         if ($pester.FailedCount -gt 0) {
             throw "Pester reported $($pester.FailedCount) failures."
         }
@@ -119,13 +119,13 @@ try {
         } catch {
             throw "Decomposition Pester run failed: $($_.Exception.Message)"
         }
-        $results += [pscustomobject]@{
+        $results.Add([pscustomobject]@{
             Check    = 'Decomposition'
             Passed   = ($decomp.FailedCount -eq 0)
             Total    = $decomp.TotalCount
             Failed   = $decomp.FailedCount
             Duration = if ($decomp.Time) { [math]::Round($decomp.Time.TotalSeconds, 2) } else { 0 }
-        }
+        })
         if ($decomp.FailedCount -gt 0) {
             throw "Decomposition Pester reported $($decomp.FailedCount) failures."
         }
@@ -167,7 +167,7 @@ try {
             UsedLastRow = [bool]$spanResult.UsedLastRows
             StatusText  = $spanResult.StatusText
         }
-        $results += $spanSummary
+        $results.Add($spanSummary)
         if ($spanStatus -ne 'Pass') {
             throw ("Span harness failed: {0}" -f $spanResult.FailureMessage)
         }
@@ -220,14 +220,14 @@ try {
         }
 
         $searchResult = $jsonLine | ConvertFrom-Json
-        $results += [pscustomobject]@{
+        $results.Add([pscustomobject]@{
             Check       = 'SearchAlertsHarness'
             Hosts       = $searchResult.HostsAttempted
             SearchCount = $searchResult.SearchCount
             AlertsCount = $searchResult.AlertsCount
             SearchBound = [bool]$searchResult.SearchResultsBound
             AlertsBound = [bool]$searchResult.AlertsResultsBound
-        }
+        })
 
         if (-not $searchResult.Success) {
             throw "Search/Alerts harness reported failure."
@@ -259,19 +259,19 @@ try {
         $netOpsResult = & $netOpsScript @netOpsParams
         if ($netOpsResult -and $netOpsResult.OnlineModeActive) {
             Write-Host ("NetOps lint passed. Evidence: {0}" -f $netOpsResult.LatestLogPath) -ForegroundColor Green
-            $results += [pscustomobject]@{
+            $results.Add([pscustomobject]@{
                 Check            = 'NetOpsLint'
                 EvidenceLog      = $netOpsResult.LatestLogPath
                 ResetLog         = $netOpsResult.LatestResetLogPath
                 SessionReference = $netOpsResult.SessionReferenceSatisfied
-            }
+            })
         } elseif ($netOpsResult) {
             Write-Host ($netOpsResult.Message) -ForegroundColor DarkGray
-            $results += [pscustomobject]@{
+            $results.Add([pscustomobject]@{
                 Check  = 'NetOpsLint'
                 Passed = $true
                 Note   = $netOpsResult.Message
-            }
+            })
         }
     }
 
@@ -315,12 +315,12 @@ try {
         }
 
         $docSyncResult = & $docSyncScript @docSyncParams
-        $results += [pscustomobject]@{
+        $results.Add([pscustomobject]@{
             Check      = 'DocSyncChecklist'
             TaskId     = $DocSyncTaskId
             OutputPath = $docSyncOutput
             Missing    = if ($docSyncResult.Missing) { ($docSyncResult.Missing -join ', ') } else { '' }
-        }
+        })
     }
 
     if ($TelemetryBundlePath -or $RequireTelemetryBundleReady) {
@@ -359,12 +359,12 @@ try {
             Write-Warning ("Telemetry bundle readiness: optional artifacts missing ({0})." -f ($names -join ', '))
         }
 
-        $results += [pscustomobject]@{
+        $results.Add([pscustomobject]@{
             Check      = 'TelemetryBundle'
             BundlePath = $resolvedBundle
             Areas      = ((@($bundleResult.Area) | Sort-Object -Unique) -join ',')
             Notes      = if ($optionalMissing -and $optionalMissing.Count -gt 0) { 'Optional artifacts missing' } else { 'All required artifacts present' }
-        }
+        })
     }
 
     if ($RequireTelemetryIntegrity) {
@@ -396,11 +396,11 @@ try {
             throw ("Telemetry integrity failed (exit {0}). See {1}.{2}{3}" -f $integrityExit, $integrityReportPath, [Environment]::NewLine, $previewText)
         }
 
-        $results += [pscustomobject]@{
+        $results.Add([pscustomobject]@{
             Check      = 'TelemetryIntegrity'
             ReportPath = $integrityReportPath
             File       = $latestMetrics.FullName
-        }
+        })
         Write-Host ("Telemetry integrity passed for {0} (report: {1})" -f $latestMetrics.FullName, $integrityReportPath) -ForegroundColor Green
     }
 }
