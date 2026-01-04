@@ -14,7 +14,7 @@ Keep plans, task board entries, runbooks, and session logs synchronized automati
 ## Active work
 | ID | Title | Owner | Status | Notes |
 |----|-------|-------|--------|-------|
-| ST-N-001 | Task board sync helper | PMO | Ready | Add a script (e.g., `Tools\Sync-TaskBoard.ps1`) that updates plan tables, TaskBoard.md, and taskboard CSV from a single structured input (task IDs, status, artifacts). Emit a diff preview before writing. |
+| ST-N-001 | Task board sync helper | PMO | Done - 2026-01-04 | Created `Tools/Sync-TaskBoard.ps1` to update plan tables and TaskBoard.csv from JSON input or inline parameters. Supports `-WhatIf` for preview, auto-detects plan file from task ID, and reports all changes. |
 | ST-N-002 | Session log auto-stub | Automation | In Progress | Extend harness scripts (`Invoke-StateTracePipeline`, `Invoke-WarmRunTelemetry`, `Publish-TelemetryBundle`) to optionally emit a session log stub under `docs/agents/sessions/` with commands, artifact paths, and plan/task references. |
 | ST-N-003 | Decision log hook | PMO | Backlog | Wire `docs/adr/` creation/update into the sync helper when module boundaries or gating rules change; include cross-links from plans. |
 | ST-N-004 | Drift detector | QA | Done - 2026-01-04 | Created `Tools/Test-PlanTaskBoardDrift.ps1` to detect discrepancies: tasks missing from TaskBoard, tasks missing from plans, and status mismatches. Integrated into `Tools/Invoke-AllChecks.ps1` with `-SkipDriftDetector` and `-FailOnDrift` flags. Reports saved to `Logs/Reports/PlanTaskBoardDrift-*.json`. |
