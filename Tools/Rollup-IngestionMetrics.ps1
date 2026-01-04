@@ -7,7 +7,9 @@ param(
     [string]$OutputPath,
     [switch]$IncludePerSite,
     [switch]$IncludeSiteCache,
-    [switch]$PassThru
+    [switch]$PassThru,
+    [switch]$FailOnWarnings,
+    [switch]$GenerateHashManifest
 )
 
 Set-StrictMode -Version Latest
@@ -21,6 +23,21 @@ Import-Module -Name $statisticsModulePath -Force -ErrorAction Stop
 
 $script:IncludeSiteCacheMetrics = $IncludeSiteCache.IsPresent
 $script:RequiredUserActions = @('ScanLogs','LoadFromDb','HelpQuickstart','InterfacesView','CompareView','SpanSnapshot')
+
+# ST-M-004: Warning tracking for hygiene checks
+$script:WarningCount = 0
+$script:WarningMessages = [System.Collections.Generic.List[string]]::new()
+$script:ProcessedFileHashes = @{}
+
+function Get-FileHashSHA256 {
+    param([string]$Path)
+    try {
+        $hash = Get-FileHash -LiteralPath $Path -Algorithm SHA256 -ErrorAction Stop
+        return $hash.Hash
+    } catch {
+        return $null
+    }
+}
 
 function Add-DictionaryCount {
     param(
@@ -720,13 +737,14 @@ $metricsBasePath = $null
 $metricFiles = @()
 
 if ($MetricFile) {
+    $metricFilesList = [System.Collections.Generic.List[object]]::new()
     foreach ($filePath in $MetricFile) {
         if ([string]::IsNullOrWhiteSpace($filePath)) { continue }
         try {
             $resolved = Resolve-Path -LiteralPath $filePath -ErrorAction Stop
             $fileInfo = Get-Item -LiteralPath $resolved.Path -ErrorAction Stop
             if ($fileInfo -and $fileInfo.PSIsContainer -eq $false) {
-                $metricFiles += $fileInfo
+                [void]$metricFilesList.Add($fileInfo)
             } else {
                 Write-Warning ("Metric file '{0}' could not be read." -f $filePath)
             }
@@ -734,6 +752,7 @@ if ($MetricFile) {
             Write-Warning ("Metric file '{0}' could not be resolved: {1}" -f $filePath, $_.Exception.Message)
         }
     }
+    $metricFiles = $metricFilesList
 
     if (-not $metricFiles -or @($metricFiles).Count -eq 0) {
         Write-Warning 'No metric files were resolved from the provided -MetricFile paths.'
@@ -794,6 +813,12 @@ foreach ($file in $metricFiles) {
         $dateKey = $file.Name
     }
 
+    # ST-M-004: Compute and track input file hash for traceability
+    $fileHash = Get-FileHashSHA256 -Path $file.FullName
+    if ($fileHash) {
+        $script:ProcessedFileHashes[$file.FullName] = $fileHash
+    }
+
     $globalAccumulator = New-MetricAccumulator
     $siteAccumulators = @{}
 
@@ -806,7 +831,11 @@ foreach ($file in $metricFiles) {
         try {
             $eventObject = $line | ConvertFrom-Json -ErrorAction Stop
         } catch {
-            Write-Warning ("Skipping malformed telemetry line in {0}: {1}" -f $file.Name, $_.Exception.Message)
+            # ST-M-004: Track warning for hygiene check
+            $warnMsg = "Skipping malformed telemetry line in {0}: {1}" -f $file.Name, $_.Exception.Message
+            Write-Warning $warnMsg
+            $script:WarningCount++
+            $script:WarningMessages.Add($warnMsg) | Out-Null
             continue
         }
 
@@ -862,6 +891,31 @@ Sort-Object -Property @{Expression = 'Date'; Descending = $false }, @{Expression
 Export-Csv -Path $targetOutputPath -NoTypeInformation -Encoding UTF8
 
 Write-Host ("Ingestion metrics summary written to {0}" -f $targetOutputPath) -ForegroundColor Cyan
+
+# ST-M-004: Generate hash manifest for input traceability
+if ($GenerateHashManifest -and $script:ProcessedFileHashes.Count -gt 0) {
+    $hashManifestPath = [System.IO.Path]::ChangeExtension($targetOutputPath, '.hashes.json')
+    $hashManifest = [pscustomobject]@{
+        GeneratedAtUtc = (Get-Date).ToUniversalTime().ToString('o')
+        OutputFile     = $targetOutputPath
+        InputFiles     = @($script:ProcessedFileHashes.GetEnumerator() | ForEach-Object {
+            [pscustomobject]@{
+                Path   = $_.Key
+                SHA256 = $_.Value
+            }
+        })
+        WarningCount   = $script:WarningCount
+    }
+    $hashManifest | ConvertTo-Json -Depth 5 | Set-Content -Path $hashManifestPath -Encoding UTF8
+    Write-Host ("Input hash manifest written to {0}" -f $hashManifestPath) -ForegroundColor Cyan
+}
+
+# ST-M-004: Fail on warnings if requested
+if ($FailOnWarnings -and $script:WarningCount -gt 0) {
+    $warningPreview = $script:WarningMessages | Select-Object -First 5
+    $previewText = ($warningPreview -join "`n")
+    throw ("Rollup failed: {0} warning(s) encountered during processing.`n{1}" -f $script:WarningCount, $previewText)
+}
 
 if ($PassThru.IsPresent) {
     return $summaryRows
