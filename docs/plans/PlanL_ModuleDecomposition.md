@@ -16,17 +16,19 @@ Reduce the size and coupling of core modules (DeviceRepository, ParserPersistenc
 |----|-------|-------|--------|-------|
 | ST-L-001 | Define target boundaries & ADR | Architecture | In Progress | Drafted ADR 0006 documenting target module splits (`Modules/DeviceRepository.Cache.psm1`, `Modules/DeviceRepository.Access.psm1`, `Modules/ParserPersistence.Core.psm1`, `Modules/ParserPersistence.Diff.psm1`, `Modules/WarmRun.Telemetry.psm1`) and the re-export approach. Next: add import graphs and public contract lists. |
 | ST-L-002 | Extract repository cache layer | Ingestion | In Progress | Move cache types and cache-access helpers from `DeviceRepositoryModule` into `DeviceRepository.Cache.psm1`; add Pester tests for cache signature and hit/miss behaviour using synthetic fixtures. Update callers to module-qualify new exports. |
-| ST-L-003 | Extract parser persistence/diff layer | Ingestion | Ready | Split `ParserPersistenceModule` into core batch writer and diff/comparison helpers. Add micro-bench Pester tests that assert `ParseDuration`/`DiffComparisonDurationMs` stay within existing p95 gates on fixture datasets. |
+| ST-L-003 | Extract parser persistence/diff layer | Ingestion | Done - 2026-01-04 | Added micro-bench Pester tests (`-Tag Decomposition,MicroBench`) that assert `ParseDuration`/`DatabaseWriteLatency` stay within Plan B p95 gates using CISmoke fixture datasets; also added shim module export tests for `ParserPersistence.Core` and `ParserPersistence.Diff`. Tests: `Invoke-Pester Modules/Tests/ParserPersistenceModule.Tests.ps1 -Tag Decomposition` (21 tests passed). |
 | ST-L-004 | Move UI services out of MainWindow | UI | Backlog | Extract parser job orchestration, user-action telemetry publishing, and freshness caching into `MainWindow.Services.psm1` (or similar) so XAML code-behind shrinks and gains unit coverage. |
 | ST-L-005 | Regression harness for decomposed modules | Automation | Backlog | Add a Pester tag set (`-Tag Decomposition`) that exercises new modules plus warm-run telemetry end-to-end; wire into Plan K CI harness. |
 
 ## Recently delivered
+- ST-L-003: Added micro-bench Pester tests (`-Tag Decomposition,MicroBench`) validating `ParseDuration` and `DatabaseWriteLatency` against Plan B p95 gates using CISmoke fixtures; added shim export tests for `ParserPersistence.Core`/`ParserPersistence.Diff` (21 tests passed).
 - Plan created to track module decomposition and associated test coverage.
 - Added shim modules (`DeviceRepository.Cache`, `DeviceRepository.Access`, `ParserPersistence.Core`, `ParserPersistence.Diff`, `WarmRun.Telemetry`) with re-exports and a Pester tag (`Decomposition`) to keep imports verified.
 
 ## Automation hooks
 - Cache tests: `Invoke-Pester Modules/Tests/DeviceRepositoryModule.Tests.ps1 -Tag Cache` (extend with new cases when cache layer is split).
 - Persistence/diff tests: `Invoke-Pester Modules/Tests/ParserPersistenceModule.Tests.ps1 -Tag Diff` (add micro-bench assertions).
+- Decomposition/micro-bench tests: `Invoke-Pester Modules/Tests/ParserPersistenceModule.Tests.ps1 -Tag Decomposition` (validates ParseDuration/DatabaseWriteLatency p95 gates and shim exports).
 - Warm-run regression: `Tools\Invoke-WarmRunTelemetry.ps1 -GenerateDiffHotspotReport -RestrictWarmComparisonToColdHosts` to detect perf regressions after refactors.
 - UI service extraction validation: `Tools\Invoke-SpanViewSmokeTest.ps1` and `Tools\Invoke-InterfacesViewSmokeTest.ps1` after moving code-behind logic.
 

@@ -2016,4 +2016,175 @@ Describe "ParserPersistenceModule" {
         ($metrics.PSObject.Properties.Name -contains 'SiteCacheResolveRefreshCachedAt') | Should Be $true
     }
 
+
+}
+
+
+Describe "ParserPersistenceModule - MicroBench" -Tag 'Decomposition', 'MicroBench' {
+
+    BeforeAll {
+        $script:fixtureRoot = Join-Path (Split-Path $PSCommandPath) '..\..\Tests\Fixtures\CISmoke'
+        $script:ingestionMetricsPath = Join-Path $fixtureRoot 'IngestionMetrics.json'
+        $script:warmRunTelemetryPath = Join-Path $fixtureRoot 'WarmRunTelemetry.json'
+
+        # Plan B gates
+        $script:parseDurationP95GateMs = 3000
+        $script:databaseWriteLatencyP95ColdGateMs = 950
+        $script:databaseWriteLatencyP95WarmGateMs = 500
+    }
+
+    Context "ParseDuration and Diff gates" {
+
+        It "should load CISmoke fixture files" {
+            Test-Path $script:ingestionMetricsPath | Should Be $true
+            Test-Path $script:warmRunTelemetryPath | Should Be $true
+        }
+
+        It "should parse IngestionMetrics as line-delimited JSON" {
+            $lines = Get-Content $script:ingestionMetricsPath -ErrorAction Stop
+            $events = @()
+            foreach ($line in $lines) {
+                if ([string]::IsNullOrWhiteSpace($line)) { continue }
+                $evt = $line | ConvertFrom-Json -ErrorAction Stop
+                $events += $evt
+            }
+            $events.Count | Should BeGreaterThan 0
+            $script:ingestionEvents = $events
+        }
+
+        It "should extract ParseDuration events from fixture" {
+            $parseDurationEvents = @($script:ingestionEvents | Where-Object { $_.EventName -eq 'ParseDuration' })
+            $parseDurationEvents.Count | Should BeGreaterThan 0
+            $script:parseDurationEvents = $parseDurationEvents
+        }
+
+        It "ParseDuration p95 should be within gate (<= 3000 ms)" {
+            $durations = @($script:parseDurationEvents | ForEach-Object { $_.DurationMs })
+            $sorted = $durations | Sort-Object
+            $p95Index = [Math]::Ceiling($sorted.Count * 0.95) - 1
+            if ($p95Index -lt 0) { $p95Index = 0 }
+            if ($p95Index -ge $sorted.Count) { $p95Index = $sorted.Count - 1 }
+            $p95 = $sorted[$p95Index]
+
+            ($p95 -le $script:parseDurationP95GateMs) | Should Be $true
+            $script:parseDurationP95 = $p95
+        }
+
+        It "should extract DatabaseWriteLatency events from fixture" {
+            $dbWriteEvents = @($script:ingestionEvents | Where-Object { $_.EventName -eq 'DatabaseWriteLatency' })
+            $dbWriteEvents.Count | Should BeGreaterThan 0
+            $script:dbWriteEvents = $dbWriteEvents
+        }
+
+        It "DatabaseWriteLatency p95 should be within cold gate (<= 950 ms)" {
+            $durations = @($script:dbWriteEvents | ForEach-Object { $_.DurationMs })
+            $sorted = $durations | Sort-Object
+            $p95Index = [Math]::Ceiling($sorted.Count * 0.95) - 1
+            if ($p95Index -lt 0) { $p95Index = 0 }
+            if ($p95Index -ge $sorted.Count) { $p95Index = $sorted.Count - 1 }
+            $p95 = $sorted[$p95Index]
+
+            ($p95 -le $script:databaseWriteLatencyP95ColdGateMs) | Should Be $true
+            $script:dbWriteLatencyP95 = $p95
+        }
+
+        It "should load WarmRunTelemetry fixture" {
+            $warmRun = Get-Content $script:warmRunTelemetryPath -Raw | ConvertFrom-Json -ErrorAction Stop
+            $warmRun | Should Not Be $null
+            $warmRun.ColdPass | Should Not Be $null
+            $warmRun.WarmPass | Should Not Be $null
+            $script:warmRunTelemetry = $warmRun
+        }
+
+        It "WarmRunTelemetry ColdPass ParseDurationP95Ms should be within gate" {
+            ($script:warmRunTelemetry.ColdPass.ParseDurationP95Ms -le $script:parseDurationP95GateMs) | Should Be $true
+        }
+
+        It "WarmRunTelemetry WarmPass ParseDurationP95Ms should be within gate" {
+            ($script:warmRunTelemetry.WarmPass.ParseDurationP95Ms -le $script:parseDurationP95GateMs) | Should Be $true
+        }
+
+        It "WarmRunTelemetry ColdPass DatabaseWriteLatencyP95Ms should be within cold gate" {
+            ($script:warmRunTelemetry.ColdPass.DatabaseWriteLatencyP95Ms -le $script:databaseWriteLatencyP95ColdGateMs) | Should Be $true
+        }
+
+        It "WarmRunTelemetry WarmPass DatabaseWriteLatencyP95Ms should be within warm gate" {
+            ($script:warmRunTelemetry.WarmPass.DatabaseWriteLatencyP95Ms -le $script:databaseWriteLatencyP95WarmGateMs) | Should Be $true
+        }
+
+        It "WarmRunComparison ImprovementPercent should be non-negative" {
+            ($script:warmRunTelemetry.WarmRunComparison.ImprovementPercent -ge 0) | Should Be $true
+        }
+
+        It "WarmRunComparison GateMet should be true" {
+            $script:warmRunTelemetry.WarmRunComparison.GateMet | Should Be $true
+        }
+
+    }
+
+}
+
+
+Describe "ParserPersistenceModule - Decomposition Shims" -Tag 'Decomposition' {
+
+    Context "ParserPersistence.Core module" {
+
+        It "should import ParserPersistence.Core shim module" {
+            $shimPath = Join-Path (Split-Path $PSCommandPath) '..\ParserPersistence.Core.psm1'
+            { Import-Module (Resolve-Path $shimPath) -Force -ErrorAction Stop } | Should Not Throw
+        }
+
+        It "ParserPersistence.Core should export Set-InterfaceBulkChunkSize" {
+            $shimPath = Join-Path (Split-Path $PSCommandPath) '..\ParserPersistence.Core.psm1'
+            Import-Module (Resolve-Path $shimPath) -Force
+            $cmd = Get-Command -Module 'ParserPersistence.Core' -Name 'Set-InterfaceBulkChunkSize' -ErrorAction SilentlyContinue
+            $cmd | Should Not Be $null
+        }
+
+        It "ParserPersistence.Core should export Update-InterfacesInDb" {
+            $shimPath = Join-Path (Split-Path $PSCommandPath) '..\ParserPersistence.Core.psm1'
+            Import-Module (Resolve-Path $shimPath) -Force
+            $cmd = Get-Command -Module 'ParserPersistence.Core' -Name 'Update-InterfacesInDb' -ErrorAction SilentlyContinue
+            $cmd | Should Not Be $null
+        }
+
+        It "ParserPersistence.Core should export Get-LastInterfaceSyncTelemetry" {
+            $shimPath = Join-Path (Split-Path $PSCommandPath) '..\ParserPersistence.Core.psm1'
+            Import-Module (Resolve-Path $shimPath) -Force
+            $cmd = Get-Command -Module 'ParserPersistence.Core' -Name 'Get-LastInterfaceSyncTelemetry' -ErrorAction SilentlyContinue
+            $cmd | Should Not Be $null
+        }
+
+    }
+
+    Context "ParserPersistence.Diff module" {
+
+        It "should import ParserPersistence.Diff shim module" {
+            $shimPath = Join-Path (Split-Path $PSCommandPath) '..\ParserPersistence.Diff.psm1'
+            { Import-Module (Resolve-Path $shimPath) -Force -ErrorAction Stop } | Should Not Throw
+        }
+
+        It "ParserPersistence.Diff should export Set-ParserSkipSiteCacheUpdate" {
+            $shimPath = Join-Path (Split-Path $PSCommandPath) '..\ParserPersistence.Diff.psm1'
+            Import-Module (Resolve-Path $shimPath) -Force
+            $cmd = Get-Command -Module 'ParserPersistence.Diff' -Name 'Set-ParserSkipSiteCacheUpdate' -ErrorAction SilentlyContinue
+            $cmd | Should Not Be $null
+        }
+
+        It "ParserPersistence.Diff should export Get-SiteExistingRowCacheSnapshot" {
+            $shimPath = Join-Path (Split-Path $PSCommandPath) '..\ParserPersistence.Diff.psm1'
+            Import-Module (Resolve-Path $shimPath) -Force
+            $cmd = Get-Command -Module 'ParserPersistence.Diff' -Name 'Get-SiteExistingRowCacheSnapshot' -ErrorAction SilentlyContinue
+            $cmd | Should Not Be $null
+        }
+
+        It "ParserPersistence.Diff should export Clear-SiteExistingRowCache" {
+            $shimPath = Join-Path (Split-Path $PSCommandPath) '..\ParserPersistence.Diff.psm1'
+            Import-Module (Resolve-Path $shimPath) -Force
+            $cmd = Get-Command -Module 'ParserPersistence.Diff' -Name 'Clear-SiteExistingRowCache' -ErrorAction SilentlyContinue
+            $cmd | Should Not Be $null
+        }
+
+    }
+
 }
