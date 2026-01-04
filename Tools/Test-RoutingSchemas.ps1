@@ -91,10 +91,11 @@ function Test-ObjectAgainstSchema {
     if ($null -eq $Object) {
         $Errors.Add("NullObject:$Label") | Out-Null
     } else {
-        $objectsToValidate = if ($Object -is [System.Array]) { $Object } else { @($Object) }
+        $objectsToValidate = @($Object)
+        $objectCount = ($objectsToValidate | Measure-Object).Count
         $objectIndex = 0
         foreach ($item in $objectsToValidate) {
-            $prefix = if ($objectsToValidate.Count -gt 1) { "Item[$objectIndex]." } else { "" }
+            $prefix = if ($objectCount -gt 1) { "Item[$objectIndex]." } else { "" }
             foreach ($fieldName in $Schema.Required.PSObject.Properties.Name) {
                 $expectedType = $Schema.Required.$fieldName
                 $property = $item.PSObject.Properties[$fieldName]

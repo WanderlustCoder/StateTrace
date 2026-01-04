@@ -173,11 +173,12 @@ if ($errors.Count -eq 0) {
 if ($errors.Count -eq 0 -and $null -ne $captureSummary) {
     $selectedHosts = @()
     if ($null -ne $captureSummary.HostSummaries) {
-        $selectedHosts = Resolve-HostList -Hosts $captureSummary.HostSummaries -MaxHosts $MaxHosts
+        # Ensure result is always an array (Resolve-HostList may return scalar for single host)
+        $selectedHosts = @(Resolve-HostList -Hosts $captureSummary.HostSummaries -MaxHosts $MaxHosts)
     }
     if ($selectedHosts.Count -eq 0) {
         Add-Error -Errors $errors -Message 'NoHostsSelected: capture summary contained no host entries.'
-    } elseif ($MaxHosts -gt 0 -and $selectedHosts.Count -lt $captureSummary.HostSummaries.Count) {
+    } elseif ($MaxHosts -gt 0 -and $selectedHosts.Count -lt @($captureSummary.HostSummaries).Count) {
         $maxHostsApplied = $selectedHosts.Count
     }
 

@@ -591,17 +591,18 @@ $entries = foreach ($entry in $indexObject.Entries) {
     $sequence++
 }
 
-if ($Type) { $entries = $entries | Where-Object { $_.Type -eq $Type } }
-if ($Status) { $entries = $entries | Where-Object { $_.Status -eq $Status } }
-if ($Site) { $entries = $entries | Where-Object { $_.Site -eq $Site } }
+if ($Type) { $entries = @($entries | Where-Object { $_.Type -eq $Type }) }
+if ($Status) { $entries = @($entries | Where-Object { $_.Status -eq $Status }) }
+if ($Site) { $entries = @($entries | Where-Object { $_.Site -eq $Site }) }
 # LANDMARK: Explorer ergonomics - Hostname filter and stable case-insensitive matching
 if ($Hostname) {
-    $entries = $entries | Where-Object { -not [string]::IsNullOrWhiteSpace($_.Hostname) -and $_.Hostname -ieq $Hostname }
+    $entries = @($entries | Where-Object { -not [string]::IsNullOrWhiteSpace($_.Hostname) -and $_.Hostname -ieq $Hostname })
 }
-if ($Vendor) { $entries = $entries | Where-Object { $_.Vendor -eq $Vendor } }
-if ($Vrf) { $entries = $entries | Where-Object { $_.Vrf -eq $Vrf } }
+if ($Vendor) { $entries = @($entries | Where-Object { $_.Vendor -eq $Vendor }) }
+if ($Vrf) { $entries = @($entries | Where-Object { $_.Vrf -eq $Vrf }) }
 
-$entries = $entries | Sort-Object @{Expression = 'SortTimestamp'; Descending = $true}, @{Expression = 'Path'; Descending = $false}, @{Expression = 'Sequence'; Descending = $false}
+# Ensure $entries is always an array (Sort-Object returns a scalar for single-item collections)
+$entries = @($entries | Sort-Object @{Expression = 'SortTimestamp'; Descending = $true}, @{Expression = 'Path'; Descending = $false}, @{Expression = 'Sequence'; Descending = $false})
 
 $selectionIndex = $null
 if ($selectProvided) {
@@ -612,7 +613,7 @@ if ($selectProvided) {
 
 if ($null -eq $selectionIndex) {
     # LANDMARK: Routing log explorer - list projection and deterministic selection semantics
-    $listEntries = if ($Top -gt 0) { $entries | Select-Object -First $Top } else { @() }
+    $listEntries = if ($Top -gt 0) { @($entries | Select-Object -First $Top) } else { @() }
     $listRows = New-Object System.Collections.Generic.List[object]
     for ($i = 0; $i -lt $listEntries.Count; $i++) {
         $item = $listEntries[$i]

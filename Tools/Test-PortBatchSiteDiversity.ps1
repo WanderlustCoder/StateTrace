@@ -103,7 +103,7 @@ Get-Content -LiteralPath $metricsFile -ReadCount 500 | ForEach-Object {
 }
 
 $totalEventCount = $events.Count
-$observedEventCount = if ($totalEventCount -gt 0) { @($events | Where-Object { -not $_.Synthesized }).Count } else { 0 }
+$observedEventCount = if ($totalEventCount -gt 0) { ($events | Where-Object { -not $_.Synthesized } | Measure-Object).Count } else { 0 }
 $synthesizedEventCount = $totalEventCount - $observedEventCount
 $ignoredSynthesized = $IgnoreSynthesizedEvents.IsPresent
 $usedSynthesized = $false
@@ -113,9 +113,12 @@ if ($totalEventCount -gt 0) {
         if ($synthesizedEventCount -gt 0) {
             Write-Host ("Ignoring {0} synthesized PortBatchReady event(s) for diversity evaluation." -f $synthesizedEventCount) -ForegroundColor DarkGray
         }
-        $events = @($events | Where-Object { -not $_.Synthesized })
+        $filteredEvents = [System.Collections.Generic.List[pscustomobject]]::new()
+        $events | Where-Object { -not $_.Synthesized } | ForEach-Object { $filteredEvents.Add($_) } | Out-Null
+        $events = $filteredEvents
     } else {
-        $synthesizedEvents = @($events | Where-Object { $_.Synthesized })
+        $synthesizedEvents = [System.Collections.Generic.List[pscustomobject]]::new()
+        $events | Where-Object { $_.Synthesized } | ForEach-Object { $synthesizedEvents.Add($_) } | Out-Null
         if ($synthesizedEvents.Count -gt 0) {
             $events = $synthesizedEvents
             $usedSynthesized = $true
@@ -181,7 +184,8 @@ if ($events.Count -eq 0) {
     return $result
 }
 
-$sorted = $events | Sort-Object Timestamp
+# Ensure $sorted is always an array (Sort-Object returns a scalar for single-item collections)
+$sorted = @($events | Sort-Object Timestamp)
 $streaks = [System.Collections.Generic.List[pscustomobject]]::new()
 $currentSite = $null
 $currentHosts = [System.Collections.Generic.List[string]]::new()

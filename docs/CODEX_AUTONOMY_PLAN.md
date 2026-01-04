@@ -26,7 +26,36 @@ Default sessions operate at **L1**. Escalate to L2/L3 only when documented in th
 - When editing, keep diffs tight, maintain strict mode, and avoid compiled components or new stores.
 - Never commit `.accdb`, raw logs, or secrets; sanitise via `Tools/Sanitize-PostmortemLogs.ps1`.
 - Record every command that mutates data or runs ingestion in the session log.
-- For online mode, set `STATETRACE_AGENT_ALLOW_NET=1` (and `_INSTALL=1` if needed), then route all downloads through `Tools/NetworkGuard.psm1::Invoke-AllowedDownload` and write `Logs/NetOps/<date>.json`.
+
+## Online Mode & NetOps Workflow (L3)
+
+When online mode is unavoidable, follow this workflow (see `docs/Security.md` for full details):
+
+1. **Enable online mode** (document the reason in your session log):
+   ```powershell
+   $env:STATETRACE_AGENT_ALLOW_NET = '1'
+   $env:STATETRACE_AGENT_ALLOW_INSTALL = '1'  # if needed
+   ```
+
+2. **Route all downloads** through the guarded cmdlet:
+   ```powershell
+   Import-Module Tools/NetworkGuard.psm1
+   Invoke-AllowedDownload -Uri <url> -Destination <path> -ExpectedSha256 <hash> -Reason '<plan/task>'
+   ```
+
+3. **Log the operation** using `docs/templates/NetOpsLogTemplate.json` schema to `Logs/NetOps/<date>.json`.
+
+4. **Reset immediately** after completion:
+   ```powershell
+   pwsh Tools\Reset-OnlineModeFlags.ps1 -Reason "ST-F-001 download complete"
+   ```
+
+5. **Validate before closing** the session:
+   ```powershell
+   pwsh Tools\Test-NetOpsEvidence.ps1 -RequireEvidence -RequireReason
+   ```
+
+**Evidence requirements:** Every L3 session must produce both `Logs/NetOps/<date>.json` (operation log) and `Logs/NetOps/Resets/*.json` (reset confirmation). Reference these paths in your session log and Plan F task board entry.
 
 ## Escalation & stop conditions
 - **Blockers** – move the task board card (and CSV entry) to Blocked, capture the dependency, and note it in the plan file.

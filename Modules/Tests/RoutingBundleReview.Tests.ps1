@@ -23,6 +23,7 @@ function New-ZipFromEntries {
         [Parameter(Mandatory = $true)]
         [hashtable[]]$Entries
     )
+    Add-Type -AssemblyName System.IO.Compression
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     if (Test-Path -LiteralPath $ZipPath) {
         Remove-Item -LiteralPath $ZipPath -Force

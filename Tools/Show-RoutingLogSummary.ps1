@@ -247,7 +247,8 @@ function Get-HostRowsFromValidation {
             })
         }
     }
-    return ($rows | Sort-Object Hostname)
+    # Ensure result is always an array (Sort-Object returns scalar for single item)
+    return @($rows | Sort-Object Hostname)
 }
 
 function Get-HostRowsFromPipeline {
@@ -427,8 +428,8 @@ switch ($summaryType) {
 }
 
 # LANDMARK: Offline routing log viewer - derived stats and host table projection
-$hostCount = $hostRows.Count
-$passCount = ($hostRows | Where-Object { $_.Status -eq 'Pass' }).Count
+$hostCount = if ($hostRows) { @($hostRows).Count } else { 0 }
+$passCount = @($hostRows | Where-Object { $_.Status -eq 'Pass' }).Count
 $failCount = $hostCount - $passCount
 $summary = [pscustomobject]@{
     SummaryType    = $summaryType

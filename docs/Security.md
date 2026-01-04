@@ -33,10 +33,62 @@ Raw device logs and postmortems may contain secrets such as passwords, community
 By following these guidelines, you help ensure that StateTrace respects customer privacy and complies with data‑protection standards.
 
 
-## Online Mode Addendum
+## Online Mode & NetOps Logging (ST-F-001)
 
-- Online dev mode is **opt-in**. Set `STATETRACE_AGENT_ALLOW_NET=1` to allow network access and `STATETRACE_AGENT_ALLOW_INSTALL=1` to permit local tooling installation.
-- All downloads must use `Tools/NetworkGuard.psm1::Invoke-AllowedDownload` with allowlisted domains and (where possible) pinned SHA‑256 hashes.
-- Use `Tools/Bootstrap-DevSeat.ps1` to install pinned versions of common tools via `winget`; these are **not** packaged with releases.
-- Record provenance of downloads and installations in agent session logs and `Logs/NetOps/<date>.json`.
+StateTrace is **offline-first**. Online dev mode is opt-in and requires explicit logging of all network operations.
+
+### Environment Variables
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `STATETRACE_AGENT_ALLOW_NET` | `0` | Set to `1` to allow network access |
+| `STATETRACE_AGENT_ALLOW_INSTALL` | `0` | Set to `1` to permit local tooling installation |
+
+### Approved Download Workflow
+
+1. **Enable online mode** (only when unavoidable):
+   ```powershell
+   $env:STATETRACE_AGENT_ALLOW_NET = '1'
+   $env:STATETRACE_AGENT_ALLOW_INSTALL = '1'  # if needed
+   ```
+
+2. **Use the guarded download cmdlet**:
+   ```powershell
+   Import-Module Tools/NetworkGuard.psm1
+   Invoke-AllowedDownload `
+       -Uri https://vendor.example.com/tool.zip `
+       -Destination Downloads\tool.zip `
+       -ExpectedSha256 <hash> `
+       -Reason 'Plan F ST-F-001 - tool update'
+   ```
+
+3. **Log the operation** using the schema in `docs/templates/NetOpsLogTemplate.json`:
+   - Save to `Logs/NetOps/<date>-<session>.json`
+   - Include: Timestamp, SessionId, TaskBoardIds, Action, Arguments, Environment, Result
+
+4. **Reset online mode** immediately after completion:
+   ```powershell
+   pwsh Tools\Reset-OnlineModeFlags.ps1 -Reason "ST-F-001 download complete"
+   ```
+   This clears the env vars and creates `Logs/NetOps/Resets/OnlineModeReset-<timestamp>.json`.
+
+5. **Validate evidence** before closing the session:
+   ```powershell
+   pwsh Tools\Test-NetOpsEvidence.ps1 -RequireEvidence -RequireReason
+   # Or via AllChecks:
+   pwsh Tools\Invoke-AllChecks.ps1 -RequireNetOpsEvidence
+   ```
+
+### Bootstrap & Dev Seat Setup
+
+- Use `Tools/Bootstrap-DevSeat.ps1` to install pinned versions of common tools via `winget`.
+- Reference the approved manifest at `Tools/Bootstrap/ApprovedManifest.json`.
+- Bootstrap tools are **not** packaged with releases - runtime remains offline-capable.
+
+### Compliance Requirements
+
+- All downloads must use `Tools/NetworkGuard.psm1::Invoke-AllowedDownload` with allowlisted domains.
+- Every online session must produce a NetOps log (`Logs/NetOps/<date>.json`).
+- Every online session must end with a reset log (`Logs/NetOps/Resets/*.json`).
+- Reference NetOps evidence in session logs and Plan F task board entries.
 - Runtime deliverables remain offline‑capable (PowerShell + Access only).
