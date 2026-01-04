@@ -36,7 +36,31 @@ This reference consolidates the success criteria that each plan/task must meet b
 - `Logs/SharedCacheSnapshot/SharedCacheSnapshot-latest-summary.json` shows minimum site count 2, host count 37, row count 1,200+ prior to release sign-off.
 
 ## Plan H - User Experience & Adoption
-- `UserAction` telemetry present for core flows (ScanLogs, LoadFromDb, HelpQuickstart, InterfacesView, CompareView, SpanSnapshot); cite the latest telemetry bundle in plan/task updates (current evidence: `Logs/Reports/UserActionSummary-20251126-run3.json` inside `Logs/TelemetryBundles/UI-20251126-useraction7/`, all required actions present).
-- Adoption signals captured in rollups once ST-H-003 wires bundle aggregation (record bundle name + summary paths and flag any action gaps); treat missing required actions as a gate failure for release readiness. Rollup CSV now includes `Metric=UserActionCoverage` (Count=covered actions, Total=required actions, Notes=Missing=...) per scope/site for quick enforcement.
+
+### Required UserAction Events
+Core flows that must appear in every telemetry bundle (gate failure if missing):
+- `ScanLogs` - User initiated log scan
+- `LoadFromDb` - User loaded from database
+- `HelpQuickstart` - User accessed help/quickstart
+- `InterfacesView` - User viewed interfaces tab
+- `CompareView` - User performed comparison
+- `SpanSnapshot` - User captured SPAN snapshot
+
+### Optional UserAction Events (tracked but not required)
+- `RefreshFromDb` - User reloaded from database without parsing (ST-H-002)
+
+### Adoption Thresholds
+| Metric | Threshold | Gate Type |
+|--------|-----------|-----------|
+| Required action coverage | 100% (all 6 required actions present) | Release blocking |
+| UserAction events per bundle | ≥ 10 total events | Warning (not blocking) |
+| Site coverage | ≥ 2 distinct sites with UserAction events | Release blocking |
+| Onboarding completion rate | ≥ 80% for guided runs | Soft gate (tracked) |
+| Compare/Span invocation rate | Trending upward release-over-release | Soft gate (tracked) |
+
+### Evidence Requirements
+- `UserAction` telemetry present for core flows; cite the latest telemetry bundle in plan/task updates (current evidence: `Logs/Reports/UserActionSummary-20251126-run3.json` inside `Logs/TelemetryBundles/UI-20251126-useraction7/`, all required actions present).
+- Adoption signals captured in rollups; treat missing required actions as a gate failure for release readiness. Rollup CSV includes `Metric=UserActionCoverage` (Count=covered actions, Total=required actions, Notes=Missing=...) per scope/site.
 - Freshness evidence: telemetry bundles must include a `FreshnessTelemetrySummary*.json` showing cache provider/source per site; freshness tooltip must align with the summary when capturing UI screenshots.
+- Freshness indicator coverage: 100% of supported sites show last ingest timestamp + source with color-coded status (Green <24h, Yellow 24-48h, Orange 2-7d, Red >7d).
 Update this file whenever a plan adds or changes a gate so automation agents can enforce the criteria programmatically.
