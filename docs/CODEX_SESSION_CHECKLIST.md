@@ -18,6 +18,33 @@ Use this one-pager as the quick command-and-control loop for every Codex session
 - [ ] When online mode is needed, set the approved env vars, route downloads via `Tools/NetworkGuard.psm1`, and log NetOps entries.
 - [ ] Before wrapping online work, run `Tools\Reset-OnlineModeFlags.ps1 -Reason "<plan/task note>"` so `STATETRACE_AGENT_ALLOW_*` returns to `0`, the reason is captured in `Logs/NetOps/Resets/*.json`, and cite the path in your notes.
 
+## Offline-first verification (ST-F-005)
+Every session must answer three questions to maintain offline-first compliance:
+
+### 1. Access database usage
+- [ ] **Did you use Access `.accdb` files?** If yes, record which files and their purpose.
+- [ ] **File paths:** List any `.accdb` files read or written (e.g., `Data/WLLS/WLLS.accdb`).
+- [ ] **Verification:** Confirm no `.accdb` files are staged for commit (`git status` should show none).
+
+### 2. Online-mode status
+- [ ] **Was online mode enabled?** (Check `$env:STATETRACE_AGENT_ALLOW_NET` / `$env:STATETRACE_AGENT_ALLOW_INSTALL`)
+- [ ] If yes: Record NetOps log path (`Logs/NetOps/<date>.json`) in your session log.
+- [ ] If yes: Confirm reset was executed via `Tools\Reset-OnlineModeFlags.ps1 -Reason "<task>"`.
+- [ ] If yes: Record reset log path (`Logs/NetOps/Resets/OnlineModeReset-<timestamp>.json`).
+- [ ] If no: Confirm session ran fully offline (no external downloads or network calls).
+
+### 3. Sanitized fixture usage
+- [ ] **Did you consume or create sanitized fixtures?** If yes, record the paths.
+- [ ] For consumption: Reference fixture path (e.g., `Tests/Fixtures/Routing/CliCapture/`).
+- [ ] For creation: Run `Tools\Sanitize-PostmortemLogs.ps1` and record report path (`Logs/Sanitization/<id>.json`).
+- [ ] Confirm no raw/unsanitized logs are staged for commit.
+
+### Quick validation command
+Run this to verify offline-first compliance:
+```powershell
+pwsh Tools\Test-OfflineFirstEvidence.ps1 -SessionLogPath docs/agents/sessions/<date>_session-XXXX.md [-RequireAccessLog] [-RequireNetOpsLog] [-RequireSanitizationLog]
+```
+
 ## Validation & telemetry
 - [ ] Execute `Invoke-Pester Modules/Tests` plus any script mandated by the plan (pipeline, warm regression, span smoke).
 - [ ] Capture outputs/paths in your session log (`Logs/IngestionMetrics/<date>.json`, WarmRunTelemetry, CSV rollups).
