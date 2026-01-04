@@ -15,7 +15,7 @@ Codify fast incident response, rollback, and mitigation workflows: consistent ru
 | ID | Title | Owner | Status | Notes |
 |----|-------|-------|--------|-------|
 | ST-R-001 | Incident drill cadence | PMO | Ready | Schedule monthly drills covering parser regression, UI failure, and routing backlog. Capture timings, gaps, and update runbooks. |
-| ST-R-002 | Rollback bundle automation | Automation | Backlog | Script to capture current package hash, telemetry bundle paths, shared-cache snapshot, and config before rollback; store under `Logs/RollbackBundles/<date>/`. |
+| ST-R-002 | Rollback bundle automation | Automation | Done - 2026-01-04 | Created `Tools/New-RollbackBundle.ps1` to capture state before rollback: StateTraceSettings.json, telemetry bundle refs (latest 3), shared-cache snapshot (optional), package hashes (6 key files), git info. Stores under `Logs/RollbackBundles/<BundleName>/` with RollbackManifest.json. |
 | ST-R-003 | Online-mode evidence enforcement | Security | Backlog | Integrate `Tools\Test-NetOpsEvidence.ps1 -RequireEvidence -RequireReason` into incident scripts; block closure without evidence and reset flags via `Tools\Reset-OnlineModeFlags.ps1`. |
 | ST-R-004 | Post-incident verification | QA | Backlog | After rollback/fix, auto-run `Tools\Invoke-StateTraceVerification.ps1` with shared-cache diagnostics and warm-run telemetry to ensure stability. |
 
