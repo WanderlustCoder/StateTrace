@@ -8,6 +8,21 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# ST-J-004: Early warning for missing templates
+$knownTemplates = @(
+    'Logs\mock_cisco_authentic.log',
+    'Logs\mock_brocade_BOYO_73.log'
+)
+$missingTemplates = @($knownTemplates | Where-Object { -not (Test-Path -LiteralPath $_) })
+if ($missingTemplates.Count -gt 0) {
+    Write-Warning "Some template logs are missing and will cause errors when expanding their sites:"
+    foreach ($missing in $missingTemplates) {
+        Write-Warning "  - $missing"
+    }
+    Write-Warning "See Data\README.md for how to create template logs, or use -Force to attempt anyway."
+    Write-Warning ""
+}
+
 function Get-UniqueHostNames {
     param([string]$MetricsPath)
 
@@ -54,7 +69,23 @@ function Get-TemplateForSite {
 function Ensure-TemplateAvailable {
     param([string]$TemplatePath)
     if (-not (Test-Path -LiteralPath $TemplatePath)) {
-        throw "Required template log '$TemplatePath' is missing."
+        $hint = @"
+
+Required template log '$TemplatePath' is missing.
+
+Template logs are gitignored and must be created locally:
+  1. Obtain authentic device logs from a test environment
+  2. Sanitize using: Tools\Sanitize-PostmortemLogs.ps1
+  3. Save as: $TemplatePath
+  4. Re-run: Tools\Expand-MockLogCorpus.ps1 -Force
+
+For CI testing without templates, use tracked fixtures:
+  - Tests\Fixtures\CISmoke\IngestionMetrics.json
+  - Invoke-Pester -Tag Decomposition
+
+See Data\README.md for details.
+"@
+        throw $hint
     }
 }
 

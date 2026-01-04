@@ -17,9 +17,10 @@ Eliminate hidden fixture dependencies (missing mock logs, polluted telemetry fil
 | ST-J-001 | Commit synthetic fixture seeds | QA | Done - 2026-01-04 | Created `Tests/Fixtures/CISmoke/` with balanced BOYO/WLLS fixtures (6 hosts, 47 telemetry events). Added `IngestionMetrics.json` (line-delimited events) and `WarmRunTelemetry.json` (sample comparison). Manifest at `Tests/Fixtures/manifests/CISmoke.json`. Updated `Tests/Fixtures/README.md` with dataset docs and validation criteria. |
 | ST-J-002 | Guard against polluted telemetry inputs | QA/Automation | Done - 2026-01-04 | Added preflight check in `Invoke-StateTracePipeline.ps1` and `Invoke-WarmRunTelemetry.ps1` to fail fast on non-JSON lines. Updated `Test-TelemetryIntegrity.ps1` with cleanup hints. Use `-SkipTelemetryIntegrityPreflight` to bypass. |
 | ST-J-003 | CI smoke for harness paths | Automation | Backlog | Add a Pester/CI smoke that runs a reduced pipeline + warm-run on synthetic fixtures under PowerShell 5.1, asserting: queue summary present, diversity guard passes, diff hotspot CSV emitted, history updaters succeed. |
-| ST-J-004 | Fixture README + regeneration guard | QA | Backlog | Add a README under `Logs/` or `Data/` describing how to regenerate synthetic corpora and how gitignore interacts; script should warn when required template logs are missing and suggest `Tools\Expand-MockLogCorpus.ps1 -Force`. |
+| ST-J-004 | Fixture README + regeneration guard | QA | Done - 2026-01-04 | Added `Data/README.md` documenting fixture structure, gitignore policy, and regeneration steps. Updated `Tools/Expand-MockLogCorpus.ps1` with early template warnings and detailed error messages suggesting alternatives. |
 
 ## Recently delivered
+- ST-J-004: Added `Data/README.md` with fixture structure, gitignore policy, and regeneration docs; `Expand-MockLogCorpus.ps1` now warns on missing templates.
 - ST-J-002: Added preflight telemetry integrity check to pipeline/warm-run scripts with cleanup hints; fails fast on polluted JSON.
 - Duplicate-ingestion test now uses inline log content (no gitignored dependency).
 - Shared skip-site-cache guard module reduces persistent settings drift during runs.
