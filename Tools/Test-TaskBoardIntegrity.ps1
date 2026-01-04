@@ -15,6 +15,9 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# Load VB assembly for TextFieldParser (not auto-loaded in all PowerShell contexts)
+Add-Type -AssemblyName Microsoft.VisualBasic
+
 function Get-DefaultOutputPath {
     param([string]$RootPath)
     $reportDir = Join-Path -Path $RootPath -ChildPath 'Logs\Reports'
@@ -85,9 +88,16 @@ function Get-GitDiffStats {
     }
     $stats.Available = $true
 
-    $inside = & git -C $RepoRoot rev-parse --is-inside-work-tree 2>$null
-    if ($LASTEXITCODE -ne 0 -or $inside -notmatch 'true') {
-        return $stats
+    # Temporarily allow errors from git commands (non-repo directories write to stderr)
+    $prevErrorAction = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        $inside = & git -C $RepoRoot rev-parse --is-inside-work-tree 2>$null
+        if ($LASTEXITCODE -ne 0 -or $inside -notmatch 'true') {
+            return $stats
+        }
+    } finally {
+        $ErrorActionPreference = $prevErrorAction
     }
 
     $gitPath = $RelativePath -replace '\\', '/'
