@@ -14,7 +14,7 @@ Improve the WPF shell???s accessibility, layout adaptability, and perceived resp
 ## Active work
 | ID | Title | Owner | Status | Notes |
 |----|-------|-------|--------|-------|
-| ST-O-001 | Accessibility audit & checklist | UI | Ready | Create an accessibility checklist (keyboard nav, focus order, contrast, screen reader hints) and add assertions to UI smoke scripts. Capture findings in plan/task updates. |
+| ST-O-001 | Accessibility audit & checklist | UI | Done - 2026-01-04 | Created `docs/Accessibility_Checklist.md` covering keyboard navigation, focus order, color contrast, and screen reader compatibility per view. Added `Tools/Test-Accessibility.ps1` to run static XAML analysis for AutomationProperties, TabIndex, and FocusVisualStyle. Reports saved to `Logs/Accessibility/`. |
 | ST-O-002 | Responsive layout tuning | UI | Backlog | Add layout tests for small-window widths and high-DPI scaling; ensure port tables and templates view stay usable. |
 | ST-O-003 | UI responsiveness telemetry | Telemetry | Backlog | Instrument UI actions (tab switches, search/filter apply, Compare diff load) to emit duration metrics and feed rollups. Add thresholds to UI smokes. |
 | ST-O-004 | Code-behind reduction | UI | Backlog | Move non-UI logic from `Main/MainWindow.ps1` into services (see Plan L) to reduce UI thread stalls and simplify smoke coverage. |
