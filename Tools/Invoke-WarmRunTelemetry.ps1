@@ -34,7 +34,8 @@ param(
     [switch]$RestrictWarmComparisonToColdHosts,
     [switch]$AllowPartialHostFilterCoverage,
     [switch]$DisableSharedCacheSnapshot,
-    [switch]$DisablePreservedRunspacePool
+    [switch]$DisablePreservedRunspacePool,
+    [switch]$SkipTelemetryIntegrityPreflight
 )
 
 Set-StrictMode -Version Latest
@@ -1812,6 +1813,31 @@ function Set-IngestionHistoryForPass {
 
 $ingestionHistorySnapshot = Get-IngestionHistorySnapshot -DirectoryPath $ingestionHistoryDir
 $metricsBaseline = Get-MetricsBaseline -DirectoryPath $metricsDirectory
+
+# ST-J-002: Preflight telemetry integrity check - fail fast on polluted JSON
+if (-not $SkipTelemetryIntegrityPreflight) {
+    $integrityScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Test-TelemetryIntegrity.ps1'
+    if (Test-Path -LiteralPath $integrityScript) {
+        $latestMetricsFile = Get-ChildItem -Path $metricsDirectory -Filter '*.json' -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.BaseName -match '^\d{4}-\d{2}-\d{2}$' } |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+        if ($latestMetricsFile) {
+            Write-Host ("Preflight: checking telemetry integrity for {0}..." -f $latestMetricsFile.FullName) -ForegroundColor Cyan
+            try {
+                & $integrityScript -Path $latestMetricsFile.FullName -PassThru | Out-Null
+            } catch {
+                Write-Host '' -ForegroundColor Red
+                Write-Host '=== TELEMETRY INTEGRITY PREFLIGHT FAILED ===' -ForegroundColor Red
+                Write-Host $_.Exception.Message -ForegroundColor Red
+                Write-Host ''
+                throw ("Preflight check failed: telemetry file contains invalid JSON. Use -SkipTelemetryIntegrityPreflight to bypass.")
+            }
+            Write-Host ("Preflight: telemetry integrity OK.") -ForegroundColor Green
+        }
+    }
+}
+
 $sharedCacheEntries = @()
 $sharedCacheSnapshotPath = $null
 $sharedCacheSnapshotDirectory = Join-Path -Path (Join-Path $repositoryRoot 'Logs') -ChildPath 'SharedCacheSnapshot'
@@ -1856,6 +1882,8 @@ if ($PSBoundParameters.ContainsKey('PortBatchMaxConsecutiveOverride')) {
 if ($DisablePreservedRunspacePool) {
     $pipelineArguments['DisablePreserveRunspace'] = $true
 }
+# Skip pipeline preflight if warm-run already ran it (or if explicitly skipped)
+$pipelineArguments['SkipTelemetryIntegrityPreflight'] = $true
 
 # Keep the parser runspace configuration identical across cold and warm passes so the preserved pool
 # (and shared cache) stay alive between runs.

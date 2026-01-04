@@ -40,6 +40,7 @@ param(
     [switch]$SynthesizeSchedulerTelemetryOnMissing,
     [switch]$FailOnSchedulerFairness = $true,
     [switch]$RequireTelemetryIntegrity,
+    [switch]$SkipTelemetryIntegrityPreflight,
     [switch]$DisablePreserveRunspace,
     [switch]$QuickMode
 )
@@ -1182,6 +1183,24 @@ if ($latestIngestionMetricsEntry) {
     $metricsBaseName = [System.IO.Path]::GetFileNameWithoutExtension($latestIngestionMetricsEntry.Name)
     if (-not [string]::IsNullOrWhiteSpace($metricsBaseName)) {
         $metricsReportSuffix = $metricsBaseName
+    }
+}
+
+# ST-J-002: Preflight telemetry integrity check - fail fast on polluted JSON
+if ($latestIngestionMetricsEntry -and -not $SkipTelemetryIntegrityPreflight) {
+    $integrityScript = Join-Path -Path $repositoryRoot -ChildPath 'Tools\Test-TelemetryIntegrity.ps1'
+    if (Test-Path -LiteralPath $integrityScript) {
+        Write-Host ("Preflight: checking telemetry integrity for {0}..." -f $latestIngestionMetricsEntry.FullName) -ForegroundColor Cyan
+        try {
+            & $integrityScript -Path $latestIngestionMetricsEntry.FullName -PassThru | Out-Null
+        } catch {
+            Write-Host '' -ForegroundColor Red
+            Write-Host '=== TELEMETRY INTEGRITY PREFLIGHT FAILED ===' -ForegroundColor Red
+            Write-Host $_.Exception.Message -ForegroundColor Red
+            Write-Host ''
+            throw ("Preflight check failed: telemetry file contains invalid JSON. Use -SkipTelemetryIntegrityPreflight to bypass.")
+        }
+        Write-Host ("Preflight: telemetry integrity OK.") -ForegroundColor Green
     }
 }
 

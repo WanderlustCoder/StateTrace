@@ -96,7 +96,14 @@ $summary = [pscustomobject]@{
 if ($errors.Count -gt 0) {
     $preview = $errors | Select-Object -First 3
     $errorText = $preview | Format-Table LineNumber, Message -AutoSize | Out-String
-    throw ("Telemetry integrity failed: {0} invalid lines found.`n{1}" -f $errors.Count, $errorText)
+    $cleanupHint = @"
+
+Suggested cleanup:
+  - Move or delete corrupted telemetry file: $Path
+  - Or remove invalid lines and re-run
+  - Debug slices should go to a separate log file, not IngestionMetrics
+"@
+    throw ("Telemetry integrity failed: {0} invalid lines found in {1}`n{2}{3}" -f $errors.Count, $Path, $errorText, $cleanupHint)
 }
 
 if ($RequireQueueSummary -and -not $queueFound) {
