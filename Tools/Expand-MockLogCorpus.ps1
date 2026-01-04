@@ -120,7 +120,9 @@ Write-Host "Generating mock logs for $($hosts.Count) host(s) into '$outputRoot'.
 $generated = 0
 foreach ($hostName in $hosts) {
     if ([string]::IsNullOrWhiteSpace($hostName)) { continue }
-    $sitePrefix = ($hostName.Split('-')[0])
+    $parts = $hostName.Split('-')
+    if ($parts.Count -eq 0) { continue }
+    $sitePrefix = $parts[0]
     $templateInfo = Get-TemplateForSite -SitePrefix $sitePrefix
     Ensure-TemplateAvailable -TemplatePath $templateInfo.TemplatePath
 
