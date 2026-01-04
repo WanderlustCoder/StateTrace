@@ -75,8 +75,17 @@ This runbook maps common automation tasks to the exact commands, required inputs
 5. **Headless smoke run for new features/functions** - run the relevant headless harness (for example `Tools/Invoke-SearchAlertsSmokeTest.ps1`) and record the PassThru summary in the session log.
 
 ## Environment setup
-- PowerShell 5.x (already available in the repo’s target environment).
+- PowerShell 5.x (already available in the repo's target environment).
 - Optional online dev mode requires `STATETRACE_AGENT_ALLOW_NET=1` and `STATETRACE_AGENT_ALLOW_INSTALL=1`, plus logging via `Tools/NetworkGuard.psm1::Invoke-AllowedDownload`.
+
+## Offline guardrails (ST-K-004)
+`Tools\Invoke-AllChecks.ps1` includes an **offline preflight** that fails fast when online mode is active:
+- Asserts `STATETRACE_AGENT_ALLOW_NET` and `STATETRACE_AGENT_ALLOW_INSTALL` are unset (or `0`)
+- If set, logs the reason to `Logs\Verification\OfflinePreflightFail-<timestamp>.json` and exits with reset instructions
+- To reset: `pwsh Tools\Reset-OnlineModeFlags.ps1 -Reason "<task>"`
+- To bypass (when online mode is intentional): `pwsh Tools\Invoke-AllChecks.ps1 -SkipOfflinePreflight`
+
+This ensures CI/harness runs remain offline-first by default; online mode requires explicit acknowledgment.
 
 ## Troubleshooting
 - If `Invoke-StateTracePipeline.ps1` fails due to history corruption, clear `Data/IngestionHistory/*.json` (back them up first) and rerun.

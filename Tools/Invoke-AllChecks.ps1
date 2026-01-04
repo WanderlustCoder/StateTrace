@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$RepositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')),
+    [switch]$SkipOfflinePreflight,
     [switch]$SkipPester,
     [switch]$RunDecompositionTests,
     [switch]$SkipUnusedExportLint,
@@ -43,6 +44,51 @@ if (-not (Test-Path -LiteralPath $uiHelperPath)) {
 
 $results = [System.Collections.Generic.List[pscustomobject]]::new()
 try {
+    # LANDMARK: ST-K-004 offline guardrails preflight
+    if (-not $SkipOfflinePreflight) {
+        Write-Host "===> Running offline guardrails preflight (ST-K-004)" -ForegroundColor Cyan
+        $netVar = $env:STATETRACE_AGENT_ALLOW_NET
+        $installVar = $env:STATETRACE_AGENT_ALLOW_INSTALL
+
+        $onlineModeActive = ($netVar -eq '1') -or ($installVar -eq '1')
+
+        if ($onlineModeActive) {
+            $reason = "Online mode environment variables are set:"
+            if ($netVar -eq '1') { $reason += " STATETRACE_AGENT_ALLOW_NET=1" }
+            if ($installVar -eq '1') { $reason += " STATETRACE_AGENT_ALLOW_INSTALL=1" }
+
+            $logDir = Join-Path $repoRoot 'Logs\Verification'
+            if (-not (Test-Path -LiteralPath $logDir)) {
+                New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+            }
+            $logPath = Join-Path $logDir ("OfflinePreflightFail-{0}.json" -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
+
+            $failResult = [pscustomobject]@{
+                Timestamp                       = (Get-Date).ToUniversalTime().ToString('o')
+                Check                           = 'OfflinePreflight'
+                Status                          = 'Fail'
+                Reason                          = $reason
+                STATETRACE_AGENT_ALLOW_NET      = $netVar
+                STATETRACE_AGENT_ALLOW_INSTALL  = $installVar
+                Recommendation                  = 'Run Tools\Reset-OnlineModeFlags.ps1 -Reason "<task>" to reset, or use -SkipOfflinePreflight if online mode is intentional'
+            }
+            $failResult | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $logPath -Encoding utf8
+
+            Write-Host "FAIL: $reason" -ForegroundColor Red
+            Write-Host ("Log written to: {0}" -f $logPath) -ForegroundColor Yellow
+            Write-Host "To reset: pwsh Tools\Reset-OnlineModeFlags.ps1 -Reason '<task>'" -ForegroundColor Yellow
+            Write-Host "To bypass: pwsh Tools\Invoke-AllChecks.ps1 -SkipOfflinePreflight" -ForegroundColor Yellow
+            throw "Offline preflight failed: $reason"
+        }
+
+        Write-Host "PASS: Session is running in offline mode (STATETRACE_AGENT_ALLOW_NET/INSTALL not set or 0)" -ForegroundColor Green
+        $results.Add([pscustomobject]@{
+            Check  = 'OfflinePreflight'
+            Status = 'Pass'
+            Note   = 'Online mode environment variables are not set'
+        })
+    }
+
     if (-not $SkipUnusedExportLint) {
         Write-Host "===> Running unused export lint" -ForegroundColor Cyan
         $lintScript = Join-Path $repoRoot 'Tools\Report-UnusedExports.ps1'
