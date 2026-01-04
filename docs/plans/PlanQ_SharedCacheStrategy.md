@@ -15,7 +15,7 @@ Stabilize shared cache adoption across cold/warm runs by formalizing snapshot go
 | ID | Title | Owner | Status | Notes |
 |----|-------|-------|--------|-------|
 | ST-Q-001 | Snapshot governance policy | Ingestion | Done - 2026-01-04 | Created `Tools\Test-SharedCacheSnapshot.ps1` to enforce site/host/row minima and required sites (clixml or summary JSON). Wired into `Tools\Invoke-AllChecks.ps1` with `-SkipSharedCacheSnapshotCheck` flag; defaults require BOYO/WLLS sites with 2+ sites and 5+ hosts. Auto-discovers latest snapshot from `Logs\SharedCacheSnapshot\`. |
-| ST-Q-002 | Snapshot seeding & fallback | Ingestion | Backlog | Add a lightweight seed bundle (tracked) for fixtures so warm runs never start from empty cache. Detect missing/old snapshots and auto-use the seed with a log note. |
+| ST-Q-002 | Snapshot seeding & fallback | Ingestion | Done - 2026-01-04 | Created `Tools\Initialize-SharedCacheSeed.ps1` to generate lightweight seed (2 sites, 6 hosts, 60 ports) at `Tests/Fixtures/CISmoke/SharedCacheSeed.clixml`. Created `Tools\Resolve-SharedCacheSnapshot.ps1` to auto-discover snapshots with fallback to seed when missing/old (>168h). Logs fallback reason when using seed. |
 | ST-Q-003 | Eviction/size guard | Performance | Backlog | Add analyzer/check that validates snapshot size, host count, and eviction rate; fail harness if cache shrinks unexpectedly or exceeds size budget. |
 | ST-Q-004 | Compatibility checks | Automation | Backlog | Before import, validate schema/version and site list; refuse incompatible snapshots and suggest regeneration. |
 
