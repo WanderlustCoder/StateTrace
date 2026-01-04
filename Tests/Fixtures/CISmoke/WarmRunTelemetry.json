@@ -1,0 +1,51 @@
+{
+  "GeneratedAtUtc": "2026-01-01T10:05:00Z",
+  "FixtureDataset": "CISmoke",
+  "ColdPass": {
+    "StartTimeUtc": "2026-01-01T10:00:00Z",
+    "EndTimeUtc": "2026-01-01T10:02:00Z",
+    "HostCount": 6,
+    "TotalInterfaceCount": 66,
+    "ParseDurationAvgMs": 160,
+    "ParseDurationP95Ms": 195,
+    "DatabaseWriteLatencyAvgMs": 88.33,
+    "DatabaseWriteLatencyP95Ms": 107,
+    "InterfaceCallDurationAvgMs": 180,
+    "SiteCacheProvider": {
+      "Cache": 4,
+      "SharedCache": 2
+    }
+  },
+  "WarmPass": {
+    "StartTimeUtc": "2026-01-01T10:03:00Z",
+    "EndTimeUtc": "2026-01-01T10:04:00Z",
+    "HostCount": 6,
+    "TotalInterfaceCount": 66,
+    "ParseDurationAvgMs": 45,
+    "ParseDurationP95Ms": 55,
+    "DatabaseWriteLatencyAvgMs": 25,
+    "DatabaseWriteLatencyP95Ms": 32,
+    "InterfaceCallDurationAvgMs": 38,
+    "SiteCacheProvider": {
+      "SharedCache": 6
+    }
+  },
+  "WarmRunComparison": {
+    "ColdHostCount": 6,
+    "WarmHostCount": 6,
+    "ColdInterfaceCallAvgMs": 180,
+    "WarmInterfaceCallAvgMs": 38,
+    "ImprovementPercent": 78.89,
+    "WarmCacheHitRatioPercentRaw": 100,
+    "GateMet": true
+  },
+  "Sites": ["BOYO", "WLLS"],
+  "Hosts": [
+    "BOYO-A01-AS-01",
+    "BOYO-A01-AS-02",
+    "BOYO-A02-AS-01",
+    "WLLS-A01-AS-01",
+    "WLLS-A01-AS-02",
+    "WLLS-A02-AS-01"
+  ]
+}

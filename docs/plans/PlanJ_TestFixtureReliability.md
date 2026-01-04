@@ -14,7 +14,7 @@ Eliminate hidden fixture dependencies (missing mock logs, polluted telemetry fil
 ## Active work
 | ID | Title | Owner | Status | Notes |
 |----|-------|-------|--------|-------|
-| ST-J-001 | Commit synthetic fixture seeds | QA | Ready | Add small, committed seed fixtures for parser/warm-run smokes (minimal host set, balanced sites) so CI can run without regenerating gitignored logs. Document generation steps in README. |
+| ST-J-001 | Commit synthetic fixture seeds | QA | Done - 2026-01-04 | Created `Tests/Fixtures/CISmoke/` with balanced BOYO/WLLS fixtures (6 hosts, 47 telemetry events). Added `IngestionMetrics.json` (line-delimited events) and `WarmRunTelemetry.json` (sample comparison). Manifest at `Tests/Fixtures/manifests/CISmoke.json`. Updated `Tests/Fixtures/README.md` with dataset docs and validation criteria. |
 | ST-J-002 | Guard against polluted telemetry inputs | QA/Automation | In Progress | Add preflight check in warm-run/pipeline scripts to fail fast when `Logs/IngestionMetrics/<date>.json` contains non-JSON lines (e.g., debug slices). Surface path in error and suggest cleanup. |
 | ST-J-003 | CI smoke for harness paths | Automation | Backlog | Add a Pester/CI smoke that runs a reduced pipeline + warm-run on synthetic fixtures under PowerShell 5.1, asserting: queue summary present, diversity guard passes, diff hotspot CSV emitted, history updaters succeed. |
 | ST-J-004 | Fixture README + regeneration guard | QA | Backlog | Add a README under `Logs/` or `Data/` describing how to regenerate synthetic corpora and how gitignore interacts; script should warn when required template logs are missing and suggest `Tools\Expand-MockLogCorpus.ps1 -Force`. |

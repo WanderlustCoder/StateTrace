@@ -1,0 +1,39 @@
+{
+  "name": "CISmoke",
+  "version": "1.0",
+  "id": "CISmoke-1.0",
+  "description": "Comprehensive CI smoke fixtures with balanced BOYO/WLLS sites for parser, warm-run, and telemetry validation.",
+  "includes": [
+    { "site": "BOYO", "hosts": ["BOYO-A01-AS-01", "BOYO-A01-AS-02", "BOYO-A02-AS-01"], "notes": "3 hosts with balanced port counts" },
+    { "site": "WLLS", "hosts": ["WLLS-A01-AS-01", "WLLS-A01-AS-02", "WLLS-A02-AS-01"], "notes": "3 hosts with balanced port counts" }
+  ],
+  "eventCounts": {
+    "InterfacePortQueueMetrics": 8,
+    "PortBatchReady": 6,
+    "InterfaceSyncTiming": 6,
+    "ParserSchedulerLaunch": 4,
+    "InterfaceSiteCacheSharedStoreState": 3,
+    "InterfaceSiteCacheSharedStore": 8,
+    "ParseDuration": 6,
+    "DatabaseWriteLatency": 6
+  },
+  "generation": {
+    "requiresGeneration": false,
+    "command": null,
+    "notes": "Fixtures are pre-generated and committed; no runtime generation required."
+  },
+  "paths": {
+    "ingestionMetrics": "Tests/Fixtures/CISmoke/IngestionMetrics.json",
+    "warmRunTelemetry": "Tests/Fixtures/CISmoke/WarmRunTelemetry.json"
+  },
+  "validationCriteria": {
+    "queueDelayP95MaxMs": 120,
+    "queueDelayP99MaxMs": 200,
+    "diversityMaxStreak": 8,
+    "warmImprovementMinPercent": 60,
+    "warmCacheHitMinPercent": 80
+  },
+  "usage": "Used by Tools/Invoke-CIHarness.ps1 for offline smoke testing.",
+  "createdAt": "2026-01-04",
+  "taskReference": "ST-J-001"
+}
