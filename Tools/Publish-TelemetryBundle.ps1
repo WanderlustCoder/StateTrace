@@ -60,7 +60,12 @@ param(
 
     [switch]$VerifyPlanHReadiness,
     [string[]]$PlanHRequiredActions = @('ScanLogs','LoadFromDb','HelpQuickstart','InterfacesView','CompareView','SpanSnapshot'),
-    [string]$PlanHReadinessOutputName = 'PlanHReadiness.json'
+    [string]$PlanHReadinessOutputName = 'PlanHReadiness.json',
+
+    # LANDMARK: ST-M-003 redaction enforcement
+    [switch]$RequireRedaction,
+    [string[]]$RedactionPatterns = @('password', 'secret', 'token', 'community', 'snmpv3', 'credential', 'api[_-]?key'),
+    [string]$RedactionComplianceOutputName = 'RedactionCompliance.json'
 )
 
 Set-StrictMode -Version Latest
@@ -254,6 +259,30 @@ if ($VerifyPlanHReadiness) {
         throw "Plan H readiness failed for bundle '$($bundleResult.Path)': $([string]::Join('; ', $planHResult.Failures))"
     }
     Write-Host ("Plan H readiness: Ready (UserAction + freshness evidence present).") -ForegroundColor Green
+}
+
+# LANDMARK: ST-M-003 redaction compliance check
+if ($RequireRedaction) {
+    $redactionScript = Join-Path -Path $PSScriptRoot -ChildPath 'Test-RedactionCompliance.ps1'
+    if (-not (Test-Path -LiteralPath $redactionScript)) {
+        throw "Redaction compliance script not found at '$redactionScript'."
+    }
+    $redactionOutputPath = $null
+    if ($bundleResult.Path -and $RedactionComplianceOutputName) {
+        $redactionOutputPath = Join-Path -Path $bundleResult.Path -ChildPath $RedactionComplianceOutputName
+    }
+    $redactionParams = @{
+        Path            = $bundleResult.Path
+        RedactPatterns  = $RedactionPatterns
+        OutputPath      = $redactionOutputPath
+        FailOnMatch     = $true
+        PassThru        = $true
+    }
+    $redactionResult = & $redactionScript @redactionParams
+    if ($redactionResult.Status -ne 'Pass') {
+        throw "Redaction compliance failed for bundle '$($bundleResult.Path)': $($redactionResult.Message)"
+    }
+    Write-Host ("Redaction compliance: Pass ({0} files scanned, no sensitive patterns detected)." -f $redactionResult.FilesScanned) -ForegroundColor Green
 }
 
 if ($PassThru) {
