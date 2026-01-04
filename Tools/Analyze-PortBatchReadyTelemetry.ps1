@@ -99,7 +99,9 @@ foreach ($file in $files) {
                     $portsCommitted = [int]($evt.PortsCommitted)
                     $chunkSize = [int]($evt.ChunkSize)
                     $hostname = $evt.Hostname
-                    $timestamp = [datetime]$evt.Timestamp
+                    $timestamp = $null
+                    try { $timestamp = [datetime]$evt.Timestamp } catch { continue }
+                    if (-not $timestamp) { continue }
 
                     $totalPorts += $portsCommitted
                     $totalChunk += $chunkSize

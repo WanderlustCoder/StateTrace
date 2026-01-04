@@ -91,7 +91,9 @@ Get-Content -LiteralPath $metricsFile -ReadCount 500 | ForEach-Object {
             continue
         }
         if ($record.EventName -ne 'PortBatchReady') { continue }
-        $utcTime = ([datetime]$record.Timestamp).ToUniversalTime()
+        $utcTime = $null
+        try { $utcTime = ([datetime]$record.Timestamp).ToUniversalTime() } catch { continue }
+        if (-not $utcTime) { continue }
         if ($startUtc -and $utcTime -lt $startUtc) { continue }
         if ($endUtc -and $utcTime -gt $endUtc) { continue }
         $events.Add([pscustomobject]@{

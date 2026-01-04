@@ -79,7 +79,9 @@ Get-Content -LiteralPath $metricsFile -ReadCount 500 | ForEach-Object {
         try { $record = $line | ConvertFrom-Json -ErrorAction Stop }
         catch { Write-Warning ("Skipping malformed line: {0}" -f $_.Exception.Message); continue }
         $eventName = $record.EventName
-        $timestamp = [datetime]$record.Timestamp
+        $timestamp = $null
+        try { $timestamp = [datetime]$record.Timestamp } catch { continue }
+        if (-not $timestamp) { continue }
         if ($sinceUtc -and $timestamp.ToUniversalTime() -lt $sinceUtc) { continue }
         # LANDMARK: Port diversity window - support upper bound for warm-run isolation
         if ($untilUtc -and $timestamp.ToUniversalTime() -gt $untilUtc) { continue }

@@ -31,6 +31,16 @@ pwsh Tools\Add-PortBatchReadyTelemetry.ps1 `
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+function Get-SafeDateTime {
+    param([object]$Value, [datetime]$Default = [datetime]::MinValue)
+    if ($null -eq $Value) { return $Default }
+    $result = [datetime]::MinValue
+    if ([datetime]::TryParse([string]$Value, [ref]$result)) {
+        return $result
+    }
+    return $Default
+}
+
 if (-not (Test-Path -LiteralPath $MetricsPath)) {
     throw "Metrics file '$MetricsPath' does not exist."
 }
@@ -120,7 +130,7 @@ if ($streamEvents.Count -eq 0) {
                 BatchId      = '' + $qe.BatchId
                 Hostname     = '' + $qe.Hostname
                 RowsReceived = if ($qe.ChunkSize -gt 0) { [int]$qe.ChunkSize } elseif ($qe.TotalPorts -gt 0) { [int]$qe.TotalPorts } else { 0 }
-                RunDate      = if ($runDateValue) { $runDateValue } elseif ($timestampValue) { ([datetime]$timestampValue).ToString('yyyy-MM-dd HH:mm:ss') } else { '' }
+                RunDate      = if ($runDateValue) { $runDateValue } elseif ($timestampValue) { (Get-SafeDateTime $timestampValue).ToString('yyyy-MM-dd HH:mm:ss') } else { '' }
                 Timestamp    = $timestampValue
             }
             $streamEvents.Add($syntheticStream) | Out-Null
@@ -132,7 +142,7 @@ if ($streamEvents.Count -eq 0) {
 
 $synthesized = New-Object System.Collections.Generic.List[string]
 
-foreach ($stream in $streamEvents | Sort-Object { [datetime]$_.Timestamp }) {
+foreach ($stream in $streamEvents | Sort-Object { Get-SafeDateTime $_.Timestamp }) {
     $batchId = if ($stream.BatchId) { '' + $stream.BatchId } else { [guid]::NewGuid().ToString() }
     $queue = $null
     if ($batchId -and $queueEvents.ContainsKey($batchId)) {
@@ -174,10 +184,10 @@ foreach ($stream in $streamEvents | Sort-Object { [datetime]$_.Timestamp }) {
     } elseif ($queue -and $queue.PSObject.Properties.Name -contains 'RunDate' -and $queue.RunDate) {
         $runDate = '' + $queue.RunDate
     } else {
-        $runDate = ([datetime]$stream.Timestamp).ToString('yyyy-MM-dd HH:mm:ss')
+        $runDate = (Get-SafeDateTime $stream.Timestamp).ToString('yyyy-MM-dd HH:mm:ss')
     }
 
-    $timestamp = ([datetime]$stream.Timestamp).ToString('o')
+    $timestamp = (Get-SafeDateTime $stream.Timestamp).ToString('o')
     $eventPayload = [ordered]@{
         EventName            = 'PortBatchReady'
         Timestamp            = $timestamp

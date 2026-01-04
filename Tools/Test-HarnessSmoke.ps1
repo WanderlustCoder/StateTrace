@@ -86,7 +86,8 @@ function Get-LatestPortBatchReadyTimestamp {
         }
         if (-not $record -or $record.EventName -ne 'PortBatchReady') { continue }
         if (-not $record.Timestamp) { continue }
-        $stamp = [datetime]$record.Timestamp
+        $stamp = $null
+        try { $stamp = [datetime]$record.Timestamp } catch { continue }
         if (-not $latest -or $stamp -gt $latest) {
             $latest = $stamp
         }

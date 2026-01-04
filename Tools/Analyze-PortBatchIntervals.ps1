@@ -70,7 +70,9 @@ foreach ($file in $files) {
                 continue
             }
             if ($obj.EventName -ne 'PortBatchReady') { continue }
-            $timestamp = [datetime]$obj.Timestamp
+            $timestamp = $null
+            try { $timestamp = [datetime]$obj.Timestamp } catch { continue }
+            if (-not $timestamp) { continue }
             $timestampUtc = $timestamp.ToUniversalTime()
             if ($startUtc -and $timestampUtc -lt $startUtc) { continue }
             if ($endUtc -and $timestampUtc -gt $endUtc) { continue }
