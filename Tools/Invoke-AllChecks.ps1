@@ -33,7 +33,14 @@ param(
     # LANDMARK: ST-N-004 drift detector
     [switch]$SkipDriftDetector,
     [switch]$FailOnDrift,
-    [string]$DriftReportPath
+    [string]$DriftReportPath,
+
+    # LANDMARK: ST-Q-001 shared cache snapshot guard
+    [switch]$SkipSharedCacheSnapshotCheck,
+    [string]$SharedCacheSnapshotPath,
+    [int]$SharedCacheMinSiteCount = 2,
+    [int]$SharedCacheMinHostCount = 5,
+    [string[]]$SharedCacheRequiredSites = @('BOYO','WLLS')
 )
 
 Set-StrictMode -Version Latest
@@ -497,6 +504,69 @@ try {
                 }
             } else {
                 Write-Host ("Drift detector passed: {0}" -f $driftResult.Message) -ForegroundColor Green
+            }
+        }
+    }
+
+    # LANDMARK: ST-Q-001 shared cache snapshot guard
+    if (-not $SkipSharedCacheSnapshotCheck) {
+        Write-Host "===> Running shared cache snapshot guard (ST-Q-001)" -ForegroundColor Cyan
+        $snapshotScript = Join-Path $repoRoot 'Tools\Test-SharedCacheSnapshot.ps1'
+        if (-not (Test-Path -LiteralPath $snapshotScript)) {
+            Write-Warning "Shared cache snapshot script not found at $snapshotScript - skipping"
+        } else {
+            $snapshotPath = $SharedCacheSnapshotPath
+            if ([string]::IsNullOrWhiteSpace($snapshotPath)) {
+                # Auto-discover latest snapshot
+                $snapshotDir = Join-Path $repoRoot 'Logs\SharedCacheSnapshot'
+                if (Test-Path -LiteralPath $snapshotDir) {
+                    $latestSnapshot = Get-ChildItem -LiteralPath $snapshotDir -Filter 'SharedCacheSnapshot-*.clixml' -File |
+                        Sort-Object LastWriteTime -Descending |
+                        Select-Object -First 1
+                    if ($latestSnapshot) {
+                        $snapshotPath = $latestSnapshot.FullName
+                    }
+                }
+            }
+
+            if ([string]::IsNullOrWhiteSpace($snapshotPath)) {
+                Write-Warning "No shared cache snapshot found - skipping guard"
+                $results.Add([pscustomobject]@{
+                    Check  = 'SharedCacheSnapshot'
+                    Status = 'Skipped'
+                    Note   = 'No snapshot file found'
+                })
+            } else {
+                $snapshotParams = @{
+                    Path               = $snapshotPath
+                    MinimumSiteCount   = $SharedCacheMinSiteCount
+                    MinimumHostCount   = $SharedCacheMinHostCount
+                    PassThru           = $true
+                }
+                if ($SharedCacheRequiredSites -and $SharedCacheRequiredSites.Count -gt 0) {
+                    $snapshotParams['RequiredSites'] = $SharedCacheRequiredSites
+                }
+
+                try {
+                    $snapshotResult = & $snapshotScript @snapshotParams
+                    $results.Add([pscustomobject]@{
+                        Check     = 'SharedCacheSnapshot'
+                        Status    = 'Pass'
+                        Path      = $snapshotPath
+                        SiteCount = $snapshotResult.SiteCount
+                        HostCount = $snapshotResult.HostCount
+                        TotalRows = $snapshotResult.TotalRows
+                    })
+                    Write-Host ("Shared cache snapshot guard passed: Sites={0}, Hosts={1}, Rows={2}" -f $snapshotResult.SiteCount, $snapshotResult.HostCount, $snapshotResult.TotalRows) -ForegroundColor Green
+                } catch {
+                    $results.Add([pscustomobject]@{
+                        Check  = 'SharedCacheSnapshot'
+                        Status = 'Fail'
+                        Path   = $snapshotPath
+                        Error  = $_.Exception.Message
+                    })
+                    throw ("Shared cache snapshot guard failed: {0}" -f $_.Exception.Message)
+                }
             }
         }
     }
