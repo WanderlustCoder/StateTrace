@@ -93,10 +93,10 @@ $resolvedPortMetrics = $null
 if ($portMetricsFile) {
     try { $resolvedPortMetrics = (Resolve-Path -LiteralPath $portMetricsFile).Path } catch { $resolvedPortMetrics = $portMetricsFile }
 }
-$resolvedSchedulerMetrics = @()
+$resolvedSchedulerMetrics = [System.Collections.Generic.List[string]]::new()
 foreach ($file in $schedulerMetricsFiles) {
     if ([string]::IsNullOrWhiteSpace($file)) { continue }
-    try { $resolvedSchedulerMetrics += (Resolve-Path -LiteralPath $file).Path } catch { $resolvedSchedulerMetrics += $file }
+    try { $resolvedSchedulerMetrics.Add((Resolve-Path -LiteralPath $file).Path) } catch { $resolvedSchedulerMetrics.Add($file) }
 }
 
 $inputsAligned = $true
@@ -129,17 +129,17 @@ $sites = [System.Collections.Generic.HashSet[string]]::new([System.StringCompare
 foreach ($key in $schedulerLookup.Keys) { [void]$sites.Add($key) }
 foreach ($key in $portLookup.Keys) { [void]$sites.Add($key) }
 
-$rows = @()
+$rows = [System.Collections.Generic.List[pscustomobject]]::new()
 foreach ($site in $sites) {
     $schedulerMax = if ($schedulerLookup.ContainsKey($site)) { $schedulerLookup[$site] } else { 0 }
     $portMax = if ($portLookup.ContainsKey($site)) { $portLookup[$site] } else { 0 }
-    $rows += [pscustomobject]@{
+    $rows.Add([pscustomobject]@{
         Site             = $site
         SchedulerMax     = $schedulerMax
         PortBatchMax     = $portMax
         PortMinusScheduler = $portMax - $schedulerMax
         Mismatch         = ($portMax -gt $schedulerMax)
-    }
+    })
 }
 
 $mismatches = $rows | Where-Object { $_.Mismatch }

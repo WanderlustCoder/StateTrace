@@ -41,7 +41,7 @@ $ext = [System.IO.Path]::GetExtension($resolvedPath).ToLowerInvariant()
 function Convert-SnapshotToSummary {
     param($Entries)
 
-    $summary = @()
+    $summary = [System.Collections.Generic.List[pscustomobject]]::new()
     foreach ($entry in @($Entries)) {
         if (-not $entry) { continue }
         $site = ''
@@ -87,11 +87,11 @@ function Convert-SnapshotToSummary {
             }
         }
 
-        $summary += [pscustomobject]@{
+        $summary.Add([pscustomobject]@{
             Site      = $site
             Hosts     = $hostCount
             TotalRows = $rowCount
-        }
+        })
     }
 
     $summary
@@ -121,21 +121,21 @@ $rowCount = @($summaryEntries | ForEach-Object { $_.TotalRows }) | Measure-Objec
 if ($null -eq $hostCount) { $hostCount = 0 }
 if ($null -eq $rowCount) { $rowCount = 0 }
 
-$missingSites = @()
+$missingSites = [System.Collections.Generic.List[string]]::new()
 
-$normalizedRequiredSites = @()
+$normalizedRequiredSites = [System.Collections.Generic.List[string]]::new()
 foreach ($requiredEntry in @($RequiredSites)) {
     if ([string]::IsNullOrWhiteSpace($requiredEntry)) { continue }
     foreach ($candidate in (('' + $requiredEntry) -split ',')) {
         if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
-        $normalizedRequiredSites += $candidate.Trim()
+        $normalizedRequiredSites.Add($candidate.Trim())
     }
 }
 
 if ($normalizedRequiredSites -and $normalizedRequiredSites.Count -gt 0) {
     $present = @($summaryEntries | ForEach-Object { $_.Site }) | Select-Object -Unique
     foreach ($req in $normalizedRequiredSites) {
-        if ($present -notcontains $req) { $missingSites += $req }
+        if ($present -notcontains $req) { $missingSites.Add($req) }
     }
 }
 

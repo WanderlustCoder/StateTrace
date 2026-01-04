@@ -28,7 +28,7 @@ function Convert-SpanExceptionDetail {
 
     if (-not $Exception) { return @() }
 
-    $items = @()
+    $items = [System.Collections.Generic.List[pscustomobject]]::new()
     $current = $Exception
     $depth = 0
     while ($current -and $depth -lt 6) {
@@ -48,7 +48,7 @@ function Convert-SpanExceptionDetail {
             try { $detail.FileName = $current.FileName } catch { }
             try { $detail.FusionLog = $current.FusionLog } catch { }
         }
-        $items += [pscustomobject]$detail
+        $items.Add([pscustomobject]$detail)
         $current = $current.InnerException
         $depth++
     }
@@ -103,14 +103,14 @@ function Get-SpanModuleInfo {
     if (-not $module) { return $null }
 
     $scriptBlock = {
-        $itemList = @()
-        $tagList  = @()
+        $itemList = [System.Collections.Generic.List[object]]::new()
+        $tagList  = [System.Collections.Generic.List[object]]::new()
         if ($script:SpanGridControl) {
             if ($script:SpanGridControl.ItemsSource) {
-                foreach ($row in $script:SpanGridControl.ItemsSource) { $itemList += $row }
+                foreach ($row in $script:SpanGridControl.ItemsSource) { $itemList.Add($row) }
             }
             if ($script:SpanGridControl.Tag) {
-                foreach ($row in $script:SpanGridControl.Tag) { $tagList += $row }
+                foreach ($row in $script:SpanGridControl.Tag) { $tagList.Add($row) }
             }
         }
         [pscustomobject]@{
@@ -356,11 +356,11 @@ function Get-SpanGridRowCount {
 
     # LANDMARK: Span view null checks - avoid false negatives from empty WPF enumerables
     if ($null -eq $Grid) { return 0 }
-    $gridRows = @()
+    $gridRows = [System.Collections.Generic.List[object]]::new()
     if ($Grid.ItemsSource) {
-        foreach ($item in $Grid.ItemsSource) { $gridRows += $item }
+        foreach ($item in $Grid.ItemsSource) { $gridRows.Add($item) }
     } elseif ($Grid.Items) {
-        foreach ($item in $Grid.Items) { $gridRows += $item }
+        foreach ($item in $Grid.Items) { $gridRows.Add($item) }
     }
     return $gridRows.Count
 }
@@ -440,12 +440,11 @@ $gridRowCount = 0
 $gridPreview = @()
 if ($null -ne $grid) {
     try { $grid.UpdateLayout() } catch {}
-    $gridRows = @()
+    $gridRows = [System.Collections.Generic.List[object]]::new()
     if ($grid.ItemsSource) {
-        $gridRows = @()
-        foreach ($item in $grid.ItemsSource) { $gridRows += $item }
+        foreach ($item in $grid.ItemsSource) { $gridRows.Add($item) }
     } elseif ($grid.Items) {
-        foreach ($item in $grid.Items) { $gridRows += $item }
+        foreach ($item in $grid.Items) { $gridRows.Add($item) }
     }
     if ($gridRows -and $gridRows.Count -gt 0) {
         $gridRowCount = $gridRows.Count
