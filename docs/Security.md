@@ -92,3 +92,39 @@ StateTrace is **offline-first**. Online dev mode is opt-in and requires explicit
 - Every online session must end with a reset log (`Logs/NetOps/Resets/*.json`).
 - Reference NetOps evidence in session logs and Plan F task board entries.
 - Runtime deliverables remain offline‑capable (PowerShell + Access only).
+
+## Identity & RBAC (ST-F-004)
+
+<!-- LANDMARK: ST-F-004 identity link -->
+StateTrace supports phased identity and acknowledgement workflows:
+
+| Phase | Identity Provider | Use Case |
+|-------|-------------------|----------|
+| Phase 1 | AD-integrated accounts | Domain-joined workstations |
+| Phase 1 | Local operator fallback | Air-gapped/lab environments |
+| Phase 2 | Azure AD device-code | Cloud-enabled (future) |
+
+### Quick Reference
+
+- **Full playbook:** `docs/runbooks/Identity_RBAC_Rollout.md`
+- **Identity options analysis:** `docs/StateTrace_Acknowledgement_Identity_Options.md`
+- **Settings location:** `Data/StateTraceSettings.json` (IdentityProvider, IdentityFallbackAllowed)
+
+### Configuration Check
+
+```powershell
+# Verify current identity settings
+$settings = Get-Content -Raw 'Data/StateTraceSettings.json' | ConvertFrom-Json
+Write-Host "Provider: $($settings.IdentityProvider)"
+Write-Host "Fallback: $($settings.IdentityFallbackAllowed)"
+
+# Validate domain membership (for AD path)
+(Get-WmiObject Win32_ComputerSystem).PartOfDomain
+```
+
+### Security Considerations
+
+- Local fallback requires PBKDF2 hashing and 90-day rotation
+- All acknowledgements must capture operator identity for audit
+- Fallback usage triggers telemetry flags for review
+- Reference the rollout playbook for full verification steps

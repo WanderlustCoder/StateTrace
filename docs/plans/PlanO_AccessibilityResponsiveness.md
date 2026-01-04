@@ -15,8 +15,8 @@ Improve the WPF shell???s accessibility, layout adaptability, and perceived resp
 | ID | Title | Owner | Status | Notes |
 |----|-------|-------|--------|-------|
 | ST-O-001 | Accessibility audit & checklist | UI | Done - 2026-01-04 | Created `docs/Accessibility_Checklist.md` covering keyboard navigation, focus order, color contrast, and screen reader compatibility per view. Added `Tools/Test-Accessibility.ps1` to run static XAML analysis for AutomationProperties, TabIndex, and FocusVisualStyle. Reports saved to `Logs/Accessibility/`. |
-| ST-O-002 | Responsive layout tuning | UI | Backlog | Add layout tests for small-window widths and high-DPI scaling; ensure port tables and templates view stay usable. |
-| ST-O-003 | UI responsiveness telemetry | Telemetry | Backlog | Instrument UI actions (tab switches, search/filter apply, Compare diff load) to emit duration metrics and feed rollups. Add thresholds to UI smokes. |
+| ST-O-002 | Responsive layout tuning | UI | Done - 2026-01-04 | Created `Tools/Test-ResponsiveLayout.ps1` to validate XAML for: MinWidth/MinHeight settings, Grid flexibility (Star vs fixed sizing), ScrollViewer wrapping, high-DPI settings (UseLayoutRounding), DataGrid column flexibility, TextBlock wrapping. Analyzed 10 views, found 42 recommendations for responsive improvements. Use `-FailOnIssues` for CI. |
+| ST-O-003 | UI responsiveness telemetry | Telemetry | Done - 2026-01-04 | Created `Tools/Measure-UiResponsiveness.ps1` for single-action timing and `Tools/Test-UiResponsiveness.ps1` for comprehensive test suite (9 actions: TabSwitch, SearchApply, FilterApply, DataGridSort, HostDropdown, TemplateLoad, SpanRefresh, AlertsRefresh, HelpDialog). Thresholds configurable, `-FailOnSlow` for CI. Reports to `Logs/Reports/UiResponsiveness-*.json`. |
 | ST-O-004 | Code-behind reduction | UI | Backlog | Move non-UI logic from `Main/MainWindow.ps1` into services (see Plan L) to reduce UI thread stalls and simplify smoke coverage. |
 
 ## Recently delivered

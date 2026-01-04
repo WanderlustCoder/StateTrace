@@ -27,10 +27,26 @@ pwsh -NoLogo -NoProfile -File .\Main\MainWindow.ps1
 | Help dialog | Open Help from the toolbar to ensure secondary windows still resolve their resource dictionaries and link to the Operators Runbook quickstart anchor. | Window opens without XAML binding errors; help link targets the "Start here (quickstart)" section. |
 | Quickstart path | Verify the Scan Logs -> Load from DB flow: click **Scan Logs** once, then **Load from DB** for a selected site without re-parsing. | Host dropdown remains populated, Interfaces rows render without starting a new parse, and status strip reflects cached data. |
 
+## Routing Verification (Plan A)
+<!-- LANDMARK: ST-A-004 routing smoke alignment -->
+When parser, dispatcher, or incremental loading changes land, capture routing telemetry to verify `InterfaceSyncTiming` and queue metrics remain healthy:
+
+| Step | Command | Expected / Notes |
+|------|---------|------------------|
+| Capture InterfaceSyncTiming | `$sync = Get-Content Logs/IngestionMetrics/*.json -Raw \| ConvertFrom-Json \| Where-Object { $_.EventType -eq 'InterfaceSyncTiming' }; $sync \| Measure-Object -Property BulkStageDurationMs -Average -Maximum` | BulkStage p95 < 120 ms; DiffDurationMs < 75 ms; LoadExistingDurationMs < 500 ms. |
+| Queue delay summary | `pwsh Tools\Test-QueueDelayThreshold.ps1 -PassThru` | QueueDelayMs p95 <= 120 ms; p99 <= 200 ms; QueueBuildDurationMs p95 <= 150 ms. |
+| Dispatcher harness evidence | `pwsh Tools\Invoke-DispatcherHarnessWithEvidence.ps1 -TaskId ST-A-004 -HarnessMode Quick -PassThru` | Produces evidence manifest at `Logs/DispatchHarness/EvidenceManifest-*.json`. |
+| Interfaces tab refresh | In UI, select host -> refresh Interfaces tab -> observe incremental loading completes without stalls | `PortBatchReady` events should appear in telemetry; status strip shows `Ports loaded (X)`. |
+
+Reference: `docs/plans/PlanA_RoutingReliability.md` (ST-A-001 through ST-A-005 for thresholds and automation hooks).
+
 ## Headless spot-checks (optional)
 - `pwsh -STA -File Tools\Invoke-SpanViewSmokeTest.ps1 -Hostname <host> -PassThru` to validate SPAN binding without the main window.
 - `pwsh -STA -File Tools\Invoke-SearchAlertsSmokeTest.ps1 -SiteFilter <site> -PassThru` to validate Search/Alerts binding without the main window.
 - `Tools\Invoke-AllChecks.ps1` to run Pester + span smoke test in one command.
+- `pwsh Tools\Test-QueueDelayThreshold.ps1` to validate routing queue delay thresholds (Plan A).
+- `pwsh Tools\Test-UiResponsiveness.ps1 -FailOnSlow` to validate UI action latencies (Plan O).
+- `pwsh Tools\Test-ResponsiveLayout.ps1` to validate responsive layout patterns (Plan O).
 
 <!-- LANDMARK: ST-D-008 UI smoke automation artifact -->
 ## Automation artifact

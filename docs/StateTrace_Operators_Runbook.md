@@ -71,6 +71,19 @@ Store the telemetry path (`$logPath`) and the summarized numbers in your session
 2. Review the console summary after the script completes. A healthy run reports cold average InterfaceCallDurationMs in the 360–420 ms range (p95 under ~950 ms) and warm averages below 180 ms with a >60% improvement. The provider breakdown should read `Cache=37` (or the number of hosts processed). Any `AssertWarmCache` failure aborts the script; capture the error text and escalate immediately.
 3. For deeper inspection, open the exported JSON summary and filtrate the `WarmRunComparison` record plus the `WarmPass` entries. Confirm each warm host reports `CacheStatus=Hit`, `SiteCacheProvider=Cache`, `HostMapSignatureMatchCount` equal to the host’s row count, and `SiteCacheHostMapSignatureRewriteCount=0`. Archive or remove generated `Data\IngestionHistory\*.warmrun.*.bak` files after review.
 
+## Routing Verification (Plan A)
+<!-- LANDMARK: ST-A-004 routing smoke alignment -->
+When parser or incremental loading changes land, verify routing telemetry thresholds are met:
+
+| Check | Command | Threshold |
+|-------|---------|-----------|
+| Queue delay thresholds | `pwsh Tools\Test-QueueDelayThreshold.ps1 -PassThru` | p95 <= 120 ms, p99 <= 200 ms |
+| InterfaceSyncTiming sample | `$interfaceSync \| Measure-Object -Property BulkStageDurationMs -Average -Maximum` | BulkStage p95 < 120 ms |
+| Dispatcher harness evidence | `pwsh Tools\Invoke-DispatcherHarnessWithEvidence.ps1 -TaskId <id> -HarnessMode Quick` | Evidence manifest generated |
+| PortBatchReady coverage | `$portBatchReady.Count` | 37+ for BOYO/WLLS corpus |
+
+Reference: `docs/plans/PlanA_RoutingReliability.md` for thresholds; `docs/UI_Smoke_Checklist.md` for full routing verification steps.
+
 ## Expected Results
 - Each device emits at least one `PortBatchReady` event (37 total for the BOYO/WLLS corpus in the 2025-10-14 13:12 MT run, average `PortsCommitted` 43.6, max 91).
 - Bottom status indicator remains visible until `BatchesRemaining` reaches zero, with the progress bar advancing alongside delivered ports.

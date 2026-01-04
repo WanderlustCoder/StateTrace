@@ -21,8 +21,44 @@
 - Slight import overhead from additional modules; mitigated by re-export pattern and module-qualified calls.
 - Requires phased migration: first extract code without behavior changes, keep existing tests green, then update callers to module-qualified exports.
 
+## Module Size Analysis (ST-L-001)
+
+Generated via `Tools/Get-ModuleImportGraph.ps1`:
+
+| Module | Size (KB) | Functions | Exported | Priority |
+|--------|-----------|-----------|----------|----------|
+| DeviceRepositoryModule | 311 | 72 | 38 | High - extract Cache/Access |
+| ParserPersistenceModule | 207 | 40 | 11 | High - extract Core/Diff |
+| DeviceLogParserModule | 111 | 25 | 12 | Medium |
+| DeviceInsightsModule | 84 | 11 | 10 | Low |
+| PortReorgViewModule | 61 | 2 | 1 | Low |
+
+### Import Graph (23 edges)
+
+Key dependencies:
+- `DeviceRepositoryModule` --> `DeviceRepository.Cache`, `DeviceRepository.Access`
+- `ParserPersistenceModule` --> `ParserPersistence.Core`
+- Parser/View modules --> `TelemetryModule`, `DeviceParsingCommon`
+
+### Public Contract Summary
+
+- **Total modules:** 40
+- **Total functions:** 416 (234 exported)
+- **Total size:** 1,402 KB
+
+Decomposition shims already created:
+- `DeviceRepository.Cache.psm1` (18 exports)
+- `DeviceRepository.Access.psm1` (7 exports)
+- `ParserPersistence.Core.psm1` (shim)
+- `ParserPersistence.Diff.psm1` (shim)
+- `WarmRun.Telemetry.psm1` (7 exports)
+
 ## Next Steps
 - Create the new module files with existing logic moved verbatim and re-exported from the main modules.
 - Add Pester tag coverage and micro-bench cases for cache hit/miss and diff hotspots.
 - Update runbooks (CODEX_RUNBOOK + Plan L) with new module paths and test tags.
 - Gradually update callers to module-qualified exports, then prune legacy shims once CI/harness is clean.
+
+## References
+- Import graph report: `Logs/Reports/ModuleImportGraph-*.json`
+- Plan L: `docs/plans/PlanL_ModuleDecomposition.md`
