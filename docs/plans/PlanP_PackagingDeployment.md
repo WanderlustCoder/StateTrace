@@ -17,7 +17,7 @@ Make packaging, signing, and deployment of StateTrace predictable and reproducib
 | ST-P-001 | Package integrity checks | PMO | Ready | Extend packaging to emit hashes/manifest and verify contents (modules, tools, plans, README hashes). Fail build on mismatch. |
 | ST-P-002 | Install/uninstall smokes | QA | Backlog | Add a headless install/uninstall smoke (PowerShell 5.1) that validates module import, pipeline invocation on fixtures, and clean removal. |
 | ST-P-003 | Version stamping & changelog | PMO | Backlog | Stamp package/build version into a manifest; ensure release notes reference the telemetry bundle + package hash. |
-| ST-P-004 | Dependency preflight | Platform | Backlog | Add a preflight to packaging that checks execution policy, required PS modules, and Access drivers; log results into the release bundle README. |
+| ST-P-004 | Dependency preflight | Platform | Done - 2026-01-04 | Created `Tools/Test-DependencyPreflight.ps1` to validate: PowerShell version (5.1+), execution policy, required modules (Pester 3.4+), Access OLEDB providers (ACE/Jet), .NET Framework, and disk space. Use `-RequireAllPass` to fail on any issue, `-OutputPath` to save JSON report. |
 
 ## Recently delivered
 - Plan created to centralize packaging and deployment reliability.
