@@ -28,7 +28,12 @@ param(
     [string]$TelemetryBundlePath,
     [string[]]$TelemetryBundleArea = @('Telemetry','Routing'),
     [switch]$RequireTelemetryBundleReady,
-    [switch]$RequireTelemetryIntegrity
+    [switch]$RequireTelemetryIntegrity,
+
+    # LANDMARK: ST-N-004 drift detector
+    [switch]$SkipDriftDetector,
+    [switch]$FailOnDrift,
+    [string]$DriftReportPath
 )
 
 Set-StrictMode -Version Latest
@@ -448,6 +453,52 @@ try {
             File       = $latestMetrics.FullName
         })
         Write-Host ("Telemetry integrity passed for {0} (report: {1})" -f $latestMetrics.FullName, $integrityReportPath) -ForegroundColor Green
+    }
+
+    # LANDMARK: ST-N-004 drift detector
+    if (-not $SkipDriftDetector) {
+        Write-Host "===> Running plan/task board drift detector (ST-N-004)" -ForegroundColor Cyan
+        $driftScript = Join-Path $repoRoot 'Tools\Test-PlanTaskBoardDrift.ps1'
+        if (-not (Test-Path -LiteralPath $driftScript)) {
+            Write-Warning "Drift detector script not found at $driftScript - skipping"
+        } else {
+            $driftParams = @{
+                PlansDirectory   = Join-Path -Path $repoRoot -ChildPath 'docs\plans'
+                TaskBoardCsvPath = Join-Path -Path $repoRoot -ChildPath 'docs\taskboard\TaskBoard.csv'
+                PassThru         = $true
+            }
+
+            if (-not [string]::IsNullOrWhiteSpace($DriftReportPath)) {
+                $driftParams['OutputPath'] = $DriftReportPath
+            } else {
+                $driftReportDir = Join-Path $repoRoot 'Logs\Reports'
+                if (-not (Test-Path -LiteralPath $driftReportDir)) {
+                    New-Item -ItemType Directory -Path $driftReportDir -Force | Out-Null
+                }
+                $driftParams['OutputPath'] = Join-Path $driftReportDir ("PlanTaskBoardDrift-{0}.json" -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
+            }
+
+            $driftResult = & $driftScript @driftParams
+
+            $results.Add([pscustomobject]@{
+                Check              = 'DriftDetector'
+                Status             = $driftResult.Status
+                TasksInPlans       = $driftResult.TasksInPlans
+                TasksInTaskBoard   = $driftResult.TasksInTaskBoard
+                DiscrepancyCount   = $driftResult.Discrepancies.Count
+                ReportPath         = $driftParams['OutputPath']
+            })
+
+            if ($driftResult.Status -eq 'Fail') {
+                if ($FailOnDrift.IsPresent) {
+                    throw "Plan/TaskBoard drift detected: $($driftResult.Message)"
+                } else {
+                    Write-Warning ("Drift detected but -FailOnDrift not set: {0}" -f $driftResult.Message)
+                }
+            } else {
+                Write-Host ("Drift detector passed: {0}" -f $driftResult.Message) -ForegroundColor Green
+            }
+        }
     }
 
     # LANDMARK: ST-D-008 UI smoke automation report generation
