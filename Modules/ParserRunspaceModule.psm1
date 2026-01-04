@@ -1164,11 +1164,9 @@ function Invoke-DeviceParsingJobs {
 
         if ($PreserveRunspacePool) {
             if ($pool -ne $script:PreservedRunspacePool) {
-                try { $pool.Close() } catch { }
                 try { $pool.Dispose() } catch { }
             }
         } else {
-            try { $pool.Close() } catch { }
             try { $pool.Dispose() } catch { }
             if ($script:PreservedRunspacePool -eq $pool) {
                 $script:PreservedRunspacePool = $null

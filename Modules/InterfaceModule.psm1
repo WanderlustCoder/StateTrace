@@ -799,7 +799,6 @@ function New-InterfacesView {
         $interfacesView = [Windows.Markup.XamlReader]::Load($ifaceReader)
     } finally {
         if ($ifaceReader) {
-            try { $ifaceReader.Close() } catch { }
             try { $ifaceReader.Dispose() } catch { }
         }
     }

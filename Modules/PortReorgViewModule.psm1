@@ -136,7 +136,7 @@ function Show-PortReorgWindow {
         try {
             $win = [Windows.Markup.XamlReader]::Load($reader)
         } finally {
-            if ($reader) { $reader.Close(); $reader.Dispose() }
+            if ($reader) { $reader.Dispose() }
         }
     } catch {
         [System.Windows.MessageBox]::Show(("Failed to load PortReorgWindow: {0}" -f $_.Exception.Message)) | Out-Null

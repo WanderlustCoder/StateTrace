@@ -42,7 +42,7 @@ function Set-StView {
         try {
             $view = [Windows.Markup.XamlReader]::Load($reader)
         } finally {
-            if ($reader) { $reader.Close(); $reader.Dispose() }
+            if ($reader) { $reader.Dispose() }
         }
     } catch {
         $failure = [ordered]@{
