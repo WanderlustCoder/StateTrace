@@ -104,12 +104,33 @@
       </Border>
     </Grid>
 
-    <!-- Bottom status bar: parser status and site freshness -->
-    <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="10,5" Background="{DynamicResource Theme.Toolbar.Background}" >
-      <Label Name="ParserStatusText" Content="Parser idle" Margin="0,0,10,0" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
-      <Label Name="ParserDetailText" Content="" Margin="0,0,10,0" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
-      <Label Name="FreshnessLabel" Content="Freshness: select a site" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}" ToolTip="Displays the last ingest timestamp for the selected site."/>
-    </StackPanel>
+    <!-- Bottom status bar: parser status, pipeline health, and site freshness -->
+    <Grid Grid.Row="4" Margin="5,5" Background="{DynamicResource Theme.Toolbar.Background}">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto"/>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="Auto"/>
+      </Grid.ColumnDefinitions>
+
+      <!-- Left: Parser status -->
+      <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="5,0">
+        <Label Name="ParserStatusText" Content="Parser idle" Margin="0,0,10,0" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
+        <Label Name="ParserDetailText" Content="" Margin="0,0,10,0" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
+        <Button Name="ViewPipelineLogButton" Content="View Log" Margin="0,0,5,0" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Open the latest pipeline log file" Visibility="Collapsed"/>
+      </StackPanel>
+
+      <!-- Center: Pipeline health summary -->
+      <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" Margin="5,0">
+        <Label Name="PipelineHealthLabel" Content="" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}" ToolTip="Last pipeline run status"/>
+      </StackPanel>
+
+      <!-- Right: Freshness indicator with status circle -->
+      <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="5,0">
+        <Button Name="RefreshFromDbButton" Content="Reload DB" Margin="0,0,10,0" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Reload interface data from the database without re-parsing logs"/>
+        <Ellipse Name="FreshnessIndicator" Width="12" Height="12" Margin="0,0,5,0" VerticalAlignment="Center" Fill="Gray" ToolTip="Data freshness status"/>
+        <Label Name="FreshnessLabel" Content="Freshness: select a site" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}" ToolTip="Displays the last ingest timestamp for the selected site."/>
+      </StackPanel>
+    </Grid>
   </Grid>
 </Window>
 

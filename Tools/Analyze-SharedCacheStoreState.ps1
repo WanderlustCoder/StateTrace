@@ -193,7 +193,7 @@ function Summarize-SharedCacheEvents {
     }
 
     if ($siteCounters.Count -gt 0) {
-        $topSites = $siteCounters.GetEnumerator() |
+        $topSites = @($siteCounters.GetEnumerator() |
             Sort-Object { $_.Value.Total } -Descending |
             Select-Object -First $TopSites |
             ForEach-Object {
@@ -206,7 +206,7 @@ function Summarize-SharedCacheEvents {
                     Remove  = $_.Value.Remove
                     Other   = $_.Value.Other
                 }
-            }
+            })
         $summary.TopSites = $topSites
     }
 

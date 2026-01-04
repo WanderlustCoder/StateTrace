@@ -1150,6 +1150,7 @@ function Populate-SiteDropdownWithAvailableSites {
     }
 
     try { Update-FreshnessIndicator -Window $Window } catch { }
+    try { Update-PipelineHealthIndicator -Window $Window } catch { }
 }
 
 function Set-StateTraceDbPath {
@@ -1500,11 +1501,29 @@ function Get-SiteCacheProviderFromMetrics {
 function Update-FreshnessIndicator {
     param([Windows.Window]$Window)
     $label = $Window.FindName('FreshnessLabel')
+    $indicator = $Window.FindName('FreshnessIndicator')
     if (-not $label) { return }
+
+    # Helper to set indicator color
+    $setIndicatorColor = {
+        param([string]$Color)
+        if ($indicator) {
+            $brush = switch ($Color) {
+                'Green'  { [System.Windows.Media.Brushes]::LimeGreen }
+                'Yellow' { [System.Windows.Media.Brushes]::Gold }
+                'Orange' { [System.Windows.Media.Brushes]::Orange }
+                'Red'    { [System.Windows.Media.Brushes]::OrangeRed }
+                default  { [System.Windows.Media.Brushes]::Gray }
+            }
+            $indicator.Fill = $brush
+        }
+    }
 
     $site = Get-SiteFilterSelection -Window $Window
     if (-not $site) {
         $label.Content = 'Freshness: select a site'
+        & $setIndicatorColor 'Gray'
+        if ($indicator) { $indicator.ToolTip = 'Select a site to see data freshness' }
         return
     }
 
@@ -1512,6 +1531,8 @@ function Update-FreshnessIndicator {
     if (-not $info) {
         $label.Content = "Freshness: no history for $site"
         $label.ToolTip = "No ingestion history found under Data\\IngestionHistory\\$site.json"
+        & $setIndicatorColor 'Gray'
+        if ($indicator) { $indicator.ToolTip = 'No ingestion history available' }
         return
     }
 
@@ -1526,6 +1547,19 @@ function Update-FreshnessIndicator {
     } else {
         ('{0:F1} d ago' -f $age.TotalDays)
     }
+
+    # Set indicator color based on age thresholds
+    # Green: <24h, Yellow: 24-48h, Orange: 48h-7d, Red: >7d
+    $indicatorColor = if ($age.TotalHours -lt 24) {
+        'Green'
+    } elseif ($age.TotalHours -lt 48) {
+        'Yellow'
+    } elseif ($age.TotalDays -lt 7) {
+        'Orange'
+    } else {
+        'Red'
+    }
+    & $setIndicatorColor $indicatorColor
 
     $providerInfo = Get-SiteCacheProviderFromMetrics -Site $site
     $providerText = if ($providerInfo) {
@@ -1544,6 +1578,108 @@ function Update-FreshnessIndicator {
         if ($providerInfo.Timestamp) { $tooltipParts.Add("Telemetry at: $($providerInfo.Timestamp.ToString('g'))") | Out-Null }
     }
     $label.ToolTip = [string]::Join("`n", $tooltipParts)
+
+    # Update indicator tooltip with freshness status
+    if ($indicator) {
+        $statusText = switch ($indicatorColor) {
+            'Green'  { 'Fresh (< 24 hours old)' }
+            'Yellow' { 'Warning (24-48 hours old)' }
+            'Orange' { 'Stale (2-7 days old)' }
+            'Red'    { 'Very stale (> 7 days old)' }
+            default  { 'Unknown' }
+        }
+        $indicator.ToolTip = "$statusText`nLast ingest: $($localTime.ToString('g'))"
+    }
+}
+
+function Get-LatestPipelineLogPath {
+    <#
+    .SYNOPSIS
+    Returns the path to the latest pipeline log file.
+    #>
+    $repoRoot = (Resolve-Path (Join-Path $scriptDir '..')).Path
+    $logsDir = Join-Path $repoRoot 'Logs\Verification'
+
+    if (-not (Test-Path -LiteralPath $logsDir)) {
+        # Fallback to IngestionMetrics if Verification doesn't exist
+        $logsDir = Join-Path $repoRoot 'Logs\IngestionMetrics'
+    }
+
+    if (-not (Test-Path -LiteralPath $logsDir)) {
+        return $null
+    }
+
+    # Find the most recent log file
+    $logFiles = Get-ChildItem -LiteralPath $logsDir -Filter '*.log' -File -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
+
+    if ($logFiles) {
+        return $logFiles.FullName
+    }
+
+    # If no .log files, try .json files
+    $jsonFiles = Get-ChildItem -LiteralPath $logsDir -Filter '*.json' -File -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
+
+    if ($jsonFiles) {
+        return $jsonFiles.FullName
+    }
+
+    return $null
+}
+
+function Update-PipelineHealthIndicator {
+    <#
+    .SYNOPSIS
+    Updates the pipeline health label with the last run status.
+    #>
+    param([Windows.Window]$Window)
+
+    $healthLabel = $Window.FindName('PipelineHealthLabel')
+    $viewLogButton = $Window.FindName('ViewPipelineLogButton')
+    if (-not $healthLabel) { return }
+
+    $repoRoot = (Resolve-Path (Join-Path $scriptDir '..')).Path
+    $metricsDir = Join-Path $repoRoot 'Logs\IngestionMetrics'
+
+    # Find the latest metrics file
+    $latestMetrics = $null
+    if (Test-Path -LiteralPath $metricsDir) {
+        $latestMetrics = Get-ChildItem -LiteralPath $metricsDir -Filter '*.json' -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -notmatch 'QueueDelaySummary|WarmRunTelemetry|DiffHotspots' } |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+    }
+
+    if (-not $latestMetrics) {
+        $healthLabel.Content = 'Pipeline: no runs recorded'
+        $healthLabel.ToolTip = 'Run Tools\Invoke-StateTracePipeline.ps1 to ingest logs'
+        if ($viewLogButton) { $viewLogButton.Visibility = 'Collapsed' }
+        return
+    }
+
+    $lastRunTime = $latestMetrics.LastWriteTime
+    $age = [datetime]::Now - $lastRunTime
+    $ageText = if ($age.TotalMinutes -lt 1) {
+        '<1 min ago'
+    } elseif ($age.TotalHours -lt 1) {
+        ('{0:F0} min ago' -f [math]::Floor($age.TotalMinutes))
+    } elseif ($age.TotalDays -lt 1) {
+        ('{0:F1} h ago' -f $age.TotalHours)
+    } else {
+        ('{0:F1} d ago' -f $age.TotalDays)
+    }
+
+    $healthLabel.Content = "Pipeline: last run $ageText"
+    $healthLabel.ToolTip = "Last pipeline run: $($lastRunTime.ToString('g'))`nMetrics: $($latestMetrics.Name)"
+
+    # Show the View Log button if we have a log
+    $logPath = Get-LatestPipelineLogPath
+    if ($viewLogButton) {
+        $viewLogButton.Visibility = if ($logPath) { 'Visible' } else { 'Collapsed' }
+    }
 }
 
 function Set-ParserDetailText {
@@ -2976,6 +3112,39 @@ if ($loadDbButton -and -not $script:LoadDatabaseHandlerAttached) {
     $script:LoadDatabaseHandlerAttached = $true
 }
 
+# View Pipeline Log button - opens the latest pipeline log file
+$viewLogButton = $window.FindName('ViewPipelineLogButton')
+if ($viewLogButton -and -not $script:ViewLogHandlerAttached) {
+    $viewLogButton.Add_Click({
+        param($sender,$e)
+        $logPath = Get-LatestPipelineLogPath
+        if ($logPath -and (Test-Path -LiteralPath $logPath)) {
+            try {
+                Start-Process -FilePath $logPath
+            } catch {
+                [System.Windows.MessageBox]::Show("Failed to open log: $_", "Error", 'OK', 'Error')
+            }
+        } else {
+            [System.Windows.MessageBox]::Show("No pipeline log found.", "Info", 'OK', 'Information')
+        }
+    })
+    $script:ViewLogHandlerAttached = $true
+}
+
+# Refresh from DB button - reloads interface data without re-parsing
+$refreshDbButton = $window.FindName('RefreshFromDbButton')
+if ($refreshDbButton -and -not $script:RefreshDbHandlerAttached) {
+    $refreshDbButton.Add_Click({
+        param($sender,$e)
+        # Emit telemetry for the action
+        $site = Get-SiteFilterSelection -Window $window
+        Publish-UserActionTelemetry -Action 'RefreshFromDb' -Site $site
+        # Reload from database without parsing
+        Invoke-DatabaseImport -Window $window
+    })
+    $script:RefreshDbHandlerAttached = $true
+}
+
 if ($hostnameDropdown -and -not $script:HostnameHandlerAttached) {
     $hostnameDropdown.Add_SelectionChanged({
         param($sender,$e)
@@ -3215,6 +3384,7 @@ $window.Add_Loaded({
         Ensure-ParserStatusTimer -Window $window
         Update-ParserStatusIndicator -Window $window
         try { Update-FreshnessIndicator -Window $window } catch { }
+        try { Update-PipelineHealthIndicator -Window $window } catch { }
         try {
             $null = Invoke-OptionalCommandSafe -Name 'InterfaceModule\Set-HostLoadingIndicator' -Parameters @{ State = 'Hidden' }
         } catch {}

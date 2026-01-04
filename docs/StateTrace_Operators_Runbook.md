@@ -78,6 +78,29 @@ Store the telemetry path (`$logPath`) and the summarized numbers in your session
 - Telemetry reports `DatabaseWriteLatency` averages near 0.61 s (p95 +/- 1.86 s) and `BulkStageDurationMs` averaging ~61 ms for this run; higher latencies should trigger follow-up investigation.
 - Preserved-session warm runs executed via `Tools\Invoke-WarmRunRegression.ps1` should emit `WarmRunComparison` with cold averages near 360-420 ms, warm averages below 180 ms, improvement >=60%, `WarmProviderCounts` showing only `Cache`, and zero signature rewrites. If the script fails its assertions or any warm host falls back to `Provider=ADODB`, collect the exported JSON plus console output and escalate with the ingestion team.
 
+## Status Strip Indicators (ST-H-002)
+
+The bottom status strip displays three key pieces of information:
+
+### Data Freshness Indicator
+A colored circle next to the freshness label indicates data age:
+| Color | Age Threshold | Status | Action |
+|-------|---------------|--------|--------|
+| Green (LimeGreen) | < 24 hours | Fresh | Data is current; no action needed |
+| Yellow (Gold) | 24-48 hours | Warning | Consider re-running ingestion |
+| Orange | 2-7 days | Stale | Re-run ingestion recommended |
+| Red (OrangeRed) | > 7 days | Very stale | Re-run ingestion required |
+| Gray | No data | Unknown | Select a site or run initial ingestion |
+
+Hover over the indicator for a tooltip showing the exact status and last ingest timestamp.
+
+### Pipeline Health Label
+Displays the time since the last pipeline run. If no pipeline runs are recorded, the label reads "Pipeline: no runs recorded". When runs exist, it shows the relative age (e.g., "Pipeline: last run 2.3 h ago").
+
+### Control Buttons
+- **View Log**: Opens the latest pipeline log file (visible only when a log exists).
+- **Reload DB**: Reloads interface data from the Access database without re-parsing logs. Use this to refresh the UI after external database updates.
+
 ## Escalation
 - If the status indicator never appears or remains stuck on `Loading ports.` for more than 30 seconds, collect `PortBatchReady` and `InterfaceSyncTiming` samples and escalate to the ingestion team (ParserPersistence/DeviceRepository owners).
 - If telemetry lacks `PortBatchReady` events, verify that ParserPersistence staged batches successfully and fall back to the previous full-load workflow (restart the client after a complete ingestion pass).
