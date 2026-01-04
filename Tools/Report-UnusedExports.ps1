@@ -92,7 +92,7 @@ function Get-FunctionDefinitions {
             }
     }
 
-    $definitions = @()
+    $definitions = [System.Collections.Generic.List[pscustomobject]]::new()
     foreach ($file in $definitionFiles) {
         $tokens = $null
         $errors = $null
@@ -104,12 +104,12 @@ function Get-FunctionDefinitions {
 
         $ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $true) |
             ForEach-Object {
-                $definitions += [pscustomobject]@{
+                $definitions.Add([pscustomobject]@{
                     Name             = $_.Name
                     Path             = $file.FullName
                     DefinitionLine   = $_.Extent.StartLineNumber
                     DefinitionColumn = $_.Extent.StartColumnNumber
-                }
+                })
             }
     }
 
@@ -130,7 +130,7 @@ function Get-ReferenceHits {
         [int]$DefinitionLine
     )
 
-    $hits = @()
+    $hits = [System.Collections.Generic.List[pscustomobject]]::new()
     if ($rgCommand) {
         $args = @('--json', '--pcre2', '-g', '*.ps1', '-g', '*.psm1', '-g', '*.psd1', '-g', '*.xaml', $Pattern) + $Roots
         $rgOutput = & $rgCommand @args 2>$null
@@ -143,12 +143,12 @@ function Get-ReferenceHits {
                 if ($event.type -ne 'match') { continue }
                 $hitPath = $event.data.path.text
                 $lineNumber = $event.data.line_number
-                $hits += [pscustomobject]@{
+                $hits.Add([pscustomobject]@{
                     Path       = $hitPath
                     LineNumber = $lineNumber
                     Line       = $event.data.lines.text.Trim()
                     IsDefinition = ($DefinitionPaths -contains $hitPath) -and ($lineNumber -eq $DefinitionLine)
-                }
+                })
             }
         }
     } else {
@@ -162,17 +162,17 @@ function Get-ReferenceHits {
         if ($filesToSearch) {
             $matches = Select-String -Path ($filesToSearch.FullName) -Pattern $Pattern -SimpleMatch:$false -ErrorAction SilentlyContinue
             foreach ($match in $matches) {
-                $hits += [pscustomobject]@{
+                $hits.Add([pscustomobject]@{
                     Path         = $match.Path
                     LineNumber   = $match.LineNumber
                     Line         = $match.Line.Trim()
                     IsDefinition = ($DefinitionPaths -contains $match.Path) -and ($match.LineNumber -eq $DefinitionLine)
-                }
+                })
             }
         }
     }
 
-    if (-not $hits) { $hits = @() }
+    if ($hits.Count -eq 0) { return @() }
     $hits
 }
 
@@ -182,7 +182,7 @@ if (-not $functionDefinitions) {
     return
 }
 
-$report = @()
+$report = [System.Collections.Generic.List[pscustomobject]]::new()
 foreach ($group in $functionDefinitions | Group-Object Name) {
     foreach ($definition in $group.Group) {
         $pattern = New-PatternForName -Name $definition.Name
@@ -191,14 +191,14 @@ foreach ($group in $functionDefinitions | Group-Object Name) {
         if (-not $hits) { $hits = @() }
         $referenceHits = @($hits | Where-Object { -not $_.IsDefinition })
 
-        $report += [pscustomobject]@{
+        $report.Add([pscustomobject]@{
             Name             = $definition.Name
             DefinedIn        = $definition.Path
             DefinitionLine   = $definition.DefinitionLine
             ReferenceCount   = $referenceHits.Count
             SampleReferences = ($referenceHits | Select-Object -First 5 | ForEach-Object { "{0}:{1}" -f $_.Path, $_.LineNumber })
             Allowlisted      = $Allowlist -contains $definition.Name
-        }
+        })
     }
 }
 
