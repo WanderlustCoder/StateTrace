@@ -1,6 +1,8 @@
 param(
     [string]$Version,
-    [string]$Destination = 'dist'
+    [string]$Destination = 'dist',
+    [switch]$VerifyContents,
+    [switch]$FailOnMissing
 )
 
 <#
@@ -110,5 +112,75 @@ $hash = Get-FileHash -Algorithm SHA256 -Path $zipPath
 $hashFile = "$zipPath.sha256"
 $hash.Hash | Set-Content -Path $hashFile -Encoding ASCII
 
+# ST-P-001: Generate package manifest with file hashes
+Write-Host "Generating package manifest ..."
+
+$manifestFiles = @()
+$keyFiles = @(
+    'Modules\DeviceLogParserModule.psm1',
+    'Modules\InterfaceModule.psm1',
+    'Modules\TelemetryModule.psm1',
+    'Modules\FilterStateModule.psm1',
+    'Modules\DeviceRepositoryModule.psm1',
+    'Main\MainWindow.ps1',
+    'Main\MainWindow.xaml',
+    'Tools\Invoke-StateTracePipeline.ps1',
+    'Tools\Invoke-AllChecks.ps1',
+    'docs\README.md',
+    'docs\CODEX_RUNBOOK.md'
+)
+
+$missingFiles = @()
+$hashedCount = 0
+
+# Hash all files in build directory
+Get-ChildItem -LiteralPath $buildDir -Recurse -File | ForEach-Object {
+    $relPath = $_.FullName.Substring($buildDir.Length + 1)
+    $fileHash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
+    $manifestFiles += [pscustomobject]@{
+        Path = $relPath
+        Hash = $fileHash
+        SizeBytes = $_.Length
+    }
+    $hashedCount++
+}
+
+# Verify key files are present
+if ($VerifyContents.IsPresent -or $FailOnMissing.IsPresent) {
+    foreach ($keyFile in $keyFiles) {
+        $keyFilePath = Join-Path -Path $buildDir -ChildPath $keyFile
+        if (-not (Test-Path -LiteralPath $keyFilePath)) {
+            $missingFiles += $keyFile
+            Write-Warning "Missing key file: $keyFile"
+        }
+    }
+}
+
+# Build manifest
+$manifest = [pscustomobject]@{
+    GeneratedAtUtc    = (Get-Date).ToUniversalTime().ToString('o')
+    Version           = $Version
+    PackageFile       = $zipName
+    PackageHash       = $hash.Hash
+    TotalFiles        = $hashedCount
+    KeyFilesChecked   = $keyFiles.Count
+    MissingKeyFiles   = $missingFiles
+    Files             = $manifestFiles
+}
+
+$manifestPath = Join-Path -Path $distDir -ChildPath "StateTrace_$Version.manifest.json"
+$manifest | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $manifestPath -Encoding utf8
+
+Write-Host "Package manifest saved to $manifestPath"
+Write-Host "Total files: $hashedCount"
+
+if ($missingFiles.Count -gt 0) {
+    Write-Host ("Missing key files: {0}" -f ($missingFiles -join ', ')) -ForegroundColor Yellow
+    if ($FailOnMissing.IsPresent) {
+        throw "Package verification failed: $($missingFiles.Count) key file(s) missing."
+    }
+}
+
+Write-Host ""
 Write-Host "Package created at $zipPath"
 Write-Host "SHA-256: $($hash.Hash) (saved to $hashFile)"
