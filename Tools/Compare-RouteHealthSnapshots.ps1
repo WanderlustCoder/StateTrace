@@ -287,9 +287,9 @@ if ($null -ne $oldLatency -or $null -ne $newLatency) {
 }
 
 # LANDMARK: Routing diff - optional route record enrichment and changed-route detection
-$addedRouteRecords = @()
-$removedRouteRecords = @()
-$changedRoutes = @()
+$addedRouteRecords = [System.Collections.Generic.List[object]]::new()
+$removedRouteRecords = [System.Collections.Generic.List[object]]::new()
+$changedRoutes = [System.Collections.Generic.List[object]]::new()
 if (-not [string]::IsNullOrWhiteSpace($OldRouteRecordsPath) -or -not [string]::IsNullOrWhiteSpace($NewRouteRecordsPath)) {
     if ([string]::IsNullOrWhiteSpace($OldRouteRecordsPath) -or [string]::IsNullOrWhiteSpace($NewRouteRecordsPath)) {
         $warnings.Add('RouteRecords enrichment requires both OldRouteRecordsPath and NewRouteRecordsPath; skipping enrichment.') | Out-Null
@@ -303,14 +303,14 @@ if (-not [string]::IsNullOrWhiteSpace($OldRouteRecordsPath) -or -not [string]::I
 
         foreach ($id in $addedIds) {
             if ($newRecordMap.ContainsKey($id)) {
-                $addedRouteRecords += (Get-RouteDetail -Record $newRecordMap[$id] -FallbackVrf $newSnapshot.Vrf)
+                $addedRouteRecords.Add((Get-RouteDetail -Record $newRecordMap[$id] -FallbackVrf $newSnapshot.Vrf))
             } else {
                 $warnings.Add("Added RouteRecordId '$id' not found in NewRouteRecords.") | Out-Null
             }
         }
         foreach ($id in $removedIds) {
             if ($oldRecordMap.ContainsKey($id)) {
-                $removedRouteRecords += (Get-RouteDetail -Record $oldRecordMap[$id] -FallbackVrf $oldSnapshot.Vrf)
+                $removedRouteRecords.Add((Get-RouteDetail -Record $oldRecordMap[$id] -FallbackVrf $oldSnapshot.Vrf))
             } else {
                 $warnings.Add("Removed RouteRecordId '$id' not found in OldRouteRecords.") | Out-Null
             }
@@ -329,12 +329,12 @@ if (-not [string]::IsNullOrWhiteSpace($OldRouteRecordsPath) -or -not [string]::I
                 }
             }
             if ($fieldsChanged.Count -gt 0) {
-                $changedRoutes += [ordered]@{
+                $changedRoutes.Add([ordered]@{
                     Key           = $key
                     FieldsChanged = $fieldsChanged
                     Old           = Get-RouteDetail -Record $oldRecord -FallbackVrf $oldSnapshot.Vrf
                     New           = Get-RouteDetail -Record $newRecord -FallbackVrf $newSnapshot.Vrf
-                }
+                })
             }
         }
     }

@@ -82,7 +82,7 @@ foreach ($record in $existingRecords) {
     }
 }
 
-$newRecords = @()
+$newRecords = [System.Collections.Generic.List[pscustomobject]]::new()
 foreach ($reportPath in $ReportPaths) {
     if (-not (Test-Path -LiteralPath $reportPath)) {
         Write-Warning ("Report '{0}' does not exist; skipping." -f $reportPath)
@@ -110,13 +110,13 @@ foreach ($reportPath in $ReportPaths) {
 
     $historyRecord = ConvertTo-HistoryRecord -ReportPath $resolvedReport -Report $reportObject
     $existingLookup[$resolvedReport] = $true
-    $newRecords += $historyRecord
+    $newRecords.Add($historyRecord)
 }
 
 if ($newRecords.Count -gt 0) {
-    $allRecords = @()
-    $allRecords += $existingRecords
-    $allRecords += $newRecords
+    $allRecords = [System.Collections.Generic.List[object]]::new()
+    foreach ($r in $existingRecords) { $allRecords.Add($r) }
+    foreach ($r in $newRecords) { $allRecords.Add($r) }
     $allRecords | Sort-Object GeneratedAtUtc | Export-Csv -LiteralPath $resolvedHistoryPath -NoTypeInformation
     Write-Host ("Updated history: {0}" -f $resolvedHistoryPath) -ForegroundColor DarkCyan
 }

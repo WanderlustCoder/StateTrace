@@ -75,7 +75,7 @@ foreach ($row in $existing) {
     if ($row.ReportPath) { $existingLookup[$row.ReportPath] = $true }
 }
 
-$newRows = @()
+$newRows = [System.Collections.Generic.List[pscustomobject]]::new()
 foreach ($reportPath in $ReportPaths) {
     if (-not (Test-Path -LiteralPath $reportPath)) {
         Write-Warning ("Report '{0}' not found; skipping." -f $reportPath)
@@ -99,13 +99,13 @@ foreach ($reportPath in $ReportPaths) {
 
     $historyRow = ConvertTo-HistoryRecord -ReportPath $resolvedReport -Report $reportObject
     $existingLookup[$resolvedReport] = $true
-    $newRows += $historyRow
+    $newRows.Add($historyRow)
 }
 
 if ($newRows.Count -gt 0) {
-    $all = @()
-    $all += $existing
-    $all += $newRows
+    $all = [System.Collections.Generic.List[object]]::new()
+    foreach ($r in $existing) { $all.Add($r) }
+    foreach ($r in $newRows) { $all.Add($r) }
     $all | Sort-Object GeneratedAtUtc | Export-Csv -LiteralPath $resolvedHistoryPath -NoTypeInformation
     Write-Host ("InterfaceSync history updated: {0}" -f $resolvedHistoryPath) -ForegroundColor DarkCyan
 }
