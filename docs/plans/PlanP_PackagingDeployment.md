@@ -15,7 +15,7 @@ Make packaging, signing, and deployment of StateTrace predictable and reproducib
 | ID | Title | Owner | Status | Notes |
 |----|-------|-------|--------|-------|
 | ST-P-001 | Package integrity checks | PMO | Done - 2026-01-04 | Extended `Tools/Pack-StateTrace.ps1` to emit `StateTrace_<version>.manifest.json` with SHA-256 hashes of all files. Added `-VerifyContents` and `-FailOnMissing` flags to validate 11 key files (modules, tools, docs). Fails build when required files are missing. |
-| ST-P-002 | Install/uninstall smokes | QA | Backlog | Add a headless install/uninstall smoke (PowerShell 5.1) that validates module import, pipeline invocation on fixtures, and clean removal. |
+| ST-P-002 | Install/uninstall smokes | QA | Done - 2026-01-04 | Created `Tools\Test-InstallSmoke.ps1` with 7 phases: module import (5 modules), fixture check (CISmoke), tool check (4 tools), Pester check (3.4+), pipeline smoke (JSON parsing), telemetry functions, and clean removal. PS 5.1 compatible. Use `-FailOnError` for CI. |
 | ST-P-003 | Version stamping & changelog | PMO | Done - 2026-01-04 | Created `Tools\New-ReleaseManifest.ps1` to stamp version, git commit, and build date into `dist/ReleaseManifest-<version>.json`. Generates `RELEASE_NOTES-<version>.md` with changelog entries, telemetry bundle reference, and SHA-256 package hash. Supports `-TelemetryBundlePath` and `-PackagePath` for evidence linking. |
 | ST-P-004 | Dependency preflight | Platform | Done - 2026-01-04 | Created `Tools/Test-DependencyPreflight.ps1` to validate: PowerShell version (5.1+), execution policy, required modules (Pester 3.4+), Access OLEDB providers (ACE/Jet), .NET Framework, and disk space. Use `-RequireAllPass` to fail on any issue, `-OutputPath` to save JSON report. |
 

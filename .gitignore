@@ -5,20 +5,41 @@ Desktop.ini
 # VS Code
 .vscode/
 
-# Local data stores
+# Local data stores - ignore all except specific samples
 Data/
-Logs/
-!Data/
+!Data/README.md
 !Data/Samples/
+Data/Samples/**
 !Data/Samples/DiffPrototype/
 !Data/Samples/DiffPrototype/**
-!Logs/
+!Data/Samples/IncrementalLoading/
+!Data/Samples/IncrementalLoading/**
+!Data/Samples/TelemetryBundles/
+!Data/Samples/TelemetryBundles/**
+
+# Logs - ignore all generated output
+Logs/
 !Logs/Research/
 !Logs/Research/DiffPrototype/
 !Logs/Research/DiffPrototype/metrics.csv
+
+# Backup files
+*.bak
+**/backup-*/
+**/Backup-*/
+
+# Smoke test artifacts
+*-smoke-*.json
+
+# Run artifacts
+**/Run-*/
+
+# Debug logs
 DebugLogs/*
 !DebugLogs/.gitkeep
 !DebugLogs/README.md
+
+# Generated docs
 docs/agents/sessions/
 docs/performance/SchedulerVsPortDiversity-*.md
 
@@ -28,3 +49,6 @@ docs/performance/SchedulerVsPortDiversity-*.md
 # Local scratch artifacts
 .gittest_perm/
 tmp_ro_test/
+
+# Build output
+dist/
