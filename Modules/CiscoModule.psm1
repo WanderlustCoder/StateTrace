@@ -134,8 +134,8 @@ function Get-CiscoDeviceFacts {
             $candidateIdxList = [System.Collections.Generic.List[int]]::new()
             for ($i = 1; $i -lt $tokens.Length; $i++) {
                 $tok = $tokens[$i]
-                if ($tok -match '<' -and -not $tok -match '>') { $inMarker = $true }
-                if ($tok -match '>' -and -not $tok -match '<') { $inMarker = $false; continue }
+                if ($tok -match '<' -and -not ($tok -match '>')) { $inMarker = $true }
+                if ($tok -match '>' -and -not ($tok -match '<')) { $inMarker = $false; continue }
                 if ($inMarker) { continue }
                 $tokLower = $tok.ToLowerInvariant()
                 if ($statusTokens -contains $tokLower) {

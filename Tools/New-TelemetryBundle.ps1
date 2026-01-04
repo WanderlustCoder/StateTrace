@@ -58,17 +58,17 @@ if (-not $AllowCustomOutputRoot -and -not $isUnderCanonical) {
 
 $OutputRoot = $resolvedOutputRoot
 
-$allArtifacts = @()
-$allArtifacts += $ColdTelemetryPath
-$allArtifacts += $WarmTelemetryPath
-$allArtifacts += $AnalyzerPath
-$allArtifacts += $DiffHotspotsPath
-$allArtifacts += $UserActionSummaryPath
-$allArtifacts += $FreshnessSummaryPath
-$allArtifacts += $RollupPath
-$allArtifacts += $DocSyncPath
-$allArtifacts += $QueueSummaryPath
-$allArtifacts += $AdditionalPath
+$allArtifacts = [System.Collections.Generic.List[string]]::new()
+if ($ColdTelemetryPath) { $ColdTelemetryPath | ForEach-Object { $allArtifacts.Add($_) } }
+if ($WarmTelemetryPath) { $WarmTelemetryPath | ForEach-Object { $allArtifacts.Add($_) } }
+if ($AnalyzerPath) { $AnalyzerPath | ForEach-Object { $allArtifacts.Add($_) } }
+if ($DiffHotspotsPath) { $DiffHotspotsPath | ForEach-Object { $allArtifacts.Add($_) } }
+if ($UserActionSummaryPath) { $UserActionSummaryPath | ForEach-Object { $allArtifacts.Add($_) } }
+if ($FreshnessSummaryPath) { $FreshnessSummaryPath | ForEach-Object { $allArtifacts.Add($_) } }
+if ($RollupPath) { $RollupPath | ForEach-Object { $allArtifacts.Add($_) } }
+if ($DocSyncPath) { $DocSyncPath | ForEach-Object { $allArtifacts.Add($_) } }
+if ($QueueSummaryPath) { $QueueSummaryPath | ForEach-Object { $allArtifacts.Add($_) } }
+if ($AdditionalPath) { $AdditionalPath | ForEach-Object { $allArtifacts.Add($_) } }
 
 if (-not $allArtifacts -or $allArtifacts.Count -eq 0) {
     throw 'Provide at least one artifact path (cold telemetry, warm telemetry, analyzer output, etc.).'
@@ -113,7 +113,7 @@ function Get-UniqueFileName {
     return $target
 }
 
-$artifactEntries = @()
+$artifactEntries = [System.Collections.Generic.List[pscustomobject]]::new()
 $categories = @(
     @{ Name = 'ColdTelemetry'; Paths = $ColdTelemetryPath },
     @{ Name = 'WarmTelemetry'; Paths = $WarmTelemetryPath },
@@ -141,13 +141,13 @@ foreach ($category in $categories) {
         $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $destination).Hash
         $sizeBytes = (Get-Item -LiteralPath $destination).Length
 
-        $artifactEntries += [pscustomobject]@{
+        $artifactEntries.Add([pscustomobject]@{
             Category = $category.Name
             TargetFile = $targetName
             SourcePath = $sourcePath
             Hash = $hash
             SizeBytes = $sizeBytes
-        }
+        })
     }
 }
 
@@ -173,23 +173,23 @@ $manifest = [ordered]@{
 $manifestPath = Join-Path -Path $bundleDir -ChildPath 'TelemetryBundle.json'
 $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
 
-$readmeLines = @()
-$readmeLines += "# Telemetry Bundle - $($manifest.BundleName)"
-if ($AreaName) { $readmeLines += "**Area:** $AreaName" }
-$readmeLines += "- Created: $($manifest.CreatedAt)"
-$readmeLines += "- Host: $($manifest.Hostname)"
-if ($PlanReferences) { $readmeLines += "- Plans: $([string]::Join(', ', $PlanReferences))" }
-if ($TaskBoardIds) { $readmeLines += "- Task Board IDs: $([string]::Join(', ', $TaskBoardIds))" }
+$readmeLines = [System.Collections.Generic.List[string]]::new()
+$readmeLines.Add("# Telemetry Bundle - $($manifest.BundleName)")
+if ($AreaName) { $readmeLines.Add("**Area:** $AreaName") }
+$readmeLines.Add("- Created: $($manifest.CreatedAt)")
+$readmeLines.Add("- Host: $($manifest.Hostname)")
+if ($PlanReferences) { $readmeLines.Add("- Plans: $([string]::Join(', ', $PlanReferences))") }
+if ($TaskBoardIds) { $readmeLines.Add("- Task Board IDs: $([string]::Join(', ', $TaskBoardIds))") }
 # LANDMARK: Telemetry bundle README - include risk register references when supplied
-if ($RiskRegisterEntries) { $readmeLines += "- Risk Register: $([string]::Join(', ', $RiskRegisterEntries))" }
-if ($Notes) { $readmeLines += "- Notes: $Notes" }
-$readmeLines += ''
-$readmeLines += '## Artifacts'
-$readmeLines += '| Category | File | Source | Hash |'
-$readmeLines += '|----------|------|--------|------|'
+if ($RiskRegisterEntries) { $readmeLines.Add("- Risk Register: $([string]::Join(', ', $RiskRegisterEntries))") }
+if ($Notes) { $readmeLines.Add("- Notes: $Notes") }
+$readmeLines.Add('')
+$readmeLines.Add('## Artifacts')
+$readmeLines.Add('| Category | File | Source | Hash |')
+$readmeLines.Add('|----------|------|--------|------|')
 foreach ($entry in $artifactEntries) {
     $hashPreview = if ($entry.Hash) { $entry.Hash.Substring(0, [Math]::Min(12, $entry.Hash.Length)) } else { '' }
-    $readmeLines += "| $($entry.Category) | $($entry.TargetFile) | $($entry.SourcePath) | $hashPreview |"
+    $readmeLines.Add("| $($entry.Category) | $($entry.TargetFile) | $($entry.SourcePath) | $hashPreview |")
 }
 $readmeContent = [string]::Join([Environment]::NewLine, $readmeLines)
 $readmePath = Join-Path -Path $bundleDir -ChildPath 'README.md'

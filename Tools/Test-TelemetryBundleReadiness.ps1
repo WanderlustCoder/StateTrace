@@ -58,7 +58,7 @@ function Resolve-AreaContexts {
     $bundleFullPath = $resolvedBundle.Path
     $manifestPath = Join-Path -Path $bundleFullPath -ChildPath 'TelemetryBundle.json'
 
-    $contexts = @()
+    $contexts = [System.Collections.Generic.List[pscustomobject]]::new()
 
     if (Test-Path -LiteralPath $manifestPath) {
         $manifest = Read-ToolingJson -Path $manifestPath -Label 'Telemetry bundle manifest'
@@ -69,11 +69,11 @@ function Resolve-AreaContexts {
         if (-not $AreaDefinitions.ContainsKey($areaName)) {
             throw "No requirement definition registered for area '$areaName'."
         }
-        $contexts += [pscustomobject]@{
+        $contexts.Add([pscustomobject]@{
             Name = $areaName
             Path = $bundleFullPath
             Manifest = $manifest
-        }
+        })
     }
     else {
         $areasToInspect = $RequestedAreas
@@ -103,11 +103,11 @@ function Resolve-AreaContexts {
             }
 
             $manifest = Read-ToolingJson -Path $areaManifestPath -Label ("Telemetry bundle manifest ({0})" -f $areaName)
-            $contexts += [pscustomobject]@{
+            $contexts.Add([pscustomobject]@{
                 Name = $areaName
                 Path = $areaPath
                 Manifest = $manifest
-            }
+            })
         }
     }
 
@@ -170,7 +170,7 @@ $requirements = @{
 
 $contexts = Resolve-AreaContexts -BundlePath $BundlePath -RequestedAreas $Area -AreaDefinitions $requirements
 
-$results = @()
+$results = [System.Collections.Generic.List[pscustomobject]]::new()
 $missingRequired = $false
 $areaReadmeInfo = @{}
 
@@ -208,18 +208,18 @@ foreach ($ctx in $contexts) {
             }
         }
 
-        $results += [pscustomobject]@{
+        $results.Add([pscustomobject]@{
             Area = $ctx.Name
             Requirement = $requirement.Name
             Description = $requirement.Description
             Status = $status
             Files = if ($relativeMatches) { $relativeMatches -join '; ' } else { '' }
-        }
+        })
     }
 }
 
 if ($IncludeReadmeHash -or $SummaryPath) {
-    $readmeSummaries = @()
+    $readmeSummaries = [System.Collections.Generic.List[pscustomobject]]::new()
     foreach ($ctx in $contexts) {
         $readmeInfo = $areaReadmeInfo[$ctx.Name]
         if (-not $readmeInfo) {
@@ -230,12 +230,12 @@ if ($IncludeReadmeHash -or $SummaryPath) {
         }
 
         $hash = Get-FileHash -LiteralPath $readmeInfo.FullPath -Algorithm $HashAlgorithm
-        $readmeSummaries += [pscustomobject]@{
+        $readmeSummaries.Add([pscustomobject]@{
             Area          = $ctx.Name
             ReadmePath    = $readmeInfo.RelativePath
             HashAlgorithm = $hash.Algorithm
             Hash          = $hash.Hash
-        }
+        })
     }
 
     if ($IncludeReadmeHash -and $readmeSummaries.Count -gt 0) {

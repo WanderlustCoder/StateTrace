@@ -166,7 +166,7 @@ $healthSchema = Get-Content -LiteralPath $SchemaPath -Raw | ConvertFrom-Json -Er
 $recordSchema = Get-Content -LiteralPath $RouteRecordSchemaPath -Raw | ConvertFrom-Json -ErrorAction Stop
 
 # LANDMARK: Route health snapshot generator - derive health from RouteRecords and emit schema-valid snapshot
-$validatedRecords = @()
+$validatedRecords = [System.Collections.Generic.List[pscustomobject]]::new()
 $recordIndex = 0
 foreach ($record in $routeRecords) {
     $prefix = "Record[$recordIndex]"
@@ -183,7 +183,7 @@ foreach ($record in $routeRecords) {
     $routeState = Get-RequiredString -Value (Get-PropertyValue -Object $record -Name 'RouteState') -FieldName 'RouteState' -Errors $errors -Prefix $prefix
 
     if ($errors.Count -eq 0) {
-        $validatedRecords += [pscustomobject]@{
+        $validatedRecords.Add([pscustomobject]@{
             SchemaVersion = $schemaVersion
             RecordId      = $recordId
             CapturedAt    = $capturedAt
@@ -192,7 +192,7 @@ foreach ($record in $routeRecords) {
             Vrf           = $vrfValue
             RouteRole     = $routeRole
             RouteState    = $routeState
-        }
+        })
     }
     $recordIndex += 1
 }
@@ -227,9 +227,9 @@ if ($errors.Count -eq 0) {
     foreach ($record in $filteredRecords) {
         $key = "{0}|{1}|{2}" -f $record.Site, $record.Hostname, $record.Vrf
         if (-not $groupMap.ContainsKey($key)) {
-            $groupMap[$key] = @()
+            $groupMap[$key] = [System.Collections.Generic.List[pscustomobject]]::new()
         }
-        $groupMap[$key] += $record
+        $groupMap[$key].Add($record)
     }
 
     if ($groupMap.Keys.Count -ne 1) {

@@ -104,9 +104,9 @@ function Audit-Indexes {
         foreach ($table in $catalog.Tables) {
             $tableName = '' + $table.Name
             foreach ($index in $table.Indexes) {
-                $cols = @()
+                $cols = [System.Collections.Generic.List[string]]::new()
                 foreach ($col in $index.Columns) {
-                    $cols += ('' + $col.Name)
+                    $cols.Add(('' + $col.Name))
                 }
                 $key = "{0}|{1}" -f $tableName.ToLowerInvariant(), ([string]::Join(',', ($cols | ForEach-Object { $_.ToLowerInvariant() })))
                 $existingByColumns[$key] = [pscustomobject]@{
@@ -124,18 +124,18 @@ function Audit-Indexes {
         return
     }
 
-    $missing = @()
+    $missing = [System.Collections.Generic.List[pscustomobject]]::new()
     $expectedIndexes = Get-StateTraceIndexDefinitions
     foreach ($expected in $expectedIndexes) {
         $key = "{0}|{1}" -f $expected.Table.ToLowerInvariant(), ([string]::Join(',', ($expected.Columns | ForEach-Object { $_.ToLowerInvariant() })))
         if (-not $existingByColumns.ContainsKey($key)) {
-            $missing += [pscustomobject]@{
+            $missing.Add([pscustomobject]@{
                 Database        = $DbPath
                 Table           = $expected.Table
                 ExpectedIndex   = $expected.Name
                 ExpectedColumns = [string]::Join(',', $expected.Columns)
                 Status          = 'Missing'
-            }
+            })
         }
     }
 

@@ -236,15 +236,15 @@ function Resolve-DiffCounts {
 
 function Get-HostRowsFromValidation {
     param([object]$Summary)
-    $rows = @()
+    $rows = [System.Collections.Generic.List[pscustomobject]]::new()
     if ($null -ne $Summary.HostSummaries) {
         foreach ($hostItem in $Summary.HostSummaries) {
-            $rows += [pscustomobject]@{
+            $rows.Add([pscustomobject]@{
                 Hostname              = $hostItem.Hostname
                 Status                = $hostItem.Status
                 IngestionSummaryPath  = $hostItem.IngestionSummaryPath
                 PipelineSummaryPath   = $hostItem.PipelineSummaryPath
-            }
+            })
         }
     }
     return ($rows | Sort-Object Hostname)

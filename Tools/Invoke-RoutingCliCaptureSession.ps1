@@ -276,7 +276,7 @@ if (-not [string]::IsNullOrWhiteSpace($vendor) -and ($supportedVendors -notconta
     Add-Error -Errors $errors -Message "UnsupportedVendor:$vendor supported=$($supportedVendors -join ',')"
 }
 
-$preparedHosts = @()
+$preparedHosts = [System.Collections.Generic.List[pscustomobject]]::new()
 $hostIndex = 0
 if ($null -ne $hosts) {
     foreach ($hostEntry in $hosts) {
@@ -294,7 +294,7 @@ if ($null -ne $hosts) {
         }
 
         $artifactIndex = 0
-        $resolvedArtifacts = @()
+        $resolvedArtifacts = [System.Collections.Generic.List[pscustomobject]]::new()
         $hasShowIpRoute = $false
         if ($null -ne $artifacts) {
             foreach ($artifact in $artifacts) {
@@ -308,24 +308,24 @@ if ($null -ne $hosts) {
                 }
                 if (-not [string]::IsNullOrWhiteSpace($transcriptPath)) {
                     if ($onlineMode) {
-                        $resolvedArtifacts += [pscustomobject]@{
+                        $resolvedArtifacts.Add([pscustomobject]@{
                             Name             = $name
                             Command          = $command
                             TranscriptPath   = $transcriptPath
                             TranscriptOrigin = 'Online'
-                        }
+                        })
                     } else {
                         $resolvedPath = Resolve-TranscriptPath -SessionFilePath $SessionPath -RelativePath $transcriptPath
                         if (-not (Test-Path -LiteralPath $resolvedPath)) {
                             Add-Error -Errors $errors -Message "MissingTranscript:$resolvedPath"
                         } else {
-                            $resolvedArtifacts += [pscustomobject]@{
+                            $resolvedArtifacts.Add([pscustomobject]@{
                                 Name             = $name
                                 Command          = $command
                                 SourcePath       = $resolvedPath
                                 TranscriptPath   = $transcriptPath
                                 TranscriptOrigin = 'Offline'
-                            }
+                            })
                         }
                     }
                 }
@@ -338,11 +338,11 @@ if ($null -ne $hosts) {
             Add-Error -Errors $errors -Message "MissingArtifact:show_ip_route host=$hostname"
         }
 
-        $preparedHosts += [pscustomobject]@{
+        $preparedHosts.Add([pscustomobject]@{
             HostnameOriginal  = $hostname
             HostnameNormalized = if ($null -ne $hostname) { $hostname.ToUpperInvariant() } else { $hostname }
-            Artifacts         = $resolvedArtifacts
-        }
+            Artifacts         = $resolvedArtifacts.ToArray()
+        })
         $hostIndex += 1
     }
 }
@@ -350,7 +350,7 @@ if ($null -ne $hosts) {
 $summaryPath = Join-Path -Path $OutputRoot -ChildPath ("RoutingCliCaptureSessionSummary-{0}.json" -f $Timestamp)
 $latestPath = Join-Path -Path $OutputRoot -ChildPath 'RoutingCliCaptureSessionSummary-latest.json'
 
-$hostSummaries = @()
+$hostSummaries = [System.Collections.Generic.List[pscustomobject]]::new()
 if ($errors.Count -eq 0) {
     $siteNormalized = $site.ToUpperInvariant()
     $vrfNormalized = if ([string]::IsNullOrWhiteSpace($vrf)) { 'default' } else { $vrf }
@@ -362,19 +362,19 @@ if ($errors.Count -eq 0) {
         New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
 
         # LANDMARK: Routing CLI capture session output - emit per-host RoutingCliCapture bundles
-        $artifactOutputs = @()
-        $captureArtifacts = @()
+        $artifactOutputs = [System.Collections.Generic.List[string]]::new()
+        $captureArtifacts = [System.Collections.Generic.List[pscustomobject]]::new()
         $hostErrors = New-Object System.Collections.Generic.List[string]
         foreach ($artifact in $hostEntry.Artifacts) {
             if (-not $onlineMode) {
                 $destinationPath = Join-Path -Path $outputDir -ChildPath (Split-Path -Leaf $artifact.SourcePath)
                 Copy-Item -LiteralPath $artifact.SourcePath -Destination $destinationPath -Force
-                $artifactOutputs += $destinationPath
-                $captureArtifacts += [pscustomobject]@{
+                $artifactOutputs.Add($destinationPath)
+                $captureArtifacts.Add([pscustomobject]@{
                     Name    = $artifact.Name
                     Command = $artifact.Command
                     Path    = (Split-Path -Leaf $destinationPath)
-                }
+                })
                 continue
             }
 
@@ -413,12 +413,12 @@ if ($errors.Count -eq 0) {
                 continue
             }
 
-            $artifactOutputs += $destinationPath
-            $captureArtifacts += [pscustomobject]@{
+            $artifactOutputs.Add($destinationPath)
+            $captureArtifacts.Add([pscustomobject]@{
                 Name    = $artifact.Name
                 Command = $artifact.Command
                 Path    = $artifact.TranscriptPath
-            }
+            })
         }
 
         $capture = [pscustomobject]@{
@@ -428,20 +428,20 @@ if ($errors.Count -eq 0) {
             Hostname      = $hostnameNormalized
             Vendor        = $vendor
             Vrf           = $vrfNormalized
-            Artifacts     = $captureArtifacts
+            Artifacts     = $captureArtifacts.ToArray()
         }
 
         $capturePath = Join-Path -Path $outputDir -ChildPath 'Capture.json'
         $capture | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $capturePath -Encoding utf8
 
-        $hostSummaries += [pscustomobject]@{
+        $hostSummaries.Add([pscustomobject]@{
             Hostname        = $hostnameNormalized
             OutputDirectory = $outputDir
             CaptureJsonPath = $capturePath
-            ArtifactPaths   = $artifactOutputs
+            ArtifactPaths   = $artifactOutputs.ToArray()
             Status          = if ($hostErrors.Count -gt 0) { 'Fail' } else { 'Pass' }
             Errors          = $hostErrors.ToArray()
-        }
+        })
     }
 }
 

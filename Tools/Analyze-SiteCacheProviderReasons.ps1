@@ -18,14 +18,14 @@ function Resolve-LogFiles {
         [string]$DirectoryPath
     )
 
-    $files = @()
+    $files = [System.Collections.Generic.List[string]]::new()
     if ($ExplicitPaths -and $ExplicitPaths.Count -gt 0) {
         foreach ($item in $ExplicitPaths) {
             if ([string]::IsNullOrWhiteSpace($item)) { continue }
             $resolved = Resolve-Path -LiteralPath $item -ErrorAction Stop
             foreach ($entry in $resolved) {
                 if (Test-Path -LiteralPath $entry.ProviderPath -PathType Leaf) {
-                    $files += $entry.ProviderPath
+                    $files.Add($entry.ProviderPath)
                 }
             }
         }
@@ -239,13 +239,13 @@ $siteSummary | Format-Table -AutoSize
 if ($IncludeHostBreakdown -and $hostStats.Count -gt 0) {
     $hostEntries = $hostStats.Values | Where-Object { $_.AccessRefresh -gt 0 }
     $topHostEntries = $hostEntries | Sort-Object -Property AccessRefresh -Descending | Select-Object -First $TopHosts
-    $topHostList = @()
+    $topHostList = [System.Collections.Generic.List[pscustomobject]]::new()
     foreach ($entry in $topHostEntries) {
         $avgDuration = $null
         if ($entry.FetchDurations.Count -gt 0) {
             $avgDuration = [Math]::Round( ($entry.FetchDurations | Measure-Object -Average).Average, 3)
         }
-        $topHostList += [pscustomobject]@{
+        $topHostList.Add([pscustomobject]@{
             Site             = $entry.Site
             Hostname         = $entry.Hostname
             AccessRefresh    = $entry.AccessRefresh
@@ -253,7 +253,7 @@ if ($IncludeHostBreakdown -and $hostStats.Count -gt 0) {
             SharedCacheMatch = $entry.SharedCacheMatch
             Total            = $entry.Total
             AvgFetchMs       = $avgDuration
-        }
+        })
     }
 
     if ($topHostList.Count -gt 0) {

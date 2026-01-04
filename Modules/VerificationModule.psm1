@@ -44,8 +44,8 @@ function Test-WarmRunRegressionSummary {
         }
     }
 
-    $improvementDisplay = if ($improvementPercent -eq $null) { 'null' } else { ('{0:N3}' -f $improvementPercent) }
-    if ($improvementPercent -eq $null -or $improvementPercent -lt $MinimumImprovementPercent) {
+    $improvementDisplay = if ($null -eq $improvementPercent) { 'null' } else { ('{0:N3}' -f $improvementPercent) }
+    if ($null -eq $improvementPercent -or $improvementPercent -lt $MinimumImprovementPercent) {
         $pass = $false
         $violations.Add('ImprovementPercent')
         $messages.Add(("Warm-run improvement percent {0} is below required {1}." -f $improvementDisplay, $MinimumImprovementPercent))
@@ -59,7 +59,7 @@ function Test-WarmRunRegressionSummary {
     if ($Summary.PSObject.Properties.Name -contains 'ColdInterfaceCallAvgMs') {
         try { $coldAvg = [double]$Summary.ColdInterfaceCallAvgMs } catch { $coldAvg = $null }
     }
-    if ($warmAvg -ne $null -and $coldAvg -ne $null -and $MaximumWarmAverageDeltaMs -ge 0) {
+    if ($null -ne $warmAvg -and $null -ne $coldAvg -and $MaximumWarmAverageDeltaMs -ge 0) {
         $delta = $warmAvg - $coldAvg
         if ($delta -gt $MaximumWarmAverageDeltaMs) {
             $pass = $false
@@ -88,15 +88,15 @@ function Test-WarmRunRegressionSummary {
     if ($Summary.PSObject.Properties.Name -contains 'WarmCacheHitRatioPercent') {
         try { $hitRatio = [double]$Summary.WarmCacheHitRatioPercent } catch { $hitRatio = $null }
     }
-    if ($hitRatio -eq $null -and ($hitCount -gt 0 -or $missCount -gt 0)) {
+    if ($null -eq $hitRatio -and ($hitCount -gt 0 -or $missCount -gt 0)) {
         $total = $hitCount + $missCount
         if ($total -gt 0) {
             $hitRatio = ($hitCount / $total) * 100
         }
     }
 
-    $hitRatioDisplay = if ($hitRatio -eq $null) { 'null' } else { ('{0:N3}' -f $hitRatio) }
-    if ($hitRatio -eq $null -or $hitRatio -lt $MinimumCacheHitRatioPercent) {
+    $hitRatioDisplay = if ($null -eq $hitRatio) { 'null' } else { ('{0:N3}' -f $hitRatio) }
+    if ($null -eq $hitRatio -or $hitRatio -lt $MinimumCacheHitRatioPercent) {
         $pass = $false
         $violations.Add('HitRatio')
         $messages.Add(("Warm cache hit ratio {0} is below required {1}." -f $hitRatioDisplay, $MinimumCacheHitRatioPercent))
@@ -433,10 +433,10 @@ function Test-InterfacePortQueueDelay {
         if ($evt.PSObject.Properties.Name -contains 'QueueDelayMs') {
             try { $delay = [double]$evt.QueueDelayMs } catch { $delay = $null }
         }
-        if ($delay -eq $null -and $evt.PSObject.Properties.Name -contains 'QueueBuildDelayMs') {
+        if ($null -eq $delay -and $evt.PSObject.Properties.Name -contains 'QueueBuildDelayMs') {
             try { $delay = [double]$evt.QueueBuildDelayMs } catch { $delay = $null }
         }
-        if ($delay -ne $null) {
+        if ($null -ne $delay) {
             $delayValues.Add($delay) | Out-Null
         }
 
@@ -444,10 +444,10 @@ function Test-InterfacePortQueueDelay {
         if ($evt.PSObject.Properties.Name -contains 'QueueBuildDurationMs') {
             try { $duration = [double]$evt.QueueBuildDurationMs } catch { $duration = $null }
         }
-        if ($duration -eq $null -and $evt.PSObject.Properties.Name -contains 'QueueDurationMs') {
+        if ($null -eq $duration -and $evt.PSObject.Properties.Name -contains 'QueueDurationMs') {
             try { $duration = [double]$evt.QueueDurationMs } catch { $duration = $null }
         }
-        if ($duration -ne $null) {
+        if ($null -ne $duration) {
             $durationValues.Add($duration) | Out-Null
         }
     }

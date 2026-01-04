@@ -121,16 +121,16 @@ for ($i = 0; $i -lt $sorted.Count; $i++) {
     }
 }
 
-$gapEntries = @()
+$gapEntries = [System.Collections.Generic.List[pscustomobject]]::new()
 for ($i = 1; $i -lt $sorted.Count; $i++) {
     $delta = $sorted[$i].DeltaSeconds
     if ($delta -ge $GapThresholdSeconds) {
-        $gapEntries += [pscustomobject]@{
+        $gapEntries.Add([pscustomobject]@{
             GapSeconds   = $delta
             StartEvent   = $sorted[$i-1]
             EndEvent     = $sorted[$i]
             GapIndex     = $i
-        }
+        })
     }
 }
 
@@ -180,7 +180,7 @@ $builder.Add("> Generated $generatedStamp")
 $builder.Add("> Gap threshold: $GapThresholdSeconds seconds")
 $builder.Add("")
 
-$timelineSummaries = @()
+$timelineSummaries = [System.Collections.Generic.List[pscustomobject]]::new()
 for ($gapIdx = 0; $gapIdx -lt $gapEntries.Count; $gapIdx++) {
     $gap = $gapEntries[$gapIdx]
     $contextRows = Build-ContextRows -Gap $gap -Events $sorted -Before $EventsBefore -After $EventsAfter
@@ -215,14 +215,14 @@ for ($gapIdx = 0; $gapIdx -lt $gapEntries.Count; $gapIdx++) {
         }
     }
     $builder.Add("")
-    $timelineSummaries += [pscustomobject]@{
+    $timelineSummaries.Add([pscustomobject]@{
         GapSeconds   = $gap.GapSeconds
         StartHost    = $gap.StartEvent.Hostname
         StartSite    = $gap.StartEvent.Site
         EndHost      = $gap.EndEvent.Hostname
         EndSite      = $gap.EndEvent.Site
         ContextRows  = $contextRows
-    }
+    })
 }
 
 if ($OutputPath) {

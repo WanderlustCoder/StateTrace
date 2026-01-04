@@ -20,7 +20,9 @@ $repoRoot = Split-Path -Path $PSScriptRoot -Parent
 function Get-SitePrefix {
     param([string]$Hostname)
     if ([string]::IsNullOrWhiteSpace($Hostname)) { return '(unknown)' }
-    return $Hostname.Split('-', 2, [System.StringSplitOptions]::RemoveEmptyEntries)[0]
+    $parts = $Hostname.Split('-', 2, [System.StringSplitOptions]::RemoveEmptyEntries)
+    if ($parts.Count -eq 0) { return '(unknown)' }
+    return $parts[0]
 }
 
 function Resolve-Hosts {

@@ -200,7 +200,7 @@ function Resolve-ComparisonValue {
     return ,@($current, $baseline)
 }
 
-$comparisonRows = @()
+$comparisonRows = [System.Collections.Generic.List[pscustomobject]]::new()
 if ($BaselineSummaryPath) {
     if (-not (Test-Path -LiteralPath $BaselineSummaryPath)) {
         throw "Baseline summary '$BaselineSummaryPath' was not found."
@@ -228,13 +228,13 @@ if ($BaselineSummaryPath) {
         if ($currentValue -ne $null -and $baselineValue -ne $null) {
             $delta = [math]::Round(($currentValue - $baselineValue), 3)
         }
-        $comparisonRows += [pscustomobject]@{
+        $comparisonRows.Add([pscustomobject]@{
             Metric   = $metric.Name
             Current  = $currentValue
             Baseline = $baselineValue
             Delta    = $delta
             Unit     = $metric.Unit
-        }
+        })
     }
 
     $summary | Add-Member -NotePropertyName 'BaselineSummaryPath' -NotePropertyValue (Resolve-Path -LiteralPath $BaselineSummaryPath).Path -Force

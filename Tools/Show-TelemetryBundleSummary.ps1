@@ -105,16 +105,16 @@ else {
     $hashRows | Format-Table Area, HashAlgorithm, ReadmeHash, ReadmePath -AutoSize
 }
 
-$requirementRows = @()
+$requirementRows = [System.Collections.Generic.List[pscustomobject]]::new()
 foreach ($area in $areas) {
     if (-not $area.RequirementState) { continue }
     foreach ($requirement in $area.RequirementState) {
-        $requirementRows += [pscustomobject]@{
+        $requirementRows.Add([pscustomobject]@{
             Area        = $area.Area
             Requirement = $requirement.Requirement
             Status      = $requirement.Status
             Files       = $requirement.Files
-        }
+        })
     }
 }
 

@@ -72,7 +72,7 @@ $siteCounts = $ordered | Group-Object Site | ForEach-Object {
 } | Sort-Object Count -Descending
 
 # Compute longest streak per site
-$streaks = @()
+$streaks = [System.Collections.Generic.List[pscustomobject]]::new()
 $currentSite = $null
 $currentCount = 0
 $currentStart = 0
@@ -83,12 +83,12 @@ for ($i = 0; $i -lt $ordered.Count; $i++) {
     }
     else {
         if ($currentSite) {
-            $streaks += [pscustomobject]@{
+            $streaks.Add([pscustomobject]@{
                 Site    = $currentSite
                 Count   = $currentCount
                 StartAt = $currentStart + 1
                 EndAt   = $i
-            }
+            })
         }
         $currentSite = $entry.Site
         $currentCount = 1
@@ -96,12 +96,12 @@ for ($i = 0; $i -lt $ordered.Count; $i++) {
     }
 }
 if ($currentSite) {
-    $streaks += [pscustomobject]@{
+    $streaks.Add([pscustomobject]@{
         Site    = $currentSite
         Count   = $currentCount
         StartAt = $currentStart + 1
         EndAt   = $ordered.Count
-    }
+    })
 }
 
 $longestPerSite = $streaks | Sort-Object Count -Descending | Group-Object Site | ForEach-Object {

@@ -83,7 +83,7 @@ function Get-LatestArtifacts {
         throw "[$Description] Directory '$Directory' was not found."
     }
 
-    $results = @()
+    $results = [System.Collections.Generic.List[object]]::new()
     foreach ($pattern in $Filter) {
         $items = @(Get-ChildItem -LiteralPath $Directory -Filter $pattern -File -ErrorAction Stop |
             Sort-Object LastWriteTime -Descending)
@@ -94,7 +94,7 @@ function Get-LatestArtifacts {
             }
             throw "[$Description] Unable to locate files matching '$pattern' under '$Directory'."
         }
-        $results += $items | Select-Object -First $MaxCount
+        foreach ($item in ($items | Select-Object -First $MaxCount)) { $results.Add($item) }
     }
 
     if ($results.Count -eq 0) {
@@ -121,14 +121,14 @@ if ($QueueSummaryPath) {
     $resolvedQueueSummary = Get-LatestArtifacts -Directory $IngestionMetricsDirectory -Filter @($QueueSummaryFilter) -Description 'Queue delay summary' -MaxCount $QueueSummaryMaxCount -Optional
 }
 
-$historyFiles = @()
+$historyFiles = [System.Collections.Generic.List[string]]::new()
 if (-not [string]::IsNullOrWhiteSpace($HistoryDirectory)) {
     $queueHistoryPath = $QueueDelayHistoryFile
     if (-not [System.IO.Path]::IsPathRooted($queueHistoryPath)) {
         $queueHistoryPath = Join-Path -Path $HistoryDirectory -ChildPath $QueueDelayHistoryFile
     }
     if (Test-Path -LiteralPath $queueHistoryPath) {
-        $historyFiles += (Resolve-Path -LiteralPath $queueHistoryPath).Path
+        $historyFiles.Add((Resolve-Path -LiteralPath $queueHistoryPath).Path)
     } else {
         Write-Verbose ("[History] Queue delay history file '{0}' not found; skipping." -f $queueHistoryPath)
     }
@@ -138,7 +138,7 @@ if (-not [string]::IsNullOrWhiteSpace($HistoryDirectory)) {
         $schedulerHistoryPath = Join-Path -Path $HistoryDirectory -ChildPath $ParserSchedulerHistoryFile
     }
     if (Test-Path -LiteralPath $schedulerHistoryPath) {
-        $historyFiles += (Resolve-Path -LiteralPath $schedulerHistoryPath).Path
+        $historyFiles.Add((Resolve-Path -LiteralPath $schedulerHistoryPath).Path)
     } else {
         Write-Verbose ("[History] Parser scheduler history file '{0}' not found; skipping." -f $schedulerHistoryPath)
     }
@@ -148,7 +148,7 @@ if (-not [string]::IsNullOrWhiteSpace($HistoryDirectory)) {
         $portHistoryPath = Join-Path -Path $HistoryDirectory -ChildPath $PortBatchHistoryFile
     }
     if (Test-Path -LiteralPath $portHistoryPath) {
-        $historyFiles += (Resolve-Path -LiteralPath $portHistoryPath).Path
+        $historyFiles.Add((Resolve-Path -LiteralPath $portHistoryPath).Path)
     } else {
         Write-Verbose ("[History] Port batch history file '{0}' not found; skipping." -f $portHistoryPath)
     }
@@ -158,7 +158,7 @@ if (-not [string]::IsNullOrWhiteSpace($HistoryDirectory)) {
         $interfaceHistoryPath = Join-Path -Path $HistoryDirectory -ChildPath $InterfaceSyncHistoryFile
     }
     if (Test-Path -LiteralPath $interfaceHistoryPath) {
-        $historyFiles += (Resolve-Path -LiteralPath $interfaceHistoryPath).Path
+        $historyFiles.Add((Resolve-Path -LiteralPath $interfaceHistoryPath).Path)
     } else {
         Write-Verbose ("[History] InterfaceSync history file '{0}' not found; skipping." -f $interfaceHistoryPath)
     }
@@ -222,12 +222,12 @@ if (@($resolvedFreshness).Count -gt 0) { $bundleParams['FreshnessSummaryPath'] =
 if (@($resolvedRollup).Count -gt 0) { $bundleParams['RollupPath'] = $resolvedRollup }
 if (@($DocSyncPath).Count -gt 0) { $bundleParams['DocSyncPath'] = $DocSyncPath }
 if (@($resolvedQueueSummary).Count -gt 0) { $bundleParams['QueueSummaryPath'] = $resolvedQueueSummary }
-$aggregatedAdditional = @()
-if (@($historyFiles).Count -gt 0) { $aggregatedAdditional += $historyFiles }
-if (@($schedulerComparisonJson).Count -gt 0) { $aggregatedAdditional += $schedulerComparisonJson }
-if (@($schedulerComparisonMarkdown).Count -gt 0) { $aggregatedAdditional += $schedulerComparisonMarkdown }
-if (@($AdditionalPath).Count -gt 0) { $aggregatedAdditional += $AdditionalPath }
-if (@($aggregatedAdditional).Count -gt 0) { $bundleParams['AdditionalPath'] = $aggregatedAdditional }
+$aggregatedAdditional = [System.Collections.Generic.List[string]]::new()
+if (@($historyFiles).Count -gt 0) { foreach ($f in $historyFiles) { $aggregatedAdditional.Add($f) } }
+if (@($schedulerComparisonJson).Count -gt 0) { foreach ($f in @($schedulerComparisonJson)) { $aggregatedAdditional.Add($f) } }
+if (@($schedulerComparisonMarkdown).Count -gt 0) { foreach ($f in @($schedulerComparisonMarkdown)) { $aggregatedAdditional.Add($f) } }
+if (@($AdditionalPath).Count -gt 0) { foreach ($f in @($AdditionalPath)) { $aggregatedAdditional.Add($f) } }
+if ($aggregatedAdditional.Count -gt 0) { $bundleParams['AdditionalPath'] = $aggregatedAdditional }
 if (@($PlanReferences).Count -gt 0) { $bundleParams['PlanReferences'] = $PlanReferences }
 if (@($TaskBoardIds).Count -gt 0) { $bundleParams['TaskBoardIds'] = $TaskBoardIds }
 if (@($RiskRegisterEntries).Count -gt 0) { $bundleParams['RiskRegisterEntries'] = $RiskRegisterEntries }
