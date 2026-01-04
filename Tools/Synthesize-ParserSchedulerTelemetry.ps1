@@ -143,9 +143,11 @@ try {
         $writer.WriteLine(($syntheticEvent | ConvertTo-Json -Depth 3 -Compress))
     }
 } finally {
-    $writer.Flush()
-    $writer.Dispose()
-    $reader.Dispose()
+    if ($writer) { try { $writer.Flush() } catch { } }
+    if ($writer) { try { $writer.Dispose() } catch { } }
+    if ($reader) { try { $reader.Dispose() } catch { } }
+    if ($outputStream) { try { $outputStream.Dispose() } catch { } }
+    if ($inputStream) { try { $inputStream.Dispose() } catch { } }
 }
 
 if ($InPlace) {

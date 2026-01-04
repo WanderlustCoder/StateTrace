@@ -1123,11 +1123,11 @@ function Invoke-DeviceParsingJobs {
                 }
             }
 
-            $completed = @()
+            $completed = [System.Collections.Generic.List[object]]::new()
             foreach ($entry in $active.ToArray()) {
                 if ($entry.AsyncResult.IsCompleted) {
                     try { $entry.Pipe.EndInvoke($entry.AsyncResult) } catch { } finally { $entry.Pipe.Dispose() }
-                    $completed += $entry
+                    $completed.Add($entry)
                 }
             }
             if ($completed.Count -gt 0) {
