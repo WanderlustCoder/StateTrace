@@ -18,6 +18,13 @@ param(
 
     [string]$OutputRoot,
 
+    # ST-N-002: Generate session log stub after run
+    [switch]$GenerateSessionLog,
+
+    [string[]]$TaskIds,
+
+    [string[]]$PlanReferences,
+
     [switch]$PassThru
 )
 
@@ -65,11 +72,24 @@ Maximum time for CI run. Defaults to 20 minutes.
 .PARAMETER OutputRoot
 Root directory for CI artifacts. Defaults to Logs/CI.
 
+.PARAMETER GenerateSessionLog
+ST-N-002: Generate a session log stub under docs/agents/sessions/ with commands,
+artifact paths, and plan/task references.
+
+.PARAMETER TaskIds
+Task IDs to include in the session log (e.g., ST-K-001, ST-E-002).
+
+.PARAMETER PlanReferences
+Plan references to include in the session log (e.g., PlanK, PlanE).
+
 .PARAMETER PassThru
 Return the CI result as an object.
 
 .EXAMPLE
 pwsh Tools\Invoke-CIHarness.ps1 -FailOnMissing
+
+.EXAMPLE
+pwsh Tools\Invoke-CIHarness.ps1 -GenerateSessionLog -TaskIds ST-K-001 -PlanReferences PlanK,PlanE
 
 .EXAMPLE
 pwsh Tools\Invoke-CIHarness.ps1 -SkipWarmRun -RunId CI-smoke-20260104
@@ -418,6 +438,31 @@ if ($result.OverallStatus -eq 'Timeout') {
 # Save result
 $resultPath = Join-Path -Path $runOutputDir -ChildPath 'CIHarness.json'
 $result | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $resultPath -Encoding utf8
+
+# ST-N-002: Generate session log stub if requested
+if ($GenerateSessionLog.IsPresent) {
+    $sessionLogScript = Join-Path -Path $PSScriptRoot -ChildPath 'New-SessionLogStub.ps1'
+    if (Test-Path -LiteralPath $sessionLogScript) {
+        $artifactList = @($resultPath)
+        if ($result.BundlePath) { $artifactList += $result.BundlePath }
+        foreach ($phase in $result.Phases) {
+            if ($phase.Artifacts) { $artifactList += $phase.Artifacts }
+        }
+
+        $sessionArgs = @{
+            Role = 'Automation'
+            Commands = @("Invoke-CIHarness.ps1 -RunId $RunId")
+            ArtifactPaths = $artifactList
+            Notes = "CI harness run completed: $($result.OverallStatus)"
+        }
+        if ($TaskIds) { $sessionArgs.TaskIds = $TaskIds }
+        if ($PlanReferences) { $sessionArgs.PlanReferences = $PlanReferences }
+
+        $sessionResult = & $sessionLogScript @sessionArgs -PassThru
+        $result.SessionLogPath = $sessionResult.OutputPath
+        Write-Host ("  Session log: {0}" -f $sessionResult.OutputPath) -ForegroundColor DarkCyan
+    }
+}
 
 Write-Host ""
 Write-Host "--- CI Summary ---" -ForegroundColor Yellow
