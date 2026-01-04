@@ -542,11 +542,7 @@ CREATE TABLE InterfaceHistory (
             "ALTER TABLE DeviceHistory ADD COLUMN AuthBlock MEMO"
         )
         foreach ($stmt in $alterStmts) {
-            try {
-                $connection.Execute($stmt) | Out-Null
-            } catch {
-                # Swallow errors (e.g. column already exists)
-            }
+            Invoke-DbSchemaStatement -Connection $connection -Statement $stmt -Label $stmt -IgnoreIfExists -ContinueOnFailure
         }
     } catch {
         Write-Warning "Failed to create tables in the Access database. $_"
