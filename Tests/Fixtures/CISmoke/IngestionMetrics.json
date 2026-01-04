@@ -6,6 +6,8 @@
 {"EventName":"InterfacePortQueueMetrics","Timestamp":"2026-01-01T10:00:05Z","QueueBuildDelayMs":12,"QueueBuildDurationMs":21}
 {"EventName":"InterfacePortQueueMetrics","Timestamp":"2026-01-01T10:00:06Z","QueueBuildDelayMs":9,"QueueBuildDurationMs":16}
 {"EventName":"InterfacePortQueueMetrics","Timestamp":"2026-01-01T10:00:07Z","QueueBuildDelayMs":10,"QueueBuildDurationMs":18}
+{"EventName":"InterfacePortQueueMetrics","Timestamp":"2026-01-01T10:00:08Z","QueueBuildDelayMs":11,"QueueBuildDurationMs":19}
+{"EventName":"InterfacePortQueueMetrics","Timestamp":"2026-01-01T10:00:09Z","QueueBuildDelayMs":10,"QueueBuildDurationMs":17}
 {"EventName":"PortBatchReady","Timestamp":"2026-01-01T10:00:10Z","Hostname":"BOYO-A01-AS-01","Site":"BOYO","PortsCommitted":12,"ChunkSize":12,"Synthesized":false}
 {"EventName":"PortBatchReady","Timestamp":"2026-01-01T10:00:11Z","Hostname":"WLLS-A01-AS-01","Site":"WLLS","PortsCommitted":10,"ChunkSize":10,"Synthesized":false}
 {"EventName":"PortBatchReady","Timestamp":"2026-01-01T10:00:12Z","Hostname":"BOYO-A01-AS-02","Site":"BOYO","PortsCommitted":8,"ChunkSize":8,"Synthesized":false}
