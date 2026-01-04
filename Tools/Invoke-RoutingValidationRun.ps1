@@ -99,7 +99,7 @@ $runSummaryLatestPath = Join-Path -Path $OutputRoot -ChildPath 'RoutingValidatio
 
 $preflightSummary = $null
 $captureSummary = $null
-$hostSummaries = @()
+$hostSummaries = [System.Collections.Generic.List[pscustomobject]]::new()
 $hostsProcessed = 0
 $hostsSucceeded = 0
 $hostsFailed = 0
@@ -221,14 +221,14 @@ if ($errors.Count -eq 0 -and $null -ne $captureSummary) {
             Add-Error -Errors $errors -Message "HostFailed:$hostname"
         }
 
-        $hostSummaries += [pscustomobject]@{
+        $hostSummaries.Add([pscustomobject]@{
             Hostname             = $hostname
             CaptureJsonPath      = $capturePath
             IngestionSummaryPath = $ingestSummaryPath
             PipelineSummaryPath  = $pipelineSummaryPath
             Status               = $hostStatus
             Errors               = $hostErrors.ToArray()
-        }
+        })
     }
 }
 

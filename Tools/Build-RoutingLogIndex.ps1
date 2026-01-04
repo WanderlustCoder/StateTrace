@@ -155,7 +155,7 @@ if ($UseLatestPointers.IsPresent -and $rootItem.PSIsContainer) {
 }
 
 # LANDMARK: Routing log index - scan known summary types and safely detect schema by keys
-$entries = @()
+$entries = [System.Collections.Generic.List[pscustomobject]]::new()
 foreach ($file in ($files | Sort-Object FullName -Unique)) {
     $payload = $null
     try {
@@ -163,7 +163,7 @@ foreach ($file in ($files | Sort-Object FullName -Unique)) {
     } catch {
         if ($IncludeUnknown.IsPresent) {
             $timestamp = Resolve-EntryTimestamp -Path $file.FullName -Payload $null
-            $entries += [pscustomobject]@{
+            $entries.Add([pscustomobject]@{
                 Type                = 'Unknown'
                 Timestamp           = $timestamp
                 Status              = 'InvalidJson'
@@ -175,7 +175,7 @@ foreach ($file in ($files | Sort-Object FullName -Unique)) {
                 HostsProcessedCount = $null
                 Path                = $file.FullName
                 SortTimestamp       = Get-SortTimestamp -Timestamp $timestamp
-            }
+            })
             continue
         }
         throw "Failed to parse JSON in '$($file.FullName)'."
@@ -185,7 +185,7 @@ foreach ($file in ($files | Sort-Object FullName -Unique)) {
     if (-not $summaryType) {
         if ($IncludeUnknown.IsPresent) {
             $timestamp = Resolve-EntryTimestamp -Path $file.FullName -Payload $payload
-            $entries += [pscustomobject]@{
+            $entries.Add([pscustomobject]@{
                 Type                = 'Unknown'
                 Timestamp           = $timestamp
                 Status              = Get-OptionalProperty -Object $payload -Name 'Status'
@@ -197,7 +197,7 @@ foreach ($file in ($files | Sort-Object FullName -Unique)) {
                 HostsProcessedCount = $null
                 Path                = $file.FullName
                 SortTimestamp       = Get-SortTimestamp -Timestamp $timestamp
-            }
+            })
             continue
         }
         throw "Unsupported routing summary schema in '$($file.FullName)'."
@@ -252,7 +252,7 @@ foreach ($file in ($files | Sort-Object FullName -Unique)) {
         }
     }
 
-    $entries += [pscustomobject]@{
+    $entries.Add([pscustomobject]@{
         Type                = $summaryType
         Timestamp           = $timestamp
         Status              = $status
@@ -264,7 +264,7 @@ foreach ($file in ($files | Sort-Object FullName -Unique)) {
         HostsProcessedCount = $hostCount
         Path                = $file.FullName
         SortTimestamp       = Get-SortTimestamp -Timestamp $timestamp
-    }
+    })
 }
 
 $entries = $entries | Sort-Object @{Expression = 'SortTimestamp'; Descending = $true}, @{Expression = 'Path'; Descending = $false}
