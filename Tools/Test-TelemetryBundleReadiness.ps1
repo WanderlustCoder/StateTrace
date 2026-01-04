@@ -11,6 +11,13 @@ param(
     [ValidateSet('SHA1', 'SHA256', 'SHA384', 'SHA512', 'MD5')]
     [string]$HashAlgorithm = 'SHA256',
 
+    # ST-M-002: Require hash manifest files (.hashes.json) alongside rollup CSVs
+    [switch]$RequireHashManifest,
+
+    # ST-M-002: Require queue and diversity summaries for Telemetry bundles
+    [switch]$RequireQueueSummary,
+    [switch]$RequireDiversitySummary,
+
     [string]$SummaryPath,
 
     [switch]$PassThru
@@ -26,11 +33,26 @@ artifacts (rollup CSVs, analyzer output, warm-run telemetry, queue summaries, di
 doc-sync evidence, etc.). Missing required artifacts cause the script to throw so CI/release
 pipelines can block until the bundle is complete.
 
+.PARAMETER RequireHashManifest
+ST-M-002: When specified, Telemetry bundles must contain at least one .hashes.json manifest file
+for input traceability. Fails the readiness check if no hash manifests are found.
+
+.PARAMETER RequireQueueSummary
+ST-M-002: When specified, Telemetry bundles must contain queue delay summary JSON. Converts the
+optional queue summary requirement to mandatory.
+
+.PARAMETER RequireDiversitySummary
+ST-M-002: When specified, Telemetry bundles must contain port diversity summary JSON. Converts
+the optional diversity summary requirement to mandatory.
+
 .EXAMPLE
 pwsh Tools\Test-TelemetryBundleReadiness.ps1 -BundlePath Logs/TelemetryBundles/2025-11-13.1 -Area Telemetry,Routing
 
 .EXAMPLE
 pwsh Tools\Test-TelemetryBundleReadiness.ps1 -BundlePath Logs/TelemetryBundles/Routing-20251113/Routing
+
+.EXAMPLE
+pwsh Tools\Test-TelemetryBundleReadiness.ps1 -BundlePath Logs/TelemetryBundles/2025-12-01 -Area Telemetry -RequireHashManifest -RequireQueueSummary
 #>
 
 Set-StrictMode -Version Latest
@@ -156,6 +178,8 @@ $requirements = @{
         @{ Name = 'Site cache providers'; Patterns = @('SiteCacheProviderReasons*.json'); Required = $true; Description = 'Site cache provider reason breakdown'; },
         @{ Name = 'Warm-run telemetry'; Patterns = @('WarmRunTelemetry*.json'); Required = $true; Description = 'Warm-run telemetry summary'; },
         @{ Name = 'Diff hotspot CSV'; Patterns = @('WarmRunDiffHotspots*.csv','DiffHotspots-*.csv'); Required = $true; Description = 'Diff hotspot export'; },
+        @{ Name = 'Port diversity summary'; Patterns = @('PortBatchSiteDiversity*.json','PortDiversity*.json'); Required = $false; WarnIfMissing = $true; Description = 'Port batch site diversity summary (diversity guard output)'; },
+        @{ Name = 'Queue delay summary'; Patterns = @('QueueDelaySummary*.json'); Required = $false; WarnIfMissing = $true; Description = 'Queue delay summary JSON'; },
         @{ Name = 'Doc-sync evidence'; Patterns = @('DocSync\DocSyncChecklist.json','DocSync\*.json','DocSync\*.md','*session*.md'); Required = $true; Description = 'Doc-sync checklist output (JSON or markdown)'; }
     );
     Routing = @(
@@ -217,6 +241,39 @@ foreach ($ctx in $contexts) {
             Status = $status
             Files = if ($relativeMatches) { $relativeMatches -join '; ' } else { '' }
         })
+    }
+
+    # ST-M-002: Parameter-driven requirement enforcement for Telemetry bundles
+    if ($ctx.Name -eq 'Telemetry') {
+        if ($RequireQueueSummary) {
+            $queueResult = $results | Where-Object { $_.Area -eq 'Telemetry' -and $_.Requirement -eq 'Queue delay summary' }
+            if ($queueResult -and $queueResult.Status -ne 'Present') {
+                $missingRequired = $true
+                Write-Warning "[$($ctx.Name)] Queue delay summary required by -RequireQueueSummary but not found."
+            }
+        }
+        if ($RequireDiversitySummary) {
+            $diversityResult = $results | Where-Object { $_.Area -eq 'Telemetry' -and $_.Requirement -eq 'Port diversity summary' }
+            if ($diversityResult -and $diversityResult.Status -ne 'Present') {
+                $missingRequired = $true
+                Write-Warning "[$($ctx.Name)] Port diversity summary required by -RequireDiversitySummary but not found."
+            }
+        }
+        if ($RequireHashManifest) {
+            $hashFiles = Get-MatchingFiles -AreaPath $ctx.Path -Patterns @('*.hashes.json')
+            if (-not $hashFiles -or @($hashFiles).Count -eq 0) {
+                $missingRequired = $true
+                Write-Warning "[$($ctx.Name)] Hash manifest required by -RequireHashManifest but no *.hashes.json files found."
+            } else {
+                $results.Add([pscustomobject]@{
+                    Area = $ctx.Name
+                    Requirement = 'Hash manifest'
+                    Description = 'Hash manifest files for input traceability (.hashes.json)'
+                    Status = 'Present'
+                    Files = (@($hashFiles) | ForEach-Object { Convert-ToRelativePath -BasePath $ctx.Path -FullPath $_.FullName }) -join '; '
+                })
+            }
+        }
     }
 }
 
