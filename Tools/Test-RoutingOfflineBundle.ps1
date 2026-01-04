@@ -184,8 +184,11 @@ try {
 
     $entryMap = @{}
     foreach ($entry in $zip.Entries) {
-        if ($entry.FullName.EndsWith('/')) { continue }
+        # Skip directory entries (can end with / or \ depending on how ZIP was created)
+        if ($entry.FullName.EndsWith('/') -or $entry.FullName.EndsWith('\')) { continue }
         $normalizedEntry = Normalize-RelativePath -Path $entry.FullName
+        # Also skip if normalized path ends with / (defensive check after normalization)
+        if ($normalizedEntry.EndsWith('/')) { continue }
         if (-not $entryMap.ContainsKey($normalizedEntry)) {
             $entryMap[$normalizedEntry] = $entry
         }

@@ -158,7 +158,8 @@ if (-not $validationFailed) {
             if ([string]::IsNullOrWhiteSpace($normalizedPath)) { continue }
             $destinationPath = Join-Path -Path $resolvedOutputRoot -ChildPath $normalizedPath
 
-            if ($entry.FullName.EndsWith('/')) {
+            # Skip directory entries (can end with / or \ depending on how ZIP was created)
+            if ($entry.FullName.EndsWith('/') -or $entry.FullName.EndsWith('\')) {
                 if (-not (Test-Path -LiteralPath $destinationPath)) {
                     New-Item -ItemType Directory -Path $destinationPath -Force | Out-Null
                     if ($createdDirectories.Add($destinationPath)) {
