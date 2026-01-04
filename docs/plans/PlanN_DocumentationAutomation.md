@@ -16,7 +16,7 @@ Keep plans, task board entries, runbooks, and session logs synchronized automati
 |----|-------|-------|--------|-------|
 | ST-N-001 | Task board sync helper | PMO | Done - 2026-01-04 | Created `Tools/Sync-TaskBoard.ps1` to update plan tables and TaskBoard.csv from JSON input or inline parameters. Supports `-WhatIf` for preview, auto-detects plan file from task ID, and reports all changes. |
 | ST-N-002 | Session log auto-stub | Automation | Done - 2026-01-04 | Created `Tools/New-SessionLogStub.ps1` to generate session log stubs with commands, artifact paths, and plan/task references. Added `-GenerateSessionLog`, `-TaskIds`, and `-PlanReferences` parameters to `Tools/Invoke-CIHarness.ps1`. Logs written to `docs/agents/sessions/<date>_session-XXXX.md`. |
-| ST-N-003 | Decision log hook | PMO | Backlog | Wire `docs/adr/` creation/update into the sync helper when module boundaries or gating rules change; include cross-links from plans. |
+| ST-N-003 | Decision log hook | PMO | Done - 2026-01-04 | Created `Tools\New-ArchitectureDecisionRecord.ps1` to generate ADRs with auto-numbering (0007, 0008...), category classification (ModuleBoundary, GatingRule, Security, Performance), plan cross-links, and task ID references. ADRs written to `docs/adr/` with consistent structure. |
 | ST-N-004 | Drift detector | QA | Done - 2026-01-04 | Created `Tools/Test-PlanTaskBoardDrift.ps1` to detect discrepancies: tasks missing from TaskBoard, tasks missing from plans, and status mismatches. Integrated into `Tools/Invoke-AllChecks.ps1` with `-SkipDriftDetector` and `-FailOnDrift` flags. Reports saved to `Logs/Reports/PlanTaskBoardDrift-*.json`. |
 
 ## Recently delivered
