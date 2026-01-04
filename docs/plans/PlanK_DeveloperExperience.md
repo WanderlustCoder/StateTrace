@@ -15,12 +15,13 @@ Deliver a repeatable, offline-friendly developer experience and minimal CI harne
 | ID | Title | Owner | Status | Notes |
 |----|-------|-------|--------|-------|
 | ST-K-001 | Add minimal offline CI harness | Automation | Done - 2026-01-04 | Created `Tools/Invoke-CIHarness.ps1` - single entrypoint that runs Pester smoke tests, pipeline, and warm-run telemetry. Emits artifacts under `Logs/CI/<RunId>/`, verifies required telemetry (queue summary, shared-cache, port batch), and optionally bundles results. Supports `-FailOnMissing`, 20-minute timeout, and PS 5.1/7 compatibility. |
-| ST-K-002 | Harden developer bootstrap | Platform | In Progress | Extend `Tools\Bootstrap-DevSeat.ps1` to validate execution policy, required modules, and presence of tracked fixture seeds; emit remediation steps and log under `docs/agents/sessions/`. |
+| ST-K-002 | Harden developer bootstrap | Platform | Done - 2026-01-04 | Extended `Tools\Bootstrap-DevSeat.ps1` with validation checks for execution policy (RemoteSigned/Unrestricted/Bypass), required modules (Pester >= 3.4.0), and tracked CISmoke fixtures. Added `-ValidateOnly` for check-only mode and `-SessionLogPath` for JSON session logging. Emits numbered remediation steps for any failures. |
 | ST-K-003 | Artifact hygiene & bundling | PMO | Done - 2026-01-04 | Created `Tools/Clean-ArtifactsAndBundle.ps1` to clean stale artifacts (>7 days) from Logs/ subdirectories and bundle CI results via `Publish-TelemetryBundle.ps1`. Supports `-WhatIf`, configurable retention, and outputs report to `Logs/CI/<RunId>/ArtifactHygiene.json`. |
 | ST-K-004 | Offline guardrails | Security | Done - 2026-01-04 | Added offline preflight to `Tools/Invoke-AllChecks.ps1` (new `-SkipOfflinePreflight` flag). Asserts `STATETRACE_AGENT_ALLOW_NET` and `STATETRACE_AGENT_ALLOW_INSTALL` are unset; if set, logs reason to `Logs/Verification/OfflinePreflightFail-<timestamp>.json` and exits with reset instructions. Policy documented in this plan and `docs/CODEX_RUNBOOK.md`. |
 | ST-K-005 | Code review findings remediation (batch 1) | Automation | Done - 2025-12-21 | Address high-severity items in `docs/notes/2025-12-21_code_review_findings.md`; findings 1-3, 4-6, 7-14, 15-33, 34-54, 55-63, 65-69, 70-76, 72, 77, 81-86, 88-98, and 99-100 done; 64 verified locked (schema warnings, DeviceDetails/Insights diagnostics, parser/filter/repo cleanup warnings, cache event caps, module import warnings, tooling JSON helper, streamed telemetry parsing, cache sync, AllInterfaces merge, view locks, bounded polling/timeouts, dialog suppression for exports with view/headless opt-in). |
 
 ## Recently delivered
+- ST-K-002: Extended Bootstrap-DevSeat.ps1 with validation for execution policy, modules, and fixtures; `-ValidateOnly` and `-SessionLogPath` parameters added.
 - Plan created to formalize developer experience and CI readiness.
 - 2025-12-24: Integrated autonomy booster docs (CI_Smoke, Developer_Setup, Repo_Map, Test_Strategy, Definition_of_Done, fixtures, troubleshooting, schema docs) and aligned telemetry/bundle schemas + artifact paths to current tooling outputs.
 
@@ -29,7 +30,7 @@ Deliver a repeatable, offline-friendly developer experience and minimal CI harne
 - Cold pass: `Tools\Invoke-StateTracePipeline.ps1 -SkipTests -VerboseParsing -ResetExtractedLogs -RunSharedCacheDiagnostics -FailOnTelemetryMissing -FailOnSchedulerFairness`.
 - Warm pass: `Tools\Invoke-WarmRunTelemetry.ps1 -GenerateDiffHotspotReport -DisablePreservedRunspacePool -OutputPath Logs/CI/<run>/WarmRunTelemetry.json` (guards on by default).
 - Bundle: `Tools\Publish-TelemetryBundle.ps1 -BundleName CI-<timestamp> -PlanReferences PlanK,PlanE,PlanG -TaskBoardIds ST-K-003,ST-E-00X,ST-G-00X -Notes "CI smoke artifacts"`.
-- Developer seat validation: `Tools\Bootstrap-DevSeat.ps1 -ValidateOnly` (proposed flag) to check prerequisites without mutating state.
+- Developer seat validation: `Tools\Bootstrap-DevSeat.ps1 -ValidateOnly` to check prerequisites without mutating state; `-SessionLogPath docs\agents\sessions\bootstrap-<timestamp>.json` for logging.
 
 ## Telemetry gates
 - CI smoke completes in <= 20 minutes on a fresh seat with tracked fixtures only.
