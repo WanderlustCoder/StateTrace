@@ -1,0 +1,6 @@
+Codes: C - connected, S - static, O - OSPF, B - BGP, L - local
+Gateway of last resort is not set
+C    10.10.0.0/24 is directly connected, Vlan10
+L    10.10.0.1/32 is directly connected, Vlan10
+O    10.20.0.0/24 [110/20] via 10.10.1.1, 00:00:12, Vlan10
+S    10.30.0.0/24 [1/0] via 10.10.2.1, Vlan20

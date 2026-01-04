@@ -1,0 +1,48 @@
+{
+  "SchemaVersion": "1.0",
+  "CapturedAt": "12/29/2025 00:00:00",
+  "Site": "WLLS",
+  "Hostname": "WLLS-A01-AS-02",
+  "Vrf": "default",
+  "Routes": [
+    {
+      "Prefix": "10.10.0.0",
+      "PrefixLength": 24,
+      "NextHop": "DIRECT",
+      "Protocol": "Connected",
+      "RouteRole": "Primary",
+      "RouteState": "Active",
+      "InterfaceName": "Ethernet1",
+      "AdminDistance": 0,
+      "Metric": 0,
+      "Tag": "CLI",
+      "AgeSeconds": 0
+    },
+    {
+      "Prefix": "10.20.0.0",
+      "PrefixLength": 24,
+      "NextHop": "192.0.2.2",
+      "Protocol": "OSPF",
+      "RouteRole": "Primary",
+      "RouteState": "Active",
+      "InterfaceName": "Ethernet2",
+      "AdminDistance": 110,
+      "Metric": 20,
+      "Tag": "CLI",
+      "AgeSeconds": 0
+    },
+    {
+      "Prefix": "0.0.0.0",
+      "PrefixLength": 0,
+      "NextHop": "192.0.2.254",
+      "Protocol": "Static",
+      "RouteRole": "Primary",
+      "RouteState": "Active",
+      "InterfaceName": "Ethernet2",
+      "AdminDistance": 1,
+      "Metric": 0,
+      "Tag": "CLI",
+      "AgeSeconds": 0
+    }
+  ]
+}

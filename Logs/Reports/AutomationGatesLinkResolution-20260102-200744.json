@@ -1,0 +1,207 @@
+[
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanA_RoutingReliability.md",
+    "ExtractedLinkTargets": null,
+    "ResolvedPaths": [],
+    "Exists": []
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanB_Performance.md",
+    "ExtractedLinkTargets": "../telemetry/Automation_Gates.md",
+    "ResolvedPaths": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\telemetry\\Automation_Gates.md"
+    ],
+    "Exists": [
+      true
+    ]
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanC_ChangeTracking.md",
+    "ExtractedLinkTargets": null,
+    "ResolvedPaths": [],
+    "Exists": []
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanD_FeatureExpansion.md",
+    "ExtractedLinkTargets": null,
+    "ResolvedPaths": [],
+    "Exists": []
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanD_PortReorg_12PortPaging.md",
+    "ExtractedLinkTargets": "../telemetry/Automation_Gates.md",
+    "ResolvedPaths": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\telemetry\\Automation_Gates.md"
+    ],
+    "Exists": [
+      true
+    ]
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanE_Telemetry.md",
+    "ExtractedLinkTargets": [
+      "../telemetry/Automation_Gates.md",
+      "../telemetry/Automation_Gates.md",
+      "../telemetry/Automation_Gates.md",
+      "../telemetry/Automation_Gates.md"
+    ],
+    "ResolvedPaths": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\telemetry\\Automation_Gates.md",
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\telemetry\\Automation_Gates.md",
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\telemetry\\Automation_Gates.md",
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\telemetry\\Automation_Gates.md"
+    ],
+    "Exists": [
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanF_SecurityIdentity.md",
+    "ExtractedLinkTargets": "../telemetry/Automation_Gates.md",
+    "ResolvedPaths": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\telemetry\\Automation_Gates.md"
+    ],
+    "Exists": [
+      true
+    ]
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanG_ReleaseGovernance.md",
+    "ExtractedLinkTargets": "../telemetry/Automation_Gates.md",
+    "ResolvedPaths": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\telemetry\\Automation_Gates.md"
+    ],
+    "Exists": [
+      true
+    ]
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanH_UserExperience.md",
+    "ExtractedLinkTargets": null,
+    "ResolvedPaths": [],
+    "Exists": []
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanI_HarnessStability.md",
+    "ExtractedLinkTargets": "../telemetry/Automation_Gates.md",
+    "ResolvedPaths": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\telemetry\\Automation_Gates.md"
+    ],
+    "Exists": [
+      true
+    ]
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanIndex.md",
+    "ExtractedLinkTargets": "../telemetry/Automation_Gates.md",
+    "ResolvedPaths": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\telemetry\\Automation_Gates.md"
+    ],
+    "Exists": [
+      true
+    ]
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanJ_TestFixtureReliability.md",
+    "ExtractedLinkTargets": "../telemetry/Automation_Gates.md",
+    "ResolvedPaths": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\telemetry\\Automation_Gates.md"
+    ],
+    "Exists": [
+      true
+    ]
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanK_DeveloperExperience.md",
+    "ExtractedLinkTargets": "../telemetry/Automation_Gates.md",
+    "ResolvedPaths": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\telemetry\\Automation_Gates.md"
+    ],
+    "Exists": [
+      true
+    ]
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanL_ModuleDecomposition.md",
+    "ExtractedLinkTargets": "../telemetry/Automation_Gates.md",
+    "ResolvedPaths": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\telemetry\\Automation_Gates.md"
+    ],
+    "Exists": [
+      true
+    ]
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanM_DataQuality.md",
+    "ExtractedLinkTargets": "../telemetry/Automation_Gates.md",
+    "ResolvedPaths": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\telemetry\\Automation_Gates.md"
+    ],
+    "Exists": [
+      true
+    ]
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanN_DocumentationAutomation.md",
+    "ExtractedLinkTargets": "../telemetry/Automation_Gates.md",
+    "ResolvedPaths": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\telemetry\\Automation_Gates.md"
+    ],
+    "Exists": [
+      true
+    ]
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanO_AccessibilityResponsiveness.md",
+    "ExtractedLinkTargets": "../telemetry/Automation_Gates.md",
+    "ResolvedPaths": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\telemetry\\Automation_Gates.md"
+    ],
+    "Exists": [
+      true
+    ]
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanP_PackagingDeployment.md",
+    "ExtractedLinkTargets": "../telemetry/Automation_Gates.md",
+    "ResolvedPaths": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\telemetry\\Automation_Gates.md"
+    ],
+    "Exists": [
+      true
+    ]
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanQ_SharedCacheStrategy.md",
+    "ExtractedLinkTargets": "../telemetry/Automation_Gates.md",
+    "ResolvedPaths": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\telemetry\\Automation_Gates.md"
+    ],
+    "Exists": [
+      true
+    ]
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanR_IncidentResponse.md",
+    "ExtractedLinkTargets": "../telemetry/Automation_Gates.md",
+    "ResolvedPaths": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\telemetry\\Automation_Gates.md"
+    ],
+    "Exists": [
+      true
+    ]
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanS_DeprecationCleanup.md",
+    "ExtractedLinkTargets": "../telemetry/Automation_Gates.md",
+    "ResolvedPaths": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\telemetry\\Automation_Gates.md"
+    ],
+    "Exists": [
+      true
+    ]
+  }
+]

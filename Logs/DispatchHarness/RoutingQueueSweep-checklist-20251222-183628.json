@@ -1,0 +1,142 @@
+[
+  {
+    "Hostname": "WLLS-A01-AS-21",
+    "LogPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\WLLS-A01-AS-21-20251222-183628.log",
+    "QueueDelayMs": 16.995,
+    "DurationMs": 22.996,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "BOYO-A05-AS-02",
+    "LogPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\BOYO-A05-AS-02-20251222-183628.log",
+    "QueueDelayMs": 18.625,
+    "DurationMs": 18.754,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "WLLS-A01-AS-01",
+    "LogPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\WLLS-A01-AS-01-20251222-183628.log",
+    "QueueDelayMs": 18.004,
+    "DurationMs": 21.853,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "BOYO-A05-AS-05",
+    "LogPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\BOYO-A05-AS-05-20251222-183628.log",
+    "QueueDelayMs": 19.399,
+    "DurationMs": 19.609,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "WLLS-A01-AS-11",
+    "LogPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\WLLS-A01-AS-11-20251222-183628.log",
+    "QueueDelayMs": 17.998,
+    "DurationMs": 22.671,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "BOYO-A05-AS-12",
+    "LogPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\BOYO-A05-AS-12-20251222-183628.log",
+    "QueueDelayMs": 20.0,
+    "DurationMs": 19.152,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "WLLS-A01-AS-31",
+    "LogPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\WLLS-A01-AS-31-20251222-183628.log",
+    "QueueDelayMs": 18.057,
+    "DurationMs": 21.723,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "BOYO-A05-AS-15",
+    "LogPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\BOYO-A05-AS-15-20251222-183628.log",
+    "QueueDelayMs": 18.931,
+    "DurationMs": 19.346,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "WLLS-A01-AS-41",
+    "LogPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\WLLS-A01-AS-41-20251222-183628.log",
+    "QueueDelayMs": 18.0,
+    "DurationMs": 22.483,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "BOYO-A05-AS-22",
+    "LogPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\BOYO-A05-AS-22-20251222-183628.log",
+    "QueueDelayMs": 19.0,
+    "DurationMs": 19.128,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "WLLS-A01-AS-51",
+    "LogPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\WLLS-A01-AS-51-20251222-183628.log",
+    "QueueDelayMs": 19.001,
+    "DurationMs": 22.77,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "BOYO-A05-AS-25",
+    "LogPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\BOYO-A05-AS-25-20251222-183628.log",
+    "QueueDelayMs": 18.982,
+    "DurationMs": 19.108,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "WLLS-A02-AS-02",
+    "LogPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\WLLS-A02-AS-02-20251222-183628.log",
+    "QueueDelayMs": 18.06,
+    "DurationMs": 22.039,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "BOYO-A05-AS-32",
+    "LogPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\BOYO-A05-AS-32-20251222-183628.log",
+    "QueueDelayMs": 20.07,
+    "DurationMs": 19.19,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "WLLS-A02-AS-12",
+    "LogPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\WLLS-A02-AS-12-20251222-183628.log",
+    "QueueDelayMs": 17.996,
+    "DurationMs": 22.484,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "BOYO-A05-AS-35",
+    "LogPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\BOYO-A05-AS-35-20251222-183628.log",
+    "QueueDelayMs": 18.001,
+    "DurationMs": 19.033,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "WLLS-A02-AS-22",
+    "LogPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\WLLS-A02-AS-22-20251222-183628.log",
+    "QueueDelayMs": 16.979,
+    "DurationMs": 22.616,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "BOYO-A05-AS-42",
+    "LogPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\BOYO-A05-AS-42-20251222-183628.log",
+    "QueueDelayMs": 18.999,
+    "DurationMs": 18.884,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "WLLS-A02-AS-42",
+    "LogPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\WLLS-A02-AS-42-20251222-183628.log",
+    "QueueDelayMs": 18.821,
+    "DurationMs": 21.965,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "BOYO-A05-AS-45",
+    "LogPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\BOYO-A05-AS-45-20251222-183628.log",
+    "QueueDelayMs": 19.002,
+    "DurationMs": 18.3,
+    "ExitCode": 0
+  }
+]

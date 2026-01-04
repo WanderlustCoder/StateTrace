@@ -97,11 +97,12 @@ function Convert-SnapshotToSummary {
     $summary
 }
 
-$summaryEntries = @()
+$summaryEntries = [System.Collections.Generic.List[object]]::new()
 
 if ($ext -eq '.json') {
     try {
-        $summaryEntries = Get-Content -LiteralPath $resolvedPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        $jsonData = Get-Content -LiteralPath $resolvedPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        foreach ($item in @($jsonData)) { [void]$summaryEntries.Add($item) }
     } catch {
         throw ("Failed to parse snapshot summary JSON '{0}': {1}" -f $resolvedPath, $_.Exception.Message)
     }
@@ -111,7 +112,8 @@ if ($ext -eq '.json') {
     } catch {
         throw ("Failed to import snapshot '{0}': {1}" -f $resolvedPath, $_.Exception.Message)
     }
-    $summaryEntries = Convert-SnapshotToSummary -Entries $rawEntries
+    $convertedEntries = Convert-SnapshotToSummary -Entries $rawEntries
+    foreach ($item in @($convertedEntries)) { [void]$summaryEntries.Add($item) }
 }
 
 $siteCount = @($summaryEntries).Count
@@ -147,11 +149,11 @@ $summary = [pscustomobject]@{
     MissingSites = $missingSites
 }
 
-$errors = @()
-if ($siteCount -lt $MinimumSiteCount) { $errors += "SiteCount {0} < minimum {1}" -f $siteCount, $MinimumSiteCount }
-if ($hostCount -lt $MinimumHostCount) { $errors += "HostCount {0} < minimum {1}" -f $hostCount, $MinimumHostCount }
-if ($rowCount -lt $MinimumTotalRowCount) { $errors += "TotalRows {0} < minimum {1}" -f $rowCount, $MinimumTotalRowCount }
-if ($missingSites -and $missingSites.Count -gt 0) { $errors += ("Missing required sites: {0}" -f ($missingSites -join ', ')) }
+$errors = [System.Collections.Generic.List[string]]::new()
+if ($siteCount -lt $MinimumSiteCount) { [void]$errors.Add(("SiteCount {0} < minimum {1}" -f $siteCount, $MinimumSiteCount)) }
+if ($hostCount -lt $MinimumHostCount) { [void]$errors.Add(("HostCount {0} < minimum {1}" -f $hostCount, $MinimumHostCount)) }
+if ($rowCount -lt $MinimumTotalRowCount) { [void]$errors.Add(("TotalRows {0} < minimum {1}" -f $rowCount, $MinimumTotalRowCount)) }
+if ($missingSites -and $missingSites.Count -gt 0) { [void]$errors.Add(("Missing required sites: {0}" -f ($missingSites -join ', '))) }
 
 if ($errors -and $errors.Count -gt 0) {
     $msg = $errors -join '; '

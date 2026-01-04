@@ -167,14 +167,14 @@ if ($headerColumns -notcontains 'ID') {
     $failureReasons += 'MissingIdColumn'
 }
 else {
-    $idValues = @()
+    $idValues = [System.Collections.Generic.List[string]]::new()
     foreach ($row in $rows) {
         $value = if ($null -ne $row.ID) { [string]$row.ID } else { '' }
         if ([string]::IsNullOrWhiteSpace($value)) {
             $emptyIdCount++
             continue
         }
-        $idValues += $value.Trim()
+        [void]$idValues.Add($value.Trim())
     }
 
     if ($emptyIdCount -gt 0) {

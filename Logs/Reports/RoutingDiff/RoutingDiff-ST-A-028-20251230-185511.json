@@ -1,0 +1,130 @@
+{
+  "SchemaVersion": "1.0",
+  "Status": "Pass",
+  "GeneratedAt": "2025-12-30T18:55:12.6643680-07:00",
+  "Old": {
+    "Path": "C:\\Users\\Werem\\Projects\\StateTrace\\Tests\\Fixtures\\Routing\\RouteDiff\\RouteHealthSnapshot.old.json",
+    "CapturedAt": "2025-12-30T08:00:00Z",
+    "Site": "WLLS",
+    "Hostname": "WLLS-A01-AS-01",
+    "Vrf": "default",
+    "PrimaryRouteStatus": "Up",
+    "SecondaryRouteStatus": "Standby",
+    "HealthState": "Healthy",
+    "HealthScore": 0.98,
+    "DetectionLatencyMs": 210
+  },
+  "New": {
+    "Path": "C:\\Users\\Werem\\Projects\\StateTrace\\Tests\\Fixtures\\Routing\\RouteDiff\\RouteHealthSnapshot.new.json",
+    "CapturedAt": "2025-12-30T09:00:00Z",
+    "Site": "WLLS",
+    "Hostname": "WLLS-A01-AS-01",
+    "Vrf": "default",
+    "PrimaryRouteStatus": "Up",
+    "SecondaryRouteStatus": "Up",
+    "HealthState": "Warning",
+    "HealthScore": 0.75,
+    "DetectionLatencyMs": 520
+  },
+  "Counts": {
+    "Added": 1,
+    "Removed": 1,
+    "ChangedRoutes": 1
+  },
+  "Changes": {
+    "Health": {
+      "PrimaryRouteStatus": {
+        "Old": "Up",
+        "New": "Up"
+      },
+      "SecondaryRouteStatus": {
+        "Old": "Standby",
+        "New": "Up"
+      },
+      "HealthState": {
+        "Old": "Healthy",
+        "New": "Warning"
+      },
+      "HealthScore": {
+        "Old": 0.98,
+        "New": 0.75
+      },
+      "DetectionLatencyMs": {
+        "Old": 210,
+        "New": 520
+      }
+    },
+    "AddedRouteRecordIds": [
+      "RR-NEW-001"
+    ],
+    "RemovedRouteRecordIds": [
+      "RR-OLD-001"
+    ],
+    "UnchangedCount": 2,
+    "ChangedRoutes": [
+      {
+        "Key": "default|10.0.2.0/24|Primary",
+        "FieldsChanged": [
+          "NextHop"
+        ],
+        "Old": {
+          "RecordId": "RR-SHARED-001",
+          "Vrf": "default",
+          "Prefix": "10.0.2.0",
+          "PrefixLength": 24,
+          "NextHop": "10.0.2.1",
+          "Protocol": "OSPF",
+          "RouteRole": "Primary",
+          "RouteState": "Active",
+          "InterfaceName": "Gi0/3",
+          "AdminDistance": 110,
+          "Metric": 5
+        },
+        "New": {
+          "RecordId": "RR-SHARED-001",
+          "Vrf": "default",
+          "Prefix": "10.0.2.0",
+          "PrefixLength": 24,
+          "NextHop": "10.0.2.254",
+          "Protocol": "OSPF",
+          "RouteRole": "Primary",
+          "RouteState": "Active",
+          "InterfaceName": "Gi0/3",
+          "AdminDistance": 110,
+          "Metric": 5
+        }
+      }
+    ],
+    "AddedRouteRecords": [
+      {
+        "RecordId": "RR-NEW-001",
+        "Vrf": "default",
+        "Prefix": "10.0.3.0",
+        "PrefixLength": 24,
+        "NextHop": "10.0.3.1",
+        "Protocol": "STATIC",
+        "RouteRole": "Primary",
+        "RouteState": "Active",
+        "InterfaceName": "Gi0/4",
+        "AdminDistance": 1,
+        "Metric": 0
+      }
+    ],
+    "RemovedRouteRecords": [
+      {
+        "RecordId": "RR-OLD-001",
+        "Vrf": "default",
+        "Prefix": "10.0.0.0",
+        "PrefixLength": 24,
+        "NextHop": "10.0.0.1",
+        "Protocol": "OSPF",
+        "RouteRole": "Primary",
+        "RouteState": "Active",
+        "InterfaceName": "Gi0/1",
+        "AdminDistance": 110,
+        "Metric": 10
+      }
+    ]
+  },
+  "Warnings": []
+}

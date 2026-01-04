@@ -1,0 +1,13 @@
+{
+  "Timestamp": "2025-12-29T11:41:08.7368423-07:00",
+  "Status": "Pass",
+  "Vendor": "CiscoIOSXE",
+  "CapturePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Tests\\Fixtures\\Routing\\CliCapture\\CiscoIOSXE\\Capture.json",
+  "OutputPath": "Logs/Reports/RoutingDiscoveryCapture-ST-A-013-20251229-114108.json",
+  "RoutesParsedCount": 4,
+  "LinesParsedCount": 7,
+  "LinesSkippedCount": 3,
+  "Errors": [],
+  "SchemaVersion": "1.0",
+  "DiscoverySchema": "1.0"
+}

@@ -1,0 +1,36 @@
+﻿{
+    "GeneratedAtUtc":  "2026-01-04T14:55:56.2119387Z",
+    "SourceTelemetryPath":  "C:\\Users\\Werem\\AppData\\Local\\Temp\\b7900ad3-a43e-401d-a2c5-7e788fb0029c\\metrics-missing-report.json",
+    "Pass":  true,
+    "Result":  "Pass",
+    "Thresholds":  {
+                       "MinimumEventCount":  10,
+                       "MaximumQueueDelayP95Ms":  120,
+                       "MaximumQueueDelayP99Ms":  200
+                   },
+    "Statistics":  {
+                       "SampleCount":  10,
+                       "QueueBuildDelayMs":  {
+                                                 "Name":  "QueueBuildDelayMs",
+                                                 "Count":  10,
+                                                 "Average":  10,
+                                                 "Min":  10,
+                                                 "Max":  10,
+                                                 "P50":  10,
+                                                 "P95":  10,
+                                                 "P99":  10,
+                                                 "SampleCount":  10
+                                             },
+                       "QueueBuildDurationMs":  {
+                                                    "Name":  "QueueBuildDurationMs",
+                                                    "Count":  10,
+                                                    "Average":  20,
+                                                    "Min":  20,
+                                                    "Max":  20,
+                                                    "P50":  20,
+                                                    "P95":  20,
+                                                    "P99":  20,
+                                                    "SampleCount":  10
+                                                }
+                   }
+}

@@ -1,0 +1,23 @@
+{
+  "SchemaVersion": "1.0",
+  "BundleZipPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingBundles\\RoutingBundle-Diff-ST-A-031-20251231-083930.zip",
+  "WorkspaceRoot": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingBundles\\Review\\BundleReview-ST-A-035-20251231-110108",
+  "Timestamp": "20251231-110117",
+  "Status": "Pass",
+  "Validated": true,
+  "ValidationOutputPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingBundles\\Review\\BundleReview-ST-A-035-20251231-110108\\Outputs\\RoutingBundleValidation-20251231-110117.json",
+  "ExpandedRoot": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingBundles\\Review\\BundleReview-ST-A-035-20251231-110108\\Expanded",
+  "ExpandSummaryPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingBundles\\Review\\BundleReview-ST-A-035-20251231-110108\\Outputs\\RoutingBundleExpandedSummary-20251231-110117.json",
+  "ManifestPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingBundles\\Review\\BundleReview-ST-A-035-20251231-110108\\Expanded\\BundleManifest.json",
+  "ManifestSummaryPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingDiff\\RoutingDiff-ST-A-031-20251231-083930.json",
+  "PrimarySummaryRelativePath": "Logs\\Reports\\RoutingDiff\\RoutingDiff-ST-A-031-20251231-083930.json",
+  "PrimarySummaryExtractedPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingBundles\\Review\\BundleReview-ST-A-035-20251231-110108\\Expanded\\Logs\\Reports\\RoutingDiff\\RoutingDiff-ST-A-031-20251231-083930.json",
+  "IndexBuilt": false,
+  "IndexOutputPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingBundles\\Review\\BundleReview-ST-A-035-20251231-110108\\Outputs\\RoutingLogIndex-20251231-110117.json",
+  "Rendered": true,
+  "RenderFormat": "Markdown",
+  "RenderOutputPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingBundles\\Review\\BundleReview-ST-A-035-20251231-110108\\Outputs\\RoutingBundlePrimarySummary-20251231-110117.md",
+  "Warnings": [
+    "Routing log index build failed: The property 'Count' cannot be found on this object. Verify that the property exists."
+  ]
+}

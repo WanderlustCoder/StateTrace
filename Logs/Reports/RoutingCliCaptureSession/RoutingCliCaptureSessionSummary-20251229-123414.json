@@ -1,0 +1,32 @@
+{
+  "Timestamp": "2025-12-29T12:34:14.3285913-07:00",
+  "Status": "Fail",
+  "SessionPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Tests\\Fixtures\\Routing\\CliCaptureSession\\CiscoIOSXE\\Session.json",
+  "OutputRoot": "Logs/Reports/RoutingCliCaptureSession",
+  "Mode": "Online",
+  "AllowNetworkCaptureSwitch": true,
+  "EnvironmentAllowNetworkCapture": true,
+  "NetworkCaptureAllowed": true,
+  "SshUserProvided": true,
+  "Site": "WLLS",
+  "Vendor": "CiscoIOSXE",
+  "Vrf": "default",
+  "HostsProcessedCount": 1,
+  "HostSummaries": [
+    {
+      "Hostname": "WLLS-A01-AS-01",
+      "OutputDirectory": "Logs\\Reports\\RoutingCliCaptureSession\\WLLS\\WLLS-A01-AS-01\\20251229-123414",
+      "CaptureJsonPath": "Logs\\Reports\\RoutingCliCaptureSession\\WLLS\\WLLS-A01-AS-01\\20251229-123414\\Capture.json",
+      "ArtifactPaths": [],
+      "Status": "Fail",
+      "Errors": [
+        "TranscriptCaptureFailed: host=WLLS-A01-AS-01 artifact=show_ip_route error=A Using variable cannot be retrieved. A Using variable can be used only with Invoke-Command, Start-Job, or InlineScript in the script workflow. When it is used with Invoke-Command, the Using variable is valid only if the script block is invoked on a remote computer."
+      ]
+    }
+  ],
+  "Errors": [
+    "TranscriptCaptureFailed: host=WLLS-A01-AS-01 artifact=show_ip_route error=A Using variable cannot be retrieved. A Using variable can be used only with Invoke-Command, Start-Job, or InlineScript in the script workflow. When it is used with Invoke-Command, the Using variable is valid only if the script block is invoked on a remote computer."
+  ],
+  "SchemaVersion": "1.0",
+  "CaptureSchema": "1.0"
+}

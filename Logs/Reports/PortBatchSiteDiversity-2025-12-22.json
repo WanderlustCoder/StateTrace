@@ -1,0 +1,18 @@
+{
+  "MetricsFile": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\Run-20251222-210344\\2025-12-22.json",
+  "GeneratedAtUtc": "2025-12-23T04:04:03.1656947Z",
+  "MaxAllowedConsecutive": 8,
+  "EvaluationEnd": "2025-12-23T04:03:50.7573281Z",
+  "TerminalSite": "WLLS",
+  "SitesRemainingWhenStopped": 1,
+  "PortBatchReadyCount": 24,
+  "EvaluatedPortBatchReadyCount": 24,
+  "UsedSynthesizedEvents": false,
+  "SiteStreaks": {
+    "Site": "WLLS",
+    "MaxCount": 1,
+    "StartTime": "2025-12-23T04:03:50.7573281Z",
+    "EndTime": "2025-12-23T04:03:50.7573281Z",
+    "HostSample": "WLLS-A01-AS-11"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "Timestamp": "2025-12-29T14:20:05.8910305-07:00",
+  "Status": "Pass",
+  "SessionPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Tests\\Fixtures\\Routing\\CliCaptureSession\\CiscoIOSXE\\Session.json",
+  "OutputRoot": "Logs\\Reports\\RoutingValidationRun\\Run-20251229-150100\\CaptureSession",
+  "Mode": "Online",
+  "AllowNetworkCaptureSwitch": true,
+  "EnvironmentAllowNetworkCapture": true,
+  "NetworkCaptureAllowed": true,
+  "SshUserProvided": true,
+  "Site": "WLLS",
+  "Vendor": "CiscoIOSXE",
+  "Vrf": "default",
+  "HostsProcessedCount": 1,
+  "HostSummaries": [
+    {
+      "Hostname": "WLLS-A01-AS-01",
+      "OutputDirectory": "Logs\\Reports\\RoutingValidationRun\\Run-20251229-150100\\CaptureSession\\WLLS\\WLLS-A01-AS-01\\20251229-150100",
+      "CaptureJsonPath": "Logs\\Reports\\RoutingValidationRun\\Run-20251229-150100\\CaptureSession\\WLLS\\WLLS-A01-AS-01\\20251229-150100\\Capture.json",
+      "ArtifactPaths": [
+        "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingValidationRun\\Run-20251229-150100\\CaptureSession\\WLLS\\WLLS-A01-AS-01\\20251229-150100\\WLLS-A01-AS-01_show_ip_route.txt"
+      ],
+      "Status": "Pass",
+      "Errors": []
+    }
+  ],
+  "Errors": [],
+  "SchemaVersion": "1.0",
+  "CaptureSchema": "1.0"
+}

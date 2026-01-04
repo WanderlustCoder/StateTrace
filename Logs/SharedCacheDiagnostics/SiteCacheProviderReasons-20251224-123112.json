@@ -1,0 +1,253 @@
+[
+  {
+    "pageHeaderEntry": null,
+    "pageFooterEntry": null,
+    "autosizeInfo": {
+      "objectCount": 0,
+      "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "a27f094f0eec4d64845801a4c06a32ae"
+    },
+    "shapeInfo": {
+      "hideHeader": false,
+      "repeatHeader": false,
+      "tableColumnInfoList": [
+        {
+          "width": 0,
+          "alignment": 1,
+          "label": null,
+          "propertyName": "Site",
+          "HeaderMatchesProperty": true,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "7572aa4155ec4558817a615acf7dd92e"
+        },
+        {
+          "width": 0,
+          "alignment": 3,
+          "label": null,
+          "propertyName": "Total",
+          "HeaderMatchesProperty": true,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "7572aa4155ec4558817a615acf7dd92e"
+        },
+        {
+          "width": 0,
+          "alignment": 3,
+          "label": null,
+          "propertyName": "AccessRefresh",
+          "HeaderMatchesProperty": true,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "7572aa4155ec4558817a615acf7dd92e"
+        },
+        {
+          "width": 0,
+          "alignment": 3,
+          "label": null,
+          "propertyName": "AccessCacheHit",
+          "HeaderMatchesProperty": true,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "7572aa4155ec4558817a615acf7dd92e"
+        },
+        {
+          "width": 0,
+          "alignment": 3,
+          "label": null,
+          "propertyName": "SharedCacheMatch",
+          "HeaderMatchesProperty": true,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "7572aa4155ec4558817a615acf7dd92e"
+        },
+        {
+          "width": 0,
+          "alignment": 3,
+          "label": null,
+          "propertyName": "SkipSiteCacheUpdate",
+          "HeaderMatchesProperty": true,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "7572aa4155ec4558817a615acf7dd92e"
+        },
+        {
+          "width": 0,
+          "alignment": 3,
+          "label": null,
+          "propertyName": "Unknown",
+          "HeaderMatchesProperty": true,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "7572aa4155ec4558817a615acf7dd92e"
+        }
+      ],
+      "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "e3b7a39c089845d388b2e84c5d38f5dd"
+    },
+    "groupingEntry": null,
+    "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "033ecb2bc07a4d43b5ef94ed5a35d280"
+  },
+  {
+    "shapeInfo": null,
+    "groupingEntry": null,
+    "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "9e210fe47d09416682b841769c78b8a3"
+  },
+  {
+    "formatEntryInfo": {
+      "formatPropertyFieldList": [
+        {
+          "propertyValue": "BOYO",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "108",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "5",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "0",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "98",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "0",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "0",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        }
+      ],
+      "multiLine": false,
+      "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "0e59526e2dd441aa91e7fc952caf4a36"
+    },
+    "outOfBand": false,
+    "writeStream": 0,
+    "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "27c87ef9bbda4f709f6b4002fa4af63c"
+  },
+  {
+    "formatEntryInfo": {
+      "formatPropertyFieldList": [
+        {
+          "propertyValue": "SW1",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "9",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "0",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "0",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "0",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "3",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "0",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        }
+      ],
+      "multiLine": false,
+      "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "0e59526e2dd441aa91e7fc952caf4a36"
+    },
+    "outOfBand": false,
+    "writeStream": 0,
+    "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "27c87ef9bbda4f709f6b4002fa4af63c"
+  },
+  {
+    "formatEntryInfo": {
+      "formatPropertyFieldList": [
+        {
+          "propertyValue": "WLLS",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "255",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "5",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "12",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "218",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "15",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "0",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        }
+      ],
+      "multiLine": false,
+      "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "0e59526e2dd441aa91e7fc952caf4a36"
+    },
+    "outOfBand": false,
+    "writeStream": 0,
+    "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "27c87ef9bbda4f709f6b4002fa4af63c"
+  },
+  {
+    "groupingEntry": null,
+    "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "4ec4f0187cb04f4cb6973460dfe252df"
+  },
+  {
+    "groupingEntry": null,
+    "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "cf522b78d86c486691226b40aa69e95c"
+  },
+  {
+    "Site": "BOYO",
+    "Total": 108,
+    "AccessRefresh": 5,
+    "AccessCacheHit": 0,
+    "SharedCacheMatch": 98,
+    "SkipSiteCacheUpdate": 0,
+    "Unknown": 0
+  },
+  {
+    "Site": "SW1",
+    "Total": 9,
+    "AccessRefresh": 0,
+    "AccessCacheHit": 0,
+    "SharedCacheMatch": 0,
+    "SkipSiteCacheUpdate": 3,
+    "Unknown": 0
+  },
+  {
+    "Site": "WLLS",
+    "Total": 255,
+    "AccessRefresh": 5,
+    "AccessCacheHit": 12,
+    "SharedCacheMatch": 218,
+    "SkipSiteCacheUpdate": 15,
+    "Unknown": 0
+  }
+]

@@ -1,0 +1,36 @@
+{
+  "GeneratedAtUtc": "2025-12-26T21:49:28.7382011Z",
+  "MetricsPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\2025-12-26.json",
+  "QueueSummary": {
+    "Path": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\QueueDelaySummary-smoke-20251226-144928.json",
+    "Generated": true,
+    "SampleCount": 240,
+    "Pass": true,
+    "Result": "Pass"
+  },
+  "PortDiversity": {
+    "Path": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\PortBatchSiteDiversity-smoke-20251226-144928.json",
+    "MaxStreak": null,
+    "UsedSynthesizedEvents": false,
+    "Pass": false,
+    "Error": "Site 'BOYO' exceeded the max consecutive threshold (found 15, limit 8)."
+  },
+  "History": {
+    "QueueDelayHistoryPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\QueueDelayHistory.csv",
+    "PortBatchHistoryPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\PortBatchHistory.csv",
+    "InterfaceSyncHistoryPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\InterfaceSyncHistory.csv",
+    "ParserSchedulerHistoryPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\ParserSchedulerHistory.csv",
+    "QueueDelayAppended": 0,
+    "PortBatchAppended": 1,
+    "InterfaceSyncAppended": 1,
+    "ParserSchedulerAppended": 0
+  },
+  "SharedCacheDiagnostics": {
+    "StoreStatePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\SharedCacheDiagnostics\\SharedCacheStoreState-smoke-20251226-144928.json",
+    "ProviderReasonsPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\SharedCacheDiagnostics\\SiteCacheProviderReasons-smoke-20251226-144928.json"
+  },
+  "Passed": false,
+  "Failures": [
+    "PortBatchDiversity: Site 'BOYO' exceeded the max consecutive threshold (found 15, limit 8)."
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "Timestamp": "2025-12-28T16:29:44.4915598-07:00",
+  "Status": "Pass",
+  "RouteRecordsPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Tests\\Fixtures\\Routing\\RouteRecords.sample.json",
+  "RouteHealthSnapshotPath": "Logs/Reports/RouteHealthSnapshot-ST-A-011-20251228-162943.json",
+  "GroupKey": "WLLS|WLLS-A01-AS-01|default",
+  "RouteRecordCount": 2,
+  "PrimaryRecordCount": 1,
+  "SecondaryRecordCount": 1,
+  "PrimaryRouteStatus": "Up",
+  "SecondaryRouteStatus": "Standby",
+  "HealthState": "Healthy",
+  "Errors": [],
+  "SchemaVersion": "1.0",
+  "RouteRecordSchemaVersion": "1.0"
+}

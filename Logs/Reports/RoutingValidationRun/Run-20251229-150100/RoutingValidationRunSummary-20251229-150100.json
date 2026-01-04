@@ -1,0 +1,31 @@
+{
+  "Timestamp": "2025-12-29T14:20:06.1581865-07:00",
+  "Status": "Pass",
+  "Mode": "Online",
+  "SessionPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Tests\\Fixtures\\Routing\\CliCaptureSession\\CiscoIOSXE\\Session.json",
+  "RunFolder": "Logs\\Reports\\RoutingValidationRun\\Run-20251229-150100",
+  "Vendor": "CiscoIOSXE",
+  "Site": "WLLS",
+  "Vrf": "default",
+  "AllowNetworkCaptureSwitch": true,
+  "EnvironmentAllowNetworkCapture": true,
+  "NetworkCaptureAllowed": true,
+  "PreflightSummaryPath": "Logs\\Reports\\RoutingValidationRun\\Run-20251229-150100\\PreflightSummary.json",
+  "CaptureSessionSummaryPath": "Logs\\Reports\\RoutingValidationRun\\Run-20251229-150100\\CaptureSession\\RoutingCliCaptureSessionSummary-20251229-150100.json",
+  "HostsProcessedCount": 1,
+  "HostsSucceededCount": 1,
+  "HostsFailedCount": 0,
+  "MaxHosts": null,
+  "MaxHostsApplied": null,
+  "HostSummaries": [
+    {
+      "Hostname": "WLLS-A01-AS-01",
+      "CaptureJsonPath": "Logs\\Reports\\RoutingValidationRun\\Run-20251229-150100\\CaptureSession\\WLLS\\WLLS-A01-AS-01\\20251229-150100\\Capture.json",
+      "IngestionSummaryPath": "Logs\\Reports\\RoutingValidationRun\\Run-20251229-150100\\Ingestion\\WLLS-A01-AS-01\\RoutingCliIngestionSummary-20251229-150100.json",
+      "PipelineSummaryPath": "Logs\\Reports\\RoutingValidationRun\\Run-20251229-150100\\Pipeline\\WLLS-A01-AS-01\\RoutingDiscoveryPipelineSummary-20251229-150100.json",
+      "Status": "Pass",
+      "Errors": []
+    }
+  ],
+  "Errors": []
+}

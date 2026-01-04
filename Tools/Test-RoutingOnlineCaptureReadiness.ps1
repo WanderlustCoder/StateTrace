@@ -119,11 +119,11 @@ if (-not (Test-Path -LiteralPath $SessionPath)) {
 }
 
 $requiredFields = @('SchemaVersion','CapturedAt','Site','Vendor','Vrf','Hosts')
-$missingFields = @()
+$missingFields = [System.Collections.Generic.List[string]]::new()
 if ($session) {
     foreach ($field in $requiredFields) {
         if ($null -eq (Get-PropertyValue -Object $session -Name $field)) {
-            $missingFields += $field
+            [void]$missingFields.Add($field)
         }
     }
 }

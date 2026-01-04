@@ -1,0 +1,29 @@
+{
+  "GeneratedAtUtc": "2026-01-03T16:54:27.6629167Z",
+  "SummaryPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\SharedCacheSnapshot\\SharedCacheSnapshot-latest-summary.json",
+  "Evaluation": {
+    "Pass": true,
+    "Messages": [],
+    "Entries": [
+      {
+        "Site": "BOYO",
+        "Hosts": 12,
+        "TotalRows": 120,
+        "CachedAt": null
+      }
+    ],
+    "Violations": [],
+    "Statistics": {
+      "SiteCount": 1,
+      "TotalHostCount": 12,
+      "TotalRowCount": 120
+    },
+    "RequiredSitesMissing": [],
+    "Thresholds": {
+      "MinimumSiteCount": 1,
+      "MinimumHostCount": 1,
+      "MinimumTotalRowCount": 1,
+      "RequiredSites": null
+    }
+  }
+}

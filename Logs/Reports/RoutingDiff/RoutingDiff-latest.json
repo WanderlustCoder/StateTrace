@@ -1,0 +1,71 @@
+﻿{
+    "SchemaVersion":  "1.0",
+    "Status":  "Pass",
+    "GeneratedAt":  "2026-01-04T10:13:11.8125425-07:00",
+    "Old":  {
+                "Path":  "C:\\Users\\Werem\\Projects\\StateTrace\\Tests\\Fixtures\\Routing\\RouteDiff\\RouteHealthSnapshot.old.json",
+                "CapturedAt":  "2025-12-30T08:00:00Z",
+                "Site":  "WLLS",
+                "Hostname":  "WLLS-A01-AS-01",
+                "Vrf":  "default",
+                "PrimaryRouteStatus":  "Up",
+                "SecondaryRouteStatus":  "Standby",
+                "HealthState":  "Healthy",
+                "HealthScore":  0.98,
+                "DetectionLatencyMs":  210
+            },
+    "New":  {
+                "Path":  "C:\\Users\\Werem\\Projects\\StateTrace\\Tests\\Fixtures\\Routing\\RouteDiff\\RouteHealthSnapshot.new.json",
+                "CapturedAt":  "2025-12-30T09:00:00Z",
+                "Site":  "WLLS",
+                "Hostname":  "WLLS-A01-AS-01",
+                "Vrf":  "default",
+                "PrimaryRouteStatus":  "Up",
+                "SecondaryRouteStatus":  "Up",
+                "HealthState":  "Warning",
+                "HealthScore":  0.75,
+                "DetectionLatencyMs":  520
+            },
+    "Counts":  {
+                   "Added":  1,
+                   "Removed":  1,
+                   "ChangedRoutes":  0
+               },
+    "Changes":  {
+                    "Health":  {
+                                   "PrimaryRouteStatus":  {
+                                                              "Old":  "Up",
+                                                              "New":  "Up"
+                                                          },
+                                   "SecondaryRouteStatus":  {
+                                                                "Old":  "Standby",
+                                                                "New":  "Up"
+                                                            },
+                                   "HealthState":  {
+                                                       "Old":  "Healthy",
+                                                       "New":  "Warning"
+                                                   },
+                                   "HealthScore":  {
+                                                       "Old":  0.98,
+                                                       "New":  0.75
+                                                   },
+                                   "DetectionLatencyMs":  {
+                                                              "Old":  210,
+                                                              "New":  520
+                                                          }
+                               },
+                    "AddedRouteRecordIds":  [
+                                                "RR-NEW-001"
+                                            ],
+                    "RemovedRouteRecordIds":  [
+                                                  "RR-OLD-001"
+                                              ],
+                    "UnchangedCount":  2,
+                    "ChangedRoutes":  [
+
+                                      ]
+                },
+    "Warnings":  [
+
+                 ]
+}

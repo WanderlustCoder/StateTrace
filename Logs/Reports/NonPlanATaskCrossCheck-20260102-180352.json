@@ -1,0 +1,29 @@
+{
+  "GeneratedAt": "20260102-180352",
+  "ReferencedNonPlanAIdsNotInTaskBoard": null,
+  "NonPlanAPendingIdsInTaskBoard": [
+    "ST-B-004",
+    "ST-B-006",
+    "ST-B-007",
+    "ST-D-005",
+    "ST-D-006",
+    "ST-D-007",
+    "ST-D-008",
+    "ST-D-009",
+    "ST-D-011",
+    "ST-E-001",
+    "ST-E-004",
+    "ST-E-005",
+    "ST-E-006",
+    "ST-F-001",
+    "ST-F-002",
+    "ST-F-004",
+    "ST-F-005",
+    "ST-F-006",
+    "ST-G-005",
+    "ST-H-002",
+    "ST-H-003"
+  ],
+  "MissingFromTaskBoardCount": 0,
+  "NonPlanAPendingCount": 21
+}

@@ -1,0 +1,471 @@
+[
+  {
+    "pageHeaderEntry": null,
+    "pageFooterEntry": null,
+    "autosizeInfo": {
+      "objectCount": 0,
+      "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "a27f094f0eec4d64845801a4c06a32ae"
+    },
+    "shapeInfo": {
+      "hideHeader": false,
+      "repeatHeader": false,
+      "tableColumnInfoList": [
+        {
+          "width": 0,
+          "alignment": 1,
+          "label": null,
+          "propertyName": "File",
+          "HeaderMatchesProperty": true,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "7572aa4155ec4558817a615acf7dd92e"
+        },
+        {
+          "width": 0,
+          "alignment": 3,
+          "label": null,
+          "propertyName": "SnapshotImported",
+          "HeaderMatchesProperty": true,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "7572aa4155ec4558817a615acf7dd92e"
+        },
+        {
+          "width": 0,
+          "alignment": 3,
+          "label": null,
+          "propertyName": "InitDelegatedStore",
+          "HeaderMatchesProperty": true,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "7572aa4155ec4558817a615acf7dd92e"
+        },
+        {
+          "width": 0,
+          "alignment": 3,
+          "label": null,
+          "propertyName": "InitNewStore",
+          "HeaderMatchesProperty": true,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "7572aa4155ec4558817a615acf7dd92e"
+        },
+        {
+          "width": 0,
+          "alignment": 3,
+          "label": null,
+          "propertyName": "InitAdoptedStore",
+          "HeaderMatchesProperty": true,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "7572aa4155ec4558817a615acf7dd92e"
+        },
+        {
+          "width": 0,
+          "alignment": 3,
+          "label": null,
+          "propertyName": "InitReuseStore",
+          "HeaderMatchesProperty": true,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "7572aa4155ec4558817a615acf7dd92e"
+        },
+        {
+          "width": 0,
+          "alignment": 3,
+          "label": null,
+          "propertyName": "GetMiss",
+          "HeaderMatchesProperty": true,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "7572aa4155ec4558817a615acf7dd92e"
+        },
+        {
+          "width": 0,
+          "alignment": 3,
+          "label": null,
+          "propertyName": "GetHit",
+          "HeaderMatchesProperty": true,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "7572aa4155ec4558817a615acf7dd92e"
+        },
+        {
+          "width": 0,
+          "alignment": 3,
+          "label": null,
+          "propertyName": "Set",
+          "HeaderMatchesProperty": true,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "7572aa4155ec4558817a615acf7dd92e"
+        },
+        {
+          "width": 0,
+          "alignment": 3,
+          "label": null,
+          "propertyName": "Remove",
+          "HeaderMatchesProperty": true,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "7572aa4155ec4558817a615acf7dd92e"
+        }
+      ],
+      "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "e3b7a39c089845d388b2e84c5d38f5dd"
+    },
+    "groupingEntry": null,
+    "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "033ecb2bc07a4d43b5ef94ed5a35d280"
+  },
+  {
+    "shapeInfo": null,
+    "groupingEntry": null,
+    "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "9e210fe47d09416682b841769c78b8a3"
+  },
+  {
+    "formatEntryInfo": {
+      "formatPropertyFieldList": [
+        {
+          "propertyValue": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\2025-12-26.json",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "24",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "538",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "0",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "0",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "0",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "1282",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "2130",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "1860",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "23",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        }
+      ],
+      "multiLine": false,
+      "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "0e59526e2dd441aa91e7fc952caf4a36"
+    },
+    "outOfBand": false,
+    "writeStream": 0,
+    "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "27c87ef9bbda4f709f6b4002fa4af63c"
+  },
+  {
+    "groupingEntry": null,
+    "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "4ec4f0187cb04f4cb6973460dfe252df"
+  },
+  {
+    "groupingEntry": null,
+    "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "cf522b78d86c486691226b40aa69e95c"
+  },
+  {
+    "pageHeaderEntry": null,
+    "pageFooterEntry": null,
+    "autosizeInfo": {
+      "objectCount": 0,
+      "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "a27f094f0eec4d64845801a4c06a32ae"
+    },
+    "shapeInfo": {
+      "hideHeader": false,
+      "repeatHeader": false,
+      "tableColumnInfoList": [
+        {
+          "width": 0,
+          "alignment": 1,
+          "label": null,
+          "propertyName": "Site",
+          "HeaderMatchesProperty": true,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "7572aa4155ec4558817a615acf7dd92e"
+        },
+        {
+          "width": 0,
+          "alignment": 3,
+          "label": null,
+          "propertyName": "Total",
+          "HeaderMatchesProperty": true,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "7572aa4155ec4558817a615acf7dd92e"
+        },
+        {
+          "width": 0,
+          "alignment": 3,
+          "label": null,
+          "propertyName": "Set",
+          "HeaderMatchesProperty": true,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "7572aa4155ec4558817a615acf7dd92e"
+        },
+        {
+          "width": 0,
+          "alignment": 3,
+          "label": null,
+          "propertyName": "GetHit",
+          "HeaderMatchesProperty": true,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "7572aa4155ec4558817a615acf7dd92e"
+        },
+        {
+          "width": 0,
+          "alignment": 3,
+          "label": null,
+          "propertyName": "GetMiss",
+          "HeaderMatchesProperty": true,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "7572aa4155ec4558817a615acf7dd92e"
+        },
+        {
+          "width": 0,
+          "alignment": 3,
+          "label": null,
+          "propertyName": "Remove",
+          "HeaderMatchesProperty": true,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "7572aa4155ec4558817a615acf7dd92e"
+        },
+        {
+          "width": 0,
+          "alignment": 3,
+          "label": null,
+          "propertyName": "Other",
+          "HeaderMatchesProperty": true,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "7572aa4155ec4558817a615acf7dd92e"
+        }
+      ],
+      "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "e3b7a39c089845d388b2e84c5d38f5dd"
+    },
+    "groupingEntry": null,
+    "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "033ecb2bc07a4d43b5ef94ed5a35d280"
+  },
+  {
+    "shapeInfo": null,
+    "groupingEntry": null,
+    "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "9e210fe47d09416682b841769c78b8a3"
+  },
+  {
+    "formatEntryInfo": {
+      "formatPropertyFieldList": [
+        {
+          "propertyValue": "WLLS",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "3428",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "1156",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "1326",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "923",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "23",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "0",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        }
+      ],
+      "multiLine": false,
+      "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "0e59526e2dd441aa91e7fc952caf4a36"
+    },
+    "outOfBand": false,
+    "writeStream": 0,
+    "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "27c87ef9bbda4f709f6b4002fa4af63c"
+  },
+  {
+    "formatEntryInfo": {
+      "formatPropertyFieldList": [
+        {
+          "propertyValue": "BOYO",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "1499",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "612",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "804",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "83",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "0",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "0",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        }
+      ],
+      "multiLine": false,
+      "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "0e59526e2dd441aa91e7fc952caf4a36"
+    },
+    "outOfBand": false,
+    "writeStream": 0,
+    "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "27c87ef9bbda4f709f6b4002fa4af63c"
+  },
+  {
+    "formatEntryInfo": {
+      "formatPropertyFieldList": [
+        {
+          "propertyValue": "SW1",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "368",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "92",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "0",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "276",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "0",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        },
+        {
+          "propertyValue": "0",
+          "alignment": 0,
+          "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "78b102e894f742aca8c1d6737b6ff86a"
+        }
+      ],
+      "multiLine": false,
+      "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "0e59526e2dd441aa91e7fc952caf4a36"
+    },
+    "outOfBand": false,
+    "writeStream": 0,
+    "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "27c87ef9bbda4f709f6b4002fa4af63c"
+  },
+  {
+    "groupingEntry": null,
+    "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "4ec4f0187cb04f4cb6973460dfe252df"
+  },
+  {
+    "groupingEntry": null,
+    "ClassId2e4f51ef21dd47e99d3c952918aff9cd": "cf522b78d86c486691226b40aa69e95c"
+  },
+  {
+    "File": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\2025-12-26.json",
+    "SnapshotImported": 24,
+    "InitDelegatedStore": 538,
+    "InitNewStore": 0,
+    "InitAdoptedStore": 0,
+    "InitReuseStore": 0,
+    "ClearRequested": 0,
+    "Cleared": 0,
+    "GetMiss": 1282,
+    "GetHit": 2130,
+    "Set": 1860,
+    "Remove": 23,
+    "OtherOperations": 0,
+    "FirstTimestamp": "2025-12-26T08:05:03.8078959-07:00",
+    "LastTimestamp": "2025-12-26T15:03:09.6114684-07:00",
+    "StartTimeUtc": null,
+    "EndTimeUtc": null,
+    "TopSites": [
+      {
+        "Site": "WLLS",
+        "Total": 3428,
+        "Set": 1156,
+        "GetHit": 1326,
+        "GetMiss": 923,
+        "Remove": 23,
+        "Other": 0
+      },
+      {
+        "Site": "BOYO",
+        "Total": 1499,
+        "Set": 612,
+        "GetHit": 804,
+        "GetMiss": 83,
+        "Remove": 0,
+        "Other": 0
+      },
+      {
+        "Site": "SW1",
+        "Total": 368,
+        "Set": 92,
+        "GetHit": 0,
+        "GetMiss": 276,
+        "Remove": 0,
+        "Other": 0
+      }
+    ],
+    "SiteOperations": {
+      "SW1": {
+        "GetMiss": 276,
+        "Total": 368,
+        "Remove": 0,
+        "Set": 92,
+        "Other": 0,
+        "GetHit": 0
+      },
+      "BOYO": {
+        "GetMiss": 83,
+        "Total": 1499,
+        "Remove": 0,
+        "Set": 612,
+        "Other": 0,
+        "GetHit": 804
+      },
+      "WLLS": {
+        "GetMiss": 923,
+        "Total": 3428,
+        "Remove": 23,
+        "Set": 1156,
+        "Other": 0,
+        "GetHit": 1326
+      }
+    }
+  }
+]

@@ -1,0 +1,21 @@
+﻿{
+    "GeneratedAtUtc":  "\/Date(1766429184780)\/",
+    "Timestamp":  "20251222-114552",
+    "Status":  "Fail",
+    "TranscriptPath":  "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Verification\\StateTraceVerification-20251222-114552.log",
+    "SummaryPath":  "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Verification\\VerificationSummary-20251222-114552.json",
+    "Parameters":  {
+                       "RequireSharedCacheSnapshotGuard":  true,
+                       "RequireTelemetryIntegrity":  true,
+                       "SharedCacheMinimumTotalRowCount":  1,
+                       "PassThru":  true,
+                       "SharedCacheMinimumHostCount":  1,
+                       "VerboseParsing":  true,
+                       "SharedCacheRequiredSites":  [
+                                                        "BOYO",
+                                                        "WLLS"
+                                                    ],
+                       "SharedCacheMinimumSiteCount":  1
+                   },
+    "ErrorMessage":  "Pester reported 15 failing tests."
+}

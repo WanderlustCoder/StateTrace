@@ -1,0 +1,39 @@
+﻿{
+    "SchemaVersion":  "1.0",
+    "GeneratedAt":  "2026-01-04T10:13:17.2198045-07:00",
+    "RootPath":  "C:\\Users\\Werem\\AppData\\Local\\Temp\\4d737129-9b7e-4576-87c6-cb17dc577804\\latest",
+    "Counts":  {
+                   "Total":  2,
+                   "ValidationRuns":  1,
+                   "Pipelines":  1,
+                   "EvidenceRecords":  0,
+                   "Diffs":  0,
+                   "Unknown":  0
+               },
+    "Entries":  [
+                    {
+                        "Type":  "RoutingDiscoveryPipelineSummary",
+                        "Timestamp":  "2025-12-29T12:00:00.0000000",
+                        "Status":  "Pass",
+                        "Mode":  "Offline",
+                        "Site":  "WLLS",
+                        "Vendor":  null,
+                        "Vrf":  "default",
+                        "Hostname":  "WLLS-A01-AS-01",
+                        "HostsProcessedCount":  1,
+                        "Path":  "C:\\Users\\Werem\\AppData\\Local\\Temp\\4d737129-9b7e-4576-87c6-cb17dc577804\\latest\\RoutingDiscoveryPipelineSummary-20251229-120000.json"
+                    },
+                    {
+                        "Type":  "RoutingValidationRunSummary",
+                        "Timestamp":  "2025-12-29T12:00:00.0000000",
+                        "Status":  "Pass",
+                        "Mode":  "Online",
+                        "Site":  "WLLS",
+                        "Vendor":  "CiscoIOSXE",
+                        "Vrf":  "default",
+                        "Hostname":  "WLLS-A01-AS-01",
+                        "HostsProcessedCount":  1,
+                        "Path":  "C:\\Users\\Werem\\AppData\\Local\\Temp\\4d737129-9b7e-4576-87c6-cb17dc577804\\latest\\RoutingValidationRunSummary-20251229-120000.json"
+                    }
+                ]
+}

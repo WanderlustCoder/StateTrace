@@ -1,0 +1,33 @@
+{
+  "TaskBoardCsvPath": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\taskboard\\TaskBoard.csv",
+  "Passed": false,
+  "RowCount": 53,
+  "MinimumRowCount": 10,
+  "RequiredColumns": [
+    "ID",
+    "Title",
+    "Column",
+    "OwnerRole",
+    "Deliverable",
+    "PlanLink",
+    "Notes"
+  ],
+  "MissingColumns": [],
+  "EmptyIdCount": 0,
+  "DuplicateIds": [],
+  "FailureReasons": [
+    "LargeDeletionDetected"
+  ],
+  "Git": {
+    "Available": true,
+    "Used": true,
+    "HasDiff": true,
+    "Added": 51,
+    "Deleted": 40,
+    "HeadRowCount": null,
+    "DeletedFromHead": null,
+    "MaxDeletedRows": 20,
+    "AllowLargeEdits": false,
+    "RelativePath": "docs\\taskboard\\TaskBoard.csv"
+  }
+}

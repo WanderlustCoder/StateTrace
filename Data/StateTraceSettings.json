@@ -1,0 +1,16 @@
+{
+    "DebugOnNextLaunch":  true,
+    "ParserSettings":  {
+                           "AutoScaleConcurrency":  true,
+                           "MaxRunspaceCeiling":  0,
+                           "MaxWorkersPerSite":  0,
+                           "MaxActiveSites":  0,
+                           "MinRunspaceCount":  1,
+                           "JobsPerThread":  0,
+                           "EnableAdaptiveThreads":  true,
+                           "SkipSiteCacheUpdate":  false
+                       }
+}
+
+
+

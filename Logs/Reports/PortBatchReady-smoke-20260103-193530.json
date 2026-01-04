@@ -1,0 +1,57 @@
+{
+  "GeneratedAtUtc": "2026-01-04T02:35:30.7232400Z",
+  "FilesAnalyzed": "C:\\Users\\Werem\\AppData\\Local\\Temp\\fea8905d-90bc-4c1a-bcae-3969bb3fd9a4\\metrics-missing-report.json",
+  "PortBatchSummary": {
+    "EventCount": 1,
+    "UniqueHosts": 1,
+    "TotalPorts": 5,
+    "AveragePortsBatch": 5.0,
+    "AverageChunkSize": 5.0,
+    "DurationSeconds": null,
+    "PortsPerMinute": null,
+    "BatchIntervalMs": {
+      "Name": "BatchIntervalMs",
+      "Count": 0,
+      "Average": null,
+      "Min": null,
+      "Max": null,
+      "P50": null,
+      "P95": null,
+      "P99": null
+    }
+  },
+  "InterfaceSyncSummary": {
+    "UiClone": {
+      "Name": "UiCloneDurationMs",
+      "Count": 0,
+      "Average": null,
+      "Min": null,
+      "Max": null,
+      "P50": null,
+      "P95": null,
+      "P99": null
+    },
+    "StreamDispatch": {
+      "Name": "StreamDispatchDurationMs",
+      "Count": 0,
+      "Average": null,
+      "Min": null,
+      "Max": null,
+      "P50": null,
+      "P95": null,
+      "P99": null
+    },
+    "DiffDuration": {
+      "Name": "DiffDurationMs",
+      "Count": 0,
+      "Average": null,
+      "Min": null,
+      "Max": null,
+      "P50": null,
+      "P95": null,
+      "P99": null
+    },
+    "SampleCount": 0
+  },
+  "HostBreakdown": null
+}

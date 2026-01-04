@@ -1,0 +1,38 @@
+{
+  "Timestamp": "2025-12-29T11:06:55.9466152-07:00",
+  "Status": "Pass",
+  "Mode": "Offline",
+  "CapturePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Tests\\Fixtures\\Routing\\RoutingDiscoveryCapture.sample.json",
+  "CaptureMetadata": {
+    "SchemaVersion": "1.0",
+    "CapturedAt": "2025-12-27T18:15:00Z",
+    "Site": "WLLS",
+    "Hostname": "WLLS-A01-AS-21",
+    "Vrf": "default"
+  },
+  "ArtifactPaths": {
+    "PipelineSummaryPath": "Logs\\Reports\\RoutingDiscoveryPipeline\\RoutingDiscoveryPipelineSummary-20251229-110655.json",
+    "PipelineSummaryLatestPath": "Logs\\Reports\\RoutingDiscoveryPipeline\\RoutingDiscoveryPipelineSummary-latest.json",
+    "RouteRecordsPath": "Logs\\Reports\\RoutingDiscoveryPipeline\\RouteRecords-20251229-110655.json",
+    "RouteRecordsSummaryPath": "Logs\\Reports\\RoutingDiscoveryPipeline\\RoutingDiscoveryConversion-20251229-110655.json",
+    "RouteHealthSnapshotPath": "Logs\\Reports\\RoutingDiscoveryPipeline\\RouteHealthSnapshot-20251229-110655.json",
+    "RouteHealthSnapshotSummary": "Logs\\Reports\\RoutingDiscoveryPipeline\\RouteHealthSnapshotSummary-20251229-110655.json",
+    "SchemaValidationRouteRecordsPath": "Logs\\Reports\\RoutingDiscoveryPipeline\\RoutingSchemas-RouteRecords-20251229-110655.json",
+    "SchemaValidationSnapshotPath": "Logs\\Reports\\RoutingDiscoveryPipeline\\RoutingSchemas-RouteHealthSnapshot-20251229-110655.json"
+  },
+  "ValidationResults": {
+    "RouteRecords": {
+      "Status": "Pass",
+      "SummaryPath": "Logs\\Reports\\RoutingDiscoveryPipeline\\RoutingSchemas-RouteRecords-20251229-110655.json",
+      "RouteRecordPath": "Logs\\Reports\\RoutingDiscoveryPipeline\\RouteRecords-20251229-110655.json",
+      "RouteHealthSnapshotPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Tests\\Fixtures\\Routing\\RouteHealthSnapshot.sample.json"
+    },
+    "RouteHealthSnapshot": {
+      "Status": "Pass",
+      "SummaryPath": "Logs\\Reports\\RoutingDiscoveryPipeline\\RoutingSchemas-RouteHealthSnapshot-20251229-110655.json",
+      "RouteRecordPath": "Logs\\Reports\\RoutingDiscoveryPipeline\\RouteRecords-20251229-110655.json",
+      "RouteHealthSnapshotPath": "Logs\\Reports\\RoutingDiscoveryPipeline\\RouteHealthSnapshot-20251229-110655.json"
+    }
+  },
+  "Errors": []
+}

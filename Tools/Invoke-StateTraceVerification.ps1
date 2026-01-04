@@ -399,14 +399,14 @@ if (-not $SkipWarmRunRegression.IsPresent -and -not $skipWarmRunForRawDiversity)
     $pipelineParameters['WarmRunRegressionOutputPath'] = $targetPath
 }
 
-$argumentPreview = @()
+$argumentPreview = [System.Collections.Generic.List[string]]::new()
 foreach ($entry in $pipelineParameters.GetEnumerator()) {
     if ($entry.Value -is [bool]) {
         if ($entry.Value) {
-            $argumentPreview += ("-{0}" -f $entry.Key)
+            [void]$argumentPreview.Add(("-{0}" -f $entry.Key))
         }
     } else {
-        $argumentPreview += ("-{0}={1}" -f $entry.Key, $entry.Value)
+        [void]$argumentPreview.Add(("-{0}={1}" -f $entry.Key, $entry.Value))
     }
 }
 

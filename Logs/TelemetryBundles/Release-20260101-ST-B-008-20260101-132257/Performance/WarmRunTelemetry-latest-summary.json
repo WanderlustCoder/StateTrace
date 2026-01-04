@@ -1,0 +1,26 @@
+{
+  "GeneratedAtUtc": "2025-12-26T20:02:18.0481638Z",
+  "ColdInterfaceCallAvgMs": 199.932,
+  "ColdInterfaceCallP95Ms": 518.966,
+  "ColdInterfaceCallMaxMs": 1053.48,
+  "WarmInterfaceCallAvgMs": 107.57,
+  "WarmInterfaceCallP95Ms": 140.904,
+  "WarmInterfaceCallMaxMs": 143.78,
+  "ImprovementAverageMs": 92.362,
+  "ImprovementPercent": 46.2,
+  "WarmCacheProviderHitCount": 37,
+  "WarmCacheProviderMissCount": 0,
+  "WarmCacheHitRatioPercent": 100.0,
+  "WarmSignatureMatchMissCount": 0,
+  "WarmSignatureRewriteTotal": 0,
+  "WarmProviderCounts": {
+    "SharedCache": 37
+  },
+  "ColdProviderCounts": {
+    "Cache": 2,
+    "ADODB": 2,
+    "Refreshed": 2,
+    "SharedCache": 33
+  },
+  "TelemetryPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\WarmRunTelemetry-20251226-125927.json"
+}

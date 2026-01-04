@@ -1,0 +1,77 @@
+﻿{
+    "GeneratedAtUtc":  "2025-12-22T04:26:18.2921572Z",
+    "FilesAnalyzed":  "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\2025-12-21.json",
+    "TotalLaunchEvents":  37,
+    "UniqueSites":  2,
+    "DurationSeconds":  16.4948735,
+    "MaxObservedStreak":  1,
+    "MaxAllowedStreak":  8,
+    "SiteSummaries":  [
+                          {
+                              "Site":  "WLLS",
+                              "LaunchCount":  25,
+                              "MaxConsecutive":  1,
+                              "MaxConsecutiveStart":  "\/Date(1766377564196)\/",
+                              "MaxConsecutiveEnd":  "\/Date(1766377564196)\/"
+                          },
+                          {
+                              "Site":  "BOYO",
+                              "LaunchCount":  12,
+                              "MaxConsecutive":  1,
+                              "MaxConsecutiveStart":  "\/Date(1766377560959)\/",
+                              "MaxConsecutiveEnd":  "\/Date(1766377560959)\/"
+                          }
+                      ],
+    "Violations":  [
+
+                   ],
+    "ViolationCount":  0,
+    "Pass":  true,
+    "Metrics":  {
+                    "ActiveSites":  {
+                                        "Name":  "ActiveSites",
+                                        "Count":  37,
+                                        "Min":  1,
+                                        "Average":  1,
+                                        "P50":  1,
+                                        "P95":  1,
+                                        "Max":  1
+                                    },
+                    "QueuedJobs":  {
+                                       "Name":  "QueuedJobs",
+                                       "Count":  37,
+                                       "Min":  0,
+                                       "Average":  18,
+                                       "P50":  18,
+                                       "P95":  34.2,
+                                       "Max":  36
+                                   },
+                    "QueuedSites":  {
+                                        "Name":  "QueuedSites",
+                                        "Count":  37,
+                                        "Min":  0,
+                                        "Average":  1.568,
+                                        "P50":  2,
+                                        "P95":  2,
+                                        "Max":  2
+                                    },
+                    "ActiveWorkers":  {
+                                          "Name":  "ActiveWorkers",
+                                          "Count":  37,
+                                          "Min":  1,
+                                          "Average":  1,
+                                          "P50":  1,
+                                          "P95":  1,
+                                          "Max":  1
+                                      },
+                    "ThreadBudget":  {
+                                         "Name":  "ThreadBudget",
+                                         "Count":  37,
+                                         "Min":  1,
+                                         "Average":  1,
+                                         "P50":  1,
+                                         "P95":  1,
+                                         "Max":  1
+                                     }
+                }
+}

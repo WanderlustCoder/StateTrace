@@ -1,0 +1,38 @@
+{
+  "Timestamp": "2025-12-29T11:41:19.8372233-07:00",
+  "Status": "Pass",
+  "Mode": "Offline",
+  "CapturePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingDiscoveryCapture-ST-A-013-20251229-114108.json",
+  "CaptureMetadata": {
+    "SchemaVersion": "1.0",
+    "CapturedAt": "12/29/2025 12:00:00",
+    "Site": "WLLS",
+    "Hostname": "WLLS-A01-AS-21",
+    "Vrf": "default"
+  },
+  "ArtifactPaths": {
+    "PipelineSummaryPath": "Logs\\Reports\\RoutingDiscoveryPipeline\\CliIngest-ST-A-013\\RoutingDiscoveryPipelineSummary-20251229-114119.json",
+    "PipelineSummaryLatestPath": "Logs\\Reports\\RoutingDiscoveryPipeline\\CliIngest-ST-A-013\\RoutingDiscoveryPipelineSummary-latest.json",
+    "RouteRecordsPath": "Logs\\Reports\\RoutingDiscoveryPipeline\\CliIngest-ST-A-013\\RouteRecords-20251229-114119.json",
+    "RouteRecordsSummaryPath": "Logs\\Reports\\RoutingDiscoveryPipeline\\CliIngest-ST-A-013\\RoutingDiscoveryConversion-20251229-114119.json",
+    "RouteHealthSnapshotPath": "Logs\\Reports\\RoutingDiscoveryPipeline\\CliIngest-ST-A-013\\RouteHealthSnapshot-20251229-114119.json",
+    "RouteHealthSnapshotSummary": "Logs\\Reports\\RoutingDiscoveryPipeline\\CliIngest-ST-A-013\\RouteHealthSnapshotSummary-20251229-114119.json",
+    "SchemaValidationRouteRecordsPath": "Logs\\Reports\\RoutingDiscoveryPipeline\\CliIngest-ST-A-013\\RoutingSchemas-RouteRecords-20251229-114119.json",
+    "SchemaValidationSnapshotPath": "Logs\\Reports\\RoutingDiscoveryPipeline\\CliIngest-ST-A-013\\RoutingSchemas-RouteHealthSnapshot-20251229-114119.json"
+  },
+  "ValidationResults": {
+    "RouteRecords": {
+      "Status": "Pass",
+      "SummaryPath": "Logs\\Reports\\RoutingDiscoveryPipeline\\CliIngest-ST-A-013\\RoutingSchemas-RouteRecords-20251229-114119.json",
+      "RouteRecordPath": "Logs\\Reports\\RoutingDiscoveryPipeline\\CliIngest-ST-A-013\\RouteRecords-20251229-114119.json",
+      "RouteHealthSnapshotPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Tests\\Fixtures\\Routing\\RouteHealthSnapshot.sample.json"
+    },
+    "RouteHealthSnapshot": {
+      "Status": "Pass",
+      "SummaryPath": "Logs\\Reports\\RoutingDiscoveryPipeline\\CliIngest-ST-A-013\\RoutingSchemas-RouteHealthSnapshot-20251229-114119.json",
+      "RouteRecordPath": "Logs\\Reports\\RoutingDiscoveryPipeline\\CliIngest-ST-A-013\\RouteRecords-20251229-114119.json",
+      "RouteHealthSnapshotPath": "Logs\\Reports\\RoutingDiscoveryPipeline\\CliIngest-ST-A-013\\RouteHealthSnapshot-20251229-114119.json"
+    }
+  },
+  "Errors": []
+}

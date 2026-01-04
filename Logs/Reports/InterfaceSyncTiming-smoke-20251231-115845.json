@@ -1,0 +1,49 @@
+{
+  "GeneratedAtUtc": "2025-12-31T18:58:45.9132169Z",
+  "FilesAnalyzed": "C:\\Users\\Werem\\AppData\\Local\\Temp\\8d2e9167-a346-4e21-b285-32984b53e14e\\metrics-missing-report.json",
+  "EventCount": 0,
+  "GlobalStats": {
+    "UiClone": {
+      "Name": "UiCloneDurationMs",
+      "Count": 0,
+      "Average": null,
+      "Min": null,
+      "Max": null,
+      "P50": null,
+      "P95": null,
+      "P99": null
+    },
+    "StreamDispatch": {
+      "Name": "StreamDispatchDurationMs",
+      "Count": 0,
+      "Average": null,
+      "Min": null,
+      "Max": null,
+      "P50": null,
+      "P95": null,
+      "P99": null
+    },
+    "DiffDuration": {
+      "Name": "DiffDurationMs",
+      "Count": 0,
+      "Average": null,
+      "Min": null,
+      "Max": null,
+      "P50": null,
+      "P95": null,
+      "P99": null
+    },
+    "SiteCacheUpdate": {
+      "Name": "SiteCacheUpdateDurationMs",
+      "Count": 0,
+      "Average": null,
+      "Min": null,
+      "Max": null,
+      "P50": null,
+      "P95": null,
+      "P99": null
+    }
+  },
+  "SiteBreakdown": [],
+  "HostBreakdownTop": []
+}

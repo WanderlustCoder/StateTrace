@@ -1,0 +1,61 @@
+{
+  "SchemaVersion": "1.0",
+  "CapturedAt": "12/29/2025 12:00:00",
+  "Site": "WLLS",
+  "Hostname": "WLLS-A01-AS-21",
+  "Vrf": "default",
+  "Routes": [
+    {
+      "Prefix": "10.10.0.0",
+      "PrefixLength": 24,
+      "NextHop": "DIRECT",
+      "Protocol": "Connected",
+      "RouteRole": "Primary",
+      "RouteState": "Active",
+      "InterfaceName": "Vlan10",
+      "AdminDistance": 0,
+      "Metric": 0,
+      "Tag": "CLI",
+      "AgeSeconds": 0
+    },
+    {
+      "Prefix": "10.10.0.1",
+      "PrefixLength": 32,
+      "NextHop": "DIRECT",
+      "Protocol": "Local",
+      "RouteRole": "Primary",
+      "RouteState": "Active",
+      "InterfaceName": "Vlan10",
+      "AdminDistance": 0,
+      "Metric": 0,
+      "Tag": "CLI",
+      "AgeSeconds": 0
+    },
+    {
+      "Prefix": "10.20.0.0",
+      "PrefixLength": 24,
+      "NextHop": "10.10.1.1",
+      "Protocol": "OSPF",
+      "RouteRole": "Primary",
+      "RouteState": "Active",
+      "InterfaceName": "Vlan10",
+      "AdminDistance": 110,
+      "Metric": 20,
+      "Tag": "CLI",
+      "AgeSeconds": 12
+    },
+    {
+      "Prefix": "10.30.0.0",
+      "PrefixLength": 24,
+      "NextHop": "10.10.2.1",
+      "Protocol": "Static",
+      "RouteRole": "Primary",
+      "RouteState": "Active",
+      "InterfaceName": "Vlan20",
+      "AdminDistance": 1,
+      "Metric": 0,
+      "Tag": "CLI",
+      "AgeSeconds": 0
+    }
+  ]
+}

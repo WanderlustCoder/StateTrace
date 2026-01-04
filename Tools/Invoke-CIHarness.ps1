@@ -4,6 +4,8 @@ param(
 
     [switch]$SkipPester,
 
+    [switch]$SkipDecomposition,
+
     [switch]$SkipPipeline,
 
     [switch]$SkipWarmRun,
@@ -26,9 +28,10 @@ Minimal offline CI harness for StateTrace (ST-K-001).
 .DESCRIPTION
 Single entrypoint that runs:
 1. Pester smoke tests (Modules/Tests -Tag Smoke)
-2. Pipeline on minimal fixture set
-3. Warm-run telemetry with diff hotspot report
-4. Bundle artifacts via Publish-TelemetryBundle
+2. Decomposition/MicroBench tests (Modules/Tests -Tag Decomposition)
+3. Pipeline on minimal fixture set
+4. Warm-run telemetry with diff hotspot report
+5. Bundle artifacts via Publish-TelemetryBundle
 
 Emits all artifacts under Logs/CI/<RunId>/ and fails if required
 telemetry (queue summary, diversity, shared-cache diagnostics) is missing.
@@ -40,6 +43,9 @@ CI run identifier. Defaults to CI-<timestamp>.
 
 .PARAMETER SkipPester
 Skip Pester smoke tests.
+
+.PARAMETER SkipDecomposition
+Skip Decomposition/MicroBench tests (parser persistence, diff layer gates).
 
 .PARAMETER SkipPipeline
 Skip pipeline execution.
@@ -196,6 +202,49 @@ if (Test-Timeout) {
     $result.Message = 'CI run exceeded timeout after Pester phase'
     Write-Warning $result.Message
 } else {
+
+    # Phase 1.5: Decomposition/MicroBench Tests (ST-L-005)
+    if (-not $SkipDecomposition.IsPresent) {
+        $phaseStart = Get-Date
+        $decompositionLog = Join-Path -Path $runOutputDir -ChildPath 'Decomposition.log'
+
+        try {
+            Write-Host "  Running Decomposition/MicroBench tests..." -ForegroundColor DarkCyan
+
+            $pesterArgs = @{
+                Script = Join-Path -Path $repositoryRoot -ChildPath 'Modules\Tests'
+                Tag = 'Decomposition'
+                PassThru = $true
+            }
+
+            # Capture output to log
+            $pesterResult = Invoke-Pester @pesterArgs 2>&1 | Tee-Object -FilePath $decompositionLog
+
+            $decompositionDuration = ((Get-Date) - $phaseStart).TotalSeconds
+            $passed = ($pesterResult | Where-Object { $_ -is [Pester.OutputTypes.TestResult] -and $_.Passed }).Count
+            $failed = ($pesterResult | Where-Object { $_ -is [Pester.OutputTypes.TestResult] -and -not $_.Passed }).Count
+
+            if ($failed -eq 0) {
+                Add-PhaseResult -Name 'Decomposition Tests' -Status 'Pass' -DurationSeconds $decompositionDuration `
+                    -Message "All tests passed" -Artifacts @($decompositionLog)
+            } else {
+                Add-PhaseResult -Name 'Decomposition Tests' -Status 'Fail' -DurationSeconds $decompositionDuration `
+                    -Message "$failed test(s) failed" -Artifacts @($decompositionLog)
+            }
+        } catch {
+            $decompositionDuration = ((Get-Date) - $phaseStart).TotalSeconds
+            Add-PhaseResult -Name 'Decomposition Tests' -Status 'Fail' -DurationSeconds $decompositionDuration `
+                -Message $_.Exception.Message -Artifacts @($decompositionLog)
+        }
+    } else {
+        Add-PhaseResult -Name 'Decomposition Tests' -Status 'Skip' -DurationSeconds 0 -Message 'Skipped by parameter'
+    }
+
+    if (Test-Timeout) {
+        $result.OverallStatus = 'Timeout'
+        $result.Message = 'CI run exceeded timeout after Decomposition phase'
+        Write-Warning $result.Message
+    } else {
 
     # Phase 2: Pipeline
     if (-not $SkipPipeline.IsPresent) {

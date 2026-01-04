@@ -1,0 +1,75 @@
+{
+  "GeneratedAtUtc": "2026-01-01T23:26:53.4361929Z",
+  "FilesAnalyzed": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\2026-01-01.json",
+  "TotalLaunchEvents": 74,
+  "UniqueSites": 2,
+  "DurationSeconds": 131.4522719,
+  "MaxObservedStreak": 2.0,
+  "MaxAllowedStreak": 8,
+  "SiteSummaries": [
+    {
+      "Site": "WLLS",
+      "LaunchCount": 50,
+      "MaxConsecutive": 1,
+      "MaxConsecutiveStart": "2026-01-01T16:22:12.7966533-07:00",
+      "MaxConsecutiveEnd": "2026-01-01T16:22:12.7966533-07:00"
+    },
+    {
+      "Site": "BOYO",
+      "LaunchCount": 24,
+      "MaxConsecutive": 2,
+      "MaxConsecutiveStart": "2026-01-01T16:22:13.301504-07:00",
+      "MaxConsecutiveEnd": "2026-01-01T16:22:13.4105753-07:00"
+    }
+  ],
+  "Violations": [],
+  "ViolationCount": 0,
+  "Pass": true,
+  "Metrics": {
+    "ActiveWorkers": {
+      "Name": "ActiveWorkers",
+      "Count": 74,
+      "Min": 1.0,
+      "Average": 4.622,
+      "P50": 4.0,
+      "P95": 7.35,
+      "Max": 8.0
+    },
+    "ThreadBudget": {
+      "Name": "ThreadBudget",
+      "Count": 74,
+      "Min": 4.0,
+      "Average": 6.905,
+      "P50": 8.0,
+      "P95": 8.0,
+      "Max": 8.0
+    },
+    "QueuedJobs": {
+      "Name": "QueuedJobs",
+      "Count": 74,
+      "Min": 0.0,
+      "Average": 18.0,
+      "P50": 18.0,
+      "P95": 34.35,
+      "Max": 36.0
+    },
+    "ActiveSites": {
+      "Name": "ActiveSites",
+      "Count": 74,
+      "Min": 1.0,
+      "Average": 1.581,
+      "P50": 2.0,
+      "P95": 2.0,
+      "Max": 2.0
+    },
+    "QueuedSites": {
+      "Name": "QueuedSites",
+      "Count": 74,
+      "Min": 0.0,
+      "Average": 1.514,
+      "P50": 2.0,
+      "P95": 2.0,
+      "Max": 2.0
+    }
+  }
+}

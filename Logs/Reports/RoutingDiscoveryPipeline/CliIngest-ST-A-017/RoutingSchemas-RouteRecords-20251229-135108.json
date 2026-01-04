@@ -1,0 +1,25 @@
+{
+  "Timestamp": "2025-12-29T13:51:08.4442310-07:00",
+  "SchemaRoot": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\schemas\\routing",
+  "RouteRecord": {
+    "Label": "RouteRecord",
+    "Path": "Logs\\Reports\\RoutingDiscoveryPipeline\\CliIngest-ST-A-017\\RouteRecords-20251229-135108.json",
+    "Status": "Pass",
+    "Errors": [],
+    "SchemaVersionExpected": "1.0",
+    "SchemaVersionFound": [
+      "1.0",
+      "1.0",
+      "1.0"
+    ]
+  },
+  "RouteHealthSnapshot": {
+    "Label": "RouteHealthSnapshot",
+    "Path": "C:\\Users\\Werem\\Projects\\StateTrace\\Tests\\Fixtures\\Routing\\RouteHealthSnapshot.sample.json",
+    "Status": "Pass",
+    "Errors": [],
+    "SchemaVersionExpected": "1.0",
+    "SchemaVersionFound": "1.0"
+  },
+  "Status": "Pass"
+}

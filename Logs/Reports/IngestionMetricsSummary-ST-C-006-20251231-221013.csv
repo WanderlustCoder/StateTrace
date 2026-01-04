@@ -1,0 +1,11 @@
+"Date","Scope","Metric","Count","Average","P95","Max","Total","SecondaryTotal","Notes"
+"TelemetrySample","All","DiffCompareDurationMs","1","150","150","150","150",,"Statuses=Executed=1"
+"TelemetrySample","All","DiffCompareResultCounts","1","4","4","4","4",,"Added=1; Removed=1; Changed=0; Unchanged=2; Statuses=Executed=1"
+"TelemetrySample","All","DiffUsageRate","2","0.667",,,"2","3","Statuses=Executed=2"
+"TelemetrySample","All","DriftDetectionTimeMinutes","2","10","12.25","12.5","20",,
+"TelemetrySample","BOYO","DiffCompareDurationMs","1","150","150","150","150",,"Statuses=Executed=1"
+"TelemetrySample","BOYO","DiffCompareResultCounts","1","4","4","4","4",,"Added=1; Removed=1; Changed=0; Unchanged=2; Statuses=Executed=1"
+"TelemetrySample","BOYO","DiffUsageRate","1","1",,,"1","1","Statuses=Executed=1"
+"TelemetrySample","BOYO","DriftDetectionTimeMinutes","1","12.5","12.5","12.5","12.5",,
+"TelemetrySample","WLLS","DiffUsageRate","1","0.5",,,"1","2","Statuses=Executed=1"
+"TelemetrySample","WLLS","DriftDetectionTimeMinutes","1","7.5","7.5","7.5","7.5",,

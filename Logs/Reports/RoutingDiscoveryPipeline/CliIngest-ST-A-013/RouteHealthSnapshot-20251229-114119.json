@@ -1,0 +1,24 @@
+{
+  "SchemaVersion": "1.0",
+  "SnapshotId": "RHS-7d5ef5096fe45ed116d81d0162111e1473c79db881b1ae78658d5d0738c4ea42",
+  "CapturedAt": "2025-12-29T12:00:00.0000000-07:00",
+  "Site": "WLLS",
+  "Hostname": "WLLS-A01-AS-21",
+  "Vrf": "default",
+  "PrimaryRouteStatus": "Up",
+  "SecondaryRouteStatus": "Missing",
+  "HealthState": "Healthy",
+  "DetectionLatencyMs": 0.0,
+  "RouteRecordIds": [
+    "1e6547ed4aeddaad522e6a6d6bf3b7333798f32e8ad1aef0fac6b2ed338094b0",
+    "81847c795fc8a304bb18896f020cd956e780d04347665010bd6e572560a3b8ec",
+    "d5a14f2968d61d0f032f0f6ea6386b44c8ab5ff2ec35b31567ce448da2330d11",
+    "eefed35b80bcc2bd95ad28050d030c2b0c740456822692010e366ea7de169e68"
+  ],
+  "FailoverState": "None",
+  "HealthScore": 1.0,
+  "EvidenceSources": [
+    "RouteRecords"
+  ],
+  "Notes": "Generated from RouteRecord fixtures"
+}

@@ -1,0 +1,17 @@
+{
+  "SchemaVersion": "1.0",
+  "BundleZipPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingBundles\\RoutingBundle-Diff-ST-A-031-20251231-083930.zip",
+  "ValidatedAt": "2025-12-31T11:02:42.7821664-07:00",
+  "Status": "Pass",
+  "Counts": {
+    "ExpectedFiles": 4,
+    "FoundFiles": 4,
+    "Extras": 0,
+    "Missing": 0,
+    "HashMismatches": 0
+  },
+  "MissingFiles": [],
+  "ExtraFiles": [],
+  "HashMismatches": [],
+  "Warnings": []
+}

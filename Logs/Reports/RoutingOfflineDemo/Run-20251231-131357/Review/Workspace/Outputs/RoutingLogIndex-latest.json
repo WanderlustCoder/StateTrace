@@ -1,0 +1,27 @@
+{
+  "SchemaVersion": "1.0",
+  "GeneratedAt": "2025-12-31T13:13:58.6212380-07:00",
+  "RootPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingOfflineDemo\\Run-20251231-131357\\Review\\Workspace\\Expanded\\Logs\\Reports",
+  "Counts": {
+    "Total": 1,
+    "ValidationRuns": 0,
+    "Pipelines": 0,
+    "EvidenceRecords": 0,
+    "Diffs": 1,
+    "Unknown": 0
+  },
+  "Entries": [
+    {
+      "Type": "RoutingDiff",
+      "Timestamp": "2025-12-30T09:00:00.0000000",
+      "Status": "Pass",
+      "Mode": null,
+      "Site": "WLLS",
+      "Vendor": null,
+      "Vrf": "default",
+      "Hostname": "WLLS-A01-AS-01",
+      "HostsProcessedCount": null,
+      "Path": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingOfflineDemo\\Run-20251231-131357\\Review\\Workspace\\Expanded\\Logs\\Reports\\RoutingOfflineDemo\\Run-20251231-131357\\Diff\\RoutingDiff-20251231-131357.json"
+    }
+  ]
+}

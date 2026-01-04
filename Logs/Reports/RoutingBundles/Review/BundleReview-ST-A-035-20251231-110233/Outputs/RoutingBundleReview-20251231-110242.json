@@ -1,0 +1,21 @@
+{
+  "SchemaVersion": "1.0",
+  "BundleZipPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingBundles\\RoutingBundle-Diff-ST-A-031-20251231-083930.zip",
+  "WorkspaceRoot": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingBundles\\Review\\BundleReview-ST-A-035-20251231-110233",
+  "Timestamp": "20251231-110242",
+  "Status": "Pass",
+  "Validated": true,
+  "ValidationOutputPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingBundles\\Review\\BundleReview-ST-A-035-20251231-110233\\Outputs\\RoutingBundleValidation-20251231-110242.json",
+  "ExpandedRoot": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingBundles\\Review\\BundleReview-ST-A-035-20251231-110233\\Expanded",
+  "ExpandSummaryPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingBundles\\Review\\BundleReview-ST-A-035-20251231-110233\\Outputs\\RoutingBundleExpandedSummary-20251231-110242.json",
+  "ManifestPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingBundles\\Review\\BundleReview-ST-A-035-20251231-110233\\Expanded\\BundleManifest.json",
+  "ManifestSummaryPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingDiff\\RoutingDiff-ST-A-031-20251231-083930.json",
+  "PrimarySummaryRelativePath": "Logs\\Reports\\RoutingDiff\\RoutingDiff-ST-A-031-20251231-083930.json",
+  "PrimarySummaryExtractedPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingBundles\\Review\\BundleReview-ST-A-035-20251231-110233\\Expanded\\Logs\\Reports\\RoutingDiff\\RoutingDiff-ST-A-031-20251231-083930.json",
+  "IndexBuilt": true,
+  "IndexOutputPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingBundles\\Review\\BundleReview-ST-A-035-20251231-110233\\Outputs\\RoutingLogIndex-20251231-110242.json",
+  "Rendered": true,
+  "RenderFormat": "Markdown",
+  "RenderOutputPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingBundles\\Review\\BundleReview-ST-A-035-20251231-110233\\Outputs\\RoutingBundlePrimarySummary-20251231-110242.md",
+  "Warnings": []
+}

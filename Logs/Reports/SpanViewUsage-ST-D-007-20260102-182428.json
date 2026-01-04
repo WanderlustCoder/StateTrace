@@ -1,0 +1,9 @@
+{
+  "EventName": "UserAction",
+  "Timestamp": "2026-01-02T18:24:09.0511437-07:00",
+  "RowsBound": 2,
+  "Hostname": "LABS-A01-AS-01",
+  "Site": "LABS",
+  "Action": "SpanViewUsage",
+  "VlanCount": 2
+}

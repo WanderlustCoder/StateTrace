@@ -1,0 +1,134 @@
+[
+  {
+    "Hostname": "WLLS-A01-AS-21",
+    "Site": "WLLS",
+    "InterfacesRendered": 96,
+    "PortsAppended": 48,
+    "BatchesProcessed": 2,
+    "SessionDurationMs": 40.586,
+    "QueueDelayMs": null,
+    "DispatcherDurationMs": 0.674,
+    "Success": true
+  },
+  {
+    "Hostname": "BOYO-A05-AS-02",
+    "Site": "BOYO",
+    "InterfacesRendered": 20,
+    "PortsAppended": 10,
+    "BatchesProcessed": 1,
+    "SessionDurationMs": 2.922,
+    "QueueDelayMs": null,
+    "DispatcherDurationMs": 0.612,
+    "Success": true
+  },
+  {
+    "Hostname": "WLLS-A01-AS-01",
+    "Site": "WLLS",
+    "InterfacesRendered": 96,
+    "PortsAppended": 48,
+    "BatchesProcessed": 2,
+    "SessionDurationMs": 5.622,
+    "QueueDelayMs": null,
+    "DispatcherDurationMs": 0.734,
+    "Success": true
+  },
+  {
+    "Hostname": "BOYO-A05-AS-05",
+    "Site": "BOYO",
+    "InterfacesRendered": 20,
+    "PortsAppended": 10,
+    "BatchesProcessed": 1,
+    "SessionDurationMs": 2.488,
+    "QueueDelayMs": null,
+    "DispatcherDurationMs": 0.533,
+    "Success": true
+  },
+  {
+    "Hostname": "WLLS-A01-AS-11",
+    "Site": "WLLS",
+    "InterfacesRendered": 96,
+    "PortsAppended": 48,
+    "BatchesProcessed": 2,
+    "SessionDurationMs": 5.345,
+    "QueueDelayMs": null,
+    "DispatcherDurationMs": 0.648,
+    "Success": true
+  },
+  {
+    "Hostname": "BOYO-A05-AS-12",
+    "Site": "BOYO",
+    "InterfacesRendered": 20,
+    "PortsAppended": 10,
+    "BatchesProcessed": 1,
+    "SessionDurationMs": 2.748,
+    "QueueDelayMs": null,
+    "DispatcherDurationMs": 0.602,
+    "Success": true
+  },
+  {
+    "Hostname": "WLLS-A01-AS-31",
+    "Site": "WLLS",
+    "InterfacesRendered": 96,
+    "PortsAppended": 48,
+    "BatchesProcessed": 2,
+    "SessionDurationMs": 5.954,
+    "QueueDelayMs": null,
+    "DispatcherDurationMs": 0.594,
+    "Success": true
+  },
+  {
+    "Hostname": "BOYO-A05-AS-15",
+    "Site": "BOYO",
+    "InterfacesRendered": 20,
+    "PortsAppended": 10,
+    "BatchesProcessed": 1,
+    "SessionDurationMs": 2.832,
+    "QueueDelayMs": null,
+    "DispatcherDurationMs": 0.565,
+    "Success": true
+  },
+  {
+    "Hostname": "WLLS-A01-AS-41",
+    "Site": "WLLS",
+    "InterfacesRendered": 96,
+    "PortsAppended": 48,
+    "BatchesProcessed": 2,
+    "SessionDurationMs": 6.355,
+    "QueueDelayMs": null,
+    "DispatcherDurationMs": 0.731,
+    "Success": true
+  },
+  {
+    "Hostname": "BOYO-A05-AS-22",
+    "Site": "BOYO",
+    "InterfacesRendered": 20,
+    "PortsAppended": 10,
+    "BatchesProcessed": 1,
+    "SessionDurationMs": 2.851,
+    "QueueDelayMs": null,
+    "DispatcherDurationMs": 0.56,
+    "Success": true
+  },
+  {
+    "Hostname": "WLLS-A01-AS-51",
+    "Site": "WLLS",
+    "InterfacesRendered": 96,
+    "PortsAppended": 48,
+    "BatchesProcessed": 2,
+    "SessionDurationMs": 5.876,
+    "QueueDelayMs": null,
+    "DispatcherDurationMs": 0.708,
+    "Success": true
+  },
+  {
+    "Hostname": "BOYO-A05-AS-25",
+    "Site": "BOYO",
+    "InterfacesRendered": 20,
+    "PortsAppended": 10,
+    "BatchesProcessed": 1,
+    "SessionDurationMs": 2.622,
+    "QueueDelayMs": null,
+    "DispatcherDurationMs": 0.544,
+    "Success": true
+  }
+]

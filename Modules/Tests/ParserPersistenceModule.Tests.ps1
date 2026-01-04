@@ -2042,11 +2042,11 @@ Describe "ParserPersistenceModule - MicroBench" -Tag 'Decomposition', 'MicroBenc
 
         It "should parse IngestionMetrics as line-delimited JSON" {
             $lines = Get-Content $script:ingestionMetricsPath -ErrorAction Stop
-            $events = @()
+            $events = [System.Collections.Generic.List[object]]::new()
             foreach ($line in $lines) {
                 if ([string]::IsNullOrWhiteSpace($line)) { continue }
                 $evt = $line | ConvertFrom-Json -ErrorAction Stop
-                $events += $evt
+                [void]$events.Add($evt)
             }
             $events.Count | Should BeGreaterThan 0
             $script:ingestionEvents = $events

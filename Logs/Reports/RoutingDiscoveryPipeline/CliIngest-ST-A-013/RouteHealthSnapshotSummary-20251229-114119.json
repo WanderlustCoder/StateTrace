@@ -1,0 +1,16 @@
+{
+  "Timestamp": "2025-12-29T11:41:19.8043605-07:00",
+  "Status": "Pass",
+  "RouteRecordsPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingDiscoveryPipeline\\CliIngest-ST-A-013\\RouteRecords-20251229-114119.json",
+  "RouteHealthSnapshotPath": "Logs\\Reports\\RoutingDiscoveryPipeline\\CliIngest-ST-A-013\\RouteHealthSnapshot-20251229-114119.json",
+  "GroupKey": "WLLS|WLLS-A01-AS-21|default",
+  "RouteRecordCount": 4,
+  "PrimaryRecordCount": 4,
+  "SecondaryRecordCount": 0,
+  "PrimaryRouteStatus": "Up",
+  "SecondaryRouteStatus": "Missing",
+  "HealthState": "Healthy",
+  "Errors": [],
+  "SchemaVersion": "1.0",
+  "RouteRecordSchemaVersion": "1.0"
+}

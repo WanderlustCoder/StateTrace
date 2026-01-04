@@ -85,10 +85,10 @@ Write-Host ""
 Write-Host "--- Access Database Check ---" -ForegroundColor Yellow
 try {
     $gitStatusOutput = git status --porcelain 2>&1
-    $stagedAccdb = @()
+    $stagedAccdb = [System.Collections.Generic.List[string]]::new()
     foreach ($line in $gitStatusOutput) {
         if ($line -match '\.accdb') {
-            $stagedAccdb += $line
+            [void]$stagedAccdb.Add($line)
         }
     }
 

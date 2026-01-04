@@ -405,10 +405,10 @@ if ($SummaryPath) {
         New-Item -ItemType Directory -Path $dir -Force | Out-Null
     }
     $sites = @($targetHosts | ForEach-Object { Get-SitePrefix $_ } | Sort-Object -Unique)
-    $siteFreshness = @()
+    $siteFreshness = [System.Collections.Generic.List[object]]::new()
     foreach ($site in $sites) {
         $fresh = Get-SiteFreshnessInfo -Site $site -RepoRoot $repoRoot
-        if ($fresh) { $siteFreshness += $fresh }
+        if ($fresh) { [void]$siteFreshness.Add($fresh) }
     }
     $summaryObject = [pscustomobject]@{
         Checklist           = 'InterfacesView'

@@ -1,0 +1,25 @@
+{
+  "Timestamp": "2025-12-24T16:16:05.4623114-07:00",
+  "Status": "Pass",
+  "Harnesses": [
+    {
+      "HarnessName": "SpanView",
+      "Status": "Pass",
+      "ExitCode": 0,
+      "LogPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\UIHarness\\SpanHarness-20251224-161554.log",
+      "Hostname": "WLLS-A01-AS-21",
+      "Rows": 2,
+      "Notes": ""
+    },
+    {
+      "HarnessName": "SearchAlerts",
+      "Status": "Pass",
+      "ExitCode": 0,
+      "LogPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\UIHarness\\SearchAlertsHarness-20251224-161554.log",
+      "SearchCount": 106,
+      "AlertsCount": 102,
+      "Notes": ""
+    }
+  ],
+  "SummaryPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\UIHarness\\UIHarnessSummary-20251224-161554.json"
+}

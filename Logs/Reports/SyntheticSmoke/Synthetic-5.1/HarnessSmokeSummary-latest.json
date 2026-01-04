@@ -1,0 +1,46 @@
+{
+  "GeneratedAtUtc": "2025-12-26T23:27:43.9244694Z",
+  "MetricsPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Tests\\Fixtures\\Synthetic\\5.1\\IngestionMetrics.json",
+  "DatasetId": "Synthetic-5.1",
+  "DatasetRoot": "C:\\Users\\Werem\\Projects\\StateTrace\\Tests\\Fixtures\\Synthetic\\5.1",
+  "QueueSummary": {
+    "Path": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\SyntheticSmoke\\Synthetic-5.1\\QueueDelaySummary-smoke-20251226-162743.json",
+    "Generated": true,
+    "SampleCount": 10,
+    "Pass": true,
+    "Result": "Pass"
+  },
+  "PortDiversity": {
+    "Mode": "Synth",
+    "Path": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\SyntheticSmoke\\Synthetic-5.1\\PortBatchSiteDiversity-smoke-20251226-162743.json",
+    "MaxStreak": 1,
+    "AllowedStreak": 8,
+    "UsedSynthesizedEvents": true,
+    "EvaluationWindowStartUtc": "2024-12-31T23:50:18Z",
+    "EvaluationWindowEndUtc": null,
+    "UsedExistingReport": false,
+    "Pass": true
+  },
+  "History": {
+    "QueueDelayHistoryPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\QueueDelayHistory.csv",
+    "PortBatchHistoryPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\PortBatchHistory.csv",
+    "InterfaceSyncHistoryPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\InterfaceSyncHistory.csv",
+    "ParserSchedulerHistoryPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\ParserSchedulerHistory.csv",
+    "QueueDelayAppended": 0,
+    "PortBatchAppended": 1,
+    "InterfaceSyncAppended": 1,
+    "ParserSchedulerAppended": 0
+  },
+  "SharedCacheDiagnostics": {
+    "StoreStatePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\SharedCacheDiagnostics\\SyntheticSmoke\\Synthetic-5.1\\SharedCacheStoreState-smoke-20251226-162743.json",
+    "ProviderReasonsPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\SharedCacheDiagnostics\\SyntheticSmoke\\Synthetic-5.1\\SiteCacheProviderReasons-smoke-20251226-162743.json"
+  },
+  "PortDiversityMode": "Synth",
+  "UsedSynthesizedEvents": true,
+  "QueueDelaySummaryPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\SyntheticSmoke\\Synthetic-5.1\\QueueDelaySummary-smoke-20251226-162743.json",
+  "PortDiversityReportPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\SyntheticSmoke\\Synthetic-5.1\\PortBatchSiteDiversity-smoke-20251226-162743.json",
+  "SharedCacheStoreStatePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\SharedCacheDiagnostics\\SyntheticSmoke\\Synthetic-5.1\\SharedCacheStoreState-smoke-20251226-162743.json",
+  "SiteCacheProviderReasonsPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\SharedCacheDiagnostics\\SyntheticSmoke\\Synthetic-5.1\\SiteCacheProviderReasons-smoke-20251226-162743.json",
+  "Passed": true,
+  "Failures": []
+}

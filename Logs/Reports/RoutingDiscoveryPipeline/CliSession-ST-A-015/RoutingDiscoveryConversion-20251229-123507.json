@@ -1,0 +1,10 @@
+{
+  "Timestamp": "2025-12-29T12:35:07.7716996-07:00",
+  "Status": "Pass",
+  "CapturePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingDiscoveryCapture-ST-A-015-20251229-123448.json",
+  "RouteRecordOutputPath": "Logs\\Reports\\RoutingDiscoveryPipeline\\CliSession-ST-A-015\\RouteRecords-20251229-123507.json",
+  "RouteCount": 4,
+  "Errors": [],
+  "SchemaVersion": "1.0",
+  "RouteRecordSchema": "1.0"
+}

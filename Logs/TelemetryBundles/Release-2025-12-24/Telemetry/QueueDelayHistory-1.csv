@@ -1,0 +1,8 @@
+"GeneratedAtUtc","SourceTelemetryPath","SummaryPath","SampleCount","AverageQueueDelayMs","QueueDelayP95Ms","QueueDelayP99Ms","Pass"
+"12/06/2025 01:23:46","C:\Users\Werem\Projects\StateTrace\Logs\IngestionMetrics\2025-12-05.json","C:\Users\Werem\Projects\StateTrace\Logs\IngestionMetrics\QueueDelaySummary-2025-12-05.json","3","1.086","2.9322","3.19284","True"
+"12/10/2025 19:32:25","C:\Users\Werem\Projects\StateTrace\Logs\IngestionMetrics\2025-12-10.json","C:\Users\Werem\Projects\StateTrace\Logs\IngestionMetrics\QueueDelaySummary-2025-12-10.json","2","1.001","1.9019","1.98198","True"
+"12/12/2025 21:52:55","C:\Users\Werem\Projects\StateTrace\Logs\IngestionMetrics\2025-12-12.json","C:\Users\Werem\Projects\StateTrace\Logs\IngestionMetrics\QueueDelaySummary-2025-12-12.json","1","0.994","0.994","0.994","True"
+"12/21/2025 05:24:35","C:\Users\Werem\Projects\StateTrace\Logs\IngestionMetrics\2025-12-20.json","C:\Users\Werem\Projects\StateTrace\Logs\IngestionMetrics\QueueDelaySummary-2025-12-20.json","8","4.264","12.4317","16.65354","True"
+"12/22/2025 15:34:40","C:\Users\Werem\Projects\StateTrace\Logs\IngestionMetrics\2025-12-22.json","C:\Users\Werem\Projects\StateTrace\Logs\IngestionMetrics\QueueDelaySummary-2025-12-22.json","20","20.65275","25.59845","33.57009","True"
+"12/23/2025 19:40:54","C:\Users\Werem\Projects\StateTrace\Logs\IngestionMetrics\2025-12-23.json","C:\Users\Werem\Projects\StateTrace\Logs\IngestionMetrics\QueueDelaySummary-2025-12-23.json","4","18.0035","18.8521","18.97042","True"
+"2025-12-24T16:33:58.0590384Z","C:\Users\Werem\Projects\StateTrace\Logs\IngestionMetrics\2025-12-24.json","C:\Users\Werem\Projects\StateTrace\Logs\IngestionMetrics\QueueDelaySummary-2025-12-24.json","4","17.6235","18.00085","18.00097","True"

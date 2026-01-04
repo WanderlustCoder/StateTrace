@@ -1,0 +1,132 @@
+{
+  "GeneratedAtUtc": "2025-12-21T06:04:38.8206485Z",
+  "FilesAnalyzed": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\2025-12-20.json",
+  "EventCount": 411,
+  "GlobalStats": {
+    "UiClone": {
+      "Name": "UiCloneDurationMs",
+      "Count": 411,
+      "Average": 9.076365,
+      "Min": 0.0,
+      "Max": 62.756,
+      "P50": 6.858,
+      "P95": 22.6925,
+      "P99": 39.0488
+    },
+    "StreamDispatch": {
+      "Name": "StreamDispatchDurationMs",
+      "Count": 411,
+      "Average": 0.259358,
+      "Min": 0.0,
+      "Max": 14.181,
+      "P50": 0.23,
+      "P95": 0.3785,
+      "P99": 2.4899
+    },
+    "DiffDuration": {
+      "Name": "DiffDurationMs",
+      "Count": 411,
+      "Average": 15.675061,
+      "Min": 0.121,
+      "Max": 81.955,
+      "P50": 17.441,
+      "P95": 36.6345,
+      "P99": 49.3115
+    },
+    "SiteCacheUpdate": {
+      "Name": "SiteCacheUpdateDurationMs",
+      "Count": 411,
+      "Average": 57.731966,
+      "Min": 0.0,
+      "Max": 838.692,
+      "P50": 44.105,
+      "P95": 376.448,
+      "P99": 437.8191
+    }
+  },
+  "SiteBreakdown": [
+    {
+      "Site": "BOYO",
+      "EventCount": 95,
+      "UiCloneP95": 15.6143,
+      "StreamDispatchP95": 2.2982,
+      "DiffDurationP95": 25.1187
+    },
+    {
+      "Site": "SW1",
+      "EventCount": 27,
+      "UiCloneP95": 0.0,
+      "StreamDispatchP95": 0.0,
+      "DiffDurationP95": 17.1438
+    },
+    {
+      "Site": "WLLS",
+      "EventCount": 289,
+      "UiCloneP95": 30.386,
+      "StreamDispatchP95": 0.3488,
+      "DiffDurationP95": 39.564
+    }
+  ],
+  "HostBreakdownTop": [
+    {
+      "Host": "WLLS-A07-AS-07",
+      "EventCount": 8,
+      "UiCloneP95": 46.4397,
+      "StreamDispatchP95": 0.254
+    },
+    {
+      "Host": "WLLS-A01-AS-41",
+      "EventCount": 8,
+      "UiCloneP95": 41.28215,
+      "StreamDispatchP95": 0.3872
+    },
+    {
+      "Host": "WLLS-A01-AS-01",
+      "EventCount": 53,
+      "UiCloneP95": 37.8206,
+      "StreamDispatchP95": 0.344
+    },
+    {
+      "Host": "WLLS-A01-AS-31",
+      "EventCount": 8,
+      "UiCloneP95": 36.5162,
+      "StreamDispatchP95": 0.3331
+    },
+    {
+      "Host": "WLLS-A01-AS-11",
+      "EventCount": 8,
+      "UiCloneP95": 33.067,
+      "StreamDispatchP95": 0.3677
+    },
+    {
+      "Host": "WLLS-A01-AS-51",
+      "EventCount": 8,
+      "UiCloneP95": 28.2187,
+      "StreamDispatchP95": 0.2822
+    },
+    {
+      "Host": "WLLS-A02-AS-22",
+      "EventCount": 8,
+      "UiCloneP95": 27.1781,
+      "StreamDispatchP95": 0.317
+    },
+    {
+      "Host": "WLLS-A02-AS-02",
+      "EventCount": 8,
+      "UiCloneP95": 26.04965,
+      "StreamDispatchP95": 0.3177
+    },
+    {
+      "Host": "WLLS-A02-AS-42",
+      "EventCount": 8,
+      "UiCloneP95": 25.19725,
+      "StreamDispatchP95": 0.32995
+    },
+    {
+      "Host": "WLLS-A02-AS-12",
+      "EventCount": 8,
+      "UiCloneP95": 24.2529,
+      "StreamDispatchP95": 1.45805
+    }
+  ]
+}

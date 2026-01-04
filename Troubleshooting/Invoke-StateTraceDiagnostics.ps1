@@ -227,11 +227,11 @@ function Invoke-SourceIntegrityPhase {
     }
 
     $modulesDir = Join-Path $Context.RepositoryRoot 'Modules'
-    $missing = @()
+    $missing = [System.Collections.Generic.List[string]]::new()
     foreach ($moduleName in $modules) {
         $modulePath = Join-Path $modulesDir $moduleName
         if (-not (Test-Path -LiteralPath $modulePath)) {
-            $missing += $moduleName
+            [void]$missing.Add($moduleName)
         }
     }
     if ($missing.Count -gt 0) {
@@ -240,7 +240,7 @@ function Invoke-SourceIntegrityPhase {
         $phaseResults.Add((New-DiagnosticResult -Phase $phaseName -Check 'ModuleFiles' -Status 'Pass' -Evidence ('All manifest modules present (' + $modules.Count + ').') -Remediation $null -NextSteps $null))
     }
 
-    $importFailures = @()
+    $importFailures = [System.Collections.Generic.List[string]]::new()
     foreach ($moduleName in $modules) {
         $modulePath = Join-Path $modulesDir $moduleName
         try {
@@ -249,7 +249,7 @@ function Invoke-SourceIntegrityPhase {
                 $null = $Context.ModulesImported.Add($moduleName)
             }
         } catch {
-            $importFailures += '{0}: {1}' -f $moduleName, $_.Exception.Message
+            [void]$importFailures.Add(('{0}: {1}' -f $moduleName, $_.Exception.Message))
         }
     }
     if ($importFailures.Count -gt 0) {
@@ -273,10 +273,10 @@ function Invoke-SourceIntegrityPhase {
         @{ Name = 'ParserWorker\\Invoke-StateTraceParsing'; Purpose = 'Parser invocation entry point' }
     )
 
-    $missingCommands = @()
+    $missingCommands = [System.Collections.Generic.List[string]]::new()
     foreach ($expectation in $expectedCommands) {
         if (-not (Get-Command -Name $expectation.Name -ErrorAction SilentlyContinue)) {
-            $missingCommands += ('{0} ({1})' -f $expectation.Name, $expectation.Purpose)
+            [void]$missingCommands.Add(('{0} ({1})' -f $expectation.Name, $expectation.Purpose))
         }
     }
     if ($missingCommands.Count -gt 0) {
@@ -343,10 +343,10 @@ function Invoke-ParserPipelinePhase {
         'ParserWorker\\Invoke-StateTraceParsing'
     )
 
-    $missing = @()
+    $missing = [System.Collections.Generic.List[string]]::new()
     foreach ($cmd in $commands) {
         if (-not (Get-Command -Name $cmd -ErrorAction SilentlyContinue)) {
-            $missing += $cmd
+            [void]$missing.Add($cmd)
         }
     }
 

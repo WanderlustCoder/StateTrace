@@ -1,0 +1,36 @@
+{
+  "GeneratedAtUtc": "2025-12-24T23:36:28.0663503Z",
+  "SourceTelemetryPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\2025-12-24.json",
+  "Pass": true,
+  "Result": "Pass",
+  "Thresholds": {
+    "MinimumEventCount": 10,
+    "MaximumQueueDelayP95Ms": 120.0,
+    "MaximumQueueDelayP99Ms": 200.0
+  },
+  "Statistics": {
+    "SampleCount": 20,
+    "QueueBuildDelayMs": {
+      "Name": "QueueBuildDelayMs",
+      "Count": 20,
+      "Average": 18.4702,
+      "Min": 16.999,
+      "Max": 19.163,
+      "P50": 18.9395,
+      "P95": 19.0927,
+      "P99": 19.14894,
+      "SampleCount": 20
+    },
+    "QueueBuildDurationMs": {
+      "Name": "QueueBuildDurationMs",
+      "Count": 20,
+      "Average": 20.75545,
+      "Min": 18.34,
+      "Max": 23.765,
+      "P50": 20.7535,
+      "P95": 23.11805,
+      "P99": 23.63561,
+      "SampleCount": 20
+    }
+  }
+}

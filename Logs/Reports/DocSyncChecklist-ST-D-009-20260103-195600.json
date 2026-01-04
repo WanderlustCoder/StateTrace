@@ -1,0 +1,46 @@
+{
+  "TaskId": "ST-D-009",
+  "TaskBoard": {
+    "Path": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\StateTrace_TaskBoard.md",
+    "Exists": true,
+    "ContainsTaskId": true
+  },
+  "TaskBoardCsv": {
+    "Path": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\taskboard\\TaskBoard.csv",
+    "Exists": true,
+    "ContainsTaskId": true,
+    "PlanLink": "docs/plans/PlanD_FeatureExpansion.md"
+  },
+  "TaskBoardIntegrity": {
+    "Path": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\TaskBoardIntegrity-20260103-194629.json",
+    "Passed": true,
+    "Error": null,
+    "RowCount": 118,
+    "MinimumRowCount": 10
+  },
+  "Plan": {
+    "Path": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanD_FeatureExpansion.md",
+    "Exists": true,
+    "ContainsTaskId": true,
+    "Source": "TaskBoardCsv"
+  },
+  "Backlog": {
+    "Path": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\CODEX_BACKLOG.md",
+    "Exists": true,
+    "ContainsTaskId": false,
+    "Required": false
+  },
+  "SessionLog": {
+    "Path": "docs/agents/sessions/2026-01-02_session-0028.md",
+    "Exists": true,
+    "ContainsTaskId": true,
+    "References": [
+      "TaskBoardCsv",
+      "TaskBoard",
+      "Plan"
+    ],
+    "Required": true
+  },
+  "Passed": true,
+  "Missing": []
+}

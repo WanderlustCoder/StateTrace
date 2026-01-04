@@ -1,0 +1,109 @@
+{
+  "GeneratedAtUtc": "2025-12-06T05:45:15.3725932Z",
+  "FilesAnalyzed": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\2025-12-05.json",
+  "EventCount": 52,
+  "GlobalStats": {
+    "UiClone": {
+      "Name": "UiCloneDurationMs",
+      "Count": 52,
+      "Average": 101.542385,
+      "Min": 0.0,
+      "Max": 288.805,
+      "P50": 63.879,
+      "P95": 240.7489,
+      "P99": 287.9941
+    },
+    "StreamDispatch": {
+      "Name": "StreamDispatchDurationMs",
+      "Count": 52,
+      "Average": 16.040154,
+      "Min": 0.0,
+      "Max": 27.925,
+      "P50": 18.1985,
+      "P95": 27.40745,
+      "P99": 27.87604
+    },
+    "DiffDuration": {
+      "Name": "DiffDurationMs",
+      "Count": 52,
+      "Average": 19.064481,
+      "Min": 0.196,
+      "Max": 41.976,
+      "P50": 23.383,
+      "P95": 38.0781,
+      "P99": 41.82555
+    },
+    "SiteCacheUpdate": {
+      "Name": "SiteCacheUpdateDurationMs",
+      "Count": 52,
+      "Average": 481.371404,
+      "Min": 0.0,
+      "Max": 1042.976,
+      "P50": 551.2835,
+      "P95": 928.1067,
+      "P99": 1029.51251
+    }
+  },
+  "SiteBreakdown": [
+    {
+      "Site": "BOYO",
+      "EventCount": 12,
+      "UiCloneP95": 72.81515,
+      "StreamDispatchP95": 26.117,
+      "DiffDurationP95": 22.31795
+    },
+    {
+      "Site": "SITE",
+      "EventCount": 1,
+      "UiCloneP95": 14.35,
+      "StreamDispatchP95": 21.948,
+      "DiffDurationP95": 41.681
+    },
+    {
+      "Site": "SW1",
+      "EventCount": 4,
+      "UiCloneP95": 6.137,
+      "StreamDispatchP95": 19.244,
+      "DiffDurationP95": 18.7979
+    },
+    {
+      "Site": "WLLS",
+      "EventCount": 35,
+      "UiCloneP95": 264.5301,
+      "StreamDispatchP95": 27.7345,
+      "DiffDurationP95": 37.3914
+    }
+  ],
+  "HostBreakdownTop": [
+    {
+      "Host": "WLLS-A03-AS-23",
+      "EventCount": 1,
+      "UiCloneP95": 288.805,
+      "StreamDispatchP95": 22.753
+    },
+    {
+      "Host": "WLLS-A02-AS-52",
+      "EventCount": 1,
+      "UiCloneP95": 287.215,
+      "StreamDispatchP95": 23.659
+    },
+    {
+      "Host": "WLLS-A03-AS-03",
+      "EventCount": 1,
+      "UiCloneP95": 254.808,
+      "StreamDispatchP95": 24.273
+    },
+    {
+      "Host": "WLLS-A03-AS-13",
+      "EventCount": 1,
+      "UiCloneP95": 229.246,
+      "StreamDispatchP95": 24.813
+    },
+    {
+      "Host": "WLLS-A02-AS-02",
+      "EventCount": 1,
+      "UiCloneP95": 207.182,
+      "StreamDispatchP95": 25.553
+    }
+  ]
+}

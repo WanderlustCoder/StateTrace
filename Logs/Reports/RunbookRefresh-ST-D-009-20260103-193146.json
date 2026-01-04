@@ -1,0 +1,72 @@
+{
+  "RunbookChecks": [
+    {
+      "Id": "INC0001",
+      "Path": "docs/runbooks/Incident_INC0001_RoutingQueueDelay.md",
+      "Exists": true,
+      "MissingTelemetry": []
+    },
+    {
+      "Id": "INC0002",
+      "Path": "docs/runbooks/Incident_INC0002_SharedCacheRefresh.md",
+      "Exists": true,
+      "MissingTelemetry": []
+    },
+    {
+      "Id": "INC0003",
+      "Path": "docs/runbooks/Incident_INC0003_PortBatchMissing.md",
+      "Exists": true,
+      "MissingTelemetry": []
+    },
+    {
+      "Id": "INC0004",
+      "Path": "docs/runbooks/Incident_INC0004_BulkStageLatencySpike.md",
+      "Exists": true,
+      "MissingTelemetry": []
+    },
+    {
+      "Id": "INC0005",
+      "Path": "docs/runbooks/Incident_INC0005_CacheProviderFallback.md",
+      "Exists": true,
+      "MissingTelemetry": []
+    },
+    {
+      "Id": "INC0006",
+      "Path": "docs/runbooks/Incident_INC0006_DispatcherThroughputDrop.md",
+      "Exists": true,
+      "MissingTelemetry": []
+    }
+  ],
+  "OperatorLinks": [
+    {
+      "Id": "INC0001",
+      "Path": "docs/runbooks/Incident_INC0001_RoutingQueueDelay.md",
+      "Linked": true
+    },
+    {
+      "Id": "INC0002",
+      "Path": "docs/runbooks/Incident_INC0002_SharedCacheRefresh.md",
+      "Linked": true
+    },
+    {
+      "Id": "INC0003",
+      "Path": "docs/runbooks/Incident_INC0003_PortBatchMissing.md",
+      "Linked": true
+    },
+    {
+      "Id": "INC0004",
+      "Path": "docs/runbooks/Incident_INC0004_BulkStageLatencySpike.md",
+      "Linked": true
+    },
+    {
+      "Id": "INC0005",
+      "Path": "docs/runbooks/Incident_INC0005_CacheProviderFallback.md",
+      "Linked": true
+    },
+    {
+      "Id": "INC0006",
+      "Path": "docs/runbooks/Incident_INC0006_DispatcherThroughputDrop.md",
+      "Linked": true
+    }
+  ]
+}

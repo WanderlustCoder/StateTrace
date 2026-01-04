@@ -1,0 +1,128 @@
+[
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanA_RoutingReliability.md",
+    "LinkTargets": [],
+    "ResolvedPaths": [],
+    "Exists": []
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanB_Performance.md",
+    "LinkTargets": [],
+    "ResolvedPaths": [],
+    "Exists": []
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanC_ChangeTracking.md",
+    "LinkTargets": [],
+    "ResolvedPaths": [],
+    "Exists": []
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanD_FeatureExpansion.md",
+    "LinkTargets": [],
+    "ResolvedPaths": [],
+    "Exists": []
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanD_PortReorg_12PortPaging.md",
+    "LinkTargets": [],
+    "ResolvedPaths": [],
+    "Exists": []
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanE_Telemetry.md",
+    "LinkTargets": [],
+    "ResolvedPaths": [],
+    "Exists": []
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanF_SecurityIdentity.md",
+    "LinkTargets": [],
+    "ResolvedPaths": [],
+    "Exists": []
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanG_ReleaseGovernance.md",
+    "LinkTargets": [],
+    "ResolvedPaths": [],
+    "Exists": []
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanH_UserExperience.md",
+    "LinkTargets": [],
+    "ResolvedPaths": [],
+    "Exists": []
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanI_HarnessStability.md",
+    "LinkTargets": [],
+    "ResolvedPaths": [],
+    "Exists": []
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanIndex.md",
+    "LinkTargets": [],
+    "ResolvedPaths": [],
+    "Exists": []
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanJ_TestFixtureReliability.md",
+    "LinkTargets": [],
+    "ResolvedPaths": [],
+    "Exists": []
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanK_DeveloperExperience.md",
+    "LinkTargets": [],
+    "ResolvedPaths": [],
+    "Exists": []
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanL_ModuleDecomposition.md",
+    "LinkTargets": [],
+    "ResolvedPaths": [],
+    "Exists": []
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanM_DataQuality.md",
+    "LinkTargets": [],
+    "ResolvedPaths": [],
+    "Exists": []
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanN_DocumentationAutomation.md",
+    "LinkTargets": [],
+    "ResolvedPaths": [],
+    "Exists": []
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanO_AccessibilityResponsiveness.md",
+    "LinkTargets": [],
+    "ResolvedPaths": [],
+    "Exists": []
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanP_PackagingDeployment.md",
+    "LinkTargets": [],
+    "ResolvedPaths": [],
+    "Exists": []
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanQ_SharedCacheStrategy.md",
+    "LinkTargets": [],
+    "ResolvedPaths": [],
+    "Exists": []
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanR_IncidentResponse.md",
+    "LinkTargets": [],
+    "ResolvedPaths": [],
+    "Exists": []
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanS_DeprecationCleanup.md",
+    "LinkTargets": [],
+    "ResolvedPaths": [],
+    "Exists": []
+  }
+]

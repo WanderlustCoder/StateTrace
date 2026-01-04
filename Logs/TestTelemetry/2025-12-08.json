@@ -1,0 +1,7 @@
+{"EventName":"UnitTestEvent","Timestamp":"2025-12-08T14:54:53.0898381-07:00","Number":42,"Foo":"Bar"}
+{"EventName":"UnitTestEvent","Timestamp":"2025-12-08T15:19:45.3273072-07:00","Foo":"Bar","Number":42}
+{"EventName":"UnitTestEvent","Timestamp":"2025-12-08T15:20:08.9840417-07:00","Number":42,"Foo":"Bar"}
+{"EventName":"UnitTestEvent","Timestamp":"2025-12-08T15:20:40.3189765-07:00","Foo":"Bar","Number":42}
+{"EventName":"UnitTestEvent","Timestamp":"2025-12-08T15:21:42.2013813-07:00","Foo":"Bar","Number":42}
+{"EventName":"UnitTestEvent","Timestamp":"2025-12-08T15:39:58.4680704-07:00","Number":42,"Foo":"Bar"}
+{"EventName":"UnitTestEvent","Timestamp":"2025-12-08T17:52:44.2870158-07:00","Foo":"Bar","Number":42}

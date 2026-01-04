@@ -1,0 +1,15 @@
+{
+  "Timestamp": "2025-12-29T11:38:44.8049746-07:00",
+  "Status": "Fail",
+  "Vendor": "CiscoIOSXE",
+  "CapturePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Tests\\Fixtures\\Routing\\CliCapture\\CiscoIOSXE\\Capture.json",
+  "OutputPath": "Logs/Reports/RoutingDiscoveryCapture-ST-A-013-debug-20251229-113844.json",
+  "RoutesParsedCount": 0,
+  "LinesParsedCount": 0,
+  "LinesSkippedCount": 0,
+  "Errors": [
+    "InvalidType:Artifacts expected=array actual=PSCustomObject"
+  ],
+  "SchemaVersion": "1.0",
+  "DiscoverySchema": "1.0"
+}

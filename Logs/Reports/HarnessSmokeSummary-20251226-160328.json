@@ -1,0 +1,43 @@
+{
+  "GeneratedAtUtc": "2025-12-26T23:03:28.9442786Z",
+  "MetricsPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\2025-12-26.json",
+  "QueueSummary": {
+    "Path": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\QueueDelaySummary-smoke-20251226-160328.json",
+    "Generated": true,
+    "SampleCount": 240,
+    "Pass": true,
+    "Result": "Pass"
+  },
+  "PortDiversity": {
+    "Mode": "Synth",
+    "Path": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\PortBatchSiteDiversity-smoke-20251226-160328.json",
+    "MaxStreak": 3,
+    "AllowedStreak": 8,
+    "UsedSynthesizedEvents": true,
+    "EvaluationWindowStartUtc": "2025-12-26T19:51:52.1384372Z",
+    "EvaluationWindowEndUtc": null,
+    "UsedExistingReport": false,
+    "Pass": true
+  },
+  "History": {
+    "QueueDelayHistoryPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\QueueDelayHistory.csv",
+    "PortBatchHistoryPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\PortBatchHistory.csv",
+    "InterfaceSyncHistoryPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\InterfaceSyncHistory.csv",
+    "ParserSchedulerHistoryPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\ParserSchedulerHistory.csv",
+    "QueueDelayAppended": 0,
+    "PortBatchAppended": 1,
+    "InterfaceSyncAppended": 1,
+    "ParserSchedulerAppended": 0
+  },
+  "SharedCacheDiagnostics": {
+    "StoreStatePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\SharedCacheDiagnostics\\SharedCacheStoreState-smoke-20251226-160328.json",
+    "ProviderReasonsPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\SharedCacheDiagnostics\\SiteCacheProviderReasons-smoke-20251226-160328.json"
+  },
+  "PortDiversityMode": "Synth",
+  "QueueDelaySummaryPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\QueueDelaySummary-smoke-20251226-160328.json",
+  "PortDiversityReportPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\PortBatchSiteDiversity-smoke-20251226-160328.json",
+  "SharedCacheStoreStatePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\SharedCacheDiagnostics\\SharedCacheStoreState-smoke-20251226-160328.json",
+  "SiteCacheProviderReasonsPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\SharedCacheDiagnostics\\SiteCacheProviderReasons-smoke-20251226-160328.json",
+  "Passed": true,
+  "Failures": []
+}

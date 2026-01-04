@@ -1,0 +1,102 @@
+[
+  {
+    "Area": "Telemetry",
+    "BundlePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\TelemetryBundles\\Release-2025-12-23\\Telemetry",
+    "ManifestPath": "TelemetryBundle.json",
+    "ReadmePath": "README.md",
+    "ReadmeHash": "E35558FDF7E72E3DBD966A17B362258C994357D82312B1A71AF425F794080E9B",
+    "HashAlgorithm": "SHA256",
+    "RequirementState": [
+      {
+        "Requirement": "README",
+        "Status": "Present",
+        "Files": "README.md"
+      },
+      {
+        "Requirement": "Manifest",
+        "Status": "Present",
+        "Files": "TelemetryBundle.json"
+      },
+      {
+        "Requirement": "Rollup CSV",
+        "Status": "Present",
+        "Files": "IngestionMetricsSummary-20251222-071331-1.csv; IngestionMetricsSummary-20251222-071331.csv"
+      },
+      {
+        "Requirement": "Shared-cache analyzer",
+        "Status": "Present",
+        "Files": "SharedCacheStoreState-2025-12-23.json"
+      },
+      {
+        "Requirement": "Site cache providers",
+        "Status": "Present",
+        "Files": "SiteCacheProviderReasons-2025-12-23.json"
+      },
+      {
+        "Requirement": "Warm-run telemetry",
+        "Status": "Present",
+        "Files": "WarmRunTelemetry-20251222-170626-1.json; WarmRunTelemetry-20251222-170626.json"
+      },
+      {
+        "Requirement": "Diff hotspot CSV",
+        "Status": "Present",
+        "Files": "WarmRunDiffHotspots-20251222-170626.csv"
+      },
+      {
+        "Requirement": "Doc-sync evidence",
+        "Status": "Present",
+        "Files": "2025-12-23_session-0013.md"
+      }
+    ]
+  },
+  {
+    "Area": "Routing",
+    "BundlePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\TelemetryBundles\\Release-2025-12-23\\Routing",
+    "ManifestPath": "TelemetryBundle.json",
+    "ReadmePath": "README.md",
+    "ReadmeHash": "471C2D5AB91599EC1385F718029CD93D965684C5AF933B1E798889306C265982",
+    "HashAlgorithm": "SHA256",
+    "RequirementState": [
+      {
+        "Requirement": "README",
+        "Status": "Present",
+        "Files": "README.md"
+      },
+      {
+        "Requirement": "Manifest",
+        "Status": "Present",
+        "Files": "TelemetryBundle.json"
+      },
+      {
+        "Requirement": "Routing telemetry JSON",
+        "Status": "Present",
+        "Files": "2025-12-23-1.json; 2025-12-23.json; RoutingQueueSweep-pipeline-2025-12-23-1.json; RoutingQueueSweep-pipeline-2025-12-23.json"
+      },
+      {
+        "Requirement": "Queue delay summary",
+        "Status": "Present",
+        "Files": "QueueDelaySummary-2025-12-23-1.json; QueueDelaySummary-2025-12-23.json"
+      },
+      {
+        "Requirement": "Queue delay pointer",
+        "Status": "Missing (Optional)",
+        "Files": ""
+      },
+      {
+        "Requirement": "Dispatcher logs",
+        "Status": "Present",
+        "Files": "BOYO-A05-AS-02-20251223-124044.log; BOYO-A05-AS-05-20251223-124044.log; WLLS-A01-AS-01-20251223-124044.log; WLLS-A01-AS-21-20251223-124044.log"
+      },
+      {
+        "Requirement": "Routing sweep summary",
+        "Status": "Present",
+        "Files": "RoutingQueueSweep-pipeline-2025-12-23-1.json; RoutingQueueSweep-pipeline-2025-12-23.json"
+      },
+      {
+        "Requirement": "Doc-sync evidence",
+        "Status": "Present",
+        "Files": "2025-12-23_session-0013.md"
+      }
+    ]
+  }
+]

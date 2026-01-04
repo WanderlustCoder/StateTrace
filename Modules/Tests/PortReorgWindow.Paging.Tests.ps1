@@ -29,11 +29,11 @@ Describe 'Port Reorg paging slices' {
         $script:portReorgViewModule = Get-Module PortReorgViewModule
         $script:makeRows = {
             param([int]$Count)
-            $rows = @()
+            $rows = [System.Collections.Generic.List[object]]::new()
             for ($i = 1; $i -le $Count; $i++) {
-                $rows += [pscustomobject]@{
+                [void]$rows.Add([pscustomobject]@{
                     TargetPort = ("Gi1/0/{0}" -f $i)
-                }
+                })
             }
             return $rows
         }

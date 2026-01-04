@@ -34,19 +34,19 @@ function Get-SectionLines {
         [Parameter(Mandatory = $true)]
         [string]$SectionName
     )
-    $sectionLines = @()
+    $sectionLines = [System.Collections.Generic.List[string]]::new()
     $inSection = $false
     foreach ($line in $Lines) {
         if ($line -match '^\s*##\s*(.+)$') {
             $heading = $Matches[1].Trim()
             $inSection = ($heading -ieq $SectionName)
-        if (-not $inSection -and $sectionLines) {
+        if (-not $inSection -and $sectionLines.Count -gt 0) {
             break
         }
         continue
         }
         if ($inSection) {
-            $sectionLines += $line
+            [void]$sectionLines.Add($line)
         }
     }
     return ,$sectionLines
@@ -96,7 +96,7 @@ $missingMetadata = New-Object System.Collections.Generic.List[string]
 $missingArtifactEntries = New-Object System.Collections.Generic.List[string]
 $missingArtifacts = New-Object System.Collections.Generic.List[string]
 $foundRunSummaries = New-Object System.Collections.Generic.List[string]
-$artifactPaths = @()
+$artifactPaths = [System.Collections.Generic.List[string]]::new()
 $commandLines = @()
 $metadata = @{
     RunDate  = $null
@@ -178,7 +178,7 @@ if (@($artifactLines).Count -gt 0) {
                 $missingArtifactEntries.Add($entry) | Out-Null
                 continue
             }
-            $artifactPaths += $normalized
+            [void]$artifactPaths.Add($normalized)
         }
     }
 }
@@ -187,7 +187,7 @@ if (@($artifactPaths).Count -eq 0) {
     $errors.Add('EvidenceArtifactsMissing:No artifact paths were found under Evidence Artifacts.') | Out-Null
 }
 
-$resolvedArtifactPaths = @()
+$resolvedArtifactPaths = [System.Collections.Generic.List[string]]::new()
 foreach ($path in $artifactPaths) {
     $resolved = Resolve-ArtifactPath -Path $path -RepoRoot $repoRoot
     if ($null -eq $resolved) {
@@ -197,7 +197,7 @@ foreach ($path in $artifactPaths) {
     if (-not (Test-Path -LiteralPath $resolved)) {
         $missingArtifacts.Add($resolved) | Out-Null
     } else {
-        $resolvedArtifactPaths += $resolved
+        [void]$resolvedArtifactPaths.Add($resolved)
         if ($resolved -match '\.json$') {
             try {
                 $payload = Get-Content -LiteralPath $resolved -Raw | ConvertFrom-Json -ErrorAction Stop

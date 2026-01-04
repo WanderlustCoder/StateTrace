@@ -1,0 +1,13 @@
+{
+  "Timestamp": "2025-12-29T12:34:48.2459342-07:00",
+  "Status": "Pass",
+  "Vendor": "CiscoIOSXE",
+  "CapturePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingCliCaptureSession\\WLLS\\WLLS-A01-AS-01\\20251229-123436\\Capture.json",
+  "OutputPath": "Logs/Reports/RoutingDiscoveryCapture-ST-A-015-20251229-123448.json",
+  "RoutesParsedCount": 4,
+  "LinesParsedCount": 6,
+  "LinesSkippedCount": 2,
+  "Errors": [],
+  "SchemaVersion": "1.0",
+  "DiscoverySchema": "1.0"
+}

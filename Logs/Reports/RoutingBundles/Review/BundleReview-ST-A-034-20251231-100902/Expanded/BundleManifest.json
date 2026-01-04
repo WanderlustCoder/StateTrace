@@ -1,0 +1,29 @@
+{
+  "SchemaVersion": "1.0",
+  "GeneratedAt": "2025-12-31T08:39:31.2505672-07:00",
+  "RootPath": "C:\\Users\\Werem\\Projects\\StateTrace",
+  "SummaryPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingDiff\\RoutingDiff-ST-A-031-20251231-083930.json",
+  "OutputZipPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingBundles\\RoutingBundle-Diff-ST-A-031-20251231-083930.zip",
+  "IncludedFiles": [
+    {
+      "RelativePath": "Logs\\Reports\\RoutingDiff\\RoutingDiff-ST-A-031-20251231-083930.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingDiff\\RoutingDiff-ST-A-031-20251231-083930.json",
+      "Sha256": "75286C1E752DC040A3590ADF5E15E61A442E449A0F37B9AFE8E2F81711606E34",
+      "Bytes": 3383
+    },
+    {
+      "RelativePath": "Tests\\Fixtures\\Routing\\RouteDiff\\RouteHealthSnapshot.old.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Tests\\Fixtures\\Routing\\RouteDiff\\RouteHealthSnapshot.old.json",
+      "Sha256": "33FB5D8221E1286ED5B0F0E320132AF6B2115FE000389214E148147A1EAEBF06",
+      "Bytes": 407
+    },
+    {
+      "RelativePath": "Tests\\Fixtures\\Routing\\RouteDiff\\RouteHealthSnapshot.new.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Tests\\Fixtures\\Routing\\RouteDiff\\RouteHealthSnapshot.new.json",
+      "Sha256": "33EAD7E1BED597CAA299E07FC96FF4D17B30F0D1A980ECD18B7BCD0A7ADEDF0F",
+      "Bytes": 402
+    }
+  ],
+  "MissingFiles": [],
+  "Warnings": []
+}

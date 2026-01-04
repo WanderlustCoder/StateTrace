@@ -1,0 +1,71 @@
+{
+  "Checklist": "InterfacesView",
+  "HostsAttempted": 4,
+  "HostsSucceeded": 4,
+  "TimeToFirstHostMs": 5000.793,
+  "TotalDurationMs": 5489.885,
+  "HostSummaries": [
+    {
+      "Hostname": "WLLS-A01-AS-21",
+      "Site": "WLLS",
+      "InterfacesRendered": 96,
+      "PortsAppended": 48,
+      "BatchesProcessed": 2,
+      "SessionDurationMs": 37.814,
+      "QueueDelayMs": null,
+      "DispatcherDurationMs": 0.642,
+      "Success": true
+    },
+    {
+      "Hostname": "BOYO-A05-AS-02",
+      "Site": "BOYO",
+      "InterfacesRendered": 20,
+      "PortsAppended": 10,
+      "BatchesProcessed": 1,
+      "SessionDurationMs": 3.068,
+      "QueueDelayMs": null,
+      "DispatcherDurationMs": 0.504,
+      "Success": true
+    },
+    {
+      "Hostname": "WLLS-A01-AS-01",
+      "Site": "WLLS",
+      "InterfacesRendered": 96,
+      "PortsAppended": 48,
+      "BatchesProcessed": 2,
+      "SessionDurationMs": 6.528,
+      "QueueDelayMs": null,
+      "DispatcherDurationMs": 0.733,
+      "Success": true
+    },
+    {
+      "Hostname": "BOYO-A05-AS-05",
+      "Site": "BOYO",
+      "InterfacesRendered": 20,
+      "PortsAppended": 10,
+      "BatchesProcessed": 1,
+      "SessionDurationMs": 2.715,
+      "QueueDelayMs": null,
+      "DispatcherDurationMs": 0.485,
+      "Success": true
+    }
+  ],
+  "SiteFreshness": [
+    {
+      "Site": "BOYO",
+      "LastIngestedUtc": "2025-12-22T21:47:16Z",
+      "LastIngestedLocal": "2025-12-22T14:47:16-07:00",
+      "Age": "18.2 h ago",
+      "Source": "History",
+      "HistoryPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Data\\\\IngestionHistory\\\\BOYO.json"
+    },
+    {
+      "Site": "WLLS",
+      "LastIngestedUtc": "2025-12-22T21:47:40Z",
+      "LastIngestedLocal": "2025-12-22T14:47:40-07:00",
+      "Age": "18.2 h ago",
+      "Source": "History",
+      "HistoryPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Data\\\\IngestionHistory\\\\WLLS.json"
+    }
+  ]
+}

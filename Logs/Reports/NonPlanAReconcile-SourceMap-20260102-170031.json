@@ -1,0 +1,219 @@
+[
+  {
+    "Id": "ST-F-002",
+    "Title": "Access scrubber automation",
+    "Status": null,
+    "PlanLink": null,
+    "Sources": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanF_SecurityIdentity.md"
+    ]
+  },
+  {
+    "Id": "ST-F-004",
+    "Title": "Identity/RBAC rollout playbook",
+    "Status": null,
+    "PlanLink": null,
+    "Sources": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanF_SecurityIdentity.md"
+    ]
+  },
+  {
+    "Id": "ST-E-006",
+    "Title": "UI telemetry ingestion (Plan D handoff)",
+    "Status": null,
+    "PlanLink": null,
+    "Sources": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanE_Telemetry.md"
+    ]
+  },
+  {
+    "Id": "ST-E-004",
+    "Title": "Phase 1 dictionary coverage refresh",
+    "Status": null,
+    "PlanLink": null,
+    "Sources": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanE_Telemetry.md"
+    ]
+  },
+  {
+    "Id": "ST-D-005",
+    "Title": "Guided troubleshooting runbooks refresh",
+    "Status": null,
+    "PlanLink": null,
+    "Sources": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanD_FeatureExpansion.md"
+    ]
+  },
+  {
+    "Id": "ST-F-005",
+    "Title": "Offline-first verification checklist",
+    "Status": null,
+    "PlanLink": null,
+    "Sources": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanF_SecurityIdentity.md"
+    ]
+  },
+  {
+    "Id": "ST-B-007",
+    "Title": "Enforce shared-cache analyzers in verification",
+    "Status": null,
+    "PlanLink": null,
+    "Sources": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanB_Performance.md"
+    ]
+  },
+  {
+    "Id": "ST-D-006",
+    "Title": "Template/helper catalog alignment",
+    "Status": null,
+    "PlanLink": null,
+    "Sources": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanD_FeatureExpansion.md"
+    ]
+  },
+  {
+    "Id": "ST-G-005",
+    "Title": "Release readiness dashboard",
+    "Status": null,
+    "PlanLink": null,
+    "Sources": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanG_ReleaseGovernance.md"
+    ]
+  },
+  {
+    "Id": "ST-H-002",
+    "Title": "Expose data freshness & pipeline health in the UI",
+    "Status": null,
+    "PlanLink": null,
+    "Sources": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanH_UserExperience.md"
+    ]
+  },
+  {
+    "Id": "ST-D-011",
+    "Title": "Port reorg workflow + script generation",
+    "Status": null,
+    "PlanLink": null,
+    "Sources": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanD_FeatureExpansion.md"
+    ]
+  },
+  {
+    "Id": "ST-F-007",
+    "Title": "NetOps + sanitizer evidence template",
+    "Status": "Done",
+    "PlanLink": null,
+    "Sources": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanF_SecurityIdentity.md"
+    ]
+  },
+  {
+    "Id": "ST-F-001",
+    "Title": "Document NetOps logging expectations for online mode",
+    "Status": null,
+    "PlanLink": null,
+    "Sources": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanF_SecurityIdentity.md"
+    ]
+  },
+  {
+    "Id": "ST-B-006",
+    "Title": "Automate warm-run diff hotspot triage",
+    "Status": null,
+    "PlanLink": null,
+    "Sources": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanB_Performance.md"
+    ]
+  },
+  {
+    "Id": "ST-E-001",
+    "Title": "2025-11-06",
+    "Status": null,
+    "PlanLink": null,
+    "Sources": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanE_Telemetry.md"
+    ]
+  },
+  {
+    "Id": "ST-D-004",
+    "Title": "Span view telemetry instrumentation",
+    "Status": null,
+    "PlanLink": null,
+    "Sources": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanD_FeatureExpansion.md"
+    ]
+  },
+  {
+    "Id": "ST-D-007",
+    "Title": "Span view telemetry + logging bridge",
+    "Status": null,
+    "PlanLink": null,
+    "Sources": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanD_FeatureExpansion.md"
+    ]
+  },
+  {
+    "Id": "ST-B-004",
+    "Title": "Restore preserved warm-run cache hits",
+    "Status": null,
+    "PlanLink": null,
+    "Sources": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanB_Performance.md"
+    ]
+  },
+  {
+    "Id": "ST-D-009",
+    "Title": "Guided troubleshooting runbooks (sanitized incidents)",
+    "Status": null,
+    "PlanLink": null,
+    "Sources": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanD_FeatureExpansion.md",
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanF_SecurityIdentity.md"
+    ]
+  },
+  {
+    "Id": "ST-D-008",
+    "Title": "UI smoke checklist automation artifact",
+    "Status": null,
+    "PlanLink": null,
+    "Sources": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanD_FeatureExpansion.md"
+    ]
+  },
+  {
+    "Id": "ST-E-005",
+    "Title": "Telemetry gate enforcement harness",
+    "Status": null,
+    "PlanLink": null,
+    "Sources": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanE_Telemetry.md"
+    ]
+  },
+  {
+    "Id": "ST-F-008",
+    "Title": "NetOps schema + sample log",
+    "Status": "Done",
+    "PlanLink": null,
+    "Sources": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanF_SecurityIdentity.md"
+    ]
+  },
+  {
+    "Id": "ST-F-006",
+    "Title": "Sanitized incident intake grind",
+    "Status": null,
+    "PlanLink": null,
+    "Sources": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanF_SecurityIdentity.md"
+    ]
+  },
+  {
+    "Id": "ST-H-003",
+    "Title": "Instrument user-facing telemetry + feedback loop",
+    "Status": null,
+    "PlanLink": null,
+    "Sources": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanH_UserExperience.md"
+    ]
+  }
+]

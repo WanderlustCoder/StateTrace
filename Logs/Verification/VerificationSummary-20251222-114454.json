@@ -1,0 +1,21 @@
+﻿{
+    "GeneratedAtUtc":  "\/Date(1766429094476)\/",
+    "Timestamp":  "20251222-114454",
+    "Status":  "Fail",
+    "TranscriptPath":  "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Verification\\StateTraceVerification-20251222-114454.log",
+    "SummaryPath":  "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Verification\\VerificationSummary-20251222-114454.json",
+    "Parameters":  {
+                       "RequireSharedCacheSnapshotGuard":  true,
+                       "RequireTelemetryIntegrity":  true,
+                       "SharedCacheMinimumTotalRowCount":  1,
+                       "PassThru":  true,
+                       "SharedCacheMinimumHostCount":  1,
+                       "VerboseParsing":  true,
+                       "SharedCacheRequiredSites":  [
+                                                        "BOYO",
+                                                        "WLLS"
+                                                    ],
+                       "SharedCacheMinimumSiteCount":  1
+                   },
+    "ErrorMessage":  "At C:\\Users\\Werem\\Projects\\StateTrace\\Tools\\Invoke-StateTraceVerification.ps1:713 char:98\r\n+ ...               : {0}\" -f ($sharedCacheSummaryEvaluation.Pass ? \u0027Pass\u0027  ...\r\n+                                                                 ~\nUnexpected token \u0027?\u0027 in expression or statement.\r\n\r\nAt C:\\Users\\Werem\\Projects\\StateTrace\\Tools\\Invoke-StateTraceVerification.ps1:713 char:97\r\n+ ...                 : {0}\" -f ($sharedCacheSummaryEvaluation.Pass ? \u0027Pass ...\r\n+                                                                  ~\nMissing closing \u0027)\u0027 in expression.\r\n\r\nAt C:\\Users\\Werem\\Projects\\StateTrace\\Tools\\Invoke-StateTraceVerification.ps1:705 char:78\r\n+ ... f (-not $QuietSummary.IsPresent -and $sharedCacheSummaryEvaluation) {\r\n+                                                                         ~\nMissing closing \u0027}\u0027 in statement block or type definition.\r\n\r\nAt C:\\Users\\Werem\\Projects\\StateTrace\\Tools\\Invoke-StateTraceVerification.ps1:697 char:12\r\n+     } else {\r\n+            ~\nMissing closing \u0027}\u0027 in statement block or type definition.\r\n\r\nAt C:\\Users\\Werem\\Projects\\StateTrace\\Tools\\Invoke-StateTraceVerification.ps1:693 char:55\r\n+ if (-not $SkipSharedCacheSummaryEvaluation.IsPresent) {\r\n+                                                       ~\nMissing closing \u0027}\u0027 in statement block or type definition.\r\n\r\nAt C:\\Users\\Werem\\Projects\\StateTrace\\Tools\\Invoke-StateTraceVerification.ps1:713 char:115\r\n+ ... 0}\" -f ($sharedCacheSummaryEvaluation.Pass ? \u0027Pass\u0027 : \u0027Fail\u0027)) -Foreg ...\r\n+                                                                 ~\nUnexpected token \u0027)\u0027 in expression or statement.\r\n\r\nAt C:\\Users\\Werem\\Projects\\StateTrace\\Tools\\Invoke-StateTraceVerification.ps1:713 char:116\r\n+ ... }\" -f ($sharedCacheSummaryEvaluation.Pass ? \u0027Pass\u0027 : \u0027Fail\u0027)) -Foregr ...\r\n+                                                                 ~\nUnexpected token \u0027)\u0027 in expression or statement.\r\n\r\nAt C:\\Users\\Werem\\Projects\\StateTrace\\Tools\\Invoke-StateTraceVerification.ps1:719 char:9\r\n+         }\r\n+         ~\nUnexpected token \u0027}\u0027 in expression or statement.\r\n\r\nAt C:\\Users\\Werem\\Projects\\StateTrace\\Tools\\Invoke-StateTraceVerification.ps1:749 char:5\r\n+     }\r\n+     ~\nUnexpected token \u0027}\u0027 in expression or statement.\r\n\r\nAt C:\\Users\\Werem\\Projects\\StateTrace\\Tools\\Invoke-StateTraceVerification.ps1:750 char:1\r\n+ }\r\n+ ~\nUnexpected token \u0027}\u0027 in expression or statement."
+}

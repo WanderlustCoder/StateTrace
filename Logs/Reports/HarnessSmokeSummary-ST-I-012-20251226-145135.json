@@ -1,0 +1,35 @@
+{
+  "GeneratedAtUtc": "2025-12-26T21:51:35.9852824Z",
+  "MetricsPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\2025-12-26.json",
+  "QueueSummary": {
+    "Path": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\QueueDelaySummary-smoke-20251226-145135.json",
+    "Generated": true,
+    "SampleCount": 240,
+    "Pass": true,
+    "Result": "Pass"
+  },
+  "PortDiversity": {
+    "Path": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\PortBatchSiteDiversity-2025-12-26-raw-auto-20251226-125510.json",
+    "MaxStreak": 1,
+    "AllowedStreak": 8,
+    "UsedSynthesizedEvents": false,
+    "UsedExistingReport": true,
+    "Pass": true
+  },
+  "History": {
+    "QueueDelayHistoryPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\QueueDelayHistory.csv",
+    "PortBatchHistoryPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\PortBatchHistory.csv",
+    "InterfaceSyncHistoryPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\InterfaceSyncHistory.csv",
+    "ParserSchedulerHistoryPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\ParserSchedulerHistory.csv",
+    "QueueDelayAppended": 0,
+    "PortBatchAppended": 1,
+    "InterfaceSyncAppended": 1,
+    "ParserSchedulerAppended": 0
+  },
+  "SharedCacheDiagnostics": {
+    "StoreStatePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\SharedCacheDiagnostics\\SharedCacheStoreState-smoke-20251226-145135.json",
+    "ProviderReasonsPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\SharedCacheDiagnostics\\SiteCacheProviderReasons-smoke-20251226-145135.json"
+  },
+  "Passed": true,
+  "Failures": []
+}

@@ -1,0 +1,26 @@
+{
+  "Timestamp": "2025-12-29T15:15:05.4023765-07:00",
+  "Status": "Pass",
+  "EvidencePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Tests\\Fixtures\\Routing\\RealDeviceEvidence\\OperatorEvidence.sample.md",
+  "Operator": "Test Operator",
+  "RunDate": "2025-12-29 12:00",
+  "Site": "WLLS",
+  "Vendor": "CiscoIOSXE",
+  "Vrf": "default",
+  "ArtifactPaths": [
+    "C:\\Users\\Werem\\Projects\\StateTrace\\Tests\\Fixtures\\Routing\\RealDeviceEvidence\\PreflightSummary.sample.json",
+    "C:\\Users\\Werem\\Projects\\StateTrace\\Tests\\Fixtures\\Routing\\RealDeviceEvidence\\RoutingValidationRunSummary.sample.json",
+    "C:\\Users\\Werem\\Projects\\StateTrace\\Tests\\Fixtures\\Routing\\RealDeviceEvidence\\OperatorRun.sample.log"
+  ],
+  "Validation": {
+    "MissingSections": [],
+    "MissingMetadata": [],
+    "MissingCommands": false,
+    "MissingArtifactEntries": [],
+    "MissingArtifacts": [],
+    "FoundRunSummaries": [
+      "C:\\Users\\Werem\\Projects\\StateTrace\\Tests\\Fixtures\\Routing\\RealDeviceEvidence\\RoutingValidationRunSummary.sample.json"
+    ]
+  },
+  "Errors": []
+}

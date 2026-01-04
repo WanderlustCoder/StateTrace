@@ -1,0 +1,46 @@
+{
+  "TaskId": "ST-C-004",
+  "TaskBoard": {
+    "Path": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\StateTrace_TaskBoard.md",
+    "Exists": true,
+    "ContainsTaskId": true
+  },
+  "TaskBoardCsv": {
+    "Path": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\taskboard\\TaskBoard.csv",
+    "Exists": true,
+    "ContainsTaskId": true,
+    "PlanLink": "docs/plans/PlanC_ChangeTracking.md"
+  },
+  "TaskBoardIntegrity": {
+    "Path": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\TaskBoardIntegrity-20251231-151152.json",
+    "Passed": true,
+    "Error": null,
+    "RowCount": 92,
+    "MinimumRowCount": 10
+  },
+  "Plan": {
+    "Path": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanC_ChangeTracking.md",
+    "Exists": true,
+    "ContainsTaskId": true,
+    "Source": "TaskBoardCsv"
+  },
+  "Backlog": {
+    "Path": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\CODEX_BACKLOG.md",
+    "Exists": true,
+    "ContainsTaskId": false,
+    "Required": false
+  },
+  "SessionLog": {
+    "Path": "docs\\agents\\sessions\\2025-12-31_session-0011.md",
+    "Exists": true,
+    "ContainsTaskId": true,
+    "References": [
+      "Plan",
+      "TaskBoardCsv",
+      "TaskBoard"
+    ],
+    "Required": true
+  },
+  "Passed": true,
+  "Missing": []
+}

@@ -1,0 +1,21 @@
+﻿{
+    "GeneratedAtUtc":  "\/Date(1766430995624)\/",
+    "Timestamp":  "20251222-121555",
+    "Status":  "Fail",
+    "TranscriptPath":  "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Verification\\StateTraceVerification-20251222-121555.log",
+    "SummaryPath":  "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Verification\\VerificationSummary-20251222-121555.json",
+    "Parameters":  {
+                       "RequireSharedCacheSnapshotGuard":  true,
+                       "RequireTelemetryIntegrity":  true,
+                       "SharedCacheMinimumTotalRowCount":  1,
+                       "PassThru":  true,
+                       "SharedCacheMinimumHostCount":  1,
+                       "VerboseParsing":  true,
+                       "SharedCacheRequiredSites":  [
+                                                        "BOYO",
+                                                        "WLLS"
+                                                    ],
+                       "SharedCacheMinimumSiteCount":  1
+                   },
+    "ErrorMessage":  "Exception calling \"GetFullPath\" with \"1\" argument(s): \"The given path\u0027s format is not supported.\""
+}

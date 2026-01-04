@@ -1,0 +1,39 @@
+{
+  "RunbookChecks": [
+    {
+      "Id": "INC0001",
+      "Path": "docs/runbooks/Incident_INC0001_RoutingQueueDelay.md",
+      "Exists": true,
+      "MissingTelemetry": []
+    },
+    {
+      "Id": "INC0002",
+      "Path": "docs/runbooks/Incident_INC0002_SharedCacheRefresh.md",
+      "Exists": true,
+      "MissingTelemetry": []
+    },
+    {
+      "Id": "INC0003",
+      "Path": "docs/runbooks/Incident_INC0003_PortBatchMissing.md",
+      "Exists": true,
+      "MissingTelemetry": []
+    }
+  ],
+  "OperatorLinks": [
+    {
+      "Id": "INC0001",
+      "Path": "docs/runbooks/Incident_INC0001_RoutingQueueDelay.md",
+      "Linked": true
+    },
+    {
+      "Id": "INC0002",
+      "Path": "docs/runbooks/Incident_INC0002_SharedCacheRefresh.md",
+      "Linked": true
+    },
+    {
+      "Id": "INC0003",
+      "Path": "docs/runbooks/Incident_INC0003_PortBatchMissing.md",
+      "Linked": true
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "PageCounts": [
+    {
+      "Count": 24,
+      "PageCount": null,
+      "VisibleCount": 0
+    },
+    {
+      "Count": 48,
+      "PageCount": null,
+      "VisibleCount": 0
+    },
+    {
+      "Count": 96,
+      "PageCount": null,
+      "VisibleCount": 0
+    }
+  ],
+  "ScriptChangeMatch": [],
+  "ScriptRollbackMatch": []
+}

@@ -1,0 +1,24 @@
+{
+  "MetricsFile": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\2025-12-20.json",
+  "GeneratedAtUtc": "2025-12-21T05:10:48.9592535Z",
+  "MaxAllowedConsecutive": 8,
+  "EvaluationEnd": "2025-12-21T05:10:32.2069312Z",
+  "TerminalSite": "BOYO",
+  "SitesRemainingWhenStopped": 1,
+  "SiteStreaks": [
+    {
+      "Site": "WLLS",
+      "MaxCount": 19,
+      "StartTime": "2025-12-20T21:49:30.6112833Z",
+      "EndTime": "2025-12-21T05:10:16.1915159Z",
+      "HostSample": "WLLS-A02-AS-02, WLLS-A02-AS-12, WLLS-A02-AS-22, WLLS-A02-AS-42, WLLS-A02-AS-32"
+    },
+    {
+      "Site": "BOYO",
+      "MaxCount": 3,
+      "StartTime": "2025-12-20T21:49:29.0728281Z",
+      "EndTime": "2025-12-20T21:49:29.8852966Z",
+      "HostSample": "BOYO-A05-AS-35, BOYO-A05-AS-45, BOYO-A05-AS-52"
+    }
+  ]
+}

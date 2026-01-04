@@ -1,0 +1,39 @@
+{
+  "Timestamp": "2025-12-27T16:44:39.7513541-07:00",
+  "HostList": {
+    "Path": "C:\\Users\\Werem\\Projects\\StateTrace\\Data\\RoutingHosts.txt",
+    "Count": 37,
+    "UniqueCount": 37,
+    "DuplicateHosts": [],
+    "SiteCounts": [
+      {
+        "Site": "BOYO",
+        "Count": 12
+      },
+      {
+        "Site": "WLLS",
+        "Count": 25
+      }
+    ]
+  },
+  "BalancedHostList": {
+    "Path": "C:\\Users\\Werem\\Projects\\StateTrace\\Data\\RoutingHosts_Balanced.txt",
+    "Count": 37,
+    "UniqueCount": 37,
+    "DuplicateHosts": [],
+    "MissingHosts": [],
+    "ExtraHosts": [],
+    "SiteCounts": [
+      {
+        "Site": "BOYO",
+        "Count": 12
+      },
+      {
+        "Site": "WLLS",
+        "Count": 25
+      }
+    ]
+  },
+  "Errors": [],
+  "Passed": true
+}

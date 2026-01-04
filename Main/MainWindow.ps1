@@ -944,7 +944,11 @@ if (-not $script:ViewsInitialized) {
     $discovered = Get-OptionalCommandSafe -Name 'New-*View' | Select-Object -ExpandProperty Name
     if ($discovered) {
         $extra = $discovered | Where-Object { ($viewsInOrder -notcontains $_) -and ($_ -notin $excludeInitially) }
-        foreach ($v in ($extra | Sort-Object)) { $viewsInOrder += $v }
+        # Convert to List for efficient appending
+        $viewsInOrderList = [System.Collections.Generic.List[string]]::new()
+        foreach ($v in $viewsInOrder) { [void]$viewsInOrderList.Add($v) }
+        foreach ($v in ($extra | Sort-Object)) { [void]$viewsInOrderList.Add($v) }
+        $viewsInOrder = $viewsInOrderList
     }
 
     foreach ($v in $viewsInOrder) {
@@ -1443,10 +1447,10 @@ function Get-SiteCacheProviderFromMetrics {
     if (-not $telemetry) {
         # Fallback to newline-delimited JSON
         $lines = Get-Content -LiteralPath $latest.FullName -ErrorAction SilentlyContinue
-        $parsed = @()
+        $parsed = [System.Collections.Generic.List[object]]::new()
         foreach ($line in $lines) {
             if ([string]::IsNullOrWhiteSpace($line)) { continue }
-            try { $parsed += ($line | ConvertFrom-Json -ErrorAction Stop) } catch { }
+            try { [void]$parsed.Add(($line | ConvertFrom-Json -ErrorAction Stop)) } catch { }
         }
         if ($parsed.Count -gt 0) { $telemetry = $parsed }
     }

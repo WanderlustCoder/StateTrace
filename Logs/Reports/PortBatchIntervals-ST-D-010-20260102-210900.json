@@ -1,0 +1,85 @@
+{
+  "GeneratedAtUtc": "2026-01-02T19:08:11.2552538Z",
+  "SourceFiles": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\Run-20251223-064548\\2025-12-23.json",
+  "EventCount": 10,
+  "IntervalCount": 9,
+  "TopSampleSize": 20,
+  "ThresholdSeconds": 60.0,
+  "ThresholdGapCount": 0,
+  "FilterStartUtc": null,
+  "FilterEndUtc": null,
+  "Intervals": [
+    {
+      "StartTimeUtc": "2025-12-23T13:45:52.0677341Z",
+      "EndTimeUtc": "2025-12-23T13:45:52.2161685Z",
+      "GapSeconds": 0.148,
+      "GapMinutes": 0.002,
+      "StartHost": "WLLS-A01-AS-21",
+      "EndHost": "BOYO-A05-AS-02"
+    },
+    {
+      "StartTimeUtc": "2025-12-23T13:45:52.2161685Z",
+      "EndTimeUtc": "2025-12-23T13:45:52.4660682Z",
+      "GapSeconds": 0.25,
+      "GapMinutes": 0.004,
+      "StartHost": "BOYO-A05-AS-02",
+      "EndHost": "WLLS-A01-AS-01"
+    },
+    {
+      "StartTimeUtc": "2025-12-23T13:45:52.4660682Z",
+      "EndTimeUtc": "2025-12-23T13:45:52.5573795Z",
+      "GapSeconds": 0.091,
+      "GapMinutes": 0.002,
+      "StartHost": "WLLS-A01-AS-01",
+      "EndHost": "BOYO-A05-AS-05"
+    },
+    {
+      "StartTimeUtc": "2025-12-23T13:45:52.5573795Z",
+      "EndTimeUtc": "2025-12-23T13:45:52.768416Z",
+      "GapSeconds": 0.211,
+      "GapMinutes": 0.004,
+      "StartHost": "BOYO-A05-AS-05",
+      "EndHost": "WLLS-A01-AS-11"
+    },
+    {
+      "StartTimeUtc": "2025-12-23T13:45:52.768416Z",
+      "EndTimeUtc": "2025-12-23T13:45:52.8562249Z",
+      "GapSeconds": 0.088,
+      "GapMinutes": 0.001,
+      "StartHost": "WLLS-A01-AS-11",
+      "EndHost": "BOYO-A05-AS-12"
+    },
+    {
+      "StartTimeUtc": "2025-12-23T13:45:52.8562249Z",
+      "EndTimeUtc": "2025-12-23T13:45:53.0845289Z",
+      "GapSeconds": 0.228,
+      "GapMinutes": 0.004,
+      "StartHost": "BOYO-A05-AS-12",
+      "EndHost": "WLLS-A01-AS-31"
+    },
+    {
+      "StartTimeUtc": "2025-12-23T13:45:53.0845289Z",
+      "EndTimeUtc": "2025-12-23T13:45:53.1782429Z",
+      "GapSeconds": 0.094,
+      "GapMinutes": 0.002,
+      "StartHost": "WLLS-A01-AS-31",
+      "EndHost": "BOYO-A05-AS-15"
+    },
+    {
+      "StartTimeUtc": "2025-12-23T13:45:53.1782429Z",
+      "EndTimeUtc": "2025-12-23T13:45:53.4049633Z",
+      "GapSeconds": 0.227,
+      "GapMinutes": 0.004,
+      "StartHost": "BOYO-A05-AS-15",
+      "EndHost": "WLLS-A01-AS-41"
+    },
+    {
+      "StartTimeUtc": "2025-12-23T13:45:53.4049633Z",
+      "EndTimeUtc": "2025-12-23T13:45:53.4985674Z",
+      "GapSeconds": 0.094,
+      "GapMinutes": 0.002,
+      "StartHost": "WLLS-A01-AS-41",
+      "EndHost": "BOYO-A05-AS-22"
+    }
+  ]
+}

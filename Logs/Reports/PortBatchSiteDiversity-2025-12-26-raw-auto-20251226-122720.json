@@ -1,0 +1,52 @@
+{
+  "MetricsFile": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\2025-12-26.json",
+  "GeneratedAtUtc": "2025-12-26T19:27:25.2173182Z",
+  "EvaluationWindowStartUtc": "2025-12-26T19:26:21.4684617Z",
+  "EvaluationWindowEndUtc": "2025-12-26T19:26:35.2866937Z",
+  "MaxAllowedConsecutive": 8,
+  "EvaluationEnd": "2025-12-26T19:26:27.1373921Z",
+  "TerminalSite": "WLLS",
+  "SitesRemainingWhenStopped": 1,
+  "PortBatchReadyCount": 25,
+  "EvaluatedPortBatchReadyCount": 25,
+  "UsedSynthesizedEvents": false,
+  "IgnoredSynthesizedEvents": true,
+  "ManualOverridesApplied": false,
+  "ConcurrencyProfile": {
+    "ManualOverrides": false,
+    "DecisionSource": "AutoScale",
+    "ThreadCeiling": 8,
+    "MaxWorkersPerSite": 4,
+    "MaxActiveSites": 0,
+    "JobsPerThread": 4,
+    "MinRunspaces": 1,
+    "ResolvedThreadCeiling": 8,
+    "ResolvedMaxWorkersPerSite": 4,
+    "ResolvedMaxActiveSites": 0,
+    "ResolvedJobsPerThread": 4,
+    "ResolvedMinRunspaces": 1,
+    "ResolvedMaxConsecutiveSiteLaunches": 8
+  },
+  "RawAutoConcurrencyMode": true,
+  "ObservedPortBatchReadyCount": 25,
+  "SynthesizedPortBatchReadyCount": 0,
+  "ParseEventCount": 156,
+  "SkippedDuplicateCount": 0,
+  "SiteStreaks": {
+    "Site": "WLLS",
+    "MaxCount": 1,
+    "StartTime": "2025-12-26T19:26:27.1373921Z",
+    "EndTime": "2025-12-26T19:26:27.1373921Z",
+    "HostSample": "WLLS-A01-AS-01"
+  },
+  "MaxStreakSegment": {
+    "Site": "WLLS",
+    "Count": 1,
+    "StartTime": "2025-12-26T19:26:27.1373921Z",
+    "EndTime": "2025-12-26T19:26:27.1373921Z",
+    "StartIndex": 0,
+    "EndIndex": 0,
+    "HostSample": "WLLS-A01-AS-01",
+    "HostSequenceSample": "WLLS-A01-AS-01"
+  }
+}

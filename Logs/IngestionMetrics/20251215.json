@@ -1,0 +1,74 @@
+﻿[
+    {
+        "Timestamp":  "2025-12-15T13:57:25.7130827-07:00",
+        "ActiveWorkers":  0,
+        "ActiveSites":  0,
+        "QueuedJobs":  2,
+        "QueuedSites":  2,
+        "TotalDevices":  2,
+        "MaxThreads":  1,
+        "MaxWorkersPerSite":  1,
+        "MaxActiveSites":  1,
+        "ThreadBudget":  1
+    },
+    {
+        "Timestamp":  "2025-12-15T13:57:25.7790847-07:00",
+        "ActiveWorkers":  1,
+        "ActiveSites":  1,
+        "QueuedJobs":  1,
+        "QueuedSites":  1,
+        "TotalDevices":  2,
+        "MaxThreads":  1,
+        "MaxWorkersPerSite":  1,
+        "MaxActiveSites":  1,
+        "ThreadBudget":  1
+    },
+    {
+        "Timestamp":  "2025-12-15T13:57:25.8860834-07:00",
+        "ActiveWorkers":  0,
+        "ActiveSites":  0,
+        "QueuedJobs":  1,
+        "QueuedSites":  1,
+        "TotalDevices":  2,
+        "MaxThreads":  1,
+        "MaxWorkersPerSite":  1,
+        "MaxActiveSites":  1,
+        "ThreadBudget":  1
+    },
+    {
+        "Timestamp":  "2025-12-15T13:57:25.9110860-07:00",
+        "ActiveWorkers":  1,
+        "ActiveSites":  1,
+        "QueuedJobs":  0,
+        "QueuedSites":  0,
+        "TotalDevices":  2,
+        "MaxThreads":  1,
+        "MaxWorkersPerSite":  1,
+        "MaxActiveSites":  1,
+        "ThreadBudget":  1
+    },
+    {
+        "Timestamp":  "2025-12-15T13:57:25.9781591-07:00",
+        "ActiveWorkers":  0,
+        "ActiveSites":  0,
+        "QueuedJobs":  0,
+        "QueuedSites":  0,
+        "TotalDevices":  2,
+        "MaxThreads":  1,
+        "MaxWorkersPerSite":  1,
+        "MaxActiveSites":  1,
+        "ThreadBudget":  1
+    },
+    {
+        "Timestamp":  "2025-12-15T13:57:25.9791746-07:00",
+        "ActiveWorkers":  0,
+        "ActiveSites":  0,
+        "QueuedJobs":  0,
+        "QueuedSites":  0,
+        "TotalDevices":  2,
+        "MaxThreads":  1,
+        "MaxWorkersPerSite":  1,
+        "MaxActiveSites":  1,
+        "ThreadBudget":  1
+    }
+]

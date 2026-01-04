@@ -1,0 +1,50 @@
+{
+  "Area": "Telemetry",
+  "BundlePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\TelemetryBundles\\Release-2025-12-24\\Telemetry",
+  "ManifestPath": "TelemetryBundle.json",
+  "ReadmePath": "README.md",
+  "ReadmeHash": "4A2E9A56282D55A4665A1DBF3DDA3F2AC3F39971536BB2BFDCDEFDD71F9C7A88",
+  "HashAlgorithm": "SHA256",
+  "RequirementState": [
+    {
+      "Requirement": "README",
+      "Status": "Present",
+      "Files": "README.md"
+    },
+    {
+      "Requirement": "Manifest",
+      "Status": "Present",
+      "Files": "TelemetryBundle.json"
+    },
+    {
+      "Requirement": "Rollup CSV",
+      "Status": "Present",
+      "Files": "IngestionMetricsSummary-20251222-071331-1.csv; IngestionMetricsSummary-20251222-071331-2.csv; IngestionMetricsSummary-20251222-071331-3.csv; IngestionMetricsSummary-20251222-071331.csv"
+    },
+    {
+      "Requirement": "Shared-cache analyzer",
+      "Status": "Present",
+      "Files": "SharedCacheStoreState-2025-12-23-1.json; SharedCacheStoreState-2025-12-23-2.json; SharedCacheStoreState-2025-12-23.json; SharedCacheStoreState-20251224-110339.json"
+    },
+    {
+      "Requirement": "Site cache providers",
+      "Status": "Present",
+      "Files": "SiteCacheProviderReasons-20251224-110339.json"
+    },
+    {
+      "Requirement": "Warm-run telemetry",
+      "Status": "Present",
+      "Files": "WarmRunTelemetry-20251224-110119-1.json; WarmRunTelemetry-20251224-110119-2.json; WarmRunTelemetry-20251224-110119-3.json; WarmRunTelemetry-20251224-110119.json"
+    },
+    {
+      "Requirement": "Diff hotspot CSV",
+      "Status": "Present",
+      "Files": "DiffHotspots-20251224-110119.csv; WarmRunDiffHotspots-20251223-172638-1.csv; WarmRunDiffHotspots-20251223-172638-2.csv; WarmRunDiffHotspots-20251223-172638.csv"
+    },
+    {
+      "Requirement": "Doc-sync evidence",
+      "Status": "Present",
+      "Files": "2025-12-24_session-0003-1.md; 2025-12-24_session-0003.md"
+    }
+  ]
+}

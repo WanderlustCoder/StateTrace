@@ -185,7 +185,7 @@ if ($null -eq $routes) {
     Add-Error -Errors $errors -Message "InvalidType:Routes expected=array actual=$($routes.GetType().Name)"
 }
 
-$routeRecords = @()
+$routeRecords = [System.Collections.Generic.List[object]]::new()
 if ($errors.Count -eq 0) {
     if ([string]::IsNullOrWhiteSpace($vrf)) {
         $vrf = 'default'
@@ -229,7 +229,7 @@ if ($errors.Count -eq 0) {
                 AgeSeconds     = Get-PropertyValue -Object $route -Name 'AgeSeconds'
                 SourceSystem   = 'RoutingDiscoveryCapture'
             }
-            $routeRecords += $routeRecord
+            [void]$routeRecords.Add($routeRecord)
         }
         $routeIndex += 1
     }

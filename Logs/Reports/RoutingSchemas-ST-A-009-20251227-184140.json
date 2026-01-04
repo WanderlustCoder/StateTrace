@@ -1,0 +1,25 @@
+{
+  "Timestamp": "2025-12-27T18:41:41.7221498-07:00",
+  "SchemaRoot": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\schemas\\routing",
+  "RouteRecord": {
+    "Label": "RouteRecord",
+    "Path": "C:\\Users\\Werem\\Projects\\StateTrace\\Tests\\Fixtures\\Routing\\RouteRecord.sample.json",
+    "Status": "Fail",
+    "Errors": [
+      "InvalidType:CapturedAt expected=string actual=DateTime"
+    ],
+    "SchemaVersionExpected": "1.0",
+    "SchemaVersionFound": "1.0"
+  },
+  "RouteHealthSnapshot": {
+    "Label": "RouteHealthSnapshot",
+    "Path": "C:\\Users\\Werem\\Projects\\StateTrace\\Tests\\Fixtures\\Routing\\RouteHealthSnapshot.sample.json",
+    "Status": "Fail",
+    "Errors": [
+      "InvalidType:CapturedAt expected=string actual=DateTime"
+    ],
+    "SchemaVersionExpected": "1.0",
+    "SchemaVersionFound": "1.0"
+  },
+  "Status": "Fail"
+}

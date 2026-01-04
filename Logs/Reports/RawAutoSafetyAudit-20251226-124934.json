@@ -1,0 +1,9 @@
+{
+  "Stamp": "20251226-124934",
+  "Matches": false,
+  "Mismatches": [
+    "C:\\Users\\Werem\\Projects\\StateTrace\\Data\\StateTraceSettings.json"
+  ],
+  "BeforePath": "Logs/Reports/RawAutoSafetyAudit-20251226-124934-before.json",
+  "AfterPath": "Logs/Reports/RawAutoSafetyAudit-20251226-124934-after.json"
+}

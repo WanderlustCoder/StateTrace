@@ -1,0 +1,24 @@
+{
+  "SchedulerReportPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\ParserSchedulerLaunch-2025-12-12.json",
+  "PortDiversityPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\PortBatchSiteDiversity-2025-12-12.json",
+  "GeneratedAtUtc": "2025-12-13T00:43:33.2250045Z",
+  "Sites": [
+    {
+      "Site": "BOYO",
+      "SchedulerMax": 1,
+      "PortBatchMax": 1,
+      "PortMinusScheduler": 0,
+      "Mismatch": false
+    },
+    {
+      "Site": "WLLS",
+      "SchedulerMax": 1,
+      "PortBatchMax": 0,
+      "PortMinusScheduler": -1,
+      "Mismatch": false
+    }
+  ],
+  "MismatchCount": 0,
+  "MaxSchedulerStreak": 1,
+  "MaxPortBatchStreak": 1
+}

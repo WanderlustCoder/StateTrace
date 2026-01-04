@@ -1,0 +1,242 @@
+{
+  "BundleName": "Routing-20251222",
+  "AreaName": "Routing",
+  "CreatedAt": "2025-12-22T08:46:14.2961130-07:00",
+  "Hostname": "L5I-BAHUMUT",
+  "OutputRoot": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\TelemetryBundles\\Routing-20251222",
+  "BundlePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\TelemetryBundles\\Routing-20251222\\Routing",
+  "PlanReferences": [
+    "PlanA"
+  ],
+  "TaskBoardIds": [
+    "ST-A-005",
+    "ST-A-006"
+  ],
+  "Notes": "Queue delay + scheduler fairness pass (2025-12-22); dispatcher sweep 20251222-074214",
+  "Artifacts": [
+    {
+      "Category": "ColdTelemetry",
+      "TargetFile": "2025-12-22-1.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\2025-12-22.json",
+      "Hash": "E836ED9136AB085123982D2D809876CC93B0B61A404311BB5CFE0A236FFCEE70",
+      "SizeBytes": 1578597
+    },
+    {
+      "Category": "WarmTelemetry",
+      "TargetFile": "WarmRunTelemetry-20251212-174018-1.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\WarmRunTelemetry-20251212-174018.json",
+      "Hash": "90109303721EDF2D55F92BD70FD9AB8272211FCCC188A744ED13B2A955010533",
+      "SizeBytes": 79164
+    },
+    {
+      "Category": "RollupCsv",
+      "TargetFile": "IngestionMetricsSummary-20251222-071331-1.csv",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\IngestionMetricsSummary-20251222-071331.csv",
+      "Hash": "BD1379999C352EA9F45623A5DAB8265100C8D327AAA106C7C083644217256C61",
+      "SizeBytes": 303
+    },
+    {
+      "Category": "QueueDelaySummary",
+      "TargetFile": "QueueDelaySummary-2025-12-22-1.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\QueueDelaySummary-2025-12-22.json",
+      "Hash": "F2898C6525477CC82633784F355C31EC8A70D0F6C6CBB3643AFD757545E8C699",
+      "SizeBytes": 887
+    },
+    {
+      "Category": "QueueDelaySummary",
+      "TargetFile": "QueueDelaySummary-2025-12-20-1.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\QueueDelaySummary-2025-12-20.json",
+      "Hash": "4025AF11A69C72EC979BAC02953CAAAF8CE0AB1E04C277F725350F1E67F4E1D4",
+      "SizeBytes": 873
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "QueueDelayHistory-1.csv",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\QueueDelayHistory.csv",
+      "Hash": "927A537ED157C3B9717496C526B7D428BC7BBD86DB230C4E67B5AA6D3643B898",
+      "SizeBytes": 1284
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "ParserSchedulerHistory-1.csv",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\ParserSchedulerHistory.csv",
+      "Hash": "3FCA3072C96611D8348AF367AE3837BB939639091FBE749D2DD48920027E6056",
+      "SizeBytes": 1589
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "PortBatchHistory-1.csv",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\PortBatchHistory.csv",
+      "Hash": "B25790E2A8577CDA40971772693DA3915BC8126359A6C72904E65420A8A02C25",
+      "SizeBytes": 1902
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "InterfaceSyncHistory-1.csv",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\InterfaceSyncHistory.csv",
+      "Hash": "6E7CC5291D15F43A530FB3566467F5008989A79E32A2FCBECA30C432A982B727",
+      "SizeBytes": 1759
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "SchedulerVsPortDiversity-2025-12-22-1.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\SchedulerVsPortDiversity-2025-12-22.json",
+      "Hash": "CA4350C5DAC520AF4D0EB5328D7E0EACAFD40CA2CB1DC866BBCDFF9EB8B0150D",
+      "SizeBytes": 693
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "SchedulerVsPortDiversity-2025-12-22-1.md",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\performance\\SchedulerVsPortDiversity-2025-12-22.md",
+      "Hash": "15BD0CC132A22580D08B6A3A7CFCD36E2E3CC52FDCD98B97B856F80E4009F580",
+      "SizeBytes": 378
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "BOYO-A05-AS-02-20251222-074214-1.log",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\BOYO-A05-AS-02-20251222-074214.log",
+      "Hash": "2B366236D3BAF3F1614CE15E837CEB084C4AE8D168FF30006E5B0D1FA7D2CBD6",
+      "SizeBytes": 13584
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "BOYO-A05-AS-05-20251222-074214-1.log",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\BOYO-A05-AS-05-20251222-074214.log",
+      "Hash": "FEF74AA5C7EF4B1EAB0FD8F0268C1FF1B5CFA4BF759070D585C84834F42F692A",
+      "SizeBytes": 13585
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "BOYO-A05-AS-12-20251222-074214-1.log",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\BOYO-A05-AS-12-20251222-074214.log",
+      "Hash": "AF027A57F5766DF9B62253991F59260206C75B5205D997DB4FE146D938151A3E",
+      "SizeBytes": 13584
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "BOYO-A05-AS-15-20251222-074214-1.log",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\BOYO-A05-AS-15-20251222-074214.log",
+      "Hash": "17777D8414AB67689A6D8E1C3A5DE6D1698DEAC64DC22A55F0AAE64C09AD6084",
+      "SizeBytes": 13584
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "BOYO-A05-AS-22-20251222-074214-1.log",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\BOYO-A05-AS-22-20251222-074214.log",
+      "Hash": "2D8967D434A154C97FB34E091739B3669E5501C5AD86D6ECC0805BAF7BE2A72F",
+      "SizeBytes": 13584
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "BOYO-A05-AS-25-20251222-074214-1.log",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\BOYO-A05-AS-25-20251222-074214.log",
+      "Hash": "2F257CD1DEF62DDB9339DE54819F3078AC3DA77EA62A48ACC8FDA892D1C3DA11",
+      "SizeBytes": 13584
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "BOYO-A05-AS-32-20251222-074214-1.log",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\BOYO-A05-AS-32-20251222-074214.log",
+      "Hash": "1B9DB3F36A53694E38AC394BC842DF7A423022FE1F5088632948342375F115B7",
+      "SizeBytes": 13584
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "BOYO-A05-AS-35-20251222-074214-1.log",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\BOYO-A05-AS-35-20251222-074214.log",
+      "Hash": "89132D3ABD4D040B7D05C6F1300576966A01D14F20A65D224A2AADE4B0B70796",
+      "SizeBytes": 13584
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "BOYO-A05-AS-42-20251222-074214-1.log",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\BOYO-A05-AS-42-20251222-074214.log",
+      "Hash": "6E1F051B7952285718856CAD45F320091A94FBC8DEED3DE26F97F86216818C36",
+      "SizeBytes": 13584
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "BOYO-A05-AS-45-20251222-074214-1.log",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\BOYO-A05-AS-45-20251222-074214.log",
+      "Hash": "F408A6AB7090A9DDD64F7F68E4745D634628C8452040E52A2D392E5213205937",
+      "SizeBytes": 13584
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "RoutingQueueSweep-checklist-20251222-074214-1.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\RoutingQueueSweep-checklist-20251222-074214.json",
+      "Hash": "002B7E8148CC5B66026332C13F3010A28FC361E703F33A20059907CE09EA24FF",
+      "SizeBytes": 4757
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "WLLS-A01-AS-01-20251222-074214-1.log",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\WLLS-A01-AS-01-20251222-074214.log",
+      "Hash": "00E2913AC648C5B5271F4FF6213E269E06CD730CAD55D1C16AC97508E0637515",
+      "SizeBytes": 13656
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "WLLS-A01-AS-11-20251222-074214-1.log",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\WLLS-A01-AS-11-20251222-074214.log",
+      "Hash": "3A457428370C178EFB6FE30D84CC68F1A70E31188933D3B2476F696A7DE966E2",
+      "SizeBytes": 13656
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "WLLS-A01-AS-21-20251222-074214-1.log",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\WLLS-A01-AS-21-20251222-074214.log",
+      "Hash": "6E06A86BB671751C30E9933C9FAD06ADF284A4185F081FAFEF0752721580CD00",
+      "SizeBytes": 13657
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "WLLS-A01-AS-31-20251222-074214-1.log",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\WLLS-A01-AS-31-20251222-074214.log",
+      "Hash": "33DB7F053B399C25EADC71D2267121470F88988EF602B0103002A8369C570D7D",
+      "SizeBytes": 13656
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "WLLS-A01-AS-41-20251222-074214-1.log",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\WLLS-A01-AS-41-20251222-074214.log",
+      "Hash": "553FF3BF984CF241B9F8FBA6A43CEF1816BE452C5E13ED78AD7918DBF0DE3125",
+      "SizeBytes": 13656
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "WLLS-A01-AS-51-20251222-074214-1.log",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\WLLS-A01-AS-51-20251222-074214.log",
+      "Hash": "6169280084CAB51FCC7CF6188062BADBD82D96F96C3FBF435A194CDAB70F129A",
+      "SizeBytes": 13656
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "WLLS-A02-AS-02-20251222-074214-1.log",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\WLLS-A02-AS-02-20251222-074214.log",
+      "Hash": "609C1F8CA112D4B0074A2750AF546EB815BE861BA2D73182D9E8EA7D1A13E0B1",
+      "SizeBytes": 13656
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "WLLS-A02-AS-12-20251222-074214-1.log",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\WLLS-A02-AS-12-20251222-074214.log",
+      "Hash": "901C07466AB7F438C35570A36C01D5CA1A1327609B78A55EE15C0A5EAEBEC54B",
+      "SizeBytes": 13656
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "WLLS-A02-AS-22-20251222-074214-1.log",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\WLLS-A02-AS-22-20251222-074214.log",
+      "Hash": "CDCB896678B9B19FE3FEF02FBEB7A6E59418B9D5DB0F03A5D0212C327517B122",
+      "SizeBytes": 13656
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "WLLS-A02-AS-42-20251222-074214-1.log",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\WLLS-A02-AS-42-20251222-074214.log",
+      "Hash": "99B42832004B26991FB64BBF3A3F7C40C358FC667CD571E0065DA9D41887AA75",
+      "SizeBytes": 13656
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "MetricsFile": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\2026-01-01.json",
+  "GeneratedAtUtc": "2026-01-01T23:26:52.9922425Z",
+  "EvaluationWindowStartUtc": null,
+  "EvaluationWindowEndUtc": null,
+  "MaxAllowedConsecutive": 8,
+  "EvaluationEnd": "2026-01-01T23:24:52.1092189Z",
+  "TerminalSite": "WLLS",
+  "SitesRemainingWhenStopped": 1,
+  "PortBatchReadyCount": 24,
+  "EvaluatedPortBatchReadyCount": 24,
+  "UsedSynthesizedEvents": true,
+  "IgnoredSynthesizedEvents": false,
+  "ManualOverridesApplied": null,
+  "ConcurrencyProfile": null,
+  "RawAutoConcurrencyMode": false,
+  "ObservedPortBatchReadyCount": 0,
+  "SynthesizedPortBatchReadyCount": 24,
+  "ParseEventCount": 167,
+  "SkippedDuplicateCount": 74,
+  "SiteStreaks": [
+    {
+      "Site": "BOYO",
+      "MaxCount": 2,
+      "StartTime": "2026-01-01T23:24:31.0661889Z",
+      "EndTime": "2026-01-01T23:24:33.5179622Z",
+      "HostSample": "BOYO-A05-AS-02"
+    },
+    {
+      "Site": "WLLS",
+      "MaxCount": 2,
+      "StartTime": "2026-01-01T23:24:28.8773598Z",
+      "EndTime": "2026-01-01T23:24:31.0661889Z",
+      "HostSample": "WLLS-A01-AS-01"
+    }
+  ],
+  "MaxStreakSegment": {
+    "Site": "WLLS",
+    "Count": 2,
+    "StartTime": "2026-01-01T23:24:28.8773598Z",
+    "EndTime": "2026-01-01T23:24:31.0661889Z",
+    "StartIndex": 0,
+    "EndIndex": 1,
+    "HostSample": "WLLS-A01-AS-01",
+    "HostSequenceSample": "WLLS-A01-AS-01, WLLS-A01-AS-01"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "Timestamp": "2025-12-29T14:20:06.1506740-07:00",
+  "Status": "Pass",
+  "Mode": "Offline",
+  "CapturePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingValidationRun\\Run-20251229-150100\\Ingestion\\WLLS-A01-AS-01\\RoutingDiscoveryCapture-20251229-150100.json",
+  "CaptureMetadata": {
+    "SchemaVersion": "1.0",
+    "CapturedAt": "12/29/2025 12:00:00",
+    "Site": "WLLS",
+    "Hostname": "WLLS-A01-AS-01",
+    "Vrf": "default"
+  },
+  "ArtifactPaths": {
+    "PipelineSummaryPath": "Logs\\Reports\\RoutingValidationRun\\Run-20251229-150100\\Pipeline\\WLLS-A01-AS-01\\RoutingDiscoveryPipelineSummary-20251229-150100.json",
+    "PipelineSummaryLatestPath": "Logs\\Reports\\RoutingValidationRun\\Run-20251229-150100\\Pipeline\\WLLS-A01-AS-01\\RoutingDiscoveryPipelineSummary-latest.json",
+    "RouteRecordsPath": "Logs\\Reports\\RoutingValidationRun\\Run-20251229-150100\\Pipeline\\WLLS-A01-AS-01\\RouteRecords-20251229-150100.json",
+    "RouteRecordsSummaryPath": "Logs\\Reports\\RoutingValidationRun\\Run-20251229-150100\\Pipeline\\WLLS-A01-AS-01\\RoutingDiscoveryConversion-20251229-150100.json",
+    "RouteHealthSnapshotPath": "Logs\\Reports\\RoutingValidationRun\\Run-20251229-150100\\Pipeline\\WLLS-A01-AS-01\\RouteHealthSnapshot-20251229-150100.json",
+    "RouteHealthSnapshotSummary": "Logs\\Reports\\RoutingValidationRun\\Run-20251229-150100\\Pipeline\\WLLS-A01-AS-01\\RouteHealthSnapshotSummary-20251229-150100.json",
+    "SchemaValidationRouteRecordsPath": "Logs\\Reports\\RoutingValidationRun\\Run-20251229-150100\\Pipeline\\WLLS-A01-AS-01\\RoutingSchemas-RouteRecords-20251229-150100.json",
+    "SchemaValidationSnapshotPath": "Logs\\Reports\\RoutingValidationRun\\Run-20251229-150100\\Pipeline\\WLLS-A01-AS-01\\RoutingSchemas-RouteHealthSnapshot-20251229-150100.json"
+  },
+  "ValidationResults": {
+    "RouteRecords": {
+      "Status": "Pass",
+      "SummaryPath": "Logs\\Reports\\RoutingValidationRun\\Run-20251229-150100\\Pipeline\\WLLS-A01-AS-01\\RoutingSchemas-RouteRecords-20251229-150100.json",
+      "RouteRecordPath": "Logs\\Reports\\RoutingValidationRun\\Run-20251229-150100\\Pipeline\\WLLS-A01-AS-01\\RouteRecords-20251229-150100.json",
+      "RouteHealthSnapshotPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Tests\\Fixtures\\Routing\\RouteHealthSnapshot.sample.json"
+    },
+    "RouteHealthSnapshot": {
+      "Status": "Pass",
+      "SummaryPath": "Logs\\Reports\\RoutingValidationRun\\Run-20251229-150100\\Pipeline\\WLLS-A01-AS-01\\RoutingSchemas-RouteHealthSnapshot-20251229-150100.json",
+      "RouteRecordPath": "Logs\\Reports\\RoutingValidationRun\\Run-20251229-150100\\Pipeline\\WLLS-A01-AS-01\\RouteRecords-20251229-150100.json",
+      "RouteHealthSnapshotPath": "Logs\\Reports\\RoutingValidationRun\\Run-20251229-150100\\Pipeline\\WLLS-A01-AS-01\\RouteHealthSnapshot-20251229-150100.json"
+    }
+  },
+  "Errors": []
+}

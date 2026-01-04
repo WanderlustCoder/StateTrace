@@ -1,0 +1,108 @@
+{
+  "GeneratedAtUtc": "2025-12-23T13:46:58.8994327Z",
+  "FilesAnalyzed": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\Run-20251223-064548\\2025-12-23.json",
+  "PortBatchSummary": {
+    "EventCount": 10,
+    "UniqueHosts": 10,
+    "TotalPorts": 170,
+    "AveragePortsBatch": 17.0,
+    "AverageChunkSize": 17.0,
+    "DurationSeconds": 1.431,
+    "PortsPerMinute": 7128.713,
+    "BatchIntervalMs": {
+      "Name": "BatchIntervalMs",
+      "Count": 9,
+      "Average": 158.981478,
+      "Min": 87.8089,
+      "Max": 249.8997,
+      "P99": null,
+      "P50": 148.4344,
+      "P95": 241.26142
+    }
+  },
+  "InterfaceSyncSummary": {
+    "UiClone": {
+      "Name": "UiCloneDurationMs",
+      "Count": 0,
+      "Average": null,
+      "Min": null,
+      "Max": null,
+      "P50": null,
+      "P95": null,
+      "P99": null
+    },
+    "StreamDispatch": {
+      "Name": "StreamDispatchDurationMs",
+      "Count": 0,
+      "Average": null,
+      "Min": null,
+      "Max": null,
+      "P50": null,
+      "P95": null,
+      "P99": null
+    },
+    "DiffDuration": {
+      "Name": "DiffDurationMs",
+      "Count": 0,
+      "Average": null,
+      "Min": null,
+      "Max": null,
+      "P50": null,
+      "P95": null,
+      "P99": null
+    },
+    "SampleCount": 0
+  },
+  "HostBreakdown": [
+    {
+      "Host": "WLLS-A01-AS-31",
+      "BatchCount": 1,
+      "PortsCommitted": 24
+    },
+    {
+      "Host": "WLLS-A01-AS-21",
+      "BatchCount": 1,
+      "PortsCommitted": 24
+    },
+    {
+      "Host": "WLLS-A01-AS-01",
+      "BatchCount": 1,
+      "PortsCommitted": 24
+    },
+    {
+      "Host": "WLLS-A01-AS-11",
+      "BatchCount": 1,
+      "PortsCommitted": 24
+    },
+    {
+      "Host": "WLLS-A01-AS-41",
+      "BatchCount": 1,
+      "PortsCommitted": 24
+    },
+    {
+      "Host": "BOYO-A05-AS-02",
+      "BatchCount": 1,
+      "PortsCommitted": 10
+    },
+    {
+      "Host": "BOYO-A05-AS-22",
+      "BatchCount": 1,
+      "PortsCommitted": 10
+    },
+    {
+      "Host": "BOYO-A05-AS-15",
+      "BatchCount": 1,
+      "PortsCommitted": 10
+    },
+    {
+      "Host": "BOYO-A05-AS-12",
+      "BatchCount": 1,
+      "PortsCommitted": 10
+    },
+    {
+      "Host": "BOYO-A05-AS-05",
+      "BatchCount": 1,
+      "PortsCommitted": 10
+    }
+  ]
+}

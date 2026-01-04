@@ -238,7 +238,7 @@ Write-Host "--- Updating TaskBoard.csv ---" -ForegroundColor Yellow
 
 if (Test-Path -LiteralPath $TaskBoardCsvPath) {
     $csvContent = Get-Content -LiteralPath $TaskBoardCsvPath
-    $newCsvContent = @()
+    $newCsvContent = [System.Collections.Generic.List[string]]::new()
     $csvUpdated = $false
 
     foreach ($line in $csvContent) {
@@ -267,7 +267,7 @@ if (Test-Path -LiteralPath $TaskBoardCsvPath) {
                 break
             }
         }
-        $newCsvContent += $updatedLine
+        [void]$newCsvContent.Add($updatedLine)
     }
 
     if ($csvUpdated -and -not $WhatIf.IsPresent) {

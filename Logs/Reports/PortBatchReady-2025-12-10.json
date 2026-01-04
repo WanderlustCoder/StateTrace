@@ -1,0 +1,68 @@
+{
+  "GeneratedAtUtc": "2025-12-10T20:52:06.8295159Z",
+  "FilesAnalyzed": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\2025-12-10.json",
+  "PortBatchSummary": {
+    "EventCount": 2,
+    "UniqueHosts": 2,
+    "TotalPorts": 12,
+    "AveragePortsBatch": 6.0,
+    "AverageChunkSize": 24.0,
+    "DurationSeconds": 2.022,
+    "PortsPerMinute": 356.131,
+    "BatchIntervalMs": {
+      "Name": "BatchIntervalMs",
+      "Count": 1,
+      "Average": 2021.7307,
+      "Min": 2021.7307,
+      "Max": 2021.7307,
+      "P99": null,
+      "P50": 2021.7307,
+      "P95": 2021.7307
+    }
+  },
+  "InterfaceSyncSummary": {
+    "UiClone": {
+      "Name": "UiCloneDurationMs",
+      "Count": 197,
+      "Average": 0.29534,
+      "Min": 0.0,
+      "Max": 54.67,
+      "P99": null,
+      "P50": 0.0,
+      "P95": 0.0
+    },
+    "StreamDispatch": {
+      "Name": "StreamDispatchDurationMs",
+      "Count": 197,
+      "Average": 0.863162,
+      "Min": 0.0,
+      "Max": 87.838,
+      "P99": null,
+      "P50": 0.0,
+      "P95": 0.0
+    },
+    "DiffDuration": {
+      "Name": "DiffDurationMs",
+      "Count": 197,
+      "Average": 4.27934,
+      "Min": 0.118,
+      "Max": 79.161,
+      "P99": null,
+      "P50": 2.047,
+      "P95": 19.249
+    },
+    "SampleCount": 197
+  },
+  "HostBreakdown": [
+    {
+      "Host": "BOYO-A05-AS-42",
+      "BatchCount": 1,
+      "PortsCommitted": 10
+    },
+    {
+      "Host": "WLLS-A01-AS-21",
+      "BatchCount": 1,
+      "PortsCommitted": 2
+    }
+  ]
+}

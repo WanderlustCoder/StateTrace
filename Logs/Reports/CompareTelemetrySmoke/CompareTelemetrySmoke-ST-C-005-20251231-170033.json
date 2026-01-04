@@ -1,0 +1,58 @@
+{
+  "TimestampUtc": "2026-01-01T00:00:34.3236711Z",
+  "Status": "Pass",
+  "RequiredMetrics": [
+    "DiffUsageRate",
+    "DiffCompareDurationMs",
+    "DiffCompareResultCounts"
+  ],
+  "ObservedMetrics": {
+    "DiffUsageRate": {
+      "Present": true,
+      "EventCount": 1,
+      "LastEvent": {
+        "Status": "Executed",
+        "UsageNumerator": 1,
+        "UsageDenominator": 1,
+        "Site": "sw1",
+        "Hostname": "sw1",
+        "Hostname2": "sw2",
+        "Port1": "Gi1",
+        "Port2": "Gi2",
+        "Vrf": "default"
+      }
+    },
+    "DiffCompareDurationMs": {
+      "Present": true,
+      "EventCount": 1,
+      "LastEvent": {
+        "Status": "Executed",
+        "Site": "sw1",
+        "Hostname": "sw1",
+        "Hostname2": "sw2",
+        "Port1": "Gi1",
+        "Port2": "Gi2",
+        "Vrf": "default"
+      }
+    },
+    "DiffCompareResultCounts": {
+      "Present": true,
+      "EventCount": 1,
+      "LastEvent": {
+        "Status": "Executed",
+        "TotalCount": 4,
+        "AddedCount": 1,
+        "RemovedCount": 1,
+        "ChangedCount": 0,
+        "UnchangedCount": 2,
+        "Site": "sw1",
+        "Hostname": "sw1",
+        "Hostname2": "sw2",
+        "Port1": "Gi1",
+        "Port2": "Gi2",
+        "Vrf": "default"
+      }
+    }
+  },
+  "MissingMetrics": []
+}

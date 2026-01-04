@@ -1,0 +1,3242 @@
+<Objs Version="1.1.0.1" xmlns="http://schemas.microsoft.com/powershell/2004/04">
+  <Obj RefId="0">
+    <TN RefId="0">
+      <T>StateTrace.Repository.SharedSiteInterfaceCacheEntry</T>
+      <T>System.Object</T>
+    </TN>
+    <ToString>StateTrace.Repository.SharedSiteInterfaceCacheEntry</ToString>
+    <Props>
+      <S N="SiteKey">BOYO</S>
+      <Obj N="HostMap" RefId="1">
+        <TN RefId="1">
+          <T>System.Collections.Generic.Dictionary`2[[System.String, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e],[System.Object, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]</T>
+          <T>System.Object</T>
+        </TN>
+        <DCT>
+          <En>
+            <S N="Key">BOYO-A05-AS-25</S>
+            <Obj N="Value" RefId="2">
+              <TN RefId="2">
+                <T>System.Collections.Generic.Dictionary`2[[System.String, System.Private.CoreLib, Version=9.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e],[StateTrace.Models.InterfaceCacheEntry, cjl5c44f.pg3, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null]]</T>
+                <T>System.Object</T>
+              </TN>
+              <DCT>
+                <En>
+                  <S N="Key">Et1/1/9</S>
+                  <Obj N="Value" RefId="3">
+                    <TN RefId="3">
+                      <T>StateTrace.Models.InterfaceCacheEntry</T>
+                      <T>System.Object</T>
+                    </TN>
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users9</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Unknown</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Camera9_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00009-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users9|2:Up|0:|4:Full|2:1G|6:Access|0:|7:Unknown|7:macauth|0:|7:macauth|51: port-name Camera9_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/8</S>
+                  <Obj N="Value" RefId="4">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users8</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient">00aa.bbcc.0008</S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Camera8_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00008-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users8|4:Down|0:|4:Full|2:1G|6:Access|0:|10:Authorized|7:macauth|14:00aa.bbcc.0008|7:macauth|51: port-name Camera8_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/4</S>
+                  <Obj N="Value" RefId="5">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users4</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">dot1x</S>
+                      <S N="AuthClient">00aa.bbcc.0004</S>
+                      <S N="Template">dot1x</S>
+                      <S N="Config"> port-name UserPC4_x000A_ authentication auth-default-vlan 20_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00004-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users4|4:Down|0:|4:Full|2:1G|6:Access|0:|10:Authorized|5:dot1x|14:00aa.bbcc.0004|5:dot1x|61: port-name UserPC4_x000A_ authentication auth-default-vlan 20_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/10</S>
+                  <Obj N="Value" RefId="6">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users10</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Unknown</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Camera10_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00010-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">7:Users10|4:Down|0:|4:Full|2:1G|6:Access|0:|7:Unknown|7:macauth|0:|7:macauth|52: port-name Camera10_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/1</S>
+                  <Obj N="Value" RefId="7">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users1</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Open</S>
+                      <S N="AuthMode">open</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">open</S>
+                      <S N="Config"> port-name Uplink1_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00001-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users1|2:Up|0:|4:Full|2:1G|6:Access|0:|4:Open|4:open|0:|4:open|24: port-name Uplink1_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/3</S>
+                  <Obj N="Value" RefId="8">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users3</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">dot1x</S>
+                      <S N="AuthClient">00aa.bbcc.0003</S>
+                      <S N="Template">dot1x</S>
+                      <S N="Config"> port-name UserPC3_x000A_ authentication auth-default-vlan 20_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00003-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users3|2:Up|0:|4:Full|2:1G|6:Access|0:|10:Authorized|5:dot1x|14:00aa.bbcc.0003|5:dot1x|61: port-name UserPC3_x000A_ authentication auth-default-vlan 20_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/2</S>
+                  <Obj N="Value" RefId="9">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users2</S>
+                      <S N="Status">Disable</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">None</S>
+                      <S N="Speed">None</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Open</S>
+                      <S N="AuthMode">open</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">open</S>
+                      <S N="Config"> port-name Uplink2_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00002-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users2|7:Disable|0:|4:None|4:None|6:Access|0:|4:Open|4:open|0:|4:open|24: port-name Uplink2_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/5</S>
+                  <Obj N="Value" RefId="10">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users5</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authenticating</S>
+                      <S N="AuthMode">dot1x</S>
+                      <S N="AuthClient">00aa.bbcc.0005</S>
+                      <S N="Template">flexible</S>
+                      <S N="Config"> port-name UserPC5_x000A_ authentication auth-default-vlan 20_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00005-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users5|2:Up|0:|4:Full|2:1G|6:Access|0:|14:Authenticating|5:dot1x|14:00aa.bbcc.0005|8:flexible|88: port-name UserPC5_x000A_ authentication auth-default-vlan 20_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/7</S>
+                  <Obj N="Value" RefId="11">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users7</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient">00aa.bbcc.0007</S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Printer7_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00007-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users7|2:Up|0:|4:Full|2:1G|6:Access|0:|10:Authorized|7:macauth|14:00aa.bbcc.0007|7:macauth|52: port-name Printer7_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/6</S>
+                  <Obj N="Value" RefId="12">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users6</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient">00aa.bbcc.0006</S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Printer6_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00006-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users6|4:Down|0:|4:Full|2:1G|6:Access|0:|10:Authorized|7:macauth|14:00aa.bbcc.0006|7:macauth|52: port-name Printer6_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+              </DCT>
+            </Obj>
+          </En>
+          <En>
+            <S N="Key">BOYO-A05-AS-32</S>
+            <Obj N="Value" RefId="13">
+              <TNRef RefId="2" />
+              <DCT>
+                <En>
+                  <S N="Key">Et1/1/9</S>
+                  <Obj N="Value" RefId="14">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users9</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Unknown</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Camera9_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00009-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users9|2:Up|0:|4:Full|2:1G|6:Access|0:|7:Unknown|7:macauth|0:|7:macauth|51: port-name Camera9_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/8</S>
+                  <Obj N="Value" RefId="15">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users8</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient">00aa.bbcc.0008</S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Camera8_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00008-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users8|4:Down|0:|4:Full|2:1G|6:Access|0:|10:Authorized|7:macauth|14:00aa.bbcc.0008|7:macauth|51: port-name Camera8_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/4</S>
+                  <Obj N="Value" RefId="16">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users4</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">dot1x</S>
+                      <S N="AuthClient">00aa.bbcc.0004</S>
+                      <S N="Template">dot1x</S>
+                      <S N="Config"> port-name UserPC4_x000A_ authentication auth-default-vlan 20_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00004-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users4|4:Down|0:|4:Full|2:1G|6:Access|0:|10:Authorized|5:dot1x|14:00aa.bbcc.0004|5:dot1x|61: port-name UserPC4_x000A_ authentication auth-default-vlan 20_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/10</S>
+                  <Obj N="Value" RefId="17">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users10</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Unknown</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Camera10_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00010-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">7:Users10|4:Down|0:|4:Full|2:1G|6:Access|0:|7:Unknown|7:macauth|0:|7:macauth|52: port-name Camera10_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/1</S>
+                  <Obj N="Value" RefId="18">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users1</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Open</S>
+                      <S N="AuthMode">open</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">open</S>
+                      <S N="Config"> port-name Uplink1_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00001-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users1|2:Up|0:|4:Full|2:1G|6:Access|0:|4:Open|4:open|0:|4:open|24: port-name Uplink1_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/3</S>
+                  <Obj N="Value" RefId="19">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users3</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">dot1x</S>
+                      <S N="AuthClient">00aa.bbcc.0003</S>
+                      <S N="Template">dot1x</S>
+                      <S N="Config"> port-name UserPC3_x000A_ authentication auth-default-vlan 20_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00003-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users3|2:Up|0:|4:Full|2:1G|6:Access|0:|10:Authorized|5:dot1x|14:00aa.bbcc.0003|5:dot1x|61: port-name UserPC3_x000A_ authentication auth-default-vlan 20_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/2</S>
+                  <Obj N="Value" RefId="20">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users2</S>
+                      <S N="Status">Disable</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">None</S>
+                      <S N="Speed">None</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Open</S>
+                      <S N="AuthMode">open</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">open</S>
+                      <S N="Config"> port-name Uplink2_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00002-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users2|7:Disable|0:|4:None|4:None|6:Access|0:|4:Open|4:open|0:|4:open|24: port-name Uplink2_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/5</S>
+                  <Obj N="Value" RefId="21">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users5</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authenticating</S>
+                      <S N="AuthMode">dot1x</S>
+                      <S N="AuthClient">00aa.bbcc.0005</S>
+                      <S N="Template">flexible</S>
+                      <S N="Config"> port-name UserPC5_x000A_ authentication auth-default-vlan 20_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00005-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users5|2:Up|0:|4:Full|2:1G|6:Access|0:|14:Authenticating|5:dot1x|14:00aa.bbcc.0005|8:flexible|88: port-name UserPC5_x000A_ authentication auth-default-vlan 20_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/7</S>
+                  <Obj N="Value" RefId="22">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users7</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient">00aa.bbcc.0007</S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Printer7_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00007-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users7|2:Up|0:|4:Full|2:1G|6:Access|0:|10:Authorized|7:macauth|14:00aa.bbcc.0007|7:macauth|52: port-name Printer7_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/6</S>
+                  <Obj N="Value" RefId="23">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users6</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient">00aa.bbcc.0006</S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Printer6_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00006-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users6|4:Down|0:|4:Full|2:1G|6:Access|0:|10:Authorized|7:macauth|14:00aa.bbcc.0006|7:macauth|52: port-name Printer6_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+              </DCT>
+            </Obj>
+          </En>
+          <En>
+            <S N="Key">BOYO-A05-AS-35</S>
+            <Obj N="Value" RefId="24">
+              <TNRef RefId="2" />
+              <DCT>
+                <En>
+                  <S N="Key">Et1/1/9</S>
+                  <Obj N="Value" RefId="25">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users9</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Unknown</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Camera9_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00009-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users9|2:Up|0:|4:Full|2:1G|6:Access|0:|7:Unknown|7:macauth|0:|7:macauth|51: port-name Camera9_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/8</S>
+                  <Obj N="Value" RefId="26">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users8</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient">00aa.bbcc.0008</S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Camera8_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00008-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users8|4:Down|0:|4:Full|2:1G|6:Access|0:|10:Authorized|7:macauth|14:00aa.bbcc.0008|7:macauth|51: port-name Camera8_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/4</S>
+                  <Obj N="Value" RefId="27">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users4</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">dot1x</S>
+                      <S N="AuthClient">00aa.bbcc.0004</S>
+                      <S N="Template">dot1x</S>
+                      <S N="Config"> port-name UserPC4_x000A_ authentication auth-default-vlan 20_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00004-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users4|4:Down|0:|4:Full|2:1G|6:Access|0:|10:Authorized|5:dot1x|14:00aa.bbcc.0004|5:dot1x|61: port-name UserPC4_x000A_ authentication auth-default-vlan 20_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/10</S>
+                  <Obj N="Value" RefId="28">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users10</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Unknown</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Camera10_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00010-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">7:Users10|4:Down|0:|4:Full|2:1G|6:Access|0:|7:Unknown|7:macauth|0:|7:macauth|52: port-name Camera10_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/1</S>
+                  <Obj N="Value" RefId="29">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users1</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Open</S>
+                      <S N="AuthMode">open</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">open</S>
+                      <S N="Config"> port-name Uplink1_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00001-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users1|2:Up|0:|4:Full|2:1G|6:Access|0:|4:Open|4:open|0:|4:open|24: port-name Uplink1_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/3</S>
+                  <Obj N="Value" RefId="30">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users3</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">dot1x</S>
+                      <S N="AuthClient">00aa.bbcc.0003</S>
+                      <S N="Template">dot1x</S>
+                      <S N="Config"> port-name UserPC3_x000A_ authentication auth-default-vlan 20_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00003-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users3|2:Up|0:|4:Full|2:1G|6:Access|0:|10:Authorized|5:dot1x|14:00aa.bbcc.0003|5:dot1x|61: port-name UserPC3_x000A_ authentication auth-default-vlan 20_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/2</S>
+                  <Obj N="Value" RefId="31">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users2</S>
+                      <S N="Status">Disable</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">None</S>
+                      <S N="Speed">None</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Open</S>
+                      <S N="AuthMode">open</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">open</S>
+                      <S N="Config"> port-name Uplink2_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00002-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users2|7:Disable|0:|4:None|4:None|6:Access|0:|4:Open|4:open|0:|4:open|24: port-name Uplink2_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/5</S>
+                  <Obj N="Value" RefId="32">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users5</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authenticating</S>
+                      <S N="AuthMode">dot1x</S>
+                      <S N="AuthClient">00aa.bbcc.0005</S>
+                      <S N="Template">flexible</S>
+                      <S N="Config"> port-name UserPC5_x000A_ authentication auth-default-vlan 20_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00005-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users5|2:Up|0:|4:Full|2:1G|6:Access|0:|14:Authenticating|5:dot1x|14:00aa.bbcc.0005|8:flexible|88: port-name UserPC5_x000A_ authentication auth-default-vlan 20_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/7</S>
+                  <Obj N="Value" RefId="33">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users7</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient">00aa.bbcc.0007</S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Printer7_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00007-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users7|2:Up|0:|4:Full|2:1G|6:Access|0:|10:Authorized|7:macauth|14:00aa.bbcc.0007|7:macauth|52: port-name Printer7_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/6</S>
+                  <Obj N="Value" RefId="34">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users6</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient">00aa.bbcc.0006</S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Printer6_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00006-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users6|4:Down|0:|4:Full|2:1G|6:Access|0:|10:Authorized|7:macauth|14:00aa.bbcc.0006|7:macauth|52: port-name Printer6_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+              </DCT>
+            </Obj>
+          </En>
+          <En>
+            <S N="Key">BOYO-A05-AS-22</S>
+            <Obj N="Value" RefId="35">
+              <TNRef RefId="2" />
+              <DCT>
+                <En>
+                  <S N="Key">Et1/1/9</S>
+                  <Obj N="Value" RefId="36">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users9</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Unknown</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Camera9_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00009-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users9|2:Up|0:|4:Full|2:1G|6:Access|0:|7:Unknown|7:macauth|0:|7:macauth|51: port-name Camera9_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/8</S>
+                  <Obj N="Value" RefId="37">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users8</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient">00aa.bbcc.0008</S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Camera8_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00008-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users8|4:Down|0:|4:Full|2:1G|6:Access|0:|10:Authorized|7:macauth|14:00aa.bbcc.0008|7:macauth|51: port-name Camera8_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/4</S>
+                  <Obj N="Value" RefId="38">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users4</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">dot1x</S>
+                      <S N="AuthClient">00aa.bbcc.0004</S>
+                      <S N="Template">dot1x</S>
+                      <S N="Config"> port-name UserPC4_x000A_ authentication auth-default-vlan 20_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00004-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users4|4:Down|0:|4:Full|2:1G|6:Access|0:|10:Authorized|5:dot1x|14:00aa.bbcc.0004|5:dot1x|61: port-name UserPC4_x000A_ authentication auth-default-vlan 20_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/10</S>
+                  <Obj N="Value" RefId="39">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users10</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Unknown</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Camera10_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00010-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">7:Users10|4:Down|0:|4:Full|2:1G|6:Access|0:|7:Unknown|7:macauth|0:|7:macauth|52: port-name Camera10_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/1</S>
+                  <Obj N="Value" RefId="40">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users1</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Open</S>
+                      <S N="AuthMode">open</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">open</S>
+                      <S N="Config"> port-name Uplink1_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00001-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users1|2:Up|0:|4:Full|2:1G|6:Access|0:|4:Open|4:open|0:|4:open|24: port-name Uplink1_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/3</S>
+                  <Obj N="Value" RefId="41">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users3</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">dot1x</S>
+                      <S N="AuthClient">00aa.bbcc.0003</S>
+                      <S N="Template">dot1x</S>
+                      <S N="Config"> port-name UserPC3_x000A_ authentication auth-default-vlan 20_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00003-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users3|2:Up|0:|4:Full|2:1G|6:Access|0:|10:Authorized|5:dot1x|14:00aa.bbcc.0003|5:dot1x|61: port-name UserPC3_x000A_ authentication auth-default-vlan 20_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/2</S>
+                  <Obj N="Value" RefId="42">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users2</S>
+                      <S N="Status">Disable</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">None</S>
+                      <S N="Speed">None</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Open</S>
+                      <S N="AuthMode">open</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">open</S>
+                      <S N="Config"> port-name Uplink2_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00002-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users2|7:Disable|0:|4:None|4:None|6:Access|0:|4:Open|4:open|0:|4:open|24: port-name Uplink2_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/5</S>
+                  <Obj N="Value" RefId="43">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users5</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authenticating</S>
+                      <S N="AuthMode">dot1x</S>
+                      <S N="AuthClient">00aa.bbcc.0005</S>
+                      <S N="Template">flexible</S>
+                      <S N="Config"> port-name UserPC5_x000A_ authentication auth-default-vlan 20_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00005-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users5|2:Up|0:|4:Full|2:1G|6:Access|0:|14:Authenticating|5:dot1x|14:00aa.bbcc.0005|8:flexible|88: port-name UserPC5_x000A_ authentication auth-default-vlan 20_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/7</S>
+                  <Obj N="Value" RefId="44">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users7</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient">00aa.bbcc.0007</S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Printer7_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00007-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users7|2:Up|0:|4:Full|2:1G|6:Access|0:|10:Authorized|7:macauth|14:00aa.bbcc.0007|7:macauth|52: port-name Printer7_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/6</S>
+                  <Obj N="Value" RefId="45">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users6</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient">00aa.bbcc.0006</S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Printer6_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00006-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users6|4:Down|0:|4:Full|2:1G|6:Access|0:|10:Authorized|7:macauth|14:00aa.bbcc.0006|7:macauth|52: port-name Printer6_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+              </DCT>
+            </Obj>
+          </En>
+          <En>
+            <S N="Key">BOYO-A05-AS-45</S>
+            <Obj N="Value" RefId="46">
+              <TNRef RefId="2" />
+              <DCT>
+                <En>
+                  <S N="Key">Et1/1/9</S>
+                  <Obj N="Value" RefId="47">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users9</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Unknown</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Camera9_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00009-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users9|2:Up|0:|4:Full|2:1G|6:Access|0:|7:Unknown|7:macauth|0:|7:macauth|51: port-name Camera9_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/8</S>
+                  <Obj N="Value" RefId="48">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users8</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient">00aa.bbcc.0008</S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Camera8_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00008-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users8|4:Down|0:|4:Full|2:1G|6:Access|0:|10:Authorized|7:macauth|14:00aa.bbcc.0008|7:macauth|51: port-name Camera8_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/4</S>
+                  <Obj N="Value" RefId="49">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users4</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">dot1x</S>
+                      <S N="AuthClient">00aa.bbcc.0004</S>
+                      <S N="Template">dot1x</S>
+                      <S N="Config"> port-name UserPC4_x000A_ authentication auth-default-vlan 20_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00004-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users4|4:Down|0:|4:Full|2:1G|6:Access|0:|10:Authorized|5:dot1x|14:00aa.bbcc.0004|5:dot1x|61: port-name UserPC4_x000A_ authentication auth-default-vlan 20_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/10</S>
+                  <Obj N="Value" RefId="50">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users10</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Unknown</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Camera10_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00010-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">7:Users10|4:Down|0:|4:Full|2:1G|6:Access|0:|7:Unknown|7:macauth|0:|7:macauth|52: port-name Camera10_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/1</S>
+                  <Obj N="Value" RefId="51">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users1</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Open</S>
+                      <S N="AuthMode">open</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">open</S>
+                      <S N="Config"> port-name Uplink1_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00001-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users1|2:Up|0:|4:Full|2:1G|6:Access|0:|4:Open|4:open|0:|4:open|24: port-name Uplink1_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/3</S>
+                  <Obj N="Value" RefId="52">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users3</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">dot1x</S>
+                      <S N="AuthClient">00aa.bbcc.0003</S>
+                      <S N="Template">dot1x</S>
+                      <S N="Config"> port-name UserPC3_x000A_ authentication auth-default-vlan 20_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00003-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users3|2:Up|0:|4:Full|2:1G|6:Access|0:|10:Authorized|5:dot1x|14:00aa.bbcc.0003|5:dot1x|61: port-name UserPC3_x000A_ authentication auth-default-vlan 20_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/2</S>
+                  <Obj N="Value" RefId="53">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users2</S>
+                      <S N="Status">Disable</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">None</S>
+                      <S N="Speed">None</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Open</S>
+                      <S N="AuthMode">open</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">open</S>
+                      <S N="Config"> port-name Uplink2_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00002-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users2|7:Disable|0:|4:None|4:None|6:Access|0:|4:Open|4:open|0:|4:open|24: port-name Uplink2_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/5</S>
+                  <Obj N="Value" RefId="54">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users5</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authenticating</S>
+                      <S N="AuthMode">dot1x</S>
+                      <S N="AuthClient">00aa.bbcc.0005</S>
+                      <S N="Template">flexible</S>
+                      <S N="Config"> port-name UserPC5_x000A_ authentication auth-default-vlan 20_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00005-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users5|2:Up|0:|4:Full|2:1G|6:Access|0:|14:Authenticating|5:dot1x|14:00aa.bbcc.0005|8:flexible|88: port-name UserPC5_x000A_ authentication auth-default-vlan 20_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/7</S>
+                  <Obj N="Value" RefId="55">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users7</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient">00aa.bbcc.0007</S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Printer7_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00007-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users7|2:Up|0:|4:Full|2:1G|6:Access|0:|10:Authorized|7:macauth|14:00aa.bbcc.0007|7:macauth|52: port-name Printer7_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/6</S>
+                  <Obj N="Value" RefId="56">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users6</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient">00aa.bbcc.0006</S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Printer6_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00006-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users6|4:Down|0:|4:Full|2:1G|6:Access|0:|10:Authorized|7:macauth|14:00aa.bbcc.0006|7:macauth|52: port-name Printer6_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+              </DCT>
+            </Obj>
+          </En>
+          <En>
+            <S N="Key">BOYO-A05-AS-02</S>
+            <Obj N="Value" RefId="57">
+              <TNRef RefId="2" />
+              <DCT>
+                <En>
+                  <S N="Key">Et1/1/9</S>
+                  <Obj N="Value" RefId="58">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users9</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Unknown</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Camera9_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00009-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users9|2:Up|0:|4:Full|2:1G|6:Access|0:|7:Unknown|7:macauth|0:|7:macauth|51: port-name Camera9_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/8</S>
+                  <Obj N="Value" RefId="59">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users8</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient">00aa.bbcc.0008</S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Camera8_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00008-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users8|4:Down|0:|4:Full|2:1G|6:Access|0:|10:Authorized|7:macauth|14:00aa.bbcc.0008|7:macauth|51: port-name Camera8_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/4</S>
+                  <Obj N="Value" RefId="60">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users4</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">dot1x</S>
+                      <S N="AuthClient">00aa.bbcc.0004</S>
+                      <S N="Template">dot1x</S>
+                      <S N="Config"> port-name UserPC4_x000A_ authentication auth-default-vlan 20_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00004-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users4|4:Down|0:|4:Full|2:1G|6:Access|0:|10:Authorized|5:dot1x|14:00aa.bbcc.0004|5:dot1x|61: port-name UserPC4_x000A_ authentication auth-default-vlan 20_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/10</S>
+                  <Obj N="Value" RefId="61">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users10</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Unknown</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Camera10_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00010-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">7:Users10|4:Down|0:|4:Full|2:1G|6:Access|0:|7:Unknown|7:macauth|0:|7:macauth|52: port-name Camera10_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/1</S>
+                  <Obj N="Value" RefId="62">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users1</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Open</S>
+                      <S N="AuthMode">open</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">open</S>
+                      <S N="Config"> port-name Uplink1_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00001-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users1|2:Up|0:|4:Full|2:1G|6:Access|0:|4:Open|4:open|0:|4:open|24: port-name Uplink1_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/3</S>
+                  <Obj N="Value" RefId="63">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users3</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">dot1x</S>
+                      <S N="AuthClient">00aa.bbcc.0003</S>
+                      <S N="Template">dot1x</S>
+                      <S N="Config"> port-name UserPC3_x000A_ authentication auth-default-vlan 20_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00003-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users3|2:Up|0:|4:Full|2:1G|6:Access|0:|10:Authorized|5:dot1x|14:00aa.bbcc.0003|5:dot1x|61: port-name UserPC3_x000A_ authentication auth-default-vlan 20_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/2</S>
+                  <Obj N="Value" RefId="64">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users2</S>
+                      <S N="Status">Disable</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">None</S>
+                      <S N="Speed">None</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Open</S>
+                      <S N="AuthMode">open</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">open</S>
+                      <S N="Config"> port-name Uplink2_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00002-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users2|7:Disable|0:|4:None|4:None|6:Access|0:|4:Open|4:open|0:|4:open|24: port-name Uplink2_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/5</S>
+                  <Obj N="Value" RefId="65">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users5</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authenticating</S>
+                      <S N="AuthMode">dot1x</S>
+                      <S N="AuthClient">00aa.bbcc.0005</S>
+                      <S N="Template">flexible</S>
+                      <S N="Config"> port-name UserPC5_x000A_ authentication auth-default-vlan 20_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00005-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users5|2:Up|0:|4:Full|2:1G|6:Access|0:|14:Authenticating|5:dot1x|14:00aa.bbcc.0005|8:flexible|88: port-name UserPC5_x000A_ authentication auth-default-vlan 20_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/7</S>
+                  <Obj N="Value" RefId="66">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users7</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient">00aa.bbcc.0007</S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Printer7_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00007-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users7|2:Up|0:|4:Full|2:1G|6:Access|0:|10:Authorized|7:macauth|14:00aa.bbcc.0007|7:macauth|52: port-name Printer7_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/6</S>
+                  <Obj N="Value" RefId="67">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users6</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient">00aa.bbcc.0006</S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Printer6_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00006-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users6|4:Down|0:|4:Full|2:1G|6:Access|0:|10:Authorized|7:macauth|14:00aa.bbcc.0006|7:macauth|52: port-name Printer6_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+              </DCT>
+            </Obj>
+          </En>
+          <En>
+            <S N="Key">BOYO-A05-AS-05</S>
+            <Obj N="Value" RefId="68">
+              <TNRef RefId="2" />
+              <DCT>
+                <En>
+                  <S N="Key">Et1/1/9</S>
+                  <Obj N="Value" RefId="69">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users9</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Unknown</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Camera9_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00009-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users9|2:Up|0:|4:Full|2:1G|6:Access|0:|7:Unknown|7:macauth|0:|7:macauth|51: port-name Camera9_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/8</S>
+                  <Obj N="Value" RefId="70">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users8</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient">00aa.bbcc.0008</S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Camera8_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00008-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users8|4:Down|0:|4:Full|2:1G|6:Access|0:|10:Authorized|7:macauth|14:00aa.bbcc.0008|7:macauth|51: port-name Camera8_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/4</S>
+                  <Obj N="Value" RefId="71">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users4</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">dot1x</S>
+                      <S N="AuthClient">00aa.bbcc.0004</S>
+                      <S N="Template">dot1x</S>
+                      <S N="Config"> port-name UserPC4_x000A_ authentication auth-default-vlan 20_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00004-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users4|4:Down|0:|4:Full|2:1G|6:Access|0:|10:Authorized|5:dot1x|14:00aa.bbcc.0004|5:dot1x|61: port-name UserPC4_x000A_ authentication auth-default-vlan 20_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/10</S>
+                  <Obj N="Value" RefId="72">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users10</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Unknown</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Camera10_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00010-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">7:Users10|4:Down|0:|4:Full|2:1G|6:Access|0:|7:Unknown|7:macauth|0:|7:macauth|52: port-name Camera10_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/1</S>
+                  <Obj N="Value" RefId="73">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users1</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Open</S>
+                      <S N="AuthMode">open</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">open</S>
+                      <S N="Config"> port-name Uplink1_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00001-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users1|2:Up|0:|4:Full|2:1G|6:Access|0:|4:Open|4:open|0:|4:open|24: port-name Uplink1_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/3</S>
+                  <Obj N="Value" RefId="74">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users3</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">dot1x</S>
+                      <S N="AuthClient">00aa.bbcc.0003</S>
+                      <S N="Template">dot1x</S>
+                      <S N="Config"> port-name UserPC3_x000A_ authentication auth-default-vlan 20_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00003-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users3|2:Up|0:|4:Full|2:1G|6:Access|0:|10:Authorized|5:dot1x|14:00aa.bbcc.0003|5:dot1x|61: port-name UserPC3_x000A_ authentication auth-default-vlan 20_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/2</S>
+                  <Obj N="Value" RefId="75">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users2</S>
+                      <S N="Status">Disable</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">None</S>
+                      <S N="Speed">None</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Open</S>
+                      <S N="AuthMode">open</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">open</S>
+                      <S N="Config"> port-name Uplink2_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00002-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users2|7:Disable|0:|4:None|4:None|6:Access|0:|4:Open|4:open|0:|4:open|24: port-name Uplink2_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/5</S>
+                  <Obj N="Value" RefId="76">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users5</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authenticating</S>
+                      <S N="AuthMode">dot1x</S>
+                      <S N="AuthClient">00aa.bbcc.0005</S>
+                      <S N="Template">flexible</S>
+                      <S N="Config"> port-name UserPC5_x000A_ authentication auth-default-vlan 20_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00005-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users5|2:Up|0:|4:Full|2:1G|6:Access|0:|14:Authenticating|5:dot1x|14:00aa.bbcc.0005|8:flexible|88: port-name UserPC5_x000A_ authentication auth-default-vlan 20_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/7</S>
+                  <Obj N="Value" RefId="77">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users7</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient">00aa.bbcc.0007</S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Printer7_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00007-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users7|2:Up|0:|4:Full|2:1G|6:Access|0:|10:Authorized|7:macauth|14:00aa.bbcc.0007|7:macauth|52: port-name Printer7_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/6</S>
+                  <Obj N="Value" RefId="78">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users6</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient">00aa.bbcc.0006</S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Printer6_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00006-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users6|4:Down|0:|4:Full|2:1G|6:Access|0:|10:Authorized|7:macauth|14:00aa.bbcc.0006|7:macauth|52: port-name Printer6_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+              </DCT>
+            </Obj>
+          </En>
+          <En>
+            <S N="Key">BOYO-A05-AS-42</S>
+            <Obj N="Value" RefId="79">
+              <TNRef RefId="2" />
+              <DCT>
+                <En>
+                  <S N="Key">Et1/1/9</S>
+                  <Obj N="Value" RefId="80">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users9</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Unknown</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Camera9_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00009-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users9|2:Up|0:|4:Full|2:1G|6:Access|0:|7:Unknown|7:macauth|0:|7:macauth|51: port-name Camera9_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/8</S>
+                  <Obj N="Value" RefId="81">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users8</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient">00aa.bbcc.0008</S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Camera8_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00008-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users8|4:Down|0:|4:Full|2:1G|6:Access|0:|10:Authorized|7:macauth|14:00aa.bbcc.0008|7:macauth|51: port-name Camera8_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/4</S>
+                  <Obj N="Value" RefId="82">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users4</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">dot1x</S>
+                      <S N="AuthClient">00aa.bbcc.0004</S>
+                      <S N="Template">dot1x</S>
+                      <S N="Config"> port-name UserPC4_x000A_ authentication auth-default-vlan 20_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00004-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users4|4:Down|0:|4:Full|2:1G|6:Access|0:|10:Authorized|5:dot1x|14:00aa.bbcc.0004|5:dot1x|61: port-name UserPC4_x000A_ authentication auth-default-vlan 20_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/10</S>
+                  <Obj N="Value" RefId="83">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users10</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Unknown</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Camera10_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00010-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">7:Users10|4:Down|0:|4:Full|2:1G|6:Access|0:|7:Unknown|7:macauth|0:|7:macauth|52: port-name Camera10_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/1</S>
+                  <Obj N="Value" RefId="84">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users1</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Open</S>
+                      <S N="AuthMode">open</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">open</S>
+                      <S N="Config"> port-name Uplink1_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00001-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users1|2:Up|0:|4:Full|2:1G|6:Access|0:|4:Open|4:open|0:|4:open|24: port-name Uplink1_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/3</S>
+                  <Obj N="Value" RefId="85">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users3</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">dot1x</S>
+                      <S N="AuthClient">00aa.bbcc.0003</S>
+                      <S N="Template">dot1x</S>
+                      <S N="Config"> port-name UserPC3_x000A_ authentication auth-default-vlan 20_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00003-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users3|2:Up|0:|4:Full|2:1G|6:Access|0:|10:Authorized|5:dot1x|14:00aa.bbcc.0003|5:dot1x|61: port-name UserPC3_x000A_ authentication auth-default-vlan 20_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/2</S>
+                  <Obj N="Value" RefId="86">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users2</S>
+                      <S N="Status">Disable</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">None</S>
+                      <S N="Speed">None</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Open</S>
+                      <S N="AuthMode">open</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">open</S>
+                      <S N="Config"> port-name Uplink2_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00002-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users2|7:Disable|0:|4:None|4:None|6:Access|0:|4:Open|4:open|0:|4:open|24: port-name Uplink2_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/5</S>
+                  <Obj N="Value" RefId="87">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users5</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authenticating</S>
+                      <S N="AuthMode">dot1x</S>
+                      <S N="AuthClient">00aa.bbcc.0005</S>
+                      <S N="Template">flexible</S>
+                      <S N="Config"> port-name UserPC5_x000A_ authentication auth-default-vlan 20_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00005-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users5|2:Up|0:|4:Full|2:1G|6:Access|0:|14:Authenticating|5:dot1x|14:00aa.bbcc.0005|8:flexible|88: port-name UserPC5_x000A_ authentication auth-default-vlan 20_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/7</S>
+                  <Obj N="Value" RefId="88">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users7</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient">00aa.bbcc.0007</S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Printer7_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00007-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users7|2:Up|0:|4:Full|2:1G|6:Access|0:|10:Authorized|7:macauth|14:00aa.bbcc.0007|7:macauth|52: port-name Printer7_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/6</S>
+                  <Obj N="Value" RefId="89">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users6</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient">00aa.bbcc.0006</S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Printer6_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00006-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users6|4:Down|0:|4:Full|2:1G|6:Access|0:|10:Authorized|7:macauth|14:00aa.bbcc.0006|7:macauth|52: port-name Printer6_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+              </DCT>
+            </Obj>
+          </En>
+          <En>
+            <S N="Key">BOYO-A05-AS-52</S>
+            <Obj N="Value" RefId="90">
+              <TNRef RefId="2" />
+              <DCT>
+                <En>
+                  <S N="Key">Et1/1/9</S>
+                  <Obj N="Value" RefId="91">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users9</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Unknown</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Camera9_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00009-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users9|2:Up|0:|4:Full|2:1G|6:Access|0:|7:Unknown|7:macauth|0:|7:macauth|51: port-name Camera9_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/8</S>
+                  <Obj N="Value" RefId="92">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users8</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient">00aa.bbcc.0008</S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Camera8_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00008-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users8|4:Down|0:|4:Full|2:1G|6:Access|0:|10:Authorized|7:macauth|14:00aa.bbcc.0008|7:macauth|51: port-name Camera8_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/4</S>
+                  <Obj N="Value" RefId="93">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users4</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">dot1x</S>
+                      <S N="AuthClient">00aa.bbcc.0004</S>
+                      <S N="Template">dot1x</S>
+                      <S N="Config"> port-name UserPC4_x000A_ authentication auth-default-vlan 20_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00004-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users4|4:Down|0:|4:Full|2:1G|6:Access|0:|10:Authorized|5:dot1x|14:00aa.bbcc.0004|5:dot1x|61: port-name UserPC4_x000A_ authentication auth-default-vlan 20_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/10</S>
+                  <Obj N="Value" RefId="94">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users10</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Unknown</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Camera10_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00010-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">7:Users10|4:Down|0:|4:Full|2:1G|6:Access|0:|7:Unknown|7:macauth|0:|7:macauth|52: port-name Camera10_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/1</S>
+                  <Obj N="Value" RefId="95">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users1</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Open</S>
+                      <S N="AuthMode">open</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">open</S>
+                      <S N="Config"> port-name Uplink1_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00001-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users1|2:Up|0:|4:Full|2:1G|6:Access|0:|4:Open|4:open|0:|4:open|24: port-name Uplink1_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/3</S>
+                  <Obj N="Value" RefId="96">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users3</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">dot1x</S>
+                      <S N="AuthClient">00aa.bbcc.0003</S>
+                      <S N="Template">dot1x</S>
+                      <S N="Config"> port-name UserPC3_x000A_ authentication auth-default-vlan 20_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00003-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users3|2:Up|0:|4:Full|2:1G|6:Access|0:|10:Authorized|5:dot1x|14:00aa.bbcc.0003|5:dot1x|61: port-name UserPC3_x000A_ authentication auth-default-vlan 20_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/2</S>
+                  <Obj N="Value" RefId="97">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users2</S>
+                      <S N="Status">Disable</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">None</S>
+                      <S N="Speed">None</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Open</S>
+                      <S N="AuthMode">open</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">open</S>
+                      <S N="Config"> port-name Uplink2_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00002-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users2|7:Disable|0:|4:None|4:None|6:Access|0:|4:Open|4:open|0:|4:open|24: port-name Uplink2_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/5</S>
+                  <Obj N="Value" RefId="98">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users5</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authenticating</S>
+                      <S N="AuthMode">dot1x</S>
+                      <S N="AuthClient">00aa.bbcc.0005</S>
+                      <S N="Template">flexible</S>
+                      <S N="Config"> port-name UserPC5_x000A_ authentication auth-default-vlan 20_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00005-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users5|2:Up|0:|4:Full|2:1G|6:Access|0:|14:Authenticating|5:dot1x|14:00aa.bbcc.0005|8:flexible|88: port-name UserPC5_x000A_ authentication auth-default-vlan 20_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/7</S>
+                  <Obj N="Value" RefId="99">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users7</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient">00aa.bbcc.0007</S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Printer7_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00007-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users7|2:Up|0:|4:Full|2:1G|6:Access|0:|10:Authorized|7:macauth|14:00aa.bbcc.0007|7:macauth|52: port-name Printer7_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/6</S>
+                  <Obj N="Value" RefId="100">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users6</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient">00aa.bbcc.0006</S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Printer6_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00006-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users6|4:Down|0:|4:Full|2:1G|6:Access|0:|10:Authorized|7:macauth|14:00aa.bbcc.0006|7:macauth|52: port-name Printer6_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+              </DCT>
+            </Obj>
+          </En>
+          <En>
+            <S N="Key">BOYO-A05-AS-12</S>
+            <Obj N="Value" RefId="101">
+              <TNRef RefId="2" />
+              <DCT>
+                <En>
+                  <S N="Key">Et1/1/9</S>
+                  <Obj N="Value" RefId="102">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users9</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Unknown</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Camera9_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00009-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users9|2:Up|0:|4:Full|2:1G|6:Access|0:|7:Unknown|7:macauth|0:|7:macauth|51: port-name Camera9_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/8</S>
+                  <Obj N="Value" RefId="103">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users8</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient">00aa.bbcc.0008</S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Camera8_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00008-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users8|4:Down|0:|4:Full|2:1G|6:Access|0:|10:Authorized|7:macauth|14:00aa.bbcc.0008|7:macauth|51: port-name Camera8_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/4</S>
+                  <Obj N="Value" RefId="104">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users4</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">dot1x</S>
+                      <S N="AuthClient">00aa.bbcc.0004</S>
+                      <S N="Template">dot1x</S>
+                      <S N="Config"> port-name UserPC4_x000A_ authentication auth-default-vlan 20_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00004-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users4|4:Down|0:|4:Full|2:1G|6:Access|0:|10:Authorized|5:dot1x|14:00aa.bbcc.0004|5:dot1x|61: port-name UserPC4_x000A_ authentication auth-default-vlan 20_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/10</S>
+                  <Obj N="Value" RefId="105">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users10</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Unknown</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Camera10_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00010-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">7:Users10|4:Down|0:|4:Full|2:1G|6:Access|0:|7:Unknown|7:macauth|0:|7:macauth|52: port-name Camera10_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/1</S>
+                  <Obj N="Value" RefId="106">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users1</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Open</S>
+                      <S N="AuthMode">open</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">open</S>
+                      <S N="Config"> port-name Uplink1_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00001-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users1|2:Up|0:|4:Full|2:1G|6:Access|0:|4:Open|4:open|0:|4:open|24: port-name Uplink1_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/3</S>
+                  <Obj N="Value" RefId="107">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users3</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">dot1x</S>
+                      <S N="AuthClient">00aa.bbcc.0003</S>
+                      <S N="Template">dot1x</S>
+                      <S N="Config"> port-name UserPC3_x000A_ authentication auth-default-vlan 20_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00003-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users3|2:Up|0:|4:Full|2:1G|6:Access|0:|10:Authorized|5:dot1x|14:00aa.bbcc.0003|5:dot1x|61: port-name UserPC3_x000A_ authentication auth-default-vlan 20_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/2</S>
+                  <Obj N="Value" RefId="108">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users2</S>
+                      <S N="Status">Disable</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">None</S>
+                      <S N="Speed">None</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Open</S>
+                      <S N="AuthMode">open</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">open</S>
+                      <S N="Config"> port-name Uplink2_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00002-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users2|7:Disable|0:|4:None|4:None|6:Access|0:|4:Open|4:open|0:|4:open|24: port-name Uplink2_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/5</S>
+                  <Obj N="Value" RefId="109">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users5</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authenticating</S>
+                      <S N="AuthMode">dot1x</S>
+                      <S N="AuthClient">00aa.bbcc.0005</S>
+                      <S N="Template">flexible</S>
+                      <S N="Config"> port-name UserPC5_x000A_ authentication auth-default-vlan 20_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00005-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users5|2:Up|0:|4:Full|2:1G|6:Access|0:|14:Authenticating|5:dot1x|14:00aa.bbcc.0005|8:flexible|88: port-name UserPC5_x000A_ authentication auth-default-vlan 20_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/7</S>
+                  <Obj N="Value" RefId="110">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users7</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient">00aa.bbcc.0007</S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Printer7_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00007-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users7|2:Up|0:|4:Full|2:1G|6:Access|0:|10:Authorized|7:macauth|14:00aa.bbcc.0007|7:macauth|52: port-name Printer7_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/6</S>
+                  <Obj N="Value" RefId="111">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users6</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient">00aa.bbcc.0006</S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Printer6_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00006-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users6|4:Down|0:|4:Full|2:1G|6:Access|0:|10:Authorized|7:macauth|14:00aa.bbcc.0006|7:macauth|52: port-name Printer6_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+              </DCT>
+            </Obj>
+          </En>
+          <En>
+            <S N="Key">BOYO-A05-AS-15</S>
+            <Obj N="Value" RefId="112">
+              <TNRef RefId="2" />
+              <DCT>
+                <En>
+                  <S N="Key">Et1/1/9</S>
+                  <Obj N="Value" RefId="113">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users9</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Unknown</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Camera9_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00009-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users9|2:Up|0:|4:Full|2:1G|6:Access|0:|7:Unknown|7:macauth|0:|7:macauth|51: port-name Camera9_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/8</S>
+                  <Obj N="Value" RefId="114">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users8</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient">00aa.bbcc.0008</S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Camera8_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00008-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users8|4:Down|0:|4:Full|2:1G|6:Access|0:|10:Authorized|7:macauth|14:00aa.bbcc.0008|7:macauth|51: port-name Camera8_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/4</S>
+                  <Obj N="Value" RefId="115">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users4</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">dot1x</S>
+                      <S N="AuthClient">00aa.bbcc.0004</S>
+                      <S N="Template">dot1x</S>
+                      <S N="Config"> port-name UserPC4_x000A_ authentication auth-default-vlan 20_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00004-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users4|4:Down|0:|4:Full|2:1G|6:Access|0:|10:Authorized|5:dot1x|14:00aa.bbcc.0004|5:dot1x|61: port-name UserPC4_x000A_ authentication auth-default-vlan 20_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/10</S>
+                  <Obj N="Value" RefId="116">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users10</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Unknown</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Camera10_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00010-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">7:Users10|4:Down|0:|4:Full|2:1G|6:Access|0:|7:Unknown|7:macauth|0:|7:macauth|52: port-name Camera10_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/1</S>
+                  <Obj N="Value" RefId="117">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users1</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Open</S>
+                      <S N="AuthMode">open</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">open</S>
+                      <S N="Config"> port-name Uplink1_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00001-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users1|2:Up|0:|4:Full|2:1G|6:Access|0:|4:Open|4:open|0:|4:open|24: port-name Uplink1_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/3</S>
+                  <Obj N="Value" RefId="118">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users3</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">dot1x</S>
+                      <S N="AuthClient">00aa.bbcc.0003</S>
+                      <S N="Template">dot1x</S>
+                      <S N="Config"> port-name UserPC3_x000A_ authentication auth-default-vlan 20_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00003-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users3|2:Up|0:|4:Full|2:1G|6:Access|0:|10:Authorized|5:dot1x|14:00aa.bbcc.0003|5:dot1x|61: port-name UserPC3_x000A_ authentication auth-default-vlan 20_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/2</S>
+                  <Obj N="Value" RefId="119">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users2</S>
+                      <S N="Status">Disable</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">None</S>
+                      <S N="Speed">None</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Open</S>
+                      <S N="AuthMode">open</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">open</S>
+                      <S N="Config"> port-name Uplink2_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00002-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users2|7:Disable|0:|4:None|4:None|6:Access|0:|4:Open|4:open|0:|4:open|24: port-name Uplink2_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/5</S>
+                  <Obj N="Value" RefId="120">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users5</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authenticating</S>
+                      <S N="AuthMode">dot1x</S>
+                      <S N="AuthClient">00aa.bbcc.0005</S>
+                      <S N="Template">flexible</S>
+                      <S N="Config"> port-name UserPC5_x000A_ authentication auth-default-vlan 20_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00005-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users5|2:Up|0:|4:Full|2:1G|6:Access|0:|14:Authenticating|5:dot1x|14:00aa.bbcc.0005|8:flexible|88: port-name UserPC5_x000A_ authentication auth-default-vlan 20_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/7</S>
+                  <Obj N="Value" RefId="121">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users7</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient">00aa.bbcc.0007</S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Printer7_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00007-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users7|2:Up|0:|4:Full|2:1G|6:Access|0:|10:Authorized|7:macauth|14:00aa.bbcc.0007|7:macauth|52: port-name Printer7_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/6</S>
+                  <Obj N="Value" RefId="122">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users6</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient">00aa.bbcc.0006</S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Printer6_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00006-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users6|4:Down|0:|4:Full|2:1G|6:Access|0:|10:Authorized|7:macauth|14:00aa.bbcc.0006|7:macauth|52: port-name Printer6_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+              </DCT>
+            </Obj>
+          </En>
+          <En>
+            <S N="Key">BOYO-A05-AS-55</S>
+            <Obj N="Value" RefId="123">
+              <TNRef RefId="2" />
+              <DCT>
+                <En>
+                  <S N="Key">Et1/1/9</S>
+                  <Obj N="Value" RefId="124">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users9</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Unknown</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Camera9_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00009-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users9|2:Up|0:|4:Full|2:1G|6:Access|0:|7:Unknown|7:macauth|0:|7:macauth|51: port-name Camera9_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/8</S>
+                  <Obj N="Value" RefId="125">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users8</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient">00aa.bbcc.0008</S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Camera8_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00008-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users8|4:Down|0:|4:Full|2:1G|6:Access|0:|10:Authorized|7:macauth|14:00aa.bbcc.0008|7:macauth|51: port-name Camera8_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/4</S>
+                  <Obj N="Value" RefId="126">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users4</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">dot1x</S>
+                      <S N="AuthClient">00aa.bbcc.0004</S>
+                      <S N="Template">dot1x</S>
+                      <S N="Config"> port-name UserPC4_x000A_ authentication auth-default-vlan 20_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00004-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users4|4:Down|0:|4:Full|2:1G|6:Access|0:|10:Authorized|5:dot1x|14:00aa.bbcc.0004|5:dot1x|61: port-name UserPC4_x000A_ authentication auth-default-vlan 20_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/10</S>
+                  <Obj N="Value" RefId="127">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users10</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Unknown</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Camera10_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00010-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">7:Users10|4:Down|0:|4:Full|2:1G|6:Access|0:|7:Unknown|7:macauth|0:|7:macauth|52: port-name Camera10_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/1</S>
+                  <Obj N="Value" RefId="128">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users1</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Open</S>
+                      <S N="AuthMode">open</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">open</S>
+                      <S N="Config"> port-name Uplink1_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00001-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users1|2:Up|0:|4:Full|2:1G|6:Access|0:|4:Open|4:open|0:|4:open|24: port-name Uplink1_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/3</S>
+                  <Obj N="Value" RefId="129">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users3</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">dot1x</S>
+                      <S N="AuthClient">00aa.bbcc.0003</S>
+                      <S N="Template">dot1x</S>
+                      <S N="Config"> port-name UserPC3_x000A_ authentication auth-default-vlan 20_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00003-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users3|2:Up|0:|4:Full|2:1G|6:Access|0:|10:Authorized|5:dot1x|14:00aa.bbcc.0003|5:dot1x|61: port-name UserPC3_x000A_ authentication auth-default-vlan 20_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/2</S>
+                  <Obj N="Value" RefId="130">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users2</S>
+                      <S N="Status">Disable</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">None</S>
+                      <S N="Speed">None</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Open</S>
+                      <S N="AuthMode">open</S>
+                      <S N="AuthClient"></S>
+                      <S N="Template">open</S>
+                      <S N="Config"> port-name Uplink2_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00002-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users2|7:Disable|0:|4:None|4:None|6:Access|0:|4:Open|4:open|0:|4:open|24: port-name Uplink2_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/5</S>
+                  <Obj N="Value" RefId="131">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users5</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authenticating</S>
+                      <S N="AuthMode">dot1x</S>
+                      <S N="AuthClient">00aa.bbcc.0005</S>
+                      <S N="Template">flexible</S>
+                      <S N="Config"> port-name UserPC5_x000A_ authentication auth-default-vlan 20_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00005-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users5|2:Up|0:|4:Full|2:1G|6:Access|0:|14:Authenticating|5:dot1x|14:00aa.bbcc.0005|8:flexible|88: port-name UserPC5_x000A_ authentication auth-default-vlan 20_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/7</S>
+                  <Obj N="Value" RefId="132">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users7</S>
+                      <S N="Status">Up</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient">00aa.bbcc.0007</S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Printer7_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00007-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users7|2:Up|0:|4:Full|2:1G|6:Access|0:|10:Authorized|7:macauth|14:00aa.bbcc.0007|7:macauth|52: port-name Printer7_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+                <En>
+                  <S N="Key">Et1/1/6</S>
+                  <Obj N="Value" RefId="133">
+                    <TNRef RefId="3" />
+                    <ToString>StateTrace.Models.InterfaceCacheEntry</ToString>
+                    <Props>
+                      <S N="Name">Users6</S>
+                      <S N="Status">Down</S>
+                      <S N="VLAN"></S>
+                      <S N="Duplex">Full</S>
+                      <S N="Speed">1G</S>
+                      <S N="Type">Access</S>
+                      <S N="Learned"></S>
+                      <S N="AuthState">Authorized</S>
+                      <S N="AuthMode">macauth</S>
+                      <S N="AuthClient">00aa.bbcc.0006</S>
+                      <S N="Template">macauth</S>
+                      <S N="Config"> port-name Printer6_x000A_ mac-authentication enable_x000A_ exit</S>
+                      <S N="PortSort">60-USERS-00006-00000-00000-00000</S>
+                      <S N="PortColor"></S>
+                      <S N="StatusTag"></S>
+                      <S N="ToolTip"></S>
+                      <S N="Signature">6:Users6|4:Down|0:|4:Full|2:1G|6:Access|0:|10:Authorized|7:macauth|14:00aa.bbcc.0006|7:macauth|52: port-name Printer6_x000A_ mac-authentication enable_x000A_ exit|0:|0:|0:</S>
+                    </Props>
+                  </Obj>
+                </En>
+              </DCT>
+            </Obj>
+          </En>
+        </DCT>
+      </Obj>
+    </Props>
+  </Obj>
+</Objs>

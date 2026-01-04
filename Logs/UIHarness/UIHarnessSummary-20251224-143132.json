@@ -1,0 +1,25 @@
+{
+  "Timestamp": "2025-12-24T14:31:48.7583198-07:00",
+  "Status": "Fail",
+  "Harnesses": [
+    {
+      "HarnessName": "SpanView",
+      "Status": "Fail",
+      "ExitCode": 1,
+      "LogPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\UIHarness\\SpanHarness-20251224-143132.log",
+      "Hostname": "WLLS-A01-AS-21",
+      "Rows": 2,
+      "Notes": "Span view failed to load; global spanView is null."
+    },
+    {
+      "HarnessName": "SearchAlerts",
+      "Status": "Pass",
+      "ExitCode": 0,
+      "LogPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\UIHarness\\SearchAlertsHarness-20251224-143132.log",
+      "SearchCount": 106,
+      "AlertsCount": 102,
+      "Notes": ""
+    }
+  ],
+  "SummaryPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\UIHarness\\UIHarnessSummary-20251224-143132.json"
+}

@@ -1,0 +1,243 @@
+{
+  "GeneratedAtUtc": "2026-01-02T18:13:34.0847723Z",
+  "FilesAnalyzed": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\2026-01-02.json",
+  "PortBatchSummary": {
+    "EventCount": 111,
+    "UniqueHosts": 37,
+    "TotalPorts": 3868,
+    "AveragePortsBatch": 34.847,
+    "AverageChunkSize": 24.0,
+    "DurationSeconds": 183.347,
+    "PortsPerMinute": 1265.796,
+    "BatchIntervalMs": {
+      "Name": "BatchIntervalMs",
+      "Count": 110,
+      "Average": 1666.792259,
+      "Min": 143.4055,
+      "Max": 119522.2031,
+      "P99": null,
+      "P50": 335.85485,
+      "P95": 1788.456605
+    }
+  },
+  "InterfaceSyncSummary": {
+    "UiClone": {
+      "Name": "UiCloneDurationMs",
+      "Count": 150,
+      "Average": 21.048473,
+      "Min": 0.0,
+      "Max": 132.051,
+      "P99": null,
+      "P50": 13.217,
+      "P95": 114.7514
+    },
+    "StreamDispatch": {
+      "Name": "StreamDispatchDurationMs",
+      "Count": 150,
+      "Average": 0.326873,
+      "Min": 0.0,
+      "Max": 2.767,
+      "P99": null,
+      "P50": 0.27,
+      "P95": 1.00975
+    },
+    "DiffDuration": {
+      "Name": "DiffDurationMs",
+      "Count": 150,
+      "Average": 31.799633,
+      "Min": 0.139,
+      "Max": 190.374,
+      "P99": null,
+      "P50": 22.1415,
+      "P95": 161.0551
+    },
+    "SampleCount": 150
+  },
+  "HostBreakdown": [
+    {
+      "Host": "WLLS-A01-AS-51",
+      "BatchCount": 3,
+      "PortsCommitted": 144
+    },
+    {
+      "Host": "WLLS-A02-AS-02",
+      "BatchCount": 3,
+      "PortsCommitted": 144
+    },
+    {
+      "Host": "WLLS-A03-AS-53",
+      "BatchCount": 3,
+      "PortsCommitted": 144
+    },
+    {
+      "Host": "WLLS-A02-AS-32",
+      "BatchCount": 3,
+      "PortsCommitted": 144
+    },
+    {
+      "Host": "WLLS-A05-AS-25",
+      "BatchCount": 3,
+      "PortsCommitted": 144
+    },
+    {
+      "Host": "WLLS-A03-AS-43",
+      "BatchCount": 3,
+      "PortsCommitted": 144
+    },
+    {
+      "Host": "WLLS-A02-AS-22",
+      "BatchCount": 3,
+      "PortsCommitted": 144
+    },
+    {
+      "Host": "WLLS-A05-AS-45",
+      "BatchCount": 3,
+      "PortsCommitted": 144
+    },
+    {
+      "Host": "WLLS-A01-AS-31",
+      "BatchCount": 3,
+      "PortsCommitted": 144
+    },
+    {
+      "Host": "WLLS-A07-AS-07",
+      "BatchCount": 3,
+      "PortsCommitted": 144
+    },
+    {
+      "Host": "WLLS-A01-AS-11",
+      "BatchCount": 3,
+      "PortsCommitted": 144
+    },
+    {
+      "Host": "WLLS-A02-AS-52",
+      "BatchCount": 3,
+      "PortsCommitted": 144
+    },
+    {
+      "Host": "WLLS-A05-AS-35",
+      "BatchCount": 3,
+      "PortsCommitted": 144
+    },
+    {
+      "Host": "WLLS-A03-AS-13",
+      "BatchCount": 3,
+      "PortsCommitted": 144
+    },
+    {
+      "Host": "WLLS-A01-AS-21",
+      "BatchCount": 3,
+      "PortsCommitted": 144
+    },
+    {
+      "Host": "WLLS-A01-AS-41",
+      "BatchCount": 3,
+      "PortsCommitted": 144
+    },
+    {
+      "Host": "WLLS-A05-AS-55",
+      "BatchCount": 3,
+      "PortsCommitted": 144
+    },
+    {
+      "Host": "WLLS-A02-AS-12",
+      "BatchCount": 3,
+      "PortsCommitted": 144
+    },
+    {
+      "Host": "WLLS-A02-AS-42",
+      "BatchCount": 3,
+      "PortsCommitted": 144
+    },
+    {
+      "Host": "WLLS-A03-AS-23",
+      "BatchCount": 3,
+      "PortsCommitted": 144
+    },
+    {
+      "Host": "WLLS-A03-AS-33",
+      "BatchCount": 3,
+      "PortsCommitted": 144
+    },
+    {
+      "Host": "WLLS-A05-AS-05",
+      "BatchCount": 3,
+      "PortsCommitted": 144
+    },
+    {
+      "Host": "WLLS-A05-AS-15",
+      "BatchCount": 3,
+      "PortsCommitted": 144
+    },
+    {
+      "Host": "WLLS-A03-AS-03",
+      "BatchCount": 3,
+      "PortsCommitted": 144
+    },
+    {
+      "Host": "WLLS-A01-AS-01",
+      "BatchCount": 3,
+      "PortsCommitted": 52
+    },
+    {
+      "Host": "BOYO-A05-AS-15",
+      "BatchCount": 3,
+      "PortsCommitted": 30
+    },
+    {
+      "Host": "BOYO-A05-AS-25",
+      "BatchCount": 3,
+      "PortsCommitted": 30
+    },
+    {
+      "Host": "BOYO-A05-AS-05",
+      "BatchCount": 3,
+      "PortsCommitted": 30
+    },
+    {
+      "Host": "BOYO-A05-AS-32",
+      "BatchCount": 3,
+      "PortsCommitted": 30
+    },
+    {
+      "Host": "BOYO-A05-AS-02",
+      "BatchCount": 3,
+      "PortsCommitted": 30
+    },
+    {
+      "Host": "BOYO-A05-AS-52",
+      "BatchCount": 3,
+      "PortsCommitted": 30
+    },
+    {
+      "Host": "BOYO-A05-AS-45",
+      "BatchCount": 3,
+      "PortsCommitted": 30
+    },
+    {
+      "Host": "BOYO-A05-AS-42",
+      "BatchCount": 3,
+      "PortsCommitted": 30
+    },
+    {
+      "Host": "BOYO-A05-AS-55",
+      "BatchCount": 3,
+      "PortsCommitted": 30
+    },
+    {
+      "Host": "BOYO-A05-AS-35",
+      "BatchCount": 3,
+      "PortsCommitted": 30
+    },
+    {
+      "Host": "BOYO-A05-AS-12",
+      "BatchCount": 3,
+      "PortsCommitted": 30
+    },
+    {
+      "Host": "BOYO-A05-AS-22",
+      "BatchCount": 3,
+      "PortsCommitted": 30
+    }
+  ]
+}

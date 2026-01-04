@@ -1,0 +1,11 @@
+{
+  "SchemaVersion": "1.0",
+  "GeneratedAt": "2025-12-31T13:29:36.5476779-07:00",
+  "SummaryPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingOfflineDemo\\BundleStaging\\Run-20251231-132935\\Diff\\RoutingDiff-20251231-132935.json",
+  "RootPath": "C:\\Users\\Werem\\Projects\\StateTrace",
+  "OutputZipPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingOfflineDemo\\Run-20251231-132935\\Bundles\\RoutingBundle-Diff-20251231-132935.zip",
+  "ManifestPath": "BundleManifest.json",
+  "IncludedCount": 3,
+  "MissingCount": 0,
+  "Warnings": []
+}

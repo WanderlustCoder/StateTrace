@@ -1,0 +1,68 @@
+[
+  {
+    "Hostname": "WLLS-A01-AS-21",
+    "Site": "WLLS",
+    "InterfacesRendered": 96,
+    "PortsAppended": 48,
+    "BatchesProcessed": 2,
+    "SessionDurationMs": 15.109,
+    "QueueDelayMs": null,
+    "DispatcherDurationMs": null,
+    "Success": true
+  },
+  {
+    "Hostname": "BOYO-A05-AS-02",
+    "Site": "BOYO",
+    "InterfacesRendered": 20,
+    "PortsAppended": 10,
+    "BatchesProcessed": 1,
+    "SessionDurationMs": 1.002,
+    "QueueDelayMs": null,
+    "DispatcherDurationMs": null,
+    "Success": true
+  },
+  {
+    "Hostname": "WLLS-A01-AS-01",
+    "Site": "WLLS",
+    "InterfacesRendered": 96,
+    "PortsAppended": 48,
+    "BatchesProcessed": 2,
+    "SessionDurationMs": 2.294,
+    "QueueDelayMs": null,
+    "DispatcherDurationMs": null,
+    "Success": true
+  },
+  {
+    "Hostname": "BOYO-A05-AS-05",
+    "Site": "BOYO",
+    "InterfacesRendered": 20,
+    "PortsAppended": 10,
+    "BatchesProcessed": 1,
+    "SessionDurationMs": 1.046,
+    "QueueDelayMs": null,
+    "DispatcherDurationMs": null,
+    "Success": true
+  },
+  {
+    "Hostname": "WLLS-A01-AS-11",
+    "Site": "WLLS",
+    "InterfacesRendered": 96,
+    "PortsAppended": 48,
+    "BatchesProcessed": 2,
+    "SessionDurationMs": 2.129,
+    "QueueDelayMs": null,
+    "DispatcherDurationMs": null,
+    "Success": true
+  },
+  {
+    "Hostname": "BOYO-A05-AS-12",
+    "Site": "BOYO",
+    "InterfacesRendered": 20,
+    "PortsAppended": 10,
+    "BatchesProcessed": 1,
+    "SessionDurationMs": 1.068,
+    "QueueDelayMs": null,
+    "DispatcherDurationMs": null,
+    "Success": true
+  }
+]

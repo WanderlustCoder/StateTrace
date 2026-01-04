@@ -1,0 +1,254 @@
+[
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanA_RoutingReliability.md",
+    "ExtractedLinkTargets": [
+      null
+    ],
+    "ResolvedPaths": [
+      null
+    ],
+    "Exists": [
+      false
+    ]
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanB_Performance.md",
+    "ExtractedLinkTargets": [
+      null
+    ],
+    "ResolvedPaths": [
+      null
+    ],
+    "Exists": [
+      false
+    ]
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanC_ChangeTracking.md",
+    "ExtractedLinkTargets": [
+      null
+    ],
+    "ResolvedPaths": [
+      null
+    ],
+    "Exists": [
+      false
+    ]
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanD_FeatureExpansion.md",
+    "ExtractedLinkTargets": [
+      null
+    ],
+    "ResolvedPaths": [
+      null
+    ],
+    "Exists": [
+      false
+    ]
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanD_PortReorg_12PortPaging.md",
+    "ExtractedLinkTargets": [
+      null
+    ],
+    "ResolvedPaths": [
+      null
+    ],
+    "Exists": [
+      false
+    ]
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanE_Telemetry.md",
+    "ExtractedLinkTargets": [
+      null
+    ],
+    "ResolvedPaths": [
+      null
+    ],
+    "Exists": [
+      false
+    ]
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanF_SecurityIdentity.md",
+    "ExtractedLinkTargets": [
+      null
+    ],
+    "ResolvedPaths": [
+      null
+    ],
+    "Exists": [
+      false
+    ]
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanG_ReleaseGovernance.md",
+    "ExtractedLinkTargets": [
+      null
+    ],
+    "ResolvedPaths": [
+      null
+    ],
+    "Exists": [
+      false
+    ]
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanH_UserExperience.md",
+    "ExtractedLinkTargets": [
+      null
+    ],
+    "ResolvedPaths": [
+      null
+    ],
+    "Exists": [
+      false
+    ]
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanI_HarnessStability.md",
+    "ExtractedLinkTargets": [
+      null
+    ],
+    "ResolvedPaths": [
+      null
+    ],
+    "Exists": [
+      false
+    ]
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanIndex.md",
+    "ExtractedLinkTargets": [
+      null
+    ],
+    "ResolvedPaths": [
+      null
+    ],
+    "Exists": [
+      false
+    ]
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanJ_TestFixtureReliability.md",
+    "ExtractedLinkTargets": [
+      null
+    ],
+    "ResolvedPaths": [
+      null
+    ],
+    "Exists": [
+      false
+    ]
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanK_DeveloperExperience.md",
+    "ExtractedLinkTargets": [
+      null
+    ],
+    "ResolvedPaths": [
+      null
+    ],
+    "Exists": [
+      false
+    ]
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanL_ModuleDecomposition.md",
+    "ExtractedLinkTargets": [
+      null
+    ],
+    "ResolvedPaths": [
+      null
+    ],
+    "Exists": [
+      false
+    ]
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanM_DataQuality.md",
+    "ExtractedLinkTargets": [
+      null
+    ],
+    "ResolvedPaths": [
+      null
+    ],
+    "Exists": [
+      false
+    ]
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanN_DocumentationAutomation.md",
+    "ExtractedLinkTargets": [
+      null
+    ],
+    "ResolvedPaths": [
+      null
+    ],
+    "Exists": [
+      false
+    ]
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanO_AccessibilityResponsiveness.md",
+    "ExtractedLinkTargets": [
+      null
+    ],
+    "ResolvedPaths": [
+      null
+    ],
+    "Exists": [
+      false
+    ]
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanP_PackagingDeployment.md",
+    "ExtractedLinkTargets": [
+      null
+    ],
+    "ResolvedPaths": [
+      null
+    ],
+    "Exists": [
+      false
+    ]
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanQ_SharedCacheStrategy.md",
+    "ExtractedLinkTargets": [
+      null
+    ],
+    "ResolvedPaths": [
+      null
+    ],
+    "Exists": [
+      false
+    ]
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanR_IncidentResponse.md",
+    "ExtractedLinkTargets": [
+      null
+    ],
+    "ResolvedPaths": [
+      null
+    ],
+    "Exists": [
+      false
+    ]
+  },
+  {
+    "PlanFile": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanS_DeprecationCleanup.md",
+    "ExtractedLinkTargets": [
+      null
+    ],
+    "ResolvedPaths": [
+      null
+    ],
+    "Exists": [
+      false
+    ]
+  }
+]

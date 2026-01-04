@@ -144,7 +144,7 @@ $providers = @(
 )
 
 $foundProvider = $false
-$providerDetails = @()
+$providerDetails = [System.Collections.Generic.List[string]]::new()
 
 foreach ($prov in $providers) {
     try {
@@ -158,9 +158,9 @@ foreach ($prov in $providers) {
         }
         [System.Runtime.Interopservices.Marshal]::ReleaseComObject($conn) | Out-Null
         $foundProvider = $true
-        $providerDetails += "$($prov.Name) (Available)"
+        [void]$providerDetails.Add("$($prov.Name) (Available)")
     } catch {
-        $providerDetails += "$($prov.Name) (Not found)"
+        [void]$providerDetails.Add("$($prov.Name) (Not found)")
     }
 }
 

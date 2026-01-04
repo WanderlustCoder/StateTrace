@@ -1,0 +1,89 @@
+{
+  "GeneratedAtUtc": "2025-12-06T01:23:50.1358391Z",
+  "FilesAnalyzed": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\2025-12-05.json",
+  "TotalLaunchEvents": 78,
+  "UniqueSites": 4,
+  "DurationSeconds": 7314.1933921,
+  "MaxObservedStreak": 1.0,
+  "MaxAllowedStreak": 8,
+  "SiteSummaries": [
+    {
+      "Site": "WLLS",
+      "LaunchCount": 50,
+      "MaxConsecutive": 1,
+      "MaxConsecutiveStart": "2025-12-05T16:21:54.7420355-07:00",
+      "MaxConsecutiveEnd": "2025-12-05T16:21:54.7420355-07:00"
+    },
+    {
+      "Site": "BOYO",
+      "LaunchCount": 24,
+      "MaxConsecutive": 1,
+      "MaxConsecutiveStart": "2025-12-05T16:21:51.3018701-07:00",
+      "MaxConsecutiveEnd": "2025-12-05T16:21:51.3018701-07:00"
+    },
+    {
+      "Site": "SW1",
+      "LaunchCount": 2,
+      "MaxConsecutive": 1,
+      "MaxConsecutiveStart": "2025-12-05T16:21:54.0700072-07:00",
+      "MaxConsecutiveEnd": "2025-12-05T16:21:54.0700072-07:00"
+    },
+    {
+      "Site": "SITE1",
+      "LaunchCount": 2,
+      "MaxConsecutive": 1,
+      "MaxConsecutiveStart": "2025-12-05T16:21:53.1440372-07:00",
+      "MaxConsecutiveEnd": "2025-12-05T16:21:53.1440372-07:00"
+    }
+  ],
+  "Violations": [],
+  "ViolationCount": 0,
+  "Pass": true,
+  "Metrics": {
+    "QueuedJobs": {
+      "Name": "QueuedJobs",
+      "Count": 78,
+      "Min": 0.0,
+      "Average": 19.0,
+      "P50": 19.0,
+      "P95": 36.15,
+      "Max": 38.0
+    },
+    "ActiveSites": {
+      "Name": "ActiveSites",
+      "Count": 78,
+      "Min": 1.0,
+      "Average": 1.0,
+      "P50": 1.0,
+      "P95": 1.0,
+      "Max": 1.0
+    },
+    "QueuedSites": {
+      "Name": "QueuedSites",
+      "Count": 78,
+      "Min": 0.0,
+      "Average": 1.667,
+      "P50": 2.0,
+      "P95": 2.15,
+      "Max": 4.0
+    },
+    "ThreadBudget": {
+      "Name": "ThreadBudget",
+      "Count": 78,
+      "Min": 1.0,
+      "Average": 1.0,
+      "P50": 1.0,
+      "P95": 1.0,
+      "Max": 1.0
+    },
+    "ActiveWorkers": {
+      "Name": "ActiveWorkers",
+      "Count": 78,
+      "Min": 1.0,
+      "Average": 1.0,
+      "P50": 1.0,
+      "P95": 1.0,
+      "Max": 1.0
+    }
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "GeneratedAtUtc": "2026-01-04T03:29:39.6974061Z",
+  "FilesAnalyzed": "C:\\Users\\Werem\\AppData\\Local\\Temp\\26a824a0-1b07-45f7-a0fe-5fc77ae52083\\metrics-missing-report.json",
+  "TotalLaunchEvents": 0,
+  "UniqueSites": 0,
+  "DurationSeconds": null,
+  "MaxObservedStreak": 0,
+  "MaxAllowedStreak": 8,
+  "SiteSummaries": [],
+  "Violations": [],
+  "ViolationCount": 0,
+  "Pass": true,
+  "Metrics": {
+    "ActiveWorkers": {
+      "Name": "ActiveWorkers",
+      "Count": 0,
+      "Min": null,
+      "Average": null,
+      "P50": null,
+      "P95": null,
+      "Max": null
+    },
+    "ThreadBudget": {
+      "Name": "ThreadBudget",
+      "Count": 0,
+      "Min": null,
+      "Average": null,
+      "P50": null,
+      "P95": null,
+      "Max": null
+    },
+    "QueuedJobs": {
+      "Name": "QueuedJobs",
+      "Count": 0,
+      "Min": null,
+      "Average": null,
+      "P50": null,
+      "P95": null,
+      "Max": null
+    },
+    "QueuedSites": {
+      "Name": "QueuedSites",
+      "Count": 0,
+      "Min": null,
+      "Average": null,
+      "P50": null,
+      "P95": null,
+      "Max": null
+    },
+    "ActiveSites": {
+      "Name": "ActiveSites",
+      "Count": 0,
+      "Min": null,
+      "Average": null,
+      "P50": null,
+      "P95": null,
+      "Max": null
+    }
+  }
+}

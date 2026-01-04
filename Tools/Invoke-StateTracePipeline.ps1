@@ -258,13 +258,13 @@ function Resolve-QueueDelayHarnessHosts {
         [string]$ModulesPath
     )
 
-    $normalizedSites = @()
+    $normalizedSites = [System.Collections.Generic.List[string]]::new()
     if ($SiteFilter) {
         foreach ($site in $SiteFilter) {
             if ([string]::IsNullOrWhiteSpace($site)) { continue }
             foreach ($token in ($site -split ',')) {
                 $trimmed = $token.Trim()
-                if ($trimmed) { $normalizedSites += $trimmed }
+                if ($trimmed) { [void]$normalizedSites.Add($trimmed) }
             }
         }
     }

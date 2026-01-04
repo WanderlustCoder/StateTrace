@@ -1,0 +1,57 @@
+{
+  "GeneratedAtUtc": "2026-01-01T23:24:55.1542502Z",
+  "FilesAnalyzed": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\2026-01-01.json",
+  "PortBatchSummary": {
+    "EventCount": 0,
+    "UniqueHosts": 0,
+    "TotalPorts": 0,
+    "AveragePortsBatch": null,
+    "AverageChunkSize": null,
+    "DurationSeconds": null,
+    "PortsPerMinute": null,
+    "BatchIntervalMs": {
+      "Name": "BatchIntervalMs",
+      "Count": 0,
+      "Average": null,
+      "Min": null,
+      "Max": null,
+      "P50": null,
+      "P95": null,
+      "P99": null
+    }
+  },
+  "InterfaceSyncSummary": {
+    "UiClone": {
+      "Name": "UiCloneDurationMs",
+      "Count": 143,
+      "Average": 0.0,
+      "Min": 0.0,
+      "Max": 0.0,
+      "P99": null,
+      "P50": 0.0,
+      "P95": 0.0
+    },
+    "StreamDispatch": {
+      "Name": "StreamDispatchDurationMs",
+      "Count": 143,
+      "Average": 0.0,
+      "Min": 0.0,
+      "Max": 0.0,
+      "P99": null,
+      "P50": 0.0,
+      "P95": 0.0
+    },
+    "DiffDuration": {
+      "Name": "DiffDurationMs",
+      "Count": 143,
+      "Average": 2.358126,
+      "Min": 0.124,
+      "Max": 43.844,
+      "P99": null,
+      "P50": 0.792,
+      "P95": 9.9127
+    },
+    "SampleCount": 143
+  },
+  "HostBreakdown": null
+}

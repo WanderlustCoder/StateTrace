@@ -1,0 +1,7 @@
+{
+  "Stamp": "20251226-125358",
+  "Matches": true,
+  "Mismatches": [],
+  "BeforePath": "Logs/Reports/RawAutoSafetyAudit-20251226-125358-before.json",
+  "AfterPath": "Logs/Reports/RawAutoSafetyAudit-20251226-125358-after.json"
+}

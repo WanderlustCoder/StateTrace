@@ -1,0 +1,66 @@
+{
+  "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\2026-01-01.json",
+  "Sites": [
+    {
+      "Site": "SW1",
+      "Events": 30,
+      "Providers": {
+        "Key": "Unknown",
+        "Value": 30,
+        "Name": "Unknown"
+      },
+      "Reasons": [
+        {
+          "Key": "SharedCacheUnavailable",
+          "Value": 20,
+          "Name": "SharedCacheUnavailable"
+        },
+        {
+          "Key": "SkipSiteCacheUpdate",
+          "Value": 10,
+          "Name": "SkipSiteCacheUpdate"
+        }
+      ],
+      "Statuses": null
+    },
+    {
+      "Site": "WLLS",
+      "Events": 100,
+      "Providers": [
+        {
+          "Key": "Cache",
+          "Value": 40,
+          "Name": "Cache"
+        },
+        {
+          "Key": "SharedCache",
+          "Value": 10,
+          "Name": "SharedCache"
+        },
+        {
+          "Key": "Unknown",
+          "Value": 50,
+          "Name": "Unknown"
+        }
+      ],
+      "Reasons": [
+        {
+          "Key": "AccessCacheHit",
+          "Value": 40,
+          "Name": "AccessCacheHit"
+        },
+        {
+          "Key": "SharedCacheMatch",
+          "Value": 10,
+          "Name": "SharedCacheMatch"
+        },
+        {
+          "Key": "SkipSiteCacheUpdate",
+          "Value": 50,
+          "Name": "SkipSiteCacheUpdate"
+        }
+      ],
+      "Statuses": null
+    }
+  ]
+}

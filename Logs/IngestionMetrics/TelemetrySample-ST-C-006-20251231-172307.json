@@ -1,0 +1,4 @@
+ {""EventName"":""DiffUsageRate"",""UsageNumerator"":1,""UsageDenominator"":1,""Status"":""Executed"",""Site"":""BOYO"",""Hostname"":""BOYO-A01""} 
+ {""EventName"":""DiffUsageRate"",""UsageNumerator"":1,""UsageDenominator"":2,""Status"":""Executed"",""Site"":""WLLS"",""Hostname"":""WLLS-A01""} 
+ {""EventName"":""DriftDetectionTime"",""DurationMinutes"":12.5,""Site"":""BOYO"",""Hostname"":""BOYO-A01""} 
+ {""EventName"":""DriftDetectionTime"",""DurationMinutes"":7.5,""Site"":""WLLS"",""Hostname"":""WLLS-A01""} 

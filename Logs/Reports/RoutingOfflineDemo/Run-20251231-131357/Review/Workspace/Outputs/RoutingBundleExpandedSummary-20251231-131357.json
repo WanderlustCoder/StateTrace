@@ -1,0 +1,16 @@
+{
+  "SchemaVersion": "1.0",
+  "BundleZipPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingOfflineDemo\\Run-20251231-131357\\Bundles\\RoutingBundle-Diff-20251231-131357.zip",
+  "ExtractedAt": "2025-12-31T13:13:58.4550976-07:00",
+  "OutputRoot": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingOfflineDemo\\Run-20251231-131357\\Review\\Workspace\\Expanded",
+  "Status": "Pass",
+  "Validated": true,
+  "ValidationOutputPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingOfflineDemo\\Run-20251231-131357\\Review\\Workspace\\Outputs\\RoutingBundleValidation-20251231-131357.json",
+  "ManifestExtractedPath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\RoutingOfflineDemo\\Run-20251231-131357\\Review\\Workspace\\Expanded\\BundleManifest.json",
+  "Counts": {
+    "ZipEntries": 9,
+    "FilesExtracted": 4,
+    "DirectoriesCreated": 7
+  },
+  "Warnings": []
+}

@@ -1,0 +1,57 @@
+﻿{
+    "GeneratedAtUtc":  "2026-01-04T14:43:36.1644744Z",
+    "FilesAnalyzed":  "C:\\Users\\Werem\\AppData\\Local\\Temp\\e16862ef-a744-498d-a593-cd87457386e9\\metrics-missing-report.json",
+    "PortBatchSummary":  {
+                             "EventCount":  1,
+                             "UniqueHosts":  1,
+                             "TotalPorts":  5,
+                             "AveragePortsBatch":  5,
+                             "AverageChunkSize":  5,
+                             "DurationSeconds":  null,
+                             "PortsPerMinute":  null,
+                             "BatchIntervalMs":  {
+                                                     "Name":  "BatchIntervalMs",
+                                                     "Count":  0,
+                                                     "Average":  null,
+                                                     "Min":  null,
+                                                     "Max":  null,
+                                                     "P50":  null,
+                                                     "P95":  null,
+                                                     "P99":  null
+                                                 }
+                         },
+    "InterfaceSyncSummary":  {
+                                 "UiClone":  {
+                                                 "Name":  "UiCloneDurationMs",
+                                                 "Count":  0,
+                                                 "Average":  null,
+                                                 "Min":  null,
+                                                 "Max":  null,
+                                                 "P50":  null,
+                                                 "P95":  null,
+                                                 "P99":  null
+                                             },
+                                 "StreamDispatch":  {
+                                                        "Name":  "StreamDispatchDurationMs",
+                                                        "Count":  0,
+                                                        "Average":  null,
+                                                        "Min":  null,
+                                                        "Max":  null,
+                                                        "P50":  null,
+                                                        "P95":  null,
+                                                        "P99":  null
+                                                    },
+                                 "DiffDuration":  {
+                                                      "Name":  "DiffDurationMs",
+                                                      "Count":  0,
+                                                      "Average":  null,
+                                                      "Min":  null,
+                                                      "Max":  null,
+                                                      "P50":  null,
+                                                      "P95":  null,
+                                                      "P99":  null
+                                                  },
+                                 "SampleCount":  0
+                             },
+    "HostBreakdown":  null
+}

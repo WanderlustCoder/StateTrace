@@ -1,0 +1,458 @@
+"Date","Scope","Metric","Count","Average","P95","Max","Total","SecondaryTotal","Notes"
+"2025-12-05","All","DatabaseWriteLatencyMs","39","1143.769","1719.3","2098","44607",,
+"2025-12-05","All","ParseDurationSeconds","39","1.281","1.84","2.195","49.965",,
+"2025-12-05","All","RowsWritten","65",,,,"1294","10","UniqueHosts=41"
+"2025-12-05","All","SiteCacheFetchDurationMs","2","816.458","847.499","850.948","1632.915",,"Statuses=Refreshed=2,SharedOnly=35,SkippedEmpty=28; Providers=Cache=8,Refreshed=2,SharedCache=35,Unknown=20; ZeroCount=63"
+"2025-12-05","All","SkippedDuplicate","39",,,,"39",,"UniqueHosts=39"
+"2025-12-05","All","UserAction","1",,,,,,"Action=ScanLogs"
+"2025-12-05","All","UserAction","1",,,,,,"Action=LoadFromDb"
+"2025-12-05","All","UserAction","8",,,,,,"Action=InterfacesView"
+"2025-12-05","All","UserActionCoverage","3",,,,"6","HelpQuickstart,CompareView,SpanSnapshot","Missing=HelpQuickstart,CompareView,SpanSnapshot"
+"2025-12-05","All","UserActionTotal","10",,,,,,
+"2025-12-05","BOYO","DatabaseWriteLatencyMs","12","875.417","1317.75","1722","10505",,
+"2025-12-05","BOYO","ParseDurationSeconds","12","1.057","1.79","1.836","12.687",,
+"2025-12-05","BOYO","RowsWritten","12",,,,"120",,"UniqueHosts=12"
+"2025-12-05","BOYO","SiteCacheFetchDurationMs","1","781.967","781.967","781.967","781.967",,"Statuses=Refreshed=1,SharedOnly=10,SkippedEmpty=1; Providers=Refreshed=1,SharedCache=10,Unknown=1; ZeroCount=11"
+"2025-12-05","BOYO","SkippedDuplicate","12",,,,"12",,"UniqueHosts=12"
+"2025-12-05","BOYO","UserAction","1",,,,,,"Action=LoadFromDb"
+"2025-12-05","BOYO","UserAction","5",,,,,,"Action=InterfacesView"
+"2025-12-05","BOYO","UserActionCoverage","2",,,,"6","ScanLogs,HelpQuickstart,CompareView,SpanSnapshot","Missing=ScanLogs,HelpQuickstart,CompareView,SpanSnapshot"
+"2025-12-05","BOYO","UserActionTotal","6",,,,,,
+"2025-12-05","SITE","DatabaseWriteLatencyMs","1","588","588","588","588",,
+"2025-12-05","SITE","ParseDurationSeconds","1","0.845","0.845","0.845","0.845",,
+"2025-12-05","SITE","RowsWritten","1",,,,"2",,"UniqueHosts=1"
+"2025-12-05","SITE","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SkippedEmpty=1; Providers=Unknown=1; ZeroCount=1"
+"2025-12-05","SITE1","SkippedDuplicate","1",,,,"1",,"UniqueHosts=1"
+"2025-12-05","SW1","DatabaseWriteLatencyMs","1","458","458","458","458",,
+"2025-12-05","SW1","ParseDurationSeconds","1","0.584","0.584","0.584","0.584",,
+"2025-12-05","SW1","RowsWritten","7",,,,"8",,"UniqueHosts=1"
+"2025-12-05","SW1","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SkippedEmpty=7; Providers=Unknown=7; ZeroCount=7"
+"2025-12-05","SW1","SkippedDuplicate","1",,,,"1",,"UniqueHosts=1"
+"2025-12-05","WLLS","DatabaseWriteLatencyMs","25","1322.24","1701.4","2098","33056",,
+"2025-12-05","WLLS","ParseDurationSeconds","25","1.434","1.851","2.195","35.849",,
+"2025-12-05","WLLS","RowsWritten","45",,,,"1164","10","UniqueHosts=28"
+"2025-12-05","WLLS","SiteCacheFetchDurationMs","1","850.948","850.948","850.948","850.948",,"Statuses=Refreshed=1,SharedOnly=25,SkippedEmpty=19; Providers=Cache=8,Refreshed=1,SharedCache=25,Unknown=11; ZeroCount=44"
+"2025-12-05","WLLS","SkippedDuplicate","25",,,,"25",,"UniqueHosts=25"
+"2025-12-05","WLLS","UserAction","3",,,,,,"Action=InterfacesView"
+"2025-12-05","WLLS","UserActionCoverage","1",,,,"6","ScanLogs,LoadFromDb,HelpQuickstart,CompareView,SpanSnapshot","Missing=ScanLogs,LoadFromDb,HelpQuickstart,CompareView,SpanSnapshot"
+"2025-12-05","WLLS","UserActionTotal","3",,,,,,
+"2025-12-06","All","RowsWritten","104",,,,"64","40","UniqueHosts=4"
+"2025-12-06","All","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SharedOnly=8,SkippedEmpty=96; Providers=Cache=32,SharedCache=8,Unknown=64; ZeroCount=104"
+"2025-12-06","SW1","RowsWritten","24",,,,"24",,"UniqueHosts=1"
+"2025-12-06","SW1","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SkippedEmpty=24; Providers=Unknown=24; ZeroCount=24"
+"2025-12-06","WLLS","RowsWritten","80",,,,"40","40","UniqueHosts=4"
+"2025-12-06","WLLS","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SharedOnly=8,SkippedEmpty=72; Providers=Cache=32,SharedCache=8,Unknown=40; ZeroCount=80"
+"2025-12-08","All","DatabaseWriteLatencyMs","4","767","1085.25","1116","3068",,
+"2025-12-08","All","ParseDurationSeconds","4","1.269","1.82","1.847","5.077",,
+"2025-12-08","All","RowsWritten","56",,,,"56","20","UniqueHosts=6"
+"2025-12-08","All","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SharedOnly=4,SkippedEmpty=52; Providers=Cache=16,SharedCache=4,Unknown=36; ZeroCount=56"
+"2025-12-08","All","UserAction","2",,,,,,"Action=ScanLogs"
+"2025-12-08","All","UserAction","1",,,,,,"Action=LoadFromDb"
+"2025-12-08","All","UserAction","9",,,,,,"Action=InterfacesView"
+"2025-12-08","All","UserActionCoverage","3",,,,"6","HelpQuickstart,CompareView,SpanSnapshot","Missing=HelpQuickstart,CompareView,SpanSnapshot"
+"2025-12-08","All","UserActionTotal","12",,,,,,
+"2025-12-08","BOYO","DatabaseWriteLatencyMs","2","1013.5","1105.75","1116","2027",,
+"2025-12-08","BOYO","ParseDurationSeconds","2","1.756","1.838","1.847","3.512",,
+"2025-12-08","BOYO","RowsWritten","2",,,,"20",,"UniqueHosts=1"
+"2025-12-08","BOYO","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SkippedEmpty=2; Providers=Unknown=2; ZeroCount=2"
+"2025-12-08","BOYO","UserAction","3",,,,,,"Action=InterfacesView"
+"2025-12-08","BOYO","UserAction","1",,,,,,"Action=LoadFromDb"
+"2025-12-08","BOYO","UserActionCoverage","2",,,,"6","ScanLogs,HelpQuickstart,CompareView,SpanSnapshot","Missing=ScanLogs,HelpQuickstart,CompareView,SpanSnapshot"
+"2025-12-08","BOYO","UserActionTotal","4",,,,,,
+"2025-12-08","SW1","RowsWritten","12",,,,"12",,"UniqueHosts=1"
+"2025-12-08","SW1","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SkippedEmpty=12; Providers=Unknown=12; ZeroCount=12"
+"2025-12-08","WLLS","DatabaseWriteLatencyMs","2","520.5","529.05","530","1041",,
+"2025-12-08","WLLS","ParseDurationSeconds","2","0.783","0.793","0.794","1.565",,
+"2025-12-08","WLLS","RowsWritten","42",,,,"24","20","UniqueHosts=5"
+"2025-12-08","WLLS","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SharedOnly=4,SkippedEmpty=38; Providers=Cache=16,SharedCache=4,Unknown=22; ZeroCount=42"
+"2025-12-08","WLLS","UserAction","6",,,,,,"Action=InterfacesView"
+"2025-12-08","WLLS","UserActionCoverage","1",,,,"6","ScanLogs,LoadFromDb,HelpQuickstart,CompareView,SpanSnapshot","Missing=ScanLogs,LoadFromDb,HelpQuickstart,CompareView,SpanSnapshot"
+"2025-12-08","WLLS","UserActionTotal","6",,,,,,
+"2025-12-09","All","DatabaseWriteLatencyMs","6","742.167","1055.25","1099","4453",,
+"2025-12-09","All","ParseDurationSeconds","6","1.305","1.949","2.012","7.828",,
+"2025-12-09","All","RowsWritten","45",,,,"119","15","UniqueHosts=6"
+"2025-12-09","All","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SharedOnly=3,SkippedEmpty=42; Providers=Cache=12,SharedCache=3,Unknown=30; ZeroCount=45"
+"2025-12-09","All","UserAction","4",,,,,,"Action=ScanLogs"
+"2025-12-09","All","UserAction","7",,,,,,"Action=LoadFromDb"
+"2025-12-09","All","UserAction","46",,,,,,"Action=InterfacesView"
+"2025-12-09","All","UserActionCoverage","3",,,,"6","HelpQuickstart,CompareView,SpanSnapshot","Missing=HelpQuickstart,CompareView,SpanSnapshot"
+"2025-12-09","All","UserActionTotal","57",,,,,,
+"2025-12-09","BOYO","DatabaseWriteLatencyMs","3","948.333","1081.5","1099","2845",,
+"2025-12-09","BOYO","ParseDurationSeconds","3","1.824","1.987","2.012","5.471",,
+"2025-12-09","BOYO","RowsWritten","3",,,,"30",,"UniqueHosts=1"
+"2025-12-09","BOYO","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SkippedEmpty=3; Providers=Unknown=3; ZeroCount=3"
+"2025-12-09","BOYO","UserAction","1",,,,,,"Action=LoadFromDb"
+"2025-12-09","BOYO","UserAction","28",,,,,,"Action=InterfacesView"
+"2025-12-09","BOYO","UserActionCoverage","2",,,,"6","ScanLogs,HelpQuickstart,CompareView,SpanSnapshot","Missing=ScanLogs,HelpQuickstart,CompareView,SpanSnapshot"
+"2025-12-09","BOYO","UserActionTotal","29",,,,,,
+"2025-12-09","SW1","RowsWritten","9",,,,"9",,"UniqueHosts=1"
+"2025-12-09","SW1","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SkippedEmpty=9; Providers=Unknown=9; ZeroCount=9"
+"2025-12-09","WLLS","DatabaseWriteLatencyMs","3","536","548.2","550","1608",,
+"2025-12-09","WLLS","ParseDurationSeconds","3","0.786","0.847","0.854","2.357",,
+"2025-12-09","WLLS","RowsWritten","33",,,,"80","15","UniqueHosts=5"
+"2025-12-09","WLLS","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SharedOnly=3,SkippedEmpty=30; Providers=Cache=12,SharedCache=3,Unknown=18; ZeroCount=33"
+"2025-12-09","WLLS","UserAction","1",,,,,,"Action=LoadFromDb"
+"2025-12-09","WLLS","UserAction","18",,,,,,"Action=InterfacesView"
+"2025-12-09","WLLS","UserActionCoverage","2",,,,"6","ScanLogs,HelpQuickstart,CompareView,SpanSnapshot","Missing=ScanLogs,HelpQuickstart,CompareView,SpanSnapshot"
+"2025-12-09","WLLS","UserActionTotal","19",,,,,,
+"2025-12-10","All","DatabaseWriteLatencyMs","18","7518.278","9217.9","9750","135329",,
+"2025-12-10","All","ParseDurationSeconds","18","9.057","11.147","11.448","163.019",,
+"2025-12-10","All","RowsWritten","265",,,,"398","95","UniqueHosts=6"
+"2025-12-10","All","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SharedOnly=19,SkippedEmpty=246; Providers=Cache=76,SharedCache=19,Unknown=170; ZeroCount=265"
+"2025-12-10","All","SkippedDuplicate","8",,,,"2",,"UniqueHosts=2"
+"2025-12-10","All","UserAction","12",,,,,,"Action=ScanLogs"
+"2025-12-10","All","UserAction","16",,,,,,"Action=LoadFromDb"
+"2025-12-10","All","UserAction","94",,,,,,"Action=InterfacesView"
+"2025-12-10","All","UserActionCoverage","3",,,,"6","HelpQuickstart,CompareView,SpanSnapshot","Missing=HelpQuickstart,CompareView,SpanSnapshot"
+"2025-12-10","All","UserActionTotal","122",,,,,,
+"2025-12-10","BOYO","DatabaseWriteLatencyMs","9","7471.556","8967.8","9009","67244",,
+"2025-12-10","BOYO","ParseDurationSeconds","9","9.28","11.031","11.094","83.523",,
+"2025-12-10","BOYO","RowsWritten","9",,,,"90",,"UniqueHosts=1"
+"2025-12-10","BOYO","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SkippedEmpty=9; Providers=Unknown=9; ZeroCount=9"
+"2025-12-10","BOYO","SkippedDuplicate","4",,,,"1",,"UniqueHosts=1"
+"2025-12-10","BOYO","UserAction","1",,,,,,"Action=ScanLogs"
+"2025-12-10","BOYO","UserAction","68",,,,,,"Action=InterfacesView"
+"2025-12-10","BOYO","UserActionCoverage","2",,,,"6","LoadFromDb,HelpQuickstart,CompareView,SpanSnapshot","Missing=LoadFromDb,HelpQuickstart,CompareView,SpanSnapshot"
+"2025-12-10","BOYO","UserActionTotal","69",,,,,,
+"2025-12-10","SW1","RowsWritten","57",,,,"57",,"UniqueHosts=1"
+"2025-12-10","SW1","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SkippedEmpty=57; Providers=Unknown=57; ZeroCount=57"
+"2025-12-10","WLLS","DatabaseWriteLatencyMs","9","7565","9499.6","9750","68085",,
+"2025-12-10","WLLS","ParseDurationSeconds","9","8.833","11.081","11.448","79.496",,
+"2025-12-10","WLLS","RowsWritten","199",,,,"251","95","UniqueHosts=5"
+"2025-12-10","WLLS","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SharedOnly=19,SkippedEmpty=180; Providers=Cache=76,SharedCache=19,Unknown=104; ZeroCount=199"
+"2025-12-10","WLLS","SkippedDuplicate","4",,,,"1",,"UniqueHosts=1"
+"2025-12-10","WLLS","UserAction","26",,,,,,"Action=InterfacesView"
+"2025-12-10","WLLS","UserActionCoverage","1",,,,"6","ScanLogs,LoadFromDb,HelpQuickstart,CompareView,SpanSnapshot","Missing=ScanLogs,LoadFromDb,HelpQuickstart,CompareView,SpanSnapshot"
+"2025-12-10","WLLS","UserActionTotal","26",,,,,,
+"2025-12-11","All","DatabaseWriteLatencyMs","6","707.833","930","931","4247",,
+"2025-12-11","All","ParseDurationSeconds","6","1.27","1.844","1.846","7.617",,
+"2025-12-11","All","RowsWritten","258",,,,"330","96","UniqueHosts=6"
+"2025-12-11","All","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SharedOnly=19,SkippedEmpty=239; Providers=Cache=76,SharedCache=19,Unknown=163; ZeroCount=258"
+"2025-12-11","All","SkippedDuplicate","2",,,,"2",,"UniqueHosts=2"
+"2025-12-11","All","UserAction","6",,,,,,"Action=ScanLogs"
+"2025-12-11","All","UserAction","27",,,,,,"Action=LoadFromDb"
+"2025-12-11","All","UserAction","108",,,,,,"Action=InterfacesView"
+"2025-12-11","All","UserActionCoverage","3",,,,"6","HelpQuickstart,CompareView,SpanSnapshot","Missing=HelpQuickstart,CompareView,SpanSnapshot"
+"2025-12-11","All","UserActionTotal","141",,,,,,
+"2025-12-11","BOYO","DatabaseWriteLatencyMs","3","887","930.6","931","2661",,
+"2025-12-11","BOYO","ParseDurationSeconds","3","1.751","1.845","1.846","5.253",,
+"2025-12-11","BOYO","RowsWritten","3",,,,"30",,"UniqueHosts=1"
+"2025-12-11","BOYO","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SkippedEmpty=3; Providers=Unknown=3; ZeroCount=3"
+"2025-12-11","BOYO","SkippedDuplicate","1",,,,"1",,"UniqueHosts=1"
+"2025-12-11","BOYO","UserAction","14",,,,,,"Action=LoadFromDb"
+"2025-12-11","BOYO","UserAction","92",,,,,,"Action=InterfacesView"
+"2025-12-11","BOYO","UserAction","2",,,,,,"Action=ScanLogs"
+"2025-12-11","BOYO","UserActionCoverage","3",,,,"6","HelpQuickstart,CompareView,SpanSnapshot","Missing=HelpQuickstart,CompareView,SpanSnapshot"
+"2025-12-11","BOYO","UserActionTotal","108",,,,,,
+"2025-12-11","SW1","RowsWritten","60",,,,"60",,"UniqueHosts=1"
+"2025-12-11","SW1","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SkippedEmpty=60; Providers=Unknown=60; ZeroCount=60"
+"2025-12-11","WLLS","DatabaseWriteLatencyMs","3","528.667","554.9","557","1586",,
+"2025-12-11","WLLS","ParseDurationSeconds","3","0.788","0.822","0.825","2.364",,
+"2025-12-11","WLLS","RowsWritten","195",,,,"240","96","UniqueHosts=5"
+"2025-12-11","WLLS","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SharedOnly=19,SkippedEmpty=176; Providers=Cache=76,SharedCache=19,Unknown=100; ZeroCount=195"
+"2025-12-11","WLLS","SkippedDuplicate","1",,,,"1",,"UniqueHosts=1"
+"2025-12-11","WLLS","UserAction","1",,,,,,"Action=LoadFromDb"
+"2025-12-11","WLLS","UserAction","16",,,,,,"Action=InterfacesView"
+"2025-12-11","WLLS","UserActionCoverage","2",,,,"6","ScanLogs,HelpQuickstart,CompareView,SpanSnapshot","Missing=ScanLogs,HelpQuickstart,CompareView,SpanSnapshot"
+"2025-12-11","WLLS","UserActionTotal","17",,,,,,
+"2025-12-12","All","DatabaseWriteLatencyMs","12","7629.167","11695.3","12088","91550",,
+"2025-12-12","All","ParseDurationSeconds","12","10.279","13.813","14.067","123.351",,
+"2025-12-12","All","RowsWritten","558",,,,"492","210","UniqueHosts=6"
+"2025-12-12","All","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SharedOnly=52,SkippedEmpty=506; Providers=Cache=168,SharedCache=52,Unknown=338; ZeroCount=558"
+"2025-12-12","All","SkippedDuplicate","26",,,,"2",,"UniqueHosts=2"
+"2025-12-12","All","UserAction","1",,,,,,"Action=LoadFromDb"
+"2025-12-12","All","UserAction","2",,,,,,"Action=InterfacesView"
+"2025-12-12","All","UserActionCoverage","2",,,,"6","ScanLogs,HelpQuickstart,CompareView,SpanSnapshot","Missing=ScanLogs,HelpQuickstart,CompareView,SpanSnapshot"
+"2025-12-12","All","UserActionTotal","3",,,,,,
+"2025-12-12","BOYO","DatabaseWriteLatencyMs","6","6847.833","9728","10018","41087",,
+"2025-12-12","BOYO","ParseDurationSeconds","6","10.281","13.374","13.606","61.685",,
+"2025-12-12","BOYO","RowsWritten","6",,,,"10",,"UniqueHosts=1"
+"2025-12-12","BOYO","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SharedOnly=5,SkippedEmpty=1; Providers=SharedCache=5,Unknown=1; ZeroCount=6"
+"2025-12-12","BOYO","SkippedDuplicate","13",,,,"1",,"UniqueHosts=1"
+"2025-12-12","BOYO","UserAction","2",,,,,,"Action=InterfacesView"
+"2025-12-12","BOYO","UserAction","1",,,,,,"Action=LoadFromDb"
+"2025-12-12","BOYO","UserActionCoverage","2",,,,"6","ScanLogs,HelpQuickstart,CompareView,SpanSnapshot","Missing=ScanLogs,HelpQuickstart,CompareView,SpanSnapshot"
+"2025-12-12","BOYO","UserActionTotal","3",,,,,,
+"2025-12-12","SW1","RowsWritten","126",,,,"126",,"UniqueHosts=1"
+"2025-12-12","SW1","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SkippedEmpty=126; Providers=Unknown=126; ZeroCount=126"
+"2025-12-12","WLLS","DatabaseWriteLatencyMs","6","8410.5","11909.5","12088","50463",,
+"2025-12-12","WLLS","ParseDurationSeconds","6","10.278","13.871","14.067","61.666",,
+"2025-12-12","WLLS","RowsWritten","426",,,,"356","210","UniqueHosts=5"
+"2025-12-12","WLLS","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SharedOnly=47,SkippedEmpty=379; Providers=Cache=168,SharedCache=47,Unknown=211; ZeroCount=426"
+"2025-12-12","WLLS","SkippedDuplicate","13",,,,"1",,"UniqueHosts=1"
+"2025-12-13","All","RowsWritten","169",,,,"104","65","UniqueHosts=4"
+"2025-12-13","All","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SharedOnly=13,SkippedEmpty=156; Providers=Cache=52,SharedCache=13,Unknown=104; ZeroCount=169"
+"2025-12-13","All","UserAction","7",,,,,,"Action=CompareView"
+"2025-12-13","All","UserAction","2",,,,,,"Action=InterfacesView"
+"2025-12-13","All","UserAction","1",,,,,,"Action=LoadFromDb"
+"2025-12-13","All","UserActionCoverage","3",,,,"6","ScanLogs,HelpQuickstart,SpanSnapshot","Missing=ScanLogs,HelpQuickstart,SpanSnapshot"
+"2025-12-13","All","UserActionTotal","10",,,,,,
+"2025-12-13","BOYO","UserAction","4",,,,,,"Action=CompareView"
+"2025-12-13","BOYO","UserAction","1",,,,,,"Action=InterfacesView"
+"2025-12-13","BOYO","UserActionCoverage","2",,,,"6","ScanLogs,LoadFromDb,HelpQuickstart,SpanSnapshot","Missing=ScanLogs,LoadFromDb,HelpQuickstart,SpanSnapshot"
+"2025-12-13","BOYO","UserActionTotal","5",,,,,,
+"2025-12-13","SW1","RowsWritten","39",,,,"39",,"UniqueHosts=1"
+"2025-12-13","SW1","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SkippedEmpty=39; Providers=Unknown=39; ZeroCount=39"
+"2025-12-13","SW1","UserAction","2",,,,,,"Action=CompareView"
+"2025-12-13","SW1","UserActionCoverage","1",,,,"6","ScanLogs,LoadFromDb,HelpQuickstart,InterfacesView,SpanSnapshot","Missing=ScanLogs,LoadFromDb,HelpQuickstart,InterfacesView,SpanSnapshot"
+"2025-12-13","SW1","UserActionTotal","2",,,,,,
+"2025-12-13","WLLS","RowsWritten","130",,,,"65","65","UniqueHosts=4"
+"2025-12-13","WLLS","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SharedOnly=13,SkippedEmpty=117; Providers=Cache=52,SharedCache=13,Unknown=65; ZeroCount=130"
+"2025-12-13","WLLS","UserAction","1",,,,,,"Action=InterfacesView"
+"2025-12-13","WLLS","UserAction","1",,,,,,"Action=CompareView"
+"2025-12-13","WLLS","UserActionCoverage","2",,,,"6","ScanLogs,LoadFromDb,HelpQuickstart,SpanSnapshot","Missing=ScanLogs,LoadFromDb,HelpQuickstart,SpanSnapshot"
+"2025-12-13","WLLS","UserActionTotal","2",,,,,,
+"2025-12-14","All","DatabaseWriteLatencyMs","5","1779.8","2528.2","2598","8899",,
+"2025-12-14","All","ParseDurationSeconds","7","2.359","4.05","4.237","16.512",,"Failures=2"
+"2025-12-14","All","RowsWritten","200",,,,"274","75","UniqueHosts=6"
+"2025-12-14","All","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SharedOnly=16,SkippedEmpty=184; Providers=Cache=60,SharedCache=16,Unknown=124; ZeroCount=200"
+"2025-12-14","All","SkippedDuplicate","3",,,,"2",,"UniqueHosts=2"
+"2025-12-14","All","UserAction","11",,,,,,"Action=InterfacesView"
+"2025-12-14","All","UserAction","7",,,,,,"Action=LoadFromDb"
+"2025-12-14","All","UserAction","73",,,,,,"Action=CompareView"
+"2025-12-14","All","UserAction","3",,,,,,"Action=ScanLogs"
+"2025-12-14","All","UserActionCoverage","4",,,,"6","HelpQuickstart,SpanSnapshot","Missing=HelpQuickstart,SpanSnapshot"
+"2025-12-14","All","UserActionTotal","94",,,,,,
+"2025-12-14","BOYO","DatabaseWriteLatencyMs","2","1806.5","2518.85","2598","3613",,
+"2025-12-14","BOYO","ParseDurationSeconds","3","2.676","4.175","4.237","8.028",,"Failures=1"
+"2025-12-14","BOYO","RowsWritten","2",,,,"10",,"UniqueHosts=1"
+"2025-12-14","BOYO","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SharedOnly=1,SkippedEmpty=1; Providers=SharedCache=1,Unknown=1; ZeroCount=2"
+"2025-12-14","BOYO","SkippedDuplicate","1",,,,"1",,"UniqueHosts=1"
+"2025-12-14","BOYO","UserAction","32",,,,,,"Action=CompareView"
+"2025-12-14","BOYO","UserAction","8",,,,,,"Action=InterfacesView"
+"2025-12-14","BOYO","UserActionCoverage","2",,,,"6","ScanLogs,LoadFromDb,HelpQuickstart,SpanSnapshot","Missing=ScanLogs,LoadFromDb,HelpQuickstart,SpanSnapshot"
+"2025-12-14","BOYO","UserActionTotal","40",,,,,,
+"2025-12-14","sw1","RowsWritten","45",,,,"45",,"UniqueHosts=1"
+"2025-12-14","sw1","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SkippedEmpty=45; Providers=Unknown=45; ZeroCount=45"
+"2025-12-14","sw1","UserAction","32",,,,,,"Action=CompareView"
+"2025-12-14","sw1","UserActionCoverage","1",,,,"6","ScanLogs,LoadFromDb,HelpQuickstart,InterfacesView,SpanSnapshot","Missing=ScanLogs,LoadFromDb,HelpQuickstart,InterfacesView,SpanSnapshot"
+"2025-12-14","sw1","UserActionTotal","32",,,,,,
+"2025-12-14","WLLS","DatabaseWriteLatencyMs","3","1762","2184","2249","5286",,
+"2025-12-14","WLLS","ParseDurationSeconds","3","2.772","2.931","2.945","8.316",,
+"2025-12-14","WLLS","RowsWritten","153",,,,"219","75","UniqueHosts=5"
+"2025-12-14","WLLS","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SharedOnly=15,SkippedEmpty=138; Providers=Cache=60,SharedCache=15,Unknown=78; ZeroCount=153"
+"2025-12-14","WLLS","SkippedDuplicate","2",,,,"1",,"UniqueHosts=1"
+"2025-12-14","WLLS","UserAction","9",,,,,,"Action=CompareView"
+"2025-12-14","WLLS","UserAction","3",,,,,,"Action=InterfacesView"
+"2025-12-14","WLLS","UserActionCoverage","2",,,,"6","ScanLogs,LoadFromDb,HelpQuickstart,SpanSnapshot","Missing=ScanLogs,LoadFromDb,HelpQuickstart,SpanSnapshot"
+"2025-12-14","WLLS","UserActionTotal","12",,,,,,
+"2025-12-15","All","DatabaseWriteLatencyMs","2","657.5","816.35","834","1315",,
+"2025-12-15","All","ParseDurationSeconds","2","1.436","2.027","2.093","2.872",,
+"2025-12-15","All","RowsWritten","366",,,,"236","140","UniqueHosts=6"
+"2025-12-15","All","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SharedOnly=28,SkippedEmpty=338; Providers=Cache=112,SharedCache=28,Unknown=226; ZeroCount=366"
+"2025-12-15","All","SkippedDuplicate","2",,,,"2",,"UniqueHosts=2"
+"2025-12-15","All","UserAction","27",,,,,,"Action=InterfacesView"
+"2025-12-15","All","UserAction","169",,,,,,"Action=CompareView"
+"2025-12-15","All","UserAction","22",,,,,,"Action=LoadFromDb"
+"2025-12-15","All","UserAction","2",,,,,,"Action=ScanLogs"
+"2025-12-15","All","UserActionCoverage","4",,,,"6","HelpQuickstart,SpanSnapshot","Missing=HelpQuickstart,SpanSnapshot"
+"2025-12-15","All","UserActionTotal","220",,,,,,
+"2025-12-15","BOYO","DatabaseWriteLatencyMs","1","834","834","834","834",,
+"2025-12-15","BOYO","ParseDurationSeconds","1","2.093","2.093","2.093","2.093",,
+"2025-12-15","BOYO","RowsWritten","1",,,,"10",,"UniqueHosts=1"
+"2025-12-15","BOYO","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SkippedEmpty=1; Providers=Unknown=1; ZeroCount=1"
+"2025-12-15","BOYO","SkippedDuplicate","1",,,,"1",,"UniqueHosts=1"
+"2025-12-15","BOYO","UserAction","1",,,,,,"Action=ScanLogs"
+"2025-12-15","BOYO","UserAction","101",,,,,,"Action=CompareView"
+"2025-12-15","BOYO","UserAction","23",,,,,,"Action=InterfacesView"
+"2025-12-15","BOYO","UserActionCoverage","3",,,,"6","LoadFromDb,HelpQuickstart,SpanSnapshot","Missing=LoadFromDb,HelpQuickstart,SpanSnapshot"
+"2025-12-15","BOYO","UserActionTotal","125",,,,,,
+"2025-12-15","sw1","RowsWritten","84",,,,"84",,"UniqueHosts=1"
+"2025-12-15","sw1","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SkippedEmpty=84; Providers=Unknown=84; ZeroCount=84"
+"2025-12-15","sw1","UserAction","58",,,,,,"Action=CompareView"
+"2025-12-15","sw1","UserActionCoverage","1",,,,"6","ScanLogs,LoadFromDb,HelpQuickstart,InterfacesView,SpanSnapshot","Missing=ScanLogs,LoadFromDb,HelpQuickstart,InterfacesView,SpanSnapshot"
+"2025-12-15","sw1","UserActionTotal","58",,,,,,
+"2025-12-15","WLLS","DatabaseWriteLatencyMs","1","481","481","481","481",,
+"2025-12-15","WLLS","ParseDurationSeconds","1","0.779","0.779","0.779","0.779",,
+"2025-12-15","WLLS","RowsWritten","281",,,,"142","140","UniqueHosts=5"
+"2025-12-15","WLLS","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SharedOnly=28,SkippedEmpty=253; Providers=Cache=112,SharedCache=28,Unknown=141; ZeroCount=281"
+"2025-12-15","WLLS","SkippedDuplicate","1",,,,"1",,"UniqueHosts=1"
+"2025-12-15","WLLS","UserAction","1",,,,,,"Action=ScanLogs"
+"2025-12-15","WLLS","UserAction","10",,,,,,"Action=CompareView"
+"2025-12-15","WLLS","UserAction","4",,,,,,"Action=InterfacesView"
+"2025-12-15","WLLS","UserActionCoverage","3",,,,"6","LoadFromDb,HelpQuickstart,SpanSnapshot","Missing=LoadFromDb,HelpQuickstart,SpanSnapshot"
+"2025-12-15","WLLS","UserActionTotal","15",,,,,,
+"2025-12-16","All","DatabaseWriteLatencyMs","2","2452.5","2642.85","2664","4905",,
+"2025-12-16","All","ParseDurationSeconds","2","3.638","3.777","3.792","7.275",,
+"2025-12-16","All","RowsWritten","314",,,,"250","120","UniqueHosts=6"
+"2025-12-16","All","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SharedOnly=24,SkippedEmpty=290; Providers=Cache=96,SharedCache=24,Unknown=194; ZeroCount=314"
+"2025-12-16","All","UserAction","1",,,,,,"Action=ScanLogs"
+"2025-12-16","All","UserAction","2",,,,,,"Action=LoadFromDb"
+"2025-12-16","All","UserAction","63",,,,,,"Action=CompareView"
+"2025-12-16","All","UserAction","4",,,,,,"Action=InterfacesView"
+"2025-12-16","All","UserActionCoverage","4",,,,"6","HelpQuickstart,SpanSnapshot","Missing=HelpQuickstart,SpanSnapshot"
+"2025-12-16","All","UserActionTotal","70",,,,,,
+"2025-12-16","BOYO","DatabaseWriteLatencyMs","1","2241","2241","2241","2241",,
+"2025-12-16","BOYO","ParseDurationSeconds","1","3.792","3.792","3.792","3.792",,
+"2025-12-16","BOYO","RowsWritten","1",,,,"10",,"UniqueHosts=1"
+"2025-12-16","BOYO","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SkippedEmpty=1; Providers=Unknown=1; ZeroCount=1"
+"2025-12-16","BOYO","UserAction","12",,,,,,"Action=CompareView"
+"2025-12-16","BOYO","UserAction","3",,,,,,"Action=InterfacesView"
+"2025-12-16","BOYO","UserActionCoverage","2",,,,"6","ScanLogs,LoadFromDb,HelpQuickstart,SpanSnapshot","Missing=ScanLogs,LoadFromDb,HelpQuickstart,SpanSnapshot"
+"2025-12-16","BOYO","UserActionTotal","15",,,,,,
+"2025-12-16","sw1","RowsWritten","72",,,,"72",,"UniqueHosts=1"
+"2025-12-16","sw1","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SkippedEmpty=72; Providers=Unknown=72; ZeroCount=72"
+"2025-12-16","sw1","UserAction","50",,,,,,"Action=CompareView"
+"2025-12-16","sw1","UserActionCoverage","1",,,,"6","ScanLogs,LoadFromDb,HelpQuickstart,InterfacesView,SpanSnapshot","Missing=ScanLogs,LoadFromDb,HelpQuickstart,InterfacesView,SpanSnapshot"
+"2025-12-16","sw1","UserActionTotal","50",,,,,,
+"2025-12-16","WLLS","DatabaseWriteLatencyMs","1","2664","2664","2664","2664",,
+"2025-12-16","WLLS","ParseDurationSeconds","1","3.483","3.483","3.483","3.483",,
+"2025-12-16","WLLS","RowsWritten","241",,,,"168","120","UniqueHosts=5"
+"2025-12-16","WLLS","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SharedOnly=24,SkippedEmpty=217; Providers=Cache=96,SharedCache=24,Unknown=121; ZeroCount=241"
+"2025-12-16","WLLS","UserAction","1",,,,,,"Action=InterfacesView"
+"2025-12-16","WLLS","UserAction","1",,,,,,"Action=CompareView"
+"2025-12-16","WLLS","UserActionCoverage","2",,,,"6","ScanLogs,LoadFromDb,HelpQuickstart,SpanSnapshot","Missing=ScanLogs,LoadFromDb,HelpQuickstart,SpanSnapshot"
+"2025-12-16","WLLS","UserActionTotal","2",,,,,,
+"2025-12-17","All","DatabaseWriteLatencyMs","36","2565.139","7592.75","8047","92345",,
+"2025-12-17","All","ParseDurationSeconds","36","4.094","9.447","9.617","147.39",,
+"2025-12-17","All","RowsWritten","509",,,,"820","177","UniqueHosts=6"
+"2025-12-17","All","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SharedOnly=55,SkippedEmpty=454; Providers=Cache=144,SharedCache=55,Unknown=310; ZeroCount=509"
+"2025-12-17","All","SkippedDuplicate","8",,,,"2",,"UniqueHosts=2"
+"2025-12-17","All","UserAction","13",,,,,,"Action=InterfacesView"
+"2025-12-17","All","UserAction","5",,,,,,"Action=LoadFromDb"
+"2025-12-17","All","UserAction","78",,,,,,"Action=CompareView"
+"2025-12-17","All","UserAction","7",,,,,,"Action=ScanLogs"
+"2025-12-17","All","UserActionCoverage","4",,,,"6","HelpQuickstart,SpanSnapshot","Missing=HelpQuickstart,SpanSnapshot"
+"2025-12-17","All","UserActionTotal","103",,,,,,
+"2025-12-17","B","UserAction","2",,,,,,"Action=InterfacesView"
+"2025-12-17","B","UserActionCoverage","1",,,,"6","ScanLogs,LoadFromDb,HelpQuickstart,CompareView,SpanSnapshot","Missing=ScanLogs,LoadFromDb,HelpQuickstart,CompareView,SpanSnapshot"
+"2025-12-17","B","UserActionTotal","2",,,,,,
+"2025-12-17","BOYO","DatabaseWriteLatencyMs","18","2534.333","7302.55","7504","45618",,
+"2025-12-17","BOYO","ParseDurationSeconds","18","4.77","9.496","9.617","85.868",,
+"2025-12-17","BOYO","RowsWritten","18",,,,"90",,"UniqueHosts=1"
+"2025-12-17","BOYO","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SharedOnly=9,SkippedEmpty=9; Providers=SharedCache=9,Unknown=9; ZeroCount=18"
+"2025-12-17","BOYO","SkippedDuplicate","4",,,,"1",,"UniqueHosts=1"
+"2025-12-17","BOYO","UserAction","3",,,,,,"Action=LoadFromDb"
+"2025-12-17","BOYO","UserAction","10",,,,,,"Action=CompareView"
+"2025-12-17","BOYO","UserAction","9",,,,,,"Action=InterfacesView"
+"2025-12-17","BOYO","UserActionCoverage","3",,,,"6","ScanLogs,HelpQuickstart,SpanSnapshot","Missing=ScanLogs,HelpQuickstart,SpanSnapshot"
+"2025-12-17","BOYO","UserActionTotal","22",,,,,,
+"2025-12-17","O","UserAction","1",,,,,,"Action=InterfacesView"
+"2025-12-17","O","UserActionCoverage","1",,,,"6","ScanLogs,LoadFromDb,HelpQuickstart,CompareView,SpanSnapshot","Missing=ScanLogs,LoadFromDb,HelpQuickstart,CompareView,SpanSnapshot"
+"2025-12-17","O","UserActionTotal","1",,,,,,
+"2025-12-17","sw1","RowsWritten","111",,,,"111",,"UniqueHosts=1"
+"2025-12-17","sw1","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SkippedEmpty=111; Providers=Unknown=111; ZeroCount=111"
+"2025-12-17","sw1","UserAction","68",,,,,,"Action=CompareView"
+"2025-12-17","sw1","UserActionCoverage","1",,,,"6","ScanLogs,LoadFromDb,HelpQuickstart,InterfacesView,SpanSnapshot","Missing=ScanLogs,LoadFromDb,HelpQuickstart,InterfacesView,SpanSnapshot"
+"2025-12-17","sw1","UserActionTotal","68",,,,,,
+"2025-12-17","WLLS","DatabaseWriteLatencyMs","18","2595.944","7665.35","8047","46727",,
+"2025-12-17","WLLS","ParseDurationSeconds","18","3.418","9.132","9.438","61.522",,
+"2025-12-17","WLLS","RowsWritten","380",,,,"619","177","UniqueHosts=5"
+"2025-12-17","WLLS","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SharedOnly=46,SkippedEmpty=334; Providers=Cache=144,SharedCache=46,Unknown=190; ZeroCount=380"
+"2025-12-17","WLLS","SkippedDuplicate","4",,,,"1",,"UniqueHosts=1"
+"2025-12-17","WLLS","UserAction","1",,,,,,"Action=InterfacesView"
+"2025-12-17","WLLS","UserActionCoverage","1",,,,"6","ScanLogs,LoadFromDb,HelpQuickstart,CompareView,SpanSnapshot","Missing=ScanLogs,LoadFromDb,HelpQuickstart,CompareView,SpanSnapshot"
+"2025-12-17","WLLS","UserActionTotal","1",,,,,,
+"2025-12-18","All","DatabaseWriteLatencyMs","8","363.625","808.1","841","2909",,
+"2025-12-18","All","ParseDurationSeconds","8","1.455","2.999","3.278","11.638",,
+"2025-12-18","All","RowsWritten","359",,,,"332","135","UniqueHosts=6"
+"2025-12-18","All","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SharedOnly=31,SkippedEmpty=328; Providers=Cache=108,SharedCache=31,Unknown=220; ZeroCount=359"
+"2025-12-18","All","SkippedDuplicate","8",,,,"2",,"UniqueHosts=2"
+"2025-12-18","All","UserAction","1",,,,,,"Action=ScanLogs"
+"2025-12-18","All","UserAction","6",,,,,,"Action=LoadFromDb"
+"2025-12-18","All","UserAction","64",,,,,,"Action=CompareView"
+"2025-12-18","All","UserAction","6",,,,,,"Action=InterfacesView"
+"2025-12-18","All","UserActionCoverage","4",,,,"6","HelpQuickstart,SpanSnapshot","Missing=HelpQuickstart,SpanSnapshot"
+"2025-12-18","All","UserActionTotal","77",,,,,,
+"2025-12-18","BOYO","DatabaseWriteLatencyMs","4","530.75","826.9","841","2123",,
+"2025-12-18","BOYO","ParseDurationSeconds","4","2.432","3.158","3.278","9.728",,
+"2025-12-18","BOYO","RowsWritten","4",,,,"20",,"UniqueHosts=1"
+"2025-12-18","BOYO","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SharedOnly=2,SkippedEmpty=2; Providers=SharedCache=2,Unknown=2; ZeroCount=4"
+"2025-12-18","BOYO","SkippedDuplicate","4",,,,"1",,"UniqueHosts=1"
+"2025-12-18","BOYO","UserAction","6",,,,,,"Action=InterfacesView"
+"2025-12-18","BOYO","UserActionCoverage","1",,,,"6","ScanLogs,LoadFromDb,HelpQuickstart,CompareView,SpanSnapshot","Missing=ScanLogs,LoadFromDb,HelpQuickstart,CompareView,SpanSnapshot"
+"2025-12-18","BOYO","UserActionTotal","6",,,,,,
+"2025-12-18","sw1","RowsWritten","81",,,,"81",,"UniqueHosts=1"
+"2025-12-18","sw1","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SkippedEmpty=81; Providers=Unknown=81; ZeroCount=81"
+"2025-12-18","sw1","UserAction","64",,,,,,"Action=CompareView"
+"2025-12-18","sw1","UserActionCoverage","1",,,,"6","ScanLogs,LoadFromDb,HelpQuickstart,InterfacesView,SpanSnapshot","Missing=ScanLogs,LoadFromDb,HelpQuickstart,InterfacesView,SpanSnapshot"
+"2025-12-18","sw1","UserActionTotal","64",,,,,,
+"2025-12-18","WLLS","DatabaseWriteLatencyMs","4","196.5","310.4","317","786",,
+"2025-12-18","WLLS","ParseDurationSeconds","4","0.478","0.644","0.659","1.91",,
+"2025-12-18","WLLS","RowsWritten","274",,,,"231","135","UniqueHosts=5"
+"2025-12-18","WLLS","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SharedOnly=29,SkippedEmpty=245; Providers=Cache=108,SharedCache=29,Unknown=137; ZeroCount=274"
+"2025-12-18","WLLS","SkippedDuplicate","4",,,,"1",,"UniqueHosts=1"
+"2025-12-19","All","DatabaseWriteLatencyMs","8","507.25","820.8","832","4058",,
+"2025-12-19","All","ParseDurationSeconds","8","1.842","3.208","3.21","14.739",,
+"2025-12-19","All","RowsWritten","164",,,,"328","60","UniqueHosts=6"
+"2025-12-19","All","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SharedOnly=12,SkippedEmpty=152; Providers=Cache=48,SharedCache=12,Unknown=104; ZeroCount=164"
+"2025-12-19","All","SkippedDuplicate","2",,,,"2",,"UniqueHosts=2"
+"2025-12-19","All","UserAction","111",,,,,,"Action=CompareView"
+"2025-12-19","All","UserAction","6",,,,,,"Action=SpanSnapshot"
+"2025-12-19","All","UserAction","2",,,,,,"Action=ScanLogs"
+"2025-12-19","All","UserAction","37",,,,,,"Action=LoadFromDb"
+"2025-12-19","All","UserAction","37",,,,,,"Action=InterfacesView"
+"2025-12-19","All","UserActionCoverage","5",,,,"6","HelpQuickstart","Missing=HelpQuickstart"
+"2025-12-19","All","UserActionTotal","193",,,,,,
+"2025-12-19","BOYO","DatabaseWriteLatencyMs","4","733.25","827.2","832","2933",,
+"2025-12-19","BOYO","ParseDurationSeconds","4","3.107","3.209","3.21","12.428",,
+"2025-12-19","BOYO","RowsWritten","4",,,,"40",,"UniqueHosts=1"
+"2025-12-19","BOYO","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SkippedEmpty=4; Providers=Unknown=4; ZeroCount=4"
+"2025-12-19","BOYO","SkippedDuplicate","1",,,,"1",,"UniqueHosts=1"
+"2025-12-19","BOYO","UserAction","1",,,,,,"Action=SpanSnapshot"
+"2025-12-19","BOYO","UserAction","9",,,,,,"Action=LoadFromDb"
+"2025-12-19","BOYO","UserAction","19",,,,,,"Action=CompareView"
+"2025-12-19","BOYO","UserAction","20",,,,,,"Action=InterfacesView"
+"2025-12-19","BOYO","UserActionCoverage","4",,,,"6","ScanLogs,HelpQuickstart","Missing=ScanLogs,HelpQuickstart"
+"2025-12-19","BOYO","UserActionTotal","49",,,,,,
+"2025-12-19","sw1","RowsWritten","36",,,,"36",,"UniqueHosts=1"
+"2025-12-19","sw1","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SkippedEmpty=36; Providers=Unknown=36; ZeroCount=36"
+"2025-12-19","sw1","UserAction","32",,,,,,"Action=CompareView"
+"2025-12-19","sw1","UserActionCoverage","1",,,,"6","ScanLogs,LoadFromDb,HelpQuickstart,InterfacesView,SpanSnapshot","Missing=ScanLogs,LoadFromDb,HelpQuickstart,InterfacesView,SpanSnapshot"
+"2025-12-19","sw1","UserActionTotal","32",,,,,,
+"2025-12-19","WLLS","DatabaseWriteLatencyMs","4","281.25","300.85","301","1125",,
+"2025-12-19","WLLS","ParseDurationSeconds","4","0.578","0.672","0.692","2.311",,
+"2025-12-19","WLLS","RowsWritten","124",,,,"252","60","UniqueHosts=5"
+"2025-12-19","WLLS","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SharedOnly=12,SkippedEmpty=112; Providers=Cache=48,SharedCache=12,Unknown=64; ZeroCount=124"
+"2025-12-19","WLLS","SkippedDuplicate","1",,,,"1",,"UniqueHosts=1"
+"2025-12-19","WLLS","UserAction","7",,,,,,"Action=LoadFromDb"
+"2025-12-19","WLLS","UserAction","60",,,,,,"Action=CompareView"
+"2025-12-19","WLLS","UserAction","17",,,,,,"Action=InterfacesView"
+"2025-12-19","WLLS","UserActionCoverage","3",,,,"6","ScanLogs,HelpQuickstart,SpanSnapshot","Missing=ScanLogs,HelpQuickstart,SpanSnapshot"
+"2025-12-19","WLLS","UserActionTotal","84",,,,,,
+"2025-12-20","All","DatabaseWriteLatencyMs","294","730.303","1135.9","1407","214709",,
+"2025-12-20","All","ParseDurationSeconds","294","1.136","3.241","4.995","334.036",,
+"2025-12-20","All","RowsWritten","411",,,,"9928","45","UniqueHosts=40"
+"2025-12-20","All","SiteCacheFetchDurationMs","250","518.219","825.758","965.709","129554.79",,"Statuses=Refreshed=229,SharedOnly=74,SkippedEmpty=108; Providers=Cache=36,Refreshed=250,SharedCache=53,Unknown=72; ZeroCount=161"
+"2025-12-20","All","SkippedDuplicate","337",,,,"37",,"UniqueHosts=37"
+"2025-12-20","All","UserAction","18",,,,,,"Action=CompareView"
+"2025-12-20","All","UserActionCoverage","1",,,,"6","ScanLogs,LoadFromDb,HelpQuickstart,InterfacesView,SpanSnapshot","Missing=ScanLogs,LoadFromDb,HelpQuickstart,InterfacesView,SpanSnapshot"
+"2025-12-20","All","UserActionTotal","18",,,,,,
+"2025-12-20","BOYO","DatabaseWriteLatencyMs","95","321.411","925.1","1124","30534",,
+"2025-12-20","BOYO","ParseDurationSeconds","95","0.733","3.297","4.127","69.618",,
+"2025-12-20","BOYO","RowsWritten","95",,,,"880",,"UniqueHosts=12"
+"2025-12-20","BOYO","SiteCacheFetchDurationMs","88","160.824","406.607","505.025","14152.498",,"Statuses=Refreshed=77,SharedOnly=18; Providers=Refreshed=88,SharedCache=7; ZeroCount=7"
+"2025-12-20","BOYO","SkippedDuplicate","110",,,,"12",,"UniqueHosts=12"
+"2025-12-20","sw1","RowsWritten","27",,,,"27",,"UniqueHosts=1"
+"2025-12-20","sw1","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SkippedEmpty=27; Providers=Unknown=27; ZeroCount=27"
+"2025-12-20","sw1","UserAction","18",,,,,,"Action=CompareView"
+"2025-12-20","sw1","UserActionCoverage","1",,,,"6","ScanLogs,LoadFromDb,HelpQuickstart,InterfacesView,SpanSnapshot","Missing=ScanLogs,LoadFromDb,HelpQuickstart,InterfacesView,SpanSnapshot"
+"2025-12-20","sw1","UserActionTotal","18",,,,,,
+"2025-12-20","WLLS","DatabaseWriteLatencyMs","199","925.503","1274.3","1407","184175",,
+"2025-12-20","WLLS","ParseDurationSeconds","199","1.329","3.122","4.995","264.418",,
+"2025-12-20","WLLS","RowsWritten","289",,,,"9021","45","UniqueHosts=28"
+"2025-12-20","WLLS","SiteCacheFetchDurationMs","162","712.36","882.118","965.709","115402.292",,"Statuses=Refreshed=152,SharedOnly=56,SkippedEmpty=81; Providers=Cache=36,Refreshed=162,SharedCache=46,Unknown=45; ZeroCount=127"
+"2025-12-20","WLLS","SkippedDuplicate","227",,,,"25",,"UniqueHosts=25"
+"2025-12-21","All","DatabaseWriteLatencyMs","185","642.384","1280","1596","118841",,
+"2025-12-21","All","ParseDurationSeconds","185","0.783","1.46","3.696","144.839",,
+"2025-12-21","All","RowsWritten","276",,,,"6570","35","UniqueHosts=40"
+"2025-12-21","All","SiteCacheFetchDurationMs","56","219.302","369.818","555.927","12280.885",,"Statuses=Refreshed=54,SharedOnly=136,SkippedEmpty=86; Providers=Cache=28,Refreshed=56,SharedCache=134,Unknown=58; ZeroCount=220"
+"2025-12-21","All","SkippedDuplicate","74",,,,"37",,"UniqueHosts=37"
+"2025-12-21","All","UserAction","16",,,,,,"Action=CompareView"
+"2025-12-21","All","UserActionCoverage","1",,,,"6","ScanLogs,LoadFromDb,HelpQuickstart,InterfacesView,SpanSnapshot","Missing=ScanLogs,LoadFromDb,HelpQuickstart,InterfacesView,SpanSnapshot"
+"2025-12-21","All","UserActionTotal","16",,,,,,
+"2025-12-21","BOYO","DatabaseWriteLatencyMs","60","488.867","670.55","1390","29332",,
+"2025-12-21","BOYO","ParseDurationSeconds","60","0.667","0.916","3.696","40.001",,
+"2025-12-21","BOYO","RowsWritten","60",,,,"560",,"UniqueHosts=12"
+"2025-12-21","BOYO","SiteCacheFetchDurationMs","55","215.497","333.803","555.927","11852.348",,"Statuses=Refreshed=53,SharedOnly=6,SkippedEmpty=1; Providers=Refreshed=55,SharedCache=4,Unknown=1; ZeroCount=5"
+"2025-12-21","BOYO","SkippedDuplicate","24",,,,"12",,"UniqueHosts=12"
+"2025-12-21","sw1","RowsWritten","21",,,,"21",,"UniqueHosts=1"
+"2025-12-21","sw1","SiteCacheFetchDurationMs","0","0","0","0","0",,"Statuses=SkippedEmpty=21; Providers=Unknown=21; ZeroCount=21"
+"2025-12-21","sw1","UserAction","16",,,,,,"Action=CompareView"
+"2025-12-21","sw1","UserActionCoverage","1",,,,"6","ScanLogs,LoadFromDb,HelpQuickstart,InterfacesView,SpanSnapshot","Missing=ScanLogs,LoadFromDb,HelpQuickstart,InterfacesView,SpanSnapshot"
+"2025-12-21","sw1","UserActionTotal","16",,,,,,
+"2025-12-21","WLLS","DatabaseWriteLatencyMs","125","716.072","1301.4","1596","89509",,
+"2025-12-21","WLLS","ParseDurationSeconds","125","0.839","1.46","1.856","104.838",,
+"2025-12-21","WLLS","RowsWritten","195",,,,"5989","35","UniqueHosts=28"
+"2025-12-21","WLLS","SiteCacheFetchDurationMs","1","428.537","428.537","428.537","428.537",,"Statuses=Refreshed=1,SharedOnly=130,SkippedEmpty=64; Providers=Cache=28,Refreshed=1,SharedCache=130,Unknown=36; ZeroCount=194"
+"2025-12-21","WLLS","SkippedDuplicate","50",,,,"25",,"UniqueHosts=25"

@@ -1,0 +1,46 @@
+{
+  "TaskId": "ST-A-015",
+  "TaskBoard": {
+    "Path": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\StateTrace_TaskBoard.md",
+    "Exists": true,
+    "ContainsTaskId": true
+  },
+  "TaskBoardCsv": {
+    "Path": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\taskboard\\TaskBoard.csv",
+    "Exists": true,
+    "ContainsTaskId": true,
+    "PlanLink": "docs/plans/PlanA_RoutingReliability.md"
+  },
+  "TaskBoardIntegrity": {
+    "Path": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\TaskBoardIntegrity-20251229-124103.json",
+    "Passed": true,
+    "Error": null,
+    "RowCount": 66,
+    "MinimumRowCount": 10
+  },
+  "Plan": {
+    "Path": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\plans\\PlanA_RoutingReliability.md",
+    "Exists": true,
+    "ContainsTaskId": true,
+    "Source": "TaskBoardCsv"
+  },
+  "Backlog": {
+    "Path": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\CODEX_BACKLOG.md",
+    "Exists": true,
+    "ContainsTaskId": false,
+    "Required": false
+  },
+  "SessionLog": {
+    "Path": "docs/agents/sessions/2025-12-29_session-0003.md",
+    "Exists": true,
+    "ContainsTaskId": true,
+    "References": [
+      "TaskBoard",
+      "Plan",
+      "TaskBoardCsv"
+    ],
+    "Required": true
+  },
+  "Passed": true,
+  "Missing": []
+}

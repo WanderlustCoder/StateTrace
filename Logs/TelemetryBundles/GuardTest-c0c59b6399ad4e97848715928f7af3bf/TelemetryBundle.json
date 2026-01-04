@@ -1,0 +1,20 @@
+{
+  "BundleName": "GuardTest-c0c59b6399ad4e97848715928f7af3bf",
+  "AreaName": "Telemetry",
+  "CreatedAt": "2025-12-26T13:45:39.4593456-07:00",
+  "Hostname": "L5I-BAHUMUT",
+  "OutputRoot": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\TelemetryBundles\\GuardTest-c0c59b6399ad4e97848715928f7af3bf",
+  "BundlePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\TelemetryBundles\\GuardTest-c0c59b6399ad4e97848715928f7af3bf",
+  "PlanReferences": null,
+  "TaskBoardIds": null,
+  "Notes": "",
+  "Artifacts": [
+    {
+      "Category": "Additional",
+      "TargetFile": "artifact-canonical.json",
+      "SourcePath": "C:\\Users\\Werem\\AppData\\Local\\Temp\\e2a34824-2faa-43b6-b865-a01aebfeb7cb\\artifact-canonical.json",
+      "Hash": "E3566B3A06430868D71E9287DFD6C6C520A3DA027AABEA01951D407EE131DC2F",
+      "SizeBytes": 4
+    }
+  ]
+}

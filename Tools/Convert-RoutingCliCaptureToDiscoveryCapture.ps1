@@ -146,7 +146,7 @@ function Convert-CiscoShowIpRoute {
         [System.Collections.Generic.List[string]]$Errors
     )
 
-    $routes = @()
+    $routes = [System.Collections.Generic.List[object]]::new()
     $lineIndex = 0
     foreach ($line in $Lines) {
         $trimmed = $line.Trim()
@@ -232,7 +232,7 @@ function Convert-CiscoShowIpRoute {
             Tag           = 'CLI'
             AgeSeconds    = $ageSeconds
         }
-        $routes += $route
+        [void]$routes.Add($route)
         $lineIndex += 1
     }
 
@@ -250,7 +250,7 @@ function Convert-AristaShowIpRoute {
         [System.Collections.Generic.List[string]]$Errors
     )
 
-    $routes = @()
+    $routes = [System.Collections.Generic.List[object]]::new()
     foreach ($line in $Lines) {
         $trimmed = $line.Trim()
         if ([string]::IsNullOrWhiteSpace($trimmed)) {
@@ -333,7 +333,7 @@ function Convert-AristaShowIpRoute {
             Tag           = 'CLI'
             AgeSeconds    = $ageSeconds
         }
-        $routes += $route
+        [void]$routes.Add($route)
     }
 
     return $routes

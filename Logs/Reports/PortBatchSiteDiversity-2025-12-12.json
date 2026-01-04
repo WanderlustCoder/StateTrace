@@ -1,0 +1,15 @@
+{
+  "MetricsFile": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\2025-12-12.json",
+  "GeneratedAtUtc": "2025-12-13T00:43:32.7934390Z",
+  "MaxAllowedConsecutive": 8,
+  "EvaluationEnd": "2025-12-12T22:03:59.3344249Z",
+  "TerminalSite": "BOYO",
+  "SitesRemainingWhenStopped": 1,
+  "SiteStreaks": {
+    "Site": "BOYO",
+    "MaxCount": 1,
+    "StartTime": "2025-12-12T22:03:59.3344249Z",
+    "EndTime": "2025-12-12T22:03:59.3344249Z",
+    "HostSample": "BOYO-A05-AS-42"
+  }
+}

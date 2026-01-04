@@ -125,11 +125,11 @@ Describe "ParserWorker auto-scaling" {
             New-Item -ItemType Directory -Path $extractedPath -Force | Out-Null
             Get-ChildItem -Path $extractedPath -File -ErrorAction SilentlyContinue | Remove-Item -Force
             $fileNames = @('TESTA-A01-AS-01.log','TESTA-A01-AS-02.log','TESTB-A02-AS-01.log','_unknown.log')
-            $fileInfos = @()
+            $fileInfos = [System.Collections.Generic.List[object]]::new()
             foreach ($name in $fileNames) {
                 $full = Join-Path $extractedPath $name
                 Set-Content -Path $full -Value '' -Encoding ASCII
-                $fileInfos += Get-Item -LiteralPath $full
+                [void]$fileInfos.Add((Get-Item -LiteralPath $full))
             }
             $unknownFullPath = Join-Path $extractedPath '_unknown.log'
             Import-Module (Join-Path $projectRoot 'Modules\LogIngestionModule.psm1') -Force
@@ -231,11 +231,11 @@ Describe "ParserWorker auto-scaling" {
             New-Item -ItemType Directory -Path $extractedPath -Force | Out-Null
             Get-ChildItem -Path $extractedPath -File -ErrorAction SilentlyContinue | Remove-Item -Force
             $fileNames = @('ALPHA-A01-AS-01.log','ALPHA-A01-AS-02.log')
-            $fileInfos = @()
+            $fileInfos = [System.Collections.Generic.List[object]]::new()
             foreach ($name in $fileNames) {
                 $full = Join-Path $extractedPath $name
                 Set-Content -Path $full -Value '' -Encoding ASCII
-                $fileInfos += Get-Item -LiteralPath $full
+                [void]$fileInfos.Add((Get-Item -LiteralPath $full))
             }
             Import-Module (Join-Path $projectRoot 'Modules\LogIngestionModule.psm1') -Force
             Import-Module (Join-Path $projectRoot 'Modules\ParserRunspaceModule.psm1') -Force
@@ -338,11 +338,11 @@ Describe "ParserWorker auto-scaling" {
             New-Item -ItemType Directory -Path $extractedPath -Force | Out-Null
             Get-ChildItem -Path $extractedPath -File -ErrorAction SilentlyContinue | Remove-Item -Force
             $fileNames = @('DELTA-A01-AS-01.log','DELTA-A01-AS-02.log')
-            $fileInfos = @()
+            $fileInfos = [System.Collections.Generic.List[object]]::new()
             foreach ($name in $fileNames) {
                 $full = Join-Path $extractedPath $name
                 Set-Content -Path $full -Value '' -Encoding ASCII
-                $fileInfos += Get-Item -LiteralPath $full
+                [void]$fileInfos.Add((Get-Item -LiteralPath $full))
             }
             Import-Module (Join-Path $projectRoot 'Modules\LogIngestionModule.psm1') -Force
             Import-Module (Join-Path $projectRoot 'Modules\ParserRunspaceModule.psm1') -Force
@@ -430,11 +430,11 @@ Describe "ParserWorker auto-scaling" {
             New-Item -ItemType Directory -Path $extractedPath -Force | Out-Null
             Get-ChildItem -Path $extractedPath -File -ErrorAction SilentlyContinue | Remove-Item -Force
             $fileNames = @('SITEA-A01-AS-01.log','SITEA-A01-AS-02.log','SITEA-A01-AS-03.log','SITEB-A02-AS-01.log','SITEB-A02-AS-02.log','SITEB-A02-AS-03.log')
-            $fileInfos = @()
+            $fileInfos = [System.Collections.Generic.List[object]]::new()
             foreach ($name in $fileNames) {
                 $full = Join-Path $extractedPath $name
                 Set-Content -Path $full -Value '' -Encoding ASCII
-                $fileInfos += Get-Item -LiteralPath $full
+                [void]$fileInfos.Add((Get-Item -LiteralPath $full))
             }
             Import-Module (Join-Path $projectRoot 'Modules\LogIngestionModule.psm1') -Force
             Import-Module (Join-Path $projectRoot 'Modules\ParserRunspaceModule.psm1') -Force
@@ -535,11 +535,11 @@ Describe "ParserWorker auto-scaling" {
             Get-ChildItem -Path $extractedPath -File -ErrorAction SilentlyContinue | Remove-Item -Force
 
             $fileNames = @('ALPHA-A01-AS-01.log','ALPHA-A01-AS-02.log','BETA-A01-AS-01.log','BETA-A01-AS-02.log')
-            $fileInfos = @()
+            $fileInfos = [System.Collections.Generic.List[object]]::new()
             foreach ($name in $fileNames) {
                 $full = Join-Path $extractedPath $name
                 Set-Content -Path $full -Value '' -Encoding ASCII
-                $fileInfos += Get-Item -LiteralPath $full
+                [void]$fileInfos.Add((Get-Item -LiteralPath $full))
             }
 
             Import-Module (Join-Path $projectRoot 'Modules\LogIngestionModule.psm1') -Force

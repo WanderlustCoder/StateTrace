@@ -92,10 +92,10 @@ if (-not (Test-Path -LiteralPath $Path)) {
 
 $userActions = Read-TelemetryEvents -Path $Path -EventNames @('UserAction') -Label 'UserAction'
 
-$missingRequired = @()
+$missingRequired = [System.Collections.Generic.List[string]]::new()
 foreach ($req in $RequiredActions) {
     if (-not ($userActions | Where-Object { $_.Action -eq $req })) {
-        $missingRequired += $req
+        [void]$missingRequired.Add($req)
     }
 }
 $requiredCoverage = [pscustomobject]@{

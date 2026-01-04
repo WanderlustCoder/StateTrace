@@ -1,0 +1,15 @@
+{
+  "TotalRows": 94,
+  "DoneCount": 93,
+  "PendingCount": 1,
+  "PlanA_PendingCount": 1,
+  "PendingCountByPrefix": {
+    "ST-B": 0,
+    "ST-C": 0,
+    "ST-D": 0,
+    "ST-G": 0,
+    "ST-H": 0,
+    "Other": 0
+  },
+  "PendingNonPlanAList": null
+}

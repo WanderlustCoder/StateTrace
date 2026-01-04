@@ -1,0 +1,204 @@
+{
+  "BundleName": "Release-2025-12-27",
+  "AreaName": "Telemetry",
+  "CreatedAt": "2025-12-27T09:05:58.6760668-07:00",
+  "Hostname": "L5I-BAHUMUT",
+  "OutputRoot": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\TelemetryBundles\\Release-2025-12-27",
+  "BundlePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\TelemetryBundles\\Release-2025-12-27\\Telemetry",
+  "PlanReferences": [
+    "PlanI",
+    "PlanG"
+  ],
+  "TaskBoardIds": [
+    "ST-I-004",
+    "ST-I-012",
+    "ST-I-013",
+    "ST-I-014",
+    "ST-I-015"
+  ],
+  "Notes": "Synthetic dataset 5.1 scheduled smoke evidence + stable pointer (ST-I-004 completion)",
+  "Artifacts": [
+    {
+      "Category": "ColdTelemetry",
+      "TargetFile": "2025-12-26.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\2025-12-26.json",
+      "Hash": "79CCB92F05C2C901ED42450DB086850C2D2AB5AA17543C884B035BF8D2B70D99",
+      "SizeBytes": 51697511
+    },
+    {
+      "Category": "WarmTelemetry",
+      "TargetFile": "WarmRunTelemetry-latest-summary.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\WarmRunTelemetry-latest-summary.json",
+      "Hash": "FE49F771B0C10CA5D0497297143DA867728FA11CE24C4A79250ED502E091D0AA",
+      "SizeBytes": 824
+    },
+    {
+      "Category": "SharedCacheAnalyzer",
+      "TargetFile": "SharedCacheStoreState-2025-12-23.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\SharedCacheStoreState-2025-12-23.json",
+      "Hash": "2C2C91E9D61E6A4E2A0A4263B89956981CBE9E0FEB0C91A83A9E6FE0014C9C19",
+      "SizeBytes": 7347
+    },
+    {
+      "Category": "DiffHotspots",
+      "TargetFile": "WarmRunDiffHotspots-20251223-172638.csv",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\WarmRunDiffHotspots-20251223-172638.csv",
+      "Hash": "03B18F8E037A944456524A79BFEB2718E5475F1F22C305B75F285A0556B28E77",
+      "SizeBytes": 1786
+    },
+    {
+      "Category": "RollupCsv",
+      "TargetFile": "IngestionMetricsSummary-20251222-071331.csv",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\IngestionMetricsSummary-20251222-071331.csv",
+      "Hash": "BD1379999C352EA9F45623A5DAB8265100C8D327AAA106C7C083644217256C61",
+      "SizeBytes": 303
+    },
+    {
+      "Category": "DocSync",
+      "TargetFile": "2025-12-27_session-0001.md",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\agents\\sessions\\2025-12-27_session-0001.md",
+      "Hash": "90A6E088D546EA8F427A41D3D3187200E7C8BACA83EC59821E177516D2BEA1D6",
+      "SizeBytes": 3445
+    },
+    {
+      "Category": "DocSync",
+      "TargetFile": "DocSyncChecklist-ST-I-015-20251227-091500.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\DocSyncChecklist-ST-I-015-20251227-091500.json",
+      "Hash": "712A32C1F24BC3CBBB3E6970C62DCC9B0FB59081DDB7E83F46668BA016CCE586",
+      "SizeBytes": 1297
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "QueueDelayHistory.csv",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\QueueDelayHistory.csv",
+      "Hash": "FBA5D088CB5E9DCE4E3A1A203C04A7B697B4DD0BFC55F5E4CDF1ED4E482D11E7",
+      "SizeBytes": 10069
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "ParserSchedulerHistory.csv",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\ParserSchedulerHistory.csv",
+      "Hash": "4F25A83E688A3B0B666FB16FDB9E123831FD0E3B69644094AADC843456B357D2",
+      "SizeBytes": 9596
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "PortBatchHistory.csv",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\PortBatchHistory.csv",
+      "Hash": "D5BDD5D741A10C09B64ED2ED6AA643F3E91B02E5F96FF65EEE3CA0E968173AB0",
+      "SizeBytes": 15181
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "InterfaceSyncHistory.csv",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\InterfaceSyncHistory.csv",
+      "Hash": "74B52C3D78ADA28480DE9514306F62E8162B924DA50671E14228F2FDC1E2DFE6",
+      "SizeBytes": 14429
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "SchedulerVsPortDiversity-2025-12-26.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\SchedulerVsPortDiversity-2025-12-26.json",
+      "Hash": "676D91EA27C1874583C4AB2101BC0C630ADEC2ADDD6FAFE27B63B6EC349503D6",
+      "SizeBytes": 883
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "SchedulerVsPortDiversity-2025-12-26.md",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\performance\\SchedulerVsPortDiversity-2025-12-26.md",
+      "Hash": "0DC7D34B647454DF51C3CE86ECEAFCD336B3E419F1C173235FDBB70C665A31C1",
+      "SizeBytes": 523
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "SyntheticSmoke-ST-I-014-20251226-162743.log",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Verification\\SyntheticSmoke-ST-I-014-20251226-162743.log",
+      "Hash": "F6EF13CBD9B0D479712A43FF32316BEE88BEAA76D9F5CD5562F38F1E36497990",
+      "SizeBytes": 3644
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "HarnessSmokeSummary-20251226-162743.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\SyntheticSmoke\\Synthetic-5.1\\HarnessSmokeSummary-20251226-162743.json",
+      "Hash": "14CD273DAD9A51D65B6757A9D75F1D6E7F4929759528EBFF28347A17CB26AA69",
+      "SizeBytes": 2821
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "HarnessSmokeSummary-latest.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\SyntheticSmoke\\Synthetic-5.1\\HarnessSmokeSummary-latest.json",
+      "Hash": "14CD273DAD9A51D65B6757A9D75F1D6E7F4929759528EBFF28347A17CB26AA69",
+      "SizeBytes": 2821
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "QueueDelaySummary-smoke-20251226-162743.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\SyntheticSmoke\\Synthetic-5.1\\QueueDelaySummary-smoke-20251226-162743.json",
+      "Hash": "84CCAB78D91B24E5DC5D13048FE09D7A517ED0628E66A2E4E3716DE2394CAAC0",
+      "SizeBytes": 889
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "PortBatchSiteDiversity-smoke-20251226-162743.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\SyntheticSmoke\\Synthetic-5.1\\PortBatchSiteDiversity-smoke-20251226-162743.json",
+      "Hash": "B7661EF5A9253DC094D9B8F3CB0FE5A2E1532DF89111AF408E1D1D04B8D5FF4C",
+      "SizeBytes": 1442
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "PortBatchReady-smoke-20251226-162743.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\SyntheticSmoke\\Synthetic-5.1\\PortBatchReady-smoke-20251226-162743.json",
+      "Hash": "EA1C41534B99C0E35C5B05804AE15F93B24E359A54FD7E79A60454AC4D0CA75F",
+      "SizeBytes": 1310
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "InterfaceSyncTiming-smoke-20251226-162743.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\SyntheticSmoke\\Synthetic-5.1\\InterfaceSyncTiming-smoke-20251226-162743.json",
+      "Hash": "E3B0CD22F3C5F3F6665FCAABA1F268B002789376B34BC9ABF9525BF9162734E0",
+      "SizeBytes": 1666
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "ParserSchedulerLaunch-smoke-20251226-162743.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\SyntheticSmoke\\Synthetic-5.1\\ParserSchedulerLaunch-smoke-20251226-162743.json",
+      "Hash": "F7BF966AB66905F0272DC07B5E9B4AB66BC54776370BA4011A89D7C8A90EB5D9",
+      "SizeBytes": 1697
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "SharedCacheStoreState-smoke-20251226-162743.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\SharedCacheDiagnostics\\SyntheticSmoke\\Synthetic-5.1\\SharedCacheStoreState-smoke-20251226-162743.json",
+      "Hash": "02A7D933C32D0893BDA7152D153F0EBE0FE49F4F59F91FB7AAFFE71E7E76F252",
+      "SizeBytes": 12908
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "SiteCacheProviderReasons-smoke-20251226-162743.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\SharedCacheDiagnostics\\SyntheticSmoke\\Synthetic-5.1\\SiteCacheProviderReasons-smoke-20251226-162743.json",
+      "Hash": "03A8C337132B076E1020694455B829F395E6F922FB6C53EF567F32E7A01219DE",
+      "SizeBytes": 6269
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "AllChecks-ST-I-014-20251226-164219.log",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Verification\\AllChecks-ST-I-014-20251226-164219.log",
+      "Hash": "58DC30A3DFA9036BAAED99F34312BD6DEDC4BA3CE86DF8C9A608D647D3634861",
+      "SizeBytes": 54754
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "DocSyncChecklist-ST-I-014-20251226-165100.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\DocSyncChecklist-ST-I-014-20251226-165100.json",
+      "Hash": "468201CFA972D990277A3BE2F73139073F35A29E3E11BA6B524A92C6E702AEEA",
+      "SizeBytes": 1295
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "HarnessSmokeSummary-latest-1.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\HarnessSmokeSummary-latest.json",
+      "Hash": "7F4F4B984784B448E539E21282677C912B94DE587B88372BD8860897ADE47C0B",
+      "SizeBytes": 2407
+    }
+  ]
+}

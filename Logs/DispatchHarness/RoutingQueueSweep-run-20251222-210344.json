@@ -1,0 +1,142 @@
+[
+  {
+    "Hostname": "WLLS-A01-AS-21",
+    "LogPath": "Logs\\DispatchHarness\\WLLS-A01-AS-21-20251222-210557.log",
+    "QueueDelayMs": 18.0,
+    "DurationMs": 22.214,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "BOYO-A05-AS-02",
+    "LogPath": "Logs\\DispatchHarness\\BOYO-A05-AS-02-20251222-210557.log",
+    "QueueDelayMs": 18.985,
+    "DurationMs": 18.784,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "WLLS-A01-AS-01",
+    "LogPath": "Logs\\DispatchHarness\\WLLS-A01-AS-01-20251222-210557.log",
+    "QueueDelayMs": 17.9,
+    "DurationMs": 22.605,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "BOYO-A05-AS-05",
+    "LogPath": "Logs\\DispatchHarness\\BOYO-A05-AS-05-20251222-210557.log",
+    "QueueDelayMs": 18.843,
+    "DurationMs": 18.992,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "WLLS-A01-AS-11",
+    "LogPath": "Logs\\DispatchHarness\\WLLS-A01-AS-11-20251222-210557.log",
+    "QueueDelayMs": 17.992,
+    "DurationMs": 22.46,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "BOYO-A05-AS-12",
+    "LogPath": "Logs\\DispatchHarness\\BOYO-A05-AS-12-20251222-210557.log",
+    "QueueDelayMs": 18.927,
+    "DurationMs": 20.008,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "WLLS-A01-AS-31",
+    "LogPath": "Logs\\DispatchHarness\\WLLS-A01-AS-31-20251222-210557.log",
+    "QueueDelayMs": 17.998,
+    "DurationMs": 21.902,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "BOYO-A05-AS-15",
+    "LogPath": "Logs\\DispatchHarness\\BOYO-A05-AS-15-20251222-210557.log",
+    "QueueDelayMs": 18.201,
+    "DurationMs": 18.563,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "WLLS-A01-AS-41",
+    "LogPath": "Logs\\DispatchHarness\\WLLS-A01-AS-41-20251222-210557.log",
+    "QueueDelayMs": 18.006,
+    "DurationMs": 22.706,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "BOYO-A05-AS-22",
+    "LogPath": "Logs\\DispatchHarness\\BOYO-A05-AS-22-20251222-210557.log",
+    "QueueDelayMs": 18.999,
+    "DurationMs": 18.446,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "WLLS-A01-AS-51",
+    "LogPath": "Logs\\DispatchHarness\\WLLS-A01-AS-51-20251222-210557.log",
+    "QueueDelayMs": 18.093,
+    "DurationMs": 21.695,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "BOYO-A05-AS-25",
+    "LogPath": "Logs\\DispatchHarness\\BOYO-A05-AS-25-20251222-210557.log",
+    "QueueDelayMs": 18.996,
+    "DurationMs": 18.955,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "WLLS-A02-AS-02",
+    "LogPath": "Logs\\DispatchHarness\\WLLS-A02-AS-02-20251222-210557.log",
+    "QueueDelayMs": 18.0,
+    "DurationMs": 22.633,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "BOYO-A05-AS-32",
+    "LogPath": "Logs\\DispatchHarness\\BOYO-A05-AS-32-20251222-210557.log",
+    "QueueDelayMs": 18.081,
+    "DurationMs": 19.727,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "WLLS-A02-AS-12",
+    "LogPath": "Logs\\DispatchHarness\\WLLS-A02-AS-12-20251222-210557.log",
+    "QueueDelayMs": 17.997,
+    "DurationMs": 23.332,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "BOYO-A05-AS-35",
+    "LogPath": "Logs\\DispatchHarness\\BOYO-A05-AS-35-20251222-210557.log",
+    "QueueDelayMs": 19.01,
+    "DurationMs": 19.261,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "WLLS-A02-AS-22",
+    "LogPath": "Logs\\DispatchHarness\\WLLS-A02-AS-22-20251222-210557.log",
+    "QueueDelayMs": 20.002,
+    "DurationMs": 23.537,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "BOYO-A05-AS-42",
+    "LogPath": "Logs\\DispatchHarness\\BOYO-A05-AS-42-20251222-210557.log",
+    "QueueDelayMs": 17.916,
+    "DurationMs": 18.627,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "WLLS-A02-AS-42",
+    "LogPath": "Logs\\DispatchHarness\\WLLS-A02-AS-42-20251222-210557.log",
+    "QueueDelayMs": 18.006,
+    "DurationMs": 23.16,
+    "ExitCode": 0
+  },
+  {
+    "Hostname": "BOYO-A05-AS-45",
+    "LogPath": "Logs\\DispatchHarness\\BOYO-A05-AS-45-20251222-210557.log",
+    "QueueDelayMs": 17.992,
+    "DurationMs": 18.492,
+    "ExitCode": 0
+  }
+]

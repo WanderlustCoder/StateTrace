@@ -1,0 +1,165 @@
+{
+  "GeneratedAtUtc": "2025-12-23T03:48:22.0085360Z",
+  "SourceFiles": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\2025-12-22.json",
+  "EventCount": 20,
+  "IntervalCount": 19,
+  "TopSampleSize": 5,
+  "ThresholdSeconds": 60.0,
+  "ThresholdGapCount": 0,
+  "FilterStartUtc": "2025-12-22T14:42:00.0000000Z",
+  "FilterEndUtc": "2025-12-22T14:44:00.0000000Z",
+  "Intervals": [
+    {
+      "StartTimeUtc": "2025-12-22T14:42:17.8196535Z",
+      "EndTimeUtc": "2025-12-22T14:42:21.0636188Z",
+      "GapSeconds": 3.244,
+      "GapMinutes": 0.054,
+      "StartHost": "WLLS-A01-AS-21",
+      "EndHost": "BOYO-A05-AS-02"
+    },
+    {
+      "StartTimeUtc": "2025-12-22T14:42:21.0636188Z",
+      "EndTimeUtc": "2025-12-22T14:42:23.9844354Z",
+      "GapSeconds": 2.921,
+      "GapMinutes": 0.049,
+      "StartHost": "BOYO-A05-AS-02",
+      "EndHost": "WLLS-A01-AS-01"
+    },
+    {
+      "StartTimeUtc": "2025-12-22T14:42:23.9844354Z",
+      "EndTimeUtc": "2025-12-22T14:42:26.6510761Z",
+      "GapSeconds": 2.667,
+      "GapMinutes": 0.044,
+      "StartHost": "WLLS-A01-AS-01",
+      "EndHost": "BOYO-A05-AS-05"
+    },
+    {
+      "StartTimeUtc": "2025-12-22T14:42:26.6510761Z",
+      "EndTimeUtc": "2025-12-22T14:42:29.112375Z",
+      "GapSeconds": 2.461,
+      "GapMinutes": 0.041,
+      "StartHost": "BOYO-A05-AS-05",
+      "EndHost": "WLLS-A01-AS-11"
+    },
+    {
+      "StartTimeUtc": "2025-12-22T14:42:29.112375Z",
+      "EndTimeUtc": "2025-12-22T14:42:31.2918765Z",
+      "GapSeconds": 2.18,
+      "GapMinutes": 0.036,
+      "StartHost": "WLLS-A01-AS-11",
+      "EndHost": "BOYO-A05-AS-12"
+    },
+    {
+      "StartTimeUtc": "2025-12-22T14:42:31.2918765Z",
+      "EndTimeUtc": "2025-12-22T14:42:33.7297671Z",
+      "GapSeconds": 2.438,
+      "GapMinutes": 0.041,
+      "StartHost": "BOYO-A05-AS-12",
+      "EndHost": "WLLS-A01-AS-31"
+    },
+    {
+      "StartTimeUtc": "2025-12-22T14:42:33.7297671Z",
+      "EndTimeUtc": "2025-12-22T14:42:35.9640386Z",
+      "GapSeconds": 2.234,
+      "GapMinutes": 0.037,
+      "StartHost": "WLLS-A01-AS-31",
+      "EndHost": "BOYO-A05-AS-15"
+    },
+    {
+      "StartTimeUtc": "2025-12-22T14:42:35.9640386Z",
+      "EndTimeUtc": "2025-12-22T14:42:38.4435698Z",
+      "GapSeconds": 2.48,
+      "GapMinutes": 0.041,
+      "StartHost": "BOYO-A05-AS-15",
+      "EndHost": "WLLS-A01-AS-41"
+    },
+    {
+      "StartTimeUtc": "2025-12-22T14:42:38.4435698Z",
+      "EndTimeUtc": "2025-12-22T14:42:40.7100957Z",
+      "GapSeconds": 2.267,
+      "GapMinutes": 0.038,
+      "StartHost": "WLLS-A01-AS-41",
+      "EndHost": "BOYO-A05-AS-22"
+    },
+    {
+      "StartTimeUtc": "2025-12-22T14:42:40.7100957Z",
+      "EndTimeUtc": "2025-12-22T14:42:43.1817686Z",
+      "GapSeconds": 2.472,
+      "GapMinutes": 0.041,
+      "StartHost": "BOYO-A05-AS-22",
+      "EndHost": "WLLS-A01-AS-51"
+    },
+    {
+      "StartTimeUtc": "2025-12-22T14:42:43.1817686Z",
+      "EndTimeUtc": "2025-12-22T14:42:45.3788678Z",
+      "GapSeconds": 2.197,
+      "GapMinutes": 0.037,
+      "StartHost": "WLLS-A01-AS-51",
+      "EndHost": "BOYO-A05-AS-25"
+    },
+    {
+      "StartTimeUtc": "2025-12-22T14:42:45.3788678Z",
+      "EndTimeUtc": "2025-12-22T14:42:47.8543943Z",
+      "GapSeconds": 2.476,
+      "GapMinutes": 0.041,
+      "StartHost": "BOYO-A05-AS-25",
+      "EndHost": "WLLS-A02-AS-02"
+    },
+    {
+      "StartTimeUtc": "2025-12-22T14:42:47.8543943Z",
+      "EndTimeUtc": "2025-12-22T14:42:50.0821149Z",
+      "GapSeconds": 2.228,
+      "GapMinutes": 0.037,
+      "StartHost": "WLLS-A02-AS-02",
+      "EndHost": "BOYO-A05-AS-32"
+    },
+    {
+      "StartTimeUtc": "2025-12-22T14:42:50.0821149Z",
+      "EndTimeUtc": "2025-12-22T14:42:52.5823017Z",
+      "GapSeconds": 2.5,
+      "GapMinutes": 0.042,
+      "StartHost": "BOYO-A05-AS-32",
+      "EndHost": "WLLS-A02-AS-12"
+    },
+    {
+      "StartTimeUtc": "2025-12-22T14:42:52.5823017Z",
+      "EndTimeUtc": "2025-12-22T14:42:54.7813046Z",
+      "GapSeconds": 2.199,
+      "GapMinutes": 0.037,
+      "StartHost": "WLLS-A02-AS-12",
+      "EndHost": "BOYO-A05-AS-35"
+    },
+    {
+      "StartTimeUtc": "2025-12-22T14:42:54.7813046Z",
+      "EndTimeUtc": "2025-12-22T14:42:57.2392523Z",
+      "GapSeconds": 2.458,
+      "GapMinutes": 0.041,
+      "StartHost": "BOYO-A05-AS-35",
+      "EndHost": "WLLS-A02-AS-22"
+    },
+    {
+      "StartTimeUtc": "2025-12-22T14:42:57.2392523Z",
+      "EndTimeUtc": "2025-12-22T14:42:59.4496204Z",
+      "GapSeconds": 2.21,
+      "GapMinutes": 0.037,
+      "StartHost": "WLLS-A02-AS-22",
+      "EndHost": "BOYO-A05-AS-42"
+    },
+    {
+      "StartTimeUtc": "2025-12-22T14:42:59.4496204Z",
+      "EndTimeUtc": "2025-12-22T14:43:01.9156275Z",
+      "GapSeconds": 2.466,
+      "GapMinutes": 0.041,
+      "StartHost": "BOYO-A05-AS-42",
+      "EndHost": "WLLS-A02-AS-42"
+    },
+    {
+      "StartTimeUtc": "2025-12-22T14:43:01.9156275Z",
+      "EndTimeUtc": "2025-12-22T14:43:04.174733Z",
+      "GapSeconds": 2.259,
+      "GapMinutes": 0.038,
+      "StartHost": "WLLS-A02-AS-42",
+      "EndHost": "BOYO-A05-AS-45"
+    }
+  ]
+}

@@ -115,7 +115,7 @@ $hash.Hash | Set-Content -Path $hashFile -Encoding ASCII
 # ST-P-001: Generate package manifest with file hashes
 Write-Host "Generating package manifest ..."
 
-$manifestFiles = @()
+$manifestFiles = [System.Collections.Generic.List[pscustomobject]]::new()
 $keyFiles = @(
     'Modules\DeviceLogParserModule.psm1',
     'Modules\InterfaceModule.psm1',
@@ -130,18 +130,18 @@ $keyFiles = @(
     'docs\CODEX_RUNBOOK.md'
 )
 
-$missingFiles = @()
+$missingFiles = [System.Collections.Generic.List[string]]::new()
 $hashedCount = 0
 
 # Hash all files in build directory
 Get-ChildItem -LiteralPath $buildDir -Recurse -File | ForEach-Object {
     $relPath = $_.FullName.Substring($buildDir.Length + 1)
     $fileHash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash
-    $manifestFiles += [pscustomobject]@{
+    [void]$manifestFiles.Add([pscustomobject]@{
         Path = $relPath
         Hash = $fileHash
         SizeBytes = $_.Length
-    }
+    })
     $hashedCount++
 }
 
@@ -150,7 +150,7 @@ if ($VerifyContents.IsPresent -or $FailOnMissing.IsPresent) {
     foreach ($keyFile in $keyFiles) {
         $keyFilePath = Join-Path -Path $buildDir -ChildPath $keyFile
         if (-not (Test-Path -LiteralPath $keyFilePath)) {
-            $missingFiles += $keyFile
+            [void]$missingFiles.Add($keyFile)
             Write-Warning "Missing key file: $keyFile"
         }
     }

@@ -1,0 +1,197 @@
+{
+  "GeneratedAtUtc": "2025-12-23T04:07:52.8036557Z",
+  "SourceFiles": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\Run-20251222-210344\\2025-12-22.json",
+  "EventCount": 24,
+  "IntervalCount": 23,
+  "TopSampleSize": 10,
+  "ThresholdSeconds": 60.0,
+  "ThresholdGapCount": 0,
+  "FilterStartUtc": "2025-12-23T04:03:45.0000000Z",
+  "FilterEndUtc": "2025-12-23T04:04:05.0000000Z",
+  "Intervals": [
+    {
+      "StartTimeUtc": "2025-12-23T04:03:50.7573281Z",
+      "EndTimeUtc": "2025-12-23T04:03:52.5376711Z",
+      "GapSeconds": 1.78,
+      "GapMinutes": 0.03,
+      "StartHost": "WLLS-A01-AS-11",
+      "EndHost": "WLLS-A01-AS-21"
+    },
+    {
+      "StartTimeUtc": "2025-12-23T04:03:52.5376711Z",
+      "EndTimeUtc": "2025-12-23T04:03:52.9532298Z",
+      "GapSeconds": 0.416,
+      "GapMinutes": 0.007,
+      "StartHost": "WLLS-A01-AS-21",
+      "EndHost": "WLLS-A01-AS-31"
+    },
+    {
+      "StartTimeUtc": "2025-12-23T04:03:52.9532298Z",
+      "EndTimeUtc": "2025-12-23T04:03:53.3590348Z",
+      "GapSeconds": 0.406,
+      "GapMinutes": 0.007,
+      "StartHost": "WLLS-A01-AS-31",
+      "EndHost": "WLLS-A01-AS-41"
+    },
+    {
+      "StartTimeUtc": "2025-12-23T04:03:53.3590348Z",
+      "EndTimeUtc": "2025-12-23T04:03:53.7189156Z",
+      "GapSeconds": 0.36,
+      "GapMinutes": 0.006,
+      "StartHost": "WLLS-A01-AS-41",
+      "EndHost": "WLLS-A02-AS-02"
+    },
+    {
+      "StartTimeUtc": "2025-12-23T04:03:53.7189156Z",
+      "EndTimeUtc": "2025-12-23T04:03:54.0082552Z",
+      "GapSeconds": 0.289,
+      "GapMinutes": 0.005,
+      "StartHost": "WLLS-A02-AS-02",
+      "EndHost": "WLLS-A02-AS-12"
+    },
+    {
+      "StartTimeUtc": "2025-12-23T04:03:54.0082552Z",
+      "EndTimeUtc": "2025-12-23T04:03:54.3341688Z",
+      "GapSeconds": 0.326,
+      "GapMinutes": 0.005,
+      "StartHost": "WLLS-A02-AS-12",
+      "EndHost": "WLLS-A02-AS-22"
+    },
+    {
+      "StartTimeUtc": "2025-12-23T04:03:54.3341688Z",
+      "EndTimeUtc": "2025-12-23T04:03:54.6388764Z",
+      "GapSeconds": 0.305,
+      "GapMinutes": 0.005,
+      "StartHost": "WLLS-A02-AS-22",
+      "EndHost": "WLLS-A02-AS-32"
+    },
+    {
+      "StartTimeUtc": "2025-12-23T04:03:54.6388764Z",
+      "EndTimeUtc": "2025-12-23T04:03:54.9404781Z",
+      "GapSeconds": 0.302,
+      "GapMinutes": 0.005,
+      "StartHost": "WLLS-A02-AS-32",
+      "EndHost": "WLLS-A02-AS-42"
+    },
+    {
+      "StartTimeUtc": "2025-12-23T04:03:54.9404781Z",
+      "EndTimeUtc": "2025-12-23T04:03:55.2343507Z",
+      "GapSeconds": 0.294,
+      "GapMinutes": 0.005,
+      "StartHost": "WLLS-A02-AS-42",
+      "EndHost": "WLLS-A02-AS-52"
+    },
+    {
+      "StartTimeUtc": "2025-12-23T04:03:55.2343507Z",
+      "EndTimeUtc": "2025-12-23T04:03:55.5357915Z",
+      "GapSeconds": 0.301,
+      "GapMinutes": 0.005,
+      "StartHost": "WLLS-A02-AS-52",
+      "EndHost": "WLLS-A03-AS-03"
+    },
+    {
+      "StartTimeUtc": "2025-12-23T04:03:55.5357915Z",
+      "EndTimeUtc": "2025-12-23T04:03:55.8353537Z",
+      "GapSeconds": 0.3,
+      "GapMinutes": 0.005,
+      "StartHost": "WLLS-A03-AS-03",
+      "EndHost": "WLLS-A03-AS-13"
+    },
+    {
+      "StartTimeUtc": "2025-12-23T04:03:55.8353537Z",
+      "EndTimeUtc": "2025-12-23T04:03:56.128888Z",
+      "GapSeconds": 0.294,
+      "GapMinutes": 0.005,
+      "StartHost": "WLLS-A03-AS-13",
+      "EndHost": "WLLS-A03-AS-23"
+    },
+    {
+      "StartTimeUtc": "2025-12-23T04:03:56.128888Z",
+      "EndTimeUtc": "2025-12-23T04:03:56.4307073Z",
+      "GapSeconds": 0.302,
+      "GapMinutes": 0.005,
+      "StartHost": "WLLS-A03-AS-23",
+      "EndHost": "WLLS-A03-AS-33"
+    },
+    {
+      "StartTimeUtc": "2025-12-23T04:03:56.4307073Z",
+      "EndTimeUtc": "2025-12-23T04:03:56.7028332Z",
+      "GapSeconds": 0.272,
+      "GapMinutes": 0.005,
+      "StartHost": "WLLS-A03-AS-33",
+      "EndHost": "WLLS-A03-AS-43"
+    },
+    {
+      "StartTimeUtc": "2025-12-23T04:03:56.7028332Z",
+      "EndTimeUtc": "2025-12-23T04:03:56.9811736Z",
+      "GapSeconds": 0.278,
+      "GapMinutes": 0.005,
+      "StartHost": "WLLS-A03-AS-43",
+      "EndHost": "WLLS-A03-AS-53"
+    },
+    {
+      "StartTimeUtc": "2025-12-23T04:03:56.9811736Z",
+      "EndTimeUtc": "2025-12-23T04:03:57.2372979Z",
+      "GapSeconds": 0.256,
+      "GapMinutes": 0.004,
+      "StartHost": "WLLS-A03-AS-53",
+      "EndHost": "WLLS-A05-AS-05"
+    },
+    {
+      "StartTimeUtc": "2025-12-23T04:03:57.2372979Z",
+      "EndTimeUtc": "2025-12-23T04:03:57.498791Z",
+      "GapSeconds": 0.261,
+      "GapMinutes": 0.004,
+      "StartHost": "WLLS-A05-AS-05",
+      "EndHost": "WLLS-A05-AS-15"
+    },
+    {
+      "StartTimeUtc": "2025-12-23T04:03:57.498791Z",
+      "EndTimeUtc": "2025-12-23T04:03:57.7423885Z",
+      "GapSeconds": 0.244,
+      "GapMinutes": 0.004,
+      "StartHost": "WLLS-A05-AS-15",
+      "EndHost": "WLLS-A05-AS-25"
+    },
+    {
+      "StartTimeUtc": "2025-12-23T04:03:57.7423885Z",
+      "EndTimeUtc": "2025-12-23T04:03:57.9883836Z",
+      "GapSeconds": 0.246,
+      "GapMinutes": 0.004,
+      "StartHost": "WLLS-A05-AS-25",
+      "EndHost": "WLLS-A05-AS-35"
+    },
+    {
+      "StartTimeUtc": "2025-12-23T04:03:57.9883836Z",
+      "EndTimeUtc": "2025-12-23T04:03:58.2392829Z",
+      "GapSeconds": 0.251,
+      "GapMinutes": 0.004,
+      "StartHost": "WLLS-A05-AS-35",
+      "EndHost": "WLLS-A05-AS-45"
+    },
+    {
+      "StartTimeUtc": "2025-12-23T04:03:58.2392829Z",
+      "EndTimeUtc": "2025-12-23T04:03:58.4917852Z",
+      "GapSeconds": 0.253,
+      "GapMinutes": 0.004,
+      "StartHost": "WLLS-A05-AS-45",
+      "EndHost": "WLLS-A05-AS-55"
+    },
+    {
+      "StartTimeUtc": "2025-12-23T04:03:58.4917852Z",
+      "EndTimeUtc": "2025-12-23T04:03:58.7290279Z",
+      "GapSeconds": 0.237,
+      "GapMinutes": 0.004,
+      "StartHost": "WLLS-A05-AS-55",
+      "EndHost": "WLLS-A07-AS-07"
+    },
+    {
+      "StartTimeUtc": "2025-12-23T04:03:58.7290279Z",
+      "EndTimeUtc": "2025-12-23T04:03:58.9473615Z",
+      "GapSeconds": 0.218,
+      "GapMinutes": 0.004,
+      "StartHost": "WLLS-A07-AS-07",
+      "EndHost": "WLLS-A01-AS-51"
+    }
+  ]
+}

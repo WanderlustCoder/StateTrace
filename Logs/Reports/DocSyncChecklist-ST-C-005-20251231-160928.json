@@ -1,0 +1,49 @@
+{
+  "TaskId": "ST-C-005",
+  "TaskBoard": {
+    "Path": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\StateTrace_TaskBoard.md",
+    "Exists": true,
+    "ContainsTaskId": false
+  },
+  "TaskBoardCsv": {
+    "Path": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\taskboard\\TaskBoard.csv",
+    "Exists": true,
+    "ContainsTaskId": false,
+    "PlanLink": null
+  },
+  "TaskBoardIntegrity": {
+    "Path": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\TaskBoardIntegrity-20251231-160928.json",
+    "Passed": true,
+    "Error": null,
+    "RowCount": 92,
+    "MinimumRowCount": 10
+  },
+  "Plan": {
+    "Path": "",
+    "Exists": false,
+    "ContainsTaskId": false,
+    "Source": "Parameter"
+  },
+  "Backlog": {
+    "Path": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\CODEX_BACKLOG.md",
+    "Exists": true,
+    "ContainsTaskId": false,
+    "Required": false
+  },
+  "SessionLog": {
+    "Path": "docs/agents/sessions/2025-12-31_session-0012.md",
+    "Exists": true,
+    "ContainsTaskId": true,
+    "References": [
+      "TaskBoardCsv",
+      "TaskBoard"
+    ],
+    "Required": true
+  },
+  "Passed": false,
+  "Missing": [
+    "TaskBoardRowMissing",
+    "TaskBoardCsvRowMissing",
+    "PlanPathMissing"
+  ]
+}

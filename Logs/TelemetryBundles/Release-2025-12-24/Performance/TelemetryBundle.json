@@ -1,0 +1,145 @@
+{
+  "BundleName": "Release-2025-12-24",
+  "AreaName": "Performance",
+  "CreatedAt": "2025-12-24T11:05:39.3473787-07:00",
+  "Hostname": "L5I-BAHUMUT",
+  "OutputRoot": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\TelemetryBundles\\Release-2025-12-24",
+  "BundlePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\TelemetryBundles\\Release-2025-12-24\\Performance",
+  "PlanReferences": [
+    "PlanB",
+    "PlanI"
+  ],
+  "TaskBoardIds": [
+    "ST-B-001",
+    "ST-I-002"
+  ],
+  "Notes": "Guarded cold+warm run with queue harness + synthesized PortBatchReady (opt-in).",
+  "Artifacts": [
+    {
+      "Category": "ColdTelemetry",
+      "TargetFile": "2025-12-24.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\2025-12-24.json",
+      "Hash": "28571F0D7BDCF20BC7701A62D54C6B065880BC9DEBC18CC061721AE3B5EA9296",
+      "SizeBytes": 6120729
+    },
+    {
+      "Category": "WarmTelemetry",
+      "TargetFile": "WarmRunTelemetry-20251224-110119.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\WarmRunTelemetry-20251224-110119.json",
+      "Hash": "5E94766DF6930605066C59E178D3CA58E782B677DAE846CEA701C2AE21693B2D",
+      "SizeBytes": 237120
+    },
+    {
+      "Category": "SharedCacheAnalyzer",
+      "TargetFile": "SharedCacheStoreState-20251224-110339.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\SharedCacheDiagnostics\\SharedCacheStoreState-20251224-110339.json",
+      "Hash": "FED861E58BF9BD29106151D82E67EDA37458CBDB8A086E6408636EEFDDC15CD4",
+      "SizeBytes": 12949
+    },
+    {
+      "Category": "SharedCacheAnalyzer",
+      "TargetFile": "SiteCacheProviderReasons-20251224-110339.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\SharedCacheDiagnostics\\SiteCacheProviderReasons-20251224-110339.json",
+      "Hash": "55BB65E90A811725DAB7AFD923FEB4693694CD8B224C314B208B62FD194C3807",
+      "SizeBytes": 12219
+    },
+    {
+      "Category": "DiffHotspots",
+      "TargetFile": "DiffHotspots-20251224-110119.csv",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\DiffHotspots-20251224-110119.csv",
+      "Hash": "35500F0393C965A5E33B5F676F350E565B6D14FF31BE1147A2EB3BBECB9115AF",
+      "SizeBytes": 1784
+    },
+    {
+      "Category": "RollupCsv",
+      "TargetFile": "IngestionMetricsSummary-20251222-071331.csv",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\IngestionMetricsSummary-20251222-071331.csv",
+      "Hash": "BD1379999C352EA9F45623A5DAB8265100C8D327AAA106C7C083644217256C61",
+      "SizeBytes": 303
+    },
+    {
+      "Category": "QueueDelaySummary",
+      "TargetFile": "QueueDelaySummary-2025-12-24.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\QueueDelaySummary-2025-12-24.json",
+      "Hash": "9DA06C59E54CAC776FA7FE59436A9F4897DE7E563D987EF0592EFB87A5BEE3DD",
+      "SizeBytes": 877
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "QueueDelayHistory.csv",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\QueueDelayHistory.csv",
+      "Hash": "62EEB81636DA8F068789221FB73D30CD15F6C75772DCCD4B5CE274E3DB2F0D02",
+      "SizeBytes": 1760
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "ParserSchedulerHistory.csv",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\ParserSchedulerHistory.csv",
+      "Hash": "39CDEEC48E10715E2ECC3AAA3278E9C09901E82AFEAB090C7C8955B26BE99BFC",
+      "SizeBytes": 2249
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "PortBatchHistory.csv",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\PortBatchHistory.csv",
+      "Hash": "FC252295FC810EE15444C8DE63CED5F61F6A6B9937AD298A5FEECA7234D25E4C",
+      "SizeBytes": 3452
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "InterfaceSyncHistory.csv",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\InterfaceSyncHistory.csv",
+      "Hash": "319FB60BF2A559304FA81506A1AE60EC60FFB72E0A2CECC6B3C92861F0AEE7B5",
+      "SizeBytes": 2260
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "SchedulerVsPortDiversity-2025-12-24.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\SchedulerVsPortDiversity-2025-12-24.json",
+      "Hash": "A2D087DA029B5EAFBF8E14C5DB405D64E672F7731C874F7368409BAC32D220E8",
+      "SizeBytes": 691
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "SchedulerVsPortDiversity-2025-12-24.md",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\docs\\performance\\SchedulerVsPortDiversity-2025-12-24.md",
+      "Hash": "B75F508D411C1C8D895CB4CE37BD52C994D77A6B2C2522066197EE21D74837A1",
+      "SizeBytes": 380
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "RoutingQueueSweep-pipeline-2025-12-24.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\DispatchHarness\\RoutingQueueSweep-pipeline-2025-12-24.json",
+      "Hash": "DE94743E615F7AA8200E058FEF322036522C8E959F4E3DCC93AA4ED0AAA6FA85",
+      "SizeBytes": 956
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "PortBatchReady-2025-12-24.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\PortBatchReady-2025-12-24.json",
+      "Hash": "8B421C160E1C8658AF43408330E46318DC4008CA533506B5A79907070C200D9A",
+      "SizeBytes": 5109
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "InterfaceSyncTiming-2025-12-24.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\InterfaceSyncTiming-2025-12-24.json",
+      "Hash": "2F0D81E21A46E05399BC04EB0A61F74E04F03E26AA47F6544FB9F4B540A16BB5",
+      "SizeBytes": 2864
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "PortBatchSiteDiversity-2025-12-24.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\PortBatchSiteDiversity-2025-12-24.json",
+      "Hash": "E1A1B8A215AF24B8AA3A71F8748EA612234C02690F9985A2087C3AF9235A217C",
+      "SizeBytes": 892
+    },
+    {
+      "Category": "Additional",
+      "TargetFile": "ParserSchedulerLaunch-2025-12-24.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\Reports\\ParserSchedulerLaunch-2025-12-24.json",
+      "Hash": "5018E9C2DA3A62711AAA5D680496D3FDC13E179B2631492524D75D386D0A4D4A",
+      "SizeBytes": 1770
+    }
+  ]
+}

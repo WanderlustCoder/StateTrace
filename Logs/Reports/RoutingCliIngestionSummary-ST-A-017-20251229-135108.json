@@ -1,0 +1,13 @@
+{
+  "Timestamp": "2025-12-29T13:51:08.2826639-07:00",
+  "Status": "Pass",
+  "Vendor": "AristaEOS",
+  "CapturePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Tests\\Fixtures\\Routing\\CliCapture\\AristaEOS\\Capture.json",
+  "OutputPath": "Logs/Reports/RoutingDiscoveryCapture-ST-A-017-20251229-135108.json",
+  "RoutesParsedCount": 3,
+  "LinesParsedCount": 4,
+  "LinesSkippedCount": 1,
+  "Errors": [],
+  "SchemaVersion": "1.0",
+  "DiscoverySchema": "1.0"
+}

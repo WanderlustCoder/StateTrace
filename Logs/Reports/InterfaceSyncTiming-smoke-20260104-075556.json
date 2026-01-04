@@ -1,0 +1,53 @@
+﻿{
+    "GeneratedAtUtc":  "2026-01-04T14:55:56.3200177Z",
+    "FilesAnalyzed":  "C:\\Users\\Werem\\AppData\\Local\\Temp\\b7900ad3-a43e-401d-a2c5-7e788fb0029c\\metrics-missing-report.json",
+    "EventCount":  0,
+    "GlobalStats":  {
+                        "UiClone":  {
+                                        "Name":  "UiCloneDurationMs",
+                                        "Count":  0,
+                                        "Average":  null,
+                                        "Min":  null,
+                                        "Max":  null,
+                                        "P50":  null,
+                                        "P95":  null,
+                                        "P99":  null
+                                    },
+                        "StreamDispatch":  {
+                                               "Name":  "StreamDispatchDurationMs",
+                                               "Count":  0,
+                                               "Average":  null,
+                                               "Min":  null,
+                                               "Max":  null,
+                                               "P50":  null,
+                                               "P95":  null,
+                                               "P99":  null
+                                           },
+                        "DiffDuration":  {
+                                             "Name":  "DiffDurationMs",
+                                             "Count":  0,
+                                             "Average":  null,
+                                             "Min":  null,
+                                             "Max":  null,
+                                             "P50":  null,
+                                             "P95":  null,
+                                             "P99":  null
+                                         },
+                        "SiteCacheUpdate":  {
+                                                "Name":  "SiteCacheUpdateDurationMs",
+                                                "Count":  0,
+                                                "Average":  null,
+                                                "Min":  null,
+                                                "Max":  null,
+                                                "P50":  null,
+                                                "P95":  null,
+                                                "P99":  null
+                                            }
+                    },
+    "SiteBreakdown":  [
+
+                      ],
+    "HostBreakdownTop":  [
+
+                         ]
+}

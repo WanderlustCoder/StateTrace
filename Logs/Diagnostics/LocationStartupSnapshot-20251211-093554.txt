@@ -1,0 +1,8 @@
+Location entries count: 2
+Location entries: Site=BOYO;Zone=A05;Building=5;Room=204 | Site=WLLS;Zone=A01;Building=21;Room=101
+Sites dropdown: All Sites, BOYO, WLLS
+Zones dropdown: All Zones, A01, A05
+Buildings dropdown: , 21
+Rooms dropdown: , 101, 204
+Hosts dropdown: 
+Interfaces count: 0

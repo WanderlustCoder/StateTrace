@@ -1,0 +1,89 @@
+{
+  "GeneratedAtUtc": "2026-01-01T23:24:55.3840647Z",
+  "FilesAnalyzed": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\2026-01-01.json",
+  "EventCount": 143,
+  "GlobalStats": {
+    "UiClone": {
+      "Name": "UiCloneDurationMs",
+      "Count": 143,
+      "Average": 0.0,
+      "Min": 0.0,
+      "Max": 0.0,
+      "P50": 0.0,
+      "P95": 0.0,
+      "P99": 0.0
+    },
+    "StreamDispatch": {
+      "Name": "StreamDispatchDurationMs",
+      "Count": 143,
+      "Average": 0.0,
+      "Min": 0.0,
+      "Max": 0.0,
+      "P50": 0.0,
+      "P95": 0.0,
+      "P99": 0.0
+    },
+    "DiffDuration": {
+      "Name": "DiffDurationMs",
+      "Count": 143,
+      "Average": 2.358126,
+      "Min": 0.124,
+      "Max": 43.844,
+      "P50": 0.792,
+      "P95": 9.9127,
+      "P99": 25.68564
+    },
+    "SiteCacheUpdate": {
+      "Name": "SiteCacheUpdateDurationMs",
+      "Count": 143,
+      "Average": 11.429769,
+      "Min": 0.0,
+      "Max": 93.881,
+      "P50": 0.0,
+      "P95": 80.5852,
+      "P99": 87.1709
+    }
+  },
+  "SiteBreakdown": [
+    {
+      "Site": "SW1",
+      "EventCount": 33,
+      "UiCloneP95": 0.0,
+      "StreamDispatchP95": 0.0,
+      "DiffDurationP95": 24.8652
+    },
+    {
+      "Site": "WLLS",
+      "EventCount": 110,
+      "UiCloneP95": 0.0,
+      "StreamDispatchP95": 0.0,
+      "DiffDurationP95": 2.37965
+    }
+  ],
+  "HostBreakdownTop": [
+    {
+      "Host": "SW1",
+      "EventCount": 55,
+      "UiCloneP95": 0.0,
+      "StreamDispatchP95": 0.0
+    },
+    {
+      "Host": "WLLS-A01-AS-01",
+      "EventCount": 55,
+      "UiCloneP95": 0.0,
+      "StreamDispatchP95": 0.0
+    },
+    {
+      "Host": "WLLS-A01-AS-02",
+      "EventCount": 22,
+      "UiCloneP95": 0.0,
+      "StreamDispatchP95": 0.0
+    },
+    {
+      "Host": "WLLS-A01-AS-03",
+      "EventCount": 11,
+      "UiCloneP95": 0.0,
+      "StreamDispatchP95": 0.0
+    }
+  ]
+}

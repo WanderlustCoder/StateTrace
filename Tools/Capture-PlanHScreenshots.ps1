@@ -76,7 +76,7 @@ function New-Shot {
     $bmp.Dispose()
 }
 
-$freshLines = @()
+$freshLines = [System.Collections.Generic.List[string]]::new()
 if ($freshness -and $freshness.Sites) {
     foreach ($site in $freshness.Sites) {
         $provText = if ($site.Providers) { ($site.Providers | ForEach-Object { '{0}={1}' -f $_.Name, $_.Value }) -join '; ' } else { 'provider: n/a' }
@@ -85,23 +85,23 @@ if ($freshness -and $freshness.Sites) {
         $line = "{0}: Providers [{1}]" -f $site.Site, $provText
         if ($reasonText) { $line += "; Reasons [{0}]" -f $reasonText }
         if ($statusText) { $line += "; Statuses [{0}]" -f $statusText }
-        $freshLines += $line
+        [void]$freshLines.Add($line)
     }
 } else {
-    $freshLines += 'Freshness telemetry: not available (emit cache provider/status signals)'
+    [void]$freshLines.Add('Freshness telemetry: not available (emit cache provider/status signals)')
 }
 
-$qsLines = @()
+$qsLines = [System.Collections.Generic.List[string]]::new()
 if ($quickstart) {
     $ttfv = if ($quickstart.TimeToFirstHostMs) { [math]::Round($quickstart.TimeToFirstHostMs,2) } else { $null }
-    if ($ttfv) { $qsLines += "Time to first host: ${ttfv} ms" }
+    if ($ttfv) { [void]$qsLines.Add("Time to first host: ${ttfv} ms") }
     if ($quickstart.HostSummaries) {
         foreach ($hostSummary in $quickstart.HostSummaries) {
-            $qsLines += ("{0}: Interfaces {1}, Batches {2}, Duration {3} ms" -f $hostSummary.Hostname, $hostSummary.InterfacesRendered, $hostSummary.BatchesProcessed, $hostSummary.SessionDurationMs)
+            [void]$qsLines.Add(("{0}: Interfaces {1}, Batches {2}, Duration {3} ms" -f $hostSummary.Hostname, $hostSummary.InterfacesRendered, $hostSummary.BatchesProcessed, $hostSummary.SessionDurationMs))
         }
     }
 }
-if (-not $qsLines -or $qsLines.Count -eq 0) { $qsLines += 'Interfaces quickstart summary unavailable.' }
+if ($qsLines.Count -eq 0) { [void]$qsLines.Add('Interfaces quickstart summary unavailable.') }
 
 $toolbarPath = Join-Path $OutputDirectory ("{0}-{1}-toolbar.png" -f $Prefix, $Timestamp)
 $interfacesPath = Join-Path $OutputDirectory ("{0}-{1}-interfaces.png" -f $Prefix, $Timestamp)

@@ -1,0 +1,102 @@
+[
+  {
+    "Area": "Telemetry",
+    "BundlePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Data\\Samples\\TelemetryBundles\\Sample-ReleaseBundle\\Telemetry",
+    "ManifestPath": "TelemetryBundle.json",
+    "ReadmePath": "README.md",
+    "ReadmeHash": "642ACAB835CBAFC957ED160574B99754C4F89075F8FD708373F866E4F2D95C7A",
+    "HashAlgorithm": "SHA256",
+    "RequirementState": [
+      {
+        "Requirement": "README",
+        "Status": "Present",
+        "Files": "README.md"
+      },
+      {
+        "Requirement": "Manifest",
+        "Status": "Present",
+        "Files": "TelemetryBundle.json"
+      },
+      {
+        "Requirement": "Rollup CSV",
+        "Status": "Present",
+        "Files": "IngestionMetricsSummary-20250101.csv"
+      },
+      {
+        "Requirement": "Shared-cache analyzer",
+        "Status": "Present",
+        "Files": "SharedCacheStoreState-20250101.json"
+      },
+      {
+        "Requirement": "Site cache providers",
+        "Status": "Present",
+        "Files": "SiteCacheProviderReasons-20250101.json"
+      },
+      {
+        "Requirement": "Warm-run telemetry",
+        "Status": "Present",
+        "Files": "WarmRunTelemetry-20250101.json"
+      },
+      {
+        "Requirement": "Diff hotspot CSV",
+        "Status": "Present",
+        "Files": "WarmRunDiffHotspots-20250101.csv"
+      },
+      {
+        "Requirement": "Doc-sync evidence",
+        "Status": "Present",
+        "Files": "DocSync\\DocSyncChecklist.json"
+      }
+    ]
+  },
+  {
+    "Area": "Routing",
+    "BundlePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Data\\Samples\\TelemetryBundles\\Sample-ReleaseBundle\\Routing",
+    "ManifestPath": "TelemetryBundle.json",
+    "ReadmePath": "README.md",
+    "ReadmeHash": "1D36D70EAD1171C94115E01AE14882E8D1F8911D7E186B0E6EF70835003DEB5B",
+    "HashAlgorithm": "SHA256",
+    "RequirementState": [
+      {
+        "Requirement": "README",
+        "Status": "Present",
+        "Files": "README.md"
+      },
+      {
+        "Requirement": "Manifest",
+        "Status": "Present",
+        "Files": "TelemetryBundle.json"
+      },
+      {
+        "Requirement": "Routing telemetry JSON",
+        "Status": "Present",
+        "Files": "RoutingQueueSweep-20250101.json; RoutingTelemetry-20250101.json"
+      },
+      {
+        "Requirement": "Queue delay summary",
+        "Status": "Present",
+        "Files": "QueueDelaySummary-20250101.json; QueueDelaySummary-latest.json"
+      },
+      {
+        "Requirement": "Queue delay pointer",
+        "Status": "Present",
+        "Files": "QueueDelaySummary-latest.json"
+      },
+      {
+        "Requirement": "Dispatcher logs",
+        "Status": "Present",
+        "Files": "DispatcherLogs\\BOYO-A01.log"
+      },
+      {
+        "Requirement": "Routing sweep summary",
+        "Status": "Present",
+        "Files": "RoutingQueueSweep-20250101.json"
+      },
+      {
+        "Requirement": "Doc-sync evidence",
+        "Status": "Present",
+        "Files": "DocSync\\DocSyncChecklist.json"
+      }
+    ]
+  }
+]

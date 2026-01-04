@@ -1,0 +1,66 @@
+{
+  "MetricsFile": "C:\\Users\\Werem\\Projects\\StateTrace\\Logs\\IngestionMetrics\\2025-12-26.json",
+  "GeneratedAtUtc": "2025-12-26T20:02:11.4705530Z",
+  "EvaluationWindowStartUtc": "2025-12-26T19:59:26.5434625Z",
+  "EvaluationWindowEndUtc": "2025-12-26T20:01:52.1384372Z",
+  "MaxAllowedConsecutive": 8,
+  "EvaluationEnd": "2025-12-26T20:01:49.6308987Z",
+  "TerminalSite": "WLLS",
+  "SitesRemainingWhenStopped": 1,
+  "PortBatchReadyCount": 86,
+  "EvaluatedPortBatchReadyCount": 12,
+  "UsedSynthesizedEvents": true,
+  "IgnoredSynthesizedEvents": false,
+  "ManualOverridesApplied": true,
+  "ConcurrencyProfile": {
+    "ManualOverrides": true,
+    "DecisionSource": "AutoScale",
+    "ThreadCeiling": 1,
+    "MaxWorkersPerSite": 1,
+    "MaxActiveSites": 1,
+    "JobsPerThread": 1,
+    "MinRunspaces": 1,
+    "ResolvedThreadCeiling": 1,
+    "ResolvedMaxWorkersPerSite": 1,
+    "ResolvedMaxActiveSites": 1,
+    "ResolvedJobsPerThread": 1,
+    "ResolvedMinRunspaces": 1,
+    "ResolvedMaxConsecutiveSiteLaunches": 8,
+    "OverrideThreadCeiling": 1,
+    "OverrideMaxWorkersPerSite": 1,
+    "OverrideMaxActiveSites": 1,
+    "OverrideJobsPerThread": 1,
+    "OverrideMinRunspaces": 1
+  },
+  "RawAutoConcurrencyMode": false,
+  "ObservedPortBatchReadyCount": 74,
+  "SynthesizedPortBatchReadyCount": 12,
+  "ParseEventCount": 370,
+  "SkippedDuplicateCount": 37,
+  "SiteStreaks": [
+    {
+      "Site": "BOYO",
+      "MaxCount": 1,
+      "StartTime": "2025-12-26T20:01:25.6267032Z",
+      "EndTime": "2025-12-26T20:01:28.4329915Z",
+      "HostSample": "BOYO-A05-AS-02"
+    },
+    {
+      "Site": "WLLS",
+      "MaxCount": 1,
+      "StartTime": "2025-12-26T20:01:23.0683389Z",
+      "EndTime": "2025-12-26T20:01:25.6267032Z",
+      "HostSample": "WLLS-A01-AS-21"
+    }
+  ],
+  "MaxStreakSegment": {
+    "Site": "WLLS",
+    "Count": 1,
+    "StartTime": "2025-12-26T20:01:23.0683389Z",
+    "EndTime": "2025-12-26T20:01:25.6267032Z",
+    "StartIndex": 0,
+    "EndIndex": 0,
+    "HostSample": "WLLS-A01-AS-21",
+    "HostSequenceSample": "WLLS-A01-AS-21"
+  }
+}

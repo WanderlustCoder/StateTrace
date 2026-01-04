@@ -122,12 +122,12 @@ function Get-MatchingFiles {
         [Parameter(Mandatory = $true)][string[]]$Patterns
     )
 
-    $matches = @()
+    $matches = [System.Collections.Generic.List[object]]::new()
     foreach ($pattern in $Patterns) {
         if (-not $pattern) { continue }
         $fullPattern = Join-Path -Path $AreaPath -ChildPath $pattern
         $items = Get-ChildItem -Path $fullPattern -File -ErrorAction SilentlyContinue
-        if ($items) { $matches += $items }
+        if ($items) { foreach ($item in $items) { [void]$matches.Add($item) } }
     }
 
     return ($matches | Sort-Object FullName -Unique)
