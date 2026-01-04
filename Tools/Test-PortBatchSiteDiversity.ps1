@@ -49,7 +49,9 @@ function Resolve-MetricsFile([string]$Path) {
 
 function Get-Site([string]$Hostname) {
     if ([string]::IsNullOrWhiteSpace($Hostname)) { return '(unknown)' }
-    return $Hostname.Split('-', 2, [System.StringSplitOptions]::RemoveEmptyEntries)[0]
+    $parts = $Hostname.Split('-', 2, [System.StringSplitOptions]::RemoveEmptyEntries)
+    if ($parts.Count -eq 0) { return '(unknown)' }
+    return $parts[0]
 }
 
 $metricsFile = Resolve-MetricsFile -Path $MetricsPath
