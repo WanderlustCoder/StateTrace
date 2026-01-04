@@ -1,7 +1,10 @@
 # Plan O - Accessibility & UI Responsiveness
 
+<!-- LANDMARK: ST-E-001 telemetry gates link -->
+Telemetry gates: [docs/telemetry/Automation_Gates.md](../telemetry/Automation_Gates.md).
+
 ## Objective
-Improve the WPF shell’s accessibility, layout adaptability, and perceived responsiveness across Summary, Interfaces, SPAN, Templates, Alerts, Compare, and Help views while keeping telemetry and smoke coverage in lockstep.
+Improve the WPF shell???s accessibility, layout adaptability, and perceived responsiveness across Summary, Interfaces, SPAN, Templates, Alerts, Compare, and Help views while keeping telemetry and smoke coverage in lockstep.
 
 ## Current status (2025-12)
 - UI smoke scripts exist (`Invoke-SpanViewSmokeTest`, `Invoke-InterfacesViewSmokeTest`) but do not assert accessibility or low-latency interaction thresholds.
@@ -33,3 +36,4 @@ Improve the WPF shell’s accessibility, layout adaptability, and perceived resp
 - `docs/plans/PlanH_UserExperience.md` (UX/adoption context).
 - `docs/plans/PlanL_ModuleDecomposition.md` (moving services out of MainWindow).
 - `docs/UI_Smoke_Checklist.md` (baseline smoke steps to extend).
+

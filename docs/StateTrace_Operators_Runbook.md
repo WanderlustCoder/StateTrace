@@ -3,6 +3,16 @@
 ## Summary
 This runbook explains how the refreshed incremental-loading workflow surfaces device metadata immediately and streams interface ports in batches. Operators should use it to monitor ingestion sessions, interpret the bottom-of-window loading indicator, and validate that the UI stays responsive while the parser continues to deliver ports.
 
+## Guided troubleshooting runbooks (sanitized incidents)
+<!-- LANDMARK: ST-D-005 runbook links -->
+- INC0001 Routing Queue Delay Spike: `docs/runbooks/Incident_INC0001_RoutingQueueDelay.md` (telemetry: QueueDelaySummary, PortBatchReady, InterfacePortQueueMetrics).
+- INC0002 Shared Cache Refresh Spike: `docs/runbooks/Incident_INC0002_SharedCacheRefresh.md` (telemetry: SharedCacheStoreState, SiteCacheProviderReasons, InterfaceSyncTiming).
+- INC0003 PortBatchReady Missing: `docs/runbooks/Incident_INC0003_PortBatchMissing.md` (telemetry: PortBatchReady, InterfaceSyncTiming, DatabaseWriteBreakdown).
+<!-- LANDMARK: ST-D-009 runbook links -->
+- INC0004 Bulk Stage Latency Spike: `docs/runbooks/Incident_INC0004_BulkStageLatencySpike.md` (telemetry: InterfaceSyncTiming, DatabaseWriteBreakdown, PortBatchReady).
+- INC0005 Cache Provider Fallback: `docs/runbooks/Incident_INC0005_CacheProviderFallback.md` (telemetry: SharedCacheStoreState, SiteCacheProviderReasons, InterfaceSyncTiming).
+- INC0006 Dispatcher Throughput Drop: `docs/runbooks/Incident_INC0006_DispatcherThroughputDrop.md` (telemetry: QueueDelaySummary, InterfacePortQueueMetrics, PortBatchReady).
+
 ## Start here (quickstart)
 Follow these steps when you need the fastest path to a validated Interfaces view (Plan H ST-H-001):
 1. Seed data (if needed): `pwsh Tools/Invoke-StateTracePipeline.ps1 -SkipTests -VerboseParsing -ResetExtractedLogs` (or reuse a recent ingestion if the Access files are current).

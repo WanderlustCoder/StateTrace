@@ -1,10 +1,13 @@
 # Plan F - Security, Identity, & Online Mode
 
+<!-- LANDMARK: ST-E-001 telemetry gates link -->
+Telemetry gates: [docs/telemetry/Automation_Gates.md](../telemetry/Automation_Gates.md).
+
 ## Objective
 Keep StateTrace offline-first and Access-backed while providing a documented path for optional online development (guarded downloads, dev seat bootstrapping, RBAC/identity options, and sanitisation tooling).
 
 ## Current status (2025-11)
-- Security guidelines (`docs/Security.md`), incident intake steps (`docs/StateTrace_IncidentPostmortem_Intake.md`), and identity options (`docs/StateTrace_Acknowledgement_Identity_Options.md`) reflect ADR 0004, but NetOps logging steps remain scattered across the autonomy plan, operations guide, and checklist—Plan F must consolidate them under an actionable workflow with sample JSON/schema references.
+- Security guidelines (`docs/Security.md`), incident intake steps (`docs/StateTrace_IncidentPostmortem_Intake.md`), and identity options (`docs/StateTrace_Acknowledgement_Identity_Options.md`) reflect ADR 0004, but NetOps logging steps remain scattered across the autonomy plan, operations guide, and checklist???Plan F must consolidate them under an actionable workflow with sample JSON/schema references.
 - Online dev mode guardrails (`STATETRACE_AGENT_ALLOW_NET`, `STATETRACE_AGENT_ALLOW_INSTALL`, `Tools/NetworkGuard.psm1::Invoke-AllowedDownload`, `Tools/Bootstrap-DevSeat.psm1`) are documented in `docs/CODEX_AUTONOMY_PLAN.md` and `docs/CODEX_RUNBOOK.md`, yet session logs rarely attach the resulting `Logs/NetOps/<date>.json` files or mention how/when the env vars were reset.
 - Sanitisation tooling (`Tools/Sanitize-PostmortemLogs.ps1`) is referenced in the Risk Register, incident intake doc, and kickoff tasks (`docs/agents/Agent_Kickoff_Tasks.md`), but there is no automated checklist ensuring sanitized fixtures reach `Data/Postmortems` / `Tests/Fixtures` before UI or parser development uses them.
 - `docs/CODEX_PLAN_AUTOMATION_MATRIX.md` and `docs/CODEX_SESSION_CHECKLIST.md` now call out Plan F deliverables (NetOps logs, scrubber evidence, ADR references), so this plan must enumerate the artifacts per task and make sure session logs + task board rows cite them.
@@ -88,3 +91,4 @@ Keep StateTrace offline-first and Access-backed while providing a documented pat
 - Optional mode ADR: `docs/adr/0004-online-mode-and-tooling.md`.
 - Supporting guides: `docs/CODEX_AUTONOMY_PLAN.md`, `docs/CODEX_PLAN_AUTOMATION_MATRIX.md`, `docs/CODEX_SESSION_CHECKLIST.md`, `docs/CODEX_RUNBOOK.md`, `docs/StateTrace_AI_Agent_Guide.md`, `docs/RiskRegister.md`, `docs/StateTrace_IncidentPostmortem_Intake.md`, `docs/agents/Agent_Kickoff_Tasks.md`, `docs/templates/NetOpsLogTemplate.json`, `docs/templates/SanitizationEvidenceTemplate.md`.
 - Pending artifacts: sanitized incident intake (ST-F-006).
+

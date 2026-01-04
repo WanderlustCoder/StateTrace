@@ -13,16 +13,28 @@ Describe "SpanViewModule" {
 
         $repoPath = Join-Path $baseDir "..\DeviceRepositoryModule.psm1"
         Import-Module (Resolve-Path $repoPath).Path -Force
+
+        # LANDMARK: ST-D-004 span telemetry tests
+        $telemetryPath = Join-Path $baseDir "..\TelemetryModule.psm1"
+        Import-Module (Resolve-Path $telemetryPath).Path -Force
     }
 
     AfterAll {
         Remove-Module DeviceRepositoryModule -Force
         Remove-Module FilterStateModule -Force
+        Remove-Module TelemetryModule -Force
         Remove-Module SpanViewModule -Force
     }
 
     BeforeEach {
         Mock -ModuleName SpanViewModule -CommandName 'FilterStateModule\Set-DropdownItems' {}
+
+        # LANDMARK: ST-D-004 span telemetry tests
+        $global:SpanTelemetryEvents = @()
+        Mock -ModuleName SpanViewModule -CommandName 'TelemetryModule\Write-StTelemetryEvent' {
+            param($Name, $Payload)
+            $global:SpanTelemetryEvents += [pscustomobject]@{ Name = $Name; Payload = $Payload }
+        }
 
         InModuleScope SpanViewModule {
             $dispatcher = New-Object psobject
@@ -87,6 +99,25 @@ Describe "SpanViewModule" {
                 $snapshot.RowCount | Should BeGreaterThan 0
                 @($snapshot.SampleRows).Count | Should BeGreaterThan 0
                 $snapshot.StatusText | Should Match 'Rows:'
+
+                # LANDMARK: ST-D-004 span telemetry tests
+                $spanInfo = $global:SpanTelemetryEvents | Where-Object { $_.Name -eq 'UserAction' -and $_.Payload.Action -eq 'SpanInfo' } | Select-Object -First 1
+                $spanInfo | Should Not BeNullOrEmpty
+                $spanInfo.Payload.Hostname | Should Be 'LABS-A01-AS-01'
+                $spanInfo.Payload.Site | Should Be 'LABS'
+                $spanInfo.Payload.RowsBound | Should BeGreaterThan 0
+
+                $spanSnapshot = $global:SpanTelemetryEvents | Where-Object { $_.Name -eq 'UserAction' -and $_.Payload.Action -eq 'SpanSnapshot' } | Select-Object -First 1
+                $spanSnapshot | Should Not BeNullOrEmpty
+                $spanSnapshot.Payload.Hostname | Should Be 'LABS-A01-AS-01'
+                $spanSnapshot.Payload.RowsBound | Should BeGreaterThan 0
+
+                # LANDMARK: ST-D-007 span usage telemetry tests
+                $spanUsage = $global:SpanTelemetryEvents | Where-Object { $_.Name -eq 'UserAction' -and $_.Payload.Action -eq 'SpanViewUsage' } | Select-Object -First 1
+                $spanUsage | Should Not BeNullOrEmpty
+                $spanUsage.Payload.Hostname | Should Be 'LABS-A01-AS-01'
+                $spanUsage.Payload.RowsBound | Should BeGreaterThan 0
+                $spanUsage.Payload.VlanCount | Should Be 2
             } finally {
                 if ($original) {
                     Set-Item Function:Get-SpanningTreeInfo -Value $original.ScriptBlock

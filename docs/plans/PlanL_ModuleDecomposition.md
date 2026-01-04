@@ -1,5 +1,8 @@
 # Plan L - Module Decomposition & Maintainability
 
+<!-- LANDMARK: ST-E-001 telemetry gates link -->
+Telemetry gates: [docs/telemetry/Automation_Gates.md](../telemetry/Automation_Gates.md).
+
 ## Objective
 Reduce the size and coupling of core modules (DeviceRepository, ParserPersistence, WarmRun telemetry) and the WPF shell by carving them into testable components with stable interfaces, while keeping ingestion and UI performance within existing gates.
 
@@ -36,3 +39,4 @@ Reduce the size and coupling of core modules (DeviceRepository, ParserPersistenc
 - `docs/plans/PlanB_Performance.md` (perf gates and warm-run expectations).
 - `docs/plans/PlanD_FeatureExpansion.md` (UI smoke contexts).
 - `docs/plans/PlanK_DeveloperExperience.md` (CI harness consuming the new tests).
+

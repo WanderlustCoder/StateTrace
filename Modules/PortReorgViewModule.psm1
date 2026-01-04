@@ -22,6 +22,53 @@ function script:Import-LocalStateTraceModule {
     return $true
 }
 
+# LANDMARK: ST-D-011 paging helper
+function Get-PortReorgPageSlice {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][System.Collections.IList]$OrderedRows,
+        [Parameter()][int]$PageSize = 12,
+        [Parameter()][int]$PageNumber = 1
+    )
+
+    $total = 0
+    try { $total = $OrderedRows.Count } catch { $total = 0 }
+    if ($PageSize -lt 1) { $PageSize = 12 }
+
+    $pageCount = 1
+    if ($total -gt 0) {
+        $pageCount = [int][Math]::Ceiling($total / [double]$PageSize)
+    }
+    if ($pageCount -lt 1) { $pageCount = 1 }
+
+    if ($PageNumber -lt 1) { $PageNumber = 1 }
+    if ($PageNumber -gt $pageCount) { $PageNumber = $pageCount }
+
+    $startIndex = ($PageNumber - 1) * $PageSize
+    if ($startIndex -lt 0) { $startIndex = 0 }
+    if ($startIndex -ge $total) { $startIndex = [Math]::Max(0, $total - 1) }
+
+    $endIndex = -1
+    if ($total -gt 0) {
+        $endIndex = [Math]::Min($total - 1, $startIndex + $PageSize - 1)
+    }
+
+    $visibleRows = @()
+    if ($total -gt 0 -and $endIndex -ge $startIndex) {
+        for ($i = $startIndex; $i -le $endIndex; $i++) {
+            $visibleRows += $OrderedRows[$i]
+        }
+    }
+
+    return [pscustomobject]@{
+        PageNumber = $PageNumber
+        PageCount  = $pageCount
+        StartIndex = $startIndex
+        EndIndex   = $endIndex
+        VisibleRows = $visibleRows
+    }
+}
+
 function Show-PortReorgWindow {
     [CmdletBinding()]
     param(
@@ -338,26 +385,14 @@ function Show-PortReorgWindow {
     $updateVisibleRowsForCurrentPage = {
         if (-not ($pagingState.Enabled -eq $true)) { return }
 
-        $total = $orderedRows.Count
-        $pageSize = [int]$pagingState.PageSize
-        $pageCount = [int]$pagingState.PageCount
-        $pageNumber = [int]$pagingState.PageNumber
-
-        if ($pageCount -lt 1) { $pageCount = 1; $pagingState.PageCount = 1 }
-        if ($pageNumber -lt 1) { $pageNumber = 1 }
-        if ($pageNumber -gt $pageCount) { $pageNumber = $pageCount }
-        $pagingState.PageNumber = $pageNumber
+        # LANDMARK: ST-D-011 paging slice usage
+        $slice = Get-PortReorgPageSlice -OrderedRows $orderedRows -PageSize ([int]$pagingState.PageSize) -PageNumber ([int]$pagingState.PageNumber)
+        $pagingState.PageNumber = $slice.PageNumber
+        $pagingState.PageCount = $slice.PageCount
 
         try { $visibleRows.Clear() } catch { }
-        if ($total -le 0) { return }
-
-        $startIndex = ($pageNumber - 1) * $pageSize
-        if ($startIndex -lt 0) { $startIndex = 0 }
-        if ($startIndex -ge $total) { $startIndex = [Math]::Max(0, $total - 1) }
-        $endIndex = [Math]::Min($total - 1, $startIndex + $pageSize - 1)
-
-        for ($i = $startIndex; $i -le $endIndex; $i++) {
-            try { $visibleRows.Add($orderedRows[$i]) | Out-Null } catch { }
+        foreach ($row in $slice.VisibleRows) {
+            try { $visibleRows.Add($row) | Out-Null } catch { }
         }
     }.GetNewClosure()
 

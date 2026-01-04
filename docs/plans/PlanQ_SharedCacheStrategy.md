@@ -1,5 +1,8 @@
 # Plan Q - Shared Cache Strategy & Snapshot Governance
 
+<!-- LANDMARK: ST-E-001 telemetry gates link -->
+Telemetry gates: [docs/telemetry/Automation_Gates.md](../telemetry/Automation_Gates.md).
+
 ## Objective
 Stabilize shared cache adoption across cold/warm runs by formalizing snapshot governance (coverage targets, rotation, seeding), eviction policies, and offline snapshot reuse so warm-hit ratios stay high without brittle per-site hacks.
 
@@ -33,3 +36,4 @@ Stabilize shared cache adoption across cold/warm runs by formalizing snapshot go
 - `docs/plans/PlanB_Performance.md` (warm-run/shared-cache analyzers).
 - `docs/CODEX_SHARED_CACHE_DIAGNOSTICS.md` (analyzer workflow).
 - `docs/plans/PlanI_HarnessStability.md` (guarded harness expectations).
+

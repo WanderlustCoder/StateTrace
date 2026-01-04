@@ -307,6 +307,83 @@ function Test-SharedCacheSummaryCoverage {
     }
 }
 
+# LANDMARK: ST-B-007 shared cache diagnostics gating - evaluate snapshot/import and provider reasons
+function Test-SharedCacheDiagnostics {
+    [CmdletBinding()]
+    param(
+        [object]$StoreSummary,
+        [object]$ProviderSummary,
+        [int]$MaximumAccessRefreshCount = 0
+    )
+
+    $messages = New-Object System.Collections.Generic.List[string]
+    $violations = New-Object System.Collections.Generic.List[string]
+    $pass = $true
+
+    $storeEntries = @()
+    if ($StoreSummary) {
+        if ($StoreSummary -is [System.Collections.IEnumerable] -and -not ($StoreSummary -is [string])) {
+            $storeEntries = @($StoreSummary)
+        } else {
+            $storeEntries = @($StoreSummary)
+        }
+    }
+
+    $snapshotImportedTotal = 0
+    if ($storeEntries.Count -gt 0) {
+        foreach ($entry in $storeEntries) {
+            if (-not $entry) { continue }
+            if ($entry.PSObject.Properties.Name -contains 'SnapshotImported') {
+                try { $snapshotImportedTotal += [int]$entry.SnapshotImported } catch { }
+            }
+        }
+        if ($snapshotImportedTotal -le 0) {
+            $pass = $false
+            $violations.Add('SnapshotImported')
+            $messages.Add('Shared-cache diagnostics report SnapshotImported=0.')
+        }
+    } else {
+        $messages.Add('Shared-cache store diagnostics were not available.')
+    }
+
+    $providerEntries = @()
+    if ($ProviderSummary) {
+        if ($ProviderSummary -is [System.Collections.IEnumerable] -and -not ($ProviderSummary -is [string])) {
+            $providerEntries = @($ProviderSummary)
+        } else {
+            $providerEntries = @($ProviderSummary)
+        }
+    }
+
+    $accessRefreshTotal = 0
+    if ($providerEntries.Count -gt 0) {
+        foreach ($entry in $providerEntries) {
+            if (-not $entry) { continue }
+            if ($entry.PSObject.Properties.Name -contains 'AccessRefresh') {
+                try { $accessRefreshTotal += [int]$entry.AccessRefresh } catch { }
+            }
+        }
+        if ($accessRefreshTotal -gt $MaximumAccessRefreshCount) {
+            $pass = $false
+            $violations.Add('AccessRefresh')
+            $messages.Add(("Shared-cache diagnostics report AccessRefresh={0} (max {1})." -f $accessRefreshTotal, $MaximumAccessRefreshCount))
+        }
+    } else {
+        $messages.Add('Site cache provider diagnostics were not available.')
+    }
+
+    return [pscustomobject]@{
+        Pass                 = $pass
+        Messages             = $messages.ToArray()
+        Violations           = $violations.ToArray()
+        SnapshotImportedTotal = $snapshotImportedTotal
+        AccessRefreshTotal   = $accessRefreshTotal
+        Thresholds           = [pscustomobject]@{
+            MaximumAccessRefreshCount = $MaximumAccessRefreshCount
+        }
+    }
+}
+
 function Test-InterfacePortQueueDelay {
     [CmdletBinding()]
     param(
@@ -438,4 +515,5 @@ function Test-InterfacePortQueueDelay {
     }
 }
 
-Export-ModuleMember -Function Test-WarmRunRegressionSummary, Test-SharedCacheSummaryCoverage, Test-InterfacePortQueueDelay
+# LANDMARK: Shared cache diagnostics export
+Export-ModuleMember -Function Test-WarmRunRegressionSummary, Test-SharedCacheSummaryCoverage, Test-SharedCacheDiagnostics, Test-InterfacePortQueueDelay

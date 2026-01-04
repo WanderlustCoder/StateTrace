@@ -1,7 +1,10 @@
 # Plan D Addendum - Port Reorg 12-Port Paging Mode
 
+<!-- LANDMARK: ST-E-001 telemetry gates link -->
+Telemetry gates: [docs/telemetry/Automation_Gates.md](../telemetry/Automation_Gates.md).
+
 ## Context
-Port Reorg currently lists all ports in a single scrollable surface. For larger switches, operators must scroll to find ports, which can make “move labels/profiles between ports” workflows harder to follow. Many modern access switches are organized in **12-port blocks**, so a paged view can better match how operators think and work.
+Port Reorg currently lists all ports in a single scrollable surface. For larger switches, operators must scroll to find ports, which can make ???move labels/profiles between ports??? workflows harder to follow. Many modern access switches are organized in **12-port blocks**, so a paged view can better match how operators think and work.
 
 This addendum captures a plan to add an **optional 12-port paging mode** while keeping the underlying Port Reorg state and script generation unchanged.
 
@@ -15,12 +18,12 @@ This addendum captures a plan to add an **optional 12-port paging mode** while k
 ### Layout
 - Split the window into two panes:
   - **Parking (persistent)**: left pane, independently scrollable.
-  - **Ports (paged)**: right pane, includes page controls (Prev/Next + page selector) and the current page’s ports.
+  - **Ports (paged)**: right pane, includes page controls (Prev/Next + page selector) and the current page???s ports.
 
 ### View-state model
 - Keep one authoritative model:
   - `AllPorts` (sorted, stable order)
-  - `Assignments` (port ⇄ label/profile mapping)
+  - `Assignments` (port ??? label/profile mapping)
 - Add paging state:
   - `PageSize = 12` (only when paging mode enabled)
   - `CurrentPage`
@@ -28,12 +31,12 @@ This addendum captures a plan to add an **optional 12-port paging mode** while k
 - Script generation always uses `AllPorts` + `Assignments` (never `VisiblePorts`).
 
 ### Drag/drop semantics
-- Use stable port identifiers (port name/key), not visual indices, so paging doesn’t break moves.
+- Use stable port identifiers (port name/key), not visual indices, so paging doesn???t break moves.
 - Recommended cross-page approach (lowest complexity): move labels via **Parking** (drag to Parking, switch page, drag onto target port).
-- Optional later enhancement: explicit “Move To…” action to avoid cross-page drag.
+- Optional later enhancement: explicit ???Move To?????? action to avoid cross-page drag.
 
 ### Preferences
-- Persist the paging mode (and last chosen page size/mode if expanded later) in settings so users don’t re-enable it each session.
+- Persist the paging mode (and last chosen page size/mode if expanded later) in settings so users don???t re-enable it each session.
 
 ## Implementation Steps
 1. **Audit current Port Reorg UI/bindings**
@@ -45,7 +48,7 @@ This addendum captures a plan to add an **optional 12-port paging mode** while k
    - Place Parking in a dedicated `ScrollViewer` so it stays visible across pages.
 3. **Refactor view-state for paging**
    - Introduce `PageSize`, `CurrentPage`, and computed `VisiblePorts`.
-   - Ensure page changes don’t discard in-flight edits.
+   - Ensure page changes don???t discard in-flight edits.
 4. **Update drag/drop handlers for paging**
    - Resolve port targets by stable ID.
    - Keep Parking semantics consistent across modes.
@@ -65,4 +68,5 @@ This addendum captures a plan to add an **optional 12-port paging mode** while k
 - UI: `Views/PortReorgWindow.xaml`
 - Wiring/state: `Modules/PortReorgViewModule.psm1`
 - Script generation (must remain mode-independent): `Modules/PortReorgModule.psm1`
+
 

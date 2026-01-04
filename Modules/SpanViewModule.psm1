@@ -267,6 +267,11 @@ function Get-SpanInfo {
     }
 
     $targetHost = ('' + $Hostname).Trim()
+    $siteCode = $null
+    if (-not [string]::IsNullOrWhiteSpace($targetHost)) {
+        $parts = $targetHost -split '-', 2
+        if ($parts.Count -gt 0) { $siteCode = $parts[0] }
+    }
     try {
         $data = Get-SpanningTreeInfo -Hostname $targetHost
     } catch {
@@ -282,6 +287,41 @@ function Get-SpanInfo {
 
     $rowsCopy = @($data)
     $script:SpanLastRows = $rowsCopy
+    # LANDMARK: ST-D-007 span usage vlan count
+    $vlanCount = 0
+    try {
+        $vlanCount = @(
+            $rowsCopy |
+                Where-Object { $_ -and $_.PSObject.Properties['VLAN'] -and ('' + $_.VLAN).Trim() -ne '' } |
+                ForEach-Object { '' + $_.VLAN } |
+                Select-Object -Unique
+        ).Count
+    } catch { $vlanCount = 0 }
+
+    # LANDMARK: ST-D-004 span telemetry
+    try {
+        TelemetryModule\Write-StTelemetryEvent -Name 'UserAction' -Payload @{
+            Action    = 'SpanInfo'
+            Hostname  = $targetHost
+            Site      = $siteCode
+            RowsBound = $rowsCopy.Count
+            Timestamp = (Get-Date).ToString('o')
+        }
+    } catch [System.Management.Automation.CommandNotFoundException] {
+    } catch { }
+
+    # LANDMARK: ST-D-007 span usage telemetry
+    try {
+        TelemetryModule\Write-StTelemetryEvent -Name 'UserAction' -Payload @{
+            Action    = 'SpanViewUsage'
+            Hostname  = $targetHost
+            Site      = $siteCode
+            VlanCount = $vlanCount
+            RowsBound = $rowsCopy.Count
+            Timestamp = (Get-Date).ToString('o')
+        }
+    } catch [System.Management.Automation.CommandNotFoundException] {
+    } catch { }
 
     $gridRef = $script:SpanGridControl
     $dropdownRef = $script:SpanVlanDropdown

@@ -32,6 +32,11 @@ pwsh -NoLogo -NoProfile -File .\Main\MainWindow.ps1
 - `pwsh -STA -File Tools\Invoke-SearchAlertsSmokeTest.ps1 -SiteFilter <site> -PassThru` to validate Search/Alerts binding without the main window.
 - `Tools\Invoke-AllChecks.ps1` to run Pester + span smoke test in one command.
 
+<!-- LANDMARK: ST-D-008 UI smoke automation artifact -->
+## Automation artifact
+- `Tools/Invoke-AllChecks.ps1` emits `Logs/UI/UI-Smoke-<timestamp>.md`, summarizing PortBatchReady counts, Span snapshot stats, and template/helper notes.
+- Attach the latest UI smoke report path to the plan/task entry and session log for major UI changes.
+
 ## Troubleshooting tips
 - Use `Get-EventLog -LogName Application -Newest 20` if the WPF app crashes immediately.
 - Attach to the process (`Enter-PSHostProcess -Id <pid>`) and inspect globals (`$global:DeviceInterfaceCache.Keys.Count`) when a view shows zero rows.

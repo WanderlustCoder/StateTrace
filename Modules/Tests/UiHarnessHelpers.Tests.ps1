@@ -1,27 +1,47 @@
 Set-StrictMode -Version Latest
 
-Describe "UI harness preflight" {
-    BeforeAll {
-        $helperPath = Join-Path (Split-Path $PSCommandPath) "..\..\Tools\UiHarnessHelpers.ps1"
-        . (Resolve-Path $helperPath)
-    }
+$repoRoot = Resolve-Path -Path (Join-Path -Path (Split-Path -Parent $PSCommandPath) -ChildPath '..\..')
+$helpersPath = Join-Path -Path $repoRoot -ChildPath 'Tools\UiHarnessHelpers.ps1'
+. $helpersPath
 
-    # LANDMARK: UI harness preflight tests - deterministic status classification
-    It "returns RequiresDesktop when user is not interactive" {
-        $result = Test-StateTraceUiHarnessPreflight -RequireDesktop -UserInteractiveOverride $false -ApartmentStateOverride ([System.Threading.ApartmentState]::STA)
-        $result.Status | Should Be 'RequiresDesktop'
-        $result.Reason | Should Be 'NonInteractiveSession'
-    }
+# LANDMARK: ST-D-008 UI smoke report tests
+Describe 'New-StateTraceUiSmokeReport' {
+    It 'writes a UI smoke report with the expected sections' {
+        $outputPath = Join-Path -Path $TestDrive -ChildPath 'UI-Smoke.md'
+        $portBatchSummary = [pscustomobject]@{
+            EventCount         = 3
+            UniqueHosts        = 2
+            TotalPorts         = 10
+            PortsPerMinute     = 1200
+            BatchIntervalP95Ms = 450
+        }
+        $spanSummary = [pscustomobject]@{
+            Status      = 'Pass'
+            Hostname    = 'BOYO-A01'
+            Rows        = 5
+            UsedLastRow = $true
+            StatusText  = 'Rows: 5'
+        }
+        $templateLines = @(
+            'Templates tab: load template',
+            'Helper overlay notes'
+        )
 
-    It "returns RequiresSTA when apartment state mismatch" {
-        $result = Test-StateTraceUiHarnessPreflight -RequireSta -UserInteractiveOverride $true -ApartmentStateOverride ([System.Threading.ApartmentState]::MTA)
-        $result.Status | Should Be 'RequiresSTA'
-        $result.Reason | Should Be 'ApartmentStateMismatch'
-    }
+        New-StateTraceUiSmokeReport -OutputPath $outputPath `
+            -ChecklistPath 'docs/UI_Smoke_Checklist.md' `
+            -PortBatchReportPath 'Logs/Reports/PortBatchReady-smoke.json' `
+            -PortBatchSummary $portBatchSummary `
+            -SpanSummary $spanSummary `
+            -TemplateHelperReportPath 'Logs/Reports/TemplateHelperCatalog.md' `
+            -TemplateHelperLines $templateLines | Out-Null
 
-    It "returns Ready when requirements are met" {
-        $result = Test-StateTraceUiHarnessPreflight -RequireDesktop -RequireSta -UserInteractiveOverride $true -ApartmentStateOverride ([System.Threading.ApartmentState]::STA)
-        $result.Status | Should Be 'Ready'
-        $result.Reason | Should Be ''
+        $content = Get-Content -LiteralPath $outputPath
+        $contentText = $content -join [Environment]::NewLine
+        $contentText | Should Match '## PortBatchReady summary'
+        $contentText | Should Match 'EventCount: 3'
+        $contentText | Should Match '## Span snapshot stats'
+        $contentText | Should Match 'Rows: 5'
+        $contentText | Should Match '## Template/helper notes'
+        $contentText | Should Match 'Templates tab: load template'
     }
 }

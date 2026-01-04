@@ -108,6 +108,19 @@ Invoke-DispatcherPump -Milliseconds 150
 
 $snapshot = SpanViewModule\Get-SpanViewSnapshot -IncludeRows -SampleCount $SampleCount
 
+# LANDMARK: ST-D-007 span usage vlan count
+$usageVlanCount = 0
+try {
+    $usageRows = DeviceRepositoryModule\Get-SpanningTreeInfo -Hostname $targetHost
+    if (-not $usageRows) { $usageRows = @() }
+    $usageVlanCount = @(
+        @($usageRows) |
+            Where-Object { $_ -and $_.PSObject.Properties['VLAN'] -and ('' + $_.VLAN).Trim() -ne '' } |
+            ForEach-Object { '' + $_.VLAN } |
+            Select-Object -Unique
+    ).Count
+} catch { $usageVlanCount = 0 }
+
 $result = [pscustomobject]@{
     Hostname      = $targetHost
     RowCount      = $snapshot.RowCount
@@ -119,6 +132,19 @@ $result = [pscustomobject]@{
     SampleRows    = $snapshot.SampleRows
     Success       = ($snapshot.RowCount -gt 0)
 }
+
+# LANDMARK: ST-D-007 span usage telemetry
+try {
+    TelemetryModule\Write-StTelemetryEvent -Name 'UserAction' -Payload @{
+        Action    = 'SpanViewUsage'
+        Hostname  = $targetHost
+        VlanCount = $usageVlanCount
+        RowsBound = $snapshot.RowCount
+        Timestamp = (Get-Date).ToString('o')
+    }
+    TelemetryModule\Save-StTelemetryBuffer | Out-Null
+} catch [System.Management.Automation.CommandNotFoundException] {
+} catch { }
 
 if ($PassThru) {
     $result

@@ -87,6 +87,37 @@ Describe 'Test-SharedCacheSummaryCoverage' {
     }
 }
 
+# LANDMARK: ST-B-007 shared cache diagnostics gating tests
+Describe 'Test-SharedCacheDiagnostics' {
+    It 'passes when snapshot imported and access refresh is within threshold' {
+        $storeSummary = [pscustomobject]@{ SnapshotImported = 4 }
+        $providerSummary = [pscustomobject]@{ AccessRefresh = 0 }
+
+        $result = Test-SharedCacheDiagnostics -StoreSummary @($storeSummary) -ProviderSummary @($providerSummary)
+        $result.Pass | Should Be $true
+        $result.SnapshotImportedTotal | Should Be 4
+        $result.AccessRefreshTotal | Should Be 0
+    }
+
+    It 'fails when snapshot imported count is zero' {
+        $storeSummary = [pscustomobject]@{ SnapshotImported = 0 }
+        $providerSummary = [pscustomobject]@{ AccessRefresh = 0 }
+
+        $result = Test-SharedCacheDiagnostics -StoreSummary @($storeSummary) -ProviderSummary @($providerSummary)
+        $result.Pass | Should Be $false
+        ($result.Violations -contains 'SnapshotImported') | Should Be $true
+    }
+
+    It 'fails when access refresh exceeds the maximum' {
+        $storeSummary = [pscustomobject]@{ SnapshotImported = 2 }
+        $providerSummary = [pscustomobject]@{ AccessRefresh = 1 }
+
+        $result = Test-SharedCacheDiagnostics -StoreSummary @($storeSummary) -ProviderSummary @($providerSummary) -MaximumAccessRefreshCount 0
+        $result.Pass | Should Be $false
+        ($result.Violations -contains 'AccessRefresh') | Should Be $true
+    }
+}
+
 Describe 'Test-InterfacePortQueueDelay' {
     It 'passes when delays stay under thresholds' {
         $events = @(

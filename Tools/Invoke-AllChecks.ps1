@@ -403,6 +403,67 @@ try {
         }
         Write-Host ("Telemetry integrity passed for {0} (report: {1})" -f $latestMetrics.FullName, $integrityReportPath) -ForegroundColor Green
     }
+
+    # LANDMARK: ST-D-008 UI smoke automation report generation
+    $uiReportDir = Join-Path $repoRoot 'Logs\UI'
+    $uiReportPath = Join-Path $uiReportDir ("UI-Smoke-{0}.md" -f (Get-Date -Format 'yyyyMMdd-HHmmss'))
+    $checklistPath = Join-Path $repoRoot 'docs\UI_Smoke_Checklist.md'
+    $templateHelperLines = @()
+    if (Test-Path -LiteralPath $checklistPath) {
+        $templateHelperLines = Get-Content -LiteralPath $checklistPath |
+            Where-Object { $_ -match '(?i)(template|helper)' }
+    }
+
+    $templateHelperReport = Get-ChildItem -LiteralPath (Join-Path $repoRoot 'Logs\Reports') -Filter 'TemplateHelperCatalog-*.md' -File |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
+    $templateHelperReportPath = if ($templateHelperReport) { $templateHelperReport.FullName } else { $null }
+
+    $portBatchReport = Get-ChildItem -LiteralPath (Join-Path $repoRoot 'Logs\Reports') -Filter 'PortBatchReady-*.json' -File |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1
+    $portBatchReportPath = if ($portBatchReport) { $portBatchReport.FullName } else { $null }
+    $portBatchSummary = $null
+    $portBatchNote = $null
+    if ($portBatchReport) {
+        try {
+            $portBatchData = Get-Content -LiteralPath $portBatchReport.FullName -Raw | ConvertFrom-Json -ErrorAction Stop
+            if ($portBatchData -and $portBatchData.PortBatchSummary) {
+                $summary = $portBatchData.PortBatchSummary
+                $portBatchSummary = [pscustomobject]@{
+                    EventCount        = $summary.EventCount
+                    UniqueHosts       = $summary.UniqueHosts
+                    TotalPorts        = $summary.TotalPorts
+                    PortsPerMinute    = $summary.PortsPerMinute
+                    BatchIntervalP95Ms = if ($summary.BatchIntervalMs) { $summary.BatchIntervalMs.P95 } else { $null }
+                }
+            } else {
+                $portBatchNote = 'PortBatchSummary missing in report.'
+            }
+        } catch {
+            $portBatchNote = "PortBatchReady parse error: $($_.Exception.Message)"
+        }
+    } else {
+        $portBatchNote = 'No PortBatchReady report found.'
+    }
+
+    $spanSummary = $results | Where-Object { $_.Check -eq 'SpanHarness' } | Select-Object -First 1
+    $uiReportResult = New-StateTraceUiSmokeReport -OutputPath $uiReportPath `
+        -ChecklistPath $checklistPath `
+        -PortBatchReportPath $portBatchReportPath `
+        -PortBatchSummary $portBatchSummary `
+        -PortBatchNote $portBatchNote `
+        -SpanSummary $spanSummary `
+        -TemplateHelperReportPath $templateHelperReportPath `
+        -TemplateHelperLines $templateHelperLines
+
+    $results += [pscustomobject]@{
+        Check                = 'UiSmokeReport'
+        ReportPath           = $uiReportResult.OutputPath
+        PortBatchReportPath  = $uiReportResult.PortBatchReportPath
+        TemplateHelperReport = $uiReportResult.TemplateHelperReportPath
+    }
+    Write-Host ("UI smoke report written to {0}" -f $uiReportResult.OutputPath) -ForegroundColor Green
 }
 finally {
     Pop-Location

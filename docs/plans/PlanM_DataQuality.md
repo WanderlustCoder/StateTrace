@@ -1,5 +1,8 @@
 # Plan M - Data Quality & Telemetry Hygiene
 
+<!-- LANDMARK: ST-E-001 telemetry gates link -->
+Telemetry gates: [docs/telemetry/Automation_Gates.md](../telemetry/Automation_Gates.md).
+
 ## Objective
 Ensure all telemetry, rollups, and evidence bundles are clean, validated, and reproducible: no malformed JSON, no mixed debug slices, consistent hashing/README coverage, and redaction where required.
 
@@ -33,3 +36,4 @@ Ensure all telemetry, rollups, and evidence bundles are clean, validated, and re
 - `docs/plans/PlanE_Telemetry.md` (rollup and bundle expectations).
 - `docs/CODEX_SHARED_CACHE_DIAGNOSTICS.md` (analyzer outputs to include in bundles).
 - `docs/StateTrace_AI_Agent_Guide.md` (data handling / redaction).
+

@@ -1,5 +1,8 @@
 # Plan N - Documentation & Runbook Automation
 
+<!-- LANDMARK: ST-E-001 telemetry gates link -->
+Telemetry gates: [docs/telemetry/Automation_Gates.md](../telemetry/Automation_Gates.md).
+
 ## Objective
 Keep plans, task board entries, runbooks, and session logs synchronized automatically so evidence, telemetry paths, and decision records stay current without manual copy/paste.
 
@@ -31,3 +34,4 @@ Keep plans, task board entries, runbooks, and session logs synchronized automati
 - `docs/CODEX_DOC_SYNC_PLAYBOOK.md` (manual workflow to automate).
 - `docs/StateTrace_TaskBoard.md`, `docs/taskboard/TaskBoard.csv` (targets for sync).
 - `docs/adr/` (decisions to be updated when sync helper records structural changes).
+

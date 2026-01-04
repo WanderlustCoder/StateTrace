@@ -1,12 +1,15 @@
 # Plan R - Incident Response & Rollback Readiness
 
+<!-- LANDMARK: ST-E-001 telemetry gates link -->
+Telemetry gates: [docs/telemetry/Automation_Gates.md](../telemetry/Automation_Gates.md).
+
 ## Objective
 Codify fast incident response, rollback, and mitigation workflows: consistent runbooks, evidence capture, rollback bundles, and drills that keep routing/parser/UI stable under regressions.
 
 ## Current status (2025-12)
 - Incident intake template exists, but drills are ad-hoc; rollback paths (previous package, snapshot restore) are not automated.
 - NetOps/online-mode evidence requirements are documented but not enforced during incident handling.
-- No standardized “rollback bundle” capturing prior telemetry, package hashes, and configuration before reverting.
+- No standardized ???rollback bundle??? capturing prior telemetry, package hashes, and configuration before reverting.
 
 ## Active work
 | ID | Title | Owner | Status | Notes |
@@ -34,3 +37,4 @@ Codify fast incident response, rollback, and mitigation workflows: consistent ru
 - `docs/StateTrace_IncidentPostmortem_Intake.md` (intake template).
 - `docs/plans/PlanF_SecurityIdentity.md` (online-mode/evidence policies).
 - `docs/plans/PlanG_ReleaseGovernance.md` (release gating that depends on rollback readiness).
+

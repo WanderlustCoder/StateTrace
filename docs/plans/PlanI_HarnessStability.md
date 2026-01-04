@@ -1,7 +1,10 @@
 # Plan I - Harness & Gating Stability
 
+<!-- LANDMARK: ST-E-001 telemetry gates link -->
+Telemetry gates: [docs/telemetry/Automation_Gates.md](../telemetry/Automation_Gates.md).
+
 ## Objective
-Ensure cold/warm harnesses (pipeline, verification, warm-run telemetry) consistently produce bundle-ready artifacts—queue summaries, port batch/site diversity, shared-cache diagnostics, diff hotspots—without guard skips or streak failures, using the approved PowerShell 5.1 toolchain.
+Ensure cold/warm harnesses (pipeline, verification, warm-run telemetry) consistently produce bundle-ready artifacts???queue summaries, port batch/site diversity, shared-cache diagnostics, diff hotspots???without guard skips or streak failures, using the approved PowerShell 5.1 toolchain.
 
 ## Current status (2025-12)
 - Queue delay summary now emits when dispatcher sweep precedes runs; the raw synthetic dataset still skews WLLS streaks, but `-ForcePortBatchReadySynthesis` lets the guard evaluate synthesized PortBatchReady events for guarded runs.
@@ -37,8 +40,8 @@ Ensure cold/warm harnesses (pipeline, verification, warm-run telemetry) consiste
 - Bundle: `Tools\Publish-TelemetryBundle.ps1 -BundleName Release-<date> -PlanReferences PlanB,PlanI -TaskBoardIds ST-B-001,ST-I-002`.
 
 ## Telemetry gates
-- Queue delay summary present with p95 ≤ 120 ms, p99 ≤ 200 ms (fail guard otherwise).
-- Port batch diversity: max streak ≤ 8; failure blocks warm pass unless explicitly waived in plan/task updates.
+- Queue delay summary present with p95 ??? 120 ms, p99 ??? 200 ms (fail guard otherwise).
+- Port batch diversity: max streak ??? 8; failure blocks warm pass unless explicitly waived in plan/task updates.
 - Warm run: `WarmCacheHitRatioPercentRaw > 0`, provider reasons not `Unknown/SharedCacheUnavailable` for BOYO/WLLS; diff hotspot CSV emitted.
 - Shared cache: `SnapshotImported > 0`, `GetHit` improves vs `GetMiss` for BOYO/WLLS.
 
@@ -46,3 +49,4 @@ Ensure cold/warm harnesses (pipeline, verification, warm-run telemetry) consiste
 - `docs/plans/PlanB_Performance.md` (warm-run and shared-cache workstreams).
 - `docs/CODEX_RUNBOOK.md` (queue/diff/shared-cache automation matrix).
 - `docs/CODEX_SHARED_CACHE_DIAGNOSTICS.md` and `docs/notes/2025-11-07_warm-run-optimization-plan.md` for cache investigations.
+

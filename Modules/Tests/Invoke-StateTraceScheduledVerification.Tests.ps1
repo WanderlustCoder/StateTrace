@@ -43,6 +43,9 @@ param(
     [switch]$RequireTelemetryIntegrity,
     [switch]$RequireSharedCacheSnapshotGuard,
     [string]$SharedCacheSnapshotDirectory,
+    # LANDMARK: ST-B-007 shared cache diagnostics pass-through test
+    [switch]$GenerateSharedCacheDiagnostics,
+    [string]$SharedCacheDiagnosticsDirectory,
     [switch]$PassThru
 )
 
@@ -81,7 +84,8 @@ if ($PassThru) {
                 TotalRowCount = 100
             }
         }
-        SharedCacheDiagnosticsDirectory = $null
+        # LANDMARK: ST-B-007 shared cache diagnostics pass-through test
+        SharedCacheDiagnosticsDirectory = $SharedCacheDiagnosticsDirectory
         SharedCacheStoreDiagnosticsPath = $null
         SiteCacheProviderDiagnosticsPath = $null
         DiffHotspotReportPath = $null
@@ -94,7 +98,9 @@ if ($PassThru) {
         Set-Content -LiteralPath (Join-Path $sharedCacheDir 'SharedCacheSnapshot-latest-summary.json') -Value '{}' -Encoding utf8
 
         $scheduledScript = Join-Path $toolsRoot 'Invoke-StateTraceScheduledVerification.ps1'
-        & $scheduledScript -SkipParsing -SkipWarmRunAssertions -QuietSummary | Out-Null
+        # LANDMARK: Shared cache diagnostics pass-through test
+        $sharedCacheDiagnosticsDir = Join-Path -Path $logsRoot -ChildPath 'SharedCacheDiagnostics'
+        & $scheduledScript -SkipParsing -SkipWarmRunAssertions -QuietSummary -GenerateSharedCacheDiagnostics -SharedCacheDiagnosticsDirectory $sharedCacheDiagnosticsDir | Out-Null
 
         $verificationDir = Join-Path $logsRoot 'Verification'
         $summaryFiles = @(Get-ChildItem -Path $verificationDir -Filter 'VerificationSummary-*.json' -File |
@@ -106,5 +112,7 @@ if ($PassThru) {
         $summary.Status | Should Be 'Pass'
         $summary.WarmRun.Summary.ImprovementPercent | Should Be 50
         $summary.SharedCache.SummaryPath | Should Match 'SharedCacheSummary-'
+        # LANDMARK: Shared cache diagnostics pass-through test
+        $summary.SharedCacheDiagnostics.Directory | Should Be $sharedCacheDiagnosticsDir
     }
 }

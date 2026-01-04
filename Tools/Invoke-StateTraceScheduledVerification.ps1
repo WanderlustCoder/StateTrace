@@ -12,10 +12,13 @@ param(
 [int]$WarmRunMaximumSignatureMissCount,
 [int]$WarmRunMaximumSignatureRewriteTotal,
 [double]$WarmRunMaximumWarmAverageDeltaMs,
-[switch]$DisableSharedCacheSnapshot,
-[switch]$ShowSharedCacheSummary,
-[string]$SharedCacheSnapshotDirectory,
-[string]$TelemetryBundlePath,
+    [switch]$DisableSharedCacheSnapshot,
+    [switch]$ShowSharedCacheSummary,
+    [string]$SharedCacheSnapshotDirectory,
+    # LANDMARK: ST-B-007 shared cache diagnostics pass-through
+    [switch]$GenerateSharedCacheDiagnostics = $true,
+    [string]$SharedCacheDiagnosticsDirectory,
+    [string]$TelemetryBundlePath,
 [string[]]$TelemetryBundleAreas = @('Telemetry','Routing'),
 [switch]$VerifyTelemetryBundleReadiness,
 [switch]$RequireTelemetryIntegrity,
@@ -163,6 +166,13 @@ if (($resolvedTelemetryBundlePath -or $VerifyTelemetryBundleReadiness.IsPresent)
 }
 if ($SkipSharedCacheSummaryEvaluation.IsPresent) {
     $verificationParameters['SkipSharedCacheSummaryEvaluation'] = $true
+}
+# LANDMARK: ST-B-007 shared cache diagnostics pass-through
+if ($GenerateSharedCacheDiagnostics) {
+    $verificationParameters['GenerateSharedCacheDiagnostics'] = $true
+}
+if (-not [string]::IsNullOrWhiteSpace($SharedCacheDiagnosticsDirectory)) {
+    $verificationParameters['SharedCacheDiagnosticsDirectory'] = $SharedCacheDiagnosticsDirectory
 }
 # Default to requiring telemetry integrity and snapshot guard unless explicitly omitted
 if ($PSBoundParameters.ContainsKey('RequireTelemetryIntegrity')) {

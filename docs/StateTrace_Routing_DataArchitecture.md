@@ -44,6 +44,31 @@ flowchart LR
   - `Logs/Reports/RoutingRealDeviceEvidence/RoutingRealDeviceEvidence-<timestamp>.json`
   - Latest pointer: `Logs/Reports/RoutingRealDeviceEvidence/RoutingRealDeviceEvidence-latest.json`
 
+## Route definitions and detection latency
+<!-- LANDMARK: ST-A-007 route definitions -->
+- Primary route: the preferred egress path for a given site/hostname/vrf tuple, based on the current routing tables captured in RouteRecord entries.
+- Secondary route: any alternate egress path for the same tuple that is valid but not selected as the primary route.
+- DetectionLatencyMs: computed in RouteHealthSnapshot from the earliest and latest RouteRecord `CapturedAt` timestamps in the snapshot set (0 when only one record is present). See `docs/schemas/routing/RouteHealthSnapshot.md`.
+- Alignment: definitions are reflected in the RouteRecord and RouteHealthSnapshot schemas and used by the offline discovery pipeline outputs.
+
+## Routing telemetry inventory and gap analysis
+<!-- LANDMARK: ST-A-007 telemetry inventory -->
+### Inventory (offline baseline)
+- RouteRecord arrays: emitted by `Tools/Convert-RoutingDiscoveryCapture.ps1` and stored with discovery pipeline outputs.
+- RouteHealthSnapshot: emitted by `Tools/Convert-RouteRecordsToHealthSnapshot.ps1` and `Tools/Invoke-RoutingDiscoveryPipeline.ps1`.
+- RoutingDiscoveryPipelineSummary: summary JSON under `Logs/Reports/RoutingDiscoveryPipeline/`.
+- RoutingValidationRunSummary: orchestrator summary JSON under `Logs/Reports/RoutingValidationRun/`.
+- RoutingRealDeviceEvidence: operator evidence validation JSON under `Logs/Reports/RoutingRealDeviceEvidence/` (offline validation of real-device runs).
+
+### Gaps (offline phase)
+- Real-device validation evidence (ST-A-019) remains deferred until device access is approved.
+- Detection latency is derived from capture timestamps; there is no live UI freshness SLA enforcement yet.
+- No alerting thresholds are defined for routing latency beyond offline summary review.
+
+## Review status
+<!-- LANDMARK: ST-A-007 diagram review -->
+- Draft data model and service diagram (mermaid flowchart above) reviewed for offline baseline scope; recorded in `docs/agents/sessions/2026-01-02_session-0013.md`.
+
 ## Tooling map (scripts and I/O)
 - `Tools/Test-RoutingOnlineCaptureReadiness.ps1`
   - Input: RoutingCliCaptureSession manifest

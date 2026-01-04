@@ -1,5 +1,8 @@
 # Plan S - Deprecation & Unused Code Cleanup
 
+<!-- LANDMARK: ST-E-001 telemetry gates link -->
+Telemetry gates: [docs/telemetry/Automation_Gates.md](../telemetry/Automation_Gates.md).
+
 ## Objective
 Identify and remove unused code paths, scripts, feature flags, and legacy UI elements while proving no active harness, telemetry, or plans depend on them. Keep diffs small, gated by tests/smokes, and record removals for traceability.
 
@@ -35,3 +38,4 @@ Identify and remove unused code paths, scripts, feature flags, and legacy UI ele
 - `docs/plans/PlanL_ModuleDecomposition.md` (related module restructuring).
 - `docs/CODEX_RUNBOOK.md` (needs updates when flags/tools are removed).
 - `docs/StateTrace_AI_Agent_Guide.md` (documentation primacy for removals).
+

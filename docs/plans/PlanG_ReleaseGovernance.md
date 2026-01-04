@@ -1,5 +1,8 @@
 # Plan G - Release & Governance
 
+<!-- LANDMARK: ST-E-001 telemetry gates link -->
+Telemetry gates: [docs/telemetry/Automation_Gates.md](../telemetry/Automation_Gates.md).
+
 ## Objective
 Maintain a predictable release cadence, ensure warm-run verification passes before packaging, and document rollout decisions (approvals, risk assessments, governance) so every build is auditable.
 
@@ -8,7 +11,7 @@ Maintain a predictable release cadence, ensure warm-run verification passes befo
 - Governance artifacts live in `docs/RiskRegister.md`, `docs/StateTrace_Quarterly_Roadmap.md`, and `docs/StateTrace_TaskBoard.md`; Plan G must keep those aligned by mirroring TaskBoard IDs inside the roadmap and referencing the same IDs when publishing release notes.
 - Warm-run verification is part of the standard harness (`Tools/Invoke-StateTracePipeline.ps1 -RunWarmRunRegression`, `Tools/Invoke-StateTraceVerification.ps1`, `Tools/Invoke-StateTraceScheduledVerification.ps1`), yet we do not consistently archive the resulting telemetry (cold vs warm JSON, verification summaries, shared-cache summaries) in a release evidence bundle.
 - Shared cache analyzers (`Tools/Analyze-SharedCacheStoreState.ps1`, `Tools/Analyze-SiteCacheProviderReasons.ps1`) and rollups feed governance calls, but Plan G still needs a standing task that captures their output for every release candidate.
-- Plan E’s telemetry bundles and Plan B’s analyzer outputs are prerequisites for sign-off; Plan G must enforce that every candidate build references `Logs/TelemetryBundles/<date>/` (created via `Tools\Publish-TelemetryBundle.ps1`) before approvals.
+- Plan E???s telemetry bundles and Plan B???s analyzer outputs are prerequisites for sign-off; Plan G must enforce that every candidate build references `Logs/TelemetryBundles/<date>/` (created via `Tools\Publish-TelemetryBundle.ps1`) before approvals.
 
 ## Active work
 | ID | Title | Owner | Status | Notes |
@@ -29,7 +32,7 @@ Maintain a predictable release cadence, ensure warm-run verification passes befo
 
 ## Near-term execution detail
 
-### ST-G-007 — Telemetry bundle enforcement
+### ST-G-007 ??? Telemetry bundle enforcement
 - **Checklist updates:** Amend `docs/Release.md` to add a gated step titled "Telemetry Bundle Verification" that requires the current bundle folder (e.g., `Logs\TelemetryBundles\2025-11-13.1\`) plus README hash, warm/cold telemetry IDs, shared-cache analyzer filenames, diff-hotspot CSV, doc-sync checklist artifact, and routing evidence. Link this step back to TaskBoard rows ST-E-007/ST-E-009 so ownership is traceable.
 - **Routing evidence:** Every routing bundle must now include `Logs\IngestionMetrics\QueueDelaySummary-<timestamp>.json` (plus dispatcher harness outputs) so the queue-delay gate proof is immutable; `Tools\Publish-TelemetryBundle.ps1 -AreaName Routing` auto-discovers the summary file. Follow `docs/runbooks/Telemetry_Bundle_Verification.md` for the exact payload list.
 - **Automated guard:** Run `pwsh Tools\Test-TelemetryBundleReadiness.ps1 -BundlePath Logs\TelemetryBundles\<bundle> -Area Telemetry,Routing -IncludeReadmeHash -SummaryPath Logs\TelemetryBundles\<bundle>\VerificationSummary.json` (or `Tools\Invoke-AllChecks.ps1 -TelemetryBundlePath Logs\TelemetryBundles\<bundle> -RequireTelemetryBundleReady`) to scan the candidate bundle for required files, emit README hashes, and block releases when artifacts are missing. Integrate the script output with `Tools\Invoke-StateTraceVerification.ps1 -ReleaseReadiness` once CI hooks are wired up; track command usage inside this plan and `docs/CODEX_PLAN_AUTOMATION_MATRIX.md`.
@@ -84,6 +87,7 @@ Maintain a predictable release cadence, ensure warm-run verification passes befo
 - Governance + roadmap: `docs/StateTrace_Quarterly_Roadmap.md`, `docs/RiskRegister.md`, `docs/StateTrace_TaskBoard.md`, `docs/taskboard/TaskBoard.csv`.
 - Automation + doc sync guides: `docs/CODEX_PLAN_AUTOMATION_MATRIX.md`, `docs/CODEX_DOC_SYNC_PLAYBOOK.md`, `docs/CODEX_SESSION_CHECKLIST.md`, `docs/CODEX_RUNBOOK.md`.
 - Historical decisions: `docs/StateTrace_Consolidated_Plans.md` (Plan G sections).
+
 
 
 

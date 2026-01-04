@@ -1,5 +1,8 @@
 # Plan P - Packaging & Deployment Reliability
 
+<!-- LANDMARK: ST-E-001 telemetry gates link -->
+Telemetry gates: [docs/telemetry/Automation_Gates.md](../telemetry/Automation_Gates.md).
+
 ## Objective
 Make packaging, signing, and deployment of StateTrace predictable and reproducible: stable artifacts, consistent versioning, verifiable hashes, and installer smoke tests that match release gates.
 
@@ -33,3 +36,4 @@ Make packaging, signing, and deployment of StateTrace predictable and reproducib
 - `docs/plans/PlanG_ReleaseGovernance.md` (release gates).
 - `docs/CODEX_RUNBOOK.md` (bundle/release automation).
 - `Tools/Pack-StateTrace.ps1` (packaging entrypoint to extend).
+

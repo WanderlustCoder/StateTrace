@@ -1,5 +1,8 @@
 # Plan K - Developer Experience & CI Readiness
 
+<!-- LANDMARK: ST-E-001 telemetry gates link -->
+Telemetry gates: [docs/telemetry/Automation_Gates.md](../telemetry/Automation_Gates.md).
+
 ## Objective
 Deliver a repeatable, offline-friendly developer experience and minimal CI harness that exercises parser, warm-run, and UI smoke paths on tracked fixtures under PowerShell 5.1 and 7, producing telemetry artifacts ready for Plans E/G without manual cleanup.
 
@@ -39,3 +42,4 @@ Deliver a repeatable, offline-friendly developer experience and minimal CI harne
 - `docs/CODEX_RUNBOOK.md` (automation matrix and bundle workflow).
 - `docs/plans/PlanI_HarnessStability.md` (guard health expectations).
 - `docs/plans/PlanJ_TestFixtureReliability.md` (fixture seeds relied on by CI).
+

@@ -343,6 +343,8 @@ $shouldGenerateDiffHotspots = $GenerateDiffHotspotReport.IsPresent -or -not [str
 $sharedCacheDiagnosticsDirectoryResolved = $null
 $sharedCacheStoreDiagnosticsPath = $null
 $siteCacheProviderDiagnosticsPath = $null
+    # LANDMARK: ST-B-007 shared cache diagnostics gating - evaluation state
+$sharedCacheDiagnosticsEvaluation = $null
 $shouldGenerateSharedCacheDiagnostics = $GenerateSharedCacheDiagnostics.IsPresent -or -not [string]::IsNullOrWhiteSpace($SharedCacheDiagnosticsDirectory)
 $warmRunEvaluation = $null
 $sharedCacheSnapshotDirectoryUsed = $null
@@ -661,6 +663,8 @@ if ($shouldGenerateSharedCacheDiagnostics) {
             throw "Unable to locate Analyze-SiteCacheProviderReasons.ps1 at '$siteCacheProviderScript'."
         }
 
+        $storeSummary = $null
+        $providerSummary = $null
         try {
             $storeSummary = & $sharedCacheStoreScript -Path $queueMetricsPathUsed -IncludeSiteBreakdown
             $sharedCacheStoreDiagnosticsPath = Join-Path -Path $sharedCacheDiagnosticsDirectoryResolved -ChildPath ("SharedCacheStoreState-{0}.json" -f $diagTimestamp)
@@ -681,6 +685,14 @@ if ($shouldGenerateSharedCacheDiagnostics) {
             }
         } catch {
             throw ("Failed to generate site cache provider diagnostics: {0}" -f $_.Exception.Message)
+        }
+
+        # LANDMARK: ST-B-007 shared cache diagnostics gating - fail on snapshot/import or access refresh
+        Ensure-VerificationModuleLoaded -ModulePath $verificationModulePath
+        $sharedCacheDiagnosticsEvaluation = VerificationModule\Test-SharedCacheDiagnostics -StoreSummary $storeSummary -ProviderSummary $providerSummary
+        if (-not $sharedCacheDiagnosticsEvaluation.Pass) {
+            $failureSummary = $sharedCacheDiagnosticsEvaluation.Messages -join ' '
+            throw ("Shared-cache diagnostics failed: {0}" -f $failureSummary)
         }
     }
 }
@@ -875,6 +887,8 @@ if ($PassThru.IsPresent) {
         SharedCacheDiagnosticsDirectory = $sharedCacheDiagnosticsDirectoryResolved
         SharedCacheStoreDiagnosticsPath = $sharedCacheStoreDiagnosticsPath
         SiteCacheProviderDiagnosticsPath = $siteCacheProviderDiagnosticsPath
+        # LANDMARK: ST-B-007 shared cache diagnostics gating - surface evaluation
+        SharedCacheDiagnosticsEvaluation = $sharedCacheDiagnosticsEvaluation
         DiffHotspotReportPath = $diffHotspotReportPath
         TelemetryBundleReadiness = $bundleReadinessResults
         Parameters           = $pipelineParameters

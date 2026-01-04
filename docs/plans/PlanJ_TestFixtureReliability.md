@@ -1,5 +1,8 @@
 # Plan J - Test & Fixture Reliability
 
+<!-- LANDMARK: ST-E-001 telemetry gates link -->
+Telemetry gates: [docs/telemetry/Automation_Gates.md](../telemetry/Automation_Gates.md).
+
 ## Objective
 Eliminate hidden fixture dependencies (missing mock logs, polluted telemetry files) and ensure harness/tests run reproducibly under PowerShell 5.1 with only repository-tracked assets.
 
@@ -31,3 +34,4 @@ Eliminate hidden fixture dependencies (missing mock logs, polluted telemetry fil
 ## References
 - `docs/plans/PlanB_Performance.md` (warm-run/telemetry context).
 - `docs/plans/PlanI_HarnessStability.md` (guard health).
+
