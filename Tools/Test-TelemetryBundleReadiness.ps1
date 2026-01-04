@@ -63,7 +63,8 @@ function Resolve-AreaContexts {
     if (Test-Path -LiteralPath $manifestPath) {
         $manifest = Read-ToolingJson -Path $manifestPath -Label 'Telemetry bundle manifest'
         $areaName = if ($manifest.AreaName) { $manifest.AreaName } else { 'Telemetry' }
-        if ($RequestedAreas -and $RequestedAreas.Count -gt 0 -and ($RequestedAreas -notcontains $areaName)) {
+        # Use @() wrapper for PowerShell 5.1 compatibility (string[] parameters can be scalars)
+        if ($RequestedAreas -and @($RequestedAreas).Count -gt 0 -and ($RequestedAreas -notcontains $areaName)) {
             Write-Warning "Bundle path '$bundleFullPath' points to area '$areaName'. Ignoring requested areas '$($RequestedAreas -join ', ')'."
         }
         if (-not $AreaDefinitions.ContainsKey($areaName)) {
@@ -77,13 +78,14 @@ function Resolve-AreaContexts {
     }
     else {
         $areasToInspect = $RequestedAreas
-        if (-not $areasToInspect -or $areasToInspect.Count -eq 0) {
-            $areasToInspect = Get-ChildItem -LiteralPath $bundleFullPath -Directory -ErrorAction Stop |
+        # Use @() wrapper for PowerShell 5.1 compatibility
+        if (-not $areasToInspect -or @($areasToInspect).Count -eq 0) {
+            $areasToInspect = @(Get-ChildItem -LiteralPath $bundleFullPath -Directory -ErrorAction Stop |
                 Where-Object { $AreaDefinitions.ContainsKey($_.Name) } |
-                Select-Object -ExpandProperty Name
+                Select-Object -ExpandProperty Name)
         }
 
-        if (-not $areasToInspect -or $areasToInspect.Count -eq 0) {
+        if (-not $areasToInspect -or @($areasToInspect).Count -eq 0) {
             throw "Bundle '$bundleFullPath' does not contain any known telemetry areas (Telemetry or Routing)."
         }
 

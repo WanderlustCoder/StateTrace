@@ -191,7 +191,8 @@ $schedulerComparisonJson = Get-OptionalArtifacts -Directory $HistoryDirectory -F
 $schedulerComparisonMarkdown = Get-OptionalArtifacts -Directory $PerformanceDocsDirectory -Filter @($SchedulerDiversityMarkdownFilter) -Description 'Scheduler vs Port (Markdown)'
 
 # LANDMARK: Publish telemetry bundle - auto-select latest session log for doc-sync evidence
-if (-not $DocSyncPath -or $DocSyncPath.Count -eq 0) {
+# Use @() wrapper for PowerShell 5.1 compatibility (string parameters lack .Count)
+if (-not $DocSyncPath -or @($DocSyncPath).Count -eq 0) {
     if (Test-Path -LiteralPath $DocSyncDirectory) {
         $latestSession = Get-ChildItem -LiteralPath $DocSyncDirectory -Filter '*.md' -File |
             Sort-Object LastWriteTime -Descending |
@@ -228,14 +229,16 @@ if (@($resolvedRollup).Count -gt 0) { $bundleParams['RollupPath'] = $resolvedRol
 if (@($DocSyncPath).Count -gt 0) { $bundleParams['DocSyncPath'] = $DocSyncPath }
 if (@($resolvedQueueSummary).Count -gt 0) { $bundleParams['QueueSummaryPath'] = $resolvedQueueSummary }
 $aggregatedAdditional = [System.Collections.Generic.List[string]]::new()
-if (@($historyFiles).Count -gt 0) { foreach ($f in $historyFiles) { $aggregatedAdditional.Add($f) } }
-if (@($schedulerComparisonJson).Count -gt 0) { foreach ($f in @($schedulerComparisonJson)) { $aggregatedAdditional.Add($f) } }
-if (@($schedulerComparisonMarkdown).Count -gt 0) { foreach ($f in @($schedulerComparisonMarkdown)) { $aggregatedAdditional.Add($f) } }
-if (@($AdditionalPath).Count -gt 0) { foreach ($f in @($AdditionalPath)) { $aggregatedAdditional.Add($f) } }
+# Use foreach for safe iteration (handles scalars and arrays in PS5.1)
+foreach ($f in $historyFiles) { if ($f) { $aggregatedAdditional.Add($f) } }
+foreach ($f in $schedulerComparisonJson) { if ($f) { $aggregatedAdditional.Add($f) } }
+foreach ($f in $schedulerComparisonMarkdown) { if ($f) { $aggregatedAdditional.Add($f) } }
+foreach ($f in $AdditionalPath) { if ($f) { $aggregatedAdditional.Add($f) } }
 if ($aggregatedAdditional.Count -gt 0) { $bundleParams['AdditionalPath'] = $aggregatedAdditional }
-if (@($PlanReferences).Count -gt 0) { $bundleParams['PlanReferences'] = $PlanReferences }
-if (@($TaskBoardIds).Count -gt 0) { $bundleParams['TaskBoardIds'] = $TaskBoardIds }
-if (@($RiskRegisterEntries).Count -gt 0) { $bundleParams['RiskRegisterEntries'] = $RiskRegisterEntries }
+# Use $null check for PS5.1 compatibility with string[] parameters
+if ($PlanReferences -and ($PlanReferences -is [array] -or -not [string]::IsNullOrWhiteSpace($PlanReferences))) { $bundleParams['PlanReferences'] = @($PlanReferences) }
+if ($TaskBoardIds -and ($TaskBoardIds -is [array] -or -not [string]::IsNullOrWhiteSpace($TaskBoardIds))) { $bundleParams['TaskBoardIds'] = @($TaskBoardIds) }
+if ($RiskRegisterEntries -and ($RiskRegisterEntries -is [array] -or -not [string]::IsNullOrWhiteSpace($RiskRegisterEntries))) { $bundleParams['RiskRegisterEntries'] = @($RiskRegisterEntries) }
 if ($Notes) { $bundleParams['Notes'] = $Notes }
 if ($PassThru -or $VerifyPlanHReadiness) { $bundleParams['PassThru'] = $true }
 

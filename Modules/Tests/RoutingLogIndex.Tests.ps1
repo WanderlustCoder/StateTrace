@@ -40,9 +40,10 @@ Describe 'Routing log index' {
         $result.Counts.ValidationRuns | Should Be 1
         $result.Counts.Pipelines | Should Be 1
         $result.Counts.Diffs | Should Be 1
-        ($result.Entries | Where-Object { $_.Type -eq 'RoutingValidationRunSummary' }).Count | Should Be 1
-        ($result.Entries | Where-Object { $_.Type -eq 'RoutingDiscoveryPipelineSummary' }).Count | Should Be 1
-        ($result.Entries | Where-Object { $_.Type -eq 'RoutingDiff' }).Count | Should Be 1
+        # Wrap in @() for PowerShell 5.1 compatibility (Where-Object can return scalar)
+        @($result.Entries | Where-Object { $_.Type -eq 'RoutingValidationRunSummary' }).Count | Should Be 1
+        @($result.Entries | Where-Object { $_.Type -eq 'RoutingDiscoveryPipelineSummary' }).Count | Should Be 1
+        @($result.Entries | Where-Object { $_.Type -eq 'RoutingDiff' }).Count | Should Be 1
     }
 
     It 'fails when no summary files are found' {

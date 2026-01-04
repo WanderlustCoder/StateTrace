@@ -613,7 +613,8 @@ if ($selectProvided) {
 
 if ($null -eq $selectionIndex) {
     # LANDMARK: Routing log explorer - list projection and deterministic selection semantics
-    $listEntries = if ($Top -gt 0) { @($entries | Select-Object -First $Top) } else { @() }
+    # Wrap entire conditional in @() to ensure array result (PowerShell 5.1 quirk)
+    $listEntries = @(if ($Top -gt 0) { $entries | Select-Object -First $Top } else { @() })
     $listRows = New-Object System.Collections.Generic.List[object]
     for ($i = 0; $i -lt $listEntries.Count; $i++) {
         $item = $listEntries[$i]

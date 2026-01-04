@@ -456,7 +456,8 @@ if ($Format -eq 'Console') {
     if ($summary.Vendor) { Write-Host ("  Vendor : {0}" -f $summary.Vendor) }
     if ($summary.Vrf) { Write-Host ("  Vrf    : {0}" -f $summary.Vrf) }
     Write-Host ("  Hosts  : {0} (Pass {1}, Fail {2})" -f $hostCount, $passCount, $failCount)
-    if ($hostRows.Count -gt 0) {
+    # Use defensive count check (PowerShell 5.1 returns scalars for single-item collections)
+    if ($hostRows -and @($hostRows).Count -gt 0) {
         $hostRows | Select-Object Hostname, Status, IngestionSummaryPath, PipelineSummaryPath | Format-Table -AutoSize | Out-String | Write-Host
     }
 } elseif ($Format -eq 'Markdown') {
