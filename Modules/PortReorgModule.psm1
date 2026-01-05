@@ -294,7 +294,7 @@ function New-PortReorgScripts {
         [Parameter(Mandatory)][object[]]$PlanRows,
         [ValidateSet('Cisco','Brocade')][string]$Vendor,
         [object[]]$BaselineInterfaces,
-        [int]$ChunkSize = 12
+        [int]$ChunkSize = 0
     )
 
     $rows = @($PlanRows)

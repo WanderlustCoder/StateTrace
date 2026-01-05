@@ -247,8 +247,6 @@ function Show-PortReorgWindow {
     $hostnameText = $win.FindName('ReorgHostnameText')
     $vendorText = $win.FindName('ReorgVendorText')
     $statusText = $win.FindName('ReorgStatusText')
-    $chunkBy12 = $win.FindName('ReorgChunkBy12CheckBox')
-    $chunkSizeBox = $win.FindName('ReorgChunkSizeBox')
     $pagedViewCheckBox = $win.FindName('ReorgPagedViewCheckBox')
     $pagePrevButton = $win.FindName('ReorgPagePrevButton')
     $pageComboBox = $win.FindName('ReorgPageComboBox')
@@ -422,6 +420,8 @@ function Show-PortReorgWindow {
         PageNumber        = 1
         PageCount         = 1
         SuppressPageEvent = $false
+        OrderedRows       = $orderedRows
+        VisibleRows       = $visibleRows
     }
 
     if ($pagingIsAvailable) {
@@ -535,9 +535,8 @@ function Show-PortReorgWindow {
     }.GetNewClosure()
 
     $updateVisibleRowsForCurrentPage = {
-        $isEnabled = $false
-        try { $isEnabled = [bool]$pagingState.Enabled } catch { $isEnabled = $false }
-        if (-not $isEnabled) { return }
+        # Note: Callers (refreshGrid, setPagingEnabled) already verify paging is enabled
+        # before invoking this function, so no early return check is needed here.
 
         # LANDMARK: ST-D-011 paging slice usage
         $rowCount = 0
@@ -640,12 +639,40 @@ function Show-PortReorgWindow {
         try { & $rebuildPageChoices } catch { }
         try { & $setPagingControlsVisible -Enabled ($pagingState.Enabled -eq $true) } catch { }
         if ($pagingState.Enabled -eq $true) {
-            try { & $updateVisibleRowsForCurrentPage } catch { }
+            # Inline slice calculation to avoid any function call or closure issues
+            try {
+                $srcRows = $pagingState.OrderedRows
+                $dstRows = $pagingState.VisibleRows
+                $total = 0
+                if ($srcRows) { $total = $srcRows.Count }
+                $pageSize = [int]$pagingState.PageSize
+                if ($pageSize -lt 1) { $pageSize = 12 }
+                $pageNumber = [int]$pagingState.PageNumber
+
+                $pageCount = 1
+                if ($total -gt 0) { $pageCount = [int][Math]::Ceiling($total / [double]$pageSize) }
+                if ($pageCount -lt 1) { $pageCount = 1 }
+                if ($pageNumber -lt 1) { $pageNumber = 1 }
+                if ($pageNumber -gt $pageCount) { $pageNumber = $pageCount }
+
+                $startIdx = ($pageNumber - 1) * $pageSize
+                $endIdx = [Math]::Min($total - 1, $startIdx + $pageSize - 1)
+
+                $pagingState.PageNumber = $pageNumber
+                $pagingState.PageCount = $pageCount
+
+                $dstRows.Clear()
+                if ($total -gt 0 -and $endIdx -ge $startIdx) {
+                    for ($idx = $startIdx; $idx -le $endIdx; $idx++) {
+                        $dstRows.Add($srcRows[$idx]) | Out-Null
+                    }
+                }
+            } catch { }
             try { & $updatePagingControls } catch { }
             # ST-D-012: Update grid to use visibleRows when paging is initially enabled
             try {
                 $grid.ItemsSource = $null
-                $grid.ItemsSource = $visibleRows
+                $grid.ItemsSource = $pagingState.VisibleRows
             } catch { }
         }
     }
@@ -766,12 +793,38 @@ function Show-PortReorgWindow {
             $itemsSource = $rows
             if ($pagingIsAvailable -and ($pagingState.Enabled -eq $true)) {
                 try {
-                    & $updateVisibleRowsForCurrentPage
+                    # Inline slice calculation to avoid any function call or closure issues
+                    $srcRows = $pagingState.OrderedRows
+                    $dstRows = $pagingState.VisibleRows
+                    $total = 0
+                    if ($srcRows) { $total = $srcRows.Count }
+                    $pageSize = [int]$pagingState.PageSize
+                    if ($pageSize -lt 1) { $pageSize = 12 }
+                    $pageNumber = [int]$pagingState.PageNumber
+
+                    $pageCount = 1
+                    if ($total -gt 0) { $pageCount = [int][Math]::Ceiling($total / [double]$pageSize) }
+                    if ($pageCount -lt 1) { $pageCount = 1 }
+                    if ($pageNumber -lt 1) { $pageNumber = 1 }
+                    if ($pageNumber -gt $pageCount) { $pageNumber = $pageCount }
+
+                    $startIdx = ($pageNumber - 1) * $pageSize
+                    $endIdx = [Math]::Min($total - 1, $startIdx + $pageSize - 1)
+
+                    $pagingState.PageNumber = $pageNumber
+                    $pagingState.PageCount = $pageCount
+
+                    $dstRows.Clear()
+                    if ($total -gt 0 -and $endIdx -ge $startIdx) {
+                        for ($idx = $startIdx; $idx -le $endIdx; $idx++) {
+                            $dstRows.Add($srcRows[$idx]) | Out-Null
+                        }
+                    }
                 } catch {
                     try { & $setStatus ("Paging error: {0}" -f $_.Exception.Message) '' } catch { }
                 }
-                $itemsSource = $visibleRows
-                try { & $setStatus ("Page {0}/{1} ({2} of {3} ports)" -f $pagingState.PageNumber, $pagingState.PageCount, $visibleRows.Count, $orderedRows.Count) '' } catch { }
+                $itemsSource = $pagingState.VisibleRows
+                try { & $setStatus ("Page {0}/{1} ({2} of {3} ports)" -f $pagingState.PageNumber, $pagingState.PageCount, $pagingState.VisibleRows.Count, $pagingState.OrderedRows.Count) '' } catch { }
             }
 
             $grid.ItemsSource = $null
@@ -845,7 +898,7 @@ function Show-PortReorgWindow {
             if ($selectedRow) {
                 try { $pagingState.PageNumber = & $getPageForRow $selectedRow } catch { $pagingState.PageNumber = 1 }
             }
-            try { & $updateVisibleRowsForCurrentPage } catch { }
+            # Note: refreshGrid now calculates the slice directly, no need to call updateVisibleRowsForCurrentPage here
         }
 
         try { & $refreshGrid } catch { }
@@ -1735,20 +1788,6 @@ function Show-PortReorgWindow {
                 return
             }
 
-            $chunkEnabled = $false
-            if ($chunkBy12) {
-                # Handle nullable boolean from WPF CheckBox
-                $checked = $chunkBy12.IsChecked
-                $chunkEnabled = ($null -ne $checked -and $checked -eq $true)
-            }
-            $chunkSize = 0
-            if ($chunkEnabled) {
-                $raw = if ($chunkSizeBox) { ('' + $chunkSizeBox.Text).Trim() } else { '12' }
-                [void][int]::TryParse($raw, [ref]$chunkSize)
-                if ($chunkSize -lt 1) { $chunkSize = 12 }
-            }
-            $chunkArg = if ($chunkEnabled) { $chunkSize } else { 0 }
-
             $planRows = [System.Collections.Generic.List[object]]::new()
             foreach ($r in $rows) {
                 $planRows.Add([PSCustomObject]@{
@@ -1758,7 +1797,7 @@ function Show-PortReorgWindow {
                 }) | Out-Null
             }
 
-            $scripts = PortReorgModule\New-PortReorgScripts -Hostname $hostTrim -PlanRows $planRows.ToArray() -BaselineInterfaces $interfaces -Vendor $vendor -ChunkSize $chunkArg
+            $scripts = PortReorgModule\New-PortReorgScripts -Hostname $hostTrim -PlanRows $planRows.ToArray() -BaselineInterfaces $interfaces -Vendor $vendor -ChunkSize 0
 
             $change = ''
             $rollback = ''
@@ -1770,8 +1809,7 @@ function Show-PortReorgWindow {
             if ($rollbackBox) { $rollbackBox.Text = $rollback }
             try { $uiState.ScriptsAreCurrent = $true } catch { }
             try { & $updateScriptControls } catch { }
-            $chunkMsg = if ($chunkEnabled) { " (chunked by {0})" -f $chunkArg } else { '' }
-            & $setStatus ("Scripts generated{0}." -f $chunkMsg) ''
+            & $setStatus 'Scripts generated.' ''
         } catch {
             try { $uiState.ScriptsAreCurrent = $false } catch { }
             try { & $updateScriptControls } catch { }
@@ -1782,8 +1820,6 @@ function Show-PortReorgWindow {
     if ($suggestBtn) { $suggestBtn.Add_Click($suggestAction.GetNewClosure()) }
     if ($resetBtn) { $resetBtn.Add_Click($resetAction.GetNewClosure()) }
     if ($generateBtn) { $generateBtn.Add_Click($generateAction.GetNewClosure()) }
-    if ($chunkBy12) { $chunkBy12.Add_Click({ try { & $markScriptsDirty } catch { } }.GetNewClosure()) }
-    if ($chunkSizeBox) { $chunkSizeBox.Add_TextChanged({ try { & $markScriptsDirty } catch { } }.GetNewClosure()) }
 
     if ($pagedViewCheckBox) {
         $pagedViewCheckBox.Add_Click({

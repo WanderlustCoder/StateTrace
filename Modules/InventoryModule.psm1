@@ -997,9 +997,9 @@ function Get-FirmwareComplianceSummary {
     [CmdletBinding()]
     param()
 
-    $total = ($script:AssetDatabase | Where-Object { $_.FirmwareVersion }).Count
-    $belowMinimum = (Get-DevicesBelowMinimumFirmware).Count
-    $vulnerable = (Get-VulnerableDevices).Count
+    $total = @($script:AssetDatabase | Where-Object { $_.FirmwareVersion }).Count
+    $belowMinimum = @(Get-DevicesBelowMinimumFirmware).Count
+    $vulnerable = @(Get-VulnerableDevices).Count
     $compliant = $total - $belowMinimum
 
     $compliancePercent = 0
@@ -1532,7 +1532,7 @@ function Get-InventorySummary {
     [CmdletBinding()]
     param()
 
-    $assets = $script:AssetDatabase
+    $assets = @($script:AssetDatabase)
 
     $summary = [PSCustomObject]@{
         TotalDevices = $assets.Count

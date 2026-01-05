@@ -24,23 +24,6 @@
       <TextBlock Text="Vendor:" Margin="0,0,4,0" VerticalAlignment="Center"/>
       <TextBlock Name="ReorgVendorText" FontWeight="Bold" Margin="0,0,20,0" VerticalAlignment="Center"/>
 
-      <CheckBox Name="ReorgChunkBy12CheckBox"
-                Content="Chunk scripts"
-                IsChecked="True"
-                Margin="0,0,8,0"
-                VerticalAlignment="Center"
-                ToolTip="Group generated scripts into numbered blocks"/>
-      <TextBox Name="ReorgChunkSizeBox"
-               Width="35"
-               Text="12"
-               Margin="0,0,20,0"
-               VerticalAlignment="Center"
-               ToolTip="Chunk size for script output"
-               Background="{DynamicResource Theme.Input.Background}"
-               Foreground="{DynamicResource Theme.Input.Text}"
-               BorderBrush="{DynamicResource Theme.Input.Border}"
-               BorderThickness="1"/>
-
       <TextBlock Text="Search:" Margin="0,0,4,0" VerticalAlignment="Center"/>
       <TextBox Name="ReorgSearchBox"
                Width="100"

@@ -20,20 +20,16 @@ function New-InventoryView {
         Creates and initializes the Inventory view.
     #>
     [CmdletBinding()]
-    param()
-
-    $xamlPath = Join-Path $PSScriptRoot '..\Views\InventoryView.xaml'
-    if (-not (Test-Path $xamlPath)) {
-        Write-Warning "InventoryView.xaml not found at: $xamlPath"
-        return $null
-    }
-
-    $xamlContent = Get-Content -Path $xamlPath -Raw
+    param(
+        [Parameter(Mandatory=$true)][System.Windows.Window]$Window,
+        [Parameter(Mandatory=$true)][string]$ScriptDir
+    )
 
     # Load XAML using ViewCompositionModule pattern
-    $view = New-ViewFromXaml -XamlContent $xamlContent
+    $view = ViewCompositionModule\Set-StView -Window $Window -ScriptDir $ScriptDir `
+        -ViewName 'InventoryView' -HostControlName 'InventoryHost' `
+        -GlobalVariableName 'inventoryView'
     if (-not $view) {
-        Write-Warning "Failed to create Inventory view from XAML"
         return $null
     }
 

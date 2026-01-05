@@ -919,7 +919,8 @@ function Initialize-View {
     }
 
     # Splat only what the command actually supports
-    $params = @{ Window = $Window }
+    $params = @{}
+    if ($cmd.Parameters.ContainsKey('Window')) { $params.Window = $Window }
     if ($cmd.Parameters.ContainsKey('ScriptDir')) { $params.ScriptDir = $ScriptDir }
 
     try { & $CommandName @params | Out-Null }

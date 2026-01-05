@@ -148,8 +148,8 @@ function New-IPAMView {
             }
         }
 
-        # Helper: Save database
-        function Save-Database {
+        # Helper: Save database (scriptblock for closure capture)
+        $saveDatabase = {
             $dataPath = $view.Tag.DataPath
             $db = $view.Tag.Database
             try {
@@ -165,8 +165,8 @@ function New-IPAMView {
             }
         }
 
-        # Helper: Refresh site filter
-        function Refresh-SiteFilter {
+        # Helper: Refresh site filter (scriptblock for closure capture)
+        $refreshSiteFilter = {
             $db = $view.Tag.Database
             $stats = IPAMModule\Get-IPAMStats -Database $db
             $sites = @('(All Sites)') + @($stats.Sites | Where-Object { $_ })
@@ -176,8 +176,8 @@ function New-IPAMView {
             }
         }
 
-        # Helper: Get current site filter
-        function Get-SiteFilter {
+        # Helper: Get current site filter (scriptblock for closure capture)
+        $getSiteFilter = {
             $selected = $siteFilterCombo.SelectedItem
             if ($selected -and $selected -ne '(All Sites)') {
                 return $selected
@@ -185,31 +185,31 @@ function New-IPAMView {
             return $null
         }
 
-        # Helper: Refresh VLAN grid
-        function Refresh-VlanGrid {
+        # Helper: Refresh VLAN grid (scriptblock for closure capture)
+        $refreshVlanGrid = {
             $db = $view.Tag.Database
-            $site = Get-SiteFilter
+            $site = & $getSiteFilter
             $vlans = @(IPAMModule\Get-VLANRecord -Database $db -Site $site)
             $vlanGrid.ItemsSource = $vlans
         }
 
-        # Helper: Refresh Subnet grid
-        function Refresh-SubnetGrid {
+        # Helper: Refresh Subnet grid (scriptblock for closure capture)
+        $refreshSubnetGrid = {
             $db = $view.Tag.Database
-            $site = Get-SiteFilter
+            $site = & $getSiteFilter
             $subnets = @(IPAMModule\Get-SubnetRecord -Database $db -Site $site)
             $subnetGrid.ItemsSource = $subnets
         }
 
-        # Helper: Refresh IP grid
-        function Refresh-IPGrid {
+        # Helper: Refresh IP grid (scriptblock for closure capture)
+        $refreshIPGrid = {
             $db = $view.Tag.Database
             $ips = @(IPAMModule\Get-IPAddressRecord -Database $db)
             $ipGrid.ItemsSource = $ips
         }
 
-        # Helper: Refresh conflicts
-        function Refresh-Conflicts {
+        # Helper: Refresh conflicts (scriptblock for closure capture)
+        $refreshConflicts = {
             $db = $view.Tag.Database
             $conflicts = @(IPAMModule\Find-IPAMConflicts -Database $db)
             $conflictsGrid.ItemsSource = $conflicts
@@ -219,8 +219,8 @@ function New-IPAMView {
             $conflictSummaryText.Text = "Found $($conflicts.Count) conflicts ($critical critical, $warning warnings)"
         }
 
-        # Helper: Refresh statistics
-        function Refresh-Stats {
+        # Helper: Refresh statistics (scriptblock for closure capture)
+        $refreshStats = {
             $db = $view.Tag.Database
             $stats = IPAMModule\Get-IPAMStats -Database $db
 
@@ -229,38 +229,43 @@ function New-IPAMView {
             $totalHostsText.Text = "Total Allocated Hosts: $($stats.TotalAllocatedHosts)"
             $totalIPsText.Text = "Total IP Records: $($stats.TotalIPAddresses)"
 
-            if ($stats.Sites.Count -gt 0) {
-                $sitesListText.Text = "Sites: $($stats.Sites -join ', ')"
+            $sites = @($stats.Sites)
+            if ($sites.Count -gt 0) {
+                $sitesListText.Text = "Sites: $($sites -join ', ')"
             } else {
                 $sitesListText.Text = "Sites: (none)"
             }
 
             # VLAN by purpose
             $vlanPurposeList = @()
-            foreach ($key in $stats.VLANsByPurpose.Keys) {
-                $vlanPurposeList += [PSCustomObject]@{ Key = $key; Value = $stats.VLANsByPurpose[$key] }
+            if ($stats.VLANsByPurpose) {
+                foreach ($key in $stats.VLANsByPurpose.Keys) {
+                    $vlanPurposeList += [PSCustomObject]@{ Key = $key; Value = $stats.VLANsByPurpose[$key] }
+                }
             }
             $vlansByPurposeList.ItemsSource = $vlanPurposeList
 
             # Subnet by purpose
             $subnetPurposeList = @()
-            foreach ($key in $stats.SubnetsByPurpose.Keys) {
-                $subnetPurposeList += [PSCustomObject]@{ Key = $key; Value = $stats.SubnetsByPurpose[$key] }
+            if ($stats.SubnetsByPurpose) {
+                foreach ($key in $stats.SubnetsByPurpose.Keys) {
+                    $subnetPurposeList += [PSCustomObject]@{ Key = $key; Value = $stats.SubnetsByPurpose[$key] }
+                }
             }
             $subnetsByPurposeList.ItemsSource = $subnetPurposeList
         }
 
-        # Helper: Refresh all grids
-        function Refresh-All {
-            Refresh-SiteFilter
-            Refresh-VlanGrid
-            Refresh-SubnetGrid
-            Refresh-IPGrid
-            Refresh-Stats
+        # Helper: Refresh all grids (scriptblock for closure capture)
+        $refreshAll = {
+            & $refreshSiteFilter
+            & $refreshVlanGrid
+            & $refreshSubnetGrid
+            & $refreshIPGrid
+            & $refreshStats
         }
 
-        # Helper: Clear VLAN details
-        function Clear-VlanDetails {
+        # Helper: Clear VLAN details (scriptblock for closure capture)
+        $clearVlanDetails = {
             $vlanNumberBox.Text = ''
             $vlanNameBox.Text = ''
             $vlanPurposeCombo.SelectedIndex = 0
@@ -272,8 +277,8 @@ function New-IPAMView {
             $view.Tag.IsNewVlan = $true
         }
 
-        # Helper: Show VLAN details
-        function Show-VlanDetails {
+        # Helper: Show VLAN details (scriptblock for closure capture)
+        $showVlanDetails = {
             param($Vlan)
             if ($Vlan) {
                 $view.Tag.SelectedVlan = $Vlan
@@ -288,8 +293,8 @@ function New-IPAMView {
             }
         }
 
-        # Helper: Clear subnet details
-        function Clear-SubnetDetails {
+        # Helper: Clear subnet details (scriptblock for closure capture)
+        $clearSubnetDetails = {
             $subnetAddressBox.Text = ''
             $subnetPrefixBox.Text = '24'
             $subnetVlanBox.Text = ''
@@ -304,8 +309,8 @@ function New-IPAMView {
             $view.Tag.IsNewSubnet = $true
         }
 
-        # Helper: Show subnet details
-        function Show-SubnetDetails {
+        # Helper: Show subnet details (scriptblock for closure capture)
+        $showSubnetDetails = {
             param($Subnet)
             if ($Subnet) {
                 $view.Tag.SelectedSubnet = $Subnet
@@ -323,8 +328,8 @@ function New-IPAMView {
             }
         }
 
-        # Helper: Update subnet calculation display
-        function Update-SubnetCalc {
+        # Helper: Update subnet calculation display (scriptblock for closure capture)
+        $updateSubnetCalc = {
             $network = $subnetAddressBox.Text
             $prefixText = $subnetPrefixBox.Text
             if ([string]::IsNullOrWhiteSpace($network) -or [string]::IsNullOrWhiteSpace($prefixText)) {
@@ -348,8 +353,8 @@ function New-IPAMView {
             }
         }
 
-        # Helper: Clear IP details
-        function Clear-IPDetails {
+        # Helper: Clear IP details (scriptblock for closure capture)
+        $clearIPDetails = {
             $ipAddressBox.Text = ''
             $ipDeviceBox.Text = ''
             $ipInterfaceBox.Text = ''
@@ -359,8 +364,8 @@ function New-IPAMView {
             $view.Tag.IsNewIP = $true
         }
 
-        # Helper: Show IP details
-        function Show-IPDetails {
+        # Helper: Show IP details (scriptblock for closure capture)
+        $showIPDetails = {
             param($IP)
             if ($IP) {
                 $view.Tag.SelectedIP = $IP
@@ -376,7 +381,7 @@ function New-IPAMView {
         # Event: Add VLAN button
         $addVlanButton.Add_Click({
             param($sender, $e)
-            Clear-VlanDetails
+            & $clearVlanDetails
             $mainTabControl.SelectedIndex = 0  # Switch to VLANs tab
             $vlanGrid.SelectedItem = $null
             $statusText.Text = "New VLAN - fill in details and click Save"
@@ -385,7 +390,7 @@ function New-IPAMView {
         # Event: Add Subnet button
         $addSubnetButton.Add_Click({
             param($sender, $e)
-            Clear-SubnetDetails
+            & $clearSubnetDetails
             $mainTabControl.SelectedIndex = 1  # Switch to Subnets tab
             $subnetGrid.SelectedItem = $null
             $statusText.Text = "New Subnet - fill in details and click Save"
@@ -394,7 +399,7 @@ function New-IPAMView {
         # Event: Add IP button
         $addIPButton.Add_Click({
             param($sender, $e)
-            Clear-IPDetails
+            & $clearIPDetails
             $mainTabControl.SelectedIndex = 2  # Switch to IP Addresses tab
             $ipGrid.SelectedItem = $null
             $statusText.Text = "New IP Address - fill in details and click Save"
@@ -405,7 +410,7 @@ function New-IPAMView {
             param($sender, $e)
             $selected = $sender.SelectedItem
             if ($selected) {
-                Show-VlanDetails -Vlan $selected
+                & $showVlanDetails $selected
             }
         }.GetNewClosure())
 
@@ -414,7 +419,7 @@ function New-IPAMView {
             param($sender, $e)
             $selected = $sender.SelectedItem
             if ($selected) {
-                Show-SubnetDetails -Subnet $selected
+                & $showSubnetDetails $selected
             }
         }.GetNewClosure())
 
@@ -423,7 +428,7 @@ function New-IPAMView {
             param($sender, $e)
             $selected = $sender.SelectedItem
             if ($selected) {
-                Show-IPDetails -IP $selected
+                & $showIPDetails $selected
             }
         }.GetNewClosure())
 
@@ -477,8 +482,8 @@ function New-IPAMView {
                     $statusText.Text = "Updated VLAN $vlanNum"
                 }
 
-                Save-Database
-                Refresh-All
+                & $saveDatabase
+                & $refreshAll
             }
             catch {
                 $statusText.Text = "Error: $($_.Exception.Message)"
@@ -503,22 +508,22 @@ function New-IPAMView {
             if ($result -eq [System.Windows.MessageBoxResult]::Yes) {
                 $db = $view.Tag.Database
                 IPAMModule\Remove-VLAN -VlanID $vlan.VlanID -Database $db | Out-Null
-                Clear-VlanDetails
+                & $clearVlanDetails
                 $statusText.Text = "Deleted VLAN $($vlan.VlanNumber)"
-                Save-Database
-                Refresh-All
+                & $saveDatabase
+                & $refreshAll
             }
         }.GetNewClosure())
 
         # Event: Subnet address/prefix text changed - update calculation
         $subnetAddressBox.Add_TextChanged({
             param($sender, $e)
-            Update-SubnetCalc
+            & $updateSubnetCalc
         }.GetNewClosure())
 
         $subnetPrefixBox.Add_TextChanged({
             param($sender, $e)
-            Update-SubnetCalc
+            & $updateSubnetCalc
         }.GetNewClosure())
 
         # Event: Save Subnet
@@ -571,8 +576,8 @@ function New-IPAMView {
                     $statusText.Text = "Updated subnet $($subnetAddressBox.Text)/$prefix"
                 }
 
-                Save-Database
-                Refresh-All
+                & $saveDatabase
+                & $refreshAll
             }
             catch {
                 $statusText.Text = "Error: $($_.Exception.Message)"
@@ -597,10 +602,10 @@ function New-IPAMView {
             if ($result -eq [System.Windows.MessageBoxResult]::Yes) {
                 $db = $view.Tag.Database
                 IPAMModule\Remove-Subnet -SubnetID $subnet.SubnetID -Database $db | Out-Null
-                Clear-SubnetDetails
+                & $clearSubnetDetails
                 $statusText.Text = "Deleted subnet $($subnet.NetworkAddress)/$($subnet.PrefixLength)"
-                Save-Database
-                Refresh-All
+                & $saveDatabase
+                & $refreshAll
             }
         }.GetNewClosure())
 
@@ -649,8 +654,8 @@ function New-IPAMView {
                     }
 
                     $statusText.Text = "Split into $($newSubnets.Count) subnets"
-                    Save-Database
-                    Refresh-All
+                    & $saveDatabase
+                    & $refreshAll
                 }
             }
             catch {
@@ -702,8 +707,8 @@ function New-IPAMView {
                     $statusText.Text = "Updated IP record $($ipAddressBox.Text)"
                 }
 
-                Save-Database
-                Refresh-All
+                & $saveDatabase
+                & $refreshAll
             }
             catch {
                 $statusText.Text = "Error: $($_.Exception.Message)"
@@ -728,24 +733,24 @@ function New-IPAMView {
             if ($result -eq [System.Windows.MessageBoxResult]::Yes) {
                 $db = $view.Tag.Database
                 IPAMModule\Remove-IPAddressRecord -AddressID $ip.AddressID -Database $db | Out-Null
-                Clear-IPDetails
+                & $clearIPDetails
                 $statusText.Text = "Deleted IP record $($ip.IPAddress)"
-                Save-Database
-                Refresh-All
+                & $saveDatabase
+                & $refreshAll
             }
         }.GetNewClosure())
 
         # Event: Check Conflicts
         $checkConflictsButton.Add_Click({
             param($sender, $e)
-            Refresh-Conflicts
+            & $refreshConflicts
             $mainTabControl.SelectedIndex = 3  # Switch to Conflicts tab
         }.GetNewClosure())
 
         # Event: Refresh Conflicts button
         $refreshConflictsButton.Add_Click({
             param($sender, $e)
-            Refresh-Conflicts
+            & $refreshConflicts
         }.GetNewClosure())
 
         # Event: Plan Site
@@ -802,8 +807,8 @@ function New-IPAMView {
                     }
 
                     $statusText.Text = "Applied site plan for $siteName"
-                    Save-Database
-                    Refresh-All
+                    & $saveDatabase
+                    & $refreshAll
                 }
             }
             catch {
@@ -814,8 +819,8 @@ function New-IPAMView {
         # Event: Site filter changed
         $siteFilterCombo.Add_SelectionChanged({
             param($sender, $e)
-            Refresh-VlanGrid
-            Refresh-SubnetGrid
+            & $refreshVlanGrid
+            & $refreshSubnetGrid
         }.GetNewClosure())
 
         # Event: Import
@@ -830,8 +835,8 @@ function New-IPAMView {
                     $db = $view.Tag.Database
                     $result = IPAMModule\Import-IPAMDatabase -Path $dialog.FileName -Database $db -Merge
                     $statusText.Text = "Imported $($result.VLANsImported) VLANs, $($result.SubnetsImported) subnets, $($result.IPAddressesImported) IPs"
-                    Save-Database
-                    Refresh-All
+                    & $saveDatabase
+                    & $refreshAll
                 }
             }
             catch {
@@ -868,7 +873,7 @@ function New-IPAMView {
         }
 
         # Initial load
-        Refresh-All
+        & $refreshAll
         $statusText.Text = 'Ready'
 
         return $view
