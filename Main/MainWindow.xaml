@@ -100,6 +100,10 @@
         <TabItem Header="Cmd Reference">
           <ContentControl Name="CommandReferenceHost"/>
         </TabItem>
+        <!-- Network Calculator tab for subnet, VLAN, bandwidth, and IP tools -->
+        <TabItem Header="Calculator">
+          <ContentControl Name="NetworkCalculatorHost"/>
+        </TabItem>
         <!-- Add more tabs here -->
       </TabControl>
       <!-- Compare sidebar occupies the second column and hosts the compare view.  It is hidden by default by setting the column width to zero. -->

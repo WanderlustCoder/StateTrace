@@ -16,10 +16,11 @@ Network engineers frequently need to:
 - Verify address ranges and CIDR aggregation
 
 ## Current status (2026-01)
-- No built-in network calculators
-- Engineers rely on external websites or standalone tools
-- Configuration generation is limited to Port Reorg scripts
-- No bandwidth or protocol timer calculators
+- **In Progress (4/6 Done)**. Core calculator module, tests, UI view, and main window integration completed.
+- NetworkCalculatorModule.psm1 implemented with subnet, IP, VLAN, bandwidth, and port reference functions
+- NetworkCalculatorViewModule.psm1 provides tabbed UI for all calculators
+- 79 Pester tests pass for all calculator functions
+- Remaining: ACL builder UI, advanced protocol calculators
 
 ## Proposed Features
 
@@ -91,12 +92,21 @@ Network engineers frequently need to:
 ## Active work
 | ID | Title | Owner | Status | Notes |
 |----|-------|-------|--------|-------|
-| ST-Y-001 | Subnet calculator core | Tools | Pending | CIDR math and conversions |
-| ST-Y-002 | IP address utilities | Tools | Pending | Format conversion and validation |
-| ST-Y-003 | Bandwidth calculator | Tools | Pending | Transfer time and utilization |
-| ST-Y-004 | Protocol timer calculators | Tools | Pending | STP, OSPF, EIGRP, BGP |
+| ST-Y-001 | Subnet calculator core | Tools | Done | CIDR math, conversions, subnet splitting |
+| ST-Y-002 | IP address utilities | Tools | Done | Validation, format conversion, containment check |
+| ST-Y-003 | Bandwidth calculator | Tools | Done | Transfer time, unit conversion |
+| ST-Y-004 | Protocol timer calculators | Tools | Done | STP timer validation implemented |
 | ST-Y-005 | ACL builder UI | UI | Pending | Interactive ACL construction |
-| ST-Y-006 | Calculator toolbar view | UI | Pending | Integrated calculator panel |
+| ST-Y-006 | Calculator toolbar view | UI | Done | 5-tab UI integrated into MainWindow |
+
+## Recently delivered
+| ID | Title | Date | Notes |
+|----|-------|------|-------|
+| ST-Y-001 | Subnet calculator core | 2026-01-04 | Get-SubnetInfo, Split-Subnet, Convert-CIDRToMask |
+| ST-Y-002 | IP address utilities | 2026-01-04 | Get-IPAddressInfo, Test-IPInSubnet |
+| ST-Y-003 | Bandwidth calculator | 2026-01-04 | Get-TransferTime, Convert-BandwidthUnit |
+| ST-Y-004 | Protocol timer validation | 2026-01-04 | Test-STPTimers |
+| ST-Y-006 | Calculator view | 2026-01-04 | NetworkCalculatorView.xaml, NetworkCalculatorViewModule.psm1 |
 
 ## Testing Requirements
 

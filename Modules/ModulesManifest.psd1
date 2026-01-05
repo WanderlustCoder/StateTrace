@@ -38,6 +38,8 @@
         'AlertsViewModule.psm1',
         'CommandReferenceModule.psm1',
         'CommandReferenceViewModule.psm1',
+        'NetworkCalculatorModule.psm1',
+        'NetworkCalculatorViewModule.psm1',
         'CompareViewModule.psm1',
         'TemplatesModule.psm1'
     )
