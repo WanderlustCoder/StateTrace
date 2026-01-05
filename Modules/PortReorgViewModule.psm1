@@ -891,6 +891,18 @@ function Show-PortReorgWindow {
 
         $pagingState.Enabled = ($Enabled -eq $true)
 
+        # When enabling paging, read the current page size from the textbox
+        if ($pagingState.Enabled -eq $true) {
+            if ($pageSizeBox) {
+                $sizeText = ('' + $pageSizeBox.Text).Trim()
+                $size = 12
+                [void][int]::TryParse($sizeText, [ref]$size)
+                if ($size -lt 1) { $size = 1 }
+                if ($size -gt 96) { $size = 96 }
+                $pagingState.PageSize = $size
+            }
+        }
+
         try { & $rebuildPageChoices } catch { }
         try { & $setPagingControlsVisible -Enabled ($pagingState.Enabled -eq $true) } catch { }
 
