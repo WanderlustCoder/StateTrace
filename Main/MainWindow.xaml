@@ -112,6 +112,10 @@
         <TabItem Header="Log Analysis">
           <ContentControl Name="LogAnalysisHost"/>
         </TabItem>
+        <!-- Cable Documentation tab for cable runs and patch panel management -->
+        <TabItem Header="Cables">
+          <ContentControl Name="CableDocumentationHost"/>
+        </TabItem>
         <!-- Add more tabs here -->
       </TabControl>
       <!-- Compare sidebar occupies the second column and hosts the compare view.  It is hidden by default by setting the column width to zero. -->

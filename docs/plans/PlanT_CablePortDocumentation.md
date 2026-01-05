@@ -15,10 +15,11 @@ Network technicians often struggle with:
 - Planning cable installations before maintenance windows
 
 ## Current status (2026-01)
-- Port Reorg feature provides port-to-label mapping and script generation
-- No dedicated cable tracking or patch panel mapping exists
-- Label generation is limited to port descriptions in device configs
-- No integration between physical documentation and logical configuration
+- **In Progress (4/5 Done)**. Core cable tracking, patch panel management, label generation, and interactive UI delivered.
+- CableDocumentationModule.psm1 provides cable run and patch panel data model
+- CableDocumentationView.xaml offers interactive UI with cable/panel lists and details
+- Label generation supports Text, CSV, and HTML export formats
+- 48 Pester tests cover all module functionality
 
 ## Proposed Features
 
@@ -67,10 +68,10 @@ Network technicians often struggle with:
 ## Active work
 | ID | Title | Owner | Status | Notes |
 |----|-------|-------|--------|-------|
-| ST-T-001 | Cable run data model | Data | Pending | Design Access schema for cable tracking |
-| ST-T-002 | Patch panel registry UI | UI | Pending | Create patch panel management view |
-| ST-T-003 | Label template engine | Tools | Pending | Implement label generation with multiple formats |
-| ST-T-004 | Cable path visualization | UI | Pending | Visual representation of cable routes |
+| ST-T-001 | Cable run data model | Data | Done | CableDocumentationModule.psm1 with New-CableRun, Add/Get/Update/Remove-CableRun |
+| ST-T-002 | Patch panel registry UI | UI | Done | CableDocumentationView.xaml with panel list and port grid visualization |
+| ST-T-003 | Label template engine | Tools | Done | New-CableLabel, Export-CableLabels supporting Text/CSV/HTML formats |
+| ST-T-004 | Cable path visualization | UI | Done | Find-CableConnection, Trace-CablePath, port status color coding |
 | ST-T-005 | Port Reorg cable integration | UI | Pending | Link cable docs to port assignments |
 
 ## Data Model (Proposed)

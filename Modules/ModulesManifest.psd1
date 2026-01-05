@@ -44,6 +44,8 @@
         'DecisionTreeViewModule.psm1',
         'LogAnalysisModule.psm1',
         'LogAnalysisViewModule.psm1',
+        'CableDocumentationModule.psm1',
+        'CableDocumentationViewModule.psm1',
         'CompareViewModule.psm1',
         'TemplatesModule.psm1'
     )

@@ -1,0 +1,400 @@
+<UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <!-- Toolbar -->
+    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5" Background="{DynamicResource Theme.Toolbar.Background}">
+      <Button Name="AddCableButton" Content="Add Cable" Margin="5,2" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Add a new cable run"/>
+      <Button Name="AddPanelButton" Content="Add Panel" Margin="5,2" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Add a new patch panel"/>
+      <Separator Margin="5,2"/>
+      <Button Name="ImportButton" Content="Import" Margin="5,2" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Import cable database from JSON"/>
+      <Button Name="ExportButton" Content="Export" Margin="5,2" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Export cable database to JSON"/>
+      <Button Name="ImportCsvButton" Content="Import CSV" Margin="5,2" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Import cable runs from CSV file"/>
+      <Separator Margin="5,2"/>
+      <Button Name="GenerateLabelsButton" Content="Labels" Margin="5,2" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Generate cable labels"/>
+      <Separator Margin="5,2"/>
+      <Label Content="Filter:" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
+      <TextBox Name="FilterBox" Width="150" Margin="5,2" VerticalAlignment="Center" ToolTip="Filter cables and panels by keyword"/>
+      <Button Name="ClearFilterButton" Content="X" Width="24" Margin="2" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Clear filter"/>
+    </StackPanel>
+
+    <!-- Main Content -->
+    <Grid Grid.Row="1" Margin="5">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="350"/>
+        <ColumnDefinition Width="5"/>
+        <ColumnDefinition Width="*"/>
+      </Grid.ColumnDefinitions>
+
+      <!-- Left Panel: Lists -->
+      <Grid Grid.Column="0">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="*"/>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Cable Runs Section -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Background="{DynamicResource Theme.Surface.Secondary}" Margin="0,0,0,2">
+          <Label Content="Cable Runs" FontWeight="Bold" Style="{DynamicResource ToolbarLabelStyle}"/>
+          <Label Name="CableCountLabel" Content="(0)" Style="{DynamicResource ToolbarLabelStyle}"/>
+        </StackPanel>
+
+        <ListBox Name="CableListBox" Grid.Row="1" Margin="0,0,0,5"
+                 Background="{DynamicResource Theme.Surface.Primary}"
+                 Foreground="{DynamicResource Theme.Text.Primary}"
+                 SelectionMode="Extended">
+          <ListBox.ItemTemplate>
+            <DataTemplate>
+              <StackPanel Orientation="Horizontal">
+                <Ellipse Width="10" Height="10" Margin="0,0,5,0" VerticalAlignment="Center">
+                  <Ellipse.Style>
+                    <Style TargetType="Ellipse">
+                      <Setter Property="Fill" Value="Gray"/>
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding Status}" Value="Active">
+                          <Setter Property="Fill" Value="LimeGreen"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Status}" Value="Reserved">
+                          <Setter Property="Fill" Value="DodgerBlue"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Status}" Value="Faulty">
+                          <Setter Property="Fill" Value="Red"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Status}" Value="Abandoned">
+                          <Setter Property="Fill" Value="DarkGray"/>
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Status}" Value="Planned">
+                          <Setter Property="Fill" Value="Orange"/>
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </Ellipse.Style>
+                </Ellipse>
+                <TextBlock Text="{Binding CableID}" FontWeight="Bold" Margin="0,0,10,0"/>
+                <TextBlock Text="{Binding SourceDevice}" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                <TextBlock Text=" -> " Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                <TextBlock Text="{Binding DestDevice}" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+              </StackPanel>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+
+        <!-- Patch Panels Section -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Background="{DynamicResource Theme.Surface.Secondary}" Margin="0,0,0,2">
+          <Label Content="Patch Panels" FontWeight="Bold" Style="{DynamicResource ToolbarLabelStyle}"/>
+          <Label Name="PanelCountLabel" Content="(0)" Style="{DynamicResource ToolbarLabelStyle}"/>
+        </StackPanel>
+
+        <ListBox Name="PanelListBox" Grid.Row="3"
+                 Background="{DynamicResource Theme.Surface.Primary}"
+                 Foreground="{DynamicResource Theme.Text.Primary}"
+                 SelectionMode="Single">
+          <ListBox.ItemTemplate>
+            <DataTemplate>
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Text="{Binding PanelName}" FontWeight="Bold" Margin="0,0,10,0"/>
+                <TextBlock Text="{Binding Location}" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,5,0"/>
+                <TextBlock Text="(" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                <TextBlock Text="{Binding PortCount}" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                <TextBlock Text=" ports)" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+              </StackPanel>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </Grid>
+
+      <!-- Splitter -->
+      <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" Background="{DynamicResource Theme.Border.Primary}"/>
+
+      <!-- Right Panel: Details -->
+      <Grid Grid.Column="2">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Details Header -->
+        <Border Grid.Row="0" Background="{DynamicResource Theme.Surface.Secondary}" Padding="10,5" Margin="0,0,0,5">
+          <StackPanel Orientation="Horizontal">
+            <Label Name="DetailsTitleLabel" Content="Select an item" FontWeight="Bold" FontSize="14" Style="{DynamicResource ToolbarLabelStyle}"/>
+          </StackPanel>
+        </Border>
+
+        <!-- Details Content - Tab Control for different views -->
+        <TabControl Grid.Row="1" Name="DetailsTabControl" Background="{DynamicResource Theme.Surface.Primary}">
+
+          <!-- Cable Details Tab -->
+          <TabItem Header="Cable Details" Name="CableDetailsTab">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+              <Grid Margin="10" Name="CableDetailsGrid" Visibility="Collapsed">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="120"/>
+                  <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <Label Grid.Row="0" Grid.Column="0" Content="Cable ID:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                <TextBox Grid.Row="0" Grid.Column="1" Name="CableIdBox" Margin="5,2" IsReadOnly="True" Background="{DynamicResource Theme.Input.Background}"/>
+
+                <Label Grid.Row="1" Grid.Column="0" Content="Source Type:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                <ComboBox Grid.Row="1" Grid.Column="1" Name="SourceTypeCombo" Margin="5,2" Style="{DynamicResource ToolbarComboBoxStyle}">
+                  <ComboBoxItem Content="Device"/>
+                  <ComboBoxItem Content="PatchPanel"/>
+                  <ComboBoxItem Content="WallJack"/>
+                  <ComboBoxItem Content="Other"/>
+                </ComboBox>
+
+                <Label Grid.Row="2" Grid.Column="0" Content="Source Device:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                <TextBox Grid.Row="2" Grid.Column="1" Name="SourceDeviceBox" Margin="5,2" Background="{DynamicResource Theme.Input.Background}"/>
+
+                <Label Grid.Row="3" Grid.Column="0" Content="Source Port:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                <TextBox Grid.Row="3" Grid.Column="1" Name="SourcePortBox" Margin="5,2" Background="{DynamicResource Theme.Input.Background}"/>
+
+                <Label Grid.Row="4" Grid.Column="0" Content="Dest Type:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                <ComboBox Grid.Row="4" Grid.Column="1" Name="DestTypeCombo" Margin="5,2" Style="{DynamicResource ToolbarComboBoxStyle}">
+                  <ComboBoxItem Content="Device"/>
+                  <ComboBoxItem Content="PatchPanel"/>
+                  <ComboBoxItem Content="WallJack"/>
+                  <ComboBoxItem Content="Other"/>
+                </ComboBox>
+
+                <Label Grid.Row="5" Grid.Column="0" Content="Dest Device:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                <TextBox Grid.Row="5" Grid.Column="1" Name="DestDeviceBox" Margin="5,2" Background="{DynamicResource Theme.Input.Background}"/>
+
+                <Label Grid.Row="6" Grid.Column="0" Content="Dest Port:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                <TextBox Grid.Row="6" Grid.Column="1" Name="DestPortBox" Margin="5,2" Background="{DynamicResource Theme.Input.Background}"/>
+
+                <Label Grid.Row="7" Grid.Column="0" Content="Cable Type:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                <ComboBox Grid.Row="7" Grid.Column="1" Name="CableTypeCombo" Margin="5,2" Style="{DynamicResource ToolbarComboBoxStyle}">
+                  <ComboBoxItem Content="Cat5e"/>
+                  <ComboBoxItem Content="Cat6" IsSelected="True"/>
+                  <ComboBoxItem Content="Cat6a"/>
+                  <ComboBoxItem Content="FiberOM3"/>
+                  <ComboBoxItem Content="FiberOM4"/>
+                  <ComboBoxItem Content="FiberOS2"/>
+                  <ComboBoxItem Content="Coax"/>
+                  <ComboBoxItem Content="Other"/>
+                </ComboBox>
+
+                <Label Grid.Row="8" Grid.Column="0" Content="Length:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                <TextBox Grid.Row="8" Grid.Column="1" Name="LengthBox" Margin="5,2" Background="{DynamicResource Theme.Input.Background}" ToolTip="e.g., 10ft, 3m"/>
+
+                <Label Grid.Row="9" Grid.Column="0" Content="Color:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                <TextBox Grid.Row="9" Grid.Column="1" Name="ColorBox" Margin="5,2" Background="{DynamicResource Theme.Input.Background}"/>
+
+                <Label Grid.Row="10" Grid.Column="0" Content="Status:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                <ComboBox Grid.Row="10" Grid.Column="1" Name="StatusCombo" Margin="5,2" Style="{DynamicResource ToolbarComboBoxStyle}">
+                  <ComboBoxItem Content="Active" IsSelected="True"/>
+                  <ComboBoxItem Content="Reserved"/>
+                  <ComboBoxItem Content="Abandoned"/>
+                  <ComboBoxItem Content="Faulty"/>
+                  <ComboBoxItem Content="Planned"/>
+                </ComboBox>
+
+                <Label Grid.Row="11" Grid.Column="0" Content="Notes:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                <TextBox Grid.Row="11" Grid.Column="1" Name="NotesBox" Margin="5,2" Height="60" TextWrapping="Wrap" AcceptsReturn="True" Background="{DynamicResource Theme.Input.Background}"/>
+
+                <StackPanel Grid.Row="12" Grid.Column="1" Orientation="Horizontal" Margin="5,10,5,5">
+                  <Button Name="SaveCableButton" Content="Save" Margin="0,0,10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+                  <Button Name="DeleteCableButton" Content="Delete" Margin="0,0,10,0" Style="{DynamicResource SecondaryButtonStyle}"/>
+                  <Button Name="CableLabelButton" Content="Generate Label" Style="{DynamicResource SecondaryButtonStyle}"/>
+                </StackPanel>
+
+                <StackPanel Grid.Row="13" Grid.Column="0" Grid.ColumnSpan="2" Margin="5,5">
+                  <Label Content="Created:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                  <TextBlock Name="CableCreatedText" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="5,0"/>
+                  <Label Content="Modified:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                  <TextBlock Name="CableModifiedText" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="5,0"/>
+                </StackPanel>
+              </Grid>
+            </ScrollViewer>
+          </TabItem>
+
+          <!-- Patch Panel Details Tab -->
+          <TabItem Header="Panel Details" Name="PanelDetailsTab">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+              <Grid Margin="10" Name="PanelDetailsGrid" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- Panel Info -->
+                <Grid Grid.Row="0">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="100"/>
+                    <ColumnDefinition Width="*"/>
+                  </Grid.ColumnDefinitions>
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                  </Grid.RowDefinitions>
+
+                  <Label Grid.Row="0" Grid.Column="0" Content="Panel ID:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                  <TextBox Grid.Row="0" Grid.Column="1" Name="PanelIdBox" Margin="5,2" IsReadOnly="True" Background="{DynamicResource Theme.Input.Background}"/>
+
+                  <Label Grid.Row="1" Grid.Column="0" Content="Panel Name:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                  <TextBox Grid.Row="1" Grid.Column="1" Name="PanelNameBox" Margin="5,2" Background="{DynamicResource Theme.Input.Background}"/>
+
+                  <Label Grid.Row="2" Grid.Column="0" Content="Location:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                  <TextBox Grid.Row="2" Grid.Column="1" Name="PanelLocationBox" Margin="5,2" Background="{DynamicResource Theme.Input.Background}"/>
+
+                  <Label Grid.Row="3" Grid.Column="0" Content="Rack/U:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                  <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal">
+                    <TextBox Name="PanelRackIdBox" Width="80" Margin="5,2" Background="{DynamicResource Theme.Input.Background}" ToolTip="Rack ID"/>
+                    <TextBox Name="PanelRackUBox" Width="50" Margin="5,2" Background="{DynamicResource Theme.Input.Background}" ToolTip="U position"/>
+                  </StackPanel>
+
+                  <Label Grid.Row="4" Grid.Column="0" Content="Port Count:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                  <TextBlock Grid.Row="4" Grid.Column="1" Name="PanelPortCountText" Margin="5,2" VerticalAlignment="Center" Foreground="{DynamicResource Theme.Text.Primary}"/>
+
+                  <StackPanel Grid.Row="5" Grid.Column="1" Orientation="Horizontal" Margin="5,10,5,5">
+                    <Button Name="SavePanelButton" Content="Save" Margin="0,0,10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+                    <Button Name="DeletePanelButton" Content="Delete" Margin="0,0,10,0" Style="{DynamicResource SecondaryButtonStyle}"/>
+                    <Button Name="PanelLabelsButton" Content="Port Labels" Style="{DynamicResource SecondaryButtonStyle}"/>
+                  </StackPanel>
+                </Grid>
+
+                <!-- Port Grid Header -->
+                <Border Grid.Row="1" Background="{DynamicResource Theme.Surface.Secondary}" Padding="5" Margin="0,10,0,5">
+                  <StackPanel Orientation="Horizontal">
+                    <Label Content="Ports" FontWeight="Bold" Style="{DynamicResource ToolbarLabelStyle}"/>
+                    <Label Name="PortUtilizationLabel" Content="(0/0 used)" Style="{DynamicResource ToolbarLabelStyle}"/>
+                  </StackPanel>
+                </Border>
+
+                <!-- Port Grid (Visual representation) -->
+                <ItemsControl Grid.Row="2" Name="PortGrid" Margin="5">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <WrapPanel Orientation="Horizontal"/>
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <Border Width="60" Height="50" Margin="2" BorderThickness="1" CornerRadius="3"
+                              BorderBrush="{DynamicResource Theme.Border.Primary}"
+                              ToolTip="{Binding ToolTip}">
+                        <Border.Style>
+                          <Style TargetType="Border">
+                            <Setter Property="Background" Value="{DynamicResource Theme.Surface.Primary}"/>
+                            <Style.Triggers>
+                              <DataTrigger Binding="{Binding Status}" Value="Connected">
+                                <Setter Property="Background" Value="#2E7D32"/>
+                              </DataTrigger>
+                              <DataTrigger Binding="{Binding Status}" Value="Reserved">
+                                <Setter Property="Background" Value="#1565C0"/>
+                              </DataTrigger>
+                              <DataTrigger Binding="{Binding Status}" Value="Faulty">
+                                <Setter Property="Background" Value="#C62828"/>
+                              </DataTrigger>
+                            </Style.Triggers>
+                          </Style>
+                        </Border.Style>
+                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                          <TextBlock Text="{Binding PortNumber}" FontWeight="Bold" HorizontalAlignment="Center" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                          <TextBlock Text="{Binding Label}" FontSize="9" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="56" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                        </StackPanel>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </Grid>
+            </ScrollViewer>
+          </TabItem>
+
+          <!-- Statistics Tab -->
+          <TabItem Header="Statistics">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+              <Grid Margin="10" Name="StatsGrid">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*"/>
+                  <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- Cable Stats -->
+                <Border Grid.Row="0" Grid.Column="0" Background="{DynamicResource Theme.Surface.Secondary}" Margin="5" Padding="10" CornerRadius="5">
+                  <StackPanel>
+                    <TextBlock Text="Cable Statistics" FontWeight="Bold" FontSize="14" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                    <TextBlock Name="TotalCablesText" Text="Total Cables: 0" Margin="0,5" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                    <TextBlock Name="ActiveCablesText" Text="Active: 0" Foreground="LimeGreen"/>
+                    <TextBlock Name="ReservedCablesText" Text="Reserved: 0" Foreground="DodgerBlue"/>
+                    <TextBlock Name="FaultyCablesText" Text="Faulty: 0" Foreground="Red"/>
+                    <TextBlock Name="PlannedCablesText" Text="Planned: 0" Foreground="Orange"/>
+                  </StackPanel>
+                </Border>
+
+                <!-- Panel Stats -->
+                <Border Grid.Row="0" Grid.Column="1" Background="{DynamicResource Theme.Surface.Secondary}" Margin="5" Padding="10" CornerRadius="5">
+                  <StackPanel>
+                    <TextBlock Text="Patch Panel Statistics" FontWeight="Bold" FontSize="14" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                    <TextBlock Name="TotalPanelsText" Text="Total Panels: 0" Margin="0,5" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                    <TextBlock Name="TotalPortsText" Text="Total Ports: 0" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                    <TextBlock Name="UsedPortsText" Text="Used Ports: 0" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                    <TextBlock Name="AvailablePortsText" Text="Available: 0" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                  </StackPanel>
+                </Border>
+
+                <!-- Cable Types -->
+                <Border Grid.Row="1" Grid.Column="0" Background="{DynamicResource Theme.Surface.Secondary}" Margin="5" Padding="10" CornerRadius="5">
+                  <StackPanel>
+                    <TextBlock Text="Cables by Type" FontWeight="Bold" FontSize="14" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                    <ItemsControl Name="CableTypesItemsControl" Margin="0,5">
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <TextBlock Foreground="{DynamicResource Theme.Text.Primary}">
+                            <Run Text="{Binding Key}"/>: <Run Text="{Binding Value}"/>
+                          </TextBlock>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </StackPanel>
+                </Border>
+              </Grid>
+            </ScrollViewer>
+          </TabItem>
+        </TabControl>
+      </Grid>
+    </Grid>
+
+    <!-- Status Bar -->
+    <Border Grid.Row="2" Background="{DynamicResource Theme.Toolbar.Background}" Padding="5">
+      <StackPanel Orientation="Horizontal">
+        <TextBlock Name="StatusText" Text="Ready" Foreground="{DynamicResource Theme.Text.Primary}"/>
+      </StackPanel>
+    </Border>
+  </Grid>
+</UserControl>
