@@ -63,7 +63,7 @@ The active StateTrace plans live in discrete files so automation agents can refe
 - **Plan U** - **In Progress (4/6 Done)**. Configuration template engine with Jinja2-style syntax, validation standards, and compliance checking. Core modules, UI, and built-in templates/standards delivered. Config comparison and vendor syntax modules pending.
 - **Plan V** - **In Progress (4/6 Done)**. Lightweight IPAM with VLAN registry, subnet planning, and conflict detection. Core module, tests, and UI view integrated into MainWindow. VLAN discovery from devices and full wizard UI pending.
 - **Plan W** - **Planned**. Network topology visualization with auto-discovery and diagram export.
-- **Plan X** - **Planned**. Inventory and asset tracking with warranty monitoring and firmware management.
+- **Plan X** - **In Progress (4/6 Done)**. Inventory and asset tracking with warranty monitoring and firmware management. Core module, tests, and UI view integrated into MainWindow. Advanced analytics and budget forecasting pending.
 - **Plan Y** - **In Progress (5/6 Done)**. Network calculator suite with subnet, VLAN, bandwidth, port reference, and STP timer tools. Core module, tests, and UI view integrated into MainWindow.
 - **Plan Z** - **Planned**. Change management with maintenance window scheduling, pre/post verification, and rollback tracking.
 - **Plan AA** - **Planned**. Network documentation generator with as-built templates and multi-format export.

@@ -124,6 +124,10 @@
         <TabItem Header="Config">
           <ContentControl Name="ConfigTemplateHost"/>
         </TabItem>
+        <!-- Inventory tab for asset tracking, warranty monitoring, and lifecycle planning -->
+        <TabItem Header="Inventory">
+          <ContentControl Name="InventoryHost"/>
+        </TabItem>
         <!-- Add more tabs here -->
       </TabControl>
       <!-- Compare sidebar occupies the second column and hosts the compare view.  It is hidden by default by setting the column width to zero. -->

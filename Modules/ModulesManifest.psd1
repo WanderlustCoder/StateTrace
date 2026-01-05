@@ -51,6 +51,8 @@
         'ConfigTemplateModule.psm1',
         'ConfigValidationModule.psm1',
         'ConfigTemplateViewModule.psm1',
+        'InventoryModule.psm1',
+        'InventoryViewModule.psm1',
         'CompareViewModule.psm1',
         'TemplatesModule.psm1'
     )

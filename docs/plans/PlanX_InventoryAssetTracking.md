@@ -16,10 +16,13 @@ Network teams struggle with:
 - Generating inventory reports for audits and compliance
 
 ## Current status (2026-01)
-- Device data includes hostnames, vendors, and basic platform info
-- No dedicated inventory or asset lifecycle tracking
-- No warranty monitoring or firmware version management
-- Serial numbers and asset tags are not systematically captured
+- **In Progress (4/6 Done)**. Core inventory and asset tracking system delivered.
+- InventoryModule.psm1 provides asset registry, warranty tracking, firmware management, lifecycle planning
+- InventoryViewModule.psm1 provides view wiring with full UI event handling
+- InventoryView.xaml offers 5-tab interface: Inventory, Warranty Alerts, Firmware, Lifecycle, History
+- Built-in lifecycle database with Cisco, Arista, Ruckus product information
+- Pester tests cover all module functionality
+- CSV import/export and HTML warranty reports implemented
 
 ## Proposed Features
 
@@ -100,12 +103,12 @@ Network teams struggle with:
 ## Active work
 | ID | Title | Owner | Status | Notes |
 |----|-------|-------|--------|-------|
-| ST-X-001 | Asset registry schema | Data | Pending | Design Access tables for inventory |
-| ST-X-002 | Firmware version database | Data | Pending | Known versions and CVE tracking |
-| ST-X-003 | Device info import | Tools | Pending | Parse show version output |
-| ST-X-004 | Warranty tracking UI | UI | Pending | Expiration alerts and dashboard |
-| ST-X-005 | Inventory reports | Tools | Pending | Report generation engine |
-| ST-X-006 | Lifecycle planning view | UI | Pending | Refresh planning interface |
+| ST-X-001 | Asset registry module | Data | Done | InventoryModule.psm1 with New/Get/Update/Remove-Asset |
+| ST-X-002 | Firmware version database | Data | Done | Parse-FirmwareVersion, Set-MinimumFirmware, CVE tracking |
+| ST-X-003 | Device info import | Tools | Done | Parse-ShowVersion, Import-AssetInventory from CSV |
+| ST-X-004 | Warranty tracking UI | UI | Done | InventoryView.xaml Warranty Alerts tab with expiring/expired grids |
+| ST-X-005 | Inventory reports | Tools | Pending | Advanced analytics and PDF export |
+| ST-X-006 | Lifecycle planning view | UI | Pending | Budget forecasting and refresh recommendations |
 
 ## Data Model (Proposed)
 
