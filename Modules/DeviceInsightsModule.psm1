@@ -58,6 +58,11 @@ if (-not (Get-Variable -Scope Script -Name InsightsWorkerThread -ErrorAction Sil
 if (-not (Get-Variable -Scope Script -Name InsightsWorkerQueue -ErrorAction SilentlyContinue)) {
     $script:InsightsWorkerQueue = $null
 }
+
+# Pagination settings for search results
+$script:SearchPageSize = 1000
+$script:LastSearchTotalCount = 0
+$script:LastSearchPageLoaded = 0
 if (-not (Get-Variable -Scope Script -Name InsightsWorkerSignal -ErrorAction SilentlyContinue)) {
     $script:InsightsWorkerSignal = $null
 }
@@ -368,7 +373,9 @@ function Update-SearchResults {
     [CmdletBinding()]
     param(
         [string]$Term,
-        [object]$Interfaces
+        [object]$Interfaces,
+        [int]$PageIndex = 0,
+        [switch]$ReturnAllPages
     )
 
     if (-not $global:InterfacesLoadAllowed) {
@@ -496,7 +503,119 @@ function Update-SearchResults {
     if ($null -eq $sortedResults) {
         $sortedResults = [System.Collections.Generic.List[object]]::new()
     }
+
+    # Store total count for pagination info
+    $totalCount = 0
+    try {
+        if ($sortedResults -and $sortedResults.PSObject.Properties['Count']) {
+            $totalCount = [int]$sortedResults.Count
+        } elseif ($sortedResults) {
+            $totalCount = @($sortedResults).Count
+        }
+    } catch { $totalCount = 0 }
+    $script:LastSearchTotalCount = $totalCount
+
+    # Apply pagination unless ReturnAllPages is set
+    if (-not $ReturnAllPages -and $script:SearchPageSize -gt 0 -and $totalCount -gt $script:SearchPageSize) {
+        $startIndex = $PageIndex * $script:SearchPageSize
+        $endIndex = [Math]::Min($startIndex + $script:SearchPageSize, $totalCount)
+        $script:LastSearchPageLoaded = $PageIndex
+
+        if ($startIndex -ge $totalCount) {
+            return ,[System.Collections.Generic.List[object]]::new()
+        }
+
+        $pagedResults = [System.Collections.Generic.List[object]]::new($script:SearchPageSize)
+        for ($i = $startIndex; $i -lt $endIndex; $i++) {
+            [void]$pagedResults.Add($sortedResults[$i])
+        }
+        return ,$pagedResults
+    }
+
+    $script:LastSearchPageLoaded = 0
     return ,$sortedResults
+}
+
+function Get-SearchPaginationState {
+    <#
+    .SYNOPSIS
+        Returns the current pagination state for search results.
+    #>
+    [CmdletBinding()]
+    param()
+
+    $totalCount = $script:LastSearchTotalCount
+    $pageSize = $script:SearchPageSize
+    $currentPage = $script:LastSearchPageLoaded
+    $displayedCount = [Math]::Min(($currentPage + 1) * $pageSize, $totalCount)
+
+    return [PSCustomObject]@{
+        TotalCount = $totalCount
+        DisplayedCount = $displayedCount
+        PageSize = $pageSize
+        CurrentPage = $currentPage
+        HasMorePages = ($displayedCount -lt $totalCount)
+        RemainingCount = [Math]::Max(0, $totalCount - $displayedCount)
+    }
+}
+
+function Invoke-LoadMoreSearchResults {
+    <#
+    .SYNOPSIS
+        Loads the next page of search results and appends to the grid.
+    #>
+    [CmdletBinding()]
+    param()
+
+    $searchHostCtrl = $global:window.FindName('SearchInterfacesHost')
+    if (-not $searchHostCtrl) { return }
+    $view = $searchHostCtrl.Content
+    if (-not $view) { return }
+    $gridCtrl = $view.FindName('SearchInterfacesGrid')
+    $boxCtrl  = $view.FindName('SearchBox')
+    $statusText = $view.FindName('SearchResultsStatus')
+    $loadMoreBtn = $view.FindName('LoadMoreButton')
+    if (-not $gridCtrl -or -not $boxCtrl) { return }
+
+    # Get next page
+    $nextPage = $script:LastSearchPageLoaded + 1
+    $term = $boxCtrl.Text
+    $interfaces = script:Get-InsightsInterfacesSnapshot
+
+    $newResults = Update-SearchResults -Term $term -Interfaces $interfaces -PageIndex $nextPage
+    if (-not $newResults -or $newResults.Count -eq 0) { return }
+
+    # Get current items and append new results
+    $currentItems = $gridCtrl.ItemsSource
+    $combinedList = [System.Collections.Generic.List[object]]::new()
+    if ($currentItems) {
+        foreach ($item in $currentItems) {
+            if ($item) { [void]$combinedList.Add($item) }
+        }
+    }
+    foreach ($item in $newResults) {
+        if ($item) { [void]$combinedList.Add($item) }
+    }
+
+    $gridCtrl.ItemsSource = $combinedList
+
+    # Update pagination status
+    $paginationState = Get-SearchPaginationState
+    if ($statusText) {
+        if ($paginationState.HasMorePages) {
+            $statusText.Text = "Showing $($paginationState.DisplayedCount) of $($paginationState.TotalCount) results"
+        } else {
+            $statusText.Text = "$($paginationState.TotalCount) results"
+        }
+    }
+    if ($loadMoreBtn) {
+        if ($paginationState.HasMorePages) {
+            $loadMoreBtn.Visibility = [System.Windows.Visibility]::Visible
+            $loadMoreBtn.Content = "Load More ($($paginationState.RemainingCount))"
+        } else {
+            $loadMoreBtn.Visibility = [System.Windows.Visibility]::Collapsed
+        }
+    }
 }
 
 function Update-Summary {
@@ -831,6 +950,8 @@ function Update-SearchGrid {
     if (-not $view) { return }
     $gridCtrl = $view.FindName('SearchInterfacesGrid')
     $boxCtrl  = $view.FindName('SearchBox')
+    $statusText = $view.FindName('SearchResultsStatus')
+    $loadMoreBtn = $view.FindName('LoadMoreButton')
     if (-not $gridCtrl -or -not $boxCtrl) { return }
 
     $term = $boxCtrl.Text
@@ -844,6 +965,26 @@ function Update-SearchGrid {
     }
 
     $gridCtrl.ItemsSource = $resultList
+
+    # Update pagination status
+    $paginationState = Get-SearchPaginationState
+    if ($statusText) {
+        if ($paginationState.HasMorePages) {
+            $statusText.Text = "Showing $($paginationState.DisplayedCount) of $($paginationState.TotalCount) results"
+        } elseif ($paginationState.TotalCount -gt 0) {
+            $statusText.Text = "$($paginationState.TotalCount) results"
+        } else {
+            $statusText.Text = "No results"
+        }
+    }
+    if ($loadMoreBtn) {
+        if ($paginationState.HasMorePages) {
+            $loadMoreBtn.Visibility = [System.Windows.Visibility]::Visible
+            $loadMoreBtn.Content = "Load More ($($paginationState.RemainingCount))"
+        } else {
+            $loadMoreBtn.Visibility = [System.Windows.Visibility]::Collapsed
+        }
+    }
 }
 
 function script:Ensure-PowerShellInvokeThreadStartFactory {
@@ -2020,4 +2161,4 @@ function Update-AlertsAsync {
     Update-InsightsAsync -Interfaces $Interfaces -IncludeAlerts
 }
 
-Export-ModuleMember -Function Update-SearchResults, Update-Summary, Update-Alerts, Update-SearchGrid, Update-InsightsAsync, Update-SearchGridAsync, Update-SummaryAsync, Update-AlertsAsync, Get-SearchRegexEnabled, Set-SearchRegexEnabled, Update-VlanFilterDropdown
+Export-ModuleMember -Function Update-SearchResults, Update-Summary, Update-Alerts, Update-SearchGrid, Update-InsightsAsync, Update-SearchGridAsync, Update-SummaryAsync, Update-AlertsAsync, Get-SearchRegexEnabled, Set-SearchRegexEnabled, Update-VlanFilterDropdown, Get-SearchPaginationState, Invoke-LoadMoreSearchResults

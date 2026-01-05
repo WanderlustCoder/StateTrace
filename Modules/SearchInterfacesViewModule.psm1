@@ -29,6 +29,7 @@ function New-SearchInterfacesView {
     $statusFilter   = $searchView.FindName('StatusFilter')
     $authFilter     = $searchView.FindName('AuthFilter')
     $vlanFilter     = $searchView.FindName('VlanFilter')
+    $loadMoreBtn    = $searchView.FindName('LoadMoreButton')
 
     # Promote search box to the global scope so that its Text property can be
     if ($searchBox) { $global:searchBox = $searchBox }
@@ -100,6 +101,12 @@ function New-SearchInterfacesView {
         }.GetNewClosure())
         # Promote to global so DeviceInsightsModule can populate it
         $global:vlanFilter = $vlanFilter
+    }
+    # Load More button loads the next page of results
+    if ($loadMoreBtn) {
+        $loadMoreBtn.Add_Click({
+            DeviceInsightsModule\Invoke-LoadMoreSearchResults
+        })
     }
     # Delay heavy site-wide load until the user searches.
     if ($searchGrid) { $searchGrid.ItemsSource = @() }
