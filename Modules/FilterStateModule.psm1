@@ -742,6 +742,9 @@ function Update-DeviceFilter {
                         script:Set-GlobalInterfaces -Interfaces ([System.Collections.Generic.List[object]]::new())
                     }
 
+                    # Populate VLAN dropdown with distinct values from loaded interfaces
+                    try { DeviceInsightsModule\Update-VlanFilterDropdown -Interfaces $global:AllInterfaces } catch { }
+
                     try {
                         $ifaceCount = 0
                         try { $ifaceCount = ViewStateService\Get-SequenceCount -Value $global:AllInterfaces } catch { $ifaceCount = 0 }

@@ -763,12 +763,18 @@ function Update-VlanFilterDropdown {
         }
     } catch {}
 
-    # Get interfaces from snapshot if not provided
+    # Get interfaces from snapshot if not provided, fall back to ViewStateService
     $ifaces = $Interfaces
-    if (-not $ifaces) {
+    if (-not $ifaces -or @($ifaces).Count -eq 0) {
         $ifaces = script:Get-InsightsInterfacesSnapshot
     }
-    if (-not $ifaces) { return }
+    if (-not $ifaces -or @($ifaces).Count -eq 0) {
+        # Try ViewStateService as fallback
+        try {
+            $ifaces = ViewStateService\Get-AllInterfaces
+        } catch {}
+    }
+    if (-not $ifaces -or @($ifaces).Count -eq 0) { return }
 
     # Extract unique VLANs
     $vlans = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
@@ -2016,4 +2022,4 @@ function Update-AlertsAsync {
     Update-InsightsAsync -Interfaces $Interfaces -IncludeAlerts
 }
 
-Export-ModuleMember -Function Update-SearchResults, Update-Summary, Update-Alerts, Update-SearchGrid, Update-InsightsAsync, Update-SearchGridAsync, Update-SummaryAsync, Update-AlertsAsync, Get-SearchRegexEnabled, Set-SearchRegexEnabled
+Export-ModuleMember -Function Update-SearchResults, Update-Summary, Update-Alerts, Update-SearchGrid, Update-InsightsAsync, Update-SearchGridAsync, Update-SummaryAsync, Update-AlertsAsync, Get-SearchRegexEnabled, Set-SearchRegexEnabled, Update-VlanFilterDropdown
