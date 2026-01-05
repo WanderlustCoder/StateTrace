@@ -28,6 +28,7 @@ function New-SearchInterfacesView {
     $exportBtn      = $searchView.FindName('ExportSearchButton')
     $statusFilter   = $searchView.FindName('StatusFilter')
     $authFilter     = $searchView.FindName('AuthFilter')
+    $vlanFilter     = $searchView.FindName('VlanFilter')
 
     # Promote search box to the global scope so that its Text property can be
     if ($searchBox) { $global:searchBox = $searchBox }
@@ -92,6 +93,13 @@ function New-SearchInterfacesView {
         $authFilter.Add_SelectionChanged({
             & $restartSearchDebounce
         }.GetNewClosure())
+    }
+    if ($vlanFilter) {
+        $vlanFilter.Add_SelectionChanged({
+            & $restartSearchDebounce
+        }.GetNewClosure())
+        # Promote to global so DeviceInsightsModule can populate it
+        $global:vlanFilter = $vlanFilter
     }
     # Delay heavy site-wide load until the user searches.
     if ($searchGrid) { $searchGrid.ItemsSource = @() }

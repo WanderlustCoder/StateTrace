@@ -385,6 +385,7 @@ function Update-SearchResults {
 
     $statusFilterVal = 'All'
     $authFilterVal   = 'All'
+    $vlanFilterVal   = 'All'
     try {
         $searchHostCtrl = $global:window.FindName('SearchInterfacesHost')
         if ($searchHostCtrl) {
@@ -392,11 +393,15 @@ function Update-SearchResults {
             if ($view) {
                 $statusCtrl = $view.FindName('StatusFilter')
                 $authCtrl   = $view.FindName('AuthFilter')
+                $vlanCtrl   = $view.FindName('VlanFilter')
                 if ($statusCtrl -and $statusCtrl.SelectedItem) {
                     $statusFilterVal = $statusCtrl.SelectedItem.Content
                 }
                 if ($authCtrl -and $authCtrl.SelectedItem) {
                     $authFilterVal = $authCtrl.SelectedItem.Content
+                }
+                if ($vlanCtrl -and $vlanCtrl.SelectedItem) {
+                    $vlanFilterVal = '' + $vlanCtrl.SelectedItem.Content
                 }
             }
         }
@@ -446,6 +451,11 @@ function Update-SearchResults {
             } elseif ($authFilterVal -eq 'Unauthorized') {
                 if ([System.StringComparer]::OrdinalIgnoreCase.Equals($as, 'authorized')) { continue }
             }
+        }
+
+        if ($vlanFilterVal -ne 'All') {
+            $vl = '' + $row.VLAN
+            if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals($vl, $vlanFilterVal)) { continue }
         }
 
         if (-not $termEmpty) {
@@ -719,6 +729,83 @@ function Update-Alerts {
 
 }
 
+function Update-VlanFilterDropdown {
+    <#
+    .SYNOPSIS
+        Populates the VLAN filter dropdown with unique VLANs from loaded interfaces.
+    #>
+    [CmdletBinding()]
+    param(
+        [object]$Interfaces
+    )
+
+    $vlanCtrl = $null
+    try {
+        if (Get-Variable -Name vlanFilter -Scope Global -ErrorAction SilentlyContinue) {
+            $vlanCtrl = $global:vlanFilter
+        }
+    } catch {}
+    if (-not $vlanCtrl) {
+        try {
+            $searchHostCtrl = $global:window.FindName('SearchInterfacesHost')
+            if ($searchHostCtrl -and $searchHostCtrl.Content) {
+                $vlanCtrl = $searchHostCtrl.Content.FindName('VlanFilter')
+            }
+        } catch {}
+    }
+    if (-not $vlanCtrl) { return }
+
+    # Get current selection to preserve it
+    $currentSelection = 'All'
+    try {
+        if ($vlanCtrl.SelectedItem) {
+            $currentSelection = '' + $vlanCtrl.SelectedItem.Content
+        }
+    } catch {}
+
+    # Get interfaces from snapshot if not provided
+    $ifaces = $Interfaces
+    if (-not $ifaces) {
+        $ifaces = script:Get-InsightsInterfacesSnapshot
+    }
+    if (-not $ifaces) { return }
+
+    # Extract unique VLANs
+    $vlans = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($row in $ifaces) {
+        if ($row -and $row.VLAN) {
+            $v = '' + $row.VLAN
+            if (-not [string]::IsNullOrWhiteSpace($v)) {
+                [void]$vlans.Add($v)
+            }
+        }
+    }
+
+    # Sort VLANs numerically where possible
+    $sortedVlans = $vlans | Sort-Object {
+        $num = 0
+        if ([int]::TryParse($_, [ref]$num)) { $num } else { [int]::MaxValue }
+    }, { $_ }
+
+    # Rebuild dropdown items
+    $vlanCtrl.Items.Clear()
+    $allItem = [System.Windows.Controls.ComboBoxItem]::new()
+    $allItem.Content = 'All'
+    [void]$vlanCtrl.Items.Add($allItem)
+
+    $selIndex = 0
+    $idx = 1
+    foreach ($vlan in $sortedVlans) {
+        $item = [System.Windows.Controls.ComboBoxItem]::new()
+        $item.Content = $vlan
+        [void]$vlanCtrl.Items.Add($item)
+        if ($vlan -eq $currentSelection) { $selIndex = $idx }
+        $idx++
+    }
+
+    $vlanCtrl.SelectedIndex = $selIndex
+}
+
 function Update-SearchGrid {
     [CmdletBinding()]
     param(
@@ -729,6 +816,9 @@ function Update-SearchGrid {
         Write-Verbose '[DeviceInsights] Interfaces not allowed yet; skipping search grid.'
         return
     }
+
+    # Update VLAN dropdown with available VLANs
+    Update-VlanFilterDropdown -Interfaces $Interfaces
 
     $searchHostCtrl = $global:window.FindName('SearchInterfacesHost')
     if (-not $searchHostCtrl) { return }

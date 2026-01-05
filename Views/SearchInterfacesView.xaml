@@ -28,6 +28,11 @@
         <ComboBoxItem Content="Unauthorized"/>
       </ComboBox>
 
+      <Label Content="VLAN:" VerticalAlignment="Center" Margin="0,0,0,0" Style="{DynamicResource ToolbarLabelStyle}"/>
+      <ComboBox Name="VlanFilter" Style="{DynamicResource ToolbarComboBoxStyle}" Width="80" Margin="0,0,5,0" SelectedIndex="0">
+        <ComboBoxItem Content="All"/>
+      </ComboBox>
+
       <Button Name="ExportSearchButton" Content="Export" Width="60" Height="23" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Export search results to CSV"/>
     </StackPanel>
 
