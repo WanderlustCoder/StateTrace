@@ -65,7 +65,7 @@ The active StateTrace plans live in discrete files so automation agents can refe
 - **Plan W** - **Planned**. Network topology visualization with auto-discovery and diagram export.
 - **Plan X** - **In Progress (4/6 Done)**. Inventory and asset tracking with warranty monitoring and firmware management. Core module, tests, and UI view integrated into MainWindow. Advanced analytics and budget forecasting pending.
 - **Plan Y** - **In Progress (5/6 Done)**. Network calculator suite with subnet, VLAN, bandwidth, port reference, and STP timer tools. Core module, tests, and UI view integrated into MainWindow.
-- **Plan Z** - **Planned**. Change management with maintenance window scheduling, pre/post verification, and rollback tracking.
+- **Plan Z** - **In Progress (4/6 Done)**. Change management with maintenance window scheduling, pre/post verification, and rollback tracking. Core module, tests, and UI view integrated into MainWindow.
 - **Plan AA** - **Planned**. Network documentation generator with as-built templates and multi-format export.
 - **Plan AB** - **In Progress (4/6 Done)**. Troubleshooting decision trees with guided workflows. Core module, tests, built-in trees, and interactive UI delivered. Tree editor and analytics pending.
 - **Plan AC** - **Planned**. Capacity planning with utilization tracking, growth forecasting, and budget projections.

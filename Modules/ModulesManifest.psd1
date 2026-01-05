@@ -53,6 +53,8 @@
         'ConfigTemplateViewModule.psm1',
         'InventoryModule.psm1',
         'InventoryViewModule.psm1',
+        'ChangeManagementModule.psm1',
+        'ChangeManagementViewModule.psm1',
         'CompareViewModule.psm1',
         'TemplatesModule.psm1'
     )
