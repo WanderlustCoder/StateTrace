@@ -698,9 +698,8 @@ function Update-Alerts {
             [void]$reasons.Add('Half duplex')
         }
         $authState = '' + $row.AuthState
-        if ($authState) {
-            if (-not [System.StringComparer]::OrdinalIgnoreCase.Equals($authState, 'authorized')) { [void]$reasons.Add('Unauthorized') }
-        } else {
+        # Only alert on explicitly unauthorized ports, not unknown/empty (no 802.1X configured)
+        if ($authState -and [System.StringComparer]::OrdinalIgnoreCase.Equals($authState, 'unauthorized')) {
             [void]$reasons.Add('Unauthorized')
         }
 
@@ -1353,9 +1352,8 @@ function script:Ensure-InsightsWorker {
 
                         $authState = ''
                         try { $authState = '' + $row.AuthState } catch { $authState = '' }
-                        if ($authState) {
-                            if (-not $equalsIgnoreCase.Equals($authState, 'authorized')) { [void]$reasonParts.Add('Unauthorized') }
-                        } else {
+                        # Only alert on explicitly unauthorized ports, not unknown/empty (no 802.1X configured)
+                        if ($authState -and $equalsIgnoreCase.Equals($authState, 'unauthorized')) {
                             [void]$reasonParts.Add('Unauthorized')
                         }
 
