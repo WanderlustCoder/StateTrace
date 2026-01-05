@@ -17,10 +17,12 @@ Network teams struggle with:
 - Understanding root cause when multiple events cascade
 
 ## Current status (2026-01)
-- Log ingestion exists for routing data
-- No dedicated log analysis or pattern detection
-- No event correlation across devices
-- No historical pattern recognition
+- **In Progress (4/6 core tasks done)**
+- LogAnalysisModule.psm1 implemented with multi-format parser
+- 15 built-in patterns: LinkFlapping, STPTopologyChange, AuthenticationFailure, etc.
+- 51 Pester tests passing
+- LogAnalysisView.xaml and LogAnalysisViewModule.psm1 integrated into MainWindow
+- Pending: Anomaly detection, scheduled reports
 
 ## Proposed Features
 
@@ -115,10 +117,10 @@ Network teams struggle with:
 ## Active work
 | ID | Title | Owner | Status | Notes |
 |----|-------|-------|--------|-------|
-| ST-AE-001 | Log parser engine | Tools | Pending | Multi-format parsing |
-| ST-AE-002 | Pattern library | Tools | Pending | Known issue patterns |
-| ST-AE-003 | Correlation engine | Tools | Pending | Cross-device event linking |
-| ST-AE-004 | Log analysis UI | UI | Pending | Timeline and search views |
+| ST-AE-001 | Log parser engine | Tools | Done | Cisco IOS, Arista EOS, RFC 5424/3164, Generic |
+| ST-AE-002 | Pattern library | Tools | Done | 15 built-in patterns with severity and actions |
+| ST-AE-003 | Correlation engine | Tools | Done | Group-CorrelatedEvents, Find-EventCascade |
+| ST-AE-004 | Log analysis UI | UI | Done | LogAnalysisView.xaml with import, search, patterns |
 | ST-AE-005 | Anomaly detection | Tools | Pending | Statistical analysis |
 | ST-AE-006 | Pattern reports | Tools | Pending | Summary and trend reports |
 

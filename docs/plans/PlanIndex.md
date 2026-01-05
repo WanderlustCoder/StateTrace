@@ -70,7 +70,7 @@ The active StateTrace plans live in discrete files so automation agents can refe
 - **Plan AB** - **In Progress (4/6 Done)**. Troubleshooting decision trees with guided workflows. Core module, tests, built-in trees, and interactive UI delivered. Tree editor and analytics pending.
 - **Plan AC** - **Planned**. Capacity planning with utilization tracking, growth forecasting, and budget projections.
 - **Plan AD** - **In Progress (5/6 Done)**. Cross-vendor command reference with translation and configuration snippets. Core module, UI, and tests delivered. Learning mode pending.
-- **Plan AE** - **Planned**. Log analysis with pattern detection, event correlation, and anomaly detection.
+- **Plan AE** - **In Progress (4/6 Done)**. Log analysis with pattern detection and event correlation. Multi-format parser (Cisco IOS, Arista EOS, syslog), 15 built-in patterns, and interactive UI delivered. Anomaly detection and reports pending.
 
 ## How to use the plans
 1. **Before editing code** - open the relevant plan file, confirm the objective still matches your intent, and add your upcoming work to the "Active work" table (include the task-board or Codex backlog ID).

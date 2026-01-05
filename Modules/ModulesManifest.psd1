@@ -42,6 +42,8 @@
         'NetworkCalculatorViewModule.psm1',
         'DecisionTreeModule.psm1',
         'DecisionTreeViewModule.psm1',
+        'LogAnalysisModule.psm1',
+        'LogAnalysisViewModule.psm1',
         'CompareViewModule.psm1',
         'TemplatesModule.psm1'
     )
