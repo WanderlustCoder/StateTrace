@@ -26,6 +26,12 @@ The active StateTrace plans live in discrete files so automation agents can refe
 | Q | Shared cache strategy & snapshot governance | Ingestion | Snapshot rotation/coverage policy, import compatibility guards | `docs/plans/PlanQ_SharedCacheStrategy.md` |
 | R | Incident response & rollback readiness | PMO / Security | Drills, rollback bundles, NetOps evidence enforcement | `docs/plans/PlanR_IncidentResponse.md` |
 | S | Deprecation & unused code cleanup | Architecture / PMO | Unused export inventory, feature flag audit, script/runbook pruning | `docs/plans/PlanS_DeprecationCleanup.md` |
+| T | Cable & port documentation | UI / Ops | Cable tracking, patch panel mapping, label generation | `docs/plans/PlanT_CablePortDocumentation.md` |
+| U | Configuration templates & validation | Tools / UI | Template engine, config validation, compliance checking | `docs/plans/PlanU_ConfigurationTemplates.md` |
+| V | IP address & VLAN planning | Data / UI | VLAN registry, subnet planning, conflict detection | `docs/plans/PlanV_IPAddressVLANPlanning.md` |
+| W | Network topology visualization | UI | Auto-discovery, L2/L3 views, diagram export | `docs/plans/PlanW_NetworkTopologyVisualization.md` |
+| X | Inventory & asset tracking | Data / UI | Asset registry, warranty tracking, firmware management | `docs/plans/PlanX_InventoryAssetTracking.md` |
+| Y | Network calculator tools | Tools / UI | Subnet calculator, bandwidth calculator, protocol timers | `docs/plans/PlanY_NetworkCalculatorTools.md` |
 
 ## Status snapshot (2026-01)
 - **Plan A** - **Complete (5/6 Done, 1 Deferred)**. Routing instrumentation, dispatcher harness, verification scripts, and evidence capture implemented. ST-A-019 (real-device validation) deferred pending device access.
@@ -47,6 +53,12 @@ The active StateTrace plans live in discrete files so automation agents can refe
 - **Plan Q** - **Complete**. Snapshot rotation/coverage policies, compatibility guards, and fallback seeds delivered.
 - **Plan R** - **Complete**. Drill cadence, rollback bundles, evidence enforcement, and post-incident verification implemented.
 - **Plan S** - **Complete**. Unused export inventory, feature flag audit, and script/runbook pruning delivered.
+- **Plan T** - **Planned**. Cable & port documentation for tracking physical connections, patch panels, and generating cable labels.
+- **Plan U** - **Planned**. Configuration template engine with validation, compliance checking, and config generation.
+- **Plan V** - **Planned**. Lightweight IPAM with VLAN registry, subnet planning, and conflict detection.
+- **Plan W** - **Planned**. Network topology visualization with auto-discovery and diagram export.
+- **Plan X** - **Planned**. Inventory and asset tracking with warranty monitoring and firmware management.
+- **Plan Y** - **Planned**. Network calculator suite with subnet, VLAN, bandwidth, and protocol timer tools.
 
 ## How to use the plans
 1. **Before editing code** - open the relevant plan file, confirm the objective still matches your intent, and add your upcoming work to the "Active work" table (include the task-board or Codex backlog ID).
