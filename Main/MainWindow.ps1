@@ -3420,6 +3420,32 @@ $window.Add_Loaded({
 })
 # === END Window Loaded handler ===
 
+# 7b) Window Closing handler - cleanup timers and runspaces
+$window.Add_Closing({
+    param($sender, $e)
+    try {
+        # Stop timers
+        if ($script:ParserStatusTimer) { try { $script:ParserStatusTimer.Stop() } catch {} }
+        if ($script:FilterUpdateTimer) { try { $script:FilterUpdateTimer.Stop() } catch {} }
+
+        # Dispose runspaces
+        if ($script:DeviceDetailsRunspace) {
+            try { $script:DeviceDetailsRunspace.Close() } catch {}
+            try { $script:DeviceDetailsRunspace.Dispose() } catch {}
+        }
+        if ($script:DatabaseImportRunspace) {
+            try { $script:DatabaseImportRunspace.Close() } catch {}
+            try { $script:DatabaseImportRunspace.Dispose() } catch {}
+        }
+
+        # Stop any module-level timers
+        try {
+            $searchTimer = Get-Variable -Name 'SearchUpdateTimer' -Scope Script -ErrorAction SilentlyContinue
+            if ($searchTimer -and $searchTimer.Value) { $searchTimer.Value.Stop() }
+        } catch {}
+    } catch {}
+})
+
 # 8) Show window
 $window.ShowDialog() | Out-Null
 
