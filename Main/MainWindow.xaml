@@ -96,6 +96,10 @@
         <TabItem Header="Alerts">
           <ContentControl Name="AlertsHost"/>
         </TabItem>
+        <!-- Command Reference tab for cross-vendor command lookup and translation -->
+        <TabItem Header="Cmd Reference">
+          <ContentControl Name="CommandReferenceHost"/>
+        </TabItem>
         <!-- Add more tabs here -->
       </TabControl>
       <!-- Compare sidebar occupies the second column and hosts the compare view.  It is hidden by default by setting the column width to zero. -->

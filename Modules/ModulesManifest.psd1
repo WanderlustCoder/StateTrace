@@ -36,6 +36,8 @@
         'SummaryViewModule.psm1',
         'TemplatesViewModule.psm1',
         'AlertsViewModule.psm1',
+        'CommandReferenceModule.psm1',
+        'CommandReferenceViewModule.psm1',
         'CompareViewModule.psm1',
         'TemplatesModule.psm1'
     )

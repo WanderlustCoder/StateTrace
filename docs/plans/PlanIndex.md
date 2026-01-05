@@ -69,7 +69,7 @@ The active StateTrace plans live in discrete files so automation agents can refe
 - **Plan AA** - **Planned**. Network documentation generator with as-built templates and multi-format export.
 - **Plan AB** - **Planned**. Troubleshooting decision trees with guided workflows and outcome tracking.
 - **Plan AC** - **Planned**. Capacity planning with utilization tracking, growth forecasting, and budget projections.
-- **Plan AD** - **Planned**. Cross-vendor command reference with translation and configuration snippets.
+- **Plan AD** - **In Progress (5/6 Done)**. Cross-vendor command reference with translation and configuration snippets. Core module, UI, and tests delivered. Learning mode pending.
 - **Plan AE** - **Planned**. Log analysis with pattern detection, event correlation, and anomaly detection.
 
 ## How to use the plans

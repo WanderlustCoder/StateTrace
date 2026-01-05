@@ -1,0 +1,266 @@
+<UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <Grid Background="{DynamicResource Theme.Surface.Primary}">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+    </Grid.RowDefinitions>
+
+    <!-- Row 0: Search and filter controls -->
+    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5" Background="{DynamicResource Theme.Toolbar.Background}">
+      <Label Content="Search:" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
+      <TextBox Name="SearchBox" Width="200" Margin="5,0" VerticalAlignment="Center"
+               Background="{DynamicResource Theme.Input.Background}"
+               Foreground="{DynamicResource Theme.Input.Text}"
+               BorderBrush="{DynamicResource Theme.Input.Border}"
+               ToolTip="Search commands by keyword"/>
+      <Button Name="SearchButton" Content="Search" Width="70" Margin="5,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+      <Label Content="Category:" VerticalAlignment="Center" Margin="15,0,0,0" Style="{DynamicResource ToolbarLabelStyle}"/>
+      <ComboBox Name="CategoryDropdown" Width="120" Margin="5,0" Style="{DynamicResource ToolbarComboBoxStyle}">
+        <ComboBoxItem Content="All" IsSelected="True"/>
+      </ComboBox>
+      <Label Content="Vendor:" VerticalAlignment="Center" Margin="10,0,0,0" Style="{DynamicResource ToolbarLabelStyle}"/>
+      <ComboBox Name="VendorDropdown" Width="100" Margin="5,0" Style="{DynamicResource ToolbarComboBoxStyle}">
+        <ComboBoxItem Content="All" IsSelected="True"/>
+      </ComboBox>
+    </StackPanel>
+
+    <!-- Row 1: Translation controls -->
+    <GroupBox Grid.Row="1" Header="Command Translation" Margin="5,0,5,5"
+              Foreground="{DynamicResource Theme.Text.Inverse}"
+              BorderBrush="{DynamicResource Theme.Border.Primary}">
+      <Grid Margin="5">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+
+        <Label Grid.Column="0" Content="From:" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
+        <ComboBox Name="FromVendorDropdown" Grid.Column="1" Margin="5,0" Style="{DynamicResource ToolbarComboBoxStyle}"/>
+
+        <TextBox Name="SourceCommandBox" Grid.Column="2" Width="300" Margin="5,0" VerticalAlignment="Center"
+                 Background="{DynamicResource Theme.Input.Background}"
+                 Foreground="{DynamicResource Theme.Input.Text}"
+                 BorderBrush="{DynamicResource Theme.Input.Border}"
+                 ToolTip="Enter command to translate"/>
+
+        <Button Name="TranslateButton" Grid.Column="3" Content="Translate" Width="80" Margin="5,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+
+        <Label Grid.Column="4" Content="To:" VerticalAlignment="Center" Margin="10,0,0,0" Style="{DynamicResource ToolbarLabelStyle}"/>
+        <ComboBox Name="ToVendorDropdown" Grid.Column="5" Margin="5,0" Style="{DynamicResource ToolbarComboBoxStyle}"/>
+
+        <TextBox Name="TranslatedCommandBox" Grid.Column="6" Width="300" Margin="5,0" VerticalAlignment="Center" IsReadOnly="True"
+                 Background="{DynamicResource Theme.Input.Background}"
+                 Foreground="{DynamicResource Theme.Input.Text}"
+                 BorderBrush="{DynamicResource Theme.Input.Border}"
+                 ToolTip="Translated command"/>
+      </Grid>
+    </GroupBox>
+
+    <!-- Row 2: Main content area with tabs -->
+    <TabControl Grid.Row="2" Margin="5" Background="{DynamicResource Theme.Surface.Primary}">
+
+      <!-- Command Lookup Tab -->
+      <TabItem Header="Commands">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+          </Grid.RowDefinitions>
+
+          <DataGrid Name="CommandsGrid" Grid.Row="0" AutoGenerateColumns="False" IsReadOnly="True"
+                    Background="{DynamicResource Theme.Input.Background}"
+                    Foreground="{DynamicResource Theme.Input.Text}"
+                    BorderBrush="{DynamicResource Theme.Input.Border}"
+                    RowBackground="{DynamicResource Theme.Input.Background}"
+                    AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
+                    GridLinesVisibility="Horizontal"
+                    HeadersVisibility="Column"
+                    SelectionMode="Single">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Task" Binding="{Binding Task}" Width="200"/>
+              <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="80"/>
+              <DataGridTextColumn Header="Vendor" Binding="{Binding Vendor}" Width="80"/>
+              <DataGridTextColumn Header="Command" Binding="{Binding Command}" Width="250"/>
+              <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
+            </DataGrid.Columns>
+          </DataGrid>
+
+          <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="5">
+            <Button Name="CopyCommandButton" Content="Copy Command" Width="110" Margin="0,0,5,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+            <TextBlock Name="CommandCountText" Text="0 commands" VerticalAlignment="Center" Margin="10,0" Foreground="{DynamicResource Theme.Text.Inverse}"/>
+          </StackPanel>
+        </Grid>
+      </TabItem>
+
+      <!-- Side-by-Side Comparison Tab -->
+      <TabItem Header="Compare Vendors">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+
+          <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5">
+            <Label Content="Task:" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
+            <TextBox Name="CompareTaskBox" Width="200" Margin="5,0" VerticalAlignment="Center"
+                     Background="{DynamicResource Theme.Input.Background}"
+                     Foreground="{DynamicResource Theme.Input.Text}"
+                     BorderBrush="{DynamicResource Theme.Input.Border}"
+                     ToolTip="Enter task description (e.g., 'show routing table')"/>
+            <Button Name="CompareButton" Content="Compare" Width="80" Margin="5,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+          </StackPanel>
+
+          <DataGrid Name="CompareGrid" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True" Margin="5"
+                    Background="{DynamicResource Theme.Input.Background}"
+                    Foreground="{DynamicResource Theme.Input.Text}"
+                    BorderBrush="{DynamicResource Theme.Input.Border}"
+                    RowBackground="{DynamicResource Theme.Input.Background}"
+                    AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
+                    GridLinesVisibility="All"
+                    HeadersVisibility="Column">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Task" Binding="{Binding Task}" Width="180"/>
+              <DataGridTextColumn Header="Cisco" Binding="{Binding Cisco}" Width="200"/>
+              <DataGridTextColumn Header="Arista" Binding="{Binding Arista}" Width="200"/>
+              <DataGridTextColumn Header="Juniper" Binding="{Binding Juniper}" Width="200"/>
+              <DataGridTextColumn Header="HP" Binding="{Binding HP}" Width="180"/>
+            </DataGrid.Columns>
+          </DataGrid>
+        </Grid>
+      </TabItem>
+
+      <!-- Config Snippets Tab -->
+      <TabItem Header="Config Snippets">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="250"/>
+            <ColumnDefinition Width="*"/>
+          </Grid.ColumnDefinitions>
+
+          <!-- Left: Snippet list -->
+          <Grid Grid.Column="0" Margin="5">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,5">
+              <Label Content="Vendor:" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
+              <ComboBox Name="SnippetVendorDropdown" Width="100" Margin="5,0" Style="{DynamicResource ToolbarComboBoxStyle}"/>
+            </StackPanel>
+
+            <ListBox Name="SnippetsList" Grid.Row="1"
+                     Background="{DynamicResource Theme.Input.Background}"
+                     Foreground="{DynamicResource Theme.Input.Text}"
+                     BorderBrush="{DynamicResource Theme.Input.Border}"/>
+          </Grid>
+
+          <!-- Right: Snippet details and generator -->
+          <Grid Grid.Column="1" Margin="5">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="*"/>
+              <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0" Name="SnippetTitleText" Text="Select a snippet" FontSize="14" FontWeight="Bold" Margin="0,0,0,5"
+                       Foreground="{DynamicResource Theme.Text.Inverse}"/>
+
+            <!-- Variables input area -->
+            <GroupBox Grid.Row="1" Header="Variables" Margin="0,0,0,5"
+                      Foreground="{DynamicResource Theme.Text.Inverse}"
+                      BorderBrush="{DynamicResource Theme.Border.Primary}">
+              <StackPanel Name="VariablesPanel" Margin="5"/>
+            </GroupBox>
+
+            <!-- Generated config preview -->
+            <GroupBox Grid.Row="2" Header="Generated Configuration"
+                      Foreground="{DynamicResource Theme.Text.Inverse}"
+                      BorderBrush="{DynamicResource Theme.Border.Primary}">
+              <TextBox Name="GeneratedConfigBox" AcceptsReturn="True" IsReadOnly="True"
+                       VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                       FontFamily="Consolas" FontSize="12"
+                       Background="{DynamicResource Theme.Input.Background}"
+                       Foreground="{DynamicResource Theme.Input.Text}"
+                       BorderThickness="0"/>
+            </GroupBox>
+
+            <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,5,0,0">
+              <Button Name="GenerateConfigButton" Content="Generate" Width="90" Margin="0,0,5,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+              <Button Name="CopyConfigButton" Content="Copy Config" Width="90" Margin="0,0,5,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+            </StackPanel>
+          </Grid>
+        </Grid>
+      </TabItem>
+
+      <!-- Quick Reference Tab -->
+      <TabItem Header="Quick Reference">
+        <Grid Margin="5">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+
+          <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+            <Label Content="I want to:" VerticalAlignment="Center" FontSize="14" Style="{DynamicResource ToolbarLabelStyle}"/>
+            <TextBox Name="QuickRefTaskBox" Width="300" Margin="5,0" FontSize="14" VerticalAlignment="Center"
+                     Background="{DynamicResource Theme.Input.Background}"
+                     Foreground="{DynamicResource Theme.Input.Text}"
+                     BorderBrush="{DynamicResource Theme.Input.Border}"
+                     ToolTip="Describe what you want to do (e.g., 'check port status', 'show mac table')"/>
+            <Button Name="QuickRefSearchButton" Content="Find Commands" Width="110" Margin="5,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+          </StackPanel>
+
+          <DataGrid Name="QuickRefGrid" Grid.Row="1" AutoGenerateColumns="False" IsReadOnly="True"
+                    Background="{DynamicResource Theme.Input.Background}"
+                    Foreground="{DynamicResource Theme.Input.Text}"
+                    BorderBrush="{DynamicResource Theme.Input.Border}"
+                    RowBackground="{DynamicResource Theme.Input.Background}"
+                    AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
+                    GridLinesVisibility="Horizontal"
+                    HeadersVisibility="Column">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Task" Binding="{Binding Task}" Width="200"/>
+              <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="100"/>
+              <DataGridTemplateColumn Header="Vendors" Width="*">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate>
+                    <ItemsControl ItemsSource="{Binding Vendors}">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                          <StackPanel Orientation="Horizontal"/>
+                        </ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                          <Border Background="{DynamicResource Theme.Surface.Secondary}"
+                                  BorderBrush="{DynamicResource Theme.Border.Primary}"
+                                  BorderThickness="1" CornerRadius="3" Margin="2" Padding="5,2">
+                            <StackPanel Orientation="Horizontal">
+                              <TextBlock Text="{Binding Vendor}" FontWeight="Bold" Margin="0,0,5,0"/>
+                              <TextBlock Text="{Binding Command}"/>
+                            </StackPanel>
+                          </Border>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
+            </DataGrid.Columns>
+          </DataGrid>
+        </Grid>
+      </TabItem>
+
+    </TabControl>
+  </Grid>
+</UserControl>
