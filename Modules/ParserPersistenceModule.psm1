@@ -81,7 +81,8 @@ if (-not (Get-Variable -Name InterfaceIndexesEnsured -Scope Script -ErrorAction 
 }
 
 if (-not (Get-Variable -Name InterfaceBulkChunkSizeDefault -Scope Script -ErrorAction SilentlyContinue)) {
-    $script:InterfaceBulkChunkSizeDefault = 24
+    # Increased from 24 to 64 for better bulk insert throughput; Access handles 64-96 rows per batch safely
+    $script:InterfaceBulkChunkSizeDefault = 64
 }
 
 if (-not (Get-Variable -Name InterfaceBulkChunkSizeCurrent -Scope Script -ErrorAction SilentlyContinue)) {
@@ -4319,9 +4320,9 @@ WHERE Seed.BatchId = '$escBatch' AND Seed.Hostname = '$escHostname'"
             }
         }
 
-        $chunkSize = 24
-        try { $chunkSize = DeviceRepositoryModule\Get-InterfacePortBatchChunkSize } catch { $chunkSize = 24 }
-        if ($chunkSize -le 0) { $chunkSize = 24 }
+        $chunkSize = 64
+        try { $chunkSize = DeviceRepositoryModule\Get-InterfacePortBatchChunkSize } catch { $chunkSize = 64 }
+        if ($chunkSize -le 0) { $chunkSize = 64 }
         $estimatedBatchCount = if ($totalPorts -gt 0) { [int][Math]::Ceiling($totalPorts / [double]$chunkSize) } else { 0 }
 
         try {

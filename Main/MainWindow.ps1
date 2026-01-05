@@ -1523,7 +1523,7 @@ function Update-FreshnessIndicator {
         }
     }
 
-    $site = Get-SiteFilterSelection -Window $Window
+    $site = Get-SelectedSiteFilterValue -Window $Window
     if (-not $site) {
         $label.Content = 'Freshness: select a site'
         & $setIndicatorColor 'Gray'
@@ -3141,7 +3141,7 @@ if ($refreshDbButton -and -not $script:RefreshDbHandlerAttached) {
     $refreshDbButton.Add_Click({
         param($sender,$e)
         # Emit telemetry for the action
-        $site = Get-SiteFilterSelection -Window $window
+        $site = Get-SelectedSiteFilterValue -Window $window
         Publish-UserActionTelemetry -Action 'RefreshFromDb' -Site $site
         # Reload from database without parsing
         Invoke-DatabaseImport -Window $window
@@ -3401,4 +3401,5 @@ $window.Add_Loaded({
 # 8) Show window
 $window.ShowDialog() | Out-Null
 
-# 9) Cleanup
+# 9) Cleanup and exit
+exit 0

@@ -121,6 +121,23 @@ if (-not (Get-Variable -Name RegexCacheKeySeparator -Scope Script -ErrorAction S
     $script:RegexCacheKeySeparator = [char]0x1F
 }
 
+# Fast-path character array for prompt token detection - avoids regex for non-prompt lines
+if (-not (Get-Variable -Name PromptTokenChars -Scope Script -ErrorAction SilentlyContinue)) {
+    $script:PromptTokenChars = [char[]]@('#', '>')
+}
+
+function script:Test-MayBePromptLine {
+    <#
+    .SYNOPSIS
+        Fast check to determine if a line could possibly be a prompt line.
+        Returns $false for lines that definitely cannot match prompt regexes,
+        allowing callers to skip expensive regex evaluation.
+    #>
+    param([string]$Line)
+    if ([string]::IsNullOrEmpty($Line)) { return $false }
+    return ($Line.IndexOfAny($script:PromptTokenChars) -ge 0)
+}
+
 function script:Get-CachedRegex {
     [CmdletBinding()]
     param(
@@ -158,15 +175,8 @@ function Update-ShowBlockState {
 
     $lineText = if ($null -ne $Line) { [string]$Line } else { '' }
 
-    # Avoid regex work for the vast majority of lines that cannot be prompts.
-    $hasPromptToken = $false
-    if ($lineText) {
-        if ($lineText.IndexOf('#') -ge 0 -or $lineText.IndexOf('>') -ge 0) {
-            $hasPromptToken = $true
-        }
-    }
-
-    if ($hasPromptToken) {
+    # Fast-path: skip regex work for lines that cannot possibly be prompts
+    if (script:Test-MayBePromptLine -Line $lineText) {
         # Match a prompt followed by a show command.  Accept both '#' and '>'
         $promptMatch = $script:ShowPromptWithCommandRegex.Match($lineText)
         if ($promptMatch.Success) {
@@ -277,7 +287,8 @@ function Get-ShowBlock {
             $buffer = [System.Collections.Generic.List[string]]::new()
             for ($j = $startIndex + 1; $j -lt $Lines.Count; $j++) {
                 $line = $Lines[$j]
-                if ($script:ShowPromptStartRegex.IsMatch($line)) { break }
+                # Fast-path: skip regex if line cannot be a prompt
+                if ((script:Test-MayBePromptLine -Line $line) -and $script:ShowPromptStartRegex.IsMatch($line)) { break }
                 [void]$buffer.Add($line)
             }
             return ,$buffer.ToArray()

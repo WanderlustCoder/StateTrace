@@ -1788,7 +1788,8 @@ if (-not (Get-Variable -Scope Script -Name InterfacePortStreamStore -ErrorAction
 }
 
 if (-not (Get-Variable -Scope Script -Name InterfacePortStreamChunkSize -ErrorAction SilentlyContinue)) {
-    $script:InterfacePortStreamChunkSize = 24
+    # Increased from 24 to 64 for better bulk insert throughput
+    $script:InterfacePortStreamChunkSize = 64
 }
 
 function Set-InterfacePortStreamChunkSize {
@@ -1798,7 +1799,7 @@ function Set-InterfacePortStreamChunkSize {
         [switch]$Reset
     )
 
-    $defaultChunkSize = 24
+    $defaultChunkSize = 64
     $targetSize = $defaultChunkSize
 
     if (-not $Reset -and $PSBoundParameters.ContainsKey('ChunkSize') -and $ChunkSize -gt 0) {
