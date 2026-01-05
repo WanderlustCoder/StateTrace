@@ -632,6 +632,11 @@ function Show-PortReorgWindow {
         if ($pagingState.Enabled -eq $true) {
             try { & $updateVisibleRowsForCurrentPage } catch { }
             try { & $updatePagingControls } catch { }
+            # ST-D-012: Update grid to use visibleRows when paging is initially enabled
+            try {
+                $grid.ItemsSource = $null
+                $grid.ItemsSource = $visibleRows
+            } catch { }
         }
     }
 
@@ -1001,6 +1006,9 @@ function Show-PortReorgWindow {
             & $refreshGrid
             & $updatePagingControls
             try { & $saveCurrentSettings } catch { }
+            & $setStatus ("Page size set to {0}." -f $size) ''
+        } else {
+            & $setStatus ("Page size unchanged ({0})." -f $size) ''
         }
     }.GetNewClosure()
     #endregion

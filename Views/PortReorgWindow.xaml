@@ -40,11 +40,11 @@
                BorderThickness="1"/>
 
       <CheckBox Name="ReorgPagedViewCheckBox"
-                Content="Paged view (12 ports)"
+                Content="Paged view"
                 IsChecked="False"
                 Margin="0,0,10,0"
                 VerticalAlignment="Center"
-                ToolTip="When enabled, ports are shown in 12-port pages. Use Parking to move profiles between pages."/>
+                ToolTip="When enabled, ports are shown in pages. Use Size box to change page size. Use Parking to move profiles between pages."/>
 
       <Button Name="ReorgPagePrevButton"
               Content="Prev"
@@ -105,15 +105,27 @@
       <Button Name="ReorgSearchClearButton"
               Content="X"
               Width="22"
-              Margin="0,0,18,0"
+              Margin="0,0,0,0"
               VerticalAlignment="Center"
               ToolTip="Clear search"
               Style="{DynamicResource SecondaryButtonStyle}"/>
-
-      <TextBlock Name="ReorgStatusText" VerticalAlignment="Center" Foreground="{DynamicResource Theme.Status.Warning}"/>
     </StackPanel>
 
-     <GroupBox Grid.Row="1" Grid.Column="0" Header="Parking" Margin="0,0,10,0">
+    <!-- Status banner above Parking -->
+    <Border Grid.Row="1" Grid.Column="0"
+            Height="24"
+            VerticalAlignment="Top"
+            Margin="0,0,10,0"
+            Padding="6,2"
+            CornerRadius="3"
+            Background="{DynamicResource Theme.Surface.Primary}">
+      <TextBlock Name="ReorgStatusText"
+                 VerticalAlignment="Center"
+                 TextTrimming="CharacterEllipsis"
+                 Foreground="{DynamicResource Theme.Status.Warning}"/>
+    </Border>
+
+     <GroupBox Grid.Row="1" Grid.Column="0" Header="Parking" Margin="0,28,10,0">
        <ListBox Name="ReorgParkingList"
                 AllowDrop="True"
                 Background="{DynamicResource Theme.DataGrid.Background}"
