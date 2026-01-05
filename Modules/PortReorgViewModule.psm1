@@ -752,10 +752,13 @@ function Show-PortReorgWindow {
 
             $itemsSource = $rows
             if ($pagingIsAvailable -and ($pagingState.Enabled -eq $true)) {
-                try { & $updateVisibleRowsForCurrentPage } catch { }
+                try {
+                    & $updateVisibleRowsForCurrentPage
+                } catch {
+                    & $setStatus ("Paging error: {0}" -f $_.Exception.Message) ''
+                }
                 $itemsSource = $visibleRows
-                # Debug: show visible rows count
-                & $setStatus ("Showing page {0}/{1} ({2} ports)" -f $pagingState.PageNumber, $pagingState.PageCount, $visibleRows.Count) ''
+                & $setStatus ("Page {0}/{1} ({2} of {3} ports)" -f $pagingState.PageNumber, $pagingState.PageCount, $visibleRows.Count, $orderedRows.Count) ''
             }
 
             $grid.ItemsSource = $null
