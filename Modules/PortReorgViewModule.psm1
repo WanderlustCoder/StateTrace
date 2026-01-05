@@ -387,12 +387,17 @@ function Show-PortReorgWindow {
         $pagingIsAvailable = $false
     }
 
-    $orderedRows = @()
+    $orderedRowsList = [System.Collections.Generic.List[object]]::new()
     try {
-        $orderedRows = @($rows.ToArray() | Sort-Object TargetPortSort, TargetPort)
+        $sorted = @($rows.ToArray() | Sort-Object TargetPortSort, TargetPort)
+        foreach ($r in $sorted) { $orderedRowsList.Add($r) | Out-Null }
     } catch {
-        try { $orderedRows = @($rows.ToArray()) } catch { $orderedRows = @() }
+        try {
+            foreach ($r in $rows) { $orderedRowsList.Add($r) | Out-Null }
+        } catch { }
     }
+    # Keep $orderedRows as reference for backward compatibility
+    $orderedRows = $orderedRowsList
 
     # ST-D-012: Update module boundary markers based on port grouping
     $updateModuleBoundaries = {
@@ -530,9 +535,14 @@ function Show-PortReorgWindow {
     }.GetNewClosure()
 
     $updateVisibleRowsForCurrentPage = {
-        if (-not ($pagingState.Enabled -eq $true)) { return }
+        $isEnabled = $false
+        try { $isEnabled = [bool]$pagingState.Enabled } catch { $isEnabled = $false }
+        if (-not $isEnabled) { return }
 
         # LANDMARK: ST-D-011 paging slice usage
+        $rowCount = 0
+        try { $rowCount = $orderedRows.Count } catch { $rowCount = 0 }
+
         $slice = Get-PortReorgPageSlice -OrderedRows $orderedRows -PageSize ([int]$pagingState.PageSize) -PageNumber ([int]$pagingState.PageNumber)
         $pagingState.PageNumber = $slice.PageNumber
         $pagingState.PageCount = $slice.PageCount
@@ -744,6 +754,8 @@ function Show-PortReorgWindow {
             if ($pagingIsAvailable -and ($pagingState.Enabled -eq $true)) {
                 try { & $updateVisibleRowsForCurrentPage } catch { }
                 $itemsSource = $visibleRows
+                # Debug: show visible rows count
+                & $setStatus ("Showing page {0}/{1} ({2} ports)" -f $pagingState.PageNumber, $pagingState.PageCount, $visibleRows.Count) ''
             }
 
             $grid.ItemsSource = $null
