@@ -32,6 +32,12 @@ The active StateTrace plans live in discrete files so automation agents can refe
 | W | Network topology visualization | UI | Auto-discovery, L2/L3 views, diagram export | `docs/plans/PlanW_NetworkTopologyVisualization.md` |
 | X | Inventory & asset tracking | Data / UI | Asset registry, warranty tracking, firmware management | `docs/plans/PlanX_InventoryAssetTracking.md` |
 | Y | Network calculator tools | Tools / UI | Subnet calculator, bandwidth calculator, protocol timers | `docs/plans/PlanY_NetworkCalculatorTools.md` |
+| Z | Change management & maintenance windows | Tools / UI | Change requests, maintenance calendar, pre/post verification | `docs/plans/PlanZ_ChangeManagement.md` |
+| AA | Network documentation generator | Tools / UI | As-built docs, templates, multi-format export | `docs/plans/PlanAA_DocumentationGenerator.md` |
+| AB | Troubleshooting decision trees | Tools / UI | Guided troubleshooting, pattern library, outcome tracking | `docs/plans/PlanAB_TroubleshootingDecisionTrees.md` |
+| AC | Capacity planning & forecasting | Tools / UI | Utilization tracking, growth forecasting, budget planning | `docs/plans/PlanAC_CapacityPlanningForecasting.md` |
+| AD | Cross-vendor command reference | Tools / UI | Command translation, quick reference, config snippets | `docs/plans/PlanAD_CrossVendorCommandReference.md` |
+| AE | Log analysis & pattern detection | Tools / UI | Log parsing, pattern detection, event correlation | `docs/plans/PlanAE_LogAnalysisPatternDetection.md` |
 
 ## Status snapshot (2026-01)
 - **Plan A** - **Complete (5/6 Done, 1 Deferred)**. Routing instrumentation, dispatcher harness, verification scripts, and evidence capture implemented. ST-A-019 (real-device validation) deferred pending device access.
@@ -59,6 +65,12 @@ The active StateTrace plans live in discrete files so automation agents can refe
 - **Plan W** - **Planned**. Network topology visualization with auto-discovery and diagram export.
 - **Plan X** - **Planned**. Inventory and asset tracking with warranty monitoring and firmware management.
 - **Plan Y** - **Planned**. Network calculator suite with subnet, VLAN, bandwidth, and protocol timer tools.
+- **Plan Z** - **Planned**. Change management with maintenance window scheduling, pre/post verification, and rollback tracking.
+- **Plan AA** - **Planned**. Network documentation generator with as-built templates and multi-format export.
+- **Plan AB** - **Planned**. Troubleshooting decision trees with guided workflows and outcome tracking.
+- **Plan AC** - **Planned**. Capacity planning with utilization tracking, growth forecasting, and budget projections.
+- **Plan AD** - **Planned**. Cross-vendor command reference with translation and configuration snippets.
+- **Plan AE** - **Planned**. Log analysis with pattern detection, event correlation, and anomaly detection.
 
 ## How to use the plans
 1. **Before editing code** - open the relevant plan file, confirm the objective still matches your intent, and add your upcoming work to the "Active work" table (include the task-board or Codex backlog ID).
