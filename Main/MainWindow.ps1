@@ -1408,14 +1408,24 @@ function Update-ParserStatusIndicator {
 }
 
 function Get-SiteIngestionInfo {
-    param([string]$Site)
+    param(
+        [string]$Site,
+        [string]$Hostname
+    )
     if ([string]::IsNullOrWhiteSpace($Site)) { return $null }
     $historyPath = Join-Path $scriptDir "..\Data\IngestionHistory\$Site.json"
     if (-not (Test-Path -LiteralPath $historyPath)) { return $null }
     $entries = $null
     try { $entries = Get-Content -LiteralPath $historyPath -Raw | ConvertFrom-Json } catch { $entries = $null }
     if (-not $entries) { return $null }
-    $latest = $entries | Where-Object { $_.LastIngestedUtc } | Sort-Object { $_.LastIngestedUtc } -Descending | Select-Object -First 1
+
+    # Filter by hostname if provided, otherwise get the most recent across all hosts
+    $candidates = $entries | Where-Object { $_.LastIngestedUtc }
+    if (-not [string]::IsNullOrWhiteSpace($Hostname)) {
+        $hostMatch = $candidates | Where-Object { $_.Hostname -eq $Hostname -or $_.ActualHostname -eq $Hostname }
+        if ($hostMatch) { $candidates = $hostMatch }
+    }
+    $latest = $candidates | Sort-Object { $_.LastIngestedUtc } -Descending | Select-Object -First 1
     if (-not $latest) { return $null }
     $ingestedUtc = $null
     try { $ingestedUtc = [datetime]::Parse($latest.LastIngestedUtc).ToUniversalTime() } catch { $ingestedUtc = $null }
@@ -1426,6 +1436,7 @@ function Get-SiteIngestionInfo {
     if (-not $source) { $source = 'History' }
     return [pscustomobject]@{
         Site            = $Site
+        Hostname        = $latest.Hostname
         LastIngestedUtc = $ingestedUtc
         Source          = $source
         HistoryPath     = $historyPath
@@ -1524,6 +1535,7 @@ function Update-FreshnessIndicator {
     }
 
     $site = Get-SelectedSiteFilterValue -Window $Window
+    $hostname = Get-SelectedHostname -Window $Window
     if (-not $site) {
         $label.Content = 'Freshness: select a site'
         & $setIndicatorColor 'Gray'
@@ -1531,9 +1543,10 @@ function Update-FreshnessIndicator {
         return
     }
 
-    $info = Get-SiteIngestionInfo -Site $site
+    $info = Get-SiteIngestionInfo -Site $site -Hostname $hostname
     if (-not $info) {
-        $label.Content = "Freshness: no history for $site"
+        $targetDesc = if ($hostname) { "$hostname ($site)" } else { $site }
+        $label.Content = "Freshness: no history for $targetDesc"
         $label.ToolTip = "No ingestion history found under Data\\IngestionHistory\\$site.json"
         & $setIndicatorColor 'Gray'
         if ($indicator) { $indicator.ToolTip = 'No ingestion history available' }
@@ -1571,9 +1584,15 @@ function Update-FreshnessIndicator {
     } else {
         $info.Source
     }
-    $label.Content = "Freshness: $site @ $($localTime.ToString('g')) ($ageText, source $providerText)"
+    # Show hostname-specific info when a device is selected, otherwise show site-level
+    $targetLabel = if ($info.Hostname -and $hostname) { $info.Hostname } else { $site }
+    $label.Content = "Freshness: $targetLabel @ $($localTime.ToString('g')) ($ageText, source $providerText)"
 
     $tooltipParts = [System.Collections.Generic.List[string]]::new()
+    if ($info.Hostname -and $hostname) {
+        $tooltipParts.Add("Device: $($info.Hostname)") | Out-Null
+    }
+    $tooltipParts.Add("Site: $site") | Out-Null
     $tooltipParts.Add("Ingestion history: $($info.HistoryPath)") | Out-Null
     if ($providerInfo) {
         $tooltipParts.Add("Metrics: $($providerInfo.MetricsLog)") | Out-Null
@@ -3154,6 +3173,8 @@ if ($hostnameDropdown -and -not $script:HostnameHandlerAttached) {
         param($sender,$e)
         $sel = [string]$sender.SelectedItem
         Get-HostnameChanged -Hostname $sel
+        # Update freshness indicator to show device-specific timestamp
+        try { Update-FreshnessIndicator -Window $window } catch { }
     })
     $script:HostnameHandlerAttached = $true
 }
