@@ -1720,7 +1720,11 @@ function Show-PortReorgWindow {
             }
 
             $chunkEnabled = $false
-            if ($chunkBy12) { $chunkEnabled = ($chunkBy12.IsChecked -eq $true) }
+            if ($chunkBy12) {
+                # Handle nullable boolean from WPF CheckBox
+                $checked = $chunkBy12.IsChecked
+                $chunkEnabled = ($null -ne $checked -and $checked -eq $true)
+            }
             $chunkSize = 0
             if ($chunkEnabled) {
                 $raw = if ($chunkSizeBox) { ('' + $chunkSizeBox.Text).Trim() } else { '12' }
@@ -1750,7 +1754,8 @@ function Show-PortReorgWindow {
             if ($rollbackBox) { $rollbackBox.Text = $rollback }
             try { $uiState.ScriptsAreCurrent = $true } catch { }
             try { & $updateScriptControls } catch { }
-            & $setStatus 'Scripts generated.' ''
+            $chunkMsg = if ($chunkEnabled) { " (chunked by {0})" -f $chunkArg } else { '' }
+            & $setStatus ("Scripts generated{0}." -f $chunkMsg) ''
         } catch {
             try { $uiState.ScriptsAreCurrent = $false } catch { }
             try { & $updateScriptControls } catch { }
@@ -1767,7 +1772,8 @@ function Show-PortReorgWindow {
     if ($pagedViewCheckBox) {
         $pagedViewCheckBox.Add_Click({
             try {
-                $enabled = ($pagedViewCheckBox.IsChecked -eq $true)
+                $checked = $pagedViewCheckBox.IsChecked
+                $enabled = ($null -ne $checked -and $checked -eq $true)
                 & $setPagingEnabled $enabled
             } catch { }
         }.GetNewClosure())
