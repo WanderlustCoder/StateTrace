@@ -740,6 +740,19 @@ function Show-PortReorgWindow {
         try { & $updateScriptControls } catch { }
     }.GetNewClosure()
 
+    # ST-D-012: Status text helper (must be defined before refreshGrid uses it)
+    $setStatus = {
+        param([string]$Message, [string]$ColorKey)
+        if (-not $statusText) { return }
+        $statusText.Text = $Message
+        # Optional: adjust Foreground based on theme keys when provided
+        try {
+            if ($ColorKey -and $win.Resources.Contains($ColorKey)) {
+                $statusText.Foreground = $win.Resources[$ColorKey]
+            }
+        } catch { }
+    }.GetNewClosure()
+
     $refreshGrid = {
         if (-not $grid) { return }
         try { & $updateLabelStates } catch { }
@@ -755,10 +768,10 @@ function Show-PortReorgWindow {
                 try {
                     & $updateVisibleRowsForCurrentPage
                 } catch {
-                    & $setStatus ("Paging error: {0}" -f $_.Exception.Message) ''
+                    try { & $setStatus ("Paging error: {0}" -f $_.Exception.Message) '' } catch { }
                 }
                 $itemsSource = $visibleRows
-                & $setStatus ("Page {0}/{1} ({2} of {3} ports)" -f $pagingState.PageNumber, $pagingState.PageCount, $visibleRows.Count, $orderedRows.Count) ''
+                try { & $setStatus ("Page {0}/{1} ({2} of {3} ports)" -f $pagingState.PageNumber, $pagingState.PageCount, $visibleRows.Count, $orderedRows.Count) '' } catch { }
             }
 
             $grid.ItemsSource = $null
@@ -788,18 +801,6 @@ function Show-PortReorgWindow {
         try { $grid.UpdateLayout() } catch { }
         try { & $updateScriptControls } catch { }
         try { & $updatePagingControls } catch { }
-    }.GetNewClosure()
-
-    $setStatus = {
-        param([string]$Message, [string]$ColorKey)
-        if (-not $statusText) { return }
-        $statusText.Text = $Message
-        # Optional: adjust Foreground based on theme keys when provided
-        try {
-            if ($ColorKey -and $win.Resources.Contains($ColorKey)) {
-                $statusText.Foreground = $win.Resources[$ColorKey]
-            }
-        } catch { }
     }.GetNewClosure()
 
     # ST-D-012: Save settings helper
