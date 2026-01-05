@@ -120,6 +120,10 @@
         <TabItem Header="IPAM">
           <ContentControl Name="IPAMHost"/>
         </TabItem>
+        <!-- Config Templates tab for configuration generation and validation -->
+        <TabItem Header="Config">
+          <ContentControl Name="ConfigTemplateHost"/>
+        </TabItem>
         <!-- Add more tabs here -->
       </TabControl>
       <!-- Compare sidebar occupies the second column and hosts the compare view.  It is hidden by default by setting the column width to zero. -->

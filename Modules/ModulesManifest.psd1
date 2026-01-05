@@ -48,6 +48,9 @@
         'CableDocumentationViewModule.psm1',
         'IPAMModule.psm1',
         'IPAMViewModule.psm1',
+        'ConfigTemplateModule.psm1',
+        'ConfigValidationModule.psm1',
+        'ConfigTemplateViewModule.psm1',
         'CompareViewModule.psm1',
         'TemplatesModule.psm1'
     )

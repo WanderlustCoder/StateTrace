@@ -15,10 +15,13 @@ Network engineers face challenges with:
 - Documenting configuration standards in a reusable format
 
 ## Current status (2026-01)
-- Templates view exists for port profile templates (Port Reorg)
-- No general-purpose configuration templating engine
-- Compare view provides diff capabilities for interface data
-- No configuration validation or compliance checking
+- **In Progress (4/6 Done)**. Core template engine and validation system delivered.
+- ConfigTemplateModule.psm1 provides Jinja2-style template engine with variables, conditionals, loops
+- ConfigValidationModule.psm1 provides compliance checking against validation standards
+- ConfigTemplateView.xaml offers interactive UI with Templates, Validation, Output tabs
+- 5 built-in templates (access switch, VLAN, port security, banner, Arista EOS)
+- 4 built-in standards (Cisco security, Arista security, operational, switching baselines)
+- Pester tests cover all module functionality
 
 ## Proposed Features
 
@@ -81,10 +84,10 @@ Network engineers face challenges with:
 ## Active work
 | ID | Title | Owner | Status | Notes |
 |----|-------|-------|--------|-------|
-| ST-U-001 | Template engine core | Tools | Pending | Variable substitution and conditional logic |
-| ST-U-002 | Template library UI | UI | Pending | Template management view |
-| ST-U-003 | Config generation module | Tools | Pending | Generate configs from templates |
-| ST-U-004 | Validation rule engine | Tools | Pending | Define and check compliance rules |
+| ST-U-001 | Template engine core | Tools | Done | ConfigTemplateModule.psm1 with Expand-ConfigTemplate, conditionals, loops |
+| ST-U-002 | Template library UI | UI | Done | ConfigTemplateView.xaml with template editing and variable extraction |
+| ST-U-003 | Config generation module | Tools | Done | New-ConfigFromTemplate with built-in templates |
+| ST-U-004 | Validation rule engine | Tools | Done | ConfigValidationModule.psm1 with Test-ConfigCompliance, built-in standards |
 | ST-U-005 | Config comparison view | UI | Pending | Enhanced diff view for configurations |
 | ST-U-006 | Vendor syntax modules | Parser | Pending | Vendor-specific config parsing |
 
