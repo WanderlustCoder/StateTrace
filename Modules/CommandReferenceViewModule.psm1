@@ -332,12 +332,8 @@ function Update-CommandsGrid {
         $params['Category'] = $Category
     }
 
-    if ($params.Count -eq 0) {
-        # Show all commands
-        $results = CommandReferenceModule\Search-NetworkCommands -Keyword ''
-    } else {
-        $results = CommandReferenceModule\Search-NetworkCommands @params
-    }
+    # Search-NetworkCommands returns all commands when called without Keyword
+    $results = CommandReferenceModule\Search-NetworkCommands @params
 
     $Grid.ItemsSource = $results
     $count = if ($results) { $results.Count } else { 0 }

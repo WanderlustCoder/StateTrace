@@ -907,14 +907,14 @@ function Get-NetworkCommand {
 function Search-NetworkCommands {
     <#
     .SYNOPSIS
-        Searches commands by keyword.
+        Searches commands by keyword. Returns all commands if keyword is empty.
     .EXAMPLE
         Search-NetworkCommands -Keyword 'interface'
         Search-NetworkCommands -Keyword 'route' -Vendor 'Cisco'
+        Search-NetworkCommands  # Returns all commands
     #>
     [CmdletBinding()]
     param(
-        [Parameter(Mandatory)]
         [string]$Keyword,
 
         [string]$Vendor,
@@ -923,7 +923,8 @@ function Search-NetworkCommands {
     )
 
     $results = @()
-    $keywordLower = $Keyword.ToLower()
+    $keywordLower = if ([string]::IsNullOrWhiteSpace($Keyword)) { '' } else { $Keyword.ToLower() }
+    $matchAll = [string]::IsNullOrWhiteSpace($Keyword)
     $resolvedVendor = if ($Vendor) { Resolve-VendorName -Vendor $Vendor } else { $null }
 
     foreach ($taskKey in $script:CommandDatabase.Keys) {
@@ -943,7 +944,7 @@ function Search-NetworkCommands {
             $matchesCommand = $vendorCmd.Command.ToLower().Contains($keywordLower)
             $matchesDesc = $vendorCmd.Description -and $vendorCmd.Description.ToLower().Contains($keywordLower)
 
-            if ($matchesTask -or $matchesCommand -or $matchesDesc) {
+            if ($matchAll -or $matchesTask -or $matchesCommand -or $matchesDesc) {
                 $results += [PSCustomObject]@{
                     TaskKey = $taskKey
                     Task = $entry.Task
