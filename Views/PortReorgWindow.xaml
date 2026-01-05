@@ -66,7 +66,49 @@
               VerticalAlignment="Center"
               Style="{DynamicResource SecondaryButtonStyle}"/>
 
-      <TextBlock Name="ReorgPageInfoText" Margin="0,0,18,0" VerticalAlignment="Center"/>
+      <TextBlock Name="ReorgPageInfoText" Margin="0,0,10,0" VerticalAlignment="Center"/>
+
+      <TextBlock Text="Size:" Margin="0,0,4,0" VerticalAlignment="Center"/>
+      <TextBox Name="ReorgPageSizeBox"
+               Width="40"
+               Text="12"
+               Margin="0,0,10,0"
+               VerticalAlignment="Center"
+               ToolTip="Page size (1-96). Press Enter to apply."
+               Background="{DynamicResource Theme.Input.Background}"
+               Foreground="{DynamicResource Theme.Input.Text}"
+               BorderBrush="{DynamicResource Theme.Input.Border}"
+               BorderThickness="1"/>
+
+      <TextBlock Text="Jump:" Margin="0,0,4,0" VerticalAlignment="Center"/>
+      <TextBox Name="ReorgQuickJumpBox"
+               Width="100"
+               Margin="0,0,10,0"
+               VerticalAlignment="Center"
+               ToolTip="Type port name and press Enter to jump to that page"
+               Background="{DynamicResource Theme.Input.Background}"
+               Foreground="{DynamicResource Theme.Input.Text}"
+               BorderBrush="{DynamicResource Theme.Input.Border}"
+               BorderThickness="1"/>
+
+      <TextBlock Text="Search:" Margin="0,0,4,0" VerticalAlignment="Center"/>
+      <TextBox Name="ReorgSearchBox"
+               Width="120"
+               Margin="0,0,4,0"
+               VerticalAlignment="Center"
+               ToolTip="Search labels (live filter, highlights matches)"
+               Background="{DynamicResource Theme.Input.Background}"
+               Foreground="{DynamicResource Theme.Input.Text}"
+               BorderBrush="{DynamicResource Theme.Input.Border}"
+               BorderThickness="1"/>
+
+      <Button Name="ReorgSearchClearButton"
+              Content="X"
+              Width="22"
+              Margin="0,0,18,0"
+              VerticalAlignment="Center"
+              ToolTip="Clear search"
+              Style="{DynamicResource SecondaryButtonStyle}"/>
 
       <TextBlock Name="ReorgStatusText" VerticalAlignment="Center" Foreground="{DynamicResource Theme.Status.Warning}"/>
     </StackPanel>
@@ -132,7 +174,7 @@
                CanUserReorderColumns="False"
                 SelectionMode="Extended"
                 SelectionUnit="FullRow"
-                ToolTip="Drag a label block onto another port to move it; the displaced label goes to Parking. Hold Shift to swap FromPort + label. When paging is enabled, use Parking for cross-page moves."
+                ToolTip="Drag a label block onto another port to move it; the displaced label goes to Parking. Hold Shift to swap FromPort + label. When paging is enabled, use Parking for cross-page moves. Right-click for more options."
                 Style="{DynamicResource PrimaryDataGridStyle}"
                ScrollViewer.VerticalScrollBarVisibility="Auto"
                ScrollViewer.HorizontalScrollBarVisibility="Auto"
@@ -140,6 +182,34 @@
               VirtualizingPanel.VirtualizationMode="Recycling"
               EnableRowVirtualization="True"
               EnableColumnVirtualization="True">
+      <DataGrid.ContextMenu>
+        <ContextMenu Name="ReorgGridContextMenu"
+                     Background="{DynamicResource Theme.Surface.Primary}"
+                     Foreground="{DynamicResource Theme.Text.Primary}">
+          <MenuItem Name="ReorgMoveToMenuItem" Header="Move To..."/>
+          <Separator/>
+          <MenuItem Name="ReorgClearLabelMenuItem" Header="Clear Label (Park)"/>
+          <MenuItem Name="ReorgSwapLabelsMenuItem" Header="Swap Labels"/>
+        </ContextMenu>
+      </DataGrid.ContextMenu>
+      <!-- ST-D-012: Row style for module boundaries and search highlights -->
+      <DataGrid.RowStyle>
+        <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
+          <Setter Property="BorderThickness" Value="0"/>
+          <Setter Property="BorderBrush" Value="{DynamicResource Theme.Input.Border}"/>
+          <Style.Triggers>
+            <!-- Module boundary: thick top border -->
+            <DataTrigger Binding="{Binding IsModuleBoundary}" Value="True">
+              <Setter Property="BorderThickness" Value="0,2,0,0"/>
+              <Setter Property="BorderBrush" Value="{DynamicResource Theme.Text.Secondary}"/>
+            </DataTrigger>
+            <!-- Search match: highlight background -->
+            <DataTrigger Binding="{Binding IsSearchMatch}" Value="True">
+              <Setter Property="Background" Value="{DynamicResource Theme.Template.Yellow}"/>
+            </DataTrigger>
+          </Style.Triggers>
+        </Style>
+      </DataGrid.RowStyle>
       <DataGrid.Columns>
         <DataGridTextColumn Header="Port" IsReadOnly="True" Width="120" Binding="{Binding TargetPort}"/>
         <DataGridTemplateColumn Header="Label" Width="260">
@@ -197,17 +267,23 @@
     </DataGrid>
 
     <StackPanel Grid.Row="2" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,10,0,10">
-      <Button Name="ReorgSuggestButton" Content="Suggest" Width="100" Margin="0,0,10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
-      <Button Name="ReorgResetButton" Content="Reset" Width="100" Margin="0,0,10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
-      <Button Name="ReorgGenerateButton" Content="Generate Scripts" Width="140" Margin="0,0,10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+      <Button Name="ReorgUndoButton" Content="Undo" Width="70" Margin="0,0,5,0" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Undo last change (Ctrl+Z)"/>
+      <Button Name="ReorgRedoButton" Content="Redo" Width="70" Margin="0,0,10,0" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Redo last undone change (Ctrl+Y)"/>
 
-      <Button Name="ReorgCopyChangeButton" Content="Copy Change" Width="120" Margin="0,0,10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
-      <Button Name="ReorgCopyRollbackButton" Content="Copy Rollback" Width="120" Margin="0,0,10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+      <Button Name="ReorgSuggestButton" Content="Suggest" Width="90" Margin="0,0,10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+      <Button Name="ReorgResetButton" Content="Reset" Width="70" Margin="0,0,10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+      <Button Name="ReorgGenerateButton" Content="Generate" Width="90" Margin="0,0,10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
 
-      <Button Name="ReorgSaveChangeButton" Content="Save Change..." Width="120" Margin="0,0,10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
-      <Button Name="ReorgSaveRollbackButton" Content="Save Rollback..." Width="120" Margin="0,0,10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+      <Button Name="ReorgSelectPageButton" Content="Select Page" Width="90" Margin="0,0,5,0" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Select all ports on current page"/>
+      <Button Name="ReorgClearPageButton" Content="Clear Page" Width="90" Margin="0,0,10,0" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Park all labels on current page"/>
 
-      <Button Name="ReorgCloseButton" Content="Close" Width="90" Style="{DynamicResource PrimaryButtonStyle}"/>
+      <Button Name="ReorgCopyChangeButton" Content="Copy Change" Width="100" Margin="0,0,5,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+      <Button Name="ReorgCopyRollbackButton" Content="Copy Rollback" Width="110" Margin="0,0,10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+
+      <Button Name="ReorgSaveChangeButton" Content="Save..." Width="70" Margin="0,0,5,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+      <Button Name="ReorgSaveRollbackButton" Content="Save RB..." Width="80" Margin="0,0,10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+
+      <Button Name="ReorgCloseButton" Content="Close" Width="70" Style="{DynamicResource PrimaryButtonStyle}"/>
     </StackPanel>
 
     <TabControl Grid.Row="3" Grid.ColumnSpan="2">

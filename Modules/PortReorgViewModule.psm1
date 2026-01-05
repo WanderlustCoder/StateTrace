@@ -22,6 +22,105 @@ function script:Import-LocalStateTraceModule {
     return $true
 }
 
+#region Port Reorg Settings (ST-D-012)
+
+function script:Get-PortReorgSettings {
+    <#
+    .SYNOPSIS
+    Loads Port Reorg settings from StateTraceSettings.json.
+    #>
+    [CmdletBinding()]
+    param()
+
+    $defaults = @{
+        PagingEnabled        = $false
+        PageSize             = 12
+        LastPageByHost       = @{}
+        ShowModuleBoundaries = $true
+        AnimationsEnabled    = $true
+    }
+
+    try {
+        script:Import-LocalStateTraceModule -ModuleName 'MainWindow.Services' -ModuleFileName 'MainWindow.Services.psm1' -Optional | Out-Null
+        $allSettings = MainWindow.Services\Get-StateTraceSettings
+        if ($allSettings -and $allSettings.ContainsKey('PortReorg')) {
+            $portReorg = $allSettings['PortReorg']
+            if ($portReorg -is [hashtable]) {
+                foreach ($key in $defaults.Keys) {
+                    if ($portReorg.ContainsKey($key)) {
+                        $defaults[$key] = $portReorg[$key]
+                    }
+                }
+            }
+            elseif ($portReorg.PSObject.Properties) {
+                foreach ($key in $defaults.Keys) {
+                    if ($portReorg.PSObject.Properties[$key]) {
+                        $defaults[$key] = $portReorg.$key
+                    }
+                }
+            }
+        }
+    }
+    catch {
+        # Return defaults on error
+    }
+
+    return [pscustomobject]$defaults
+}
+
+function script:Save-PortReorgSettings {
+    <#
+    .SYNOPSIS
+    Saves Port Reorg settings to StateTraceSettings.json.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][hashtable]$Settings
+    )
+
+    try {
+        script:Import-LocalStateTraceModule -ModuleName 'MainWindow.Services' -ModuleFileName 'MainWindow.Services.psm1' -Optional | Out-Null
+        $allSettings = MainWindow.Services\Get-StateTraceSettings
+        if (-not $allSettings) { $allSettings = @{} }
+        $allSettings['PortReorg'] = $Settings
+        MainWindow.Services\Set-StateTraceSettings -Settings $allSettings | Out-Null
+        return $true
+    }
+    catch {
+        return $false
+    }
+}
+
+function script:Get-PortModuleGroup {
+    <#
+    .SYNOPSIS
+    Extracts module group from port name for boundary detection.
+    .EXAMPLE
+    Get-PortModuleGroup -Port 'Gi1/0/12' returns 'Gi1/0'
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Port
+    )
+
+    $p = ('' + $Port).Trim()
+    if ([string]::IsNullOrWhiteSpace($p)) { return '' }
+
+    # Pattern: Gi1/0/x -> "Gi1/0", Te2/0/x -> "Te2/0"
+    if ($p -match '^([A-Za-z]+)(\d+)/(\d+)/') {
+        return ('{0}{1}/{2}' -f $Matches[1], $Matches[2], $Matches[3])
+    }
+
+    # Pattern: Ethernet1/x -> "Ethernet1/"
+    if ($p -match '^([A-Za-z]+)(\d+)/') {
+        return ('{0}{1}/' -f $Matches[1], $Matches[2])
+    }
+
+    return ''
+}
+
+#endregion
+
 # LANDMARK: ST-D-011 paging helper
 function Get-PortReorgPageSlice {
     [CmdletBinding()]
@@ -169,6 +268,19 @@ function Show-PortReorgWindow {
     $changeBox = $win.FindName('ReorgChangeScriptBox')
     $rollbackBox = $win.FindName('ReorgRollbackScriptBox')
 
+    # ST-D-012: New controls for enhanced paging
+    $pageSizeBox = $win.FindName('ReorgPageSizeBox')
+    $quickJumpBox = $win.FindName('ReorgQuickJumpBox')
+    $searchBox = $win.FindName('ReorgSearchBox')
+    $searchClearBtn = $win.FindName('ReorgSearchClearButton')
+    $undoBtn = $win.FindName('ReorgUndoButton')
+    $redoBtn = $win.FindName('ReorgRedoButton')
+    $selectPageBtn = $win.FindName('ReorgSelectPageButton')
+    $clearPageBtn = $win.FindName('ReorgClearPageButton')
+    $moveToMenuItem = $win.FindName('ReorgMoveToMenuItem')
+    $clearLabelMenuItem = $win.FindName('ReorgClearLabelMenuItem')
+    $swapLabelsMenuItem = $win.FindName('ReorgSwapLabelsMenuItem')
+
     if ($hostnameText) { $hostnameText.Text = $hostTrim }
 
     $parkingLabels = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
@@ -236,12 +348,14 @@ function Show-PortReorgWindow {
             $labelByPort[$port] = $label
         }
         $rows.Add([PSCustomObject]@{
-            TargetPort   = $port
-            TargetPortSort = $portSort
-            SourcePort   = $port
-            CurrentLabel = $label
-            NewLabel     = $label
-            LabelState   = 'Unchanged'
+            TargetPort       = $port
+            TargetPortSort   = $portSort
+            SourcePort       = $port
+            CurrentLabel     = $label
+            NewLabel         = $label
+            LabelState       = 'Unchanged'
+            IsModuleBoundary = $false   # ST-D-012: visual boundary marker
+            IsSearchMatch    = $false   # ST-D-012: search highlight marker
         }) | Out-Null
     }
 
@@ -279,6 +393,20 @@ function Show-PortReorgWindow {
     } catch {
         try { $orderedRows = @($rows.ToArray()) } catch { $orderedRows = @() }
     }
+
+    # ST-D-012: Update module boundary markers based on port grouping
+    $updateModuleBoundaries = {
+        $prevGroup = ''
+        foreach ($row in $orderedRows) {
+            $port = ''
+            try { $port = '' + $row.TargetPort } catch { $port = '' }
+            $group = script:Get-PortModuleGroup -Port $port
+            $row.IsModuleBoundary = (-not [string]::IsNullOrWhiteSpace($group) -and $group -ne $prevGroup)
+            $prevGroup = $group
+        }
+    }.GetNewClosure()
+
+    try { & $updateModuleBoundaries } catch { }
 
     $visibleRows = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
     $pageChoices = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
@@ -333,6 +461,8 @@ function Show-PortReorgWindow {
 
             $startPort = ''
             $endPort = ''
+            $changeCount = 0
+            $parkedCount = 0
             try {
                 if ($total -gt 0 -and $startIndex -ge 0 -and $startIndex -lt $total) {
                     $startPort = ('' + $orderedRows[$startIndex].TargetPort).Trim()
@@ -340,12 +470,29 @@ function Show-PortReorgWindow {
                 if ($total -gt 0 -and $endIndex -ge 0 -and $endIndex -lt $total) {
                     $endPort = ('' + $orderedRows[$endIndex].TargetPort).Trim()
                 }
+                # ST-D-012: Count changes and parked on this page
+                for ($i = $startIndex; $i -le $endIndex -and $i -lt $total; $i++) {
+                    $state = ''
+                    try { $state = '' + $orderedRows[$i].LabelState } catch { $state = '' }
+                    if ($state -eq 'Changed') { $changeCount++ }
+                    elseif ($state -eq 'Parked') { $parkedCount++ }
+                }
             } catch { }
 
+            # ST-D-012: Build label with change indicator
+            $indicator = ''
+            if ($changeCount -gt 0 -and $parkedCount -gt 0) {
+                $indicator = " ({0}+ {1}-)" -f $changeCount, $parkedCount
+            } elseif ($changeCount -gt 0) {
+                $indicator = " ({0}+)" -f $changeCount
+            } elseif ($parkedCount -gt 0) {
+                $indicator = " ({0}-)" -f $parkedCount
+            }
+
             $label = if (-not [string]::IsNullOrWhiteSpace($startPort) -and -not [string]::IsNullOrWhiteSpace($endPort)) {
-                ("{0}: {1} - {2}" -f $page, $startPort, $endPort)
+                ("{0}: {1} - {2}{3}" -f $page, $startPort, $endPort, $indicator)
             } else {
-                ("Page {0}" -f $page)
+                ("Page {0}{1}" -f $page, $indicator)
             }
 
             try {
@@ -440,13 +587,40 @@ function Show-PortReorgWindow {
         }
     }.GetNewClosure()
 
+    # ST-D-012: Load settings from file
+    $portReorgSettings = script:Get-PortReorgSettings
+
     if ($pagingIsAvailable) {
-        if (-not (Get-Variable -Name StateTracePortReorgPagingEnabled -Scope Global -ErrorAction SilentlyContinue)) {
-            $global:StateTracePortReorgPagingEnabled = $false
+        # Load paging state from settings (with global variable fallback for backward compatibility)
+        $initialPagingEnabled = $false
+        try {
+            $initialPagingEnabled = [bool]$portReorgSettings.PagingEnabled
+        }
+        catch {
+            # Fallback to global variable
+            if (Get-Variable -Name StateTracePortReorgPagingEnabled -Scope Global -ErrorAction SilentlyContinue) {
+                try { $initialPagingEnabled = [bool]$global:StateTracePortReorgPagingEnabled } catch { }
+            }
         }
 
-        $initialPagingEnabled = $false
-        try { $initialPagingEnabled = [bool]$global:StateTracePortReorgPagingEnabled } catch { $initialPagingEnabled = $false }
+        # Load page size from settings
+        $initialPageSize = 12
+        try {
+            $size = [int]$portReorgSettings.PageSize
+            if ($size -ge 1 -and $size -le 96) { $initialPageSize = $size }
+        }
+        catch { }
+        $pagingState.PageSize = $initialPageSize
+
+        # Load last page for this host
+        try {
+            $lastPages = $portReorgSettings.LastPageByHost
+            if ($lastPages -and $lastPages[$hostTrim]) {
+                $pagingState.PageNumber = [int]$lastPages[$hostTrim]
+            }
+        }
+        catch { }
+
         if ($pagedViewCheckBox) {
             try { $pagedViewCheckBox.IsChecked = $initialPagingEnabled } catch { }
         }
@@ -608,6 +782,31 @@ function Show-PortReorgWindow {
         } catch { }
     }.GetNewClosure()
 
+    # ST-D-012: Save settings helper
+    $saveCurrentSettings = {
+        try {
+            $settings = @{
+                PagingEnabled        = ($pagingState.Enabled -eq $true)
+                PageSize             = [int]$pagingState.PageSize
+                LastPageByHost       = @{}
+                ShowModuleBoundaries = $true
+                AnimationsEnabled    = $true
+            }
+            # Preserve existing LastPageByHost and add/update current host
+            $existing = script:Get-PortReorgSettings
+            if ($existing.LastPageByHost) {
+                foreach ($key in $existing.LastPageByHost.Keys) {
+                    $settings.LastPageByHost[$key] = $existing.LastPageByHost[$key]
+                }
+            }
+            $settings.LastPageByHost[$hostTrim] = [int]$pagingState.PageNumber
+            script:Save-PortReorgSettings -Settings $settings | Out-Null
+        }
+        catch { }
+        # Keep global variable in sync for backward compatibility
+        try { $global:StateTracePortReorgPagingEnabled = ($pagingState.Enabled -eq $true) } catch { }
+    }.GetNewClosure()
+
     $setPagingEnabled = {
         param([bool]$Enabled)
 
@@ -617,7 +816,6 @@ function Show-PortReorgWindow {
         try { if ($grid) { $selectedRow = $grid.SelectedItem } } catch { $selectedRow = $null }
 
         $pagingState.Enabled = ($Enabled -eq $true)
-        try { $global:StateTracePortReorgPagingEnabled = ($pagingState.Enabled -eq $true) } catch { }
 
         try { & $rebuildPageChoices } catch { }
         try { & $setPagingControlsVisible -Enabled ($pagingState.Enabled -eq $true) } catch { }
@@ -631,7 +829,181 @@ function Show-PortReorgWindow {
 
         try { & $refreshGrid } catch { }
         try { & $updatePagingControls } catch { }
+
+        # ST-D-012: Save to settings file
+        try { & $saveCurrentSettings } catch { }
     }.GetNewClosure()
+
+    #region ST-D-012: Undo/Redo History
+    $historyState = [pscustomobject]@{
+        UndoStack  = [System.Collections.Generic.Stack[object]]::new()
+        RedoStack  = [System.Collections.Generic.Stack[object]]::new()
+        MaxHistory = 50
+    }
+
+    $captureHistorySnapshot = {
+        $snapshot = [System.Collections.Generic.List[object]]::new()
+        foreach ($r in $rows) {
+            $snapshot.Add([pscustomobject]@{
+                TargetPort = '' + $r.TargetPort
+                SourcePort = '' + $r.SourcePort
+                NewLabel   = '' + $r.NewLabel
+            }) | Out-Null
+        }
+        return $snapshot.ToArray()
+    }.GetNewClosure()
+
+    $pushUndo = {
+        param([object[]]$Snapshot)
+        if ($historyState.UndoStack.Count -ge $historyState.MaxHistory) {
+            $arr = $historyState.UndoStack.ToArray()
+            $historyState.UndoStack.Clear()
+            for ($i = $arr.Count - 2; $i -ge 0; $i--) {
+                $historyState.UndoStack.Push($arr[$i])
+            }
+        }
+        $historyState.UndoStack.Push($Snapshot)
+        $historyState.RedoStack.Clear()
+    }.GetNewClosure()
+
+    $applySnapshot = {
+        param([object[]]$Snapshot)
+        $byTarget = @{}
+        foreach ($s in $Snapshot) {
+            $byTarget[('' + $s.TargetPort).Trim()] = $s
+        }
+        foreach ($r in $rows) {
+            $target = ('' + $r.TargetPort).Trim()
+            if ($byTarget.ContainsKey($target)) {
+                $s = $byTarget[$target]
+                $r.SourcePort = $s.SourcePort
+                $r.NewLabel = $s.NewLabel
+            }
+        }
+    }.GetNewClosure()
+
+    $undoAction = {
+        if ($historyState.UndoStack.Count -eq 0) {
+            & $setStatus 'Nothing to undo.' ''
+            return
+        }
+        $currentSnapshot = & $captureHistorySnapshot
+        $historyState.RedoStack.Push($currentSnapshot)
+        $undoSnapshot = $historyState.UndoStack.Pop()
+        & $applySnapshot $undoSnapshot
+        & $markScriptsDirty
+        & $refreshGrid
+        & $setStatus 'Undone.' ''
+    }.GetNewClosure()
+
+    $redoAction = {
+        if ($historyState.RedoStack.Count -eq 0) {
+            & $setStatus 'Nothing to redo.' ''
+            return
+        }
+        $currentSnapshot = & $captureHistorySnapshot
+        $historyState.UndoStack.Push($currentSnapshot)
+        $redoSnapshot = $historyState.RedoStack.Pop()
+        & $applySnapshot $redoSnapshot
+        & $markScriptsDirty
+        & $refreshGrid
+        & $setStatus 'Redone.' ''
+    }.GetNewClosure()
+    #endregion
+
+    #region ST-D-012: Search State
+    $searchState = [pscustomobject]@{
+        CurrentFilter = ''
+        MatchingPorts = @()
+    }
+
+    $applySearchFilter = {
+        param([string]$SearchText)
+        $filter = ('' + $SearchText).Trim()
+        $searchState.CurrentFilter = $filter
+
+        if ([string]::IsNullOrWhiteSpace($filter)) {
+            $searchState.MatchingPorts = @()
+            # Clear all search match flags
+            foreach ($row in $rows) {
+                try { $row.IsSearchMatch = $false } catch { }
+            }
+            & $refreshGrid
+            & $setStatus '' ''
+            return
+        }
+
+        $matches = [System.Collections.Generic.List[string]]::new()
+        foreach ($row in $rows) {
+            $label = ''
+            try { $label = '' + $row.NewLabel } catch { $label = '' }
+            $isMatch = ($label.IndexOf($filter, [System.StringComparison]::OrdinalIgnoreCase) -ge 0)
+            try { $row.IsSearchMatch = $isMatch } catch { }
+            if ($isMatch) {
+                $matches.Add(('' + $row.TargetPort).Trim()) | Out-Null
+            }
+        }
+        $searchState.MatchingPorts = $matches.ToArray()
+
+        if ($matches.Count -gt 0 -and $pagingState.Enabled) {
+            $firstMatchPort = $matches[0]
+            foreach ($row in $orderedRows) {
+                if (('' + $row.TargetPort).Trim() -eq $firstMatchPort) {
+                    $page = & $getPageForRow $row
+                    $pagingState.PageNumber = $page
+                    break
+                }
+            }
+        }
+        & $refreshGrid
+        & $setStatus ("{0} port(s) match '{1}'." -f $matches.Count, $filter) ''
+    }.GetNewClosure()
+
+    $quickJumpAction = {
+        param([string]$PortName)
+        if ([string]::IsNullOrWhiteSpace($PortName)) { return }
+        $targetPort = $PortName.Trim()
+        $total = $orderedRows.Count
+
+        for ($i = 0; $i -lt $total; $i++) {
+            $rowPort = ''
+            try { $rowPort = ('' + $orderedRows[$i].TargetPort).Trim() } catch { $rowPort = '' }
+            if ($rowPort.IndexOf($targetPort, [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+                $targetPort.IndexOf($rowPort, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+                $page = [int][Math]::Floor($i / [double]$pagingState.PageSize) + 1
+                $pagingState.PageNumber = $page
+                & $refreshGrid
+                try {
+                    $matchedRow = $orderedRows[$i]
+                    $grid.SelectedItem = $matchedRow
+                    $grid.ScrollIntoView($matchedRow)
+                } catch { }
+                & $setStatus ("Jumped to {0}." -f $rowPort) ''
+                return
+            }
+        }
+        & $setStatus ("Port '{0}' not found." -f $targetPort) ''
+    }.GetNewClosure()
+
+    $applyPageSize = {
+        param([string]$SizeText)
+        $size = 12
+        [void][int]::TryParse($SizeText, [ref]$size)
+        if ($size -lt 1) { $size = 1 }
+        if ($size -gt 96) { $size = 96 }
+
+        if ($size -ne $pagingState.PageSize) {
+            $pagingState.PageSize = $size
+            & $rebuildPageChoices
+            if ($pagingState.PageNumber -gt $pagingState.PageCount) {
+                $pagingState.PageNumber = $pagingState.PageCount
+            }
+            & $refreshGrid
+            & $updatePagingControls
+            try { & $saveCurrentSettings } catch { }
+        }
+    }.GetNewClosure()
+    #endregion
 
     if ($grid) {
         $grid.Add_CellEditEnding({
@@ -660,6 +1032,9 @@ function Show-PortReorgWindow {
             SourceParkingItem  = $null
             LabelText          = ''
             IsDragging         = $false
+            # ST-D-012: Cross-page drag auto-switch
+            HoverTarget        = ''     # 'Prev', 'Next', or ''
+            HoverTimer         = $null  # DispatcherTimer
         }
 
         $getVisualAncestor = {
@@ -722,6 +1097,12 @@ function Show-PortReorgWindow {
             $dragState.SourceParkingIndex = -1
             $dragState.SourceParkingItem = $null
             $dragState.LabelText = ''
+            # ST-D-012: Clean up cross-page drag timer
+            $dragState.HoverTarget = ''
+            if ($dragState.HoverTimer) {
+                try { $dragState.HoverTimer.Stop() } catch { }
+                $dragState.HoverTimer = $null
+            }
         }.GetNewClosure()
 
         $completeDrag = {
@@ -914,6 +1295,55 @@ function Show-PortReorgWindow {
             $parkingList.AddHandler([System.Windows.UIElement]::PreviewMouseLeftButtonDownEvent, $parkingMouseDown, $true)
         }
 
+        # ST-D-012: Helper to check if point is over a button
+        $isPointOverControl = {
+            param([object]$Control, [System.Windows.Point]$Point)
+            if (-not $Control) { return $false }
+            try {
+                $rect = New-Object System.Windows.Rect (
+                    $Control.TransformToAncestor($win).Transform((New-Object System.Windows.Point 0, 0)),
+                    (New-Object System.Windows.Size $Control.ActualWidth, $Control.ActualHeight)
+                )
+                return $rect.Contains($Point)
+            } catch { return $false }
+        }.GetNewClosure()
+
+        # ST-D-012: Cross-page drag timer handler
+        $startCrossPageTimer = {
+            param([string]$Direction)
+            if ($dragState.HoverTimer) {
+                try { $dragState.HoverTimer.Stop() } catch { }
+            }
+            $dragState.HoverTarget = $Direction
+            $timer = New-Object System.Windows.Threading.DispatcherTimer
+            $timer.Interval = [TimeSpan]::FromMilliseconds(500)
+            $timer.Add_Tick({
+                try {
+                    $timer.Stop()
+                    if (-not $dragState.IsDragging) { return }
+                    if (-not ($pagingState.Enabled -eq $true)) { return }
+
+                    if ($dragState.HoverTarget -eq 'Prev' -and $pagingState.PageNumber -gt 1) {
+                        $pagingState.PageNumber = [int]$pagingState.PageNumber - 1
+                        & $refreshGrid
+                    } elseif ($dragState.HoverTarget -eq 'Next' -and $pagingState.PageNumber -lt $pagingState.PageCount) {
+                        $pagingState.PageNumber = [int]$pagingState.PageNumber + 1
+                        & $refreshGrid
+                    }
+                } catch { }
+            }.GetNewClosure())
+            $timer.Start()
+            $dragState.HoverTimer = $timer
+        }.GetNewClosure()
+
+        $stopCrossPageTimer = {
+            $dragState.HoverTarget = ''
+            if ($dragState.HoverTimer) {
+                try { $dragState.HoverTimer.Stop() } catch { }
+                $dragState.HoverTimer = $null
+            }
+        }.GetNewClosure()
+
         $winMouseMoveAction = {
                 param($sender, $e)
                 try {
@@ -944,6 +1374,27 @@ function Show-PortReorgWindow {
 
                     $dragPopup.HorizontalOffset = $pos.X + 12
                     $dragPopup.VerticalOffset = $pos.Y + 12
+
+                    # ST-D-012: Cross-page drag auto-switch detection
+                    if ($pagingState.Enabled -eq $true) {
+                        $overPrev = & $isPointOverControl $pagePrevButton $pos
+                        $overNext = & $isPointOverControl $pageNextButton $pos
+
+                        if ($overPrev -and $dragState.HoverTarget -ne 'Prev') {
+                            & $stopCrossPageTimer
+                            if ($pagingState.PageNumber -gt 1) {
+                                & $startCrossPageTimer 'Prev'
+                            }
+                        } elseif ($overNext -and $dragState.HoverTarget -ne 'Next') {
+                            & $stopCrossPageTimer
+                            if ($pagingState.PageNumber -lt $pagingState.PageCount) {
+                                & $startCrossPageTimer 'Next'
+                            }
+                        } elseif (-not $overPrev -and -not $overNext -and $dragState.HoverTarget) {
+                            & $stopCrossPageTimer
+                        }
+                    }
+
                     try { $e.Handled = $true } catch { }
                 } catch {
                 }
@@ -1432,6 +1883,378 @@ function Show-PortReorgWindow {
     }
 
     if ($closeBtn) { $closeBtn.Add_Click({ try { $win.Close() } catch { } }.GetNewClosure()) }
+
+    #region ST-D-012: Event handlers for new controls
+
+    # Undo/Redo buttons
+    if ($undoBtn) {
+        $undoBtn.Add_Click({
+            try {
+                & $undoAction
+            } catch { }
+        }.GetNewClosure())
+    }
+
+    if ($redoBtn) {
+        $redoBtn.Add_Click({
+            try {
+                & $redoAction
+            } catch { }
+        }.GetNewClosure())
+    }
+
+    # Page size text box - press Enter to apply
+    if ($pageSizeBox) {
+        $pageSizeBox.Text = ('' + $pagingState.PageSize)
+        $pageSizeBox.Add_KeyDown({
+            param($sender, $e)
+            try {
+                if ($e.Key -eq [System.Windows.Input.Key]::Enter) {
+                    & $applyPageSize $sender.Text
+                    $sender.Text = ('' + $pagingState.PageSize)
+                    $e.Handled = $true
+                }
+            } catch { }
+        }.GetNewClosure())
+    }
+
+    # Quick jump text box - press Enter to jump
+    if ($quickJumpBox) {
+        $quickJumpBox.Add_KeyDown({
+            param($sender, $e)
+            try {
+                if ($e.Key -eq [System.Windows.Input.Key]::Enter) {
+                    & $quickJumpAction $sender.Text
+                    $sender.SelectAll()
+                    $e.Handled = $true
+                }
+            } catch { }
+        }.GetNewClosure())
+    }
+
+    # Search text box - live filter on text change
+    if ($searchBox) {
+        $searchBox.Add_TextChanged({
+            param($sender, $e)
+            try {
+                & $applySearchFilter $sender.Text
+            } catch { }
+        }.GetNewClosure())
+    }
+
+    # Search clear button
+    if ($searchClearBtn) {
+        $searchClearBtn.Add_Click({
+            try {
+                if ($searchBox) { $searchBox.Text = '' }
+                & $applySearchFilter ''
+            } catch { }
+        }.GetNewClosure())
+    }
+
+    # Select Page button - select all ports on current page
+    if ($selectPageBtn) {
+        $selectPageBtn.Add_Click({
+            try {
+                if (-not $grid) { return }
+                if ($pagingState.Enabled -eq $true) {
+                    $grid.SelectAll()
+                } else {
+                    $grid.SelectAll()
+                }
+            } catch { }
+        }.GetNewClosure())
+    }
+
+    # Clear Page button - park all labels on current page
+    if ($clearPageBtn) {
+        $clearPageBtn.Add_Click({
+            try {
+                $snapshot = & $captureHistorySnapshot
+                & $pushUndo $snapshot
+
+                $rowsToClear = @()
+                if ($pagingState.Enabled -eq $true) {
+                    $rowsToClear = @($visibleRows)
+                } else {
+                    $rowsToClear = @($rows)
+                }
+
+                foreach ($row in $rowsToClear) {
+                    $srcPort = ''
+                    $label = ''
+                    try { $srcPort = ('' + $row.SourcePort).Trim() } catch { $srcPort = '' }
+                    try { $label = '' + $row.NewLabel } catch { $label = '' }
+
+                    if (-not [string]::IsNullOrWhiteSpace($srcPort)) {
+                        & $insertParkingProfile -SourcePort $srcPort -Label $label -Index ([int]$parkingLabels.Count)
+                        try { $row.SourcePort = '' } catch { }
+                        try { $row.NewLabel = '' } catch { }
+                    }
+                }
+
+                & $markScriptsDirty
+                & $refreshGrid
+                & $setStatus 'Page labels cleared (parked).' ''
+            } catch {
+                & $setStatus ("Clear page failed: {0}" -f $_.Exception.Message) ''
+            }
+        }.GetNewClosure())
+    }
+
+    # Context menu: Clear Label (Park)
+    if ($clearLabelMenuItem) {
+        $clearLabelMenuItem.Add_Click({
+            try {
+                if (-not $grid -or -not $grid.SelectedItem) { return }
+
+                $snapshot = & $captureHistorySnapshot
+                & $pushUndo $snapshot
+
+                $selected = @($grid.SelectedItems)
+                foreach ($item in $selected) {
+                    $row = & $getRowByTargetPort ('' + $item.TargetPort)
+                    if (-not $row) { continue }
+
+                    $srcPort = ''
+                    $label = ''
+                    try { $srcPort = ('' + $row.SourcePort).Trim() } catch { $srcPort = '' }
+                    try { $label = '' + $row.NewLabel } catch { $label = '' }
+
+                    if (-not [string]::IsNullOrWhiteSpace($srcPort)) {
+                        & $insertParkingProfile -SourcePort $srcPort -Label $label -Index ([int]$parkingLabels.Count)
+                        try { $row.SourcePort = '' } catch { }
+                        try { $row.NewLabel = '' } catch { }
+                    }
+                }
+
+                & $markScriptsDirty
+                & $refreshGrid
+                & $setStatus 'Label(s) cleared.' ''
+            } catch { }
+        }.GetNewClosure())
+    }
+
+    # Context menu: Swap Labels
+    if ($swapLabelsMenuItem) {
+        $swapLabelsMenuItem.Add_Click({
+            try {
+                if (-not $grid) { return }
+                $selected = @($grid.SelectedItems)
+                if ($selected.Count -ne 2) {
+                    & $setStatus 'Select exactly 2 rows to swap.' ''
+                    return
+                }
+
+                $snapshot = & $captureHistorySnapshot
+                & $pushUndo $snapshot
+
+                $row1 = & $getRowByTargetPort ('' + $selected[0].TargetPort)
+                $row2 = & $getRowByTargetPort ('' + $selected[1].TargetPort)
+                if (-not $row1 -or -not $row2) { return }
+
+                $tmpSrc = '' + $row1.SourcePort
+                $tmpLbl = '' + $row1.NewLabel
+                $row1.SourcePort = '' + $row2.SourcePort
+                $row1.NewLabel = '' + $row2.NewLabel
+                $row2.SourcePort = $tmpSrc
+                $row2.NewLabel = $tmpLbl
+
+                & $markScriptsDirty
+                & $refreshGrid
+                & $setStatus 'Labels swapped.' ''
+            } catch { }
+        }.GetNewClosure())
+    }
+
+    # Context menu: Move To... (opens dialog to pick target port)
+    if ($moveToMenuItem) {
+        $moveToMenuItem.Add_Click({
+            try {
+                if (-not $grid -or -not $grid.SelectedItem) { return }
+
+                $srcRow = & $getRowByTargetPort ('' + $grid.SelectedItem.TargetPort)
+                if (-not $srcRow) { return }
+
+                $srcPort = ''
+                try { $srcPort = ('' + $srcRow.SourcePort).Trim() } catch { $srcPort = '' }
+                if ([string]::IsNullOrWhiteSpace($srcPort)) {
+                    & $setStatus 'Selected row has no assigned profile.' ''
+                    return
+                }
+
+                # Simple input dialog for target port
+                $inputWin = New-Object System.Windows.Window
+                $inputWin.Title = 'Move To Port'
+                $inputWin.Width = 300
+                $inputWin.Height = 120
+                $inputWin.WindowStartupLocation = 'CenterOwner'
+                $inputWin.Owner = $win
+                try { $inputWin.Background = $win.TryFindResource('Theme.Window.Background') } catch { }
+
+                $inputPanel = New-Object System.Windows.Controls.StackPanel
+                $inputPanel.Margin = '10'
+
+                $inputLabel = New-Object System.Windows.Controls.TextBlock
+                $inputLabel.Text = 'Enter target port name:'
+                $inputLabel.Margin = '0,0,0,5'
+                try { $inputLabel.Foreground = $win.TryFindResource('Theme.Text.Primary') } catch { }
+
+                $inputBox = New-Object System.Windows.Controls.TextBox
+                $inputBox.Margin = '0,0,0,10'
+                try { $inputBox.Background = $win.TryFindResource('Theme.Input.Background') } catch { }
+                try { $inputBox.Foreground = $win.TryFindResource('Theme.Input.Text') } catch { }
+
+                $inputBtnPanel = New-Object System.Windows.Controls.StackPanel
+                $inputBtnPanel.Orientation = 'Horizontal'
+                $inputBtnPanel.HorizontalAlignment = 'Right'
+
+                $okBtn = New-Object System.Windows.Controls.Button
+                $okBtn.Content = 'OK'
+                $okBtn.Width = 60
+                $okBtn.Margin = '0,0,5,0'
+                $okBtn.IsDefault = $true
+
+                $cancelBtn = New-Object System.Windows.Controls.Button
+                $cancelBtn.Content = 'Cancel'
+                $cancelBtn.Width = 60
+                $cancelBtn.IsCancel = $true
+
+                $inputBtnPanel.Children.Add($okBtn) | Out-Null
+                $inputBtnPanel.Children.Add($cancelBtn) | Out-Null
+                $inputPanel.Children.Add($inputLabel) | Out-Null
+                $inputPanel.Children.Add($inputBox) | Out-Null
+                $inputPanel.Children.Add($inputBtnPanel) | Out-Null
+                $inputWin.Content = $inputPanel
+
+                $result = @{ TargetPort = '' }
+                $okBtn.Add_Click({
+                    $result.TargetPort = $inputBox.Text.Trim()
+                    $inputWin.DialogResult = $true
+                    $inputWin.Close()
+                }.GetNewClosure())
+
+                $inputBox.Focus() | Out-Null
+                $dialogResult = $inputWin.ShowDialog()
+
+                if ($dialogResult -eq $true -and -not [string]::IsNullOrWhiteSpace($result.TargetPort)) {
+                    $targetPort = $result.TargetPort
+                    $targetRow = & $getRowByTargetPort $targetPort
+                    if (-not $targetRow) {
+                        & $setStatus ("Port '{0}' not found." -f $targetPort) ''
+                        return
+                    }
+
+                    $snapshot = & $captureHistorySnapshot
+                    & $pushUndo $snapshot
+
+                    # Park existing label on target if any
+                    $destSrc = ''
+                    $destLbl = ''
+                    try { $destSrc = ('' + $targetRow.SourcePort).Trim() } catch { $destSrc = '' }
+                    try { $destLbl = '' + $targetRow.NewLabel } catch { $destLbl = '' }
+                    if (-not [string]::IsNullOrWhiteSpace($destSrc)) {
+                        & $insertParkingProfile -SourcePort $destSrc -Label $destLbl -Index ([int]$parkingLabels.Count)
+                    }
+
+                    # Move source profile to target
+                    $targetRow.SourcePort = $srcPort
+                    $targetRow.NewLabel = '' + $srcRow.NewLabel
+                    $srcRow.SourcePort = ''
+                    $srcRow.NewLabel = ''
+
+                    # If paged, jump to target page
+                    if ($pagingState.Enabled -eq $true) {
+                        $page = & $getPageForRow $targetRow
+                        $pagingState.PageNumber = $page
+                    }
+
+                    & $markScriptsDirty
+                    & $refreshGrid
+                    & $setStatus ("Moved to {0}." -f $targetPort) ''
+                }
+            } catch {
+                & $setStatus ("Move failed: {0}" -f $_.Exception.Message) ''
+            }
+        }.GetNewClosure())
+    }
+
+    # Keyboard navigation
+    $win.Add_PreviewKeyDown({
+        param($sender, $e)
+        try {
+            $mods = [System.Windows.Input.Keyboard]::Modifiers
+            $key = $e.Key
+
+            # Ctrl+Z = Undo
+            if (($mods -band [System.Windows.Input.ModifierKeys]::Control) -ne 0 -and $key -eq [System.Windows.Input.Key]::Z) {
+                & $undoAction
+                $e.Handled = $true
+                return
+            }
+
+            # Ctrl+Y = Redo
+            if (($mods -band [System.Windows.Input.ModifierKeys]::Control) -ne 0 -and $key -eq [System.Windows.Input.Key]::Y) {
+                & $redoAction
+                $e.Handled = $true
+                return
+            }
+
+            # Skip page navigation if focus is in a text box
+            $focused = [System.Windows.Input.Keyboard]::FocusedElement
+            if ($focused -is [System.Windows.Controls.TextBox]) { return }
+
+            if (-not ($pagingState.Enabled -eq $true)) { return }
+
+            # PageUp = Previous page
+            if ($key -eq [System.Windows.Input.Key]::PageUp) {
+                $page = [int]$pagingState.PageNumber - 1
+                if ($page -lt 1) { $page = 1 }
+                $pagingState.PageNumber = $page
+                & $refreshGrid
+                $e.Handled = $true
+                return
+            }
+
+            # PageDown = Next page
+            if ($key -eq [System.Windows.Input.Key]::PageDown) {
+                $page = [int]$pagingState.PageNumber + 1
+                if ($page -gt $pagingState.PageCount) { $page = [int]$pagingState.PageCount }
+                $pagingState.PageNumber = $page
+                & $refreshGrid
+                $e.Handled = $true
+                return
+            }
+
+            # Ctrl+Home = First page
+            if (($mods -band [System.Windows.Input.ModifierKeys]::Control) -ne 0 -and $key -eq [System.Windows.Input.Key]::Home) {
+                $pagingState.PageNumber = 1
+                & $refreshGrid
+                $e.Handled = $true
+                return
+            }
+
+            # Ctrl+End = Last page
+            if (($mods -band [System.Windows.Input.ModifierKeys]::Control) -ne 0 -and $key -eq [System.Windows.Input.Key]::End) {
+                $pagingState.PageNumber = [int]$pagingState.PageCount
+                & $refreshGrid
+                $e.Handled = $true
+                return
+            }
+        } catch { }
+    }.GetNewClosure())
+
+    # Set initial visibility for new paging controls based on paging state
+    $newPagingControls = @($pageSizeBox, $quickJumpBox, $searchBox, $searchClearBtn)
+    foreach ($ctrl in $newPagingControls) {
+        if ($ctrl) {
+            try {
+                # These controls are always visible; paging controls visibility controlled by setPagingControlsVisible
+            } catch { }
+        }
+    }
+
+    #endregion
 
     try { & $refreshGrid } catch { }
     $win.Show() | Out-Null
