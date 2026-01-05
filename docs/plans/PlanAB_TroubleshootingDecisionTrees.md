@@ -16,10 +16,12 @@ Network teams struggle with:
 - Training new team members on troubleshooting methodology
 
 ## Current status (2026-01)
-- Guided troubleshooting runbooks exist in markdown format
-- No interactive decision tree execution engine
-- No structured capture of troubleshooting outcomes
-- Knowledge transfer depends on shadowing and documentation
+- **In Progress (4/6 core tasks done)**
+- DecisionTreeModule.psm1 implemented with full tree engine
+- Built-in trees: Port-NotWorking, VLAN-Issues, STP-Problems, Simple-Test
+- 42 Pester tests passing
+- DecisionTreeView.xaml and DecisionTreeViewModule.psm1 integrated into MainWindow
+- Pending: Tree editor UI, execution persistence, outcome analytics
 
 ## Proposed Features
 
@@ -124,10 +126,10 @@ Network teams struggle with:
 ## Active work
 | ID | Title | Owner | Status | Notes |
 |----|-------|-------|--------|-------|
-| ST-AB-001 | Decision tree schema | Data | Pending | Node types and structure |
-| ST-AB-002 | Tree execution engine | Tools | Pending | Step-by-step processor |
-| ST-AB-003 | Built-in tree library | Tools | Pending | Common troubleshooting flows |
-| ST-AB-004 | Interactive execution UI | UI | Pending | Guided troubleshooting view |
+| ST-AB-001 | Decision tree schema | Data | Done | Node types: decision, action, input, branch, check, result |
+| ST-AB-002 | Tree execution engine | Tools | Done | DecisionTreeModule.psm1 with 42 tests |
+| ST-AB-003 | Built-in tree library | Tools | Done | Port-NotWorking, VLAN-Issues, STP-Problems |
+| ST-AB-004 | Interactive execution UI | UI | Done | DecisionTreeView.xaml + ViewModule, "Troubleshoot" tab |
 | ST-AB-005 | Tree editor | UI | Pending | Visual tree designer |
 | ST-AB-006 | Outcome analytics | Tools | Pending | Pattern and success tracking |
 

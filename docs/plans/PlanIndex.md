@@ -67,7 +67,7 @@ The active StateTrace plans live in discrete files so automation agents can refe
 - **Plan Y** - **In Progress (5/6 Done)**. Network calculator suite with subnet, VLAN, bandwidth, port reference, and STP timer tools. Core module, tests, and UI view integrated into MainWindow.
 - **Plan Z** - **Planned**. Change management with maintenance window scheduling, pre/post verification, and rollback tracking.
 - **Plan AA** - **Planned**. Network documentation generator with as-built templates and multi-format export.
-- **Plan AB** - **Planned**. Troubleshooting decision trees with guided workflows and outcome tracking.
+- **Plan AB** - **In Progress (4/6 Done)**. Troubleshooting decision trees with guided workflows. Core module, tests, built-in trees, and interactive UI delivered. Tree editor and analytics pending.
 - **Plan AC** - **Planned**. Capacity planning with utilization tracking, growth forecasting, and budget projections.
 - **Plan AD** - **In Progress (5/6 Done)**. Cross-vendor command reference with translation and configuration snippets. Core module, UI, and tests delivered. Learning mode pending.
 - **Plan AE** - **Planned**. Log analysis with pattern detection, event correlation, and anomaly detection.

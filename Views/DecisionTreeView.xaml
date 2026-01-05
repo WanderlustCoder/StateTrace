@@ -1,0 +1,232 @@
+<UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <Grid Background="{DynamicResource Theme.Surface.Primary}">
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="250"/>
+      <ColumnDefinition Width="*"/>
+    </Grid.ColumnDefinitions>
+
+    <!-- Left Panel: Tree Selection -->
+    <Border Grid.Column="0" BorderBrush="{DynamicResource Theme.Border.Primary}" BorderThickness="0,0,1,0">
+      <Grid Margin="10">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="*"/>
+          <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0">
+          <Label Content="Troubleshooting Trees" Style="{DynamicResource ToolbarLabelStyle}"
+                 FontWeight="Bold" FontSize="14"/>
+          <ComboBox Name="CategoryDropdown" Margin="0,5" Style="{DynamicResource ToolbarComboBoxStyle}">
+            <ComboBoxItem Content="All Categories" IsSelected="True"/>
+            <ComboBoxItem Content="Layer1-Layer2"/>
+            <ComboBoxItem Content="Layer2"/>
+            <ComboBoxItem Content="Layer3"/>
+          </ComboBox>
+        </StackPanel>
+
+        <ListBox Name="TreeListBox" Grid.Row="1" Margin="0,10,0,10"
+                 Background="{DynamicResource Theme.Input.Background}"
+                 Foreground="{DynamicResource Theme.Input.Text}"
+                 BorderBrush="{DynamicResource Theme.Input.Border}">
+          <ListBox.ItemTemplate>
+            <DataTemplate>
+              <StackPanel Margin="5">
+                <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+                <TextBlock Text="{Binding Description}" FontSize="11" Opacity="0.7" TextWrapping="Wrap"/>
+              </StackPanel>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+
+        <StackPanel Grid.Row="2">
+          <Button Name="StartTreeButton" Content="Start Troubleshooting"
+                  Style="{DynamicResource PrimaryButtonStyle}" Margin="0,5"/>
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- Right Panel: Execution Area -->
+    <Grid Grid.Column="1" Margin="15">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="*"/>
+        <RowDefinition Height="Auto"/>
+      </Grid.RowDefinitions>
+
+      <!-- Header with device context -->
+      <Grid Grid.Row="0" Margin="0,0,0,10">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Grid.Column="0" Orientation="Horizontal">
+          <Label Content="Device:" Style="{DynamicResource ToolbarLabelStyle}"/>
+          <TextBox Name="DeviceContextBox" Width="150" Margin="5,0"
+                   Background="{DynamicResource Theme.Input.Background}"
+                   Foreground="{DynamicResource Theme.Input.Text}"
+                   BorderBrush="{DynamicResource Theme.Input.Border}"
+                   ToolTip="Enter device name for context (optional)"/>
+          <Label Content="Interface:" Style="{DynamicResource ToolbarLabelStyle}" Margin="10,0,0,0"/>
+          <TextBox Name="InterfaceContextBox" Width="100" Margin="5,0"
+                   Background="{DynamicResource Theme.Input.Background}"
+                   Foreground="{DynamicResource Theme.Input.Text}"
+                   BorderBrush="{DynamicResource Theme.Input.Border}"
+                   ToolTip="Enter interface name for context (optional)"/>
+        </StackPanel>
+
+        <StackPanel Grid.Column="2" Orientation="Horizontal">
+          <Button Name="RestartButton" Content="Restart" Width="70" Margin="5,0"
+                  Style="{DynamicResource SecondaryButtonStyle}" Visibility="Collapsed"/>
+          <Button Name="BackButton" Content="Back" Width="60" Margin="5,0"
+                  Style="{DynamicResource SecondaryButtonStyle}" Visibility="Collapsed"/>
+        </StackPanel>
+      </Grid>
+
+      <!-- Progress bar -->
+      <StackPanel Grid.Row="1" Name="ProgressPanel" Visibility="Collapsed" Margin="0,0,0,15">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+          </Grid.ColumnDefinitions>
+          <ProgressBar Name="ExecutionProgress" Grid.Column="0" Height="6" Minimum="0" Maximum="100" Value="0"
+                       Background="{DynamicResource Theme.Input.Background}"
+                       Foreground="{DynamicResource Theme.Primary}"/>
+          <TextBlock Name="ProgressText" Grid.Column="1" Margin="10,0,0,0"
+                     Foreground="{DynamicResource Theme.Text.Primary}" FontSize="11"/>
+        </Grid>
+        <TextBlock Name="PathBreadcrumb" Margin="0,5,0,0" TextWrapping="Wrap"
+                   Foreground="{DynamicResource Theme.Text.Secondary}" FontSize="11"/>
+      </StackPanel>
+
+      <!-- Current Step Panel -->
+      <Border Grid.Row="2" Name="StepPanel" Visibility="Collapsed"
+              Background="{DynamicResource Theme.Surface.Secondary}"
+              BorderBrush="{DynamicResource Theme.Border.Primary}"
+              BorderThickness="1" CornerRadius="4" Padding="15">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+          </Grid.RowDefinitions>
+
+          <!-- Step title -->
+          <TextBlock Grid.Row="0" Name="StepTitle" FontSize="16" FontWeight="Bold"
+                     Foreground="{DynamicResource Theme.Text.Primary}" TextWrapping="Wrap"/>
+
+          <!-- Step content/instructions -->
+          <TextBox Grid.Row="1" Name="StepContent" Margin="0,10" TextWrapping="Wrap"
+                   IsReadOnly="True" BorderThickness="0"
+                   Background="Transparent" Foreground="{DynamicResource Theme.Text.Primary}"/>
+
+          <!-- Answer options (for decision nodes) -->
+          <ScrollViewer Grid.Row="2" Name="AnswerScrollViewer" VerticalScrollBarVisibility="Auto">
+            <StackPanel Name="AnswerPanel">
+              <!-- Answer buttons will be added dynamically -->
+            </StackPanel>
+          </ScrollViewer>
+
+          <!-- Input box (for input nodes) -->
+          <StackPanel Grid.Row="2" Name="InputPanel" Visibility="Collapsed">
+            <TextBox Name="InputValueBox" Margin="0,10"
+                     Background="{DynamicResource Theme.Input.Background}"
+                     Foreground="{DynamicResource Theme.Input.Text}"
+                     BorderBrush="{DynamicResource Theme.Input.Border}"/>
+            <Button Name="SubmitInputButton" Content="Submit" Width="100"
+                    Style="{DynamicResource PrimaryButtonStyle}" HorizontalAlignment="Left"/>
+          </StackPanel>
+
+          <!-- Continue button (for action nodes) -->
+          <Button Grid.Row="3" Name="ContinueButton" Content="Continue" Width="100"
+                  Style="{DynamicResource PrimaryButtonStyle}" HorizontalAlignment="Left"
+                  Margin="0,10,0,0" Visibility="Collapsed"/>
+        </Grid>
+      </Border>
+
+      <!-- Result Panel -->
+      <Border Grid.Row="2" Name="ResultPanel" Visibility="Collapsed"
+              Background="{DynamicResource Theme.Surface.Secondary}"
+              BorderBrush="{DynamicResource Theme.Border.Primary}"
+              BorderThickness="1" CornerRadius="4" Padding="15">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+          </Grid.RowDefinitions>
+
+          <!-- Result header -->
+          <StackPanel Grid.Row="0" Orientation="Horizontal">
+            <TextBlock Text="RESULT" FontSize="12" FontWeight="Bold"
+                       Foreground="{DynamicResource Theme.Primary}"/>
+          </StackPanel>
+
+          <!-- Result title -->
+          <TextBlock Grid.Row="1" Name="ResultTitle" FontSize="16" FontWeight="Bold"
+                     Foreground="{DynamicResource Theme.Text.Primary}" TextWrapping="Wrap" Margin="0,10,0,0"/>
+
+          <!-- Result content -->
+          <TextBox Grid.Row="2" Name="ResultContent" Margin="0,10" TextWrapping="Wrap"
+                   IsReadOnly="True" BorderThickness="0"
+                   Background="Transparent" Foreground="{DynamicResource Theme.Text.Primary}"
+                   VerticalScrollBarVisibility="Auto"/>
+
+          <!-- Result actions -->
+          <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,10,0,0">
+            <Button Name="CopyResultButton" Content="Copy Summary" Width="100" Margin="0,0,10,0"
+                    Style="{DynamicResource PrimaryButtonStyle}"/>
+            <Button Name="StartNewButton" Content="Start New" Width="100"
+                    Style="{DynamicResource SecondaryButtonStyle}"/>
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <!-- Welcome Panel (shown when no tree selected) -->
+      <Border Grid.Row="2" Name="WelcomePanel"
+              Background="{DynamicResource Theme.Surface.Secondary}"
+              BorderBrush="{DynamicResource Theme.Border.Primary}"
+              BorderThickness="1" CornerRadius="4" Padding="20">
+        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+          <TextBlock Text="Guided Troubleshooting" FontSize="20" FontWeight="Bold"
+                     Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Center"/>
+          <TextBlock Text="Select a troubleshooting tree from the left panel and click 'Start Troubleshooting' to begin."
+                     FontSize="13" Foreground="{DynamicResource Theme.Text.Secondary}"
+                     TextWrapping="Wrap" HorizontalAlignment="Center" Margin="0,15,0,0" MaxWidth="400"
+                     TextAlignment="Center"/>
+          <TextBlock Text="Available trees cover common network issues including:"
+                     FontSize="12" Foreground="{DynamicResource Theme.Text.Secondary}"
+                     Margin="0,20,0,10" HorizontalAlignment="Center"/>
+          <StackPanel HorizontalAlignment="Center">
+            <TextBlock Text="- Port not working (no link, no traffic)" FontSize="12"
+                       Foreground="{DynamicResource Theme.Text.Secondary}"/>
+            <TextBlock Text="- VLAN issues (wrong VLAN, trunk problems)" FontSize="12"
+                       Foreground="{DynamicResource Theme.Text.Secondary}"/>
+            <TextBlock Text="- Spanning tree problems (blocked ports, loops)" FontSize="12"
+                       Foreground="{DynamicResource Theme.Text.Secondary}"/>
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <!-- Notes section at bottom -->
+      <GroupBox Grid.Row="3" Header="Notes" Margin="0,10,0,0"
+                Foreground="{DynamicResource Theme.Text.Inverse}"
+                BorderBrush="{DynamicResource Theme.Border.Primary}" Visibility="Collapsed"
+                Name="NotesGroup">
+        <TextBox Name="NotesBox" Height="60" TextWrapping="Wrap" AcceptsReturn="True"
+                 Background="{DynamicResource Theme.Input.Background}"
+                 Foreground="{DynamicResource Theme.Input.Text}"
+                 BorderBrush="{DynamicResource Theme.Input.Border}"
+                 VerticalScrollBarVisibility="Auto"/>
+      </GroupBox>
+    </Grid>
+  </Grid>
+</UserControl>

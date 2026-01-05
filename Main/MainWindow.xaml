@@ -104,6 +104,10 @@
         <TabItem Header="Calculator">
           <ContentControl Name="NetworkCalculatorHost"/>
         </TabItem>
+        <!-- Decision Tree tab for guided troubleshooting workflows -->
+        <TabItem Header="Troubleshoot">
+          <ContentControl Name="DecisionTreeHost"/>
+        </TabItem>
         <!-- Add more tabs here -->
       </TabControl>
       <!-- Compare sidebar occupies the second column and hosts the compare view.  It is hidden by default by setting the column width to zero. -->

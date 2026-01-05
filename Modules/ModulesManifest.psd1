@@ -40,6 +40,8 @@
         'CommandReferenceViewModule.psm1',
         'NetworkCalculatorModule.psm1',
         'NetworkCalculatorViewModule.psm1',
+        'DecisionTreeModule.psm1',
+        'DecisionTreeViewModule.psm1',
         'CompareViewModule.psm1',
         'TemplatesModule.psm1'
     )
