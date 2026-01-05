@@ -46,6 +46,8 @@
         'LogAnalysisViewModule.psm1',
         'CableDocumentationModule.psm1',
         'CableDocumentationViewModule.psm1',
+        'IPAMModule.psm1',
+        'IPAMViewModule.psm1',
         'CompareViewModule.psm1',
         'TemplatesModule.psm1'
     )

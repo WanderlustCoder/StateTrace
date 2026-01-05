@@ -15,10 +15,11 @@ Network engineers often need to:
 - Quickly calculate subnet boundaries and usable ranges
 
 ## Current status (2026-01)
-- Interface data includes IP addresses and VLAN assignments
-- No dedicated VLAN tracking or conflict detection
-- No subnet planning or visualization tools
-- IP data is scattered across device records without aggregation
+- **In Progress (4/6 Done)**. Core IPAM functionality delivered.
+- IPAMModule.psm1 provides VLAN, subnet, and IP address data model
+- IPAMView.xaml offers interactive UI with tabs for VLANs, Subnets, IPs, Conflicts, and Statistics
+- Subnet calculations, conflict detection, and site planning tools implemented
+- 43 Pester tests cover all module functionality
 
 ## Proposed Features
 
@@ -76,12 +77,12 @@ Network engineers often need to:
 ## Active work
 | ID | Title | Owner | Status | Notes |
 |----|-------|-------|--------|-------|
-| ST-V-001 | VLAN database schema | Data | Pending | Design Access tables for VLAN tracking |
-| ST-V-002 | Subnet registry | Data | Pending | Subnet allocation tracking |
+| ST-V-001 | VLAN database schema | Data | Done | IPAMModule.psm1 with New-VLAN, Add/Get/Update/Remove-VLAN |
+| ST-V-002 | Subnet registry | Data | Done | New-Subnet with auto-calculation, Add/Get/Remove-Subnet |
 | ST-V-003 | VLAN discovery import | Tools | Pending | Import VLANs from device data |
-| ST-V-004 | Conflict detection engine | Tools | Pending | Identify VLAN/IP conflicts |
-| ST-V-005 | Subnet visualization | UI | Pending | Address space visual map |
-| ST-V-006 | New site planning wizard | UI | Pending | Guided subnet allocation |
+| ST-V-004 | Conflict detection engine | Tools | Done | Find-VLANConflicts, Find-IPConflicts, Find-IPAMConflicts |
+| ST-V-005 | Subnet visualization | UI | Done | IPAMView.xaml with tabs and statistics |
+| ST-V-006 | New site planning wizard | UI | Pending | New-SiteAddressPlan function implemented, InputBox UI |
 
 ## Data Model (Proposed)
 

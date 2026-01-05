@@ -116,6 +116,10 @@
         <TabItem Header="Cables">
           <ContentControl Name="CableDocumentationHost"/>
         </TabItem>
+        <!-- IPAM tab for VLAN, subnet, and IP address management -->
+        <TabItem Header="IPAM">
+          <ContentControl Name="IPAMHost"/>
+        </TabItem>
         <!-- Add more tabs here -->
       </TabControl>
       <!-- Compare sidebar occupies the second column and hosts the compare view.  It is hidden by default by setting the column width to zero. -->

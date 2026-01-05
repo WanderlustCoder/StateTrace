@@ -61,7 +61,7 @@ The active StateTrace plans live in discrete files so automation agents can refe
 - **Plan S** - **Complete**. Unused export inventory, feature flag audit, and script/runbook pruning delivered.
 - **Plan T** - **In Progress (4/5 Done)**. Cable & port documentation with cable run tracking, patch panel management, label generation (Text/CSV/HTML), and interactive UI. Port Reorg integration pending.
 - **Plan U** - **Planned**. Configuration template engine with validation, compliance checking, and config generation.
-- **Plan V** - **Planned**. Lightweight IPAM with VLAN registry, subnet planning, and conflict detection.
+- **Plan V** - **In Progress (4/6 Done)**. Lightweight IPAM with VLAN registry, subnet planning, and conflict detection. Core module, tests, and UI view integrated into MainWindow. VLAN discovery from devices and full wizard UI pending.
 - **Plan W** - **Planned**. Network topology visualization with auto-discovery and diagram export.
 - **Plan X** - **Planned**. Inventory and asset tracking with warranty monitoring and firmware management.
 - **Plan Y** - **In Progress (5/6 Done)**. Network calculator suite with subnet, VLAN, bandwidth, port reference, and STP timer tools. Core module, tests, and UI view integrated into MainWindow.
