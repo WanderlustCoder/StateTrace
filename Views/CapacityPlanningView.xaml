@@ -1,0 +1,477 @@
+<UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{DynamicResource Theme.Surface.Primary}">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header with overall capacity health -->
+        <Border Grid.Row="0" Background="{DynamicResource Theme.Surface.Secondary}" Padding="10" Margin="0,0,0,5">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Capacity overview bar -->
+                <StackPanel Grid.Column="0" Orientation="Vertical">
+                    <TextBlock Text="Network Capacity Overview" FontSize="14" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,5"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0" Name="OverallUtilizationLabel" Text="0%" FontWeight="Bold" Foreground="{DynamicResource Theme.Accent.Primary}" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                        <ProgressBar Grid.Column="1" Name="OverallUtilizationBar" Value="0" Maximum="100" Height="20" Foreground="{DynamicResource Theme.Accent.Primary}"/>
+                        <TextBlock Grid.Column="2" Name="OverallPortsLabel" Text="0 / 0 ports" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                    </Grid>
+                </StackPanel>
+
+                <!-- Refresh button -->
+                <Button Grid.Column="1" Name="RefreshAllButton" Content="Refresh" Style="{DynamicResource SecondaryButtonStyle}" Width="80" Margin="10,0,0,0"/>
+            </Grid>
+        </Border>
+
+        <!-- Main tabbed content -->
+        <TabControl Grid.Row="1">
+            <!-- Dashboard Tab -->
+            <TabItem Header="Dashboard">
+                <Grid Margin="5">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="300"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Site utilization list -->
+                    <Border Grid.Row="0" Grid.Column="0" Grid.RowSpan="2" Background="{DynamicResource Theme.Surface.Secondary}" Padding="10" Margin="0,0,5,0">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Text="Site Utilization" FontSize="14" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
+
+                            <DataGrid Grid.Row="1" Name="SiteUtilizationGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                                      Style="{DynamicResource DataGridStyle}" CanUserSortColumns="True">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Site" Binding="{Binding SiteID}" Width="120"/>
+                                    <DataGridTextColumn Header="Used" Binding="{Binding UsedPorts}" Width="60"/>
+                                    <DataGridTextColumn Header="Total" Binding="{Binding TotalPorts}" Width="60"/>
+                                    <DataGridTextColumn Header="Util %" Binding="{Binding Percentage}" Width="60"/>
+                                    <DataGridTextColumn Header="Available" Binding="{Binding AvailablePorts}" Width="70"/>
+                                    <DataGridTextColumn Header="Devices" Binding="{Binding DeviceCount}" Width="60"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Grid>
+                    </Border>
+
+                    <!-- Alerts panel -->
+                    <Border Grid.Row="0" Grid.Column="1" Background="{DynamicResource Theme.Surface.Secondary}" Padding="10" Margin="0,0,0,5">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Text="Capacity Alerts" FontSize="14" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,5"/>
+
+                            <ListBox Grid.Row="1" Name="AlertsListBox" MaxHeight="150" Background="Transparent" BorderThickness="0">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" Margin="2">
+                                            <TextBlock Text="!" FontWeight="Bold" Foreground="Orange" Margin="0,0,5,0"/>
+                                            <TextBlock Text="{Binding Message}" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </Grid>
+                    </Border>
+
+                    <!-- Quick stats panel -->
+                    <Border Grid.Row="1" Grid.Column="1" Background="{DynamicResource Theme.Surface.Secondary}" Padding="10">
+                        <StackPanel>
+                            <TextBlock Text="Quick Stats" FontSize="14" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                <TextBlock Text="Snapshots:" Foreground="{DynamicResource Theme.Text.Primary}" Width="100"/>
+                                <TextBlock Name="SnapshotCountLabel" Text="0" FontWeight="Bold" Foreground="{DynamicResource Theme.Accent.Primary}"/>
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                <TextBlock Text="Thresholds:" Foreground="{DynamicResource Theme.Text.Primary}" Width="100"/>
+                                <TextBlock Name="ThresholdCountLabel" Text="0" FontWeight="Bold" Foreground="{DynamicResource Theme.Accent.Primary}"/>
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                <TextBlock Text="Scenarios:" Foreground="{DynamicResource Theme.Text.Primary}" Width="100"/>
+                                <TextBlock Name="ScenarioCountLabel" Text="0" FontWeight="Bold" Foreground="{DynamicResource Theme.Accent.Primary}"/>
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                <TextBlock Text="Last Snapshot:" Foreground="{DynamicResource Theme.Text.Primary}" Width="100"/>
+                                <TextBlock Name="LastSnapshotLabel" Text="Never" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                            </StackPanel>
+
+                            <Button Name="TakeSnapshotButton" Content="Take Snapshot" Style="{DynamicResource PrimaryButtonStyle}" Margin="0,15,0,0"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- Forecast Tab -->
+            <TabItem Header="Forecast">
+                <Grid Margin="5">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="300"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Forecast options -->
+                    <Border Grid.Column="0" Background="{DynamicResource Theme.Surface.Secondary}" Padding="10" Margin="0,0,5,0">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <TextBlock Text="Forecast Settings" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,15"/>
+
+                                <TextBlock Text="Scope:" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,5"/>
+                                <ComboBox Name="ForecastScopeCombo" Style="{DynamicResource ToolbarComboBoxStyle}" Margin="0,0,0,15">
+                                    <ComboBoxItem Content="Enterprise" IsSelected="True"/>
+                                    <ComboBoxItem Content="Site"/>
+                                    <ComboBoxItem Content="Device"/>
+                                </ComboBox>
+
+                                <TextBlock Text="Site/Device:" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,5"/>
+                                <ComboBox Name="ForecastTargetCombo" Style="{DynamicResource ToolbarComboBoxStyle}" Margin="0,0,0,15"/>
+
+                                <TextBlock Text="Forecast Period (months):" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,5"/>
+                                <TextBox Name="ForecastPeriodBox" Text="12" Style="{DynamicResource SearchTextBoxStyle}" Margin="0,0,0,15"/>
+
+                                <TextBlock Text="Warning Threshold (%):" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,5"/>
+                                <TextBox Name="ForecastWarningBox" Text="80" Style="{DynamicResource SearchTextBoxStyle}" Margin="0,0,0,15"/>
+
+                                <Button Name="RunForecastButton" Content="Run Forecast" Style="{DynamicResource PrimaryButtonStyle}" Height="35"/>
+
+                                <TextBlock Text="Forecast Results" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,20,0,10"/>
+
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                    <TextBlock Text="Growth Rate:" Foreground="{DynamicResource Theme.Text.Primary}" Width="120"/>
+                                    <TextBlock Name="GrowthRateLabel" Text="N/A" Foreground="{DynamicResource Theme.Accent.Primary}"/>
+                                </StackPanel>
+
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                    <TextBlock Text="R-Squared:" Foreground="{DynamicResource Theme.Text.Primary}" Width="120"/>
+                                    <TextBlock Name="RSquaredLabel" Text="N/A" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                                </StackPanel>
+
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                    <TextBlock Text="80% Threshold:" Foreground="{DynamicResource Theme.Text.Primary}" Width="120"/>
+                                    <TextBlock Name="ThresholdDateLabel" Text="N/A" Foreground="{DynamicResource Theme.Accent.Primary}"/>
+                                </StackPanel>
+
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                    <TextBlock Text="Days Until:" Foreground="{DynamicResource Theme.Text.Primary}" Width="120"/>
+                                    <TextBlock Name="DaysUntilLabel" Text="N/A" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Border>
+
+                    <!-- Forecast history/data -->
+                    <Border Grid.Column="1" Background="{DynamicResource Theme.Surface.Secondary}" Padding="10">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Text="Historical Data" FontSize="14" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
+
+                            <DataGrid Grid.Row="1" Name="HistoryGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                                      Style="{DynamicResource DataGridStyle}">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Date" Binding="{Binding SnapshotDate, StringFormat=\{0:yyyy-MM-dd\}}" Width="100"/>
+                                    <DataGridTextColumn Header="Scope" Binding="{Binding ScopeID}" Width="120"/>
+                                    <DataGridTextColumn Header="Used" Binding="{Binding UsedPorts}" Width="70"/>
+                                    <DataGridTextColumn Header="Total" Binding="{Binding TotalPorts}" Width="70"/>
+                                    <DataGridTextColumn Header="Util %" Binding="{Binding Utilization}" Width="70"/>
+                                    <DataGridTextColumn Header="Notes" Binding="{Binding Notes}" Width="*"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- Scenarios Tab -->
+            <TabItem Header="Scenarios">
+                <Grid Margin="5">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="350"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Scenario builder -->
+                    <Border Grid.Column="0" Background="{DynamicResource Theme.Surface.Secondary}" Padding="10" Margin="0,0,5,0">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <TextBlock Text="What-If Scenario" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,15"/>
+
+                                <TextBlock Text="Scenario Type:" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,5"/>
+                                <ComboBox Name="ScenarioTypeCombo" Style="{DynamicResource ToolbarComboBoxStyle}" Margin="0,0,0,15">
+                                    <ComboBoxItem Content="Add Users" IsSelected="True"/>
+                                    <ComboBoxItem Content="Deploy VLAN"/>
+                                    <ComboBoxItem Content="Add Equipment"/>
+                                </ComboBox>
+
+                                <!-- Add Users options -->
+                                <StackPanel Name="AddUsersPanel">
+                                    <TextBlock Text="Number of Users:" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,5"/>
+                                    <TextBox Name="AddUsersCountBox" Text="50" Style="{DynamicResource SearchTextBoxStyle}" Margin="0,0,0,10"/>
+
+                                    <TextBlock Text="Ports per User:" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,5"/>
+                                    <TextBox Name="PortsPerUserBox" Text="1.2" Style="{DynamicResource SearchTextBoxStyle}" Margin="0,0,0,10"/>
+
+                                    <CheckBox Name="IncludeVoIPCheckbox" Content="Include VoIP phones" Style="{DynamicResource ToolbarCheckBoxStyle}" Margin="0,0,0,5"/>
+                                    <CheckBox Name="IncludePrintersCheckbox" Content="Include network printers" Style="{DynamicResource ToolbarCheckBoxStyle}" Margin="0,0,0,15"/>
+                                </StackPanel>
+
+                                <Button Name="CalculateImpactButton" Content="Calculate Impact" Style="{DynamicResource PrimaryButtonStyle}" Height="35" Margin="0,0,0,20"/>
+
+                                <TextBlock Text="Impact Analysis" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
+
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                    <TextBlock Text="Additional Ports:" Foreground="{DynamicResource Theme.Text.Primary}" Width="120"/>
+                                    <TextBlock Name="AdditionalPortsLabel" Text="0" FontWeight="Bold" Foreground="{DynamicResource Theme.Accent.Primary}"/>
+                                </StackPanel>
+
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                    <TextBlock Text="New Utilization:" Foreground="{DynamicResource Theme.Text.Primary}" Width="120"/>
+                                    <TextBlock Name="NewUtilizationLabel" Text="0%" FontWeight="Bold" Foreground="{DynamicResource Theme.Accent.Primary}"/>
+                                </StackPanel>
+
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                    <TextBlock Text="Can Accommodate:" Foreground="{DynamicResource Theme.Text.Primary}" Width="120"/>
+                                    <TextBlock Name="CanAccommodateLabel" Text="N/A" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                                </StackPanel>
+
+                                <Button Name="SaveScenarioButton" Content="Save Scenario" Style="{DynamicResource SecondaryButtonStyle}" Margin="0,15,0,0"/>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Border>
+
+                    <!-- Saved scenarios list -->
+                    <Border Grid.Column="1" Background="{DynamicResource Theme.Surface.Secondary}" Padding="10">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Text="Saved Scenarios" FontSize="14" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
+
+                            <DataGrid Grid.Row="1" Name="ScenariosGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                                      Style="{DynamicResource DataGridStyle}">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="150"/>
+                                    <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
+                                    <DataGridTextColumn Header="Cost" Binding="{Binding CostEstimate, StringFormat=\{0:C0\}}" Width="100"/>
+                                    <DataGridTextColumn Header="Created" Binding="{Binding CreatedDate, StringFormat=\{0:yyyy-MM-dd\}}" Width="90"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+
+                            <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,5,0,0">
+                                <Button Name="CompareScenarioButton" Content="Compare" Style="{DynamicResource SecondaryButtonStyle}" Width="80" Margin="0,0,5,0"/>
+                                <Button Name="DeleteScenarioButton" Content="Delete" Style="{DynamicResource SecondaryButtonStyle}" Width="80"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- Budget Tab -->
+            <TabItem Header="Budget">
+                <Grid Margin="5">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="350"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Budget planning options -->
+                    <Border Grid.Column="0" Background="{DynamicResource Theme.Surface.Secondary}" Padding="10" Margin="0,0,5,0">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <TextBlock Text="Budget Planning" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,15"/>
+
+                                <TextBlock Text="Planning Horizon (months):" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,5"/>
+                                <TextBox Name="BudgetHorizonBox" Text="24" Style="{DynamicResource SearchTextBoxStyle}" Margin="0,0,0,10"/>
+
+                                <TextBlock Text="Target Utilization (%):" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,5"/>
+                                <TextBox Name="TargetUtilizationBox" Text="75" Style="{DynamicResource SearchTextBoxStyle}" Margin="0,0,0,10"/>
+
+                                <TextBlock Text="Switch Capacity (ports):" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,5"/>
+                                <TextBox Name="SwitchCapacityBox" Text="48" Style="{DynamicResource SearchTextBoxStyle}" Margin="0,0,0,10"/>
+
+                                <TextBlock Text="Switch Cost ($):" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,5"/>
+                                <TextBox Name="SwitchCostBox" Text="5000" Style="{DynamicResource SearchTextBoxStyle}" Margin="0,0,0,10"/>
+
+                                <TextBlock Text="Installation Cost ($):" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,5"/>
+                                <TextBox Name="InstallCostBox" Text="500" Style="{DynamicResource SearchTextBoxStyle}" Margin="0,0,0,15"/>
+
+                                <Button Name="CalculateBudgetButton" Content="Calculate Budget" Style="{DynamicResource PrimaryButtonStyle}" Height="35" Margin="0,0,0,20"/>
+
+                                <TextBlock Text="Hardware Projections" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
+
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                    <TextBlock Text="Additional Ports:" Foreground="{DynamicResource Theme.Text.Primary}" Width="130"/>
+                                    <TextBlock Name="BudgetPortsLabel" Text="0" FontWeight="Bold" Foreground="{DynamicResource Theme.Accent.Primary}"/>
+                                </StackPanel>
+
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                    <TextBlock Text="Switches Needed:" Foreground="{DynamicResource Theme.Text.Primary}" Width="130"/>
+                                    <TextBlock Name="BudgetSwitchesLabel" Text="0" FontWeight="Bold" Foreground="{DynamicResource Theme.Accent.Primary}"/>
+                                </StackPanel>
+
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                    <TextBlock Text="Hardware Cost:" Foreground="{DynamicResource Theme.Text.Primary}" Width="130"/>
+                                    <TextBlock Name="BudgetHardwareLabel" Text="$0" FontWeight="Bold" Foreground="{DynamicResource Theme.Accent.Primary}"/>
+                                </StackPanel>
+
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                    <TextBlock Text="5-Year TCO:" Foreground="{DynamicResource Theme.Text.Primary}" Width="130"/>
+                                    <TextBlock Name="BudgetTCOLabel" Text="$0" FontWeight="Bold" Foreground="{DynamicResource Theme.Accent.Primary}"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Border>
+
+                    <!-- Redeployment candidates -->
+                    <Border Grid.Column="1" Background="{DynamicResource Theme.Surface.Secondary}" Padding="10">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+                                <TextBlock Text="Redeployment Candidates" FontSize="14" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" VerticalAlignment="Center"/>
+                                <TextBlock Text="(under 30% utilization)" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="10,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+
+                            <DataGrid Grid.Row="1" Name="RedeploymentGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                                      Style="{DynamicResource DataGridStyle}">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Hostname" Binding="{Binding Hostname}" Width="150"/>
+                                    <DataGridTextColumn Header="Used" Binding="{Binding UsedPorts}" Width="60"/>
+                                    <DataGridTextColumn Header="Total" Binding="{Binding TotalPorts}" Width="60"/>
+                                    <DataGridTextColumn Header="Util %" Binding="{Binding Utilization}" Width="70"/>
+                                    <DataGridTextColumn Header="Available" Binding="{Binding AvailablePorts}" Width="70"/>
+                                    <DataGridTextColumn Header="Recommendation" Binding="{Binding Recommendation}" Width="*"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- Thresholds Tab -->
+            <TabItem Header="Thresholds">
+                <Grid Margin="5">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Threshold toolbar -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,5">
+                        <Button Name="NewThresholdButton" Content="New Threshold" Style="{DynamicResource PrimaryButtonStyle}" Margin="0,0,10,0"/>
+                        <CheckBox Name="EnabledOnlyCheckbox" Content="Enabled only" VerticalAlignment="Center" Style="{DynamicResource ToolbarCheckBoxStyle}"/>
+                    </StackPanel>
+
+                    <!-- Thresholds grid -->
+                    <DataGrid Grid.Row="1" Name="ThresholdsGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                              Style="{DynamicResource DataGridStyle}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Scope Type" Binding="{Binding ScopeType}" Width="100"/>
+                            <DataGridTextColumn Header="Scope ID" Binding="{Binding ScopeID}" Width="120"/>
+                            <DataGridTextColumn Header="Metric" Binding="{Binding MetricName}" Width="120"/>
+                            <DataGridTextColumn Header="Warning" Binding="{Binding WarningLevel}" Width="70"/>
+                            <DataGridTextColumn Header="Critical" Binding="{Binding CriticalLevel}" Width="70"/>
+                            <DataGridCheckBoxColumn Header="Enabled" Binding="{Binding IsEnabled}" Width="70"/>
+                            <DataGridCheckBoxColumn Header="Notify" Binding="{Binding NotifyOnBreach}" Width="60"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!-- Threshold actions -->
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,5,0,0">
+                        <Button Name="EditThresholdButton" Content="Edit" Style="{DynamicResource SecondaryButtonStyle}" Width="80" Margin="0,0,5,0"/>
+                        <Button Name="EnableThresholdButton" Content="Enable" Style="{DynamicResource SecondaryButtonStyle}" Width="80" Margin="0,0,5,0"/>
+                        <Button Name="DisableThresholdButton" Content="Disable" Style="{DynamicResource SecondaryButtonStyle}" Width="80"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <!-- Reports Tab -->
+            <TabItem Header="Reports">
+                <Grid Margin="5">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="250"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Report options -->
+                    <Border Grid.Column="0" Background="{DynamicResource Theme.Surface.Secondary}" Padding="10" Margin="0,0,5,0">
+                        <StackPanel>
+                            <TextBlock Text="Generate Report" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,15"/>
+
+                            <TextBlock Text="Report Type:" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,5"/>
+                            <ComboBox Name="ReportTypeCombo" Style="{DynamicResource ToolbarComboBoxStyle}" Margin="0,0,0,15">
+                                <ComboBoxItem Content="Executive Summary" IsSelected="True"/>
+                                <ComboBoxItem Content="Detailed Planning"/>
+                                <ComboBoxItem Content="Capacity Summary"/>
+                            </ComboBox>
+
+                            <TextBlock Text="Scope:" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,5"/>
+                            <ComboBox Name="ReportScopeCombo" Style="{DynamicResource ToolbarComboBoxStyle}" Margin="0,0,0,15">
+                                <ComboBoxItem Content="Enterprise" IsSelected="True"/>
+                                <ComboBoxItem Content="Site"/>
+                            </ComboBox>
+
+                            <Button Name="GenerateReportButton" Content="Generate Report" Style="{DynamicResource PrimaryButtonStyle}" Height="35" Margin="0,0,0,10"/>
+                            <Button Name="ExportReportButton" Content="Export to File" Style="{DynamicResource SecondaryButtonStyle}" Height="30"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Report preview -->
+                    <Border Grid.Column="1" Background="{DynamicResource Theme.Surface.Secondary}" Padding="10">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Text="Report Preview" FontSize="14" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
+
+                            <TextBox Grid.Row="1" Name="ReportPreviewBox" IsReadOnly="True"
+                                     AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                                     FontFamily="Consolas" FontSize="11"
+                                     Background="{DynamicResource Theme.Input.Background}"
+                                     Foreground="{DynamicResource Theme.Text.Primary}"
+                                     BorderBrush="{DynamicResource Theme.Border.Primary}"/>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</UserControl>

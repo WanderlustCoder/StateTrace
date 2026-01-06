@@ -68,7 +68,7 @@ The active StateTrace plans live in discrete files so automation agents can refe
 - **Plan Z** - **In Progress (4/6 Done)**. Change management with maintenance window scheduling, pre/post verification, and rollback tracking. Core module, tests, and UI view integrated into MainWindow.
 - **Plan AA** - **In Progress (5/6 Done)**. Network documentation generator with template engine, 7 built-in templates, Markdown/HTML/Text/CSV export, scheduling, and interactive UI. Word/PDF export pending.
 - **Plan AB** - **In Progress (4/6 Done)**. Troubleshooting decision trees with guided workflows. Core module, tests, built-in trees, and interactive UI delivered. Tree editor and analytics pending.
-- **Plan AC** - **Planned**. Capacity planning with utilization tracking, growth forecasting, and budget projections.
+- **Plan AC** - **In Progress (4/6 Done)**. Capacity planning with utilization tracking, forecasting (linear regression), threshold alerting, scenario analysis, and budget planning. Core module, tests, and UI view integrated into MainWindow.
 - **Plan AD** - **In Progress (5/6 Done)**. Cross-vendor command reference with translation and configuration snippets. Core module, UI, and tests delivered. Learning mode pending.
 - **Plan AE** - **In Progress (4/6 Done)**. Log analysis with pattern detection and event correlation. Multi-format parser (Cisco IOS, Arista EOS, syslog), 15 built-in patterns, and interactive UI delivered. Anomaly detection and reports pending.
 

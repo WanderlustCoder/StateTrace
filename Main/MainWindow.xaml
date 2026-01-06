@@ -136,6 +136,10 @@
         <TabItem Header="Docs">
           <ContentControl Name="DocumentationGeneratorHost"/>
         </TabItem>
+        <!-- Capacity Planning tab for utilization tracking and forecasting -->
+        <TabItem Header="Capacity">
+          <ContentControl Name="CapacityPlanningHost"/>
+        </TabItem>
         <!-- Add more tabs here -->
       </TabControl>
       <!-- Compare sidebar occupies the second column and hosts the compare view.  It is hidden by default by setting the column width to zero. -->

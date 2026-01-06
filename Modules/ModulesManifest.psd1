@@ -57,6 +57,8 @@
         'ChangeManagementViewModule.psm1',
         'DocumentationGeneratorModule.psm1',
         'DocumentationGeneratorViewModule.psm1',
+        'CapacityPlanningModule.psm1',
+        'CapacityPlanningViewModule.psm1',
         'CompareViewModule.psm1',
         'TemplatesModule.psm1'
     )

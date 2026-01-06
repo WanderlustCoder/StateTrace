@@ -16,10 +16,14 @@ Network teams struggle with:
 - Tracking utilization trends over time
 
 ## Current status (2026-01)
-- Interface data captures port counts and states
-- No historical trend tracking
-- No capacity forecasting capabilities
-- Growth planning is manual spreadsheet work
+- **In Progress (4/6 Done)**: Core module, tests, UI, and MainWindow integration complete
+- Utilization tracking: Port, PoE, VLAN, and site aggregation
+- Historical snapshots with trend data storage
+- Linear regression forecasting with R-squared confidence
+- Threshold management with warning/critical levels
+- What-if scenario analysis (Add Users, Deploy VLAN, Add Equipment)
+- Budget planning with TCO calculations and redeployment candidates
+- 46 Pester tests passing
 
 ## Proposed Features
 
@@ -106,12 +110,20 @@ Network teams struggle with:
 ## Active work
 | ID | Title | Owner | Status | Notes |
 |----|-------|-------|--------|-------|
-| ST-AC-001 | Utilization snapshot schema | Data | Pending | Historical tracking tables |
-| ST-AC-002 | Trend calculation engine | Tools | Pending | Growth rate and forecasting |
-| ST-AC-003 | Capacity dashboard | UI | Pending | Utilization visualization |
-| ST-AC-004 | Threshold alerting | Tools | Pending | Warning and critical alerts |
-| ST-AC-005 | What-if scenario engine | Tools | Pending | Scenario modeling |
-| ST-AC-006 | Budget planning reports | Tools | Pending | Cost projections |
+| ST-AC-001 | Utilization snapshot schema | Data | Done | CapacityPlanningModule.psm1 with snapshot storage |
+| ST-AC-002 | Trend calculation engine | Tools | Done | Linear regression, growth rates, breach predictions |
+| ST-AC-003 | Capacity dashboard | UI | Done | CapacityPlanningView.xaml with 6 tabs |
+| ST-AC-004 | Threshold alerting | Tools | Done | Configurable warning/critical thresholds |
+| ST-AC-005 | What-if scenario engine | Tools | Pending | Basic scenarios done, comparison pending |
+| ST-AC-006 | Budget planning reports | Tools | Pending | TCO done, detailed reports pending |
+
+## Recently delivered
+| ID | Title | Delivered | Notes |
+|----|-------|-----------|-------|
+| ST-AC-001 | Utilization snapshot schema | 2026-01-05 | `Modules/CapacityPlanningModule.psm1` |
+| ST-AC-002 | Trend calculation engine | 2026-01-05 | Get-LinearForecast, Get-ThresholdBreachDate |
+| ST-AC-003 | Capacity dashboard | 2026-01-05 | `Views/CapacityPlanningView.xaml`, view module |
+| ST-AC-004 | Threshold alerting | 2026-01-05 | Get-CapacityAlerts, Add-CapacityThreshold |
 
 ## Data Model (Proposed)
 
