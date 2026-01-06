@@ -209,6 +209,7 @@
                     Style="{DynamicResource PrimaryDataGridStyle}"
                     ScrollViewer.VerticalScrollBarVisibility="Auto"
                     ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                    ScrollViewer.IsDeferredScrollingEnabled="True"
                     VirtualizingPanel.IsVirtualizing="True"
                     VirtualizingPanel.VirtualizationMode="Recycling"
                     EnableRowVirtualization="True"

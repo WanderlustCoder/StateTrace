@@ -223,7 +223,16 @@
                     Foreground="{DynamicResource Theme.Input.Text}"
                     BorderBrush="{DynamicResource Theme.Input.Border}"
                     RowBackground="{DynamicResource Theme.Surface.Primary}"
-                    AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}">
+                    AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
+                    ScrollViewer.VerticalScrollBarVisibility="Auto"
+                    ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                    ScrollViewer.IsDeferredScrollingEnabled="True"
+                    VirtualizingPanel.IsVirtualizing="True"
+                    VirtualizingPanel.VirtualizationMode="Recycling"
+                    EnableRowVirtualization="True"
+                    EnableColumnVirtualization="True"
+                    ScrollViewer.CanContentScroll="True"
+                    VirtualizingPanel.ScrollUnit="Pixel">
             <DataGrid.Columns>
               <DataGridTextColumn Header="Time" Binding="{Binding TimestampString}" Width="120"/>
               <DataGridTextColumn Header="Sev" Binding="{Binding Severity}" Width="35"/>

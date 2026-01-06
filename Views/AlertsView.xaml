@@ -16,6 +16,7 @@
       <DataGrid Name="AlertsGrid" Margin="5" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
                 Style="{DynamicResource PrimaryDataGridStyle}"
                 ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                ScrollViewer.IsDeferredScrollingEnabled="True"
                 VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
                 EnableRowVirtualization="True" EnableColumnVirtualization="True"
                 ScrollViewer.CanContentScroll="True" VirtualizingPanel.ScrollUnit="Pixel">
