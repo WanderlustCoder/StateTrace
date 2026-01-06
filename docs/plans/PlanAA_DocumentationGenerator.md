@@ -15,10 +15,12 @@ Network teams spend significant time:
 - Keeping documentation synchronized with actual network state
 
 ## Current status (2026-01)
-- Device and interface data is collected but not formatted for documentation
-- No automated document generation
-- Manual documentation quickly becomes stale
-- No standardized documentation templates
+- **In Progress (4/6 Done)**: Core module, tests, UI, and MainWindow integration complete
+- Template engine with Handlebars-like syntax ({{variable}}, {{#each}}, {{#if}})
+- 7 built-in templates: Site-AsBuilt, Device-Summary, VLAN-Reference, IP-Allocation, Executive-Summary, Change-Summary, Cable-Matrix
+- Multi-format export: Markdown, HTML, Text, CSV
+- Document scheduling with Daily/Weekly/Monthly frequency
+- 71 Pester tests passing
 
 ## Proposed Features
 
@@ -83,12 +85,21 @@ Network teams spend significant time:
 ## Active work
 | ID | Title | Owner | Status | Notes |
 |----|-------|-------|--------|-------|
-| ST-AA-001 | Document template engine | Tools | Pending | Template parsing and rendering |
-| ST-AA-002 | As-built generator | Tools | Pending | Site/device documentation |
-| ST-AA-003 | Word/PDF export | Tools | Pending | Professional format output |
-| ST-AA-004 | Template library | Docs | Pending | Pre-built documentation templates |
-| ST-AA-005 | Scheduled generation | Tools | Pending | Automated doc refresh |
-| ST-AA-006 | Documentation UI | UI | Pending | Preview and generation interface |
+| ST-AA-001 | Document template engine | Tools | Done | Expand-DocumentTemplate with {{variable}}, {{#each}}, {{#if}} |
+| ST-AA-002 | As-built generator | Tools | Done | New-SiteAsBuilt, New-DeviceDocumentation, reports |
+| ST-AA-003 | Word/PDF export | Tools | Pending | Professional format output (currently Markdown/HTML/Text/CSV) |
+| ST-AA-004 | Template library | Docs | Done | 7 built-in templates, custom template support |
+| ST-AA-005 | Scheduled generation | Tools | Done | Daily/Weekly/Monthly scheduling |
+| ST-AA-006 | Documentation UI | UI | Done | Full UI with Templates, Generate, Documents, Schedules, Export, History tabs |
+
+## Recently delivered
+| ID | Title | Delivered | Notes |
+|----|-------|-----------|-------|
+| ST-AA-001 | Document template engine | 2026-01-05 | `Modules/DocumentationGeneratorModule.psm1` |
+| ST-AA-002 | As-built generator | 2026-01-05 | Site/device/report generation functions |
+| ST-AA-004 | Template library | 2026-01-05 | 7 built-in templates |
+| ST-AA-005 | Scheduled generation | 2026-01-05 | New-DocumentSchedule, Get-DocumentSchedule |
+| ST-AA-006 | Documentation UI | 2026-01-05 | `Views/DocumentationGeneratorView.xaml`, `Modules/DocumentationGeneratorViewModule.psm1` |
 
 ## Data Model (Proposed)
 

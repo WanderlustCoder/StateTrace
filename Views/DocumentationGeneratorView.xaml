@@ -1,0 +1,350 @@
+<UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{DynamicResource Theme.Surface.Primary}">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header with summary statistics -->
+        <Border Grid.Row="0" Background="{DynamicResource Theme.Surface.Secondary}" Padding="10" Margin="0,0,0,5">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Templates count -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="0,0,20,0">
+                    <TextBlock Text="Templates:" VerticalAlignment="Center" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,5,0"/>
+                    <TextBlock Name="TemplatesCountLabel" Text="0" FontWeight="Bold" VerticalAlignment="Center" Foreground="{DynamicResource Theme.Accent.Primary}"/>
+                </StackPanel>
+
+                <!-- Documents count -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,0,20,0">
+                    <TextBlock Text="Documents:" VerticalAlignment="Center" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,5,0"/>
+                    <TextBlock Name="DocumentsCountLabel" Text="0" FontWeight="Bold" VerticalAlignment="Center" Foreground="{DynamicResource Theme.Accent.Primary}"/>
+                </StackPanel>
+
+                <!-- Active schedules -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="0,0,20,0">
+                    <TextBlock Text="Active Schedules:" VerticalAlignment="Center" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,5,0"/>
+                    <TextBlock Name="SchedulesCountLabel" Text="0" FontWeight="Bold" VerticalAlignment="Center" Foreground="{DynamicResource Theme.Accent.Primary}"/>
+                </StackPanel>
+
+                <!-- Built-in templates -->
+                <StackPanel Grid.Column="3" Orientation="Horizontal" Margin="0,0,20,0">
+                    <TextBlock Text="Built-in:" VerticalAlignment="Center" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,5,0"/>
+                    <TextBlock Name="BuiltInCountLabel" Text="0" FontWeight="Bold" VerticalAlignment="Center" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                </StackPanel>
+
+                <!-- Refresh button -->
+                <Button Grid.Column="5" Name="RefreshStatsButton" Content="Refresh" Style="{DynamicResource SecondaryButtonStyle}" Width="80"/>
+            </Grid>
+        </Border>
+
+        <!-- Main tabbed content -->
+        <TabControl Grid.Row="1">
+            <!-- Templates Tab -->
+            <TabItem Header="Templates">
+                <Grid Margin="5">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Template toolbar -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,5">
+                        <ComboBox Name="TemplateCategoryFilter" Width="150" Margin="0,0,10,0" Style="{DynamicResource ToolbarComboBoxStyle}">
+                            <ComboBoxItem Content="All Categories" IsSelected="True"/>
+                            <ComboBoxItem Content="As-Built"/>
+                            <ComboBoxItem Content="Device"/>
+                            <ComboBoxItem Content="Reference"/>
+                            <ComboBoxItem Content="Report"/>
+                            <ComboBoxItem Content="Physical"/>
+                            <ComboBoxItem Content="Custom"/>
+                        </ComboBox>
+                        <TextBox Name="TemplateSearchBox" Width="200" Style="{DynamicResource SearchTextBoxStyle}" Tag="Search templates..."/>
+                        <Button Name="NewTemplateButton" Content="New Template" Style="{DynamicResource PrimaryButtonStyle}" Margin="10,0,0,0"/>
+                    </StackPanel>
+
+                    <!-- Templates list -->
+                    <DataGrid Grid.Row="1" Name="TemplatesGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                              Style="{DynamicResource DataGridStyle}" CanUserSortColumns="True">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="ID" Binding="{Binding TemplateID}" Width="140"/>
+                            <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="200"/>
+                            <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="100"/>
+                            <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
+                            <DataGridTextColumn Header="Type" Binding="{Binding IsBuiltIn}" Width="70"/>
+                            <DataGridTextColumn Header="Version" Binding="{Binding Version}" Width="60"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!-- Template actions -->
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,5,0,0">
+                        <Button Name="ViewTemplateButton" Content="View" Style="{DynamicResource SecondaryButtonStyle}" Width="80" Margin="0,0,5,0"/>
+                        <Button Name="EditTemplateButton" Content="Edit" Style="{DynamicResource SecondaryButtonStyle}" Width="80" Margin="0,0,5,0"/>
+                        <Button Name="CopyTemplateButton" Content="Copy" Style="{DynamicResource SecondaryButtonStyle}" Width="80" Margin="0,0,5,0"/>
+                        <Button Name="DeleteTemplateButton" Content="Delete" Style="{DynamicResource SecondaryButtonStyle}" Width="80" Margin="0,0,5,0"/>
+                        <Button Name="ValidateTemplateButton" Content="Validate" Style="{DynamicResource SecondaryButtonStyle}" Width="80"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <!-- Generate Tab -->
+            <TabItem Header="Generate">
+                <Grid Margin="5">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="350"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Generation options -->
+                    <Border Grid.Column="0" Background="{DynamicResource Theme.Surface.Secondary}" Padding="10" Margin="0,0,5,0">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <TextBlock Text="Generate Document" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,15"/>
+
+                                <!-- Template selection -->
+                                <TextBlock Text="Template:" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,5"/>
+                                <ComboBox Name="GenerateTemplateCombo" Style="{DynamicResource ToolbarComboBoxStyle}" Margin="0,0,0,15"/>
+
+                                <!-- Document title -->
+                                <TextBlock Text="Document Title:" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,5"/>
+                                <TextBox Name="GenerateTitleBox" Style="{DynamicResource SearchTextBoxStyle}" Margin="0,0,0,15"/>
+
+                                <!-- Scope -->
+                                <TextBlock Text="Scope (e.g., site name):" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,5"/>
+                                <TextBox Name="GenerateScopeBox" Style="{DynamicResource SearchTextBoxStyle}" Margin="0,0,0,15"/>
+
+                                <!-- Quick generation buttons -->
+                                <TextBlock Text="Quick Generate:" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,10,0,5"/>
+                                <WrapPanel Margin="0,0,0,10">
+                                    <Button Name="QuickSiteAsBuiltButton" Content="Site As-Built" Style="{DynamicResource SecondaryButtonStyle}" Width="100" Margin="0,0,5,5"/>
+                                    <Button Name="QuickDeviceSummaryButton" Content="Device Summary" Style="{DynamicResource SecondaryButtonStyle}" Width="110" Margin="0,0,5,5"/>
+                                    <Button Name="QuickVLANReportButton" Content="VLAN Report" Style="{DynamicResource SecondaryButtonStyle}" Width="100" Margin="0,0,5,5"/>
+                                    <Button Name="QuickExecutiveButton" Content="Executive" Style="{DynamicResource SecondaryButtonStyle}" Width="85" Margin="0,0,5,5"/>
+                                </WrapPanel>
+
+                                <!-- Generate button -->
+                                <Button Name="GenerateDocumentButton" Content="Generate Document" Style="{DynamicResource PrimaryButtonStyle}" Height="35" Margin="0,10,0,0"/>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Border>
+
+                    <!-- Preview pane -->
+                    <Border Grid.Column="1" Background="{DynamicResource Theme.Surface.Secondary}" Padding="10">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+                                <TextBlock Text="Preview" FontSize="14" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" VerticalAlignment="Center"/>
+                                <Button Name="CopyPreviewButton" Content="Copy" Style="{DynamicResource SecondaryButtonStyle}" Width="60" Margin="15,0,0,0"/>
+                            </StackPanel>
+
+                            <TextBox Grid.Row="1" Name="PreviewTextBox" IsReadOnly="True"
+                                     AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                                     FontFamily="Consolas" FontSize="11"
+                                     Background="{DynamicResource Theme.Input.Background}"
+                                     Foreground="{DynamicResource Theme.Text.Primary}"
+                                     BorderBrush="{DynamicResource Theme.Border.Primary}"/>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- Documents Tab -->
+            <TabItem Header="Documents">
+                <Grid Margin="5">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Documents toolbar -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,5">
+                        <ComboBox Name="DocumentScopeFilter" Width="150" Margin="0,0,10,0" Style="{DynamicResource ToolbarComboBoxStyle}">
+                            <ComboBoxItem Content="All Scopes" IsSelected="True"/>
+                        </ComboBox>
+                        <ComboBox Name="DocumentTemplateFilter" Width="150" Margin="0,0,10,0" Style="{DynamicResource ToolbarComboBoxStyle}">
+                            <ComboBoxItem Content="All Templates" IsSelected="True"/>
+                        </ComboBox>
+                        <TextBox Name="DocumentSearchBox" Width="200" Style="{DynamicResource SearchTextBoxStyle}" Tag="Search documents..."/>
+                    </StackPanel>
+
+                    <!-- Documents list -->
+                    <DataGrid Grid.Row="1" Name="DocumentsGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                              Style="{DynamicResource DataGridStyle}" CanUserSortColumns="True">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="ID" Binding="{Binding DocumentID}" Width="150"/>
+                            <DataGridTextColumn Header="Title" Binding="{Binding Title}" Width="*"/>
+                            <DataGridTextColumn Header="Template" Binding="{Binding TemplateID}" Width="130"/>
+                            <DataGridTextColumn Header="Scope" Binding="{Binding Scope}" Width="100"/>
+                            <DataGridTextColumn Header="Generated" Binding="{Binding GeneratedDate, StringFormat=\{0:yyyy-MM-dd HH:mm\}}" Width="130"/>
+                            <DataGridTextColumn Header="By" Binding="{Binding GeneratedBy}" Width="80"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!-- Document actions -->
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,5,0,0">
+                        <Button Name="ViewDocumentButton" Content="View" Style="{DynamicResource SecondaryButtonStyle}" Width="80" Margin="0,0,5,0"/>
+                        <Button Name="ExportDocumentButton" Content="Export" Style="{DynamicResource PrimaryButtonStyle}" Width="80" Margin="0,0,5,0"/>
+                        <Button Name="RegenerateDocumentButton" Content="Regenerate" Style="{DynamicResource SecondaryButtonStyle}" Width="90" Margin="0,0,5,0"/>
+                        <Button Name="DeleteDocumentButton" Content="Delete" Style="{DynamicResource SecondaryButtonStyle}" Width="80"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <!-- Schedules Tab -->
+            <TabItem Header="Schedules">
+                <Grid Margin="5">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Schedules toolbar -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,5">
+                        <Button Name="NewScheduleButton" Content="New Schedule" Style="{DynamicResource PrimaryButtonStyle}" Margin="0,0,10,0"/>
+                        <CheckBox Name="ShowEnabledOnlyCheckbox" Content="Enabled only" VerticalAlignment="Center" Style="{DynamicResource ToolbarCheckBoxStyle}"/>
+                    </StackPanel>
+
+                    <!-- Schedules list -->
+                    <DataGrid Grid.Row="1" Name="SchedulesGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                              Style="{DynamicResource DataGridStyle}" CanUserSortColumns="True">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Template" Binding="{Binding TemplateName}" Width="180"/>
+                            <DataGridTextColumn Header="Scope" Binding="{Binding Scope}" Width="100"/>
+                            <DataGridTextColumn Header="Frequency" Binding="{Binding Frequency}" Width="90"/>
+                            <DataGridTextColumn Header="Time" Binding="{Binding StartTime}" Width="70"/>
+                            <DataGridTextColumn Header="Next Run" Binding="{Binding NextRunTime, StringFormat=\{0:yyyy-MM-dd HH:mm\}}" Width="130"/>
+                            <DataGridTextColumn Header="Last Run" Binding="{Binding LastRunTime, StringFormat=\{0:yyyy-MM-dd HH:mm\}}" Width="130"/>
+                            <DataGridCheckBoxColumn Header="Enabled" Binding="{Binding IsEnabled}" Width="70"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!-- Schedule actions -->
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,5,0,0">
+                        <Button Name="EnableScheduleButton" Content="Enable" Style="{DynamicResource SecondaryButtonStyle}" Width="80" Margin="0,0,5,0"/>
+                        <Button Name="DisableScheduleButton" Content="Disable" Style="{DynamicResource SecondaryButtonStyle}" Width="80" Margin="0,0,5,0"/>
+                        <Button Name="RunNowButton" Content="Run Now" Style="{DynamicResource PrimaryButtonStyle}" Width="90" Margin="0,0,5,0"/>
+                        <Button Name="DeleteScheduleButton" Content="Delete" Style="{DynamicResource SecondaryButtonStyle}" Width="80"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <!-- Export Tab -->
+            <TabItem Header="Export">
+                <Grid Margin="5">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="300"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Export options -->
+                    <Border Grid.Column="0" Background="{DynamicResource Theme.Surface.Secondary}" Padding="10" Margin="0,0,5,0">
+                        <StackPanel>
+                            <TextBlock Text="Export Options" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,15"/>
+
+                            <!-- Document selection -->
+                            <TextBlock Text="Select Document:" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,5"/>
+                            <ComboBox Name="ExportDocumentCombo" Style="{DynamicResource ToolbarComboBoxStyle}" Margin="0,0,0,15"/>
+
+                            <!-- Format selection -->
+                            <TextBlock Text="Export Format:" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,5"/>
+                            <ComboBox Name="ExportFormatCombo" Style="{DynamicResource ToolbarComboBoxStyle}" Margin="0,0,0,15">
+                                <ComboBoxItem Content="Markdown (.md)" IsSelected="True"/>
+                                <ComboBoxItem Content="HTML (.html)"/>
+                                <ComboBoxItem Content="Plain Text (.txt)"/>
+                                <ComboBoxItem Content="CSV (.csv)"/>
+                            </ComboBox>
+
+                            <!-- Output path -->
+                            <TextBlock Text="Output Path:" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,5"/>
+                            <Grid Margin="0,0,0,15">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox Grid.Column="0" Name="ExportPathBox" Style="{DynamicResource SearchTextBoxStyle}"/>
+                                <Button Grid.Column="1" Name="BrowseExportPathButton" Content="..." Width="30" Margin="5,0,0,0" Style="{DynamicResource SecondaryButtonStyle}"/>
+                            </Grid>
+
+                            <!-- Export button -->
+                            <Button Name="ExportButton" Content="Export Document" Style="{DynamicResource PrimaryButtonStyle}" Height="35" Margin="0,10,0,0"/>
+
+                            <!-- Batch export -->
+                            <TextBlock Text="Batch Export:" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,25,0,10"/>
+                            <Button Name="ExportAllScopeButton" Content="Export All for Scope" Style="{DynamicResource SecondaryButtonStyle}" Margin="0,0,0,5"/>
+                            <Button Name="ExportAllTemplateButton" Content="Export All by Template" Style="{DynamicResource SecondaryButtonStyle}"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Export preview/status -->
+                    <Border Grid.Column="1" Background="{DynamicResource Theme.Surface.Secondary}" Padding="10">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Text="Export History" FontSize="14" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
+
+                            <DataGrid Grid.Row="1" Name="ExportHistoryGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                                      Style="{DynamicResource DataGridStyle}">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Document" Binding="{Binding DocumentID}" Width="150"/>
+                                    <DataGridTextColumn Header="Action" Binding="{Binding Action}" Width="80"/>
+                                    <DataGridTextColumn Header="Details" Binding="{Binding Details}" Width="*"/>
+                                    <DataGridTextColumn Header="Time" Binding="{Binding Timestamp, StringFormat=\{0:HH:mm:ss\}}" Width="80"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- History Tab -->
+            <TabItem Header="History">
+                <Grid Margin="5">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- History toolbar -->
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,5">
+                        <ComboBox Name="HistoryDocumentFilter" Width="200" Margin="0,0,10,0" Style="{DynamicResource ToolbarComboBoxStyle}">
+                            <ComboBoxItem Content="All Documents" IsSelected="True"/>
+                        </ComboBox>
+                        <Button Name="RefreshHistoryButton" Content="Refresh" Style="{DynamicResource SecondaryButtonStyle}" Width="80"/>
+                    </StackPanel>
+
+                    <!-- History list -->
+                    <DataGrid Grid.Row="1" Name="HistoryGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                              Style="{DynamicResource DataGridStyle}" CanUserSortColumns="True">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Document ID" Binding="{Binding DocumentID}" Width="150"/>
+                            <DataGridTextColumn Header="Action" Binding="{Binding Action}" Width="100"/>
+                            <DataGridTextColumn Header="Details" Binding="{Binding Details}" Width="*"/>
+                            <DataGridTextColumn Header="User" Binding="{Binding User}" Width="100"/>
+                            <DataGridTextColumn Header="Timestamp" Binding="{Binding Timestamp, StringFormat=\{0:yyyy-MM-dd HH:mm:ss\}}" Width="150"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</UserControl>
