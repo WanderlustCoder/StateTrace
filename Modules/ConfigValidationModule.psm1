@@ -196,7 +196,7 @@ function Test-ConfigCompliance {
 
     $lines = $Config -split "`n"
 
-    foreach ($rule in $Standard.Rules) {
+    foreach ($rule in @($Standard.Rules)) {
         $result = Test-SingleRule -Config $Config -Lines $lines -Rule $rule
 
         $results += $result
@@ -208,7 +208,7 @@ function Test-ConfigCompliance {
         }
     }
 
-    $total = $Standard.Rules.Count
+    $total = @($Standard.Rules).Count
     $score = if ($total -gt 0) { [Math]::Round(($passed / $total) * 100, 1) } else { 100 }
 
     [PSCustomObject]@{

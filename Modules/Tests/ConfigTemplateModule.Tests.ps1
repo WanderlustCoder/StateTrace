@@ -185,7 +185,7 @@ Describe 'ConfigTemplateModule' {
             $removed = Remove-ConfigTemplate -Name 'to-remove'
             $removed | Should Be $true
             $retrieved = Get-ConfigTemplate -Name 'to-remove'
-            $retrieved.Count | Should Be 0
+            @($retrieved).Count | Should Be 0
         }
 
         It 'updates template' {
@@ -197,10 +197,10 @@ Describe 'ConfigTemplateModule' {
         }
 
         It 'filters by vendor' {
-            Add-ConfigTemplate -Template (New-ConfigTemplate -Name 't1' -Content '' -Vendor 'Cisco_IOS')
-            Add-ConfigTemplate -Template (New-ConfigTemplate -Name 't2' -Content '' -Vendor 'Arista_EOS')
+            Add-ConfigTemplate -Template (New-ConfigTemplate -Name 't1' -Content 'cisco config' -Vendor 'Cisco_IOS')
+            Add-ConfigTemplate -Template (New-ConfigTemplate -Name 't2' -Content 'arista config' -Vendor 'Arista_EOS')
             $cisco = Get-ConfigTemplate -Vendor 'Cisco_IOS'
-            $cisco.Count | Should Be 1
+            @($cisco).Count | Should Be 1
             $cisco[0].Name | Should Be 't1'
         }
     }
@@ -231,20 +231,20 @@ Describe 'ConfigTemplateModule' {
         It 'extracts variable names' {
             $template = 'hostname {{ hostname }} ip {{ ip_address }}'
             $vars = Get-TemplateVariables -Template $template
-            $vars | Should Contain 'hostname'
-            $vars | Should Contain 'ip_address'
+            ($vars -contains 'hostname') | Should Be $true
+            ($vars -contains 'ip_address') | Should Be $true
         }
 
         It 'extracts loop variables' {
             $template = '{% for server in ntp_servers %}{{ server }}{% endfor %}'
             $vars = Get-TemplateVariables -Template $template
-            $vars | Should Contain 'ntp_servers'
+            ($vars -contains 'ntp_servers') | Should Be $true
         }
 
         It 'returns unique variables' {
             $template = '{{ name }} and {{ name }} again'
             $vars = Get-TemplateVariables -Template $template
-            ($vars | Where-Object { $_ -eq 'name' }).Count | Should Be 1
+            @($vars | Where-Object { $_ -eq 'name' }).Count | Should Be 1
         }
     }
 
@@ -304,9 +304,9 @@ Describe 'ConfigTemplateModule' {
         }
 
         It 'returns statistics' {
-            Add-ConfigTemplate -Template (New-ConfigTemplate -Name 't1' -Content '' -Vendor 'Cisco_IOS' -DeviceType 'Access')
-            Add-ConfigTemplate -Template (New-ConfigTemplate -Name 't2' -Content '' -Vendor 'Cisco_IOS' -DeviceType 'Distribution')
-            Add-ConfigTemplate -Template (New-ConfigTemplate -Name 't3' -Content '' -Vendor 'Arista_EOS' -DeviceType 'Access')
+            Add-ConfigTemplate -Template (New-ConfigTemplate -Name 't1' -Content 'config1' -Vendor 'Cisco_IOS' -DeviceType 'Access')
+            Add-ConfigTemplate -Template (New-ConfigTemplate -Name 't2' -Content 'config2' -Vendor 'Cisco_IOS' -DeviceType 'Distribution')
+            Add-ConfigTemplate -Template (New-ConfigTemplate -Name 't3' -Content 'config3' -Vendor 'Arista_EOS' -DeviceType 'Access')
 
             $stats = Get-TemplateLibraryStats
             $stats.TotalTemplates | Should Be 3

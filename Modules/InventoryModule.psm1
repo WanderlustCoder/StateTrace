@@ -297,7 +297,7 @@ function New-Asset {
     [void]$script:AssetDatabase.Add($asset)
 
     # Log history
-    Add-AssetHistoryEntry -AssetID $assetId -ChangeType 'Created' -Details "Asset created: $Hostname"
+    $null = Add-AssetHistoryEntry -AssetID $assetId -ChangeType 'Created' -Details "Asset created: $Hostname"
 
     return $asset
 }
@@ -424,7 +424,7 @@ function Update-Asset {
 
     if ($changes.Count -gt 0) {
         $asset.ModifiedDate = Get-Date
-        Add-AssetHistoryEntry -AssetID $AssetID -ChangeType 'Updated' -Details ($changes -join '; ')
+        $null = Add-AssetHistoryEntry -AssetID $AssetID -ChangeType 'Updated' -Details ($changes -join '; ')
     }
 
     return $asset
@@ -471,7 +471,7 @@ function Set-AssetStatus {
         $details += " (Reason: $Reason)"
     }
 
-    Add-AssetHistoryEntry -AssetID $asset.AssetID -ChangeType 'StatusChange' -Details $details
+    $null = Add-AssetHistoryEntry -AssetID $asset.AssetID -ChangeType 'StatusChange' -Details $details
 
     return $asset
 }
@@ -492,7 +492,7 @@ function Remove-Asset {
         throw "Asset with ID '$AssetID' not found"
     }
 
-    Add-AssetHistoryEntry -AssetID $AssetID -ChangeType 'Deleted' -Details "Asset removed: $($asset.Hostname)"
+    $null = Add-AssetHistoryEntry -AssetID $AssetID -ChangeType 'Deleted' -Details "Asset removed: $($asset.Hostname)"
 
     [void]$script:AssetDatabase.Remove($asset)
 }
@@ -558,7 +558,7 @@ function New-AssetModule {
 
     [void]$script:ModuleDatabase.Add($module)
 
-    Add-AssetHistoryEntry -AssetID $AssetID -ChangeType 'ModuleAdded' -Details "Module added: $ModuleType in $SlotPosition"
+    $null = Add-AssetHistoryEntry -AssetID $AssetID -ChangeType 'ModuleAdded' -Details "Module added: $ModuleType in $SlotPosition"
 
     return $module
 }
@@ -1252,27 +1252,28 @@ function Import-AssetInventory {
                 Hostname = $row.Hostname
             }
 
-            # Map CSV columns to parameters
-            if ($row.Vendor) { $params.Vendor = $row.Vendor }
-            if ($row.Model) { $params.Model = $row.Model }
-            if ($row.SerialNumber) { $params.SerialNumber = $row.SerialNumber }
-            if ($row.AssetTag) { $params.AssetTag = $row.AssetTag }
-            if ($row.ManagementIP) { $params.ManagementIP = $row.ManagementIP }
-            if ($row.Site) { $params.Site = $row.Site }
-            if ($row.Building) { $params.Building = $row.Building }
-            if ($row.Rack) { $params.Rack = $row.Rack }
-            if ($row.Status) { $params.Status = $row.Status }
-            if ($row.FirmwareVersion) { $params.FirmwareVersion = $row.FirmwareVersion }
-            if ($row.Notes) { $params.Notes = $row.Notes }
+            # Map CSV columns to parameters (check property existence for StrictMode compatibility)
+            $props = $row.PSObject.Properties.Name
+            if ($props -contains 'Vendor' -and $row.Vendor) { $params.Vendor = $row.Vendor }
+            if ($props -contains 'Model' -and $row.Model) { $params.Model = $row.Model }
+            if ($props -contains 'SerialNumber' -and $row.SerialNumber) { $params.SerialNumber = $row.SerialNumber }
+            if ($props -contains 'AssetTag' -and $row.AssetTag) { $params.AssetTag = $row.AssetTag }
+            if ($props -contains 'ManagementIP' -and $row.ManagementIP) { $params.ManagementIP = $row.ManagementIP }
+            if ($props -contains 'Site' -and $row.Site) { $params.Site = $row.Site }
+            if ($props -contains 'Building' -and $row.Building) { $params.Building = $row.Building }
+            if ($props -contains 'Rack' -and $row.Rack) { $params.Rack = $row.Rack }
+            if ($props -contains 'Status' -and $row.Status) { $params.Status = $row.Status }
+            if ($props -contains 'FirmwareVersion' -and $row.FirmwareVersion) { $params.FirmwareVersion = $row.FirmwareVersion }
+            if ($props -contains 'Notes' -and $row.Notes) { $params.Notes = $row.Notes }
 
-            if ($row.PurchaseDate) {
+            if ($props -contains 'PurchaseDate' -and $row.PurchaseDate) {
                 $params.PurchaseDate = [DateTime]::Parse($row.PurchaseDate)
             }
-            if ($row.WarrantyExpiration) {
+            if ($props -contains 'WarrantyExpiration' -and $row.WarrantyExpiration) {
                 $params.WarrantyExpiration = [DateTime]::Parse($row.WarrantyExpiration)
             }
 
-            New-Asset @params
+            $null = New-Asset @params
             $imported++
         }
         catch {

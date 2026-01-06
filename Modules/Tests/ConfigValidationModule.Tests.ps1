@@ -223,7 +223,7 @@ interface Vlan1
             $removed = Remove-ValidationStandard -Name 'to-remove'
             $removed | Should Be $true
             $retrieved = Get-ValidationStandard -Name 'to-remove'
-            $retrieved.Count | Should Be 0
+            @($retrieved).Count | Should Be 0
         }
 
         It 'imports built-in standards' {
@@ -283,7 +283,7 @@ logging buffered 16384
             $result = Test-ConfigCompliance -Config $config -Standard $standard
             $commands = Get-RemediationCommands -ComplianceResult $result
 
-            $commands | Should Contain 'ip ssh version 2'
+            ($commands -contains 'ip ssh version 2') | Should Be $true
         }
     }
 
@@ -327,7 +327,7 @@ logging buffered 16384
                 $result.Imported | Should Be 1
 
                 $retrieved = Get-ValidationStandard -Name 'export-test'
-                $retrieved.Rules.Count | Should Be 1
+                @($retrieved.Rules).Count | Should Be 1
             }
             finally {
                 if (Test-Path $tempFile) { Remove-Item $tempFile }
@@ -337,7 +337,7 @@ logging buffered 16384
 
     Context 'Real-world Config Validation' {
         It 'validates Cisco config against security baseline' {
-            $config = @"
+            $config = @'
 hostname SW-CAMPUS-01
 !
 enable secret 5 $1$xxxx$hashedpassword
@@ -353,7 +353,7 @@ logging buffered 16384
 line vty 0 15
  transport input ssh
  access-class 10 in
-"@
+'@
             $standard = Get-SecurityBaseline -Vendor 'Cisco_IOS'
             $result = Test-ConfigCompliance -Config $config -Standard $standard
 

@@ -12,7 +12,7 @@ Describe 'TopologyModule' -Tag 'Topology' {
         Clear-Topology
     }
 
-    Describe 'Node Management' {
+    Context 'Node Management' {
 
         It 'creates a new topology node' {
             $node = New-TopologyNode -DeviceID 'SW-01'
@@ -98,7 +98,7 @@ Describe 'TopologyModule' -Tag 'Topology' {
         }
     }
 
-    Describe 'Link Management' {
+    Context 'Link Management' {
 
         It 'creates a link between two nodes' {
             $node1 = New-TopologyNode -DeviceID 'SW-01'
@@ -176,7 +176,7 @@ Describe 'TopologyModule' -Tag 'Topology' {
         }
     }
 
-    Describe 'Link Discovery' {
+    Context 'Link Discovery' {
 
         It 'discovers link from "To DEVICE Port" description' {
             $result = Find-LinksFromDescription -SourceDevice 'SW-01' -SourcePort 'Gi1/0/1' `
@@ -237,7 +237,7 @@ Describe 'TopologyModule' -Tag 'Topology' {
         }
     }
 
-    Describe 'Build Topology From Interfaces' {
+    Context 'Build Topology From Interfaces' {
 
         It 'creates nodes from interface data' {
             $interfaces = @(
@@ -289,7 +289,7 @@ Describe 'TopologyModule' -Tag 'Topology' {
         }
     }
 
-    Describe 'Layout Algorithms' {
+    Context 'Layout Algorithms' {
 
         BeforeEach {
             # Create a simple topology for layout tests
@@ -355,7 +355,7 @@ Describe 'TopologyModule' -Tag 'Topology' {
         }
     }
 
-    Describe 'Impact Analysis' {
+    Context 'Impact Analysis' {
 
         BeforeEach {
             $script:core = New-TopologyNode -DeviceID 'CORE-01'
@@ -403,7 +403,7 @@ Describe 'TopologyModule' -Tag 'Topology' {
         }
     }
 
-    Describe 'Connected Nodes' {
+    Context 'Connected Nodes' {
 
         It 'finds all connected nodes' {
             $node1 = New-TopologyNode -DeviceID 'SW-01'
@@ -435,7 +435,7 @@ Describe 'TopologyModule' -Tag 'Topology' {
         }
     }
 
-    Describe 'Export Functions' {
+    Context 'Export Functions' {
 
         BeforeEach {
             $script:node1 = New-TopologyNode -DeviceID 'CORE-01'
@@ -486,7 +486,7 @@ Describe 'TopologyModule' -Tag 'Topology' {
         }
     }
 
-    Describe 'Layout Persistence' {
+    Context 'Layout Persistence' {
 
         It 'saves and retrieves layout' {
             $node = New-TopologyNode -DeviceID 'SW-01'
@@ -531,7 +531,7 @@ Describe 'TopologyModule' -Tag 'Topology' {
         }
     }
 
-    Describe 'Statistics' {
+    Context 'Statistics' {
 
         It 'returns correct node and link counts' {
             New-TopologyNode -DeviceID 'CORE-01' | Out-Null
@@ -571,7 +571,7 @@ Describe 'TopologyModule' -Tag 'Topology' {
         }
     }
 
-    Describe 'Device Role Detection' {
+    Context 'Device Role Detection' {
 
         It 'detects Core role' {
             (Get-DeviceRole -DeviceName 'CORE-01') | Should Be 'Core'
