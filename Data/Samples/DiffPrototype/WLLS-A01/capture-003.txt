@@ -1,7 +1,0 @@
-Hostname: WLLS-A01
-CaptureId: WLLS-A01-003
-TimestampUtc: 2026-01-01T01:00:00Z
-Interface Gi1/0/1: up
-Interface Gi1/0/2: down
-Vlan 10: active
-Vlan 50: active
