@@ -15,11 +15,12 @@ Network engineers often need to:
 - Quickly calculate subnet boundaries and usable ranges
 
 ## Current status (2026-01)
-- **In Progress (4/6 Done)**. Core IPAM functionality delivered.
+- **In Progress (5/6 Done)**. Core IPAM functionality delivered with VLAN discovery.
 - IPAMModule.psm1 provides VLAN, subnet, and IP address data model
 - IPAMView.xaml offers interactive UI with tabs for VLANs, Subnets, IPs, Conflicts, and Statistics
 - Subnet calculations, conflict detection, and site planning tools implemented
-- 43 Pester tests cover all module functionality
+- VLAN discovery: Import-VLANsFromConfig, Import-SVIsFromConfig, Import-VLANsToDatabase, Merge-VLANDiscovery, New-VLANDiscoveryReport
+- 61 Pester tests cover all module functionality
 
 ## Proposed Features
 
@@ -79,7 +80,7 @@ Network engineers often need to:
 |----|-------|-------|--------|-------|
 | ST-V-001 | VLAN database schema | Data | Done | IPAMModule.psm1 with New-VLAN, Add/Get/Update/Remove-VLAN |
 | ST-V-002 | Subnet registry | Data | Done | New-Subnet with auto-calculation, Add/Get/Remove-Subnet |
-| ST-V-003 | VLAN discovery import | Tools | Pending | Import VLANs from device data |
+| ST-V-003 | VLAN discovery import | Tools | Done | Import-VLANsFromConfig, Import-SVIsFromConfig, Import-VLANsToDatabase, Merge-VLANDiscovery, New-VLANDiscoveryReport |
 | ST-V-004 | Conflict detection engine | Tools | Done | Find-VLANConflicts, Find-IPConflicts, Find-IPAMConflicts |
 | ST-V-005 | Subnet visualization | UI | Done | IPAMView.xaml with tabs and statistics |
 | ST-V-006 | New site planning wizard | UI | Pending | New-SiteAddressPlan function implemented, InputBox UI |

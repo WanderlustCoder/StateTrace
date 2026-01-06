@@ -1222,6 +1222,487 @@ function Clear-IPAMDatabase {
 
 #endregion
 
+#region VLAN Discovery/Import (ST-V-003)
+
+<#
+.SYNOPSIS
+    Parses VLANs from device configuration text.
+.DESCRIPTION
+    Extracts VLAN definitions from Cisco IOS/IOS-XE or Arista EOS configuration text.
+    Returns VLAN objects that can be added to the IPAM database.
+#>
+function Import-VLANsFromConfig {
+    [CmdletBinding()]
+    [OutputType([PSCustomObject[]])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ConfigText,
+
+        [Parameter()]
+        [ValidateSet('Cisco_IOS', 'Arista_EOS', 'Auto')]
+        [string]$Vendor = 'Auto',
+
+        [Parameter()]
+        [string]$Site,
+
+        [Parameter()]
+        [string]$DeviceName
+    )
+
+    $vlans = [System.Collections.ArrayList]::new()
+
+    # Auto-detect vendor
+    if ($Vendor -eq 'Auto') {
+        if ($ConfigText -match 'Arista|EOS') {
+            $Vendor = 'Arista_EOS'
+        }
+        else {
+            $Vendor = 'Cisco_IOS'
+        }
+    }
+
+    # Parse VLAN definitions: "vlan 100" followed by " name VlanName"
+    $lines = $ConfigText -split "`r?`n"
+    $currentVlan = $null
+
+    foreach ($line in $lines) {
+        # Match VLAN definition line
+        if ($line -match '^\s*vlan\s+(\d+)\s*$') {
+            # Save previous VLAN
+            if ($currentVlan) {
+                [void]$vlans.Add($currentVlan)
+            }
+
+            $vlanNum = [int]$Matches[1]
+            if ($vlanNum -ge 1 -and $vlanNum -le 4094) {
+                $currentVlan = [PSCustomObject]@{
+                    VlanNumber   = $vlanNum
+                    VlanName     = "VLAN$vlanNum"
+                    Description  = $null
+                    Purpose      = 'Data'
+                    Site         = $Site
+                    DeviceName   = $DeviceName
+                    Status       = 'Active'
+                    SVIAddress   = $null
+                    SVIMask      = $null
+                }
+            }
+        }
+        # Match VLAN name line
+        elseif ($currentVlan -and $line -match '^\s+name\s+(.+?)\s*$') {
+            $currentVlan.VlanName = $Matches[1].Trim()
+
+            # Guess purpose from name
+            $nameLower = $currentVlan.VlanName.ToLower()
+            if ($nameLower -match 'voice|phone|voip') {
+                $currentVlan.Purpose = 'Voice'
+            }
+            elseif ($nameLower -match 'mgmt|management|oob') {
+                $currentVlan.Purpose = 'Management'
+            }
+            elseif ($nameLower -match 'guest|visitor') {
+                $currentVlan.Purpose = 'Guest'
+            }
+            elseif ($nameLower -match 'server|dc|datacenter') {
+                $currentVlan.Purpose = 'Server'
+            }
+            elseif ($nameLower -match 'infra|infrastructure|transit') {
+                $currentVlan.Purpose = 'Infrastructure'
+            }
+            elseif ($nameLower -match 'iot|sensor|camera') {
+                $currentVlan.Purpose = 'IoT'
+            }
+        }
+        # End of VLAN block
+        elseif ($currentVlan -and $line -match '^[^\s]' -and $line -notmatch '^\s*!') {
+            [void]$vlans.Add($currentVlan)
+            $currentVlan = $null
+        }
+    }
+
+    # Add final VLAN
+    if ($currentVlan) {
+        [void]$vlans.Add($currentVlan)
+    }
+
+    return @($vlans)
+}
+
+<#
+.SYNOPSIS
+    Parses SVI (VLAN interface) IP addresses from configuration.
+.DESCRIPTION
+    Extracts interface VLAN definitions with IP addresses to populate SVI info.
+#>
+function Import-SVIsFromConfig {
+    [CmdletBinding()]
+    [OutputType([PSCustomObject[]])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ConfigText,
+
+        [Parameter()]
+        [string]$Site,
+
+        [Parameter()]
+        [string]$DeviceName
+    )
+
+    $svis = [System.Collections.ArrayList]::new()
+    $lines = $ConfigText -split "`r?`n"
+    $currentSVI = $null
+
+    foreach ($line in $lines) {
+        # Match interface Vlan definition
+        if ($line -match '^\s*interface\s+[Vv]lan\s*(\d+)\s*$') {
+            # Save previous SVI
+            if ($currentSVI -and $currentSVI.IPAddress) {
+                [void]$svis.Add($currentSVI)
+            }
+
+            $vlanNum = [int]$Matches[1]
+            $currentSVI = [PSCustomObject]@{
+                VlanNumber  = $vlanNum
+                IPAddress   = $null
+                SubnetMask  = $null
+                Description = $null
+                Site        = $Site
+                DeviceName  = $DeviceName
+                IsSecondary = $false
+                HSRPAddress = $null
+                VRRPAddress = $null
+            }
+        }
+        # Match IP address line
+        elseif ($currentSVI -and $line -match '^\s+ip\s+address\s+(\d+\.\d+\.\d+\.\d+)\s+(\d+\.\d+\.\d+\.\d+)') {
+            if (-not $currentSVI.IPAddress) {
+                $currentSVI.IPAddress = $Matches[1]
+                $currentSVI.SubnetMask = $Matches[2]
+            }
+            if ($line -match 'secondary') {
+                $currentSVI.IsSecondary = $true
+            }
+        }
+        # Match description line
+        elseif ($currentSVI -and $line -match '^\s+description\s+(.+?)\s*$') {
+            $currentSVI.Description = $Matches[1].Trim()
+        }
+        # Match HSRP/VRRP
+        elseif ($currentSVI -and $line -match '^\s+standby\s+\d+\s+ip\s+(\d+\.\d+\.\d+\.\d+)') {
+            $currentSVI.HSRPAddress = $Matches[1]
+        }
+        elseif ($currentSVI -and $line -match '^\s+vrrp\s+\d+\s+ip\s+(\d+\.\d+\.\d+\.\d+)') {
+            $currentSVI.VRRPAddress = $Matches[1]
+        }
+        # End of interface block
+        elseif ($currentSVI -and $line -match '^[^\s!]') {
+            if ($currentSVI.IPAddress) {
+                [void]$svis.Add($currentSVI)
+            }
+            $currentSVI = $null
+        }
+    }
+
+    # Add final SVI
+    if ($currentSVI -and $currentSVI.IPAddress) {
+        [void]$svis.Add($currentSVI)
+    }
+
+    return @($svis)
+}
+
+<#
+.SYNOPSIS
+    Imports VLANs and SVIs from config text into the IPAM database.
+.DESCRIPTION
+    Parses configuration text, creates VLAN objects with SVI information,
+    and adds them to the IPAM database. Skips duplicates by VLAN number.
+#>
+function Import-VLANsToDatabase {
+    [CmdletBinding()]
+    [OutputType([PSCustomObject])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ConfigText,
+
+        [Parameter()]
+        [ValidateSet('Cisco_IOS', 'Arista_EOS', 'Auto')]
+        [string]$Vendor = 'Auto',
+
+        [Parameter()]
+        [string]$Site,
+
+        [Parameter()]
+        [string]$DeviceName,
+
+        [Parameter()]
+        [hashtable]$Database,
+
+        [Parameter()]
+        [switch]$SkipDuplicates,
+
+        [Parameter()]
+        [switch]$UpdateExisting
+    )
+
+    $db = if ($Database) { $Database } else { $script:IPAMDatabase }
+
+    # Parse VLANs and SVIs
+    $vlans = @(Import-VLANsFromConfig -ConfigText $ConfigText -Vendor $Vendor -Site $Site -DeviceName $DeviceName)
+    $svis = @(Import-SVIsFromConfig -ConfigText $ConfigText -Site $Site -DeviceName $DeviceName)
+
+    # Index SVIs by VLAN number
+    $sviIndex = @{}
+    foreach ($svi in $svis) {
+        $sviIndex[$svi.VlanNumber] = $svi
+    }
+
+    $imported = 0
+    $skipped = 0
+    $updated = 0
+    $errors = [System.Collections.ArrayList]::new()
+
+    foreach ($vlanInfo in $vlans) {
+        # Check for existing
+        $existing = $db.VLANs | Where-Object { $_.VlanNumber -eq $vlanInfo.VlanNumber }
+
+        if ($existing) {
+            if ($UpdateExisting) {
+                # Update existing VLAN
+                $existing.VlanName = $vlanInfo.VlanName
+                $existing.Purpose = $vlanInfo.Purpose
+                if ($vlanInfo.Site) { $existing.Site = $vlanInfo.Site }
+                $existing.ModifiedDate = Get-Date
+
+                # Add SVI info if available
+                $svi = $sviIndex[$vlanInfo.VlanNumber]
+                if ($svi) {
+                    $existing.SVIAddress = $svi.IPAddress
+                    $existing.SVIMask = $svi.SubnetMask
+                }
+
+                $updated++
+            }
+            elseif ($SkipDuplicates) {
+                $skipped++
+            }
+            else {
+                [void]$errors.Add("VLAN $($vlanInfo.VlanNumber) already exists")
+            }
+        }
+        else {
+            # Create new VLAN
+            $svi = $sviIndex[$vlanInfo.VlanNumber]
+            $newVlan = New-VLAN -VlanNumber $vlanInfo.VlanNumber `
+                -VlanName $vlanInfo.VlanName `
+                -Purpose $vlanInfo.Purpose `
+                -Site $vlanInfo.Site `
+                -Status 'Active' `
+                -SVIAddress $(if ($svi) { $svi.IPAddress } else { $null }) `
+                -SVIMask $(if ($svi) { $svi.SubnetMask } else { $null })
+
+            [void]$db.VLANs.Add($newVlan)
+            $imported++
+        }
+    }
+
+    [PSCustomObject]@{
+        Imported = $imported
+        Skipped  = $skipped
+        Updated  = $updated
+        Errors   = @($errors)
+        TotalParsed = $vlans.Count
+        SVIsParsed = $svis.Count
+    }
+}
+
+<#
+.SYNOPSIS
+    Merges VLANs from multiple sources, detecting conflicts.
+.DESCRIPTION
+    Combines VLANs from multiple device configs, identifying where the same
+    VLAN number has different names across devices.
+#>
+function Merge-VLANDiscovery {
+    [CmdletBinding()]
+    [OutputType([PSCustomObject])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable]$DeviceConfigs,
+
+        [Parameter()]
+        [string]$Site
+    )
+
+    $allVlans = [System.Collections.ArrayList]::new()
+    $conflicts = [System.Collections.ArrayList]::new()
+
+    # Index for tracking VLAN numbers and their names
+    $vlanNameIndex = @{}
+
+    foreach ($device in $DeviceConfigs.Keys) {
+        $config = $DeviceConfigs[$device]
+        $vlans = @(Import-VLANsFromConfig -ConfigText $config -Site $Site -DeviceName $device)
+        $svis = @(Import-SVIsFromConfig -ConfigText $config -Site $Site -DeviceName $device)
+
+        # Index SVIs
+        $sviIndex = @{}
+        foreach ($svi in $svis) {
+            $sviIndex[$svi.VlanNumber] = $svi
+        }
+
+        foreach ($vlan in $vlans) {
+            $vlanNum = $vlan.VlanNumber
+
+            if ($vlanNameIndex.ContainsKey($vlanNum)) {
+                $existing = $vlanNameIndex[$vlanNum]
+
+                # Check for name conflict
+                if ($existing.VlanName -ne $vlan.VlanName) {
+                    [void]$conflicts.Add([PSCustomObject]@{
+                        VlanNumber = $vlanNum
+                        Name1      = $existing.VlanName
+                        Device1    = $existing.DeviceName
+                        Name2      = $vlan.VlanName
+                        Device2    = $device
+                        Type       = 'NameMismatch'
+                    })
+                }
+
+                # Add device to sources
+                if (-not $existing.Sources) {
+                    $existing | Add-Member -NotePropertyName 'Sources' -NotePropertyValue @($existing.DeviceName) -Force
+                }
+                $existing.Sources += $device
+            }
+            else {
+                # Add SVI info
+                $svi = $sviIndex[$vlanNum]
+                if ($svi) {
+                    $vlan | Add-Member -NotePropertyName 'SVIAddress' -NotePropertyValue $svi.IPAddress -Force
+                    $vlan | Add-Member -NotePropertyName 'SVIMask' -NotePropertyValue $svi.SubnetMask -Force
+                }
+                $vlan | Add-Member -NotePropertyName 'Sources' -NotePropertyValue @($device) -Force
+
+                $vlanNameIndex[$vlanNum] = $vlan
+                [void]$allVlans.Add($vlan)
+            }
+        }
+    }
+
+    [PSCustomObject]@{
+        VLANs        = @($allVlans | Sort-Object VlanNumber)
+        Conflicts    = @($conflicts)
+        DeviceCount  = $DeviceConfigs.Count
+        TotalVLANs   = $allVlans.Count
+        ConflictCount = $conflicts.Count
+    }
+}
+
+<#
+.SYNOPSIS
+    Generates a VLAN discovery report.
+.DESCRIPTION
+    Creates a summary report of discovered VLANs from device configurations.
+#>
+function New-VLANDiscoveryReport {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [PSCustomObject]$DiscoveryResult,
+
+        [Parameter()]
+        [ValidateSet('Text', 'Markdown', 'CSV')]
+        [string]$Format = 'Text'
+    )
+
+    switch ($Format) {
+        'CSV' {
+            $csv = @()
+            $csv += 'VlanNumber,VlanName,Purpose,Site,SVIAddress,SVIMask,Sources'
+            foreach ($vlan in $DiscoveryResult.VLANs) {
+                $sources = if ($vlan.Sources) { $vlan.Sources -join ';' } else { '' }
+                $csv += "$($vlan.VlanNumber),`"$($vlan.VlanName)`",$($vlan.Purpose),$($vlan.Site),$($vlan.SVIAddress),$($vlan.SVIMask),`"$sources`""
+            }
+            $csv -join "`n"
+        }
+
+        'Markdown' {
+            $md = @()
+            $md += "# VLAN Discovery Report"
+            $md += ""
+            $md += "**Generated:** $(Get-Date)"
+            $md += "**Devices Scanned:** $($DiscoveryResult.DeviceCount)"
+            $md += "**Total VLANs:** $($DiscoveryResult.TotalVLANs)"
+            $md += "**Conflicts:** $($DiscoveryResult.ConflictCount)"
+            $md += ""
+            $md += "## VLANs Discovered"
+            $md += ""
+            $md += "| VLAN | Name | Purpose | SVI Address | Sources |"
+            $md += "|------|------|---------|-------------|---------|"
+
+            foreach ($vlan in $DiscoveryResult.VLANs) {
+                $sources = if ($vlan.Sources) { $vlan.Sources -join ', ' } else { '-' }
+                $svi = if ($vlan.SVIAddress) { "$($vlan.SVIAddress)/$($vlan.SVIMask)" } else { '-' }
+                $md += "| $($vlan.VlanNumber) | $($vlan.VlanName) | $($vlan.Purpose) | $svi | $sources |"
+            }
+
+            if ($DiscoveryResult.Conflicts.Count -gt 0) {
+                $md += ""
+                $md += "## Conflicts Detected"
+                $md += ""
+                $md += "| VLAN | Device 1 | Name 1 | Device 2 | Name 2 |"
+                $md += "|------|----------|--------|----------|--------|"
+                foreach ($conflict in $DiscoveryResult.Conflicts) {
+                    $md += "| $($conflict.VlanNumber) | $($conflict.Device1) | $($conflict.Name1) | $($conflict.Device2) | $($conflict.Name2) |"
+                }
+            }
+
+            $md -join "`n"
+        }
+
+        default {
+            $txt = @()
+            $txt += "=" * 60
+            $txt += "VLAN DISCOVERY REPORT"
+            $txt += "=" * 60
+            $txt += "Generated: $(Get-Date)"
+            $txt += "Devices Scanned: $($DiscoveryResult.DeviceCount)"
+            $txt += "Total VLANs: $($DiscoveryResult.TotalVLANs)"
+            $txt += "Conflicts: $($DiscoveryResult.ConflictCount)"
+            $txt += "-" * 60
+            $txt += ""
+            $txt += "VLANS DISCOVERED:"
+            $txt += "-" * 60
+
+            foreach ($vlan in $DiscoveryResult.VLANs) {
+                $sources = if ($vlan.Sources) { $vlan.Sources -join ', ' } else { 'Unknown' }
+                $txt += "VLAN $($vlan.VlanNumber): $($vlan.VlanName)"
+                $txt += "  Purpose: $($vlan.Purpose)"
+                if ($vlan.SVIAddress) {
+                    $txt += "  SVI: $($vlan.SVIAddress) / $($vlan.SVIMask)"
+                }
+                $txt += "  Sources: $sources"
+                $txt += ""
+            }
+
+            if ($DiscoveryResult.Conflicts.Count -gt 0) {
+                $txt += "-" * 60
+                $txt += "CONFLICTS:"
+                foreach ($conflict in $DiscoveryResult.Conflicts) {
+                    $txt += "  VLAN $($conflict.VlanNumber): '$($conflict.Name1)' ($($conflict.Device1)) vs '$($conflict.Name2)' ($($conflict.Device2))"
+                }
+            }
+
+            $txt += "=" * 60
+            $txt -join "`n"
+        }
+    }
+}
+
+#endregion
+
 Export-ModuleMember -Function @(
     'New-VLAN'
     'New-Subnet'
@@ -1253,4 +1734,9 @@ Export-ModuleMember -Function @(
     'Import-IPAMDatabase'
     'Get-IPAMStats'
     'Clear-IPAMDatabase'
+    'Import-VLANsFromConfig'
+    'Import-SVIsFromConfig'
+    'Import-VLANsToDatabase'
+    'Merge-VLANDiscovery'
+    'New-VLANDiscoveryReport'
 )

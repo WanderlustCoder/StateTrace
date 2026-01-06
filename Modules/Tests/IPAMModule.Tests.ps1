@@ -543,4 +543,299 @@ Describe 'IPAMModule' {
     }
 
     #endregion
+
+    #region VLAN Discovery
+
+    Context 'Import-VLANsFromConfig' {
+
+        It 'Parses Cisco IOS VLAN definitions' {
+            $config = @'
+vlan 10
+ name Users_Data
+vlan 20
+ name Voice_VLAN
+vlan 100
+ name Management
+'@
+            $vlans = @(IPAMModule\Import-VLANsFromConfig -ConfigText $config)
+
+            $vlans.Count | Should Be 3
+            $vlans[0].VlanNumber | Should Be 10
+            $vlans[0].VlanName | Should Be 'Users_Data'
+            $vlans[1].VlanNumber | Should Be 20
+            $vlans[1].VlanName | Should Be 'Voice_VLAN'
+        }
+
+        It 'Auto-detects purpose from VLAN name' {
+            $config = @'
+vlan 10
+ name Data_Users
+vlan 20
+ name Voice
+vlan 100
+ name Management
+vlan 200
+ name Guest_WiFi
+'@
+            $vlans = @(IPAMModule\Import-VLANsFromConfig -ConfigText $config)
+
+            $vlans[0].Purpose | Should Be 'Data'
+            $vlans[1].Purpose | Should Be 'Voice'
+            $vlans[2].Purpose | Should Be 'Management'
+            $vlans[3].Purpose | Should Be 'Guest'
+        }
+
+        It 'Handles Arista EOS format' {
+            $config = @'
+vlan 10
+   name Users
+vlan 20
+   name Voice
+'@
+            $vlans = @(IPAMModule\Import-VLANsFromConfig -ConfigText $config -Vendor 'Arista_EOS')
+
+            $vlans.Count | Should Be 2
+        }
+
+        It 'Returns empty for config without VLANs' {
+            $config = @'
+hostname SW-01
+interface Gi1/0/1
+ switchport mode access
+'@
+            $vlans = @(IPAMModule\Import-VLANsFromConfig -ConfigText $config)
+
+            $vlans.Count | Should Be 0
+        }
+
+        It 'Sets device name when provided' {
+            $config = @'
+vlan 10
+ name Users
+'@
+            $vlans = @(IPAMModule\Import-VLANsFromConfig -ConfigText $config -DeviceName 'SW-CORE-01')
+
+            $vlans[0].DeviceName | Should Be 'SW-CORE-01'
+        }
+    }
+
+    Context 'Import-SVIsFromConfig' {
+
+        It 'Parses SVI interfaces with IP addresses' {
+            $config = @'
+interface Vlan10
+ description User Network
+ ip address 10.1.10.1 255.255.255.0
+!
+interface Vlan20
+ description Voice Network
+ ip address 10.1.20.1 255.255.255.0
+'@
+            $svis = @(IPAMModule\Import-SVIsFromConfig -ConfigText $config)
+
+            $svis.Count | Should Be 2
+            $svis[0].VlanNumber | Should Be 10
+            $svis[0].IPAddress | Should Be '10.1.10.1'
+            $svis[0].SubnetMask | Should Be '255.255.255.0'
+            $svis[0].Description | Should Be 'User Network'
+        }
+
+        It 'Extracts HSRP virtual IP' {
+            $config = @'
+interface Vlan100
+ ip address 10.1.100.2 255.255.255.0
+ standby 100 ip 10.1.100.1
+'@
+            $svis = @(IPAMModule\Import-SVIsFromConfig -ConfigText $config)
+
+            $svis[0].HSRPAddress | Should Be '10.1.100.1'
+        }
+
+        It 'Extracts VRRP virtual IP' {
+            $config = @'
+interface Vlan100
+ ip address 10.1.100.2 255.255.255.0
+ vrrp 100 ip 10.1.100.1
+'@
+            $svis = @(IPAMModule\Import-SVIsFromConfig -ConfigText $config)
+
+            $svis[0].VRRPAddress | Should Be '10.1.100.1'
+        }
+
+        It 'Returns empty for config without SVIs' {
+            $config = @'
+interface Gi1/0/1
+ ip address 10.1.1.1 255.255.255.252
+'@
+            $svis = @(IPAMModule\Import-SVIsFromConfig -ConfigText $config)
+
+            $svis.Count | Should Be 0
+        }
+    }
+
+    Context 'Import-VLANsToDatabase' {
+
+        It 'Imports VLANs to database' {
+            $config = @'
+vlan 10
+ name Users
+vlan 20
+ name Voice
+'@
+            $result = IPAMModule\Import-VLANsToDatabase -ConfigText $config -DeviceName 'SW-01' -Database $script:testDb
+
+            $result.Imported | Should Be 2
+            $result.Skipped | Should Be 0
+            $script:testDb.VLANs.Count | Should Be 2
+        }
+
+        It 'Skips duplicates with SkipDuplicates' {
+            $vlan = IPAMModule\New-VLAN -VlanNumber 10 -VlanName 'Existing'
+            IPAMModule\Add-VLAN -VLAN $vlan -Database $script:testDb
+
+            $config = @'
+vlan 10
+ name Users
+vlan 20
+ name Voice
+'@
+            $result = IPAMModule\Import-VLANsToDatabase -ConfigText $config -Database $script:testDb -SkipDuplicates
+
+            $result.Imported | Should Be 1
+            $result.Skipped | Should Be 1
+        }
+
+        It 'Updates existing with UpdateExisting' {
+            $vlan = IPAMModule\New-VLAN -VlanNumber 10 -VlanName 'OldName'
+            IPAMModule\Add-VLAN -VLAN $vlan -Database $script:testDb
+
+            $config = @'
+vlan 10
+ name NewName
+'@
+            $result = IPAMModule\Import-VLANsToDatabase -ConfigText $config -Database $script:testDb -UpdateExisting
+
+            $result.Updated | Should Be 1
+            $updated = @(IPAMModule\Get-VLANRecord -VlanNumber 10 -Database $script:testDb)
+            $updated[0].VlanName | Should Be 'NewName'
+        }
+    }
+
+    Context 'Merge-VLANDiscovery' {
+
+        It 'Merges VLANs from multiple devices' {
+            $config1 = @'
+vlan 10
+ name Users
+vlan 20
+ name Voice
+'@
+            $config2 = @'
+vlan 10
+ name Users
+vlan 30
+ name Guest
+'@
+            $deviceConfigs = @{
+                'SW-01' = $config1
+                'SW-02' = $config2
+            }
+
+            $result = IPAMModule\Merge-VLANDiscovery -DeviceConfigs $deviceConfigs
+
+            $result.TotalVLANs | Should Be 3
+        }
+
+        It 'Detects name conflicts across devices' {
+            $config1 = @'
+vlan 10
+ name Users
+'@
+            $config2 = @'
+vlan 10
+ name Data
+'@
+            $deviceConfigs = @{
+                'SW-01' = $config1
+                'SW-02' = $config2
+            }
+
+            $result = IPAMModule\Merge-VLANDiscovery -DeviceConfigs $deviceConfigs
+
+            $result.ConflictCount | Should Be 1
+            $result.Conflicts[0].VlanNumber | Should Be 10
+        }
+
+        It 'Tracks device sources for merged VLANs' {
+            $config1 = @'
+vlan 10
+ name Users
+'@
+            $config2 = @'
+vlan 10
+ name Users
+'@
+            $deviceConfigs = @{
+                'SW-01' = $config1
+                'SW-02' = $config2
+            }
+
+            $result = IPAMModule\Merge-VLANDiscovery -DeviceConfigs $deviceConfigs
+
+            $vlan10 = $result.VLANs | Where-Object { $_.VlanNumber -eq 10 }
+            $vlan10.Sources.Count | Should Be 2
+        }
+    }
+
+    Context 'New-VLANDiscoveryReport' {
+
+        It 'Generates text report' {
+            $config = @'
+vlan 10
+ name Users
+vlan 20
+ name Voice
+'@
+            $deviceConfigs = @{ 'SW-01' = $config }
+            $discoveryResult = IPAMModule\Merge-VLANDiscovery -DeviceConfigs $deviceConfigs
+
+            $report = IPAMModule\New-VLANDiscoveryReport -DiscoveryResult $discoveryResult -Format 'Text'
+
+            $report | Should Match 'VLAN Discovery Report'
+            $report | Should Match '10'
+            $report | Should Match 'Users'
+        }
+
+        It 'Generates markdown report' {
+            $config = @'
+vlan 10
+ name Users
+'@
+            $deviceConfigs = @{ 'SW-01' = $config }
+            $discoveryResult = IPAMModule\Merge-VLANDiscovery -DeviceConfigs $deviceConfigs
+
+            $report = IPAMModule\New-VLANDiscoveryReport -DiscoveryResult $discoveryResult -Format 'Markdown'
+
+            $report | Should Match '# VLAN Discovery Report'
+            $report | Should Match '\| VLAN \| Name \|'
+        }
+
+        It 'Generates CSV report' {
+            $config = @'
+vlan 10
+ name Users
+vlan 20
+ name Voice
+'@
+            $deviceConfigs = @{ 'SW-01' = $config }
+            $discoveryResult = IPAMModule\Merge-VLANDiscovery -DeviceConfigs $deviceConfigs
+
+            $report = IPAMModule\New-VLANDiscoveryReport -DiscoveryResult $discoveryResult -Format 'CSV'
+
+            $report | Should Match 'VlanNumber'
+            $report | Should Match '10,'
+        }
+    }
+
+    #endregion
 }
