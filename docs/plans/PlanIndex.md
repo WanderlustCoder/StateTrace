@@ -71,7 +71,7 @@ The active StateTrace plans live in discrete files so automation agents can refe
 - **Plan AB** - **In Progress (5/6 Done)**. Troubleshooting decision trees with guided workflows. Core module, built-in trees, interactive UI, and outcome analytics delivered. 63 tests passing. Tree editor UI pending.
 - **Plan AC** - **In Progress (4/6 Done)**. Capacity planning with utilization tracking, forecasting (linear regression), threshold alerting, scenario analysis, and budget planning. Core module, tests, and UI view integrated into MainWindow.
 - **Plan AD** - **Complete (6/6 Done)**. Cross-vendor command reference with translation, configuration snippets, and learning mode. Quiz generation, scoring, progress tracking, and flash cards. 72 tests passing.
-- **Plan AE** - **In Progress (4/6 Done)**. Log analysis with pattern detection and event correlation. Multi-format parser (Cisco IOS, Arista EOS, syslog), 15 built-in patterns, and interactive UI delivered. Anomaly detection and reports pending.
+- **Plan AE** - **Complete (6/6 Done)**. Log analysis with pattern detection and event correlation. Multi-format parser (Cisco IOS, Arista EOS, syslog), 15 built-in patterns, anomaly detection (frequency, new types, time-of-day), report generation (Summary, PatternSummary, TrendComparison, Health), and export (HTML, JSON, Markdown, PDF). 79 tests passing.
 - **Plan AF** - **Complete (6/6 Done)**. Tab consolidation with nested left-side vertical tabs. Reduced 18 top-level tabs to 9. Container views (Documentation, Infrastructure, Operations, Tools) with lazy sub-view loading. 42 Pester tests for UI smoke validation.
 
 ## How to use the plans

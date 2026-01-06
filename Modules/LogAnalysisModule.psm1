@@ -614,8 +614,14 @@ function Find-LogPatterns {
                 # Extract interface if flapping
                 if ($pattern.Name -eq 'LinkFlapping') {
                     $interfaces = @($patternMatches | ForEach-Object {
-                        if ($_.PSObject.Properties['ExtractedFields'] -and $_.ExtractedFields -and $_.ExtractedFields.Interface) {
-                            $_.ExtractedFields.Interface
+                        $ef = $_.PSObject.Properties['ExtractedFields']
+                        if ($ef -and $ef.Value) {
+                            $fields = $ef.Value
+                            if ($fields -is [hashtable] -and $fields.ContainsKey('Interface')) {
+                                $fields['Interface']
+                            } elseif ($fields.PSObject.Properties['Interface']) {
+                                $fields.Interface
+                            }
                         }
                     } | Where-Object { $_ } | Select-Object -Unique)
                     $patternMatch | Add-Member -NotePropertyName 'Interfaces' -NotePropertyValue $interfaces -Force
@@ -625,8 +631,14 @@ function Find-LogPatterns {
                 # Extract source IP for auth failures
                 if ($pattern.Name -eq 'AuthenticationFailure') {
                     $ips = @($patternMatches | ForEach-Object {
-                        if ($_.PSObject.Properties['ExtractedFields'] -and $_.ExtractedFields -and $_.ExtractedFields.IPAddress) {
-                            $_.ExtractedFields.IPAddress
+                        $ef = $_.PSObject.Properties['ExtractedFields']
+                        if ($ef -and $ef.Value) {
+                            $fields = $ef.Value
+                            if ($fields -is [hashtable] -and $fields.ContainsKey('IPAddress')) {
+                                $fields['IPAddress']
+                            } elseif ($fields.PSObject.Properties['IPAddress']) {
+                                $fields.IPAddress
+                            }
                         }
                     } | Where-Object { $_ } | Select-Object -Unique)
                     $patternMatch | Add-Member -NotePropertyName 'SourceIPs' -NotePropertyValue $ips -Force
@@ -965,7 +977,7 @@ function Get-LogAnalysisSummary {
     $timeRange = $null
     $entriesWithTime = @($Entries | Where-Object { $_.Timestamp })
     if ($entriesWithTime.Count -gt 0) {
-        $sorted = $entriesWithTime | Sort-Object { $_.Timestamp }
+        $sorted = @($entriesWithTime | Sort-Object { $_.Timestamp })
         $timeRange = [pscustomobject]@{
             Start = $sorted[0].Timestamp
             End = $sorted[$sorted.Count - 1].Timestamp
@@ -984,6 +996,535 @@ function Get-LogAnalysisSummary {
         TimeRange = $timeRange
         AnalyzedAt = Get-Date
     }
+}
+
+#endregion
+
+#region Anomaly Detection
+
+<#
+.SYNOPSIS
+    Detects unusual message frequency spikes.
+#>
+function Find-FrequencyAnomalies {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [array]$Entries,
+
+        [int]$BaselinePeriodMinutes = 60,
+
+        [int]$BucketMinutes = 5,
+
+        [double]$ThresholdMultiplier = 3.0
+    )
+
+    if ($Entries.Count -eq 0) { return @() }
+
+    # Get entries with timestamps
+    $entriesWithTime = @($Entries | Where-Object { $_.Timestamp })
+    if ($entriesWithTime.Count -eq 0) { return @() }
+
+    # Sort by timestamp
+    $sorted = @($entriesWithTime | Sort-Object { $_.Timestamp })
+
+    # Calculate bucket counts
+    $buckets = @{}
+    foreach ($entry in $sorted) {
+        $bucketKey = $entry.Timestamp.ToString('yyyy-MM-dd HH:') + ([math]::Floor($entry.Timestamp.Minute / $BucketMinutes) * $BucketMinutes).ToString('00')
+        if (-not $buckets.ContainsKey($bucketKey)) {
+            $buckets[$bucketKey] = [System.Collections.ArrayList]::new()
+        }
+        [void]$buckets[$bucketKey].Add($entry)
+    }
+
+    if ($buckets.Count -lt 2) { return @() }
+
+    # Calculate average and std deviation
+    $counts = @($buckets.Values | ForEach-Object { $_.Count })
+    $avg = ($counts | Measure-Object -Average).Average
+    $variance = ($counts | ForEach-Object { [math]::Pow($_ - $avg, 2) } | Measure-Object -Average).Average
+    $stdDev = [math]::Sqrt($variance)
+    $threshold = $avg + ($stdDev * $ThresholdMultiplier)
+
+    # Find anomalies
+    $anomalies = [System.Collections.ArrayList]::new()
+    foreach ($bucket in $buckets.Keys) {
+        $count = $buckets[$bucket].Count
+        if ($count -gt $threshold -and $count -gt ($avg * 2)) {
+            [void]$anomalies.Add([pscustomobject]@{
+                Type = 'FrequencySpike'
+                TimeBucket = $bucket
+                MessageCount = $count
+                BaselineAverage = [math]::Round($avg, 1)
+                Threshold = [math]::Round($threshold, 1)
+                Multiplier = [math]::Round($count / $avg, 1)
+                SampleEntries = @($buckets[$bucket] | Select-Object -First 5)
+                Severity = if ($count -gt ($avg * 5)) { 'Critical' } elseif ($count -gt ($avg * 3)) { 'Warning' } else { 'Notice' }
+            })
+        }
+    }
+
+    return @($anomalies)
+}
+
+<#
+.SYNOPSIS
+    Identifies message types not seen in baseline period.
+#>
+function Find-NewMessageTypes {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [array]$Baseline,
+
+        [Parameter(Mandatory=$true)]
+        [array]$Current
+    )
+
+    # Extract message types from baseline
+    $baselineTypes = [System.Collections.Generic.HashSet[string]]::new()
+    foreach ($entry in $Baseline) {
+        $msgType = $null
+        if ($entry.PSObject.Properties['MessageType'] -and $entry.MessageType) {
+            $msgType = $entry.MessageType
+        } elseif ($entry.PSObject.Properties['Mnemonic'] -and $entry.Mnemonic) {
+            $msgType = $entry.Mnemonic
+        }
+        if ($msgType) {
+            [void]$baselineTypes.Add($msgType)
+        }
+    }
+
+    # Find new types in current period
+    $newTypes = [System.Collections.ArrayList]::new()
+    $seenNew = [System.Collections.Generic.HashSet[string]]::new()
+
+    foreach ($entry in $Current) {
+        $msgType = $null
+        if ($entry.PSObject.Properties['MessageType'] -and $entry.MessageType) {
+            $msgType = $entry.MessageType
+        } elseif ($entry.PSObject.Properties['Mnemonic'] -and $entry.Mnemonic) {
+            $msgType = $entry.Mnemonic
+        }
+        if ($msgType -and -not $baselineTypes.Contains($msgType) -and -not $seenNew.Contains($msgType)) {
+            [void]$seenNew.Add($msgType)
+            [void]$newTypes.Add($msgType)
+        }
+    }
+
+    return @($newTypes)
+}
+
+<#
+.SYNOPSIS
+    Detects activity outside normal work hours.
+#>
+function Test-TimeOfDayAnomaly {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [pscustomobject]$Event,
+
+        [hashtable]$WorkHours = @{ Start = '08:00'; End = '18:00' },
+
+        [string[]]$WorkDays = @('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday')
+    )
+
+    $timestamp = $null
+    if ($Event.PSObject.Properties['Timestamp'] -and $Event.Timestamp) {
+        $timestamp = $Event.Timestamp
+    } elseif ($Event.PSObject.Properties['TimestampString'] -and $Event.TimestampString) {
+        try { $timestamp = [datetime]::Parse($Event.TimestampString) } catch { }
+    }
+
+    if (-not $timestamp) {
+        return [pscustomobject]@{
+            IsAnomaly = $false
+            Reason = 'No timestamp available'
+            Event = $Event
+        }
+    }
+
+    $dayName = $timestamp.DayOfWeek.ToString()
+    $timeOfDay = $timestamp.ToString('HH:mm')
+
+    $startTime = $WorkHours.Start
+    $endTime = $WorkHours.End
+
+    $isWorkDay = $dayName -in $WorkDays
+    $isWorkHours = $timeOfDay -ge $startTime -and $timeOfDay -le $endTime
+
+    if (-not $isWorkDay) {
+        return [pscustomobject]@{
+            IsAnomaly = $true
+            Reason = "Activity on $dayName (outside work days)"
+            Timestamp = $timestamp
+            DayOfWeek = $dayName
+            TimeOfDay = $timeOfDay
+            Event = $Event
+            Severity = 'Warning'
+        }
+    }
+
+    if (-not $isWorkHours) {
+        return [pscustomobject]@{
+            IsAnomaly = $true
+            Reason = "Activity at $timeOfDay (outside work hours $startTime-$endTime)"
+            Timestamp = $timestamp
+            DayOfWeek = $dayName
+            TimeOfDay = $timeOfDay
+            Event = $Event
+            Severity = 'Notice'
+        }
+    }
+
+    return [pscustomobject]@{
+        IsAnomaly = $false
+        Reason = 'Within normal work hours'
+        Timestamp = $timestamp
+        DayOfWeek = $dayName
+        TimeOfDay = $timeOfDay
+        Event = $Event
+    }
+}
+
+#endregion
+
+#region Reports and Saved Searches
+
+# Saved searches storage
+$script:SavedSearches = @{}
+
+<#
+.SYNOPSIS
+    Saves a log search query for later reuse.
+#>
+function Save-LogSearch {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [hashtable]$Query
+    )
+
+    $name = $Query.Name
+    if (-not $name) {
+        throw "Query must have a Name property"
+    }
+
+    $script:SavedSearches[$name] = $Query
+    return $Query
+}
+
+<#
+.SYNOPSIS
+    Gets a saved log search query.
+#>
+function Get-LogSearch {
+    [CmdletBinding()]
+    param(
+        [string]$Name,
+        [switch]$List
+    )
+
+    if ($List) {
+        return @($script:SavedSearches.Values)
+    }
+
+    if ($Name -and $script:SavedSearches.ContainsKey($Name)) {
+        return $script:SavedSearches[$Name]
+    }
+
+    return $null
+}
+
+<#
+.SYNOPSIS
+    Generates a log analysis report.
+#>
+function New-LogAnalysisReport {
+    [CmdletBinding()]
+    param(
+        [array]$Entries,
+
+        [array]$CurrentPeriod,
+
+        [array]$PreviousPeriod,
+
+        [ValidateSet('PatternSummary', 'TrendComparison', 'Summary', 'Health')]
+        [string]$Type = 'Summary',
+
+        [string]$Title
+    )
+
+    $reportDate = Get-Date
+    $report = [pscustomobject]@{
+        ReportID = "RPT-$(Get-Date -Format 'yyyyMMddHHmmss')"
+        Type = $Type
+        Title = if ($Title) { $Title } else { "$Type Report" }
+        GeneratedAt = $reportDate
+        Data = $null
+    }
+
+    switch ($Type) {
+        'Summary' {
+            if (-not $Entries) { $Entries = @() }
+            $patterns = @(Find-LogPatterns -Entries $Entries)
+            $summary = Get-LogAnalysisSummary -Entries $Entries -Patterns $patterns
+
+            $report.Data = [pscustomobject]@{
+                TotalEntries = $summary.TotalEntries
+                SeverityBreakdown = $summary.SeverityBreakdown
+                DeviceCount = $summary.DeviceCount
+                Devices = $summary.Devices
+                PatternsDetected = $patterns.Count
+                TopPatterns = @($patterns | Select-Object PatternName, MatchCount, Severity -First 10)
+                TimeRange = $summary.TimeRange
+            }
+        }
+
+        'PatternSummary' {
+            if (-not $Entries) { $Entries = @() }
+            $patterns = @(Find-LogPatterns -Entries $Entries)
+
+            $byCategory = @($patterns | Group-Object -Property Category)
+            $bySeverity = @($patterns | Group-Object -Property Severity)
+
+            $report.Data = [pscustomobject]@{
+                TotalEntries = $Entries.Count
+                TotalPatterns = $patterns.Count
+                TopPatterns = @($patterns | Sort-Object -Property MatchCount -Descending | Select-Object PatternName, MatchCount, Severity, Category -First 10)
+                ByCategory = @($byCategory | ForEach-Object { [pscustomobject]@{ Category = $_.Name; Count = $_.Count } })
+                BySeverity = @($bySeverity | ForEach-Object { [pscustomobject]@{ Severity = $_.Name; Count = $_.Count } })
+                PatternDetails = @($patterns)
+            }
+        }
+
+        'TrendComparison' {
+            if (-not $CurrentPeriod) { $CurrentPeriod = @() }
+            if (-not $PreviousPeriod) { $PreviousPeriod = @() }
+
+            $currentPatterns = @(Find-LogPatterns -Entries $CurrentPeriod)
+            $previousPatterns = @(Find-LogPatterns -Entries $PreviousPeriod)
+
+            $currentSeverity = Get-LogSeverityStats -Entries $CurrentPeriod
+            $previousSeverity = Get-LogSeverityStats -Entries $PreviousPeriod
+
+            # Calculate changes
+            $patternChanges = [System.Collections.ArrayList]::new()
+            $allPatterns = [System.Collections.ArrayList]::new()
+            foreach ($p in $currentPatterns) { [void]$allPatterns.Add($p) }
+            foreach ($p in $previousPatterns) { [void]$allPatterns.Add($p) }
+            $allPatternNames = @($allPatterns | ForEach-Object { $_.PatternName } | Select-Object -Unique)
+
+            foreach ($name in $allPatternNames) {
+                $curr = $currentPatterns | Where-Object { $_.PatternName -eq $name }
+                $prev = $previousPatterns | Where-Object { $_.PatternName -eq $name }
+                $currCount = if ($curr) { $curr.MatchCount } else { 0 }
+                $prevCount = if ($prev) { $prev.MatchCount } else { 0 }
+                $change = $currCount - $prevCount
+                $pctChange = if ($prevCount -gt 0) { [math]::Round((($currCount - $prevCount) / $prevCount) * 100, 1) } else { if ($currCount -gt 0) { 100 } else { 0 } }
+
+                [void]$patternChanges.Add([pscustomobject]@{
+                    PatternName = $name
+                    CurrentCount = $currCount
+                    PreviousCount = $prevCount
+                    Change = $change
+                    PercentChange = $pctChange
+                    Trend = if ($change -gt 0) { 'Increasing' } elseif ($change -lt 0) { 'Decreasing' } else { 'Stable' }
+                })
+            }
+
+            $report.Data = [pscustomobject]@{
+                CurrentPeriodEntries = $CurrentPeriod.Count
+                PreviousPeriodEntries = $PreviousPeriod.Count
+                EntryCountChange = $CurrentPeriod.Count - $PreviousPeriod.Count
+                CurrentSeverity = $currentSeverity
+                PreviousSeverity = $previousSeverity
+                Comparison = @($patternChanges | Sort-Object -Property Change -Descending)
+                NewPatterns = @($patternChanges | Where-Object { $_.PreviousCount -eq 0 -and $_.CurrentCount -gt 0 })
+                ResolvedPatterns = @($patternChanges | Where-Object { $_.CurrentCount -eq 0 -and $_.PreviousCount -gt 0 })
+            }
+        }
+
+        'Health' {
+            if (-not $Entries) { $Entries = @() }
+            $patterns = Find-LogPatterns -Entries $Entries
+            $severity = Get-LogSeverityStats -Entries $Entries
+
+            # Calculate health score (0-100)
+            $criticalWeight = 10
+            $errorWeight = 5
+            $warningWeight = 2
+
+            $deductions = ($severity.Critical * $criticalWeight) + ($severity.Error * $errorWeight) + ($severity.Warning * $warningWeight)
+            $healthScore = [math]::Max(0, 100 - $deductions)
+
+            $report.Data = [pscustomobject]@{
+                HealthScore = $healthScore
+                HealthStatus = if ($healthScore -ge 90) { 'Healthy' } elseif ($healthScore -ge 70) { 'Fair' } elseif ($healthScore -ge 50) { 'Degraded' } else { 'Critical' }
+                TotalEntries = $Entries.Count
+                CriticalCount = $severity.Critical
+                ErrorCount = $severity.Error
+                WarningCount = $severity.Warning
+                TopIssues = @($patterns | Where-Object { $_.Severity -in @('Critical', 'Error', 'Warning') } | Select-Object -First 5)
+                RecommendedActions = @($patterns | Where-Object { $_.RecommendedAction } | Select-Object PatternName, RecommendedAction -First 5)
+            }
+        }
+    }
+
+    return $report
+}
+
+<#
+.SYNOPSIS
+    Exports a log analysis report to file.
+#>
+function Export-LogReport {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [pscustomobject]$Report,
+
+        [ValidateSet('HTML', 'JSON', 'PDF', 'Markdown')]
+        [string]$Format = 'HTML',
+
+        [string]$OutputPath
+    )
+
+    if (-not $OutputPath) {
+        $ext = switch ($Format) {
+            'HTML' { '.html' }
+            'JSON' { '.json' }
+            'PDF' { '.html' }  # PDF is print-ready HTML
+            'Markdown' { '.md' }
+        }
+        $OutputPath = Join-Path $env:TEMP "LogReport_$($Report.ReportID)$ext"
+    }
+
+    switch ($Format) {
+        'JSON' {
+            $Report | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $OutputPath -Encoding UTF8
+        }
+
+        'Markdown' {
+            $md = @()
+            $md += "# $($Report.Title)"
+            $md += ""
+            $md += "**Generated:** $($Report.GeneratedAt)"
+            $md += "**Report ID:** $($Report.ReportID)"
+            $md += ""
+
+            if ($Report.Data.PSObject.Properties['TotalEntries'] -and $Report.Data.TotalEntries) {
+                $md += "## Summary"
+                $md += "- **Total Entries:** $($Report.Data.TotalEntries)"
+            }
+            if ($Report.Data.PSObject.Properties['HealthScore'] -and $Report.Data.HealthScore) {
+                $md += "- **Health Score:** $($Report.Data.HealthScore)/100 ($($Report.Data.HealthStatus))"
+            }
+            if ($Report.Data.TopPatterns) {
+                $md += ""
+                $md += "## Top Patterns"
+                $md += "| Pattern | Count | Severity |"
+                $md += "|---------|-------|----------|"
+                foreach ($p in $Report.Data.TopPatterns) {
+                    $md += "| $($p.PatternName) | $($p.MatchCount) | $($p.Severity) |"
+                }
+            }
+
+            $md -join "`n" | Set-Content -LiteralPath $OutputPath -Encoding UTF8
+        }
+
+        { $_ -in @('HTML', 'PDF') } {
+            $printStyles = if ($Format -eq 'PDF') {
+                @"
+<style>
+@page { size: letter; margin: 1in; }
+@media print {
+    body { font-size: 10pt; }
+    .no-print { display: none; }
+}
+</style>
+"@
+            } else { '' }
+
+            $html = @"
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>$($Report.Title)</title>
+<style>
+body { font-family: Arial, sans-serif; margin: 20px; }
+h1 { color: #333; border-bottom: 2px solid #007acc; padding-bottom: 10px; }
+h2 { color: #007acc; margin-top: 20px; }
+table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+th { background-color: #007acc; color: white; }
+tr:nth-child(even) { background-color: #f9f9f9; }
+.score-healthy { color: green; font-weight: bold; }
+.score-fair { color: orange; font-weight: bold; }
+.score-degraded { color: darkorange; font-weight: bold; }
+.score-critical { color: red; font-weight: bold; }
+.meta { color: #666; font-size: 0.9em; }
+</style>
+$printStyles
+</head>
+<body>
+<h1>$($Report.Title)</h1>
+<p class="meta">Generated: $($Report.GeneratedAt) | Report ID: $($Report.ReportID)</p>
+"@
+
+            if ($Report.Data.PSObject.Properties['HealthScore'] -and $Report.Data.HealthScore) {
+                $scoreClass = switch ($Report.Data.HealthStatus) {
+                    'Healthy' { 'score-healthy' }
+                    'Fair' { 'score-fair' }
+                    'Degraded' { 'score-degraded' }
+                    default { 'score-critical' }
+                }
+                $html += "<h2>Health Score</h2>"
+                $html += "<p class=`"$scoreClass`">$($Report.Data.HealthScore)/100 - $($Report.Data.HealthStatus)</p>"
+            }
+
+            if ($Report.Data.PSObject.Properties['TotalEntries'] -and $Report.Data.TotalEntries) {
+                $html += "<h2>Summary</h2>"
+                $html += "<ul>"
+                $html += "<li><strong>Total Entries:</strong> $($Report.Data.TotalEntries)</li>"
+                if ($Report.Data.DeviceCount) {
+                    $html += "<li><strong>Devices:</strong> $($Report.Data.DeviceCount)</li>"
+                }
+                if ($Report.Data.PatternsDetected) {
+                    $html += "<li><strong>Patterns Detected:</strong> $($Report.Data.PatternsDetected)</li>"
+                }
+                $html += "</ul>"
+            }
+
+            if ($Report.Data.PSObject.Properties['TopPatterns'] -and $Report.Data.TopPatterns -and $Report.Data.TopPatterns.Count -gt 0) {
+                $html += "<h2>Top Patterns</h2>"
+                $html += "<table><tr><th>Pattern</th><th>Count</th><th>Severity</th></tr>"
+                foreach ($p in $Report.Data.TopPatterns) {
+                    $html += "<tr><td>$($p.PatternName)</td><td>$($p.MatchCount)</td><td>$($p.Severity)</td></tr>"
+                }
+                $html += "</table>"
+            }
+
+            if ($Report.Data.PSObject.Properties['Comparison'] -and $Report.Data.Comparison -and $Report.Data.Comparison.Count -gt 0) {
+                $html += "<h2>Trend Comparison</h2>"
+                $html += "<table><tr><th>Pattern</th><th>Current</th><th>Previous</th><th>Change</th><th>Trend</th></tr>"
+                foreach ($c in $Report.Data.Comparison) {
+                    $html += "<tr><td>$($c.PatternName)</td><td>$($c.CurrentCount)</td><td>$($c.PreviousCount)</td><td>$($c.Change)</td><td>$($c.Trend)</td></tr>"
+                }
+                $html += "</table>"
+            }
+
+            $html += "<hr><p class=`"meta`">Generated by StateTrace Log Analysis</p>"
+            $html += "</body></html>"
+
+            $html | Set-Content -LiteralPath $OutputPath -Encoding UTF8
+        }
+    }
+
+    return $OutputPath
 }
 
 #endregion
@@ -1007,7 +1548,16 @@ Export-ModuleMember -Function @(
     # Search
     'Search-LogEntries',
     'Get-LogSeverityStats',
-    'Get-LogAnalysisSummary'
+    'Get-LogAnalysisSummary',
+    # Anomaly Detection (ST-AE-005)
+    'Find-FrequencyAnomalies',
+    'Find-NewMessageTypes',
+    'Test-TimeOfDayAnomaly',
+    # Reports and Saved Searches (ST-AE-006)
+    'Save-LogSearch',
+    'Get-LogSearch',
+    'New-LogAnalysisReport',
+    'Export-LogReport'
 )
 
 #endregion

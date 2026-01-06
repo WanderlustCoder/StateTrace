@@ -17,12 +17,14 @@ Network teams struggle with:
 - Understanding root cause when multiple events cascade
 
 ## Current status (2026-01)
-- **In Progress (4/6 core tasks done)**
+- **Complete (6/6 core tasks done)**
 - LogAnalysisModule.psm1 implemented with multi-format parser
 - 15 built-in patterns: LinkFlapping, STPTopologyChange, AuthenticationFailure, etc.
-- 51 Pester tests passing
+- Anomaly detection: Find-FrequencyAnomalies, Find-NewMessageTypes, Test-TimeOfDayAnomaly
+- Report generation: New-LogAnalysisReport (Summary, PatternSummary, TrendComparison, Health), Export-LogReport (HTML, JSON, Markdown, PDF)
+- Saved searches: Save-LogSearch, Get-LogSearch
+- 79 Pester tests passing
 - LogAnalysisView.xaml and LogAnalysisViewModule.psm1 integrated into MainWindow
-- Pending: Anomaly detection, scheduled reports
 
 ## Proposed Features
 
@@ -121,8 +123,8 @@ Network teams struggle with:
 | ST-AE-002 | Pattern library | Tools | Done | 15 built-in patterns with severity and actions |
 | ST-AE-003 | Correlation engine | Tools | Done | Group-CorrelatedEvents, Find-EventCascade |
 | ST-AE-004 | Log analysis UI | UI | Done | LogAnalysisView.xaml with import, search, patterns |
-| ST-AE-005 | Anomaly detection | Tools | Pending | Statistical analysis |
-| ST-AE-006 | Pattern reports | Tools | Pending | Summary and trend reports |
+| ST-AE-005 | Anomaly detection | Tools | Done | Find-FrequencyAnomalies, Find-NewMessageTypes, Test-TimeOfDayAnomaly |
+| ST-AE-006 | Pattern reports | Tools | Done | New-LogAnalysisReport (4 types), Export-LogReport (4 formats), saved searches |
 
 ## Data Model (Proposed)
 

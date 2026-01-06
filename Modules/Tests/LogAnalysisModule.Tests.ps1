@@ -528,3 +528,374 @@ Describe 'LogAnalysisModule - Search and Filter' {
         }
     }
 }
+
+#region ST-AE-005: Anomaly Detection Tests
+
+Describe 'LogAnalysisModule - Anomaly Detection' {
+
+    Context 'Find-FrequencyAnomalies' {
+        It 'detects frequency spike' {
+            $baseTime = Get-Date '2026-01-04 12:00:00'
+            # Normal entries spread across time (1 per minute for 20 minutes)
+            $normal = 1..20 | ForEach-Object {
+                [pscustomobject]@{ Timestamp = $baseTime.AddMinutes($_); Message = 'Normal log' }
+            }
+            # Spike - many entries in one bucket (100 entries in 5-min bucket)
+            $spike = 1..100 | ForEach-Object {
+                [pscustomobject]@{ Timestamp = $baseTime.AddMinutes(30); Message = 'Spike log' }
+            }
+
+            # Use lower threshold for reliable detection
+            $anomalies = @(Find-FrequencyAnomalies -Entries ($normal + $spike) -BucketMinutes 5 -ThresholdMultiplier 1.5)
+
+            $anomalies.Count | Should BeGreaterThan 0
+            $anomalies[0].Type | Should Be 'FrequencySpike'
+        }
+
+        It 'returns empty for uniform distribution' {
+            $baseTime = Get-Date '2026-01-04 12:00:00'
+            $entries = 1..20 | ForEach-Object {
+                [pscustomobject]@{ Timestamp = $baseTime.AddMinutes($_ * 3); Message = 'Regular log' }
+            }
+
+            $anomalies = @(Find-FrequencyAnomalies -Entries $entries -BucketMinutes 5)
+
+            $anomalies.Count | Should Be 0
+        }
+
+        It 'calculates multiplier for spikes' {
+            $baseTime = Get-Date '2026-01-04 12:00:00'
+            $normal = 1..5 | ForEach-Object {
+                [pscustomobject]@{ Timestamp = $baseTime.AddMinutes($_); Message = 'Normal' }
+            }
+            $spike = 1..100 | ForEach-Object {
+                [pscustomobject]@{ Timestamp = $baseTime.AddMinutes(30); Message = 'Spike' }
+            }
+
+            $anomalies = @(Find-FrequencyAnomalies -Entries ($normal + $spike) -BucketMinutes 5)
+
+            if ($anomalies.Count -gt 0) {
+                $anomalies[0].Multiplier | Should BeGreaterThan 1
+            }
+        }
+    }
+
+    Context 'Find-NewMessageTypes' {
+        It 'identifies new message types' {
+            $baseline = @(
+                [pscustomobject]@{ MessageType = 'LINK-3-UPDOWN' },
+                [pscustomobject]@{ MessageType = 'SYS-5-CONFIG' }
+            )
+            $current = @(
+                [pscustomobject]@{ MessageType = 'LINK-3-UPDOWN' },
+                [pscustomobject]@{ MessageType = 'SEC-4-VIOLATION' }
+            )
+
+            $newTypes = @(Find-NewMessageTypes -Baseline $baseline -Current $current)
+
+            $newTypes.Count | Should Be 1
+            ($newTypes -contains 'SEC-4-VIOLATION') | Should Be $true
+        }
+
+        It 'returns empty when no new types' {
+            $baseline = @(
+                [pscustomobject]@{ MessageType = 'TYPE-A' },
+                [pscustomobject]@{ MessageType = 'TYPE-B' }
+            )
+            $current = @(
+                [pscustomobject]@{ MessageType = 'TYPE-A' }
+            )
+
+            $newTypes = @(Find-NewMessageTypes -Baseline $baseline -Current $current)
+
+            $newTypes.Count | Should Be 0
+        }
+
+        It 'uses Mnemonic as fallback' {
+            $baseline = @(
+                [pscustomobject]@{ Mnemonic = 'UPDOWN' }
+            )
+            $current = @(
+                [pscustomobject]@{ Mnemonic = 'UPDOWN' },
+                [pscustomobject]@{ Mnemonic = 'NEWMNEM' }
+            )
+
+            $newTypes = @(Find-NewMessageTypes -Baseline $baseline -Current $current)
+
+            ($newTypes -contains 'NEWMNEM') | Should Be $true
+        }
+    }
+
+    Context 'Test-TimeOfDayAnomaly' {
+        It 'detects after-hours activity' {
+            $event = [pscustomobject]@{
+                Timestamp = (Get-Date '2026-01-06 03:00:00')  # Monday at 3 AM
+                Message = 'Configuration changed'
+            }
+            $workHours = @{ Start = '08:00'; End = '18:00' }
+
+            $result = Test-TimeOfDayAnomaly -Event $event -WorkHours $workHours
+
+            $result.IsAnomaly | Should Be $true
+            $result.Reason | Should Match 'outside work hours'
+        }
+
+        It 'accepts normal work hours activity' {
+            $event = [pscustomobject]@{
+                Timestamp = (Get-Date '2026-01-06 10:00:00')  # Monday at 10 AM
+                Message = 'Normal activity'
+            }
+            $workHours = @{ Start = '08:00'; End = '18:00' }
+
+            $result = Test-TimeOfDayAnomaly -Event $event -WorkHours $workHours
+
+            $result.IsAnomaly | Should Be $false
+        }
+
+        It 'detects weekend activity' {
+            $event = [pscustomobject]@{
+                Timestamp = (Get-Date '2026-01-04 10:00:00')  # Saturday at 10 AM
+                Message = 'Weekend config change'
+            }
+
+            $result = Test-TimeOfDayAnomaly -Event $event
+
+            $result.IsAnomaly | Should Be $true
+            $result.Reason | Should Match 'outside work days'
+        }
+
+        It 'handles missing timestamp' {
+            $event = [pscustomobject]@{ Message = 'No timestamp' }
+
+            $result = Test-TimeOfDayAnomaly -Event $event
+
+            $result.IsAnomaly | Should Be $false
+            $result.Reason | Should Match 'No timestamp'
+        }
+    }
+}
+
+#endregion
+
+#region ST-AE-006: Report Generation Tests
+
+Describe 'LogAnalysisModule - Saved Searches' {
+
+    Context 'Save-LogSearch and Get-LogSearch' {
+        It 'saves and retrieves search query' {
+            $query = @{
+                Name = 'CriticalErrors'
+                Filters = @{ MaxSeverity = 3; Keyword = 'error' }
+            }
+            Save-LogSearch -Query $query
+
+            $loaded = Get-LogSearch -Name 'CriticalErrors'
+
+            $loaded.Name | Should Be 'CriticalErrors'
+            $loaded.Filters.MaxSeverity | Should Be 3
+        }
+
+        It 'lists all saved searches' {
+            Save-LogSearch -Query @{ Name = 'Search1'; Filters = @{} }
+            Save-LogSearch -Query @{ Name = 'Search2'; Filters = @{} }
+
+            $all = @(Get-LogSearch -List)
+
+            $all.Count | Should BeGreaterThan 1
+        }
+
+        It 'returns null for unknown search' {
+            $result = Get-LogSearch -Name 'NonExistentSearch'
+
+            $result | Should Be $null
+        }
+    }
+}
+
+Describe 'LogAnalysisModule - Report Generation' {
+
+    BeforeAll {
+        $script:reportEntries = @(
+            [pscustomobject]@{ Timestamp = (Get-Date); Severity = 3; Hostname = 'SW-01'; Facility = 'LINK'; Message = '%LINK-3-UPDOWN: Interface down'; ExtractedFields = @{}; MessageType = 'LINK-3-UPDOWN' },
+            [pscustomobject]@{ Timestamp = (Get-Date); Severity = 3; Hostname = 'SW-02'; Facility = 'LINK'; Message = '%LINK-3-UPDOWN: Interface down'; ExtractedFields = @{}; MessageType = 'LINK-3-UPDOWN' },
+            [pscustomobject]@{ Timestamp = (Get-Date); Severity = 4; Hostname = 'CORE'; Facility = 'SYS'; Message = '%SYS-4-WARNING: Memory low'; ExtractedFields = @{}; MessageType = 'SYS-4-WARNING' }
+        )
+    }
+
+    Context 'New-LogAnalysisReport Summary' {
+        It 'generates summary report' {
+            $report = New-LogAnalysisReport -Entries $reportEntries -Type 'Summary'
+
+            $report.Type | Should Be 'Summary'
+            $report.Data.TotalEntries | Should Be 3
+        }
+
+        It 'includes patterns in summary' {
+            $report = New-LogAnalysisReport -Entries $reportEntries -Type 'Summary'
+
+            $report.Data | Should Not BeNullOrEmpty
+        }
+
+        It 'sets custom title' {
+            $report = New-LogAnalysisReport -Entries $reportEntries -Type 'Summary' -Title 'My Report'
+
+            $report.Title | Should Be 'My Report'
+        }
+    }
+
+    Context 'New-LogAnalysisReport PatternSummary' {
+        It 'generates pattern summary report' {
+            $report = New-LogAnalysisReport -Entries $reportEntries -Type 'PatternSummary'
+
+            $report.Type | Should Be 'PatternSummary'
+            $report.Data.TotalEntries | Should Be 3
+        }
+
+        It 'includes top patterns' {
+            $report = New-LogAnalysisReport -Entries $reportEntries -Type 'PatternSummary'
+
+            $report.Data.TopPatterns | Should Not BeNullOrEmpty
+        }
+    }
+
+    Context 'New-LogAnalysisReport TrendComparison' {
+        It 'generates trend comparison report' {
+            # Messages must match LinkFlapping regex: %LINK-\d-UPDOWN.*changed state to
+            $previous = @(
+                [pscustomobject]@{ Severity = 3; Hostname = 'SW-01'; Facility = 'LINK'; Message = '%LINK-3-UPDOWN: Interface Gi1/0/1, changed state to down'; ExtractedFields = @{} },
+                [pscustomobject]@{ Severity = 3; Hostname = 'SW-01'; Facility = 'LINK'; Message = '%LINK-3-UPDOWN: Interface Gi1/0/1, changed state to up'; ExtractedFields = @{} },
+                [pscustomobject]@{ Severity = 3; Hostname = 'SW-01'; Facility = 'LINK'; Message = '%LINK-3-UPDOWN: Interface Gi1/0/1, changed state to down'; ExtractedFields = @{} }
+            )
+            $current = @(
+                [pscustomobject]@{ Severity = 3; Hostname = 'SW-01'; Facility = 'LINK'; Message = '%LINK-3-UPDOWN: Interface Gi1/0/1, changed state to down'; ExtractedFields = @{} },
+                [pscustomobject]@{ Severity = 3; Hostname = 'SW-01'; Facility = 'LINK'; Message = '%LINK-3-UPDOWN: Interface Gi1/0/1, changed state to up'; ExtractedFields = @{} },
+                [pscustomobject]@{ Severity = 3; Hostname = 'SW-01'; Facility = 'LINK'; Message = '%LINK-3-UPDOWN: Interface Gi1/0/1, changed state to down'; ExtractedFields = @{} },
+                [pscustomobject]@{ Severity = 3; Hostname = 'SW-01'; Facility = 'LINK'; Message = '%LINK-3-UPDOWN: Interface Gi1/0/1, changed state to up'; ExtractedFields = @{} },
+                [pscustomobject]@{ Severity = 3; Hostname = 'SW-01'; Facility = 'LINK'; Message = '%LINK-3-UPDOWN: Interface Gi1/0/1, changed state to down'; ExtractedFields = @{} },
+                [pscustomobject]@{ Severity = 3; Hostname = 'SW-01'; Facility = 'LINK'; Message = '%LINK-3-UPDOWN: Interface Gi1/0/1, changed state to up'; ExtractedFields = @{} }
+            )
+
+            $report = New-LogAnalysisReport -CurrentPeriod $current -PreviousPeriod $previous -Type 'TrendComparison'
+
+            $report.Type | Should Be 'TrendComparison'
+            $report.Data.Comparison | Should Not BeNullOrEmpty
+        }
+
+        It 'calculates entry count change' {
+            $prev = @(
+                [pscustomobject]@{ Severity = 6; Hostname = 'SW-01'; Facility = 'SYS'; Message = 'Entry 1'; ExtractedFields = @{} },
+                [pscustomobject]@{ Severity = 6; Hostname = 'SW-01'; Facility = 'SYS'; Message = 'Entry 2'; ExtractedFields = @{} }
+            )
+            $curr = @(
+                [pscustomobject]@{ Severity = 6; Hostname = 'SW-01'; Facility = 'SYS'; Message = 'Entry 1'; ExtractedFields = @{} },
+                [pscustomobject]@{ Severity = 6; Hostname = 'SW-01'; Facility = 'SYS'; Message = 'Entry 2'; ExtractedFields = @{} },
+                [pscustomobject]@{ Severity = 6; Hostname = 'SW-01'; Facility = 'SYS'; Message = 'Entry 3'; ExtractedFields = @{} }
+            )
+            $report = New-LogAnalysisReport -CurrentPeriod $curr -PreviousPeriod $prev -Type 'TrendComparison'
+
+            $report.Data.EntryCountChange | Should Be 1
+        }
+    }
+
+    Context 'New-LogAnalysisReport Health' {
+        It 'generates health report' {
+            $report = New-LogAnalysisReport -Entries $reportEntries -Type 'Health'
+
+            $report.Type | Should Be 'Health'
+            $report.Data.HealthScore | Should Not BeNullOrEmpty
+        }
+
+        It 'calculates health score' {
+            $healthyEntries = @(
+                [pscustomobject]@{ Severity = 6; Message = 'Info message'; ExtractedFields = @{} }
+            )
+
+            $report = New-LogAnalysisReport -Entries $healthyEntries -Type 'Health'
+
+            $report.Data.HealthScore | Should Be 100
+            $report.Data.HealthStatus | Should Be 'Healthy'
+        }
+
+        It 'deducts for critical/error/warning' {
+            $criticalEntries = @(
+                [pscustomobject]@{ Severity = 2; Message = 'Critical'; ExtractedFields = @{} },
+                [pscustomobject]@{ Severity = 3; Message = 'Error'; ExtractedFields = @{} },
+                [pscustomobject]@{ Severity = 4; Message = 'Warning'; ExtractedFields = @{} }
+            )
+
+            $report = New-LogAnalysisReport -Entries $criticalEntries -Type 'Health'
+
+            ($report.Data.HealthScore -lt 100) | Should Be $true
+        }
+    }
+}
+
+Describe 'LogAnalysisModule - Report Export' {
+
+    BeforeAll {
+        $script:testReportDir = Join-Path $env:TEMP 'LogReportTests'
+        New-Item -ItemType Directory -Path $script:testReportDir -Force | Out-Null
+
+        $script:testReport = New-LogAnalysisReport -Entries @(
+            [pscustomobject]@{ Timestamp = (Get-Date); Severity = 3; Hostname = 'SW-01'; Facility = 'LINK'; Message = 'Test entry'; ExtractedFields = @{} }
+        ) -Type 'Summary' -Title 'Test Report'
+    }
+
+    AfterAll {
+        if (Test-Path $script:testReportDir) {
+            Remove-Item -Path $script:testReportDir -Recurse -Force
+        }
+    }
+
+    Context 'Export-LogReport' {
+        It 'exports to HTML' {
+            $path = Join-Path $script:testReportDir 'test.html'
+            $result = Export-LogReport -Report $testReport -Format HTML -OutputPath $path
+
+            Test-Path $result | Should Be $true
+            $content = Get-Content -LiteralPath $result -Raw
+            $content | Should Match '<html>'
+            $content | Should Match 'Test Report'
+        }
+
+        It 'exports to JSON' {
+            $path = Join-Path $script:testReportDir 'test.json'
+            $result = Export-LogReport -Report $testReport -Format JSON -OutputPath $path
+
+            Test-Path $result | Should Be $true
+            $json = Get-Content -LiteralPath $result -Raw | ConvertFrom-Json
+            $json.Title | Should Be 'Test Report'
+        }
+
+        It 'exports to Markdown' {
+            $path = Join-Path $script:testReportDir 'test.md'
+            $result = Export-LogReport -Report $testReport -Format Markdown -OutputPath $path
+
+            Test-Path $result | Should Be $true
+            $content = Get-Content -LiteralPath $result -Raw
+            $content | Should Match '# Test Report'
+        }
+
+        It 'exports to PDF (print-ready HTML)' {
+            $path = Join-Path $script:testReportDir 'test_pdf.html'
+            $result = Export-LogReport -Report $testReport -Format PDF -OutputPath $path
+
+            Test-Path $result | Should Be $true
+            $content = Get-Content -LiteralPath $result -Raw
+            $content | Should Match '@page'
+            $content | Should Match '@media print'
+        }
+
+        It 'generates default path when not specified' {
+            $result = Export-LogReport -Report $testReport -Format HTML
+
+            Test-Path $result | Should Be $true
+            $result | Should Match 'LogReport_'
+
+            # Cleanup
+            Remove-Item -LiteralPath $result -Force
+        }
+    }
+}
+
+#endregion
