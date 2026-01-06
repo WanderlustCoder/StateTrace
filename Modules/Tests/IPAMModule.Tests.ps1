@@ -838,4 +838,135 @@ vlan 20
     }
 
     #endregion
+
+    #region ST-V-006: Site Planning Wizard UI Tests
+
+    Context 'IPAMView XAML Wizard Controls' {
+        BeforeAll {
+            $script:xamlPath = Join-Path $PSScriptRoot '..\..\Views\IPAMView.xaml'
+            $script:xamlContent = Get-Content -Path $script:xamlPath -Raw
+        }
+
+        It 'XAML file exists' {
+            Test-Path $script:xamlPath | Should Be $true
+        }
+
+        It 'contains WizardPanel overlay' {
+            $script:xamlContent | Should Match 'Name="WizardPanel"'
+        }
+
+        It 'contains WizardSiteNameBox' {
+            $script:xamlContent | Should Match 'Name="WizardSiteNameBox"'
+        }
+
+        It 'contains WizardSupernetBox' {
+            $script:xamlContent | Should Match 'Name="WizardSupernetBox"'
+        }
+
+        It 'contains WizardPrefixCombo' {
+            $script:xamlContent | Should Match 'Name="WizardPrefixCombo"'
+        }
+
+        It 'contains WizardGrowthSlider' {
+            $script:xamlContent | Should Match 'Name="WizardGrowthSlider"'
+        }
+
+        It 'contains WizardPreviewPanel' {
+            $script:xamlContent | Should Match 'Name="WizardPreviewPanel"'
+        }
+
+        It 'contains VLAN type checkboxes' {
+            $script:xamlContent | Should Match 'Name="WizardDataCheck"'
+            $script:xamlContent | Should Match 'Name="WizardVoiceCheck"'
+            $script:xamlContent | Should Match 'Name="WizardMgmtCheck"'
+            $script:xamlContent | Should Match 'Name="WizardGuestCheck"'
+            $script:xamlContent | Should Match 'Name="WizardIoTCheck"'
+            $script:xamlContent | Should Match 'Name="WizardServerCheck"'
+        }
+
+        It 'contains host count input boxes' {
+            $script:xamlContent | Should Match 'Name="WizardDataHostsBox"'
+            $script:xamlContent | Should Match 'Name="WizardVoiceHostsBox"'
+            $script:xamlContent | Should Match 'Name="WizardMgmtHostsBox"'
+        }
+
+        It 'contains subnet recommendation texts' {
+            $script:xamlContent | Should Match 'Name="WizardDataSubnetText"'
+            $script:xamlContent | Should Match 'Name="WizardVoiceSubnetText"'
+            $script:xamlContent | Should Match 'Name="WizardMgmtSubnetText"'
+        }
+
+        It 'contains wizard buttons' {
+            $script:xamlContent | Should Match 'Name="WizardGenerateButton"'
+            $script:xamlContent | Should Match 'Name="WizardApplyButton"'
+            $script:xamlContent | Should Match 'Name="WizardCancelButton"'
+        }
+
+        It 'contains PlanSiteButton in toolbar' {
+            $script:xamlContent | Should Match 'Name="PlanSiteButton"'
+        }
+    }
+
+    Context 'IPAMViewModule Wizard Wiring' {
+        BeforeAll {
+            $script:modulePath = Join-Path $PSScriptRoot '..\IPAMViewModule.psm1'
+            $script:moduleContent = Get-Content -Path $script:modulePath -Raw
+        }
+
+        It 'view module file exists' {
+            Test-Path $script:modulePath | Should Be $true
+        }
+
+        It 'contains wizard control references' {
+            $script:moduleContent | Should Match '\$wizardPanel\s*='
+            $script:moduleContent | Should Match '\$wizardSiteNameBox\s*='
+            $script:moduleContent | Should Match '\$wizardSupernetBox\s*='
+            $script:moduleContent | Should Match '\$wizardPrefixCombo\s*='
+            $script:moduleContent | Should Match '\$wizardGrowthSlider\s*='
+        }
+
+        It 'contains WizardPlan state in Tag' {
+            $script:moduleContent | Should Match 'WizardPlan\s*='
+        }
+
+        It 'contains Get-RecommendedPrefix helper' {
+            $script:moduleContent | Should Match 'function Get-RecommendedPrefix'
+        }
+
+        It 'contains updateSubnetRecommendations helper' {
+            $script:moduleContent | Should Match '\$updateSubnetRecommendations\s*='
+        }
+
+        It 'contains resetWizard helper' {
+            $script:moduleContent | Should Match '\$resetWizard\s*='
+        }
+
+        It 'wires PlanSiteButton click handler' {
+            $script:moduleContent | Should Match '\$planSiteButton\.Add_Click'
+        }
+
+        It 'wires WizardGrowthSlider value changed' {
+            $script:moduleContent | Should Match '\$wizardGrowthSlider\.Add_ValueChanged'
+        }
+
+        It 'wires WizardGenerateButton click handler' {
+            $script:moduleContent | Should Match '\$wizardGenerateButton\.Add_Click'
+        }
+
+        It 'wires WizardApplyButton click handler' {
+            $script:moduleContent | Should Match '\$wizardApplyButton\.Add_Click'
+        }
+
+        It 'wires WizardCancelButton click handler' {
+            $script:moduleContent | Should Match '\$wizardCancelButton\.Add_Click'
+        }
+
+        It 'wires host count text changed handlers' {
+            $script:moduleContent | Should Match '\$wizardDataHostsBox\.Add_TextChanged'
+            $script:moduleContent | Should Match '\$wizardVoiceHostsBox\.Add_TextChanged'
+            $script:moduleContent | Should Match '\$wizardMgmtHostsBox\.Add_TextChanged'
+        }
+    }
+
+    #endregion
 }

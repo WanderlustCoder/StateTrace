@@ -15,12 +15,13 @@ Network engineers often need to:
 - Quickly calculate subnet boundaries and usable ranges
 
 ## Current status (2026-01)
-- **In Progress (5/6 Done)**. Core IPAM functionality delivered with VLAN discovery.
+- **Complete (6/6 Done)**. Full IPAM functionality with VLAN discovery and site planning wizard.
 - IPAMModule.psm1 provides VLAN, subnet, and IP address data model
 - IPAMView.xaml offers interactive UI with tabs for VLANs, Subnets, IPs, Conflicts, and Statistics
 - Subnet calculations, conflict detection, and site planning tools implemented
 - VLAN discovery: Import-VLANsFromConfig, Import-SVIsFromConfig, Import-VLANsToDatabase, Merge-VLANDiscovery, New-VLANDiscoveryReport
-- 61 Pester tests cover all module functionality
+- Site Planning Wizard: Full wizard UI with VLAN type selection, host count inputs, growth factor slider, real-time subnet recommendations, plan preview and apply
+- 85 Pester tests cover all module and wizard functionality
 
 ## Proposed Features
 
@@ -83,7 +84,12 @@ Network engineers often need to:
 | ST-V-003 | VLAN discovery import | Tools | Done | Import-VLANsFromConfig, Import-SVIsFromConfig, Import-VLANsToDatabase, Merge-VLANDiscovery, New-VLANDiscoveryReport |
 | ST-V-004 | Conflict detection engine | Tools | Done | Find-VLANConflicts, Find-IPConflicts, Find-IPAMConflicts |
 | ST-V-005 | Subnet visualization | UI | Done | IPAMView.xaml with tabs and statistics |
-| ST-V-006 | New site planning wizard | UI | Pending | New-SiteAddressPlan function implemented, InputBox UI |
+| ST-V-006 | New site planning wizard | UI | Done | Full wizard UI with VLAN selection, host counts, growth slider, recommendations, preview/apply |
+
+## Recently delivered
+| ID | Title | Delivered | Notes |
+|----|-------|-----------|-------|
+| ST-V-006 | Site planning wizard | 2026-01-06 | 24 new tests for wizard controls and module wiring |
 
 ## Data Model (Proposed)
 

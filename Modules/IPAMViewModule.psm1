@@ -101,6 +101,37 @@ function New-IPAMView {
 
         $statusText = $view.FindName('StatusText')
 
+        # Wizard controls
+        $wizardPanel = $view.FindName('WizardPanel')
+        $wizardSiteNameBox = $view.FindName('WizardSiteNameBox')
+        $wizardSupernetBox = $view.FindName('WizardSupernetBox')
+        $wizardPrefixCombo = $view.FindName('WizardPrefixCombo')
+        $wizardGrowthSlider = $view.FindName('WizardGrowthSlider')
+        $wizardGrowthText = $view.FindName('WizardGrowthText')
+        $wizardPreviewPanel = $view.FindName('WizardPreviewPanel')
+        $wizardPreviewBox = $view.FindName('WizardPreviewBox')
+        $wizardDataCheck = $view.FindName('WizardDataCheck')
+        $wizardDataHostsBox = $view.FindName('WizardDataHostsBox')
+        $wizardDataSubnetText = $view.FindName('WizardDataSubnetText')
+        $wizardVoiceCheck = $view.FindName('WizardVoiceCheck')
+        $wizardVoiceHostsBox = $view.FindName('WizardVoiceHostsBox')
+        $wizardVoiceSubnetText = $view.FindName('WizardVoiceSubnetText')
+        $wizardMgmtCheck = $view.FindName('WizardMgmtCheck')
+        $wizardMgmtHostsBox = $view.FindName('WizardMgmtHostsBox')
+        $wizardMgmtSubnetText = $view.FindName('WizardMgmtSubnetText')
+        $wizardGuestCheck = $view.FindName('WizardGuestCheck')
+        $wizardGuestHostsBox = $view.FindName('WizardGuestHostsBox')
+        $wizardGuestSubnetText = $view.FindName('WizardGuestSubnetText')
+        $wizardIoTCheck = $view.FindName('WizardIoTCheck')
+        $wizardIoTHostsBox = $view.FindName('WizardIoTHostsBox')
+        $wizardIoTSubnetText = $view.FindName('WizardIoTSubnetText')
+        $wizardServerCheck = $view.FindName('WizardServerCheck')
+        $wizardServerHostsBox = $view.FindName('WizardServerHostsBox')
+        $wizardServerSubnetText = $view.FindName('WizardServerSubnetText')
+        $wizardGenerateButton = $view.FindName('WizardGenerateButton')
+        $wizardApplyButton = $view.FindName('WizardApplyButton')
+        $wizardCancelButton = $view.FindName('WizardCancelButton')
+
         # Initialize database
         $dataPath = Join-Path $ScriptDir 'Data\IPAMDatabase.json'
         $script:ipamDb = IPAMModule\New-IPAMDatabase
@@ -126,6 +157,7 @@ function New-IPAMView {
             SelectedVlan = $null
             SelectedSubnet = $null
             SelectedIP = $null
+            WizardPlan = $null
         }
 
         # Helper: Get selected combo content
@@ -753,67 +785,263 @@ function New-IPAMView {
             & $refreshConflicts
         }.GetNewClosure())
 
-        # Event: Plan Site
+        # ========================================
+        # SITE PLANNING WIZARD
+        # ========================================
+
+        # Helper: Calculate recommended prefix for host count
+        function Get-RecommendedPrefix {
+            param([int]$HostCount, [double]$GrowthFactor = 0.25)
+            $hostsNeeded = [math]::Ceiling($HostCount * (1 + $GrowthFactor))
+            # Add 2 for network and broadcast
+            $hostsNeeded += 2
+            # Find smallest prefix that fits
+            for ($prefix = 30; $prefix -ge 16; $prefix--) {
+                $hostsAvailable = [math]::Pow(2, (32 - $prefix))
+                if ($hostsAvailable -ge $hostsNeeded) {
+                    return $prefix
+                }
+            }
+            return 16
+        }
+
+        # Helper: Update subnet recommendation text
+        $updateSubnetRecommendations = {
+            $growth = $wizardGrowthSlider.Value / 100.0
+
+            # Data
+            if ($wizardDataCheck.IsChecked) {
+                $hosts = 100; try { $hosts = [int]$wizardDataHostsBox.Text } catch {}
+                $wizardDataSubnetText.Text = "/$(Get-RecommendedPrefix -HostCount $hosts -GrowthFactor $growth)"
+            }
+
+            # Voice
+            if ($wizardVoiceCheck.IsChecked) {
+                $hosts = 50; try { $hosts = [int]$wizardVoiceHostsBox.Text } catch {}
+                $wizardVoiceSubnetText.Text = "/$(Get-RecommendedPrefix -HostCount $hosts -GrowthFactor $growth)"
+            }
+
+            # Management
+            if ($wizardMgmtCheck.IsChecked) {
+                $hosts = 20; try { $hosts = [int]$wizardMgmtHostsBox.Text } catch {}
+                $wizardMgmtSubnetText.Text = "/$(Get-RecommendedPrefix -HostCount $hosts -GrowthFactor $growth)"
+            }
+
+            # Guest
+            if ($wizardGuestCheck.IsChecked) {
+                $hosts = 50; try { $hosts = [int]$wizardGuestHostsBox.Text } catch {}
+                $wizardGuestSubnetText.Text = "/$(Get-RecommendedPrefix -HostCount $hosts -GrowthFactor $growth)"
+            }
+
+            # IoT
+            if ($wizardIoTCheck.IsChecked) {
+                $hosts = 30; try { $hosts = [int]$wizardIoTHostsBox.Text } catch {}
+                $wizardIoTSubnetText.Text = "/$(Get-RecommendedPrefix -HostCount $hosts -GrowthFactor $growth)"
+            }
+
+            # Server
+            if ($wizardServerCheck.IsChecked) {
+                $hosts = 20; try { $hosts = [int]$wizardServerHostsBox.Text } catch {}
+                $wizardServerSubnetText.Text = "/$(Get-RecommendedPrefix -HostCount $hosts -GrowthFactor $growth)"
+            }
+        }
+
+        # Helper: Reset wizard to initial state
+        $resetWizard = {
+            $wizardSiteNameBox.Text = ''
+            $wizardSupernetBox.Text = ''
+            $wizardPrefixCombo.SelectedIndex = 0
+            $wizardGrowthSlider.Value = 25
+            $wizardGrowthText.Text = '25%'
+            $wizardDataCheck.IsChecked = $true
+            $wizardDataHostsBox.Text = '100'
+            $wizardVoiceCheck.IsChecked = $true
+            $wizardVoiceHostsBox.Text = '50'
+            $wizardMgmtCheck.IsChecked = $true
+            $wizardMgmtHostsBox.Text = '20'
+            $wizardGuestCheck.IsChecked = $false
+            $wizardGuestHostsBox.Text = '50'
+            $wizardIoTCheck.IsChecked = $false
+            $wizardIoTHostsBox.Text = '30'
+            $wizardServerCheck.IsChecked = $false
+            $wizardServerHostsBox.Text = '20'
+            $wizardPreviewPanel.Visibility = 'Collapsed'
+            $wizardApplyButton.Visibility = 'Collapsed'
+            $view.Tag.WizardPlan = $null
+            & $updateSubnetRecommendations
+        }
+
+        # Event: Plan Site button - show wizard
         $planSiteButton.Add_Click({
             param($sender, $e)
-            # Simple site planning dialog
-            $siteName = [Microsoft.VisualBasic.Interaction]::InputBox(
-                "Enter site name for address plan:",
-                "Plan Site",
-                "NewSite")
+            & $resetWizard
+            $mainTabControl.Visibility = 'Collapsed'
+            $wizardPanel.Visibility = 'Visible'
+            $statusText.Text = 'Configure site address requirements'
+        }.GetNewClosure())
 
-            if ([string]::IsNullOrWhiteSpace($siteName)) { return }
+        # Event: Growth slider changed
+        $wizardGrowthSlider.Add_ValueChanged({
+            param($sender, $e)
+            $val = [math]::Round($sender.Value)
+            $wizardGrowthText.Text = "$val%"
+            & $updateSubnetRecommendations
+        }.GetNewClosure())
 
-            $supernet = [Microsoft.VisualBasic.Interaction]::InputBox(
-                "Enter supernet (e.g., 10.1.0.0/16):",
-                "Plan Site",
-                "10.1.0.0/16")
+        # Event: Host count text changed - update recommendations
+        $wizardDataHostsBox.Add_TextChanged({ & $updateSubnetRecommendations }.GetNewClosure())
+        $wizardVoiceHostsBox.Add_TextChanged({ & $updateSubnetRecommendations }.GetNewClosure())
+        $wizardMgmtHostsBox.Add_TextChanged({ & $updateSubnetRecommendations }.GetNewClosure())
+        $wizardGuestHostsBox.Add_TextChanged({ & $updateSubnetRecommendations }.GetNewClosure())
+        $wizardIoTHostsBox.Add_TextChanged({ & $updateSubnetRecommendations }.GetNewClosure())
+        $wizardServerHostsBox.Add_TextChanged({ & $updateSubnetRecommendations }.GetNewClosure())
 
-            if ([string]::IsNullOrWhiteSpace($supernet)) { return }
+        # Event: Generate Plan button
+        $wizardGenerateButton.Add_Click({
+            param($sender, $e)
+
+            $siteName = $wizardSiteNameBox.Text
+            $supernetAddr = $wizardSupernetBox.Text
+
+            if ([string]::IsNullOrWhiteSpace($siteName)) {
+                $statusText.Text = 'Please enter a site name'
+                return
+            }
+            if ([string]::IsNullOrWhiteSpace($supernetAddr)) {
+                $statusText.Text = 'Please enter a supernet address'
+                return
+            }
 
             try {
-                $parts = $supernet -split '/'
-                $network = $parts[0]
-                $prefix = [int]$parts[1]
+                $prefixItem = $wizardPrefixCombo.SelectedItem
+                $supernetPrefix = [int]$prefixItem.Content
+                $growth = $wizardGrowthSlider.Value / 100.0
+
+                # Build VLAN requirements hashtable
+                $vlanReqs = @{}
+
+                if ($wizardDataCheck.IsChecked) {
+                    $hosts = 100; try { $hosts = [int]$wizardDataHostsBox.Text } catch {}
+                    $vlanReqs['Data'] = @{ Hosts = $hosts; VlanNumber = 10 }
+                }
+                if ($wizardVoiceCheck.IsChecked) {
+                    $hosts = 50; try { $hosts = [int]$wizardVoiceHostsBox.Text } catch {}
+                    $vlanReqs['Voice'] = @{ Hosts = $hosts; VlanNumber = 20 }
+                }
+                if ($wizardMgmtCheck.IsChecked) {
+                    $hosts = 20; try { $hosts = [int]$wizardMgmtHostsBox.Text } catch {}
+                    $vlanReqs['Management'] = @{ Hosts = $hosts; VlanNumber = 100 }
+                }
+                if ($wizardGuestCheck.IsChecked) {
+                    $hosts = 50; try { $hosts = [int]$wizardGuestHostsBox.Text } catch {}
+                    $vlanReqs['Guest'] = @{ Hosts = $hosts; VlanNumber = 40 }
+                }
+                if ($wizardIoTCheck.IsChecked) {
+                    $hosts = 30; try { $hosts = [int]$wizardIoTHostsBox.Text } catch {}
+                    $vlanReqs['IoT'] = @{ Hosts = $hosts; VlanNumber = 50 }
+                }
+                if ($wizardServerCheck.IsChecked) {
+                    $hosts = 20; try { $hosts = [int]$wizardServerHostsBox.Text } catch {}
+                    $vlanReqs['Server'] = @{ Hosts = $hosts; VlanNumber = 30 }
+                }
+
+                if ($vlanReqs.Count -eq 0) {
+                    $statusText.Text = 'Please select at least one VLAN type'
+                    return
+                }
 
                 $db = $view.Tag.Database
                 $plan = IPAMModule\New-SiteAddressPlan -SiteName $siteName `
-                    -SupernetAddress $network -SupernetPrefix $prefix -Database $db
+                    -SupernetAddress $supernetAddr -SupernetPrefix $supernetPrefix `
+                    -VLANRequirements $vlanReqs -GrowthFactor $growth -Database $db
 
-                $msg = "Site Plan for $siteName`n`n"
+                # Store plan for apply
+                $view.Tag.WizardPlan = $plan
+
+                # Build preview text
+                $preview = [System.Text.StringBuilder]::new()
+                [void]$preview.AppendLine("Site Address Plan: $siteName")
+                [void]$preview.AppendLine("Supernet: $supernetAddr/$supernetPrefix")
+                [void]$preview.AppendLine("Growth Factor: $([math]::Round($growth * 100))%")
+                [void]$preview.AppendLine("")
+                [void]$preview.AppendLine("Allocations:")
+                [void]$preview.AppendLine("-" * 50)
+
                 foreach ($alloc in $plan.Allocations) {
-                    $msg += "VLAN $($alloc.VlanNumber) ($($alloc.VLANType)): $($alloc.NetworkAddress)/$($alloc.PrefixLength)`n"
+                    $line = "VLAN {0,3} ({1,-12}): {2}/{3}" -f $alloc.VlanNumber, $alloc.VLANType, $alloc.NetworkAddress, $alloc.PrefixLength
+                    [void]$preview.AppendLine($line)
+                    [void]$preview.AppendLine("  Gateway: $($alloc.GatewayAddress)")
+                    [void]$preview.AppendLine("  Hosts:   $($alloc.TotalHosts) usable")
+                    [void]$preview.AppendLine("")
                 }
-                $msg += "`nApply this plan?"
 
-                $result = [System.Windows.MessageBox]::Show($msg, "Site Address Plan",
-                    [System.Windows.MessageBoxButton]::YesNo,
-                    [System.Windows.MessageBoxImage]::Question)
+                $totalHosts = ($plan.Allocations | ForEach-Object { $_.TotalHosts } | Measure-Object -Sum).Sum
+                [void]$preview.AppendLine("-" * 50)
+                [void]$preview.AppendLine("Total VLANs: $($plan.Allocations.Count)")
+                [void]$preview.AppendLine("Total Hosts: $totalHosts")
 
-                if ($result -eq [System.Windows.MessageBoxResult]::Yes) {
-                    foreach ($alloc in $plan.Allocations) {
-                        # Create VLAN
-                        $vlan = IPAMModule\New-VLAN -VlanNumber $alloc.VlanNumber `
-                            -VlanName "$siteName-$($alloc.VLANType)" `
-                            -Purpose $alloc.VLANType -Site $siteName
-                        IPAMModule\Add-VLAN -VLAN $vlan -Database $db -WarningAction SilentlyContinue | Out-Null
-
-                        # Create Subnet
-                        $subnet = IPAMModule\New-Subnet -NetworkAddress $alloc.NetworkAddress `
-                            -PrefixLength $alloc.PrefixLength -VlanNumber $alloc.VlanNumber `
-                            -Site $siteName -Purpose $alloc.VLANType `
-                            -GatewayAddress $alloc.GatewayAddress
-                        IPAMModule\Add-Subnet -Subnet $subnet -Database $db -WarningAction SilentlyContinue | Out-Null
-                    }
-
-                    $statusText.Text = "Applied site plan for $siteName"
-                    & $saveDatabase
-                    & $refreshAll
-                }
+                $wizardPreviewBox.Text = $preview.ToString()
+                $wizardPreviewPanel.Visibility = 'Visible'
+                $wizardApplyButton.Visibility = 'Visible'
+                $statusText.Text = 'Plan generated - review and click Apply to create VLANs and subnets'
             }
             catch {
-                $statusText.Text = "Error: $($_.Exception.Message)"
+                $statusText.Text = "Error generating plan: $($_.Exception.Message)"
             }
+        }.GetNewClosure())
+
+        # Event: Apply Plan button
+        $wizardApplyButton.Add_Click({
+            param($sender, $e)
+            $plan = $view.Tag.WizardPlan
+            if (-not $plan) {
+                $statusText.Text = 'No plan to apply - generate a plan first'
+                return
+            }
+
+            try {
+                $db = $view.Tag.Database
+                $siteName = $wizardSiteNameBox.Text
+                $created = 0
+
+                foreach ($alloc in $plan.Allocations) {
+                    # Create VLAN
+                    $vlan = IPAMModule\New-VLAN -VlanNumber $alloc.VlanNumber `
+                        -VlanName "$siteName-$($alloc.VLANType)" `
+                        -Purpose $alloc.VLANType -Site $siteName -Status 'Active'
+                    IPAMModule\Add-VLAN -VLAN $vlan -Database $db -WarningAction SilentlyContinue | Out-Null
+
+                    # Create Subnet
+                    $subnet = IPAMModule\New-Subnet -NetworkAddress $alloc.NetworkAddress `
+                        -PrefixLength $alloc.PrefixLength -VlanNumber $alloc.VlanNumber `
+                        -Site $siteName -Purpose $alloc.VLANType `
+                        -GatewayAddress $alloc.GatewayAddress -Status 'Active'
+                    IPAMModule\Add-Subnet -Subnet $subnet -Database $db -WarningAction SilentlyContinue | Out-Null
+
+                    $created++
+                }
+
+                & $saveDatabase
+                & $refreshAll
+
+                # Close wizard
+                $wizardPanel.Visibility = 'Collapsed'
+                $mainTabControl.Visibility = 'Visible'
+                $view.Tag.WizardPlan = $null
+                $statusText.Text = "Applied site plan for $siteName - created $created VLANs and subnets"
+            }
+            catch {
+                $statusText.Text = "Error applying plan: $($_.Exception.Message)"
+            }
+        }.GetNewClosure())
+
+        # Event: Cancel button
+        $wizardCancelButton.Add_Click({
+            param($sender, $e)
+            $wizardPanel.Visibility = 'Collapsed'
+            $mainTabControl.Visibility = 'Visible'
+            $view.Tag.WizardPlan = $null
+            $statusText.Text = 'Site planning cancelled'
         }.GetNewClosure())
 
         # Event: Site filter changed

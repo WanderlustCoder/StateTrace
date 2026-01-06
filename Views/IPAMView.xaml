@@ -356,6 +356,222 @@
       </TabItem>
     </TabControl>
 
+    <!-- Site Planning Wizard Panel (overlay) -->
+    <Border Grid.Row="1" Name="WizardPanel" Visibility="Collapsed"
+            Background="{DynamicResource Theme.Surface.Primary}"
+            BorderBrush="{DynamicResource Theme.Border.Primary}"
+            BorderThickness="1" Margin="10" Padding="15">
+      <Grid>
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="*"/>
+          <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Wizard Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,15">
+          <TextBlock Text="New Site Address Planning Wizard" FontSize="18" FontWeight="Bold"
+                     Foreground="{DynamicResource Theme.Text.Primary}"/>
+          <TextBlock Text="Configure addressing requirements for a new site" FontSize="12"
+                     Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,5,0,0"/>
+        </StackPanel>
+
+        <!-- Wizard Content -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Left Column: Site Info and Supernet -->
+            <StackPanel Grid.Column="0" Margin="0,0,15,0">
+              <Border Background="{DynamicResource Theme.Surface.Secondary}" Padding="15" CornerRadius="5" Margin="0,0,0,15">
+                <StackPanel>
+                  <TextBlock Text="Site Information" FontWeight="Bold" FontSize="14"
+                             Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
+
+                  <Label Content="Site Name:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                  <TextBox Name="WizardSiteNameBox" Margin="0,2,0,10"
+                           Background="{DynamicResource Theme.Input.Background}"
+                           ToolTip="e.g., Building-C, Campus-North"/>
+
+                  <Label Content="Supernet Address:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                  <TextBox Name="WizardSupernetBox" Margin="0,2,0,5"
+                           Background="{DynamicResource Theme.Input.Background}"
+                           ToolTip="e.g., 10.3.0.0"/>
+
+                  <Label Content="Supernet Prefix (/):" Style="{DynamicResource ToolbarLabelStyle}"/>
+                  <ComboBox Name="WizardPrefixCombo" Margin="0,2,0,10" Style="{DynamicResource ToolbarComboBoxStyle}">
+                    <ComboBoxItem Content="16" IsSelected="True"/>
+                    <ComboBoxItem Content="17"/>
+                    <ComboBoxItem Content="18"/>
+                    <ComboBoxItem Content="19"/>
+                    <ComboBoxItem Content="20"/>
+                    <ComboBoxItem Content="21"/>
+                    <ComboBoxItem Content="22"/>
+                  </ComboBox>
+
+                  <Label Content="Growth Factor:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                  <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                    <Slider Name="WizardGrowthSlider" Minimum="0" Maximum="100" Value="25"
+                            Width="150" VerticalAlignment="Center"/>
+                    <TextBlock Name="WizardGrowthText" Text="25%" Margin="10,0,0,0"
+                               VerticalAlignment="Center" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                  </StackPanel>
+                </StackPanel>
+              </Border>
+
+              <!-- Preview Panel -->
+              <Border Background="{DynamicResource Theme.Surface.Secondary}" Padding="15" CornerRadius="5"
+                      Name="WizardPreviewPanel" Visibility="Collapsed">
+                <StackPanel>
+                  <TextBlock Text="Generated Address Plan" FontWeight="Bold" FontSize="14"
+                             Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
+                  <TextBox Name="WizardPreviewBox" IsReadOnly="True" TextWrapping="Wrap"
+                           Height="180" VerticalScrollBarVisibility="Auto"
+                           Background="{DynamicResource Theme.Input.Background}"
+                           FontFamily="Consolas" FontSize="11"/>
+                </StackPanel>
+              </Border>
+            </StackPanel>
+
+            <!-- Right Column: VLAN Requirements -->
+            <Border Grid.Column="1" Background="{DynamicResource Theme.Surface.Secondary}" Padding="15" CornerRadius="5">
+              <StackPanel>
+                <TextBlock Text="Required VLANs" FontWeight="Bold" FontSize="14"
+                           Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
+                <TextBlock Text="Select which VLANs to allocate and specify expected host counts:"
+                           Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap" Margin="0,0,0,15"/>
+
+                <!-- Data VLAN -->
+                <Grid Margin="0,0,0,10">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="80"/>
+                    <ColumnDefinition Width="60"/>
+                  </Grid.ColumnDefinitions>
+                  <CheckBox Grid.Column="0" Name="WizardDataCheck" IsChecked="True" VerticalAlignment="Center"/>
+                  <TextBlock Grid.Column="1" Text="User Data" VerticalAlignment="Center" Margin="5,0,0,0"
+                             Foreground="{DynamicResource Theme.Text.Primary}"/>
+                  <TextBox Grid.Column="2" Name="WizardDataHostsBox" Text="100" Margin="5,0"
+                           Background="{DynamicResource Theme.Input.Background}" ToolTip="Expected hosts"/>
+                  <TextBlock Grid.Column="3" Name="WizardDataSubnetText" Text="/24" VerticalAlignment="Center"
+                             Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                </Grid>
+
+                <!-- Voice VLAN -->
+                <Grid Margin="0,0,0,10">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="80"/>
+                    <ColumnDefinition Width="60"/>
+                  </Grid.ColumnDefinitions>
+                  <CheckBox Grid.Column="0" Name="WizardVoiceCheck" IsChecked="True" VerticalAlignment="Center"/>
+                  <TextBlock Grid.Column="1" Text="Voice" VerticalAlignment="Center" Margin="5,0,0,0"
+                             Foreground="{DynamicResource Theme.Text.Primary}"/>
+                  <TextBox Grid.Column="2" Name="WizardVoiceHostsBox" Text="50" Margin="5,0"
+                           Background="{DynamicResource Theme.Input.Background}" ToolTip="Expected hosts"/>
+                  <TextBlock Grid.Column="3" Name="WizardVoiceSubnetText" Text="/25" VerticalAlignment="Center"
+                             Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                </Grid>
+
+                <!-- Management VLAN -->
+                <Grid Margin="0,0,0,10">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="80"/>
+                    <ColumnDefinition Width="60"/>
+                  </Grid.ColumnDefinitions>
+                  <CheckBox Grid.Column="0" Name="WizardMgmtCheck" IsChecked="True" VerticalAlignment="Center"/>
+                  <TextBlock Grid.Column="1" Text="Management" VerticalAlignment="Center" Margin="5,0,0,0"
+                             Foreground="{DynamicResource Theme.Text.Primary}"/>
+                  <TextBox Grid.Column="2" Name="WizardMgmtHostsBox" Text="20" Margin="5,0"
+                           Background="{DynamicResource Theme.Input.Background}" ToolTip="Expected hosts"/>
+                  <TextBlock Grid.Column="3" Name="WizardMgmtSubnetText" Text="/27" VerticalAlignment="Center"
+                             Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                </Grid>
+
+                <!-- Guest VLAN -->
+                <Grid Margin="0,0,0,10">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="80"/>
+                    <ColumnDefinition Width="60"/>
+                  </Grid.ColumnDefinitions>
+                  <CheckBox Grid.Column="0" Name="WizardGuestCheck" IsChecked="False" VerticalAlignment="Center"/>
+                  <TextBlock Grid.Column="1" Text="Guest" VerticalAlignment="Center" Margin="5,0,0,0"
+                             Foreground="{DynamicResource Theme.Text.Primary}"/>
+                  <TextBox Grid.Column="2" Name="WizardGuestHostsBox" Text="50" Margin="5,0"
+                           Background="{DynamicResource Theme.Input.Background}" ToolTip="Expected hosts"/>
+                  <TextBlock Grid.Column="3" Name="WizardGuestSubnetText" Text="/25" VerticalAlignment="Center"
+                             Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                </Grid>
+
+                <!-- IoT VLAN -->
+                <Grid Margin="0,0,0,10">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="80"/>
+                    <ColumnDefinition Width="60"/>
+                  </Grid.ColumnDefinitions>
+                  <CheckBox Grid.Column="0" Name="WizardIoTCheck" IsChecked="False" VerticalAlignment="Center"/>
+                  <TextBlock Grid.Column="1" Text="IoT / Sensors" VerticalAlignment="Center" Margin="5,0,0,0"
+                             Foreground="{DynamicResource Theme.Text.Primary}"/>
+                  <TextBox Grid.Column="2" Name="WizardIoTHostsBox" Text="30" Margin="5,0"
+                           Background="{DynamicResource Theme.Input.Background}" ToolTip="Expected hosts"/>
+                  <TextBlock Grid.Column="3" Name="WizardIoTSubnetText" Text="/26" VerticalAlignment="Center"
+                             Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                </Grid>
+
+                <!-- Server VLAN -->
+                <Grid Margin="0,0,0,10">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="80"/>
+                    <ColumnDefinition Width="60"/>
+                  </Grid.ColumnDefinitions>
+                  <CheckBox Grid.Column="0" Name="WizardServerCheck" IsChecked="False" VerticalAlignment="Center"/>
+                  <TextBlock Grid.Column="1" Text="Server / Infrastructure" VerticalAlignment="Center" Margin="5,0,0,0"
+                             Foreground="{DynamicResource Theme.Text.Primary}"/>
+                  <TextBox Grid.Column="2" Name="WizardServerHostsBox" Text="20" Margin="5,0"
+                           Background="{DynamicResource Theme.Input.Background}" ToolTip="Expected hosts"/>
+                  <TextBlock Grid.Column="3" Name="WizardServerSubnetText" Text="/27" VerticalAlignment="Center"
+                             Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                </Grid>
+
+                <Border Background="{DynamicResource Theme.Surface.Primary}" Padding="10" CornerRadius="3" Margin="0,15,0,0">
+                  <StackPanel>
+                    <TextBlock Text="VLAN Number Assignments" FontWeight="SemiBold"
+                               Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,5"/>
+                    <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap" FontSize="11">
+                      Data: 10 | Voice: 20 | Management: 100 | Guest: 40 | IoT: 50 | Server: 30
+                    </TextBlock>
+                  </StackPanel>
+                </Border>
+              </StackPanel>
+            </Border>
+          </Grid>
+        </ScrollViewer>
+
+        <!-- Wizard Footer -->
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,15,0,0">
+          <Button Name="WizardGenerateButton" Content="Generate Plan" Margin="0,0,10,0"
+                  Style="{DynamicResource PrimaryButtonStyle}" Padding="20,8"/>
+          <Button Name="WizardApplyButton" Content="Apply Plan" Margin="0,0,10,0"
+                  Style="{DynamicResource PrimaryButtonStyle}" Padding="20,8" Visibility="Collapsed"/>
+          <Button Name="WizardCancelButton" Content="Cancel"
+                  Style="{DynamicResource SecondaryButtonStyle}" Padding="20,8"/>
+        </StackPanel>
+      </Grid>
+    </Border>
+
     <!-- Status Bar -->
     <Border Grid.Row="2" Background="{DynamicResource Theme.Toolbar.Background}" Padding="5">
       <TextBlock Name="StatusText" Text="Ready" Foreground="{DynamicResource Theme.Text.Primary}"/>
