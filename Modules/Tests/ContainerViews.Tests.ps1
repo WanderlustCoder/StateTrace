@@ -336,7 +336,8 @@ Describe 'Plan AF: Tab Consolidation Structure' {
             foreach ($file in $moduleFiles) {
                 $path = Join-Path $script:modulesRoot $file
                 $content = Get-Content -Path $path -Raw
-                $content | Should Match '\$script:InitializedSubViews'
+                # Modules use prefixed variable names like DocInitializedViews, InfraInitializedViews, etc.
+                $content | Should Match '\$script:\w+InitializedViews'
             }
         }
 

@@ -1460,6 +1460,378 @@ function Initialize-BuiltInTrees {
     $script:BuiltInTrees['STP-Problems'] = Import-DecisionTree -Json $stpTree
 }
 
+#region Execution Persistence and Analytics
+
+# Execution history storage
+$script:ExecutionHistory = [System.Collections.ArrayList]::new()
+$script:ExecutionHistoryPath = $null
+
+<#
+.SYNOPSIS
+    Initializes the execution history storage path.
+#>
+function Initialize-ExecutionHistory {
+    [CmdletBinding()]
+    param(
+        [string]$Path
+    )
+
+    if ($Path) {
+        $script:ExecutionHistoryPath = $Path
+    } else {
+        $script:ExecutionHistoryPath = Join-Path $env:TEMP 'StateTrace_TreeExecutionHistory.json'
+    }
+
+    # Load existing history if available
+    if (Test-Path -LiteralPath $script:ExecutionHistoryPath) {
+        try {
+            $json = Get-Content -LiteralPath $script:ExecutionHistoryPath -Raw
+            $loaded = $json | ConvertFrom-Json
+            $script:ExecutionHistory.Clear()
+            foreach ($item in $loaded) {
+                [void]$script:ExecutionHistory.Add($item)
+            }
+        } catch {
+            # Start fresh if file is corrupt
+            $script:ExecutionHistory.Clear()
+        }
+    }
+}
+
+<#
+.SYNOPSIS
+    Saves execution state for later resume.
+#>
+function Save-TreeExecution {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [pscustomobject]$Execution,
+
+        [string]$Path
+    )
+
+    if (-not $Path) {
+        $timestamp = (Get-Date).ToString('yyyyMMdd-HHmmss')
+        $Path = Join-Path $env:TEMP "TreeExecution_$timestamp.json"
+    }
+
+    $export = @{
+        TreeName = $Execution.Tree.Name
+        TreeJson = (Export-DecisionTree -Tree $Execution.Tree -Format JSON)
+        CurrentNodeId = $Execution.CurrentNode.Id
+        Steps = @()
+        Variables = $Execution.Variables
+        DeviceID = $Execution.DeviceID
+        InterfaceName = $Execution.InterfaceName
+        StartTime = $Execution.StartTime.ToString('o')
+        IsComplete = $Execution.IsComplete
+        Outcome = $Execution.Outcome
+    }
+
+    foreach ($step in $Execution.Steps) {
+        $stepExport = @{
+            NodeId = $step.NodeId
+            Timestamp = $step.Timestamp.ToString('o')
+            Answer = $step.Answer
+            InputValue = $step.InputValue
+        }
+        if ($step.PSObject.Properties['Duration'] -and $step.Duration) {
+            $stepExport.DurationMs = $step.Duration.TotalMilliseconds
+        }
+        if ($step.PSObject.Properties['Notes']) {
+            $stepExport.Notes = $step.Notes
+        }
+        $export.Steps += $stepExport
+    }
+
+    $export | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $Path -Encoding UTF8
+
+    return $Path
+}
+
+<#
+.SYNOPSIS
+    Resumes a previously saved execution.
+#>
+function Resume-TreeExecution {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$Path
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        throw "Execution file not found: $Path"
+    }
+
+    $json = Get-Content -LiteralPath $Path -Raw
+    $data = $json | ConvertFrom-Json
+
+    # Reconstruct the tree
+    $tree = Import-DecisionTree -Json $data.TreeJson
+
+    # Find current node
+    $currentNode = $tree.Nodes | Where-Object { $_.Id -eq $data.CurrentNodeId }
+
+    $execution = [pscustomobject]@{
+        Tree = $tree
+        CurrentNode = $currentNode
+        Steps = [System.Collections.ArrayList]::new()
+        Variables = @{}
+        DeviceID = $data.DeviceID
+        InterfaceName = $data.InterfaceName
+        StartTime = [datetime]::Parse($data.StartTime)
+        EndTime = $null
+        IsComplete = $data.IsComplete
+        Outcome = $data.Outcome
+        Duration = $null
+    }
+
+    # Restore variables
+    if ($data.Variables) {
+        foreach ($prop in $data.Variables.PSObject.Properties) {
+            $execution.Variables[$prop.Name] = $prop.Value
+        }
+    }
+
+    # Restore steps
+    foreach ($stepData in $data.Steps) {
+        $step = [pscustomobject]@{
+            NodeId = $stepData.NodeId
+            Timestamp = [datetime]::Parse($stepData.Timestamp)
+            Answer = $stepData.Answer
+            InputValue = $stepData.InputValue
+            Duration = $null
+        }
+        if ($stepData.PSObject.Properties['DurationMs'] -and $stepData.DurationMs) {
+            $step.Duration = [TimeSpan]::FromMilliseconds($stepData.DurationMs)
+        }
+        if ($stepData.PSObject.Properties['Notes']) {
+            $step | Add-Member -NotePropertyName 'Notes' -NotePropertyValue $stepData.Notes -Force
+        }
+        [void]$execution.Steps.Add($step)
+    }
+
+    return $execution
+}
+
+<#
+.SYNOPSIS
+    Records a completed execution to history.
+#>
+function Complete-TreeExecution {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [pscustomobject]$Execution,
+
+        [string]$RootCause,
+
+        [string]$Resolution,
+
+        [string]$Notes
+    )
+
+    # Initialize history if needed
+    if (-not $script:ExecutionHistoryPath) {
+        Initialize-ExecutionHistory
+    }
+
+    # Build path string from steps
+    $pathNodes = @($Execution.Steps | ForEach-Object { $_.NodeId })
+    $pathString = $pathNodes -join ' -> '
+
+    $record = [pscustomobject]@{
+        ExecutionID = "EXEC-$(Get-Date -Format 'yyyyMMddHHmmss')-$([Guid]::NewGuid().ToString().Substring(0,4))"
+        TreeName = $Execution.Tree.Name
+        DeviceID = $Execution.DeviceID
+        InterfaceName = $Execution.InterfaceName
+        StartTime = $Execution.StartTime.ToString('o')
+        EndTime = if ($Execution.EndTime) { $Execution.EndTime.ToString('o') } else { (Get-Date).ToString('o') }
+        DurationSeconds = if ($Execution.Duration) { [math]::Round($Execution.Duration.TotalSeconds, 1) } else { ((Get-Date) - $Execution.StartTime).TotalSeconds }
+        StepCount = $Execution.Steps.Count
+        Outcome = $Execution.Outcome
+        RootCause = $RootCause
+        Resolution = $Resolution
+        Notes = $Notes
+        Path = $pathString
+    }
+
+    [void]$script:ExecutionHistory.Add($record)
+
+    # Persist to file
+    $script:ExecutionHistory | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $script:ExecutionHistoryPath -Encoding UTF8
+
+    return $record
+}
+
+<#
+.SYNOPSIS
+    Retrieves execution history records.
+#>
+function Get-TreeExecutionHistory {
+    [CmdletBinding()]
+    param(
+        [string]$TreeName,
+
+        [string]$DeviceID,
+
+        [int]$Last = 0,
+
+        [datetime]$Since
+    )
+
+    # Initialize history if needed
+    if (-not $script:ExecutionHistoryPath) {
+        Initialize-ExecutionHistory
+    }
+
+    $results = @($script:ExecutionHistory)
+
+    if ($TreeName) {
+        $results = @($results | Where-Object { $_.TreeName -eq $TreeName })
+    }
+
+    if ($DeviceID) {
+        $results = @($results | Where-Object { $_.DeviceID -eq $DeviceID })
+    }
+
+    if ($Since) {
+        $results = @($results | Where-Object { [datetime]::Parse($_.StartTime) -ge $Since })
+    }
+
+    # Sort by date descending
+    $results = @($results | Sort-Object { [datetime]::Parse($_.StartTime) } -Descending)
+
+    if ($Last -gt 0 -and $results.Count -gt $Last) {
+        $results = @($results | Select-Object -First $Last)
+    }
+
+    return $results
+}
+
+<#
+.SYNOPSIS
+    Calculates statistics for a decision tree.
+#>
+function Get-TreeStatistics {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$TreeName
+    )
+
+    # Initialize history if needed
+    if (-not $script:ExecutionHistoryPath) {
+        Initialize-ExecutionHistory
+    }
+
+    $executions = @($script:ExecutionHistory | Where-Object { $_.TreeName -eq $TreeName })
+
+    if ($executions.Count -eq 0) {
+        return [pscustomobject]@{
+            TreeName = $TreeName
+            TotalExecutions = 0
+            AverageSteps = 0
+            AverageDurationSeconds = 0
+            MostCommonOutcome = 'N/A'
+            OutcomeBreakdown = @{}
+            SuccessRate = 0
+        }
+    }
+
+    # Calculate averages
+    $totalSteps = ($executions | Measure-Object -Property StepCount -Sum).Sum
+    $avgSteps = [math]::Round($totalSteps / $executions.Count, 1)
+
+    $totalDuration = ($executions | Measure-Object -Property DurationSeconds -Sum).Sum
+    $avgDuration = [math]::Round($totalDuration / $executions.Count, 1)
+
+    # Outcome breakdown
+    $outcomeGroups = $executions | Group-Object -Property Outcome
+    $outcomeBreakdown = @{}
+    foreach ($group in $outcomeGroups) {
+        $outcomeBreakdown[$group.Name] = $group.Count
+    }
+
+    # Most common outcome
+    $mostCommon = $outcomeGroups | Sort-Object -Property Count -Descending | Select-Object -First 1
+    $mostCommonOutcome = if ($mostCommon) { $mostCommon.Name } else { 'N/A' }
+
+    # Success rate (non-escalated outcomes)
+    $resolved = @($executions | Where-Object { $_.Outcome -and $_.Outcome -ne 'Escalated' })
+    $successRate = if ($executions.Count -gt 0) { [math]::Round(($resolved.Count / $executions.Count) * 100, 1) } else { 0 }
+
+    return [pscustomobject]@{
+        TreeName = $TreeName
+        TotalExecutions = $executions.Count
+        AverageSteps = $avgSteps
+        AverageDurationSeconds = $avgDuration
+        MostCommonOutcome = $mostCommonOutcome
+        OutcomeBreakdown = $outcomeBreakdown
+        SuccessRate = $successRate
+    }
+}
+
+<#
+.SYNOPSIS
+    Analyzes the most commonly taken paths through a tree.
+#>
+function Get-TreePathAnalysis {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$TreeName
+    )
+
+    # Initialize history if needed
+    if (-not $script:ExecutionHistoryPath) {
+        Initialize-ExecutionHistory
+    }
+
+    $executions = @($script:ExecutionHistory | Where-Object { $_.TreeName -eq $TreeName })
+
+    if ($executions.Count -eq 0) {
+        return @()
+    }
+
+    # Group by path
+    $pathGroups = $executions | Group-Object -Property Path
+
+    $results = [System.Collections.ArrayList]::new()
+    foreach ($group in $pathGroups) {
+        $pathRecord = [pscustomobject]@{
+            Path = $group.Name
+            UsageCount = $group.Count
+            Percentage = [math]::Round(($group.Count / $executions.Count) * 100, 1)
+            Outcomes = @($group.Group.Outcome | Select-Object -Unique)
+            AverageSteps = [math]::Round(($group.Group | Measure-Object -Property StepCount -Average).Average, 1)
+        }
+        [void]$results.Add($pathRecord)
+    }
+
+    # Sort by usage count descending
+    return @($results | Sort-Object -Property UsageCount -Descending)
+}
+
+<#
+.SYNOPSIS
+    Clears execution history (for testing).
+#>
+function Clear-TreeExecutionHistory {
+    [CmdletBinding()]
+    param()
+
+    $script:ExecutionHistory.Clear()
+
+    if ($script:ExecutionHistoryPath -and (Test-Path -LiteralPath $script:ExecutionHistoryPath)) {
+        Remove-Item -LiteralPath $script:ExecutionHistoryPath -Force
+    }
+}
+
+#endregion
+
 # Export functions
 Export-ModuleMember -Function @(
     'New-DecisionTree',
@@ -1474,5 +1846,14 @@ Export-ModuleMember -Function @(
     'Undo-TreeStep',
     'Export-DecisionTree',
     'Get-BuiltInTree',
-    'Initialize-BuiltInTrees'
+    'Initialize-BuiltInTrees',
+    # Execution persistence and analytics (ST-AB-006)
+    'Initialize-ExecutionHistory',
+    'Save-TreeExecution',
+    'Resume-TreeExecution',
+    'Complete-TreeExecution',
+    'Get-TreeExecutionHistory',
+    'Get-TreeStatistics',
+    'Get-TreePathAnalysis',
+    'Clear-TreeExecutionHistory'
 )

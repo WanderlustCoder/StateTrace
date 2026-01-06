@@ -105,8 +105,15 @@ function Initialize-TroubleshootSubView {
     )
 
     try {
-        if (Get-Command -Name 'Initialize-DecisionTreeView' -ErrorAction SilentlyContinue) {
-            DecisionTreeViewModule\Initialize-DecisionTreeView -Host $Host
+        $viewPath = Join-Path $ScriptDir '..\Views\DecisionTreeView.xaml'
+        if (Test-Path $viewPath) {
+            $xamlContent = Get-Content -Path $viewPath -Raw
+            $xamlContent = $xamlContent -replace 'x:Class="[^"]*"', ''
+            $xamlContent = $xamlContent -replace 'mc:Ignorable="d"', ''
+
+            $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
+            $view = [System.Windows.Markup.XamlReader]::Load($reader)
+            $Host.Content = $view
         }
     }
     catch {
@@ -121,8 +128,15 @@ function Initialize-CalculatorSubView {
     )
 
     try {
-        if (Get-Command -Name 'Initialize-NetworkCalculatorView' -ErrorAction SilentlyContinue) {
-            NetworkCalculatorViewModule\Initialize-NetworkCalculatorView -Host $Host
+        $viewPath = Join-Path $ScriptDir '..\Views\NetworkCalculatorView.xaml'
+        if (Test-Path $viewPath) {
+            $xamlContent = Get-Content -Path $viewPath -Raw
+            $xamlContent = $xamlContent -replace 'x:Class="[^"]*"', ''
+            $xamlContent = $xamlContent -replace 'mc:Ignorable="d"', ''
+
+            $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
+            $view = [System.Windows.Markup.XamlReader]::Load($reader)
+            $Host.Content = $view
         }
     }
     catch {

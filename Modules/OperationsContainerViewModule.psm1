@@ -113,8 +113,15 @@ function Initialize-ChangesSubView {
     )
 
     try {
-        if (Get-Command -Name 'Initialize-ChangeManagementView' -ErrorAction SilentlyContinue) {
-            ChangeManagementViewModule\Initialize-ChangeManagementView -Host $Host
+        $viewPath = Join-Path $ScriptDir '..\Views\ChangeManagementView.xaml'
+        if (Test-Path $viewPath) {
+            $xamlContent = Get-Content -Path $viewPath -Raw
+            $xamlContent = $xamlContent -replace 'x:Class="[^"]*"', ''
+            $xamlContent = $xamlContent -replace 'mc:Ignorable="d"', ''
+
+            $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
+            $view = [System.Windows.Markup.XamlReader]::Load($reader)
+            $Host.Content = $view
         }
     }
     catch {
@@ -129,8 +136,15 @@ function Initialize-CapacitySubView {
     )
 
     try {
-        if (Get-Command -Name 'Initialize-CapacityPlanningView' -ErrorAction SilentlyContinue) {
-            CapacityPlanningViewModule\Initialize-CapacityPlanningView -Host $Host
+        $viewPath = Join-Path $ScriptDir '..\Views\CapacityPlanningView.xaml'
+        if (Test-Path $viewPath) {
+            $xamlContent = Get-Content -Path $viewPath -Raw
+            $xamlContent = $xamlContent -replace 'x:Class="[^"]*"', ''
+            $xamlContent = $xamlContent -replace 'mc:Ignorable="d"', ''
+
+            $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
+            $view = [System.Windows.Markup.XamlReader]::Load($reader)
+            $Host.Content = $view
         }
     }
     catch {
@@ -145,8 +159,15 @@ function Initialize-LogAnalysisSubView {
     )
 
     try {
-        if (Get-Command -Name 'Initialize-LogAnalysisView' -ErrorAction SilentlyContinue) {
-            LogAnalysisViewModule\Initialize-LogAnalysisView -Host $Host
+        $viewPath = Join-Path $ScriptDir '..\Views\LogAnalysisView.xaml'
+        if (Test-Path $viewPath) {
+            $xamlContent = Get-Content -Path $viewPath -Raw
+            $xamlContent = $xamlContent -replace 'x:Class="[^"]*"', ''
+            $xamlContent = $xamlContent -replace 'mc:Ignorable="d"', ''
+
+            $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
+            $view = [System.Windows.Markup.XamlReader]::Load($reader)
+            $Host.Content = $view
         }
     }
     catch {

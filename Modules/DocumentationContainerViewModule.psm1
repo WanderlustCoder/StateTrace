@@ -139,8 +139,15 @@ function Initialize-ConfigSubView {
     )
 
     try {
-        if (Get-Command -Name 'Initialize-ConfigTemplateView' -ErrorAction SilentlyContinue) {
-            ConfigTemplateViewModule\Initialize-ConfigTemplateView -Host $Host
+        $viewPath = Join-Path $ScriptDir '..\Views\ConfigTemplateView.xaml'
+        if (Test-Path $viewPath) {
+            $xamlContent = Get-Content -Path $viewPath -Raw
+            $xamlContent = $xamlContent -replace 'x:Class="[^"]*"', ''
+            $xamlContent = $xamlContent -replace 'mc:Ignorable="d"', ''
+
+            $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
+            $view = [System.Windows.Markup.XamlReader]::Load($reader)
+            $Host.Content = $view
         }
     }
     catch {
@@ -186,8 +193,15 @@ function Initialize-CmdRefSubView {
     )
 
     try {
-        if (Get-Command -Name 'Initialize-CommandReferenceView' -ErrorAction SilentlyContinue) {
-            CommandReferenceViewModule\Initialize-CommandReferenceView -Host $Host
+        $viewPath = Join-Path $ScriptDir '..\Views\CommandReferenceView.xaml'
+        if (Test-Path $viewPath) {
+            $xamlContent = Get-Content -Path $viewPath -Raw
+            $xamlContent = $xamlContent -replace 'x:Class="[^"]*"', ''
+            $xamlContent = $xamlContent -replace 'mc:Ignorable="d"', ''
+
+            $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
+            $view = [System.Windows.Markup.XamlReader]::Load($reader)
+            $Host.Content = $view
         }
     }
     catch {

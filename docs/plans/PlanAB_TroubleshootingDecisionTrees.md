@@ -16,12 +16,13 @@ Network teams struggle with:
 - Training new team members on troubleshooting methodology
 
 ## Current status (2026-01)
-- **In Progress (4/6 core tasks done)**
+- **In Progress (5/6 core tasks done)**
 - DecisionTreeModule.psm1 implemented with full tree engine
 - Built-in trees: Port-NotWorking, VLAN-Issues, STP-Problems, Simple-Test
-- 42 Pester tests passing
+- 63 Pester tests passing (21 new analytics tests)
 - DecisionTreeView.xaml and DecisionTreeViewModule.psm1 integrated into MainWindow
-- Pending: Tree editor UI, execution persistence, outcome analytics
+- Execution persistence (Save/Resume) and outcome analytics implemented
+- Pending: Tree editor UI
 
 ## Proposed Features
 
@@ -127,11 +128,16 @@ Network teams struggle with:
 | ID | Title | Owner | Status | Notes |
 |----|-------|-------|--------|-------|
 | ST-AB-001 | Decision tree schema | Data | Done | Node types: decision, action, input, branch, check, result |
-| ST-AB-002 | Tree execution engine | Tools | Done | DecisionTreeModule.psm1 with 42 tests |
+| ST-AB-002 | Tree execution engine | Tools | Done | DecisionTreeModule.psm1 with 63 tests |
 | ST-AB-003 | Built-in tree library | Tools | Done | Port-NotWorking, VLAN-Issues, STP-Problems |
 | ST-AB-004 | Interactive execution UI | UI | Done | DecisionTreeView.xaml + ViewModule, "Troubleshoot" tab |
 | ST-AB-005 | Tree editor | UI | Pending | Visual tree designer |
-| ST-AB-006 | Outcome analytics | Tools | Pending | Pattern and success tracking |
+| ST-AB-006 | Outcome analytics | Tools | Done | Save/Resume, Complete, Get-TreeExecutionHistory, Get-TreeStatistics, Get-TreePathAnalysis |
+
+## Recently delivered
+| ID | Title | Delivered | Notes |
+|----|-------|-----------|-------|
+| ST-AB-006 | Outcome analytics | 2026-01-06 | 21 new tests for persistence and analytics |
 
 ## Data Model (Proposed)
 

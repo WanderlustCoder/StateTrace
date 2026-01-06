@@ -501,3 +501,264 @@ Describe 'DecisionTreeModule - Input Nodes' {
         }
     }
 }
+
+#region ST-AB-006: Execution Persistence and Analytics Tests
+
+Describe 'DecisionTreeModule - Execution Persistence' {
+
+    BeforeAll {
+        $script:testSaveDir = Join-Path $env:TEMP 'DecisionTreePersistenceTest'
+        New-Item -ItemType Directory -Path $script:testSaveDir -Force | Out-Null
+    }
+
+    AfterAll {
+        if (Test-Path $script:testSaveDir) {
+            Remove-Item -Path $script:testSaveDir -Recurse -Force
+        }
+    }
+
+    Context 'Save-TreeExecution' {
+        It 'saves execution state to file' {
+            $tree = Get-BuiltInTree -Name 'Simple-Test'
+            $execution = Start-TreeExecution -Tree $tree -DeviceID 'SW-01'
+
+            $savePath = Join-Path $script:testSaveDir 'test_save.json'
+            $result = Save-TreeExecution -Execution $execution -Path $savePath
+
+            Test-Path $result | Should Be $true
+        }
+
+        It 'saves current node and steps' {
+            $tree = Get-BuiltInTree -Name 'Simple-Test'
+            $execution = Start-TreeExecution -Tree $tree
+            $execution = Submit-TreeAnswer -Execution $execution -Answer 'No'
+
+            $savePath = Join-Path $script:testSaveDir 'test_save2.json'
+            Save-TreeExecution -Execution $execution -Path $savePath
+
+            $json = Get-Content -LiteralPath $savePath -Raw | ConvertFrom-Json
+            $json.CurrentNodeId | Should Be 'done_no'
+            $json.Steps.Count | Should Be 2
+        }
+    }
+
+    Context 'Resume-TreeExecution' {
+        It 'resumes execution from saved file' {
+            $tree = Get-BuiltInTree -Name 'Simple-Test'
+            $execution = Start-TreeExecution -Tree $tree -DeviceID 'SW-02'
+
+            $savePath = Join-Path $script:testSaveDir 'test_resume.json'
+            Save-TreeExecution -Execution $execution -Path $savePath
+
+            $resumed = Resume-TreeExecution -Path $savePath
+
+            $resumed.DeviceID | Should Be 'SW-02'
+            $resumed.CurrentNode.Id | Should Be 'q1'
+        }
+
+        It 'preserves step history on resume' {
+            $tree = Get-BuiltInTree -Name 'Simple-Test'
+            $execution = Start-TreeExecution -Tree $tree
+            $execution = Submit-TreeAnswer -Execution $execution -Answer 'Yes'
+
+            $savePath = Join-Path $script:testSaveDir 'test_resume2.json'
+            Save-TreeExecution -Execution $execution -Path $savePath
+
+            $resumed = Resume-TreeExecution -Path $savePath
+
+            $resumed.Steps.Count | Should Be 2
+            $resumed.IsComplete | Should Be $true
+        }
+    }
+}
+
+Describe 'DecisionTreeModule - Execution History' {
+
+    BeforeAll {
+        # Use temp path for test history
+        $script:testHistoryPath = Join-Path $env:TEMP 'DecisionTreeTestHistory.json'
+        Initialize-ExecutionHistory -Path $script:testHistoryPath
+        Clear-TreeExecutionHistory
+    }
+
+    AfterAll {
+        Clear-TreeExecutionHistory
+    }
+
+    Context 'Complete-TreeExecution' {
+        It 'records completed execution to history' {
+            $tree = Get-BuiltInTree -Name 'Simple-Test'
+            $execution = Start-TreeExecution -Tree $tree -DeviceID 'SW-01'
+            $execution = Submit-TreeAnswer -Execution $execution -Answer 'Yes'
+
+            $record = Complete-TreeExecution -Execution $execution -RootCause 'Test' -Resolution 'Fixed'
+
+            $record.ExecutionID | Should Match '^EXEC-'
+            $record.TreeName | Should Be 'Simple-Test'
+            $record.RootCause | Should Be 'Test'
+        }
+
+        It 'records path taken through tree' {
+            Clear-TreeExecutionHistory
+            $tree = Get-BuiltInTree -Name 'Simple-Test'
+            $execution = Start-TreeExecution -Tree $tree
+            $execution = Submit-TreeAnswer -Execution $execution -Answer 'No'
+
+            $record = Complete-TreeExecution -Execution $execution
+
+            $record.Path | Should Match 'q1 -> done_no'
+        }
+    }
+
+    Context 'Get-TreeExecutionHistory' {
+        BeforeAll {
+            Clear-TreeExecutionHistory
+
+            # Create some test executions
+            $tree = Get-BuiltInTree -Name 'Simple-Test'
+
+            $exec1 = Start-TreeExecution -Tree $tree -DeviceID 'SW-01'
+            $exec1 = Submit-TreeAnswer -Execution $exec1 -Answer 'Yes'
+            Complete-TreeExecution -Execution $exec1 -RootCause 'Test1' | Out-Null
+
+            $exec2 = Start-TreeExecution -Tree $tree -DeviceID 'SW-02'
+            $exec2 = Submit-TreeAnswer -Execution $exec2 -Answer 'No'
+            Complete-TreeExecution -Execution $exec2 -RootCause 'Test2' | Out-Null
+
+            $exec3 = Start-TreeExecution -Tree $tree -DeviceID 'SW-01'
+            $exec3 = Submit-TreeAnswer -Execution $exec3 -Answer 'Yes'
+            Complete-TreeExecution -Execution $exec3 -RootCause 'Test3' | Out-Null
+        }
+
+        It 'retrieves all history' {
+            $history = Get-TreeExecutionHistory
+
+            $history.Count | Should BeGreaterThan 2
+        }
+
+        It 'filters by tree name' {
+            $history = Get-TreeExecutionHistory -TreeName 'Simple-Test'
+
+            @($history).Count | Should BeGreaterThan 0
+            $history | ForEach-Object { $_.TreeName | Should Be 'Simple-Test' }
+        }
+
+        It 'filters by device ID' {
+            $history = Get-TreeExecutionHistory -DeviceID 'SW-01'
+
+            @($history).Count | Should BeGreaterThan 0
+            $history | ForEach-Object { $_.DeviceID | Should Be 'SW-01' }
+        }
+
+        It 'limits results with -Last' {
+            $history = Get-TreeExecutionHistory -Last 1
+
+            @($history).Count | Should Be 1
+        }
+    }
+}
+
+Describe 'DecisionTreeModule - Analytics' {
+
+    BeforeAll {
+        $script:testHistoryPath = Join-Path $env:TEMP 'DecisionTreeAnalyticsTest.json'
+        Initialize-ExecutionHistory -Path $script:testHistoryPath
+        Clear-TreeExecutionHistory
+
+        # Create test data
+        $tree = Get-BuiltInTree -Name 'Simple-Test'
+
+        # Multiple executions with different outcomes
+        for ($i = 1; $i -le 3; $i++) {
+            $exec = Start-TreeExecution -Tree $tree -DeviceID "SW-0$i"
+            $exec = Submit-TreeAnswer -Execution $exec -Answer 'Yes'
+            Complete-TreeExecution -Execution $exec | Out-Null
+        }
+
+        for ($i = 1; $i -le 2; $i++) {
+            $exec = Start-TreeExecution -Tree $tree -DeviceID "DS-0$i"
+            $exec = Submit-TreeAnswer -Execution $exec -Answer 'No'
+            Complete-TreeExecution -Execution $exec | Out-Null
+        }
+    }
+
+    AfterAll {
+        Clear-TreeExecutionHistory
+    }
+
+    Context 'Get-TreeStatistics' {
+        It 'calculates total executions' {
+            $stats = Get-TreeStatistics -TreeName 'Simple-Test'
+
+            $stats.TotalExecutions | Should Be 5
+        }
+
+        It 'calculates average steps' {
+            $stats = Get-TreeStatistics -TreeName 'Simple-Test'
+
+            $stats.AverageSteps | Should BeGreaterThan 0
+        }
+
+        It 'identifies most common outcome' {
+            $stats = Get-TreeStatistics -TreeName 'Simple-Test'
+
+            $stats.MostCommonOutcome | Should Be 'Working'
+        }
+
+        It 'provides outcome breakdown' {
+            $stats = Get-TreeStatistics -TreeName 'Simple-Test'
+
+            $stats.OutcomeBreakdown['Working'] | Should Be 3
+            $stats.OutcomeBreakdown['NotWorking'] | Should Be 2
+        }
+
+        It 'calculates success rate' {
+            $stats = Get-TreeStatistics -TreeName 'Simple-Test'
+
+            $stats.SuccessRate | Should Be 100
+        }
+
+        It 'returns zero stats for unknown tree' {
+            $stats = Get-TreeStatistics -TreeName 'NonExistent'
+
+            $stats.TotalExecutions | Should Be 0
+            $stats.MostCommonOutcome | Should Be 'N/A'
+        }
+    }
+
+    Context 'Get-TreePathAnalysis' {
+        It 'identifies unique paths' {
+            $paths = Get-TreePathAnalysis -TreeName 'Simple-Test'
+
+            @($paths).Count | Should Be 2
+        }
+
+        It 'counts path usage' {
+            $paths = Get-TreePathAnalysis -TreeName 'Simple-Test'
+            $yesPath = $paths | Where-Object { $_.Path -match 'done_yes' }
+
+            $yesPath.UsageCount | Should Be 3
+        }
+
+        It 'calculates path percentage' {
+            $paths = Get-TreePathAnalysis -TreeName 'Simple-Test'
+            $yesPath = $paths | Where-Object { $_.Path -match 'done_yes' }
+
+            $yesPath.Percentage | Should Be 60
+        }
+
+        It 'sorts by usage count descending' {
+            $paths = Get-TreePathAnalysis -TreeName 'Simple-Test'
+
+            $paths[0].UsageCount | Should BeGreaterThan $paths[1].UsageCount
+        }
+
+        It 'returns empty for unknown tree' {
+            $paths = Get-TreePathAnalysis -TreeName 'NonExistent'
+
+            @($paths).Count | Should Be 0
+        }
+    }
+}
+
+#endregion
