@@ -22,6 +22,51 @@ $script:ForecastGrid = $null
 $script:ThresholdsGrid = $null
 $script:ReportsGrid = $null
 
+function Get-CapacityDeviceData {
+    <#
+    .SYNOPSIS
+        Retrieves device data for capacity planning from global cache.
+        Returns $null if data is not available yet.
+    #>
+    [CmdletBinding()]
+    param()
+
+    # Try to get device data from global interface cache
+    if ($global:DeviceInterfaceCache -and $global:DeviceInterfaceCache.Count -gt 0) {
+        $devices = @()
+        foreach ($hostKey in $global:DeviceInterfaceCache.Keys) {
+            $interfaces = $global:DeviceInterfaceCache[$hostKey]
+            if ($interfaces -and $interfaces.Count -gt 0) {
+                # Extract site info from first interface
+                $firstInterface = $interfaces[0]
+                $siteId = if ($firstInterface -is [hashtable]) {
+                    $firstInterface['SiteID']
+                } else {
+                    $firstInterface.SiteID
+                }
+                if (-not $siteId) { $siteId = 'Unknown' }
+
+                # Count total and used ports
+                $totalPorts = $interfaces.Count
+                $usedPorts = @($interfaces | Where-Object {
+                    $status = if ($_ -is [hashtable]) { $_['Status'] } else { $_.Status }
+                    $status -eq 'connected' -or $status -eq 'up'
+                }).Count
+
+                $devices += [PSCustomObject]@{
+                    Hostname = $hostKey
+                    SiteID = $siteId
+                    TotalPorts = $totalPorts
+                    UsedPorts = $usedPorts
+                }
+            }
+        }
+        return $devices
+    }
+
+    return $null
+}
+
 function New-CapacityPlanningView {
     <#
     .SYNOPSIS
@@ -307,8 +352,14 @@ function Update-CapacityPlanningDashboard {
     param()
 
     try {
+        # Get device data from global cache - return early if not available yet
+        $devices = Get-CapacityDeviceData
+        if (-not $devices -or $devices.Count -eq 0) {
+            return
+        }
+
         # Get overall site utilization
-        $siteUtilization = Get-SiteUtilization
+        $siteUtilization = Get-SiteUtilization -Devices $devices
 
         if ($siteUtilization -and $siteUtilization.Count -gt 0) {
             $totalPorts = ($siteUtilization | Measure-Object -Property TotalPorts -Sum).Sum
@@ -379,7 +430,13 @@ function Update-SiteUtilizationGrid {
     if (-not $script:SiteUtilizationGrid) { return }
 
     try {
-        $siteUtilization = Get-SiteUtilization
+        # Get device data from global cache - return early if not available yet
+        $devices = Get-CapacityDeviceData
+        if (-not $devices -or $devices.Count -eq 0) {
+            return
+        }
+
+        $siteUtilization = Get-SiteUtilization -Devices $devices
 
         $gridData = @()
         foreach ($site in $siteUtilization) {
@@ -514,7 +571,13 @@ function Update-ForecastScopeCombo {
     if (-not $script:ForecastScopeCombo) { return }
 
     try {
-        $sites = Get-SiteUtilization
+        # Get device data from global cache - return early if not available yet
+        $devices = Get-CapacityDeviceData
+        if (-not $devices -or $devices.Count -eq 0) {
+            return
+        }
+
+        $sites = Get-SiteUtilization -Devices $devices
         $items = @('All Sites')
 
         foreach ($site in $sites) {
@@ -713,8 +776,15 @@ function Run-CapacityScenario {
     $value = if ($script:ScenarioValueBox) { [int]$script:ScenarioValueBox.Text } else { 10 }
 
     try {
+        # Get device data from global cache
+        $devices = Get-CapacityDeviceData
+        if (-not $devices -or $devices.Count -eq 0) {
+            [System.Windows.MessageBox]::Show('No device data available. Please load data first.', 'No Data', 'OK', 'Warning')
+            return
+        }
+
         # Get current utilization
-        $current = Get-SiteUtilization | Where-Object { $scope -eq 'All Sites' -or $_.SiteID -eq $scope }
+        $current = Get-SiteUtilization -Devices $devices | Where-Object { $scope -eq 'All Sites' -or $_.SiteID -eq $scope }
 
         if (-not $current) {
             [System.Windows.MessageBox]::Show('No utilization data available for the selected scope.', 'No Data', 'OK', 'Warning')
@@ -825,7 +895,14 @@ function Calculate-BudgetProjection {
     $growthPercent = if ($script:BudgetGrowthBox) { [double]$script:BudgetGrowthBox.Text } else { 10 }
 
     try {
-        $current = Get-SiteUtilization
+        # Get device data from global cache
+        $devices = Get-CapacityDeviceData
+        if (-not $devices -or $devices.Count -eq 0) {
+            [System.Windows.MessageBox]::Show('No device data available. Please load data first.', 'No Data', 'OK', 'Warning')
+            return
+        }
+
+        $current = Get-SiteUtilization -Devices $devices
         $totalPorts = ($current | Measure-Object -Property TotalPorts -Sum).Sum
         $usedPorts = ($current | Measure-Object -Property UsedPorts -Sum).Sum
 
@@ -923,13 +1000,24 @@ function Update-ThresholdsGrid {
 
     try {
         $thresholds = Get-CapacityThreshold
+        if (-not $thresholds) {
+            $script:ThresholdsGrid.ItemsSource = @()
+            return
+        }
 
         $gridData = @()
         foreach ($threshold in $thresholds) {
+            # Backend uses ScopeType/ScopeID and MetricName
+            $scope = if ($threshold.ScopeID) {
+                "$($threshold.ScopeType): $($threshold.ScopeID)"
+            } else {
+                $threshold.ScopeType
+            }
+
             $gridData += [PSCustomObject]@{
                 ThresholdID    = $threshold.ThresholdID
-                Scope          = $threshold.Scope
-                MetricType     = $threshold.MetricType
+                Scope          = $scope
+                MetricType     = $threshold.MetricName
                 WarningLevel   = "$($threshold.WarningLevel)%"
                 CriticalLevel  = "$($threshold.CriticalLevel)%"
                 IsEnabled      = $threshold.IsEnabled
@@ -1030,7 +1118,14 @@ function Apply-DefaultThresholds {
         $warning = if ($script:DefaultWarningBox) { [int]$script:DefaultWarningBox.Text } else { 75 }
         $critical = if ($script:DefaultCriticalBox) { [int]$script:DefaultCriticalBox.Text } else { 90 }
 
-        $sites = Get-SiteUtilization
+        # Get device data from global cache
+        $devices = Get-CapacityDeviceData
+        if (-not $devices -or $devices.Count -eq 0) {
+            [System.Windows.MessageBox]::Show('No device data available. Please load data first.', 'No Data', 'OK', 'Warning')
+            return
+        }
+
+        $sites = Get-SiteUtilization -Devices $devices
         foreach ($site in $sites) {
             if (Get-Command -Name 'Add-CapacityThreshold' -ErrorAction SilentlyContinue) {
                 Add-CapacityThreshold -Scope $site.SiteID -MetricType 'Port' -WarningLevel $warning -CriticalLevel $critical
