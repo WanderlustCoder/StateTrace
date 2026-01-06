@@ -20,7 +20,7 @@
         <Border Background="{DynamicResource Theme.Surface.Secondary}" CornerRadius="8" Padding="15" Margin="0,0,10,0">
           <StackPanel>
             <TextBlock Text="Network Overview" FontSize="14" FontWeight="SemiBold"
-                       Foreground="{DynamicResource Theme.Icon.Accent}" Margin="0,0,0,10"/>
+                       Foreground="{DynamicResource Theme.Status.Info}" Margin="0,0,0,10"/>
             <Grid>
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
@@ -61,7 +61,7 @@
         <Border Background="{DynamicResource Theme.Surface.Secondary}" CornerRadius="8" Padding="15" Margin="5,0">
           <StackPanel>
             <TextBlock Text="Port Status" FontSize="14" FontWeight="SemiBold"
-                       Foreground="{DynamicResource Theme.Icon.Accent}" Margin="0,0,0,10"/>
+                       Foreground="{DynamicResource Theme.Status.Info}" Margin="0,0,0,10"/>
             <Grid>
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
@@ -106,7 +106,7 @@
         <Border Background="{DynamicResource Theme.Surface.Secondary}" CornerRadius="8" Padding="15" Margin="10,0,0,0">
           <StackPanel>
             <TextBlock Text="Alerts Summary" FontSize="14" FontWeight="SemiBold"
-                       Foreground="{DynamicResource Theme.Icon.Accent}" Margin="0,0,0,10"/>
+                       Foreground="{DynamicResource Theme.Status.Info}" Margin="0,0,0,10"/>
             <Grid>
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
@@ -151,7 +151,7 @@
         <Border Background="{DynamicResource Theme.Surface.Secondary}" CornerRadius="8" Padding="15" Margin="0,0,10,0">
           <StackPanel>
             <TextBlock Text="Port Characteristics" FontSize="14" FontWeight="SemiBold"
-                       Foreground="{DynamicResource Theme.Icon.Accent}" Margin="0,0,0,10"/>
+                       Foreground="{DynamicResource Theme.Status.Info}" Margin="0,0,0,10"/>
             <TextBlock Text="By Speed" Foreground="{DynamicResource Theme.Text.Muted}" FontWeight="SemiBold" Margin="0,0,0,5"/>
             <Grid Margin="0,0,0,10">
               <Grid.ColumnDefinitions>
@@ -212,7 +212,7 @@
         <Border Background="{DynamicResource Theme.Surface.Secondary}" CornerRadius="8" Padding="15" Margin="5,0">
           <StackPanel>
             <TextBlock Text="Security (802.1X)" FontSize="14" FontWeight="SemiBold"
-                       Foreground="{DynamicResource Theme.Icon.Accent}" Margin="0,0,0,10"/>
+                       Foreground="{DynamicResource Theme.Status.Info}" Margin="0,0,0,10"/>
             <Grid>
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
@@ -242,7 +242,7 @@
 
               <TextBlock Grid.Row="4" Grid.Column="0" Text="Auth Coverage" Foreground="{DynamicResource Theme.Text.Muted}"/>
               <TextBlock Grid.Row="4" Grid.Column="1" Name="SummaryAuthCoverage" Text="0%" FontWeight="Bold"
-                         Foreground="{DynamicResource Theme.Icon.Accent}" HorizontalAlignment="Right"/>
+                         Foreground="{DynamicResource Theme.Status.Info}" HorizontalAlignment="Right"/>
             </Grid>
           </StackPanel>
         </Border>
@@ -251,7 +251,7 @@
         <Border Background="{DynamicResource Theme.Surface.Secondary}" CornerRadius="8" Padding="15" Margin="5,0">
           <StackPanel>
             <TextBlock Text="Manufacturers" FontSize="14" FontWeight="SemiBold"
-                       Foreground="{DynamicResource Theme.Icon.Accent}" Margin="0,0,0,10"/>
+                       Foreground="{DynamicResource Theme.Status.Info}" Margin="0,0,0,10"/>
             <Grid>
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
@@ -287,7 +287,7 @@
         <Border Background="{DynamicResource Theme.Surface.Secondary}" CornerRadius="8" Padding="15" Margin="10,0,0,0">
           <StackPanel>
             <TextBlock Text="Data Quality" FontSize="14" FontWeight="SemiBold"
-                       Foreground="{DynamicResource Theme.Icon.Accent}" Margin="0,0,0,10"/>
+                       Foreground="{DynamicResource Theme.Status.Info}" Margin="0,0,0,10"/>
             <Grid>
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
@@ -317,7 +317,7 @@
 
               <TextBlock Grid.Row="4" Grid.Column="0" Text="Current Filter" Foreground="{DynamicResource Theme.Text.Muted}"/>
               <TextBlock Grid.Row="4" Grid.Column="1" Name="SummaryCurrentFilter" Text="All" FontWeight="SemiBold"
-                         Foreground="{DynamicResource Theme.Icon.Accent}" HorizontalAlignment="Right" TextTrimming="CharacterEllipsis" MaxWidth="100"/>
+                         Foreground="{DynamicResource Theme.Status.Info}" HorizontalAlignment="Right" TextTrimming="CharacterEllipsis" MaxWidth="100"/>
             </Grid>
           </StackPanel>
         </Border>
