@@ -1340,6 +1340,367 @@ function Get-StatusCodes {
 
 #endregion
 
+#region Learning Mode (ST-AD-006)
+
+# In-memory progress storage (per-session)
+$script:LearningProgress = @{}
+
+function New-CommandQuiz {
+    <#
+    .SYNOPSIS
+        Generates a command translation quiz.
+    .DESCRIPTION
+        Creates quiz questions that test knowledge of cross-vendor command equivalents.
+    .PARAMETER Type
+        Quiz type: Translation (default), Identification, or Syntax.
+    .PARAMETER Count
+        Number of questions to generate (default 10).
+    .PARAMETER Category
+        Optionally filter questions by command category.
+    .PARAMETER Vendors
+        Vendors to include in questions (default all).
+    .EXAMPLE
+        New-CommandQuiz -Type Translation -Count 5
+    #>
+    [CmdletBinding()]
+    param(
+        [ValidateSet('Translation', 'Identification', 'Syntax')]
+        [string]$Type = 'Translation',
+
+        [ValidateRange(1, 50)]
+        [int]$Count = 10,
+
+        [string]$Category,
+
+        [string[]]$Vendors
+    )
+
+    $allVendors = [System.Collections.ArrayList]@()
+    if ($Vendors) {
+        foreach ($v in $Vendors) {
+            $resolved = Resolve-VendorName -Vendor $v
+            if ($resolved) {
+                [void]$allVendors.Add($resolved)
+            }
+        }
+    } else {
+        foreach ($v in $script:Vendors.Keys) {
+            [void]$allVendors.Add($v)
+        }
+    }
+
+    if ($allVendors.Count -lt 2) {
+        Write-Warning "At least 2 vendors required for quiz generation"
+        return $null
+    }
+
+    $questions = @()
+    $usedTasks = @{}
+
+    # Get all commands that have entries for multiple vendors
+    $eligibleTasks = @()
+    foreach ($taskKey in $script:CommandDatabase.Keys) {
+        $entry = $script:CommandDatabase[$taskKey]
+
+        if ($Category -and $entry.Category -ne $Category) { continue }
+
+        $vendorCount = ($entry.Commands.Keys | Where-Object { $allVendors -contains $_ }).Count
+        if ($vendorCount -ge 2) {
+            $eligibleTasks += $taskKey
+        }
+    }
+
+    # Shuffle tasks
+    $eligibleTasks = $eligibleTasks | Get-Random -Count $eligibleTasks.Count
+
+    $questionIndex = 0
+    foreach ($taskKey in $eligibleTasks) {
+        if ($questions.Count -ge $Count) { break }
+
+        $entry = $script:CommandDatabase[$taskKey]
+        $availableVendors = @($entry.Commands.Keys | Where-Object { $allVendors -contains $_ })
+
+        if ($availableVendors.Count -lt 2) { continue }
+
+        # Pick source and target vendors
+        $sourceVendor = $availableVendors | Get-Random
+        $targetVendor = $availableVendors | Where-Object { $_ -ne $sourceVendor } | Get-Random
+
+        $sourceCmd = $entry.Commands[$sourceVendor].Command
+        $correctAnswer = $entry.Commands[$targetVendor].Command
+
+        # Generate wrong options from other commands
+        $wrongOptions = @()
+        foreach ($otherTask in ($script:CommandDatabase.Keys | Where-Object { $_ -ne $taskKey })) {
+            $otherEntry = $script:CommandDatabase[$otherTask]
+            if ($otherEntry.Commands.ContainsKey($targetVendor)) {
+                $otherCmd = $otherEntry.Commands[$targetVendor].Command
+                if ($otherCmd -ne $correctAnswer -and $otherCmd -ne 'N/A') {
+                    $wrongOptions += $otherCmd
+                }
+            }
+        }
+
+        # Pick 2-3 wrong options
+        $wrongOptions = $wrongOptions | Get-Random -Count ([Math]::Min(3, $wrongOptions.Count))
+        $allOptions = @($correctAnswer) + $wrongOptions | Get-Random -Count (1 + $wrongOptions.Count)
+
+        $questions += [PSCustomObject]@{
+            Index = $questionIndex
+            Type = $Type
+            SourceVendor = $sourceVendor
+            TargetVendor = $targetVendor
+            SourceCommand = $sourceCmd
+            Task = $entry.Task
+            Category = $entry.Category
+            Options = $allOptions
+            CorrectAnswer = $correctAnswer
+        }
+
+        $questionIndex++
+    }
+
+    return [PSCustomObject]@{
+        QuizId = [guid]::NewGuid().ToString()
+        Type = $Type
+        GeneratedAt = Get-Date
+        QuestionCount = $questions.Count
+        Questions = $questions
+    }
+}
+
+function Submit-QuizAnswers {
+    <#
+    .SYNOPSIS
+        Scores quiz answers and records progress.
+    .PARAMETER Quiz
+        The quiz object from New-CommandQuiz.
+    .PARAMETER Answers
+        Array of answer objects with QuestionIndex and Answer properties.
+    .PARAMETER User
+        Optional user identifier for progress tracking.
+    .EXAMPLE
+        $result = Submit-QuizAnswers -Quiz $quiz -Answers @(
+            @{ QuestionIndex = 0; Answer = 'show route' }
+        )
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [PSCustomObject]$Quiz,
+
+        [Parameter(Mandatory)]
+        [array]$Answers,
+
+        [string]$User = 'default'
+    )
+
+    $correct = 0
+    $incorrect = 0
+    $results = @()
+
+    foreach ($answer in $Answers) {
+        $questionIndex = $answer.QuestionIndex
+        $userAnswer = $answer.Answer
+
+        $question = $Quiz.Questions | Where-Object { $_.Index -eq $questionIndex }
+        if (-not $question) { continue }
+
+        $isCorrect = ($userAnswer -eq $question.CorrectAnswer)
+        if ($isCorrect) {
+            $correct++
+        } else {
+            $incorrect++
+        }
+
+        $results += [PSCustomObject]@{
+            QuestionIndex = $questionIndex
+            UserAnswer = $userAnswer
+            CorrectAnswer = $question.CorrectAnswer
+            IsCorrect = $isCorrect
+            Task = $question.Task
+        }
+    }
+
+    $percentage = if (($correct + $incorrect) -gt 0) {
+        [Math]::Round(($correct / ($correct + $incorrect)) * 100, 0)
+    } else {
+        0
+    }
+
+    # Update progress
+    if (-not $script:LearningProgress.ContainsKey($User)) {
+        $script:LearningProgress[$User] = @{
+            TotalQuizzes = 0
+            TotalQuestions = 0
+            TotalCorrect = 0
+            QuizHistory = @()
+        }
+    }
+
+    $script:LearningProgress[$User].TotalQuizzes++
+    $script:LearningProgress[$User].TotalQuestions += ($correct + $incorrect)
+    $script:LearningProgress[$User].TotalCorrect += $correct
+    $script:LearningProgress[$User].QuizHistory += [PSCustomObject]@{
+        QuizId = $Quiz.QuizId
+        Date = Get-Date
+        Score = $percentage
+        Correct = $correct
+        Total = ($correct + $incorrect)
+    }
+
+    return [PSCustomObject]@{
+        QuizId = $Quiz.QuizId
+        Correct = $correct
+        Incorrect = $incorrect
+        Unanswered = $Quiz.QuestionCount - ($correct + $incorrect)
+        Percentage = $percentage
+        Results = $results
+    }
+}
+
+function Get-LearningProgress {
+    <#
+    .SYNOPSIS
+        Gets learning progress for a user.
+    .PARAMETER User
+        User identifier (default 'default').
+    .EXAMPLE
+        Get-LearningProgress -User 'testuser'
+    #>
+    [CmdletBinding()]
+    param(
+        [string]$User = 'default'
+    )
+
+    if (-not $script:LearningProgress.ContainsKey($User)) {
+        return [PSCustomObject]@{
+            User = $User
+            TotalQuizzes = 0
+            TotalQuestions = 0
+            TotalCorrect = 0
+            AverageScore = 0
+            QuizHistory = @()
+        }
+    }
+
+    $progress = $script:LearningProgress[$User]
+    $averageScore = if ($progress.TotalQuestions -gt 0) {
+        [Math]::Round(($progress.TotalCorrect / $progress.TotalQuestions) * 100, 1)
+    } else {
+        0
+    }
+
+    return [PSCustomObject]@{
+        User = $User
+        TotalQuizzes = $progress.TotalQuizzes
+        TotalQuestions = $progress.TotalQuestions
+        TotalCorrect = $progress.TotalCorrect
+        AverageScore = $averageScore
+        QuizHistory = $progress.QuizHistory
+    }
+}
+
+function Reset-LearningProgress {
+    <#
+    .SYNOPSIS
+        Resets learning progress for a user.
+    .PARAMETER User
+        User identifier (default 'default').
+    .EXAMPLE
+        Reset-LearningProgress -User 'testuser'
+    #>
+    [CmdletBinding()]
+    param(
+        [string]$User = 'default'
+    )
+
+    if ($script:LearningProgress.ContainsKey($User)) {
+        $script:LearningProgress.Remove($User)
+    }
+
+    return $true
+}
+
+function New-FlashCards {
+    <#
+    .SYNOPSIS
+        Generates flash cards for command learning.
+    .DESCRIPTION
+        Creates flash card sets with command on front and vendor equivalents on back.
+    .PARAMETER Category
+        Filter by command category.
+    .PARAMETER Count
+        Number of cards to generate.
+    .PARAMETER Vendors
+        Vendors to include (default Cisco and Arista).
+    .EXAMPLE
+        New-FlashCards -Category 'Routing' -Count 10
+    #>
+    [CmdletBinding()]
+    param(
+        [string]$Category,
+
+        [ValidateRange(1, 100)]
+        [int]$Count = 20,
+
+        [string[]]$Vendors = @('Cisco', 'Arista')
+    )
+
+    $resolvedVendors = $Vendors | ForEach-Object { Resolve-VendorName -Vendor $_ } | Where-Object { $_ }
+
+    $cards = @()
+    $eligibleTasks = @()
+
+    foreach ($taskKey in $script:CommandDatabase.Keys) {
+        $entry = $script:CommandDatabase[$taskKey]
+
+        if ($Category -and $entry.Category -ne $Category) { continue }
+
+        $hasAllVendors = $true
+        foreach ($v in $resolvedVendors) {
+            if (-not $entry.Commands.ContainsKey($v)) {
+                $hasAllVendors = $false
+                break
+            }
+        }
+
+        if ($hasAllVendors) {
+            $eligibleTasks += $taskKey
+        }
+    }
+
+    # Shuffle and limit
+    $eligibleTasks = $eligibleTasks | Get-Random -Count ([Math]::Min($Count, $eligibleTasks.Count))
+
+    foreach ($taskKey in $eligibleTasks) {
+        $entry = $script:CommandDatabase[$taskKey]
+
+        # Build front (task description)
+        $front = $entry.Task
+
+        # Build back (commands for each vendor)
+        $backLines = @()
+        foreach ($v in $resolvedVendors) {
+            $cmd = $entry.Commands[$v].Command
+            $backLines += "$v`: $cmd"
+        }
+        $back = $backLines -join "`n"
+
+        $cards += [PSCustomObject]@{
+            Front = $front
+            Back = $back
+            Category = $entry.Category
+            TaskKey = $taskKey
+            Vendors = $resolvedVendors
+        }
+    }
+
+    return $cards
+}
+
+#endregion
+
 Export-ModuleMember -Function @(
     'Get-SupportedVendors',
     'Get-VendorInfo',
@@ -1354,5 +1715,10 @@ Export-ModuleMember -Function @(
     'Get-ConfigSnippets',
     'Test-ConfigSnippet',
     'Get-OutputFormat',
-    'Get-StatusCodes'
+    'Get-StatusCodes',
+    'New-CommandQuiz',
+    'Submit-QuizAnswers',
+    'Get-LearningProgress',
+    'Reset-LearningProgress',
+    'New-FlashCards'
 )

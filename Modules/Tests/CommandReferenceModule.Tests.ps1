@@ -453,3 +453,256 @@ Describe 'CommandReferenceModule - Integration' -Tag 'CommandReference', 'Integr
         }
     }
 }
+
+#region ST-AD-006: Learning Mode Tests
+
+Describe 'CommandReferenceModule - Learning Mode' -Tag 'CommandReference', 'LearningMode', 'Unit' {
+
+    Context 'New-CommandQuiz' {
+        It 'generates translation quiz questions' {
+            $quiz = New-CommandQuiz -Type Translation -Count 5
+
+            $quiz | Should Not BeNullOrEmpty
+            $quiz.QuizId | Should Not BeNullOrEmpty
+            $quiz.Type | Should Be 'Translation'
+            $quiz.Questions.Count | Should Be 5
+        }
+
+        It 'includes source command and correct answer' {
+            $quiz = New-CommandQuiz -Type Translation -Count 3
+
+            $quiz.Questions[0].SourceCommand | Should Not BeNullOrEmpty
+            $quiz.Questions[0].CorrectAnswer | Should Not BeNullOrEmpty
+            $quiz.Questions[0].Options.Count | Should BeGreaterThan 1
+        }
+
+        It 'generates options including correct answer' {
+            $quiz = New-CommandQuiz -Count 5
+
+            foreach ($q in $quiz.Questions) {
+                $q.Options -contains $q.CorrectAnswer | Should Be $true
+            }
+        }
+
+        It 'filters by category' {
+            $quiz = New-CommandQuiz -Category 'Routing' -Count 10
+
+            foreach ($q in $quiz.Questions) {
+                $q.Category | Should Be 'Routing'
+            }
+        }
+
+        It 'limits to specified vendors' {
+            $quiz = New-CommandQuiz -Vendors @('Cisco', 'Arista') -Count 5
+
+            foreach ($q in $quiz.Questions) {
+                @('Cisco', 'Arista') -contains $q.SourceVendor | Should Be $true
+                @('Cisco', 'Arista') -contains $q.TargetVendor | Should Be $true
+            }
+        }
+
+        It 'returns null when fewer than 2 vendors specified' {
+            $quiz = New-CommandQuiz -Vendors @('Cisco') -Count 5 -WarningAction SilentlyContinue
+
+            $quiz | Should BeNullOrEmpty
+        }
+    }
+
+    Context 'Submit-QuizAnswers' {
+        BeforeEach {
+            Reset-LearningProgress -User 'testuser' | Out-Null
+        }
+
+        It 'scores correct answers' {
+            $quiz = New-CommandQuiz -Count 3
+            $answers = @(
+                @{ QuestionIndex = 0; Answer = $quiz.Questions[0].CorrectAnswer }
+            )
+
+            $result = Submit-QuizAnswers -Quiz $quiz -Answers $answers -User 'testuser'
+
+            $result.Correct | Should Be 1
+            $result.Incorrect | Should Be 0
+        }
+
+        It 'scores incorrect answers' {
+            $quiz = New-CommandQuiz -Count 3
+            $answers = @(
+                @{ QuestionIndex = 0; Answer = 'wrong answer' }
+            )
+
+            $result = Submit-QuizAnswers -Quiz $quiz -Answers $answers -User 'testuser'
+
+            $result.Correct | Should Be 0
+            $result.Incorrect | Should Be 1
+        }
+
+        It 'calculates percentage correctly' {
+            $quiz = New-CommandQuiz -Count 4
+            $answers = @(
+                @{ QuestionIndex = 0; Answer = $quiz.Questions[0].CorrectAnswer },
+                @{ QuestionIndex = 1; Answer = 'wrong' }
+            )
+
+            $result = Submit-QuizAnswers -Quiz $quiz -Answers $answers -User 'testuser'
+
+            $result.Percentage | Should Be 50
+        }
+
+        It 'tracks unanswered questions' {
+            $quiz = New-CommandQuiz -Count 5
+            $answers = @(
+                @{ QuestionIndex = 0; Answer = $quiz.Questions[0].CorrectAnswer }
+            )
+
+            $result = Submit-QuizAnswers -Quiz $quiz -Answers $answers -User 'testuser'
+
+            $result.Unanswered | Should Be 4
+        }
+
+        It 'returns detailed results' {
+            $quiz = New-CommandQuiz -Count 2
+            $answers = @(
+                @{ QuestionIndex = 0; Answer = $quiz.Questions[0].CorrectAnswer },
+                @{ QuestionIndex = 1; Answer = 'wrong' }
+            )
+
+            $result = Submit-QuizAnswers -Quiz $quiz -Answers $answers -User 'testuser'
+
+            $result.Results.Count | Should Be 2
+            $result.Results[0].IsCorrect | Should Be $true
+            $result.Results[1].IsCorrect | Should Be $false
+        }
+    }
+
+    Context 'Get-LearningProgress' {
+        BeforeEach {
+            Reset-LearningProgress -User 'progresstest' | Out-Null
+        }
+
+        It 'returns zero progress for new user' {
+            $progress = Get-LearningProgress -User 'newuser'
+
+            $progress.TotalQuizzes | Should Be 0
+            $progress.TotalQuestions | Should Be 0
+            $progress.AverageScore | Should Be 0
+        }
+
+        It 'tracks progress after quiz submission' {
+            $quiz = New-CommandQuiz -Count 2
+            $answers = @(
+                @{ QuestionIndex = 0; Answer = $quiz.Questions[0].CorrectAnswer },
+                @{ QuestionIndex = 1; Answer = $quiz.Questions[1].CorrectAnswer }
+            )
+            Submit-QuizAnswers -Quiz $quiz -Answers $answers -User 'progresstest' | Out-Null
+
+            $progress = Get-LearningProgress -User 'progresstest'
+
+            $progress.TotalQuizzes | Should Be 1
+            $progress.TotalQuestions | Should Be 2
+            $progress.TotalCorrect | Should Be 2
+            $progress.AverageScore | Should Be 100
+        }
+
+        It 'accumulates progress across multiple quizzes' {
+            $quiz1 = New-CommandQuiz -Count 2
+            $quiz2 = New-CommandQuiz -Count 2
+
+            Submit-QuizAnswers -Quiz $quiz1 -Answers @(
+                @{ QuestionIndex = 0; Answer = $quiz1.Questions[0].CorrectAnswer }
+                @{ QuestionIndex = 1; Answer = 'wrong' }
+            ) -User 'progresstest' | Out-Null
+
+            Submit-QuizAnswers -Quiz $quiz2 -Answers @(
+                @{ QuestionIndex = 0; Answer = $quiz2.Questions[0].CorrectAnswer }
+                @{ QuestionIndex = 1; Answer = $quiz2.Questions[1].CorrectAnswer }
+            ) -User 'progresstest' | Out-Null
+
+            $progress = Get-LearningProgress -User 'progresstest'
+
+            $progress.TotalQuizzes | Should Be 2
+            $progress.TotalQuestions | Should Be 4
+            $progress.TotalCorrect | Should Be 3
+            $progress.AverageScore | Should Be 75
+        }
+
+        It 'maintains quiz history' {
+            $quiz = New-CommandQuiz -Count 2
+            Submit-QuizAnswers -Quiz $quiz -Answers @(
+                @{ QuestionIndex = 0; Answer = $quiz.Questions[0].CorrectAnswer }
+            ) -User 'progresstest' | Out-Null
+
+            $progress = Get-LearningProgress -User 'progresstest'
+
+            $progress.QuizHistory.Count | Should Be 1
+            $progress.QuizHistory[0].QuizId | Should Be $quiz.QuizId
+        }
+    }
+
+    Context 'Reset-LearningProgress' {
+        It 'clears user progress' {
+            $quiz = New-CommandQuiz -Count 2
+            Submit-QuizAnswers -Quiz $quiz -Answers @(
+                @{ QuestionIndex = 0; Answer = $quiz.Questions[0].CorrectAnswer }
+            ) -User 'resettest' | Out-Null
+
+            Reset-LearningProgress -User 'resettest'
+
+            $progress = Get-LearningProgress -User 'resettest'
+            $progress.TotalQuizzes | Should Be 0
+        }
+    }
+
+    Context 'New-FlashCards' {
+        It 'generates flash cards with front and back' {
+            $cards = New-FlashCards -Count 5
+
+            $cards.Count | Should Be 5
+            $cards[0].Front | Should Not BeNullOrEmpty
+            $cards[0].Back | Should Not BeNullOrEmpty
+        }
+
+        It 'includes task description on front' {
+            $cards = New-FlashCards -Count 10
+
+            foreach ($card in $cards) {
+                $card.Front | Should Not BeNullOrEmpty
+            }
+        }
+
+        It 'includes vendor commands on back' {
+            $cards = New-FlashCards -Vendors @('Cisco', 'Arista') -Count 5
+
+            foreach ($card in $cards) {
+                $card.Back | Should Match 'Cisco:'
+                $card.Back | Should Match 'Arista:'
+            }
+        }
+
+        It 'filters by category' {
+            $cards = New-FlashCards -Category 'Routing' -Count 10
+
+            foreach ($card in $cards) {
+                $card.Category | Should Be 'Routing'
+            }
+        }
+
+        It 'respects count limit' {
+            $cards = New-FlashCards -Count 3
+
+            $cards.Count -le 3 | Should Be $true
+        }
+
+        It 'includes multiple vendors when specified' {
+            $cards = New-FlashCards -Vendors @('Cisco', 'Arista', 'Juniper') -Count 5
+
+            foreach ($card in $cards) {
+                $card.Back | Should Match 'Cisco:'
+                $card.Back | Should Match 'Arista:'
+                $card.Back | Should Match 'Juniper:'
+            }
+        }
+    }
+}
+
+#endregion

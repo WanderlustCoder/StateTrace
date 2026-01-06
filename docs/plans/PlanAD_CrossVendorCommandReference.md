@@ -16,12 +16,13 @@ Network teams struggle with:
 - Documenting procedures that work across vendors
 
 ## Current status (2026-01)
-- **Phase 1 Complete**: Core command reference and translation implemented
+- **Complete (6/6 Done)**: Core command reference, translation, and learning mode implemented
 - CommandReferenceModule.psm1: 20+ commands across 4 vendors (Cisco, Arista, Juniper, HP)
 - CommandReferenceViewModule.psm1: Full UI with 4 tabs (Commands, Compare, Snippets, Quick Reference)
-- 50 passing unit tests covering all core functionality
+- 72 passing unit tests covering all functionality including learning mode
 - Config snippet templates with variable expansion
 - Command translation between vendors with notes
+- Learning mode with quizzes, scoring, progress tracking, and flash cards
 
 ### Delivered Features
 - Command database with task-based organization
@@ -30,9 +31,9 @@ Network teams struggle with:
 - Config snippet library with VLAN, trunk, access port templates
 - Status code documentation for show commands
 - Output format reference
+- Learning mode: New-CommandQuiz, Submit-QuizAnswers, Get-LearningProgress, New-FlashCards
 
-### Pending Features
-- Learning mode (quizzes, flash cards)
+### Future Enhancements (Not Planned)
 - PDF/printable cheat sheet export
 - Additional vendors (NX-OS, Dell OS10)
 - Batch configuration translation
@@ -127,7 +128,7 @@ Network teams struggle with:
 | ST-AD-003 | Translation engine | Tools | Done | Convert-NetworkCommand with notes |
 | ST-AD-004 | Quick reference UI | UI | Done | 4-tab interface: Commands, Compare, Snippets, Quick Ref |
 | ST-AD-005 | Config snippet library | Tools | Done | VLAN, Trunk, Access Port templates |
-| ST-AD-006 | Learning mode | UI | Pending | Quiz and practice features |
+| ST-AD-006 | Learning mode | UI | Done | Quiz generation, scoring, progress tracking, flash cards |
 
 ## Data Model (Proposed)
 
