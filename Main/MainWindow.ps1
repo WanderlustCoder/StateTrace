@@ -513,6 +513,17 @@ try {
     Write-Warning ("Failed to ensure Data directory exists: {0}" -f $_.Exception.Message)
 }
 
+# Initialize MainWindow.Services with repository root for settings access
+try {
+    $servicesModulePath = Join-Path $repoRoot 'Modules\MainWindow.Services.psm1'
+    if (Test-Path -LiteralPath $servicesModulePath) {
+        Import-Module -Name $servicesModulePath -Global -ErrorAction Stop
+        MainWindow.Services\Initialize-MainWindowServices -RepositoryRoot $repoRoot | Out-Null
+    }
+} catch {
+    Write-Warning ("Failed to initialize MainWindow.Services: {0}" -f $_.Exception.Message)
+}
+
 if (-not (Get-Variable -Name DeviceDetailsRunspaceLock -Scope Script -ErrorAction SilentlyContinue)) {
     $script:DeviceDetailsRunspaceLock = New-Object System.Threading.SemaphoreSlim 1, 1
 }
