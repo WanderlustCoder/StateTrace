@@ -15,14 +15,15 @@ Network engineers struggle with:
 - Quickly identifying the impact radius of a device or link failure
 
 ## Current status (2026-01)
-- **In Progress (4/6 Done)**: Core module, tests, UI, and MainWindow integration complete
+- **Complete (6/6 Done)**: Core module, tests, UI, MainWindow integration, L3 topology, and Visio export
 - Link discovery from interface descriptions (6 patterns)
 - Topology graph model with nodes and links
-- Layout algorithms: Hierarchical, Force-Directed, Circular, Grid
+- Layout algorithms: Hierarchical, Force-Directed, Circular, Grid, Subnet-Group
 - Impact analysis with redundancy detection
-- Export formats: SVG, JSON, Draw.io
+- L3 topology: subnet grouping, gateway detection, routing protocol views (OSPF/EIGRP)
+- Export formats: SVG, JSON, Draw.io, Visio (.vsdx)
 - Interactive canvas with zoom, pan, and filtering
-- 52 Pester tests passing
+- 74 Pester tests passing
 
 ## Proposed Features
 
@@ -89,9 +90,9 @@ Network engineers struggle with:
 | ST-W-001 | Link discovery engine | Tools | Done | 6 description patterns, interface parsing |
 | ST-W-002 | Topology data model | Data | Done | Nodes, links, layouts in TopologyModule.psm1 |
 | ST-W-003 | L2 topology view | UI | Done | TopologyView.xaml with interactive canvas |
-| ST-W-004 | L3 topology view | UI | Pending | L3 routing overlay view |
-| ST-W-005 | Auto-layout algorithms | UI | Done | Hierarchical, force-directed, circular, grid |
-| ST-W-006 | Export to Visio/Draw.io | Tools | Pending | Draw.io done, Visio pending |
+| ST-W-004 | L3 topology view | UI | Done | L3 interface mgmt, subnet grouping, routing protocols |
+| ST-W-005 | Auto-layout algorithms | UI | Done | Hierarchical, force-directed, circular, grid, subnet-group |
+| ST-W-006 | Export to Visio/Draw.io | Tools | Done | Draw.io XML, Visio .vsdx (Open Packaging) |
 
 ## Recently delivered
 | ID | Title | Delivered | Notes |
@@ -100,6 +101,8 @@ Network engineers struggle with:
 | ST-W-002 | Topology data model | 2026-01-05 | Node/Link management, impact analysis |
 | ST-W-003 | L2 topology view | 2026-01-05 | `Views/TopologyView.xaml`, view module |
 | ST-W-005 | Auto-layout algorithms | 2026-01-05 | 4 layout algorithms implemented |
+| ST-W-004 | L3 topology view | 2026-01-06 | Add-L3Interface, Get-SubnetGroups, Get-L3Links, Set-SubnetGroupLayout, Get-RoutingProtocolTopology |
+| ST-W-006 | Export to Visio/Draw.io | 2026-01-06 | Export-TopologyToVisio with .vsdx ZIP package |
 
 ## Data Model (Proposed)
 

@@ -607,4 +607,303 @@ Describe 'TopologyModule' -Tag 'Topology' {
             (Get-DeviceRole -DeviceName 'UNKNOWN-DEVICE') | Should Be 'Access'
         }
     }
+
+    #region ST-W-004: L3 Topology Tests
+
+    Context 'L3 Interface Management' {
+
+        It 'adds L3 interface to node' {
+            $node = New-TopologyNode -DeviceID 'RTR-01'
+
+            $iface = Add-L3Interface -NodeID $node.NodeID `
+                -InterfaceName 'Gi0/0' `
+                -IPAddress '10.1.1.1' `
+                -SubnetMask '255.255.255.0'
+
+            $iface | Should Not BeNullOrEmpty
+            $iface.IPAddress | Should Be '10.1.1.1'
+            $iface.PrefixLength | Should Be 24
+        }
+
+        It 'calculates network address correctly' {
+            $node = New-TopologyNode -DeviceID 'RTR-01'
+
+            $iface = Add-L3Interface -NodeID $node.NodeID `
+                -InterfaceName 'Gi0/1' `
+                -IPAddress '10.1.1.100' `
+                -SubnetMask '255.255.255.0'
+
+            $iface.NetworkAddress | Should Be '10.1.1.0'
+            $iface.CIDR | Should Be '10.1.1.0/24'
+        }
+
+        It 'retrieves L3 interfaces for node' {
+            $node = New-TopologyNode -DeviceID 'RTR-01'
+
+            Add-L3Interface -NodeID $node.NodeID -InterfaceName 'Gi0/0' -IPAddress '10.1.1.1' | Out-Null
+            Add-L3Interface -NodeID $node.NodeID -InterfaceName 'Gi0/1' -IPAddress '10.1.2.1' | Out-Null
+
+            $interfaces = @(Get-L3Interfaces -NodeID $node.NodeID)
+
+            $interfaces.Count | Should Be 2
+        }
+
+        It 'stores routing protocol information' {
+            $node = New-TopologyNode -DeviceID 'RTR-01'
+
+            $iface = Add-L3Interface -NodeID $node.NodeID `
+                -InterfaceName 'Gi0/0' `
+                -IPAddress '10.1.1.1' `
+                -OSPFArea '0' `
+                -RoutingProtocol 'OSPF'
+
+            $iface.OSPFArea | Should Be '0'
+            $iface.RoutingProtocol | Should Be 'OSPF'
+        }
+
+        It 'marks gateway interfaces' {
+            $node = New-TopologyNode -DeviceID 'RTR-01'
+
+            $iface = Add-L3Interface -NodeID $node.NodeID `
+                -InterfaceName 'Gi0/0' `
+                -IPAddress '10.1.1.1' `
+                -IsGateway $true
+
+            $iface.IsGateway | Should Be $true
+        }
+    }
+
+    Context 'Subnet Grouping' {
+
+        It 'groups nodes by subnet' {
+            $rtr = New-TopologyNode -DeviceID 'RTR-01'
+            $sw1 = New-TopologyNode -DeviceID 'SW-01'
+            $sw2 = New-TopologyNode -DeviceID 'SW-02'
+
+            Add-L3Interface -NodeID $rtr.NodeID -InterfaceName 'Vlan10' -IPAddress '10.1.10.1' -SubnetMask '255.255.255.0' | Out-Null
+            Add-L3Interface -NodeID $sw1.NodeID -InterfaceName 'Vlan10' -IPAddress '10.1.10.2' -SubnetMask '255.255.255.0' | Out-Null
+            Add-L3Interface -NodeID $sw2.NodeID -InterfaceName 'Vlan20' -IPAddress '10.1.20.1' -SubnetMask '255.255.255.0' | Out-Null
+
+            $groups = Get-SubnetGroups -VRF '*'
+
+            $groups.Count | Should Be 2
+            $groups['10.1.10.0/24'].Nodes.Count | Should Be 2
+            $groups['10.1.20.0/24'].Nodes.Count | Should Be 1
+        }
+
+        It 'identifies gateways in subnet groups' {
+            $rtr = New-TopologyNode -DeviceID 'RTR-01'
+            $sw = New-TopologyNode -DeviceID 'SW-01'
+
+            Add-L3Interface -NodeID $rtr.NodeID -InterfaceName 'Vlan10' -IPAddress '10.1.10.1' -SubnetMask '255.255.255.0' -IsGateway $true | Out-Null
+            Add-L3Interface -NodeID $sw.NodeID -InterfaceName 'Vlan10' -IPAddress '10.1.10.2' -SubnetMask '255.255.255.0' | Out-Null
+
+            $groups = Get-SubnetGroups -VRF '*'
+
+            $groups['10.1.10.0/24'].Gateways.Count | Should Be 1
+        }
+    }
+
+    Context 'L3 Links' {
+
+        It 'creates L3 links between nodes in same subnet' {
+            $rtr = New-TopologyNode -DeviceID 'RTR-01'
+            $sw1 = New-TopologyNode -DeviceID 'SW-01'
+            $sw2 = New-TopologyNode -DeviceID 'SW-02'
+
+            Add-L3Interface -NodeID $rtr.NodeID -InterfaceName 'Vlan10' -IPAddress '10.1.10.1' -SubnetMask '255.255.255.0' | Out-Null
+            Add-L3Interface -NodeID $sw1.NodeID -InterfaceName 'Vlan10' -IPAddress '10.1.10.2' -SubnetMask '255.255.255.0' | Out-Null
+            Add-L3Interface -NodeID $sw2.NodeID -InterfaceName 'Vlan10' -IPAddress '10.1.10.3' -SubnetMask '255.255.255.0' | Out-Null
+
+            $l3Links = @(Get-L3Links)
+
+            # 3 nodes in same subnet = 3 pairwise links
+            $l3Links.Count | Should Be 3
+        }
+
+        It 'includes subnet info in L3 links' {
+            $rtr = New-TopologyNode -DeviceID 'RTR-01'
+            $sw = New-TopologyNode -DeviceID 'SW-01'
+
+            Add-L3Interface -NodeID $rtr.NodeID -InterfaceName 'Vlan10' -IPAddress '10.1.10.1' -SubnetMask '255.255.255.0' | Out-Null
+            Add-L3Interface -NodeID $sw.NodeID -InterfaceName 'Vlan10' -IPAddress '10.1.10.2' -SubnetMask '255.255.255.0' | Out-Null
+
+            $l3Links = @(Get-L3Links)
+
+            $l3Links[0].Subnet | Should Be '10.1.10.0/24'
+            $l3Links[0].SourceIP | Should Not BeNullOrEmpty
+            $l3Links[0].DestIP | Should Not BeNullOrEmpty
+        }
+    }
+
+    Context 'Subnet Group Layout' {
+
+        It 'applies subnet group layout' {
+            $rtr = New-TopologyNode -DeviceID 'RTR-01'
+            $sw1 = New-TopologyNode -DeviceID 'SW-01'
+            $sw2 = New-TopologyNode -DeviceID 'SW-02'
+
+            Add-L3Interface -NodeID $rtr.NodeID -InterfaceName 'Vlan10' -IPAddress '10.1.10.1' -SubnetMask '255.255.255.0' | Out-Null
+            Add-L3Interface -NodeID $sw1.NodeID -InterfaceName 'Vlan10' -IPAddress '10.1.10.2' -SubnetMask '255.255.255.0' | Out-Null
+            Add-L3Interface -NodeID $sw2.NodeID -InterfaceName 'Vlan20' -IPAddress '10.1.20.1' -SubnetMask '255.255.255.0' | Out-Null
+
+            Set-SubnetGroupLayout
+
+            # Nodes should have updated positions
+            $rtr = Get-TopologyNode -DeviceID 'RTR-01'
+            $sw2 = Get-TopologyNode -DeviceID 'SW-02'
+
+            $rtr.XPosition | Should BeGreaterThan 0
+            $sw2.XPosition | Should BeGreaterThan 0
+        }
+    }
+
+    Context 'Routing Protocol Topology' {
+
+        It 'groups nodes by OSPF area' {
+            $rtr1 = New-TopologyNode -DeviceID 'RTR-01'
+            $rtr2 = New-TopologyNode -DeviceID 'RTR-02'
+            $rtr3 = New-TopologyNode -DeviceID 'RTR-03'
+
+            Add-L3Interface -NodeID $rtr1.NodeID -InterfaceName 'Gi0/0' -IPAddress '10.1.1.1' -OSPFArea '0' | Out-Null
+            Add-L3Interface -NodeID $rtr2.NodeID -InterfaceName 'Gi0/0' -IPAddress '10.1.2.1' -OSPFArea '0' | Out-Null
+            Add-L3Interface -NodeID $rtr3.NodeID -InterfaceName 'Gi0/0' -IPAddress '10.2.1.1' -OSPFArea '1' | Out-Null
+
+            $groups = Get-RoutingProtocolTopology -Protocol 'OSPF'
+
+            $groups.Count | Should Be 2
+            $groups['OSPF-Area-0'].Count | Should Be 2
+            $groups['OSPF-Area-1'].Count | Should Be 1
+        }
+    }
+
+    Context 'L3 Topology Statistics' {
+
+        It 'returns correct L3 statistics' {
+            $rtr = New-TopologyNode -DeviceID 'RTR-01'
+            $sw = New-TopologyNode -DeviceID 'SW-01'
+            $noL3 = New-TopologyNode -DeviceID 'SW-02'
+
+            Add-L3Interface -NodeID $rtr.NodeID -InterfaceName 'Gi0/0' -IPAddress '10.1.1.1' -IsGateway $true | Out-Null
+            Add-L3Interface -NodeID $rtr.NodeID -InterfaceName 'Gi0/1' -IPAddress '10.1.2.1' -IsGateway $true | Out-Null
+            Add-L3Interface -NodeID $sw.NodeID -InterfaceName 'Vlan10' -IPAddress '10.1.1.2' | Out-Null
+
+            $stats = Get-L3TopologyStatistics
+
+            $stats.TotalNodes | Should Be 3
+            $stats.NodesWithL3 | Should Be 2
+            $stats.TotalInterfaces | Should Be 3
+            $stats.GatewayCount | Should Be 2
+        }
+    }
+
+    Context 'Helper Functions' {
+
+        It 'converts subnet mask to prefix length' {
+            (ConvertTo-PrefixLength -SubnetMask '255.255.255.0') | Should Be 24
+            (ConvertTo-PrefixLength -SubnetMask '255.255.255.128') | Should Be 25
+            (ConvertTo-PrefixLength -SubnetMask '255.255.0.0') | Should Be 16
+            (ConvertTo-PrefixLength -SubnetMask '255.255.255.252') | Should Be 30
+        }
+
+        It 'calculates network address' {
+            (Get-NetworkAddress -IPAddress '10.1.1.100' -PrefixLength 24) | Should Be '10.1.1.0'
+            (Get-NetworkAddress -IPAddress '192.168.1.50' -PrefixLength 25) | Should Be '192.168.1.0'
+            (Get-NetworkAddress -IPAddress '172.16.5.200' -PrefixLength 16) | Should Be '172.16.0.0'
+        }
+    }
+
+    #endregion
+
+    #region ST-W-006: Visio Export Tests
+
+    Context 'Visio Export' {
+
+        It 'exports topology to Visio format' {
+            $node1 = New-TopologyNode -DeviceID 'CORE-01'
+            $node2 = New-TopologyNode -DeviceID 'DS-01'
+            New-TopologyLink -SourceNodeID $node1.NodeID -DestNodeID $node2.NodeID | Out-Null
+            Set-HierarchicalLayout
+
+            $tempPath = Join-Path $env:TEMP "test-topology-$([guid]::NewGuid().ToString('N').Substring(0,8)).vsdx"
+
+            try {
+                $result = Export-TopologyToVisio -OutputPath $tempPath
+
+                $result | Should Not BeNullOrEmpty
+                Test-Path $result | Should Be $true
+                $result | Should Match '\.vsdx$'
+            }
+            finally {
+                if (Test-Path $tempPath) {
+                    Remove-Item $tempPath -Force
+                }
+            }
+        }
+
+        It 'creates valid ZIP structure for VSDX' {
+            $node1 = New-TopologyNode -DeviceID 'SW-01'
+            Set-HierarchicalLayout
+
+            $tempPath = Join-Path $env:TEMP "test-topology-$([guid]::NewGuid().ToString('N').Substring(0,8)).vsdx"
+
+            try {
+                Export-TopologyToVisio -OutputPath $tempPath
+
+                # Verify it's a valid ZIP (VSDX is ZIP-based)
+                Add-Type -AssemblyName System.IO.Compression.FileSystem
+                $zip = [System.IO.Compression.ZipFile]::OpenRead($tempPath)
+
+                $entryNames = $zip.Entries.Name
+                $entryNames -contains 'document.xml' | Should Be $true
+                $entryNames -contains 'page1.xml' | Should Be $true
+
+                $zip.Dispose()
+            }
+            finally {
+                if (Test-Path $tempPath) {
+                    Remove-Item $tempPath -Force
+                }
+            }
+        }
+
+        It 'includes node data in Visio export' {
+            $node = New-TopologyNode -DeviceID 'CORE-01'
+            $node.XPosition = 100
+            $node.YPosition = 100
+
+            $tempPath = Join-Path $env:TEMP "test-topology-$([guid]::NewGuid().ToString('N').Substring(0,8)).vsdx"
+
+            try {
+                Export-TopologyToVisio -OutputPath $tempPath
+
+                Add-Type -AssemblyName System.IO.Compression.FileSystem
+                $zip = [System.IO.Compression.ZipFile]::OpenRead($tempPath)
+
+                $pageEntry = $zip.Entries | Where-Object { $_.Name -eq 'page1.xml' }
+                $reader = New-Object System.IO.StreamReader($pageEntry.Open())
+                $content = $reader.ReadToEnd()
+                $reader.Dispose()
+                $zip.Dispose()
+
+                $content | Should Match 'CORE-01'
+            }
+            finally {
+                if (Test-Path $tempPath) {
+                    Remove-Item $tempPath -Force
+                }
+            }
+        }
+
+        It 'returns null for empty topology' {
+            Clear-Topology
+
+            $tempPath = Join-Path $env:TEMP "test-empty.vsdx"
+            $result = Export-TopologyToVisio -OutputPath $tempPath
+
+            $result | Should Be $null
+        }
+    }
+
+    #endregion
 }

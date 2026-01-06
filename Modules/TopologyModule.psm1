@@ -1194,6 +1194,564 @@ function Restore-TopologyLayout {
 
 #endregion
 
+#region L3 Topology Functions
+
+function Add-L3Interface {
+    <#
+    .SYNOPSIS
+        Adds L3 interface data to a topology node.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$NodeID,
+
+        [Parameter(Mandatory)]
+        [string]$InterfaceName,
+
+        [Parameter(Mandatory)]
+        [string]$IPAddress,
+
+        [string]$SubnetMask = '255.255.255.0',
+        [int]$PrefixLength,
+        [string]$VRF = 'default',
+        [string]$Description,
+        [string]$RoutingProtocol,
+        [string]$OSPFArea,
+        [string]$EIGRPAS,
+        [bool]$IsGateway = $false
+    )
+
+    $node = Get-TopologyNode -NodeID $NodeID
+    if (-not $node) {
+        Write-Warning "Node $NodeID not found"
+        return $null
+    }
+
+    # Calculate prefix if not provided
+    if (-not $PrefixLength) {
+        $PrefixLength = ConvertTo-PrefixLength -SubnetMask $SubnetMask
+    }
+
+    # Calculate network address
+    $networkAddress = Get-NetworkAddress -IPAddress $IPAddress -PrefixLength $PrefixLength
+
+    # Initialize L3Interfaces if not exists
+    if (-not $node.Properties.ContainsKey('L3Interfaces')) {
+        $node.Properties['L3Interfaces'] = [System.Collections.ArrayList]::new()
+    }
+
+    $l3Interface = [PSCustomObject]@{
+        InterfaceName   = $InterfaceName
+        IPAddress       = $IPAddress
+        SubnetMask      = $SubnetMask
+        PrefixLength    = $PrefixLength
+        NetworkAddress  = $networkAddress
+        CIDR            = "$networkAddress/$PrefixLength"
+        VRF             = $VRF
+        Description     = $Description
+        RoutingProtocol = $RoutingProtocol
+        OSPFArea        = $OSPFArea
+        EIGRPAS         = $EIGRPAS
+        IsGateway       = $IsGateway
+    }
+
+    [void]$node.Properties['L3Interfaces'].Add($l3Interface)
+    return $l3Interface
+}
+
+function Get-L3Interfaces {
+    <#
+    .SYNOPSIS
+        Gets L3 interfaces for a node.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$NodeID
+    )
+
+    $node = Get-TopologyNode -NodeID $NodeID
+    if (-not $node) { return @() }
+
+    if ($node.Properties.ContainsKey('L3Interfaces')) {
+        return @($node.Properties['L3Interfaces'])
+    }
+    return @()
+}
+
+function ConvertTo-PrefixLength {
+    <#
+    .SYNOPSIS
+        Converts subnet mask to prefix length.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$SubnetMask
+    )
+
+    $octets = $SubnetMask.Split('.')
+    $binary = ''
+    foreach ($octet in $octets) {
+        $binary += [Convert]::ToString([int]$octet, 2).PadLeft(8, '0')
+    }
+    return ($binary.ToCharArray() | Where-Object { $_ -eq '1' }).Count
+}
+
+function Get-NetworkAddress {
+    <#
+    .SYNOPSIS
+        Calculates network address from IP and prefix.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$IPAddress,
+
+        [Parameter(Mandatory)]
+        [int]$PrefixLength
+    )
+
+    $ipBytes = [System.Net.IPAddress]::Parse($IPAddress).GetAddressBytes()
+    $maskBits = ('1' * $PrefixLength).PadRight(32, '0')
+    $maskBytes = @()
+    for ($i = 0; $i -lt 4; $i++) {
+        $maskBytes += [Convert]::ToByte($maskBits.Substring($i * 8, 8), 2)
+    }
+
+    $networkBytes = @()
+    for ($i = 0; $i -lt 4; $i++) {
+        $networkBytes += ($ipBytes[$i] -band $maskBytes[$i])
+    }
+
+    return ($networkBytes -join '.')
+}
+
+function Get-SubnetGroups {
+    <#
+    .SYNOPSIS
+        Groups nodes by their subnet membership for L3 view.
+    #>
+    [CmdletBinding()]
+    param(
+        [string]$VRF = 'default'
+    )
+
+    $nodes = @(Get-TopologyNode)
+    $subnetGroups = @{}
+
+    foreach ($node in $nodes) {
+        $l3Interfaces = Get-L3Interfaces -NodeID $node.NodeID
+        foreach ($iface in $l3Interfaces) {
+            if ($iface.VRF -ne $VRF -and $VRF -ne '*') { continue }
+
+            $subnet = $iface.CIDR
+            if (-not $subnetGroups.ContainsKey($subnet)) {
+                $subnetGroups[$subnet] = @{
+                    CIDR           = $subnet
+                    NetworkAddress = $iface.NetworkAddress
+                    PrefixLength   = $iface.PrefixLength
+                    VRF            = $iface.VRF
+                    Nodes          = [System.Collections.ArrayList]::new()
+                    Gateways       = [System.Collections.ArrayList]::new()
+                }
+            }
+
+            [void]$subnetGroups[$subnet].Nodes.Add(@{
+                Node      = $node
+                Interface = $iface
+            })
+
+            if ($iface.IsGateway) {
+                [void]$subnetGroups[$subnet].Gateways.Add($node)
+            }
+        }
+    }
+
+    return $subnetGroups
+}
+
+function Get-L3Links {
+    <#
+    .SYNOPSIS
+        Gets L3 routing links between nodes (through shared subnets).
+    #>
+    [CmdletBinding()]
+    param()
+
+    $subnetGroups = Get-SubnetGroups -VRF '*'
+    $l3Links = [System.Collections.ArrayList]::new()
+
+    foreach ($subnet in $subnetGroups.Values) {
+        $nodesInSubnet = @($subnet.Nodes)
+
+        # Create links between all nodes in same subnet
+        for ($i = 0; $i -lt $nodesInSubnet.Count; $i++) {
+            for ($j = $i + 1; $j -lt $nodesInSubnet.Count; $j++) {
+                $nodeA = $nodesInSubnet[$i]
+                $nodeB = $nodesInSubnet[$j]
+
+                [void]$l3Links.Add([PSCustomObject]@{
+                    SourceNodeID  = $nodeA.Node.NodeID
+                    SourceIP      = $nodeA.Interface.IPAddress
+                    DestNodeID    = $nodeB.Node.NodeID
+                    DestIP        = $nodeB.Interface.IPAddress
+                    Subnet        = $subnet.CIDR
+                    VRF           = $subnet.VRF
+                })
+            }
+        }
+    }
+
+    return $l3Links
+}
+
+function Set-SubnetGroupLayout {
+    <#
+    .SYNOPSIS
+        Applies layout that groups nodes by subnet.
+    #>
+    [CmdletBinding()]
+    param(
+        [double]$Width = 800,
+        [double]$Height = 600,
+        [double]$SubnetSpacing = 200,
+        [double]$NodeSpacing = 80
+    )
+
+    $subnetGroups = Get-SubnetGroups -VRF '*'
+    if ($subnetGroups.Count -eq 0) { return }
+
+    $subnets = @($subnetGroups.Values)
+    $cols = [math]::Ceiling([math]::Sqrt($subnets.Count))
+
+    $subnetIndex = 0
+    foreach ($subnet in $subnets) {
+        $col = $subnetIndex % $cols
+        $row = [math]::Floor($subnetIndex / $cols)
+
+        $baseX = 100 + ($col * $SubnetSpacing)
+        $baseY = 100 + ($row * $SubnetSpacing)
+
+        # Position nodes within subnet group
+        $nodeIndex = 0
+        foreach ($entry in $subnet.Nodes) {
+            $node = $entry.Node
+            $localCol = $nodeIndex % 3
+            $localRow = [math]::Floor($nodeIndex / 3)
+
+            $node.XPosition = $baseX + ($localCol * $NodeSpacing)
+            $node.YPosition = $baseY + ($localRow * $NodeSpacing)
+            $nodeIndex++
+        }
+
+        $subnetIndex++
+    }
+}
+
+function Get-RoutingProtocolTopology {
+    <#
+    .SYNOPSIS
+        Gets nodes grouped by routing protocol (OSPF areas, EIGRP AS).
+    #>
+    [CmdletBinding()]
+    param(
+        [ValidateSet('OSPF', 'EIGRP', 'BGP', 'All')]
+        [string]$Protocol = 'All'
+    )
+
+    $nodes = @(Get-TopologyNode)
+    $protocolGroups = @{}
+
+    foreach ($node in $nodes) {
+        $l3Interfaces = Get-L3Interfaces -NodeID $node.NodeID
+
+        foreach ($iface in $l3Interfaces) {
+            $key = $null
+
+            if (($Protocol -eq 'All' -or $Protocol -eq 'OSPF') -and $iface.OSPFArea) {
+                $key = "OSPF-Area-$($iface.OSPFArea)"
+            }
+            elseif (($Protocol -eq 'All' -or $Protocol -eq 'EIGRP') -and $iface.EIGRPAS) {
+                $key = "EIGRP-AS-$($iface.EIGRPAS)"
+            }
+
+            if ($key) {
+                if (-not $protocolGroups.ContainsKey($key)) {
+                    $protocolGroups[$key] = [System.Collections.ArrayList]::new()
+                }
+                if ($protocolGroups[$key] -notcontains $node) {
+                    [void]$protocolGroups[$key].Add($node)
+                }
+            }
+        }
+    }
+
+    return $protocolGroups
+}
+
+function Get-L3TopologyStatistics {
+    <#
+    .SYNOPSIS
+        Gets L3 topology statistics.
+    #>
+    [CmdletBinding()]
+    param()
+
+    $nodes = @(Get-TopologyNode)
+    $subnetGroups = Get-SubnetGroups -VRF '*'
+    $l3Links = @(Get-L3Links)
+
+    $nodesWithL3 = 0
+    $totalInterfaces = 0
+    $gatewayCount = 0
+    $vrfs = @{}
+
+    foreach ($node in $nodes) {
+        $interfaces = @(Get-L3Interfaces -NodeID $node.NodeID)
+        if ($interfaces.Count -gt 0) {
+            $nodesWithL3++
+            $totalInterfaces += $interfaces.Count
+            foreach ($iface in $interfaces) {
+                if ($iface.IsGateway) { $gatewayCount++ }
+                if (-not $vrfs.ContainsKey($iface.VRF)) {
+                    $vrfs[$iface.VRF] = 0
+                }
+                $vrfs[$iface.VRF]++
+            }
+        }
+    }
+
+    return [PSCustomObject]@{
+        TotalNodes       = $nodes.Count
+        NodesWithL3      = $nodesWithL3
+        TotalSubnets     = $subnetGroups.Count
+        TotalL3Links     = $l3Links.Count
+        TotalInterfaces  = $totalInterfaces
+        GatewayCount     = $gatewayCount
+        VRFCount         = $vrfs.Count
+        VRFBreakdown     = $vrfs
+    }
+}
+
+#endregion
+
+#region Visio Export
+
+function Export-TopologyToVisio {
+    <#
+    .SYNOPSIS
+        Exports topology to Visio-compatible VSDX format.
+    .DESCRIPTION
+        Generates a .vsdx file using Open Packaging Convention.
+        The file can be opened in Microsoft Visio.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$OutputPath,
+
+        [string]$Title = 'Network Topology',
+        [double]$PageWidth = 11,
+        [double]$PageHeight = 8.5
+    )
+
+    $nodes = @(Get-TopologyNode)
+    $links = @(Get-TopologyLink)
+
+    if ($nodes.Count -eq 0) {
+        Write-Warning "No nodes to export"
+        return $null
+    }
+
+    # Create temp directory for VSDX contents
+    $tempDir = Join-Path $env:TEMP "visio_$([guid]::NewGuid().ToString('N'))"
+    New-Item -Path $tempDir -ItemType Directory -Force | Out-Null
+
+    try {
+        # Create required directories
+        $visioDir = Join-Path $tempDir 'visio'
+        $pagesDir = Join-Path $visioDir 'pages'
+        $relsDir = Join-Path $tempDir '_rels'
+        $visioRelsDir = Join-Path $visioDir '_rels'
+        $pagesRelsDir = Join-Path $pagesDir '_rels'
+
+        New-Item -Path $visioDir -ItemType Directory -Force | Out-Null
+        New-Item -Path $pagesDir -ItemType Directory -Force | Out-Null
+        New-Item -Path $relsDir -ItemType Directory -Force | Out-Null
+        New-Item -Path $visioRelsDir -ItemType Directory -Force | Out-Null
+        New-Item -Path $pagesRelsDir -ItemType Directory -Force | Out-Null
+
+        # [Content_Types].xml
+        $contentTypes = @"
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/visio/document.xml" ContentType="application/vnd.ms-visio.drawing.main+xml"/>
+  <Override PartName="/visio/pages/pages.xml" ContentType="application/vnd.ms-visio.pages+xml"/>
+  <Override PartName="/visio/pages/page1.xml" ContentType="application/vnd.ms-visio.page+xml"/>
+</Types>
+"@
+        $contentTypesPath = Join-Path $tempDir '[Content_Types].xml'
+        $contentTypes | Out-File -LiteralPath $contentTypesPath -Encoding UTF8
+
+        # _rels/.rels
+        $rootRels = @"
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.microsoft.com/visio/2010/relationships/document" Target="visio/document.xml"/>
+</Relationships>
+"@
+        $rootRels | Out-File -FilePath (Join-Path $relsDir '.rels') -Encoding UTF8
+
+        # visio/_rels/document.xml.rels
+        $docRels = @"
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.microsoft.com/visio/2010/relationships/pages" Target="pages/pages.xml"/>
+</Relationships>
+"@
+        $docRels | Out-File -FilePath (Join-Path $visioRelsDir 'document.xml.rels') -Encoding UTF8
+
+        # visio/document.xml
+        $docXml = @"
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<VisioDocument xmlns="http://schemas.microsoft.com/office/visio/2012/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <DocumentProperties>
+    <Title>$Title</Title>
+    <Creator>StateTrace</Creator>
+    <Created>$(Get-Date -Format 'yyyy-MM-ddTHH:mm:ss')</Created>
+  </DocumentProperties>
+</VisioDocument>
+"@
+        $docXml | Out-File -FilePath (Join-Path $visioDir 'document.xml') -Encoding UTF8
+
+        # visio/pages/_rels/pages.xml.rels
+        $pagesRels = @"
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.microsoft.com/visio/2010/relationships/page" Target="page1.xml"/>
+</Relationships>
+"@
+        $pagesRels | Out-File -FilePath (Join-Path $pagesRelsDir 'pages.xml.rels') -Encoding UTF8
+
+        # visio/pages/pages.xml
+        $pagesXml = @"
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Pages xmlns="http://schemas.microsoft.com/office/visio/2012/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <Page ID="0" Name="Network Topology" NameU="Network Topology">
+    <Rel r:id="rId1"/>
+  </Page>
+</Pages>
+"@
+        $pagesXml | Out-File -FilePath (Join-Path $pagesDir 'pages.xml') -Encoding UTF8
+
+        # Build shapes XML
+        $shapeId = 1
+        $shapesXml = [System.Text.StringBuilder]::new()
+
+        # Scale factor (convert from pixels to inches)
+        $scale = 0.01
+
+        # Add node shapes
+        foreach ($node in $nodes) {
+            $x = $node.XPosition * $scale
+            $y = ($PageHeight - ($node.YPosition * $scale))  # Flip Y axis
+
+            $fillColor = switch ($node.Role) {
+                'Core' { '#FF6666' }
+                'Distribution' { '#FFB366' }
+                'Access' { '#66B366' }
+                'Router' { '#B366FF' }
+                'Firewall' { '#FF3333' }
+                default { '#4A90D9' }
+            }
+
+            [void]$shapesXml.AppendLine(@"
+    <Shape ID="$shapeId" Type="Shape" Name="$($node.DisplayName)">
+      <Cell N="PinX" V="$x"/>
+      <Cell N="PinY" V="$y"/>
+      <Cell N="Width" V="0.75"/>
+      <Cell N="Height" V="0.5"/>
+      <Cell N="FillForegnd" V="$fillColor"/>
+      <Text>$($node.DisplayName)</Text>
+    </Shape>
+"@)
+            $shapeId++
+        }
+
+        # Add link connectors
+        $nodeIndex = @{}
+        $idx = 1
+        foreach ($node in $nodes) {
+            $nodeIndex[$node.NodeID] = $idx
+            $idx++
+        }
+
+        foreach ($link in $links) {
+            $sourceIdx = $nodeIndex[$link.SourceNodeID]
+            $destIdx = $nodeIndex[$link.DestNodeID]
+
+            if ($sourceIdx -and $destIdx) {
+                $strokeColor = if ($link.LinkType -eq 'WAN') { '#FF0000' } else { '#666666' }
+                $strokePattern = if ($link.LinkType -eq 'WAN') { '2' } else { '0' }
+
+                [void]$shapesXml.AppendLine(@"
+    <Shape ID="$shapeId" Type="Shape" Name="Connector">
+      <Cell N="BeginX" V="0"/>
+      <Cell N="BeginY" V="0"/>
+      <Cell N="EndX" V="1"/>
+      <Cell N="EndY" V="1"/>
+      <Cell N="LineColor" V="$strokeColor"/>
+      <Cell N="LinePattern" V="$strokePattern"/>
+      <Connect FromSheet="$shapeId" FromCell="BeginX" ToSheet="$sourceIdx" ToCell="PinX"/>
+      <Connect FromSheet="$shapeId" FromCell="EndX" ToSheet="$destIdx" ToCell="PinX"/>
+    </Shape>
+"@)
+                $shapeId++
+            }
+        }
+
+        # visio/pages/page1.xml
+        $pageXml = @"
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<PageContents xmlns="http://schemas.microsoft.com/office/visio/2012/main">
+  <Shapes>
+$($shapesXml.ToString())
+  </Shapes>
+</PageContents>
+"@
+        $pageXml | Out-File -FilePath (Join-Path $pagesDir 'page1.xml') -Encoding UTF8
+
+        # Create ZIP archive as VSDX
+        $zipPath = $OutputPath
+        if (-not $zipPath.EndsWith('.vsdx')) {
+            $zipPath = "$OutputPath.vsdx"
+        }
+
+        # Remove existing file
+        if (Test-Path $zipPath) {
+            Remove-Item $zipPath -Force
+        }
+
+        # Create ZIP
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        [System.IO.Compression.ZipFile]::CreateFromDirectory($tempDir, $zipPath)
+
+        return $zipPath
+    }
+    finally {
+        # Cleanup temp directory
+        if (Test-Path $tempDir) {
+            Remove-Item $tempDir -Recurse -Force
+        }
+    }
+}
+
+#endregion
+
 #region Statistics
 
 function Get-TopologyStatistics {
@@ -1267,6 +1825,7 @@ Export-ModuleMember -Function @(
     'Set-ForceDirectedLayout',
     'Set-CircularLayout',
     'Set-GridLayout',
+    'Set-SubnetGroupLayout',
 
     # Impact analysis
     'Get-ImpactAnalysis',
@@ -1276,6 +1835,7 @@ Export-ModuleMember -Function @(
     'Export-TopologyToSVG',
     'Export-TopologyToJSON',
     'Export-TopologyToDrawIO',
+    'Export-TopologyToVisio',
 
     # Layout persistence
     'Save-TopologyLayout',
@@ -1283,5 +1843,15 @@ Export-ModuleMember -Function @(
     'Restore-TopologyLayout',
 
     # Statistics
-    'Get-TopologyStatistics'
+    'Get-TopologyStatistics',
+
+    # L3 Topology
+    'Add-L3Interface',
+    'Get-L3Interfaces',
+    'Get-SubnetGroups',
+    'Get-L3Links',
+    'Get-RoutingProtocolTopology',
+    'Get-L3TopologyStatistics',
+    'ConvertTo-PrefixLength',
+    'Get-NetworkAddress'
 )
