@@ -137,6 +137,14 @@
               </StackPanel>
             </Grid>
           </Border>
+
+          <!-- Loading indicator -->
+          <Border Name="TemplatesLoadingIndicator" Style="{DynamicResource LoadingIndicatorStyle}">
+            <StackPanel>
+              <TextBlock Text="Loading templates..." Style="{DynamicResource LoadingTextStyle}"/>
+              <ProgressBar Style="{DynamicResource LoadingProgressStyle}"/>
+            </StackPanel>
+          </Border>
         </Grid>
       </TabItem>
 

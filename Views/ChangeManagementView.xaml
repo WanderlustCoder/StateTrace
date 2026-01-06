@@ -172,6 +172,14 @@
               </StackPanel>
             </ScrollViewer>
           </Border>
+
+          <!-- Loading indicator -->
+          <Border Name="ChangesLoadingIndicator" Style="{DynamicResource LoadingIndicatorStyle}">
+            <StackPanel>
+              <TextBlock Text="Loading changes..." Style="{DynamicResource LoadingTextStyle}"/>
+              <ProgressBar Style="{DynamicResource LoadingProgressStyle}"/>
+            </StackPanel>
+          </Border>
         </Grid>
       </TabItem>
 

@@ -532,6 +532,50 @@
     </Style.Triggers>
   </Style>
 
+  <!-- Status Text Styles - Use for color-coded text based on status -->
+  <Style x:Key="SuccessTextStyle" TargetType="TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource Theme.Status.Success}"/>
+  </Style>
+
+  <Style x:Key="WarningTextStyle" TargetType="TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource Theme.Status.Warning}"/>
+  </Style>
+
+  <Style x:Key="DangerTextStyle" TargetType="TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource Theme.Status.Danger}"/>
+  </Style>
+
+  <Style x:Key="InfoTextStyle" TargetType="TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource Theme.Status.Info}"/>
+  </Style>
+
+  <Style x:Key="NeutralTextStyle" TargetType="TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource Theme.Status.Neutral}"/>
+  </Style>
+
+  <!-- Empty State Panel Style -->
+  <Style x:Key="EmptyStatePanelStyle" TargetType="Border">
+    <Setter Property="Background" Value="{DynamicResource Theme.Surface.Secondary}"/>
+    <Setter Property="Padding" Value="30,20"/>
+    <Setter Property="CornerRadius" Value="8"/>
+    <Setter Property="HorizontalAlignment" Value="Center"/>
+    <Setter Property="VerticalAlignment" Value="Center"/>
+    <Setter Property="Visibility" Value="Collapsed"/>
+  </Style>
+
+  <Style x:Key="EmptyStateTitleStyle" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="18"/>
+    <Setter Property="FontWeight" Value="Bold"/>
+    <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
+    <Setter Property="HorizontalAlignment" Value="Center"/>
+  </Style>
+
+  <Style x:Key="EmptyStateSubtitleStyle" TargetType="TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Muted}"/>
+    <Setter Property="HorizontalAlignment" Value="Center"/>
+    <Setter Property="Margin" Value="0,5,0,0"/>
+  </Style>
+
   <!-- Loading Indicator Style -->
   <Style x:Key="LoadingIndicatorStyle" TargetType="Border">
     <Setter Property="Background" Value="{DynamicResource Theme.Surface.Secondary}"/>

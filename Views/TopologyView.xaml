@@ -108,6 +108,14 @@
                                        Foreground="{DynamicResource Theme.Text.Muted}" HorizontalAlignment="Center"/>
                         </StackPanel>
                     </Border>
+
+                    <!-- Loading indicator -->
+                    <Border Name="TopologyLoadingIndicator" Style="{DynamicResource LoadingIndicatorStyle}">
+                        <StackPanel>
+                            <TextBlock Text="Discovering topology..." Style="{DynamicResource LoadingTextStyle}"/>
+                            <ProgressBar Style="{DynamicResource LoadingProgressStyle}"/>
+                        </StackPanel>
+                    </Border>
                 </Grid>
             </Border>
 
