@@ -589,6 +589,254 @@ System Serial #: CYR3456789
         }
     }
 
+    Context 'Advanced Analytics' {
+        BeforeEach {
+            Remove-TestInventoryData
+            Initialize-InventoryDatabase -TestMode
+        }
+
+        It 'returns comprehensive inventory analytics' {
+            $today = Get-Date
+            New-Asset -Hostname 'SW-ANA-01' -Vendor 'Cisco' -Model 'C9300-48P' `
+                -SerialNumber 'ANA001' -Site 'Campus' `
+                -PurchaseDate ($today.AddYears(-2)) -PurchasePrice 5000 `
+                -WarrantyExpiration ($today.AddYears(1)) -FirmwareVersion '17.06.05'
+            New-Asset -Hostname 'SW-ANA-02' -Vendor 'Arista' -Model 'DCS-7050SX-64' `
+                -SerialNumber 'ANA002' -Site 'DC' `
+                -PurchaseDate ($today.AddYears(-1)) -PurchasePrice 8000 `
+                -WarrantyExpiration ($today.AddYears(2)) -FirmwareVersion '4.28.3M'
+
+            $analytics = Get-InventoryAnalytics
+            $analytics.TotalAssets | Should Be 2
+            $analytics.TotalInvestment | Should Be 13000
+            $analytics.AssetsWithCostData | Should Be 2
+            $analytics.CostByVendor['Cisco'] | Should Be 5000
+            $analytics.CostByVendor['Arista'] | Should Be 8000
+            $analytics.WarrantyCoveragePercent | Should Be 100
+            $analytics.UniqueFirmwareVersions | Should Be 2
+        }
+
+        It 'returns age distribution with categories' {
+            $today = Get-Date
+            New-Asset -Hostname 'SW-NEW' -SerialNumber 'NEW001' -PurchaseDate ($today.AddDays(-30))
+            New-Asset -Hostname 'SW-OLD' -SerialNumber 'OLD001' -PurchaseDate ($today.AddYears(-4))
+            New-Asset -Hostname 'SW-ANCIENT' -SerialNumber 'ANC001' -PurchaseDate ($today.AddYears(-7))
+
+            $distribution = @(Get-AssetAgeDistribution)
+            $distribution.Count | Should Be 3
+
+            $newDevice = $distribution | Where-Object { $_.Hostname -eq 'SW-NEW' }
+            $newDevice.AgeYears | Should BeLessThan 1
+
+            $ancientDevice = $distribution | Where-Object { $_.Hostname -eq 'SW-ANCIENT' }
+            $ancientDevice.AgeCategory | Should Be 'Over 5 Years'
+        }
+
+        It 'filters age distribution by vendor' {
+            $today = Get-Date
+            New-Asset -Hostname 'SW-CISCO' -Vendor 'Cisco' -SerialNumber 'CIS001' -PurchaseDate ($today.AddYears(-1))
+            New-Asset -Hostname 'SW-ARISTA' -Vendor 'Arista' -SerialNumber 'ARI001' -PurchaseDate ($today.AddYears(-1))
+
+            $ciscoOnly = @(Get-AssetAgeDistribution -Vendor 'Cisco')
+            $ciscoOnly.Count | Should Be 1
+            $ciscoOnly[0].Vendor | Should Be 'Cisco'
+        }
+
+        It 'returns cost analysis grouped by vendor' {
+            New-Asset -Hostname 'SW-C1' -Vendor 'Cisco' -SerialNumber 'C001' -PurchasePrice 5000
+            New-Asset -Hostname 'SW-C2' -Vendor 'Cisco' -SerialNumber 'C002' -PurchasePrice 6000
+            New-Asset -Hostname 'SW-A1' -Vendor 'Arista' -SerialNumber 'A001' -PurchasePrice 8000
+
+            $analysis = @(Get-AssetCostAnalysis -GroupBy 'Vendor')
+            $analysis.Count | Should Be 2
+
+            $ciscoAnalysis = $analysis | Where-Object { $_.Category -eq 'Cisco' }
+            $ciscoAnalysis.DeviceCount | Should Be 2
+            $ciscoAnalysis.TotalCost | Should Be 11000
+        }
+
+        It 'returns cost analysis grouped by site' {
+            New-Asset -Hostname 'SW-S1A' -Site 'Site1' -SerialNumber 'S1A001' -PurchasePrice 5000
+            New-Asset -Hostname 'SW-S1B' -Site 'Site1' -SerialNumber 'S1B001' -PurchasePrice 4000
+            New-Asset -Hostname 'SW-S2A' -Site 'Site2' -SerialNumber 'S2A001' -PurchasePrice 6000
+
+            $analysis = @(Get-AssetCostAnalysis -GroupBy 'Site')
+
+            $site1 = $analysis | Where-Object { $_.Category -eq 'Site1' }
+            $site1.TotalCost | Should Be 9000
+            $site1.DeviceCount | Should Be 2
+        }
+    }
+
+    Context 'Budget Forecasting' {
+        BeforeEach {
+            Remove-TestInventoryData
+            Initialize-InventoryDatabase -TestMode
+        }
+
+        It 'identifies devices needing refresh based on age' {
+            $today = Get-Date
+            New-Asset -Hostname 'SW-OLD' -Vendor 'Cisco' -Model 'C9300-48P' `
+                -SerialNumber 'OLD001' -PurchaseDate ($today.AddYears(-6)) -PurchasePrice 5000
+
+            $recommendations = @(Get-RefreshRecommendations -MaxAgeYears 5 -IncludeCostEstimates)
+            $recommendations.Count | Should Be 1
+            $recommendations[0].Hostname | Should Be 'SW-OLD'
+            $recommendations[0].EstimatedCost | Should BeGreaterThan 0
+        }
+
+        It 'identifies devices approaching end of life' {
+            New-Asset -Hostname 'SW-EOL' -Vendor 'Cisco' -Model 'WS-C3850-48P' -SerialNumber 'EOL001'
+
+            $recommendations = @(Get-RefreshRecommendations -EoLWithinDays 1000 -IncludeCostEstimates)
+            ($recommendations | Where-Object { $_.Hostname -eq 'SW-EOL' }) | Should Not BeNullOrEmpty
+        }
+
+        It 'suggests replacement models from lifecycle database' {
+            New-Asset -Hostname 'SW-REPLACE' -Vendor 'Cisco' -Model 'WS-C3850-48P' -SerialNumber 'REP001'
+
+            $recommendations = @(Get-RefreshRecommendations -EoLWithinDays 1000 -IncludeCostEstimates)
+            $device = $recommendations | Where-Object { $_.Hostname -eq 'SW-REPLACE' }
+            $device.ReplacementModel | Should Be 'C9300-48P'
+        }
+
+        It 'assigns priority based on multiple factors' {
+            $today = Get-Date
+            # Device with both age and EoL issues should be High priority
+            New-Asset -Hostname 'SW-CRITICAL' -Vendor 'Cisco' -Model 'WS-C3850-48P' `
+                -SerialNumber 'CRIT001' -PurchaseDate ($today.AddYears(-6))
+
+            $recommendations = @(Get-RefreshRecommendations -MaxAgeYears 5 -EoLWithinDays 1000)
+            $device = $recommendations | Where-Object { $_.Hostname -eq 'SW-CRITICAL' }
+            $device.Priority | Should Be 'High'
+        }
+
+        It 'generates multi-year budget forecast' {
+            $today = Get-Date
+            New-Asset -Hostname 'SW-FY1' -Vendor 'Cisco' -SerialNumber 'FY001' `
+                -PurchaseDate ($today.AddYears(-4)) -PurchasePrice 5000
+            New-Asset -Hostname 'SW-FY2' -Vendor 'Cisco' -SerialNumber 'FY002' `
+                -PurchaseDate ($today.AddYears(-3)) -PurchasePrice 6000
+
+            $forecast = Get-BudgetForecast -Years 3 -RefreshCycleYears 5 -DefaultReplacementCost 5000
+            $forecast.ForecastYears | Should Be 3
+            $forecast.YearlyForecast.Count | Should Be 3
+            $forecast.TotalProjectedCost | Should BeGreaterThan 0
+        }
+
+        It 'applies inflation to forecast costs' {
+            $today = Get-Date
+            New-Asset -Hostname 'SW-INF' -Vendor 'Cisco' -SerialNumber 'INF001' `
+                -PurchaseDate ($today.AddYears(-4)) -PurchasePrice 10000
+
+            $forecast = Get-BudgetForecast -Years 3 -RefreshCycleYears 5 `
+                -AnnualPriceIncrease 0.05 -DefaultReplacementCost 10000
+
+            # Year 0 should have base cost, later years should be higher
+            $forecast.AnnualPriceIncrease | Should Match '5'
+        }
+
+        It 'creates refresh plan within budget' {
+            $today = Get-Date
+            New-Asset -Hostname 'SW-P1' -Vendor 'Cisco' -Model 'WS-C3850-48P' `
+                -SerialNumber 'P001' -PurchaseDate ($today.AddYears(-6)) -PurchasePrice 5000
+            New-Asset -Hostname 'SW-P2' -Vendor 'Cisco' -Model 'WS-C3850-24P' `
+                -SerialNumber 'P002' -PurchaseDate ($today.AddYears(-6)) -PurchasePrice 4000
+
+            $plan = New-RefreshPlan -AnnualBudget 10000 -PlanYears 2
+            $plan | Should Not BeNullOrEmpty
+            $plan.AnnualBudget | Should Be 10000
+            $plan.PlanYears | Should Be 2
+            $plan.TotalDevicesToRefresh | Should BeGreaterThan 0
+        }
+
+        It 'exports refresh plan to CSV' {
+            $today = Get-Date
+            New-Asset -Hostname 'SW-EXP' -Vendor 'Cisco' -Model 'WS-C3850-48P' `
+                -SerialNumber 'EXPORT001' -PurchaseDate ($today.AddYears(-6)) -PurchasePrice 5000
+
+            $plan = New-RefreshPlan -AnnualBudget 50000 -PlanYears 2
+            $tempDir = [System.IO.Path]::GetTempPath()
+
+            $result = Export-RefreshPlanReport -Plan $plan -Format 'CSV' -OutputPath $tempDir
+            (Test-Path $result.Path) | Should Be $true
+
+            Remove-Item $result.Path -ErrorAction SilentlyContinue
+        }
+
+        It 'exports refresh plan to HTML' {
+            $today = Get-Date
+            New-Asset -Hostname 'SW-HTML' -Vendor 'Cisco' -Model 'WS-C3850-48P' `
+                -SerialNumber 'HTML001' -PurchaseDate ($today.AddYears(-6)) -PurchasePrice 5000
+
+            $plan = New-RefreshPlan -AnnualBudget 50000 -PlanYears 2
+            $tempDir = [System.IO.Path]::GetTempPath()
+
+            $result = Export-RefreshPlanReport -Plan $plan -Format 'HTML' -OutputPath $tempDir
+            (Test-Path $result.Path) | Should Be $true
+
+            $content = Get-Content $result.Path -Raw
+            $content | Should Match '<html>'
+            $content | Should Match 'Hardware Refresh Plan'
+
+            Remove-Item $result.Path -ErrorAction SilentlyContinue
+        }
+
+        It 'exports refresh plan to Text' {
+            $today = Get-Date
+            New-Asset -Hostname 'SW-TXT' -Vendor 'Cisco' -Model 'WS-C3850-48P' `
+                -SerialNumber 'TXT001' -PurchaseDate ($today.AddYears(-6)) -PurchasePrice 5000
+
+            $plan = New-RefreshPlan -AnnualBudget 50000 -PlanYears 2
+            $tempDir = [System.IO.Path]::GetTempPath()
+
+            $result = Export-RefreshPlanReport -Plan $plan -Format 'Text' -OutputPath $tempDir
+            (Test-Path $result.Path) | Should Be $true
+
+            $content = Get-Content $result.Path -Raw
+            $content | Should Match 'HARDWARE REFRESH PLAN'
+
+            Remove-Item $result.Path -ErrorAction SilentlyContinue
+        }
+    }
+
+    Context 'UI Controls Verification' {
+        BeforeAll {
+            $xamlPath = Join-Path $PSScriptRoot '..\..\Views\InventoryView.xaml'
+            $script:xamlContent = Get-Content $xamlPath -Raw
+        }
+
+        It 'defines budget forecast tab' {
+            $xamlContent | Should Match 'Header="Budget Forecast"'
+        }
+
+        It 'defines forecast years dropdown' {
+            $xamlContent | Should Match 'Name="ForecastYearsDropdown"'
+        }
+
+        It 'defines annual budget textbox' {
+            $xamlContent | Should Match 'Name="AnnualBudgetBox"'
+        }
+
+        It 'defines generate forecast button' {
+            $xamlContent | Should Match 'Name="GenerateForecastButton"'
+        }
+
+        It 'defines yearly forecast grid' {
+            $xamlContent | Should Match 'Name="YearlyForecastGrid"'
+        }
+
+        It 'defines refresh recommendations grid' {
+            $xamlContent | Should Match 'Name="RefreshRecommendationsGrid"'
+        }
+
+        It 'defines export forecast buttons' {
+            $xamlContent | Should Match 'Name="ExportForecastTextButton"'
+            $xamlContent | Should Match 'Name="ExportForecastCsvButton"'
+            $xamlContent | Should Match 'Name="ExportForecastHtmlButton"'
+        }
+    }
+
     Context 'Database Persistence' {
         It 'exports and imports database' {
             Remove-TestInventoryData

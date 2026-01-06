@@ -1775,6 +1775,682 @@ function Get-LifecycleReport {
 
 #endregion
 
+#region Advanced Analytics
+
+function Get-InventoryAnalytics {
+    <#
+    .SYNOPSIS
+        Returns comprehensive analytics about the inventory.
+    #>
+    [CmdletBinding()]
+    param()
+
+    $assets = @($script:AssetDatabase)
+    $today = Get-Date
+
+    # Age distribution
+    $ageDistribution = @{
+        'Under1Year' = 0
+        '1to2Years' = 0
+        '2to3Years' = 0
+        '3to5Years' = 0
+        'Over5Years' = 0
+        'Unknown' = 0
+    }
+
+    foreach ($asset in $assets) {
+        if ($asset.PurchaseDate) {
+            $age = ($today - $asset.PurchaseDate).TotalDays / 365
+            if ($age -lt 1) { $ageDistribution['Under1Year']++ }
+            elseif ($age -lt 2) { $ageDistribution['1to2Years']++ }
+            elseif ($age -lt 3) { $ageDistribution['2to3Years']++ }
+            elseif ($age -lt 5) { $ageDistribution['3to5Years']++ }
+            else { $ageDistribution['Over5Years']++ }
+        } else {
+            $ageDistribution['Unknown']++
+        }
+    }
+
+    # Purchase year distribution
+    $purchaseYears = @{}
+    foreach ($asset in ($assets | Where-Object { $_.PurchaseDate })) {
+        $year = $asset.PurchaseDate.Year.ToString()
+        if (-not $purchaseYears.ContainsKey($year)) {
+            $purchaseYears[$year] = 0
+        }
+        $purchaseYears[$year]++
+    }
+
+    # Cost analysis
+    $totalCost = 0
+    $assetsWithCost = @($assets | Where-Object { $_.PurchasePrice -and $_.PurchasePrice -gt 0 })
+    foreach ($asset in $assetsWithCost) {
+        $totalCost += $asset.PurchasePrice
+    }
+    $averageCost = if ($assetsWithCost.Count -gt 0) { [Math]::Round($totalCost / $assetsWithCost.Count, 2) } else { 0 }
+
+    # Cost by vendor
+    $costByVendor = @{}
+    foreach ($asset in $assetsWithCost) {
+        $vendor = if ($asset.Vendor) { $asset.Vendor } else { 'Unknown' }
+        if (-not $costByVendor.ContainsKey($vendor)) {
+            $costByVendor[$vendor] = 0
+        }
+        $costByVendor[$vendor] += $asset.PurchasePrice
+    }
+
+    # Cost by site
+    $costBySite = @{}
+    foreach ($asset in $assetsWithCost) {
+        $site = if ($asset.Site) { $asset.Site } else { 'Unknown' }
+        if (-not $costBySite.ContainsKey($site)) {
+            $costBySite[$site] = 0
+        }
+        $costBySite[$site] += $asset.PurchasePrice
+    }
+
+    # Warranty coverage rate
+    $withWarranty = @($assets | Where-Object { $_.WarrantyExpiration -and $_.WarrantyExpiration -gt $today }).Count
+    $warrantyCoverage = if ($assets.Count -gt 0) { [Math]::Round(($withWarranty / $assets.Count) * 100, 1) } else { 0 }
+
+    # Firmware version diversity
+    $firmwareVersions = @($assets | Where-Object { $_.FirmwareVersion } | Group-Object FirmwareVersion).Count
+
+    return [PSCustomObject]@{
+        TotalAssets = $assets.Count
+        AgeDistribution = $ageDistribution
+        PurchaseYearDistribution = $purchaseYears
+        TotalInvestment = $totalCost
+        AverageCostPerDevice = $averageCost
+        AssetsWithCostData = $assetsWithCost.Count
+        CostByVendor = $costByVendor
+        CostBySite = $costBySite
+        WarrantyCoveragePercent = $warrantyCoverage
+        UniqueFirmwareVersions = $firmwareVersions
+        GeneratedDate = $today
+    }
+}
+
+function Get-AssetAgeDistribution {
+    <#
+    .SYNOPSIS
+        Returns detailed age distribution of assets.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter()]
+        [string]$Vendor,
+
+        [Parameter()]
+        [string]$Site
+    )
+
+    $assets = @($script:AssetDatabase | Where-Object { $_.PurchaseDate })
+
+    if ($Vendor) {
+        $assets = @($assets | Where-Object { $_.Vendor -eq $Vendor })
+    }
+    if ($Site) {
+        $assets = @($assets | Where-Object { $_.Site -eq $Site })
+    }
+
+    $today = Get-Date
+    $distribution = New-Object System.Collections.ArrayList
+
+    foreach ($asset in $assets) {
+        $age = ($today - $asset.PurchaseDate).TotalDays / 365
+        $ageCategory = switch ([Math]::Floor($age)) {
+            { $_ -lt 1 } { 'Under 1 Year' }
+            { $_ -lt 2 } { '1-2 Years' }
+            { $_ -lt 3 } { '2-3 Years' }
+            { $_ -lt 4 } { '3-4 Years' }
+            { $_ -lt 5 } { '4-5 Years' }
+            default { 'Over 5 Years' }
+        }
+
+        [void]$distribution.Add([PSCustomObject]@{
+            AssetID = $asset.AssetID
+            Hostname = $asset.Hostname
+            Vendor = $asset.Vendor
+            Model = $asset.Model
+            PurchaseDate = $asset.PurchaseDate
+            AgeYears = [Math]::Round($age, 1)
+            AgeCategory = $ageCategory
+            Site = $asset.Site
+        })
+    }
+
+    return $distribution | Sort-Object AgeYears -Descending
+}
+
+function Get-AssetCostAnalysis {
+    <#
+    .SYNOPSIS
+        Returns cost analysis by various dimensions.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter()]
+        [ValidateSet('Vendor', 'Site', 'Model', 'Year', 'Status')]
+        [string]$GroupBy = 'Vendor'
+    )
+
+    $assets = @($script:AssetDatabase | Where-Object { $_.PurchasePrice -and $_.PurchasePrice -gt 0 })
+
+    $grouped = switch ($GroupBy) {
+        'Vendor' { $assets | Group-Object Vendor }
+        'Site' { $assets | Group-Object Site }
+        'Model' { $assets | Group-Object Model }
+        'Year' { $assets | Group-Object { if ($_.PurchaseDate) { $_.PurchaseDate.Year } else { 'Unknown' } } }
+        'Status' { $assets | Group-Object Status }
+    }
+
+    $analysis = New-Object System.Collections.ArrayList
+
+    foreach ($group in $grouped) {
+        $name = if ($group.Name) { $group.Name } else { 'Unknown' }
+        $totalCost = ($group.Group | Measure-Object -Property PurchasePrice -Sum).Sum
+        $avgCost = ($group.Group | Measure-Object -Property PurchasePrice -Average).Average
+
+        [void]$analysis.Add([PSCustomObject]@{
+            Category = $name
+            DeviceCount = $group.Count
+            TotalCost = [Math]::Round($totalCost, 2)
+            AverageCost = [Math]::Round($avgCost, 2)
+            PercentOfTotal = 0  # Calculated below
+        })
+    }
+
+    # Calculate percentages
+    $grandTotal = ($analysis | Measure-Object -Property TotalCost -Sum).Sum
+    if ($grandTotal -gt 0) {
+        foreach ($item in $analysis) {
+            $item.PercentOfTotal = [Math]::Round(($item.TotalCost / $grandTotal) * 100, 1)
+        }
+    }
+
+    return $analysis | Sort-Object TotalCost -Descending
+}
+
+#endregion
+
+#region Budget Forecasting
+
+function Get-RefreshRecommendations {
+    <#
+    .SYNOPSIS
+        Returns devices recommended for refresh with replacement suggestions.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter()]
+        [int]$MaxAgeYears = 5,
+
+        [Parameter()]
+        [int]$EoLWithinDays = 365,
+
+        [Parameter()]
+        [switch]$IncludeCostEstimates
+    )
+
+    $today = Get-Date
+    $recommendations = New-Object System.Collections.ArrayList
+
+    foreach ($asset in $script:AssetDatabase) {
+        $needsRefresh = $false
+        $reasons = New-Object System.Collections.ArrayList
+
+        # Check age
+        if ($asset.PurchaseDate) {
+            $age = ($today - $asset.PurchaseDate).TotalDays / 365
+            if ($age -ge $MaxAgeYears) {
+                $needsRefresh = $true
+                [void]$reasons.Add("Age: $([Math]::Round($age, 1)) years (max $MaxAgeYears)")
+            }
+        }
+
+        # Check lifecycle
+        $lifecycle = $script:LifecycleDatabase | Where-Object {
+            ($_.ProductID -and $asset.Model -like "*$($_.ProductID)*") -or
+            ($_.Model -and $asset.Model -like "*$($_.Model)*")
+        } | Select-Object -First 1
+
+        if ($lifecycle) {
+            if ($lifecycle.EndOfSupportDate) {
+                $daysToEoSu = ($lifecycle.EndOfSupportDate - $today).TotalDays
+                if ($daysToEoSu -le $EoLWithinDays) {
+                    $needsRefresh = $true
+                    if ($daysToEoSu -le 0) {
+                        [void]$reasons.Add("End of Support: Already passed")
+                    } else {
+                        [void]$reasons.Add("End of Support: $([Math]::Floor($daysToEoSu)) days")
+                    }
+                }
+            }
+        }
+
+        # Check warranty (if expired and old)
+        if ($asset.WarrantyExpiration -and $asset.WarrantyExpiration -lt $today) {
+            $daysExpired = ($today - $asset.WarrantyExpiration).TotalDays
+            if ($daysExpired -gt 365) {
+                [void]$reasons.Add("Warranty expired $([Math]::Floor($daysExpired / 365)) years ago")
+            }
+        }
+
+        if ($needsRefresh) {
+            $replacementModel = $null
+            $estimatedCost = 0
+
+            if ($lifecycle -and $lifecycle.ReplacementModel) {
+                $replacementModel = $lifecycle.ReplacementModel
+            }
+
+            # Estimate replacement cost based on original purchase or defaults
+            if ($IncludeCostEstimates) {
+                if ($asset.PurchasePrice -and $asset.PurchasePrice -gt 0) {
+                    # Assume 10% annual price increase for similar model
+                    $estimatedCost = [Math]::Round($asset.PurchasePrice * 1.1, 2)
+                } else {
+                    # Default estimates by vendor/type
+                    $estimatedCost = switch ($asset.Vendor) {
+                        'Cisco' { 5000 }
+                        'Arista' { 8000 }
+                        'Ruckus' { 3500 }
+                        default { 4000 }
+                    }
+                }
+            }
+
+            $priority = if ($reasons.Count -ge 2) { 'High' } elseif ($lifecycle -and $lifecycle.EndOfSupportDate -lt $today) { 'Critical' } else { 'Medium' }
+
+            [void]$recommendations.Add([PSCustomObject]@{
+                AssetID = $asset.AssetID
+                Hostname = $asset.Hostname
+                Vendor = $asset.Vendor
+                CurrentModel = $asset.Model
+                SerialNumber = $asset.SerialNumber
+                Site = $asset.Site
+                PurchaseDate = $asset.PurchaseDate
+                Reasons = @($reasons)
+                ReplacementModel = $replacementModel
+                EstimatedCost = $estimatedCost
+                Priority = $priority
+            })
+        }
+    }
+
+    return $recommendations | Sort-Object @{Expression='Priority'; Descending=$true}, @{Expression='Hostname'}
+}
+
+function Get-BudgetForecast {
+    <#
+    .SYNOPSIS
+        Generates a multi-year budget forecast for hardware refresh.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter()]
+        [int]$Years = 5,
+
+        [Parameter()]
+        [int]$RefreshCycleYears = 5,
+
+        [Parameter()]
+        [decimal]$AnnualPriceIncrease = 0.03,
+
+        [Parameter()]
+        [decimal]$DefaultReplacementCost = 5000
+    )
+
+    $today = Get-Date
+    $forecast = New-Object System.Collections.ArrayList
+
+    for ($year = 0; $year -lt $Years; $year++) {
+        $targetYear = $today.Year + $year
+        $yearStart = [DateTime]::new($targetYear, 1, 1)
+        $yearEnd = [DateTime]::new($targetYear, 12, 31)
+
+        $devicesRefresh = New-Object System.Collections.ArrayList
+        $totalCost = 0
+
+        foreach ($asset in $script:AssetDatabase) {
+            $needsRefreshThisYear = $false
+
+            # Check if device will reach refresh age this year
+            if ($asset.PurchaseDate) {
+                $refreshDate = $asset.PurchaseDate.AddYears($RefreshCycleYears)
+                if ($refreshDate -ge $yearStart -and $refreshDate -le $yearEnd) {
+                    $needsRefreshThisYear = $true
+                }
+            }
+
+            # Check if device reaches EoS this year
+            $lifecycle = $script:LifecycleDatabase | Where-Object {
+                ($_.ProductID -and $asset.Model -like "*$($_.ProductID)*") -or
+                ($_.Model -and $asset.Model -like "*$($_.Model)*")
+            } | Select-Object -First 1
+
+            if ($lifecycle -and $lifecycle.EndOfSupportDate) {
+                if ($lifecycle.EndOfSupportDate -ge $yearStart -and $lifecycle.EndOfSupportDate -le $yearEnd) {
+                    $needsRefreshThisYear = $true
+                }
+            }
+
+            if ($needsRefreshThisYear) {
+                # Calculate replacement cost with inflation
+                $baseCost = if ($asset.PurchasePrice -and $asset.PurchasePrice -gt 0) {
+                    $asset.PurchasePrice
+                } else {
+                    $DefaultReplacementCost
+                }
+
+                $inflatedCost = [Math]::Round($baseCost * [Math]::Pow(1 + $AnnualPriceIncrease, $year), 2)
+                $totalCost += $inflatedCost
+
+                [void]$devicesRefresh.Add([PSCustomObject]@{
+                    Hostname = $asset.Hostname
+                    Model = $asset.Model
+                    Vendor = $asset.Vendor
+                    Site = $asset.Site
+                    EstimatedCost = $inflatedCost
+                })
+            }
+        }
+
+        [void]$forecast.Add([PSCustomObject]@{
+            Year = $targetYear
+            DeviceCount = $devicesRefresh.Count
+            TotalBudget = [Math]::Round($totalCost, 2)
+            Devices = @($devicesRefresh)
+            ByVendor = @($devicesRefresh | Group-Object Vendor | ForEach-Object {
+                [PSCustomObject]@{
+                    Vendor = $_.Name
+                    Count = $_.Count
+                    Cost = ($_.Group | Measure-Object EstimatedCost -Sum).Sum
+                }
+            })
+            BySite = @($devicesRefresh | Group-Object Site | ForEach-Object {
+                [PSCustomObject]@{
+                    Site = if ($_.Name) { $_.Name } else { 'Unknown' }
+                    Count = $_.Count
+                    Cost = ($_.Group | Measure-Object EstimatedCost -Sum).Sum
+                }
+            })
+        })
+    }
+
+    # Calculate totals
+    $grandTotal = ($forecast | Measure-Object TotalBudget -Sum).Sum
+    $totalDevices = ($forecast | Measure-Object DeviceCount -Sum).Sum
+
+    return [PSCustomObject]@{
+        ForecastYears = $Years
+        RefreshCycleYears = $RefreshCycleYears
+        AnnualPriceIncrease = "$([Math]::Round($AnnualPriceIncrease * 100, 1))%"
+        TotalProjectedCost = [Math]::Round($grandTotal, 2)
+        TotalDevicesToRefresh = $totalDevices
+        AverageAnnualBudget = [Math]::Round($grandTotal / $Years, 2)
+        YearlyForecast = @($forecast)
+        GeneratedDate = $today
+    }
+}
+
+function New-RefreshPlan {
+    <#
+    .SYNOPSIS
+        Creates a hardware refresh plan with prioritized timeline.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter()]
+        [string]$PlanName = "Refresh Plan $(Get-Date -Format 'yyyy-MM')",
+
+        [Parameter()]
+        [decimal]$AnnualBudget = 50000,
+
+        [Parameter()]
+        [int]$PlanYears = 3
+    )
+
+    $recommendations = @(Get-RefreshRecommendations -IncludeCostEstimates)
+
+    if ($recommendations.Count -eq 0) {
+        return [PSCustomObject]@{
+            PlanName = $PlanName
+            Message = 'No devices currently need refresh'
+            Devices = @()
+        }
+    }
+
+    # Sort by priority
+    $priorityOrder = @{ 'Critical' = 0; 'High' = 1; 'Medium' = 2; 'Low' = 3 }
+    $sorted = $recommendations | Sort-Object { $priorityOrder[$_.Priority] }, EstimatedCost
+
+    $yearlyPlan = @{}
+    $currentYear = (Get-Date).Year
+    for ($i = 0; $i -lt $PlanYears; $i++) {
+        $yearlyPlan[($currentYear + $i).ToString()] = @{
+            Devices = New-Object System.Collections.ArrayList
+            TotalCost = 0
+            RemainingBudget = $AnnualBudget
+        }
+    }
+
+    # Assign devices to years based on budget
+    foreach ($device in $sorted) {
+        $assigned = $false
+
+        for ($i = 0; $i -lt $PlanYears; $i++) {
+            $year = ($currentYear + $i).ToString()
+            if ($yearlyPlan[$year].RemainingBudget -ge $device.EstimatedCost) {
+                [void]$yearlyPlan[$year].Devices.Add($device)
+                $yearlyPlan[$year].TotalCost += $device.EstimatedCost
+                $yearlyPlan[$year].RemainingBudget -= $device.EstimatedCost
+                $assigned = $true
+                break
+            }
+        }
+
+        # If device doesn't fit in any year, add to first year anyway (over budget)
+        if (-not $assigned -and $device.Priority -in @('Critical', 'High')) {
+            $year = $currentYear.ToString()
+            [void]$yearlyPlan[$year].Devices.Add($device)
+            $yearlyPlan[$year].TotalCost += $device.EstimatedCost
+            $yearlyPlan[$year].RemainingBudget -= $device.EstimatedCost
+        }
+    }
+
+    $plan = New-Object System.Collections.ArrayList
+    foreach ($year in ($yearlyPlan.Keys | Sort-Object)) {
+        [void]$plan.Add([PSCustomObject]@{
+            Year = [int]$year
+            PlannedDevices = $yearlyPlan[$year].Devices.Count
+            PlannedCost = [Math]::Round($yearlyPlan[$year].TotalCost, 2)
+            BudgetVariance = [Math]::Round($yearlyPlan[$year].RemainingBudget, 2)
+            OverBudget = $yearlyPlan[$year].RemainingBudget -lt 0
+            Devices = @($yearlyPlan[$year].Devices)
+        })
+    }
+
+    $totalPlannedCost = ($plan | Measure-Object PlannedCost -Sum).Sum
+    $totalDevices = ($plan | Measure-Object PlannedDevices -Sum).Sum
+
+    return [PSCustomObject]@{
+        PlanName = $PlanName
+        AnnualBudget = $AnnualBudget
+        PlanYears = $PlanYears
+        TotalDevicesToRefresh = $totalDevices
+        TotalPlannedCost = [Math]::Round($totalPlannedCost, 2)
+        TotalBudgetAvailable = $AnnualBudget * $PlanYears
+        BudgetUtilization = [Math]::Round(($totalPlannedCost / ($AnnualBudget * $PlanYears)) * 100, 1)
+        YearlyPlan = @($plan)
+        UnassignedCount = $recommendations.Count - $totalDevices
+        CreatedDate = Get-Date
+    }
+}
+
+function Export-RefreshPlanReport {
+    <#
+    .SYNOPSIS
+        Exports a refresh plan to various formats.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter()]
+        [PSCustomObject]$Plan,
+
+        [Parameter(Mandatory)]
+        [ValidateSet('Text', 'CSV', 'HTML', 'PDF')]
+        [string]$Format,
+
+        [Parameter(Mandatory)]
+        [string]$OutputPath
+    )
+
+    if (-not $Plan) {
+        $Plan = New-RefreshPlan
+    }
+
+    $filename = "RefreshPlan_$(Get-Date -Format 'yyyyMMdd').$($Format.ToLower())"
+    if ($Format -eq 'PDF') { $filename = $filename -replace '\.pdf$', '.html' }  # Generate HTML for PDF
+    $fullPath = Join-Path $OutputPath $filename
+
+    switch ($Format) {
+        'Text' {
+            $report = @"
+HARDWARE REFRESH PLAN
+=====================
+Plan: $($Plan.PlanName)
+Generated: $(Get-Date)
+
+SUMMARY
+-------
+Annual Budget: `$$($Plan.AnnualBudget.ToString('N2'))
+Plan Duration: $($Plan.PlanYears) years
+Total Devices to Refresh: $($Plan.TotalDevicesToRefresh)
+Total Planned Cost: `$$($Plan.TotalPlannedCost.ToString('N2'))
+Budget Utilization: $($Plan.BudgetUtilization)%
+
+YEARLY BREAKDOWN
+----------------
+"@
+            foreach ($year in $Plan.YearlyPlan) {
+                $budgetStatus = if ($year.OverBudget) { "OVER BUDGET by `$$([Math]::Abs($year.BudgetVariance).ToString('N2'))" } else { "Under budget by `$$($year.BudgetVariance.ToString('N2'))" }
+                $report += "`n$($year.Year): $($year.PlannedDevices) devices, `$$($year.PlannedCost.ToString('N2')) - $budgetStatus"
+
+                foreach ($device in $year.Devices) {
+                    $report += "`n  - $($device.Hostname) ($($device.CurrentModel)) -> $($device.ReplacementModel) [`$$($device.EstimatedCost.ToString('N2'))] [$($device.Priority)]"
+                }
+            }
+
+            $report | Set-Content -Path $fullPath
+        }
+        'CSV' {
+            $csvData = New-Object System.Collections.ArrayList
+            foreach ($year in $Plan.YearlyPlan) {
+                foreach ($device in $year.Devices) {
+                    [void]$csvData.Add([PSCustomObject]@{
+                        PlannedYear = $year.Year
+                        Hostname = $device.Hostname
+                        Vendor = $device.Vendor
+                        CurrentModel = $device.CurrentModel
+                        ReplacementModel = $device.ReplacementModel
+                        Site = $device.Site
+                        Priority = $device.Priority
+                        EstimatedCost = $device.EstimatedCost
+                        Reasons = ($device.Reasons -join '; ')
+                    })
+                }
+            }
+            $csvData | Export-Csv -Path $fullPath -NoTypeInformation
+        }
+        { $_ -in 'HTML', 'PDF' } {
+            $html = @"
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hardware Refresh Plan - $($Plan.PlanName)</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1 { color: #2c3e50; }
+        h2 { color: #34495e; border-bottom: 2px solid #3498db; padding-bottom: 5px; }
+        .summary { background: #ecf0f1; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+        .summary-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
+        .metric { text-align: center; }
+        .metric-value { font-size: 1.8em; font-weight: bold; color: #2980b9; }
+        .metric-label { color: #7f8c8d; font-size: 0.9em; }
+        table { border-collapse: collapse; width: 100%; margin-bottom: 20px; }
+        th, td { border: 1px solid #bdc3c7; padding: 10px; text-align: left; }
+        th { background-color: #3498db; color: white; }
+        tr:nth-child(even) { background-color: #f8f9fa; }
+        .priority-Critical { background-color: #e74c3c; color: white; padding: 2px 8px; border-radius: 3px; }
+        .priority-High { background-color: #e67e22; color: white; padding: 2px 8px; border-radius: 3px; }
+        .priority-Medium { background-color: #f39c12; color: white; padding: 2px 8px; border-radius: 3px; }
+        .over-budget { color: #e74c3c; font-weight: bold; }
+        .under-budget { color: #27ae60; }
+        .year-header { background: #2c3e50; color: white; padding: 10px; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Hardware Refresh Plan</h1>
+    <p><strong>Plan:</strong> $($Plan.PlanName) | <strong>Generated:</strong> $(Get-Date -Format 'yyyy-MM-dd HH:mm')</p>
+
+    <div class="summary">
+        <div class="summary-grid">
+            <div class="metric">
+                <div class="metric-value">`$$($Plan.AnnualBudget.ToString('N0'))</div>
+                <div class="metric-label">Annual Budget</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">$($Plan.TotalDevicesToRefresh)</div>
+                <div class="metric-label">Devices to Refresh</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">`$$($Plan.TotalPlannedCost.ToString('N0'))</div>
+                <div class="metric-label">Total Planned Cost</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">$($Plan.BudgetUtilization)%</div>
+                <div class="metric-label">Budget Utilization</div>
+            </div>
+        </div>
+    </div>
+"@
+            foreach ($year in $Plan.YearlyPlan) {
+                $budgetClass = if ($year.OverBudget) { 'over-budget' } else { 'under-budget' }
+                $budgetText = if ($year.OverBudget) { "Over budget by `$$([Math]::Abs($year.BudgetVariance).ToString('N2'))" } else { "Under budget by `$$($year.BudgetVariance.ToString('N2'))" }
+
+                $html += @"
+    <div class="year-header">
+        <strong>$($year.Year)</strong> - $($year.PlannedDevices) devices - `$$($year.PlannedCost.ToString('N2')) - <span class="$budgetClass">$budgetText</span>
+    </div>
+    <table>
+        <tr><th>Hostname</th><th>Vendor</th><th>Current Model</th><th>Replacement</th><th>Site</th><th>Priority</th><th>Cost</th></tr>
+"@
+                foreach ($device in $year.Devices) {
+                    $html += "        <tr><td>$($device.Hostname)</td><td>$($device.Vendor)</td><td>$($device.CurrentModel)</td><td>$($device.ReplacementModel)</td><td>$($device.Site)</td><td><span class='priority-$($device.Priority)'>$($device.Priority)</span></td><td>`$$($device.EstimatedCost.ToString('N2'))</td></tr>`n"
+                }
+                $html += "    </table>`n"
+            }
+
+            $html += @"
+</body>
+</html>
+"@
+            $html | Set-Content -Path $fullPath
+        }
+    }
+
+    return [PSCustomObject]@{
+        Path = $fullPath
+        Format = $Format
+        PlanName = $Plan.PlanName
+        DeviceCount = $Plan.TotalDevicesToRefresh
+    }
+}
+
+#endregion
+
 #region Test Helpers
 
 function Remove-TestInventoryData {
@@ -1858,6 +2534,17 @@ Export-ModuleMember -Function @(
     'Get-InventorySummary'
     'Export-WarrantyReport'
     'Get-LifecycleReport'
+
+    # Advanced Analytics
+    'Get-InventoryAnalytics'
+    'Get-AssetAgeDistribution'
+    'Get-AssetCostAnalysis'
+
+    # Budget Forecasting
+    'Get-RefreshRecommendations'
+    'Get-BudgetForecast'
+    'New-RefreshPlan'
+    'Export-RefreshPlanReport'
 
     # Test Helpers
     'Remove-TestInventoryData'

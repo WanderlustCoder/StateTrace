@@ -16,13 +16,15 @@ Network teams struggle with:
 - Generating inventory reports for audits and compliance
 
 ## Current status (2026-01)
-- **In Progress (4/6 Done)**. Core inventory and asset tracking system delivered.
+- **Complete (6/6 Done)**. Full inventory system with advanced analytics and budget forecasting.
 - InventoryModule.psm1 provides asset registry, warranty tracking, firmware management, lifecycle planning
+- Advanced analytics: Get-InventoryAnalytics, Get-AssetAgeDistribution, Get-AssetCostAnalysis
+- Budget forecasting: Get-RefreshRecommendations, Get-BudgetForecast, New-RefreshPlan, Export-RefreshPlanReport
 - InventoryViewModule.psm1 provides view wiring with full UI event handling
-- InventoryView.xaml offers 5-tab interface: Inventory, Warranty Alerts, Firmware, Lifecycle, History
+- InventoryView.xaml offers 6-tab interface: Inventory, Warranty Alerts, Firmware, Lifecycle, Budget Forecast, History
 - Built-in lifecycle database with Cisco, Arista, Ruckus product information
-- Pester tests cover all module functionality
-- CSV import/export and HTML warranty reports implemented
+- Export formats: Text, CSV, HTML for refresh plans and warranty reports
+- 71 Pester tests passing
 
 ## Proposed Features
 
@@ -107,8 +109,18 @@ Network teams struggle with:
 | ST-X-002 | Firmware version database | Data | Done | Parse-FirmwareVersion, Set-MinimumFirmware, CVE tracking |
 | ST-X-003 | Device info import | Tools | Done | Parse-ShowVersion, Import-AssetInventory from CSV |
 | ST-X-004 | Warranty tracking UI | UI | Done | InventoryView.xaml Warranty Alerts tab with expiring/expired grids |
-| ST-X-005 | Inventory reports | Tools | Pending | Advanced analytics and PDF export |
-| ST-X-006 | Lifecycle planning view | UI | Pending | Budget forecasting and refresh recommendations |
+| ST-X-005 | Inventory reports | Tools | Done | Get-InventoryAnalytics, Get-AssetAgeDistribution, Get-AssetCostAnalysis, Export-RefreshPlanReport (Text/CSV/HTML) |
+| ST-X-006 | Lifecycle planning view | UI | Done | Budget Forecast tab with Get-RefreshRecommendations, Get-BudgetForecast, New-RefreshPlan |
+
+## Recently delivered
+| ID | Title | Delivered | Notes |
+|----|-------|-----------|-------|
+| ST-X-001 | Asset registry module | 2026-01-05 | `Modules/InventoryModule.psm1` |
+| ST-X-002 | Firmware version database | 2026-01-05 | CVE tracking, version parsing |
+| ST-X-003 | Device info import | 2026-01-05 | CSV import, show version parsing |
+| ST-X-004 | Warranty tracking UI | 2026-01-05 | `Views/InventoryView.xaml` |
+| ST-X-005 | Inventory reports | 2026-01-06 | Advanced analytics and multi-format export |
+| ST-X-006 | Lifecycle planning view | 2026-01-06 | Budget Forecast tab, multi-year planning, refresh recommendations |
 
 ## Data Model (Proposed)
 
