@@ -9,7 +9,6 @@ Set-StrictMode -Version Latest
     Loads the DocumentationContainerView which contains nested tabs for:
     - Generator (Documentation Generator)
     - Config Templates
-    - Templates
     - Command Reference
 
 .NOTES
@@ -57,7 +56,6 @@ function New-DocumentationContainerView {
         $script:DocSubHosts = @{
             Docs      = $script:ContainerView.FindName('DocsSubHost')
             Config    = $script:ContainerView.FindName('ConfigSubHost')
-            Templates = $script:ContainerView.FindName('TemplatesSubHost')
             CmdRef    = $script:ContainerView.FindName('CmdReferenceSubHost')
         }
 
@@ -91,12 +89,6 @@ function New-DocumentationContainerView {
                         if (-not $script:DocInitializedViews['Config']) {
                             Initialize-ConfigSubView -Host $script:DocSubHosts.Config -ScriptDir $script:DocScriptDir
                             $script:DocInitializedViews['Config'] = $true
-                        }
-                    }
-                    'Templates' {
-                        if (-not $script:DocInitializedViews['Templates']) {
-                            Initialize-TemplatesSubView -Host $script:DocSubHosts.Templates -Window $script:DocWindow -ScriptDir $script:DocScriptDir
-                            $script:DocInitializedViews['Templates'] = $true
                         }
                     }
                     'Cmd Reference' {
@@ -152,37 +144,6 @@ function Initialize-ConfigSubView {
     }
     catch {
         Write-Warning "Failed to initialize Config Templates sub-view: $_"
-    }
-}
-
-function Initialize-TemplatesSubView {
-    param(
-        [System.Windows.Controls.ContentControl]$Host,
-        [System.Windows.Window]$Window,
-        [string]$ScriptDir
-    )
-
-    try {
-        # Load the TemplatesView XAML into the sub-host
-        $viewPath = Join-Path $ScriptDir '..\Views\TemplatesView.xaml'
-        if (Test-Path $viewPath) {
-            $xamlContent = Get-Content -Path $viewPath -Raw
-            $xamlContent = $xamlContent -replace 'x:Class="[^"]*"', ''
-            $xamlContent = $xamlContent -replace 'mc:Ignorable="d"', ''
-
-            $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
-            $view = [System.Windows.Markup.XamlReader]::Load($reader)
-            $Host.Content = $view
-
-            # Wire up the view using existing module if available
-            if (Get-Command -Name 'New-TemplatesView' -ErrorAction SilentlyContinue) {
-                # The existing New-TemplatesView expects to use Set-StView, so we need to handle this differently
-                # For now, just set the content - the view should work for basic display
-            }
-        }
-    }
-    catch {
-        Write-Warning "Failed to initialize Templates sub-view: $_"
     }
 }
 

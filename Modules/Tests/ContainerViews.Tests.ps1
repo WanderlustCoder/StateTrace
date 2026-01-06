@@ -43,14 +43,13 @@ Describe 'Plan AF: Container View XAML Files' {
             $content = Get-Content -Path $xamlPath -Raw
             $content | Should Match 'Name="DocsSubHost"'
             $content | Should Match 'Name="ConfigSubHost"'
-            $content | Should Match 'Name="TemplatesSubHost"'
             $content | Should Match 'Name="CmdReferenceSubHost"'
         }
 
-        It 'Has 4 TabItems for sub-views' {
+        It 'Has 3 TabItems for sub-views' {
             $content = Get-Content -Path $xamlPath -Raw
             $matches = [regex]::Matches($content, '<TabItem\s+Header=')
-            $matches.Count | Should Be 4
+            $matches.Count | Should Be 3
         }
     }
 
