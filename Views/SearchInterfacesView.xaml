@@ -10,7 +10,7 @@
     </Grid.RowDefinitions>
 
     <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5">
-      <TextBox Name="SearchBox" Width="200" Margin="0,0,5,0" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1" ToolTip="Enter description or MAC to search"/>
+      <TextBox Name="SearchBox" MinWidth="200" Margin="0,0,5,0" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1" ToolTip="Enter description or MAC to search"/>
       <Button Name="SearchClearButton" Content="X" Width="25" Height="23" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Clear search" Margin="0,0,5,0"/>
 
       <CheckBox Name="RegexCheckbox" Content="Regex" VerticalAlignment="Center" Margin="0,0,5,0" Style="{DynamicResource ToolbarCheckBoxStyle}"/>

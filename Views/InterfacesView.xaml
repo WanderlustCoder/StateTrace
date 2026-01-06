@@ -134,40 +134,40 @@
               <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Margin="0,0,0,5">
-              <StackPanel Margin="0,0,15,0">
+            <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Margin="{DynamicResource ControlSpacingRight}">
+              <StackPanel Margin="{DynamicResource StackItemMargin}">
                 <TextBlock Text="Hostname:" FontSize="12" Foreground="{DynamicResource Theme.Text.Inverse}"/>
-                <TextBox Name="HostnameBox" IsReadOnly="True" Width="130" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
+                <TextBox Name="HostnameBox" IsReadOnly="True" MinWidth="130" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
               </StackPanel>
-              <StackPanel Margin="0,0,15,0">
+              <StackPanel Margin="{DynamicResource StackItemMargin}">
                 <TextBlock Text="Make:" FontSize="12" Foreground="{DynamicResource Theme.Text.Inverse}"/>
-                <TextBox Name="MakeBox" IsReadOnly="True" Width="90" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
+                <TextBox Name="MakeBox" IsReadOnly="True" MinWidth="90" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
               </StackPanel>
-              <StackPanel Margin="0,0,15,0">
+              <StackPanel Margin="{DynamicResource StackItemMargin}">
                 <TextBlock Text="Model:" FontSize="12" Foreground="{DynamicResource Theme.Text.Inverse}"/>
-                <TextBox Name="ModelBox" IsReadOnly="True" Width="100" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
+                <TextBox Name="ModelBox" IsReadOnly="True" MinWidth="100" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
               </StackPanel>
             </StackPanel>
             <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal">
-              <StackPanel Margin="0,0,15,0">
+              <StackPanel Margin="{DynamicResource StackItemMargin}">
                 <TextBlock Text="Uptime:" FontSize="12" Foreground="{DynamicResource Theme.Text.Inverse}"/>
-                <TextBox Name="UptimeBox" IsReadOnly="True" Width="140" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
+                <TextBox Name="UptimeBox" IsReadOnly="True" MinWidth="140" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
               </StackPanel>
-              <StackPanel Margin="0,0,15,0">
+              <StackPanel Margin="{DynamicResource StackItemMargin}">
                 <TextBlock Text="Ports:" FontSize="12" Foreground="{DynamicResource Theme.Text.Inverse}"/>
-                <TextBox Name="PortCountBox" IsReadOnly="True" Width="50" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
+                <TextBox Name="PortCountBox" IsReadOnly="True" MinWidth="50" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
               </StackPanel>
-              <StackPanel Margin="0,0,15,0">
+              <StackPanel Margin="{DynamicResource StackItemMargin}">
                 <TextBlock Text="AuthDefaultVLAN:" FontSize="12" Foreground="{DynamicResource Theme.Text.Inverse}"/>
-                <TextBox Name="AuthDefaultVLANBox" IsReadOnly="True" Width="130" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
+                <TextBox Name="AuthDefaultVLANBox" IsReadOnly="True" MinWidth="130" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
               </StackPanel>
-              <StackPanel Margin="0,0,15,0">
+              <StackPanel Margin="{DynamicResource StackItemMargin}">
                 <TextBlock Text="Building:" FontSize="12" Foreground="{DynamicResource Theme.Text.Inverse}"/>
-                <TextBox Name="BuildingBox" IsReadOnly="True" Width="60" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
+                <TextBox Name="BuildingBox" IsReadOnly="True" MinWidth="60" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
               </StackPanel>
-              <StackPanel Margin="0,0,15,0">
+              <StackPanel Margin="{DynamicResource StackItemMargin}">
                 <TextBlock Text="Room:" FontSize="12" Foreground="{DynamicResource Theme.Text.Inverse}"/>
-                <TextBox Name="RoomBox" IsReadOnly="True" Width="40" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
+                <TextBox Name="RoomBox" IsReadOnly="True" MinWidth="40" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
               </StackPanel>
             </StackPanel>
 

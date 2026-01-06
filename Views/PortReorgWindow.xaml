@@ -26,7 +26,7 @@
 
       <TextBlock Text="Search:" Margin="0,0,4,0" VerticalAlignment="Center"/>
       <TextBox Name="ReorgSearchBox"
-               Width="100"
+               MinWidth="100"
                Margin="0,0,2,0"
                VerticalAlignment="Center"
                ToolTip="Filter by label"
@@ -44,7 +44,7 @@
 
       <TextBlock Text="Jump:" Margin="0,0,4,0" VerticalAlignment="Center"/>
       <TextBox Name="ReorgQuickJumpBox"
-               Width="80"
+               MinWidth="80"
                Margin="0,0,0,0"
                VerticalAlignment="Center"
                ToolTip="Type port name, press Enter"
