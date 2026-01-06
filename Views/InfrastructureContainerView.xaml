@@ -21,13 +21,13 @@
               </Border>
               <ControlTemplate.Triggers>
                 <Trigger Property="IsSelected" Value="True">
-                  <Setter TargetName="Border" Property="Background" Value="{DynamicResource Theme.Surface.Primary}"/>
-                  <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Inverse}"/>
+                  <Setter TargetName="Border" Property="Background" Value="{DynamicResource Theme.Icon.Accent}"/>
+                  <Setter Property="Foreground" Value="{DynamicResource Theme.Button.Primary.Text}"/>
                   <Setter Property="FontWeight" Value="SemiBold"/>
                 </Trigger>
                 <Trigger Property="IsMouseOver" Value="True">
-                  <Setter TargetName="Border" Property="Background" Value="{DynamicResource Theme.Toolbar.Background}"/>
-                  <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Inverse}"/>
+                  <Setter TargetName="Border" Property="Background" Value="{DynamicResource Theme.Button.Primary.HoverBackground}"/>
+                  <Setter Property="Foreground" Value="{DynamicResource Theme.Button.Primary.Text}"/>
                 </Trigger>
               </ControlTemplate.Triggers>
             </ControlTemplate>
