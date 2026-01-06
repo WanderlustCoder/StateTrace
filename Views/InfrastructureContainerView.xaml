@@ -5,8 +5,8 @@
               Background="{DynamicResource Theme.Surface.Primary}">
     <TabControl.Resources>
       <Style TargetType="TabItem">
-        <Setter Property="Background" Value="{DynamicResource Theme.Surface.Secondary}"/>
-        <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
+        <Setter Property="Background" Value="{DynamicResource Theme.Icon.Accent}"/>
+        <Setter Property="Foreground" Value="{DynamicResource Theme.Button.Primary.Text}"/>
         <Setter Property="BorderBrush" Value="{DynamicResource Theme.Border.Primary}"/>
         <Setter Property="MinWidth" Value="130"/>
         <Setter Property="Padding" Value="12,10"/>
@@ -21,8 +21,8 @@
               </Border>
               <ControlTemplate.Triggers>
                 <Trigger Property="IsSelected" Value="True">
-                  <Setter TargetName="Border" Property="Background" Value="{DynamicResource Theme.Icon.Accent}"/>
-                  <Setter Property="Foreground" Value="{DynamicResource Theme.Button.Primary.Text}"/>
+                  <Setter TargetName="Border" Property="Background" Value="{DynamicResource Theme.Surface.Secondary}"/>
+                  <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
                   <Setter Property="FontWeight" Value="SemiBold"/>
                 </Trigger>
                 <Trigger Property="IsMouseOver" Value="True">
