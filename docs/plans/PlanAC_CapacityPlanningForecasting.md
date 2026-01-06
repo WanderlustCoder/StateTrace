@@ -16,14 +16,16 @@ Network teams struggle with:
 - Tracking utilization trends over time
 
 ## Current status (2026-01)
-- **In Progress (4/6 Done)**: Core module, tests, UI, and MainWindow integration complete
+- **Complete (6/6 Done)**: Core module, tests, UI, MainWindow integration, scenario comparison, and budget reports
 - Utilization tracking: Port, PoE, VLAN, and site aggregation
 - Historical snapshots with trend data storage
 - Linear regression forecasting with R-squared confidence
 - Threshold management with warning/critical levels
-- What-if scenario analysis (Add Users, Deploy VLAN, Add Equipment)
-- Budget planning with TCO calculations and redeployment candidates
-- 46 Pester tests passing
+- What-if scenario analysis: Add Users, Deploy VLAN, Add Equipment, Equipment Scenarios, Technology Refresh
+- Enhanced scenario comparison: ROI analysis, payback period, best value recommendations
+- Budget planning: Multi-year projections with inflation, TCO calculations, redeployment candidates
+- Multi-format export: Text, HTML, JSON, CSV for capacity and budget reports
+- 70 Pester tests passing
 
 ## Proposed Features
 
@@ -114,8 +116,8 @@ Network teams struggle with:
 | ST-AC-002 | Trend calculation engine | Tools | Done | Linear regression, growth rates, breach predictions |
 | ST-AC-003 | Capacity dashboard | UI | Done | CapacityPlanningView.xaml with 6 tabs |
 | ST-AC-004 | Threshold alerting | Tools | Done | Configurable warning/critical thresholds |
-| ST-AC-005 | What-if scenario engine | Tools | Pending | Basic scenarios done, comparison pending |
-| ST-AC-006 | Budget planning reports | Tools | Pending | TCO done, detailed reports pending |
+| ST-AC-005 | What-if scenario engine | Tools | Done | Equipment/tech refresh scenarios with ROI comparison |
+| ST-AC-006 | Budget planning reports | Tools | Done | Multi-year projections, multi-format export |
 
 ## Recently delivered
 | ID | Title | Delivered | Notes |
@@ -124,6 +126,8 @@ Network teams struggle with:
 | ST-AC-002 | Trend calculation engine | 2026-01-05 | Get-LinearForecast, Get-ThresholdBreachDate |
 | ST-AC-003 | Capacity dashboard | 2026-01-05 | `Views/CapacityPlanningView.xaml`, view module |
 | ST-AC-004 | Threshold alerting | 2026-01-05 | Get-CapacityAlerts, Add-CapacityThreshold |
+| ST-AC-005 | What-if scenario engine | 2026-01-06 | New-EquipmentScenario, New-TechnologyRefreshScenario, Get-ScenarioComparison |
+| ST-AC-006 | Budget planning reports | 2026-01-06 | Get-BudgetPlanningReport, Export-CapacityReport, Export-BudgetPlanningReport |
 
 ## Data Model (Proposed)
 

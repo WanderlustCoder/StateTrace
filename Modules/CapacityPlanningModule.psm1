@@ -1085,6 +1085,282 @@ function Compare-Scenarios {
     return $results | Sort-Object CostPerPort
 }
 
+function New-EquipmentScenario {
+    <#
+    .SYNOPSIS
+        Models adding new equipment to increase capacity.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Name,
+
+        [Parameter()]
+        [string]$Description,
+
+        [Parameter(Mandatory)]
+        [ValidateSet('Switch', 'Router', 'AccessPoint', 'Module')]
+        [string]$EquipmentType,
+
+        [Parameter(Mandatory)]
+        [string]$Model,
+
+        [Parameter(Mandatory)]
+        [int]$Quantity,
+
+        [Parameter(Mandatory)]
+        [int]$PortsPerUnit,
+
+        [Parameter(Mandatory)]
+        [decimal]$UnitCost,
+
+        [Parameter()]
+        [decimal]$InstallationCostPerUnit = 500,
+
+        [Parameter()]
+        [int]$PoEBudgetPerUnit = 0,
+
+        [Parameter()]
+        [string]$TargetSite
+    )
+
+    $scenarioId = [Guid]::NewGuid().ToString()
+    $totalPorts = $Quantity * $PortsPerUnit
+    $totalPoE = $Quantity * $PoEBudgetPerUnit
+    $hardwareCost = $Quantity * $UnitCost
+    $installCost = $Quantity * $InstallationCostPerUnit
+    $totalCost = $hardwareCost + $installCost
+    $costPerPort = if ($totalPorts -gt 0) { [Math]::Round($totalCost / $totalPorts, 2) } else { 0 }
+
+    $scenario = [PSCustomObject]@{
+        ScenarioID = $scenarioId
+        ScenarioType = 'AddEquipment'
+        Name = $Name
+        Description = if ($Description) { $Description } else { "Add $Quantity x $Model to increase capacity" }
+        EquipmentType = $EquipmentType
+        Model = $Model
+        Quantity = $Quantity
+        PortsPerUnit = $PortsPerUnit
+        TotalPortsAdded = $totalPorts
+        PoEBudgetAdded = $totalPoE
+        UnitCost = $UnitCost
+        HardwareCost = $hardwareCost
+        InstallationCost = $installCost
+        TotalCost = $totalCost
+        CostPerPort = $costPerPort
+        TargetSite = $TargetSite
+        CreatedDate = Get-Date
+        CreatedBy = $env:USERNAME
+    }
+
+    [void]$script:PlanningScenarios.Add($scenario)
+
+    return $scenario
+}
+
+function New-TechnologyRefreshScenario {
+    <#
+    .SYNOPSIS
+        Models a technology refresh (e.g., 1G to 10G migration).
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Name,
+
+        [Parameter()]
+        [string]$Description,
+
+        [Parameter(Mandatory)]
+        [ValidateSet('1Gto10G', '10Gto25G', '10Gto40G', '40Gto100G', 'AccessToPoEPlus', 'Custom')]
+        [string]$RefreshType,
+
+        [Parameter(Mandatory)]
+        [int]$DevicesToReplace,
+
+        [Parameter(Mandatory)]
+        [decimal]$OldDeviceValue,
+
+        [Parameter(Mandatory)]
+        [decimal]$NewDeviceCost,
+
+        [Parameter()]
+        [int]$CapacityGainPerDevice = 0,
+
+        [Parameter()]
+        [decimal]$InstallationCostPerDevice = 500,
+
+        [Parameter()]
+        [decimal]$DisposalCostPerDevice = 50,
+
+        [Parameter()]
+        [string]$TargetSite
+    )
+
+    $scenarioId = [Guid]::NewGuid().ToString()
+
+    # Calculate costs
+    $newHardwareCost = $DevicesToReplace * $NewDeviceCost
+    $installCost = $DevicesToReplace * $InstallationCostPerDevice
+    $disposalCost = $DevicesToReplace * $DisposalCostPerDevice
+    $tradeInValue = $DevicesToReplace * $OldDeviceValue * 0.1  # Assume 10% trade-in value
+
+    $netCost = $newHardwareCost + $installCost + $disposalCost - $tradeInValue
+    $totalCapacityGain = $DevicesToReplace * $CapacityGainPerDevice
+
+    $costPerPortGain = if ($totalCapacityGain -gt 0) { [Math]::Round($netCost / $totalCapacityGain, 2) } else { 0 }
+
+    $refreshDescription = switch ($RefreshType) {
+        '1Gto10G' { '1 Gbps to 10 Gbps uplink migration' }
+        '10Gto25G' { '10 Gbps to 25 Gbps migration' }
+        '10Gto40G' { '10 Gbps to 40 Gbps migration' }
+        '40Gto100G' { '40 Gbps to 100 Gbps migration' }
+        'AccessToPoEPlus' { 'Standard PoE to PoE+ upgrade' }
+        default { 'Custom technology refresh' }
+    }
+
+    $scenario = [PSCustomObject]@{
+        ScenarioID = $scenarioId
+        ScenarioType = 'TechnologyRefresh'
+        Name = $Name
+        Description = if ($Description) { $Description } else { $refreshDescription }
+        RefreshType = $RefreshType
+        DevicesToReplace = $DevicesToReplace
+        OldDeviceValue = $OldDeviceValue
+        NewDeviceCost = $NewDeviceCost
+        NewHardwareCost = $newHardwareCost
+        InstallationCost = $installCost
+        DisposalCost = $disposalCost
+        TradeInValue = [Math]::Round($tradeInValue, 2)
+        NetCost = [Math]::Round($netCost, 2)
+        CapacityGainPerDevice = $CapacityGainPerDevice
+        TotalCapacityGain = $totalCapacityGain
+        CostPerPortGain = $costPerPortGain
+        TargetSite = $TargetSite
+        CreatedDate = Get-Date
+        CreatedBy = $env:USERNAME
+    }
+
+    [void]$script:PlanningScenarios.Add($scenario)
+
+    return $scenario
+}
+
+function Get-ScenarioComparison {
+    <#
+    .SYNOPSIS
+        Provides detailed comparison of planning scenarios.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter()]
+        [array]$ScenarioIDs,
+
+        [Parameter()]
+        [switch]$IncludeROI,
+
+        [Parameter()]
+        [int]$ROIYears = 5,
+
+        [Parameter()]
+        [decimal]$AnnualSavingsPerPort = 50
+    )
+
+    # Get scenarios to compare
+    $scenarios = if ($ScenarioIDs) {
+        $script:PlanningScenarios | Where-Object { $_.ScenarioID -in $ScenarioIDs }
+    } else {
+        $script:PlanningScenarios
+    }
+
+    if (@($scenarios).Count -eq 0) {
+        return [PSCustomObject]@{
+            ComparisonDate = Get-Date
+            ScenariosCompared = 0
+            Results = @()
+            Recommendation = 'No scenarios available for comparison'
+        }
+    }
+
+    $comparisonResults = @()
+
+    foreach ($scenario in $scenarios) {
+        # Calculate metrics based on scenario type
+        $totalCost = 0
+        $capacityGain = 0
+        $costPerPort = 0
+
+        switch ($scenario.ScenarioType) {
+            'AddEquipment' {
+                $totalCost = $scenario.TotalCost
+                $capacityGain = $scenario.TotalPortsAdded
+                $costPerPort = $scenario.CostPerPort
+            }
+            'TechnologyRefresh' {
+                $totalCost = $scenario.NetCost
+                $capacityGain = $scenario.TotalCapacityGain
+                $costPerPort = $scenario.CostPerPortGain
+            }
+            default {
+                $totalCost = if ($scenario.CostEstimate) { $scenario.CostEstimate } else { 0 }
+                $capacityGain = if ($scenario.ProjectedChanges -and $scenario.ProjectedChanges['CapacityGain']) {
+                    $scenario.ProjectedChanges['CapacityGain']
+                } else { 0 }
+                $costPerPort = if ($capacityGain -gt 0) { [Math]::Round($totalCost / $capacityGain, 2) } else { 0 }
+            }
+        }
+
+        # Calculate ROI if requested
+        $roi = $null
+        $paybackMonths = $null
+        if ($IncludeROI -and $capacityGain -gt 0) {
+            $annualBenefit = $capacityGain * $AnnualSavingsPerPort
+            $totalBenefit = $annualBenefit * $ROIYears
+            $roi = if ($totalCost -gt 0) { [Math]::Round((($totalBenefit - $totalCost) / $totalCost) * 100, 1) } else { 0 }
+            $paybackMonths = if ($annualBenefit -gt 0) { [Math]::Round(($totalCost / $annualBenefit) * 12, 0) } else { -1 }
+        }
+
+        $result = [PSCustomObject]@{
+            ScenarioID = $scenario.ScenarioID
+            Name = $scenario.Name
+            ScenarioType = $scenario.ScenarioType
+            TotalCost = $totalCost
+            CapacityGain = $capacityGain
+            CostPerPort = $costPerPort
+            ROIPercent = $roi
+            PaybackMonths = $paybackMonths
+            CreatedDate = $scenario.CreatedDate
+        }
+
+        $comparisonResults += $result
+    }
+
+    # Sort by cost per port (best value first)
+    $sorted = @($comparisonResults | Sort-Object CostPerPort)
+
+    # Determine recommendation
+    $recommendation = if ($sorted.Count -gt 0) {
+        $best = $sorted[0]
+        if ($best.CostPerPort -eq 0 -and $best.CapacityGain -eq 0) {
+            'No capacity-adding scenarios available'
+        } else {
+            "Recommended: '$($best.Name)' - Best cost efficiency at $($best.CostPerPort) per port"
+        }
+    } else {
+        'No scenarios to compare'
+    }
+
+    return [PSCustomObject]@{
+        ComparisonDate = Get-Date
+        ScenariosCompared = @($comparisonResults).Count
+        Results = $sorted
+        BestValue = if ($sorted.Count -gt 0) { $sorted[0] } else { $null }
+        LowestCost = if ($sorted.Count -gt 0) { $sorted | Sort-Object TotalCost | Select-Object -First 1 } else { $null }
+        HighestCapacity = if ($sorted.Count -gt 0) { $sorted | Sort-Object CapacityGain -Descending | Select-Object -First 1 } else { $null }
+        Recommendation = $recommendation
+    }
+}
+
 #endregion
 
 #region Budget Planning
@@ -1233,6 +1509,129 @@ function Get-RedeploymentCandidates {
     return $candidates | Sort-Object Utilization
 }
 
+function Get-BudgetPlanningReport {
+    <#
+    .SYNOPSIS
+        Generates a comprehensive budget planning report.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter()]
+        [ValidateSet('Quarterly', 'Annual', 'MultiYear')]
+        [string]$PlanningPeriod = 'Annual',
+
+        [Parameter()]
+        [int]$Years = 3,
+
+        [Parameter()]
+        [double]$GrowthRateMonthly = 0.02,
+
+        [Parameter()]
+        [int]$CurrentTotalPorts = 1000,
+
+        [Parameter()]
+        [double]$CurrentUtilization = 0.70,
+
+        [Parameter()]
+        [decimal]$AverageDeviceCost = 5000,
+
+        [Parameter()]
+        [int]$PortsPerDevice = 48,
+
+        [Parameter()]
+        [double]$AnnualPriceIncrease = 0.03
+    )
+
+    $yearlyProjections = @()
+    $cumulativeCost = 0
+    $currentPorts = $CurrentTotalPorts
+    $currentUsed = [Math]::Floor($CurrentTotalPorts * $CurrentUtilization)
+
+    for ($year = 1; $year -le $Years; $year++) {
+        # Project growth for this year
+        $growthFactor = [Math]::Pow(1 + $GrowthRateMonthly, 12)
+        $projectedUsed = [Math]::Ceiling($currentUsed * $growthFactor)
+
+        # Calculate capacity needed to stay at 75% utilization
+        $targetTotalPorts = [Math]::Ceiling($projectedUsed / 0.75)
+        $portsNeeded = [Math]::Max(0, $targetTotalPorts - $currentPorts)
+        $devicesNeeded = [Math]::Ceiling($portsNeeded / $PortsPerDevice)
+
+        # Calculate costs with inflation
+        $adjustedCost = $AverageDeviceCost * [Math]::Pow(1 + $AnnualPriceIncrease, $year - 1)
+        $hardwareCost = $devicesNeeded * $adjustedCost
+        $installationCost = $devicesNeeded * 500
+        $yearCost = $hardwareCost + $installationCost
+
+        $cumulativeCost += $yearCost
+
+        $yearlyProjections += [PSCustomObject]@{
+            Year = $year
+            FiscalYear = "FY$(((Get-Date).Year + $year).ToString())"
+            StartingPorts = $currentPorts
+            ProjectedUsedPorts = $projectedUsed
+            ProjectedUtilization = if ($currentPorts -gt 0) { [Math]::Round(($projectedUsed / $currentPorts) * 100, 1) } else { 0 }
+            TargetTotalPorts = $targetTotalPorts
+            AdditionalPortsNeeded = $portsNeeded
+            DevicesNeeded = $devicesNeeded
+            HardwareCost = [Math]::Round($hardwareCost, 2)
+            InstallationCost = [Math]::Round($installationCost, 2)
+            YearTotalCost = [Math]::Round($yearCost, 2)
+            CumulativeCost = [Math]::Round($cumulativeCost, 2)
+        }
+
+        # Update for next year
+        $currentPorts = $targetTotalPorts
+        $currentUsed = $projectedUsed
+    }
+
+    # Generate recommendations
+    $recommendations = @()
+    $totalDevicesNeeded = ($yearlyProjections | Measure-Object -Property DevicesNeeded -Sum).Sum
+
+    if ($totalDevicesNeeded -gt 0) {
+        $recommendations += "Plan for $totalDevicesNeeded additional devices over $Years years"
+    }
+
+    $highGrowthYears = @($yearlyProjections | Where-Object { $_.DevicesNeeded -gt 2 })
+    if ($highGrowthYears.Count -gt 0) {
+        $recommendations += "High growth expected in years: $($highGrowthYears.Year -join ', ')"
+    }
+
+    # Check for redeployment opportunities
+    if ($CurrentUtilization -lt 0.5) {
+        $recommendations += "Consider consolidation before purchasing - current utilization is low"
+    }
+
+    return [PSCustomObject]@{
+        ReportType = 'BudgetPlanning'
+        PlanningPeriod = $PlanningPeriod
+        YearsPlanned = $Years
+        GeneratedDate = Get-Date
+        GeneratedBy = $env:USERNAME
+
+        # Current State
+        CurrentTotalPorts = $CurrentTotalPorts
+        CurrentUsedPorts = [Math]::Floor($CurrentTotalPorts * $CurrentUtilization)
+        CurrentUtilization = [Math]::Round($CurrentUtilization * 100, 1)
+
+        # Assumptions
+        MonthlyGrowthRate = [Math]::Round($GrowthRateMonthly * 100, 2)
+        AnnualGrowthRate = [Math]::Round(([Math]::Pow(1 + $GrowthRateMonthly, 12) - 1) * 100, 1)
+        AverageDeviceCost = $AverageDeviceCost
+        PortsPerDevice = $PortsPerDevice
+        AnnualPriceIncrease = [Math]::Round($AnnualPriceIncrease * 100, 1)
+
+        # Projections
+        YearlyProjections = $yearlyProjections
+        TotalDevicesNeeded = $totalDevicesNeeded
+        TotalBudgetRequired = [Math]::Round($cumulativeCost, 2)
+
+        # Summary
+        Recommendations = $recommendations
+    }
+}
+
 #endregion
 
 #region Reports
@@ -1302,6 +1701,291 @@ function Get-CapacityStatistics {
         TotalForecasts = $forecasts.Count
         TotalScenarios = $scenarios.Count
         LastSnapshotDate = if ($snapshots.Count -gt 0) { ($snapshots | Sort-Object SnapshotDate -Descending | Select-Object -First 1).SnapshotDate } else { $null }
+    }
+}
+
+function Export-CapacityReport {
+    <#
+    .SYNOPSIS
+        Exports a capacity report to various formats.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter()]
+        [object]$Report,
+
+        [Parameter()]
+        [ValidateSet('Text', 'HTML', 'JSON', 'CSV')]
+        [string]$Format = 'Text',
+
+        [Parameter(Mandatory)]
+        [string]$OutputPath
+    )
+
+    # Generate report if not provided
+    if (-not $Report) {
+        $Report = New-CapacityReport -Type 'Summary'
+    }
+
+    $extension = switch ($Format) {
+        'Text' { 'txt' }
+        'HTML' { 'html' }
+        'JSON' { 'json' }
+        'CSV' { 'csv' }
+    }
+
+    $filename = "CapacityReport_$(Get-Date -Format 'yyyyMMdd-HHmmss').$extension"
+    $fullPath = Join-Path $OutputPath $filename
+
+    switch ($Format) {
+        'Text' {
+            $text = @"
+CAPACITY PLANNING REPORT
+========================
+Generated: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+Report Type: $($Report.Type)
+Scope: $($Report.Scope)
+
+SUMMARY
+-------
+Snapshots: $($Report.SnapshotCount)
+Forecasts: $($Report.ForecastCount)
+Scenarios: $($Report.ScenarioCount)
+
+SECTIONS INCLUDED
+-----------------
+$($Report.Sections -join "`n")
+
+---
+Generated by StateTrace Capacity Planning Module
+"@
+            $text | Set-Content -Path $fullPath
+        }
+
+        'HTML' {
+            $sectionsHtml = ($Report.Sections | ForEach-Object { "<li>$_</li>" }) -join "`n"
+
+            $html = @"
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Capacity Planning Report</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1 { color: #333; border-bottom: 2px solid #0066cc; padding-bottom: 10px; }
+        h2 { color: #0066cc; margin-top: 20px; }
+        .meta { color: #666; font-size: 0.9em; }
+        .summary { background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 15px 0; }
+        .summary-item { margin: 10px 0; }
+        .label { font-weight: bold; }
+        ul { list-style-type: square; }
+        .footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid #ddd; color: #666; font-size: 0.8em; }
+    </style>
+</head>
+<body>
+    <h1>Capacity Planning Report</h1>
+    <p class="meta">Generated: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') | Type: $($Report.Type) | Scope: $($Report.Scope)</p>
+
+    <div class="summary">
+        <h2>Summary</h2>
+        <div class="summary-item"><span class="label">Snapshots:</span> $($Report.SnapshotCount)</div>
+        <div class="summary-item"><span class="label">Forecasts:</span> $($Report.ForecastCount)</div>
+        <div class="summary-item"><span class="label">Scenarios:</span> $($Report.ScenarioCount)</div>
+    </div>
+
+    <h2>Sections Included</h2>
+    <ul>
+        $sectionsHtml
+    </ul>
+
+    <div class="footer">
+        Generated by StateTrace Capacity Planning Module
+    </div>
+</body>
+</html>
+"@
+            $html | Set-Content -Path $fullPath
+        }
+
+        'JSON' {
+            $Report | ConvertTo-Json -Depth 10 | Set-Content -Path $fullPath
+        }
+
+        'CSV' {
+            # For CSV, export a summary row
+            $csvData = [PSCustomObject]@{
+                ReportID = $Report.ReportID
+                Type = $Report.Type
+                Scope = $Report.Scope
+                GeneratedDate = $Report.GeneratedDate
+                SnapshotCount = $Report.SnapshotCount
+                ForecastCount = $Report.ForecastCount
+                ScenarioCount = $Report.ScenarioCount
+                Sections = ($Report.Sections -join '; ')
+            }
+            $csvData | Export-Csv -Path $fullPath -NoTypeInformation
+        }
+    }
+
+    return [PSCustomObject]@{
+        Path = $fullPath
+        Format = $Format
+        ReportType = $Report.Type
+        ExportedAt = Get-Date
+    }
+}
+
+function Export-BudgetPlanningReport {
+    <#
+    .SYNOPSIS
+        Exports a budget planning report to various formats.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [object]$Report,
+
+        [Parameter()]
+        [ValidateSet('Text', 'HTML', 'JSON', 'CSV')]
+        [string]$Format = 'Text',
+
+        [Parameter(Mandatory)]
+        [string]$OutputPath
+    )
+
+    $extension = switch ($Format) {
+        'Text' { 'txt' }
+        'HTML' { 'html' }
+        'JSON' { 'json' }
+        'CSV' { 'csv' }
+    }
+
+    $filename = "BudgetPlanningReport_$(Get-Date -Format 'yyyyMMdd-HHmmss').$extension"
+    $fullPath = Join-Path $OutputPath $filename
+
+    switch ($Format) {
+        'Text' {
+            $yearlyText = ($Report.YearlyProjections | ForEach-Object {
+                "$($_.FiscalYear): Need $($_.DevicesNeeded) devices (+$($_.AdditionalPortsNeeded) ports) - Cost: `$$($_.YearTotalCost)"
+            }) -join "`n"
+
+            $recsText = ($Report.Recommendations | ForEach-Object { "- $_" }) -join "`n"
+
+            $text = @"
+BUDGET PLANNING REPORT
+======================
+Generated: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+Planning Period: $($Report.PlanningPeriod)
+Years Planned: $($Report.YearsPlanned)
+
+CURRENT STATE
+-------------
+Total Ports: $($Report.CurrentTotalPorts)
+Used Ports: $($Report.CurrentUsedPorts)
+Utilization: $($Report.CurrentUtilization)%
+
+ASSUMPTIONS
+-----------
+Monthly Growth Rate: $($Report.MonthlyGrowthRate)%
+Annual Growth Rate: $($Report.AnnualGrowthRate)%
+Average Device Cost: `$$($Report.AverageDeviceCost)
+Ports Per Device: $($Report.PortsPerDevice)
+Annual Price Increase: $($Report.AnnualPriceIncrease)%
+
+YEARLY PROJECTIONS
+------------------
+$yearlyText
+
+SUMMARY
+-------
+Total Devices Needed: $($Report.TotalDevicesNeeded)
+Total Budget Required: `$$($Report.TotalBudgetRequired)
+
+RECOMMENDATIONS
+---------------
+$recsText
+
+---
+Generated by StateTrace Capacity Planning Module
+"@
+            $text | Set-Content -Path $fullPath
+        }
+
+        'HTML' {
+            $yearlyRows = ($Report.YearlyProjections | ForEach-Object {
+                "<tr><td>$($_.FiscalYear)</td><td>$($_.DevicesNeeded)</td><td>$($_.AdditionalPortsNeeded)</td><td>$($_.ProjectedUtilization)%</td><td>`$$($_.YearTotalCost)</td><td>`$$($_.CumulativeCost)</td></tr>"
+            }) -join "`n"
+
+            $recsHtml = ($Report.Recommendations | ForEach-Object { "<li>$_</li>" }) -join "`n"
+
+            $html = @"
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Budget Planning Report</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1 { color: #333; border-bottom: 2px solid #28a745; padding-bottom: 10px; }
+        h2 { color: #28a745; margin-top: 20px; }
+        .meta { color: #666; font-size: 0.9em; }
+        .summary-box { background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 15px 0; border-left: 4px solid #28a745; }
+        .total { font-size: 1.5em; color: #28a745; font-weight: bold; }
+        table { border-collapse: collapse; width: 100%; margin: 15px 0; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background: #28a745; color: white; }
+        tr:nth-child(even) { background: #f9f9f9; }
+        ul { list-style-type: square; }
+        .footer { margin-top: 30px; padding-top: 15px; border-top: 1px solid #ddd; color: #666; font-size: 0.8em; }
+    </style>
+</head>
+<body>
+    <h1>Budget Planning Report</h1>
+    <p class="meta">Generated: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') | Period: $($Report.PlanningPeriod) | Years: $($Report.YearsPlanned)</p>
+
+    <div class="summary-box">
+        <h2>Budget Summary</h2>
+        <p class="total">Total Budget Required: `$$($Report.TotalBudgetRequired)</p>
+        <p>Total Devices Needed: $($Report.TotalDevicesNeeded)</p>
+    </div>
+
+    <h2>Current State</h2>
+    <p>Total Ports: $($Report.CurrentTotalPorts) | Used: $($Report.CurrentUsedPorts) | Utilization: $($Report.CurrentUtilization)%</p>
+
+    <h2>Yearly Projections</h2>
+    <table>
+        <tr><th>Fiscal Year</th><th>Devices Needed</th><th>Ports Added</th><th>Projected Util</th><th>Year Cost</th><th>Cumulative</th></tr>
+        $yearlyRows
+    </table>
+
+    <h2>Recommendations</h2>
+    <ul>
+        $recsHtml
+    </ul>
+
+    <div class="footer">
+        Generated by StateTrace Capacity Planning Module
+    </div>
+</body>
+</html>
+"@
+            $html | Set-Content -Path $fullPath
+        }
+
+        'JSON' {
+            $Report | ConvertTo-Json -Depth 10 | Set-Content -Path $fullPath
+        }
+
+        'CSV' {
+            # Export yearly projections as CSV
+            $Report.YearlyProjections | Export-Csv -Path $fullPath -NoTypeInformation
+        }
+    }
+
+    return [PSCustomObject]@{
+        Path = $fullPath
+        Format = $Format
+        ReportType = 'BudgetPlanning'
+        ExportedAt = Get-Date
     }
 }
 
@@ -1458,15 +2142,21 @@ Export-ModuleMember -Function @(
     'New-PlanningScenario'
     'Get-PlanningScenario'
     'Compare-Scenarios'
+    'New-EquipmentScenario'
+    'New-TechnologyRefreshScenario'
+    'Get-ScenarioComparison'
 
     # Budget Planning
     'Get-HardwareProjection'
     'Get-TotalCostEstimate'
     'Get-RedeploymentCandidates'
+    'Get-BudgetPlanningReport'
 
     # Reports
     'New-CapacityReport'
     'Get-CapacityStatistics'
+    'Export-CapacityReport'
+    'Export-BudgetPlanningReport'
 
     # Import/Export
     'Import-CapacityPlanningDatabase'

@@ -598,4 +598,241 @@ Describe 'CapacityPlanningModule' {
     }
 
     #endregion
+
+    #region Enhanced Scenario Comparison (ST-AC-005)
+
+    Context 'Equipment Scenarios' {
+        It 'creates equipment scenario with costs' {
+            $scenario = New-EquipmentScenario -Name 'Add Switches' -EquipmentType 'Switch' -Model 'C9300-48P' -Quantity 2 -PortsPerUnit 48 -UnitCost 5000
+
+            $scenario.ScenarioID | Should Not BeNullOrEmpty
+            $scenario.ScenarioType | Should Be 'AddEquipment'
+            $scenario.TotalPortsAdded | Should Be 96
+            $scenario.HardwareCost | Should Be 10000
+            $scenario.TotalCost | Should Be 11000
+        }
+
+        It 'calculates cost per port' {
+            $scenario = New-EquipmentScenario -Name 'Test' -EquipmentType 'Switch' -Model 'Test' -Quantity 1 -PortsPerUnit 48 -UnitCost 4800 -InstallationCostPerUnit 0
+
+            $scenario.CostPerPort | Should Be 100
+        }
+
+        It 'includes PoE budget' {
+            $scenario = New-EquipmentScenario -Name 'PoE Switch' -EquipmentType 'Switch' -Model 'C9300-48P' -Quantity 2 -PortsPerUnit 48 -UnitCost 5000 -PoEBudgetPerUnit 740
+
+            $scenario.PoEBudgetAdded | Should Be 1480
+        }
+    }
+
+    Context 'Technology Refresh Scenarios' {
+        It 'creates technology refresh scenario' {
+            $scenario = New-TechnologyRefreshScenario -Name '1G to 10G Upgrade' -RefreshType '1Gto10G' -DevicesToReplace 4 -OldDeviceValue 2000 -NewDeviceCost 5000
+
+            $scenario.ScenarioID | Should Not BeNullOrEmpty
+            $scenario.ScenarioType | Should Be 'TechnologyRefresh'
+            $scenario.DevicesToReplace | Should Be 4
+            $scenario.NewHardwareCost | Should Be 20000
+        }
+
+        It 'calculates trade-in value' {
+            $scenario = New-TechnologyRefreshScenario -Name 'Refresh' -RefreshType '1Gto10G' -DevicesToReplace 2 -OldDeviceValue 1000 -NewDeviceCost 3000
+
+            $scenario.TradeInValue | Should Be 200
+        }
+
+        It 'calculates net cost with disposal' {
+            $scenario = New-TechnologyRefreshScenario -Name 'Refresh' -RefreshType '1Gto10G' -DevicesToReplace 2 -OldDeviceValue 1000 -NewDeviceCost 3000 -InstallationCostPerDevice 500 -DisposalCostPerDevice 50
+
+            # NewHardwareCost: 6000 + Install: 1000 + Disposal: 100 - TradeIn: 200 = 6900
+            $scenario.NetCost | Should Be 6900
+        }
+
+        It 'calculates capacity gain cost per port' {
+            $scenario = New-TechnologyRefreshScenario -Name 'Refresh' -RefreshType '1Gto10G' -DevicesToReplace 1 -OldDeviceValue 1000 -NewDeviceCost 5000 -CapacityGainPerDevice 24 -InstallationCostPerDevice 0 -DisposalCostPerDevice 0
+
+            # NetCost: 5000 - 100 (trade-in) = 4900, CapacityGain: 24
+            $scenario.TotalCapacityGain | Should Be 24
+            $scenario.CostPerPortGain | Should Not BeNullOrEmpty
+        }
+    }
+
+    Context 'Advanced Scenario Comparison' {
+        It 'compares equipment and refresh scenarios' {
+            $null = New-EquipmentScenario -Name 'Add Switches' -EquipmentType 'Switch' -Model 'C9300-48P' -Quantity 2 -PortsPerUnit 48 -UnitCost 5000
+            $null = New-TechnologyRefreshScenario -Name '1G Upgrade' -RefreshType '1Gto10G' -DevicesToReplace 2 -OldDeviceValue 2000 -NewDeviceCost 6000 -CapacityGainPerDevice 24
+
+            $comparison = Get-ScenarioComparison
+
+            $comparison.ScenariosCompared | Should Be 2
+            $comparison.Results | Should Not BeNullOrEmpty
+            $comparison.BestValue | Should Not BeNullOrEmpty
+        }
+
+        It 'calculates ROI when requested' {
+            $null = New-EquipmentScenario -Name 'Test' -EquipmentType 'Switch' -Model 'Test' -Quantity 1 -PortsPerUnit 48 -UnitCost 4800
+
+            $comparison = Get-ScenarioComparison -IncludeROI -ROIYears 5 -AnnualSavingsPerPort 100
+
+            $comparison.Results[0].ROIPercent | Should Not BeNullOrEmpty
+            $comparison.Results[0].PaybackMonths | Should Not BeNullOrEmpty
+        }
+
+        It 'provides recommendation' {
+            $null = New-EquipmentScenario -Name 'Best Value' -EquipmentType 'Switch' -Model 'Test' -Quantity 1 -PortsPerUnit 48 -UnitCost 2400
+
+            $comparison = Get-ScenarioComparison
+
+            $comparison.Recommendation | Should Match 'Recommended'
+        }
+
+        It 'handles empty scenario list' {
+            Clear-CapacityPlanningData
+
+            $comparison = Get-ScenarioComparison
+
+            $comparison.ScenariosCompared | Should Be 0
+            $comparison.Recommendation | Should Match 'No scenarios'
+        }
+    }
+
+    #endregion
+
+    #region Budget Planning Reports (ST-AC-006)
+
+    Context 'Budget Planning Report' {
+        It 'generates multi-year budget report' {
+            $report = Get-BudgetPlanningReport -Years 3 -CurrentTotalPorts 1000 -CurrentUtilization 0.70 -GrowthRateMonthly 0.02
+
+            $report.ReportType | Should Be 'BudgetPlanning'
+            $report.YearsPlanned | Should Be 3
+            @($report.YearlyProjections).Count | Should Be 3
+        }
+
+        It 'projects yearly costs' {
+            $report = Get-BudgetPlanningReport -Years 2 -CurrentTotalPorts 500 -CurrentUtilization 0.80 -GrowthRateMonthly 0.03
+
+            $report.YearlyProjections[0].FiscalYear | Should Match 'FY'
+            $report.YearlyProjections[0].YearTotalCost | Should Not BeNullOrEmpty
+        }
+
+        It 'calculates total budget required' {
+            $report = Get-BudgetPlanningReport -Years 3
+
+            $report.TotalBudgetRequired | Should Not BeNullOrEmpty
+            $report.TotalDevicesNeeded | Should Not BeNullOrEmpty
+        }
+
+        It 'provides recommendations' {
+            $report = Get-BudgetPlanningReport -Years 5 -CurrentUtilization 0.70 -GrowthRateMonthly 0.02
+
+            @($report.Recommendations).Count | Should BeGreaterThan 0
+        }
+
+        It 'accounts for price inflation' {
+            $report = Get-BudgetPlanningReport -Years 2 -AverageDeviceCost 5000 -AnnualPriceIncrease 0.05
+
+            $report.AnnualPriceIncrease | Should Be 5
+        }
+    }
+
+    Context 'Capacity Report Export' {
+        It 'exports capacity report to Text' {
+            $report = New-CapacityReport -Type 'Summary'
+            $result = Export-CapacityReport -Report $report -Format 'Text' -OutputPath $env:TEMP
+
+            $result.Path | Should Match '\.txt$'
+            Test-Path $result.Path | Should Be $true
+            $content = Get-Content $result.Path -Raw
+            $content | Should Match 'CAPACITY PLANNING REPORT'
+
+            Remove-Item $result.Path -Force -ErrorAction SilentlyContinue
+        }
+
+        It 'exports capacity report to HTML' {
+            $report = New-CapacityReport -Type 'Summary'
+            $result = Export-CapacityReport -Report $report -Format 'HTML' -OutputPath $env:TEMP
+
+            $result.Path | Should Match '\.html$'
+            Test-Path $result.Path | Should Be $true
+            $content = Get-Content $result.Path -Raw
+            $content | Should Match '<html>'
+
+            Remove-Item $result.Path -Force -ErrorAction SilentlyContinue
+        }
+
+        It 'exports capacity report to JSON' {
+            $report = New-CapacityReport -Type 'Summary'
+            $result = Export-CapacityReport -Report $report -Format 'JSON' -OutputPath $env:TEMP
+
+            $result.Path | Should Match '\.json$'
+            Test-Path $result.Path | Should Be $true
+
+            Remove-Item $result.Path -Force -ErrorAction SilentlyContinue
+        }
+
+        It 'exports capacity report to CSV' {
+            $report = New-CapacityReport -Type 'Summary'
+            $result = Export-CapacityReport -Report $report -Format 'CSV' -OutputPath $env:TEMP
+
+            $result.Path | Should Match '\.csv$'
+            Test-Path $result.Path | Should Be $true
+
+            Remove-Item $result.Path -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    Context 'Budget Report Export' {
+        It 'exports budget report to Text' {
+            $report = Get-BudgetPlanningReport -Years 2
+            $result = Export-BudgetPlanningReport -Report $report -Format 'Text' -OutputPath $env:TEMP
+
+            $result.Path | Should Match '\.txt$'
+            Test-Path $result.Path | Should Be $true
+            $content = Get-Content $result.Path -Raw
+            $content | Should Match 'BUDGET PLANNING REPORT'
+
+            Remove-Item $result.Path -Force -ErrorAction SilentlyContinue
+        }
+
+        It 'exports budget report to HTML' {
+            $report = Get-BudgetPlanningReport -Years 2
+            $result = Export-BudgetPlanningReport -Report $report -Format 'HTML' -OutputPath $env:TEMP
+
+            $result.Path | Should Match '\.html$'
+            Test-Path $result.Path | Should Be $true
+            $content = Get-Content $result.Path -Raw
+            $content | Should Match 'Budget Planning Report'
+            $content | Should Match '<table>'
+
+            Remove-Item $result.Path -Force -ErrorAction SilentlyContinue
+        }
+
+        It 'exports budget report to JSON' {
+            $report = Get-BudgetPlanningReport -Years 2
+            $result = Export-BudgetPlanningReport -Report $report -Format 'JSON' -OutputPath $env:TEMP
+
+            $result.Path | Should Match '\.json$'
+            Test-Path $result.Path | Should Be $true
+            $content = Get-Content $result.Path -Raw
+            $json = $content | ConvertFrom-Json
+            $json.ReportType | Should Be 'BudgetPlanning'
+
+            Remove-Item $result.Path -Force -ErrorAction SilentlyContinue
+        }
+
+        It 'exports budget projections to CSV' {
+            $report = Get-BudgetPlanningReport -Years 3
+            $result = Export-BudgetPlanningReport -Report $report -Format 'CSV' -OutputPath $env:TEMP
+
+            $result.Path | Should Match '\.csv$'
+            Test-Path $result.Path | Should Be $true
+            $csv = Import-Csv $result.Path
+            @($csv).Count | Should Be 3
+
+            Remove-Item $result.Path -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    #endregion
 }
