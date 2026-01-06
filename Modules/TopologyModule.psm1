@@ -412,6 +412,7 @@ function Find-LinksFromDescription {
         [string]$SourcePort,
 
         [Parameter(Mandatory)]
+        [AllowEmptyString()]
         [string]$Description
     )
 
@@ -420,23 +421,24 @@ function Find-LinksFromDescription {
     }
 
     foreach ($pattern in $script:LinkPatterns) {
-        if ($Description -match $pattern.Pattern) {
+        if ($Description -match $pattern['Pattern']) {
             $destDevice = $null
             $destPort = $null
             $isWAN = $false
             $portChannel = $null
 
-            if ($pattern.DeviceGroup -and $Matches[$pattern.DeviceGroup]) {
-                $destDevice = $Matches[$pattern.DeviceGroup]
+            # Use hashtable key access for StrictMode compatibility
+            if ($pattern.ContainsKey('DeviceGroup') -and $pattern['DeviceGroup'] -and $Matches[$pattern['DeviceGroup']]) {
+                $destDevice = $Matches[$pattern['DeviceGroup']]
             }
-            if ($pattern.PortGroup -and $Matches[$pattern.PortGroup]) {
-                $destPort = $Matches[$pattern.PortGroup]
+            if ($pattern.ContainsKey('PortGroup') -and $pattern['PortGroup'] -and $Matches[$pattern['PortGroup']]) {
+                $destPort = $Matches[$pattern['PortGroup']]
             }
-            if ($pattern.IsWAN) {
+            if ($pattern.ContainsKey('IsWAN') -and $pattern['IsWAN']) {
                 $isWAN = $true
             }
-            if ($pattern.PortChannelGroup -and $Matches[$pattern.PortChannelGroup]) {
-                $portChannel = "Po$($Matches[$pattern.PortChannelGroup])"
+            if ($pattern.ContainsKey('PortChannelGroup') -and $pattern['PortChannelGroup'] -and $Matches[$pattern['PortChannelGroup']]) {
+                $portChannel = "Po$($Matches[$pattern['PortChannelGroup']])"
             }
 
             if ($destDevice) {
@@ -447,7 +449,7 @@ function Find-LinksFromDescription {
                     DestPort     = $destPort
                     IsWAN        = $isWAN
                     PortChannel  = $portChannel
-                    Pattern      = $pattern.Name
+                    Pattern      = $pattern['Name']
                 }
             }
         }
@@ -799,9 +801,9 @@ function Get-ImpactAnalysis {
         $affectedNode = Get-TopologyNode -NodeID $affectedNodeID
         if ($affectedNode) {
             # Check redundancy - does affected node have other uplinks?
-            $otherLinks = Get-TopologyLink -NodeID $affectedNodeID | Where-Object {
+            $otherLinks = @(Get-TopologyLink -NodeID $affectedNodeID | Where-Object {
                 $_.SourceNodeID -ne $NodeID -and $_.DestNodeID -ne $NodeID
-            }
+            })
 
             $directlyAffected += [PSCustomObject]@{
                 Node            = $affectedNode
@@ -813,11 +815,11 @@ function Get-ImpactAnalysis {
     }
 
     # Calculate total impact
-    $criticalCount = ($directlyAffected | Where-Object { $_.IsCritical }).Count
+    $criticalCount = @($directlyAffected | Where-Object { $_.IsCritical }).Count
 
     return [PSCustomObject]@{
         AffectedNode       = $node
-        DirectLinks        = $directLinks.Count
+        DirectLinks        = @($directLinks).Count
         DirectlyAffected   = $directlyAffected
         CriticalDevices    = $criticalCount
         HasFullRedundancy  = ($criticalCount -eq 0)
@@ -1224,7 +1226,7 @@ function Get-TopologyStatistics {
     # Find nodes with no links (isolated)
     $isolatedNodes = @()
     foreach ($node in $nodes) {
-        $nodeLinks = Get-TopologyLink -NodeID $node.NodeID
+        $nodeLinks = @(Get-TopologyLink -NodeID $node.NodeID)
         if ($nodeLinks.Count -eq 0) {
             $isolatedNodes += $node
         }

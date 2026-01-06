@@ -77,10 +77,10 @@ Describe 'TopologyModule' -Tag 'Topology' {
             New-TopologyNode -DeviceID 'CORE-01' | Out-Null
             New-TopologyNode -DeviceID 'SW-01' | Out-Null
 
-            $cores = Get-TopologyNode -Role 'Core'
+            $cores = @(Get-TopologyNode -Role 'Core')
 
             $cores.Count | Should Be 1
-            $cores.DeviceID | Should Be 'CORE-01'
+            $cores[0].DeviceID | Should Be 'CORE-01'
         }
 
         It 'removes a node and its links' {
@@ -91,9 +91,9 @@ Describe 'TopologyModule' -Tag 'Topology' {
             $result = Remove-TopologyNode -NodeID $node1.NodeID
 
             $result | Should Be $true
-            $remaining = Get-TopologyNode
+            $remaining = @(Get-TopologyNode)
             $remaining.Count | Should Be 1
-            $links = Get-TopologyLink
+            $links = @(Get-TopologyLink)
             $links.Count | Should Be 0
         }
     }
@@ -129,7 +129,7 @@ Describe 'TopologyModule' -Tag 'Topology' {
 
             $duplicate = New-TopologyLink -SourceNodeID $node1.NodeID -DestNodeID $node2.NodeID
 
-            $allLinks = Get-TopologyLink
+            $allLinks = @(Get-TopologyLink)
             $allLinks.Count | Should Be 1
         }
 
@@ -261,7 +261,7 @@ Describe 'TopologyModule' -Tag 'Topology' {
             $result = Build-TopologyFromInterfaces -Interfaces $interfaces
 
             $result.LinksDiscovered | Should BeGreaterThan 0
-            $links = Get-TopologyLink
+            $links = @(Get-TopologyLink)
             $links.Count | Should BeGreaterThan 0
         }
 
@@ -458,8 +458,8 @@ Describe 'TopologyModule' -Tag 'Topology' {
 
             $json | Should Not BeNullOrEmpty
             $parsed = $json | ConvertFrom-Json
-            $parsed.nodes.Count | Should Be 2
-            $parsed.links.Count | Should Be 1
+            @($parsed.nodes).Count | Should Be 2
+            @($parsed.links).Count | Should Be 1
         }
 
         It 'exports topology to Draw.io format' {
@@ -527,7 +527,7 @@ Describe 'TopologyModule' -Tag 'Topology' {
             Save-TopologyLayout -LayoutName 'TestLayout'
 
             $layouts = Get-TopologyLayout
-            ($layouts | Where-Object { $_.LayoutName -eq 'TestLayout' }).Count | Should Be 1
+            @($layouts | Where-Object { $_.LayoutName -eq 'TestLayout' }).Count | Should Be 1
         }
     }
 

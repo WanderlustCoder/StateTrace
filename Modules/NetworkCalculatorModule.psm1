@@ -1111,8 +1111,12 @@ function Get-ACLConfig {
         }
     }
 
-    # Sort entries by sequence if specified
-    $sortedEntries = @($Entries | Sort-Object { if ($_.Sequence -gt 0) { $_.Sequence } else { [int]::MaxValue } })
+    # Sort entries by sequence if specified, preserving original order for unsequenced entries
+    $index = 0
+    $sortedEntries = @($Entries | ForEach-Object {
+        $seq = if ($_.Sequence -gt 0) { $_.Sequence } else { [int]::MaxValue }
+        [PSCustomObject]@{ Entry = $_; SortKey = $seq; Index = $index++ }
+    } | Sort-Object SortKey, Index | ForEach-Object { $_.Entry })
 
     $seq = 10
     foreach ($entry in $sortedEntries) {
@@ -1209,21 +1213,25 @@ function Test-ACLEntry {
         }
     }
 
-    # Check ports only valid for TCP/UDP
+    # Check ports only valid for TCP/UDP (check property existence for StrictMode)
+    $entryProps = $Entry.PSObject.Properties.Name
+    $hasSourcePort = $entryProps -contains 'SourcePort' -and $Entry.SourcePort
+    $hasDestPort = $entryProps -contains 'DestinationPort' -and $Entry.DestinationPort
+
     if ($Entry.Protocol -notin @('tcp', 'udp')) {
-        if ($Entry.SourcePort -or $Entry.DestinationPort) {
+        if ($hasSourcePort -or $hasDestPort) {
             $issues += "Ports only valid for TCP/UDP"
         }
     }
 
     # Validate port format
-    if ($Entry.SourcePort) {
+    if ($hasSourcePort) {
         if ($Entry.SourcePort -notmatch '^\d+$' -and $Entry.SourcePort -notmatch '^\d+-\d+$' -and $Entry.SourcePort -notmatch '^[a-z]+$') {
             $issues += "Invalid source port format: $($Entry.SourcePort)"
         }
     }
 
-    if ($Entry.DestinationPort) {
+    if ($hasDestPort) {
         if ($Entry.DestinationPort -notmatch '^\d+$' -and $Entry.DestinationPort -notmatch '^\d+-\d+$' -and $Entry.DestinationPort -notmatch '^[a-z]+$') {
             $issues += "Invalid destination port format: $($Entry.DestinationPort)"
         }
