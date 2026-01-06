@@ -44,6 +44,10 @@
         <StackPanel Grid.Row="2">
           <Button Name="StartTreeButton" Content="Start Troubleshooting"
                   Style="{DynamicResource PrimaryButtonStyle}" Margin="0,5"/>
+          <Button Name="EditTreeButton" Content="Edit Tree"
+                  Style="{DynamicResource SecondaryButtonStyle}" Margin="0,5"/>
+          <Button Name="NewTreeButton" Content="New Tree"
+                  Style="{DynamicResource SecondaryButtonStyle}" Margin="0,5"/>
         </StackPanel>
       </Grid>
     </Border>
@@ -214,6 +218,239 @@
                        Foreground="{DynamicResource Theme.Text.Secondary}"/>
           </StackPanel>
         </StackPanel>
+      </Border>
+
+      <!-- Editor Panel (shown when editing a tree) -->
+      <Border Grid.Row="2" Name="EditorPanel" Visibility="Collapsed"
+              Background="{DynamicResource Theme.Surface.Secondary}"
+              BorderBrush="{DynamicResource Theme.Border.Primary}"
+              BorderThickness="1" CornerRadius="4">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="280"/>
+          </Grid.ColumnDefinitions>
+
+          <!-- Tree Structure View -->
+          <Grid Grid.Column="0" Margin="10">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="*"/>
+              <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Editor toolbar -->
+            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+              <Button Name="EditorSaveButton" Content="Save" Width="60" Margin="0,0,5,0"
+                      Style="{DynamicResource PrimaryButtonStyle}"/>
+              <Button Name="EditorValidateButton" Content="Validate" Width="70" Margin="0,0,5,0"
+                      Style="{DynamicResource SecondaryButtonStyle}"/>
+              <Button Name="EditorTestButton" Content="Test Run" Width="70" Margin="0,0,5,0"
+                      Style="{DynamicResource SecondaryButtonStyle}"/>
+              <Button Name="EditorExportButton" Content="Export" Width="60" Margin="0,0,5,0"
+                      Style="{DynamicResource SecondaryButtonStyle}"/>
+              <Button Name="EditorCloseButton" Content="Close Editor" Width="90" Margin="10,0,0,0"
+                      Style="{DynamicResource SecondaryButtonStyle}"/>
+            </StackPanel>
+
+            <!-- Tree metadata -->
+            <Grid Grid.Row="1">
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+              </Grid.RowDefinitions>
+
+              <StackPanel Grid.Row="0" Margin="0,0,0,10">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="60"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="70"/>
+                    <ColumnDefinition Width="120"/>
+                  </Grid.ColumnDefinitions>
+                  <Label Grid.Column="0" Content="Name:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                  <TextBox Grid.Column="1" Name="EditorTreeName" Margin="5,0"
+                           Background="{DynamicResource Theme.Input.Background}"
+                           Foreground="{DynamicResource Theme.Input.Text}"
+                           BorderBrush="{DynamicResource Theme.Input.Border}"/>
+                  <Label Grid.Column="2" Content="Category:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                  <ComboBox Grid.Column="3" Name="EditorTreeCategory" Margin="5,0"
+                            Style="{DynamicResource ToolbarComboBoxStyle}">
+                    <ComboBoxItem Content="Layer1-Layer2"/>
+                    <ComboBoxItem Content="Layer2"/>
+                    <ComboBoxItem Content="Layer3"/>
+                    <ComboBoxItem Content="Custom"/>
+                  </ComboBox>
+                </Grid>
+                <TextBox Name="EditorTreeDescription" Margin="0,5" Height="40" TextWrapping="Wrap"
+                         Background="{DynamicResource Theme.Input.Background}"
+                         Foreground="{DynamicResource Theme.Input.Text}"
+                         BorderBrush="{DynamicResource Theme.Input.Border}"
+                         ToolTip="Tree description"/>
+              </StackPanel>
+
+              <!-- Tree nodes list -->
+              <Border Grid.Row="1" BorderBrush="{DynamicResource Theme.Border.Primary}" BorderThickness="1">
+                <Grid>
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                  </Grid.RowDefinitions>
+
+                  <StackPanel Grid.Row="0" Orientation="Horizontal" Background="{DynamicResource Theme.Surface.Primary}"
+                              Margin="5">
+                    <Label Content="Nodes" Style="{DynamicResource ToolbarLabelStyle}" FontWeight="Bold"/>
+                    <Button Name="AddDecisionNodeButton" Content="+ Decision" Width="70" Margin="10,0,3,0"
+                            Style="{DynamicResource SecondaryButtonStyle}" FontSize="11"/>
+                    <Button Name="AddActionNodeButton" Content="+ Action" Width="60" Margin="3,0"
+                            Style="{DynamicResource SecondaryButtonStyle}" FontSize="11"/>
+                    <Button Name="AddInputNodeButton" Content="+ Input" Width="55" Margin="3,0"
+                            Style="{DynamicResource SecondaryButtonStyle}" FontSize="11"/>
+                    <Button Name="AddResultNodeButton" Content="+ Result" Width="55" Margin="3,0"
+                            Style="{DynamicResource SecondaryButtonStyle}" FontSize="11"/>
+                    <Button Name="RemoveNodeButton" Content="Remove" Width="60" Margin="10,0,0,0"
+                            Style="{DynamicResource SecondaryButtonStyle}" FontSize="11"/>
+                  </StackPanel>
+
+                  <ListBox Grid.Row="1" Name="EditorNodesList"
+                           Background="{DynamicResource Theme.Input.Background}"
+                           Foreground="{DynamicResource Theme.Input.Text}"
+                           BorderThickness="0">
+                    <ListBox.ItemTemplate>
+                      <DataTemplate>
+                        <StackPanel Orientation="Horizontal" Margin="3">
+                          <Border Width="16" Height="16" CornerRadius="2" Margin="0,0,8,0"
+                                  Background="{Binding TypeColor}">
+                            <TextBlock Text="{Binding TypeIcon}" FontSize="10" HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" Foreground="White"/>
+                          </Border>
+                          <TextBlock Text="{Binding Id}" FontWeight="SemiBold" Width="80"/>
+                          <TextBlock Text="{Binding Title}" Opacity="0.8"/>
+                        </StackPanel>
+                      </DataTemplate>
+                    </ListBox.ItemTemplate>
+                  </ListBox>
+                </Grid>
+              </Border>
+            </Grid>
+
+            <!-- Validation messages -->
+            <Border Grid.Row="2" Name="EditorValidationPanel" Visibility="Collapsed"
+                    Background="{DynamicResource Theme.Surface.Primary}"
+                    BorderBrush="{DynamicResource Theme.Border.Primary}" BorderThickness="1"
+                    Margin="0,10,0,0" Padding="10">
+              <StackPanel>
+                <TextBlock Name="EditorValidationHeader" FontWeight="Bold"
+                           Foreground="{DynamicResource Theme.Text.Primary}"/>
+                <TextBlock Name="EditorValidationMessages" TextWrapping="Wrap"
+                           Foreground="{DynamicResource Theme.Text.Secondary}" FontSize="11"/>
+              </StackPanel>
+            </Border>
+          </Grid>
+
+          <!-- Node Properties Panel -->
+          <Border Grid.Column="1" BorderBrush="{DynamicResource Theme.Border.Primary}" BorderThickness="1,0,0,0"
+                  Background="{DynamicResource Theme.Surface.Primary}">
+            <Grid Margin="10">
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+              </Grid.RowDefinitions>
+
+              <TextBlock Grid.Row="0" Text="Node Properties" FontWeight="Bold" FontSize="13"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
+
+              <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                <StackPanel Name="NodePropertiesPanel">
+                  <!-- Node ID -->
+                  <Label Content="Node ID:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                  <TextBox Name="NodeIdBox" Margin="0,0,0,10"
+                           Background="{DynamicResource Theme.Input.Background}"
+                           Foreground="{DynamicResource Theme.Input.Text}"
+                           BorderBrush="{DynamicResource Theme.Input.Border}"/>
+
+                  <!-- Node Type -->
+                  <Label Content="Type:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                  <ComboBox Name="NodeTypeBox" Margin="0,0,0,10" Style="{DynamicResource ToolbarComboBoxStyle}">
+                    <ComboBoxItem Content="decision"/>
+                    <ComboBoxItem Content="action"/>
+                    <ComboBoxItem Content="input"/>
+                    <ComboBoxItem Content="branch"/>
+                    <ComboBoxItem Content="check"/>
+                    <ComboBoxItem Content="result"/>
+                  </ComboBox>
+
+                  <!-- Node Title -->
+                  <Label Content="Title:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                  <TextBox Name="NodeTitleBox" TextWrapping="Wrap" Height="50" Margin="0,0,0,10"
+                           Background="{DynamicResource Theme.Input.Background}"
+                           Foreground="{DynamicResource Theme.Input.Text}"
+                           BorderBrush="{DynamicResource Theme.Input.Border}"/>
+
+                  <!-- Node Content -->
+                  <Label Content="Content:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                  <TextBox Name="NodeContentBox" TextWrapping="Wrap" Height="60" Margin="0,0,0,10"
+                           AcceptsReturn="True" VerticalScrollBarVisibility="Auto"
+                           Background="{DynamicResource Theme.Input.Background}"
+                           Foreground="{DynamicResource Theme.Input.Text}"
+                           BorderBrush="{DynamicResource Theme.Input.Border}"/>
+
+                  <!-- Next Node (for non-decision nodes) -->
+                  <Label Name="NextNodeLabel" Content="Next Node:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                  <ComboBox Name="NextNodeBox" Margin="0,0,0,10" Style="{DynamicResource ToolbarComboBoxStyle}"/>
+
+                  <!-- Branches Panel (for decision nodes) -->
+                  <StackPanel Name="BranchesPanel" Visibility="Collapsed">
+                    <Label Content="Branches:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                    <ListBox Name="BranchesListBox" Height="120" Margin="0,0,0,5"
+                             Background="{DynamicResource Theme.Input.Background}"
+                             Foreground="{DynamicResource Theme.Input.Text}"
+                             BorderBrush="{DynamicResource Theme.Input.Border}">
+                      <ListBox.ItemTemplate>
+                        <DataTemplate>
+                          <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding Answer}" Width="100"/>
+                            <TextBlock Text=" → " Opacity="0.5"/>
+                            <TextBlock Text="{Binding Next}"/>
+                          </StackPanel>
+                        </DataTemplate>
+                      </ListBox.ItemTemplate>
+                    </ListBox>
+                    <StackPanel Orientation="Horizontal">
+                      <Button Name="AddBranchButton" Content="Add" Width="50" Margin="0,0,5,0"
+                              Style="{DynamicResource SecondaryButtonStyle}" FontSize="11"/>
+                      <Button Name="RemoveBranchButton" Content="Remove" Width="60"
+                              Style="{DynamicResource SecondaryButtonStyle}" FontSize="11"/>
+                    </StackPanel>
+                  </StackPanel>
+
+                  <!-- Variable name (for input nodes) -->
+                  <StackPanel Name="VariablePanel" Visibility="Collapsed">
+                    <Label Content="Variable Name:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                    <TextBox Name="VariableNameBox" Margin="0,0,0,10"
+                             Background="{DynamicResource Theme.Input.Background}"
+                             Foreground="{DynamicResource Theme.Input.Text}"
+                             BorderBrush="{DynamicResource Theme.Input.Border}"/>
+                  </StackPanel>
+
+                  <!-- Outcome (for result nodes) -->
+                  <StackPanel Name="OutcomePanel" Visibility="Collapsed">
+                    <Label Content="Outcome:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                    <TextBox Name="OutcomeBox" Margin="0,0,0,10"
+                             Background="{DynamicResource Theme.Input.Background}"
+                             Foreground="{DynamicResource Theme.Input.Text}"
+                             BorderBrush="{DynamicResource Theme.Input.Border}"/>
+                  </StackPanel>
+
+                  <!-- Apply button -->
+                  <Button Name="ApplyNodeChangesButton" Content="Apply Changes" Width="100"
+                          Style="{DynamicResource PrimaryButtonStyle}" Margin="0,10,0,0"
+                          HorizontalAlignment="Left"/>
+                </StackPanel>
+              </ScrollViewer>
+            </Grid>
+          </Border>
+        </Grid>
       </Border>
 
       <!-- Notes section at bottom -->

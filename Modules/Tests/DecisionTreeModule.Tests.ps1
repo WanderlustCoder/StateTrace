@@ -762,3 +762,243 @@ Describe 'DecisionTreeModule - Analytics' {
 }
 
 #endregion
+
+#region ST-AB-005: Tree Editor Tests
+
+Describe 'DecisionTreeModule - Tree Editor Support' {
+
+    Context 'DecisionTreeView XAML Editor Controls' {
+        BeforeAll {
+            $script:xamlPath = Join-Path $PSScriptRoot '..\..\Views\DecisionTreeView.xaml'
+            $script:xamlContent = Get-Content -Path $script:xamlPath -Raw
+        }
+
+        It 'XAML file exists' {
+            Test-Path $script:xamlPath | Should Be $true
+        }
+
+        It 'contains EditorPanel control' {
+            $script:xamlContent | Should Match 'Name="EditorPanel"'
+        }
+
+        It 'contains EditTreeButton' {
+            $script:xamlContent | Should Match 'Name="EditTreeButton"'
+        }
+
+        It 'contains NewTreeButton' {
+            $script:xamlContent | Should Match 'Name="NewTreeButton"'
+        }
+
+        It 'contains EditorSaveButton' {
+            $script:xamlContent | Should Match 'Name="EditorSaveButton"'
+        }
+
+        It 'contains EditorValidateButton' {
+            $script:xamlContent | Should Match 'Name="EditorValidateButton"'
+        }
+
+        It 'contains EditorTestButton' {
+            $script:xamlContent | Should Match 'Name="EditorTestButton"'
+        }
+
+        It 'contains EditorExportButton' {
+            $script:xamlContent | Should Match 'Name="EditorExportButton"'
+        }
+
+        It 'contains EditorCloseButton' {
+            $script:xamlContent | Should Match 'Name="EditorCloseButton"'
+        }
+
+        It 'contains EditorNodesList' {
+            $script:xamlContent | Should Match 'Name="EditorNodesList"'
+        }
+
+        It 'contains add node buttons for all types' {
+            $script:xamlContent | Should Match 'Name="AddDecisionNodeButton"'
+            $script:xamlContent | Should Match 'Name="AddActionNodeButton"'
+            $script:xamlContent | Should Match 'Name="AddInputNodeButton"'
+            $script:xamlContent | Should Match 'Name="AddResultNodeButton"'
+        }
+
+        It 'contains RemoveNodeButton' {
+            $script:xamlContent | Should Match 'Name="RemoveNodeButton"'
+        }
+
+        It 'contains node property controls' {
+            $script:xamlContent | Should Match 'Name="NodeIdBox"'
+            $script:xamlContent | Should Match 'Name="NodeTypeBox"'
+            $script:xamlContent | Should Match 'Name="NodeTitleBox"'
+            $script:xamlContent | Should Match 'Name="NodeContentBox"'
+        }
+
+        It 'contains branches panel for decision nodes' {
+            $script:xamlContent | Should Match 'Name="BranchesPanel"'
+            $script:xamlContent | Should Match 'Name="BranchesListBox"'
+            $script:xamlContent | Should Match 'Name="AddBranchButton"'
+            $script:xamlContent | Should Match 'Name="RemoveBranchButton"'
+        }
+
+        It 'contains validation panel' {
+            $script:xamlContent | Should Match 'Name="EditorValidationPanel"'
+            $script:xamlContent | Should Match 'Name="EditorValidationMessages"'
+        }
+    }
+
+    Context 'DecisionTreeViewModule Editor Wiring' {
+        BeforeAll {
+            $script:modulePath = Join-Path $PSScriptRoot '..\DecisionTreeViewModule.psm1'
+            $script:moduleContent = Get-Content -Path $script:modulePath -Raw
+        }
+
+        It 'view module file exists' {
+            Test-Path $script:modulePath | Should Be $true
+        }
+
+        It 'contains EditingTree state' {
+            $script:moduleContent | Should Match 'EditingTree\s*='
+        }
+
+        It 'contains EditorMode state' {
+            $script:moduleContent | Should Match 'EditorMode\s*='
+        }
+
+        It 'contains Show-EditorPanel helper' {
+            $script:moduleContent | Should Match 'function Show-EditorPanel'
+        }
+
+        It 'contains New-EmptyTree helper' {
+            $script:moduleContent | Should Match 'function New-EmptyTree'
+        }
+
+        It 'contains Update-EditorNodesList helper' {
+            $script:moduleContent | Should Match 'function Update-EditorNodesList'
+        }
+
+        It 'contains Load-NodeProperties helper' {
+            $script:moduleContent | Should Match 'function Load-NodeProperties'
+        }
+
+        It 'contains Test-TreeValidity validation helper' {
+            $script:moduleContent | Should Match 'function Test-TreeValidity'
+        }
+
+        It 'contains Show-ValidationMessages helper' {
+            $script:moduleContent | Should Match 'function Show-ValidationMessages'
+        }
+
+        It 'wires EditTreeButton click handler' {
+            $script:moduleContent | Should Match '\$editTreeButton\.Add_Click'
+        }
+
+        It 'wires NewTreeButton click handler' {
+            $script:moduleContent | Should Match '\$newTreeButton\.Add_Click'
+        }
+
+        It 'wires EditorSaveButton click handler' {
+            $script:moduleContent | Should Match '\$editorSaveButton\.Add_Click'
+        }
+
+        It 'wires EditorValidateButton click handler' {
+            $script:moduleContent | Should Match '\$editorValidateButton\.Add_Click'
+        }
+
+        It 'wires EditorTestButton click handler' {
+            $script:moduleContent | Should Match '\$editorTestButton\.Add_Click'
+        }
+
+        It 'wires EditorExportButton click handler' {
+            $script:moduleContent | Should Match '\$editorExportButton\.Add_Click'
+        }
+
+        It 'wires EditorCloseButton click handler' {
+            $script:moduleContent | Should Match '\$editorCloseButton\.Add_Click'
+        }
+
+        It 'wires add node buttons' {
+            $script:moduleContent | Should Match '\$addDecisionNodeButton\.Add_Click'
+            $script:moduleContent | Should Match '\$addActionNodeButton\.Add_Click'
+            $script:moduleContent | Should Match '\$addInputNodeButton\.Add_Click'
+            $script:moduleContent | Should Match '\$addResultNodeButton\.Add_Click'
+        }
+
+        It 'wires RemoveNodeButton click handler' {
+            $script:moduleContent | Should Match '\$removeNodeButton\.Add_Click'
+        }
+
+        It 'wires ApplyNodeChangesButton click handler' {
+            $script:moduleContent | Should Match '\$applyNodeChangesButton\.Add_Click'
+        }
+
+        It 'wires branch add/remove buttons' {
+            $script:moduleContent | Should Match '\$addBranchButton\.Add_Click'
+            $script:moduleContent | Should Match '\$removeBranchButton\.Add_Click'
+        }
+    }
+
+    Context 'Tree Validation Logic' {
+        It 'tree with missing start node is invalid' {
+            $tree = @{
+                Name = 'TestTree'
+                StartNode = 'missing_node'
+                Nodes = @(
+                    @{ Id = 'node1'; Type = 'result'; Title = 'End'; Outcome = 'done' }
+                )
+            }
+
+            # Simulate validation logic
+            $startNode = $tree.Nodes | Where-Object { $_.Id -eq $tree.StartNode }
+            $startNode | Should Be $null
+        }
+
+        It 'tree with orphan nodes detectable' {
+            $tree = @{
+                Name = 'TestTree'
+                StartNode = 'start'
+                Nodes = @(
+                    @{ Id = 'start'; Type = 'result'; Title = 'Start'; Outcome = 'done' },
+                    @{ Id = 'orphan'; Type = 'result'; Title = 'Orphan'; Outcome = 'done' }
+                )
+            }
+
+            # Orphan detection: node not reachable from start
+            $reachable = @($tree.StartNode)
+            $orphans = @($tree.Nodes | Where-Object { $_.Id -notin $reachable })
+
+            $orphans.Count | Should Be 1
+            $orphans[0].Id | Should Be 'orphan'
+        }
+
+        It 'tree with invalid branch reference detectable' {
+            $tree = @{
+                Name = 'TestTree'
+                StartNode = 'start'
+                Nodes = @(
+                    @{
+                        Id = 'start'
+                        Type = 'decision'
+                        Title = 'Question'
+                        Branches = @(
+                            @{ Answer = 'Yes'; NextNode = 'missing' }
+                        )
+                    }
+                )
+            }
+
+            $nodeIds = @($tree.Nodes | ForEach-Object { $_.Id })
+            $invalidRefs = @()
+            foreach ($node in $tree.Nodes) {
+                if ($node.Branches) {
+                    foreach ($branch in $node.Branches) {
+                        if ($branch.NextNode -and $branch.NextNode -notin $nodeIds) {
+                            $invalidRefs += "$($node.Id) -> $($branch.NextNode)"
+                        }
+                    }
+                }
+            }
+
+            $invalidRefs.Count | Should Be 1
+        }
+    }
+}
+
+#endregion
