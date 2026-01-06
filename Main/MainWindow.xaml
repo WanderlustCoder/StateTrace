@@ -140,6 +140,10 @@
         <TabItem Header="Capacity">
           <ContentControl Name="CapacityPlanningHost"/>
         </TabItem>
+        <!-- Network Topology tab for visualization and impact analysis -->
+        <TabItem Header="Topology">
+          <ContentControl Name="TopologyHost"/>
+        </TabItem>
         <!-- Add more tabs here -->
       </TabControl>
       <!-- Compare sidebar occupies the second column and hosts the compare view.  It is hidden by default by setting the column width to zero. -->

@@ -1,0 +1,349 @@
+<UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{DynamicResource Theme.Window.Background}">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header with statistics and controls -->
+        <Border Grid.Row="0" Background="{DynamicResource Theme.Surface.Secondary}" Padding="10" Margin="0,0,0,5">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Statistics -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                    <TextBlock Text="Nodes:" Foreground="{DynamicResource Theme.Text.Primary}" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                    <TextBlock Name="NodeCountLabel" Text="0" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" VerticalAlignment="Center" Margin="0,0,15,0"/>
+                    <TextBlock Text="Links:" Foreground="{DynamicResource Theme.Text.Primary}" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                    <TextBlock Name="LinkCountLabel" Text="0" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" VerticalAlignment="Center" Margin="0,0,15,0"/>
+                    <TextBlock Text="Isolated:" Foreground="{DynamicResource Theme.Text.Primary}" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                    <TextBlock Name="IsolatedCountLabel" Text="0" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Warning}" VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <!-- View toggles -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center">
+                    <RadioButton Name="L2ViewRadio" Content="L2 Physical" GroupName="ViewType" IsChecked="True"
+                                 Foreground="{DynamicResource Theme.Text.Primary}" VerticalAlignment="Center" Margin="0,0,15,0"/>
+                    <RadioButton Name="L3ViewRadio" Content="L3 Logical" GroupName="ViewType"
+                                 Foreground="{DynamicResource Theme.Text.Primary}" VerticalAlignment="Center" Margin="0,0,15,0"/>
+                    <RadioButton Name="SiteViewRadio" Content="Site Groups" GroupName="ViewType"
+                                 Foreground="{DynamicResource Theme.Text.Primary}" VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <!-- Action buttons -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <Button Name="DiscoverButton" Content="Discover" Style="{DynamicResource PrimaryButtonStyle}" Margin="0,0,5,0"
+                            ToolTip="Discover topology from interface data"/>
+                    <Button Name="RefreshLayoutButton" Content="Re-Layout" Style="{DynamicResource SecondaryButtonStyle}" Margin="0,0,5,0"
+                            ToolTip="Re-apply layout algorithm"/>
+                    <Button Name="ExportButton" Content="Export" Style="{DynamicResource SecondaryButtonStyle}"
+                            ToolTip="Export diagram"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Main content with sidebar -->
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="280"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Topology canvas area -->
+            <Border Grid.Column="0" Background="{DynamicResource Theme.Surface.Primary}" BorderBrush="{DynamicResource Theme.Border}" BorderThickness="1" Margin="0,0,5,0">
+                <Grid>
+                    <!-- Toolbar for canvas -->
+                    <Border Background="{DynamicResource Theme.Toolbar.Background}" VerticalAlignment="Top" Padding="5">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Layout:" Foreground="{DynamicResource Theme.Text.Primary}" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                            <ComboBox Name="LayoutCombo" Width="120" SelectedIndex="0" Style="{DynamicResource ToolbarComboBoxStyle}">
+                                <ComboBoxItem Content="Hierarchical"/>
+                                <ComboBoxItem Content="Force-Directed"/>
+                                <ComboBoxItem Content="Circular"/>
+                                <ComboBoxItem Content="Grid"/>
+                            </ComboBox>
+                            <Separator Style="{DynamicResource ToolbarSeparatorStyle}" Margin="10,0"/>
+                            <TextBlock Text="Zoom:" Foreground="{DynamicResource Theme.Text.Primary}" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                            <Slider Name="ZoomSlider" Width="100" Minimum="0.25" Maximum="3" Value="1" VerticalAlignment="Center"/>
+                            <TextBlock Name="ZoomLabel" Text="100%" Foreground="{DynamicResource Theme.Text.Primary}" VerticalAlignment="Center" Margin="5,0,0,0" Width="40"/>
+                            <Button Name="ZoomFitButton" Content="Fit" Style="{DynamicResource SecondaryButtonStyle}" Margin="10,0,0,0" Width="40"/>
+                            <Separator Style="{DynamicResource ToolbarSeparatorStyle}" Margin="10,0"/>
+                            <TextBlock Text="Filter:" Foreground="{DynamicResource Theme.Text.Primary}" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                            <ComboBox Name="RoleFilterCombo" Width="100" SelectedIndex="0" Style="{DynamicResource ToolbarComboBoxStyle}">
+                                <ComboBoxItem Content="All Roles"/>
+                                <ComboBoxItem Content="Core"/>
+                                <ComboBoxItem Content="Distribution"/>
+                                <ComboBoxItem Content="Access"/>
+                                <ComboBoxItem Content="Router"/>
+                                <ComboBoxItem Content="Firewall"/>
+                            </ComboBox>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Canvas for topology diagram -->
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Margin="0,35,0,0">
+                        <Canvas Name="TopologyCanvas" Width="1200" Height="800" Background="Transparent"
+                                ClipToBounds="True">
+                            <!-- Topology elements will be added programmatically -->
+                        </Canvas>
+                    </ScrollViewer>
+
+                    <!-- Empty state message -->
+                    <StackPanel Name="EmptyStatePanel" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <TextBlock Text="No Topology Data" FontSize="18" FontWeight="Bold"
+                                   Foreground="{DynamicResource Theme.Text.Secondary}" HorizontalAlignment="Center"/>
+                        <TextBlock Text="Click 'Discover' to build topology from interface data"
+                                   Foreground="{DynamicResource Theme.Text.Secondary}" HorizontalAlignment="Center" Margin="0,5,0,0"/>
+                        <TextBlock Text="or load a saved layout"
+                                   Foreground="{DynamicResource Theme.Text.Secondary}" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Right sidebar with details and tools -->
+            <TabControl Grid.Column="1" Style="{DynamicResource SidebarTabControlStyle}">
+
+                <!-- Details Tab -->
+                <TabItem Header="Details">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="10">
+                            <TextBlock Text="Selected Device" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
+
+                            <Border Name="NoSelectionPanel" Background="{DynamicResource Theme.Surface.Secondary}" Padding="15" CornerRadius="3">
+                                <TextBlock Text="Click a device on the diagram to view details"
+                                           Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap"/>
+                            </Border>
+
+                            <StackPanel Name="DeviceDetailsPanel" Visibility="Collapsed">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="80"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Device:" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                                    <TextBlock Grid.Row="0" Grid.Column="1" Name="DetailDeviceLabel" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}"/>
+
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Role:" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                                    <TextBlock Grid.Row="1" Grid.Column="1" Name="DetailRoleLabel" Foreground="{DynamicResource Theme.Text.Primary}"/>
+
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Site:" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                                    <TextBlock Grid.Row="2" Grid.Column="1" Name="DetailSiteLabel" Foreground="{DynamicResource Theme.Text.Primary}"/>
+
+                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Links:" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                                    <TextBlock Grid.Row="3" Grid.Column="1" Name="DetailLinksLabel" Foreground="{DynamicResource Theme.Text.Primary}"/>
+
+                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="Position:" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                                    <TextBlock Grid.Row="4" Grid.Column="1" Name="DetailPositionLabel" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                                </Grid>
+
+                                <TextBlock Text="Connected Devices" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,15,0,5"/>
+                                <ListBox Name="ConnectedDevicesList" Height="120"
+                                         Background="{DynamicResource Theme.Surface.Secondary}"
+                                         Foreground="{DynamicResource Theme.Text.Primary}"/>
+
+                                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                    <Button Name="ViewDeviceButton" Content="View Device" Style="{DynamicResource SecondaryButtonStyle}" Margin="0,0,5,0"/>
+                                    <Button Name="ImpactAnalysisButton" Content="Impact Analysis" Style="{DynamicResource SecondaryButtonStyle}"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- Impact Analysis Tab -->
+                <TabItem Header="Impact">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="10">
+                            <TextBlock Text="Impact Analysis" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
+
+                            <TextBlock Text="Select a device to analyze failure impact:"
+                                       Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                            <ComboBox Name="ImpactDeviceCombo" Style="{DynamicResource ToolbarComboBoxStyle}" Margin="0,0,0,10"/>
+                            <Button Name="RunImpactButton" Content="Analyze Impact" Style="{DynamicResource PrimaryButtonStyle}" Margin="0,0,0,15"/>
+
+                            <Border Name="ImpactResultsPanel" Background="{DynamicResource Theme.Surface.Secondary}" Padding="10" CornerRadius="3" Visibility="Collapsed">
+                                <StackPanel>
+                                    <TextBlock Name="ImpactSummaryLabel" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" TextWrapping="Wrap"/>
+
+                                    <TextBlock Text="Directly Affected:" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,10,0,5"/>
+                                    <ListBox Name="AffectedDevicesList" Height="100"
+                                             Background="{DynamicResource Theme.Surface.Primary}"
+                                             Foreground="{DynamicResource Theme.Text.Primary}"/>
+
+                                    <Grid Margin="0,10,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="Critical" Foreground="{DynamicResource Theme.Text.Error}" FontWeight="Bold"/>
+                                            <TextBlock Name="CriticalCountLabel" Text="0" FontSize="24" Foreground="{DynamicResource Theme.Text.Error}"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="Redundant" Foreground="{DynamicResource Theme.Text.Success}" FontWeight="Bold"/>
+                                            <TextBlock Name="RedundantCountLabel" Text="0" FontSize="24" Foreground="{DynamicResource Theme.Text.Success}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- Layouts Tab -->
+                <TabItem Header="Layouts">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="10">
+                            <TextBlock Text="Saved Layouts" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
+
+                            <ListBox Name="SavedLayoutsList" Height="150"
+                                     Background="{DynamicResource Theme.Surface.Secondary}"
+                                     Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,15">
+                                <Button Name="LoadLayoutButton" Content="Load" Style="{DynamicResource SecondaryButtonStyle}" Margin="0,0,5,0"/>
+                                <Button Name="DeleteLayoutButton" Content="Delete" Style="{DynamicResource SecondaryButtonStyle}"/>
+                            </StackPanel>
+
+                            <TextBlock Text="Save Current Layout" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
+                            <TextBox Name="LayoutNameBox" Style="{DynamicResource TextBoxStyle}" Margin="0,0,0,5"/>
+                            <Button Name="SaveLayoutButton" Content="Save Layout" Style="{DynamicResource PrimaryButtonStyle}"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- Export Tab -->
+                <TabItem Header="Export">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="10">
+                            <TextBlock Text="Export Diagram" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
+
+                            <TextBlock Text="Format:" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,5"/>
+                            <ComboBox Name="ExportFormatCombo" Style="{DynamicResource ToolbarComboBoxStyle}" SelectedIndex="0" Margin="0,0,0,10">
+                                <ComboBoxItem Content="SVG (Vector)"/>
+                                <ComboBoxItem Content="PNG (Image)"/>
+                                <ComboBoxItem Content="JSON (Data)"/>
+                                <ComboBoxItem Content="Draw.io"/>
+                            </ComboBox>
+
+                            <TextBlock Text="Options:" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,5"/>
+                            <CheckBox Name="IncludeLabelsCheck" Content="Include Labels" IsChecked="True"
+                                      Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,5"/>
+                            <CheckBox Name="IncludeLegendCheck" Content="Include Legend" IsChecked="True"
+                                      Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,5"/>
+                            <CheckBox Name="HighResCheck" Content="High Resolution"
+                                      Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,15"/>
+
+                            <Button Name="ExportDiagramButton" Content="Export Diagram" Style="{DynamicResource PrimaryButtonStyle}" Margin="0,0,0,10"/>
+                            <Button Name="CopyToClipboardButton" Content="Copy to Clipboard" Style="{DynamicResource SecondaryButtonStyle}"/>
+
+                            <TextBlock Text="Recent Exports" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,20,0,10"/>
+                            <ListBox Name="RecentExportsList" Height="100"
+                                     Background="{DynamicResource Theme.Surface.Secondary}"
+                                     Foreground="{DynamicResource Theme.Text.Primary}"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- Legend Tab -->
+                <TabItem Header="Legend">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="10">
+                            <TextBlock Text="Device Roles" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                <Ellipse Width="16" Height="16" Fill="#E74C3C" Margin="0,0,10,0"/>
+                                <TextBlock Text="Core" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                <Ellipse Width="16" Height="16" Fill="#F39C12" Margin="0,0,10,0"/>
+                                <TextBlock Text="Distribution" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                <Ellipse Width="16" Height="16" Fill="#27AE60" Margin="0,0,10,0"/>
+                                <TextBlock Text="Access" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                <Ellipse Width="16" Height="16" Fill="#9B59B6" Margin="0,0,10,0"/>
+                                <TextBlock Text="Router" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                <Ellipse Width="16" Height="16" Fill="#C0392B" Margin="0,0,10,0"/>
+                                <TextBlock Text="Firewall" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                <Ellipse Width="16" Height="16" Fill="#3498DB" Margin="0,0,10,0"/>
+                                <TextBlock Text="Wireless" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                            </StackPanel>
+
+                            <TextBlock Text="Link Types" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,20,0,10"/>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                <Line X1="0" Y1="8" X2="30" Y2="8" Stroke="#666666" StrokeThickness="2" Margin="0,0,10,0"/>
+                                <TextBlock Text="Ethernet" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                <Line X1="0" Y1="8" X2="30" Y2="8" Stroke="#E74C3C" StrokeThickness="2" StrokeDashArray="5,5" Margin="0,0,10,0"/>
+                                <TextBlock Text="WAN" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                <Line X1="0" Y1="8" X2="30" Y2="8" Stroke="#666666" StrokeThickness="4" Margin="0,0,10,0"/>
+                                <TextBlock Text="Aggregate/LAG" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                            </StackPanel>
+
+                            <TextBlock Text="Status" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,20,0,10"/>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                <Ellipse Width="12" Height="12" Fill="#27AE60" Stroke="#1E8449" StrokeThickness="2" Margin="0,0,10,0"/>
+                                <TextBlock Text="Active" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                <Ellipse Width="12" Height="12" Fill="#E74C3C" Stroke="#C0392B" StrokeThickness="2" Margin="0,0,10,0"/>
+                                <TextBlock Text="Down/Failed" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                <Ellipse Width="12" Height="12" Fill="#F39C12" Stroke="#D68910" StrokeThickness="2" Margin="0,0,10,0"/>
+                                <TextBlock Text="Warning" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+            </TabControl>
+        </Grid>
+
+        <!-- Status bar -->
+        <Border Grid.Row="2" Background="{DynamicResource Theme.Toolbar.Background}" Padding="10,5">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Name="StatusLabel" Text="Ready" Foreground="{DynamicResource Theme.Text.Secondary}" VerticalAlignment="Center"/>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <TextBlock Text="Last Discovery:" Foreground="{DynamicResource Theme.Text.Secondary}" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                    <TextBlock Name="LastDiscoveryLabel" Text="Never" Foreground="{DynamicResource Theme.Text.Primary}" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

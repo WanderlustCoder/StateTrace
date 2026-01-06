@@ -15,10 +15,14 @@ Network engineers struggle with:
 - Quickly identifying the impact radius of a device or link failure
 
 ## Current status (2026-01)
-- Interface data captures port-to-port relationships via descriptions
-- CDP/LLDP neighbor data may be available in parsed outputs
-- SPAN view provides some relationship context
-- No automated diagram generation or topology visualization
+- **In Progress (4/6 Done)**: Core module, tests, UI, and MainWindow integration complete
+- Link discovery from interface descriptions (6 patterns)
+- Topology graph model with nodes and links
+- Layout algorithms: Hierarchical, Force-Directed, Circular, Grid
+- Impact analysis with redundancy detection
+- Export formats: SVG, JSON, Draw.io
+- Interactive canvas with zoom, pan, and filtering
+- 52 Pester tests passing
 
 ## Proposed Features
 
@@ -82,12 +86,20 @@ Network engineers struggle with:
 ## Active work
 | ID | Title | Owner | Status | Notes |
 |----|-------|-------|--------|-------|
-| ST-W-001 | Link discovery engine | Tools | Pending | Parse descriptions and CDP/LLDP |
-| ST-W-002 | Topology data model | Data | Pending | Graph structure for devices/links |
-| ST-W-003 | L2 topology view | UI | Pending | Physical layer visualization |
-| ST-W-004 | L3 topology view | UI | Pending | Routing layer visualization |
-| ST-W-005 | Auto-layout algorithms | UI | Pending | Hierarchical and force-directed |
-| ST-W-006 | Export to Visio/Draw.io | Tools | Pending | Diagram file generation |
+| ST-W-001 | Link discovery engine | Tools | Done | 6 description patterns, interface parsing |
+| ST-W-002 | Topology data model | Data | Done | Nodes, links, layouts in TopologyModule.psm1 |
+| ST-W-003 | L2 topology view | UI | Done | TopologyView.xaml with interactive canvas |
+| ST-W-004 | L3 topology view | UI | Pending | L3 routing overlay view |
+| ST-W-005 | Auto-layout algorithms | UI | Done | Hierarchical, force-directed, circular, grid |
+| ST-W-006 | Export to Visio/Draw.io | Tools | Pending | Draw.io done, Visio pending |
+
+## Recently delivered
+| ID | Title | Delivered | Notes |
+|----|-------|-----------|-------|
+| ST-W-001 | Link discovery engine | 2026-01-05 | `Modules/TopologyModule.psm1` |
+| ST-W-002 | Topology data model | 2026-01-05 | Node/Link management, impact analysis |
+| ST-W-003 | L2 topology view | 2026-01-05 | `Views/TopologyView.xaml`, view module |
+| ST-W-005 | Auto-layout algorithms | 2026-01-05 | 4 layout algorithms implemented |
 
 ## Data Model (Proposed)
 

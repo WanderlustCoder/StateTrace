@@ -59,6 +59,8 @@
         'DocumentationGeneratorViewModule.psm1',
         'CapacityPlanningModule.psm1',
         'CapacityPlanningViewModule.psm1',
+        'TopologyModule.psm1',
+        'TopologyViewModule.psm1',
         'CompareViewModule.psm1',
         'TemplatesModule.psm1'
     )
