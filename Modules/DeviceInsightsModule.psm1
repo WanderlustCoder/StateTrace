@@ -706,38 +706,187 @@ function Update-Summary {
 
     script:Set-InsightsInterfacesSnapshot -Interfaces $interfaces
 
+    # Initialize counters
     $deviceSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    $siteSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    $buildingSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    $vlanSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+
+    # Port status counters
+    $upCount = 0; $downCount = 0; $disabledCount = 0; $otherStatusCount = 0
+
+    # Security counters
+    $authCount = 0; $unauthCount = 0; $noAuthCount = 0
+
+    # Speed counters
+    $speed10G = 0; $speed1G = 0; $speed100M = 0; $speedOther = 0
+
+    # Type counters
+    $typeCopper = 0; $typeFiber = 0; $typeOther = 0
+
+    # Alert counters
+    $alertsDown = 0; $alertsUnauth = 0; $alertsHalfDuplex = 0; $alertsOther = 0
+
+    # Manufacturer tracking (by device)
+    $deviceMakes = @{}
+
     foreach ($row in $interfaces) {
-        if ($row -and $row.PSObject.Properties['Hostname']) {
+        if (-not $row) { continue }
+
+        # Collect unique devices and track manufacturer
+        if ($row.PSObject.Properties['Hostname']) {
             $hostname = '' + $row.Hostname
-            if (-not [string]::IsNullOrWhiteSpace($hostname)) { [void]$deviceSet.Add($hostname) }
+            if (-not [string]::IsNullOrWhiteSpace($hostname)) {
+                if (-not $deviceSet.Contains($hostname)) {
+                    [void]$deviceSet.Add($hostname)
+                    # Try to get Make from row if available
+                    $make = ''
+                    if ($row.PSObject.Properties['Make']) { $make = '' + $row.Make }
+                    if (-not [string]::IsNullOrWhiteSpace($make)) {
+                        $deviceMakes[$hostname] = $make
+                    }
+                }
+            }
         }
+
+        # Collect sites (from hostname prefix - first 4 chars typically)
+        if ($row.PSObject.Properties['Hostname']) {
+            $hostname = '' + $row.Hostname
+            if ($hostname.Length -ge 4) {
+                $siteCode = $hostname.Substring(0, 4).ToUpper()
+                [void]$siteSet.Add($siteCode)
+            }
+        }
+
+        # Collect buildings (from hostname - typically chars 5-7)
+        if ($row.PSObject.Properties['Hostname']) {
+            $hostname = '' + $row.Hostname
+            if ($hostname.Length -ge 7 -and $hostname[4] -eq '-') {
+                $buildingCode = $hostname.Substring(5, 3).ToUpper()
+                [void]$buildingSet.Add($buildingCode)
+            }
+        }
+
+        # Port status
+        $status = ''
+        if ($row.PSObject.Properties['Status']) { $status = ('' + $row.Status).ToLower() }
+        switch -Regex ($status) {
+            '(?i)^(up|connected)$'       { $upCount++; break }
+            '(?i)^(down|notconnect)$'    { $downCount++; $alertsDown++; break }
+            '(?i)^(disabled|admin.?down|shutdown)$' { $disabledCount++; break }
+            default { if (-not [string]::IsNullOrWhiteSpace($status)) { $otherStatusCount++ } else { $otherStatusCount++ } }
+        }
+
+        # Security/Auth state
+        $authState = ''
+        if ($row.PSObject.Properties['AuthState']) { $authState = '' + $row.AuthState }
+        if (-not [string]::IsNullOrWhiteSpace($authState)) {
+            if ([System.StringComparer]::OrdinalIgnoreCase.Equals($authState, 'authorized')) {
+                $authCount++
+            } else {
+                $unauthCount++
+                $alertsUnauth++
+            }
+        } else {
+            $noAuthCount++
+        }
+
+        # Speed distribution
+        $speed = ''
+        if ($row.PSObject.Properties['Speed']) { $speed = ('' + $row.Speed).ToLower() }
+        switch -Regex ($speed) {
+            '(?i)(10g|10000|10 ?gbps?)' { $speed10G++; break }
+            '(?i)(1g|1000|1 ?gbps?|auto)'   { $speed1G++; break }
+            '(?i)(100m|100 ?mbps?)'     { $speed100M++; break }
+            default { $speedOther++ }
+        }
+
+        # Type distribution
+        $portType = ''
+        if ($row.PSObject.Properties['Type']) { $portType = ('' + $row.Type).ToLower() }
+        switch -Regex ($portType) {
+            '(?i)(rj45|copper|1000base-t|100base-tx|ethernet|gigabitethernet|fastethernet)' { $typeCopper++; break }
+            '(?i)(sfp|fiber|1000base-sx|1000base-lx|10gbase|optic)' { $typeFiber++; break }
+            default { $typeOther++ }
+        }
+
+        # Half duplex detection (alert)
+        $duplex = ''
+        if ($row.PSObject.Properties['Duplex']) { $duplex = ('' + $row.Duplex).ToLower() }
+        if ($duplex -match '(?i)half') { $alertsHalfDuplex++ }
+
+        # VLANs
+        $vlanValue = ''
+        if ($row.PSObject.Properties['VLAN']) { $vlanValue = '' + $row.VLAN }
+        if (-not [string]::IsNullOrWhiteSpace($vlanValue)) { [void]$vlanSet.Add($vlanValue) }
+    }
+
+    # Calculate manufacturer distribution
+    $makeCisco = 0; $makeArista = 0; $makeBrocade = 0; $makeOther = 0
+    foreach ($make in $deviceMakes.Values) {
+        $makeLower = $make.ToLower()
+        switch -Regex ($makeLower) {
+            '(?i)cisco'   { $makeCisco++; break }
+            '(?i)arista'  { $makeArista++; break }
+            '(?i)brocade' { $makeBrocade++; break }
+            default       { $makeOther++ }
+        }
+    }
+    # If no Make data, count all as "Other"
+    if ($deviceMakes.Count -eq 0) {
+        $makeOther = $deviceSet.Count
     }
 
     $devCount = $deviceSet.Count
-    $intCount = $interfaces.Count
-    $upCount = 0; $downCount = 0; $authCount = 0; $unauthCount = 0
-    $vlanSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
-    foreach ($row in $interfaces) {
-        if (-not $row) { continue }
-        $status = '' + $row.Status
-        if ($status) {
-            switch -Regex ($status) {
-                '(?i)^(up|connected)$'    { $upCount++; break }
-                '(?i)^(down|notconnect)$' { $downCount++; break }
+    $intCount = @($interfaces).Count
+    $uniqueVlans = $vlanSet.Count
+    $siteCount = $siteSet.Count
+    $buildingCount = $buildingSet.Count
+
+    # Calculate percentages
+    $upPct = if ($intCount -gt 0) { [math]::Round(($upCount / $intCount) * 100, 0) } else { 0 }
+    $downPct = if ($intCount -gt 0) { [math]::Round(($downCount / $intCount) * 100, 0) } else { 0 }
+    $disabledPct = if ($intCount -gt 0) { [math]::Round(($disabledCount / $intCount) * 100, 0) } else { 0 }
+    $otherPct = if ($intCount -gt 0) { [math]::Round(($otherStatusCount / $intCount) * 100, 0) } else { 0 }
+
+    $totalWithAuth = $authCount + $unauthCount
+    $authCoverage = if ($intCount -gt 0) { [math]::Round(($totalWithAuth / $intCount) * 100, 0) } else { 0 }
+
+    $totalAlerts = $alertsDown + $alertsUnauth + $alertsHalfDuplex + $alertsOther
+
+    # Get cache info
+    $cacheStatus = '--'
+    $cacheAge = '--'
+    $cacheHosts = 0
+    if ($siteSel) {
+        try {
+            $cacheSummary = DeviceRepositoryModule\Get-InterfaceSiteCacheSummary -Site $siteSel
+            if ($cacheSummary) {
+                $cacheStatus = if ($cacheSummary.CacheExists) { 'Loaded' } else { 'Empty' }
+                $cacheHosts = [int]$cacheSummary.HostCount
+                if ($cacheSummary.CachedAt) {
+                    $age = (Get-Date) - [datetime]$cacheSummary.CachedAt
+                    if ($age.TotalMinutes -lt 1) {
+                        $cacheAge = '<1 min'
+                    } elseif ($age.TotalMinutes -lt 60) {
+                        $cacheAge = "{0} min" -f [math]::Round($age.TotalMinutes, 0)
+                    } elseif ($age.TotalHours -lt 24) {
+                        $cacheAge = "{0} hr" -f [math]::Round($age.TotalHours, 1)
+                    } else {
+                        $cacheAge = "{0} days" -f [math]::Round($age.TotalDays, 1)
+                    }
+                }
             }
-        }
-        $authState = '' + $row.AuthState
-        if ($authState) {
-            if ([System.StringComparer]::OrdinalIgnoreCase.Equals($authState, 'authorized')) { $authCount++ } else { $unauthCount++ }
-        } else {
-            $unauthCount++
-        }
-        $vlanValue = ''
-        try { $vlanValue = '' + $row.VLAN } catch { $vlanValue = '' }
-        if (-not [string]::IsNullOrWhiteSpace($vlanValue)) { [void]$vlanSet.Add($vlanValue) }
+        } catch {}
     }
-    $uniqueCount = $vlanSet.Count
+
+    # Build filter text
+    $filterParts = @()
+    if ($siteSel) { $filterParts += $siteSel }
+    if ($zoneSel) { $filterParts += $zoneSel }
+    if ($bldSel) { $filterParts += $bldSel }
+    if ($roomSel) { $filterParts += $roomSel }
+    $currentFilter = if ($filterParts.Count -gt 0) { $filterParts -join ' > ' } else { 'All' }
 
     $summaryVar = $null
     try {
@@ -750,17 +899,70 @@ function Update-Summary {
     $sv = $summaryVar.Value
     if (-not $sv) { return }
 
+    # Helper to safely update TextBlock
+    $updateText = {
+        param($name, $value)
+        try {
+            $ctrl = $sv.FindName($name)
+            if ($ctrl) { $ctrl.Text = $value }
+        } catch {}
+    }
+
     try {
-        ($sv.FindName("SummaryDevicesCount")).Text      = $devCount.ToString()
-        ($sv.FindName("SummaryInterfacesCount")).Text   = $intCount.ToString()
-        ($sv.FindName("SummaryUpCount")).Text           = $upCount.ToString()
-        ($sv.FindName("SummaryDownCount")).Text         = $downCount.ToString()
-        ($sv.FindName("SummaryAuthorizedCount")).Text   = $authCount.ToString()
-        ($sv.FindName("SummaryUnauthorizedCount")).Text = $unauthCount.ToString()
-        ($sv.FindName("SummaryUniqueVlansCount")).Text  = $uniqueCount.ToString()
-        $ratio = if ($intCount -gt 0) { [math]::Round(($upCount / $intCount) * 100, 1) } else { 0 }
-        ($sv.FindName("SummaryExtra")).Text = "Up %: $ratio%"
-        try { Write-Diag ("Update-Summary metrics | Devices={0} | Interfaces={1} | Up={2} | Down={3} | Auth={4} | Unauth={5} | UniqueVlans={6} | UpPct={7}" -f $devCount, $intCount, $upCount, $downCount, $authCount, $unauthCount, $uniqueCount, $ratio) } catch {}
+        # Network Overview
+        & $updateText 'SummaryDevicesCount' $devCount.ToString()
+        & $updateText 'SummaryInterfacesCount' $intCount.ToString()
+        & $updateText 'SummarySitesCount' $siteCount.ToString()
+        & $updateText 'SummaryBuildingsCount' $buildingCount.ToString()
+        & $updateText 'SummaryUniqueVlansCount' $uniqueVlans.ToString()
+
+        # Port Status
+        & $updateText 'SummaryUpCount' $upCount.ToString()
+        & $updateText 'SummaryUpPct' "($upPct%)"
+        & $updateText 'SummaryDownCount' $downCount.ToString()
+        & $updateText 'SummaryDownPct' "($downPct%)"
+        & $updateText 'SummaryDisabledCount' $disabledCount.ToString()
+        & $updateText 'SummaryDisabledPct' "($disabledPct%)"
+        & $updateText 'SummaryOtherStatusCount' $otherStatusCount.ToString()
+        & $updateText 'SummaryOtherStatusPct' "($otherPct%)"
+
+        # Alerts Summary
+        & $updateText 'SummaryTotalAlerts' $totalAlerts.ToString()
+        & $updateText 'SummaryAlertsDown' $alertsDown.ToString()
+        & $updateText 'SummaryAlertsUnauth' $alertsUnauth.ToString()
+        & $updateText 'SummaryAlertsHalfDuplex' $alertsHalfDuplex.ToString()
+        & $updateText 'SummaryAlertsOther' $alertsOther.ToString()
+
+        # Port Characteristics - Speed
+        & $updateText 'SummarySpeed10G' $speed10G.ToString()
+        & $updateText 'SummarySpeed1G' $speed1G.ToString()
+        & $updateText 'SummarySpeed100M' $speed100M.ToString()
+        & $updateText 'SummarySpeedOther' $speedOther.ToString()
+
+        # Port Characteristics - Type
+        & $updateText 'SummaryTypeCopper' $typeCopper.ToString()
+        & $updateText 'SummaryTypeFiber' $typeFiber.ToString()
+        & $updateText 'SummaryTypeOther' $typeOther.ToString()
+
+        # Security
+        & $updateText 'SummaryAuthorizedCount' $authCount.ToString()
+        & $updateText 'SummaryUnauthorizedCount' $unauthCount.ToString()
+        & $updateText 'SummaryNoAuthCount' $noAuthCount.ToString()
+        & $updateText 'SummaryAuthCoverage' "$authCoverage%"
+
+        # Manufacturers
+        & $updateText 'SummaryMakeCisco' $makeCisco.ToString()
+        & $updateText 'SummaryMakeArista' $makeArista.ToString()
+        & $updateText 'SummaryMakeBrocade' $makeBrocade.ToString()
+        & $updateText 'SummaryMakeOther' $makeOther.ToString()
+
+        # Data Quality
+        & $updateText 'SummaryCacheStatus' $cacheStatus
+        & $updateText 'SummaryCacheAge' $cacheAge
+        & $updateText 'SummaryCacheHosts' $cacheHosts.ToString()
+        & $updateText 'SummaryCurrentFilter' $currentFilter
+
+        try { Write-Diag ("Update-Summary metrics | Devices={0} | Interfaces={1} | Up={2} | Down={3} | Disabled={4} | Auth={5} | Unauth={6} | NoAuth={7} | UniqueVlans={8} | Alerts={9}" -f $devCount, $intCount, $upCount, $downCount, $disabledCount, $authCount, $unauthCount, $noAuthCount, $uniqueVlans, $totalAlerts) } catch {}
     } catch {}
 }
 
