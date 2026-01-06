@@ -68,6 +68,13 @@
                      Foreground="{DynamicResource Theme.Text.Muted}" HorizontalAlignment="Center" Margin="0,5,0,0"/>
         </StackPanel>
       </Border>
+
+      <Border Name="SpanLoadingIndicator" Style="{DynamicResource LoadingIndicatorStyle}">
+        <StackPanel>
+          <TextBlock Text="Loading spanning tree data..." Style="{DynamicResource LoadingTextStyle}"/>
+          <ProgressBar Style="{DynamicResource LoadingProgressStyle}"/>
+        </StackPanel>
+      </Border>
     </Grid>
 
     <TextBlock Name="SpanSamplePreview"

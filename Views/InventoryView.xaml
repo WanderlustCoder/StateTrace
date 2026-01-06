@@ -129,30 +129,50 @@
           </Grid.ColumnDefinitions>
 
           <!-- Asset Grid -->
-          <DataGrid Name="InventoryGrid" Grid.Column="0"
-                    AutoGenerateColumns="False"
-                    IsReadOnly="True"
-                    SelectionMode="Single"
-                    CanUserSortColumns="True"
-                    Background="{DynamicResource Theme.Surface.Primary}"
-                    Foreground="{DynamicResource Theme.Text.Primary}"
-                    RowBackground="{DynamicResource Theme.Surface.Primary}"
-                    AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
-                    GridLinesVisibility="Horizontal"
-                    HeadersVisibility="Column">
-            <DataGrid.Columns>
-              <DataGridTextColumn Header="Hostname" Binding="{Binding Hostname}" Width="140"/>
-              <DataGridTextColumn Header="Vendor" Binding="{Binding Vendor}" Width="80"/>
-              <DataGridTextColumn Header="Model" Binding="{Binding Model}" Width="100"/>
-              <DataGridTextColumn Header="Serial Number" Binding="{Binding SerialNumber}" Width="120"/>
-              <DataGridTextColumn Header="Asset Tag" Binding="{Binding AssetTag}" Width="100"/>
-              <DataGridTextColumn Header="Site" Binding="{Binding Site}" Width="80"/>
-              <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="80"/>
-              <DataGridTextColumn Header="Firmware" Binding="{Binding FirmwareVersion}" Width="90"/>
-              <DataGridTextColumn Header="Warranty Exp" Binding="{Binding WarrantyExpiration, StringFormat=yyyy-MM-dd}" Width="100"/>
-              <DataGridTextColumn Header="Days Left" Binding="{Binding DaysUntilExpiration}" Width="70"/>
-            </DataGrid.Columns>
-          </DataGrid>
+          <Grid Grid.Column="0">
+            <DataGrid Name="InventoryGrid"
+                      AutoGenerateColumns="False"
+                      IsReadOnly="True"
+                      SelectionMode="Single"
+                      CanUserSortColumns="True"
+                      Background="{DynamicResource Theme.Surface.Primary}"
+                      Foreground="{DynamicResource Theme.Text.Primary}"
+                      RowBackground="{DynamicResource Theme.Surface.Primary}"
+                      AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
+                      GridLinesVisibility="Horizontal"
+                      HeadersVisibility="Column">
+              <DataGrid.Columns>
+                <DataGridTextColumn Header="Hostname" Binding="{Binding Hostname}" Width="140"/>
+                <DataGridTextColumn Header="Vendor" Binding="{Binding Vendor}" Width="80"/>
+                <DataGridTextColumn Header="Model" Binding="{Binding Model}" Width="100"/>
+                <DataGridTextColumn Header="Serial Number" Binding="{Binding SerialNumber}" Width="120"/>
+                <DataGridTextColumn Header="Asset Tag" Binding="{Binding AssetTag}" Width="100"/>
+                <DataGridTextColumn Header="Site" Binding="{Binding Site}" Width="80"/>
+                <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="80"/>
+                <DataGridTextColumn Header="Firmware" Binding="{Binding FirmwareVersion}" Width="90"/>
+                <DataGridTextColumn Header="Warranty Exp" Binding="{Binding WarrantyExpiration, StringFormat=yyyy-MM-dd}" Width="100"/>
+                <DataGridTextColumn Header="Days Left" Binding="{Binding DaysUntilExpiration}" Width="70"/>
+              </DataGrid.Columns>
+            </DataGrid>
+
+            <Border Name="InventoryEmptyStatePanel" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="{DynamicResource Theme.Surface.Secondary}" Padding="30,20" CornerRadius="8"
+                    Visibility="Collapsed">
+              <StackPanel>
+                <TextBlock Text="No Assets" FontSize="18" FontWeight="Bold"
+                           Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Center"/>
+                <TextBlock Text="Click 'Add Asset' to add your first asset"
+                           Foreground="{DynamicResource Theme.Text.Muted}" HorizontalAlignment="Center" Margin="0,5,0,0"/>
+              </StackPanel>
+            </Border>
+
+            <Border Name="InventoryLoadingIndicator" Style="{DynamicResource LoadingIndicatorStyle}">
+              <StackPanel>
+                <TextBlock Text="Loading inventory..." Style="{DynamicResource LoadingTextStyle}"/>
+                <ProgressBar Style="{DynamicResource LoadingProgressStyle}"/>
+              </StackPanel>
+            </Border>
+          </Grid>
 
           <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Center" VerticalAlignment="Stretch" Background="{DynamicResource Theme.Border}"/>
 

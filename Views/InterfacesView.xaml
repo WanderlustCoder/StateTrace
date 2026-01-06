@@ -308,6 +308,13 @@
                          Foreground="{DynamicResource Theme.Text.Muted}" HorizontalAlignment="Center" Margin="0,5,0,0"/>
             </StackPanel>
           </Border>
+
+          <Border Name="InterfacesLoadingIndicator" Style="{DynamicResource LoadingIndicatorStyle}">
+            <StackPanel>
+              <TextBlock Text="Loading interfaces..." Style="{DynamicResource LoadingTextStyle}"/>
+              <ProgressBar Style="{DynamicResource LoadingProgressStyle}"/>
+            </StackPanel>
+          </Border>
         </Grid>
 
         <Grid Grid.Row="3" Margin="5,4,5,0">

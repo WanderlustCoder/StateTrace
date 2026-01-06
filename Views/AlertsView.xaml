@@ -44,6 +44,13 @@
                      Foreground="{DynamicResource Theme.Text.Muted}" HorizontalAlignment="Center" Margin="0,5,0,0"/>
         </StackPanel>
       </Border>
+
+      <Border Name="AlertsLoadingIndicator" Style="{DynamicResource LoadingIndicatorStyle}">
+        <StackPanel>
+          <TextBlock Text="Loading alerts..." Style="{DynamicResource LoadingTextStyle}"/>
+          <ProgressBar Style="{DynamicResource LoadingProgressStyle}"/>
+        </StackPanel>
+      </Border>
     </Grid>
   </Grid>
 </UserControl>
