@@ -253,7 +253,7 @@
               </DataGridTemplateColumn>
 
               <DataGridTextColumn Header="Name"
-                                   Binding="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                   Binding="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
 
               <DataGridTemplateColumn Header="Status">
                 <DataGridTemplateColumn.CellTemplate>
@@ -265,7 +265,7 @@
               </DataGridTemplateColumn>
 
               <DataGridTextColumn Header="VLAN"
-                                   Binding="{Binding VLAN, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+                                   Binding="{Binding VLAN, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
 
               <DataGridTextColumn Header="Duplex" Binding="{Binding Duplex}">
                 <DataGridTextColumn.ElementStyle>

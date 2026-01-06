@@ -16,11 +16,16 @@ Set-StrictMode -Version Latest
 # Module-level references
 $script:TopologyView = $null
 $script:TopologyCanvas = $null
+$script:TopologyScrollViewer = $null
 $script:SelectedNodeID = $null
 $script:NodeElements = @{}
 $script:LinkElements = @{}
 
-# Role colors for visualization
+# Performance settings
+$script:MaxVisibleNodes = 200  # Limit nodes rendered for performance
+$script:ViewportPadding = 100  # Extra pixels around viewport to render
+
+# Role colors for visualization (hex values)
 $script:RoleColors = @{
     'Core'         = '#E74C3C'
     'Distribution' = '#F39C12'
@@ -29,6 +34,32 @@ $script:RoleColors = @{
     'Firewall'     = '#C0392B'
     'Wireless'     = '#3498DB'
     'Default'      = '#4A90D9'
+}
+
+# Pre-create frozen brushes for better performance
+$script:RoleBrushes = @{}
+$script:LinkBrush = $null
+$script:WanLinkBrush = $null
+$script:WhiteBrush = $null
+
+function Initialize-TopologyBrushes {
+    <#
+    .SYNOPSIS
+        Creates and freezes brushes for better rendering performance.
+    #>
+    if ($script:RoleBrushes.Count -gt 0) { return }
+
+    $converter = New-Object System.Windows.Media.BrushConverter
+    foreach ($role in $script:RoleColors.Keys) {
+        $brush = $converter.ConvertFromString($script:RoleColors[$role])
+        if ($brush.CanFreeze) { $brush.Freeze() }
+        $script:RoleBrushes[$role] = $brush
+    }
+
+    # Common brushes
+    $script:LinkBrush = [System.Windows.Media.Brushes]::Gray
+    $script:WanLinkBrush = [System.Windows.Media.Brushes]::Crimson
+    $script:WhiteBrush = [System.Windows.Media.Brushes]::White
 }
 
 function New-TopologyView {
@@ -93,6 +124,17 @@ function Get-TopologyControls {
     $script:ZoomFitButton = $script:TopologyView.FindName('ZoomFitButton')
     $script:RoleFilterCombo = $script:TopologyView.FindName('RoleFilterCombo')
     $script:EmptyStatePanel = $script:TopologyView.FindName('EmptyStatePanel')
+
+    # Get ScrollViewer parent for viewport culling
+    if ($script:TopologyCanvas) {
+        $parent = [System.Windows.Media.VisualTreeHelper]::GetParent($script:TopologyCanvas)
+        if ($parent -is [System.Windows.Controls.ScrollViewer]) {
+            $script:TopologyScrollViewer = $parent
+        }
+    }
+
+    # Initialize frozen brushes for performance
+    Initialize-TopologyBrushes
 
     # Details panel
     $script:NoSelectionPanel = $script:TopologyView.FindName('NoSelectionPanel')
@@ -345,10 +387,20 @@ function Render-Topology {
 
     if ($nodes.Count -eq 0) { return }
 
-    # Draw links first (behind nodes)
+    # Build node lookup for efficient link endpoint resolution
+    $nodeMap = @{}
+    foreach ($node in $nodes) {
+        $nodeMap[$node.NodeID] = $node
+    }
+
+    # Create reusable dash array for WAN links (frozen for performance)
+    $wanDashArray = New-Object System.Windows.Media.DoubleCollection @(5, 5)
+    if ($wanDashArray.CanFreeze) { $wanDashArray.Freeze() }
+
+    # Draw links first (behind nodes) - use frozen brushes
     foreach ($link in $links) {
-        $sourceNode = $nodes | Where-Object { $_.NodeID -eq $link.SourceNodeID }
-        $destNode = $nodes | Where-Object { $_.NodeID -eq $link.DestNodeID }
+        $sourceNode = $nodeMap[$link.SourceNodeID]
+        $destNode = $nodeMap[$link.DestNodeID]
 
         if ($sourceNode -and $destNode) {
             $line = New-Object System.Windows.Shapes.Line
@@ -359,10 +411,10 @@ function Render-Topology {
             $line.StrokeThickness = if ($link.IsAggregate) { 4 } else { 2 }
 
             if ($link.LinkType -eq 'WAN') {
-                $line.Stroke = [System.Windows.Media.Brushes]::Crimson
-                $line.StrokeDashArray = New-Object System.Windows.Media.DoubleCollection @(5, 5)
+                $line.Stroke = $script:WanLinkBrush
+                $line.StrokeDashArray = $wanDashArray
             } else {
-                $line.Stroke = [System.Windows.Media.Brushes]::Gray
+                $line.Stroke = $script:LinkBrush
             }
 
             $line.Tag = $link.LinkID
@@ -376,18 +428,19 @@ function Render-Topology {
         }
     }
 
-    # Draw nodes
+    # Draw nodes - use frozen brushes from cache
     foreach ($node in $nodes) {
         # Node circle
         $ellipse = New-Object System.Windows.Shapes.Ellipse
         $ellipse.Width = 50
         $ellipse.Height = 50
 
-        $color = $script:RoleColors[$node.Role]
-        if (-not $color) { $color = $script:RoleColors['Default'] }
+        # Use pre-frozen brush from cache
+        $brush = $script:RoleBrushes[$node.Role]
+        if (-not $brush) { $brush = $script:RoleBrushes['Default'] }
 
-        $ellipse.Fill = [System.Windows.Media.BrushConverter]::new().ConvertFromString($color)
-        $ellipse.Stroke = [System.Windows.Media.Brushes]::White
+        $ellipse.Fill = $brush
+        $ellipse.Stroke = $script:WhiteBrush
         $ellipse.StrokeThickness = 2
         $ellipse.Cursor = [System.Windows.Input.Cursors]::Hand
         $ellipse.Tag = $node.NodeID
@@ -404,11 +457,11 @@ function Render-Topology {
 
         [void]$script:TopologyCanvas.Children.Add($ellipse)
 
-        # Label
+        # Label - use cached brush
         $label = New-Object System.Windows.Controls.TextBlock
         $label.Text = $node.DisplayName
         $label.FontSize = 10
-        $label.Foreground = [System.Windows.Media.Brushes]::White
+        $label.Foreground = $script:WhiteBrush
         $label.TextAlignment = 'Center'
 
         [System.Windows.Controls.Canvas]::SetLeft($label, $node.XPosition - 40)
