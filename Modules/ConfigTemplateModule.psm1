@@ -1191,7 +1191,650 @@ function Get-TemplateLibraryStats {
 
 #endregion
 
+#region Configuration Comparison (ST-U-005)
+
+<#
+.SYNOPSIS
+    Parses configuration text into logical sections.
+.DESCRIPTION
+    Identifies major sections in network device configs: interfaces, VLANs,
+    routing, ACLs, etc. Returns structured section data for semantic comparison.
+#>
+function Get-ConfigSection {
+    [CmdletBinding()]
+    [OutputType([PSCustomObject[]])]
+    param(
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
+        [AllowEmptyString()]
+        [string]$ConfigText,
+
+        [Parameter()]
+        [ValidateSet('Cisco_IOS', 'Cisco_IOSXE', 'Arista_EOS', 'Generic')]
+        [string]$Vendor = 'Cisco_IOS'
+    )
+
+    $lines = $ConfigText -split "`r?`n"
+    $sections = [System.Collections.ArrayList]::new()
+    $currentSection = $null
+    $currentLines = [System.Collections.ArrayList]::new()
+    $lineNumber = 0
+
+    # Section start patterns
+    $sectionPatterns = @{
+        'Interface'  = '^interface\s+'
+        'VLAN'       = '^vlan\s+\d+'
+        'Router'     = '^router\s+'
+        'IPRoute'    = '^ip route\s+'
+        'ACL'        = '^(ip\s+)?access-list\s+'
+        'RouteMap'   = '^route-map\s+'
+        'PrefixList' = '^ip prefix-list\s+'
+        'Banner'     = '^banner\s+'
+        'Line'       = '^line\s+'
+        'SNMP'       = '^snmp-server\s+'
+        'Logging'    = '^logging\s+'
+        'NTP'        = '^ntp\s+'
+        'AAA'        = '^aaa\s+'
+        'SpanningTree' = '^spanning-tree\s+'
+    }
+
+    foreach ($line in $lines) {
+        $lineNumber++
+        $trimmed = $line.TrimEnd()
+
+        # Check for section start
+        $newSectionType = $null
+        $sectionName = $null
+
+        foreach ($type in $sectionPatterns.Keys) {
+            if ($trimmed -match $sectionPatterns[$type]) {
+                $newSectionType = $type
+                $sectionName = $trimmed
+                break
+            }
+        }
+
+        # Check for end of indented block (line doesn't start with space and isn't empty)
+        $isIndented = $trimmed -match '^\s+' -or [string]::IsNullOrWhiteSpace($trimmed)
+        $isEndMarker = $trimmed -eq '!' -or $trimmed -eq 'exit' -or $trimmed -eq 'end'
+
+        if ($newSectionType) {
+            # Save previous section
+            if ($currentSection -and $currentLines.Count -gt 0) {
+                [void]$sections.Add([PSCustomObject]@{
+                    Type = $currentSection.Type
+                    Name = $currentSection.Name
+                    StartLine = $currentSection.StartLine
+                    EndLine = $lineNumber - 1
+                    Content = ($currentLines -join "`n")
+                    Lines = @($currentLines)
+                })
+            }
+
+            # Start new section
+            $currentSection = @{ Type = $newSectionType; Name = $sectionName; StartLine = $lineNumber }
+            $currentLines = [System.Collections.ArrayList]::new()
+            [void]$currentLines.Add($trimmed)
+        }
+        elseif ($currentSection) {
+            if ($isEndMarker -and -not $isIndented) {
+                # End of section
+                [void]$sections.Add([PSCustomObject]@{
+                    Type = $currentSection.Type
+                    Name = $currentSection.Name
+                    StartLine = $currentSection.StartLine
+                    EndLine = $lineNumber
+                    Content = ($currentLines -join "`n")
+                    Lines = @($currentLines)
+                })
+                $currentSection = $null
+                $currentLines = [System.Collections.ArrayList]::new()
+            }
+            elseif (-not $isIndented -and $trimmed -ne '' -and $trimmed -notmatch '^\s*!') {
+                # Non-indented line (not comment) - end section
+                [void]$sections.Add([PSCustomObject]@{
+                    Type = $currentSection.Type
+                    Name = $currentSection.Name
+                    StartLine = $currentSection.StartLine
+                    EndLine = $lineNumber - 1
+                    Content = ($currentLines -join "`n")
+                    Lines = @($currentLines)
+                })
+                $currentSection = $null
+                $currentLines = [System.Collections.ArrayList]::new()
+            }
+            else {
+                [void]$currentLines.Add($trimmed)
+            }
+        }
+    }
+
+    # Save final section
+    if ($currentSection -and $currentLines.Count -gt 0) {
+        [void]$sections.Add([PSCustomObject]@{
+            Type = $currentSection.Type
+            Name = $currentSection.Name
+            StartLine = $currentSection.StartLine
+            EndLine = $lineNumber
+            Content = ($currentLines -join "`n")
+            Lines = @($currentLines)
+        })
+    }
+
+    return @($sections)
+}
+
+<#
+.SYNOPSIS
+    Compares two configuration texts line by line.
+.DESCRIPTION
+    Returns differences between two configs with line numbers and change type.
+#>
+function Compare-ConfigText {
+    [CmdletBinding()]
+    [OutputType([PSCustomObject])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$ReferenceConfig,
+
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyString()]
+        [string]$DifferenceConfig,
+
+        [Parameter()]
+        [switch]$IgnoreComments,
+
+        [Parameter()]
+        [switch]$IgnoreWhitespace,
+
+        [Parameter()]
+        [string]$ReferenceName = 'Reference',
+
+        [Parameter()]
+        [string]$DifferenceName = 'Difference'
+    )
+
+    $refLines = @($ReferenceConfig -split "`r?`n")
+    $diffLines = @($DifferenceConfig -split "`r?`n")
+
+    if ($IgnoreComments) {
+        $refLines = @($refLines | Where-Object { $_ -notmatch '^\s*!' })
+        $diffLines = @($diffLines | Where-Object { $_ -notmatch '^\s*!' })
+    }
+
+    if ($IgnoreWhitespace) {
+        $refLines = @($refLines | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
+        $diffLines = @($diffLines | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne '' })
+    }
+
+    # Build lookup sets
+    $refSet = [System.Collections.Generic.HashSet[string]]::new()
+    $diffSet = [System.Collections.Generic.HashSet[string]]::new()
+
+    foreach ($line in $refLines) { [void]$refSet.Add($line) }
+    foreach ($line in $diffLines) { [void]$diffSet.Add($line) }
+
+    # Find differences
+    $removed = [System.Collections.ArrayList]::new()
+    $added = [System.Collections.ArrayList]::new()
+    $unchanged = [System.Collections.ArrayList]::new()
+
+    $lineNum = 0
+    foreach ($line in $refLines) {
+        $lineNum++
+        if (-not $diffSet.Contains($line)) {
+            [void]$removed.Add([PSCustomObject]@{
+                LineNumber = $lineNum
+                Content = $line
+                Source = $ReferenceName
+            })
+        }
+        else {
+            [void]$unchanged.Add($line)
+        }
+    }
+
+    $lineNum = 0
+    foreach ($line in $diffLines) {
+        $lineNum++
+        if (-not $refSet.Contains($line)) {
+            [void]$added.Add([PSCustomObject]@{
+                LineNumber = $lineNum
+                Content = $line
+                Source = $DifferenceName
+            })
+        }
+    }
+
+    [PSCustomObject]@{
+        ReferenceName = $ReferenceName
+        DifferenceName = $DifferenceName
+        ReferenceLineCount = $refLines.Count
+        DifferenceLineCount = $diffLines.Count
+        RemovedCount = $removed.Count
+        AddedCount = $added.Count
+        UnchangedCount = $unchanged.Count
+        Removed = @($removed)
+        Added = @($added)
+        HasDifferences = ($removed.Count -gt 0 -or $added.Count -gt 0)
+        SimilarityPercent = if (($refLines.Count + $diffLines.Count) -gt 0) {
+            [math]::Round(($unchanged.Count * 2 / ($refLines.Count + $diffLines.Count)) * 100, 1)
+        } else { 100 }
+    }
+}
+
+<#
+.SYNOPSIS
+    Compares configurations by logical sections.
+.DESCRIPTION
+    Performs semantic comparison by parsing configs into sections and comparing
+    matching sections (e.g., interface Gi1/0/1 to interface Gi1/0/1).
+#>
+function Compare-ConfigSections {
+    [CmdletBinding()]
+    [OutputType([PSCustomObject])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ReferenceConfig,
+
+        [Parameter(Mandatory = $true)]
+        [string]$DifferenceConfig,
+
+        [Parameter()]
+        [ValidateSet('Cisco_IOS', 'Cisco_IOSXE', 'Arista_EOS', 'Generic')]
+        [string]$Vendor = 'Cisco_IOS',
+
+        [Parameter()]
+        [string]$ReferenceName = 'Reference',
+
+        [Parameter()]
+        [string]$DifferenceName = 'Difference'
+    )
+
+    $refSections = @(Get-ConfigSection -ConfigText $ReferenceConfig -Vendor $Vendor)
+    $diffSections = @(Get-ConfigSection -ConfigText $DifferenceConfig -Vendor $Vendor)
+
+    $comparisons = [System.Collections.ArrayList]::new()
+    $onlyInRef = [System.Collections.ArrayList]::new()
+    $onlyInDiff = [System.Collections.ArrayList]::new()
+
+    # Index difference sections by name
+    $diffIndex = @{}
+    foreach ($section in $diffSections) {
+        $diffIndex[$section.Name] = $section
+    }
+
+    $matchedDiff = [System.Collections.Generic.HashSet[string]]::new()
+
+    # Compare reference sections
+    foreach ($refSection in $refSections) {
+        if ($diffIndex.ContainsKey($refSection.Name)) {
+            $diffSection = $diffIndex[$refSection.Name]
+            [void]$matchedDiff.Add($refSection.Name)
+
+            $sectionDiff = Compare-ConfigText -ReferenceConfig $refSection.Content `
+                -DifferenceConfig $diffSection.Content `
+                -ReferenceName $ReferenceName -DifferenceName $DifferenceName
+
+            [void]$comparisons.Add([PSCustomObject]@{
+                SectionType = $refSection.Type
+                SectionName = $refSection.Name
+                Status = if ($sectionDiff.HasDifferences) { 'Modified' } else { 'Unchanged' }
+                RefStartLine = $refSection.StartLine
+                DiffStartLine = $diffSection.StartLine
+                Diff = $sectionDiff
+            })
+        }
+        else {
+            [void]$onlyInRef.Add([PSCustomObject]@{
+                SectionType = $refSection.Type
+                SectionName = $refSection.Name
+                StartLine = $refSection.StartLine
+                Content = $refSection.Content
+            })
+        }
+    }
+
+    # Find sections only in difference
+    foreach ($diffSection in $diffSections) {
+        if (-not $matchedDiff.Contains($diffSection.Name)) {
+            [void]$onlyInDiff.Add([PSCustomObject]@{
+                SectionType = $diffSection.Type
+                SectionName = $diffSection.Name
+                StartLine = $diffSection.StartLine
+                Content = $diffSection.Content
+            })
+        }
+    }
+
+    # Calculate stats
+    $modifiedCount = @($comparisons | Where-Object { $_.Status -eq 'Modified' }).Count
+    $unchangedCount = @($comparisons | Where-Object { $_.Status -eq 'Unchanged' }).Count
+
+    [PSCustomObject]@{
+        ReferenceName = $ReferenceName
+        DifferenceName = $DifferenceName
+        ReferenceSectionCount = $refSections.Count
+        DifferenceSectionCount = $diffSections.Count
+        ModifiedSections = $modifiedCount
+        UnchangedSections = $unchangedCount
+        OnlyInReferenceCount = $onlyInRef.Count
+        OnlyInDifferenceCount = $onlyInDiff.Count
+        Comparisons = @($comparisons)
+        OnlyInReference = @($onlyInRef)
+        OnlyInDifference = @($onlyInDiff)
+        HasDifferences = ($modifiedCount -gt 0 -or $onlyInRef.Count -gt 0 -or $onlyInDiff.Count -gt 0)
+    }
+}
+
+<#
+.SYNOPSIS
+    Generates a comprehensive diff report between configurations.
+.DESCRIPTION
+    Combines text and section comparison with summary and detailed change listing.
+#>
+function New-ConfigDiffReport {
+    [CmdletBinding()]
+    [OutputType([PSCustomObject])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ReferenceConfig,
+
+        [Parameter(Mandatory = $true)]
+        [string]$DifferenceConfig,
+
+        [Parameter()]
+        [string]$ReferenceName = 'Baseline',
+
+        [Parameter()]
+        [string]$DifferenceName = 'Current',
+
+        [Parameter()]
+        [ValidateSet('Cisco_IOS', 'Cisco_IOSXE', 'Arista_EOS', 'Generic')]
+        [string]$Vendor = 'Cisco_IOS',
+
+        [Parameter()]
+        [switch]$IncludeUnchanged
+    )
+
+    $textDiff = Compare-ConfigText -ReferenceConfig $ReferenceConfig `
+        -DifferenceConfig $DifferenceConfig `
+        -ReferenceName $ReferenceName -DifferenceName $DifferenceName
+
+    $sectionDiff = Compare-ConfigSections -ReferenceConfig $ReferenceConfig `
+        -DifferenceConfig $DifferenceConfig `
+        -Vendor $Vendor -ReferenceName $ReferenceName -DifferenceName $DifferenceName
+
+    # Build change summary by section type
+    $changesByType = @{}
+    foreach ($comp in $sectionDiff.Comparisons) {
+        if ($comp.Status -eq 'Modified' -or $IncludeUnchanged) {
+            if (-not $changesByType[$comp.SectionType]) {
+                $changesByType[$comp.SectionType] = [System.Collections.ArrayList]::new()
+            }
+            [void]$changesByType[$comp.SectionType].Add($comp)
+        }
+    }
+
+    # Determine overall status
+    $overallStatus = if (-not $textDiff.HasDifferences) {
+        'Identical'
+    }
+    elseif ($textDiff.SimilarityPercent -ge 90) {
+        'MinorChanges'
+    }
+    elseif ($textDiff.SimilarityPercent -ge 70) {
+        'ModerateChanges'
+    }
+    else {
+        'MajorChanges'
+    }
+
+    [PSCustomObject]@{
+        ReportID = "DIFF-$(Get-Date -Format 'yyyyMMddHHmmss')"
+        GeneratedAt = Get-Date
+        ReferenceName = $ReferenceName
+        DifferenceName = $DifferenceName
+        Vendor = $Vendor
+        OverallStatus = $overallStatus
+        Summary = [PSCustomObject]@{
+            SimilarityPercent = $textDiff.SimilarityPercent
+            LinesRemoved = $textDiff.RemovedCount
+            LinesAdded = $textDiff.AddedCount
+            SectionsModified = $sectionDiff.ModifiedSections
+            SectionsOnlyInReference = $sectionDiff.OnlyInReferenceCount
+            SectionsOnlyInDifference = $sectionDiff.OnlyInDifferenceCount
+        }
+        TextDiff = $textDiff
+        SectionDiff = $sectionDiff
+        ChangesByType = $changesByType
+    }
+}
+
+<#
+.SYNOPSIS
+    Compares multiple configurations against a baseline.
+.DESCRIPTION
+    Identifies drift across a fleet of devices by comparing each against a golden config.
+#>
+function Get-ConfigDrift {
+    [CmdletBinding()]
+    [OutputType([PSCustomObject[]])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$BaselineConfig,
+
+        [Parameter(Mandatory = $true)]
+        [hashtable]$DeviceConfigs,
+
+        [Parameter()]
+        [string]$BaselineName = 'Golden',
+
+        [Parameter()]
+        [ValidateSet('Cisco_IOS', 'Cisco_IOSXE', 'Arista_EOS', 'Generic')]
+        [string]$Vendor = 'Cisco_IOS',
+
+        [Parameter()]
+        [int]$DriftThreshold = 10
+    )
+
+    $results = [System.Collections.ArrayList]::new()
+
+    foreach ($device in $DeviceConfigs.Keys) {
+        $config = $DeviceConfigs[$device]
+        $diff = Compare-ConfigText -ReferenceConfig $BaselineConfig `
+            -DifferenceConfig $config `
+            -ReferenceName $BaselineName -DifferenceName $device
+
+        $driftScore = 100 - $diff.SimilarityPercent
+        $hasDrift = $driftScore -gt $DriftThreshold
+
+        [void]$results.Add([PSCustomObject]@{
+            DeviceName = $device
+            SimilarityPercent = $diff.SimilarityPercent
+            DriftScore = $driftScore
+            HasDrift = $hasDrift
+            LinesRemoved = $diff.RemovedCount
+            LinesAdded = $diff.AddedCount
+            Status = if ($driftScore -eq 0) { 'Compliant' }
+                     elseif ($driftScore -le 5) { 'MinorDrift' }
+                     elseif ($driftScore -le 15) { 'ModerateDrift' }
+                     else { 'MajorDrift' }
+            Diff = $diff
+        })
+    }
+
+    # Sort by drift score descending
+    return @($results | Sort-Object -Property DriftScore -Descending)
+}
+
+<#
+.SYNOPSIS
+    Exports a config diff report to various formats.
+#>
+function Export-ConfigDiffReport {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [PSCustomObject]$Report,
+
+        [Parameter()]
+        [ValidateSet('Text', 'HTML', 'Markdown', 'JSON')]
+        [string]$Format = 'Text',
+
+        [Parameter()]
+        [string]$OutputPath
+    )
+
+    $output = switch ($Format) {
+        'JSON' {
+            $Report | ConvertTo-Json -Depth 10
+        }
+
+        'Markdown' {
+            $md = @()
+            $md += "# Configuration Diff Report"
+            $md += ""
+            $md += "**Generated:** $($Report.GeneratedAt)"
+            $md += "**Reference:** $($Report.ReferenceName)"
+            $md += "**Difference:** $($Report.DifferenceName)"
+            $md += "**Status:** $($Report.OverallStatus)"
+            $md += ""
+            $md += "## Summary"
+            $md += "| Metric | Value |"
+            $md += "|--------|-------|"
+            $md += "| Similarity | $($Report.Summary.SimilarityPercent)% |"
+            $md += "| Lines Removed | $($Report.Summary.LinesRemoved) |"
+            $md += "| Lines Added | $($Report.Summary.LinesAdded) |"
+            $md += "| Sections Modified | $($Report.Summary.SectionsModified) |"
+            $md += ""
+
+            if ($Report.TextDiff.Removed.Count -gt 0) {
+                $md += "## Removed Lines"
+                $md += '```'
+                foreach ($r in $Report.TextDiff.Removed | Select-Object -First 20) {
+                    $md += "- $($r.Content)"
+                }
+                if ($Report.TextDiff.Removed.Count -gt 20) {
+                    $md += "... and $($Report.TextDiff.Removed.Count - 20) more"
+                }
+                $md += '```'
+                $md += ""
+            }
+
+            if ($Report.TextDiff.Added.Count -gt 0) {
+                $md += "## Added Lines"
+                $md += '```'
+                foreach ($a in $Report.TextDiff.Added | Select-Object -First 20) {
+                    $md += "+ $($a.Content)"
+                }
+                if ($Report.TextDiff.Added.Count -gt 20) {
+                    $md += "... and $($Report.TextDiff.Added.Count - 20) more"
+                }
+                $md += '```'
+            }
+
+            $md -join "`n"
+        }
+
+        'HTML' {
+            @"
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Config Diff: $($Report.ReferenceName) vs $($Report.DifferenceName)</title>
+<style>
+body { font-family: Arial, sans-serif; margin: 20px; }
+h1 { color: #333; }
+.summary { background: #f5f5f5; padding: 15px; border-radius: 5px; margin: 10px 0; }
+.removed { background: #ffdddd; color: #990000; }
+.added { background: #ddffdd; color: #009900; }
+pre { background: #f9f9f9; padding: 10px; border: 1px solid #ddd; overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; margin: 10px 0; }
+th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+th { background: #007acc; color: white; }
+</style>
+</head>
+<body>
+<h1>Configuration Diff Report</h1>
+<div class="summary">
+<p><strong>Generated:</strong> $($Report.GeneratedAt)</p>
+<p><strong>Reference:</strong> $($Report.ReferenceName) | <strong>Difference:</strong> $($Report.DifferenceName)</p>
+<p><strong>Status:</strong> $($Report.OverallStatus) | <strong>Similarity:</strong> $($Report.Summary.SimilarityPercent)%</p>
+</div>
+<h2>Summary</h2>
+<table>
+<tr><th>Metric</th><th>Value</th></tr>
+<tr><td>Lines Removed</td><td>$($Report.Summary.LinesRemoved)</td></tr>
+<tr><td>Lines Added</td><td>$($Report.Summary.LinesAdded)</td></tr>
+<tr><td>Sections Modified</td><td>$($Report.Summary.SectionsModified)</td></tr>
+</table>
+$(if ($Report.TextDiff.Removed.Count -gt 0) {
+    "<h2>Removed Lines</h2><pre class='removed'>" +
+    (($Report.TextDiff.Removed | Select-Object -First 30 | ForEach-Object { "- $($_.Content)" }) -join "`n") +
+    "</pre>"
+})
+$(if ($Report.TextDiff.Added.Count -gt 0) {
+    "<h2>Added Lines</h2><pre class='added'>" +
+    (($Report.TextDiff.Added | Select-Object -First 30 | ForEach-Object { "+ $($_.Content)" }) -join "`n") +
+    "</pre>"
+})
+</body>
+</html>
+"@
+        }
+
+        default {
+            # Text format
+            $txt = @()
+            $txt += "=" * 60
+            $txt += "CONFIGURATION DIFF REPORT"
+            $txt += "=" * 60
+            $txt += "Generated: $($Report.GeneratedAt)"
+            $txt += "Reference: $($Report.ReferenceName)"
+            $txt += "Difference: $($Report.DifferenceName)"
+            $txt += "Status: $($Report.OverallStatus)"
+            $txt += "-" * 60
+            $txt += "SUMMARY"
+            $txt += "  Similarity: $($Report.Summary.SimilarityPercent)%"
+            $txt += "  Lines Removed: $($Report.Summary.LinesRemoved)"
+            $txt += "  Lines Added: $($Report.Summary.LinesAdded)"
+            $txt += "  Sections Modified: $($Report.Summary.SectionsModified)"
+            $txt += "-" * 60
+
+            if ($Report.TextDiff.Removed.Count -gt 0) {
+                $txt += "REMOVED LINES:"
+                foreach ($r in $Report.TextDiff.Removed | Select-Object -First 30) {
+                    $txt += "  - $($r.Content)"
+                }
+            }
+
+            if ($Report.TextDiff.Added.Count -gt 0) {
+                $txt += "ADDED LINES:"
+                foreach ($a in $Report.TextDiff.Added | Select-Object -First 30) {
+                    $txt += "  + $($a.Content)"
+                }
+            }
+
+            $txt += "=" * 60
+            $txt -join "`n"
+        }
+    }
+
+    if ($OutputPath) {
+        $output | Set-Content -LiteralPath $OutputPath -Encoding UTF8
+        return $OutputPath
+    }
+
+    return $output
+}
+
+#endregion
+
 Export-ModuleMember -Function @(
+    # Template functions
     'New-ConfigTemplate'
     'New-TemplateVariable'
     'Expand-ConfigTemplate'
@@ -1209,4 +1852,11 @@ Export-ModuleMember -Function @(
     'New-ConfigFromTemplate'
     'Get-TemplateVariables'
     'Get-TemplateLibraryStats'
+    # Configuration Comparison (ST-U-005)
+    'Get-ConfigSection'
+    'Compare-ConfigText'
+    'Compare-ConfigSections'
+    'New-ConfigDiffReport'
+    'Get-ConfigDrift'
+    'Export-ConfigDiffReport'
 )

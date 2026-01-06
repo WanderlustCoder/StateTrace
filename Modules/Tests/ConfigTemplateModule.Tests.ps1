@@ -316,3 +316,291 @@ Describe 'ConfigTemplateModule' {
         }
     }
 }
+
+#region ST-U-005: Configuration Comparison Tests
+
+Describe 'ConfigTemplateModule - Config Comparison' {
+
+    Context 'Get-ConfigSection' {
+        It 'parses interface sections' {
+            $config = @'
+interface GigabitEthernet1/0/1
+ description Uplink
+ switchport mode trunk
+!
+interface GigabitEthernet1/0/2
+ description Access Port
+ switchport mode access
+!
+'@
+            $sections = @(Get-ConfigSection -ConfigText $config)
+            $sections.Count | Should Be 2
+            $sections[0].Type | Should Be 'Interface'
+            $sections[0].Name | Should Match 'GigabitEthernet1/0/1'
+            $sections[1].Name | Should Match 'GigabitEthernet1/0/2'
+        }
+
+        It 'parses VLAN sections' {
+            $config = @'
+vlan 100
+ name Management
+vlan 200
+ name Data
+'@
+            $sections = @(Get-ConfigSection -ConfigText $config)
+            $sections.Count | Should Be 2
+            $sections[0].Type | Should Be 'VLAN'
+            $sections[0].Name | Should Be 'vlan 100'
+        }
+
+        It 'parses router sections' {
+            $config = @'
+router ospf 1
+ network 10.0.0.0 0.255.255.255 area 0
+!
+router bgp 65001
+ neighbor 10.1.1.1 remote-as 65002
+!
+'@
+            $sections = @(Get-ConfigSection -ConfigText $config)
+            $sections.Count | Should Be 2
+            $sections[0].Type | Should Be 'Router'
+        }
+
+        It 'returns empty for empty config' {
+            $sections = @(Get-ConfigSection -ConfigText '')
+            $sections.Count | Should Be 0
+        }
+    }
+
+    Context 'Compare-ConfigText' {
+        It 'detects identical configs' {
+            $config = "hostname SW-01`nip domain-name test.local"
+            $result = Compare-ConfigText -ReferenceConfig $config -DifferenceConfig $config
+            $result.HasDifferences | Should Be $false
+            $result.SimilarityPercent | Should Be 100
+        }
+
+        It 'detects removed lines' {
+            $ref = "line1`nline2`nline3"
+            $diff = "line1`nline3"
+            $result = Compare-ConfigText -ReferenceConfig $ref -DifferenceConfig $diff
+            $result.HasDifferences | Should Be $true
+            $result.RemovedCount | Should Be 1
+            $result.Removed[0].Content | Should Be 'line2'
+        }
+
+        It 'detects added lines' {
+            $ref = "line1`nline2"
+            $diff = "line1`nline2`nline3"
+            $result = Compare-ConfigText -ReferenceConfig $ref -DifferenceConfig $diff
+            $result.AddedCount | Should Be 1
+            $result.Added[0].Content | Should Be 'line3'
+        }
+
+        It 'calculates similarity percentage' {
+            $ref = "a`nb`nc`nd"
+            $diff = "a`nb`nx`ny"
+            $result = Compare-ConfigText -ReferenceConfig $ref -DifferenceConfig $diff
+            # 2 unchanged (a, b), 2 removed (c, d), 2 added (x, y)
+            # similarity = 2 * 2 / (4 + 4) = 50%
+            $result.SimilarityPercent | Should Be 50
+        }
+
+        It 'ignores comments when specified' {
+            $ref = "! comment`nhostname SW-01"
+            $diff = "! different comment`nhostname SW-01"
+            $result = Compare-ConfigText -ReferenceConfig $ref -DifferenceConfig $diff -IgnoreComments
+            $result.HasDifferences | Should Be $false
+        }
+
+        It 'ignores whitespace when specified' {
+            $ref = "hostname SW-01  `n  ip domain-name test"
+            $diff = "hostname SW-01`nip domain-name test"
+            $result = Compare-ConfigText -ReferenceConfig $ref -DifferenceConfig $diff -IgnoreWhitespace
+            $result.HasDifferences | Should Be $false
+        }
+    }
+
+    Context 'Compare-ConfigSections' {
+        It 'compares matching sections' {
+            $ref = @'
+interface Gi1/0/1
+ description Old
+!
+'@
+            $diff = @'
+interface Gi1/0/1
+ description New
+!
+'@
+            $result = Compare-ConfigSections -ReferenceConfig $ref -DifferenceConfig $diff
+            $result.Comparisons.Count | Should Be 1
+            $result.Comparisons[0].Status | Should Be 'Modified'
+        }
+
+        It 'identifies sections only in reference' {
+            $ref = @'
+interface Gi1/0/1
+ description Port1
+!
+interface Gi1/0/2
+ description Port2
+!
+'@
+            $diff = @'
+interface Gi1/0/1
+ description Port1
+!
+'@
+            $result = Compare-ConfigSections -ReferenceConfig $ref -DifferenceConfig $diff
+            $result.OnlyInReferenceCount | Should Be 1
+            $result.OnlyInReference[0].SectionName | Should Match 'Gi1/0/2'
+        }
+
+        It 'identifies sections only in difference' {
+            $ref = @'
+interface Gi1/0/1
+ description Port1
+!
+'@
+            $diff = @'
+interface Gi1/0/1
+ description Port1
+!
+interface Gi1/0/3
+ description NewPort
+!
+'@
+            $result = Compare-ConfigSections -ReferenceConfig $ref -DifferenceConfig $diff
+            $result.OnlyInDifferenceCount | Should Be 1
+        }
+
+        It 'identifies unchanged sections' {
+            $config = @'
+interface Gi1/0/1
+ description Same
+!
+'@
+            $result = Compare-ConfigSections -ReferenceConfig $config -DifferenceConfig $config
+            $result.UnchangedSections | Should Be 1
+            $result.ModifiedSections | Should Be 0
+        }
+    }
+
+    Context 'New-ConfigDiffReport' {
+        It 'generates comprehensive report' {
+            $ref = "hostname SW-01`ninterface Gi1/0/1`n description Old"
+            $diff = "hostname SW-02`ninterface Gi1/0/1`n description New"
+            $report = New-ConfigDiffReport -ReferenceConfig $ref -DifferenceConfig $diff
+            $report.ReportID | Should Match '^DIFF-'
+            $report.Summary | Should Not BeNullOrEmpty
+            $report.TextDiff | Should Not BeNullOrEmpty
+            $report.SectionDiff | Should Not BeNullOrEmpty
+        }
+
+        It 'determines overall status correctly' {
+            $identical = "hostname SW-01"
+            $report = New-ConfigDiffReport -ReferenceConfig $identical -DifferenceConfig $identical
+            $report.OverallStatus | Should Be 'Identical'
+        }
+
+        It 'uses custom names' {
+            $report = New-ConfigDiffReport -ReferenceConfig 'a' -DifferenceConfig 'b' `
+                -ReferenceName 'Golden' -DifferenceName 'Device1'
+            $report.ReferenceName | Should Be 'Golden'
+            $report.DifferenceName | Should Be 'Device1'
+        }
+    }
+
+    Context 'Get-ConfigDrift' {
+        It 'compares multiple devices against baseline' {
+            $baseline = "hostname GOLDEN`nip domain-name test.local"
+            $devices = @{
+                'SW-01' = "hostname SW-01`nip domain-name test.local"
+                'SW-02' = "hostname SW-02`nip domain-name test.local"
+            }
+            $results = @(Get-ConfigDrift -BaselineConfig $baseline -DeviceConfigs $devices)
+            $results.Count | Should Be 2
+            $results[0].DeviceName | Should Not BeNullOrEmpty
+            $results[0].DriftScore | Should Not BeNullOrEmpty
+        }
+
+        It 'sorts by drift score descending' {
+            $baseline = "line1`nline2`nline3`nline4"
+            $devices = @{
+                'LowDrift' = "line1`nline2`nline3`nline4"
+                'HighDrift' = "different1`ndifferent2`ndifferent3`ndifferent4"
+            }
+            $results = @(Get-ConfigDrift -BaselineConfig $baseline -DeviceConfigs $devices)
+            $results[0].DriftScore | Should BeGreaterThan $results[1].DriftScore
+        }
+
+        It 'applies drift threshold' {
+            $baseline = "a`nb`nc`nd`ne`nf`ng`nh`ni`nj"
+            $devices = @{
+                'Device1' = "a`nb`nc`nd`ne`nf`ng`nh`ni`nX"  # 10% drift
+            }
+            $results = @(Get-ConfigDrift -BaselineConfig $baseline -DeviceConfigs $devices -DriftThreshold 5)
+            $results[0].HasDrift | Should Be $true
+        }
+
+        It 'assigns correct status' {
+            $baseline = "a"
+            $devices = @{
+                'Compliant' = "a"
+            }
+            $results = @(Get-ConfigDrift -BaselineConfig $baseline -DeviceConfigs $devices)
+            $results[0].Status | Should Be 'Compliant'
+        }
+    }
+
+    Context 'Export-ConfigDiffReport' {
+        BeforeAll {
+            $script:testReport = New-ConfigDiffReport `
+                -ReferenceConfig "hostname OLD`nip domain-name old.local" `
+                -DifferenceConfig "hostname NEW`nip domain-name new.local" `
+                -ReferenceName 'Baseline' -DifferenceName 'Current'
+        }
+
+        It 'exports to Text format' {
+            $output = Export-ConfigDiffReport -Report $testReport -Format Text
+            $output | Should Match 'CONFIGURATION DIFF REPORT'
+            $output | Should Match 'Baseline'
+            $output | Should Match 'Current'
+        }
+
+        It 'exports to Markdown format' {
+            $output = Export-ConfigDiffReport -Report $testReport -Format Markdown
+            $output | Should Match '# Configuration Diff Report'
+            $output | Should Match '\| Metric \| Value \|'
+        }
+
+        It 'exports to HTML format' {
+            $output = Export-ConfigDiffReport -Report $testReport -Format HTML
+            $output | Should Match '<html>'
+            $output | Should Match 'Config Diff:'
+        }
+
+        It 'exports to JSON format' {
+            $output = Export-ConfigDiffReport -Report $testReport -Format JSON
+            $json = $output | ConvertFrom-Json
+            $json.ReferenceName | Should Be 'Baseline'
+        }
+
+        It 'writes to file when OutputPath specified' {
+            $tempFile = Join-Path $env:TEMP 'diff-report-test.txt'
+            try {
+                $result = Export-ConfigDiffReport -Report $testReport -Format Text -OutputPath $tempFile
+                Test-Path $result | Should Be $true
+                $content = Get-Content -LiteralPath $result -Raw
+                $content | Should Match 'DIFF REPORT'
+            }
+            finally {
+                if (Test-Path $tempFile) { Remove-Item $tempFile }
+            }
+        }
+    }
+}
+
+#endregion
