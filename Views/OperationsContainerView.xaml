@@ -40,13 +40,13 @@
       </Style>
     </TabControl.Resources>
 
-    <TabItem Header="Changes" ToolTip="Change management and maintenance windows">
+    <TabItem Header="Changes" ToolTip="Change management and maintenance windows&#x0a;Related: Alerts tab for issue tracking">
       <ContentControl Name="ChangesSubHost"/>
     </TabItem>
-    <TabItem Header="Capacity" ToolTip="Capacity planning and utilization forecasting">
+    <TabItem Header="Capacity" ToolTip="Capacity planning and utilization forecasting&#x0a;Related: Interfaces tab for current utilization">
       <ContentControl Name="CapacitySubHost"/>
     </TabItem>
-    <TabItem Header="Log Analysis" ToolTip="Log pattern detection and event correlation">
+    <TabItem Header="Log Analysis" ToolTip="Log pattern detection and event correlation&#x0a;Related: Alerts tab for detected issues">
       <ContentControl Name="LogAnalysisSubHost"/>
     </TabItem>
   </TabControl>

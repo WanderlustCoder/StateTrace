@@ -40,16 +40,16 @@
       </Style>
     </TabControl.Resources>
 
-    <TabItem Header="Generator" ToolTip="Generate network documentation from templates">
+    <TabItem Header="Generator" ToolTip="Generate network documentation from templates&#x0a;Related: Summary tab for device data">
       <ContentControl Name="DocsSubHost"/>
     </TabItem>
-    <TabItem Header="Config Templates" ToolTip="Configuration templates and validation">
+    <TabItem Header="Config Templates" ToolTip="Configuration templates and validation&#x0a;Related: Interfaces tab for port configs">
       <ContentControl Name="ConfigSubHost"/>
     </TabItem>
-    <TabItem Header="Templates" ToolTip="Manage show command templates">
+    <TabItem Header="Templates" ToolTip="Manage show command templates&#x0a;Related: Cmd Reference for command syntax">
       <ContentControl Name="TemplatesSubHost"/>
     </TabItem>
-    <TabItem Header="Cmd Reference" ToolTip="Cross-vendor command reference and translation">
+    <TabItem Header="Cmd Reference" ToolTip="Cross-vendor command reference and translation&#x0a;Related: Templates for show commands">
       <ContentControl Name="CmdReferenceSubHost"/>
     </TabItem>
   </TabControl>

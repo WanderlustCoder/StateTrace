@@ -75,37 +75,37 @@
         <ColumnDefinition x:Name="CompareColumn" Width="0" />
       </Grid.ColumnDefinitions>
       <!-- Primary tabs occupy the first column -->
-      <TabControl Grid.Column="0">
-        <TabItem Header="Summary">
+      <TabControl Grid.Column="0" Name="MainTabControl">
+        <TabItem Header="Summary" ToolTip="Device overview and status summary (Ctrl+1)">
           <ContentControl Name="SummaryHost"/>
         </TabItem>
-        <TabItem Header="Interfaces">
+        <TabItem Header="Interfaces" ToolTip="Interface details and port status (Ctrl+2)">
           <ContentControl Name="InterfacesHost"/>
         </TabItem>
-        <TabItem Header="SPAN">
+        <TabItem Header="SPAN" ToolTip="Spanning tree protocol analysis (Ctrl+3)">
           <ContentControl Name="SpanHost"/>
         </TabItem>
-        <TabItem Header="Search Interfaces">
+        <TabItem Header="Search" ToolTip="Cross-device interface search (Ctrl+4)">
           <ContentControl Name="SearchInterfacesHost"/>
         </TabItem>
         <!-- Alerts tab displays detected issues or anomalies across all interfaces -->
-        <TabItem Header="Alerts">
+        <TabItem Header="Alerts" ToolTip="Issue detection and anomaly alerts (Ctrl+5)">
           <ContentControl Name="AlertsHost"/>
         </TabItem>
         <!-- Documentation container: Generator, Config Templates, Templates, Cmd Reference -->
-        <TabItem Header="Documentation" ToolTip="Documentation generator, configuration templates, and command reference">
+        <TabItem Header="📄 Docs" ToolTip="Documentation (Ctrl+6)&#x0a;• Generator - Template-based documentation&#x0a;• Config Templates - Configuration validation&#x0a;• Templates - Show command templates&#x0a;• Cmd Reference - Cross-vendor commands">
           <ContentControl Name="DocumentationContainerHost"/>
         </TabItem>
         <!-- Infrastructure container: Topology, Cables, IPAM, Inventory -->
-        <TabItem Header="Infrastructure" ToolTip="Network topology, cable documentation, IP management, and asset inventory">
+        <TabItem Header="🏗 Infra" ToolTip="Infrastructure (Ctrl+7)&#x0a;• Topology - Network visualization&#x0a;• Cables - Patch panel tracking&#x0a;• IPAM - IP/VLAN management&#x0a;• Inventory - Asset tracking">
           <ContentControl Name="InfrastructureContainerHost"/>
         </TabItem>
         <!-- Operations container: Changes, Capacity, Log Analysis -->
-        <TabItem Header="Operations" ToolTip="Change management, capacity planning, and log analysis">
+        <TabItem Header="📊 Ops" ToolTip="Operations (Ctrl+8)&#x0a;• Changes - Maintenance windows&#x0a;• Capacity - Utilization forecasting&#x0a;• Log Analysis - Pattern detection">
           <ContentControl Name="OperationsContainerHost"/>
         </TabItem>
         <!-- Tools container: Troubleshoot, Calculator -->
-        <TabItem Header="Tools" ToolTip="Troubleshooting decision trees and network calculators">
+        <TabItem Header="🛠 Tools" ToolTip="Tools (Ctrl+9)&#x0a;• Troubleshoot - Decision trees&#x0a;• Calculator - Subnet/VLAN/ACL">
           <ContentControl Name="ToolsContainerHost"/>
         </TabItem>
         <!-- Add more tabs here -->

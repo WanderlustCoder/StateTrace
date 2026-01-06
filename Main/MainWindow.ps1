@@ -3481,6 +3481,209 @@ $window.Add_Closing({
     } catch {}
 })
 
+# 7c) Quick Navigation Dialog helper
+function Show-QuickNavigationDialog {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][System.Windows.Window]$ParentWindow
+    )
+
+    # Define navigation items: main tabs and sub-tabs
+    $allItems = @(
+        [PSCustomObject]@{ Shortcut = 'Ctrl+1'; Display = 'Summary'; MainTab = 0; SubTab = -1 }
+        [PSCustomObject]@{ Shortcut = 'Ctrl+2'; Display = 'Interfaces'; MainTab = 1; SubTab = -1 }
+        [PSCustomObject]@{ Shortcut = 'Ctrl+3'; Display = 'SPAN'; MainTab = 2; SubTab = -1 }
+        [PSCustomObject]@{ Shortcut = 'Ctrl+4'; Display = 'Search'; MainTab = 3; SubTab = -1 }
+        [PSCustomObject]@{ Shortcut = 'Ctrl+5'; Display = 'Alerts'; MainTab = 4; SubTab = -1 }
+        [PSCustomObject]@{ Shortcut = 'Ctrl+6'; Display = 'Docs > Generator'; MainTab = 5; SubTab = 0 }
+        [PSCustomObject]@{ Shortcut = ''; Display = 'Docs > Config Templates'; MainTab = 5; SubTab = 1 }
+        [PSCustomObject]@{ Shortcut = ''; Display = 'Docs > Templates'; MainTab = 5; SubTab = 2 }
+        [PSCustomObject]@{ Shortcut = ''; Display = 'Docs > Cmd Reference'; MainTab = 5; SubTab = 3 }
+        [PSCustomObject]@{ Shortcut = 'Ctrl+7'; Display = 'Infra > Topology'; MainTab = 6; SubTab = 0 }
+        [PSCustomObject]@{ Shortcut = ''; Display = 'Infra > Cables'; MainTab = 6; SubTab = 1 }
+        [PSCustomObject]@{ Shortcut = ''; Display = 'Infra > IPAM'; MainTab = 6; SubTab = 2 }
+        [PSCustomObject]@{ Shortcut = ''; Display = 'Infra > Inventory'; MainTab = 6; SubTab = 3 }
+        [PSCustomObject]@{ Shortcut = 'Ctrl+8'; Display = 'Ops > Changes'; MainTab = 7; SubTab = 0 }
+        [PSCustomObject]@{ Shortcut = ''; Display = 'Ops > Capacity'; MainTab = 7; SubTab = 1 }
+        [PSCustomObject]@{ Shortcut = ''; Display = 'Ops > Log Analysis'; MainTab = 7; SubTab = 2 }
+        [PSCustomObject]@{ Shortcut = 'Ctrl+9'; Display = 'Tools > Troubleshoot'; MainTab = 8; SubTab = 0 }
+        [PSCustomObject]@{ Shortcut = ''; Display = 'Tools > Calculator'; MainTab = 8; SubTab = 1 }
+    )
+
+    # Load dialog XAML
+    $dialogXaml = Join-Path $scriptDir '..\Views\QuickNavigationDialog.xaml'
+    if (-not (Test-Path $dialogXaml)) {
+        Write-Warning "QuickNavigationDialog.xaml not found"
+        return
+    }
+
+    try {
+        $xamlContent = Get-Content -Path $dialogXaml -Raw
+        $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
+        $dialog = [System.Windows.Markup.XamlReader]::Load($reader)
+        $dialog.Owner = $ParentWindow
+
+        # Get controls
+        $searchBox = $dialog.FindName('SearchBox')
+        $navList = $dialog.FindName('NavigationList')
+
+        # Initialize list
+        $navList.ItemsSource = $allItems
+        $navList.SelectedIndex = 0
+
+        # Filter on text change
+        $searchBox.Add_TextChanged({
+            param($s, $ev)
+            $filter = $searchBox.Text.Trim().ToLower()
+            if ([string]::IsNullOrEmpty($filter)) {
+                $navList.ItemsSource = $allItems
+            } else {
+                $filtered = @($allItems | Where-Object { $_.Display.ToLower().Contains($filter) })
+                $navList.ItemsSource = $filtered
+            }
+            if ($navList.Items.Count -gt 0) {
+                $navList.SelectedIndex = 0
+            }
+        })
+
+        # Navigate on Enter or double-click
+        $navigateAction = {
+            $selected = $navList.SelectedItem
+            if ($selected) {
+                $mainTab = $ParentWindow.FindName('MainTabControl')
+                if ($mainTab -and $selected.MainTab -ge 0) {
+                    $mainTab.SelectedIndex = $selected.MainTab
+
+                    # Handle sub-tab navigation
+                    if ($selected.SubTab -ge 0) {
+                        $containerNames = @{
+                            5 = 'DocumentationContainerHost'
+                            6 = 'InfrastructureContainerHost'
+                            7 = 'OperationsContainerHost'
+                            8 = 'ToolsContainerHost'
+                        }
+                        $tabControlNames = @{
+                            5 = 'DocumentationTabControl'
+                            6 = 'InfrastructureTabControl'
+                            7 = 'OperationsTabControl'
+                            8 = 'ToolsTabControl'
+                        }
+                        $containerName = $containerNames[$selected.MainTab]
+                        $tabControlName = $tabControlNames[$selected.MainTab]
+                        if ($containerName -and $tabControlName) {
+                            $containerHost = $ParentWindow.FindName($containerName)
+                            if ($containerHost -and $containerHost.Content) {
+                                $subTabControl = $containerHost.Content.FindName($tabControlName)
+                                if ($subTabControl) {
+                                    $subTabControl.SelectedIndex = $selected.SubTab
+                                }
+                            }
+                        }
+                    }
+                }
+                $dialog.Close()
+            }
+        }
+
+        $searchBox.Add_KeyDown({
+            param($s, $ev)
+            switch ($ev.Key) {
+                'Return' {
+                    & $navigateAction
+                    $ev.Handled = $true
+                }
+                'Down' {
+                    if ($navList.SelectedIndex -lt ($navList.Items.Count - 1)) {
+                        $navList.SelectedIndex++
+                    }
+                    $ev.Handled = $true
+                }
+                'Up' {
+                    if ($navList.SelectedIndex -gt 0) {
+                        $navList.SelectedIndex--
+                    }
+                    $ev.Handled = $true
+                }
+                'Escape' {
+                    $dialog.Close()
+                    $ev.Handled = $true
+                }
+            }
+        })
+
+        $navList.Add_MouseDoubleClick({
+            param($s, $ev)
+            & $navigateAction
+        })
+
+        $navList.Add_KeyDown({
+            param($s, $ev)
+            if ($ev.Key -eq 'Return') {
+                & $navigateAction
+                $ev.Handled = $true
+            } elseif ($ev.Key -eq 'Escape') {
+                $dialog.Close()
+                $ev.Handled = $true
+            }
+        })
+
+        # Close on Escape at window level
+        $dialog.Add_KeyDown({
+            param($s, $ev)
+            if ($ev.Key -eq 'Escape') {
+                $dialog.Close()
+                $ev.Handled = $true
+            }
+        })
+
+        # Focus search box when dialog opens
+        $dialog.Add_Loaded({
+            $searchBox.Focus()
+        })
+
+        $null = $dialog.ShowDialog()
+    } catch {
+        Write-Warning ("Quick navigation dialog failed: {0}" -f $_.Exception.Message)
+    }
+}
+
+# 7d) Keyboard shortcuts - Ctrl+1-9 for tab switching, Ctrl+J for quick navigation
+$window.Add_PreviewKeyDown({
+    param($sender, $e)
+
+    # Only handle when Ctrl is pressed
+    if (-not [System.Windows.Input.Keyboard]::Modifiers.HasFlag([System.Windows.Input.ModifierKeys]::Control)) {
+        return
+    }
+
+    $tabControl = $sender.FindName('MainTabControl')
+    if (-not $tabControl) { return }
+
+    $tabIndex = -1
+    switch ($e.Key) {
+        'D1' { $tabIndex = 0 }  # Ctrl+1: Summary
+        'D2' { $tabIndex = 1 }  # Ctrl+2: Interfaces
+        'D3' { $tabIndex = 2 }  # Ctrl+3: SPAN
+        'D4' { $tabIndex = 3 }  # Ctrl+4: Search
+        'D5' { $tabIndex = 4 }  # Ctrl+5: Alerts
+        'D6' { $tabIndex = 5 }  # Ctrl+6: Docs
+        'D7' { $tabIndex = 6 }  # Ctrl+7: Infra
+        'D8' { $tabIndex = 7 }  # Ctrl+8: Ops
+        'D9' { $tabIndex = 8 }  # Ctrl+9: Tools
+        'J' {
+            # Ctrl+J: Show quick navigation menu
+            Show-QuickNavigationDialog -ParentWindow $sender
+            $e.Handled = $true
+            return
+        }
+    }
+
+    if ($tabIndex -ge 0 -and $tabIndex -lt $tabControl.Items.Count) {
+        $tabControl.SelectedIndex = $tabIndex
+        $e.Handled = $true
+    }
+})
+
 # 8) Show window
 $window.ShowDialog() | Out-Null
 

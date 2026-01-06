@@ -40,10 +40,10 @@
       </Style>
     </TabControl.Resources>
 
-    <TabItem Header="Troubleshoot" ToolTip="Guided troubleshooting decision trees">
+    <TabItem Header="Troubleshoot" ToolTip="Guided troubleshooting decision trees&#x0a;Related: Alerts tab for issue context">
       <ContentControl Name="TroubleshootSubHost"/>
     </TabItem>
-    <TabItem Header="Calculator" ToolTip="Network calculators for subnets, VLANs, bandwidth">
+    <TabItem Header="Calculator" ToolTip="Network calculators for subnets, VLANs, bandwidth&#x0a;Related: IPAM (Infra) for IP planning">
       <ContentControl Name="CalculatorSubHost"/>
     </TabItem>
   </TabControl>
