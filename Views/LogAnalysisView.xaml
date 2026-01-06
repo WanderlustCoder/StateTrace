@@ -210,25 +210,38 @@
         </Grid>
 
         <!-- Log Entries DataGrid -->
-        <DataGrid Name="LogEntriesGrid" Grid.Row="1"
-                  AutoGenerateColumns="False"
-                  IsReadOnly="True"
-                  SelectionMode="Extended"
-                  GridLinesVisibility="Horizontal"
-                  HeadersVisibility="Column"
-                  Background="{DynamicResource Theme.Input.Background}"
-                  Foreground="{DynamicResource Theme.Input.Text}"
-                  BorderBrush="{DynamicResource Theme.Input.Border}"
-                  RowBackground="{DynamicResource Theme.Surface.Primary}"
-                  AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}">
-          <DataGrid.Columns>
-            <DataGridTextColumn Header="Time" Binding="{Binding TimestampString}" Width="120"/>
-            <DataGridTextColumn Header="Sev" Binding="{Binding Severity}" Width="35"/>
-            <DataGridTextColumn Header="Device" Binding="{Binding Hostname}" Width="100"/>
-            <DataGridTextColumn Header="Facility" Binding="{Binding Facility}" Width="80"/>
-            <DataGridTextColumn Header="Message" Binding="{Binding Message}" Width="*"/>
-          </DataGrid.Columns>
-        </DataGrid>
+        <Grid Grid.Row="1">
+          <DataGrid Name="LogEntriesGrid"
+                    AutoGenerateColumns="False"
+                    IsReadOnly="True"
+                    SelectionMode="Extended"
+                    GridLinesVisibility="Horizontal"
+                    HeadersVisibility="Column"
+                    Background="{DynamicResource Theme.Input.Background}"
+                    Foreground="{DynamicResource Theme.Input.Text}"
+                    BorderBrush="{DynamicResource Theme.Input.Border}"
+                    RowBackground="{DynamicResource Theme.Surface.Primary}"
+                    AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Time" Binding="{Binding TimestampString}" Width="120"/>
+              <DataGridTextColumn Header="Sev" Binding="{Binding Severity}" Width="35"/>
+              <DataGridTextColumn Header="Device" Binding="{Binding Hostname}" Width="100"/>
+              <DataGridTextColumn Header="Facility" Binding="{Binding Facility}" Width="80"/>
+              <DataGridTextColumn Header="Message" Binding="{Binding Message}" Width="*"/>
+            </DataGrid.Columns>
+          </DataGrid>
+
+          <Border Name="LogsEmptyStatePanel" HorizontalAlignment="Center" VerticalAlignment="Center"
+                  Background="{DynamicResource Theme.Surface.Secondary}" Padding="30,20" CornerRadius="8"
+                  Visibility="Visible">
+            <StackPanel>
+              <TextBlock Text="No Logs Loaded" FontSize="18" FontWeight="Bold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Center"/>
+              <TextBlock Text="Import a log file or paste log entries to get started"
+                         Foreground="{DynamicResource Theme.Text.Muted}" HorizontalAlignment="Center" Margin="0,5,0,0"/>
+            </StackPanel>
+          </Border>
+        </Grid>
 
         <!-- Selected Entry Details -->
         <Border Grid.Row="2" Margin="0,10,0,0" Padding="10"

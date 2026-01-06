@@ -195,108 +195,120 @@
                   ToolTip="Clear filter"/>
         </StackPanel>
 
-        <DataGrid Name="InterfacesGrid"
-                  Grid.Row="2"
-                  AutoGenerateColumns="False"
-                  SelectionMode="Extended"
-                  SelectionUnit="CellOrRowHeader"
-                  Margin="5,0,5,5"
-                  CanUserAddRows="False"
-                  IsReadOnly="False"
-                  Style="{DynamicResource PrimaryDataGridStyle}"
-                  ScrollViewer.VerticalScrollBarVisibility="Auto"
-                  ScrollViewer.HorizontalScrollBarVisibility="Auto"
-                  VirtualizingPanel.IsVirtualizing="True"
-                  VirtualizingPanel.VirtualizationMode="Recycling"
-                  EnableRowVirtualization="True"
-                  EnableColumnVirtualization="True"
-                  ScrollViewer.CanContentScroll="True"
-                  VirtualizingPanel.ScrollUnit="Pixel">
-          <DataGrid.RowStyle>
-            <DynamicResource ResourceKey="PrimaryDataGridRowStyle"/>
-          </DataGrid.RowStyle>
-          <DataGrid.Columns>
+        <Grid Grid.Row="2">
+          <DataGrid Name="InterfacesGrid"
+                    AutoGenerateColumns="False"
+                    SelectionMode="Extended"
+                    SelectionUnit="CellOrRowHeader"
+                    Margin="5,0,5,5"
+                    CanUserAddRows="False"
+                    IsReadOnly="False"
+                    Style="{DynamicResource PrimaryDataGridStyle}"
+                    ScrollViewer.VerticalScrollBarVisibility="Auto"
+                    ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                    VirtualizingPanel.IsVirtualizing="True"
+                    VirtualizingPanel.VirtualizationMode="Recycling"
+                    EnableRowVirtualization="True"
+                    EnableColumnVirtualization="True"
+                    ScrollViewer.CanContentScroll="True"
+                    VirtualizingPanel.ScrollUnit="Pixel">
+            <DataGrid.RowStyle>
+              <DynamicResource ResourceKey="PrimaryDataGridRowStyle"/>
+            </DataGrid.RowStyle>
+            <DataGrid.Columns>
 
-            <DataGridCheckBoxColumn Width="30"
-                                    Header=""
-                                    IsThreeState="False">
-              <DataGridCheckBoxColumn.Binding>
-                <Binding Path="IsSelected" Mode="TwoWay" UpdateSourceTrigger="PropertyChanged"/>
-              </DataGridCheckBoxColumn.Binding>
-              <DataGridCheckBoxColumn.ElementStyle>
-                <Style TargetType="CheckBox">
-                  <Setter Property="HorizontalAlignment" Value="Center"/>
-                  <Setter Property="VerticalAlignment"   Value="Center"/>
-                  <Setter Property="Focusable"           Value="False"/>
-                </Style>
-              </DataGridCheckBoxColumn.ElementStyle>
-              <DataGridCheckBoxColumn.EditingElementStyle>
-                <Style TargetType="CheckBox">
-                  <Setter Property="HorizontalAlignment" Value="Center"/>
-                  <Setter Property="VerticalAlignment"   Value="Center"/>
-                  <Setter Property="Focusable"           Value="False"/>
-                </Style>
-              </DataGridCheckBoxColumn.EditingElementStyle>
-            </DataGridCheckBoxColumn>
+              <DataGridCheckBoxColumn Width="30"
+                                      Header=""
+                                      IsThreeState="False">
+                <DataGridCheckBoxColumn.Binding>
+                  <Binding Path="IsSelected" Mode="TwoWay" UpdateSourceTrigger="PropertyChanged"/>
+                </DataGridCheckBoxColumn.Binding>
+                <DataGridCheckBoxColumn.ElementStyle>
+                  <Style TargetType="CheckBox">
+                    <Setter Property="HorizontalAlignment" Value="Center"/>
+                    <Setter Property="VerticalAlignment"   Value="Center"/>
+                    <Setter Property="Focusable"           Value="False"/>
+                  </Style>
+                </DataGridCheckBoxColumn.ElementStyle>
+                <DataGridCheckBoxColumn.EditingElementStyle>
+                  <Style TargetType="CheckBox">
+                    <Setter Property="HorizontalAlignment" Value="Center"/>
+                    <Setter Property="VerticalAlignment"   Value="Center"/>
+                    <Setter Property="Focusable"           Value="False"/>
+                  </Style>
+                </DataGridCheckBoxColumn.EditingElementStyle>
+              </DataGridCheckBoxColumn>
 
-            <DataGridTemplateColumn Header="Port">
-              <DataGridTemplateColumn.CellTemplate>
-                <DataTemplate>
-                  <TextBlock Text="{Binding Port}"
-                             Style="{StaticResource PortTextStyle}">
-                    <TextBlock.ToolTip>
-                      <ToolTip Content="{Binding ToolTip}"/>
-                    </TextBlock.ToolTip>
-                  </TextBlock>
-                </DataTemplate>
-              </DataGridTemplateColumn.CellTemplate>
-            </DataGridTemplateColumn>
+              <DataGridTemplateColumn Header="Port">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate>
+                    <TextBlock Text="{Binding Port}"
+                               Style="{StaticResource PortTextStyle}">
+                      <TextBlock.ToolTip>
+                        <ToolTip Content="{Binding ToolTip}"/>
+                      </TextBlock.ToolTip>
+                    </TextBlock>
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
 
-            <DataGridTextColumn Header="Name"
-                                 Binding="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+              <DataGridTextColumn Header="Name"
+                                   Binding="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
 
-            <DataGridTemplateColumn Header="Status">
-              <DataGridTemplateColumn.CellTemplate>
-                <DataTemplate>
-                  <TextBlock Text="{Binding Status}"
-                             Style="{StaticResource StatusTextStyle}"/>
-                </DataTemplate>
-              </DataGridTemplateColumn.CellTemplate>
-            </DataGridTemplateColumn>
+              <DataGridTemplateColumn Header="Status">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate>
+                    <TextBlock Text="{Binding Status}"
+                               Style="{StaticResource StatusTextStyle}"/>
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
 
-            <DataGridTextColumn Header="VLAN"
-                                 Binding="{Binding VLAN, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
+              <DataGridTextColumn Header="VLAN"
+                                   Binding="{Binding VLAN, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
 
-            <DataGridTextColumn Header="Duplex" Binding="{Binding Duplex}">
-              <DataGridTextColumn.ElementStyle>
-                <StaticResource ResourceKey="DuplexTextStyle"/>
-              </DataGridTextColumn.ElementStyle>
-            </DataGridTextColumn>
+              <DataGridTextColumn Header="Duplex" Binding="{Binding Duplex}">
+                <DataGridTextColumn.ElementStyle>
+                  <StaticResource ResourceKey="DuplexTextStyle"/>
+                </DataGridTextColumn.ElementStyle>
+              </DataGridTextColumn>
 
-            <DataGridTextColumn Header="Speed" Binding="{Binding Speed}"/>
+              <DataGridTextColumn Header="Speed" Binding="{Binding Speed}"/>
 
-            <DataGridTextColumn Header="Type" Binding="{Binding Type}"/>
+              <DataGridTextColumn Header="Type" Binding="{Binding Type}"/>
 
-            <DataGridTextColumn Header="LearnedMACs" Binding="{Binding LearnedMACs}" Width="160">
-              <DataGridTextColumn.ElementStyle>
-                <Style TargetType="TextBlock">
-                  <Setter Property="TextWrapping" Value="NoWrap"/>
-                  <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
-                </Style>
-              </DataGridTextColumn.ElementStyle>
-            </DataGridTextColumn>
+              <DataGridTextColumn Header="LearnedMACs" Binding="{Binding LearnedMACs}" Width="160">
+                <DataGridTextColumn.ElementStyle>
+                  <Style TargetType="TextBlock">
+                    <Setter Property="TextWrapping" Value="NoWrap"/>
+                    <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                  </Style>
+                </DataGridTextColumn.ElementStyle>
+              </DataGridTextColumn>
 
-            <DataGridTextColumn Header="AuthState" Binding="{Binding AuthState}">
-              <DataGridTextColumn.ElementStyle>
-                <StaticResource ResourceKey="AuthStateTextStyle"/>
-              </DataGridTextColumn.ElementStyle>
-            </DataGridTextColumn>
+              <DataGridTextColumn Header="AuthState" Binding="{Binding AuthState}">
+                <DataGridTextColumn.ElementStyle>
+                  <StaticResource ResourceKey="AuthStateTextStyle"/>
+                </DataGridTextColumn.ElementStyle>
+              </DataGridTextColumn>
 
-            <DataGridTextColumn Header="AuthMode" Binding="{Binding AuthMode}"/>
+              <DataGridTextColumn Header="AuthMode" Binding="{Binding AuthMode}"/>
 
-            <DataGridTextColumn Header="AuthClientMAC" Binding="{Binding AuthClientMAC}"/>
-          </DataGrid.Columns>
-        </DataGrid>
+              <DataGridTextColumn Header="AuthClientMAC" Binding="{Binding AuthClientMAC}"/>
+            </DataGrid.Columns>
+          </DataGrid>
+
+          <Border Name="InterfacesEmptyStatePanel" HorizontalAlignment="Center" VerticalAlignment="Center"
+                  Background="{DynamicResource Theme.Surface.Secondary}" Padding="30,20" CornerRadius="8"
+                  Visibility="Collapsed">
+            <StackPanel>
+              <TextBlock Text="No Interfaces" FontSize="18" FontWeight="Bold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Center"/>
+              <TextBlock Text="Select a device from the sidebar to view interfaces"
+                         Foreground="{DynamicResource Theme.Text.Muted}" HorizontalAlignment="Center" Margin="0,5,0,0"/>
+            </StackPanel>
+          </Border>
+        </Grid>
 
         <Grid Grid.Row="3" Margin="5,4,5,0">
           <Grid.RowDefinitions>

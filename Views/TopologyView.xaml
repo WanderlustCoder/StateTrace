@@ -97,23 +97,61 @@
                     </ScrollViewer>
 
                     <!-- Empty state message -->
-                    <StackPanel Name="EmptyStatePanel" HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <TextBlock Text="No Topology Data" FontSize="18" FontWeight="Bold"
-                                   Foreground="{DynamicResource Theme.Text.Secondary}" HorizontalAlignment="Center"/>
-                        <TextBlock Text="Click 'Discover' to build topology from interface data"
-                                   Foreground="{DynamicResource Theme.Text.Secondary}" HorizontalAlignment="Center" Margin="0,5,0,0"/>
-                        <TextBlock Text="or load a saved layout"
-                                   Foreground="{DynamicResource Theme.Text.Secondary}" HorizontalAlignment="Center"/>
-                    </StackPanel>
+                    <Border Name="EmptyStatePanel" HorizontalAlignment="Center" VerticalAlignment="Center"
+                            Background="{DynamicResource Theme.Surface.Secondary}" Padding="30,20" CornerRadius="8">
+                        <StackPanel>
+                            <TextBlock Text="No Topology Data" FontSize="18" FontWeight="Bold"
+                                       Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Center"/>
+                            <TextBlock Text="Click 'Discover' to build topology from interface data"
+                                       Foreground="{DynamicResource Theme.Text.Muted}" HorizontalAlignment="Center" Margin="0,5,0,0"/>
+                            <TextBlock Text="or load a saved layout"
+                                       Foreground="{DynamicResource Theme.Text.Muted}" HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
                 </Grid>
             </Border>
 
             <!-- Right sidebar with details and tools -->
-            <TabControl Grid.Column="1" Style="{DynamicResource SidebarTabControlStyle}">
+            <TabControl Grid.Column="1" Background="{DynamicResource Theme.Surface.Primary}">
+                <TabControl.Resources>
+                    <Style TargetType="TabItem">
+                        <Setter Property="Background" Value="{DynamicResource Theme.Surface.Primary}"/>
+                        <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Inverse}"/>
+                        <Setter Property="BorderBrush" Value="{DynamicResource Theme.Border.Primary}"/>
+                        <Setter Property="Padding" Value="12,8"/>
+                        <Setter Property="Margin" Value="0,0,2,0"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="TabItem">
+                                    <Border Name="Border" Background="{TemplateBinding Background}"
+                                            BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1,1,1,0"
+                                            Padding="{TemplateBinding Padding}" CornerRadius="4,4,0,0">
+                                        <ContentPresenter ContentSource="Header" HorizontalAlignment="Center"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter TargetName="Border" Property="Background" Value="{DynamicResource Theme.Surface.Secondary}"/>
+                                            <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
+                                            <Setter Property="FontWeight" Value="SemiBold"/>
+                                        </Trigger>
+                                        <MultiTrigger>
+                                            <MultiTrigger.Conditions>
+                                                <Condition Property="IsMouseOver" Value="True"/>
+                                                <Condition Property="IsSelected" Value="False"/>
+                                            </MultiTrigger.Conditions>
+                                            <Setter TargetName="Border" Property="Background" Value="{DynamicResource Theme.Button.Secondary.HoverBackground}"/>
+                                            <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Inverse}"/>
+                                        </MultiTrigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </TabControl.Resources>
 
                 <!-- Details Tab -->
                 <TabItem Header="Details">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Background="{DynamicResource Theme.Surface.Secondary}">
                         <StackPanel Margin="10">
                             <TextBlock Text="Selected Device" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
 
@@ -168,7 +206,7 @@
 
                 <!-- Impact Analysis Tab -->
                 <TabItem Header="Impact">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Background="{DynamicResource Theme.Surface.Secondary}">
                         <StackPanel Margin="10">
                             <TextBlock Text="Impact Analysis" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
 
@@ -209,7 +247,7 @@
 
                 <!-- Layouts Tab -->
                 <TabItem Header="Layouts">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Background="{DynamicResource Theme.Surface.Secondary}">
                         <StackPanel Margin="10">
                             <TextBlock Text="Saved Layouts" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
 
@@ -219,7 +257,7 @@
 
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,15">
                                 <Button Name="LoadLayoutButton" Content="Load" Style="{DynamicResource SecondaryButtonStyle}" Margin="0,0,5,0"/>
-                                <Button Name="DeleteLayoutButton" Content="Delete" Style="{DynamicResource SecondaryButtonStyle}"/>
+                                <Button Name="DeleteLayoutButton" Content="Delete" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Delete this saved layout permanently"/>
                             </StackPanel>
 
                             <TextBlock Text="Save Current Layout" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
@@ -231,7 +269,7 @@
 
                 <!-- Export Tab -->
                 <TabItem Header="Export">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Background="{DynamicResource Theme.Surface.Secondary}">
                         <StackPanel Margin="10">
                             <TextBlock Text="Export Diagram" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
 
@@ -264,62 +302,62 @@
 
                 <!-- Legend Tab -->
                 <TabItem Header="Legend">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" Background="{DynamicResource Theme.Surface.Secondary}">
                         <StackPanel Margin="10">
                             <TextBlock Text="Device Roles" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
 
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-                                <Ellipse Width="16" Height="16" Fill="#E74C3C" Margin="0,0,10,0"/>
+                                <Ellipse Width="16" Height="16" Fill="{DynamicResource Theme.Status.Danger}" Margin="0,0,10,0"/>
                                 <TextBlock Text="Core" Foreground="{DynamicResource Theme.Text.Primary}"/>
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-                                <Ellipse Width="16" Height="16" Fill="#F39C12" Margin="0,0,10,0"/>
+                                <Ellipse Width="16" Height="16" Fill="{DynamicResource Theme.Status.Warning}" Margin="0,0,10,0"/>
                                 <TextBlock Text="Distribution" Foreground="{DynamicResource Theme.Text.Primary}"/>
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-                                <Ellipse Width="16" Height="16" Fill="#27AE60" Margin="0,0,10,0"/>
+                                <Ellipse Width="16" Height="16" Fill="{DynamicResource Theme.Status.Success}" Margin="0,0,10,0"/>
                                 <TextBlock Text="Access" Foreground="{DynamicResource Theme.Text.Primary}"/>
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-                                <Ellipse Width="16" Height="16" Fill="#9B59B6" Margin="0,0,10,0"/>
+                                <Ellipse Width="16" Height="16" Fill="{DynamicResource Theme.Template.Purple}" Margin="0,0,10,0"/>
                                 <TextBlock Text="Router" Foreground="{DynamicResource Theme.Text.Primary}"/>
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-                                <Ellipse Width="16" Height="16" Fill="#C0392B" Margin="0,0,10,0"/>
+                                <Ellipse Width="16" Height="16" Fill="{DynamicResource Theme.Template.Red}" Margin="0,0,10,0"/>
                                 <TextBlock Text="Firewall" Foreground="{DynamicResource Theme.Text.Primary}"/>
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-                                <Ellipse Width="16" Height="16" Fill="#3498DB" Margin="0,0,10,0"/>
+                                <Ellipse Width="16" Height="16" Fill="{DynamicResource Theme.Status.Info}" Margin="0,0,10,0"/>
                                 <TextBlock Text="Wireless" Foreground="{DynamicResource Theme.Text.Primary}"/>
                             </StackPanel>
 
                             <TextBlock Text="Link Types" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,20,0,10"/>
 
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-                                <Line X1="0" Y1="8" X2="30" Y2="8" Stroke="#666666" StrokeThickness="2" Margin="0,0,10,0"/>
+                                <Line X1="0" Y1="8" X2="30" Y2="8" Stroke="{DynamicResource Theme.Status.Neutral}" StrokeThickness="2" Margin="0,0,10,0"/>
                                 <TextBlock Text="Ethernet" Foreground="{DynamicResource Theme.Text.Primary}"/>
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-                                <Line X1="0" Y1="8" X2="30" Y2="8" Stroke="#E74C3C" StrokeThickness="2" StrokeDashArray="5,5" Margin="0,0,10,0"/>
+                                <Line X1="0" Y1="8" X2="30" Y2="8" Stroke="{DynamicResource Theme.Status.Danger}" StrokeThickness="2" StrokeDashArray="5,5" Margin="0,0,10,0"/>
                                 <TextBlock Text="WAN" Foreground="{DynamicResource Theme.Text.Primary}"/>
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-                                <Line X1="0" Y1="8" X2="30" Y2="8" Stroke="#666666" StrokeThickness="4" Margin="0,0,10,0"/>
+                                <Line X1="0" Y1="8" X2="30" Y2="8" Stroke="{DynamicResource Theme.Status.Neutral}" StrokeThickness="4" Margin="0,0,10,0"/>
                                 <TextBlock Text="Aggregate/LAG" Foreground="{DynamicResource Theme.Text.Primary}"/>
                             </StackPanel>
 
                             <TextBlock Text="Status" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,20,0,10"/>
 
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-                                <Ellipse Width="12" Height="12" Fill="#27AE60" Stroke="#1E8449" StrokeThickness="2" Margin="0,0,10,0"/>
+                                <Ellipse Width="12" Height="12" Fill="{DynamicResource Theme.Status.Success}" Stroke="{DynamicResource Theme.Template.Green}" StrokeThickness="2" Margin="0,0,10,0"/>
                                 <TextBlock Text="Active" Foreground="{DynamicResource Theme.Text.Primary}"/>
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-                                <Ellipse Width="12" Height="12" Fill="#E74C3C" Stroke="#C0392B" StrokeThickness="2" Margin="0,0,10,0"/>
+                                <Ellipse Width="12" Height="12" Fill="{DynamicResource Theme.Status.Danger}" Stroke="{DynamicResource Theme.Template.Red}" StrokeThickness="2" Margin="0,0,10,0"/>
                                 <TextBlock Text="Down/Failed" Foreground="{DynamicResource Theme.Text.Primary}"/>
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-                                <Ellipse Width="12" Height="12" Fill="#F39C12" Stroke="#D68910" StrokeThickness="2" Margin="0,0,10,0"/>
+                                <Ellipse Width="12" Height="12" Fill="{DynamicResource Theme.Status.Warning}" Stroke="{DynamicResource Theme.Status.Warning}" StrokeThickness="2" Margin="0,0,10,0"/>
                                 <TextBlock Text="Warning" Foreground="{DynamicResource Theme.Text.Primary}"/>
                             </StackPanel>
                         </StackPanel>

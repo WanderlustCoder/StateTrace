@@ -33,7 +33,7 @@
       <Border Grid.Column="1" Background="{DynamicResource Theme.Surface.Secondary}" CornerRadius="5" Padding="10" Margin="5,0">
         <StackPanel>
           <TextBlock Text="In Progress" Style="{DynamicResource SubtitleStyle}" Foreground="{DynamicResource Theme.Text.Secondary}"/>
-          <TextBlock Name="InProgressCount" Text="0" FontSize="28" FontWeight="Bold" Foreground="#2196F3"/>
+          <TextBlock Name="InProgressCount" Text="0" FontSize="28" FontWeight="Bold" Foreground="{DynamicResource Theme.Status.Info}"/>
         </StackPanel>
       </Border>
 
@@ -41,7 +41,7 @@
       <Border Grid.Column="2" Background="{DynamicResource Theme.Surface.Secondary}" CornerRadius="5" Padding="10" Margin="5,0">
         <StackPanel>
           <TextBlock Text="Pending Approval" Style="{DynamicResource SubtitleStyle}" Foreground="{DynamicResource Theme.Text.Secondary}"/>
-          <TextBlock Name="PendingApprovalCount" Text="0" FontSize="28" FontWeight="Bold" Foreground="#FF9800"/>
+          <TextBlock Name="PendingApprovalCount" Text="0" FontSize="28" FontWeight="Bold" Foreground="{DynamicResource Theme.Status.Warning}"/>
         </StackPanel>
       </Border>
 
@@ -49,7 +49,7 @@
       <Border Grid.Column="3" Background="{DynamicResource Theme.Surface.Secondary}" CornerRadius="5" Padding="10" Margin="5,0">
         <StackPanel>
           <TextBlock Text="Maint. Windows" Style="{DynamicResource SubtitleStyle}" Foreground="{DynamicResource Theme.Text.Secondary}"/>
-          <TextBlock Name="MaintenanceWindowsCount" Text="0" FontSize="28" FontWeight="Bold" Foreground="#9C27B0"/>
+          <TextBlock Name="MaintenanceWindowsCount" Text="0" FontSize="28" FontWeight="Bold" Foreground="{DynamicResource Theme.Template.Purple}"/>
         </StackPanel>
       </Border>
 
@@ -57,7 +57,7 @@
       <Border Grid.Column="4" Background="{DynamicResource Theme.Surface.Secondary}" CornerRadius="5" Padding="10" Margin="5,0,0,0">
         <StackPanel>
           <TextBlock Text="Success Rate" Style="{DynamicResource SubtitleStyle}" Foreground="{DynamicResource Theme.Text.Secondary}"/>
-          <TextBlock Name="SuccessRateText" Text="--%" FontSize="28" FontWeight="Bold" Foreground="#4CAF50"/>
+          <TextBlock Name="SuccessRateText" Text="--%" FontSize="28" FontWeight="Bold" Foreground="{DynamicResource Theme.Status.Success}"/>
         </StackPanel>
       </Border>
     </Grid>
@@ -73,7 +73,7 @@
 
       <Button Name="StartChangeButton" Content="Start" Style="{DynamicResource SecondaryButtonStyle}" Margin="0,0,5,0" Width="60"/>
       <Button Name="CompleteChangeButton" Content="Complete" Style="{DynamicResource SecondaryButtonStyle}" Margin="0,0,5,0" Width="80"/>
-      <Button Name="RollbackChangeButton" Content="Rollback" Style="{DynamicResource SecondaryButtonStyle}" Margin="0,0,5,0" Width="80" Foreground="#F44336"/>
+      <Button Name="RollbackChangeButton" Content="Rollback" Style="{DynamicResource SecondaryButtonStyle}" Margin="0,0,5,0" Width="80" Foreground="{DynamicResource Theme.Status.Danger}" ToolTip="Warning: This will attempt to revert the change. This action may not be fully reversible."/>
 
       <Separator Margin="10,0"/>
 
@@ -89,10 +89,45 @@
     </StackPanel>
 
     <!-- Main content tabs -->
-    <TabControl Grid.Row="2">
+    <TabControl Grid.Row="2" Background="{DynamicResource Theme.Surface.Primary}">
+      <TabControl.Resources>
+        <Style TargetType="TabItem">
+          <Setter Property="Background" Value="{DynamicResource Theme.Surface.Primary}"/>
+          <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Inverse}"/>
+          <Setter Property="BorderBrush" Value="{DynamicResource Theme.Border.Primary}"/>
+          <Setter Property="Padding" Value="12,8"/>
+          <Setter Property="Margin" Value="0,0,2,0"/>
+          <Setter Property="Template">
+            <Setter.Value>
+              <ControlTemplate TargetType="TabItem">
+                <Border Name="Border" Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1,1,1,0"
+                        Padding="{TemplateBinding Padding}" CornerRadius="4,4,0,0">
+                  <ContentPresenter ContentSource="Header" HorizontalAlignment="Center"/>
+                </Border>
+                <ControlTemplate.Triggers>
+                  <Trigger Property="IsSelected" Value="True">
+                    <Setter TargetName="Border" Property="Background" Value="{DynamicResource Theme.Surface.Secondary}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
+                    <Setter Property="FontWeight" Value="SemiBold"/>
+                  </Trigger>
+                  <MultiTrigger>
+                    <MultiTrigger.Conditions>
+                      <Condition Property="IsMouseOver" Value="True"/>
+                      <Condition Property="IsSelected" Value="False"/>
+                    </MultiTrigger.Conditions>
+                    <Setter TargetName="Border" Property="Background" Value="{DynamicResource Theme.Button.Secondary.HoverBackground}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Inverse}"/>
+                  </MultiTrigger>
+                </ControlTemplate.Triggers>
+              </ControlTemplate>
+            </Setter.Value>
+          </Setter>
+        </Style>
+      </TabControl.Resources>
       <!-- Changes Tab -->
       <TabItem Header="Changes">
-        <Grid>
+        <Grid Background="{DynamicResource Theme.Surface.Secondary}">
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="2*"/>
             <ColumnDefinition Width="Auto"/>
@@ -174,7 +209,7 @@
 
       <!-- Maintenance Windows Tab -->
       <TabItem Header="Maintenance Windows">
-        <Grid>
+        <Grid Background="{DynamicResource Theme.Surface.Secondary}">
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -184,7 +219,7 @@
           <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,5,0,10">
             <Button Name="NewMaintenanceWindowButton" Content="New Window" Style="{DynamicResource PrimaryButtonStyle}" Margin="0,0,5,0" Width="100"/>
             <Button Name="EditMaintenanceWindowButton" Content="Edit" Style="{DynamicResource SecondaryButtonStyle}" Margin="0,0,5,0" Width="60"/>
-            <Button Name="DeleteMaintenanceWindowButton" Content="Delete" Style="{DynamicResource SecondaryButtonStyle}" Margin="0,0,15,0" Width="60"/>
+            <Button Name="DeleteMaintenanceWindowButton" Content="Delete" Style="{DynamicResource SecondaryButtonStyle}" Margin="0,0,15,0" Width="60" ToolTip="Delete this maintenance window permanently"/>
 
             <CheckBox Name="ShowPastWindowsCheckbox" Content="Show Past Windows" VerticalAlignment="Center" Margin="10,0"
                       Foreground="{DynamicResource Theme.Text.Primary}"/>
@@ -235,7 +270,7 @@
 
       <!-- Templates Tab -->
       <TabItem Header="Templates">
-        <Grid>
+        <Grid Background="{DynamicResource Theme.Surface.Secondary}">
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*"/>
             <ColumnDefinition Width="Auto"/>
@@ -296,7 +331,7 @@
 
       <!-- History Tab -->
       <TabItem Header="History">
-        <Grid>
+        <Grid Background="{DynamicResource Theme.Surface.Secondary}">
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -336,7 +371,7 @@
 
       <!-- Statistics Tab -->
       <TabItem Header="Statistics">
-        <Grid>
+        <Grid Background="{DynamicResource Theme.Surface.Secondary}">
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -382,16 +417,16 @@
                     <TextBlock Name="StatsTotalChanges" Grid.Row="0" Grid.Column="1" Text="0" Foreground="{DynamicResource Theme.Text.Primary}" FontWeight="Bold"/>
 
                     <TextBlock Grid.Row="1" Grid.Column="0" Text="Completed:" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,5,0,0"/>
-                    <TextBlock Name="StatsCompleted" Grid.Row="1" Grid.Column="1" Text="0" Foreground="#4CAF50" FontWeight="Bold" Margin="0,5,0,0"/>
+                    <TextBlock Name="StatsCompleted" Grid.Row="1" Grid.Column="1" Text="0" Foreground="{DynamicResource Theme.Status.Success}" FontWeight="Bold" Margin="0,5,0,0"/>
 
                     <TextBlock Grid.Row="2" Grid.Column="0" Text="Failed:" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,5,0,0"/>
-                    <TextBlock Name="StatsFailed" Grid.Row="2" Grid.Column="1" Text="0" Foreground="#F44336" FontWeight="Bold" Margin="0,5,0,0"/>
+                    <TextBlock Name="StatsFailed" Grid.Row="2" Grid.Column="1" Text="0" Foreground="{DynamicResource Theme.Status.Danger}" FontWeight="Bold" Margin="0,5,0,0"/>
 
                     <TextBlock Grid.Row="3" Grid.Column="0" Text="Rolled Back:" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,5,0,0"/>
-                    <TextBlock Name="StatsRolledBack" Grid.Row="3" Grid.Column="1" Text="0" Foreground="#FF9800" FontWeight="Bold" Margin="0,5,0,0"/>
+                    <TextBlock Name="StatsRolledBack" Grid.Row="3" Grid.Column="1" Text="0" Foreground="{DynamicResource Theme.Status.Warning}" FontWeight="Bold" Margin="0,5,0,0"/>
 
                     <TextBlock Grid.Row="4" Grid.Column="0" Text="Success Rate:" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,5,0,0"/>
-                    <TextBlock Name="StatsSuccessRate" Grid.Row="4" Grid.Column="1" Text="--%" Foreground="#4CAF50" FontWeight="Bold" Margin="0,5,0,0"/>
+                    <TextBlock Name="StatsSuccessRate" Grid.Row="4" Grid.Column="1" Text="--%" Foreground="{DynamicResource Theme.Status.Success}" FontWeight="Bold" Margin="0,5,0,0"/>
                   </Grid>
                 </StackPanel>
               </Border>

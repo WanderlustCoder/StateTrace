@@ -92,7 +92,7 @@
                         <Button Name="ViewTemplateButton" Content="View" Style="{DynamicResource SecondaryButtonStyle}" Width="80" Margin="0,0,5,0"/>
                         <Button Name="EditTemplateButton" Content="Edit" Style="{DynamicResource SecondaryButtonStyle}" Width="80" Margin="0,0,5,0"/>
                         <Button Name="CopyTemplateButton" Content="Copy" Style="{DynamicResource SecondaryButtonStyle}" Width="80" Margin="0,0,5,0"/>
-                        <Button Name="DeleteTemplateButton" Content="Delete" Style="{DynamicResource SecondaryButtonStyle}" Width="80" Margin="0,0,5,0"/>
+                        <Button Name="DeleteTemplateButton" Content="Delete" Style="{DynamicResource SecondaryButtonStyle}" Width="80" Margin="0,0,5,0" ToolTip="Delete this template permanently"/>
                         <Button Name="ValidateTemplateButton" Content="Validate" Style="{DynamicResource SecondaryButtonStyle}" Width="80"/>
                     </StackPanel>
                 </Grid>
@@ -201,7 +201,7 @@
                         <Button Name="ViewDocumentButton" Content="View" Style="{DynamicResource SecondaryButtonStyle}" Width="80" Margin="0,0,5,0"/>
                         <Button Name="ExportDocumentButton" Content="Export" Style="{DynamicResource PrimaryButtonStyle}" Width="80" Margin="0,0,5,0"/>
                         <Button Name="RegenerateDocumentButton" Content="Regenerate" Style="{DynamicResource SecondaryButtonStyle}" Width="90" Margin="0,0,5,0"/>
-                        <Button Name="DeleteDocumentButton" Content="Delete" Style="{DynamicResource SecondaryButtonStyle}" Width="80"/>
+                        <Button Name="DeleteDocumentButton" Content="Delete" Style="{DynamicResource SecondaryButtonStyle}" Width="80" ToolTip="Delete this document permanently"/>
                     </StackPanel>
                 </Grid>
             </TabItem>
@@ -240,7 +240,7 @@
                         <Button Name="EnableScheduleButton" Content="Enable" Style="{DynamicResource SecondaryButtonStyle}" Width="80" Margin="0,0,5,0"/>
                         <Button Name="DisableScheduleButton" Content="Disable" Style="{DynamicResource SecondaryButtonStyle}" Width="80" Margin="0,0,5,0"/>
                         <Button Name="RunNowButton" Content="Run Now" Style="{DynamicResource PrimaryButtonStyle}" Width="90" Margin="0,0,5,0"/>
-                        <Button Name="DeleteScheduleButton" Content="Delete" Style="{DynamicResource SecondaryButtonStyle}" Width="80"/>
+                        <Button Name="DeleteScheduleButton" Content="Delete" Style="{DynamicResource SecondaryButtonStyle}" Width="80" ToolTip="Delete this schedule permanently"/>
                     </StackPanel>
                 </Grid>
             </TabItem>

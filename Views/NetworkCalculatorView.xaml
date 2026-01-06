@@ -483,8 +483,8 @@
               <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,5,0,0">
                 <Button Name="ACLMoveUpButton" Content="Move Up" Width="70" Margin="0,0,5,0" Style="{DynamicResource SecondaryButtonStyle}"/>
                 <Button Name="ACLMoveDownButton" Content="Move Down" Width="80" Margin="0,0,5,0" Style="{DynamicResource SecondaryButtonStyle}"/>
-                <Button Name="ACLDeleteEntryButton" Content="Delete" Width="60" Margin="0,0,5,0" Style="{DynamicResource SecondaryButtonStyle}"/>
-                <Button Name="ACLClearAllButton" Content="Clear All" Width="70" Margin="15,0,0,0" Style="{DynamicResource SecondaryButtonStyle}"/>
+                <Button Name="ACLDeleteEntryButton" Content="Delete" Width="60" Margin="0,0,5,0" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Delete the selected ACL entry"/>
+                <Button Name="ACLClearAllButton" Content="Clear All" Width="70" Margin="15,0,0,0" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Clear all ACL entries"/>
               </StackPanel>
             </Grid>
           </GroupBox>

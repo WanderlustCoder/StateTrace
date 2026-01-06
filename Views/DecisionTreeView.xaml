@@ -309,7 +309,7 @@
                     <Button Name="AddResultNodeButton" Content="+ Result" Width="55" Margin="3,0"
                             Style="{DynamicResource SecondaryButtonStyle}" FontSize="11"/>
                     <Button Name="RemoveNodeButton" Content="Remove" Width="60" Margin="10,0,0,0"
-                            Style="{DynamicResource SecondaryButtonStyle}" FontSize="11"/>
+                            Style="{DynamicResource SecondaryButtonStyle}" FontSize="11" ToolTip="Remove the selected node"/>
                   </StackPanel>
 
                   <ListBox Grid.Row="1" Name="EditorNodesList"
@@ -420,7 +420,7 @@
                       <Button Name="AddBranchButton" Content="Add" Width="50" Margin="0,0,5,0"
                               Style="{DynamicResource SecondaryButtonStyle}" FontSize="11"/>
                       <Button Name="RemoveBranchButton" Content="Remove" Width="60"
-                              Style="{DynamicResource SecondaryButtonStyle}" FontSize="11"/>
+                              Style="{DynamicResource SecondaryButtonStyle}" FontSize="11" ToolTip="Remove the selected branch"/>
                     </StackPanel>
                   </StackPanel>
 

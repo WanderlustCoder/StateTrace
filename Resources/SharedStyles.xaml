@@ -1,5 +1,158 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <!-- Text Styles -->
+  <Style x:Key="SectionHeaderStyle" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="14"/>
+    <Setter Property="FontWeight" Value="Bold"/>
+    <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
+    <Setter Property="Margin" Value="0,0,0,10"/>
+  </Style>
+
+  <Style x:Key="SubtitleStyle" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="11"/>
+    <Setter Property="FontWeight" Value="Normal"/>
+    <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Secondary}"/>
+  </Style>
+
+  <Style x:Key="CardHeaderStyle" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="12"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+    <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
+    <Setter Property="Margin" Value="0,0,0,5"/>
+  </Style>
+
+  <!-- Card/Panel Styles -->
+  <Style x:Key="CardStyle" TargetType="Border">
+    <Setter Property="Background" Value="{DynamicResource Theme.Surface.Secondary}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource Theme.Surface.Border}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="CornerRadius" Value="6"/>
+    <Setter Property="Padding" Value="12"/>
+  </Style>
+
+  <Style x:Key="SummaryCardStyle" TargetType="Border">
+    <Setter Property="Background" Value="{DynamicResource Theme.Surface.Secondary}"/>
+    <Setter Property="CornerRadius" Value="5"/>
+    <Setter Property="Padding" Value="10"/>
+  </Style>
+
+  <!-- Global TabItem Style (top tabs) -->
+  <Style x:Key="ThemedTabItemStyle" TargetType="TabItem">
+    <Setter Property="Background" Value="{DynamicResource Theme.Surface.Primary}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Inverse}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource Theme.Border.Primary}"/>
+    <Setter Property="Padding" Value="12,8"/>
+    <Setter Property="Margin" Value="0,0,2,0"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="TabItem">
+          <Border Name="Border" Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1,1,1,0"
+                  Padding="{TemplateBinding Padding}" CornerRadius="4,4,0,0">
+            <ContentPresenter ContentSource="Header" HorizontalAlignment="Center"/>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsSelected" Value="True">
+              <Setter TargetName="Border" Property="Background" Value="{DynamicResource Theme.Surface.Secondary}"/>
+              <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
+              <Setter Property="FontWeight" Value="SemiBold"/>
+            </Trigger>
+            <MultiTrigger>
+              <MultiTrigger.Conditions>
+                <Condition Property="IsMouseOver" Value="True"/>
+                <Condition Property="IsSelected" Value="False"/>
+              </MultiTrigger.Conditions>
+              <Setter TargetName="Border" Property="Background" Value="{DynamicResource Theme.Button.Secondary.HoverBackground}"/>
+              <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Inverse}"/>
+            </MultiTrigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Left Navigation TabItem Style (for container views with left TabStripPlacement) -->
+  <Style x:Key="LeftNavTabItemStyle" TargetType="TabItem">
+    <Setter Property="Background" Value="{DynamicResource Theme.Icon.Accent}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Theme.Button.Primary.Text}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource Theme.Border.Primary}"/>
+    <Setter Property="MinWidth" Value="130"/>
+    <Setter Property="Padding" Value="12,10"/>
+    <Setter Property="Margin" Value="0,0,0,2"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="TabItem">
+          <Border Name="Border" Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1,1,0,1"
+                  Padding="{TemplateBinding Padding}" CornerRadius="4,0,0,4">
+            <ContentPresenter ContentSource="Header" HorizontalAlignment="Left"/>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsSelected" Value="True">
+              <Setter TargetName="Border" Property="Background" Value="{DynamicResource Theme.Surface.Secondary}"/>
+              <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
+              <Setter Property="FontWeight" Value="SemiBold"/>
+            </Trigger>
+            <MultiTrigger>
+              <MultiTrigger.Conditions>
+                <Condition Property="IsMouseOver" Value="True"/>
+                <Condition Property="IsSelected" Value="False"/>
+              </MultiTrigger.Conditions>
+              <Setter TargetName="Border" Property="Background" Value="{DynamicResource Theme.Button.Primary.HoverBackground}"/>
+              <Setter Property="Foreground" Value="{DynamicResource Theme.Button.Primary.Text}"/>
+            </MultiTrigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Standard Button Widths (use with Style binding, e.g., Style="{DynamicResource SmallButtonStyle}") -->
+  <Style x:Key="SmallButtonStyle" TargetType="Button">
+    <Setter Property="Width" Value="60"/>
+    <Setter Property="Background" Value="{DynamicResource Theme.Button.Secondary.Background}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Theme.Button.Secondary.Text}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource Theme.Border.Primary}"/>
+    <Setter Property="Padding" Value="6,2"/>
+  </Style>
+
+  <Style x:Key="MediumButtonStyle" TargetType="Button">
+    <Setter Property="Width" Value="100"/>
+    <Setter Property="Background" Value="{DynamicResource Theme.Button.Secondary.Background}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Theme.Button.Secondary.Text}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource Theme.Border.Primary}"/>
+    <Setter Property="Padding" Value="6,2"/>
+  </Style>
+
+  <Style x:Key="LargeButtonStyle" TargetType="Button">
+    <Setter Property="Width" Value="140"/>
+    <Setter Property="Background" Value="{DynamicResource Theme.Button.Secondary.Background}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Theme.Button.Secondary.Text}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource Theme.Border.Primary}"/>
+    <Setter Property="Padding" Value="6,2"/>
+  </Style>
+
+  <!-- Danger Button Style -->
+  <Style x:Key="DangerButtonStyle" TargetType="Button">
+    <Setter Property="Background" Value="{DynamicResource Theme.Status.Danger}"/>
+    <Setter Property="Foreground" Value="#FFFFFF"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource Theme.Status.Danger}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="Padding" Value="6,2"/>
+    <Setter Property="Cursor" Value="Hand"/>
+    <Style.Triggers>
+      <Trigger Property="IsMouseOver" Value="True">
+        <Setter Property="Background" Value="#C0392B"/>
+        <Setter Property="BorderBrush" Value="#C0392B"/>
+      </Trigger>
+      <Trigger Property="IsEnabled" Value="False">
+        <Setter Property="Background" Value="{DynamicResource Theme.Button.Disabled.Background}"/>
+        <Setter Property="Foreground" Value="{DynamicResource Theme.Button.Disabled.Text}"/>
+      </Trigger>
+    </Style.Triggers>
+  </Style>
+
   <Style x:Key="PrimaryButtonStyle" TargetType="Button">
     <Setter Property="Background" Value="{DynamicResource Theme.Button.Primary.Background}"/>
     <Setter Property="Foreground" Value="{DynamicResource Theme.Button.Primary.Text}"/>
@@ -246,8 +399,89 @@
     <Setter Property="Background" Value="{DynamicResource Theme.DataGrid.HeaderBackground}"/>
     <Setter Property="Foreground" Value="{DynamicResource Theme.DataGrid.HeaderText}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource Theme.DataGrid.Border}"/>
+    <Setter Property="Padding" Value="8,4"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
   </Style>
-  <Style x:Key="PrimaryDataGridStyle" TargetType="DataGrid">
+
+  <!-- Default DataGridColumnHeader style - applies to ALL DataGrids automatically -->
+  <Style TargetType="DataGridColumnHeader">
+    <Setter Property="Background" Value="{DynamicResource Theme.DataGrid.HeaderBackground}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Theme.DataGrid.HeaderText}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource Theme.DataGrid.Border}"/>
+    <Setter Property="Padding" Value="8,4"/>
+    <Setter Property="FontWeight" Value="SemiBold"/>
+    <Setter Property="BorderThickness" Value="0,0,1,1"/>
+  </Style>
+
+  <!-- Default DataGridRow style - applies to ALL DataGrids automatically -->
+  <Style TargetType="DataGridRow">
+    <Setter Property="Background" Value="{DynamicResource Theme.DataGrid.Row}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
+    <Style.Triggers>
+      <Trigger Property="IsSelected" Value="True">
+        <Setter Property="Background" Value="{DynamicResource Theme.DataGrid.SelectionBackground}"/>
+        <Setter Property="Foreground" Value="{DynamicResource Theme.DataGrid.SelectionText}"/>
+      </Trigger>
+      <Trigger Property="AlternationIndex" Value="1">
+        <Setter Property="Background" Value="{DynamicResource Theme.DataGrid.RowAlt}"/>
+      </Trigger>
+    </Style.Triggers>
+  </Style>
+
+  <!-- Default DataGridCell style - applies to ALL DataGrids automatically -->
+  <Style TargetType="DataGridCell">
+    <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
+    <Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="Padding" Value="4,2"/>
+    <Style.Triggers>
+      <Trigger Property="IsSelected" Value="True">
+        <Setter Property="Background" Value="{DynamicResource Theme.DataGrid.SelectionBackground}"/>
+        <Setter Property="Foreground" Value="{DynamicResource Theme.DataGrid.SelectionText}"/>
+      </Trigger>
+    </Style.Triggers>
+  </Style>
+
+  <!-- DataGridStyle - the main style used by most views -->
+  <Style x:Key="DataGridStyle" TargetType="DataGrid">
+    <Setter Property="Background" Value="{DynamicResource Theme.DataGrid.Background}"/>
+    <Setter Property="RowBackground" Value="{DynamicResource Theme.DataGrid.Row}"/>
+    <Setter Property="AlternatingRowBackground" Value="{DynamicResource Theme.DataGrid.RowAlt}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource Theme.DataGrid.Border}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
+    <Setter Property="GridLinesVisibility" Value="Horizontal"/>
+    <Setter Property="HorizontalGridLinesBrush" Value="{DynamicResource Theme.DataGrid.Border}"/>
+    <Setter Property="ColumnHeaderStyle" Value="{StaticResource PrimaryDataGridColumnHeaderStyle}"/>
+    <Setter Property="RowStyle">
+      <Setter.Value>
+        <Style TargetType="DataGridRow">
+          <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
+          <Style.Triggers>
+            <Trigger Property="IsSelected" Value="True">
+              <Setter Property="Background" Value="{DynamicResource Theme.DataGrid.SelectionBackground}"/>
+              <Setter Property="Foreground" Value="{DynamicResource Theme.DataGrid.SelectionText}"/>
+            </Trigger>
+          </Style.Triggers>
+        </Style>
+      </Setter.Value>
+    </Setter>
+    <Setter Property="CellStyle">
+      <Setter.Value>
+        <Style TargetType="DataGridCell">
+          <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
+          <Setter Property="BorderThickness" Value="0"/>
+          <Setter Property="Padding" Value="4,2"/>
+          <Style.Triggers>
+            <Trigger Property="IsSelected" Value="True">
+              <Setter Property="Background" Value="{DynamicResource Theme.DataGrid.SelectionBackground}"/>
+              <Setter Property="Foreground" Value="{DynamicResource Theme.DataGrid.SelectionText}"/>
+            </Trigger>
+          </Style.Triggers>
+        </Style>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <Style x:Key="PrimaryDataGridStyle" TargetType="DataGrid" BasedOn="{StaticResource DataGridStyle}">
     <Setter Property="Background" Value="{DynamicResource Theme.DataGrid.Background}"/>
     <Setter Property="RowBackground" Value="{DynamicResource Theme.DataGrid.Row}"/>
     <Setter Property="AlternatingRowBackground" Value="{DynamicResource Theme.DataGrid.RowAlt}"/>

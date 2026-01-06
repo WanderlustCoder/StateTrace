@@ -1,0 +1,18 @@
+﻿show inventory
+NAME: "c92xxL Stack", DESCR: "c92xxL Stack"
+PID: C9200L-48PXG-4X   , VID: V01  , SN: JAE24101BM4
+
+NAME: "Switch 1", DESCR: "C9200L-48PXG-4X"
+PID: C9200L-48PXG-4X   , VID: V01  , SN: JAE24101BM4
+
+NAME: "StackAdapter1/1", DESCR: "StackAdapter1/1"
+PID: C9200-STACK       , VID: V01  , SN: JAD24010D45
+
+NAME: "StackAdapter1/2", DESCR: "StackAdapter1/2"
+PID: C9200-STACK       , VID: V01  , SN: JAD24010DWF
+
+NAME: "Switch 1 - Power Supply A", DESCR: "Switch 1 - Power Supply A"
+PID: PWR-C5-1KWAC      , VID: V02  , SN: ART2351D1D6
+
+
+LAB-C9200L-AS-01#

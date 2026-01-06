@@ -1,4 +1,4 @@
-{
+﻿{
     "DebugOnNextLaunch":  true,
     "ParserSettings":  {
                            "AutoScaleConcurrency":  true,
@@ -11,6 +11,3 @@
                            "SkipSiteCacheUpdate":  false
                        }
 }
-
-
-

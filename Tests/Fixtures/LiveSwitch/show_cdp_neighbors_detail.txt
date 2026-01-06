@@ -1,0 +1,4 @@
+﻿show cdp neighbors detail
+
+Total cdp entries displayed : 0
+LAB-C9200L-AS-01#

@@ -2,43 +2,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
   <TabControl Name="InfrastructureTabControl" TabStripPlacement="Left"
-              Background="{DynamicResource Theme.Surface.Primary}">
-    <TabControl.Resources>
-      <Style TargetType="TabItem">
-        <Setter Property="Background" Value="{DynamicResource Theme.Icon.Accent}"/>
-        <Setter Property="Foreground" Value="{DynamicResource Theme.Button.Primary.Text}"/>
-        <Setter Property="BorderBrush" Value="{DynamicResource Theme.Border.Primary}"/>
-        <Setter Property="MinWidth" Value="130"/>
-        <Setter Property="Padding" Value="12,10"/>
-        <Setter Property="Margin" Value="0,0,0,2"/>
-        <Setter Property="Template">
-          <Setter.Value>
-            <ControlTemplate TargetType="TabItem">
-              <Border Name="Border" Background="{TemplateBinding Background}"
-                      BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1,1,0,1"
-                      Padding="{TemplateBinding Padding}" CornerRadius="4,0,0,4">
-                <ContentPresenter ContentSource="Header" HorizontalAlignment="Left"/>
-              </Border>
-              <ControlTemplate.Triggers>
-                <Trigger Property="IsSelected" Value="True">
-                  <Setter TargetName="Border" Property="Background" Value="{DynamicResource Theme.Surface.Secondary}"/>
-                  <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
-                  <Setter Property="FontWeight" Value="SemiBold"/>
-                </Trigger>
-                <MultiTrigger>
-                  <MultiTrigger.Conditions>
-                    <Condition Property="IsMouseOver" Value="True"/>
-                    <Condition Property="IsSelected" Value="False"/>
-                  </MultiTrigger.Conditions>
-                  <Setter TargetName="Border" Property="Background" Value="{DynamicResource Theme.Button.Primary.HoverBackground}"/>
-                  <Setter Property="Foreground" Value="{DynamicResource Theme.Button.Primary.Text}"/>
-                </MultiTrigger>
-              </ControlTemplate.Triggers>
-            </ControlTemplate>
-          </Setter.Value>
-        </Setter>
-      </Style>
-    </TabControl.Resources>
+              Background="{DynamicResource Theme.Surface.Primary}"
+              ItemContainerStyle="{DynamicResource LeftNavTabItemStyle}">
 
     <TabItem Header="Topology" ToolTip="Network topology visualization and link discovery&#x0a;Related: Interfaces tab for port details">
       <ContentControl Name="TopologySubHost"/>

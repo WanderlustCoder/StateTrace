@@ -30,33 +30,45 @@
                  Text="No spanning-tree data loaded."/>
     </StackPanel>
 
-    <DataGrid Name="SpanGrid"
-              Grid.Row="1"
-              AutoGenerateColumns="False"
-              CanUserAddRows="False"
-              IsReadOnly="True"
-              Margin="5"
-              Style="{DynamicResource PrimaryDataGridStyle}"
-              ScrollViewer.VerticalScrollBarVisibility="Auto"
-              ScrollViewer.HorizontalScrollBarVisibility="Auto"
-              VirtualizingPanel.IsVirtualizing="True"
-              VirtualizingPanel.VirtualizationMode="Recycling"
-              EnableRowVirtualization="True"
-              EnableColumnVirtualization="True"
-              ScrollViewer.CanContentScroll="True"
-              VirtualizingPanel.ScrollUnit="Pixel">
-      <DataGrid.RowStyle>
-        <DynamicResource ResourceKey="PrimaryDataGridRowStyle"/>
-      </DataGrid.RowStyle>
-      <DataGrid.Columns>
-        <DataGridTextColumn Header="Instance" Binding="{Binding VLAN}" Width="80"/>
-        <DataGridTextColumn Header="Root Switch" Binding="{Binding RootSwitch}" Width="150"/>
-        <DataGridTextColumn Header="Root Port" Binding="{Binding RootPort}" Width="80"/>
-        <DataGridTextColumn Header="Role" Binding="{Binding Role}" Width="80"/>
-        <DataGridTextColumn Header="Upstream" Binding="{Binding Upstream}" Width="150"/>
-        <DataGridTextColumn Header="Last Updated" Binding="{Binding LastUpdated}" Width="140"/>
-      </DataGrid.Columns>
-    </DataGrid>
+    <Grid Grid.Row="1">
+      <DataGrid Name="SpanGrid"
+                AutoGenerateColumns="False"
+                CanUserAddRows="False"
+                IsReadOnly="True"
+                Margin="5"
+                Style="{DynamicResource PrimaryDataGridStyle}"
+                ScrollViewer.VerticalScrollBarVisibility="Auto"
+                ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                VirtualizingPanel.IsVirtualizing="True"
+                VirtualizingPanel.VirtualizationMode="Recycling"
+                EnableRowVirtualization="True"
+                EnableColumnVirtualization="True"
+                ScrollViewer.CanContentScroll="True"
+                VirtualizingPanel.ScrollUnit="Pixel">
+        <DataGrid.RowStyle>
+          <DynamicResource ResourceKey="PrimaryDataGridRowStyle"/>
+        </DataGrid.RowStyle>
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="Instance" Binding="{Binding VLAN}" Width="80"/>
+          <DataGridTextColumn Header="Root Switch" Binding="{Binding RootSwitch}" Width="150"/>
+          <DataGridTextColumn Header="Root Port" Binding="{Binding RootPort}" Width="80"/>
+          <DataGridTextColumn Header="Role" Binding="{Binding Role}" Width="80"/>
+          <DataGridTextColumn Header="Upstream" Binding="{Binding Upstream}" Width="150"/>
+          <DataGridTextColumn Header="Last Updated" Binding="{Binding LastUpdated}" Width="140"/>
+        </DataGrid.Columns>
+      </DataGrid>
+
+      <Border Name="SpanEmptyStatePanel" HorizontalAlignment="Center" VerticalAlignment="Center"
+              Background="{DynamicResource Theme.Surface.Secondary}" Padding="30,20" CornerRadius="8"
+              Visibility="Collapsed">
+        <StackPanel>
+          <TextBlock Text="No Spanning Tree Data" FontSize="18" FontWeight="Bold"
+                     Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Center"/>
+          <TextBlock Text="Click Refresh to load spanning tree information"
+                     Foreground="{DynamicResource Theme.Text.Muted}" HorizontalAlignment="Center" Margin="0,5,0,0"/>
+        </StackPanel>
+      </Border>
+    </Grid>
 
     <TextBlock Name="SpanSamplePreview"
                Grid.Row="2"

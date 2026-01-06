@@ -130,10 +130,45 @@
 
         <!-- Details Content - Tab Control for different views -->
         <TabControl Grid.Row="1" Name="DetailsTabControl" Background="{DynamicResource Theme.Surface.Primary}">
+          <TabControl.Resources>
+            <Style TargetType="TabItem">
+              <Setter Property="Background" Value="{DynamicResource Theme.Surface.Primary}"/>
+              <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Inverse}"/>
+              <Setter Property="BorderBrush" Value="{DynamicResource Theme.Border.Primary}"/>
+              <Setter Property="Padding" Value="12,8"/>
+              <Setter Property="Margin" Value="0,0,2,0"/>
+              <Setter Property="Template">
+                <Setter.Value>
+                  <ControlTemplate TargetType="TabItem">
+                    <Border Name="Border" Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1,1,1,0"
+                            Padding="{TemplateBinding Padding}" CornerRadius="4,4,0,0">
+                      <ContentPresenter ContentSource="Header" HorizontalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                      <Trigger Property="IsSelected" Value="True">
+                        <Setter TargetName="Border" Property="Background" Value="{DynamicResource Theme.Surface.Secondary}"/>
+                        <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
+                        <Setter Property="FontWeight" Value="SemiBold"/>
+                      </Trigger>
+                      <MultiTrigger>
+                        <MultiTrigger.Conditions>
+                          <Condition Property="IsMouseOver" Value="True"/>
+                          <Condition Property="IsSelected" Value="False"/>
+                        </MultiTrigger.Conditions>
+                        <Setter TargetName="Border" Property="Background" Value="{DynamicResource Theme.Button.Secondary.HoverBackground}"/>
+                        <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Inverse}"/>
+                      </MultiTrigger>
+                    </ControlTemplate.Triggers>
+                  </ControlTemplate>
+                </Setter.Value>
+              </Setter>
+            </Style>
+          </TabControl.Resources>
 
           <!-- Cable Details Tab -->
           <TabItem Header="Cable Details" Name="CableDetailsTab">
-            <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Background="{DynamicResource Theme.Surface.Secondary}">
               <Grid Margin="10" Name="CableDetailsGrid" Visibility="Collapsed">
                 <Grid.ColumnDefinitions>
                   <ColumnDefinition Width="120"/>
@@ -219,7 +254,7 @@
 
                 <StackPanel Grid.Row="12" Grid.Column="1" Orientation="Horizontal" Margin="5,10,5,5">
                   <Button Name="SaveCableButton" Content="Save" Margin="0,0,10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
-                  <Button Name="DeleteCableButton" Content="Delete" Margin="0,0,10,0" Style="{DynamicResource SecondaryButtonStyle}"/>
+                  <Button Name="DeleteCableButton" Content="Delete" Margin="0,0,10,0" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Delete this cable record permanently"/>
                   <Button Name="CableLabelButton" Content="Generate Label" Style="{DynamicResource SecondaryButtonStyle}"/>
                 </StackPanel>
 
@@ -235,7 +270,7 @@
 
           <!-- Patch Panel Details Tab -->
           <TabItem Header="Panel Details" Name="PanelDetailsTab">
-            <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Background="{DynamicResource Theme.Surface.Secondary}">
               <Grid Margin="10" Name="PanelDetailsGrid" Visibility="Collapsed">
                 <Grid.RowDefinitions>
                   <RowDefinition Height="Auto"/>
@@ -278,7 +313,7 @@
 
                   <StackPanel Grid.Row="5" Grid.Column="1" Orientation="Horizontal" Margin="5,10,5,5">
                     <Button Name="SavePanelButton" Content="Save" Margin="0,0,10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
-                    <Button Name="DeletePanelButton" Content="Delete" Margin="0,0,10,0" Style="{DynamicResource SecondaryButtonStyle}"/>
+                    <Button Name="DeletePanelButton" Content="Delete" Margin="0,0,10,0" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Delete this patch panel permanently"/>
                     <Button Name="PanelLabelsButton" Content="Port Labels" Style="{DynamicResource SecondaryButtonStyle}"/>
                   </StackPanel>
                 </Grid>
@@ -333,7 +368,7 @@
 
           <!-- Statistics Tab -->
           <TabItem Header="Statistics">
-            <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Background="{DynamicResource Theme.Surface.Secondary}">
               <Grid Margin="10" Name="StatsGrid">
                 <Grid.ColumnDefinitions>
                   <ColumnDefinition Width="*"/>
@@ -350,10 +385,10 @@
                   <StackPanel>
                     <TextBlock Text="Cable Statistics" FontWeight="Bold" FontSize="14" Foreground="{DynamicResource Theme.Text.Primary}"/>
                     <TextBlock Name="TotalCablesText" Text="Total Cables: 0" Margin="0,5" Foreground="{DynamicResource Theme.Text.Primary}"/>
-                    <TextBlock Name="ActiveCablesText" Text="Active: 0" Foreground="LimeGreen"/>
-                    <TextBlock Name="ReservedCablesText" Text="Reserved: 0" Foreground="DodgerBlue"/>
-                    <TextBlock Name="FaultyCablesText" Text="Faulty: 0" Foreground="Red"/>
-                    <TextBlock Name="PlannedCablesText" Text="Planned: 0" Foreground="Orange"/>
+                    <TextBlock Name="ActiveCablesText" Text="Active: 0" Foreground="{DynamicResource Theme.Status.Success}"/>
+                    <TextBlock Name="ReservedCablesText" Text="Reserved: 0" Foreground="{DynamicResource Theme.Status.Info}"/>
+                    <TextBlock Name="FaultyCablesText" Text="Faulty: 0" Foreground="{DynamicResource Theme.Status.Danger}"/>
+                    <TextBlock Name="PlannedCablesText" Text="Planned: 0" Foreground="{DynamicResource Theme.Status.Warning}"/>
                   </StackPanel>
                 </Border>
 

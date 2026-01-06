@@ -26,34 +26,82 @@
 
     <!-- Main Content - Tab Control -->
     <TabControl Grid.Row="1" Margin="5" Name="MainTabControl" Background="{DynamicResource Theme.Surface.Primary}">
+      <TabControl.Resources>
+        <Style TargetType="TabItem">
+          <Setter Property="Background" Value="{DynamicResource Theme.Surface.Primary}"/>
+          <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Inverse}"/>
+          <Setter Property="BorderBrush" Value="{DynamicResource Theme.Border.Primary}"/>
+          <Setter Property="Padding" Value="12,8"/>
+          <Setter Property="Margin" Value="0,0,2,0"/>
+          <Setter Property="Template">
+            <Setter.Value>
+              <ControlTemplate TargetType="TabItem">
+                <Border Name="Border" Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1,1,1,0"
+                        Padding="{TemplateBinding Padding}" CornerRadius="4,4,0,0">
+                  <ContentPresenter ContentSource="Header" HorizontalAlignment="Center"/>
+                </Border>
+                <ControlTemplate.Triggers>
+                  <Trigger Property="IsSelected" Value="True">
+                    <Setter TargetName="Border" Property="Background" Value="{DynamicResource Theme.Surface.Secondary}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
+                    <Setter Property="FontWeight" Value="SemiBold"/>
+                  </Trigger>
+                  <MultiTrigger>
+                    <MultiTrigger.Conditions>
+                      <Condition Property="IsMouseOver" Value="True"/>
+                      <Condition Property="IsSelected" Value="False"/>
+                    </MultiTrigger.Conditions>
+                    <Setter TargetName="Border" Property="Background" Value="{DynamicResource Theme.Button.Secondary.HoverBackground}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Inverse}"/>
+                  </MultiTrigger>
+                </ControlTemplate.Triggers>
+              </ControlTemplate>
+            </Setter.Value>
+          </Setter>
+        </Style>
+      </TabControl.Resources>
 
       <!-- VLANs Tab -->
       <TabItem Header="VLANs">
-        <Grid>
+        <Grid Background="{DynamicResource Theme.Surface.Secondary}">
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*"/>
             <ColumnDefinition Width="300"/>
           </Grid.ColumnDefinitions>
 
           <!-- VLAN List -->
-          <DataGrid Grid.Column="0" Name="VlanGrid" Margin="5"
-                    AutoGenerateColumns="False" IsReadOnly="True"
-                    SelectionMode="Single" SelectionUnit="FullRow"
-                    Background="{DynamicResource Theme.Surface.Primary}"
-                    Foreground="{DynamicResource Theme.Text.Primary}"
-                    GridLinesVisibility="Horizontal"
-                    RowBackground="{DynamicResource Theme.Surface.Primary}"
-                    AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}">
-            <DataGrid.Columns>
-              <DataGridTextColumn Header="VLAN" Binding="{Binding VlanNumber}" Width="60"/>
-              <DataGridTextColumn Header="Name" Binding="{Binding VlanName}" Width="120"/>
-              <DataGridTextColumn Header="Purpose" Binding="{Binding Purpose}" Width="90"/>
-              <DataGridTextColumn Header="Site" Binding="{Binding Site}" Width="100"/>
-              <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="80"/>
-              <DataGridTextColumn Header="SVI" Binding="{Binding SVIAddress}" Width="120"/>
-              <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
-            </DataGrid.Columns>
-          </DataGrid>
+          <Grid Grid.Column="0">
+            <DataGrid Name="VlanGrid" Margin="5"
+                      AutoGenerateColumns="False" IsReadOnly="True"
+                      SelectionMode="Single" SelectionUnit="FullRow"
+                      Background="{DynamicResource Theme.Surface.Primary}"
+                      Foreground="{DynamicResource Theme.Text.Primary}"
+                      GridLinesVisibility="Horizontal"
+                      RowBackground="{DynamicResource Theme.Surface.Primary}"
+                      AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}">
+              <DataGrid.Columns>
+                <DataGridTextColumn Header="VLAN" Binding="{Binding VlanNumber}" Width="60"/>
+                <DataGridTextColumn Header="Name" Binding="{Binding VlanName}" Width="120"/>
+                <DataGridTextColumn Header="Purpose" Binding="{Binding Purpose}" Width="90"/>
+                <DataGridTextColumn Header="Site" Binding="{Binding Site}" Width="100"/>
+                <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="80"/>
+                <DataGridTextColumn Header="SVI" Binding="{Binding SVIAddress}" Width="120"/>
+                <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
+              </DataGrid.Columns>
+            </DataGrid>
+
+            <Border Name="VlanEmptyStatePanel" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="{DynamicResource Theme.Surface.Primary}" Padding="30,20" CornerRadius="8"
+                    Visibility="Collapsed">
+              <StackPanel>
+                <TextBlock Text="No VLANs" FontSize="18" FontWeight="Bold"
+                           Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Center"/>
+                <TextBlock Text="Click 'Add VLAN' to create your first VLAN"
+                           Foreground="{DynamicResource Theme.Text.Muted}" HorizontalAlignment="Center" Margin="0,5,0,0"/>
+              </StackPanel>
+            </Border>
+          </Grid>
 
           <!-- VLAN Details Panel -->
           <Border Grid.Column="1" Background="{DynamicResource Theme.Surface.Secondary}" Margin="5" Padding="10">
@@ -98,7 +146,7 @@
 
                 <StackPanel Orientation="Horizontal">
                   <Button Name="SaveVlanButton" Content="Save" Margin="0,0,10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
-                  <Button Name="DeleteVlanButton" Content="Delete" Style="{DynamicResource SecondaryButtonStyle}"/>
+                  <Button Name="DeleteVlanButton" Content="Delete" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Delete this VLAN permanently"/>
                 </StackPanel>
               </StackPanel>
             </ScrollViewer>
@@ -108,32 +156,45 @@
 
       <!-- Subnets Tab -->
       <TabItem Header="Subnets">
-        <Grid>
+        <Grid Background="{DynamicResource Theme.Surface.Secondary}">
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*"/>
             <ColumnDefinition Width="320"/>
           </Grid.ColumnDefinitions>
 
           <!-- Subnet List -->
-          <DataGrid Grid.Column="0" Name="SubnetGrid" Margin="5"
-                    AutoGenerateColumns="False" IsReadOnly="True"
-                    SelectionMode="Single" SelectionUnit="FullRow"
-                    Background="{DynamicResource Theme.Surface.Primary}"
-                    Foreground="{DynamicResource Theme.Text.Primary}"
-                    GridLinesVisibility="Horizontal"
-                    RowBackground="{DynamicResource Theme.Surface.Primary}"
-                    AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}">
-            <DataGrid.Columns>
-              <DataGridTextColumn Header="Network" Binding="{Binding NetworkAddress}" Width="110"/>
-              <DataGridTextColumn Header="/" Binding="{Binding PrefixLength}" Width="30"/>
-              <DataGridTextColumn Header="VLAN" Binding="{Binding VlanNumber}" Width="50"/>
-              <DataGridTextColumn Header="Site" Binding="{Binding Site}" Width="90"/>
-              <DataGridTextColumn Header="Purpose" Binding="{Binding Purpose}" Width="90"/>
-              <DataGridTextColumn Header="Gateway" Binding="{Binding GatewayAddress}" Width="110"/>
-              <DataGridTextColumn Header="Hosts" Binding="{Binding TotalHosts}" Width="60"/>
-              <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="80"/>
-            </DataGrid.Columns>
-          </DataGrid>
+          <Grid Grid.Column="0">
+            <DataGrid Name="SubnetGrid" Margin="5"
+                      AutoGenerateColumns="False" IsReadOnly="True"
+                      SelectionMode="Single" SelectionUnit="FullRow"
+                      Background="{DynamicResource Theme.Surface.Primary}"
+                      Foreground="{DynamicResource Theme.Text.Primary}"
+                      GridLinesVisibility="Horizontal"
+                      RowBackground="{DynamicResource Theme.Surface.Primary}"
+                      AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}">
+              <DataGrid.Columns>
+                <DataGridTextColumn Header="Network" Binding="{Binding NetworkAddress}" Width="110"/>
+                <DataGridTextColumn Header="/" Binding="{Binding PrefixLength}" Width="30"/>
+                <DataGridTextColumn Header="VLAN" Binding="{Binding VlanNumber}" Width="50"/>
+                <DataGridTextColumn Header="Site" Binding="{Binding Site}" Width="90"/>
+                <DataGridTextColumn Header="Purpose" Binding="{Binding Purpose}" Width="90"/>
+                <DataGridTextColumn Header="Gateway" Binding="{Binding GatewayAddress}" Width="110"/>
+                <DataGridTextColumn Header="Hosts" Binding="{Binding TotalHosts}" Width="60"/>
+                <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="80"/>
+              </DataGrid.Columns>
+            </DataGrid>
+
+            <Border Name="SubnetEmptyStatePanel" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="{DynamicResource Theme.Surface.Primary}" Padding="30,20" CornerRadius="8"
+                    Visibility="Collapsed">
+              <StackPanel>
+                <TextBlock Text="No Subnets" FontSize="18" FontWeight="Bold"
+                           Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Center"/>
+                <TextBlock Text="Click 'Add Subnet' to create your first subnet"
+                           Foreground="{DynamicResource Theme.Text.Muted}" HorizontalAlignment="Center" Margin="0,5,0,0"/>
+              </StackPanel>
+            </Border>
+          </Grid>
 
           <!-- Subnet Details Panel -->
           <Border Grid.Column="1" Background="{DynamicResource Theme.Surface.Secondary}" Margin="5" Padding="10">
@@ -187,7 +248,7 @@
 
                 <StackPanel Orientation="Horizontal">
                   <Button Name="SaveSubnetButton" Content="Save" Margin="0,0,10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
-                  <Button Name="DeleteSubnetButton" Content="Delete" Margin="0,0,10,0" Style="{DynamicResource SecondaryButtonStyle}"/>
+                  <Button Name="DeleteSubnetButton" Content="Delete" Margin="0,0,10,0" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Delete this subnet permanently"/>
                   <Button Name="SplitSubnetButton" Content="Split" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Split into smaller subnets"/>
                 </StackPanel>
               </StackPanel>
@@ -198,30 +259,43 @@
 
       <!-- IP Addresses Tab -->
       <TabItem Header="IP Addresses">
-        <Grid>
+        <Grid Background="{DynamicResource Theme.Surface.Secondary}">
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*"/>
             <ColumnDefinition Width="280"/>
           </Grid.ColumnDefinitions>
 
           <!-- IP List -->
-          <DataGrid Grid.Column="0" Name="IPGrid" Margin="5"
-                    AutoGenerateColumns="False" IsReadOnly="True"
-                    SelectionMode="Single" SelectionUnit="FullRow"
-                    Background="{DynamicResource Theme.Surface.Primary}"
-                    Foreground="{DynamicResource Theme.Text.Primary}"
-                    GridLinesVisibility="Horizontal"
-                    RowBackground="{DynamicResource Theme.Surface.Primary}"
-                    AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}">
-            <DataGrid.Columns>
-              <DataGridTextColumn Header="IP Address" Binding="{Binding IPAddress}" Width="120"/>
-              <DataGridTextColumn Header="Device" Binding="{Binding DeviceName}" Width="100"/>
-              <DataGridTextColumn Header="Interface" Binding="{Binding InterfaceName}" Width="90"/>
-              <DataGridTextColumn Header="Type" Binding="{Binding AddressType}" Width="80"/>
-              <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="70"/>
-              <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
-            </DataGrid.Columns>
-          </DataGrid>
+          <Grid Grid.Column="0">
+            <DataGrid Name="IPGrid" Margin="5"
+                      AutoGenerateColumns="False" IsReadOnly="True"
+                      SelectionMode="Single" SelectionUnit="FullRow"
+                      Background="{DynamicResource Theme.Surface.Primary}"
+                      Foreground="{DynamicResource Theme.Text.Primary}"
+                      GridLinesVisibility="Horizontal"
+                      RowBackground="{DynamicResource Theme.Surface.Primary}"
+                      AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}">
+              <DataGrid.Columns>
+                <DataGridTextColumn Header="IP Address" Binding="{Binding IPAddress}" Width="120"/>
+                <DataGridTextColumn Header="Device" Binding="{Binding DeviceName}" Width="100"/>
+                <DataGridTextColumn Header="Interface" Binding="{Binding InterfaceName}" Width="90"/>
+                <DataGridTextColumn Header="Type" Binding="{Binding AddressType}" Width="80"/>
+                <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="70"/>
+                <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
+              </DataGrid.Columns>
+            </DataGrid>
+
+            <Border Name="IPEmptyStatePanel" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="{DynamicResource Theme.Surface.Primary}" Padding="30,20" CornerRadius="8"
+                    Visibility="Collapsed">
+              <StackPanel>
+                <TextBlock Text="No IP Addresses" FontSize="18" FontWeight="Bold"
+                           Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Center"/>
+                <TextBlock Text="Click 'Add IP' to create your first IP record"
+                           Foreground="{DynamicResource Theme.Text.Muted}" HorizontalAlignment="Center" Margin="0,5,0,0"/>
+              </StackPanel>
+            </Border>
+          </Grid>
 
           <!-- IP Details Panel -->
           <Border Grid.Column="1" Background="{DynamicResource Theme.Surface.Secondary}" Margin="5" Padding="10">
@@ -254,7 +328,7 @@
 
                 <StackPanel Orientation="Horizontal">
                   <Button Name="SaveIPButton" Content="Save" Margin="0,0,10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
-                  <Button Name="DeleteIPButton" Content="Delete" Style="{DynamicResource SecondaryButtonStyle}"/>
+                  <Button Name="DeleteIPButton" Content="Delete" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Delete this IP address record permanently"/>
                 </StackPanel>
               </StackPanel>
             </ScrollViewer>
@@ -264,7 +338,7 @@
 
       <!-- Conflicts Tab -->
       <TabItem Header="Conflicts">
-        <Grid Margin="5">
+        <Grid Margin="5" Background="{DynamicResource Theme.Surface.Secondary}">
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -275,25 +349,38 @@
             <TextBlock Name="ConflictSummaryText" VerticalAlignment="Center" Foreground="{DynamicResource Theme.Text.Primary}"/>
           </StackPanel>
 
-          <DataGrid Grid.Row="1" Name="ConflictsGrid"
-                    AutoGenerateColumns="False" IsReadOnly="True"
-                    Background="{DynamicResource Theme.Surface.Primary}"
-                    Foreground="{DynamicResource Theme.Text.Primary}"
-                    GridLinesVisibility="Horizontal"
-                    RowBackground="{DynamicResource Theme.Surface.Primary}"
-                    AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}">
-            <DataGrid.Columns>
-              <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" Width="80"/>
-              <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="120"/>
-              <DataGridTextColumn Header="Details" Binding="{Binding Details}" Width="*"/>
-            </DataGrid.Columns>
-          </DataGrid>
+          <Grid Grid.Row="1">
+            <DataGrid Name="ConflictsGrid"
+                      AutoGenerateColumns="False" IsReadOnly="True"
+                      Background="{DynamicResource Theme.Surface.Primary}"
+                      Foreground="{DynamicResource Theme.Text.Primary}"
+                      GridLinesVisibility="Horizontal"
+                      RowBackground="{DynamicResource Theme.Surface.Primary}"
+                      AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}">
+              <DataGrid.Columns>
+                <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" Width="80"/>
+                <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="120"/>
+                <DataGridTextColumn Header="Details" Binding="{Binding Details}" Width="*"/>
+              </DataGrid.Columns>
+            </DataGrid>
+
+            <Border Name="ConflictsEmptyStatePanel" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="{DynamicResource Theme.Surface.Primary}" Padding="30,20" CornerRadius="8"
+                    Visibility="Collapsed">
+              <StackPanel>
+                <TextBlock Text="No Conflicts" FontSize="18" FontWeight="Bold"
+                           Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Center"/>
+                <TextBlock Text="No IP address conflicts detected"
+                           Foreground="{DynamicResource Theme.Text.Muted}" HorizontalAlignment="Center" Margin="0,5,0,0"/>
+              </StackPanel>
+            </Border>
+          </Grid>
         </Grid>
       </TabItem>
 
       <!-- Statistics Tab -->
       <TabItem Header="Statistics">
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Background="{DynamicResource Theme.Surface.Secondary}">
           <Grid Margin="10">
             <Grid.ColumnDefinitions>
               <ColumnDefinition Width="*"/>
