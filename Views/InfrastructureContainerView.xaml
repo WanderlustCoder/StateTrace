@@ -22,10 +22,12 @@
               <ControlTemplate.Triggers>
                 <Trigger Property="IsSelected" Value="True">
                   <Setter TargetName="Border" Property="Background" Value="{DynamicResource Theme.Surface.Primary}"/>
+                  <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Inverse}"/>
                   <Setter Property="FontWeight" Value="SemiBold"/>
                 </Trigger>
                 <Trigger Property="IsMouseOver" Value="True">
                   <Setter TargetName="Border" Property="Background" Value="{DynamicResource Theme.Toolbar.Background}"/>
+                  <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Inverse}"/>
                 </Trigger>
               </ControlTemplate.Triggers>
             </ControlTemplate>
