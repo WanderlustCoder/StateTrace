@@ -1121,6 +1121,10 @@ function Export-Document {
     <#
     .SYNOPSIS
         Exports a document to a specified format.
+    .DESCRIPTION
+        Supports Markdown, HTML, Text, CSV, Word (.docx), and PDF formats.
+        Word export creates native OpenXML .docx files without external dependencies.
+        PDF export generates HTML that can be printed to PDF.
     #>
     [CmdletBinding()]
     param(
@@ -1128,7 +1132,7 @@ function Export-Document {
         [PSObject]$Document,
 
         [Parameter(Mandatory)]
-        [ValidateSet('Markdown', 'HTML', 'Text', 'CSV')]
+        [ValidateSet('Markdown', 'HTML', 'Text', 'CSV', 'Word', 'PDF')]
         [string]$Format,
 
         [Parameter(Mandatory)]
@@ -1141,23 +1145,33 @@ function Export-Document {
         New-Item -ItemType Directory -Path $dir -Force | Out-Null
     }
 
-    $content = switch ($Format) {
+    switch ($Format) {
         'Markdown' {
-            $Document.Content
+            $Document.Content | Set-Content -Path $OutputPath -Encoding UTF8
         }
         'HTML' {
-            ConvertTo-HTMLDocument -MarkdownContent $Document.Content -Title $Document.Title
+            $content = ConvertTo-HTMLDocument -MarkdownContent $Document.Content -Title $Document.Title
+            $content | Set-Content -Path $OutputPath -Encoding UTF8
         }
         'Text' {
-            ConvertTo-PlainText -MarkdownContent $Document.Content
+            $content = ConvertTo-PlainText -MarkdownContent $Document.Content
+            $content | Set-Content -Path $OutputPath -Encoding UTF8
         }
         'CSV' {
-            # CSV export extracts tables from document
-            ConvertTo-CSVFromMarkdown -MarkdownContent $Document.Content
+            $content = ConvertTo-CSVFromMarkdown -MarkdownContent $Document.Content
+            $content | Set-Content -Path $OutputPath -Encoding UTF8
+        }
+        'Word' {
+            # Generate .docx using OpenXML
+            ConvertTo-WordDocument -MarkdownContent $Document.Content -Title $Document.Title -OutputPath $OutputPath
+        }
+        'PDF' {
+            # PDF export generates print-ready HTML with PDF metadata
+            $content = ConvertTo-PDFReadyHTML -MarkdownContent $Document.Content -Title $Document.Title
+            $content | Set-Content -Path $OutputPath -Encoding UTF8
+            Write-Warning "PDF format: Generated print-ready HTML. Open in browser and use Print > Save as PDF."
         }
     }
-
-    $content | Set-Content -Path $OutputPath -Encoding UTF8
 
     # Update document record
     $Document.Format = $Format
@@ -1358,6 +1372,430 @@ function ConvertTo-CSVFromMarkdown {
     }
 
     return $csvLines -join "`n"
+}
+
+function ConvertTo-WordDocument {
+    <#
+    .SYNOPSIS
+        Converts markdown content to a Word (.docx) document using OpenXML.
+    .DESCRIPTION
+        Creates a native .docx file without requiring Microsoft Word.
+        Uses OpenXML format (ZIP archive with XML content).
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$MarkdownContent,
+
+        [Parameter()]
+        [string]$Title = 'Document',
+
+        [Parameter(Mandatory)]
+        [string]$OutputPath
+    )
+
+    # Create temp directory for document parts
+    $tempDir = Join-Path $env:TEMP "docx_$(Get-Date -Format 'yyyyMMddHHmmss')_$([Guid]::NewGuid().ToString().Substring(0,8))"
+    New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
+
+    try {
+        # Create directory structure
+        $wordDir = Join-Path $tempDir 'word'
+        $relsDir = Join-Path $tempDir '_rels'
+        $wordRelsDir = Join-Path $wordDir '_rels'
+
+        New-Item -ItemType Directory -Path $wordDir -Force | Out-Null
+        New-Item -ItemType Directory -Path $relsDir -Force | Out-Null
+        New-Item -ItemType Directory -Path $wordRelsDir -Force | Out-Null
+
+        # Convert markdown to WordML paragraphs
+        $documentXml = ConvertTo-WordML -MarkdownContent $MarkdownContent -Title $Title
+
+        # Create [Content_Types].xml
+        $contentTypes = @'
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+    <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+    <Default Extension="xml" ContentType="application/xml"/>
+    <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+    <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
+</Types>
+'@
+        $contentTypes | Set-Content -LiteralPath (Join-Path $tempDir '[Content_Types].xml') -Encoding UTF8
+
+        # Create _rels/.rels
+        $rootRels = @'
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+    <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>
+'@
+        $rootRels | Set-Content -Path (Join-Path $relsDir '.rels') -Encoding UTF8
+
+        # Create word/_rels/document.xml.rels
+        $docRels = @'
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+    <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>
+'@
+        $docRels | Set-Content -Path (Join-Path $wordRelsDir 'document.xml.rels') -Encoding UTF8
+
+        # Create word/styles.xml
+        $stylesXml = @'
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+    <w:style w:type="paragraph" w:styleId="Heading1">
+        <w:name w:val="heading 1"/>
+        <w:basedOn w:val="Normal"/>
+        <w:pPr><w:spacing w:before="480" w:after="240"/></w:pPr>
+        <w:rPr><w:b/><w:sz w:val="48"/><w:color w:val="2E74B5"/></w:rPr>
+    </w:style>
+    <w:style w:type="paragraph" w:styleId="Heading2">
+        <w:name w:val="heading 2"/>
+        <w:basedOn w:val="Normal"/>
+        <w:pPr><w:spacing w:before="360" w:after="120"/></w:pPr>
+        <w:rPr><w:b/><w:sz w:val="36"/><w:color w:val="2E74B5"/></w:rPr>
+    </w:style>
+    <w:style w:type="paragraph" w:styleId="Heading3">
+        <w:name w:val="heading 3"/>
+        <w:basedOn w:val="Normal"/>
+        <w:pPr><w:spacing w:before="240" w:after="60"/></w:pPr>
+        <w:rPr><w:b/><w:sz w:val="28"/><w:color w:val="5B9BD5"/></w:rPr>
+    </w:style>
+    <w:style w:type="paragraph" w:styleId="Normal">
+        <w:name w:val="Normal"/>
+        <w:pPr><w:spacing w:after="200" w:line="276" w:lineRule="auto"/></w:pPr>
+        <w:rPr><w:sz w:val="22"/><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/></w:rPr>
+    </w:style>
+    <w:style w:type="table" w:styleId="TableGrid">
+        <w:name w:val="Table Grid"/>
+        <w:tblPr>
+            <w:tblBorders>
+                <w:top w:val="single" w:sz="4" w:color="auto"/>
+                <w:left w:val="single" w:sz="4" w:color="auto"/>
+                <w:bottom w:val="single" w:sz="4" w:color="auto"/>
+                <w:right w:val="single" w:sz="4" w:color="auto"/>
+                <w:insideH w:val="single" w:sz="4" w:color="auto"/>
+                <w:insideV w:val="single" w:sz="4" w:color="auto"/>
+            </w:tblBorders>
+        </w:tblPr>
+    </w:style>
+</w:styles>
+'@
+        $stylesXml | Set-Content -Path (Join-Path $wordDir 'styles.xml') -Encoding UTF8
+
+        # Create word/document.xml
+        $documentXml | Set-Content -Path (Join-Path $wordDir 'document.xml') -Encoding UTF8
+
+        # Create ZIP archive
+        if (Test-Path $OutputPath) { Remove-Item $OutputPath -Force }
+
+        # Use .NET compression
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        [System.IO.Compression.ZipFile]::CreateFromDirectory($tempDir, $OutputPath)
+    }
+    finally {
+        # Cleanup temp directory
+        if (Test-Path $tempDir) {
+            Remove-Item -Path $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+function ConvertTo-WordML {
+    <#
+    .SYNOPSIS
+        Converts markdown content to WordML (Office Open XML) format.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$MarkdownContent,
+
+        [Parameter()]
+        [string]$Title = 'Document'
+    )
+
+    $ns = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+    $paragraphs = @()
+
+    # Process lines
+    $lines = $MarkdownContent -split "`n"
+    $inTable = $false
+    $tableRows = @()
+
+    foreach ($line in $lines) {
+        $line = $line.TrimEnd()
+
+        # Skip empty lines
+        if ([string]::IsNullOrWhiteSpace($line)) {
+            continue
+        }
+
+        # Handle tables
+        if ($line -match '^\|.*\|$') {
+            if (-not $inTable) {
+                $inTable = $true
+                $tableRows = @()
+            }
+            # Skip separator rows
+            if ($line -notmatch '^\|[\s\-:|]+\|$') {
+                $tableRows += $line
+            }
+            continue
+        } elseif ($inTable) {
+            # End of table, convert to WordML table
+            $paragraphs += ConvertTo-WordMLTable -Rows $tableRows
+            $inTable = $false
+            $tableRows = @()
+        }
+
+        # Handle horizontal rules
+        if ($line -match '^---+$') {
+            $paragraphs += '<w:p><w:pPr><w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="auto"/></w:pBdr></w:pPr></w:p>'
+            continue
+        }
+
+        # Handle headings
+        if ($line -match '^(#{1,3})\s+(.+)$') {
+            $level = $Matches[1].Length
+            $text = [System.Security.SecurityElement]::Escape($Matches[2])
+            $styleId = "Heading$level"
+            $paragraphs += "<w:p><w:pPr><w:pStyle w:val=`"$styleId`"/></w:pPr><w:r><w:t>$text</w:t></w:r></w:p>"
+            continue
+        }
+
+        # Handle list items
+        if ($line -match '^[-*]\s+(.+)$') {
+            $text = [System.Security.SecurityElement]::Escape($Matches[1])
+            $paragraphs += "<w:p><w:pPr><w:numPr><w:ilvl w:val=`"0`"/><w:numId w:val=`"1`"/></w:numPr></w:pPr><w:r><w:t>$text</w:t></w:r></w:p>"
+            continue
+        }
+
+        # Handle numbered list items
+        if ($line -match '^\d+\.\s+(.+)$') {
+            $text = [System.Security.SecurityElement]::Escape($Matches[1])
+            $paragraphs += "<w:p><w:pPr><w:numPr><w:ilvl w:val=`"0`"/><w:numId w:val=`"2`"/></w:numPr></w:pPr><w:r><w:t>$text</w:t></w:r></w:p>"
+            continue
+        }
+
+        # Regular paragraph with bold handling
+        $text = $line
+        $runs = @()
+
+        # Process bold text
+        while ($text -match '\*\*(.+?)\*\*') {
+            $beforeBold = $text.Substring(0, $text.IndexOf('**'))
+            $boldText = $Matches[1]
+            $afterIndex = $text.IndexOf('**') + 2 + $boldText.Length + 2
+            $afterBold = if ($afterIndex -lt $text.Length) { $text.Substring($afterIndex) } else { '' }
+
+            if ($beforeBold) {
+                $runs += "<w:r><w:t xml:space=`"preserve`">$([System.Security.SecurityElement]::Escape($beforeBold))</w:t></w:r>"
+            }
+            $runs += "<w:r><w:rPr><w:b/></w:rPr><w:t>$([System.Security.SecurityElement]::Escape($boldText))</w:t></w:r>"
+            $text = $afterBold
+        }
+
+        if ($text) {
+            $runs += "<w:r><w:t xml:space=`"preserve`">$([System.Security.SecurityElement]::Escape($text))</w:t></w:r>"
+        }
+
+        if ($runs.Count -gt 0) {
+            $paragraphs += "<w:p>$($runs -join '')</w:p>"
+        }
+    }
+
+    # Handle table at end of content
+    if ($inTable -and $tableRows.Count -gt 0) {
+        $paragraphs += ConvertTo-WordMLTable -Rows $tableRows
+    }
+
+    # Build document
+    $documentXml = @"
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="$ns">
+    <w:body>
+        $($paragraphs -join "`n        ")
+        <w:sectPr>
+            <w:pgSz w:w="12240" w:h="15840"/>
+            <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/>
+        </w:sectPr>
+    </w:body>
+</w:document>
+"@
+
+    return $documentXml
+}
+
+function ConvertTo-WordMLTable {
+    <#
+    .SYNOPSIS
+        Converts markdown table rows to WordML table format.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string[]]$Rows
+    )
+
+    if ($Rows.Count -eq 0) { return '' }
+
+    $tableXml = '<w:tbl><w:tblPr><w:tblStyle w:val="TableGrid"/><w:tblW w:w="0" w:type="auto"/></w:tblPr>'
+
+    for ($i = 0; $i -lt $Rows.Count; $i++) {
+        $cells = $Rows[$i] -split '\|' | Where-Object { $_.Trim() } | ForEach-Object { $_.Trim() }
+        $isHeader = ($i -eq 0)
+
+        $tableXml += '<w:tr>'
+        foreach ($cell in $cells) {
+            $cellText = [System.Security.SecurityElement]::Escape($cell)
+            if ($isHeader) {
+                $tableXml += "<w:tc><w:tcPr><w:shd w:val=`"clear`" w:fill=`"4472C4`"/></w:tcPr><w:p><w:r><w:rPr><w:b/><w:color w:val=`"FFFFFF`"/></w:rPr><w:t>$cellText</w:t></w:r></w:p></w:tc>"
+            } else {
+                $tableXml += "<w:tc><w:p><w:r><w:t>$cellText</w:t></w:r></w:p></w:tc>"
+            }
+        }
+        $tableXml += '</w:tr>'
+    }
+
+    $tableXml += '</w:tbl>'
+
+    return $tableXml
+}
+
+function ConvertTo-PDFReadyHTML {
+    <#
+    .SYNOPSIS
+        Converts markdown to print-ready HTML optimized for PDF export.
+    .DESCRIPTION
+        Generates HTML with print-specific CSS for optimal PDF output
+        when using browser's Print > Save as PDF feature.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$MarkdownContent,
+
+        [Parameter()]
+        [string]$Title = 'Document'
+    )
+
+    # Convert markdown to HTML content
+    $htmlContent = $MarkdownContent
+
+    # Convert headers
+    $htmlContent = $htmlContent -replace '^### (.+)$', '<h3>$1</h3>'
+    $htmlContent = $htmlContent -replace '^## (.+)$', '<h2>$1</h2>'
+    $htmlContent = $htmlContent -replace '^# (.+)$', '<h1>$1</h1>'
+
+    # Convert bold
+    $htmlContent = $htmlContent -replace '\*\*(.+?)\*\*', '<strong>$1</strong>'
+
+    # Convert tables
+    $htmlContent = ConvertMarkdownTablesToHTML -Content $htmlContent
+
+    # Convert horizontal rules
+    $htmlContent = $htmlContent -replace '^---$', '<hr/>'
+
+    # Convert list items
+    $htmlContent = $htmlContent -replace '^- (.+)$', '<li>$1</li>'
+
+    # Wrap in print-optimized HTML
+    $pdfHtml = @"
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>$Title</title>
+    <style>
+        @page {
+            size: letter;
+            margin: 1in;
+        }
+        @media print {
+            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            h1, h2, h3 { page-break-after: avoid; }
+            table { page-break-inside: avoid; }
+        }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            font-size: 11pt;
+            line-height: 1.5;
+            color: #333;
+            max-width: 8.5in;
+            margin: 0 auto;
+            padding: 0.5in;
+        }
+        h1 {
+            color: #2E74B5;
+            font-size: 24pt;
+            border-bottom: 2px solid #2E74B5;
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+        h2 {
+            color: #2E74B5;
+            font-size: 18pt;
+            margin-top: 24pt;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 5px;
+        }
+        h3 {
+            color: #5B9BD5;
+            font-size: 14pt;
+            margin-top: 18pt;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 12pt 0;
+            font-size: 10pt;
+        }
+        th {
+            background-color: #4472C4;
+            color: white;
+            padding: 8px;
+            text-align: left;
+            font-weight: bold;
+        }
+        td {
+            border: 1px solid #ddd;
+            padding: 8px;
+        }
+        tr:nth-child(even) {
+            background-color: #f8f8f8;
+        }
+        hr {
+            border: none;
+            border-top: 1px solid #ccc;
+            margin: 20pt 0;
+        }
+        li {
+            margin: 4pt 0;
+        }
+        .footer {
+            margin-top: 30pt;
+            padding-top: 10pt;
+            border-top: 1px solid #ccc;
+            font-size: 9pt;
+            color: #666;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+$htmlContent
+<div class="footer">
+    <p>Generated by StateTrace Documentation Generator - $(Get-Date -Format 'yyyy-MM-dd HH:mm')</p>
+    <p><em>Print this page (Ctrl+P) and select "Save as PDF" for PDF output</em></p>
+</div>
+</body>
+</html>
+"@
+
+    return $pdfHtml
 }
 
 #endregion

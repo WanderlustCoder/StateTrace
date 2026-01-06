@@ -15,12 +15,12 @@ Network teams spend significant time:
 - Keeping documentation synchronized with actual network state
 
 ## Current status (2026-01)
-- **In Progress (4/6 Done)**: Core module, tests, UI, and MainWindow integration complete
+- **Complete (6/6 Done)**: Core module, tests, UI, MainWindow integration, and Word/PDF export
 - Template engine with Handlebars-like syntax ({{variable}}, {{#each}}, {{#if}})
 - 7 built-in templates: Site-AsBuilt, Device-Summary, VLAN-Reference, IP-Allocation, Executive-Summary, Change-Summary, Cable-Matrix
-- Multi-format export: Markdown, HTML, Text, CSV
+- Multi-format export: Markdown, HTML, Text, CSV, Word (.docx), PDF (print-ready HTML)
 - Document scheduling with Daily/Weekly/Monthly frequency
-- 71 Pester tests passing
+- 84 Pester tests passing
 
 ## Proposed Features
 
@@ -87,7 +87,7 @@ Network teams spend significant time:
 |----|-------|-------|--------|-------|
 | ST-AA-001 | Document template engine | Tools | Done | Expand-DocumentTemplate with {{variable}}, {{#each}}, {{#if}} |
 | ST-AA-002 | As-built generator | Tools | Done | New-SiteAsBuilt, New-DeviceDocumentation, reports |
-| ST-AA-003 | Word/PDF export | Tools | Pending | Professional format output (currently Markdown/HTML/Text/CSV) |
+| ST-AA-003 | Word/PDF export | Tools | Done | Word (.docx) via OpenXML, PDF via print-ready HTML |
 | ST-AA-004 | Template library | Docs | Done | 7 built-in templates, custom template support |
 | ST-AA-005 | Scheduled generation | Tools | Done | Daily/Weekly/Monthly scheduling |
 | ST-AA-006 | Documentation UI | UI | Done | Full UI with Templates, Generate, Documents, Schedules, Export, History tabs |
@@ -97,6 +97,7 @@ Network teams spend significant time:
 |----|-------|-----------|-------|
 | ST-AA-001 | Document template engine | 2026-01-05 | `Modules/DocumentationGeneratorModule.psm1` |
 | ST-AA-002 | As-built generator | 2026-01-05 | Site/device/report generation functions |
+| ST-AA-003 | Word/PDF export | 2026-01-05 | ConvertTo-WordDocument, ConvertTo-PDFReadyHTML (84 tests passing) |
 | ST-AA-004 | Template library | 2026-01-05 | 7 built-in templates |
 | ST-AA-005 | Scheduled generation | 2026-01-05 | New-DocumentSchedule, Get-DocumentSchedule |
 | ST-AA-006 | Documentation UI | 2026-01-05 | `Views/DocumentationGeneratorView.xaml`, `Modules/DocumentationGeneratorViewModule.psm1` |

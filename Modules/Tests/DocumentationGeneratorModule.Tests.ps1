@@ -594,4 +594,234 @@ Describe 'DocumentationGeneratorModule' {
     }
 
     #endregion
+
+    #region ST-AA-003: Word/PDF Export Tests
+
+    Context 'Word (.docx) Export' {
+        BeforeAll {
+            $script:wordTestDir = Join-Path $env:TEMP 'WordExportTest'
+            if (-not (Test-Path $script:wordTestDir)) {
+                New-Item -ItemType Directory -Path $script:wordTestDir -Force | Out-Null
+            }
+        }
+
+        AfterAll {
+            if (Test-Path $script:wordTestDir) {
+                Remove-Item -Path $script:wordTestDir -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        It 'exports document to Word format' {
+            $doc = New-SiteAsBuilt -SiteName 'WordTest' -Devices @(
+                @{ hostname = 'SW-01'; vendor = 'Cisco'; model = 'C9300'; role = 'Access'; location = 'MDF'; port_count = 48 }
+            )
+            $outputPath = Join-Path $script:wordTestDir 'test.docx'
+
+            $result = Export-Document -Document $doc -Format Word -OutputPath $outputPath
+
+            Test-Path $result | Should Be $true
+        }
+
+        It 'creates valid ZIP archive (docx format)' {
+            $doc = New-SiteAsBuilt -SiteName 'ZipTest'
+            $outputPath = Join-Path $script:wordTestDir 'ziptest.docx'
+
+            Export-Document -Document $doc -Format Word -OutputPath $outputPath
+
+            # Verify it's a valid ZIP by trying to open it
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            $zip = [System.IO.Compression.ZipFile]::OpenRead($outputPath)
+            $zip.Entries.Count | Should BeGreaterThan 0
+            $zip.Dispose()
+        }
+
+        It 'includes document.xml in docx' {
+            $doc = New-SiteAsBuilt -SiteName 'XmlTest'
+            $outputPath = Join-Path $script:wordTestDir 'xmltest.docx'
+
+            Export-Document -Document $doc -Format Word -OutputPath $outputPath
+
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            $zip = [System.IO.Compression.ZipFile]::OpenRead($outputPath)
+            $docEntry = $zip.Entries | Where-Object { $_.FullName -match 'word[/\\]document\.xml$' }
+            $docEntry | Should Not BeNullOrEmpty
+            $zip.Dispose()
+        }
+
+        It 'includes styles.xml in docx' {
+            $doc = New-SiteAsBuilt -SiteName 'StylesTest'
+            $outputPath = Join-Path $script:wordTestDir 'stylestest.docx'
+
+            Export-Document -Document $doc -Format Word -OutputPath $outputPath
+
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            $zip = [System.IO.Compression.ZipFile]::OpenRead($outputPath)
+            $stylesEntry = $zip.Entries | Where-Object { $_.FullName -match 'word[/\\]styles\.xml$' }
+            $stylesEntry | Should Not BeNullOrEmpty
+            $zip.Dispose()
+        }
+
+        It 'includes Content_Types.xml in docx' {
+            $doc = New-SiteAsBuilt -SiteName 'ContentTypesTest'
+            $outputPath = Join-Path $script:wordTestDir 'contenttypestest.docx'
+
+            Export-Document -Document $doc -Format Word -OutputPath $outputPath
+
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            $zip = [System.IO.Compression.ZipFile]::OpenRead($outputPath)
+            $contentEntry = $zip.Entries | Where-Object { $_.FullName -eq '[Content_Types].xml' }
+            $contentEntry | Should Not BeNullOrEmpty
+            $zip.Dispose()
+        }
+
+        It 'handles tables in Word export' {
+            $doc = New-SiteAsBuilt -SiteName 'TableTest' -Devices @(
+                @{ hostname = 'SW-01'; vendor = 'Cisco'; model = 'C9300'; role = 'Access'; location = 'MDF'; port_count = 48 },
+                @{ hostname = 'SW-02'; vendor = 'Arista'; model = '7050X'; role = 'Core'; location = 'MDF'; port_count = 52 }
+            )
+            $outputPath = Join-Path $script:wordTestDir 'tabletest.docx'
+
+            Export-Document -Document $doc -Format Word -OutputPath $outputPath
+
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            $zip = [System.IO.Compression.ZipFile]::OpenRead($outputPath)
+            $docEntry = $zip.Entries | Where-Object { $_.FullName -match 'word[/\\]document\.xml$' }
+            $stream = $docEntry.Open()
+            $reader = New-Object System.IO.StreamReader($stream)
+            $content = $reader.ReadToEnd()
+            $reader.Dispose()
+            $stream.Dispose()
+            $zip.Dispose()
+
+            $content | Should Match '<w:tbl>'
+        }
+    }
+
+    Context 'PDF Export' {
+        BeforeAll {
+            $script:pdfTestDir = Join-Path $env:TEMP 'PDFExportTest'
+            if (-not (Test-Path $script:pdfTestDir)) {
+                New-Item -ItemType Directory -Path $script:pdfTestDir -Force | Out-Null
+            }
+        }
+
+        AfterAll {
+            if (Test-Path $script:pdfTestDir) {
+                Remove-Item -Path $script:pdfTestDir -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        It 'exports document to PDF-ready HTML format' {
+            $doc = New-SiteAsBuilt -SiteName 'PDFTest'
+            $outputPath = Join-Path $script:pdfTestDir 'test.html'
+
+            $result = Export-Document -Document $doc -Format PDF -OutputPath $outputPath -WarningAction SilentlyContinue
+
+            Test-Path $result | Should Be $true
+        }
+
+        It 'includes print-specific CSS' {
+            $doc = New-SiteAsBuilt -SiteName 'PrintCSSTest'
+            $outputPath = Join-Path $script:pdfTestDir 'printcss.html'
+
+            Export-Document -Document $doc -Format PDF -OutputPath $outputPath -WarningAction SilentlyContinue
+
+            $content = Get-Content -Path $outputPath -Raw
+            $content | Should Match '@page'
+            $content | Should Match '@media print'
+        }
+
+        It 'includes page size settings' {
+            $doc = New-SiteAsBuilt -SiteName 'PageSizeTest'
+            $outputPath = Join-Path $script:pdfTestDir 'pagesize.html'
+
+            Export-Document -Document $doc -Format PDF -OutputPath $outputPath -WarningAction SilentlyContinue
+
+            $content = Get-Content -Path $outputPath -Raw
+            $content | Should Match 'size:\s*letter'
+        }
+
+        It 'includes footer with generation info' {
+            $doc = New-SiteAsBuilt -SiteName 'FooterTest'
+            $outputPath = Join-Path $script:pdfTestDir 'footer.html'
+
+            Export-Document -Document $doc -Format PDF -OutputPath $outputPath -WarningAction SilentlyContinue
+
+            $content = Get-Content -Path $outputPath -Raw
+            $content | Should Match 'StateTrace Documentation Generator'
+            $content | Should Match 'Save as PDF'
+        }
+    }
+
+    Context 'WordML Content Validation' {
+        It 'converts headings to WordML styles in docx' {
+            $templateContent = @'
+# Heading 1
+## Heading 2
+### Heading 3
+'@
+            $template = New-DocumentTemplate -Name 'HeadingTestTemplate' -Content $templateContent -Category 'Test'
+            $doc = New-Document -TemplateID $template.TemplateID -Title 'HeadingTest'
+            $outputPath = Join-Path $script:wordTestDir 'HeadingTest.docx'
+            Export-Document -Document $doc -Format Word -OutputPath $outputPath
+
+            # Read document.xml from ZIP
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            $zip = [System.IO.Compression.ZipFile]::OpenRead($outputPath)
+            $docEntry = $zip.Entries | Where-Object { $_.FullName -match 'word[/\\]document\.xml$' }
+            $stream = $docEntry.Open()
+            $reader = New-Object System.IO.StreamReader($stream)
+            $docXml = $reader.ReadToEnd()
+            $reader.Dispose()
+            $stream.Dispose()
+            $zip.Dispose()
+
+            $docXml | Should Match 'w:pStyle w:val="Heading1"'
+            $docXml | Should Match 'w:pStyle w:val="Heading2"'
+            $docXml | Should Match 'w:pStyle w:val="Heading3"'
+        }
+
+        It 'converts bold text to WordML runs in docx' {
+            $templateContent = 'This is **bold** text.'
+            $template = New-DocumentTemplate -Name 'BoldTestTemplate' -Content $templateContent -Category 'Test'
+            $doc = New-Document -TemplateID $template.TemplateID -Title 'BoldTest'
+            $outputPath = Join-Path $script:wordTestDir 'BoldTest.docx'
+            Export-Document -Document $doc -Format Word -OutputPath $outputPath
+
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            $zip = [System.IO.Compression.ZipFile]::OpenRead($outputPath)
+            $docEntry = $zip.Entries | Where-Object { $_.FullName -match 'word[/\\]document\.xml$' }
+            $stream = $docEntry.Open()
+            $reader = New-Object System.IO.StreamReader($stream)
+            $docXml = $reader.ReadToEnd()
+            $reader.Dispose()
+            $stream.Dispose()
+            $zip.Dispose()
+
+            $docXml | Should Match '<w:b/>'
+        }
+
+        It 'escapes special XML characters in docx' {
+            $templateContent = 'Test with <angle> & "quotes"'
+            $template = New-DocumentTemplate -Name 'EscapeTestTemplate' -Content $templateContent -Category 'Test'
+            $doc = New-Document -TemplateID $template.TemplateID -Title 'EscapeTest'
+            $outputPath = Join-Path $script:wordTestDir 'EscapeTest.docx'
+            Export-Document -Document $doc -Format Word -OutputPath $outputPath
+
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            $zip = [System.IO.Compression.ZipFile]::OpenRead($outputPath)
+            $docEntry = $zip.Entries | Where-Object { $_.FullName -match 'word[/\\]document\.xml$' }
+            $stream = $docEntry.Open()
+            $reader = New-Object System.IO.StreamReader($stream)
+            $docXml = $reader.ReadToEnd()
+            $reader.Dispose()
+            $stream.Dispose()
+            $zip.Dispose()
+
+            $docXml | Should Match '&lt;angle&gt;'
+            $docXml | Should Match '&amp;'
+        }
+    }
+
+    #endregion
 }
