@@ -109,6 +109,8 @@
                 HorizontalContentAlignment="Stretch"
                 ScrollViewer.VerticalScrollBarVisibility="Auto"
                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                ScrollViewer.CanContentScroll="True"
                 ToolTip="Drag labels here to park/unassign them (also useful for cross-page moves). Drag parked labels onto ports to assign.">
        <ListBox.ItemTemplate>
           <DataTemplate>

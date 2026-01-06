@@ -102,6 +102,7 @@
                     Width="120"
                     Margin="0,0,10,5"
                     Style="{DynamicResource PrimaryButtonStyle}"
+                    ToolTip="Open side-by-side configuration comparison"
                     Grid.Row="0" Grid.Column="0"/>
             <Button Name="CopyDetailsButton"
                     Content="Copy Details"
@@ -115,6 +116,7 @@
                     Width="120"
                     Margin="0,0,0,5"
                     Style="{DynamicResource PrimaryButtonStyle}"
+                    ToolTip="Generate configuration commands for selected interfaces"
                     Grid.Row="0" Grid.Column="1"/>
             <ComboBox Name="ConfigOptionsDropdown"
                       Width="120"
@@ -175,7 +177,8 @@
                     Width="120"
                     Margin="10,0,0,0"
                     VerticalAlignment="Top"
-                    Style="{DynamicResource PrimaryButtonStyle}"/>
+                    Style="{DynamicResource PrimaryButtonStyle}"
+                    ToolTip="Open port reorganization tool for label management"/>
           </Grid>
         </Grid>
 

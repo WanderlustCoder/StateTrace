@@ -167,7 +167,7 @@
   <!-- Danger Button Style -->
   <Style x:Key="DangerButtonStyle" TargetType="Button">
     <Setter Property="Background" Value="{DynamicResource Theme.Status.Danger}"/>
-    <Setter Property="Foreground" Value="#FFFFFF"/>
+    <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Inverse}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource Theme.Status.Danger}"/>
     <Setter Property="BorderThickness" Value="1"/>
     <Setter Property="Padding" Value="6,2"/>

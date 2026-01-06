@@ -161,7 +161,9 @@
                 <Separator Margin="0,5"/>
 
                 <TextBlock Text="Implementation Steps" FontWeight="Bold" FontSize="12" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,5,0,5"/>
-                <ListBox Name="StepsList" MaxHeight="150" Background="Transparent" BorderThickness="0"/>
+                <ListBox Name="StepsList" MaxHeight="150" Background="Transparent" BorderThickness="0"
+                         VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                         ScrollViewer.CanContentScroll="True"/>
 
                 <Separator Margin="0,5"/>
 
@@ -248,7 +250,9 @@
             <StackPanel>
               <TextBlock Text="Available Templates" FontWeight="Bold" FontSize="14" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
               <ListBox Name="TemplatesList" Height="400" Background="Transparent" BorderThickness="0"
-                       Foreground="{DynamicResource Theme.Text.Primary}"/>
+                       Foreground="{DynamicResource Theme.Text.Primary}"
+                       VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                       ScrollViewer.CanContentScroll="True"/>
             </StackPanel>
           </Border>
 
@@ -280,13 +284,17 @@
 
                 <TextBlock Text="Steps:" FontWeight="Bold" FontSize="12" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,5"/>
                 <ListBox Name="TemplateStepsList" MaxHeight="200" Background="Transparent" BorderThickness="0"
-                         Foreground="{DynamicResource Theme.Text.Primary}"/>
+                         Foreground="{DynamicResource Theme.Text.Primary}"
+                         VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                         ScrollViewer.CanContentScroll="True"/>
 
                 <Separator Margin="0,10"/>
 
                 <TextBlock Text="Rollback Steps:" FontWeight="Bold" FontSize="12" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,5"/>
                 <ListBox Name="TemplateRollbackList" MaxHeight="100" Background="Transparent" BorderThickness="0"
-                         Foreground="{DynamicResource Theme.Text.Primary}"/>
+                         Foreground="{DynamicResource Theme.Text.Primary}"
+                         VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                         ScrollViewer.CanContentScroll="True"/>
 
                 <Button Name="UseTemplateButton" Content="Create Change from Template" Style="{DynamicResource PrimaryButtonStyle}" Margin="0,15,0,0" HorizontalAlignment="Center"/>
               </StackPanel>
@@ -402,7 +410,9 @@
                 <StackPanel>
                   <TextBlock Text="By Change Type" FontWeight="Bold" FontSize="14" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,15"/>
                   <ListBox Name="StatsByTypeList" Background="Transparent" BorderThickness="0" MaxHeight="150"
-                           Foreground="{DynamicResource Theme.Text.Primary}"/>
+                           Foreground="{DynamicResource Theme.Text.Primary}"
+                           VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                           ScrollViewer.CanContentScroll="True"/>
                 </StackPanel>
               </Border>
 
@@ -411,7 +421,9 @@
                 <StackPanel>
                   <TextBlock Text="By Risk Level" FontWeight="Bold" FontSize="14" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,15"/>
                   <ListBox Name="StatsByRiskList" Background="Transparent" BorderThickness="0" MaxHeight="150"
-                           Foreground="{DynamicResource Theme.Text.Primary}"/>
+                           Foreground="{DynamicResource Theme.Text.Primary}"
+                           VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                           ScrollViewer.CanContentScroll="True"/>
                 </StackPanel>
               </Border>
 
@@ -420,7 +432,9 @@
                 <StackPanel>
                   <TextBlock Text="By Status" FontWeight="Bold" FontSize="14" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,15"/>
                   <ListBox Name="StatsByStatusList" Background="Transparent" BorderThickness="0" MaxHeight="150"
-                           Foreground="{DynamicResource Theme.Text.Primary}"/>
+                           Foreground="{DynamicResource Theme.Text.Primary}"
+                           VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                           ScrollViewer.CanContentScroll="True"/>
                 </StackPanel>
               </Border>
             </Grid>

@@ -160,7 +160,9 @@
             <ListBox Name="SnippetsList" Grid.Row="1"
                      Background="{DynamicResource Theme.Input.Background}"
                      Foreground="{DynamicResource Theme.Input.Text}"
-                     BorderBrush="{DynamicResource Theme.Input.Border}"/>
+                     BorderBrush="{DynamicResource Theme.Input.Border}"
+                     VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                     ScrollViewer.CanContentScroll="True"/>
           </Grid>
 
           <!-- Right: Snippet details and generator -->

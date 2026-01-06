@@ -245,7 +245,9 @@
                 <Separator Margin="0,10"/>
 
                 <TextBlock Text="Modules" FontWeight="Bold" Margin="0,0,0,5" Foreground="{DynamicResource Theme.Text.Primary}"/>
-                <ListBox Name="ModulesListBox" Height="80" Background="{DynamicResource Theme.Surface.Primary}" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                <ListBox Name="ModulesListBox" Height="80" Background="{DynamicResource Theme.Surface.Primary}" Foreground="{DynamicResource Theme.Text.Primary}"
+                              VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                              ScrollViewer.CanContentScroll="True"/>
 
                 <Separator Margin="0,10"/>
 
@@ -283,6 +285,7 @@
             <DataGrid Name="ExpiringWarrantiesGrid"
                       AutoGenerateColumns="False"
                       IsReadOnly="True"
+                      CanUserSortColumns="True"
                       Background="{DynamicResource Theme.Surface.Primary}"
                       Foreground="{DynamicResource Theme.Text.Primary}"
                       RowBackground="{DynamicResource Theme.Surface.Primary}"
@@ -304,6 +307,7 @@
             <DataGrid Name="ExpiredWarrantiesGrid"
                       AutoGenerateColumns="False"
                       IsReadOnly="True"
+                      CanUserSortColumns="True"
                       Background="{DynamicResource Theme.Surface.Primary}"
                       Foreground="{DynamicResource Theme.Text.Primary}"
                       RowBackground="{DynamicResource Theme.Surface.Primary}"
@@ -347,6 +351,7 @@
               <DataGrid Name="BelowMinimumGrid"
                         AutoGenerateColumns="False"
                         IsReadOnly="True"
+                        CanUserSortColumns="True"
                         Background="{DynamicResource Theme.Surface.Primary}"
                         Foreground="{DynamicResource Theme.Text.Primary}"
                         RowBackground="{DynamicResource Theme.Surface.Primary}"
@@ -366,6 +371,7 @@
               <DataGrid Name="VulnerableDevicesGrid"
                         AutoGenerateColumns="False"
                         IsReadOnly="True"
+                        CanUserSortColumns="True"
                         Background="{DynamicResource Theme.Surface.Primary}"
                         Foreground="{DynamicResource Theme.Text.Primary}"
                         RowBackground="{DynamicResource Theme.Surface.Primary}"
@@ -384,6 +390,7 @@
             <DataGrid Name="FirmwareRequirementsGrid"
                       AutoGenerateColumns="False"
                       IsReadOnly="True"
+                      CanUserSortColumns="True"
                       Background="{DynamicResource Theme.Surface.Primary}"
                       Foreground="{DynamicResource Theme.Text.Primary}">
               <DataGrid.Columns>
@@ -423,6 +430,7 @@
             <DataGrid Name="EoLDevicesGrid"
                       AutoGenerateColumns="False"
                       IsReadOnly="True"
+                      CanUserSortColumns="True"
                       Background="{DynamicResource Theme.Surface.Primary}"
                       Foreground="{DynamicResource Theme.Text.Primary}"
                       RowBackground="{DynamicResource Theme.Surface.Primary}"
@@ -444,6 +452,7 @@
             <DataGrid Name="LifecycleDatabaseGrid"
                       AutoGenerateColumns="False"
                       IsReadOnly="True"
+                      CanUserSortColumns="True"
                       Background="{DynamicResource Theme.Surface.Primary}"
                       Foreground="{DynamicResource Theme.Text.Primary}">
               <DataGrid.Columns>
@@ -540,6 +549,7 @@
               <DataGrid Name="YearlyForecastGrid"
                         AutoGenerateColumns="False"
                         IsReadOnly="True"
+                        CanUserSortColumns="True"
                         Background="{DynamicResource Theme.Surface.Primary}"
                         Foreground="{DynamicResource Theme.Text.Primary}"
                         RowBackground="{DynamicResource Theme.Surface.Primary}"
@@ -557,6 +567,7 @@
               <DataGrid Name="RefreshRecommendationsGrid"
                         AutoGenerateColumns="False"
                         IsReadOnly="True"
+                        CanUserSortColumns="True"
                         Background="{DynamicResource Theme.Surface.Primary}"
                         Foreground="{DynamicResource Theme.Text.Primary}"
                         RowBackground="{DynamicResource Theme.Surface.Primary}"

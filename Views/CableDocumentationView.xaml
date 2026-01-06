@@ -50,29 +50,32 @@
         <ListBox Name="CableListBox" Grid.Row="1" Margin="0,0,0,5"
                  Background="{DynamicResource Theme.Surface.Primary}"
                  Foreground="{DynamicResource Theme.Text.Primary}"
-                 SelectionMode="Extended">
+                 SelectionMode="Extended"
+                 VirtualizingPanel.IsVirtualizing="True"
+                 VirtualizingPanel.VirtualizationMode="Recycling"
+                 ScrollViewer.CanContentScroll="True">
           <ListBox.ItemTemplate>
             <DataTemplate>
               <StackPanel Orientation="Horizontal">
                 <Ellipse Width="10" Height="10" Margin="0,0,5,0" VerticalAlignment="Center">
                   <Ellipse.Style>
                     <Style TargetType="Ellipse">
-                      <Setter Property="Fill" Value="Gray"/>
+                      <Setter Property="Fill" Value="{DynamicResource Theme.Status.Neutral}"/>
                       <Style.Triggers>
                         <DataTrigger Binding="{Binding Status}" Value="Active">
-                          <Setter Property="Fill" Value="LimeGreen"/>
+                          <Setter Property="Fill" Value="{DynamicResource Theme.Status.Success}"/>
                         </DataTrigger>
                         <DataTrigger Binding="{Binding Status}" Value="Reserved">
-                          <Setter Property="Fill" Value="DodgerBlue"/>
+                          <Setter Property="Fill" Value="{DynamicResource Theme.Status.Info}"/>
                         </DataTrigger>
                         <DataTrigger Binding="{Binding Status}" Value="Faulty">
-                          <Setter Property="Fill" Value="Red"/>
+                          <Setter Property="Fill" Value="{DynamicResource Theme.Status.Danger}"/>
                         </DataTrigger>
                         <DataTrigger Binding="{Binding Status}" Value="Abandoned">
-                          <Setter Property="Fill" Value="DarkGray"/>
+                          <Setter Property="Fill" Value="{DynamicResource Theme.Status.Neutral}"/>
                         </DataTrigger>
                         <DataTrigger Binding="{Binding Status}" Value="Planned">
-                          <Setter Property="Fill" Value="Orange"/>
+                          <Setter Property="Fill" Value="{DynamicResource Theme.Status.Warning}"/>
                         </DataTrigger>
                       </Style.Triggers>
                     </Style>
@@ -96,7 +99,10 @@
         <ListBox Name="PanelListBox" Grid.Row="3"
                  Background="{DynamicResource Theme.Surface.Primary}"
                  Foreground="{DynamicResource Theme.Text.Primary}"
-                 SelectionMode="Single">
+                 SelectionMode="Single"
+                 VirtualizingPanel.IsVirtualizing="True"
+                 VirtualizingPanel.VirtualizationMode="Recycling"
+                 ScrollViewer.CanContentScroll="True">
           <ListBox.ItemTemplate>
             <DataTemplate>
               <StackPanel Orientation="Horizontal">

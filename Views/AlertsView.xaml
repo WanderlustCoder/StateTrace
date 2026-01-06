@@ -9,7 +9,7 @@
 
     <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5" Background="{DynamicResource Theme.Surface.Primary}">
       <TextBlock Text="Alerts and Anomalies" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Inverse}" Margin="0,0,10,0"/>
-      <Button Name="ExportAlertsButton" Content="Export" Width="70" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Export alerts to CSV"/>
+      <Button Name="ExportAlertsButton" Content="_Export" Width="70" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Export alerts to CSV (Alt+E)"/>
     </StackPanel>
 
     <Grid Grid.Row="1">
@@ -26,7 +26,42 @@
           <DataGridTextColumn Header="Switch" Binding="{Binding Hostname}" Width="120"/>
           <DataGridTextColumn Header="Port" Binding="{Binding Port}" Width="80"/>
           <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="150"/>
-          <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="80"/>
+          <DataGridTemplateColumn Header="Status" Width="80">
+            <DataGridTemplateColumn.CellTemplate>
+              <DataTemplate>
+                <StackPanel Orientation="Horizontal">
+                  <Ellipse Width="10" Height="10" Margin="0,0,5,0" VerticalAlignment="Center">
+                    <Ellipse.Style>
+                      <Style TargetType="Ellipse">
+                        <Setter Property="Fill" Value="{DynamicResource Theme.Status.Neutral}"/>
+                        <Style.Triggers>
+                          <DataTrigger Binding="{Binding Status}" Value="up">
+                            <Setter Property="Fill" Value="{DynamicResource Theme.Status.Success}"/>
+                          </DataTrigger>
+                          <DataTrigger Binding="{Binding Status}" Value="connected">
+                            <Setter Property="Fill" Value="{DynamicResource Theme.Status.Success}"/>
+                          </DataTrigger>
+                          <DataTrigger Binding="{Binding Status}" Value="down">
+                            <Setter Property="Fill" Value="{DynamicResource Theme.Status.Danger}"/>
+                          </DataTrigger>
+                          <DataTrigger Binding="{Binding Status}" Value="notconnect">
+                            <Setter Property="Fill" Value="{DynamicResource Theme.Status.Warning}"/>
+                          </DataTrigger>
+                          <DataTrigger Binding="{Binding Status}" Value="disabled">
+                            <Setter Property="Fill" Value="{DynamicResource Theme.Status.Neutral}"/>
+                          </DataTrigger>
+                          <DataTrigger Binding="{Binding Status}" Value="err-disabled">
+                            <Setter Property="Fill" Value="{DynamicResource Theme.Status.Danger}"/>
+                          </DataTrigger>
+                        </Style.Triggers>
+                      </Style>
+                    </Ellipse.Style>
+                  </Ellipse>
+                  <TextBlock Text="{Binding Status}" VerticalAlignment="Center"/>
+                </StackPanel>
+              </DataTemplate>
+            </DataGridTemplateColumn.CellTemplate>
+          </DataGridTemplateColumn>
           <DataGridTextColumn Header="VLAN" Binding="{Binding VLAN}" Width="60"/>
           <DataGridTextColumn Header="Duplex" Binding="{Binding Duplex}" Width="60"/>
           <DataGridTextColumn Header="AuthState" Binding="{Binding AuthState}" Width="100"/>

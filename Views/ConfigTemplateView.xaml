@@ -53,7 +53,9 @@
               <ListBox Grid.Row="1" Name="TemplateListBox"
                        Background="{DynamicResource Theme.Surface.Primary}"
                        Foreground="{DynamicResource Theme.Text.Primary}"
-                       DisplayMemberPath="Name"/>
+                       DisplayMemberPath="Name"
+                       VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                       ScrollViewer.CanContentScroll="True"/>
             </Grid>
           </Border>
 
@@ -160,7 +162,9 @@
               <ListBox Grid.Row="1" Name="StandardsListBox"
                        Background="{DynamicResource Theme.Surface.Primary}"
                        Foreground="{DynamicResource Theme.Text.Primary}"
-                       DisplayMemberPath="Name"/>
+                       DisplayMemberPath="Name"
+                       VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                       ScrollViewer.CanContentScroll="True"/>
               <StackPanel Grid.Row="2" Margin="0,5,0,0">
                 <TextBlock Name="StandardInfoText" TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource Theme.Text.Secondary}"/>
               </StackPanel>
