@@ -16,11 +16,11 @@ Network engineers frequently need to:
 - Verify address ranges and CIDR aggregation
 
 ## Current status (2026-01)
-- **In Progress (4/6 Done)**. Core calculator module, tests, UI view, and main window integration completed.
-- NetworkCalculatorModule.psm1 implemented with subnet, IP, VLAN, bandwidth, and port reference functions
-- NetworkCalculatorViewModule.psm1 provides tabbed UI for all calculators
-- 79 Pester tests pass for all calculator functions
-- Remaining: ACL builder UI, advanced protocol calculators
+- **Complete (6/6 Done)**. All calculator features implemented including ACL Builder.
+- NetworkCalculatorModule.psm1 with subnet, IP, VLAN, bandwidth, port reference, and ACL builder functions
+- NetworkCalculatorViewModule.psm1 provides 6-tab UI for all calculators
+- ACL Builder with interactive entry management, templates, and config generation (Cisco/Arista)
+- 109 Pester tests pass for all calculator functions including 20 ACL builder tests
 
 ## Proposed Features
 
@@ -96,8 +96,8 @@ Network engineers frequently need to:
 | ST-Y-002 | IP address utilities | Tools | Done | Validation, format conversion, containment check |
 | ST-Y-003 | Bandwidth calculator | Tools | Done | Transfer time, unit conversion |
 | ST-Y-004 | Protocol timer calculators | Tools | Done | STP timer validation implemented |
-| ST-Y-005 | ACL builder UI | UI | Pending | Interactive ACL construction |
-| ST-Y-006 | Calculator toolbar view | UI | Done | 5-tab UI integrated into MainWindow |
+| ST-Y-005 | ACL builder UI | UI | Done | Interactive ACL construction with templates |
+| ST-Y-006 | Calculator toolbar view | UI | Done | 6-tab UI integrated into MainWindow |
 
 ## Recently delivered
 | ID | Title | Date | Notes |
@@ -106,6 +106,7 @@ Network engineers frequently need to:
 | ST-Y-002 | IP address utilities | 2026-01-04 | Get-IPAddressInfo, Test-IPInSubnet |
 | ST-Y-003 | Bandwidth calculator | 2026-01-04 | Get-TransferTime, Convert-BandwidthUnit |
 | ST-Y-004 | Protocol timer validation | 2026-01-04 | Test-STPTimers |
+| ST-Y-005 | ACL builder UI | 2026-01-05 | New-ACLEntry, Get-ACLConfig, templates, interactive UI |
 | ST-Y-006 | Calculator view | 2026-01-04 | NetworkCalculatorView.xaml, NetworkCalculatorViewModule.psm1 |
 
 ## Testing Requirements

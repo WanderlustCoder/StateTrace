@@ -341,6 +341,175 @@
         </Grid>
       </TabItem>
 
+      <!-- ACL Builder Tab -->
+      <TabItem Header="ACL Builder">
+        <Grid Margin="10">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="150"/>
+          </Grid.RowDefinitions>
+
+          <!-- ACL Name and Template Selection -->
+          <GroupBox Grid.Row="0" Header="ACL Configuration" Margin="0,0,0,10"
+                    Foreground="{DynamicResource Theme.Text.Inverse}"
+                    BorderBrush="{DynamicResource Theme.Border.Primary}">
+            <Grid Margin="5">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="200"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="150"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="100"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+
+              <Label Grid.Column="0" Content="ACL Name:" Style="{DynamicResource ToolbarLabelStyle}"/>
+              <TextBox Grid.Column="1" Name="ACLNameBox" Margin="5,0"
+                       Background="{DynamicResource Theme.Input.Background}"
+                       Foreground="{DynamicResource Theme.Input.Text}"
+                       BorderBrush="{DynamicResource Theme.Input.Border}"
+                       ToolTip="Enter ACL name (e.g., BLOCK-GUEST)"/>
+
+              <Label Grid.Column="2" Content="Template:" Style="{DynamicResource ToolbarLabelStyle}" Margin="15,0,0,0"/>
+              <ComboBox Grid.Column="3" Name="ACLTemplateDropdown" Margin="5,0" Style="{DynamicResource ToolbarComboBoxStyle}"/>
+              <Button Grid.Column="4" Name="ACLLoadTemplateButton" Content="Load" Width="60" Margin="5,0" Style="{DynamicResource SecondaryButtonStyle}"/>
+
+              <Label Grid.Column="5" Content="Vendor:" Style="{DynamicResource ToolbarLabelStyle}" Margin="15,0,0,0"/>
+              <ComboBox Grid.Column="6" Name="ACLVendorDropdown" Width="80" Margin="5,0" Style="{DynamicResource ToolbarComboBoxStyle}">
+                <ComboBoxItem Content="Cisco" IsSelected="True"/>
+                <ComboBoxItem Content="Arista"/>
+              </ComboBox>
+            </Grid>
+          </GroupBox>
+
+          <!-- Entry Input Section -->
+          <GroupBox Grid.Row="1" Header="Add Entry" Margin="0,0,0,10"
+                    Foreground="{DynamicResource Theme.Text.Inverse}"
+                    BorderBrush="{DynamicResource Theme.Border.Primary}">
+            <Grid Margin="5">
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+              </Grid.RowDefinitions>
+
+              <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,5">
+                <Label Content="Action:" Width="55" Style="{DynamicResource ToolbarLabelStyle}"/>
+                <ComboBox Name="ACLActionDropdown" Width="70" Margin="5,0" Style="{DynamicResource ToolbarComboBoxStyle}">
+                  <ComboBoxItem Content="permit"/>
+                  <ComboBoxItem Content="deny" IsSelected="True"/>
+                </ComboBox>
+
+                <Label Content="Protocol:" Style="{DynamicResource ToolbarLabelStyle}" Margin="10,0,0,0"/>
+                <ComboBox Name="ACLProtocolDropdown" Width="60" Margin="5,0" Style="{DynamicResource ToolbarComboBoxStyle}">
+                  <ComboBoxItem Content="ip" IsSelected="True"/>
+                  <ComboBoxItem Content="tcp"/>
+                  <ComboBoxItem Content="udp"/>
+                  <ComboBoxItem Content="icmp"/>
+                </ComboBox>
+
+                <Label Content="Source:" Style="{DynamicResource ToolbarLabelStyle}" Margin="10,0,0,0"/>
+                <TextBox Name="ACLSourceBox" Width="130" Margin="5,0"
+                         Background="{DynamicResource Theme.Input.Background}"
+                         Foreground="{DynamicResource Theme.Input.Text}"
+                         BorderBrush="{DynamicResource Theme.Input.Border}"
+                         ToolTip="any or CIDR (e.g., 10.0.0.0/24)"/>
+
+                <Label Content="Src Port:" Style="{DynamicResource ToolbarLabelStyle}" Margin="10,0,0,0"/>
+                <TextBox Name="ACLSourcePortBox" Width="60" Margin="5,0"
+                         Background="{DynamicResource Theme.Input.Background}"
+                         Foreground="{DynamicResource Theme.Input.Text}"
+                         BorderBrush="{DynamicResource Theme.Input.Border}"
+                         ToolTip="Port number (TCP/UDP only)"/>
+              </StackPanel>
+
+              <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,5">
+                <Label Content="Dest:" Width="55" Style="{DynamicResource ToolbarLabelStyle}"/>
+                <TextBox Name="ACLDestBox" Width="130" Margin="5,0"
+                         Background="{DynamicResource Theme.Input.Background}"
+                         Foreground="{DynamicResource Theme.Input.Text}"
+                         BorderBrush="{DynamicResource Theme.Input.Border}"
+                         ToolTip="any or CIDR (e.g., 10.0.0.0/24)"/>
+
+                <Label Content="Dst Port:" Style="{DynamicResource ToolbarLabelStyle}" Margin="10,0,0,0"/>
+                <TextBox Name="ACLDestPortBox" Width="60" Margin="5,0"
+                         Background="{DynamicResource Theme.Input.Background}"
+                         Foreground="{DynamicResource Theme.Input.Text}"
+                         BorderBrush="{DynamicResource Theme.Input.Border}"
+                         ToolTip="Port number (TCP/UDP only)"/>
+
+                <Label Content="Remark:" Style="{DynamicResource ToolbarLabelStyle}" Margin="10,0,0,0"/>
+                <TextBox Name="ACLRemarkBox" Width="200" Margin="5,0"
+                         Background="{DynamicResource Theme.Input.Background}"
+                         Foreground="{DynamicResource Theme.Input.Text}"
+                         BorderBrush="{DynamicResource Theme.Input.Border}"
+                         ToolTip="Optional comment for this entry"/>
+
+                <Button Name="ACLAddEntryButton" Content="Add Entry" Width="80" Margin="15,0,0,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+              </StackPanel>
+            </Grid>
+          </GroupBox>
+
+          <!-- Entries Grid -->
+          <GroupBox Grid.Row="2" Header="ACL Entries"
+                    Foreground="{DynamicResource Theme.Text.Inverse}"
+                    BorderBrush="{DynamicResource Theme.Border.Primary}">
+            <Grid Margin="5">
+              <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+              </Grid.RowDefinitions>
+
+              <DataGrid Grid.Row="0" Name="ACLEntriesGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                        Background="{DynamicResource Theme.Input.Background}"
+                        Foreground="{DynamicResource Theme.Input.Text}"
+                        BorderBrush="{DynamicResource Theme.Input.Border}"
+                        SelectionMode="Single">
+                <DataGrid.Columns>
+                  <DataGridTextColumn Header="#" Binding="{Binding Sequence}" Width="40"/>
+                  <DataGridTextColumn Header="Action" Binding="{Binding Action}" Width="60"/>
+                  <DataGridTextColumn Header="Protocol" Binding="{Binding Protocol}" Width="60"/>
+                  <DataGridTextColumn Header="Source" Binding="{Binding Source}" Width="130"/>
+                  <DataGridTextColumn Header="Src Port" Binding="{Binding SourcePort}" Width="70"/>
+                  <DataGridTextColumn Header="Destination" Binding="{Binding Destination}" Width="130"/>
+                  <DataGridTextColumn Header="Dst Port" Binding="{Binding DestinationPort}" Width="70"/>
+                  <DataGridTextColumn Header="Remark" Binding="{Binding Remark}" Width="*"/>
+                </DataGrid.Columns>
+              </DataGrid>
+
+              <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,5,0,0">
+                <Button Name="ACLMoveUpButton" Content="Move Up" Width="70" Margin="0,0,5,0" Style="{DynamicResource SecondaryButtonStyle}"/>
+                <Button Name="ACLMoveDownButton" Content="Move Down" Width="80" Margin="0,0,5,0" Style="{DynamicResource SecondaryButtonStyle}"/>
+                <Button Name="ACLDeleteEntryButton" Content="Delete" Width="60" Margin="0,0,5,0" Style="{DynamicResource SecondaryButtonStyle}"/>
+                <Button Name="ACLClearAllButton" Content="Clear All" Width="70" Margin="15,0,0,0" Style="{DynamicResource SecondaryButtonStyle}"/>
+              </StackPanel>
+            </Grid>
+          </GroupBox>
+
+          <!-- Generate Section -->
+          <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,10,0,5">
+            <Button Name="ACLGenerateButton" Content="Generate Config" Width="110" Style="{DynamicResource PrimaryButtonStyle}"/>
+            <Button Name="ACLCopyButton" Content="Copy to Clipboard" Width="120" Margin="10,0,0,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+            <Label Name="ACLStatusLabel" Content="" Margin="15,0,0,0" Style="{DynamicResource ToolbarLabelStyle}" VerticalAlignment="Center"/>
+          </StackPanel>
+
+          <!-- Generated Config Output -->
+          <GroupBox Grid.Row="4" Header="Generated Configuration"
+                    Foreground="{DynamicResource Theme.Text.Inverse}"
+                    BorderBrush="{DynamicResource Theme.Border.Primary}">
+            <TextBox Name="ACLOutputBox" IsReadOnly="True" TextWrapping="NoWrap"
+                     VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                     FontFamily="Consolas" FontSize="12"
+                     Background="{DynamicResource Theme.Input.Background}"
+                     Foreground="{DynamicResource Theme.Input.Text}"
+                     BorderBrush="{DynamicResource Theme.Input.Border}"/>
+          </GroupBox>
+        </Grid>
+      </TabItem>
+
     </TabControl>
   </Grid>
 </UserControl>

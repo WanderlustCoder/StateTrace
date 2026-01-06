@@ -507,3 +507,202 @@ Describe 'NetworkCalculatorModule - Well-Known Ports' -Tag 'Calculator', 'Unit' 
         }
     }
 }
+
+Describe 'NetworkCalculatorModule - ACL Builder' -Tag 'Calculator', 'Unit' {
+
+    Context 'New-ACLEntry' {
+        It 'creates deny ip entry with any source and any dest' {
+            $entry = New-ACLEntry -Action 'deny' -Protocol 'ip' -SourceNetwork 'any' -DestinationNetwork 'any'
+
+            $entry.Action | Should Be 'deny'
+            $entry.Protocol | Should Be 'ip'
+            $entry.Source | Should Be 'any'
+            $entry.Destination | Should Be 'any'
+            $entry.SourceWildcard | Should Be 'any'
+            $entry.DestWildcard | Should Be 'any'
+        }
+
+        It 'creates permit tcp entry with CIDR networks' {
+            $entry = New-ACLEntry -Action 'permit' -Protocol 'tcp' -SourceNetwork '10.0.0.0/24' -DestinationNetwork '192.168.1.0/24'
+
+            $entry.Action | Should Be 'permit'
+            $entry.Protocol | Should Be 'tcp'
+            $entry.Source | Should Be '10.0.0.0/24'
+            $entry.SourceWildcard.Network | Should Be '10.0.0.0'
+            $entry.SourceWildcard.Wildcard | Should Be '0.0.0.255'
+            $entry.DestWildcard.Network | Should Be '192.168.1.0'
+            $entry.DestWildcard.Wildcard | Should Be '0.0.0.255'
+        }
+
+        It 'creates entry with ports for TCP' {
+            $entry = New-ACLEntry -Action 'permit' -Protocol 'tcp' -SourceNetwork 'any' -DestinationNetwork 'any' `
+                -SourcePort '1024' -DestinationPort '443'
+
+            $entry.SourcePort | Should Be '1024'
+            $entry.DestinationPort | Should Be '443'
+        }
+
+        It 'creates entry with ports for UDP' {
+            $entry = New-ACLEntry -Action 'deny' -Protocol 'udp' -SourceNetwork 'any' -DestinationNetwork 'any' `
+                -DestinationPort '53'
+
+            $entry.Protocol | Should Be 'udp'
+            $entry.DestinationPort | Should Be '53'
+        }
+
+        It 'creates entry with remark' {
+            $entry = New-ACLEntry -Action 'deny' -Protocol 'ip' -SourceNetwork '10.0.0.0/8' -DestinationNetwork 'any' `
+                -Remark 'Block private addresses'
+
+            $entry.Remark | Should Be 'Block private addresses'
+        }
+
+        It 'rejects ports for IP protocol' {
+            { New-ACLEntry -Action 'deny' -Protocol 'ip' -SourceNetwork 'any' -DestinationNetwork 'any' `
+                -DestinationPort '80' } | Should Throw
+        }
+
+        It 'rejects ports for ICMP protocol' {
+            { New-ACLEntry -Action 'permit' -Protocol 'icmp' -SourceNetwork 'any' -DestinationNetwork 'any' `
+                -DestinationPort '8' } | Should Throw
+        }
+
+        It 'rejects invalid source IP' {
+            { New-ACLEntry -Action 'deny' -Protocol 'ip' -SourceNetwork '999.0.0.0/24' -DestinationNetwork 'any' } | Should Throw
+        }
+
+        It 'rejects invalid destination IP' {
+            { New-ACLEntry -Action 'deny' -Protocol 'ip' -SourceNetwork 'any' -DestinationNetwork '10.0.0.0' } | Should Throw
+        }
+    }
+
+    Context 'Get-ACLConfig' {
+        It 'generates Cisco extended ACL header' {
+            $entry = New-ACLEntry -Action 'deny' -Protocol 'ip' -SourceNetwork 'any' -DestinationNetwork 'any'
+            $config = Get-ACLConfig -ACLName 'TEST-ACL' -Entries @($entry) -Vendor 'Cisco'
+
+            $config | Should Match 'ip access-list extended TEST-ACL'
+        }
+
+        It 'generates Arista ACL header' {
+            $entry = New-ACLEntry -Action 'permit' -Protocol 'ip' -SourceNetwork 'any' -DestinationNetwork 'any'
+            $config = Get-ACLConfig -ACLName 'TEST-ACL' -Entries @($entry) -Vendor 'Arista'
+
+            $config | Should Match 'ip access-list TEST-ACL'
+        }
+
+        It 'generates ACE with any source and destination' {
+            $entry = New-ACLEntry -Action 'deny' -Protocol 'ip' -SourceNetwork 'any' -DestinationNetwork 'any'
+            $config = Get-ACLConfig -ACLName 'TEST-ACL' -Entries @($entry)
+
+            $config | Should Match 'deny ip any any'
+        }
+
+        It 'generates ACE with wildcard masks' {
+            $entry = New-ACLEntry -Action 'deny' -Protocol 'ip' -SourceNetwork '10.0.0.0/24' -DestinationNetwork '192.168.1.0/24'
+            $config = Get-ACLConfig -ACLName 'TEST-ACL' -Entries @($entry)
+
+            $config | Should Match 'deny ip 10.0.0.0 0.0.0.255 192.168.1.0 0.0.0.255'
+        }
+
+        It 'generates ACE with destination port' {
+            $entry = New-ACLEntry -Action 'permit' -Protocol 'tcp' -SourceNetwork 'any' -DestinationNetwork 'any' `
+                -DestinationPort '443'
+            $config = Get-ACLConfig -ACLName 'TEST-ACL' -Entries @($entry)
+
+            $config | Should Match 'permit tcp any any eq 443'
+        }
+
+        It 'generates ACE with port range' {
+            $entry = New-ACLEntry -Action 'permit' -Protocol 'tcp' -SourceNetwork 'any' -DestinationNetwork 'any' `
+                -DestinationPort '1024-65535'
+            $config = Get-ACLConfig -ACLName 'TEST-ACL' -Entries @($entry)
+
+            $config | Should Match 'permit tcp any any range 1024 65535'
+        }
+
+        It 'generates remark lines' {
+            $entry = New-ACLEntry -Action 'deny' -Protocol 'ip' -SourceNetwork '10.0.0.0/8' -DestinationNetwork 'any' `
+                -Remark 'Block RFC1918'
+            $config = Get-ACLConfig -ACLName 'TEST-ACL' -Entries @($entry)
+
+            $config | Should Match 'remark Block RFC1918'
+        }
+
+        It 'assigns sequence numbers' {
+            $entry1 = New-ACLEntry -Action 'deny' -Protocol 'ip' -SourceNetwork '10.0.0.0/8' -DestinationNetwork 'any'
+            $entry2 = New-ACLEntry -Action 'permit' -Protocol 'ip' -SourceNetwork 'any' -DestinationNetwork 'any'
+            $config = Get-ACLConfig -ACLName 'TEST-ACL' -Entries @($entry1, $entry2)
+
+            $config | Should Match '10 deny'
+            $config | Should Match '20 permit'
+        }
+    }
+
+    Context 'Test-ACLEntry' {
+        It 'validates correct entry' {
+            $entry = New-ACLEntry -Action 'permit' -Protocol 'tcp' -SourceNetwork '10.0.0.0/24' -DestinationNetwork 'any'
+            $result = Test-ACLEntry -Entry $entry
+
+            $result.Valid | Should Be $true
+            $result.Issues.Count | Should Be 0
+        }
+
+        It 'identifies invalid action' {
+            $entry = [PSCustomObject]@{
+                Action = 'allow'
+                Protocol = 'ip'
+                Source = 'any'
+                Destination = 'any'
+            }
+            $result = Test-ACLEntry -Entry $entry
+
+            $result.Valid | Should Be $false
+            $result.Issues | Should Match 'Invalid action'
+        }
+
+        It 'identifies invalid protocol' {
+            $entry = [PSCustomObject]@{
+                Action = 'permit'
+                Protocol = 'gre'
+                Source = 'any'
+                Destination = 'any'
+            }
+            $result = Test-ACLEntry -Entry $entry
+
+            $result.Valid | Should Be $false
+            $result.Issues | Should Match 'Invalid protocol'
+        }
+    }
+
+    Context 'Get-ACLTemplates' {
+        It 'returns template list' {
+            $templates = Get-ACLTemplates
+
+            $templates.Count | Should BeGreaterThan 0
+        }
+
+        It 'returns templates with required properties' {
+            $templates = Get-ACLTemplates
+
+            $templates[0].Name | Should Not BeNullOrEmpty
+            $templates[0].Description | Should Not BeNullOrEmpty
+            $templates[0].Entries.Count | Should BeGreaterThan 0
+        }
+
+        It 'includes Block RFC1918 template' {
+            $templates = Get-ACLTemplates
+            $rfc1918 = @($templates | Where-Object { $_.Name -match 'RFC1918' })
+
+            $rfc1918.Count | Should Be 1
+            $rfc1918[0].Entries.Count | Should BeGreaterThan 2
+        }
+
+        It 'includes Allow Web Traffic template' {
+            $templates = Get-ACLTemplates
+            $webTraffic = @($templates | Where-Object { $_.Name -match 'Web Traffic' })
+
+            $webTraffic.Count | Should Be 1
+        }
+    }
+}

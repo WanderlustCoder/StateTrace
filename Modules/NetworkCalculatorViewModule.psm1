@@ -447,6 +447,215 @@ Total Hosts: $($info.TotalHosts)
             # Ignore errors on initial load
         }
 
+        #region ACL Builder Controls
+        $aclNameBox = $view.FindName('ACLNameBox')
+        $aclTemplateDropdown = $view.FindName('ACLTemplateDropdown')
+        $aclLoadTemplateButton = $view.FindName('ACLLoadTemplateButton')
+        $aclVendorDropdown = $view.FindName('ACLVendorDropdown')
+        $aclActionDropdown = $view.FindName('ACLActionDropdown')
+        $aclProtocolDropdown = $view.FindName('ACLProtocolDropdown')
+        $aclSourceBox = $view.FindName('ACLSourceBox')
+        $aclSourcePortBox = $view.FindName('ACLSourcePortBox')
+        $aclDestBox = $view.FindName('ACLDestBox')
+        $aclDestPortBox = $view.FindName('ACLDestPortBox')
+        $aclRemarkBox = $view.FindName('ACLRemarkBox')
+        $aclAddEntryButton = $view.FindName('ACLAddEntryButton')
+        $aclEntriesGrid = $view.FindName('ACLEntriesGrid')
+        $aclMoveUpButton = $view.FindName('ACLMoveUpButton')
+        $aclMoveDownButton = $view.FindName('ACLMoveDownButton')
+        $aclDeleteEntryButton = $view.FindName('ACLDeleteEntryButton')
+        $aclClearAllButton = $view.FindName('ACLClearAllButton')
+        $aclGenerateButton = $view.FindName('ACLGenerateButton')
+        $aclCopyButton = $view.FindName('ACLCopyButton')
+        $aclStatusLabel = $view.FindName('ACLStatusLabel')
+        $aclOutputBox = $view.FindName('ACLOutputBox')
+
+        # Store ACL entries in view Tag
+        $view.Tag.ACLEntries = [System.Collections.Generic.List[PSCustomObject]]::new()
+
+        # Populate template dropdown
+        try {
+            $templates = NetworkCalculatorModule\Get-ACLTemplates
+            foreach ($template in $templates) {
+                $item = New-Object System.Windows.Controls.ComboBoxItem
+                $item.Content = $template.Name
+                $item.Tag = $template
+                $aclTemplateDropdown.Items.Add($item) | Out-Null
+            }
+            if ($aclTemplateDropdown.Items.Count -gt 0) {
+                $aclTemplateDropdown.SelectedIndex = 0
+            }
+        } catch {
+            # Ignore errors on template load
+        }
+
+        # Helper function to refresh grid
+        $refreshACLGrid = {
+            $entries = $view.Tag.ACLEntries
+            $seq = 10
+            foreach ($entry in $entries) {
+                $entry.Sequence = $seq
+                $seq += 10
+            }
+            $aclEntriesGrid.ItemsSource = $null
+            $aclEntriesGrid.ItemsSource = @($entries)
+        }
+
+        # Load Template button click
+        $aclLoadTemplateButton.Add_Click({
+            param($sender, $e)
+            if ($null -eq $aclTemplateDropdown.SelectedItem) { return }
+
+            $template = $aclTemplateDropdown.SelectedItem.Tag
+            if ($null -eq $template) { return }
+
+            $view.Tag.ACLEntries.Clear()
+            $aclNameBox.Text = $template.Name -replace '\s+', '-'
+
+            foreach ($entryDef in $template.Entries) {
+                try {
+                    $entry = NetworkCalculatorModule\New-ACLEntry `
+                        -Action $entryDef.Action `
+                        -Protocol $entryDef.Protocol `
+                        -SourceNetwork $entryDef.Source `
+                        -DestinationNetwork $entryDef.Destination `
+                        -SourcePort $entryDef.SourcePort `
+                        -DestinationPort $entryDef.DestinationPort `
+                        -Remark $entryDef.Remark
+                    $view.Tag.ACLEntries.Add($entry)
+                } catch {
+                    # Skip invalid entries
+                }
+            }
+
+            & $refreshACLGrid
+            $aclStatusLabel.Content = "Loaded template: $($template.Name)"
+        }.GetNewClosure())
+
+        # Add Entry button click
+        $aclAddEntryButton.Add_Click({
+            param($sender, $e)
+            $action = if ($aclActionDropdown.SelectedItem) { $aclActionDropdown.SelectedItem.Content } else { 'deny' }
+            $protocol = if ($aclProtocolDropdown.SelectedItem) { $aclProtocolDropdown.SelectedItem.Content } else { 'ip' }
+            $source = if ([string]::IsNullOrWhiteSpace($aclSourceBox.Text)) { 'any' } else { $aclSourceBox.Text.Trim() }
+            $srcPort = $aclSourcePortBox.Text.Trim()
+            $dest = if ([string]::IsNullOrWhiteSpace($aclDestBox.Text)) { 'any' } else { $aclDestBox.Text.Trim() }
+            $dstPort = $aclDestPortBox.Text.Trim()
+            $remark = $aclRemarkBox.Text.Trim()
+
+            try {
+                $entry = NetworkCalculatorModule\New-ACLEntry `
+                    -Action $action `
+                    -Protocol $protocol `
+                    -SourceNetwork $source `
+                    -DestinationNetwork $dest `
+                    -SourcePort $srcPort `
+                    -DestinationPort $dstPort `
+                    -Remark $remark
+
+                $view.Tag.ACLEntries.Add($entry)
+                & $refreshACLGrid
+
+                # Clear input fields
+                $aclSourceBox.Text = ''
+                $aclSourcePortBox.Text = ''
+                $aclDestBox.Text = ''
+                $aclDestPortBox.Text = ''
+                $aclRemarkBox.Text = ''
+                $aclStatusLabel.Content = "Entry added"
+            } catch {
+                $aclStatusLabel.Content = "Error: $($_.Exception.Message)"
+            }
+        }.GetNewClosure())
+
+        # Move Up button click
+        $aclMoveUpButton.Add_Click({
+            param($sender, $e)
+            $selected = $aclEntriesGrid.SelectedItem
+            if ($null -eq $selected) { return }
+
+            $entries = $view.Tag.ACLEntries
+            $index = $entries.IndexOf($selected)
+            if ($index -le 0) { return }
+
+            $entries.RemoveAt($index)
+            $entries.Insert($index - 1, $selected)
+            & $refreshACLGrid
+            $aclEntriesGrid.SelectedItem = $selected
+        }.GetNewClosure())
+
+        # Move Down button click
+        $aclMoveDownButton.Add_Click({
+            param($sender, $e)
+            $selected = $aclEntriesGrid.SelectedItem
+            if ($null -eq $selected) { return }
+
+            $entries = $view.Tag.ACLEntries
+            $index = $entries.IndexOf($selected)
+            if ($index -lt 0 -or $index -ge $entries.Count - 1) { return }
+
+            $entries.RemoveAt($index)
+            $entries.Insert($index + 1, $selected)
+            & $refreshACLGrid
+            $aclEntriesGrid.SelectedItem = $selected
+        }.GetNewClosure())
+
+        # Delete Entry button click
+        $aclDeleteEntryButton.Add_Click({
+            param($sender, $e)
+            $selected = $aclEntriesGrid.SelectedItem
+            if ($null -eq $selected) { return }
+
+            $view.Tag.ACLEntries.Remove($selected) | Out-Null
+            & $refreshACLGrid
+            $aclStatusLabel.Content = "Entry deleted"
+        }.GetNewClosure())
+
+        # Clear All button click
+        $aclClearAllButton.Add_Click({
+            param($sender, $e)
+            $view.Tag.ACLEntries.Clear()
+            & $refreshACLGrid
+            $aclOutputBox.Text = ''
+            $aclStatusLabel.Content = "All entries cleared"
+        }.GetNewClosure())
+
+        # Generate Config button click
+        $aclGenerateButton.Add_Click({
+            param($sender, $e)
+            $entries = $view.Tag.ACLEntries
+            if ($entries.Count -eq 0) {
+                $aclStatusLabel.Content = "No entries to generate"
+                return
+            }
+
+            $aclName = if ([string]::IsNullOrWhiteSpace($aclNameBox.Text)) { 'ACL-UNNAMED' } else { $aclNameBox.Text.Trim() }
+            $vendor = if ($aclVendorDropdown.SelectedItem) { $aclVendorDropdown.SelectedItem.Content } else { 'Cisco' }
+
+            try {
+                $config = NetworkCalculatorModule\Get-ACLConfig -ACLName $aclName -Entries @($entries) -Vendor $vendor
+                $aclOutputBox.Text = $config
+                $aclStatusLabel.Content = "Config generated ($($entries.Count) entries)"
+            } catch {
+                $aclStatusLabel.Content = "Error: $($_.Exception.Message)"
+            }
+        }.GetNewClosure())
+
+        # Copy to Clipboard button click
+        $aclCopyButton.Add_Click({
+            param($sender, $e)
+            $config = $aclOutputBox.Text
+            if ([string]::IsNullOrWhiteSpace($config)) {
+                $aclStatusLabel.Content = "No config to copy"
+                return
+            }
+
+            [System.Windows.Clipboard]::SetText($config)
+            $aclStatusLabel.Content = "Config copied to clipboard"
+        }.GetNewClosure())
+
+        #endregion ACL Builder Controls
+
         return $view
 
     } catch {

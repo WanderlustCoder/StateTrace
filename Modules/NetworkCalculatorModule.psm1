@@ -948,6 +948,345 @@ function Get-WellKnownPorts {
 
 #endregion
 
+#region ACL Builder Functions
+
+<#
+.SYNOPSIS
+    Creates a new ACL entry object.
+
+.PARAMETER Action
+    The action (permit or deny).
+
+.PARAMETER Protocol
+    The protocol (ip, tcp, udp, icmp).
+
+.PARAMETER SourceNetwork
+    The source network in CIDR notation or 'any'.
+
+.PARAMETER DestinationNetwork
+    The destination network in CIDR notation or 'any'.
+
+.PARAMETER SourcePort
+    Optional source port or port range for TCP/UDP.
+
+.PARAMETER DestinationPort
+    Optional destination port or port range for TCP/UDP.
+
+.PARAMETER Sequence
+    Optional sequence number for the entry.
+
+.PARAMETER Remark
+    Optional remark/comment for the entry.
+#>
+function New-ACLEntry {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [ValidateSet('permit', 'deny')]
+        [string]$Action,
+
+        [Parameter(Mandatory=$true)]
+        [ValidateSet('ip', 'tcp', 'udp', 'icmp')]
+        [string]$Protocol,
+
+        [Parameter(Mandatory=$true)]
+        [string]$SourceNetwork,
+
+        [Parameter(Mandatory=$true)]
+        [string]$DestinationNetwork,
+
+        [string]$SourcePort,
+
+        [string]$DestinationPort,
+
+        [int]$Sequence = 0,
+
+        [string]$Remark
+    )
+
+    # Validate source network
+    $sourceWildcard = 'any'
+    if ($SourceNetwork -ne 'any') {
+        if ($SourceNetwork -match '^(.+)/(\d+)$') {
+            $srcNet = $Matches[1]
+            $srcCidr = [int]$Matches[2]
+            if (-not (Test-IPv4Address $srcNet)) {
+                throw "Invalid source IP address: $srcNet"
+            }
+            $srcInfo = Get-SubnetInfo -Network $srcNet -CIDR $srcCidr
+            $sourceWildcard = @{
+                Network = $srcInfo.NetworkAddress
+                Wildcard = $srcInfo.WildcardMask
+            }
+        } elseif ($SourceNetwork -eq 'host') {
+            throw "Use CIDR notation (e.g., 10.0.0.1/32) for host entries"
+        } else {
+            throw "Source network must be 'any' or in CIDR notation (e.g., 10.0.0.0/24)"
+        }
+    }
+
+    # Validate destination network
+    $destWildcard = 'any'
+    if ($DestinationNetwork -ne 'any') {
+        if ($DestinationNetwork -match '^(.+)/(\d+)$') {
+            $dstNet = $Matches[1]
+            $dstCidr = [int]$Matches[2]
+            if (-not (Test-IPv4Address $dstNet)) {
+                throw "Invalid destination IP address: $dstNet"
+            }
+            $dstInfo = Get-SubnetInfo -Network $dstNet -CIDR $dstCidr
+            $destWildcard = @{
+                Network = $dstInfo.NetworkAddress
+                Wildcard = $dstInfo.WildcardMask
+            }
+        } elseif ($DestinationNetwork -eq 'host') {
+            throw "Use CIDR notation (e.g., 10.0.0.1/32) for host entries"
+        } else {
+            throw "Destination network must be 'any' or in CIDR notation (e.g., 10.0.0.0/24)"
+        }
+    }
+
+    # Validate ports for TCP/UDP only
+    if ($Protocol -notin @('tcp', 'udp')) {
+        if ($SourcePort -or $DestinationPort) {
+            throw "Port specifications are only valid for TCP or UDP protocols"
+        }
+    }
+
+    return [PSCustomObject]@{
+        Sequence = $Sequence
+        Action = $Action
+        Protocol = $Protocol
+        Source = $SourceNetwork
+        SourceWildcard = $sourceWildcard
+        SourcePort = $SourcePort
+        Destination = $DestinationNetwork
+        DestWildcard = $destWildcard
+        DestinationPort = $DestinationPort
+        Remark = $Remark
+    }
+}
+
+<#
+.SYNOPSIS
+    Generates ACL configuration from a list of entries.
+
+.PARAMETER ACLName
+    The name of the ACL.
+
+.PARAMETER Entries
+    Array of ACL entry objects from New-ACLEntry.
+
+.PARAMETER Vendor
+    The vendor format to generate (Cisco, Arista).
+
+.PARAMETER ACLType
+    The ACL type (extended or standard).
+#>
+function Get-ACLConfig {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$ACLName,
+
+        [Parameter(Mandatory=$true)]
+        [array]$Entries,
+
+        [ValidateSet('Cisco', 'Arista')]
+        [string]$Vendor = 'Cisco',
+
+        [ValidateSet('extended', 'standard')]
+        [string]$ACLType = 'extended'
+    )
+
+    $lines = [System.Collections.Generic.List[string]]::new()
+
+    # ACL header
+    switch ($Vendor) {
+        'Cisco' {
+            $lines.Add("ip access-list $ACLType $ACLName")
+        }
+        'Arista' {
+            $lines.Add("ip access-list $ACLName")
+        }
+    }
+
+    # Sort entries by sequence if specified
+    $sortedEntries = @($Entries | Sort-Object { if ($_.Sequence -gt 0) { $_.Sequence } else { [int]::MaxValue } })
+
+    $seq = 10
+    foreach ($entry in $sortedEntries) {
+        $entrySeq = if ($entry.Sequence -gt 0) { $entry.Sequence } else { $seq; $seq += 10 }
+
+        # Add remark if present
+        if ($entry.Remark) {
+            $lines.Add(" $entrySeq remark $($entry.Remark)")
+            $entrySeq += 1
+        }
+
+        # Build the ACE line
+        $ace = " $entrySeq $($entry.Action) $($entry.Protocol)"
+
+        # Source
+        if ($entry.SourceWildcard -eq 'any') {
+            $ace += " any"
+        } else {
+            $ace += " $($entry.SourceWildcard.Network) $($entry.SourceWildcard.Wildcard)"
+        }
+
+        # Source port
+        if ($entry.SourcePort) {
+            if ($entry.SourcePort -match '^\d+$') {
+                $ace += " eq $($entry.SourcePort)"
+            } elseif ($entry.SourcePort -match '^(\d+)-(\d+)$') {
+                $ace += " range $($Matches[1]) $($Matches[2])"
+            } else {
+                $ace += " eq $($entry.SourcePort)"
+            }
+        }
+
+        # Destination
+        if ($entry.DestWildcard -eq 'any') {
+            $ace += " any"
+        } else {
+            $ace += " $($entry.DestWildcard.Network) $($entry.DestWildcard.Wildcard)"
+        }
+
+        # Destination port
+        if ($entry.DestinationPort) {
+            if ($entry.DestinationPort -match '^\d+$') {
+                $ace += " eq $($entry.DestinationPort)"
+            } elseif ($entry.DestinationPort -match '^(\d+)-(\d+)$') {
+                $ace += " range $($Matches[1]) $($Matches[2])"
+            } else {
+                $ace += " eq $($entry.DestinationPort)"
+            }
+        }
+
+        $lines.Add($ace)
+    }
+
+    return $lines -join "`n"
+}
+
+<#
+.SYNOPSIS
+    Validates an ACL entry for correctness.
+
+.PARAMETER Entry
+    The ACL entry object to validate.
+#>
+function Test-ACLEntry {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)]
+        [PSCustomObject]$Entry
+    )
+
+    $issues = @()
+
+    # Check action
+    if ($Entry.Action -notin @('permit', 'deny')) {
+        $issues += "Invalid action: $($Entry.Action)"
+    }
+
+    # Check protocol
+    if ($Entry.Protocol -notin @('ip', 'tcp', 'udp', 'icmp')) {
+        $issues += "Invalid protocol: $($Entry.Protocol)"
+    }
+
+    # Check source
+    if ($Entry.Source -ne 'any') {
+        if ($Entry.Source -notmatch '^[\d.]+/\d+$') {
+            $issues += "Invalid source format: $($Entry.Source)"
+        }
+    }
+
+    # Check destination
+    if ($Entry.Destination -ne 'any') {
+        if ($Entry.Destination -notmatch '^[\d.]+/\d+$') {
+            $issues += "Invalid destination format: $($Entry.Destination)"
+        }
+    }
+
+    # Check ports only valid for TCP/UDP
+    if ($Entry.Protocol -notin @('tcp', 'udp')) {
+        if ($Entry.SourcePort -or $Entry.DestinationPort) {
+            $issues += "Ports only valid for TCP/UDP"
+        }
+    }
+
+    # Validate port format
+    if ($Entry.SourcePort) {
+        if ($Entry.SourcePort -notmatch '^\d+$' -and $Entry.SourcePort -notmatch '^\d+-\d+$' -and $Entry.SourcePort -notmatch '^[a-z]+$') {
+            $issues += "Invalid source port format: $($Entry.SourcePort)"
+        }
+    }
+
+    if ($Entry.DestinationPort) {
+        if ($Entry.DestinationPort -notmatch '^\d+$' -and $Entry.DestinationPort -notmatch '^\d+-\d+$' -and $Entry.DestinationPort -notmatch '^[a-z]+$') {
+            $issues += "Invalid destination port format: $($Entry.DestinationPort)"
+        }
+    }
+
+    return [PSCustomObject]@{
+        Valid = ($issues.Count -eq 0)
+        Issues = $issues
+    }
+}
+
+<#
+.SYNOPSIS
+    Returns common ACL templates.
+#>
+function Get-ACLTemplates {
+    [CmdletBinding()]
+    param()
+
+    return @(
+        [PSCustomObject]@{
+            Name = 'Block RFC1918 Inbound'
+            Description = 'Blocks private IP addresses from entering the network'
+            Entries = @(
+                @{ Action = 'deny'; Protocol = 'ip'; Source = '10.0.0.0/8'; Destination = 'any'; Remark = 'Block 10.0.0.0/8' }
+                @{ Action = 'deny'; Protocol = 'ip'; Source = '172.16.0.0/12'; Destination = 'any'; Remark = 'Block 172.16.0.0/12' }
+                @{ Action = 'deny'; Protocol = 'ip'; Source = '192.168.0.0/16'; Destination = 'any'; Remark = 'Block 192.168.0.0/16' }
+                @{ Action = 'permit'; Protocol = 'ip'; Source = 'any'; Destination = 'any' }
+            )
+        }
+        [PSCustomObject]@{
+            Name = 'Allow Web Traffic Only'
+            Description = 'Permits only HTTP and HTTPS traffic'
+            Entries = @(
+                @{ Action = 'permit'; Protocol = 'tcp'; Source = 'any'; Destination = 'any'; DestinationPort = '80'; Remark = 'Allow HTTP' }
+                @{ Action = 'permit'; Protocol = 'tcp'; Source = 'any'; Destination = 'any'; DestinationPort = '443'; Remark = 'Allow HTTPS' }
+                @{ Action = 'deny'; Protocol = 'ip'; Source = 'any'; Destination = 'any'; Remark = 'Deny all other' }
+            )
+        }
+        [PSCustomObject]@{
+            Name = 'Block Guest to Servers'
+            Description = 'Prevents guest VLAN from accessing server networks'
+            Entries = @(
+                @{ Action = 'deny'; Protocol = 'ip'; Source = '10.1.50.0/24'; Destination = '10.1.10.0/24'; Remark = 'Block guest to servers' }
+                @{ Action = 'permit'; Protocol = 'ip'; Source = 'any'; Destination = 'any' }
+            )
+        }
+        [PSCustomObject]@{
+            Name = 'Allow Management'
+            Description = 'Permits SSH and SNMP from management network'
+            Entries = @(
+                @{ Action = 'permit'; Protocol = 'tcp'; Source = '10.0.0.0/24'; Destination = 'any'; DestinationPort = '22'; Remark = 'Allow SSH' }
+                @{ Action = 'permit'; Protocol = 'udp'; Source = '10.0.0.0/24'; Destination = 'any'; DestinationPort = '161'; Remark = 'Allow SNMP' }
+                @{ Action = 'deny'; Protocol = 'tcp'; Source = 'any'; Destination = 'any'; DestinationPort = '22'; Remark = 'Deny other SSH' }
+                @{ Action = 'deny'; Protocol = 'udp'; Source = 'any'; Destination = 'any'; DestinationPort = '161'; Remark = 'Deny other SNMP' }
+                @{ Action = 'permit'; Protocol = 'ip'; Source = 'any'; Destination = 'any' }
+            )
+        }
+    )
+}
+
+#endregion
+
 # Export functions
 Export-ModuleMember -Function @(
     # IP Conversion
@@ -981,5 +1320,10 @@ Export-ModuleMember -Function @(
     'Get-STPConvergenceTime',
     'Test-OSPFTimers',
     # Reference
-    'Get-WellKnownPorts'
+    'Get-WellKnownPorts',
+    # ACL Builder
+    'New-ACLEntry',
+    'Get-ACLConfig',
+    'Test-ACLEntry',
+    'Get-ACLTemplates'
 )
