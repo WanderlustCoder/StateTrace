@@ -945,14 +945,38 @@ if (-not $script:ViewsInitialized) {
         'New-SpanView',
         'New-SearchInterfacesView',
         'New-SummaryView',
-        'New-TemplatesView',
-        'New-AlertsView'
+        'New-AlertsView',
+        # Container views (Plan AF - Tab Consolidation)
+        'New-DocumentationContainerView',
+        'New-InfrastructureContainerView',
+        'New-OperationsContainerView',
+        'New-ToolsContainerView'
         # 'Update-CompareView'  # deferred until after Update-DeviceFilter
     )
 
     # Auto-discover any additional New-*View commands, excluding Compare for now
     # Exclude helper commands that require extra mandatory parameters
-    $excludeInitially = @('Update-CompareView')
+    # Exclude views that are now nested inside container tabs (Plan AF)
+    $excludeInitially = @(
+        'Update-CompareView',
+        # Views now nested in DocumentationContainerView
+        'New-TemplatesView',
+        'New-DocumentationGeneratorView',
+        'New-ConfigTemplateView',
+        'New-CommandReferenceView',
+        # Views now nested in InfrastructureContainerView
+        'New-TopologyView',
+        'New-CableDocumentationView',
+        'New-IPAMView',
+        'New-InventoryView',
+        # Views now nested in OperationsContainerView
+        'New-ChangeManagementView',
+        'New-CapacityPlanningView',
+        'New-LogAnalysisView',
+        # Views now nested in ToolsContainerView
+        'New-DecisionTreeView',
+        'New-NetworkCalculatorView'
+    )
     $discovered = Get-OptionalCommandSafe -Name 'New-*View' | Select-Object -ExpandProperty Name
     if ($discovered) {
         $extra = $discovered | Where-Object { ($viewsInOrder -notcontains $_) -and ($_ -notin $excludeInitially) }

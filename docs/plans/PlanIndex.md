@@ -38,6 +38,7 @@ The active StateTrace plans live in discrete files so automation agents can refe
 | AC | Capacity planning & forecasting | Tools / UI | Utilization tracking, growth forecasting, budget planning | `docs/plans/PlanAC_CapacityPlanningForecasting.md` |
 | AD | Cross-vendor command reference | Tools / UI | Command translation, quick reference, config snippets | `docs/plans/PlanAD_CrossVendorCommandReference.md` |
 | AE | Log analysis & pattern detection | Tools / UI | Log parsing, pattern detection, event correlation | `docs/plans/PlanAE_LogAnalysisPatternDetection.md` |
+| AF | Tab consolidation & navigation redesign | UI | Nested tabs, left-side vertical navigation, reduced tab count | `docs/plans/PlanAF_TabConsolidation.md` |
 
 ## Status snapshot (2026-01)
 - **Plan A** - **Complete (5/6 Done, 1 Deferred)**. Routing instrumentation, dispatcher harness, verification scripts, and evidence capture implemented. ST-A-019 (real-device validation) deferred pending device access.
@@ -71,6 +72,7 @@ The active StateTrace plans live in discrete files so automation agents can refe
 - **Plan AC** - **In Progress (4/6 Done)**. Capacity planning with utilization tracking, forecasting (linear regression), threshold alerting, scenario analysis, and budget planning. Core module, tests, and UI view integrated into MainWindow.
 - **Plan AD** - **In Progress (5/6 Done)**. Cross-vendor command reference with translation and configuration snippets. Core module, UI, and tests delivered. Learning mode pending.
 - **Plan AE** - **In Progress (4/6 Done)**. Log analysis with pattern detection and event correlation. Multi-format parser (Cisco IOS, Arista EOS, syslog), 15 built-in patterns, and interactive UI delivered. Anomaly detection and reports pending.
+- **Plan AF** - **In Progress (5/6 Done)**. Tab consolidation with nested left-side vertical tabs. Reduced 18 top-level tabs to 9. Container views (Documentation, Infrastructure, Operations, Tools) with lazy sub-view loading. UI smoke tests pending.
 
 ## How to use the plans
 1. **Before editing code** - open the relevant plan file, confirm the objective still matches your intent, and add your upcoming work to the "Active work" table (include the task-board or Codex backlog ID).

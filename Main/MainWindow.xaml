@@ -88,61 +88,25 @@
         <TabItem Header="Search Interfaces">
           <ContentControl Name="SearchInterfacesHost"/>
         </TabItem>
-        <!-- Templates management tab allows viewing and editing configuration templates -->
-        <TabItem Header="Templates">
-          <ContentControl Name="TemplatesHost"/>
-        </TabItem>
         <!-- Alerts tab displays detected issues or anomalies across all interfaces -->
         <TabItem Header="Alerts">
           <ContentControl Name="AlertsHost"/>
         </TabItem>
-        <!-- Command Reference tab for cross-vendor command lookup and translation -->
-        <TabItem Header="Cmd Reference">
-          <ContentControl Name="CommandReferenceHost"/>
+        <!-- Documentation container: Generator, Config Templates, Templates, Cmd Reference -->
+        <TabItem Header="Documentation" ToolTip="Documentation generator, configuration templates, and command reference">
+          <ContentControl Name="DocumentationContainerHost"/>
         </TabItem>
-        <!-- Network Calculator tab for subnet, VLAN, bandwidth, and IP tools -->
-        <TabItem Header="Calculator">
-          <ContentControl Name="NetworkCalculatorHost"/>
+        <!-- Infrastructure container: Topology, Cables, IPAM, Inventory -->
+        <TabItem Header="Infrastructure" ToolTip="Network topology, cable documentation, IP management, and asset inventory">
+          <ContentControl Name="InfrastructureContainerHost"/>
         </TabItem>
-        <!-- Decision Tree tab for guided troubleshooting workflows -->
-        <TabItem Header="Troubleshoot">
-          <ContentControl Name="DecisionTreeHost"/>
+        <!-- Operations container: Changes, Capacity, Log Analysis -->
+        <TabItem Header="Operations" ToolTip="Change management, capacity planning, and log analysis">
+          <ContentControl Name="OperationsContainerHost"/>
         </TabItem>
-        <!-- Log Analysis tab for pattern detection and event correlation -->
-        <TabItem Header="Log Analysis">
-          <ContentControl Name="LogAnalysisHost"/>
-        </TabItem>
-        <!-- Cable Documentation tab for cable runs and patch panel management -->
-        <TabItem Header="Cables">
-          <ContentControl Name="CableDocumentationHost"/>
-        </TabItem>
-        <!-- IPAM tab for VLAN, subnet, and IP address management -->
-        <TabItem Header="IPAM">
-          <ContentControl Name="IPAMHost"/>
-        </TabItem>
-        <!-- Config Templates tab for configuration generation and validation -->
-        <TabItem Header="Config">
-          <ContentControl Name="ConfigTemplateHost"/>
-        </TabItem>
-        <!-- Inventory tab for asset tracking, warranty monitoring, and lifecycle planning -->
-        <TabItem Header="Inventory">
-          <ContentControl Name="InventoryHost"/>
-        </TabItem>
-        <!-- Change Management tab for change requests and maintenance windows -->
-        <TabItem Header="Changes">
-          <ContentControl Name="ChangeManagementHost"/>
-        </TabItem>
-        <!-- Documentation Generator tab for as-built docs and templates -->
-        <TabItem Header="Docs">
-          <ContentControl Name="DocumentationGeneratorHost"/>
-        </TabItem>
-        <!-- Capacity Planning tab for utilization tracking and forecasting -->
-        <TabItem Header="Capacity">
-          <ContentControl Name="CapacityPlanningHost"/>
-        </TabItem>
-        <!-- Network Topology tab for visualization and impact analysis -->
-        <TabItem Header="Topology">
-          <ContentControl Name="TopologyHost"/>
+        <!-- Tools container: Troubleshoot, Calculator -->
+        <TabItem Header="Tools" ToolTip="Troubleshooting decision trees and network calculators">
+          <ContentControl Name="ToolsContainerHost"/>
         </TabItem>
         <!-- Add more tabs here -->
       </TabControl>

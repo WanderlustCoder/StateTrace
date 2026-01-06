@@ -61,6 +61,11 @@
         'CapacityPlanningViewModule.psm1',
         'TopologyModule.psm1',
         'TopologyViewModule.psm1',
+        # Container views for tab consolidation (Plan AF)
+        'DocumentationContainerViewModule.psm1',
+        'InfrastructureContainerViewModule.psm1',
+        'OperationsContainerViewModule.psm1',
+        'ToolsContainerViewModule.psm1',
         'CompareViewModule.psm1',
         'TemplatesModule.psm1'
     )
