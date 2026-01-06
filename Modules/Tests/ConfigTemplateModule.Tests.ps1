@@ -601,6 +601,254 @@ interface Gi1/0/1
             }
         }
     }
+
+    #region Vendor Syntax Modules (ST-U-006)
+
+    Context 'Get-ConfigVendor' {
+
+        It 'detects Cisco IOS config' {
+            $config = @'
+Cisco IOS Software, C3560 Software
+hostname SW-01
+switchport mode access
+line vty 0 15
+'@
+            $result = Get-ConfigVendor -ConfigText $config
+            $result.Vendor | Should Be 'Cisco_IOS'
+            $result.Confidence | Should Be 'High'
+        }
+
+        It 'detects Arista EOS config' {
+            $config = @'
+! Arista vEOS
+hostname SW-EOS-01
+transceiver qsfp default-mode 4x10G
+management api http-commands
+'@
+            $result = Get-ConfigVendor -ConfigText $config
+            $result.Vendor | Should Be 'Arista_EOS'
+            $result.Confidence | Should Be 'High'
+        }
+
+        It 'detects Cisco NX-OS config' {
+            $config = @'
+Cisco Nexus Operating System (NX-OS) Software
+feature vpc
+vpc domain 100
+'@
+            $result = Get-ConfigVendor -ConfigText $config
+            $result.Vendor | Should Be 'Cisco_NXOS'
+            $result.Confidence | Should Be 'High'
+        }
+
+        It 'detects Juniper config' {
+            $config = @'
+set system host-name JUNOS-SW
+set interfaces ge-0/0/0 unit 0
+set routing-options static route 0.0.0.0/0 next-hop 10.1.1.1
+'@
+            $result = Get-ConfigVendor -ConfigText $config
+            $result.Vendor | Should Be 'Juniper'
+            $result.Confidence | Should Be 'High'
+        }
+
+        It 'returns Generic for unknown config' {
+            $config = 'some random text'
+            $result = Get-ConfigVendor -ConfigText $config
+            $result.Vendor | Should Be 'Generic'
+            $result.Confidence | Should Be 'None'
+        }
+    }
+
+    Context 'Get-VendorSectionPatterns' {
+
+        It 'returns Cisco IOS patterns' {
+            $patterns = Get-VendorSectionPatterns -Vendor 'Cisco_IOS'
+            $patterns.Interface | Should Not BeNullOrEmpty
+            $patterns.VLAN | Should Not BeNullOrEmpty
+            $patterns.ACL | Should Not BeNullOrEmpty
+            $patterns.SectionEnd | Should Not BeNullOrEmpty
+        }
+
+        It 'returns Juniper patterns' {
+            $patterns = Get-VendorSectionPatterns -Vendor 'Juniper'
+            $patterns.Interface | Should Not BeNullOrEmpty
+            $patterns.System | Should Not BeNullOrEmpty
+            $patterns.SectionEnd | Should Be '^}'
+        }
+
+        It 'returns NX-OS specific patterns' {
+            $patterns = Get-VendorSectionPatterns -Vendor 'Cisco_NXOS'
+            $patterns.Feature | Should Not BeNullOrEmpty
+            $patterns.VPC | Should Not BeNullOrEmpty
+        }
+    }
+
+    Context 'Get-VendorInterfaceNaming' {
+
+        It 'parses Cisco GigabitEthernet interface' {
+            $result = Get-VendorInterfaceNaming -InterfaceName 'GigabitEthernet1/0/24' -Vendor 'Cisco_IOS'
+            $result.Type | Should Be 'GigabitEthernet'
+            $result.TypeShort | Should Be 'Gi'
+            $result.Module | Should Be 1
+            $result.Slot | Should Be 0
+            $result.Port | Should Be 24
+            $result.Speed | Should Be '1G'
+            $result.IsVirtual | Should Be $false
+        }
+
+        It 'parses Cisco short interface name' {
+            $result = Get-VendorInterfaceNaming -InterfaceName 'Gi0/1' -Vendor 'Cisco_IOS'
+            $result.Type | Should Be 'GigabitEthernet'
+            $result.Slot | Should Be 0
+            $result.Port | Should Be 1
+        }
+
+        It 'parses port-channel as virtual' {
+            $result = Get-VendorInterfaceNaming -InterfaceName 'Port-channel1' -Vendor 'Cisco_IOS'
+            $result.Type | Should Be 'Port-channel'
+            $result.IsVirtual | Should Be $true
+        }
+
+        It 'parses Vlan interface' {
+            $result = Get-VendorInterfaceNaming -InterfaceName 'Vlan100' -Vendor 'Cisco_IOS'
+            $result.Type | Should Be 'Vlan'
+            $result.Port | Should Be 100
+            $result.IsVirtual | Should Be $true
+        }
+
+        It 'parses Juniper interface' {
+            $result = Get-VendorInterfaceNaming -InterfaceName 'ge-0/0/1' -Vendor 'Juniper'
+            $result.Type | Should Be 'GigabitEthernet'
+            $result.TypeShort | Should Be 'ge'
+            $result.Module | Should Be 0
+            $result.Slot | Should Be 0
+            $result.Port | Should Be 1
+        }
+
+        It 'parses TenGigabitEthernet' {
+            $result = Get-VendorInterfaceNaming -InterfaceName 'Te1/1/1' -Vendor 'Cisco_IOS'
+            $result.Type | Should Be 'TenGigabitEthernet'
+            $result.Speed | Should Be '10G'
+        }
+    }
+
+    Context 'ConvertTo-VendorSyntax' {
+
+        It 'returns same command for same vendor' {
+            $result = ConvertTo-VendorSyntax -Command 'switchport mode access' -FromVendor 'Cisco_IOS' -ToVendor 'Cisco_IOS'
+            $result | Should Be 'switchport mode access'
+        }
+
+        It 'converts portfast to NX-OS' {
+            $result = ConvertTo-VendorSyntax -Command 'spanning-tree portfast' -FromVendor 'Cisco_IOS' -ToVendor 'Cisco_NXOS'
+            $result | Should Be 'spanning-tree port type edge'
+        }
+
+        It 'converts hostname to Juniper' {
+            $result = ConvertTo-VendorSyntax -Command 'hostname SW-01' -FromVendor 'Cisco_IOS' -ToVendor 'Juniper'
+            $result | Should Be 'set system host-name SW-01'
+        }
+
+        It 'converts NTP to Juniper' {
+            $result = ConvertTo-VendorSyntax -Command 'ntp server 10.1.1.1' -FromVendor 'Cisco_IOS' -ToVendor 'Juniper'
+            $result | Should Be 'set system ntp server 10.1.1.1'
+        }
+
+        It 'converts shutdown to Juniper' {
+            $result = ConvertTo-VendorSyntax -Command 'shutdown' -FromVendor 'Cisco_IOS' -ToVendor 'Juniper'
+            $result | Should Be 'set disable'
+        }
+
+        It 'marks untranslatable commands' {
+            $result = ConvertTo-VendorSyntax -Command 'some-unique-command xyz' -FromVendor 'Cisco_IOS' -ToVendor 'Juniper'
+            $result | Should Match 'TODO: Manual translation'
+        }
+    }
+
+    Context 'Get-VendorCommandReference' {
+
+        It 'returns Cisco IOS commands' {
+            $commands = @(Get-VendorCommandReference -Vendor 'Cisco_IOS' -Category 'All')
+            $commands.Count | Should BeGreaterThan 10
+            $commands[0].Vendor | Should Be 'Cisco_IOS'
+        }
+
+        It 'filters by category' {
+            $commands = @(Get-VendorCommandReference -Vendor 'Cisco_IOS' -Category 'Interface')
+            $commands.Count | Should BeGreaterThan 0
+            $commands | ForEach-Object { $_.Category | Should Be 'Interface' }
+        }
+
+        It 'returns Juniper commands' {
+            $commands = @(Get-VendorCommandReference -Vendor 'Juniper' -Category 'All')
+            $commands.Count | Should BeGreaterThan 5
+            $commands[0].Command | Should Match 'set'
+        }
+
+        It 'returns Arista EOS commands' {
+            $commands = @(Get-VendorCommandReference -Vendor 'Arista_EOS' -Category 'Security')
+            $commands.Count | Should BeGreaterThan 0
+        }
+    }
+
+    Context 'ConvertTo-NormalizedConfig' {
+
+        It 'normalizes hostname' {
+            $config = 'hostname SW-TEST-01'
+            $result = @(ConvertTo-NormalizedConfig -ConfigText $config -Vendor 'Cisco_IOS')
+            $result.Count | Should Be 1
+            $result[0].Type | Should Be 'System'
+            $result[0].Key | Should Be 'hostname'
+            $result[0].Value | Should Be 'SW-TEST-01'
+        }
+
+        It 'normalizes interface declarations' {
+            $config = @'
+interface GigabitEthernet0/1
+ description Uplink
+ switchport mode trunk
+'@
+            $result = @(ConvertTo-NormalizedConfig -ConfigText $config -Vendor 'Cisco_IOS')
+            $result.Count | Should Be 3
+            $result[0].Type | Should Be 'InterfaceDeclaration'
+            $result[1].Type | Should Be 'Description'
+            $result[2].Type | Should Be 'SwitchportMode'
+        }
+
+        It 'normalizes VLAN declarations' {
+            $config = @'
+vlan 10
+ name Users
+'@
+            $result = @(ConvertTo-NormalizedConfig -ConfigText $config -Vendor 'Cisco_IOS')
+            $result[0].Type | Should Be 'VLANDeclaration'
+            $result[0].Value | Should Be '10'
+            $result[1].Type | Should Be 'VLANName'
+            $result[1].Value | Should Be 'Users'
+        }
+
+        It 'auto-detects vendor' {
+            $config = @'
+Cisco IOS Software
+hostname SW-01
+'@
+            $result = @(ConvertTo-NormalizedConfig -ConfigText $config -Vendor 'Auto')
+            $result[0].Vendor | Should Be 'Cisco_IOS'
+        }
+
+        It 'tracks context for nested lines' {
+            $config = @'
+interface Vlan100
+ ip address 10.1.100.1 255.255.255.0
+'@
+            $result = @(ConvertTo-NormalizedConfig -ConfigText $config -Vendor 'Cisco_IOS')
+            $result[1].Context.Count | Should Be 2
+            $result[1].Context[0] | Should Be 'interface'
+        }
+    }
+
+    #endregion
 }
 
 #endregion

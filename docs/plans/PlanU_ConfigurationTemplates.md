@@ -15,14 +15,15 @@ Network engineers face challenges with:
 - Documenting configuration standards in a reusable format
 
 ## Current status (2026-01)
-- **In Progress (5/6 Done)**. Core template engine, validation, and config comparison delivered.
+- **Complete (6/6 Done)**. Full template engine, validation, config comparison, and vendor syntax modules delivered.
 - ConfigTemplateModule.psm1 provides Jinja2-style template engine with variables, conditionals, loops
 - Config comparison: Get-ConfigSection, Compare-ConfigText, Compare-ConfigSections, New-ConfigDiffReport, Get-ConfigDrift, Export-ConfigDiffReport
+- Vendor syntax modules: Get-ConfigVendor, Get-VendorSectionPatterns, Get-VendorInterfaceNaming, ConvertTo-VendorSyntax, Get-VendorCommandReference, ConvertTo-NormalizedConfig
 - ConfigValidationModule.psm1 provides compliance checking against validation standards
 - ConfigTemplateView.xaml offers interactive UI with Templates, Validation, Output tabs
 - 5 built-in templates (access switch, VLAN, port security, banner, Arista EOS)
 - 4 built-in standards (Cisco security, Arista security, operational, switching baselines)
-- 58 Pester tests passing (26 new comparison tests)
+- 87 Pester tests passing (29 new vendor syntax tests)
 
 ## Proposed Features
 
@@ -90,7 +91,7 @@ Network engineers face challenges with:
 | ST-U-003 | Config generation module | Tools | Done | New-ConfigFromTemplate with built-in templates |
 | ST-U-004 | Validation rule engine | Tools | Done | ConfigValidationModule.psm1 with Test-ConfigCompliance, built-in standards |
 | ST-U-005 | Config comparison | Tools | Done | Get-ConfigSection, Compare-ConfigText/Sections, New-ConfigDiffReport, Get-ConfigDrift, Export-ConfigDiffReport |
-| ST-U-006 | Vendor syntax modules | Parser | Pending | Vendor-specific config parsing |
+| ST-U-006 | Vendor syntax modules | Parser | Done | Get-ConfigVendor, Get-VendorSectionPatterns, Get-VendorInterfaceNaming, ConvertTo-VendorSyntax, Get-VendorCommandReference, ConvertTo-NormalizedConfig |
 
 ## Template Syntax (Proposed)
 

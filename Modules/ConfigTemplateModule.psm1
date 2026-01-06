@@ -1833,6 +1833,945 @@ $(if ($Report.TextDiff.Added.Count -gt 0) {
 
 #endregion
 
+#region Vendor Syntax Modules (ST-U-006)
+
+<#
+.SYNOPSIS
+    Auto-detects the vendor from configuration text.
+.DESCRIPTION
+    Analyzes configuration text to determine which vendor/platform it belongs to.
+    Uses distinctive patterns to identify Cisco IOS, IOS-XE, NX-OS, Arista EOS,
+    Juniper, and Brocade configurations.
+#>
+function Get-ConfigVendor {
+    [CmdletBinding()]
+    [OutputType([PSCustomObject])]
+    param(
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
+        [string]$ConfigText
+    )
+
+    $scores = @{
+        'Cisco_IOS'    = 0
+        'Cisco_IOSXE'  = 0
+        'Cisco_NXOS'   = 0
+        'Arista_EOS'   = 0
+        'Juniper'      = 0
+        'Brocade'      = 0
+    }
+
+    $indicators = @{
+        'Cisco_IOS' = @(
+            @{ Pattern = 'Cisco IOS Software'; Weight = 10 }
+            @{ Pattern = 'IOS \(tm\)'; Weight = 10 }
+            @{ Pattern = 'switchport mode'; Weight = 2 }
+            @{ Pattern = 'spanning-tree portfast'; Weight = 2 }
+            @{ Pattern = 'ip classless'; Weight = 3 }
+            @{ Pattern = 'line vty'; Weight = 2 }
+            @{ Pattern = 'enable secret'; Weight = 2 }
+        )
+        'Cisco_IOSXE' = @(
+            @{ Pattern = 'Cisco IOS XE Software'; Weight = 15 }
+            @{ Pattern = 'IOS-XE'; Weight = 10 }
+            @{ Pattern = 'license boot level'; Weight = 5 }
+            @{ Pattern = 'platform\s+\w+'; Weight = 3 }
+        )
+        'Cisco_NXOS' = @(
+            @{ Pattern = 'Cisco Nexus'; Weight = 15 }
+            @{ Pattern = 'NX-OS'; Weight = 10 }
+            @{ Pattern = 'feature\s+\w+'; Weight = 5 }
+            @{ Pattern = 'vdc\s+'; Weight = 5 }
+            @{ Pattern = 'vpc domain'; Weight = 5 }
+            @{ Pattern = 'fabricpath'; Weight = 5 }
+        )
+        'Arista_EOS' = @(
+            @{ Pattern = 'Arista'; Weight = 15 }
+            @{ Pattern = 'EOS'; Weight = 5 }
+            @{ Pattern = 'daemon\s+'; Weight = 3 }
+            @{ Pattern = 'transceiver qsfp'; Weight = 5 }
+            @{ Pattern = 'management api'; Weight = 5 }
+            @{ Pattern = 'vlan internal order'; Weight = 3 }
+        )
+        'Juniper' = @(
+            @{ Pattern = 'set\s+system\s+'; Weight = 10 }
+            @{ Pattern = 'set\s+interfaces\s+'; Weight = 5 }
+            @{ Pattern = 'junos'; Weight = 15 }
+            @{ Pattern = 'policy-options\s+{'; Weight = 5 }
+            @{ Pattern = 'protocols\s+{'; Weight = 3 }
+            @{ Pattern = 'set\s+routing-options'; Weight = 5 }
+        )
+        'Brocade' = @(
+            @{ Pattern = 'Brocade'; Weight = 15 }
+            @{ Pattern = 'FastIron'; Weight = 10 }
+            @{ Pattern = 'ICX'; Weight = 10 }
+            @{ Pattern = 'module\s+\d+\s+'; Weight = 3 }
+            @{ Pattern = 'lag\s+"'; Weight = 5 }
+        )
+    }
+
+    # Score each vendor
+    foreach ($vendor in $indicators.Keys) {
+        foreach ($indicator in $indicators[$vendor]) {
+            if ($ConfigText -match $indicator.Pattern) {
+                $scores[$vendor] += $indicator.Weight
+            }
+        }
+    }
+
+    # Find best match
+    $bestVendor = 'Unknown'
+    $bestScore = 0
+    $confidence = 'Low'
+
+    foreach ($vendor in $scores.Keys) {
+        if ($scores[$vendor] -gt $bestScore) {
+            $bestScore = $scores[$vendor]
+            $bestVendor = $vendor
+        }
+    }
+
+    if ($bestScore -ge 10) {
+        $confidence = 'High'
+    }
+    elseif ($bestScore -ge 5) {
+        $confidence = 'Medium'
+    }
+    elseif ($bestScore -gt 0) {
+        $confidence = 'Low'
+    }
+    else {
+        $bestVendor = 'Generic'
+        $confidence = 'None'
+    }
+
+    [PSCustomObject]@{
+        Vendor     = $bestVendor
+        Score      = $bestScore
+        Confidence = $confidence
+        AllScores  = $scores
+    }
+}
+
+<#
+.SYNOPSIS
+    Gets vendor-specific section patterns for config parsing.
+.DESCRIPTION
+    Returns regex patterns for identifying configuration sections
+    specific to each vendor's syntax.
+#>
+function Get-VendorSectionPatterns {
+    [CmdletBinding()]
+    [OutputType([hashtable])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('Cisco_IOS', 'Cisco_IOSXE', 'Cisco_NXOS', 'Arista_EOS', 'Juniper', 'Brocade', 'Generic')]
+        [string]$Vendor
+    )
+
+    $patterns = @{}
+
+    switch ($Vendor) {
+        'Cisco_IOS' {
+            $patterns = @{
+                Interface     = '^interface\s+(\S+)'
+                VLAN          = '^vlan\s+(\d+(?:[-,]\d+)*)'
+                Router        = '^router\s+(\S+)\s*(\d*)'
+                IPRoute       = '^ip route\s+'
+                ACL           = '^(ip\s+)?access-list\s+(standard|extended)?\s*(\S+)'
+                RouteMap      = '^route-map\s+(\S+)\s+(permit|deny)\s+(\d+)'
+                PrefixList    = '^ip prefix-list\s+(\S+)'
+                Banner        = '^banner\s+(motd|login|exec)'
+                Line          = '^line\s+(con|aux|vty)\s+(\d+)\s*(\d*)'
+                SNMP          = '^snmp-server\s+'
+                Logging       = '^logging\s+'
+                NTP           = '^ntp\s+'
+                AAA           = '^aaa\s+(authentication|authorization|accounting)'
+                SpanningTree  = '^spanning-tree\s+'
+                ClassMap      = '^class-map\s+'
+                PolicyMap     = '^policy-map\s+'
+                CryptoMap     = '^crypto\s+map\s+'
+                SectionEnd    = '^(!|exit|end)$'
+            }
+        }
+
+        'Cisco_IOSXE' {
+            $patterns = @{
+                Interface     = '^interface\s+(\S+)'
+                VLAN          = '^vlan\s+(\d+(?:[-,]\d+)*)'
+                Router        = '^router\s+(\S+)\s*(\d*)'
+                IPRoute       = '^ip route\s+'
+                ACL           = '^(ip\s+)?access-list\s+(standard|extended)?\s*(\S+)'
+                RouteMap      = '^route-map\s+(\S+)\s+(permit|deny)\s+(\d+)'
+                PrefixList    = '^ip prefix-list\s+(\S+)'
+                License       = '^license\s+'
+                Platform      = '^platform\s+'
+                Line          = '^line\s+(con|aux|vty)\s+(\d+)\s*(\d*)'
+                AAA           = '^aaa\s+(authentication|authorization|accounting)'
+                SectionEnd    = '^(!|exit|end)$'
+            }
+        }
+
+        'Cisco_NXOS' {
+            $patterns = @{
+                Interface     = '^interface\s+(\S+)'
+                VLAN          = '^vlan\s+(\d+(?:[-,]\d+)*)'
+                Router        = '^router\s+(\S+)\s*(\d*)'
+                Feature       = '^feature\s+(\S+)'
+                VPC           = '^vpc\s+(domain\s+\d+|peer-link)'
+                VDC           = '^vdc\s+(\S+)'
+                PortChannel   = '^interface\s+port-channel\s*(\d+)'
+                RouteMap      = '^route-map\s+(\S+)\s+(permit|deny)\s+(\d+)'
+                ACL           = '^ip access-list\s+(\S+)'
+                SectionEnd    = '^(!|exit|end)$'
+            }
+        }
+
+        'Arista_EOS' {
+            $patterns = @{
+                Interface     = '^interface\s+(\S+)'
+                VLAN          = '^vlan\s+(\d+(?:[-,]\d+)*)'
+                Router        = '^router\s+(\S+)\s*(\d*)'
+                IPRoute       = '^ip route\s+'
+                ACL           = '^ip access-list\s+(\S+)'
+                RouteMap      = '^route-map\s+(\S+)\s+(permit|deny)\s+(\d+)'
+                PrefixList    = '^ip prefix-list\s+(\S+)'
+                Daemon        = '^daemon\s+(\S+)'
+                ManagementAPI = '^management\s+api\s+(\S+)'
+                MLAG          = '^mlag\s+'
+                SectionEnd    = '^(!|exit|end)$'
+            }
+        }
+
+        'Juniper' {
+            $patterns = @{
+                Interface     = '^(set\s+)?interfaces\s+(\S+)'
+                VLAN          = '^(set\s+)?vlans\s+(\S+)'
+                Policy        = '^(set\s+)?policy-options\s+'
+                Routing       = '^(set\s+)?routing-options\s+'
+                Protocols     = '^(set\s+)?protocols\s+(\S+)'
+                Security      = '^(set\s+)?security\s+'
+                System        = '^(set\s+)?system\s+'
+                Firewall      = '^(set\s+)?firewall\s+'
+                SectionEnd    = '^}'
+            }
+        }
+
+        'Brocade' {
+            $patterns = @{
+                Interface     = '^interface\s+(ethernet|ve|loopback)\s*(\S*)'
+                VLAN          = '^vlan\s+(\d+(?:[-,]\d+)*)'
+                Router        = '^router\s+(\S+)\s*(\d*)'
+                LAG           = '^lag\s+"([^"]+)"'
+                ACL           = '^(ip\s+)?access-list\s+(\S+)'
+                SpanningTree  = '^spanning-tree\s+'
+                SectionEnd    = '^(!|exit|end)$'
+            }
+        }
+
+        default {
+            $patterns = @{
+                Interface     = '^interface\s+'
+                VLAN          = '^vlan\s+\d+'
+                Router        = '^router\s+'
+                ACL           = '^access-list\s+'
+                SectionEnd    = '^(!|exit|end)$'
+            }
+        }
+    }
+
+    return $patterns
+}
+
+<#
+.SYNOPSIS
+    Parses interface names into normalized components.
+.DESCRIPTION
+    Breaks down interface names into type, module, port components
+    using vendor-specific naming conventions.
+#>
+function Get-VendorInterfaceNaming {
+    [CmdletBinding()]
+    [OutputType([PSCustomObject])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$InterfaceName,
+
+        [Parameter()]
+        [ValidateSet('Cisco_IOS', 'Cisco_IOSXE', 'Cisco_NXOS', 'Arista_EOS', 'Juniper', 'Brocade', 'Generic')]
+        [string]$Vendor = 'Cisco_IOS'
+    )
+
+    $result = [PSCustomObject]@{
+        Original     = $InterfaceName
+        Type         = 'Unknown'
+        TypeShort    = ''
+        TypeLong     = ''
+        Module       = $null
+        Slot         = $null
+        Port         = $null
+        SubInterface = $null
+        IsVirtual    = $false
+        Speed        = $null
+    }
+
+    # Common interface type mappings
+    $typeMap = @{
+        'Gi'  = @{ Short = 'Gi'; Long = 'GigabitEthernet'; Speed = '1G' }
+        'Gig' = @{ Short = 'Gi'; Long = 'GigabitEthernet'; Speed = '1G' }
+        'GigabitEthernet' = @{ Short = 'Gi'; Long = 'GigabitEthernet'; Speed = '1G' }
+        'Te'  = @{ Short = 'Te'; Long = 'TenGigabitEthernet'; Speed = '10G' }
+        'TenGig' = @{ Short = 'Te'; Long = 'TenGigabitEthernet'; Speed = '10G' }
+        'TenGigabitEthernet' = @{ Short = 'Te'; Long = 'TenGigabitEthernet'; Speed = '10G' }
+        'Tw'  = @{ Short = 'Tw'; Long = 'TwentyFiveGigE'; Speed = '25G' }
+        'Fo'  = @{ Short = 'Fo'; Long = 'FortyGigabitEthernet'; Speed = '40G' }
+        'Hu'  = @{ Short = 'Hu'; Long = 'HundredGigE'; Speed = '100G' }
+        'Fa'  = @{ Short = 'Fa'; Long = 'FastEthernet'; Speed = '100M' }
+        'FastEthernet' = @{ Short = 'Fa'; Long = 'FastEthernet'; Speed = '100M' }
+        'Et'  = @{ Short = 'Et'; Long = 'Ethernet'; Speed = $null }
+        'Ethernet' = @{ Short = 'Et'; Long = 'Ethernet'; Speed = $null }
+        'Eth' = @{ Short = 'Et'; Long = 'Ethernet'; Speed = $null }
+        'Po'  = @{ Short = 'Po'; Long = 'Port-channel'; Speed = $null; Virtual = $true }
+        'Port-channel' = @{ Short = 'Po'; Long = 'Port-channel'; Speed = $null; Virtual = $true }
+        'Vlan' = @{ Short = 'Vl'; Long = 'Vlan'; Speed = $null; Virtual = $true }
+        'Vl'  = @{ Short = 'Vl'; Long = 'Vlan'; Speed = $null; Virtual = $true }
+        'Lo'  = @{ Short = 'Lo'; Long = 'Loopback'; Speed = $null; Virtual = $true }
+        'Loopback' = @{ Short = 'Lo'; Long = 'Loopback'; Speed = $null; Virtual = $true }
+        'Tu'  = @{ Short = 'Tu'; Long = 'Tunnel'; Speed = $null; Virtual = $true }
+        'Tunnel' = @{ Short = 'Tu'; Long = 'Tunnel'; Speed = $null; Virtual = $true }
+        'Mgmt' = @{ Short = 'Ma'; Long = 'Management'; Speed = $null }
+        'Management' = @{ Short = 'Ma'; Long = 'Management'; Speed = $null }
+        'Ma'  = @{ Short = 'Ma'; Long = 'Management'; Speed = $null }
+    }
+
+    # Parse based on vendor
+    switch ($Vendor) {
+        { $_ -in 'Cisco_IOS', 'Cisco_IOSXE', 'Generic' } {
+            # Cisco format: Type[Module/]Slot/Port[.SubInt]
+            if ($InterfaceName -match '^(\D+)(\d+(?:/\d+)*(?:\.\d+)?)$') {
+                $typeStr = $Matches[1]
+                $numbering = $Matches[2]
+
+                if ($typeMap.ContainsKey($typeStr)) {
+                    $result.Type = $typeMap[$typeStr].Long
+                    $result.TypeShort = $typeMap[$typeStr].Short
+                    $result.TypeLong = $typeMap[$typeStr].Long
+                    $result.Speed = $typeMap[$typeStr].Speed
+                    $result.IsVirtual = if ($typeMap[$typeStr].ContainsKey('Virtual')) { $typeMap[$typeStr].Virtual } else { $false }
+                }
+                else {
+                    $result.Type = $typeStr
+                    $result.TypeShort = $typeStr
+                    $result.TypeLong = $typeStr
+                }
+
+                # Parse numbering
+                if ($numbering -match '^(\d+)/(\d+)/(\d+)(?:\.(\d+))?$') {
+                    $result.Module = [int]$Matches[1]
+                    $result.Slot = [int]$Matches[2]
+                    $result.Port = [int]$Matches[3]
+                    if ($Matches[4]) { $result.SubInterface = [int]$Matches[4] }
+                }
+                elseif ($numbering -match '^(\d+)/(\d+)(?:\.(\d+))?$') {
+                    $result.Slot = [int]$Matches[1]
+                    $result.Port = [int]$Matches[2]
+                    if ($Matches[3]) { $result.SubInterface = [int]$Matches[3] }
+                }
+                elseif ($numbering -match '^(\d+)(?:\.(\d+))?$') {
+                    $result.Port = [int]$Matches[1]
+                    if ($Matches[2]) { $result.SubInterface = [int]$Matches[2] }
+                }
+            }
+        }
+
+        'Cisco_NXOS' {
+            # NX-OS format similar but with Ethernet prefix common
+            if ($InterfaceName -match '^(\D+)(\d+(?:/\d+)*)$') {
+                $typeStr = $Matches[1]
+                $numbering = $Matches[2]
+
+                if ($typeMap.ContainsKey($typeStr)) {
+                    $result.Type = $typeMap[$typeStr].Long
+                    $result.TypeShort = $typeMap[$typeStr].Short
+                    $result.TypeLong = $typeMap[$typeStr].Long
+                    $result.Speed = $typeMap[$typeStr].Speed
+                    $result.IsVirtual = if ($typeMap[$typeStr].ContainsKey('Virtual')) { $typeMap[$typeStr].Virtual } else { $false }
+                }
+
+                if ($numbering -match '^(\d+)/(\d+)(?:/(\d+))?$') {
+                    $result.Module = [int]$Matches[1]
+                    $result.Port = [int]$Matches[2]
+                    if ($Matches[3]) { $result.SubInterface = [int]$Matches[3] }
+                }
+            }
+        }
+
+        'Arista_EOS' {
+            # Arista format: Ethernet1/2 or Et1/2
+            if ($InterfaceName -match '^(\D+)(\d+(?:/\d+)*)$') {
+                $typeStr = $Matches[1]
+                $numbering = $Matches[2]
+
+                if ($typeMap.ContainsKey($typeStr)) {
+                    $result.Type = $typeMap[$typeStr].Long
+                    $result.TypeShort = $typeMap[$typeStr].Short
+                    $result.TypeLong = $typeMap[$typeStr].Long
+                    $result.Speed = $typeMap[$typeStr].Speed
+                    $result.IsVirtual = if ($typeMap[$typeStr].ContainsKey('Virtual')) { $typeMap[$typeStr].Virtual } else { $false }
+                }
+
+                if ($numbering -match '^(\d+)/(\d+)$') {
+                    $result.Module = [int]$Matches[1]
+                    $result.Port = [int]$Matches[2]
+                }
+                elseif ($numbering -match '^(\d+)$') {
+                    $result.Port = [int]$Matches[1]
+                }
+            }
+        }
+
+        'Juniper' {
+            # Juniper format: ge-0/0/0 or xe-0/0/0
+            if ($InterfaceName -match '^(ge|xe|et|ae|lo|vlan|irb)-?(\d+(?:/\d+)*)(?:\.(\d+))?$') {
+                $typeStr = $Matches[1].ToLower()
+                $numbering = $Matches[2]
+
+                $juniperTypes = @{
+                    'ge' = @{ Short = 'ge'; Long = 'GigabitEthernet'; Speed = '1G' }
+                    'xe' = @{ Short = 'xe'; Long = 'TenGigabitEthernet'; Speed = '10G' }
+                    'et' = @{ Short = 'et'; Long = 'HundredGigE'; Speed = '100G' }
+                    'ae' = @{ Short = 'ae'; Long = 'AggregatedEthernet'; Speed = $null; Virtual = $true }
+                    'lo' = @{ Short = 'lo'; Long = 'Loopback'; Speed = $null; Virtual = $true }
+                    'vlan' = @{ Short = 'vlan'; Long = 'VLAN'; Speed = $null; Virtual = $true }
+                    'irb' = @{ Short = 'irb'; Long = 'IRB'; Speed = $null; Virtual = $true }
+                }
+
+                if ($juniperTypes.ContainsKey($typeStr)) {
+                    $result.Type = $juniperTypes[$typeStr].Long
+                    $result.TypeShort = $juniperTypes[$typeStr].Short
+                    $result.TypeLong = $juniperTypes[$typeStr].Long
+                    $result.Speed = $juniperTypes[$typeStr].Speed
+                    $result.IsVirtual = if ($juniperTypes[$typeStr].ContainsKey('Virtual')) { $juniperTypes[$typeStr].Virtual } else { $false }
+                }
+
+                if ($numbering -match '^(\d+)/(\d+)/(\d+)$') {
+                    $result.Module = [int]$Matches[1]
+                    $result.Slot = [int]$Matches[2]
+                    $result.Port = [int]$Matches[3]
+                }
+                if ($Matches[3]) { $result.SubInterface = [int]$Matches[3] }
+            }
+        }
+
+        'Brocade' {
+            # Brocade format: ethernet 1/1/1
+            if ($InterfaceName -match '^(ethernet|ve|loopback)\s*(\d+(?:/\d+)*)$') {
+                $typeStr = $Matches[1].ToLower()
+                $numbering = $Matches[2]
+
+                $brocadeTypes = @{
+                    'ethernet' = @{ Short = 'e'; Long = 'Ethernet'; Speed = $null }
+                    've' = @{ Short = 've'; Long = 'VirtualEthernet'; Speed = $null; Virtual = $true }
+                    'loopback' = @{ Short = 'lo'; Long = 'Loopback'; Speed = $null; Virtual = $true }
+                }
+
+                if ($brocadeTypes.ContainsKey($typeStr)) {
+                    $result.Type = $brocadeTypes[$typeStr].Long
+                    $result.TypeShort = $brocadeTypes[$typeStr].Short
+                    $result.TypeLong = $brocadeTypes[$typeStr].Long
+                    $result.Speed = $brocadeTypes[$typeStr].Speed
+                    $result.IsVirtual = if ($brocadeTypes[$typeStr].ContainsKey('Virtual')) { $brocadeTypes[$typeStr].Virtual } else { $false }
+                }
+
+                if ($numbering -match '^(\d+)/(\d+)/(\d+)$') {
+                    $result.Module = [int]$Matches[1]
+                    $result.Slot = [int]$Matches[2]
+                    $result.Port = [int]$Matches[3]
+                }
+            }
+        }
+    }
+
+    return $result
+}
+
+<#
+.SYNOPSIS
+    Converts configuration commands to a different vendor's syntax.
+.DESCRIPTION
+    Translates common configuration commands between vendor syntaxes.
+    Useful for migrations or creating multi-vendor templates.
+#>
+function ConvertTo-VendorSyntax {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true)]
+        [string]$Command,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('Cisco_IOS', 'Cisco_IOSXE', 'Cisco_NXOS', 'Arista_EOS', 'Juniper', 'Brocade')]
+        [string]$FromVendor,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('Cisco_IOS', 'Cisco_IOSXE', 'Cisco_NXOS', 'Arista_EOS', 'Juniper', 'Brocade')]
+        [string]$ToVendor
+    )
+
+    # If same vendor, return as-is
+    if ($FromVendor -eq $ToVendor) {
+        return $Command
+    }
+
+    $translated = $Command.Trim()
+
+    # Translation rules organized by command type
+    $translations = @{
+        # Interface access mode
+        'switchport mode access' = @{
+            'Cisco_IOS' = 'switchport mode access'
+            'Cisco_IOSXE' = 'switchport mode access'
+            'Cisco_NXOS' = 'switchport mode access'
+            'Arista_EOS' = 'switchport mode access'
+            'Juniper' = 'set interface-mode access'
+            'Brocade' = 'switchport mode access'
+        }
+        # Interface trunk mode
+        'switchport mode trunk' = @{
+            'Cisco_IOS' = 'switchport mode trunk'
+            'Cisco_IOSXE' = 'switchport mode trunk'
+            'Cisco_NXOS' = 'switchport mode trunk'
+            'Arista_EOS' = 'switchport mode trunk'
+            'Juniper' = 'set interface-mode trunk'
+            'Brocade' = 'switchport mode trunk'
+        }
+        # Spanning tree portfast
+        'spanning-tree portfast' = @{
+            'Cisco_IOS' = 'spanning-tree portfast'
+            'Cisco_IOSXE' = 'spanning-tree portfast'
+            'Cisco_NXOS' = 'spanning-tree port type edge'
+            'Arista_EOS' = 'spanning-tree portfast'
+            'Juniper' = 'set protocols rstp interface <int> edge'
+            'Brocade' = 'spanning-tree 802-1w admin-edge-port'
+        }
+        # Enable password encryption
+        'service password-encryption' = @{
+            'Cisco_IOS' = 'service password-encryption'
+            'Cisco_IOSXE' = 'service password-encryption'
+            'Cisco_NXOS' = 'feature password encryption aes'
+            'Arista_EOS' = 'service password-encryption'
+            'Juniper' = 'set system services password-encryption'
+            'Brocade' = 'service password-encryption'
+        }
+        # SSH version 2
+        'ip ssh version 2' = @{
+            'Cisco_IOS' = 'ip ssh version 2'
+            'Cisco_IOSXE' = 'ip ssh version 2'
+            'Cisco_NXOS' = 'ssh version 2'
+            'Arista_EOS' = 'ip ssh version 2'
+            'Juniper' = 'set system services ssh protocol-version v2'
+            'Brocade' = 'ip ssh version 2'
+        }
+        # No IP routing
+        'no ip routing' = @{
+            'Cisco_IOS' = 'no ip routing'
+            'Cisco_IOSXE' = 'no ip routing'
+            'Cisco_NXOS' = 'no ip routing'
+            'Arista_EOS' = 'no ip routing'
+            'Juniper' = 'delete routing-options'
+            'Brocade' = 'no ip routing'
+        }
+    }
+
+    # Check exact matches first
+    foreach ($pattern in $translations.Keys) {
+        if ($translated -eq $pattern -or $translated -match "^$([regex]::Escape($pattern))$") {
+            if ($translations[$pattern].ContainsKey($ToVendor)) {
+                return $translations[$pattern][$ToVendor]
+            }
+        }
+    }
+
+    # Pattern-based translations
+    # VLAN assignment
+    if ($translated -match '^switchport access vlan (\d+)$') {
+        $vlanId = $Matches[1]
+        switch ($ToVendor) {
+            'Juniper' { return "set vlan members vlan$vlanId" }
+            default { return "switchport access vlan $vlanId" }
+        }
+    }
+
+    # Description
+    if ($translated -match '^description (.+)$') {
+        $desc = $Matches[1]
+        switch ($ToVendor) {
+            'Juniper' { return "set description `"$desc`"" }
+            default { return "description $desc" }
+        }
+    }
+
+    # NTP server
+    if ($translated -match '^ntp server (\S+)$') {
+        $server = $Matches[1]
+        switch ($ToVendor) {
+            'Juniper' { return "set system ntp server $server" }
+            'Cisco_NXOS' { return "ntp server $server use-vrf default" }
+            default { return "ntp server $server" }
+        }
+    }
+
+    # Hostname
+    if ($translated -match '^hostname (\S+)$') {
+        $name = $Matches[1]
+        switch ($ToVendor) {
+            'Juniper' { return "set system host-name $name" }
+            default { return "hostname $name" }
+        }
+    }
+
+    # IP address on interface
+    if ($translated -match '^ip address (\S+)\s+(\S+)$') {
+        $ip = $Matches[1]
+        $mask = $Matches[2]
+        switch ($ToVendor) {
+            'Juniper' {
+                # Convert mask to prefix
+                $prefix = (($mask -split '\.' | ForEach-Object { [Convert]::ToString([int]$_, 2) }) -join '' -replace '0', '').Length
+                return "set family inet address $ip/$prefix"
+            }
+            default { return "ip address $ip $mask" }
+        }
+    }
+
+    # No shutdown
+    if ($translated -match '^no shutdown$') {
+        switch ($ToVendor) {
+            'Juniper' { return 'delete disable' }
+            default { return 'no shutdown' }
+        }
+    }
+
+    # Shutdown
+    if ($translated -match '^shutdown$') {
+        switch ($ToVendor) {
+            'Juniper' { return 'set disable' }
+            default { return 'shutdown' }
+        }
+    }
+
+    # If no translation found, return original with a comment
+    return "! TODO: Manual translation needed: $translated"
+}
+
+<#
+.SYNOPSIS
+    Gets a list of common commands for a specific vendor.
+.DESCRIPTION
+    Returns frequently used configuration commands specific to each vendor
+    for quick reference or template generation.
+#>
+function Get-VendorCommandReference {
+    [CmdletBinding()]
+    [OutputType([PSCustomObject[]])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('Cisco_IOS', 'Cisco_IOSXE', 'Cisco_NXOS', 'Arista_EOS', 'Juniper', 'Brocade')]
+        [string]$Vendor,
+
+        [Parameter()]
+        [ValidateSet('Interface', 'VLAN', 'Routing', 'Security', 'Management', 'All')]
+        [string]$Category = 'All'
+    )
+
+    $commands = [System.Collections.ArrayList]::new()
+
+    $allCommands = @{
+        'Cisco_IOS' = @{
+            'Interface' = @(
+                @{ Command = 'interface GigabitEthernet0/1'; Description = 'Enter interface config mode' }
+                @{ Command = 'switchport mode access'; Description = 'Set port to access mode' }
+                @{ Command = 'switchport mode trunk'; Description = 'Set port to trunk mode' }
+                @{ Command = 'switchport access vlan <id>'; Description = 'Assign access VLAN' }
+                @{ Command = 'switchport trunk allowed vlan <list>'; Description = 'Set allowed VLANs on trunk' }
+                @{ Command = 'spanning-tree portfast'; Description = 'Enable PortFast' }
+                @{ Command = 'no shutdown'; Description = 'Enable interface' }
+                @{ Command = 'description <text>'; Description = 'Set interface description' }
+            )
+            'VLAN' = @(
+                @{ Command = 'vlan <id>'; Description = 'Create/enter VLAN' }
+                @{ Command = 'name <name>'; Description = 'Set VLAN name' }
+                @{ Command = 'interface Vlan<id>'; Description = 'Create SVI' }
+            )
+            'Routing' = @(
+                @{ Command = 'ip route <net> <mask> <next-hop>'; Description = 'Static route' }
+                @{ Command = 'router ospf <id>'; Description = 'Enable OSPF' }
+                @{ Command = 'router bgp <asn>'; Description = 'Enable BGP' }
+            )
+            'Security' = @(
+                @{ Command = 'enable secret <password>'; Description = 'Set enable password' }
+                @{ Command = 'service password-encryption'; Description = 'Encrypt passwords' }
+                @{ Command = 'ip ssh version 2'; Description = 'Enable SSH v2' }
+                @{ Command = 'line vty 0 15'; Description = 'Configure VTY lines' }
+                @{ Command = 'transport input ssh'; Description = 'SSH only on VTY' }
+            )
+            'Management' = @(
+                @{ Command = 'hostname <name>'; Description = 'Set hostname' }
+                @{ Command = 'ntp server <ip>'; Description = 'Configure NTP' }
+                @{ Command = 'logging <ip>'; Description = 'Configure syslog' }
+                @{ Command = 'snmp-server community <string> RO'; Description = 'SNMP community' }
+            )
+        }
+        'Arista_EOS' = @{
+            'Interface' = @(
+                @{ Command = 'interface Ethernet1'; Description = 'Enter interface config mode' }
+                @{ Command = 'switchport mode access'; Description = 'Set port to access mode' }
+                @{ Command = 'switchport mode trunk'; Description = 'Set port to trunk mode' }
+                @{ Command = 'switchport access vlan <id>'; Description = 'Assign access VLAN' }
+                @{ Command = 'switchport trunk allowed vlan <list>'; Description = 'Set allowed VLANs' }
+                @{ Command = 'spanning-tree portfast'; Description = 'Enable PortFast' }
+                @{ Command = 'no shutdown'; Description = 'Enable interface' }
+            )
+            'VLAN' = @(
+                @{ Command = 'vlan <id>'; Description = 'Create/enter VLAN' }
+                @{ Command = 'name <name>'; Description = 'Set VLAN name' }
+                @{ Command = 'interface Vlan<id>'; Description = 'Create SVI' }
+            )
+            'Routing' = @(
+                @{ Command = 'ip route <net>/<prefix> <next-hop>'; Description = 'Static route' }
+                @{ Command = 'router ospf <id>'; Description = 'Enable OSPF' }
+                @{ Command = 'router bgp <asn>'; Description = 'Enable BGP' }
+            )
+            'Security' = @(
+                @{ Command = 'enable secret <password>'; Description = 'Set enable password' }
+                @{ Command = 'management api http-commands'; Description = 'Enable eAPI' }
+                @{ Command = 'username <name> privilege 15 secret <pw>'; Description = 'Create user' }
+            )
+            'Management' = @(
+                @{ Command = 'hostname <name>'; Description = 'Set hostname' }
+                @{ Command = 'ntp server <ip>'; Description = 'Configure NTP' }
+                @{ Command = 'logging host <ip>'; Description = 'Configure syslog' }
+            )
+        }
+        'Juniper' = @{
+            'Interface' = @(
+                @{ Command = 'set interfaces ge-0/0/0 unit 0'; Description = 'Configure interface' }
+                @{ Command = 'set interface-mode access'; Description = 'Set port to access mode' }
+                @{ Command = 'set interface-mode trunk'; Description = 'Set port to trunk mode' }
+                @{ Command = 'set vlan members <name>'; Description = 'Assign VLAN' }
+                @{ Command = 'set family ethernet-switching'; Description = 'Enable L2 switching' }
+            )
+            'VLAN' = @(
+                @{ Command = 'set vlans <name> vlan-id <id>'; Description = 'Create VLAN' }
+                @{ Command = 'set vlans <name> l3-interface irb.<id>'; Description = 'Create IRB' }
+            )
+            'Routing' = @(
+                @{ Command = 'set routing-options static route <net> next-hop <ip>'; Description = 'Static route' }
+                @{ Command = 'set protocols ospf area 0'; Description = 'Enable OSPF' }
+                @{ Command = 'set protocols bgp group <name>'; Description = 'Enable BGP' }
+            )
+            'Security' = @(
+                @{ Command = 'set system login user <name> class super-user'; Description = 'Create user' }
+                @{ Command = 'set system services ssh protocol-version v2'; Description = 'SSH v2' }
+            )
+            'Management' = @(
+                @{ Command = 'set system host-name <name>'; Description = 'Set hostname' }
+                @{ Command = 'set system ntp server <ip>'; Description = 'Configure NTP' }
+                @{ Command = 'set system syslog host <ip>'; Description = 'Configure syslog' }
+            )
+        }
+    }
+
+    # Default to Cisco IOS if vendor not fully defined
+    if (-not $allCommands.ContainsKey($Vendor)) {
+        $Vendor = 'Cisco_IOS'
+    }
+
+    $vendorCommands = $allCommands[$Vendor]
+
+    if ($Category -eq 'All') {
+        foreach ($cat in $vendorCommands.Keys) {
+            foreach ($cmd in $vendorCommands[$cat]) {
+                [void]$commands.Add([PSCustomObject]@{
+                    Vendor      = $Vendor
+                    Category    = $cat
+                    Command     = $cmd.Command
+                    Description = $cmd.Description
+                })
+            }
+        }
+    }
+    elseif ($vendorCommands.ContainsKey($Category)) {
+        foreach ($cmd in $vendorCommands[$Category]) {
+            [void]$commands.Add([PSCustomObject]@{
+                Vendor      = $Vendor
+                Category    = $Category
+                Command     = $cmd.Command
+                Description = $cmd.Description
+            })
+        }
+    }
+
+    return @($commands)
+}
+
+<#
+.SYNOPSIS
+    Normalizes configuration text to a standard format.
+.DESCRIPTION
+    Converts vendor-specific configuration to a normalized intermediate format
+    that can be compared across vendors or converted to another vendor's syntax.
+#>
+function ConvertTo-NormalizedConfig {
+    [CmdletBinding()]
+    [OutputType([PSCustomObject[]])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ConfigText,
+
+        [Parameter()]
+        [ValidateSet('Cisco_IOS', 'Cisco_IOSXE', 'Cisco_NXOS', 'Arista_EOS', 'Juniper', 'Brocade', 'Auto')]
+        [string]$Vendor = 'Auto'
+    )
+
+    # Auto-detect vendor if needed
+    if ($Vendor -eq 'Auto') {
+        $detection = Get-ConfigVendor -ConfigText $ConfigText
+        $Vendor = if ($detection.Vendor -eq 'Unknown') { 'Cisco_IOS' } else { $detection.Vendor }
+    }
+
+    $normalized = [System.Collections.ArrayList]::new()
+    $lines = $ConfigText -split "`r?`n"
+    $currentContext = @()
+
+    foreach ($line in $lines) {
+        $trimmed = $line.Trim()
+        if ([string]::IsNullOrWhiteSpace($trimmed) -or $trimmed -eq '!' -or $trimmed -match '^#') {
+            continue
+        }
+
+        $entry = [PSCustomObject]@{
+            Type       = 'Unknown'
+            Context    = @()
+            Key        = ''
+            Value      = ''
+            Original   = $trimmed
+            Vendor     = $Vendor
+        }
+
+        # Detect indentation level for context tracking
+        $indent = 0
+        if ($line -match '^(\s+)') {
+            $indent = $Matches[1].Length
+        }
+
+        # Normalize based on line content
+        switch -Regex ($trimmed) {
+            '^hostname\s+(\S+)$' {
+                $entry.Type = 'System'
+                $entry.Key = 'hostname'
+                $entry.Value = $Matches[1]
+                break
+            }
+            '^interface\s+(.+)$' {
+                $entry.Type = 'InterfaceDeclaration'
+                $entry.Key = 'interface'
+                $entry.Value = $Matches[1]
+                $currentContext = @('interface', $Matches[1])
+                break
+            }
+            '^vlan\s+(\d+)$' {
+                $entry.Type = 'VLANDeclaration'
+                $entry.Key = 'vlan'
+                $entry.Value = $Matches[1]
+                $currentContext = @('vlan', $Matches[1])
+                break
+            }
+            '^\s*name\s+(.+)$' {
+                $entry.Type = 'VLANName'
+                $entry.Key = 'name'
+                $entry.Value = $Matches[1]
+                $entry.Context = $currentContext
+                break
+            }
+            '^\s*description\s+(.+)$' {
+                $entry.Type = 'Description'
+                $entry.Key = 'description'
+                $entry.Value = $Matches[1]
+                $entry.Context = $currentContext
+                break
+            }
+            '^\s*ip address\s+(\S+)\s+(\S+)$' {
+                $entry.Type = 'IPAddress'
+                $entry.Key = 'ip_address'
+                $entry.Value = "$($Matches[1])/$($Matches[2])"
+                $entry.Context = $currentContext
+                break
+            }
+            '^\s*switchport mode\s+(access|trunk)$' {
+                $entry.Type = 'SwitchportMode'
+                $entry.Key = 'switchport_mode'
+                $entry.Value = $Matches[1]
+                $entry.Context = $currentContext
+                break
+            }
+            '^\s*switchport access vlan\s+(\d+)$' {
+                $entry.Type = 'AccessVLAN'
+                $entry.Key = 'access_vlan'
+                $entry.Value = $Matches[1]
+                $entry.Context = $currentContext
+                break
+            }
+            '^\s*spanning-tree portfast$' {
+                $entry.Type = 'SpanningTree'
+                $entry.Key = 'portfast'
+                $entry.Value = 'enabled'
+                $entry.Context = $currentContext
+                break
+            }
+            '^\s*no shutdown$' {
+                $entry.Type = 'AdminStatus'
+                $entry.Key = 'admin_status'
+                $entry.Value = 'up'
+                $entry.Context = $currentContext
+                break
+            }
+            '^\s*shutdown$' {
+                $entry.Type = 'AdminStatus'
+                $entry.Key = 'admin_status'
+                $entry.Value = 'down'
+                $entry.Context = $currentContext
+                break
+            }
+            '^ntp server\s+(\S+)' {
+                $entry.Type = 'NTP'
+                $entry.Key = 'ntp_server'
+                $entry.Value = $Matches[1]
+                break
+            }
+            '^ip route\s+(\S+)\s+(\S+)\s+(\S+)' {
+                $entry.Type = 'StaticRoute'
+                $entry.Key = 'static_route'
+                $entry.Value = "$($Matches[1])/$($Matches[2]) via $($Matches[3])"
+                break
+            }
+            default {
+                $entry.Type = 'Other'
+                $entry.Key = 'raw'
+                $entry.Value = $trimmed
+                if ($indent -gt 0) {
+                    $entry.Context = $currentContext
+                }
+            }
+        }
+
+        [void]$normalized.Add($entry)
+    }
+
+    return @($normalized)
+}
+
+#endregion
+
 Export-ModuleMember -Function @(
     # Template functions
     'New-ConfigTemplate'
@@ -1859,4 +2798,11 @@ Export-ModuleMember -Function @(
     'New-ConfigDiffReport'
     'Get-ConfigDrift'
     'Export-ConfigDiffReport'
+    # Vendor Syntax Modules (ST-U-006)
+    'Get-ConfigVendor'
+    'Get-VendorSectionPatterns'
+    'Get-VendorInterfaceNaming'
+    'ConvertTo-VendorSyntax'
+    'Get-VendorCommandReference'
+    'ConvertTo-NormalizedConfig'
 )
