@@ -11,7 +11,7 @@
 
       <!-- Header -->
       <TextBlock Grid.Row="0" Text="Network Summary" FontSize="20" FontWeight="Bold"
-                 Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,15"/>
+                 Foreground="{DynamicResource Theme.Text.Inverse}" Margin="0,0,0,15"/>
 
       <!-- Top Row: Overview, Port Status, Alerts -->
       <UniformGrid Grid.Row="1" Columns="3" Margin="0,0,0,10">
@@ -34,23 +34,23 @@
                 <RowDefinition Height="Auto"/>
               </Grid.RowDefinitions>
 
-              <TextBlock Grid.Row="0" Grid.Column="0" Text="Devices" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+              <TextBlock Grid.Row="0" Grid.Column="0" Text="Devices" Foreground="{DynamicResource Theme.Text.Muted}"/>
               <TextBlock Grid.Row="0" Grid.Column="1" Name="SummaryDevicesCount" Text="0" FontWeight="SemiBold"
                          Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Right"/>
 
-              <TextBlock Grid.Row="1" Grid.Column="0" Text="Interfaces" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,4,0,0"/>
+              <TextBlock Grid.Row="1" Grid.Column="0" Text="Interfaces" Foreground="{DynamicResource Theme.Text.Muted}" Margin="0,4,0,0"/>
               <TextBlock Grid.Row="1" Grid.Column="1" Name="SummaryInterfacesCount" Text="0" FontWeight="SemiBold"
                          Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Right" Margin="0,4,0,0"/>
 
-              <TextBlock Grid.Row="2" Grid.Column="0" Text="Sites" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,4,0,0"/>
+              <TextBlock Grid.Row="2" Grid.Column="0" Text="Sites" Foreground="{DynamicResource Theme.Text.Muted}" Margin="0,4,0,0"/>
               <TextBlock Grid.Row="2" Grid.Column="1" Name="SummarySitesCount" Text="0" FontWeight="SemiBold"
                          Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Right" Margin="0,4,0,0"/>
 
-              <TextBlock Grid.Row="3" Grid.Column="0" Text="Buildings" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,4,0,0"/>
+              <TextBlock Grid.Row="3" Grid.Column="0" Text="Buildings" Foreground="{DynamicResource Theme.Text.Muted}" Margin="0,4,0,0"/>
               <TextBlock Grid.Row="3" Grid.Column="1" Name="SummaryBuildingsCount" Text="0" FontWeight="SemiBold"
                          Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Right" Margin="0,4,0,0"/>
 
-              <TextBlock Grid.Row="4" Grid.Column="0" Text="Unique VLANs" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,4,0,0"/>
+              <TextBlock Grid.Row="4" Grid.Column="0" Text="Unique VLANs" Foreground="{DynamicResource Theme.Text.Muted}" Margin="0,4,0,0"/>
               <TextBlock Grid.Row="4" Grid.Column="1" Name="SummaryUniqueVlansCount" Text="0" FontWeight="SemiBold"
                          Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Right" Margin="0,4,0,0"/>
             </Grid>
@@ -75,29 +75,29 @@
                 <RowDefinition Height="Auto"/>
               </Grid.RowDefinitions>
 
-              <TextBlock Grid.Row="0" Grid.Column="0" Text="Up/Connected" Foreground="#4CAF50"/>
+              <TextBlock Grid.Row="0" Grid.Column="0" Text="Up/Connected" Foreground="{DynamicResource Theme.Status.Success}"/>
               <TextBlock Grid.Row="0" Grid.Column="1" Name="SummaryUpCount" Text="0" FontWeight="SemiBold"
-                         Foreground="#4CAF50" HorizontalAlignment="Right"/>
+                         Foreground="{DynamicResource Theme.Status.Success}" HorizontalAlignment="Right"/>
               <TextBlock Grid.Row="0" Grid.Column="2" Name="SummaryUpPct" Text="(0%)"
-                         Foreground="{DynamicResource Theme.Text.Secondary}" HorizontalAlignment="Right"/>
+                         Foreground="{DynamicResource Theme.Text.Muted}" HorizontalAlignment="Right"/>
 
-              <TextBlock Grid.Row="1" Grid.Column="0" Text="Down" Foreground="#F44336" Margin="0,4,0,0"/>
+              <TextBlock Grid.Row="1" Grid.Column="0" Text="Down" Foreground="{DynamicResource Theme.Status.Danger}" Margin="0,4,0,0"/>
               <TextBlock Grid.Row="1" Grid.Column="1" Name="SummaryDownCount" Text="0" FontWeight="SemiBold"
-                         Foreground="#F44336" HorizontalAlignment="Right" Margin="0,4,0,0"/>
+                         Foreground="{DynamicResource Theme.Status.Danger}" HorizontalAlignment="Right" Margin="0,4,0,0"/>
               <TextBlock Grid.Row="1" Grid.Column="2" Name="SummaryDownPct" Text="(0%)"
-                         Foreground="{DynamicResource Theme.Text.Secondary}" HorizontalAlignment="Right" Margin="0,4,0,0"/>
+                         Foreground="{DynamicResource Theme.Text.Muted}" HorizontalAlignment="Right" Margin="0,4,0,0"/>
 
-              <TextBlock Grid.Row="2" Grid.Column="0" Text="Disabled" Foreground="#9E9E9E" Margin="0,4,0,0"/>
+              <TextBlock Grid.Row="2" Grid.Column="0" Text="Disabled" Foreground="{DynamicResource Theme.Status.Neutral}" Margin="0,4,0,0"/>
               <TextBlock Grid.Row="2" Grid.Column="1" Name="SummaryDisabledCount" Text="0" FontWeight="SemiBold"
-                         Foreground="#9E9E9E" HorizontalAlignment="Right" Margin="0,4,0,0"/>
+                         Foreground="{DynamicResource Theme.Status.Neutral}" HorizontalAlignment="Right" Margin="0,4,0,0"/>
               <TextBlock Grid.Row="2" Grid.Column="2" Name="SummaryDisabledPct" Text="(0%)"
-                         Foreground="{DynamicResource Theme.Text.Secondary}" HorizontalAlignment="Right" Margin="0,4,0,0"/>
+                         Foreground="{DynamicResource Theme.Text.Muted}" HorizontalAlignment="Right" Margin="0,4,0,0"/>
 
-              <TextBlock Grid.Row="3" Grid.Column="0" Text="Other" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,4,0,0"/>
+              <TextBlock Grid.Row="3" Grid.Column="0" Text="Other" Foreground="{DynamicResource Theme.Text.Muted}" Margin="0,4,0,0"/>
               <TextBlock Grid.Row="3" Grid.Column="1" Name="SummaryOtherStatusCount" Text="0" FontWeight="SemiBold"
-                         Foreground="{DynamicResource Theme.Text.Secondary}" HorizontalAlignment="Right" Margin="0,4,0,0"/>
+                         Foreground="{DynamicResource Theme.Text.Muted}" HorizontalAlignment="Right" Margin="0,4,0,0"/>
               <TextBlock Grid.Row="3" Grid.Column="2" Name="SummaryOtherStatusPct" Text="(0%)"
-                         Foreground="{DynamicResource Theme.Text.Secondary}" HorizontalAlignment="Right" Margin="0,4,0,0"/>
+                         Foreground="{DynamicResource Theme.Text.Muted}" HorizontalAlignment="Right" Margin="0,4,0,0"/>
             </Grid>
           </StackPanel>
         </Border>
@@ -120,23 +120,23 @@
                 <RowDefinition Height="Auto"/>
               </Grid.RowDefinitions>
 
-              <TextBlock Grid.Row="0" Grid.Column="0" Text="Total Alerts" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+              <TextBlock Grid.Row="0" Grid.Column="0" Text="Total Alerts" Foreground="{DynamicResource Theme.Text.Muted}"/>
               <TextBlock Grid.Row="0" Grid.Column="1" Name="SummaryTotalAlerts" Text="0" FontWeight="Bold"
-                         Foreground="#FF9800" HorizontalAlignment="Right"/>
+                         Foreground="{DynamicResource Theme.Status.Warning}" HorizontalAlignment="Right"/>
 
-              <TextBlock Grid.Row="1" Grid.Column="0" Text="Ports Down" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,4,0,0"/>
+              <TextBlock Grid.Row="1" Grid.Column="0" Text="Ports Down" Foreground="{DynamicResource Theme.Text.Muted}" Margin="0,4,0,0"/>
               <TextBlock Grid.Row="1" Grid.Column="1" Name="SummaryAlertsDown" Text="0" FontWeight="SemiBold"
-                         Foreground="#F44336" HorizontalAlignment="Right" Margin="0,4,0,0"/>
+                         Foreground="{DynamicResource Theme.Status.Danger}" HorizontalAlignment="Right" Margin="0,4,0,0"/>
 
-              <TextBlock Grid.Row="2" Grid.Column="0" Text="Unauthorized" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,4,0,0"/>
+              <TextBlock Grid.Row="2" Grid.Column="0" Text="Unauthorized" Foreground="{DynamicResource Theme.Text.Muted}" Margin="0,4,0,0"/>
               <TextBlock Grid.Row="2" Grid.Column="1" Name="SummaryAlertsUnauth" Text="0" FontWeight="SemiBold"
-                         Foreground="#FF5722" HorizontalAlignment="Right" Margin="0,4,0,0"/>
+                         Foreground="{DynamicResource Theme.Status.Danger}" HorizontalAlignment="Right" Margin="0,4,0,0"/>
 
-              <TextBlock Grid.Row="3" Grid.Column="0" Text="Half Duplex" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,4,0,0"/>
+              <TextBlock Grid.Row="3" Grid.Column="0" Text="Half Duplex" Foreground="{DynamicResource Theme.Text.Muted}" Margin="0,4,0,0"/>
               <TextBlock Grid.Row="3" Grid.Column="1" Name="SummaryAlertsHalfDuplex" Text="0" FontWeight="SemiBold"
-                         Foreground="#FFC107" HorizontalAlignment="Right" Margin="0,4,0,0"/>
+                         Foreground="{DynamicResource Theme.Status.Warning}" HorizontalAlignment="Right" Margin="0,4,0,0"/>
 
-              <TextBlock Grid.Row="4" Grid.Column="0" Text="Other Issues" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,4,0,0"/>
+              <TextBlock Grid.Row="4" Grid.Column="0" Text="Other Issues" Foreground="{DynamicResource Theme.Text.Muted}" Margin="0,4,0,0"/>
               <TextBlock Grid.Row="4" Grid.Column="1" Name="SummaryAlertsOther" Text="0" FontWeight="SemiBold"
                          Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Right" Margin="0,4,0,0"/>
             </Grid>
@@ -152,7 +152,7 @@
           <StackPanel>
             <TextBlock Text="Port Characteristics" FontSize="14" FontWeight="SemiBold"
                        Foreground="{DynamicResource Theme.Icon.Accent}" Margin="0,0,0,10"/>
-            <TextBlock Text="By Speed" Foreground="{DynamicResource Theme.Text.Secondary}" FontWeight="SemiBold" Margin="0,0,0,5"/>
+            <TextBlock Text="By Speed" Foreground="{DynamicResource Theme.Text.Muted}" FontWeight="SemiBold" Margin="0,0,0,5"/>
             <Grid Margin="0,0,0,10">
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
@@ -165,23 +165,23 @@
                 <RowDefinition Height="Auto"/>
               </Grid.RowDefinitions>
 
-              <TextBlock Grid.Row="0" Grid.Column="0" Text="10 Gbps" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+              <TextBlock Grid.Row="0" Grid.Column="0" Text="10 Gbps" Foreground="{DynamicResource Theme.Text.Muted}"/>
               <TextBlock Grid.Row="0" Grid.Column="1" Name="SummarySpeed10G" Text="0" FontWeight="SemiBold"
                          Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Right"/>
 
-              <TextBlock Grid.Row="1" Grid.Column="0" Text="1 Gbps" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,2,0,0"/>
+              <TextBlock Grid.Row="1" Grid.Column="0" Text="1 Gbps" Foreground="{DynamicResource Theme.Text.Muted}" Margin="0,2,0,0"/>
               <TextBlock Grid.Row="1" Grid.Column="1" Name="SummarySpeed1G" Text="0" FontWeight="SemiBold"
                          Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Right" Margin="0,2,0,0"/>
 
-              <TextBlock Grid.Row="2" Grid.Column="0" Text="100 Mbps" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,2,0,0"/>
+              <TextBlock Grid.Row="2" Grid.Column="0" Text="100 Mbps" Foreground="{DynamicResource Theme.Text.Muted}" Margin="0,2,0,0"/>
               <TextBlock Grid.Row="2" Grid.Column="1" Name="SummarySpeed100M" Text="0" FontWeight="SemiBold"
                          Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Right" Margin="0,2,0,0"/>
 
-              <TextBlock Grid.Row="3" Grid.Column="0" Text="Other" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,2,0,0"/>
+              <TextBlock Grid.Row="3" Grid.Column="0" Text="Other" Foreground="{DynamicResource Theme.Text.Muted}" Margin="0,2,0,0"/>
               <TextBlock Grid.Row="3" Grid.Column="1" Name="SummarySpeedOther" Text="0" FontWeight="SemiBold"
                          Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Right" Margin="0,2,0,0"/>
             </Grid>
-            <TextBlock Text="By Type" Foreground="{DynamicResource Theme.Text.Secondary}" FontWeight="SemiBold" Margin="0,0,0,5"/>
+            <TextBlock Text="By Type" Foreground="{DynamicResource Theme.Text.Muted}" FontWeight="SemiBold" Margin="0,0,0,5"/>
             <Grid>
               <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
@@ -193,15 +193,15 @@
                 <RowDefinition Height="Auto"/>
               </Grid.RowDefinitions>
 
-              <TextBlock Grid.Row="0" Grid.Column="0" Text="Copper/RJ45" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+              <TextBlock Grid.Row="0" Grid.Column="0" Text="Copper/RJ45" Foreground="{DynamicResource Theme.Text.Muted}"/>
               <TextBlock Grid.Row="0" Grid.Column="1" Name="SummaryTypeCopper" Text="0" FontWeight="SemiBold"
                          Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Right"/>
 
-              <TextBlock Grid.Row="1" Grid.Column="0" Text="Fiber/SFP" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,2,0,0"/>
+              <TextBlock Grid.Row="1" Grid.Column="0" Text="Fiber/SFP" Foreground="{DynamicResource Theme.Text.Muted}" Margin="0,2,0,0"/>
               <TextBlock Grid.Row="1" Grid.Column="1" Name="SummaryTypeFiber" Text="0" FontWeight="SemiBold"
                          Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Right" Margin="0,2,0,0"/>
 
-              <TextBlock Grid.Row="2" Grid.Column="0" Text="Other" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,2,0,0"/>
+              <TextBlock Grid.Row="2" Grid.Column="0" Text="Other" Foreground="{DynamicResource Theme.Text.Muted}" Margin="0,2,0,0"/>
               <TextBlock Grid.Row="2" Grid.Column="1" Name="SummaryTypeOther" Text="0" FontWeight="SemiBold"
                          Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Right" Margin="0,2,0,0"/>
             </Grid>
@@ -226,21 +226,21 @@
                 <RowDefinition Height="Auto"/>
               </Grid.RowDefinitions>
 
-              <TextBlock Grid.Row="0" Grid.Column="0" Text="Authorized" Foreground="#4CAF50"/>
+              <TextBlock Grid.Row="0" Grid.Column="0" Text="Authorized" Foreground="{DynamicResource Theme.Status.Success}"/>
               <TextBlock Grid.Row="0" Grid.Column="1" Name="SummaryAuthorizedCount" Text="0" FontWeight="SemiBold"
-                         Foreground="#4CAF50" HorizontalAlignment="Right"/>
+                         Foreground="{DynamicResource Theme.Status.Success}" HorizontalAlignment="Right"/>
 
-              <TextBlock Grid.Row="1" Grid.Column="0" Text="Unauthorized" Foreground="#F44336" Margin="0,4,0,0"/>
+              <TextBlock Grid.Row="1" Grid.Column="0" Text="Unauthorized" Foreground="{DynamicResource Theme.Status.Danger}" Margin="0,4,0,0"/>
               <TextBlock Grid.Row="1" Grid.Column="1" Name="SummaryUnauthorizedCount" Text="0" FontWeight="SemiBold"
-                         Foreground="#F44336" HorizontalAlignment="Right" Margin="0,4,0,0"/>
+                         Foreground="{DynamicResource Theme.Status.Danger}" HorizontalAlignment="Right" Margin="0,4,0,0"/>
 
-              <TextBlock Grid.Row="2" Grid.Column="0" Text="No Auth Config" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,4,0,0"/>
+              <TextBlock Grid.Row="2" Grid.Column="0" Text="No Auth Config" Foreground="{DynamicResource Theme.Text.Muted}" Margin="0,4,0,0"/>
               <TextBlock Grid.Row="2" Grid.Column="1" Name="SummaryNoAuthCount" Text="0" FontWeight="SemiBold"
                          Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Right" Margin="0,4,0,0"/>
 
-              <Separator Grid.Row="3" Grid.ColumnSpan="2" Margin="0,8,0,8" Background="{DynamicResource Theme.Border.Primary}"/>
+              <Separator Grid.Row="3" Grid.ColumnSpan="2" Margin="0,8,0,8" Background="{DynamicResource Theme.Surface.Border}"/>
 
-              <TextBlock Grid.Row="4" Grid.Column="0" Text="Auth Coverage" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+              <TextBlock Grid.Row="4" Grid.Column="0" Text="Auth Coverage" Foreground="{DynamicResource Theme.Text.Muted}"/>
               <TextBlock Grid.Row="4" Grid.Column="1" Name="SummaryAuthCoverage" Text="0%" FontWeight="Bold"
                          Foreground="{DynamicResource Theme.Icon.Accent}" HorizontalAlignment="Right"/>
             </Grid>
@@ -264,19 +264,19 @@
                 <RowDefinition Height="Auto"/>
               </Grid.RowDefinitions>
 
-              <TextBlock Grid.Row="0" Grid.Column="0" Text="Cisco" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+              <TextBlock Grid.Row="0" Grid.Column="0" Text="Cisco" Foreground="{DynamicResource Theme.Vendor.Cisco}"/>
               <TextBlock Grid.Row="0" Grid.Column="1" Name="SummaryMakeCisco" Text="0" FontWeight="SemiBold"
-                         Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Right"/>
+                         Foreground="{DynamicResource Theme.Vendor.Cisco}" HorizontalAlignment="Right"/>
 
-              <TextBlock Grid.Row="1" Grid.Column="0" Text="Arista" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,4,0,0"/>
+              <TextBlock Grid.Row="1" Grid.Column="0" Text="Arista" Foreground="{DynamicResource Theme.Vendor.Arista}" Margin="0,4,0,0"/>
               <TextBlock Grid.Row="1" Grid.Column="1" Name="SummaryMakeArista" Text="0" FontWeight="SemiBold"
-                         Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Right" Margin="0,4,0,0"/>
+                         Foreground="{DynamicResource Theme.Vendor.Arista}" HorizontalAlignment="Right" Margin="0,4,0,0"/>
 
-              <TextBlock Grid.Row="2" Grid.Column="0" Text="Brocade" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,4,0,0"/>
+              <TextBlock Grid.Row="2" Grid.Column="0" Text="Brocade" Foreground="{DynamicResource Theme.Vendor.Brocade}" Margin="0,4,0,0"/>
               <TextBlock Grid.Row="2" Grid.Column="1" Name="SummaryMakeBrocade" Text="0" FontWeight="SemiBold"
-                         Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Right" Margin="0,4,0,0"/>
+                         Foreground="{DynamicResource Theme.Vendor.Brocade}" HorizontalAlignment="Right" Margin="0,4,0,0"/>
 
-              <TextBlock Grid.Row="3" Grid.Column="0" Text="Other" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,4,0,0"/>
+              <TextBlock Grid.Row="3" Grid.Column="0" Text="Other" Foreground="{DynamicResource Theme.Text.Muted}" Margin="0,4,0,0"/>
               <TextBlock Grid.Row="3" Grid.Column="1" Name="SummaryMakeOther" Text="0" FontWeight="SemiBold"
                          Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Right" Margin="0,4,0,0"/>
             </Grid>
@@ -301,21 +301,21 @@
                 <RowDefinition Height="Auto"/>
               </Grid.RowDefinitions>
 
-              <TextBlock Grid.Row="0" Grid.Column="0" Text="Cache Status" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+              <TextBlock Grid.Row="0" Grid.Column="0" Text="Cache Status" Foreground="{DynamicResource Theme.Text.Muted}"/>
               <TextBlock Grid.Row="0" Grid.Column="1" Name="SummaryCacheStatus" Text="--" FontWeight="SemiBold"
                          Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Right"/>
 
-              <TextBlock Grid.Row="1" Grid.Column="0" Text="Cache Age" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,4,0,0"/>
+              <TextBlock Grid.Row="1" Grid.Column="0" Text="Cache Age" Foreground="{DynamicResource Theme.Text.Muted}" Margin="0,4,0,0"/>
               <TextBlock Grid.Row="1" Grid.Column="1" Name="SummaryCacheAge" Text="--" FontWeight="SemiBold"
                          Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Right" Margin="0,4,0,0"/>
 
-              <TextBlock Grid.Row="2" Grid.Column="0" Text="Hosts Cached" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,4,0,0"/>
+              <TextBlock Grid.Row="2" Grid.Column="0" Text="Hosts Cached" Foreground="{DynamicResource Theme.Text.Muted}" Margin="0,4,0,0"/>
               <TextBlock Grid.Row="2" Grid.Column="1" Name="SummaryCacheHosts" Text="0" FontWeight="SemiBold"
                          Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Right" Margin="0,4,0,0"/>
 
-              <Separator Grid.Row="3" Grid.ColumnSpan="2" Margin="0,8,0,8" Background="{DynamicResource Theme.Border.Primary}"/>
+              <Separator Grid.Row="3" Grid.ColumnSpan="2" Margin="0,8,0,8" Background="{DynamicResource Theme.Surface.Border}"/>
 
-              <TextBlock Grid.Row="4" Grid.Column="0" Text="Current Filter" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+              <TextBlock Grid.Row="4" Grid.Column="0" Text="Current Filter" Foreground="{DynamicResource Theme.Text.Muted}"/>
               <TextBlock Grid.Row="4" Grid.Column="1" Name="SummaryCurrentFilter" Text="All" FontWeight="SemiBold"
                          Foreground="{DynamicResource Theme.Icon.Accent}" HorizontalAlignment="Right" TextTrimming="CharacterEllipsis" MaxWidth="100"/>
             </Grid>
