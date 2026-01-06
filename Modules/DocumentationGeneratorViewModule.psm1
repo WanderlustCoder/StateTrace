@@ -70,10 +70,6 @@ function Initialize-DocumentationGeneratorView {
     Update-GenerateTemplateCombo
     Update-ExportDocumentCombo
 
-    # Register with ViewCompositionModule if available
-    if (Get-Command -Name 'Set-StView' -ErrorAction SilentlyContinue) {
-        Set-StView -ViewName 'DocumentationGenerator' -View $script:DocGenView
-    }
 }
 
 function Get-DocumentationGeneratorControls {

@@ -17,6 +17,10 @@ Set-StrictMode -Version Latest
 #>
 
 $script:ContainerView = $null
+$script:DocSubHosts = $null
+$script:DocInitializedViews = $null
+$script:DocScriptDir = $null
+$script:DocWindow = $null
 
 function New-DocumentationContainerView {
     <#
@@ -46,22 +50,24 @@ function New-DocumentationContainerView {
             return
         }
 
-        # Get sub-host controls
-        $docsSubHost = $script:ContainerView.FindName('DocsSubHost')
-        $configSubHost = $script:ContainerView.FindName('ConfigSubHost')
-        $templatesSubHost = $script:ContainerView.FindName('TemplatesSubHost')
-        $cmdRefSubHost = $script:ContainerView.FindName('CmdReferenceSubHost')
+        # Store state in script scope for event handler access
+        $script:DocScriptDir = $ScriptDir
+        $script:DocWindow = $Window
+        $script:DocInitializedViews = @{}
+        $script:DocSubHosts = @{
+            Docs      = $script:ContainerView.FindName('DocsSubHost')
+            Config    = $script:ContainerView.FindName('ConfigSubHost')
+            Templates = $script:ContainerView.FindName('TemplatesSubHost')
+            CmdRef    = $script:ContainerView.FindName('CmdReferenceSubHost')
+        }
 
         # Get the nested TabControl for visibility handling
         $tabControl = $script:ContainerView.FindName('DocumentationTabControl')
 
-        # Track which sub-views have been initialized (lazy loading)
-        $script:InitializedSubViews = @{}
-
         # Initialize first tab immediately (Generator/Docs)
-        if ($docsSubHost) {
-            Initialize-DocsSubView -Host $docsSubHost -ScriptDir $ScriptDir
-            $script:InitializedSubViews['Docs'] = $true
+        if ($script:DocSubHosts.Docs) {
+            Initialize-DocsSubView -Host $script:DocSubHosts.Docs -ScriptDir $ScriptDir
+            $script:DocInitializedViews['Docs'] = $true
         }
 
         # Wire up lazy loading for other tabs
@@ -76,27 +82,27 @@ function New-DocumentationContainerView {
                 $header = $selectedTab.Header
                 switch ($header) {
                     'Generator' {
-                        if (-not $script:InitializedSubViews['Docs']) {
-                            Initialize-DocsSubView -Host $docsSubHost -ScriptDir $ScriptDir
-                            $script:InitializedSubViews['Docs'] = $true
+                        if (-not $script:DocInitializedViews['Docs']) {
+                            Initialize-DocsSubView -Host $script:DocSubHosts.Docs -ScriptDir $script:DocScriptDir
+                            $script:DocInitializedViews['Docs'] = $true
                         }
                     }
                     'Config Templates' {
-                        if (-not $script:InitializedSubViews['Config']) {
-                            Initialize-ConfigSubView -Host $configSubHost -ScriptDir $ScriptDir
-                            $script:InitializedSubViews['Config'] = $true
+                        if (-not $script:DocInitializedViews['Config']) {
+                            Initialize-ConfigSubView -Host $script:DocSubHosts.Config -ScriptDir $script:DocScriptDir
+                            $script:DocInitializedViews['Config'] = $true
                         }
                     }
                     'Templates' {
-                        if (-not $script:InitializedSubViews['Templates']) {
-                            Initialize-TemplatesSubView -Host $templatesSubHost -Window $Window -ScriptDir $ScriptDir
-                            $script:InitializedSubViews['Templates'] = $true
+                        if (-not $script:DocInitializedViews['Templates']) {
+                            Initialize-TemplatesSubView -Host $script:DocSubHosts.Templates -Window $script:DocWindow -ScriptDir $script:DocScriptDir
+                            $script:DocInitializedViews['Templates'] = $true
                         }
                     }
                     'Cmd Reference' {
-                        if (-not $script:InitializedSubViews['CmdRef']) {
-                            Initialize-CmdRefSubView -Host $cmdRefSubHost -ScriptDir $ScriptDir
-                            $script:InitializedSubViews['CmdRef'] = $true
+                        if (-not $script:DocInitializedViews['CmdRef']) {
+                            Initialize-CmdRefSubView -Host $script:DocSubHosts.CmdRef -ScriptDir $script:DocScriptDir
+                            $script:DocInitializedViews['CmdRef'] = $true
                         }
                     }
                 }

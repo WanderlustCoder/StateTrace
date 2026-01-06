@@ -15,6 +15,9 @@ Set-StrictMode -Version Latest
 #>
 
 $script:ContainerView = $null
+$script:ToolsSubHosts = $null
+$script:ToolsInitializedViews = $null
+$script:ToolsScriptDir = $null
 
 function New-ToolsContainerView {
     <#
@@ -44,20 +47,21 @@ function New-ToolsContainerView {
             return
         }
 
-        # Get sub-host controls
-        $troubleshootSubHost = $script:ContainerView.FindName('TroubleshootSubHost')
-        $calculatorSubHost = $script:ContainerView.FindName('CalculatorSubHost')
+        # Store state in script scope for event handler access
+        $script:ToolsScriptDir = $ScriptDir
+        $script:ToolsInitializedViews = @{}
+        $script:ToolsSubHosts = @{
+            Troubleshoot = $script:ContainerView.FindName('TroubleshootSubHost')
+            Calculator   = $script:ContainerView.FindName('CalculatorSubHost')
+        }
 
         # Get the nested TabControl for visibility handling
         $tabControl = $script:ContainerView.FindName('ToolsTabControl')
 
-        # Track which sub-views have been initialized (lazy loading)
-        $script:InitializedSubViews = @{}
-
         # Initialize first tab immediately (Troubleshoot)
-        if ($troubleshootSubHost) {
-            Initialize-TroubleshootSubView -Host $troubleshootSubHost -ScriptDir $ScriptDir
-            $script:InitializedSubViews['Troubleshoot'] = $true
+        if ($script:ToolsSubHosts.Troubleshoot) {
+            Initialize-TroubleshootSubView -Host $script:ToolsSubHosts.Troubleshoot -ScriptDir $ScriptDir
+            $script:ToolsInitializedViews['Troubleshoot'] = $true
         }
 
         # Wire up lazy loading for other tabs
@@ -72,15 +76,15 @@ function New-ToolsContainerView {
                 $header = $selectedTab.Header
                 switch ($header) {
                     'Troubleshoot' {
-                        if (-not $script:InitializedSubViews['Troubleshoot']) {
-                            Initialize-TroubleshootSubView -Host $troubleshootSubHost -ScriptDir $ScriptDir
-                            $script:InitializedSubViews['Troubleshoot'] = $true
+                        if (-not $script:ToolsInitializedViews['Troubleshoot']) {
+                            Initialize-TroubleshootSubView -Host $script:ToolsSubHosts.Troubleshoot -ScriptDir $script:ToolsScriptDir
+                            $script:ToolsInitializedViews['Troubleshoot'] = $true
                         }
                     }
                     'Calculator' {
-                        if (-not $script:InitializedSubViews['Calculator']) {
-                            Initialize-CalculatorSubView -Host $calculatorSubHost -ScriptDir $ScriptDir
-                            $script:InitializedSubViews['Calculator'] = $true
+                        if (-not $script:ToolsInitializedViews['Calculator']) {
+                            Initialize-CalculatorSubView -Host $script:ToolsSubHosts.Calculator -ScriptDir $script:ToolsScriptDir
+                            $script:ToolsInitializedViews['Calculator'] = $true
                         }
                     }
                 }

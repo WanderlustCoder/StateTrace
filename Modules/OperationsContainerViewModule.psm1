@@ -16,6 +16,9 @@ Set-StrictMode -Version Latest
 #>
 
 $script:ContainerView = $null
+$script:OpsSubHosts = $null
+$script:OpsInitializedViews = $null
+$script:OpsScriptDir = $null
 
 function New-OperationsContainerView {
     <#
@@ -45,21 +48,22 @@ function New-OperationsContainerView {
             return
         }
 
-        # Get sub-host controls
-        $changesSubHost = $script:ContainerView.FindName('ChangesSubHost')
-        $capacitySubHost = $script:ContainerView.FindName('CapacitySubHost')
-        $logAnalysisSubHost = $script:ContainerView.FindName('LogAnalysisSubHost')
+        # Store state in script scope for event handler access
+        $script:OpsScriptDir = $ScriptDir
+        $script:OpsInitializedViews = @{}
+        $script:OpsSubHosts = @{
+            Changes     = $script:ContainerView.FindName('ChangesSubHost')
+            Capacity    = $script:ContainerView.FindName('CapacitySubHost')
+            LogAnalysis = $script:ContainerView.FindName('LogAnalysisSubHost')
+        }
 
         # Get the nested TabControl for visibility handling
         $tabControl = $script:ContainerView.FindName('OperationsTabControl')
 
-        # Track which sub-views have been initialized (lazy loading)
-        $script:InitializedSubViews = @{}
-
         # Initialize first tab immediately (Changes)
-        if ($changesSubHost) {
-            Initialize-ChangesSubView -Host $changesSubHost -ScriptDir $ScriptDir
-            $script:InitializedSubViews['Changes'] = $true
+        if ($script:OpsSubHosts.Changes) {
+            Initialize-ChangesSubView -Host $script:OpsSubHosts.Changes -ScriptDir $ScriptDir
+            $script:OpsInitializedViews['Changes'] = $true
         }
 
         # Wire up lazy loading for other tabs
@@ -74,21 +78,21 @@ function New-OperationsContainerView {
                 $header = $selectedTab.Header
                 switch ($header) {
                     'Changes' {
-                        if (-not $script:InitializedSubViews['Changes']) {
-                            Initialize-ChangesSubView -Host $changesSubHost -ScriptDir $ScriptDir
-                            $script:InitializedSubViews['Changes'] = $true
+                        if (-not $script:OpsInitializedViews['Changes']) {
+                            Initialize-ChangesSubView -Host $script:OpsSubHosts.Changes -ScriptDir $script:OpsScriptDir
+                            $script:OpsInitializedViews['Changes'] = $true
                         }
                     }
                     'Capacity' {
-                        if (-not $script:InitializedSubViews['Capacity']) {
-                            Initialize-CapacitySubView -Host $capacitySubHost -ScriptDir $ScriptDir
-                            $script:InitializedSubViews['Capacity'] = $true
+                        if (-not $script:OpsInitializedViews['Capacity']) {
+                            Initialize-CapacitySubView -Host $script:OpsSubHosts.Capacity -ScriptDir $script:OpsScriptDir
+                            $script:OpsInitializedViews['Capacity'] = $true
                         }
                     }
                     'Log Analysis' {
-                        if (-not $script:InitializedSubViews['LogAnalysis']) {
-                            Initialize-LogAnalysisSubView -Host $logAnalysisSubHost -ScriptDir $ScriptDir
-                            $script:InitializedSubViews['LogAnalysis'] = $true
+                        if (-not $script:OpsInitializedViews['LogAnalysis']) {
+                            Initialize-LogAnalysisSubView -Host $script:OpsSubHosts.LogAnalysis -ScriptDir $script:OpsScriptDir
+                            $script:OpsInitializedViews['LogAnalysis'] = $true
                         }
                     }
                 }

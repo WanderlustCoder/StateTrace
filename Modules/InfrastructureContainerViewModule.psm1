@@ -17,6 +17,9 @@ Set-StrictMode -Version Latest
 #>
 
 $script:ContainerView = $null
+$script:InfraSubHosts = $null
+$script:InfraInitializedViews = $null
+$script:InfraScriptDir = $null
 
 function New-InfrastructureContainerView {
     <#
@@ -46,22 +49,23 @@ function New-InfrastructureContainerView {
             return
         }
 
-        # Get sub-host controls
-        $topologySubHost = $script:ContainerView.FindName('TopologySubHost')
-        $cablesSubHost = $script:ContainerView.FindName('CablesSubHost')
-        $ipamSubHost = $script:ContainerView.FindName('IPAMSubHost')
-        $inventorySubHost = $script:ContainerView.FindName('InventorySubHost')
+        # Store state in script scope for event handler access
+        $script:InfraScriptDir = $ScriptDir
+        $script:InfraInitializedViews = @{}
+        $script:InfraSubHosts = @{
+            Topology  = $script:ContainerView.FindName('TopologySubHost')
+            Cables    = $script:ContainerView.FindName('CablesSubHost')
+            IPAM      = $script:ContainerView.FindName('IPAMSubHost')
+            Inventory = $script:ContainerView.FindName('InventorySubHost')
+        }
 
         # Get the nested TabControl for visibility handling
         $tabControl = $script:ContainerView.FindName('InfrastructureTabControl')
 
-        # Track which sub-views have been initialized (lazy loading)
-        $script:InitializedSubViews = @{}
-
         # Initialize first tab immediately (Topology)
-        if ($topologySubHost) {
-            Initialize-TopologySubView -Host $topologySubHost -ScriptDir $ScriptDir
-            $script:InitializedSubViews['Topology'] = $true
+        if ($script:InfraSubHosts.Topology) {
+            Initialize-TopologySubView -Host $script:InfraSubHosts.Topology -ScriptDir $ScriptDir
+            $script:InfraInitializedViews['Topology'] = $true
         }
 
         # Wire up lazy loading for other tabs
@@ -76,27 +80,27 @@ function New-InfrastructureContainerView {
                 $header = $selectedTab.Header
                 switch ($header) {
                     'Topology' {
-                        if (-not $script:InitializedSubViews['Topology']) {
-                            Initialize-TopologySubView -Host $topologySubHost -ScriptDir $ScriptDir
-                            $script:InitializedSubViews['Topology'] = $true
+                        if (-not $script:InfraInitializedViews['Topology']) {
+                            Initialize-TopologySubView -Host $script:InfraSubHosts.Topology -ScriptDir $script:InfraScriptDir
+                            $script:InfraInitializedViews['Topology'] = $true
                         }
                     }
                     'Cables' {
-                        if (-not $script:InitializedSubViews['Cables']) {
-                            Initialize-CablesSubView -Host $cablesSubHost -ScriptDir $ScriptDir
-                            $script:InitializedSubViews['Cables'] = $true
+                        if (-not $script:InfraInitializedViews['Cables']) {
+                            Initialize-CablesSubView -Host $script:InfraSubHosts.Cables -ScriptDir $script:InfraScriptDir
+                            $script:InfraInitializedViews['Cables'] = $true
                         }
                     }
                     'IPAM' {
-                        if (-not $script:InitializedSubViews['IPAM']) {
-                            Initialize-IPAMSubView -Host $ipamSubHost -ScriptDir $ScriptDir
-                            $script:InitializedSubViews['IPAM'] = $true
+                        if (-not $script:InfraInitializedViews['IPAM']) {
+                            Initialize-IPAMSubView -Host $script:InfraSubHosts.IPAM -ScriptDir $script:InfraScriptDir
+                            $script:InfraInitializedViews['IPAM'] = $true
                         }
                     }
                     'Inventory' {
-                        if (-not $script:InitializedSubViews['Inventory']) {
-                            Initialize-InventorySubView -Host $inventorySubHost -ScriptDir $ScriptDir
-                            $script:InitializedSubViews['Inventory'] = $true
+                        if (-not $script:InfraInitializedViews['Inventory']) {
+                            Initialize-InventorySubView -Host $script:InfraSubHosts.Inventory -ScriptDir $script:InfraScriptDir
+                            $script:InfraInitializedViews['Inventory'] = $true
                         }
                     }
                 }
