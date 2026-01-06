@@ -16,20 +16,19 @@ Network teams struggle with:
 - Managing rollback procedures when changes fail
 
 ## Current status (2026-01)
-**In Progress (4/6 Done)**. Core change management module, tests, and UI view integrated into MainWindow.
+**Complete (6/6 Done)**. Full change management system with verification automation.
 
 Delivered:
-- ChangeManagementModule.psm1 (~1650 lines) with change requests, maintenance windows, templates, history
-- 48 Pester tests (all passing) covering CRUD, workflow, rollback, statistics
+- ChangeManagementModule.psm1 (~2200 lines) with change requests, maintenance windows, templates, history, verification
+- 66 Pester tests (all passing) covering CRUD, workflow, rollback, statistics, verification
 - ChangeManagementView.xaml with 5 tabs: Changes, Maintenance Windows, Templates, History, Statistics
 - ChangeManagementViewModule.psm1 with view wiring and event handlers
 - 6 built-in templates: VLAN-Addition, Port-Configuration, Firmware-Upgrade, ACL-Modification, Routing-Change, Emergency-Fix
 - Change status workflow: Draft → Submitted → Approved → InProgress → Completed/Failed/RolledBack
 - Blackout period detection and maintenance window conflict checking
-
-Pending:
-- Advanced calendar visualization
-- Real-time change execution tracking with device capture
+- Post-change verification: New-VerificationRule, Invoke-ChangeVerification, Test-ChangeSuccess
+- Verification reports: Get-ChangeVerificationReport, Export-ChangeVerificationReport (Text/HTML/JSON)
+- Rule types: ConfigContains, ConfigNotContains, StateMatch, OutputContains, Custom
 
 ## Proposed Features
 
@@ -127,18 +126,18 @@ Pending:
 ## Active work
 | ID | Title | Owner | Status | Notes |
 |----|-------|-------|--------|-------|
-| ST-Z-001 | Change request module | Data | Done | ChangeManagementModule.psm1 with 48 tests |
+| ST-Z-001 | Change request module | Data | Done | ChangeManagementModule.psm1 with 66 tests |
 | ST-Z-002 | Maintenance window scheduling | UI | Done | Calendar view and conflict detection |
 | ST-Z-003 | Pre-change capture | Tools | Done | Add-ChangeDevice with PreConfigSnapshot |
 | ST-Z-004 | Change execution tracker | UI | Done | Step status tracking with progress view |
-| ST-Z-005 | Post-change verification | Tools | Pending | Advanced automated verification checks |
+| ST-Z-005 | Post-change verification | Tools | Done | New-VerificationRule, Invoke-ChangeVerification, Test-ChangeSuccess, export to Text/HTML/JSON |
 | ST-Z-006 | Change analytics | UI | Done | Statistics tab with success rate tracking |
 
 ## Recently delivered
-- `Modules/ChangeManagementModule.psm1` - Core module with change requests, windows, templates
-- `Modules/Tests/ChangeManagementModule.Tests.ps1` - 48 Pester tests
-- `Views/ChangeManagementView.xaml` - 5-tab UI layout
-- `Modules/ChangeManagementViewModule.psm1` - View wiring
+| ID | Title | Delivered | Notes |
+|----|-------|-----------|-------|
+| ST-Z-005 | Post-change verification | 2026-01-06 | Verification rules, automated checks, report export |
+| ST-Z-001-006 | Full Plan Z | 2026-01-06 | `Modules/ChangeManagementModule.psm1` - 66 Pester tests |
 
 ## Data Model (Proposed)
 

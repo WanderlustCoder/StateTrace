@@ -330,6 +330,7 @@ function New-ChangeRequest {
         Notes = $Notes
         CreatedDate = $now
         ModifiedDate = $now
+        VerificationRules = New-Object System.Collections.ArrayList
     }
 
     [void]$script:ChangeRequests.Add($change)
@@ -1226,6 +1227,562 @@ function Compare-ChangeConfigurations {
 
 #endregion
 
+#region Post-Change Verification
+
+function New-VerificationRule {
+    <#
+    .SYNOPSIS
+        Creates a new verification rule for change validation.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$ChangeID,
+
+        [Parameter(Mandatory)]
+        [string]$RuleName,
+
+        [Parameter()]
+        [string]$Description,
+
+        [Parameter(Mandatory)]
+        [ValidateSet('ConfigContains', 'ConfigNotContains', 'StateMatch', 'OutputContains', 'Custom')]
+        [string]$RuleType,
+
+        [Parameter()]
+        [string]$ExpectedValue,
+
+        [Parameter()]
+        [string]$DeviceID,
+
+        [Parameter()]
+        [ValidateSet('Critical', 'Warning', 'Info')]
+        [string]$Severity = 'Critical'
+    )
+
+    $change = $script:ChangeRequests | Where-Object { $_.ChangeID -eq $ChangeID }
+    if (-not $change) {
+        throw "Change request '$ChangeID' not found"
+    }
+
+    # Store verification rules in change object
+    if (-not $change.VerificationRules) {
+        $change | Add-Member -NotePropertyName 'VerificationRules' -NotePropertyValue (New-Object System.Collections.ArrayList) -Force
+    }
+
+    $rule = [PSCustomObject]@{
+        RuleID = [Guid]::NewGuid().ToString()
+        RuleName = $RuleName
+        Description = $Description
+        RuleType = $RuleType
+        ExpectedValue = $ExpectedValue
+        DeviceID = $DeviceID
+        Severity = $Severity
+        Status = 'Pending'
+        Result = $null
+        CheckedAt = $null
+    }
+
+    [void]$change.VerificationRules.Add($rule)
+
+    return $rule
+}
+
+function Get-VerificationRule {
+    <#
+    .SYNOPSIS
+        Gets verification rules for a change.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$ChangeID,
+
+        [Parameter()]
+        [string]$RuleName
+    )
+
+    $change = $script:ChangeRequests | Where-Object { $_.ChangeID -eq $ChangeID }
+    if (-not $change) {
+        throw "Change request '$ChangeID' not found"
+    }
+
+    if ($change.VerificationRules) {
+        if ($RuleName) {
+            return $change.VerificationRules | Where-Object { $_.RuleName -eq $RuleName }
+        }
+        return $change.VerificationRules
+    }
+
+    return @()
+}
+
+function Invoke-ChangeVerification {
+    <#
+    .SYNOPSIS
+        Runs all verification checks for a change.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$ChangeID,
+
+        [Parameter()]
+        [switch]$IncludeConfigDiff,
+
+        [Parameter()]
+        [switch]$IncludeStateDiff
+    )
+
+    $change = $script:ChangeRequests | Where-Object { $_.ChangeID -eq $ChangeID }
+    if (-not $change) {
+        throw "Change request '$ChangeID' not found"
+    }
+
+    $now = Get-Date
+    $results = New-Object System.Collections.ArrayList
+
+    # Run custom verification rules
+    $rules = Get-VerificationRule -ChangeID $ChangeID
+    foreach ($rule in $rules) {
+        $passed = $false
+        $actualValue = $null
+        $message = ''
+
+        switch ($rule.RuleType) {
+            'ConfigContains' {
+                if ($rule.DeviceID) {
+                    $device = $script:ChangeDevices | Where-Object {
+                        $_.ChangeID -eq $ChangeID -and $_.DeviceID -eq $rule.DeviceID
+                    }
+                    if ($device -and $device.PostConfigSnapshot) {
+                        $passed = $device.PostConfigSnapshot -match [regex]::Escape($rule.ExpectedValue)
+                        $actualValue = if ($passed) { 'Found' } else { 'Not found' }
+                    }
+                }
+            }
+            'ConfigNotContains' {
+                if ($rule.DeviceID) {
+                    $device = $script:ChangeDevices | Where-Object {
+                        $_.ChangeID -eq $ChangeID -and $_.DeviceID -eq $rule.DeviceID
+                    }
+                    if ($device -and $device.PostConfigSnapshot) {
+                        $passed = $device.PostConfigSnapshot -notmatch [regex]::Escape($rule.ExpectedValue)
+                        $actualValue = if ($passed) { 'Not found (correct)' } else { 'Found (incorrect)' }
+                    }
+                }
+            }
+            'StateMatch' {
+                if ($rule.DeviceID) {
+                    $device = $script:ChangeDevices | Where-Object {
+                        $_.ChangeID -eq $ChangeID -and $_.DeviceID -eq $rule.DeviceID
+                    }
+                    if ($device -and $device.PostStateSnapshot) {
+                        $passed = $device.PostStateSnapshot -match [regex]::Escape($rule.ExpectedValue)
+                        $actualValue = if ($passed) { 'Match' } else { 'No match' }
+                    }
+                }
+            }
+            'OutputContains' {
+                # Check step outputs
+                $steps = Get-ChangeStep -ChangeID $ChangeID
+                foreach ($step in $steps) {
+                    if ($step.ActualOutput -and $step.ActualOutput -match [regex]::Escape($rule.ExpectedValue)) {
+                        $passed = $true
+                        $actualValue = "Found in step $($step.StepNumber)"
+                        break
+                    }
+                }
+                if (-not $passed) {
+                    $actualValue = 'Not found in any step output'
+                }
+            }
+            'Custom' {
+                # Custom rules need manual verification
+                $passed = $null
+                $actualValue = 'Requires manual verification'
+                $message = 'Manual check required'
+            }
+        }
+
+        $rule.Status = if ($null -eq $passed) { 'Manual' } elseif ($passed) { 'Passed' } else { 'Failed' }
+        $rule.Result = $actualValue
+        $rule.CheckedAt = $now
+
+        [void]$results.Add([PSCustomObject]@{
+            RuleName = $rule.RuleName
+            RuleType = $rule.RuleType
+            Severity = $rule.Severity
+            Status = $rule.Status
+            ExpectedValue = $rule.ExpectedValue
+            ActualValue = $actualValue
+            DeviceID = $rule.DeviceID
+            Message = $message
+        })
+    }
+
+    # Add config diff results if requested
+    if ($IncludeConfigDiff) {
+        $configDiffs = Compare-ChangeConfigurations -ChangeID $ChangeID
+        foreach ($diff in $configDiffs) {
+            [void]$results.Add([PSCustomObject]@{
+                RuleName = "Config Changes - $($diff.DeviceID)"
+                RuleType = 'ConfigDiff'
+                Severity = 'Info'
+                Status = if ($diff.HasChanges) { 'Changed' } else { 'Unchanged' }
+                ExpectedValue = 'Configuration modified'
+                ActualValue = "Added: $($diff.AddedCount), Removed: $($diff.RemovedCount)"
+                DeviceID = $diff.DeviceID
+                Message = ''
+            })
+        }
+    }
+
+    # Return summary object with results
+    $passed = @($results | Where-Object { $_.Status -eq 'Passed' }).Count
+    $failed = @($results | Where-Object { $_.Status -eq 'Failed' }).Count
+    $manual = @($results | Where-Object { $_.Status -eq 'Manual' }).Count
+
+    return [PSCustomObject]@{
+        ChangeID = $ChangeID
+        RulesChecked = $results.Count
+        Passed = $passed
+        Failed = $failed
+        Manual = $manual
+        Results = $results
+        VerifiedAt = $now
+    }
+}
+
+function Test-ChangeSuccess {
+    <#
+    .SYNOPSIS
+        Tests if a change meets its success criteria.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$ChangeID,
+
+        [Parameter()]
+        [switch]$FailOnWarning
+    )
+
+    $change = $script:ChangeRequests | Where-Object { $_.ChangeID -eq $ChangeID }
+    if (-not $change) {
+        throw "Change request '$ChangeID' not found"
+    }
+
+    $verification = Invoke-ChangeVerification -ChangeID $ChangeID
+    $verificationResults = $verification.Results
+
+    $criticalFailures = @($verificationResults | Where-Object { $_.Severity -eq 'Critical' -and $_.Status -eq 'Failed' })
+    $warningFailures = @($verificationResults | Where-Object { $_.Severity -eq 'Warning' -and $_.Status -eq 'Failed' })
+    $manualChecks = @($verificationResults | Where-Object { $_.Status -eq 'Manual' })
+
+    $allCriteriaMet = $criticalFailures.Count -eq 0
+    if ($FailOnWarning) {
+        $allCriteriaMet = $allCriteriaMet -and $warningFailures.Count -eq 0
+    }
+
+    # Check basic change completion
+    $stepsComplete = $true
+    $steps = @(Get-ChangeStep -ChangeID $ChangeID)
+    if ($steps.Count -gt 0) {
+        $incompleteSteps = @($steps | Where-Object { $_.Status -notin @('Completed', 'Skipped') })
+        $stepsComplete = $incompleteSteps.Count -eq 0
+    }
+
+    # Check explicit success criteria if defined
+    $criteriaMatched = $true
+    if ($change.SuccessCriteria) {
+        # Success criteria is stored as text - check if it was manually verified
+        $criteriaMatched = $change.Status -eq 'Completed'
+    }
+
+    return [PSCustomObject]@{
+        ChangeID = $ChangeID
+        AllCriteriaMet = $allCriteriaMet -and $stepsComplete
+        CriticalFailures = $criticalFailures.Count
+        WarningFailures = $warningFailures.Count
+        ManualChecksRequired = $manualChecks.Count
+        StepsComplete = $stepsComplete
+        SuccessCriteriaMatched = $criteriaMatched
+        VerificationResults = $verificationResults
+        VerifiedAt = Get-Date
+    }
+}
+
+function Get-ChangeVerificationReport {
+    <#
+    .SYNOPSIS
+        Generates a comprehensive verification report for a change.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$ChangeID
+    )
+
+    $change = $script:ChangeRequests | Where-Object { $_.ChangeID -eq $ChangeID }
+    if (-not $change) {
+        throw "Change request '$ChangeID' not found"
+    }
+
+    $successTest = Test-ChangeSuccess -ChangeID $ChangeID
+    $configDiffs = Compare-ChangeConfigurations -ChangeID $ChangeID
+    $steps = @(Get-ChangeStep -ChangeID $ChangeID)
+    $devices = @(Get-ChangeDevice -ChangeID $ChangeID)
+    $duration = Get-ChangeDuration -ChangeID $ChangeID
+
+    # Calculate step metrics
+    $completedSteps = @($steps | Where-Object { $_.Status -eq 'Completed' })
+    $stepDurations = @($completedSteps | Where-Object { $_.ActualStart -and $_.ActualEnd } | ForEach-Object {
+        ($_.ActualEnd - $_.ActualStart).TotalMinutes
+    })
+    $avgStepDuration = if ($stepDurations.Count -gt 0) { ($stepDurations | Measure-Object -Average).Average } else { 0 }
+
+    return [PSCustomObject]@{
+        ChangeID = $ChangeID
+        Title = $change.Title
+        Status = $change.Status
+        OverallSuccess = $successTest.AllCriteriaMet
+
+        # Timing
+        PlannedStart = $change.PlannedStart
+        PlannedEnd = $change.PlannedEnd
+        ActualStart = $change.ActualStart
+        ActualEnd = $change.ActualEnd
+        PlannedDurationMinutes = if ($change.PlannedStart -and $change.PlannedEnd) {
+            ($change.PlannedEnd - $change.PlannedStart).TotalMinutes
+        } else { 0 }
+        ActualDurationMinutes = if ($duration) { $duration.TotalMinutes } else { 0 }
+        OnTime = if ($change.PlannedEnd -and $change.ActualEnd) {
+            $change.ActualEnd -le $change.PlannedEnd
+        } else { $null }
+
+        # Steps
+        TotalSteps = $steps.Count
+        CompletedSteps = $completedSteps.Count
+        FailedSteps = @($steps | Where-Object { $_.Status -eq 'Failed' }).Count
+        SkippedSteps = @($steps | Where-Object { $_.Status -eq 'Skipped' }).Count
+        AverageStepDurationMinutes = [Math]::Round($avgStepDuration, 1)
+
+        # Devices
+        DevicesAffected = $devices.Count
+        DevicesChanged = @($devices | Where-Object { $_.Status -eq 'Changed' }).Count
+        DevicesUnchanged = @($devices | Where-Object { $_.Status -eq 'Unchanged' }).Count
+        DevicesFailed = @($devices | Where-Object { $_.Status -eq 'Failed' }).Count
+
+        # Configuration Changes
+        ConfigurationDiffs = $configDiffs
+        TotalLinesAdded = if ($configDiffs) { ($configDiffs | Measure-Object -Property AddedCount -Sum).Sum } else { 0 }
+        TotalLinesRemoved = if ($configDiffs) { ($configDiffs | Measure-Object -Property RemovedCount -Sum).Sum } else { 0 }
+
+        # Verification
+        CriticalFailures = $successTest.CriticalFailures
+        WarningFailures = $successTest.WarningFailures
+        ManualChecksRequired = $successTest.ManualChecksRequired
+        VerificationDetails = $successTest.VerificationResults
+        VerificationResults = $successTest.VerificationResults
+
+        # Metadata
+        RequestedBy = $change.RequestedBy
+        ApprovedBy = $change.ApprovedBy
+        ImplementedBy = $change.ImplementedBy
+        GeneratedAt = Get-Date
+    }
+}
+
+function Export-ChangeVerificationReport {
+    <#
+    .SYNOPSIS
+        Exports a change verification report to various formats.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$ChangeID,
+
+        [Parameter(Mandatory)]
+        [ValidateSet('Text', 'HTML', 'JSON')]
+        [string]$Format,
+
+        [Parameter(Mandatory)]
+        [string]$OutputPath
+    )
+
+    $report = Get-ChangeVerificationReport -ChangeID $ChangeID
+    $extension = switch ($Format) {
+        'Text' { 'txt' }
+        'HTML' { 'html' }
+        'JSON' { 'json' }
+    }
+    $filename = "ChangeVerification_$($ChangeID)_$(Get-Date -Format 'yyyyMMdd-HHmmss').$extension"
+    $fullPath = Join-Path $OutputPath $filename
+
+    switch ($Format) {
+        'Text' {
+            $status = if ($report.OverallSuccess) { 'SUCCESS' } else { 'FAILED' }
+            $text = @"
+CHANGE VERIFICATION REPORT
+==========================
+Change ID: $($report.ChangeID)
+Title: $($report.Title)
+Status: $($report.Status)
+Overall Result: $status
+
+TIMING
+------
+Planned Start: $($report.PlannedStart)
+Planned End: $($report.PlannedEnd)
+Actual Start: $($report.ActualStart)
+Actual End: $($report.ActualEnd)
+Planned Duration: $($report.PlannedDurationMinutes) minutes
+Actual Duration: $([Math]::Round($report.ActualDurationMinutes, 1)) minutes
+On Time: $(if ($null -eq $report.OnTime) { 'N/A' } elseif ($report.OnTime) { 'Yes' } else { 'No' })
+
+STEPS
+-----
+Total: $($report.TotalSteps)
+Completed: $($report.CompletedSteps)
+Failed: $($report.FailedSteps)
+Skipped: $($report.SkippedSteps)
+Average Step Duration: $($report.AverageStepDurationMinutes) minutes
+
+DEVICES
+-------
+Affected: $($report.DevicesAffected)
+Changed: $($report.DevicesChanged)
+Unchanged: $($report.DevicesUnchanged)
+Failed: $($report.DevicesFailed)
+
+CONFIGURATION CHANGES
+---------------------
+Lines Added: $($report.TotalLinesAdded)
+Lines Removed: $($report.TotalLinesRemoved)
+
+VERIFICATION
+------------
+Critical Failures: $($report.CriticalFailures)
+Warning Failures: $($report.WarningFailures)
+Manual Checks Required: $($report.ManualChecksRequired)
+
+PERSONNEL
+---------
+Requested By: $($report.RequestedBy)
+Approved By: $($report.ApprovedBy)
+Implemented By: $($report.ImplementedBy)
+
+Generated: $($report.GeneratedAt)
+"@
+            $text | Set-Content -Path $fullPath
+        }
+        'HTML' {
+            $statusClass = if ($report.OverallSuccess) { 'success' } else { 'failure' }
+            $statusText = if ($report.OverallSuccess) { 'SUCCESS' } else { 'FAILED' }
+
+            $html = @"
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Change Verification Report - $($report.ChangeID)</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 900px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 10px; }
+        h2 { color: #34495e; margin-top: 25px; }
+        .status { display: inline-block; padding: 8px 16px; border-radius: 4px; font-weight: bold; font-size: 1.1em; }
+        .success { background: #27ae60; color: white; }
+        .failure { background: #e74c3c; color: white; }
+        .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; margin: 15px 0; }
+        .card { background: #ecf0f1; padding: 15px; border-radius: 5px; }
+        .card h3 { margin-top: 0; color: #2c3e50; font-size: 0.9em; text-transform: uppercase; }
+        .card .value { font-size: 1.8em; font-weight: bold; color: #3498db; }
+        .metric-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #ddd; }
+        .metric-label { color: #7f8c8d; }
+        .metric-value { font-weight: bold; }
+        table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background: #3498db; color: white; }
+        tr:nth-child(even) { background: #f8f9fa; }
+        .check-passed { color: #27ae60; }
+        .check-failed { color: #e74c3c; }
+        .check-manual { color: #f39c12; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Change Verification Report</h1>
+        <p><strong>Change ID:</strong> $($report.ChangeID) | <strong>Title:</strong> $($report.Title)</p>
+        <p><strong>Status:</strong> $($report.Status) | <span class="status $statusClass">$statusText</span></p>
+
+        <div class="grid">
+            <div class="card">
+                <h3>Steps Completed</h3>
+                <div class="value">$($report.CompletedSteps) / $($report.TotalSteps)</div>
+            </div>
+            <div class="card">
+                <h3>Devices Changed</h3>
+                <div class="value">$($report.DevicesChanged) / $($report.DevicesAffected)</div>
+            </div>
+            <div class="card">
+                <h3>Duration</h3>
+                <div class="value">$([Math]::Round($report.ActualDurationMinutes, 0)) min</div>
+            </div>
+            <div class="card">
+                <h3>Config Changes</h3>
+                <div class="value">+$($report.TotalLinesAdded) / -$($report.TotalLinesRemoved)</div>
+            </div>
+        </div>
+
+        <h2>Timing</h2>
+        <div class="metric-row"><span class="metric-label">Planned</span><span class="metric-value">$($report.PlannedStart) to $($report.PlannedEnd)</span></div>
+        <div class="metric-row"><span class="metric-label">Actual</span><span class="metric-value">$($report.ActualStart) to $($report.ActualEnd)</span></div>
+        <div class="metric-row"><span class="metric-label">On Time</span><span class="metric-value">$(if ($null -eq $report.OnTime) { 'N/A' } elseif ($report.OnTime) { 'Yes' } else { 'No' })</span></div>
+
+        <h2>Verification Results</h2>
+        <table>
+            <tr><th>Check</th><th>Type</th><th>Severity</th><th>Status</th><th>Details</th></tr>
+"@
+            foreach ($check in $report.VerificationDetails) {
+                $checkClass = switch ($check.Status) {
+                    'Passed' { 'check-passed' }
+                    'Failed' { 'check-failed' }
+                    default { 'check-manual' }
+                }
+                $html += "            <tr><td>$($check.RuleName)</td><td>$($check.RuleType)</td><td>$($check.Severity)</td><td class='$checkClass'>$($check.Status)</td><td>$($check.ActualValue)</td></tr>`n"
+            }
+            $html += @"
+        </table>
+
+        <h2>Personnel</h2>
+        <div class="metric-row"><span class="metric-label">Requested By</span><span class="metric-value">$($report.RequestedBy)</span></div>
+        <div class="metric-row"><span class="metric-label">Approved By</span><span class="metric-value">$($report.ApprovedBy)</span></div>
+        <div class="metric-row"><span class="metric-label">Implemented By</span><span class="metric-value">$($report.ImplementedBy)</span></div>
+
+        <p style="margin-top: 30px; color: #7f8c8d; font-size: 0.9em;">Generated: $($report.GeneratedAt)</p>
+    </div>
+</body>
+</html>
+"@
+            $html | Set-Content -Path $fullPath
+        }
+        'JSON' {
+            $report | ConvertTo-Json -Depth 10 | Set-Content -Path $fullPath
+        }
+    }
+
+    return [PSCustomObject]@{
+        Path = $fullPath
+        Format = $Format
+        ChangeID = $ChangeID
+        OverallSuccess = $report.OverallSuccess
+    }
+}
+
+#endregion
+
 #region Change Impact Analysis
 
 function Get-ChangeImpact {
@@ -1495,6 +2052,18 @@ function Import-ChangeManagementDatabase {
         if ($data.ChangeRequests) {
             $script:ChangeRequests.Clear()
             foreach ($item in $data.ChangeRequests) {
+                # Ensure VerificationRules is initialized for backward compatibility
+                if (-not $item.PSObject.Properties['VerificationRules']) {
+                    $item | Add-Member -NotePropertyName 'VerificationRules' -NotePropertyValue (New-Object System.Collections.ArrayList) -Force
+                } elseif ($item.VerificationRules -isnot [System.Collections.ArrayList]) {
+                    $rules = New-Object System.Collections.ArrayList
+                    if ($item.VerificationRules) {
+                        foreach ($r in $item.VerificationRules) {
+                            [void]$rules.Add($r)
+                        }
+                    }
+                    $item.VerificationRules = $rules
+                }
                 [void]$script:ChangeRequests.Add($item)
             }
         }
@@ -1646,6 +2215,14 @@ Export-ModuleMember -Function @(
     # History
     'Add-ChangeHistoryEntry'
     'Get-ChangeHistory'
+
+    # Post-Change Verification
+    'New-VerificationRule'
+    'Get-VerificationRule'
+    'Invoke-ChangeVerification'
+    'Test-ChangeSuccess'
+    'Get-ChangeVerificationReport'
+    'Export-ChangeVerificationReport'
 
     # Statistics
     'Get-ChangeStatistics'

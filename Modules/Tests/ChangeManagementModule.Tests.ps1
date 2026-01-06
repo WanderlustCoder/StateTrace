@@ -508,4 +508,208 @@ Describe 'ChangeManagementModule' {
             $allHistory.Count | Should BeGreaterThan 1
         }
     }
+
+    Context 'Post-Change Verification' {
+
+        It 'Creates a verification rule' {
+            $change = New-ChangeRequest -Title 'Test' -Description 'Test' -RequestedBy 'admin'
+
+            $rule = New-VerificationRule -ChangeID $change.ChangeID -RuleName 'Check VLAN exists' -RuleType 'ConfigContains' -ExpectedValue 'vlan 100'
+            $rule | Should Not BeNullOrEmpty
+            $rule.RuleName | Should Be 'Check VLAN exists'
+            $rule.RuleType | Should Be 'ConfigContains'
+        }
+
+        It 'Creates verification rule with severity' {
+            $change = New-ChangeRequest -Title 'Test' -Description 'Test' -RequestedBy 'admin'
+
+            $rule = New-VerificationRule -ChangeID $change.ChangeID -RuleName 'Check interface' -RuleType 'ConfigContains' -ExpectedValue 'no shutdown' -Severity 'Warning'
+            $rule.Severity | Should Be 'Warning'
+        }
+
+        It 'Creates verification rule for specific device' {
+            $change = New-ChangeRequest -Title 'Test' -Description 'Test' -RequestedBy 'admin'
+            Add-ChangeDevice -ChangeID $change.ChangeID -DeviceID 'SW-CORE-01' -PreConfigSnapshot 'interface Gi1/0/1'
+
+            $rule = New-VerificationRule -ChangeID $change.ChangeID -RuleName 'Check SW-CORE-01' -RuleType 'ConfigContains' -ExpectedValue 'vlan 100' -DeviceID 'SW-CORE-01'
+            $rule.DeviceID | Should Be 'SW-CORE-01'
+        }
+
+        It 'Gets all verification rules for a change' {
+            $change = New-ChangeRequest -Title 'Test' -Description 'Test' -RequestedBy 'admin'
+            New-VerificationRule -ChangeID $change.ChangeID -RuleName 'Rule 1' -RuleType 'ConfigContains' -ExpectedValue 'vlan 100'
+            New-VerificationRule -ChangeID $change.ChangeID -RuleName 'Rule 2' -RuleType 'ConfigNotContains' -ExpectedValue 'shutdown'
+
+            $rules = @(Get-VerificationRule -ChangeID $change.ChangeID)
+            $rules.Count | Should Be 2
+        }
+
+        It 'Gets verification rule by name' {
+            $change = New-ChangeRequest -Title 'Test' -Description 'Test' -RequestedBy 'admin'
+            New-VerificationRule -ChangeID $change.ChangeID -RuleName 'Specific Rule' -RuleType 'ConfigContains' -ExpectedValue 'test'
+
+            $rule = Get-VerificationRule -ChangeID $change.ChangeID -RuleName 'Specific Rule'
+            $rule | Should Not BeNullOrEmpty
+            $rule.RuleName | Should Be 'Specific Rule'
+        }
+
+        It 'Invokes verification and returns results' {
+            $change = New-ChangeRequest -Title 'Test' -Description 'Test' -RequestedBy 'admin'
+            Add-ChangeDevice -ChangeID $change.ChangeID -DeviceID 'SW-01' -PreConfigSnapshot 'interface Gi1/0/1'
+            Set-ChangeDevicePostState -ChangeID $change.ChangeID -DeviceID 'SW-01' -PostConfigSnapshot "interface Gi1/0/1`nvlan 100"
+            New-VerificationRule -ChangeID $change.ChangeID -RuleName 'VLAN Check' -RuleType 'ConfigContains' -ExpectedValue 'vlan 100' -DeviceID 'SW-01'
+
+            $result = Invoke-ChangeVerification -ChangeID $change.ChangeID
+            $result | Should Not BeNullOrEmpty
+            $result.RulesChecked | Should Be 1
+        }
+
+        It 'Verification passes when expected value is found' {
+            $change = New-ChangeRequest -Title 'Test' -Description 'Test' -RequestedBy 'admin'
+            Add-ChangeDevice -ChangeID $change.ChangeID -DeviceID 'SW-01' -PreConfigSnapshot 'interface Gi1/0/1'
+            Set-ChangeDevicePostState -ChangeID $change.ChangeID -DeviceID 'SW-01' -PostConfigSnapshot "interface Gi1/0/1`nvlan 100"
+            New-VerificationRule -ChangeID $change.ChangeID -RuleName 'VLAN Check' -RuleType 'ConfigContains' -ExpectedValue 'vlan 100' -DeviceID 'SW-01'
+
+            $result = Invoke-ChangeVerification -ChangeID $change.ChangeID
+            $result.Passed | Should Be 1
+            $result.Failed | Should Be 0
+        }
+
+        It 'Verification fails when expected value is missing' {
+            $change = New-ChangeRequest -Title 'Test' -Description 'Test' -RequestedBy 'admin'
+            Add-ChangeDevice -ChangeID $change.ChangeID -DeviceID 'SW-01' -PreConfigSnapshot 'interface Gi1/0/1'
+            Set-ChangeDevicePostState -ChangeID $change.ChangeID -DeviceID 'SW-01' -PostConfigSnapshot "interface Gi1/0/1"
+            New-VerificationRule -ChangeID $change.ChangeID -RuleName 'VLAN Check' -RuleType 'ConfigContains' -ExpectedValue 'vlan 100' -DeviceID 'SW-01'
+
+            $result = Invoke-ChangeVerification -ChangeID $change.ChangeID
+            $result.Failed | Should Be 1
+        }
+
+        It 'ConfigNotContains rule passes when value is absent' {
+            $change = New-ChangeRequest -Title 'Test' -Description 'Test' -RequestedBy 'admin'
+            Add-ChangeDevice -ChangeID $change.ChangeID -DeviceID 'SW-01' -PreConfigSnapshot 'interface Gi1/0/1 shutdown'
+            Set-ChangeDevicePostState -ChangeID $change.ChangeID -DeviceID 'SW-01' -PostConfigSnapshot "interface Gi1/0/1`nno shutdown"
+            New-VerificationRule -ChangeID $change.ChangeID -RuleName 'No Shutdown' -RuleType 'ConfigNotContains' -ExpectedValue 'shutdown' -DeviceID 'SW-01'
+
+            $result = Invoke-ChangeVerification -ChangeID $change.ChangeID
+            # 'no shutdown' contains 'shutdown' so this should fail the ConfigNotContains rule
+            $result.Failed | Should BeGreaterThan 0
+        }
+
+        It 'Tests change success with all criteria met' {
+            $change = New-ChangeRequest -Title 'Test' -Description 'Test' -RequestedBy 'admin'
+            Add-ChangeDevice -ChangeID $change.ChangeID -DeviceID 'SW-01' -PreConfigSnapshot 'interface Gi1/0/1'
+            Set-ChangeDevicePostState -ChangeID $change.ChangeID -DeviceID 'SW-01' -PostConfigSnapshot "interface Gi1/0/1`nvlan 100"
+            New-VerificationRule -ChangeID $change.ChangeID -RuleName 'VLAN Check' -RuleType 'ConfigContains' -ExpectedValue 'vlan 100' -DeviceID 'SW-01'
+
+            $success = Test-ChangeSuccess -ChangeID $change.ChangeID
+            $success.AllCriteriaMet | Should Be $true
+            $success.CriticalFailures | Should Be 0
+        }
+
+        It 'Tests change success fails with critical failures' {
+            $change = New-ChangeRequest -Title 'Test' -Description 'Test' -RequestedBy 'admin'
+            Add-ChangeDevice -ChangeID $change.ChangeID -DeviceID 'SW-01' -PreConfigSnapshot 'interface Gi1/0/1'
+            Set-ChangeDevicePostState -ChangeID $change.ChangeID -DeviceID 'SW-01' -PostConfigSnapshot "interface Gi1/0/1"
+            New-VerificationRule -ChangeID $change.ChangeID -RuleName 'Missing VLAN' -RuleType 'ConfigContains' -ExpectedValue 'vlan 100' -DeviceID 'SW-01' -Severity 'Critical'
+
+            $success = Test-ChangeSuccess -ChangeID $change.ChangeID
+            $success.AllCriteriaMet | Should Be $false
+            $success.CriticalFailures | Should Be 1
+        }
+
+        It 'FailOnWarning flag treats warnings as failures' {
+            $change = New-ChangeRequest -Title 'Test' -Description 'Test' -RequestedBy 'admin'
+            Add-ChangeDevice -ChangeID $change.ChangeID -DeviceID 'SW-01' -PreConfigSnapshot 'interface Gi1/0/1'
+            Set-ChangeDevicePostState -ChangeID $change.ChangeID -DeviceID 'SW-01' -PostConfigSnapshot "interface Gi1/0/1"
+            New-VerificationRule -ChangeID $change.ChangeID -RuleName 'Warning Check' -RuleType 'ConfigContains' -ExpectedValue 'vlan 100' -DeviceID 'SW-01' -Severity 'Warning'
+
+            $success = Test-ChangeSuccess -ChangeID $change.ChangeID -FailOnWarning
+            $success.AllCriteriaMet | Should Be $false
+        }
+
+        It 'Generates verification report' {
+            $change = New-ChangeRequest -Title 'Test Change' -Description 'Test' -RequestedBy 'admin'
+            Add-ChangeDevice -ChangeID $change.ChangeID -DeviceID 'SW-01' -PreConfigSnapshot 'interface Gi1/0/1'
+            Set-ChangeDevicePostState -ChangeID $change.ChangeID -DeviceID 'SW-01' -PostConfigSnapshot "interface Gi1/0/1`nvlan 100"
+            New-VerificationRule -ChangeID $change.ChangeID -RuleName 'VLAN Check' -RuleType 'ConfigContains' -ExpectedValue 'vlan 100' -DeviceID 'SW-01'
+
+            $report = Get-ChangeVerificationReport -ChangeID $change.ChangeID
+            $report | Should Not BeNullOrEmpty
+            $report.ChangeID | Should Be $change.ChangeID
+            $report.VerificationResults | Should Not BeNullOrEmpty
+        }
+
+        It 'Exports verification report to Text' {
+            $change = New-ChangeRequest -Title 'Test Change' -Description 'Test' -RequestedBy 'admin'
+            New-VerificationRule -ChangeID $change.ChangeID -RuleName 'Check' -RuleType 'ConfigContains' -ExpectedValue 'test'
+
+            $result = Export-ChangeVerificationReport -ChangeID $change.ChangeID -Format 'Text' -OutputPath $env:TEMP
+
+            $result.Path | Should Not BeNullOrEmpty
+            $result.Path | Should Match '\.txt$'
+            Test-Path $result.Path | Should Be $true
+            $content = Get-Content $result.Path -Raw
+            $content | Should Match 'CHANGE VERIFICATION REPORT'
+
+            Remove-Item $result.Path -Force -ErrorAction SilentlyContinue
+        }
+
+        It 'Exports verification report to HTML' {
+            $change = New-ChangeRequest -Title 'Test Change' -Description 'Test' -RequestedBy 'admin'
+            New-VerificationRule -ChangeID $change.ChangeID -RuleName 'Check' -RuleType 'ConfigContains' -ExpectedValue 'test'
+
+            $result = Export-ChangeVerificationReport -ChangeID $change.ChangeID -Format 'HTML' -OutputPath $env:TEMP
+
+            $result.Path | Should Not BeNullOrEmpty
+            $result.Path | Should Match '\.html$'
+            Test-Path $result.Path | Should Be $true
+            $content = Get-Content $result.Path -Raw
+            $content | Should Match '<html>'
+            $content | Should Match 'Change Verification Report'
+
+            Remove-Item $result.Path -Force -ErrorAction SilentlyContinue
+        }
+
+        It 'Exports verification report to JSON' {
+            $change = New-ChangeRequest -Title 'Test Change' -Description 'Test' -RequestedBy 'admin'
+            New-VerificationRule -ChangeID $change.ChangeID -RuleName 'Check' -RuleType 'ConfigContains' -ExpectedValue 'test'
+
+            $result = Export-ChangeVerificationReport -ChangeID $change.ChangeID -Format 'JSON' -OutputPath $env:TEMP
+
+            $result.Path | Should Not BeNullOrEmpty
+            $result.Path | Should Match '\.json$'
+            Test-Path $result.Path | Should Be $true
+            $content = Get-Content $result.Path -Raw
+            $json = $content | ConvertFrom-Json
+            $json.ChangeID | Should Be $change.ChangeID
+
+            Remove-Item $result.Path -Force -ErrorAction SilentlyContinue
+        }
+
+        It 'Supports multiple rule types' {
+            $change = New-ChangeRequest -Title 'Test' -Description 'Test' -RequestedBy 'admin'
+
+            $rule1 = New-VerificationRule -ChangeID $change.ChangeID -RuleName 'Contains' -RuleType 'ConfigContains' -ExpectedValue 'test'
+            $rule2 = New-VerificationRule -ChangeID $change.ChangeID -RuleName 'NotContains' -RuleType 'ConfigNotContains' -ExpectedValue 'bad'
+            $rule3 = New-VerificationRule -ChangeID $change.ChangeID -RuleName 'StateMatch' -RuleType 'StateMatch' -ExpectedValue 'up'
+            $rule4 = New-VerificationRule -ChangeID $change.ChangeID -RuleName 'Output' -RuleType 'OutputContains' -ExpectedValue 'success'
+
+            $rules = @(Get-VerificationRule -ChangeID $change.ChangeID)
+            $rules.Count | Should Be 4
+            @($rules | Where-Object { $_.RuleType -eq 'ConfigContains' }).Count | Should Be 1
+            @($rules | Where-Object { $_.RuleType -eq 'ConfigNotContains' }).Count | Should Be 1
+            @($rules | Where-Object { $_.RuleType -eq 'StateMatch' }).Count | Should Be 1
+            @($rules | Where-Object { $_.RuleType -eq 'OutputContains' }).Count | Should Be 1
+        }
+
+        It 'Handles change with no verification rules' {
+            $change = New-ChangeRequest -Title 'Test' -Description 'Test' -RequestedBy 'admin'
+
+            $result = Invoke-ChangeVerification -ChangeID $change.ChangeID
+            $result.RulesChecked | Should Be 0
+            $result.Passed | Should Be 0
+            $result.Failed | Should Be 0
+        }
+    }
 }
