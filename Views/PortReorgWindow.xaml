@@ -198,8 +198,22 @@
         </Style>
       </DataGrid.RowStyle>
       <DataGrid.Columns>
-        <DataGridTextColumn Header="Port" IsReadOnly="True" Width="120" Binding="{Binding TargetPort}"/>
-        <DataGridTemplateColumn Header="Label" Width="260">
+        <DataGridTextColumn Header="Port" IsReadOnly="True" Width="100" Binding="{Binding TargetPort}"/>
+        <DataGridTextColumn Header="Cable" IsReadOnly="True" Width="180" Binding="{Binding CableInfo}"
+                            ToolTipService.ToolTip="{Binding CableTooltip}">
+          <DataGridTextColumn.ElementStyle>
+            <Style TargetType="TextBlock">
+              <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Secondary}"/>
+              <Setter Property="FontSize" Value="11"/>
+              <Style.Triggers>
+                <DataTrigger Binding="{Binding CableInfo}" Value="">
+                  <Setter Property="Opacity" Value="0.5"/>
+                </DataTrigger>
+              </Style.Triggers>
+            </Style>
+          </DataGridTextColumn.ElementStyle>
+        </DataGridTextColumn>
+        <DataGridTemplateColumn Header="Label" Width="240">
           <DataGridTemplateColumn.CellTemplate>
             <DataTemplate>
               <Border Padding="6,2"
@@ -297,6 +311,81 @@
                  Foreground="{DynamicResource Theme.Input.Text}"
                  BorderBrush="{DynamicResource Theme.Input.Border}"
                  BorderThickness="1"/>
+      </TabItem>
+      <TabItem Header="Cable Info">
+        <Grid Margin="5">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+          </Grid.ColumnDefinitions>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+
+          <!-- Cable details for selected port -->
+          <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Margin="0,0,0,5">
+            <TextBlock Text="Selected Port:" Margin="0,0,5,0" VerticalAlignment="Center" FontWeight="Bold"/>
+            <TextBlock Name="CableSelectedPortText" Margin="0,0,20,0" VerticalAlignment="Center"/>
+            <TextBlock Text="Cable ID:" Margin="0,0,5,0" VerticalAlignment="Center" FontWeight="Bold"/>
+            <TextBlock Name="CableCableIdText" Margin="0,0,20,0" VerticalAlignment="Center"/>
+            <TextBlock Text="Status:" Margin="0,0,5,0" VerticalAlignment="Center" FontWeight="Bold"/>
+            <TextBlock Name="CableStatusText" VerticalAlignment="Center"/>
+          </StackPanel>
+
+          <!-- Cable properties grid -->
+          <Border Grid.Row="1" Grid.Column="0" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1" Margin="0,0,5,0">
+            <Grid Margin="10">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="120"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+              </Grid.RowDefinitions>
+
+              <TextBlock Grid.Row="0" Grid.Column="0" Text="Remote Device:" FontWeight="Bold" Margin="0,2"/>
+              <TextBlock Grid.Row="0" Grid.Column="1" Name="CableRemoteDeviceText" Margin="5,2"/>
+
+              <TextBlock Grid.Row="1" Grid.Column="0" Text="Remote Port:" FontWeight="Bold" Margin="0,2"/>
+              <TextBlock Grid.Row="1" Grid.Column="1" Name="CableRemotePortText" Margin="5,2"/>
+
+              <TextBlock Grid.Row="2" Grid.Column="0" Text="Cable Type:" FontWeight="Bold" Margin="0,2"/>
+              <TextBlock Grid.Row="2" Grid.Column="1" Name="CableCableTypeText" Margin="5,2"/>
+
+              <TextBlock Grid.Row="3" Grid.Column="0" Text="Length:" FontWeight="Bold" Margin="0,2"/>
+              <TextBlock Grid.Row="3" Grid.Column="1" Name="CableLengthText" Margin="5,2"/>
+
+              <TextBlock Grid.Row="4" Grid.Column="0" Text="Color:" FontWeight="Bold" Margin="0,2"/>
+              <TextBlock Grid.Row="4" Grid.Column="1" Name="CableColorText" Margin="5,2"/>
+
+              <TextBlock Grid.Row="5" Grid.Column="0" Text="Install Date:" FontWeight="Bold" Margin="0,2"/>
+              <TextBlock Grid.Row="5" Grid.Column="1" Name="CableInstallDateText" Margin="5,2"/>
+
+              <TextBlock Grid.Row="6" Grid.Column="0" Text="Notes:" FontWeight="Bold" Margin="0,2"/>
+              <TextBlock Grid.Row="6" Grid.Column="1" Name="CableNotesText" TextWrapping="Wrap" Margin="5,2"/>
+            </Grid>
+          </Border>
+
+          <!-- Action buttons -->
+          <StackPanel Grid.Row="0" Grid.RowSpan="2" Grid.Column="1" Orientation="Vertical" Width="120">
+            <Button Name="CableViewInCablesButton" Content="View in Cables" Margin="0,0,0,5" Style="{DynamicResource SecondaryButtonStyle}"
+                    ToolTip="Open the selected cable in the Cables tab"/>
+            <Button Name="CableLinkNewButton" Content="Link Cable..." Margin="0,0,0,5" Style="{DynamicResource SecondaryButtonStyle}"
+                    ToolTip="Create or link a cable to this port"/>
+            <Button Name="CableUnlinkButton" Content="Unlink Cable" Margin="0,0,0,5" Style="{DynamicResource SecondaryButtonStyle}"
+                    ToolTip="Remove cable link from this port"/>
+            <Button Name="CableRefreshButton" Content="Refresh" Style="{DynamicResource SecondaryButtonStyle}"
+                    ToolTip="Refresh cable information"/>
+          </StackPanel>
+        </Grid>
       </TabItem>
     </TabControl>
   </Grid>

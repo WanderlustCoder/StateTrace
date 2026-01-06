@@ -1044,6 +1044,261 @@ function Import-CableRunsFromCsv {
 
 #endregion
 
+#region Port Reorg Integration
+
+<#
+.SYNOPSIS
+    Gets cable information for a specific device port.
+
+.DESCRIPTION
+    Looks up cable documentation for a given device and port combination.
+    Returns the cable info in a format suitable for display in Port Reorg.
+
+.PARAMETER DeviceName
+    The device hostname or name.
+
+.PARAMETER PortName
+    The port identifier (e.g., Gi1/0/1).
+
+.PARAMETER Database
+    Optional external database hashtable.
+#>
+function Get-CableForPort {
+    [CmdletBinding()]
+    [OutputType([PSCustomObject])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$DeviceName,
+
+        [Parameter(Mandatory = $true)]
+        [string]$PortName,
+
+        [Parameter()]
+        [hashtable]$Database
+    )
+
+    $db = if ($Database) { $Database } else { $script:CableDatabase }
+
+    # Normalize port name - handle common variations
+    $normalizedPort = $PortName -replace '^\s+|\s+$', ''
+
+    # Search for cable where this device/port is source or destination
+    $cable = $db.Cables | Where-Object {
+        ($_.SourceDevice -eq $DeviceName -and $_.SourcePort -eq $normalizedPort) -or
+        ($_.DestDevice -eq $DeviceName -and $_.DestPort -eq $normalizedPort)
+    } | Select-Object -First 1
+
+    if (-not $cable) {
+        return $null
+    }
+
+    # Determine which end this port represents
+    $isSource = ($cable.SourceDevice -eq $DeviceName -and $cable.SourcePort -eq $normalizedPort)
+
+    [PSCustomObject]@{
+        CableID      = $cable.CableID
+        CableType    = $cable.CableType
+        Length       = $cable.Length
+        Color        = $cable.Color
+        Status       = $cable.Status
+        RemoteDevice = if ($isSource) { $cable.DestDevice } else { $cable.SourceDevice }
+        RemotePort   = if ($isSource) { $cable.DestPort } else { $cable.SourcePort }
+        RemoteType   = if ($isSource) { $cable.DestType } else { $cable.SourceType }
+        Notes        = $cable.Notes
+        InstallDate  = $cable.InstallDate
+        VerifyDate   = $cable.VerifyDate
+        FullCable    = $cable
+    }
+}
+
+<#
+.SYNOPSIS
+    Gets cable info summary string for display.
+
+.DESCRIPTION
+    Returns a short summary string suitable for display in a grid column.
+
+.PARAMETER DeviceName
+    The device hostname or name.
+
+.PARAMETER PortName
+    The port identifier.
+
+.PARAMETER Database
+    Optional external database hashtable.
+#>
+function Get-CableSummaryForPort {
+    [CmdletBinding()]
+    [OutputType([string])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$DeviceName,
+
+        [Parameter(Mandatory = $true)]
+        [string]$PortName,
+
+        [Parameter()]
+        [hashtable]$Database
+    )
+
+    $info = Get-CableForPort -DeviceName $DeviceName -PortName $PortName -Database $Database
+
+    if (-not $info) {
+        return ''
+    }
+
+    # Format: "CableID -> RemoteDevice:RemotePort (Type)"
+    $remote = "$($info.RemoteDevice):$($info.RemotePort)"
+    if ($info.RemoteType -eq 'PatchPanel') {
+        $remote = "PP:$($info.RemoteDevice)/$($info.RemotePort)"
+    }
+
+    return "$($info.CableID) -> $remote"
+}
+
+<#
+.SYNOPSIS
+    Links a cable to a port in Port Reorg context.
+
+.DESCRIPTION
+    Creates or updates a cable run to link a device port to a destination.
+
+.PARAMETER DeviceName
+    The source device hostname.
+
+.PARAMETER PortName
+    The source port identifier.
+
+.PARAMETER DestDevice
+    The destination device or patch panel name.
+
+.PARAMETER DestPort
+    The destination port identifier.
+
+.PARAMETER DestType
+    Type of destination: Device, PatchPanel, WallJack, Other.
+
+.PARAMETER CableType
+    Type of cable.
+
+.PARAMETER Database
+    Optional external database hashtable.
+#>
+function Set-CableForPort {
+    [CmdletBinding()]
+    [OutputType([PSCustomObject])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$DeviceName,
+
+        [Parameter(Mandatory = $true)]
+        [string]$PortName,
+
+        [Parameter(Mandatory = $true)]
+        [Alias('DestDevice')]
+        [string]$RemoteDevice,
+
+        [Parameter(Mandatory = $true)]
+        [Alias('DestPort')]
+        [string]$RemotePort,
+
+        [Parameter()]
+        [string]$CableID,
+
+        [Parameter()]
+        [ValidateSet('Device', 'PatchPanel', 'WallJack', 'Other')]
+        [string]$DestType = 'Device',
+
+        [Parameter()]
+        [ValidateSet('Cat5e', 'Cat6', 'Cat6a', 'FiberOM3', 'FiberOM4', 'FiberOS2', 'Coax', 'Other')]
+        [string]$CableType = 'Cat6',
+
+        [Parameter()]
+        [hashtable]$Database
+    )
+
+    $db = if ($Database) { $Database } else { $script:CableDatabase }
+
+    # Check if cable already exists for this port
+    $existing = Get-CableForPort -DeviceName $DeviceName -PortName $PortName -Database $db
+
+    if ($existing) {
+        # Update existing cable (suppress output)
+        Update-CableRun -CableID $existing.CableID -Properties @{
+            DestDevice = $RemoteDevice
+            DestPort   = $RemotePort
+            DestType   = $DestType
+            CableType  = $CableType
+        } -Database $db | Out-Null
+
+        # Return updated info
+        return Get-CableForPort -DeviceName $DeviceName -PortName $PortName -Database $db
+    }
+    else {
+        # Create new cable
+        $newCableParams = @{
+            SourceType   = 'Device'
+            SourceDevice = $DeviceName
+            SourcePort   = $PortName
+            DestType     = $DestType
+            DestDevice   = $RemoteDevice
+            DestPort     = $RemotePort
+            CableType    = $CableType
+        }
+
+        if ($CableID) {
+            $newCableParams['CableID'] = $CableID
+        }
+
+        $cable = New-CableRun @newCableParams
+        Add-CableRun -Cable $cable -Database $db | Out-Null
+
+        # Return the created cable info
+        return Get-CableForPort -DeviceName $DeviceName -PortName $PortName -Database $db
+    }
+}
+
+<#
+.SYNOPSIS
+    Removes cable link from a port.
+
+.PARAMETER DeviceName
+    The device hostname.
+
+.PARAMETER PortName
+    The port identifier.
+
+.PARAMETER Database
+    Optional external database hashtable.
+#>
+function Remove-CableForPort {
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$DeviceName,
+
+        [Parameter(Mandatory = $true)]
+        [string]$PortName,
+
+        [Parameter()]
+        [hashtable]$Database
+    )
+
+    $db = if ($Database) { $Database } else { $script:CableDatabase }
+
+    $info = Get-CableForPort -DeviceName $DeviceName -PortName $PortName -Database $db
+
+    if ($info) {
+        Remove-CableRun -CableID $info.CableID -Database $db
+        return $true
+    }
+
+    return $false
+}
+
+#endregion
+
 #region Search and Analysis
 
 <#
@@ -1310,4 +1565,9 @@ Export-ModuleMember -Function @(
     'Get-CableDatabaseStats'
     'Clear-CableDatabase'
     'New-CableDatabase'
+    # Port Reorg Integration
+    'Get-CableForPort'
+    'Get-CableSummaryForPort'
+    'Set-CableForPort'
+    'Remove-CableForPort'
 )

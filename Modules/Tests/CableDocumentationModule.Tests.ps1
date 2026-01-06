@@ -942,4 +942,196 @@ Describe 'CableDocumentationModule' {
     }
 
     #endregion
+
+    #region ST-T-005: Port Reorg Integration Functions
+
+    Context 'Get-CableForPort returns cable info for device port' {
+        BeforeEach {
+            $script:testDb = CableDocumentationModule\New-CableDatabase
+
+            $cable = CableDocumentationModule\New-CableRun `
+                -CableID 'CBL-TEST-001' `
+                -SourceType 'Device' `
+                -SourceDevice 'SW-CORE-01' `
+                -SourcePort 'Gi1/0/24' `
+                -DestType 'Device' `
+                -DestDevice 'SW-ACCESS-01' `
+                -DestPort 'Gi1/0/1' `
+                -CableType 'Cat6a' `
+                -Status 'Active'
+            CableDocumentationModule\Add-CableRun -Cable $cable -Database $script:testDb
+        }
+
+        It 'Returns cable info when port is source' {
+            $result = CableDocumentationModule\Get-CableForPort -DeviceName 'SW-CORE-01' -PortName 'Gi1/0/24' -Database $script:testDb
+            $result | Should Not BeNullOrEmpty
+            $result.CableID | Should Be 'CBL-TEST-001'
+            $result.RemoteDevice | Should Be 'SW-ACCESS-01'
+            $result.RemotePort | Should Be 'Gi1/0/1'
+        }
+
+        It 'Returns cable info when port is destination' {
+            $result = CableDocumentationModule\Get-CableForPort -DeviceName 'SW-ACCESS-01' -PortName 'Gi1/0/1' -Database $script:testDb
+            $result | Should Not BeNullOrEmpty
+            $result.CableID | Should Be 'CBL-TEST-001'
+            $result.RemoteDevice | Should Be 'SW-CORE-01'
+            $result.RemotePort | Should Be 'Gi1/0/24'
+        }
+
+        It 'Returns null when no cable found' {
+            $result = CableDocumentationModule\Get-CableForPort -DeviceName 'SW-UNKNOWN' -PortName 'Gi1/0/1' -Database $script:testDb
+            $result | Should BeNullOrEmpty
+        }
+
+        It 'Is case-insensitive for device name' {
+            $result = CableDocumentationModule\Get-CableForPort -DeviceName 'sw-core-01' -PortName 'Gi1/0/24' -Database $script:testDb
+            $result | Should Not BeNullOrEmpty
+            $result.CableID | Should Be 'CBL-TEST-001'
+        }
+    }
+
+    Context 'Get-CableSummaryForPort returns formatted summary string' {
+        BeforeEach {
+            $script:testDb = CableDocumentationModule\New-CableDatabase
+
+            $cable = CableDocumentationModule\New-CableRun `
+                -CableID 'CBL-MDF-001' `
+                -SourceType 'Device' `
+                -SourceDevice 'ROUTER-01' `
+                -SourcePort 'Gi0/0/1' `
+                -DestType 'Device' `
+                -DestDevice 'FIREWALL-01' `
+                -DestPort 'Eth1' `
+                -CableType 'Cat6a'
+            CableDocumentationModule\Add-CableRun -Cable $cable -Database $script:testDb
+        }
+
+        It 'Returns formatted summary for source port' {
+            $result = CableDocumentationModule\Get-CableSummaryForPort -DeviceName 'ROUTER-01' -PortName 'Gi0/0/1' -Database $script:testDb
+            $result | Should Be 'CBL-MDF-001 -> FIREWALL-01:Eth1'
+        }
+
+        It 'Returns formatted summary for destination port' {
+            $result = CableDocumentationModule\Get-CableSummaryForPort -DeviceName 'FIREWALL-01' -PortName 'Eth1' -Database $script:testDb
+            $result | Should Be 'CBL-MDF-001 -> ROUTER-01:Gi0/0/1'
+        }
+
+        It 'Returns empty string when no cable found' {
+            $result = CableDocumentationModule\Get-CableSummaryForPort -DeviceName 'UNKNOWN' -PortName 'Gi0/0/1' -Database $script:testDb
+            $result | Should Be ''
+        }
+    }
+
+    Context 'Set-CableForPort creates or updates cable link' {
+        BeforeEach {
+            $script:testDb = CableDocumentationModule\New-CableDatabase
+        }
+
+        It 'Creates new cable when none exists' {
+            $result = CableDocumentationModule\Set-CableForPort `
+                -DeviceName 'SW-01' `
+                -PortName 'Gi1/0/1' `
+                -RemoteDevice 'SW-02' `
+                -RemotePort 'Gi1/0/1' `
+                -CableID 'NEW-CBL-001' `
+                -CableType 'Cat6' `
+                -Database $script:testDb
+
+            $result | Should Not BeNullOrEmpty
+            $result.CableID | Should Be 'NEW-CBL-001'
+
+            # Verify cable was added to database
+            $cables = @(CableDocumentationModule\Get-CableRun -Database $script:testDb)
+            $cables.Count | Should Be 1
+            $cables[0].SourceDevice | Should Be 'SW-01'
+        }
+
+        It 'Auto-generates CableID when not provided' {
+            $result = CableDocumentationModule\Set-CableForPort `
+                -DeviceName 'SW-01' `
+                -PortName 'Gi1/0/2' `
+                -RemoteDevice 'SW-03' `
+                -RemotePort 'Gi1/0/2' `
+                -Database $script:testDb
+
+            $result | Should Not BeNullOrEmpty
+            $result.CableID | Should Match '^CBL-'
+        }
+
+        It 'Updates existing cable when found' {
+            # Create initial cable
+            $cable = CableDocumentationModule\New-CableRun `
+                -CableID 'EXISTING-001' `
+                -SourceType 'Device' `
+                -SourceDevice 'SW-01' `
+                -SourcePort 'Gi1/0/5' `
+                -DestType 'Device' `
+                -DestDevice 'SW-02' `
+                -DestPort 'Gi1/0/5'
+            CableDocumentationModule\Add-CableRun -Cable $cable -Database $script:testDb
+
+            # Update it
+            $result = CableDocumentationModule\Set-CableForPort `
+                -DeviceName 'SW-01' `
+                -PortName 'Gi1/0/5' `
+                -RemoteDevice 'SW-99' `
+                -RemotePort 'Gi1/0/99' `
+                -Database $script:testDb
+
+            $result.CableID | Should Be 'EXISTING-001'
+            $result.RemoteDevice | Should Be 'SW-99'
+        }
+    }
+
+    Context 'Remove-CableForPort removes cable link' {
+        BeforeEach {
+            $script:testDb = CableDocumentationModule\New-CableDatabase
+
+            $cable = CableDocumentationModule\New-CableRun `
+                -CableID 'CBL-REMOVE-001' `
+                -SourceType 'Device' `
+                -SourceDevice 'SW-DEL-01' `
+                -SourcePort 'Gi1/0/10' `
+                -DestType 'Device' `
+                -DestDevice 'SW-DEL-02' `
+                -DestPort 'Gi1/0/10'
+            CableDocumentationModule\Add-CableRun -Cable $cable -Database $script:testDb
+        }
+
+        It 'Removes cable when found by source port' {
+            $result = CableDocumentationModule\Remove-CableForPort -DeviceName 'SW-DEL-01' -PortName 'Gi1/0/10' -Database $script:testDb
+            $result | Should Be $true
+
+            $cables = @(CableDocumentationModule\Get-CableRun -Database $script:testDb)
+            @($cables | Where-Object { $_ }).Count | Should Be 0
+        }
+
+        It 'Removes cable when found by destination port' {
+            # Re-add the cable since previous test removed it
+            $cable = CableDocumentationModule\New-CableRun `
+                -CableID 'CBL-REMOVE-001' `
+                -SourceType 'Device' `
+                -SourceDevice 'SW-DEL-01' `
+                -SourcePort 'Gi1/0/10' `
+                -DestType 'Device' `
+                -DestDevice 'SW-DEL-02' `
+                -DestPort 'Gi1/0/10'
+            CableDocumentationModule\Add-CableRun -Cable $cable -Database $script:testDb
+
+            $result = CableDocumentationModule\Remove-CableForPort -DeviceName 'SW-DEL-02' -PortName 'Gi1/0/10' -Database $script:testDb
+            $result | Should Be $true
+
+            $cables = @(CableDocumentationModule\Get-CableRun -Database $script:testDb)
+            @($cables | Where-Object { $_ }).Count | Should Be 0
+        }
+
+        It 'Returns false when no cable found' {
+            # BeforeEach runs before each test so we have a fresh db with the CBL-REMOVE-001 cable
+            # Test with a device/port that doesn't have any cable
+            $result = CableDocumentationModule\Remove-CableForPort -DeviceName 'SW-NOPE' -PortName 'Gi1/0/99' -Database $script:testDb
+            $result | Should Be $false
+        }
+    }
+
+    #endregion
 }

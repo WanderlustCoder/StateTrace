@@ -15,11 +15,12 @@ Network technicians often struggle with:
 - Planning cable installations before maintenance windows
 
 ## Current status (2026-01)
-- **In Progress (4/5 Done)**. Core cable tracking, patch panel management, label generation, and interactive UI delivered.
+- **Complete (5/5 Done)**. Core cable tracking, patch panel management, label generation, interactive UI, and Port Reorg integration delivered.
 - CableDocumentationModule.psm1 provides cable run and patch panel data model
 - CableDocumentationView.xaml offers interactive UI with cable/panel lists and details
 - Label generation supports Text, CSV, and HTML export formats
-- 48 Pester tests cover all module functionality
+- Port Reorg integration: Cable column in DataGrid, Cable Info tab with link/unlink actions
+- 61 Pester tests cover all module functionality including Port Reorg integration
 
 ## Proposed Features
 
@@ -72,7 +73,7 @@ Network technicians often struggle with:
 | ST-T-002 | Patch panel registry UI | UI | Done | CableDocumentationView.xaml with panel list and port grid visualization |
 | ST-T-003 | Label template engine | Tools | Done | New-CableLabel, Export-CableLabels supporting Text/CSV/HTML formats |
 | ST-T-004 | Cable path visualization | UI | Done | Find-CableConnection, Trace-CablePath, port status color coding |
-| ST-T-005 | Port Reorg cable integration | UI | Pending | Link cable docs to port assignments |
+| ST-T-005 | Port Reorg cable integration | UI | Done | Cable column in DataGrid, Cable Info tab with link/unlink, 13 new tests |
 
 ## Data Model (Proposed)
 

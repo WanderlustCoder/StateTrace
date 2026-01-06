@@ -279,6 +279,22 @@ function Show-PortReorgWindow {
     $clearLabelMenuItem = $win.FindName('ReorgClearLabelMenuItem')
     $swapLabelsMenuItem = $win.FindName('ReorgSwapLabelsMenuItem')
 
+    # ST-T-005: Cable Info tab controls
+    $cableSelectedPortText = $win.FindName('CableSelectedPortText')
+    $cableCableIdText = $win.FindName('CableCableIdText')
+    $cableStatusText = $win.FindName('CableStatusText')
+    $cableRemoteDeviceText = $win.FindName('CableRemoteDeviceText')
+    $cableRemotePortText = $win.FindName('CableRemotePortText')
+    $cableCableTypeText = $win.FindName('CableCableTypeText')
+    $cableLengthText = $win.FindName('CableLengthText')
+    $cableColorText = $win.FindName('CableColorText')
+    $cableInstallDateText = $win.FindName('CableInstallDateText')
+    $cableNotesText = $win.FindName('CableNotesText')
+    $cableViewInCablesBtn = $win.FindName('CableViewInCablesButton')
+    $cableLinkNewBtn = $win.FindName('CableLinkNewButton')
+    $cableUnlinkBtn = $win.FindName('CableUnlinkButton')
+    $cableRefreshBtn = $win.FindName('CableRefreshButton')
+
     if ($hostnameText) { $hostnameText.Text = $hostTrim }
 
     $parkingLabels = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
@@ -345,6 +361,25 @@ function Show-PortReorgWindow {
         if (-not $labelByPort.ContainsKey($port)) {
             $labelByPort[$port] = $label
         }
+        # ST-T-005: Get cable info for Port Reorg integration
+        $cableInfo = ''
+        $cableTooltip = ''
+        try {
+            script:Import-LocalStateTraceModule -ModuleName 'CableDocumentationModule' -ModuleFileName 'CableDocumentationModule.psm1' -Optional | Out-Null
+            $cableSummary = CableDocumentationModule\Get-CableSummaryForPort -DeviceName $hostTrim -PortName $port
+            if ($cableSummary) {
+                $cableInfo = $cableSummary
+                $cableDetails = CableDocumentationModule\Get-CableForPort -DeviceName $hostTrim -PortName $port
+                if ($cableDetails) {
+                    $cableTooltip = "Cable: $($cableDetails.CableID)`nTo: $($cableDetails.RemoteDevice):$($cableDetails.RemotePort)`nType: $($cableDetails.CableType)"
+                    if ($cableDetails.Length) { $cableTooltip += "`nLength: $($cableDetails.Length)" }
+                    if ($cableDetails.Status) { $cableTooltip += "`nStatus: $($cableDetails.Status)" }
+                }
+            }
+        } catch {
+            # Ignore cable lookup errors
+        }
+
         $rows.Add([PSCustomObject]@{
             TargetPort       = $port
             TargetPortSort   = $portSort
@@ -354,6 +389,8 @@ function Show-PortReorgWindow {
             LabelState       = 'Unchanged'
             IsModuleBoundary = $false   # ST-D-012: visual boundary marker
             IsSearchMatch    = $false   # ST-D-012: search highlight marker
+            CableInfo        = $cableInfo        # ST-T-005: cable summary
+            CableTooltip     = $cableTooltip     # ST-T-005: cable tooltip
         }) | Out-Null
     }
 
@@ -2333,6 +2370,218 @@ function Show-PortReorgWindow {
     }
 
     #endregion
+
+    #region ST-T-005: Cable Info tab handlers
+
+    # Helper to update Cable Info tab when selection changes
+    $updateCableInfoTab = {
+        try {
+            if (-not $grid -or -not $grid.SelectedItem) {
+                # Clear all cable info fields
+                if ($cableSelectedPortText) { $cableSelectedPortText.Text = '' }
+                if ($cableCableIdText) { $cableCableIdText.Text = '' }
+                if ($cableStatusText) { $cableStatusText.Text = '' }
+                if ($cableRemoteDeviceText) { $cableRemoteDeviceText.Text = '' }
+                if ($cableRemotePortText) { $cableRemotePortText.Text = '' }
+                if ($cableCableTypeText) { $cableCableTypeText.Text = '' }
+                if ($cableLengthText) { $cableLengthText.Text = '' }
+                if ($cableColorText) { $cableColorText.Text = '' }
+                if ($cableInstallDateText) { $cableInstallDateText.Text = '' }
+                if ($cableNotesText) { $cableNotesText.Text = '' }
+                return
+            }
+
+            $selectedPort = '' + $grid.SelectedItem.TargetPort
+            if ($cableSelectedPortText) { $cableSelectedPortText.Text = $selectedPort }
+
+            # Look up cable info
+            script:Import-LocalStateTraceModule -ModuleName 'CableDocumentationModule' -ModuleFileName 'CableDocumentationModule.psm1' -Optional | Out-Null
+            $cableDetails = CableDocumentationModule\Get-CableForPort -DeviceName $hostTrim -PortName $selectedPort
+
+            if ($cableDetails) {
+                if ($cableCableIdText) { $cableCableIdText.Text = '' + $cableDetails.CableID }
+                if ($cableStatusText) { $cableStatusText.Text = '' + $cableDetails.Status }
+                if ($cableRemoteDeviceText) { $cableRemoteDeviceText.Text = '' + $cableDetails.RemoteDevice }
+                if ($cableRemotePortText) { $cableRemotePortText.Text = '' + $cableDetails.RemotePort }
+                if ($cableCableTypeText) { $cableCableTypeText.Text = '' + $cableDetails.CableType }
+                if ($cableLengthText) { $cableLengthText.Text = '' + $cableDetails.Length }
+                if ($cableColorText) { $cableColorText.Text = '' + $cableDetails.Color }
+                if ($cableInstallDateText) {
+                    if ($cableDetails.InstallDate) {
+                        $cableInstallDateText.Text = $cableDetails.InstallDate.ToString('yyyy-MM-dd')
+                    } else {
+                        $cableInstallDateText.Text = ''
+                    }
+                }
+                if ($cableNotesText) { $cableNotesText.Text = '' + $cableDetails.Notes }
+            } else {
+                if ($cableCableIdText) { $cableCableIdText.Text = '(no cable linked)' }
+                if ($cableStatusText) { $cableStatusText.Text = '' }
+                if ($cableRemoteDeviceText) { $cableRemoteDeviceText.Text = '' }
+                if ($cableRemotePortText) { $cableRemotePortText.Text = '' }
+                if ($cableCableTypeText) { $cableCableTypeText.Text = '' }
+                if ($cableLengthText) { $cableLengthText.Text = '' }
+                if ($cableColorText) { $cableColorText.Text = '' }
+                if ($cableInstallDateText) { $cableInstallDateText.Text = '' }
+                if ($cableNotesText) { $cableNotesText.Text = '' }
+            }
+        } catch {
+            # Ignore errors in cable info update
+        }
+    }.GetNewClosure()
+
+    # Wire up selection change to update cable info
+    if ($grid) {
+        $grid.Add_SelectionChanged({
+            try { & $updateCableInfoTab } catch { }
+        }.GetNewClosure())
+    }
+
+    # Refresh button
+    if ($cableRefreshBtn) {
+        $cableRefreshBtn.Add_Click({
+            try { & $updateCableInfoTab } catch { }
+        }.GetNewClosure())
+    }
+
+    # Unlink cable button
+    if ($cableUnlinkBtn) {
+        $cableUnlinkBtn.Add_Click({
+            try {
+                if (-not $grid -or -not $grid.SelectedItem) {
+                    & $setStatus 'No port selected.' ''
+                    return
+                }
+
+                $selectedPort = '' + $grid.SelectedItem.TargetPort
+                script:Import-LocalStateTraceModule -ModuleName 'CableDocumentationModule' -ModuleFileName 'CableDocumentationModule.psm1' -Optional | Out-Null
+                CableDocumentationModule\Remove-CableForPort -DeviceName $hostTrim -PortName $selectedPort
+
+                # Update the row's cable info
+                $row = & $getRowByTargetPort $selectedPort
+                if ($row) {
+                    $row.CableInfo = ''
+                    $row.CableTooltip = ''
+                }
+
+                & $updateCableInfoTab
+                & $refreshGrid
+                & $setStatus 'Cable unlinked.' ''
+            } catch {
+                & $setStatus ("Unlink failed: {0}" -f $_.Exception.Message) ''
+            }
+        }.GetNewClosure())
+    }
+
+    # Link new cable button - shows simple input dialog
+    if ($cableLinkNewBtn) {
+        $cableLinkNewBtn.Add_Click({
+            try {
+                if (-not $grid -or -not $grid.SelectedItem) {
+                    & $setStatus 'No port selected.' ''
+                    return
+                }
+
+                $selectedPort = '' + $grid.SelectedItem.TargetPort
+
+                # Simple dialog to get patch panel / destination info
+                $linkWin = New-Object System.Windows.Window
+                $linkWin.Title = 'Link Cable'
+                $linkWin.Width = 350
+                $linkWin.Height = 200
+                $linkWin.WindowStartupLocation = 'CenterOwner'
+                $linkWin.Owner = $win
+                try { $linkWin.Background = $win.TryFindResource('Theme.Window.Background') } catch { }
+
+                $linkPanel = New-Object System.Windows.Controls.StackPanel
+                $linkPanel.Margin = 10
+
+                $destDeviceLabel = New-Object System.Windows.Controls.TextBlock
+                $destDeviceLabel.Text = 'Patch Panel / Device:'
+                $destDeviceLabel.Margin = '0,0,0,5'
+
+                $destDeviceBox = New-Object System.Windows.Controls.TextBox
+                $destDeviceBox.Margin = '0,0,0,10'
+                try { $destDeviceBox.Background = $win.TryFindResource('Theme.Input.Background') } catch { }
+                try { $destDeviceBox.Foreground = $win.TryFindResource('Theme.Input.Text') } catch { }
+
+                $destPortLabel = New-Object System.Windows.Controls.TextBlock
+                $destPortLabel.Text = 'Port / Position:'
+                $destPortLabel.Margin = '0,0,0,5'
+
+                $destPortBox = New-Object System.Windows.Controls.TextBox
+                $destPortBox.Margin = '0,0,0,10'
+                try { $destPortBox.Background = $win.TryFindResource('Theme.Input.Background') } catch { }
+                try { $destPortBox.Foreground = $win.TryFindResource('Theme.Input.Text') } catch { }
+
+                $linkBtnPanel = New-Object System.Windows.Controls.StackPanel
+                $linkBtnPanel.Orientation = 'Horizontal'
+                $linkBtnPanel.HorizontalAlignment = 'Right'
+
+                $linkOkBtn = New-Object System.Windows.Controls.Button
+                $linkOkBtn.Content = 'Link'
+                $linkOkBtn.Width = 60
+                $linkOkBtn.Margin = '0,0,5,0'
+                $linkOkBtn.IsDefault = $true
+
+                $linkCancelBtn = New-Object System.Windows.Controls.Button
+                $linkCancelBtn.Content = 'Cancel'
+                $linkCancelBtn.Width = 60
+                $linkCancelBtn.IsCancel = $true
+
+                $linkBtnPanel.Children.Add($linkOkBtn) | Out-Null
+                $linkBtnPanel.Children.Add($linkCancelBtn) | Out-Null
+                $linkPanel.Children.Add($destDeviceLabel) | Out-Null
+                $linkPanel.Children.Add($destDeviceBox) | Out-Null
+                $linkPanel.Children.Add($destPortLabel) | Out-Null
+                $linkPanel.Children.Add($destPortBox) | Out-Null
+                $linkPanel.Children.Add($linkBtnPanel) | Out-Null
+                $linkWin.Content = $linkPanel
+
+                $linkResult = @{ DestDevice = ''; DestPort = '' }
+                $linkOkBtn.Add_Click({
+                    $linkResult.DestDevice = $destDeviceBox.Text.Trim()
+                    $linkResult.DestPort = $destPortBox.Text.Trim()
+                    $linkWin.DialogResult = $true
+                    $linkWin.Close()
+                }.GetNewClosure())
+
+                $destDeviceBox.Focus() | Out-Null
+                $dialogResult = $linkWin.ShowDialog()
+
+                if ($dialogResult -eq $true -and -not [string]::IsNullOrWhiteSpace($linkResult.DestDevice) -and -not [string]::IsNullOrWhiteSpace($linkResult.DestPort)) {
+                    script:Import-LocalStateTraceModule -ModuleName 'CableDocumentationModule' -ModuleFileName 'CableDocumentationModule.psm1' -Optional | Out-Null
+                    CableDocumentationModule\Set-CableForPort -DeviceName $hostTrim -PortName $selectedPort -DestDevice $linkResult.DestDevice -DestPort $linkResult.DestPort
+
+                    # Update the row's cable info
+                    $cableSummary = CableDocumentationModule\Get-CableSummaryForPort -DeviceName $hostTrim -PortName $selectedPort
+                    $row = & $getRowByTargetPort $selectedPort
+                    if ($row -and $cableSummary) {
+                        $row.CableInfo = $cableSummary
+                        $cableDetails = CableDocumentationModule\Get-CableForPort -DeviceName $hostTrim -PortName $selectedPort
+                        if ($cableDetails) {
+                            $row.CableTooltip = "Cable: $($cableDetails.CableID)`nTo: $($cableDetails.RemoteDevice):$($cableDetails.RemotePort)`nType: $($cableDetails.CableType)"
+                        }
+                    }
+
+                    & $updateCableInfoTab
+                    & $refreshGrid
+                    & $setStatus 'Cable linked.' ''
+                }
+            } catch {
+                & $setStatus ("Link failed: {0}" -f $_.Exception.Message) ''
+            }
+        }.GetNewClosure())
+    }
+
+    # View in Cables button - placeholder (would need main window reference)
+    if ($cableViewInCablesBtn) {
+        $cableViewInCablesBtn.Add_Click({
+            & $setStatus 'Open Cables tab in main window to view details.' ''
+        }.GetNewClosure())
+    }
+
+    #endregion ST-T-005
 
     try { & $refreshGrid } catch { }
     $win.Show() | Out-Null

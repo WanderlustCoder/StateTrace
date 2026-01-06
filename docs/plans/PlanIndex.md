@@ -60,7 +60,7 @@ The active StateTrace plans live in discrete files so automation agents can refe
 - **Plan Q** - **Complete**. Snapshot rotation/coverage policies, compatibility guards, and fallback seeds delivered.
 - **Plan R** - **Complete**. Drill cadence, rollback bundles, evidence enforcement, and post-incident verification implemented.
 - **Plan S** - **Complete**. Unused export inventory, feature flag audit, and script/runbook pruning delivered.
-- **Plan T** - **In Progress (4/5 Done)**. Cable & port documentation with cable run tracking, patch panel management, label generation (Text/CSV/HTML), and interactive UI. Port Reorg integration pending.
+- **Plan T** - **Complete (5/5 Done)**. Cable & port documentation with cable run tracking, patch panel management, label generation (Text/CSV/HTML), interactive UI, and Port Reorg integration (Cable column, Cable Info tab).
 - **Plan U** - **In Progress (4/6 Done)**. Configuration template engine with Jinja2-style syntax, validation standards, and compliance checking. Core modules, UI, and built-in templates/standards delivered. Config comparison and vendor syntax modules pending.
 - **Plan V** - **In Progress (4/6 Done)**. Lightweight IPAM with VLAN registry, subnet planning, and conflict detection. Core module, tests, and UI view integrated into MainWindow. VLAN discovery from devices and full wizard UI pending.
 - **Plan W** - **In Progress (4/6 Done)**. Network topology visualization with link discovery from interface descriptions, 4 layout algorithms (hierarchical, force-directed, circular, grid), impact analysis, and export (SVG, JSON, Draw.io). Core module, tests, and UI view integrated into MainWindow.
