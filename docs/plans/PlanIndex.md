@@ -72,7 +72,7 @@ The active StateTrace plans live in discrete files so automation agents can refe
 - **Plan AC** - **In Progress (4/6 Done)**. Capacity planning with utilization tracking, forecasting (linear regression), threshold alerting, scenario analysis, and budget planning. Core module, tests, and UI view integrated into MainWindow.
 - **Plan AD** - **In Progress (5/6 Done)**. Cross-vendor command reference with translation and configuration snippets. Core module, UI, and tests delivered. Learning mode pending.
 - **Plan AE** - **In Progress (4/6 Done)**. Log analysis with pattern detection and event correlation. Multi-format parser (Cisco IOS, Arista EOS, syslog), 15 built-in patterns, and interactive UI delivered. Anomaly detection and reports pending.
-- **Plan AF** - **In Progress (5/6 Done)**. Tab consolidation with nested left-side vertical tabs. Reduced 18 top-level tabs to 9. Container views (Documentation, Infrastructure, Operations, Tools) with lazy sub-view loading. UI smoke tests pending.
+- **Plan AF** - **Complete (6/6 Done)**. Tab consolidation with nested left-side vertical tabs. Reduced 18 top-level tabs to 9. Container views (Documentation, Infrastructure, Operations, Tools) with lazy sub-view loading. 42 Pester tests for UI smoke validation.
 
 ## How to use the plans
 1. **Before editing code** - open the relevant plan file, confirm the objective still matches your intent, and add your upcoming work to the "Active work" table (include the task-board or Codex backlog ID).

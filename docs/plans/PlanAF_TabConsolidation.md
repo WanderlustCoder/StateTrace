@@ -42,7 +42,7 @@ Summary | Interfaces | SPAN | Search | Templates | Alerts | Cmd Ref | Calculator
 | ST-AF-003 | Update MainWindow.xaml with container tabs | Done |
 | ST-AF-004 | Update MainWindow.ps1 for container initialization | Done |
 | ST-AF-005 | Update ModulesManifest.psd1 | Done |
-| ST-AF-006 | UI smoke tests | Pending |
+| ST-AF-006 | UI smoke tests | Done |
 
 ---
 
@@ -54,12 +54,13 @@ Summary | Interfaces | SPAN | Search | Templates | Alerts | Cmd Ref | Calculator
 | 2026-01-05 | Container view modules | With lazy sub-view loading via SelectionChanged events |
 | 2026-01-05 | MainWindow.xaml update | Replaced 13 TabItems with 4 container tabs |
 | 2026-01-05 | MainWindow.ps1 update | Added container views to priority list, excluded nested views |
+| 2026-01-05 | UI smoke tests | ContainerViews.Tests.ps1 with 42 tests validating XAML structure, module exports, and lazy loading |
 
 ---
 
 ## Files Created/Modified
 
-**New Files (8):**
+**New Files (9):**
 - `Views/DocumentationContainerView.xaml`
 - `Views/InfrastructureContainerView.xaml`
 - `Views/OperationsContainerView.xaml`
@@ -68,6 +69,7 @@ Summary | Interfaces | SPAN | Search | Templates | Alerts | Cmd Ref | Calculator
 - `Modules/InfrastructureContainerViewModule.psm1`
 - `Modules/OperationsContainerViewModule.psm1`
 - `Modules/ToolsContainerViewModule.psm1`
+- `Modules/Tests/ContainerViews.Tests.ps1` - 42 Pester tests for container views
 
 **Modified Files:**
 - `Main/MainWindow.xaml` - Replaced 13 TabItems with 4 container tabs
