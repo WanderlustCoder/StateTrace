@@ -17,9 +17,42 @@
 
     <StackPanel Grid.Row="0" Grid.Column="0" Margin="5" Background="{DynamicResource Theme.Surface.Primary}">
       <TextBlock Text="Templates" FontSize="14" FontWeight="Bold" Margin="0,0,0,5" Foreground="{DynamicResource Theme.Text.Inverse}"/>
-      <ListBox Name="TemplatesList" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"
-               VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
-               ScrollViewer.CanContentScroll="True"/>
+      <Grid Margin="0,0,0,5">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <TextBox Name="TemplateSearchBox" Grid.Column="0" Margin="0,0,3,0"
+                 Background="{DynamicResource Theme.Input.Background}"
+                 Foreground="{DynamicResource Theme.Input.Text}"
+                 BorderBrush="{DynamicResource Theme.Input.Border}"
+                 ToolTip="Search templates (Ctrl+F)"/>
+        <Button Name="ClearSearchButton" Grid.Column="1" Content="X" Width="22" Height="22"
+                ToolTip="Clear search"/>
+      </Grid>
+      <Grid>
+        <ListBox Name="TemplatesList" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"
+                 VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                 ScrollViewer.CanContentScroll="True" MinHeight="150"/>
+        <Border Name="TemplatesEmptyStatePanel" HorizontalAlignment="Center" VerticalAlignment="Center"
+                Background="{DynamicResource Theme.Surface.Secondary}" Padding="15,10" CornerRadius="5"
+                Visibility="Collapsed">
+          <StackPanel>
+            <TextBlock Text="No Templates" FontSize="14" FontWeight="Bold"
+                       Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Center"/>
+            <TextBlock Text="No template files found in Templates folder"
+                       Foreground="{DynamicResource Theme.Text.Muted}" HorizontalAlignment="Center" FontSize="11"/>
+          </StackPanel>
+        </Border>
+        <Border Name="TemplatesLoadingIndicator" Style="{DynamicResource LoadingIndicatorStyle}">
+          <StackPanel>
+            <TextBlock Text="Loading templates..." Style="{DynamicResource LoadingTextStyle}"/>
+            <ProgressBar Style="{DynamicResource LoadingProgressStyle}"/>
+          </StackPanel>
+        </Border>
+      </Grid>
+      <Button Name="DeleteTemplateButton" Content="Delete Template" Margin="0,5,0,0"
+              Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Delete selected template file (Del)"/>
     </StackPanel>
 
     <StackPanel Grid.Row="0" Grid.Column="1" Margin="5" Background="{DynamicResource Theme.Surface.Primary}">
@@ -40,8 +73,8 @@
     </StackPanel>
 
     <StackPanel Grid.Row="2" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="5" Background="{DynamicResource Theme.Surface.Primary}">
-      <Button Name="ReloadTemplateButton" Content="Reload" Width="70" Margin="0,0,5,0" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Reload file from disk"/>
-      <Button Name="SaveTemplateButton" Content="Save" Width="70" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Save changes to file"/>
+      <Button Name="ReloadTemplateButton" Content="Reload" Width="70" Margin="0,0,5,0" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Reload file from disk (F5)"/>
+      <Button Name="SaveTemplateButton" Content="Save" Width="70" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Save changes to file (Ctrl+S)"/>
     </StackPanel>
   </Grid>
 </UserControl>

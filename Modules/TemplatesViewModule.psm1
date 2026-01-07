@@ -19,11 +19,19 @@ function New-TemplatesView {
         $templateEditor = $templatesView.FindName('TemplateEditor')
         $reloadBtn = $templatesView.FindName('ReloadTemplateButton')
         $saveBtn   = $templatesView.FindName('SaveTemplateButton')
+        $deleteBtn = $templatesView.FindName('DeleteTemplateButton')
+        $searchBox = $templatesView.FindName('TemplateSearchBox')
+        $clearSearchBtn = $templatesView.FindName('ClearSearchButton')
+        $emptyStatePanel = $templatesView.FindName('TemplatesEmptyStatePanel')
+        $loadingIndicator = $templatesView.FindName('TemplatesLoadingIndicator')
+        $script:AllTemplateFiles = @()
 
         $refreshTemplatesList = {
             if (-not $templatesList) { return }
             if (-not $script:TemplatesDir -or -not (Test-Path -LiteralPath $script:TemplatesDir)) {
                 $templatesList.ItemsSource = @()
+                $script:AllTemplateFiles = @()
+                if ($emptyStatePanel) { $emptyStatePanel.Visibility = 'Visible' }
                 return
             }
 
@@ -32,7 +40,13 @@ function New-TemplatesView {
             foreach ($f in $files) {
                 if ($f -and $f.Name) { [void]$items.Add($f.Name) }
             }
+            $script:AllTemplateFiles = @($items)
             $templatesList.ItemsSource = $items
+
+            # Show/hide empty state
+            if ($emptyStatePanel) {
+                $emptyStatePanel.Visibility = if ($items.Count -eq 0) { 'Visible' } else { 'Collapsed' }
+            }
         }
 
         $loadTemplateText = {
@@ -171,6 +185,99 @@ function New-TemplatesView {
                 }
             })
         }
+
+        # Filter templates list based on search
+        $filterTemplatesList = {
+            if (-not $templatesList -or -not $searchBox) { return }
+            $searchText = $searchBox.Text.Trim()
+            if ([string]::IsNullOrWhiteSpace($searchText)) {
+                $templatesList.ItemsSource = $script:AllTemplateFiles
+            } else {
+                $filtered = $script:AllTemplateFiles | Where-Object { $_ -like "*$searchText*" }
+                $templatesList.ItemsSource = @($filtered)
+            }
+            # Update empty state
+            if ($emptyStatePanel) {
+                $isEmpty = ($templatesList.ItemsSource -eq $null) -or (@($templatesList.ItemsSource).Count -eq 0)
+                $emptyStatePanel.Visibility = if ($isEmpty) { 'Visible' } else { 'Collapsed' }
+            }
+        }.GetNewClosure()
+
+        # Search box text changed
+        if ($searchBox) {
+            $searchBox.Add_TextChanged({
+                & $filterTemplatesList
+            })
+        }
+
+        # Clear search button
+        if ($clearSearchBtn) {
+            $clearSearchBtn.Add_Click({
+                if ($searchBox) { $searchBox.Text = '' }
+            })
+        }
+
+        # Delete template button with confirmation
+        if ($deleteBtn) {
+            $deleteBtn.Add_Click({
+                if (-not $templatesList -or -not $templatesList.SelectedItem) {
+                    [System.Windows.MessageBox]::Show('No template selected.', 'Delete Template', 'OK', 'Information')
+                    return
+                }
+                $selText = '' + $templatesList.SelectedItem
+                $result = [System.Windows.MessageBox]::Show(
+                    "Delete template '$selText'? This cannot be undone.",
+                    "Confirm Delete",
+                    [System.Windows.MessageBoxButton]::YesNo,
+                    [System.Windows.MessageBoxImage]::Warning
+                )
+                if ($result -eq [System.Windows.MessageBoxResult]::Yes) {
+                    $path = Join-Path -Path $script:TemplatesDir -ChildPath $selText
+                    try {
+                        Remove-Item -LiteralPath $path -Force
+                        $templateEditor.Text = ''
+                        & $refreshTemplatesList
+                        [System.Windows.MessageBox]::Show("Deleted template $selText.", 'Delete Template', 'OK', 'Information')
+                    } catch {
+                        [System.Windows.MessageBox]::Show("Failed to delete template: $($_.Exception.Message)", 'Error', 'OK', 'Error')
+                    }
+                }
+            })
+        }
+
+        # Keyboard shortcuts
+        $templatesView.Add_PreviewKeyDown({
+            param($sender, $e)
+            $ctrl = [System.Windows.Input.Keyboard]::Modifiers -band [System.Windows.Input.ModifierKeys]::Control
+
+            if ($ctrl -and $e.Key -eq 'S') {
+                # Ctrl+S - Save
+                if ($saveBtn) { $saveBtn.RaiseEvent([System.Windows.RoutedEventArgs]::new([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent)) }
+                $e.Handled = $true
+            }
+            elseif ($ctrl -and $e.Key -eq 'F') {
+                # Ctrl+F - Focus search
+                if ($searchBox) { $searchBox.Focus(); $searchBox.SelectAll() }
+                $e.Handled = $true
+            }
+            elseif ($e.Key -eq 'F5') {
+                # F5 - Reload
+                if ($reloadBtn) { $reloadBtn.RaiseEvent([System.Windows.RoutedEventArgs]::new([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent)) }
+                $e.Handled = $true
+            }
+            elseif ($e.Key -eq 'Delete') {
+                # Del - Delete template
+                if ($deleteBtn -and $templatesList.IsFocused) {
+                    $deleteBtn.RaiseEvent([System.Windows.RoutedEventArgs]::new([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent))
+                    $e.Handled = $true
+                }
+            }
+            elseif ($e.Key -eq 'Escape') {
+                # Escape - Clear search
+                if ($searchBox) { $searchBox.Text = '' }
+                $e.Handled = $true
+            }
+        }.GetNewClosure())
     } catch {
         Write-Warning "Failed to load TemplatesView: $($_.Exception.Message)"
     }

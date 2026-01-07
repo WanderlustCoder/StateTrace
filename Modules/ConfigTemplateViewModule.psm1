@@ -37,6 +37,7 @@ function New-ConfigTemplateView {
         # Get toolbar controls
         $newTemplateButton = $view.FindName('NewTemplateButton')
         $saveTemplateButton = $view.FindName('SaveTemplateButton')
+        Write-Host "[ConfigTemplate] SaveTemplateButton found: $($saveTemplateButton -ne $null)"
         $importButton = $view.FindName('ImportButton')
         $exportButton = $view.FindName('ExportButton')
         $loadBuiltInButton = $view.FindName('LoadBuiltInButton')
@@ -702,6 +703,35 @@ function New-ConfigTemplateView {
         $templateTypeCombo.Add_SelectionChanged({
             param($sender, $e)
             & $MarkDirty
+        }.GetNewClosure())
+
+        # Keyboard shortcuts
+        $view.Add_PreviewKeyDown({
+            param($sender, $e)
+            $ctrl = [System.Windows.Input.Keyboard]::Modifiers -band [System.Windows.Input.ModifierKeys]::Control
+
+            if ($ctrl -and $e.Key -eq 'S') {
+                # Ctrl+S - Save template
+                if ($saveTemplateButton) {
+                    $saveTemplateButton.RaiseEvent([System.Windows.RoutedEventArgs]::new([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent))
+                }
+                $e.Handled = $true
+            }
+            elseif ($ctrl -and $e.Key -eq 'N') {
+                # Ctrl+N - New template
+                if ($newTemplateButton) {
+                    $newTemplateButton.RaiseEvent([System.Windows.RoutedEventArgs]::new([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent))
+                }
+                $e.Handled = $true
+            }
+            elseif ($e.Key -eq 'F5') {
+                # F5 - Refresh lists
+                & $RefreshTemplateList
+                & $RefreshStandardsList
+                & $RefreshStats
+                $statusText.Text = 'Refreshed'
+                $e.Handled = $true
+            }
         }.GetNewClosure())
 
         # Initial load
