@@ -40,7 +40,7 @@ function Register-ValueConverters {
     $app = Get-WpfApplication
     if (-not $app) { return }
 
-    # Define StatusToBrushConverter - converts status strings to theme brushes
+    # Define converters - converts status/state strings to theme brushes
     try {
         Add-Type -TypeDefinition @"
 using System;
@@ -51,6 +51,7 @@ using System.Windows.Media;
 
 namespace StateTrace.Converters
 {
+    // Converts interface status (up/down/connected/etc) to theme brushes
     public class StatusToBrushConverter : IValueConverter
     {
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
@@ -91,25 +92,112 @@ namespace StateTrace.Converters
             throw new NotImplementedException();
         }
     }
+
+    // Converts cable status (Active/Reserved/Faulty/etc) to theme brushes
+    public class CableStatusToBrushConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            string status = value as string;
+            if (string.IsNullOrEmpty(status))
+                return DependencyProperty.UnsetValue;
+
+            string resourceKey;
+            switch (status)
+            {
+                case "Active":
+                case "Connected":
+                    resourceKey = "Theme.Status.Success";
+                    break;
+                case "Reserved":
+                    resourceKey = "Theme.Status.Info";
+                    break;
+                case "Faulty":
+                    resourceKey = "Theme.Status.Danger";
+                    break;
+                case "Planned":
+                    resourceKey = "Theme.Status.Warning";
+                    break;
+                case "Abandoned":
+                default:
+                    resourceKey = "Theme.Status.Neutral";
+                    break;
+            }
+
+            var app = Application.Current;
+            if (app != null && app.Resources.Contains(resourceKey))
+                return app.Resources[resourceKey];
+
+            return DependencyProperty.UnsetValue;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
+
+    // Converts port reorg label state (Parked/Changed) to theme brushes
+    public class LabelStateToBrushConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            string state = value as string;
+            if (string.IsNullOrEmpty(state))
+                return DependencyProperty.UnsetValue;
+
+            string resourceKey;
+            switch (state)
+            {
+                case "Parked":
+                    resourceKey = "Theme.Template.Red";
+                    break;
+                case "Changed":
+                    resourceKey = "Theme.Template.Green";
+                    break;
+                default:
+                    resourceKey = "Theme.Surface.Primary";
+                    break;
+            }
+
+            var app = Application.Current;
+            if (app != null && app.Resources.Contains(resourceKey))
+                return app.Resources[resourceKey];
+
+            return DependencyProperty.UnsetValue;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
 }
 "@ -ReferencedAssemblies @('PresentationFramework', 'PresentationCore', 'WindowsBase', 'System.Xaml') -ErrorAction Stop
     } catch {
         # Type may already be defined from a previous load
         if ($_.Exception.Message -notmatch 'already exists') {
-            Write-Warning "Failed to define StatusToBrushConverter: $($_.Exception.Message)"
+            Write-Warning "Failed to define converters: $($_.Exception.Message)"
             return
         }
     }
 
-    # Register the converter as an application resource
+    # Register converters as application resources
     try {
-        $converter = New-Object StateTrace.Converters.StatusToBrushConverter
-        if (-not $app.Resources.Contains('StatusToBrushConverter')) {
-            $app.Resources.Add('StatusToBrushConverter', $converter)
+        $converters = @(
+            @{ Name = 'StatusToBrushConverter'; Type = 'StateTrace.Converters.StatusToBrushConverter' }
+            @{ Name = 'CableStatusToBrushConverter'; Type = 'StateTrace.Converters.CableStatusToBrushConverter' }
+            @{ Name = 'LabelStateToBrushConverter'; Type = 'StateTrace.Converters.LabelStateToBrushConverter' }
+        )
+        foreach ($conv in $converters) {
+            if (-not $app.Resources.Contains($conv.Name)) {
+                $instance = New-Object $conv.Type
+                $app.Resources.Add($conv.Name, $instance)
+            }
         }
         $script:ConvertersRegistered = $true
     } catch {
-        Write-Warning "Failed to register StatusToBrushConverter: $($_.Exception.Message)"
+        Write-Warning "Failed to register converters: $($_.Exception.Message)"
     }
 }
 

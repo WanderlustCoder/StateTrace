@@ -223,20 +223,8 @@
                       CornerRadius="4"
                       BorderBrush="{DynamicResource Theme.Input.Border}"
                       BorderThickness="1"
-                      Cursor="Hand">
-                <Border.Style>
-                  <Style TargetType="Border">
-                    <Setter Property="Background" Value="{DynamicResource Theme.Surface.Primary}"/>
-                    <Style.Triggers>
-                      <DataTrigger Binding="{Binding LabelState}" Value="Parked">
-                        <Setter Property="Background" Value="{DynamicResource Theme.Template.Red}"/>
-                      </DataTrigger>
-                      <DataTrigger Binding="{Binding LabelState}" Value="Changed">
-                        <Setter Property="Background" Value="{DynamicResource Theme.Template.Green}"/>
-                      </DataTrigger>
-                    </Style.Triggers>
-                  </Style>
-                </Border.Style>
+                      Cursor="Hand"
+                      Background="{Binding LabelState, Converter={DynamicResource LabelStateToBrushConverter}}">
                 <TextBlock Text="{Binding NewLabel}"
                            TextTrimming="CharacterEllipsis"
                            Foreground="{DynamicResource Theme.DataGrid.HeaderText}">

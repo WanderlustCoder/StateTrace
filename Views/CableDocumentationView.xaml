@@ -57,30 +57,8 @@
           <ListBox.ItemTemplate>
             <DataTemplate>
               <StackPanel Orientation="Horizontal">
-                <Ellipse Width="10" Height="10" Margin="0,0,5,0" VerticalAlignment="Center">
-                  <Ellipse.Style>
-                    <Style TargetType="Ellipse">
-                      <Setter Property="Fill" Value="{DynamicResource Theme.Status.Neutral}"/>
-                      <Style.Triggers>
-                        <DataTrigger Binding="{Binding Status}" Value="Active">
-                          <Setter Property="Fill" Value="{DynamicResource Theme.Status.Success}"/>
-                        </DataTrigger>
-                        <DataTrigger Binding="{Binding Status}" Value="Reserved">
-                          <Setter Property="Fill" Value="{DynamicResource Theme.Status.Info}"/>
-                        </DataTrigger>
-                        <DataTrigger Binding="{Binding Status}" Value="Faulty">
-                          <Setter Property="Fill" Value="{DynamicResource Theme.Status.Danger}"/>
-                        </DataTrigger>
-                        <DataTrigger Binding="{Binding Status}" Value="Abandoned">
-                          <Setter Property="Fill" Value="{DynamicResource Theme.Status.Neutral}"/>
-                        </DataTrigger>
-                        <DataTrigger Binding="{Binding Status}" Value="Planned">
-                          <Setter Property="Fill" Value="{DynamicResource Theme.Status.Warning}"/>
-                        </DataTrigger>
-                      </Style.Triggers>
-                    </Style>
-                  </Ellipse.Style>
-                </Ellipse>
+                <Ellipse Width="10" Height="10" Margin="0,0,5,0" VerticalAlignment="Center"
+                         Fill="{Binding Status, Converter={DynamicResource CableStatusToBrushConverter}}"/>
                 <TextBlock Text="{Binding CableID}" FontWeight="Bold" Margin="0,0,10,0"/>
                 <TextBlock Text="{Binding SourceDevice}" Foreground="{DynamicResource Theme.Text.Secondary}"/>
                 <TextBlock Text=" -> " Foreground="{DynamicResource Theme.Text.Secondary}"/>
@@ -309,23 +287,8 @@
                     <DataTemplate>
                       <Border Width="60" Height="50" Margin="2" BorderThickness="1" CornerRadius="3"
                               BorderBrush="{DynamicResource Theme.Border.Primary}"
-                              ToolTip="{Binding ToolTip}">
-                        <Border.Style>
-                          <Style TargetType="Border">
-                            <Setter Property="Background" Value="{DynamicResource Theme.Surface.Primary}"/>
-                            <Style.Triggers>
-                              <DataTrigger Binding="{Binding Status}" Value="Connected">
-                                <Setter Property="Background" Value="#2E7D32"/>
-                              </DataTrigger>
-                              <DataTrigger Binding="{Binding Status}" Value="Reserved">
-                                <Setter Property="Background" Value="#1565C0"/>
-                              </DataTrigger>
-                              <DataTrigger Binding="{Binding Status}" Value="Faulty">
-                                <Setter Property="Background" Value="#C62828"/>
-                              </DataTrigger>
-                            </Style.Triggers>
-                          </Style>
-                        </Border.Style>
+                              ToolTip="{Binding ToolTip}"
+                              Background="{Binding Status, Converter={DynamicResource CableStatusToBrushConverter}}">
                         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                           <TextBlock Text="{Binding PortNumber}" FontWeight="Bold" HorizontalAlignment="Center" Foreground="{DynamicResource Theme.Text.Primary}"/>
                           <TextBlock Text="{Binding Label}" FontSize="9" HorizontalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="56" Foreground="{DynamicResource Theme.Text.Secondary}"/>
