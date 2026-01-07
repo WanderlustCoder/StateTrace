@@ -638,4 +638,52 @@ function Update-StateTraceThemeResources {
     Ensure-ThemeResources
 }
 
-Export-ModuleMember -Function Get-StateTraceTheme, Get-StateTraceThemeMetadata, Set-StateTraceTheme, Get-ThemeToken, Get-ThemeBrush, Initialize-StateTraceTheme, Get-AvailableStateTraceThemes, Register-StateTraceThemeChanged, Update-StateTraceThemeResources
+function Get-WindowsThemePreference {
+    <#
+    .SYNOPSIS
+    Detects whether Windows is set to light or dark mode.
+    .OUTPUTS
+    Returns 'Light' or 'Dark' based on the Windows theme setting.
+    #>
+    try {
+        $regPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize'
+        $value = Get-ItemProperty -Path $regPath -Name 'AppsUseLightTheme' -ErrorAction SilentlyContinue
+        if ($null -ne $value -and $value.AppsUseLightTheme -eq 0) {
+            return 'Dark'
+        }
+        return 'Light'
+    } catch {
+        return 'Light'
+    }
+}
+
+function Set-AutoTheme {
+    <#
+    .SYNOPSIS
+    Automatically selects and applies a theme based on Windows settings.
+    .DESCRIPTION
+    Detects the Windows theme preference (light/dark) and applies an appropriate theme.
+    #>
+    param(
+        [string]$LightTheme = 'blue-angels',
+        [string]$DarkTheme = 'helldivers-spill-oil'
+    )
+
+    $preference = Get-WindowsThemePreference
+    $themeName = if ($preference -eq 'Dark') { $DarkTheme } else { $LightTheme }
+
+    try {
+        Set-StateTraceTheme -Name $themeName
+        return $themeName
+    } catch {
+        # Fallback to blue-angels if preferred theme fails
+        try {
+            Set-StateTraceTheme -Name 'blue-angels'
+            return 'blue-angels'
+        } catch {
+            return $null
+        }
+    }
+}
+
+Export-ModuleMember -Function Get-StateTraceTheme, Get-StateTraceThemeMetadata, Set-StateTraceTheme, Get-ThemeToken, Get-ThemeBrush, Initialize-StateTraceTheme, Get-AvailableStateTraceThemes, Register-StateTraceThemeChanged, Update-StateTraceThemeResources, Get-WindowsThemePreference, Set-AutoTheme

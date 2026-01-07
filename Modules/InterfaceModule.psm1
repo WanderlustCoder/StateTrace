@@ -855,6 +855,10 @@ function New-InterfacesView {
     $columnsButton     = $interfacesView.FindName('ColumnsButton')
     $autoFitButton     = $interfacesView.FindName('AutoFitColumnsButton')
     $sortPresetDropdown = $interfacesView.FindName('SortPresetDropdown')
+    $groupByDropdown   = $interfacesView.FindName('GroupByDropdown')
+    $filterPresetsDropdown = $interfacesView.FindName('FilterPresetsDropdown')
+    $savePresetButton  = $interfacesView.FindName('SavePresetButton')
+    $deletePresetButton = $interfacesView.FindName('DeletePresetButton')
 
     #
     if ($interfacesGrid)    { $global:interfacesGrid   = $interfacesGrid }
@@ -1004,7 +1008,7 @@ Grid:
             }
         })
 
-        # Load saved column widths
+        # Load saved column widths and order
         try {
             $settingsPath = Join-Path $PSScriptRoot '..\Data\StateTraceSettings.json'
             if (Test-Path $settingsPath) {
@@ -1018,12 +1022,43 @@ Grid:
                         }
                     }
                 }
+                # Restore column order
+                if ($settings.InterfaceColumnOrder) {
+                    $order = $settings.InterfaceColumnOrder
+                    foreach ($col in $interfacesGrid.Columns) {
+                        $header = '' + $col.Header
+                        if ($header -and $order.$header -ne $null) {
+                            $col.DisplayIndex = [int]$order.$header
+                        }
+                    }
+                }
             }
         } catch { }
 
-        # Save column widths when changed
+        # Save column order when reordered
         $interfacesGrid.Add_ColumnReordered({
-            # Also triggers width save
+            param($sender, $e)
+            try {
+                $grid = $sender
+                $order = @{}
+                foreach ($col in $grid.Columns) {
+                    $header = '' + $col.Header
+                    if ($header) {
+                        $order[$header] = $col.DisplayIndex
+                    }
+                }
+                $settingsPath = Join-Path $PSScriptRoot '..\Data\StateTraceSettings.json'
+                $settings = @{}
+                if (Test-Path $settingsPath) {
+                    $raw = Get-Content $settingsPath -Raw
+                    if ($raw) {
+                        $parsed = $raw | ConvertFrom-Json
+                        $parsed.PSObject.Properties | ForEach-Object { $settings[$_.Name] = $_.Value }
+                    }
+                }
+                $settings['InterfaceColumnOrder'] = $order
+                $settings | ConvertTo-Json -Depth 5 | Set-Content $settingsPath -Encoding UTF8
+            } catch { }
         })
 
         # Use a script to save widths on layout updated (debounced)
@@ -1833,6 +1868,140 @@ Grid:
 
             # Reset dropdown to placeholder
             $sortPresetDropdown.SelectedIndex = 0
+        }.GetNewClosure())
+    }
+
+    # Group by dropdown - group rows by field
+    if ($groupByDropdown -and $interfacesGrid) {
+        $groupByDropdown.Add_SelectionChanged({
+            $sel = $groupByDropdown.SelectedItem
+            if (-not $sel) { return }
+            $text = $sel.Content
+            if ($text -eq 'Group by...') { return }
+
+            $grid = $global:interfacesGrid
+            if (-not $grid -or -not $grid.ItemsSource) { return }
+            $view = [System.Windows.Data.CollectionViewSource]::GetDefaultView($grid.ItemsSource)
+            if (-not $view) { return }
+
+            $view.GroupDescriptions.Clear()
+
+            if ($text -ne 'None') {
+                $groupProp = $text
+                $view.GroupDescriptions.Add([System.Windows.Data.PropertyGroupDescription]::new($groupProp))
+            }
+
+            $view.Refresh()
+        }.GetNewClosure())
+    }
+
+    # Filter presets - save, load, delete
+    if ($filterPresetsDropdown -and $filterBox) {
+        # Load saved presets on init
+        $settingsPath = Join-Path $PSScriptRoot '..\Data\StateTraceSettings.json'
+        try {
+            if (Test-Path $settingsPath) {
+                $settings = Get-Content $settingsPath -Raw | ConvertFrom-Json
+                if ($settings.FilterPresets) {
+                    foreach ($preset in $settings.FilterPresets) {
+                        $item = [System.Windows.Controls.ComboBoxItem]::new()
+                        $item.Content = $preset.Name
+                        $item.Tag = $preset.FilterText
+                        $filterPresetsDropdown.Items.Add($item) | Out-Null
+                    }
+                }
+            }
+        } catch { }
+
+        # Load preset when selected
+        $filterPresetsDropdown.Add_SelectionChanged({
+            $sel = $filterPresetsDropdown.SelectedItem
+            if (-not $sel -or $sel.Content -eq 'Presets...') { return }
+            $filterText = $sel.Tag
+            if ($filterText -ne $null) {
+                $global:filterBox.Text = $filterText
+            }
+        }.GetNewClosure())
+    }
+
+    # Save preset button
+    if ($savePresetButton -and $filterBox -and $filterPresetsDropdown) {
+        $savePresetButton.Add_Click({
+            $currentFilter = $global:filterBox.Text
+            if ([string]::IsNullOrWhiteSpace($currentFilter)) {
+                [System.Windows.MessageBox]::Show("Enter a filter text first", "Save Preset", "OK", "Information")
+                return
+            }
+            $name = [Microsoft.VisualBasic.Interaction]::InputBox("Enter a name for this filter preset:", "Save Filter Preset", "")
+            if ([string]::IsNullOrWhiteSpace($name)) { return }
+
+            $settingsPath = Join-Path $PSScriptRoot '..\Data\StateTraceSettings.json'
+            $settings = @{}
+            try {
+                if (Test-Path $settingsPath) {
+                    $raw = Get-Content $settingsPath -Raw
+                    if ($raw) {
+                        $parsed = $raw | ConvertFrom-Json
+                        $parsed.PSObject.Properties | ForEach-Object { $settings[$_.Name] = $_.Value }
+                    }
+                }
+            } catch { }
+
+            if (-not $settings.FilterPresets) {
+                $settings['FilterPresets'] = @()
+            }
+            # Remove existing preset with same name
+            $settings['FilterPresets'] = @($settings['FilterPresets'] | Where-Object { $_.Name -ne $name })
+            $settings['FilterPresets'] += @{ Name = $name; FilterText = $currentFilter }
+
+            try {
+                $settings | ConvertTo-Json -Depth 5 | Set-Content $settingsPath -Encoding UTF8
+            } catch { }
+
+            # Add to dropdown
+            $item = [System.Windows.Controls.ComboBoxItem]::new()
+            $item.Content = $name
+            $item.Tag = $currentFilter
+            $filterPresetsDropdown.Items.Add($item) | Out-Null
+            $filterPresetsDropdown.SelectedIndex = $filterPresetsDropdown.Items.Count - 1
+        }.GetNewClosure())
+    }
+
+    # Delete preset button
+    if ($deletePresetButton -and $filterPresetsDropdown) {
+        $deletePresetButton.Add_Click({
+            $sel = $filterPresetsDropdown.SelectedItem
+            if (-not $sel -or $sel.Content -eq 'Presets...') {
+                [System.Windows.MessageBox]::Show("Select a preset to delete", "Delete Preset", "OK", "Information")
+                return
+            }
+            $name = $sel.Content
+            $result = [System.Windows.MessageBox]::Show("Delete preset '$name'?", "Confirm Delete", "YesNo", "Question")
+            if ($result -ne 'Yes') { return }
+
+            $settingsPath = Join-Path $PSScriptRoot '..\Data\StateTraceSettings.json'
+            $settings = @{}
+            try {
+                if (Test-Path $settingsPath) {
+                    $raw = Get-Content $settingsPath -Raw
+                    if ($raw) {
+                        $parsed = $raw | ConvertFrom-Json
+                        $parsed.PSObject.Properties | ForEach-Object { $settings[$_.Name] = $_.Value }
+                    }
+                }
+            } catch { }
+
+            if ($settings.FilterPresets) {
+                $settings['FilterPresets'] = @($settings['FilterPresets'] | Where-Object { $_.Name -ne $name })
+            }
+
+            try {
+                $settings | ConvertTo-Json -Depth 5 | Set-Content $settingsPath -Encoding UTF8
+            } catch { }
+
+            # Remove from dropdown
+            $filterPresetsDropdown.Items.Remove($sel)
+            $filterPresetsDropdown.SelectedIndex = 0
         }.GetNewClosure())
     }
 

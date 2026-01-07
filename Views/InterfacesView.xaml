@@ -134,6 +134,11 @@
             <Button Name="FilterUpButton" Content="Up" Width="35" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Show only Up ports" Margin="5,0,0,0"/>
             <Button Name="FilterDownButton" Content="Down" Width="45" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Show only Down ports" Margin="3,0,0,0"/>
             <TextBlock Name="FilterMatchCount" Text="" Foreground="{DynamicResource Theme.Text.Muted}" VerticalAlignment="Center" FontSize="11" Margin="8,0,0,0"/>
+            <ComboBox Name="FilterPresetsDropdown" Width="90" Height="23" Style="{DynamicResource ToolbarComboBoxStyle}" ToolTip="Load saved filter preset" Margin="5,0,0,0">
+              <ComboBoxItem Content="Presets..." IsSelected="True"/>
+            </ComboBox>
+            <Button Name="SavePresetButton" Content="Save" Width="40" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Save current filter as preset" Margin="2,0,0,0"/>
+            <Button Name="DeletePresetButton" Content="X" Width="22" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Delete selected preset" Margin="2,0,0,0"/>
 
             <Rectangle Width="1" Fill="{DynamicResource Theme.Border.Primary}" Margin="10,2,10,2"/>
 
@@ -175,6 +180,15 @@
               <ComboBoxItem Content="VLAN"/>
               <ComboBoxItem Content="Issues First"/>
             </ComboBox>
+            <ComboBox Name="GroupByDropdown" Width="95" Height="23" Style="{DynamicResource ToolbarComboBoxStyle}" ToolTip="Group rows by field" Margin="3,0,0,0">
+              <ComboBoxItem Content="Group by..." IsSelected="True"/>
+              <ComboBoxItem Content="None"/>
+              <ComboBoxItem Content="Status"/>
+              <ComboBoxItem Content="VLAN"/>
+              <ComboBoxItem Content="Type"/>
+              <ComboBoxItem Content="Speed"/>
+              <ComboBoxItem Content="AuthState"/>
+            </ComboBox>
             <Button Name="ColumnsButton" Content="Columns ▼" Width="75" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Show/hide columns">
               <Button.ContextMenu>
                 <ContextMenu Name="ColumnsContextMenu">
@@ -203,6 +217,7 @@
                     SelectionUnit="CellOrRowHeader"
                     Margin="5,0,5,5"
                     CanUserAddRows="False"
+                    CanUserReorderColumns="True"
                     IsReadOnly="False"
                     Style="{DynamicResource PrimaryDataGridStyle}"
                     ScrollViewer.VerticalScrollBarVisibility="Auto"
@@ -225,6 +240,31 @@
                 </Style.Triggers>
               </Style>
             </DataGrid.RowStyle>
+            <DataGrid.GroupStyle>
+              <GroupStyle>
+                <GroupStyle.ContainerStyle>
+                  <Style TargetType="{x:Type GroupItem}">
+                    <Setter Property="Template">
+                      <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type GroupItem}">
+                          <Expander IsExpanded="True" Background="{DynamicResource Theme.Surface.Secondary}" BorderBrush="{DynamicResource Theme.Border.Primary}" BorderThickness="0,0,0,1">
+                            <Expander.Header>
+                              <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,8,0"/>
+                                <TextBlock Text="(" Foreground="{DynamicResource Theme.Text.Muted}"/>
+                                <TextBlock Text="{Binding ItemCount}" Foreground="{DynamicResource Theme.Text.Muted}"/>
+                                <TextBlock Text=" items)" Foreground="{DynamicResource Theme.Text.Muted}"/>
+                              </StackPanel>
+                            </Expander.Header>
+                            <ItemsPresenter/>
+                          </Expander>
+                        </ControlTemplate>
+                      </Setter.Value>
+                    </Setter>
+                  </Style>
+                </GroupStyle.ContainerStyle>
+              </GroupStyle>
+            </DataGrid.GroupStyle>
             <DataGrid.ContextMenu>
               <ContextMenu Name="InterfacesContextMenu">
                 <MenuItem Header="Copy Port" Name="CtxCopyPort"/>

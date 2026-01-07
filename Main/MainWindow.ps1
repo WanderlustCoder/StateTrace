@@ -767,9 +767,16 @@ function Initialize-ThemeSelector {
     $themes = Get-AvailableStateTraceThemes
     if (-not $themes) { $themes = @() }
 
+    # Add "Auto" option at the beginning
+    $autoOption = [PSCustomObject]@{
+        Name = 'Auto'
+        Display = 'Auto (System)'
+    }
+    $themesWithAuto = @($autoOption) + @($themes)
+
     $selector.DisplayMemberPath = 'Display'
     $selector.SelectedValuePath = 'Name'
-    $selector.ItemsSource = $themes
+    $selector.ItemsSource = $themesWithAuto
 
     $currentTheme = Get-StateTraceTheme
     if ($currentTheme) {
@@ -816,14 +823,21 @@ function Initialize-ThemeSelector {
         if ([string]::IsNullOrWhiteSpace($selectedValue)) { return }
 
         $resolvedSelection = '' + $selectedValue
-        $current = Get-StateTraceTheme
-        if ($resolvedSelection -eq $current) { return }
 
         try {
-            Set-StateTraceTheme -Name $resolvedSelection | Out-Null
-            Update-StateTraceThemeResources
+            if ($resolvedSelection -eq 'Auto') {
+                # Auto-detect Windows theme and apply matching theme
+                $appliedTheme = Set-AutoTheme
+                Update-StateTraceThemeResources
+            } else {
+                $current = Get-StateTraceTheme
+                if ($resolvedSelection -eq $current) { return }
+                Set-StateTraceTheme -Name $resolvedSelection | Out-Null
+                Update-StateTraceThemeResources
+            }
         } catch {
             [System.Windows.MessageBox]::Show(("Failed to apply theme: {0}" -f $_.Exception.Message), 'Theme Error') | Out-Null
+            $current = Get-StateTraceTheme
             if ($current) { $sender.SelectedValue = $current }
         }
     })
