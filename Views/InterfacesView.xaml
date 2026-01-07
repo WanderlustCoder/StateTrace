@@ -183,6 +183,7 @@
                 </ContextMenu>
               </Button.ContextMenu>
             </Button>
+            <ToggleButton Name="CompactModeToggle" Content="Compact" Width="60" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Toggle compact/comfortable row height" Margin="3,0,0,0"/>
         </StackPanel>
 
         <Grid Grid.Row="2">
@@ -318,6 +319,12 @@
               <ProgressBar Style="{DynamicResource LoadingProgressStyle}"/>
             </StackPanel>
           </Border>
+
+          <!-- Scroll navigation buttons -->
+          <StackPanel HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,25,10" Orientation="Vertical">
+            <Button Name="ScrollTopButton" Content="▲" Width="28" Height="28" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Scroll to top" Margin="0,0,0,3" FontSize="10"/>
+            <Button Name="ScrollBottomButton" Content="▼" Width="28" Height="28" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Scroll to bottom" FontSize="10"/>
+          </StackPanel>
         </Grid>
 
         <Grid Grid.Row="3" Margin="5,4,5,0">

@@ -90,7 +90,7 @@
         <TabItem Header="Summary" ToolTip="Device overview and status summary (Ctrl+1)">
           <ContentControl Name="SummaryHost"/>
         </TabItem>
-        <TabItem Header="Interfaces" ToolTip="Interface details and port status (Ctrl+2)">
+        <TabItem Name="InterfacesTab" Header="Interfaces" ToolTip="Interface details and port status (Ctrl+2)">
           <ContentControl Name="InterfacesHost"/>
         </TabItem>
         <TabItem Header="SPAN" ToolTip="Spanning tree protocol analysis (Ctrl+3)">

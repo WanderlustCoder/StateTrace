@@ -1167,6 +1167,26 @@ function New-InterfacesView {
         })
     }
 
+    # Scroll navigation buttons
+    $scrollTopBtn = $interfacesView.FindName('ScrollTopButton')
+    $scrollBottomBtn = $interfacesView.FindName('ScrollBottomButton')
+    if ($scrollTopBtn -and $interfacesGrid) {
+        $scrollTopBtn.Add_Click({
+            $grid = $global:interfacesGrid
+            if ($grid -and $grid.Items.Count -gt 0) {
+                $grid.ScrollIntoView($grid.Items[0])
+            }
+        })
+    }
+    if ($scrollBottomBtn -and $interfacesGrid) {
+        $scrollBottomBtn.Add_Click({
+            $grid = $global:interfacesGrid
+            if ($grid -and $grid.Items.Count -gt 0) {
+                $grid.ScrollIntoView($grid.Items[$grid.Items.Count - 1])
+            }
+        })
+    }
+
     if ($filterBox -and $interfacesGrid) {
         # Initialise a debounce timer for the filter box if it does not exist.  This
         if (-not $script:InterfacesFilterTimer) {
@@ -1528,6 +1548,25 @@ function New-InterfacesView {
         }
     }
 
+    # Compact mode toggle
+    $compactToggle = $interfacesView.FindName('CompactModeToggle')
+    if ($compactToggle -and $interfacesGrid) {
+        $compactToggle.Add_Checked({
+            $grid = $global:interfacesGrid
+            if ($grid) {
+                $grid.RowHeight = 20
+                $grid.FontSize = 11
+            }
+        })
+        $compactToggle.Add_Unchecked({
+            $grid = $global:interfacesGrid
+            if ($grid) {
+                $grid.RowHeight = [System.Double]::NaN  # Auto
+                $grid.FontSize = 12
+            }
+        })
+    }
+
     # Sort presets dropdown
     if ($sortPresetDropdown -and $interfacesGrid) {
         $sortPresetDropdown.Add_SelectionChanged({
@@ -1817,9 +1856,32 @@ function Set-InterfaceViewData {
                 $up = @($itemsSource | Where-Object { $_.Status -match '(?i)up' }).Count
                 $down = @($itemsSource | Where-Object { $_.Status -match '(?i)down' }).Count
                 $other = $total - $up - $down
+
+                # Count validation warnings
+                $missingVlan = @($itemsSource | Where-Object { -not $_.VLAN -or $_.VLAN -eq '' -or $_.VLAN -eq '0' }).Count
+                $errorStatus = @($itemsSource | Where-Object { $_.Status -match '(?i)(err|disabled|notconnect)' }).Count
+                $warnings = $missingVlan + $errorStatus
+
                 $summaryText = "$total ports: $up up, $down down"
                 if ($other -gt 0) { $summaryText += ", $other other" }
+                if ($warnings -gt 0) {
+                    $summaryText += " | $warnings warnings"
+                    $statusSummary.Foreground = [System.Windows.Media.Brushes]::Orange
+                } else {
+                    $statusSummary.Foreground = $interfacesView.FindResource('Theme.Text.Muted')
+                }
                 $statusSummary.Text = $summaryText
+
+                # Update tab header with count
+                try {
+                    $mainWindow = [System.Windows.Application]::Current.MainWindow
+                    if ($mainWindow) {
+                        $interfacesTab = $mainWindow.FindName('InterfacesTab')
+                        if ($interfacesTab) {
+                            $interfacesTab.Header = "Interfaces ($total)"
+                        }
+                    }
+                } catch { }
             }
         }
     } catch {}
