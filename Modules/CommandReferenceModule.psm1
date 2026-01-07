@@ -2200,6 +2200,8 @@ function Get-NetworkCommand {
 
     $commandLower = $Command.ToLower().Trim()
 
+    # Collect all potential matches
+    $matches = @()
     foreach ($taskKey in $script:CommandDatabase.Keys) {
         $entry = $script:CommandDatabase[$taskKey]
         if ($entry.Commands.ContainsKey($resolvedVendor)) {
@@ -2207,23 +2209,38 @@ function Get-NetworkCommand {
             $cmdText = $vendorCmd.Command.ToLower()
 
             if ($cmdText -eq $commandLower -or $commandLower.StartsWith($cmdText)) {
-                return [PSCustomObject]@{
+                $matches += [PSCustomObject]@{
                     TaskKey = $taskKey
-                    Task = $entry.Task
-                    Category = $entry.Category
-                    Vendor = $resolvedVendor
-                    Command = $vendorCmd.Command
-                    Syntax = if ($vendorCmd.ContainsKey('Syntax')) { $vendorCmd.Syntax } else { $null }
-                    Description = if ($vendorCmd.ContainsKey('Description')) { $vendorCmd.Description } else { $null }
-                    OutputColumns = if ($vendorCmd.ContainsKey('OutputColumns')) { $vendorCmd.OutputColumns } else { $null }
-                    StatusCodes = if ($vendorCmd.ContainsKey('StatusCodes')) { $vendorCmd.StatusCodes } else { $null }
-                    Notes = if ($vendorCmd.ContainsKey('Notes')) { $vendorCmd.Notes } else { $null }
+                    Entry = $entry
+                    VendorCmd = $vendorCmd
+                    CmdText = $cmdText
+                    MatchLength = $cmdText.Length
                 }
             }
         }
     }
 
-    return $null
+    if ($matches.Count -eq 0) {
+        return $null
+    }
+
+    # Return the most specific match (longest command text)
+    $bestMatch = $matches | Sort-Object -Property MatchLength -Descending | Select-Object -First 1
+    $entry = $bestMatch.Entry
+    $vendorCmd = $bestMatch.VendorCmd
+
+    return [PSCustomObject]@{
+        TaskKey = $bestMatch.TaskKey
+        Task = $entry.Task
+        Category = $entry.Category
+        Vendor = $resolvedVendor
+        Command = $vendorCmd.Command
+        Syntax = if ($vendorCmd.ContainsKey('Syntax')) { $vendorCmd.Syntax } else { $null }
+        Description = if ($vendorCmd.ContainsKey('Description')) { $vendorCmd.Description } else { $null }
+        OutputColumns = if ($vendorCmd.ContainsKey('OutputColumns')) { $vendorCmd.OutputColumns } else { $null }
+        StatusCodes = if ($vendorCmd.ContainsKey('StatusCodes')) { $vendorCmd.StatusCodes } else { $null }
+        Notes = if ($vendorCmd.ContainsKey('Notes')) { $vendorCmd.Notes } else { $null }
+    }
 }
 
 function Search-NetworkCommands {

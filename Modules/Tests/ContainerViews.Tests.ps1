@@ -302,7 +302,7 @@ Describe 'Plan AF: Tab Consolidation Structure' {
             }
         }
 
-        It 'All container XAMLs have consistent MinWidth for tab buttons' {
+        It 'All container XAMLs use consistent LeftNavTabItemStyle for tab buttons' {
             $xamlFiles = @(
                 'DocumentationContainerView.xaml',
                 'InfrastructureContainerView.xaml',
@@ -310,16 +310,16 @@ Describe 'Plan AF: Tab Consolidation Structure' {
                 'ToolsContainerView.xaml'
             )
 
-            $allHaveMinWidth = $true
+            $allUseStyle = $true
             foreach ($file in $xamlFiles) {
                 $path = Join-Path $script:viewsRoot $file
                 $content = Get-Content -Path $path -Raw
-                # XAML uses setter syntax: Property="MinWidth" Value="130"
-                if ($content -notmatch 'MinWidth.*Value="130"') {
-                    $allHaveMinWidth = $false
+                # XAMLs reference the shared LeftNavTabItemStyle for consistent tab button styling
+                if ($content -notmatch 'ItemContainerStyle="\{DynamicResource LeftNavTabItemStyle\}"') {
+                    $allUseStyle = $false
                 }
             }
-            $allHaveMinWidth | Should Be $true
+            $allUseStyle | Should Be $true
         }
     }
 

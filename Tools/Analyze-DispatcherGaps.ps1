@@ -169,7 +169,7 @@ else {
 
 if ($OutputPath) {
     $outputDir = Split-Path -Path $OutputPath -Parent
-    if (-not (Test-Path -LiteralPath $outputDir)) {
+    if ($outputDir -and -not (Test-Path -LiteralPath $outputDir)) {
         New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
     }
     Set-Content -LiteralPath $OutputPath -Value ($builder -join [Environment]::NewLine) -Encoding utf8

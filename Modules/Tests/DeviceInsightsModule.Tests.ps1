@@ -44,7 +44,7 @@ function New-SearchWindowStub {
 
 function New-SummaryViewStub {
     $blocks = @{}
-    foreach ($name in 'SummaryDevicesCount','SummaryInterfacesCount','SummaryUpCount','SummaryDownCount','SummaryAuthorizedCount','SummaryUnauthorizedCount','SummaryUniqueVlansCount','SummaryExtra') {
+    foreach ($name in 'SummaryDevicesCount','SummaryInterfacesCount','SummaryUpCount','SummaryDownCount','SummaryAuthorizedCount','SummaryUnauthorizedCount','SummaryUniqueVlansCount','SummaryUpPct','SummaryExtra') {
         $blocks[$name] = [pscustomobject]@{ Text = '' }
     }
     $view = [pscustomobject]@{}
@@ -212,7 +212,7 @@ Describe "DeviceInsightsModule view aggregation" {
         $summary.Blocks['SummaryDownCount'].Text         | Should Be '1'
         $summary.Blocks['SummaryUnauthorizedCount'].Text | Should Be '1'
         $summary.Blocks['SummaryUniqueVlansCount'].Text  | Should Be '2'
-        $summary.Blocks['SummaryExtra'].Text             | Should Match 'Up %: 66\.7%'
+        $summary.Blocks['SummaryUpPct'].Text             | Should Match '\(67%\)'
     }
 
     It "generates alert rows highlighting problem ports" {

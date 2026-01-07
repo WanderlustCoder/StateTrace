@@ -1,0 +1,4 @@
+{"EventName":"InterfaceSyncTiming","Site":"BOYO","Hostname":"BOYO-A01-AS-01","SiteCacheFetchDurationMs":150.0,"SiteCacheFetchStatus":"Hydrated","SiteCacheProvider":"Refresh","Timestamp":"2025-01-01T12:00:00Z"}
+{"EventName":"InterfaceSyncTiming","Site":"WLLS","Hostname":"WLLS-A01-AS-02","SiteCacheFetchDurationMs":50.0,"SiteCacheFetchStatus":"Hit","SiteCacheProvider":"Cache","Timestamp":"2025-01-01T12:01:00Z"}
+{"EventName":"QueueDelay","Site":"BOYO","Hostname":"BOYO-A01-AS-01","DelayMs":85,"Timestamp":"2025-01-01T12:00:00Z"}
+{"EventName":"QueueDelay","Site":"WLLS","Hostname":"WLLS-A01-AS-02","DelayMs":92,"Timestamp":"2025-01-01T12:01:00Z"}

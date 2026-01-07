@@ -1,0 +1,6 @@
+{"EventName":"DiffUsageRate","UsageNumerator":1,"UsageDenominator":1,"Status":"Executed","Site":"BOYO","Hostname":"BOYO-A01","Timestamp":"2025-01-01T12:00:00Z"}
+{"EventName":"DiffUsageRate","UsageNumerator":1,"UsageDenominator":2,"Status":"Executed","Site":"WLLS","Hostname":"WLLS-A01","Timestamp":"2025-01-01T12:01:00Z"}
+{"EventName":"DriftDetectionTime","DurationMinutes":12.5,"Site":"BOYO","Hostname":"BOYO-A01","Timestamp":"2025-01-01T12:00:00Z"}
+{"EventName":"DriftDetectionTime","DurationMinutes":7.5,"Site":"WLLS","Hostname":"WLLS-A01","Timestamp":"2025-01-01T12:01:00Z"}
+{"EventName":"DiffCompareDurationMs","DurationMs":150,"Status":"Executed","Site":"BOYO","Hostname":"BOYO-A01","TimestampUtc":"2025-01-01T12:00:00Z"}
+{"EventName":"DiffCompareResultCounts","AddedCount":1,"RemovedCount":1,"ChangedCount":0,"UnchangedCount":2,"Status":"Executed","Site":"BOYO","Hostname":"BOYO-A01","TimestampUtc":"2025-01-01T12:00:00Z"}
