@@ -606,18 +606,37 @@ Total Hosts: $($info.TotalHosts)
             $selected = $aclEntriesGrid.SelectedItem
             if ($null -eq $selected) { return }
 
-            $view.Tag.ACLEntries.Remove($selected) | Out-Null
-            & $refreshACLGrid
-            $aclStatusLabel.Content = "Entry deleted"
+            $result = [System.Windows.MessageBox]::Show(
+                "Delete this ACL entry?",
+                'Confirm Delete',
+                [System.Windows.MessageBoxButton]::YesNo,
+                [System.Windows.MessageBoxImage]::Question
+            )
+            if ($result -eq [System.Windows.MessageBoxResult]::Yes) {
+                $view.Tag.ACLEntries.Remove($selected) | Out-Null
+                & $refreshACLGrid
+                $aclStatusLabel.Content = "Entry deleted"
+            }
         }.GetNewClosure())
 
         # Clear All button click
         $aclClearAllButton.Add_Click({
             param($sender, $e)
-            $view.Tag.ACLEntries.Clear()
-            & $refreshACLGrid
-            $aclOutputBox.Text = ''
-            $aclStatusLabel.Content = "All entries cleared"
+            $count = $view.Tag.ACLEntries.Count
+            if ($count -eq 0) { return }
+
+            $result = [System.Windows.MessageBox]::Show(
+                "Clear all $count ACL entries?",
+                'Confirm Clear All',
+                [System.Windows.MessageBoxButton]::YesNo,
+                [System.Windows.MessageBoxImage]::Warning
+            )
+            if ($result -eq [System.Windows.MessageBoxResult]::Yes) {
+                $view.Tag.ACLEntries.Clear()
+                & $refreshACLGrid
+                $aclOutputBox.Text = ''
+                $aclStatusLabel.Content = "All entries cleared"
+            }
         }.GetNewClosure())
 
         # Generate Config button click

@@ -204,8 +204,10 @@ function Register-DocumentationGeneratorEvents {
 
     if ($script:CopyPreviewButton) {
         $script:CopyPreviewButton.Add_Click({
+            param($sender, $e)
             if ($script:PreviewTextBox.Text) {
                 [System.Windows.Clipboard]::SetText($script:PreviewTextBox.Text)
+                ViewCompositionModule\Show-CopyFeedback -Button $sender
             }
         })
     }

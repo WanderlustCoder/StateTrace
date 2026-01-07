@@ -1385,13 +1385,31 @@ function Ensure-ParserStatusTimer {
     $script:ParserStatusTimer = $timer
 }
 
+function Set-ParserStatusWithColor {
+    param(
+        [System.Windows.Controls.Label]$Indicator,
+        [string]$Text,
+        [ValidateSet('Idle','Running','Success','Error')]
+        [string]$State = 'Idle'
+    )
+    if (-not $Indicator) { return }
+    $Indicator.Content = $Text
+    $themeKey = switch ($State) {
+        'Running' { 'Theme.Text.Warning' }
+        'Success' { 'Theme.Text.Success' }
+        'Error'   { 'Theme.Text.Error' }
+        default   { 'Theme.Toolbar.Text' }
+    }
+    $Indicator.SetResourceReference([System.Windows.Controls.Control]::ForegroundProperty, $themeKey)
+}
+
 function Update-ParserStatusIndicator {
     param([Windows.Window]$Window)
     $indicator = Get-ParserStatusControl -Window $Window
     if (-not $indicator) { return }
 
     if (-not $script:CurrentParserJob) {
-        $indicator.Content = 'Parser idle'
+        Set-ParserStatusWithColor -Indicator $indicator -Text 'Parser idle' -State Idle
         Set-ParserDetailText -Window $Window -Text ''
         if ($script:ParserStatusTimer) { $script:ParserStatusTimer.Stop() }
         return
@@ -1402,9 +1420,9 @@ function Update-ParserStatusIndicator {
         $started = $null
         try { if ($script:ParserJobStartedAt) { $started = $script:ParserJobStartedAt.ToString('HH:mm:ss') } } catch { }
         if ($started) {
-            $indicator.Content = "Parsing in progress (started $started)"
+            Set-ParserStatusWithColor -Indicator $indicator -Text "Parsing in progress (started $started)" -State Running
         } else {
-            $indicator.Content = 'Parsing in progress...'
+            Set-ParserStatusWithColor -Indicator $indicator -Text 'Parsing in progress...' -State Running
         }
         $tail = Get-ParserLogTailText -Path $script:ParserJobLogPath
         if ($tail) {
@@ -1422,18 +1440,18 @@ function Update-ParserStatusIndicator {
     if ($state -eq 'Completed') {
         $stamp = (Get-Date).ToString('HH:mm:ss')
         if ($logPath) {
-            $indicator.Content = ("Parsing finished at {0} (log: {1})" -f $stamp, $logPath)
+            Set-ParserStatusWithColor -Indicator $indicator -Text ("Parsing finished at {0} (log: {1})" -f $stamp, $logPath) -State Success
         } else {
-            $indicator.Content = "Parsing finished at $stamp"
+            Set-ParserStatusWithColor -Indicator $indicator -Text "Parsing finished at $stamp" -State Success
         }
         $refreshFilter = $script:ParserPendingSiteFilter
         $script:ParserPendingSiteFilter = $null
         try { Invoke-DatabaseImport -Window $Window -SiteFilterOverride $refreshFilter -SkipTelemetry } catch { }
     } else {
         if ($logPath) {
-            $indicator.Content = ("Parsing {0}. See {1}" -f $state.ToLower(), $logPath)
+            Set-ParserStatusWithColor -Indicator $indicator -Text ("Parsing {0}. See {1}" -f $state.ToLower(), $logPath) -State Error
         } else {
-            $indicator.Content = ("Parsing {0}" -f $state.ToLower())
+            Set-ParserStatusWithColor -Indicator $indicator -Text ("Parsing {0}" -f $state.ToLower()) -State Error
         }
         $script:ParserPendingSiteFilter = $null
     }
@@ -3394,22 +3412,25 @@ if ($helpBtn) {
 
             # Map of section tags to section names
             $sectionMap = @{
-                'quickstart'     = 'QuickStartSection'
-                'overview'       = 'OverviewSection'
-                'mainwindow'     = 'MainWindowSection'
-                'interfaces'     = 'InterfacesSection'
-                'compare'        = 'CompareSection'
-                'search'         = 'SearchSection'
-                'summary'        = 'SummarySection'
-                'portreorg'      = 'PortReorgSection'
-                'alerts'         = 'AlertsSection'
-                'span'           = 'SpanSection'
-                'documentation'  = 'DocumentationSection'
-                'infrastructure' = 'InfrastructureSection'
-                'operations'     = 'OperationsSection'
-                'tools'          = 'ToolsSection'
-                'themes'         = 'ThemesSection'
-                'shortcuts'      = 'ShortcutsSection'
+                'quickstart'      = 'QuickStartSection'
+                'overview'        = 'OverviewSection'
+                'mainwindow'      = 'MainWindowSection'
+                'interfaces'      = 'InterfacesSection'
+                'compare'         = 'CompareSection'
+                'search'          = 'SearchSection'
+                'summary'         = 'SummarySection'
+                'portreorg'       = 'PortReorgSection'
+                'alerts'          = 'AlertsSection'
+                'span'            = 'SpanSection'
+                'documentation'   = 'DocumentationSection'
+                'infrastructure'  = 'InfrastructureSection'
+                'operations'      = 'OperationsSection'
+                'tools'           = 'ToolsSection'
+                'themes'          = 'ThemesSection'
+                'shortcuts'       = 'ShortcutsSection'
+                'troubleshooting' = 'TroubleshootingSection'
+                'faq'             = 'FAQSection'
+                'glossary'        = 'GlossarySection'
             }
 
             # Function to show a specific section

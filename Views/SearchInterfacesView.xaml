@@ -99,8 +99,10 @@
         <StackPanel>
           <TextBlock Text="No Results" FontSize="18" FontWeight="Bold"
                      Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Center"/>
-          <TextBlock Text="Enter a search term to find interfaces"
+          <TextBlock Text="Enter a search term to find interfaces across all devices"
                      Foreground="{DynamicResource Theme.Text.Muted}" HorizontalAlignment="Center" Margin="0,5,0,0"/>
+          <TextBlock Text="Tip: Use the dropdown to select from recent searches"
+                     Foreground="{DynamicResource Theme.Text.Muted}" HorizontalAlignment="Center" Margin="0,3,0,0" FontSize="11"/>
         </StackPanel>
       </Border>
 

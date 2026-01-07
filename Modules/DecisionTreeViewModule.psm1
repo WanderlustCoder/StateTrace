@@ -447,6 +447,7 @@ function New-DecisionTreeView {
             $text = $resultContent.Text
             if (-not [string]::IsNullOrWhiteSpace($text)) {
                 [System.Windows.Clipboard]::SetText($text)
+                ViewCompositionModule\Show-CopyFeedback -Button $sender
             }
         }.GetNewClosure())
 

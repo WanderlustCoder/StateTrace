@@ -426,4 +426,32 @@ function Export-StRowsWithFormatChoice {
     }
 }
 
-Export-ModuleMember -Function Set-StView, New-StDebounceTimer, Export-StRowsToCsv, Export-StRowsToJson, Export-StRowsWithFormatChoice, Export-StTextToFile
+function Show-CopyFeedback {
+    <#
+    .SYNOPSIS
+        Shows brief visual feedback when content is copied to clipboard.
+    .DESCRIPTION
+        Temporarily changes the button content to "Copied!" then restores it after a delay.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter()][System.Windows.Controls.Button]$Button,
+        [string]$Message = 'Copied!',
+        [int]$DelayMs = 1500
+    )
+
+    if (-not $Button) { return }
+
+    $originalContent = $Button.Content
+    $Button.Content = $Message
+
+    $timer = New-Object System.Windows.Threading.DispatcherTimer
+    $timer.Interval = [TimeSpan]::FromMilliseconds($DelayMs)
+    $timer.Add_Tick({
+        $timer.Stop()
+        $Button.Content = $originalContent
+    }.GetNewClosure())
+    $timer.Start()
+}
+
+Export-ModuleMember -Function Set-StView, New-StDebounceTimer, Export-StRowsToCsv, Export-StRowsToJson, Export-StRowsWithFormatChoice, Export-StTextToFile, Show-CopyFeedback

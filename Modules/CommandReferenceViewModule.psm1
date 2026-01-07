@@ -162,6 +162,7 @@ function New-CommandReferenceView {
             if ($commandsGrid.SelectedItem) {
                 $cmd = $commandsGrid.SelectedItem.Command
                 [System.Windows.Clipboard]::SetText($cmd)
+                ViewCompositionModule\Show-CopyFeedback -Button $sender
             }
         }.GetNewClosure())
 
@@ -269,6 +270,7 @@ function New-CommandReferenceView {
             $config = $generatedConfigBox.Text
             if (-not [string]::IsNullOrWhiteSpace($config)) {
                 [System.Windows.Clipboard]::SetText($config)
+                ViewCompositionModule\Show-CopyFeedback -Button $sender
             }
         }.GetNewClosure())
 

@@ -286,9 +286,17 @@ function Register-ChangeManagementEventHandlers {
             $grid = $View.FindName('MaintenanceWindowsGrid')
             if ($grid -and $grid.SelectedItem) {
                 $window = $grid.SelectedItem
-                Remove-MaintenanceWindow -WindowID $window.WindowID
-                Update-MaintenanceWindowsGrid -View $View
-                Set-StatusText -View $View -Text "Maintenance window deleted"
+                $result = [System.Windows.MessageBox]::Show(
+                    "Delete maintenance window '$($window.WindowName)'?",
+                    'Confirm Delete',
+                    [System.Windows.MessageBoxButton]::YesNo,
+                    [System.Windows.MessageBoxImage]::Question
+                )
+                if ($result -eq [System.Windows.MessageBoxResult]::Yes) {
+                    Remove-MaintenanceWindow -WindowID $window.WindowID
+                    Update-MaintenanceWindowsGrid -View $View
+                    Set-StatusText -View $View -Text "Maintenance window deleted"
+                }
             }
         }.GetNewClosure())
     }
