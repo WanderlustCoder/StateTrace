@@ -251,7 +251,8 @@
                 <TextBlock Text="Modules" FontWeight="Bold" Margin="0,0,0,5" Foreground="{DynamicResource Theme.Text.Primary}"/>
                 <ListBox Name="ModulesListBox" Height="80" Background="{DynamicResource Theme.Surface.Primary}" Foreground="{DynamicResource Theme.Text.Primary}"
                               VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
-                              ScrollViewer.CanContentScroll="True"/>
+                              VirtualizingPanel.ScrollUnit="Pixel"
+                              ScrollViewer.CanContentScroll="True" ScrollViewer.IsDeferredScrollingEnabled="True"/>
 
                 <Separator Style="{DynamicResource SectionSeparatorStyle}"/>
 

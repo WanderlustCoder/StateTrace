@@ -47,6 +47,20 @@
     <Setter Property="Margin" Value="0,0,0,5"/>
   </Style>
 
+  <Style x:Key="FieldLabelStyle" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="12"/>
+    <Setter Property="FontWeight" Value="Bold"/>
+    <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
+    <Setter Property="Margin" Value="0,0,0,2"/>
+  </Style>
+
+  <Style x:Key="SectionTitleStyle" TargetType="TextBlock">
+    <Setter Property="FontSize" Value="12"/>
+    <Setter Property="FontWeight" Value="Bold"/>
+    <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
+    <Setter Property="Margin" Value="0,6,0,4"/>
+  </Style>
+
   <!-- Card/Panel Styles -->
   <Style x:Key="CardStyle" TargetType="Border">
     <Setter Property="Background" Value="{DynamicResource Theme.Surface.Secondary}"/>
@@ -54,6 +68,14 @@
     <Setter Property="BorderThickness" Value="1"/>
     <Setter Property="CornerRadius" Value="6"/>
     <Setter Property="Padding" Value="12"/>
+  </Style>
+
+  <Style x:Key="CompactCardStyle" TargetType="Border">
+    <Setter Property="Background" Value="{DynamicResource Theme.Surface.Secondary}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource Theme.Surface.Border}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="CornerRadius" Value="4"/>
+    <Setter Property="Padding" Value="6"/>
   </Style>
 
   <Style x:Key="SummaryCardStyle" TargetType="Border">

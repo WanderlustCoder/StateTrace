@@ -66,7 +66,7 @@
                                       ScrollViewer.IsDeferredScrollingEnabled="True"
                                       VirtualizingPanel.IsVirtualizing="True"
                                       VirtualizingPanel.VirtualizationMode="Recycling"
-                                      EnableRowVirtualization="True">
+                                      EnableRowVirtualization="True" EnableColumnVirtualization="True">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="Site" Binding="{Binding SiteID}" Width="120"/>
                                     <DataGridTextColumn Header="Used" Binding="{Binding UsedPorts}" Width="60"/>
@@ -92,7 +92,9 @@
                             <ListBox Grid.Row="1" Name="AlertsListBox" MaxHeight="150" Background="Transparent" BorderThickness="0"
                                      VirtualizingPanel.IsVirtualizing="True"
                                      VirtualizingPanel.VirtualizationMode="Recycling"
-                                     ScrollViewer.CanContentScroll="True">
+                                     VirtualizingPanel.ScrollUnit="Pixel"
+                                     ScrollViewer.CanContentScroll="True"
+                                     ScrollViewer.IsDeferredScrollingEnabled="True">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
                                         <StackPanel Orientation="Horizontal" Margin="2">
@@ -208,7 +210,7 @@
                                       ScrollViewer.IsDeferredScrollingEnabled="True"
                                       VirtualizingPanel.IsVirtualizing="True"
                                       VirtualizingPanel.VirtualizationMode="Recycling"
-                                      EnableRowVirtualization="True">
+                                      EnableRowVirtualization="True" EnableColumnVirtualization="True">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="Date" Binding="{Binding SnapshotDate, StringFormat=\{0:yyyy-MM-dd\}}" Width="100"/>
                                     <DataGridTextColumn Header="Scope" Binding="{Binding ScopeID}" Width="120"/>
@@ -296,7 +298,7 @@
                                       ScrollViewer.IsDeferredScrollingEnabled="True"
                                       VirtualizingPanel.IsVirtualizing="True"
                                       VirtualizingPanel.VirtualizationMode="Recycling"
-                                      EnableRowVirtualization="True">
+                                      EnableRowVirtualization="True" EnableColumnVirtualization="True">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="150"/>
                                     <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
@@ -388,7 +390,7 @@
                                       ScrollViewer.IsDeferredScrollingEnabled="True"
                                       VirtualizingPanel.IsVirtualizing="True"
                                       VirtualizingPanel.VirtualizationMode="Recycling"
-                                      EnableRowVirtualization="True">
+                                      EnableRowVirtualization="True" EnableColumnVirtualization="True">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="Hostname" Binding="{Binding Hostname}" Width="150"/>
                                     <DataGridTextColumn Header="Used" Binding="{Binding UsedPorts}" Width="60"/>
@@ -424,7 +426,7 @@
                               ScrollViewer.IsDeferredScrollingEnabled="True"
                               VirtualizingPanel.IsVirtualizing="True"
                               VirtualizingPanel.VirtualizationMode="Recycling"
-                              EnableRowVirtualization="True">
+                              EnableRowVirtualization="True" EnableColumnVirtualization="True">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Scope Type" Binding="{Binding ScopeType}" Width="100"/>
                             <DataGridTextColumn Header="Scope ID" Binding="{Binding ScopeID}" Width="120"/>

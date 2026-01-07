@@ -2,36 +2,13 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
   <UserControl.Resources>
-
-    <Style x:Key="CardBorder" TargetType="Border">
-      <Setter Property="BorderBrush" Value="{DynamicResource Theme.Surface.Border}"/>
-      <Setter Property="BorderThickness" Value="1"/>
-      <Setter Property="CornerRadius" Value="4"/>
-      <Setter Property="Background" Value="{DynamicResource Theme.Surface.Secondary}"/>
-      <Setter Property="Padding" Value="6"/>
-    </Style>
-
-    <Style x:Key="FieldLabel" TargetType="TextBlock">
-      <Setter Property="FontSize" Value="12"/>
-      <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
-      <Setter Property="Margin" Value="0,0,0,2"/>
-      <Setter Property="FontWeight" Value="Bold"/>
-    </Style>
-
-    <Style x:Key="SectionTitle" TargetType="TextBlock">
-      <Setter Property="FontSize" Value="12"/>
-      <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
-      <Setter Property="FontWeight" Value="Bold"/>
-      <Setter Property="Margin" Value="0,6,0,4"/>
-    </Style>
-
+    <!-- Local style for editable combo boxes specific to this view -->
     <Style x:Key="SlimCombo" TargetType="ComboBox" BasedOn="{StaticResource ToolbarComboBoxStyle}">
       <Setter Property="Margin" Value="0,0,0,6"/>
       <Setter Property="MinWidth" Value="160"/>
       <Setter Property="IsEditable" Value="True"/>
       <Setter Property="IsTextSearchEnabled" Value="True"/>
     </Style>
-
   </UserControl.Resources>
 
   <Grid Background="{DynamicResource Theme.Surface.Secondary}">
@@ -75,18 +52,18 @@
           </Grid.ColumnDefinitions>
 
           <StackPanel Grid.Column="0" Orientation="Vertical" Margin="4,0,8,0">
-            <TextBlock Text="Switch 1" Style="{StaticResource FieldLabel}"/>
+            <TextBlock Text="Switch 1" Style="{DynamicResource FieldLabelStyle}"/>
             <ComboBox Name="Switch1Dropdown" Style="{StaticResource SlimCombo}"/>
 
-            <TextBlock Text="Port 1" Style="{StaticResource FieldLabel}"/>
+            <TextBlock Text="Port 1" Style="{DynamicResource FieldLabelStyle}"/>
             <ComboBox Name="Port1Dropdown" Style="{StaticResource SlimCombo}"/>
           </StackPanel>
 
           <StackPanel Grid.Column="1" Orientation="Vertical" Margin="8,0,4,0">
-            <TextBlock Text="Switch 2" Style="{StaticResource FieldLabel}"/>
+            <TextBlock Text="Switch 2" Style="{DynamicResource FieldLabelStyle}"/>
             <ComboBox Name="Switch2Dropdown" Style="{StaticResource SlimCombo}"/>
 
-            <TextBlock Text="Port 2" Style="{StaticResource FieldLabel}"/>
+            <TextBlock Text="Port 2" Style="{DynamicResource FieldLabelStyle}"/>
             <ComboBox Name="Port2Dropdown" Style="{StaticResource SlimCombo}"/>
           </StackPanel>
         </Grid>
@@ -106,9 +83,9 @@
                        FontWeight="Bold"
                        Foreground="{DynamicResource Theme.Text.Primary}"
                        Margin="0,0,0,2"/>
-            <TextBlock Text="Config 1" Style="{StaticResource SectionTitle}"/>
+            <TextBlock Text="Config 1" Style="{DynamicResource SectionTitleStyle}"/>
 
-            <Border Style="{StaticResource CardBorder}">
+            <Border Style="{DynamicResource CompactCardStyle}">
 
                 <TextBox Name="Config1Box"
                          TextWrapping="Wrap"
@@ -131,9 +108,9 @@
                        FontWeight="Bold"
                        Foreground="{DynamicResource Theme.Text.Primary}"
                        Margin="0,0,0,2"/>
-            <TextBlock Text="Config 2" Style="{StaticResource SectionTitle}"/>
+            <TextBlock Text="Config 2" Style="{DynamicResource SectionTitleStyle}"/>
 
-            <Border Style="{StaticResource CardBorder}">
+            <Border Style="{DynamicResource CompactCardStyle}">
                 <TextBox Name="Config2Box"
                          TextWrapping="Wrap"
                          AcceptsReturn="True"
@@ -158,8 +135,8 @@
           </Grid.ColumnDefinitions>
 
           <StackPanel Grid.Column="0" Orientation="Vertical" Margin="4,0,8,0">
-            <TextBlock Text="Commands only in Config 1" Style="{StaticResource SectionTitle}"/>
-            <Border Style="{StaticResource CardBorder}">
+            <TextBlock Text="Commands only in Config 1" Style="{DynamicResource SectionTitleStyle}"/>
+            <Border Style="{DynamicResource CompactCardStyle}">
                 <TextBox Name="Diff1Box"
                          TextWrapping="Wrap"
                          AcceptsReturn="True"
@@ -176,8 +153,8 @@
           </StackPanel>
 
           <StackPanel Grid.Column="1" Orientation="Vertical" Margin="8,0,4,0">
-            <TextBlock Text="Commands only in Config 2" Style="{StaticResource SectionTitle}"/>
-            <Border Style="{StaticResource CardBorder}">
+            <TextBlock Text="Commands only in Config 2" Style="{DynamicResource SectionTitleStyle}"/>
+            <Border Style="{DynamicResource CompactCardStyle}">
                 <TextBox Name="Diff2Box"
                          TextWrapping="Wrap"
                          AcceptsReturn="True"

@@ -229,8 +229,7 @@
                     ScrollViewer.IsDeferredScrollingEnabled="True"
                     VirtualizingPanel.IsVirtualizing="True"
                     VirtualizingPanel.VirtualizationMode="Recycling"
-                    EnableRowVirtualization="True"
-                    EnableColumnVirtualization="True"
+                    EnableRowVirtualization="True" EnableColumnVirtualization="True"
                     ScrollViewer.CanContentScroll="True"
                     VirtualizingPanel.ScrollUnit="Pixel">
             <DataGrid.Columns>
