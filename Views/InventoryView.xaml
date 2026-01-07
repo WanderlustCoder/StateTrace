@@ -106,7 +106,11 @@
                       RowBackground="{DynamicResource Theme.Surface.Primary}"
                       AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
                       GridLinesVisibility="Horizontal"
-                      HeadersVisibility="Column">
+                      HeadersVisibility="Column"
+                      ScrollViewer.IsDeferredScrollingEnabled="True"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling"
+                      EnableRowVirtualization="True">
               <DataGrid.Columns>
                 <DataGridTextColumn Header="Hostname" Binding="{Binding Hostname}" Width="140"/>
                 <DataGridTextColumn Header="Vendor" Binding="{Binding Vendor}" Width="80"/>
@@ -289,7 +293,11 @@
                       Background="{DynamicResource Theme.Surface.Primary}"
                       Foreground="{DynamicResource Theme.Text.Primary}"
                       RowBackground="{DynamicResource Theme.Surface.Primary}"
-                      AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}">
+                      AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
+                      ScrollViewer.IsDeferredScrollingEnabled="True"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling"
+                      EnableRowVirtualization="True">
               <DataGrid.Columns>
                 <DataGridTextColumn Header="Hostname" Binding="{Binding Hostname}" Width="150"/>
                 <DataGridTextColumn Header="Serial" Binding="{Binding SerialNumber}" Width="120"/>
@@ -311,7 +319,11 @@
                       Background="{DynamicResource Theme.Surface.Primary}"
                       Foreground="{DynamicResource Theme.Text.Primary}"
                       RowBackground="{DynamicResource Theme.Surface.Primary}"
-                      AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}">
+                      AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
+                      ScrollViewer.IsDeferredScrollingEnabled="True"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling"
+                      EnableRowVirtualization="True">
               <DataGrid.Columns>
                 <DataGridTextColumn Header="Hostname" Binding="{Binding Hostname}" Width="150"/>
                 <DataGridTextColumn Header="Serial" Binding="{Binding SerialNumber}" Width="120"/>
@@ -355,7 +367,11 @@
                         Background="{DynamicResource Theme.Surface.Primary}"
                         Foreground="{DynamicResource Theme.Text.Primary}"
                         RowBackground="{DynamicResource Theme.Surface.Primary}"
-                        AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}">
+                        AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
+                        ScrollViewer.IsDeferredScrollingEnabled="True"
+                        VirtualizingPanel.IsVirtualizing="True"
+                        VirtualizingPanel.VirtualizationMode="Recycling"
+                        EnableRowVirtualization="True">
                 <DataGrid.Columns>
                   <DataGridTextColumn Header="Hostname" Binding="{Binding Hostname}" Width="140"/>
                   <DataGridTextColumn Header="Model" Binding="{Binding Model}" Width="100"/>
@@ -375,7 +391,11 @@
                         Background="{DynamicResource Theme.Surface.Primary}"
                         Foreground="{DynamicResource Theme.Text.Primary}"
                         RowBackground="{DynamicResource Theme.Surface.Primary}"
-                        AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}">
+                        AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
+                        ScrollViewer.IsDeferredScrollingEnabled="True"
+                        VirtualizingPanel.IsVirtualizing="True"
+                        VirtualizingPanel.VirtualizationMode="Recycling"
+                        EnableRowVirtualization="True">
                 <DataGrid.Columns>
                   <DataGridTextColumn Header="Hostname" Binding="{Binding Hostname}" Width="140"/>
                   <DataGridTextColumn Header="Firmware" Binding="{Binding FirmwareVersion}" Width="100"/>
@@ -392,7 +412,11 @@
                       IsReadOnly="True"
                       CanUserSortColumns="True"
                       Background="{DynamicResource Theme.Surface.Primary}"
-                      Foreground="{DynamicResource Theme.Text.Primary}">
+                      Foreground="{DynamicResource Theme.Text.Primary}"
+                      ScrollViewer.IsDeferredScrollingEnabled="True"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling"
+                      EnableRowVirtualization="True">
               <DataGrid.Columns>
                 <DataGridTextColumn Header="Vendor" Binding="{Binding Vendor}" Width="100"/>
                 <DataGridTextColumn Header="Platform" Binding="{Binding Platform}" Width="150"/>
@@ -434,7 +458,11 @@
                       Background="{DynamicResource Theme.Surface.Primary}"
                       Foreground="{DynamicResource Theme.Text.Primary}"
                       RowBackground="{DynamicResource Theme.Surface.Primary}"
-                      AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}">
+                      AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
+                      ScrollViewer.IsDeferredScrollingEnabled="True"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling"
+                      EnableRowVirtualization="True">
               <DataGrid.Columns>
                 <DataGridTextColumn Header="Hostname" Binding="{Binding Hostname}" Width="140"/>
                 <DataGridTextColumn Header="Vendor" Binding="{Binding Vendor}" Width="80"/>
@@ -454,7 +482,11 @@
                       IsReadOnly="True"
                       CanUserSortColumns="True"
                       Background="{DynamicResource Theme.Surface.Primary}"
-                      Foreground="{DynamicResource Theme.Text.Primary}">
+                      Foreground="{DynamicResource Theme.Text.Primary}"
+                      ScrollViewer.IsDeferredScrollingEnabled="True"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling"
+                      EnableRowVirtualization="True">
               <DataGrid.Columns>
                 <DataGridTextColumn Header="Product" Binding="{Binding ProductID}" Width="120"/>
                 <DataGridTextColumn Header="Vendor" Binding="{Binding Vendor}" Width="80"/>
@@ -553,7 +585,11 @@
                         Background="{DynamicResource Theme.Surface.Primary}"
                         Foreground="{DynamicResource Theme.Text.Primary}"
                         RowBackground="{DynamicResource Theme.Surface.Primary}"
-                        AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}">
+                        AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
+                        ScrollViewer.IsDeferredScrollingEnabled="True"
+                        VirtualizingPanel.IsVirtualizing="True"
+                        VirtualizingPanel.VirtualizationMode="Recycling"
+                        EnableRowVirtualization="True">
                 <DataGrid.Columns>
                   <DataGridTextColumn Header="Year" Binding="{Binding Year}" Width="80"/>
                   <DataGridTextColumn Header="Devices" Binding="{Binding DeviceCount}" Width="70"/>
@@ -571,7 +607,11 @@
                         Background="{DynamicResource Theme.Surface.Primary}"
                         Foreground="{DynamicResource Theme.Text.Primary}"
                         RowBackground="{DynamicResource Theme.Surface.Primary}"
-                        AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}">
+                        AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
+                        ScrollViewer.IsDeferredScrollingEnabled="True"
+                        VirtualizingPanel.IsVirtualizing="True"
+                        VirtualizingPanel.VirtualizationMode="Recycling"
+                        EnableRowVirtualization="True">
                 <DataGrid.Columns>
                   <DataGridTextColumn Header="Hostname" Binding="{Binding Hostname}" Width="120"/>
                   <DataGridTextColumn Header="Model" Binding="{Binding CurrentModel}" Width="100"/>
@@ -613,7 +653,11 @@
                     Background="{DynamicResource Theme.Surface.Primary}"
                     Foreground="{DynamicResource Theme.Text.Primary}"
                     RowBackground="{DynamicResource Theme.Surface.Primary}"
-                    AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}">
+                    AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
+                    ScrollViewer.IsDeferredScrollingEnabled="True"
+                    VirtualizingPanel.IsVirtualizing="True"
+                    VirtualizingPanel.VirtualizationMode="Recycling"
+                    EnableRowVirtualization="True">
             <DataGrid.Columns>
               <DataGridTextColumn Header="Timestamp" Binding="{Binding Timestamp, StringFormat=yyyy-MM-dd HH:mm:ss}" Width="150"/>
               <DataGridTextColumn Header="Change Type" Binding="{Binding ChangeType}" Width="100"/>

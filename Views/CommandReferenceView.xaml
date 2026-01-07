@@ -83,7 +83,11 @@
                     AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
                     GridLinesVisibility="Horizontal"
                     HeadersVisibility="Column"
-                    SelectionMode="Single">
+                    SelectionMode="Single"
+                    ScrollViewer.IsDeferredScrollingEnabled="True"
+                    VirtualizingPanel.IsVirtualizing="True"
+                    VirtualizingPanel.VirtualizationMode="Recycling"
+                    EnableRowVirtualization="True">
             <DataGrid.Columns>
               <DataGridTextColumn Header="Task" Binding="{Binding Task}" Width="200"/>
               <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="80"/>
@@ -125,7 +129,11 @@
                     RowBackground="{DynamicResource Theme.Input.Background}"
                     AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
                     GridLinesVisibility="All"
-                    HeadersVisibility="Column">
+                    HeadersVisibility="Column"
+                    ScrollViewer.IsDeferredScrollingEnabled="True"
+                    VirtualizingPanel.IsVirtualizing="True"
+                    VirtualizingPanel.VirtualizationMode="Recycling"
+                    EnableRowVirtualization="True">
             <DataGrid.Columns>
               <DataGridTextColumn Header="Task" Binding="{Binding Task}" Width="180"/>
               <DataGridTextColumn Header="Cisco" Binding="{Binding Cisco}" Width="200"/>
@@ -229,7 +237,11 @@
                     RowBackground="{DynamicResource Theme.Input.Background}"
                     AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
                     GridLinesVisibility="Horizontal"
-                    HeadersVisibility="Column">
+                    HeadersVisibility="Column"
+                    ScrollViewer.IsDeferredScrollingEnabled="True"
+                    VirtualizingPanel.IsVirtualizing="True"
+                    VirtualizingPanel.VirtualizationMode="Recycling"
+                    EnableRowVirtualization="True">
             <DataGrid.Columns>
               <DataGridTextColumn Header="Task" Binding="{Binding Task}" Width="200"/>
               <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="100"/>

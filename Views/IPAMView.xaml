@@ -45,7 +45,11 @@
                       Foreground="{DynamicResource Theme.Text.Primary}"
                       GridLinesVisibility="Horizontal"
                       RowBackground="{DynamicResource Theme.Surface.Primary}"
-                      AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}">
+                      AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
+                      ScrollViewer.IsDeferredScrollingEnabled="True"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling"
+                      EnableRowVirtualization="True">
               <DataGrid.Columns>
                 <DataGridTextColumn Header="VLAN" Binding="{Binding VlanNumber}" Width="60"/>
                 <DataGridTextColumn Header="Name" Binding="{Binding VlanName}" Width="120"/>
@@ -137,7 +141,11 @@
                       Foreground="{DynamicResource Theme.Text.Primary}"
                       GridLinesVisibility="Horizontal"
                       RowBackground="{DynamicResource Theme.Surface.Primary}"
-                      AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}">
+                      AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
+                      ScrollViewer.IsDeferredScrollingEnabled="True"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling"
+                      EnableRowVirtualization="True">
               <DataGrid.Columns>
                 <DataGridTextColumn Header="Network" Binding="{Binding NetworkAddress}" Width="110"/>
                 <DataGridTextColumn Header="/" Binding="{Binding PrefixLength}" Width="30"/>
@@ -240,7 +248,11 @@
                       Foreground="{DynamicResource Theme.Text.Primary}"
                       GridLinesVisibility="Horizontal"
                       RowBackground="{DynamicResource Theme.Surface.Primary}"
-                      AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}">
+                      AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
+                      ScrollViewer.IsDeferredScrollingEnabled="True"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling"
+                      EnableRowVirtualization="True">
               <DataGrid.Columns>
                 <DataGridTextColumn Header="IP Address" Binding="{Binding IPAddress}" Width="120"/>
                 <DataGridTextColumn Header="Device" Binding="{Binding DeviceName}" Width="100"/>
@@ -322,7 +334,11 @@
                       Foreground="{DynamicResource Theme.Text.Primary}"
                       GridLinesVisibility="Horizontal"
                       RowBackground="{DynamicResource Theme.Surface.Primary}"
-                      AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}">
+                      AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
+                      ScrollViewer.IsDeferredScrollingEnabled="True"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling"
+                      EnableRowVirtualization="True">
               <DataGrid.Columns>
                 <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" Width="80"/>
                 <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="120"/>
@@ -363,7 +379,15 @@
                 <TextBlock Text="VLAN Statistics" FontWeight="Bold" FontSize="14" Foreground="{DynamicResource Theme.Text.Primary}"/>
                 <TextBlock Name="TotalVlansText" Text="Total VLANs: 0" Margin="0,10,0,0" Foreground="{DynamicResource Theme.Text.Primary}"/>
                 <TextBlock Text="By Purpose:" FontWeight="SemiBold" Margin="0,10,0,5" Foreground="{DynamicResource Theme.Text.Primary}"/>
-                <ItemsControl Name="VlansByPurposeList">
+                <ItemsControl Name="VlansByPurposeList"
+                              VirtualizingPanel.IsVirtualizing="True"
+                              VirtualizingPanel.VirtualizationMode="Recycling"
+                              ScrollViewer.CanContentScroll="True">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <VirtualizingStackPanel/>
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
                   <ItemsControl.ItemTemplate>
                     <DataTemplate>
                       <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}">
@@ -383,7 +407,15 @@
                 <TextBlock Name="TotalSubnetsText" Text="Total Subnets: 0" Margin="0,10,0,0" Foreground="{DynamicResource Theme.Text.Primary}"/>
                 <TextBlock Name="TotalHostsText" Text="Total Allocated Hosts: 0" Foreground="{DynamicResource Theme.Text.Primary}"/>
                 <TextBlock Text="By Purpose:" FontWeight="SemiBold" Margin="0,10,0,5" Foreground="{DynamicResource Theme.Text.Primary}"/>
-                <ItemsControl Name="SubnetsByPurposeList">
+                <ItemsControl Name="SubnetsByPurposeList"
+                              VirtualizingPanel.IsVirtualizing="True"
+                              VirtualizingPanel.VirtualizationMode="Recycling"
+                              ScrollViewer.CanContentScroll="True">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <VirtualizingStackPanel/>
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
                   <ItemsControl.ItemTemplate>
                     <DataTemplate>
                       <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}">

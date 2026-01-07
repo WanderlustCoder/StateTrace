@@ -212,7 +212,11 @@
                       Foreground="{DynamicResource Theme.Text.Primary}"
                       GridLinesVisibility="Horizontal"
                       RowBackground="{DynamicResource Theme.Surface.Primary}"
-                      AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}">
+                      AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
+                      ScrollViewer.IsDeferredScrollingEnabled="True"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling"
+                      EnableRowVirtualization="True">
               <DataGrid.Columns>
                 <DataGridTextColumn Header="Rule" Binding="{Binding RuleID}" Width="70"/>
                 <DataGridTextColumn Header="Name" Binding="{Binding RuleName}" Width="120"/>
@@ -298,7 +302,15 @@
                 <TextBlock Text="Template Library" FontWeight="Bold" FontSize="14" Foreground="{DynamicResource Theme.Text.Primary}"/>
                 <TextBlock Name="TotalTemplatesText" Text="Total Templates: 0" Margin="0,10,0,0" Foreground="{DynamicResource Theme.Text.Primary}"/>
                 <TextBlock Text="By Vendor:" FontWeight="SemiBold" Margin="0,10,0,5" Foreground="{DynamicResource Theme.Text.Primary}"/>
-                <ItemsControl Name="TemplatesByVendorList">
+                <ItemsControl Name="TemplatesByVendorList"
+                              VirtualizingPanel.IsVirtualizing="True"
+                              VirtualizingPanel.VirtualizationMode="Recycling"
+                              ScrollViewer.CanContentScroll="True">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <VirtualizingStackPanel/>
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
                   <ItemsControl.ItemTemplate>
                     <DataTemplate>
                       <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}">
@@ -309,7 +321,15 @@
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
                 <TextBlock Text="By Device Type:" FontWeight="SemiBold" Margin="0,10,0,5" Foreground="{DynamicResource Theme.Text.Primary}"/>
-                <ItemsControl Name="TemplatesByTypeList">
+                <ItemsControl Name="TemplatesByTypeList"
+                              VirtualizingPanel.IsVirtualizing="True"
+                              VirtualizingPanel.VirtualizationMode="Recycling"
+                              ScrollViewer.CanContentScroll="True">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <VirtualizingStackPanel/>
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
                   <ItemsControl.ItemTemplate>
                     <DataTemplate>
                       <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}">
@@ -329,7 +349,15 @@
                 <TextBlock Name="TotalStandardsText" Text="Total Standards: 0" Margin="0,10,0,0" Foreground="{DynamicResource Theme.Text.Primary}"/>
                 <TextBlock Name="TotalRulesText" Text="Total Rules: 0" Foreground="{DynamicResource Theme.Text.Primary}"/>
                 <TextBlock Text="Standards:" FontWeight="SemiBold" Margin="0,10,0,5" Foreground="{DynamicResource Theme.Text.Primary}"/>
-                <ItemsControl Name="StandardsListStats">
+                <ItemsControl Name="StandardsListStats"
+                              VirtualizingPanel.IsVirtualizing="True"
+                              VirtualizingPanel.VirtualizationMode="Recycling"
+                              ScrollViewer.CanContentScroll="True">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <VirtualizingStackPanel/>
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
                   <ItemsControl.ItemTemplate>
                     <DataTemplate>
                       <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}">

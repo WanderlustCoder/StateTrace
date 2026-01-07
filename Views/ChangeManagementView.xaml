@@ -109,7 +109,11 @@
                     GridLinesVisibility="Horizontal"
                     HeadersVisibility="Column"
                     CanUserSortColumns="True"
-                    Style="{DynamicResource DataGridStyle}">
+                    Style="{DynamicResource DataGridStyle}"
+                    ScrollViewer.IsDeferredScrollingEnabled="True"
+                    VirtualizingPanel.IsVirtualizing="True"
+                    VirtualizingPanel.VirtualizationMode="Recycling"
+                    EnableRowVirtualization="True">
             <DataGrid.Columns>
               <DataGridTextColumn Header="Change ID" Binding="{Binding ChangeID}" Width="130"/>
               <DataGridTextColumn Header="Title" Binding="{Binding Title}" Width="*" MinWidth="200"/>
@@ -217,7 +221,11 @@
                       SelectionMode="Single"
                       SelectionUnit="FullRow"
                       GridLinesVisibility="Horizontal"
-                      Style="{DynamicResource DataGridStyle}">
+                      Style="{DynamicResource DataGridStyle}"
+                      ScrollViewer.IsDeferredScrollingEnabled="True"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling"
+                      EnableRowVirtualization="True">
               <DataGrid.Columns>
                 <DataGridTextColumn Header="Title" Binding="{Binding Title}" Width="*" MinWidth="150"/>
                 <DataGridTextColumn Header="Start" Binding="{Binding StartTime, StringFormat={}{0:yyyy-MM-dd HH:mm}}" Width="130"/>
@@ -339,7 +347,11 @@
                     SelectionMode="Single"
                     SelectionUnit="FullRow"
                     GridLinesVisibility="Horizontal"
-                    Style="{DynamicResource DataGridStyle}">
+                    Style="{DynamicResource DataGridStyle}"
+                    ScrollViewer.IsDeferredScrollingEnabled="True"
+                    VirtualizingPanel.IsVirtualizing="True"
+                    VirtualizingPanel.VirtualizationMode="Recycling"
+                    EnableRowVirtualization="True">
             <DataGrid.Columns>
               <DataGridTextColumn Header="Timestamp" Binding="{Binding Timestamp, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}" Width="150"/>
               <DataGridTextColumn Header="Change ID" Binding="{Binding ChangeID}" Width="130"/>
