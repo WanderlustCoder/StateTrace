@@ -3236,9 +3236,46 @@ if ($hostnameDropdown -and -not $script:HostnameHandlerAttached) {
                 $script:StateTraceSettings['LastHostname'] = $sel
                 Save-StateTraceSettings -Settings $script:StateTraceSettings
             } catch { }
+            # Add to recent devices list
+            try {
+                if (-not $script:RecentDevices) { $script:RecentDevices = @() }
+                # Remove if already in list, then add to front
+                $script:RecentDevices = @($sel) + @($script:RecentDevices | Where-Object { $_ -ne $sel }) | Select-Object -First 10
+                # Update the dropdown
+                $recentDD = $window.FindName('RecentDevicesDropdown')
+                if ($recentDD) {
+                    $recentDD.Items.Clear()
+                    foreach ($device in $script:RecentDevices) {
+                        [void]$recentDD.Items.Add($device)
+                    }
+                }
+            } catch { }
         }
     })
     $script:HostnameHandlerAttached = $true
+}
+
+# Wire up Recent Devices dropdown to allow jumping to a device
+$recentDevicesDropdown = $window.FindName('RecentDevicesDropdown')
+if ($recentDevicesDropdown -and -not $script:RecentDevicesHandlerAttached) {
+    $recentDevicesDropdown.Add_SelectionChanged({
+        param($sender,$e)
+        $sel = [string]$sender.SelectedItem
+        if ($sel -and -not $global:ProgrammaticHostnameUpdate) {
+            # Set the hostname dropdown to this device
+            $hostDD = $window.FindName('HostnameDropdown')
+            if ($hostDD) {
+                $global:ProgrammaticHostnameUpdate = $true
+                try {
+                    $hostDD.SelectedItem = $sel
+                } finally {
+                    $global:ProgrammaticHostnameUpdate = $false
+                }
+                Get-HostnameChanged -Hostname $sel
+            }
+        }
+    })
+    $script:RecentDevicesHandlerAttached = $true
 }
 
 # === END Main window control hooks (MainWindow.ps1) ===

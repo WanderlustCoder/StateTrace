@@ -1315,6 +1315,12 @@ function Set-InterfaceViewData {
             $grid.ItemsSource = $itemsSource
             try { $global:interfacesGrid = $grid } catch {}
             try { $global:CurrentInterfaceCollection = $itemsSource } catch { $global:CurrentInterfaceCollection = $null }
+
+            # Update last updated timestamp
+            $lastUpdatedText = $interfacesView.FindName('InterfacesLastUpdatedText')
+            if ($lastUpdatedText) {
+                $lastUpdatedText.Text = "Updated: $(Get-Date -Format 'h:mm tt')"
+            }
         }
     } catch {}
 
