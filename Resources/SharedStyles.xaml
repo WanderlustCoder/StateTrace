@@ -754,4 +754,93 @@
     <Setter Property="Foreground" Value="{DynamicResource Theme.Icon.Accent}"/>
     <Setter Property="Background" Value="{DynamicResource Theme.Surface.Primary}"/>
   </Style>
+
+  <!-- =============================================================================
+       Accessibility Styles - ST-AJ-003/ST-AJ-005
+       ============================================================================= -->
+
+  <!-- High-visibility focus visual for keyboard navigation (WCAG 2.4.7) -->
+  <Style x:Key="AccessibleFocusVisual">
+    <Setter Property="Control.Template">
+      <Setter.Value>
+        <ControlTemplate>
+          <Rectangle Margin="-2" StrokeThickness="2"
+                     Stroke="{DynamicResource Theme.Icon.Accent}"
+                     StrokeDashArray="1 2"
+                     SnapsToDevicePixels="True"
+                     RadiusX="2" RadiusY="2"/>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Solid focus visual for high contrast themes -->
+  <Style x:Key="HighContrastFocusVisual">
+    <Setter Property="Control.Template">
+      <Setter.Value>
+        <ControlTemplate>
+          <Rectangle Margin="-3" StrokeThickness="3"
+                     Stroke="{DynamicResource Theme.Icon.Accent}"
+                     SnapsToDevicePixels="True"
+                     RadiusX="3" RadiusY="3"/>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Button with accessible focus indicator -->
+  <Style x:Key="AccessibleButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+    <Setter Property="FocusVisualStyle" Value="{StaticResource AccessibleFocusVisual}"/>
+    <Setter Property="Focusable" Value="True"/>
+    <Setter Property="IsTabStop" Value="True"/>
+  </Style>
+
+  <!-- ComboBox with accessible focus indicator -->
+  <Style x:Key="AccessibleComboBoxStyle" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
+    <Setter Property="FocusVisualStyle" Value="{StaticResource AccessibleFocusVisual}"/>
+    <Setter Property="Focusable" Value="True"/>
+    <Setter Property="IsTabStop" Value="True"/>
+  </Style>
+
+  <!-- CheckBox with accessible focus indicator -->
+  <Style x:Key="AccessibleCheckBoxStyle" TargetType="CheckBox" BasedOn="{StaticResource {x:Type CheckBox}}">
+    <Setter Property="FocusVisualStyle" Value="{StaticResource AccessibleFocusVisual}"/>
+    <Setter Property="Focusable" Value="True"/>
+    <Setter Property="IsTabStop" Value="True"/>
+  </Style>
+
+  <!-- TextBox with accessible focus indicator -->
+  <Style x:Key="AccessibleTextBoxStyle" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+    <Setter Property="FocusVisualStyle" Value="{StaticResource AccessibleFocusVisual}"/>
+    <Setter Property="Focusable" Value="True"/>
+    <Setter Property="IsTabStop" Value="True"/>
+  </Style>
+
+  <!-- Skip link style for screen reader navigation -->
+  <Style x:Key="SkipLinkStyle" TargetType="Button">
+    <Setter Property="Background" Value="{DynamicResource Theme.Button.Primary.Background}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Theme.Button.Primary.Text}"/>
+    <Setter Property="Padding" Value="10,5"/>
+    <Setter Property="Margin" Value="5"/>
+    <Setter Property="Visibility" Value="Collapsed"/>
+    <Setter Property="FocusVisualStyle" Value="{StaticResource AccessibleFocusVisual}"/>
+    <Style.Triggers>
+      <Trigger Property="IsFocused" Value="True">
+        <Setter Property="Visibility" Value="Visible"/>
+      </Trigger>
+    </Style.Triggers>
+  </Style>
+
+  <!-- Live region style for dynamic content announcements -->
+  <Style x:Key="LiveRegionStyle" TargetType="TextBlock">
+    <Setter Property="AutomationProperties.LiveSetting" Value="Polite"/>
+    <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
+  </Style>
+
+  <!-- Assertive live region for important announcements -->
+  <Style x:Key="AssertiveLiveRegionStyle" TargetType="TextBlock">
+    <Setter Property="AutomationProperties.LiveSetting" Value="Assertive"/>
+    <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
+  </Style>
+
 </ResourceDictionary>
