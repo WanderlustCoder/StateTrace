@@ -1,0 +1,349 @@
+<UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             AutomationProperties.Name="Compliance Dashboard">
+
+  <Grid Background="{DynamicResource Theme.Surface.Primary}">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <!-- Header -->
+    <Border Grid.Row="0" Background="{DynamicResource Theme.Surface.Secondary}" Padding="10" Margin="5">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Grid.Column="0" Orientation="Horizontal">
+          <TextBlock Text="&#xE9D9;" FontFamily="Segoe MDL2 Assets" FontSize="24" 
+                     Foreground="{DynamicResource Theme.Text.Primary}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+          <TextBlock Text="Compliance Dashboard" FontSize="18" FontWeight="Bold" 
+                     Foreground="{DynamicResource Theme.Text.Primary}" VerticalAlignment="Center"/>
+        </StackPanel>
+
+        <StackPanel Grid.Column="1" Orientation="Horizontal">
+          <ComboBox Name="FrameworkSelector" Width="150" Margin="0,0,10,0" SelectedIndex="0"
+                    AutomationProperties.Name="Select compliance framework">
+            <ComboBoxItem Content="All Frameworks"/>
+            <ComboBoxItem Content="SOX"/>
+            <ComboBoxItem Content="PCI-DSS"/>
+            <ComboBoxItem Content="HIPAA"/>
+            <ComboBoxItem Content="NIST"/>
+            <ComboBoxItem Content="CIS"/>
+          </ComboBox>
+          <Button Name="RunValidationButton" Content="&#xE768; Run Validation" FontFamily="Segoe MDL2 Assets" 
+                  Style="{DynamicResource PrimaryButtonStyle}" Margin="0,0,5,0" 
+                  ToolTip="Run compliance validation" AutomationProperties.Name="Run validation"/>
+          <Button Name="ExportReportButton" Content="&#xE8A5; Export Report" FontFamily="Segoe MDL2 Assets"
+                  Style="{DynamicResource SecondaryButtonStyle}" Margin="0,0,5,0"
+                  ToolTip="Export compliance report" AutomationProperties.Name="Export report"/>
+          <Button Name="ScheduleButton" Content="&#xE823; Schedule" FontFamily="Segoe MDL2 Assets"
+                  Style="{DynamicResource SecondaryButtonStyle}"
+                  ToolTip="Configure scheduled reports" AutomationProperties.Name="Schedule reports"/>
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- Overall Score Card -->
+    <Border Grid.Row="1" Margin="5">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="250"/>
+          <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Main Score -->
+        <Border Grid.Column="0" Name="OverallScoreCard" CornerRadius="10" Margin="0,0,5,0" Padding="20">
+          <Border.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+              <GradientStop Color="#4CAF50" Offset="0"/>
+              <GradientStop Color="#2E7D32" Offset="1"/>
+            </LinearGradientBrush>
+          </Border.Background>
+          <StackPanel HorizontalAlignment="Center">
+            <TextBlock Name="OverallScoreValue" Text="--" FontSize="56" FontWeight="Bold" 
+                       Foreground="White" HorizontalAlignment="Center"/>
+            <TextBlock Text="Overall Score" FontSize="14" Foreground="White" Opacity="0.9" 
+                       HorizontalAlignment="Center"/>
+            <TextBlock Name="OverallStatusText" Text="Not Validated" FontSize="12" Foreground="White" 
+                       Opacity="0.8" HorizontalAlignment="Center" Margin="0,5,0,0"/>
+          </StackPanel>
+        </Border>
+
+        <!-- Framework Score Cards -->
+        <ScrollViewer Grid.Column="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+          <StackPanel Name="FrameworkCardsPanel" Orientation="Horizontal">
+            <!-- SOX -->
+            <Border Name="SOXCard" Background="#1976D2" CornerRadius="8" Margin="5" Padding="15" MinWidth="120" Cursor="Hand">
+              <StackPanel>
+                <TextBlock Text="SOX" FontSize="12" FontWeight="Bold" Foreground="White" Opacity="0.8"/>
+                <TextBlock Name="SOXScore" Text="--" FontSize="32" FontWeight="Bold" Foreground="White"/>
+                <TextBlock Name="SOXStatus" Text="--" FontSize="10" Foreground="White" Opacity="0.7"/>
+              </StackPanel>
+            </Border>
+            <!-- PCI-DSS -->
+            <Border Name="PCIDSSCard" Background="#7B1FA2" CornerRadius="8" Margin="5" Padding="15" MinWidth="120" Cursor="Hand">
+              <StackPanel>
+                <TextBlock Text="PCI-DSS" FontSize="12" FontWeight="Bold" Foreground="White" Opacity="0.8"/>
+                <TextBlock Name="PCIDSSScore" Text="--" FontSize="32" FontWeight="Bold" Foreground="White"/>
+                <TextBlock Name="PCIDSSStatus" Text="--" FontSize="10" Foreground="White" Opacity="0.7"/>
+              </StackPanel>
+            </Border>
+            <!-- HIPAA -->
+            <Border Name="HIPAACard" Background="#00796B" CornerRadius="8" Margin="5" Padding="15" MinWidth="120" Cursor="Hand">
+              <StackPanel>
+                <TextBlock Text="HIPAA" FontSize="12" FontWeight="Bold" Foreground="White" Opacity="0.8"/>
+                <TextBlock Name="HIPAAScore" Text="--" FontSize="32" FontWeight="Bold" Foreground="White"/>
+                <TextBlock Name="HIPAAStatus" Text="--" FontSize="10" Foreground="White" Opacity="0.7"/>
+              </StackPanel>
+            </Border>
+            <!-- NIST -->
+            <Border Name="NISTCard" Background="#F57C00" CornerRadius="8" Margin="5" Padding="15" MinWidth="120" Cursor="Hand">
+              <StackPanel>
+                <TextBlock Text="NIST" FontSize="12" FontWeight="Bold" Foreground="White" Opacity="0.8"/>
+                <TextBlock Name="NISTScore" Text="--" FontSize="32" FontWeight="Bold" Foreground="White"/>
+                <TextBlock Name="NISTStatus" Text="--" FontSize="10" Foreground="White" Opacity="0.7"/>
+              </StackPanel>
+            </Border>
+            <!-- CIS -->
+            <Border Name="CISCard" Background="#455A64" CornerRadius="8" Margin="5" Padding="15" MinWidth="120" Cursor="Hand">
+              <StackPanel>
+                <TextBlock Text="CIS" FontSize="12" FontWeight="Bold" Foreground="White" Opacity="0.8"/>
+                <TextBlock Name="CISScore" Text="--" FontSize="32" FontWeight="Bold" Foreground="White"/>
+                <TextBlock Name="CISStatus" Text="--" FontSize="10" Foreground="White" Opacity="0.7"/>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+      </Grid>
+    </Border>
+
+    <!-- Main Content -->
+    <TabControl Grid.Row="2" Margin="5" Style="{DynamicResource PrimaryTabControlStyle}">
+      <!-- Controls Tab -->
+      <TabItem Header="Control Details" AutomationProperties.Name="Control details tab">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+
+          <!-- Filter Bar -->
+          <Border Grid.Row="0" Background="{DynamicResource Theme.Surface.Secondary}" Padding="5" Margin="0,0,0,5">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="Status:" VerticalAlignment="Center" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,5,0"/>
+              <ComboBox Name="StatusFilter" Width="120" Margin="0,0,10,0" SelectedIndex="0">
+                <ComboBoxItem Content="All"/>
+                <ComboBoxItem Content="Pass"/>
+                <ComboBoxItem Content="Warning"/>
+                <ComboBoxItem Content="Fail"/>
+              </ComboBox>
+              <TextBlock Text="Category:" VerticalAlignment="Center" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,5,0"/>
+              <ComboBox Name="CategoryFilter" Width="150" Margin="0,0,10,0" SelectedIndex="0">
+                <ComboBoxItem Content="All Categories"/>
+              </ComboBox>
+              <TextBox Name="ControlSearch" Width="200" Text="" ToolTip="Search controls..."
+                       AutomationProperties.Name="Search controls"/>
+            </StackPanel>
+          </Border>
+
+          <!-- Controls Grid -->
+          <DataGrid Name="ControlsGrid" Grid.Row="1" AutoGenerateColumns="False" 
+                    CanUserAddRows="False" IsReadOnly="True" SelectionMode="Single"
+                    Style="{DynamicResource PrimaryDataGridStyle}"
+                    VirtualizingPanel.IsVirtualizing="True">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Framework" Binding="{Binding Framework}" Width="80"/>
+              <DataGridTextColumn Header="Control ID" Binding="{Binding Id}" Width="130"/>
+              <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="200"/>
+              <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="150"/>
+              <DataGridTextColumn Header="Score" Binding="{Binding Score, StringFormat='{}{0}%'}" Width="70"/>
+              <DataGridTemplateColumn Header="Status" Width="80" SortMemberPath="Status">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate>
+                    <Border CornerRadius="3" Padding="5,2" HorizontalAlignment="Center">
+                      <Border.Style>
+                        <Style TargetType="Border">
+                          <Style.Triggers>
+                            <DataTrigger Binding="{Binding Status}" Value="Pass">
+                              <Setter Property="Background" Value="#4CAF50"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Status}" Value="Warning">
+                              <Setter Property="Background" Value="#FF9800"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Status}" Value="Fail">
+                              <Setter Property="Background" Value="#F44336"/>
+                            </DataTrigger>
+                          </Style.Triggers>
+                        </Style>
+                      </Border.Style>
+                      <TextBlock Text="{Binding Status}" Foreground="White" FontWeight="Bold" FontSize="10"/>
+                    </Border>
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
+              <DataGridTextColumn Header="Weight" Binding="{Binding Weight}" Width="60"/>
+            </DataGrid.Columns>
+          </DataGrid>
+        </Grid>
+      </TabItem>
+
+      <!-- Findings Tab -->
+      <TabItem Header="Findings" AutomationProperties.Name="Findings tab">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+
+          <Border Grid.Row="0" Background="{DynamicResource Theme.Surface.Secondary}" Padding="5" Margin="0,0,0,5">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="Show:" VerticalAlignment="Center" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,5,0"/>
+              <ComboBox Name="FindingsSeverity" Width="150" SelectedIndex="0">
+                <ComboBoxItem Content="All Findings"/>
+                <ComboBoxItem Content="Critical Only"/>
+                <ComboBoxItem Content="Warnings &amp; Critical"/>
+              </ComboBox>
+              <CheckBox Name="ShowRemediation" Content="Show Remediation" Margin="15,0,0,0" 
+                        Foreground="{DynamicResource Theme.Text.Primary}" VerticalAlignment="Center"/>
+            </StackPanel>
+          </Border>
+
+          <DataGrid Name="FindingsGrid" Grid.Row="1" AutoGenerateColumns="False" 
+                    CanUserAddRows="False" IsReadOnly="True"
+                    Style="{DynamicResource PrimaryDataGridStyle}">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Framework" Binding="{Binding Framework}" Width="80"/>
+              <DataGridTextColumn Header="Control" Binding="{Binding ControlId}" Width="120"/>
+              <DataGridTextColumn Header="Finding" Binding="{Binding Finding}" Width="*"/>
+              <DataGridTextColumn Header="Remediation" Binding="{Binding Remediation}" Width="300"/>
+            </DataGrid.Columns>
+          </DataGrid>
+        </Grid>
+      </TabItem>
+
+      <!-- Audit Trail Tab -->
+      <TabItem Header="Audit Trail" AutomationProperties.Name="Audit trail tab">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+
+          <Border Grid.Row="0" Background="{DynamicResource Theme.Surface.Secondary}" Padding="5" Margin="0,0,0,5">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="Date Range:" VerticalAlignment="Center" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,5,0"/>
+              <ComboBox Name="AuditDateRange" Width="120" SelectedIndex="1">
+                <ComboBoxItem Content="Today"/>
+                <ComboBoxItem Content="Last 7 Days"/>
+                <ComboBoxItem Content="Last 30 Days"/>
+                <ComboBoxItem Content="Last 90 Days"/>
+              </ComboBox>
+              <TextBlock Text="Event Type:" VerticalAlignment="Center" Foreground="{DynamicResource Theme.Text.Primary}" Margin="15,0,5,0"/>
+              <ComboBox Name="AuditEventType" Width="130" SelectedIndex="0">
+                <ComboBoxItem Content="All Types"/>
+                <ComboBoxItem Content="ConfigChange"/>
+                <ComboBoxItem Content="ComplianceCheck"/>
+                <ComboBoxItem Content="AccessAttempt"/>
+                <ComboBoxItem Content="DataExport"/>
+              </ComboBox>
+              <Button Name="ExportAuditButton" Content="Export" Style="{DynamicResource SecondaryButtonStyle}" Margin="15,0,0,0"/>
+            </StackPanel>
+          </Border>
+
+          <DataGrid Name="AuditGrid" Grid.Row="1" AutoGenerateColumns="False" 
+                    CanUserAddRows="False" IsReadOnly="True"
+                    Style="{DynamicResource PrimaryDataGridStyle}"
+                    VirtualizingPanel.IsVirtualizing="True">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Timestamp" Binding="{Binding TimestampLocal}" Width="140"/>
+              <DataGridTextColumn Header="Event Type" Binding="{Binding EventType}" Width="110"/>
+              <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="90"/>
+              <DataGridTextColumn Header="Action" Binding="{Binding Action}" Width="80"/>
+              <DataGridTextColumn Header="Target" Binding="{Binding Target}" Width="150"/>
+              <DataGridTextColumn Header="Result" Binding="{Binding Result}" Width="70"/>
+              <DataGridTextColumn Header="User" Binding="{Binding User}" Width="120"/>
+              <DataGridTextColumn Header="Details" Binding="{Binding Details}" Width="*"/>
+            </DataGrid.Columns>
+          </DataGrid>
+        </Grid>
+      </TabItem>
+
+      <!-- Reports Tab -->
+      <TabItem Header="Reports" AutomationProperties.Name="Reports tab">
+        <Grid>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="300"/>
+            <ColumnDefinition Width="*"/>
+          </Grid.ColumnDefinitions>
+
+          <!-- Report List -->
+          <Border Grid.Column="0" Background="{DynamicResource Theme.Surface.Secondary}" Margin="0,0,5,0" Padding="10">
+            <Grid>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+              </Grid.RowDefinitions>
+
+              <TextBlock Grid.Row="0" Text="Saved Reports" FontWeight="Bold" 
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
+
+              <ListBox Name="ReportsList" Grid.Row="1" Background="Transparent"
+                       BorderThickness="0" Style="{DynamicResource PrimaryListBoxStyle}">
+              </ListBox>
+            </Grid>
+          </Border>
+
+          <!-- Report Preview -->
+          <Border Grid.Column="1" Background="{DynamicResource Theme.Surface.Secondary}" Padding="10">
+            <Grid>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+              </Grid.RowDefinitions>
+
+              <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+                <TextBlock Text="Report Preview" FontWeight="Bold" 
+                           Foreground="{DynamicResource Theme.Text.Primary}" VerticalAlignment="Center"/>
+                <Button Name="OpenReportButton" Content="Open" Style="{DynamicResource SecondaryButtonStyle}" Margin="15,0,5,0"/>
+                <Button Name="DeleteReportButton" Content="Delete" Style="{DynamicResource SecondaryButtonStyle}"/>
+              </StackPanel>
+
+              <WebBrowser Name="ReportPreview" Grid.Row="1"/>
+            </Grid>
+          </Border>
+        </Grid>
+      </TabItem>
+    </TabControl>
+
+    <!-- Status Bar -->
+    <Border Grid.Row="3" Background="{DynamicResource Theme.Surface.Secondary}" Padding="5">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Grid.Column="0" Orientation="Horizontal">
+          <TextBlock Name="StatusText" Text="Ready" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+        </StackPanel>
+
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="0,0,20,0">
+          <TextBlock Text="Devices: " Foreground="{DynamicResource Theme.Text.Secondary}"/>
+          <TextBlock Name="DeviceCountText" Text="0" Foreground="{DynamicResource Theme.Text.Primary}"/>
+        </StackPanel>
+
+        <StackPanel Grid.Column="2" Orientation="Horizontal">
+          <TextBlock Text="Last Validation: " Foreground="{DynamicResource Theme.Text.Secondary}"/>
+          <TextBlock Name="LastValidationText" Text="Never" Foreground="{DynamicResource Theme.Text.Primary}"/>
+        </StackPanel>
+      </Grid>
+    </Border>
+
+  </Grid>
+</UserControl>
