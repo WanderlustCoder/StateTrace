@@ -1301,7 +1301,54 @@ function Remove-SelectedReport {
 
 #endregion
 
+function Initialize-CapacityPlanningView {
+    <#
+    .SYNOPSIS
+        Initializes the Capacity Planning view into a Host ContentControl.
+        Used for nested tab scenarios where the view is loaded into a container.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [System.Windows.Controls.ContentControl]$Host
+    )
+
+    try {
+        $viewPath = Join-Path $PSScriptRoot '..\Views\CapacityPlanningView.xaml'
+        if (-not (Test-Path $viewPath)) {
+            Write-Warning "CapacityPlanningView.xaml not found at $viewPath"
+            return
+        }
+
+        $xamlContent = Get-Content -Path $viewPath -Raw
+        $xamlContent = $xamlContent -replace 'x:Class="[^"]*"', ''
+        $xamlContent = $xamlContent -replace 'mc:Ignorable="d"', ''
+
+        $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
+        $script:CapacityView = [System.Windows.Markup.XamlReader]::Load($reader)
+        $Host.Content = $script:CapacityView
+
+        # Get control references and wire up event handlers
+        Get-CapacityPlanningControls
+        Register-CapacityPlanningEvents
+
+        # Initialize data
+        Update-CapacityPlanningDashboard
+        Update-SiteUtilizationGrid
+        Update-AlertsGrid
+        Update-ThresholdsGrid
+        Update-ForecastScopeCombo
+        Update-ReportsGrid
+
+        return $script:CapacityView
+    }
+    catch {
+        Write-Warning "Failed to initialize CapacityPlanning view: $($_.Exception.Message)"
+    }
+}
+
 # Export public functions
 Export-ModuleMember -Function @(
     'New-CapacityPlanningView'
+    'Initialize-CapacityPlanningView'
 )

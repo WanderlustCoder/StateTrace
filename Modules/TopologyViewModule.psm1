@@ -885,7 +885,48 @@ function Set-Status {
 
 #endregion
 
+function Initialize-TopologyView {
+    <#
+    .SYNOPSIS
+        Initializes the Topology view for nested tab container use.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [System.Windows.Controls.ContentControl]$Host
+    )
+
+    try {
+        $viewPath = Join-Path $PSScriptRoot '..\Views\TopologyView.xaml'
+        if (-not (Test-Path $viewPath)) {
+            Write-Warning "TopologyView.xaml not found at: $viewPath"
+            return
+        }
+
+        $xamlContent = Get-Content -Path $viewPath -Raw
+        $xamlContent = $xamlContent -replace 'x:Class="[^"]*"', ''
+        $xamlContent = $xamlContent -replace 'mc:Ignorable="d"', ''
+
+        $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
+        $view = [System.Windows.Markup.XamlReader]::Load($reader)
+        $Host.Content = $view
+
+        $script:TopologyView = $view
+        Get-TopologyControls
+        Register-TopologyEventHandlers
+        Update-TopologyStatistics
+        Update-ImpactDeviceCombo
+        Update-SavedLayoutsList
+
+        return $view
+    }
+    catch {
+        Write-Warning "Failed to initialize Topology view: $($_.Exception.Message)"
+    }
+}
+
 # Export module members
 Export-ModuleMember -Function @(
-    'New-TopologyView'
+    'New-TopologyView',
+    'Initialize-TopologyView'
 )

@@ -1052,4 +1052,238 @@ function New-DecisionTreeView {
     }
 }
 
-Export-ModuleMember -Function New-DecisionTreeView
+function Initialize-DecisionTreeView {
+    <#
+    .SYNOPSIS
+        Initializes the Decision Tree view for nested tab container use.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [System.Windows.Controls.ContentControl]$Host
+    )
+
+    try {
+        $viewPath = Join-Path $PSScriptRoot '..\Views\DecisionTreeView.xaml'
+        if (-not (Test-Path $viewPath)) {
+            Write-Warning "DecisionTreeView.xaml not found at: $viewPath"
+            return
+        }
+
+        $xamlContent = Get-Content -Path $viewPath -Raw
+        $xamlContent = $xamlContent -replace 'x:Class="[^"]*"', ''
+        $xamlContent = $xamlContent -replace 'mc:Ignorable="d"', ''
+
+        $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
+        $view = [System.Windows.Markup.XamlReader]::Load($reader)
+        $Host.Content = $view
+
+        # Initialize controls and event handlers
+        Initialize-DecisionTreeControls -View $view
+
+        return $view
+    }
+    catch {
+        Write-Warning "Failed to initialize DecisionTree view: $($_.Exception.Message)"
+    }
+}
+
+function Initialize-DecisionTreeControls {
+    <#
+    .SYNOPSIS
+        Wires up controls and event handlers for the Decision Tree view.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        $View
+    )
+
+    # Get controls
+    $categoryDropdown = $View.FindName('CategoryDropdown')
+    $treeListBox = $View.FindName('TreeListBox')
+    $startTreeButton = $View.FindName('StartTreeButton')
+    $deviceContextBox = $View.FindName('DeviceContextBox')
+    $interfaceContextBox = $View.FindName('InterfaceContextBox')
+    $restartButton = $View.FindName('RestartButton')
+    $backButton = $View.FindName('BackButton')
+    $progressPanel = $View.FindName('ProgressPanel')
+    $executionProgress = $View.FindName('ExecutionProgress')
+    $progressText = $View.FindName('ProgressText')
+    $pathBreadcrumb = $View.FindName('PathBreadcrumb')
+    $stepPanel = $View.FindName('StepPanel')
+    $stepTitle = $View.FindName('StepTitle')
+    $stepContent = $View.FindName('StepContent')
+    $answerPanel = $View.FindName('AnswerPanel')
+    $inputPanel = $View.FindName('InputPanel')
+    $inputValueBox = $View.FindName('InputValueBox')
+    $submitInputButton = $View.FindName('SubmitInputButton')
+    $continueButton = $View.FindName('ContinueButton')
+    $resultPanel = $View.FindName('ResultPanel')
+    $resultTitle = $View.FindName('ResultTitle')
+    $resultContent = $View.FindName('ResultContent')
+    $copyResultButton = $View.FindName('CopyResultButton')
+    $startNewButton = $View.FindName('StartNewButton')
+    $welcomePanel = $View.FindName('WelcomePanel')
+    $notesGroup = $View.FindName('NotesGroup')
+    $notesBox = $View.FindName('NotesBox')
+
+    # Store state in view's Tag
+    $View.Tag = @{ SelectedTree = $null; CurrentExecution = $null; AllTrees = @() }
+
+    # Helper to load trees
+    $updateTreeList = {
+        param([string]$Category = 'All Categories')
+        $trees = @(DecisionTreeModule\Get-BuiltInTree -List)
+        $View.Tag.AllTrees = $trees
+        if ($Category -ne 'All Categories') { $trees = @($trees | Where-Object { $_.Category -eq $Category }) }
+        if ($treeListBox) { $treeListBox.ItemsSource = $trees; if ($trees.Count -gt 0) { $treeListBox.SelectedIndex = 0 } }
+    }
+
+    # Helper to show panel
+    $showPanel = {
+        param([string]$PanelName)
+        if ($welcomePanel) { $welcomePanel.Visibility = 'Collapsed' }
+        if ($stepPanel) { $stepPanel.Visibility = 'Collapsed' }
+        if ($resultPanel) { $resultPanel.Visibility = 'Collapsed' }
+        if ($progressPanel) { $progressPanel.Visibility = 'Collapsed' }
+        if ($notesGroup) { $notesGroup.Visibility = 'Collapsed' }
+        switch ($PanelName) {
+            'Welcome' { if ($welcomePanel) { $welcomePanel.Visibility = 'Visible' } }
+            'Step' { if ($stepPanel) { $stepPanel.Visibility = 'Visible' }; if ($progressPanel) { $progressPanel.Visibility = 'Visible' }; if ($notesGroup) { $notesGroup.Visibility = 'Visible' }; if ($restartButton) { $restartButton.Visibility = 'Visible' }; if ($backButton) { $backButton.Visibility = 'Visible' } }
+            'Result' { if ($resultPanel) { $resultPanel.Visibility = 'Visible' }; if ($progressPanel) { $progressPanel.Visibility = 'Visible' }; if ($restartButton) { $restartButton.Visibility = 'Visible' }; if ($backButton) { $backButton.Visibility = 'Collapsed' } }
+        }
+    }
+
+    # Helper to update step display
+    $updateStepDisplay = {
+        $exec = $View.Tag.CurrentExecution
+        if (-not $exec) { return }
+        $node = $exec.CurrentNode
+        if ($stepTitle) { $stepTitle.Text = $node.Title }
+        if ($stepContent) { $stepContent.Text = if ($node.Content) { $node.Content } else { '' } }
+        $totalNodes = $exec.Tree.Nodes.Count
+        $stepsCompleted = $exec.Steps.Count - 1
+        $progress = [math]::Min(100, [math]::Round(($stepsCompleted / [math]::Max(1, $totalNodes)) * 100))
+        if ($executionProgress) { $executionProgress.Value = $progress }
+        if ($progressText) { $progressText.Text = "Step $($exec.Steps.Count) of ~$totalNodes" }
+        $pathParts = @($exec.Steps | ForEach-Object { $stepNode = $exec.Tree.Nodes | Where-Object { $_.Id -eq $_.NodeId }; if ($stepNode) { $stepNode.Title } })
+        if ($pathBreadcrumb) { $pathBreadcrumb.Text = $pathParts -join ' > ' }
+        if ($answerPanel) { $answerPanel.Children.Clear() }
+        if ($inputPanel) { $inputPanel.Visibility = 'Collapsed' }
+        if ($continueButton) { $continueButton.Visibility = 'Collapsed' }
+        switch ($node.Type) {
+            'decision' {
+                foreach ($branch in $node.Branches) {
+                    $btn = New-Object System.Windows.Controls.Button
+                    $btn.Content = $branch.Answer
+                    $btn.Margin = [System.Windows.Thickness]::new(0, 5, 0, 5)
+                    $btn.Padding = [System.Windows.Thickness]::new(15, 10, 15, 10)
+                    $answerValue = $branch.Answer
+                    $btn.Add_Click({ param($s,$e); try { $exec = $View.Tag.CurrentExecution; $exec = DecisionTreeModule\Submit-TreeAnswer -Execution $exec -Answer $answerValue; $View.Tag.CurrentExecution = $exec; if ($exec.IsComplete) { & $showResultPanel } else { & $updateStepDisplay } } catch { Write-Warning "Error: $_" } }.GetNewClosure())
+                    if ($answerPanel) { $answerPanel.Children.Add($btn) | Out-Null }
+                }
+            }
+            'input' { if ($inputPanel) { $inputPanel.Visibility = 'Visible' }; if ($inputValueBox) { $inputValueBox.Text = ''; $inputValueBox.Focus() | Out-Null } }
+            'action' { if ($continueButton) { $continueButton.Visibility = 'Visible' } }
+            'check' { if ($continueButton) { $continueButton.Visibility = 'Visible' } }
+            'result' { & $showResultPanel }
+        }
+    }
+
+    # Helper to show result panel
+    $showResultPanel = {
+        $exec = $View.Tag.CurrentExecution
+        if (-not $exec) { return }
+        & $showPanel 'Result'
+        $node = $exec.CurrentNode
+        if ($resultTitle) { $resultTitle.Text = $node.Title }
+        $summary = [System.Text.StringBuilder]::new()
+        if ($node.Content) { [void]$summary.AppendLine($node.Content); [void]$summary.AppendLine() }
+        [void]$summary.AppendLine("--- Troubleshooting Path ---")
+        $stepNum = 1
+        foreach ($step in $exec.Steps) { $stepNode = $exec.Tree.Nodes | Where-Object { $_.Id -eq $step.NodeId }; if ($stepNode) { $line = "$stepNum. $($stepNode.Title)"; if ($step.Answer) { $line += " -> $($step.Answer)" }; [void]$summary.AppendLine($line); $stepNum++ } }
+        [void]$summary.AppendLine(); [void]$summary.AppendLine("Duration: $([math]::Round($exec.Duration.TotalSeconds, 1)) seconds"); [void]$summary.AppendLine("Outcome: $($exec.Outcome)")
+        if ($resultContent) { $resultContent.Text = $summary.ToString() }
+        if ($executionProgress) { $executionProgress.Value = 100 }
+        if ($progressText) { $progressText.Text = "Complete" }
+    }
+
+    # Event handlers
+    if ($categoryDropdown) { $categoryDropdown.Add_SelectionChanged({ param($s,$e); $sel = $s.SelectedItem; if ($sel) { & $updateTreeList $sel.Content } }.GetNewClosure()) }
+    if ($treeListBox) { $treeListBox.Add_SelectionChanged({ param($s,$e); $sel = $s.SelectedItem; if ($sel) { $View.Tag.SelectedTree = $sel.Name } }.GetNewClosure()) }
+
+    if ($startTreeButton) {
+        $startTreeButton.Add_Click({
+            param($s,$e)
+            $treeName = $View.Tag.SelectedTree
+            if (-not $treeName) { return }
+            try {
+                $tree = DecisionTreeModule\Get-BuiltInTree -Name $treeName
+                if (-not $tree) { return }
+                $deviceId = if ($deviceContextBox) { $deviceContextBox.Text } else { '' }
+                $interfaceName = if ($interfaceContextBox) { $interfaceContextBox.Text } else { '' }
+                $exec = DecisionTreeModule\Start-TreeExecution -Tree $tree -DeviceID $deviceId -InterfaceName $interfaceName
+                $View.Tag.CurrentExecution = $exec
+                if ($notesBox) { $notesBox.Text = '' }
+                & $showPanel 'Step'
+                & $updateStepDisplay
+            } catch { Write-Warning "Error starting tree: $_" }
+        }.GetNewClosure())
+    }
+
+    if ($submitInputButton) {
+        $submitInputButton.Add_Click({
+            param($s,$e)
+            $value = if ($inputValueBox) { $inputValueBox.Text } else { '' }
+            if ([string]::IsNullOrWhiteSpace($value)) { return }
+            try { $exec = $View.Tag.CurrentExecution; $exec = DecisionTreeModule\Submit-TreeInput -Execution $exec -Value $value; $View.Tag.CurrentExecution = $exec; if ($exec.IsComplete) { & $showResultPanel } else { & $updateStepDisplay } } catch { Write-Warning "Error: $_" }
+        }.GetNewClosure())
+    }
+
+    if ($inputValueBox) { $inputValueBox.Add_KeyDown({ param($s,$e); if ($e.Key -eq 'Return' -and $submitInputButton) { $submitInputButton.RaiseEvent((New-Object System.Windows.RoutedEventArgs([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent))) } }.GetNewClosure()) }
+
+    if ($continueButton) {
+        $continueButton.Add_Click({
+            param($s,$e)
+            try { $exec = $View.Tag.CurrentExecution; $notes = if ($notesBox) { $notesBox.Text } else { '' }; $exec = DecisionTreeModule\Continue-TreeExecution -Execution $exec -Notes $notes; $View.Tag.CurrentExecution = $exec; if ($exec.IsComplete) { & $showResultPanel } else { & $updateStepDisplay } } catch { Write-Warning "Error: $_" }
+        }.GetNewClosure())
+    }
+
+    if ($backButton) {
+        $backButton.Add_Click({
+            param($s,$e)
+            try { $exec = $View.Tag.CurrentExecution; if ($exec -and $exec.Steps.Count -gt 1) { $exec = DecisionTreeModule\Undo-TreeStep -Execution $exec; $View.Tag.CurrentExecution = $exec; & $updateStepDisplay } } catch { Write-Warning "Error: $_" }
+        }.GetNewClosure())
+    }
+
+    if ($restartButton) {
+        $restartButton.Add_Click({
+            param($s,$e)
+            $treeName = $View.Tag.SelectedTree
+            if (-not $treeName) { & $showPanel 'Welcome'; $View.Tag.CurrentExecution = $null; if ($restartButton) { $restartButton.Visibility = 'Collapsed' }; if ($backButton) { $backButton.Visibility = 'Collapsed' }; return }
+            try { $tree = DecisionTreeModule\Get-BuiltInTree -Name $treeName; if (-not $tree) { & $showPanel 'Welcome'; return }; $deviceId = if ($deviceContextBox) { $deviceContextBox.Text } else { '' }; $interfaceName = if ($interfaceContextBox) { $interfaceContextBox.Text } else { '' }; $exec = DecisionTreeModule\Start-TreeExecution -Tree $tree -DeviceID $deviceId -InterfaceName $interfaceName; $View.Tag.CurrentExecution = $exec; if ($notesBox) { $notesBox.Text = '' }; & $showPanel 'Step'; & $updateStepDisplay } catch { Write-Warning "Error: $_" }
+        }.GetNewClosure())
+    }
+
+    if ($copyResultButton) { $copyResultButton.Add_Click({ param($s,$e); $text = if ($resultContent) { $resultContent.Text } else { '' }; if (-not [string]::IsNullOrWhiteSpace($text)) { [System.Windows.Clipboard]::SetText($text) } }.GetNewClosure()) }
+
+    if ($startNewButton) {
+        $startNewButton.Add_Click({
+            param($s,$e)
+            & $showPanel 'Welcome'
+            $View.Tag.CurrentExecution = $null
+            if ($restartButton) { $restartButton.Visibility = 'Collapsed' }
+            if ($backButton) { $backButton.Visibility = 'Collapsed' }
+            if ($notesBox) { $notesBox.Text = '' }
+        }.GetNewClosure())
+    }
+
+    # Initialize view
+    & $updateTreeList 'All Categories'
+    & $showPanel 'Welcome'
+    if ($restartButton) { $restartButton.Visibility = 'Collapsed' }
+    if ($backButton) { $backButton.Visibility = 'Collapsed' }
+}
+
+Export-ModuleMember -Function New-DecisionTreeView, Initialize-DecisionTreeView

@@ -1218,4 +1218,358 @@ function New-IPAMView {
     }
 }
 
-Export-ModuleMember -Function New-IPAMView
+function Initialize-IPAMView {
+    <#
+    .SYNOPSIS
+        Initializes the IPAM view for nested tab container use.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [System.Windows.Controls.ContentControl]$Host
+    )
+
+    try {
+        $viewPath = Join-Path $PSScriptRoot '..\Views\IPAMView.xaml'
+        if (-not (Test-Path $viewPath)) {
+            Write-Warning "IPAMView.xaml not found at: $viewPath"
+            return
+        }
+
+        $xamlContent = Get-Content -Path $viewPath -Raw
+        $xamlContent = $xamlContent -replace 'x:Class="[^"]*"', ''
+        $xamlContent = $xamlContent -replace 'mc:Ignorable="d"', ''
+
+        $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
+        $view = [System.Windows.Markup.XamlReader]::Load($reader)
+        $Host.Content = $view
+
+        # Initialize controls and event handlers
+        Initialize-IPAMControls -View $view
+
+        return $view
+    }
+    catch {
+        Write-Warning "Failed to initialize IPAM view: $($_.Exception.Message)"
+    }
+}
+
+function Initialize-IPAMControls {
+    <#
+    .SYNOPSIS
+        Wires up controls and event handlers for the IPAM view.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        $View
+    )
+
+    # Get all controls
+    $addVlanButton = $View.FindName('AddVlanButton')
+    $addSubnetButton = $View.FindName('AddSubnetButton')
+    $addIPButton = $View.FindName('AddIPButton')
+    $importButton = $View.FindName('ImportButton')
+    $exportButton = $View.FindName('ExportButton')
+    $checkConflictsButton = $View.FindName('CheckConflictsButton')
+    $planSiteButton = $View.FindName('PlanSiteButton')
+    $siteFilterCombo = $View.FindName('SiteFilterCombo')
+    $mainTabControl = $View.FindName('MainTabControl')
+    $vlanGrid = $View.FindName('VlanGrid')
+    $subnetGrid = $View.FindName('SubnetGrid')
+    $ipGrid = $View.FindName('IPGrid')
+    $statusText = $View.FindName('StatusText')
+    $wizardPanel = $View.FindName('WizardPanel')
+
+    # VLAN controls
+    $vlanNumberBox = $View.FindName('VlanNumberBox')
+    $vlanNameBox = $View.FindName('VlanNameBox')
+    $vlanPurposeCombo = $View.FindName('VlanPurposeCombo')
+    $vlanSiteBox = $View.FindName('VlanSiteBox')
+    $vlanStatusCombo = $View.FindName('VlanStatusCombo')
+    $vlanSVIBox = $View.FindName('VlanSVIBox')
+    $vlanDescriptionBox = $View.FindName('VlanDescriptionBox')
+    $saveVlanButton = $View.FindName('SaveVlanButton')
+    $deleteVlanButton = $View.FindName('DeleteVlanButton')
+
+    # Subnet controls
+    $subnetAddressBox = $View.FindName('SubnetAddressBox')
+    $subnetPrefixBox = $View.FindName('SubnetPrefixBox')
+    $subnetVlanBox = $View.FindName('SubnetVlanBox')
+    $subnetSiteBox = $View.FindName('SubnetSiteBox')
+    $subnetPurposeCombo = $View.FindName('SubnetPurposeCombo')
+    $subnetGatewayBox = $View.FindName('SubnetGatewayBox')
+    $subnetStatusCombo = $View.FindName('SubnetStatusCombo')
+    $subnetMaskText = $View.FindName('SubnetMaskText')
+    $subnetRangeText = $View.FindName('SubnetRangeText')
+    $subnetHostsText = $View.FindName('SubnetHostsText')
+    $saveSubnetButton = $View.FindName('SaveSubnetButton')
+    $deleteSubnetButton = $View.FindName('DeleteSubnetButton')
+
+    # IP controls
+    $ipAddressBox = $View.FindName('IPAddressBox')
+    $ipDeviceBox = $View.FindName('IPDeviceBox')
+    $ipInterfaceBox = $View.FindName('IPInterfaceBox')
+    $ipTypeCombo = $View.FindName('IPTypeCombo')
+    $ipDescriptionBox = $View.FindName('IPDescriptionBox')
+    $saveIPButton = $View.FindName('SaveIPButton')
+    $deleteIPButton = $View.FindName('DeleteIPButton')
+
+    # Stats controls
+    $totalVlansText = $View.FindName('TotalVlansText')
+    $totalSubnetsText = $View.FindName('TotalSubnetsText')
+    $totalHostsText = $View.FindName('TotalHostsText')
+    $totalIPsText = $View.FindName('TotalIPsText')
+    $sitesListText = $View.FindName('SitesListText')
+
+    # Conflicts controls
+    $refreshConflictsButton = $View.FindName('RefreshConflictsButton')
+    $conflictSummaryText = $View.FindName('ConflictSummaryText')
+    $conflictsGrid = $View.FindName('ConflictsGrid')
+
+    # Initialize database
+    $scriptDir = Split-Path $PSScriptRoot -Parent
+    $dataPath = Join-Path $scriptDir 'Data\IPAMDatabase.json'
+    $ipamDb = IPAMModule\New-IPAMDatabase
+
+    if (Test-Path $dataPath) {
+        try {
+            IPAMModule\Import-IPAMDatabase -Path $dataPath -Database $ipamDb | Out-Null
+            if ($statusText) { $statusText.Text = "Loaded database from $dataPath" }
+        } catch {
+            if ($statusText) { $statusText.Text = "Error loading database: $($_.Exception.Message)" }
+        }
+    }
+
+    # Store state in view's Tag
+    $View.Tag = @{
+        Database = $ipamDb
+        DataPath = $dataPath
+        IsNewVlan = $false
+        IsNewSubnet = $false
+        IsNewIP = $false
+        SelectedVlan = $null
+        SelectedSubnet = $null
+        SelectedIP = $null
+    }
+
+    # Helper scriptblocks
+    $getComboValue = { param($Combo); if ($Combo.SelectedItem) { return $Combo.SelectedItem.Content }; return $null }
+    $selectComboItem = { param($Combo, $Value); foreach ($item in $Combo.Items) { if ($item.Content -eq $Value) { $Combo.SelectedItem = $item; return } } }
+
+    $saveDatabase = {
+        $dataPath = $View.Tag.DataPath
+        $db = $View.Tag.Database
+        try {
+            $dataDir = Split-Path $dataPath -Parent
+            if (-not (Test-Path $dataDir)) { New-Item -ItemType Directory -Path $dataDir -Force | Out-Null }
+            IPAMModule\Export-IPAMDatabase -Path $dataPath -Database $db
+            if ($statusText) { $statusText.Text = "Saved to $dataPath" }
+        } catch { if ($statusText) { $statusText.Text = "Error saving: $($_.Exception.Message)" } }
+    }
+
+    $getSiteFilter = { $sel = $siteFilterCombo.SelectedItem; if ($sel -and $sel -ne '(All Sites)') { return $sel }; return $null }
+
+    $refreshStats = {
+        $db = $View.Tag.Database
+        $stats = IPAMModule\Get-IPAMStats -Database $db
+        if ($totalVlansText) { $totalVlansText.Text = "Total VLANs: $($stats.TotalVLANs)" }
+        if ($totalSubnetsText) { $totalSubnetsText.Text = "Total Subnets: $($stats.TotalSubnets)" }
+        if ($totalHostsText) { $totalHostsText.Text = "Total Allocated Hosts: $($stats.TotalAllocatedHosts)" }
+        if ($totalIPsText) { $totalIPsText.Text = "Total IP Records: $($stats.TotalIPAddresses)" }
+        $sites = @($stats.Sites)
+        if ($sitesListText) { $sitesListText.Text = if ($sites.Count -gt 0) { "Sites: $($sites -join ', ')" } else { "Sites: (none)" } }
+    }
+
+    $refreshSiteFilter = {
+        $db = $View.Tag.Database
+        $stats = IPAMModule\Get-IPAMStats -Database $db
+        $sites = @('(All Sites)') + @($stats.Sites | Where-Object { $_ })
+        if ($siteFilterCombo) { $siteFilterCombo.ItemsSource = $sites; if ($siteFilterCombo.SelectedIndex -lt 0) { $siteFilterCombo.SelectedIndex = 0 } }
+    }
+
+    $refreshVlanGrid = { $db = $View.Tag.Database; $site = & $getSiteFilter; $vlans = @(IPAMModule\Get-VLANRecord -Database $db -Site $site); if ($vlanGrid) { $vlanGrid.ItemsSource = $vlans } }
+    $refreshSubnetGrid = { $db = $View.Tag.Database; $site = & $getSiteFilter; $subnets = @(IPAMModule\Get-SubnetRecord -Database $db -Site $site); if ($subnetGrid) { $subnetGrid.ItemsSource = $subnets } }
+    $refreshIPGrid = { $db = $View.Tag.Database; $ips = @(IPAMModule\Get-IPAddressRecord -Database $db); if ($ipGrid) { $ipGrid.ItemsSource = $ips } }
+    $refreshAll = { & $refreshSiteFilter; & $refreshVlanGrid; & $refreshSubnetGrid; & $refreshIPGrid; & $refreshStats }
+
+    $clearVlanDetails = { if ($vlanNumberBox) { $vlanNumberBox.Text = '' }; if ($vlanNameBox) { $vlanNameBox.Text = '' }; if ($vlanSiteBox) { $vlanSiteBox.Text = '' }; if ($vlanSVIBox) { $vlanSVIBox.Text = '' }; if ($vlanDescriptionBox) { $vlanDescriptionBox.Text = '' }; $View.Tag.SelectedVlan = $null; $View.Tag.IsNewVlan = $true }
+    $clearSubnetDetails = { if ($subnetAddressBox) { $subnetAddressBox.Text = '' }; if ($subnetPrefixBox) { $subnetPrefixBox.Text = '24' }; if ($subnetVlanBox) { $subnetVlanBox.Text = '' }; if ($subnetSiteBox) { $subnetSiteBox.Text = '' }; if ($subnetGatewayBox) { $subnetGatewayBox.Text = '' }; $View.Tag.SelectedSubnet = $null; $View.Tag.IsNewSubnet = $true }
+    $clearIPDetails = { if ($ipAddressBox) { $ipAddressBox.Text = '' }; if ($ipDeviceBox) { $ipDeviceBox.Text = '' }; if ($ipInterfaceBox) { $ipInterfaceBox.Text = '' }; if ($ipDescriptionBox) { $ipDescriptionBox.Text = '' }; $View.Tag.SelectedIP = $null; $View.Tag.IsNewIP = $true }
+
+    # Event handlers
+    if ($addVlanButton) { $addVlanButton.Add_Click({ & $clearVlanDetails; if ($mainTabControl) { $mainTabControl.SelectedIndex = 0 }; if ($statusText) { $statusText.Text = "New VLAN - fill in details and click Save" } }.GetNewClosure()) }
+    if ($addSubnetButton) { $addSubnetButton.Add_Click({ & $clearSubnetDetails; if ($mainTabControl) { $mainTabControl.SelectedIndex = 1 }; if ($statusText) { $statusText.Text = "New Subnet - fill in details and click Save" } }.GetNewClosure()) }
+    if ($addIPButton) { $addIPButton.Add_Click({ & $clearIPDetails; if ($mainTabControl) { $mainTabControl.SelectedIndex = 2 }; if ($statusText) { $statusText.Text = "New IP - fill in details and click Save" } }.GetNewClosure()) }
+
+    if ($vlanGrid) { $vlanGrid.Add_SelectionChanged({ param($s,$e); $sel = $s.SelectedItem; if ($sel) { $View.Tag.SelectedVlan = $sel; $View.Tag.IsNewVlan = $false; if ($vlanNumberBox) { $vlanNumberBox.Text = $sel.VlanNumber }; if ($vlanNameBox) { $vlanNameBox.Text = $sel.VlanName }; if ($vlanSiteBox) { $vlanSiteBox.Text = $sel.Site }; if ($vlanSVIBox) { $vlanSVIBox.Text = $sel.SVIAddress }; if ($vlanDescriptionBox) { $vlanDescriptionBox.Text = $sel.Description } } }.GetNewClosure()) }
+    if ($subnetGrid) { $subnetGrid.Add_SelectionChanged({ param($s,$e); $sel = $s.SelectedItem; if ($sel) { $View.Tag.SelectedSubnet = $sel; $View.Tag.IsNewSubnet = $false; if ($subnetAddressBox) { $subnetAddressBox.Text = $sel.NetworkAddress }; if ($subnetPrefixBox) { $subnetPrefixBox.Text = $sel.PrefixLength }; if ($subnetVlanBox) { $subnetVlanBox.Text = $sel.VlanNumber }; if ($subnetSiteBox) { $subnetSiteBox.Text = $sel.Site }; if ($subnetGatewayBox) { $subnetGatewayBox.Text = $sel.GatewayAddress } } }.GetNewClosure()) }
+    if ($ipGrid) { $ipGrid.Add_SelectionChanged({ param($s,$e); $sel = $s.SelectedItem; if ($sel) { $View.Tag.SelectedIP = $sel; $View.Tag.IsNewIP = $false; if ($ipAddressBox) { $ipAddressBox.Text = $sel.IPAddress }; if ($ipDeviceBox) { $ipDeviceBox.Text = $sel.DeviceName }; if ($ipInterfaceBox) { $ipInterfaceBox.Text = $sel.InterfaceName }; if ($ipDescriptionBox) { $ipDescriptionBox.Text = $sel.Description } } }.GetNewClosure()) }
+
+    if ($saveVlanButton) {
+        $saveVlanButton.Add_Click({
+            $db = $View.Tag.Database
+            if ([string]::IsNullOrWhiteSpace($vlanNumberBox.Text) -or [string]::IsNullOrWhiteSpace($vlanNameBox.Text)) { if ($statusText) { $statusText.Text = 'Enter VLAN number and name' }; return }
+            try {
+                $vlanNum = [int]$vlanNumberBox.Text
+                $purpose = & $getComboValue $vlanPurposeCombo
+                $status = & $getComboValue $vlanStatusCombo
+                if ($View.Tag.IsNewVlan) {
+                    $params = @{ VlanNumber = $vlanNum; VlanName = $vlanNameBox.Text; Purpose = $purpose; Status = $status }
+                    if ($vlanSiteBox.Text) { $params['Site'] = $vlanSiteBox.Text }
+                    if ($vlanSVIBox.Text) { $params['SVIAddress'] = $vlanSVIBox.Text }
+                    if ($vlanDescriptionBox.Text) { $params['Description'] = $vlanDescriptionBox.Text }
+                    $vlan = IPAMModule\New-VLAN @params
+                    IPAMModule\Add-VLAN -VLAN $vlan -Database $db | Out-Null
+                    if ($statusText) { $statusText.Text = "Created VLAN $vlanNum" }
+                } else {
+                    $props = @{ VlanNumber = $vlanNum; VlanName = $vlanNameBox.Text; Purpose = $purpose; Site = $vlanSiteBox.Text; Status = $status; SVIAddress = $vlanSVIBox.Text; Description = $vlanDescriptionBox.Text }
+                    IPAMModule\Update-VLAN -VlanID $View.Tag.SelectedVlan.VlanID -Properties $props -Database $db | Out-Null
+                    if ($statusText) { $statusText.Text = "Updated VLAN $vlanNum" }
+                }
+                & $saveDatabase; & $refreshAll
+            } catch { if ($statusText) { $statusText.Text = "Error: $($_.Exception.Message)" } }
+        }.GetNewClosure())
+    }
+
+    if ($deleteVlanButton) {
+        $deleteVlanButton.Add_Click({
+            $vlan = $View.Tag.SelectedVlan
+            if (-not $vlan) { if ($statusText) { $statusText.Text = 'Select a VLAN to delete' }; return }
+            $result = [System.Windows.MessageBox]::Show("Delete VLAN $($vlan.VlanNumber)?", "Confirm Delete", 'YesNo', 'Warning')
+            if ($result -eq 'Yes') { $db = $View.Tag.Database; IPAMModule\Remove-VLAN -VlanID $vlan.VlanID -Database $db | Out-Null; & $clearVlanDetails; if ($statusText) { $statusText.Text = "Deleted VLAN $($vlan.VlanNumber)" }; & $saveDatabase; & $refreshAll }
+        }.GetNewClosure())
+    }
+
+    if ($saveSubnetButton) {
+        $saveSubnetButton.Add_Click({
+            $db = $View.Tag.Database
+            if ([string]::IsNullOrWhiteSpace($subnetAddressBox.Text) -or [string]::IsNullOrWhiteSpace($subnetPrefixBox.Text)) { if ($statusText) { $statusText.Text = 'Enter network address and prefix' }; return }
+            try {
+                $prefix = [int]$subnetPrefixBox.Text
+                $purpose = & $getComboValue $subnetPurposeCombo
+                $status = & $getComboValue $subnetStatusCombo
+                if ($View.Tag.IsNewSubnet) {
+                    $params = @{ NetworkAddress = $subnetAddressBox.Text; PrefixLength = $prefix; Purpose = $purpose; Status = $status }
+                    if ($subnetVlanBox.Text) { $params['VlanNumber'] = [int]$subnetVlanBox.Text }
+                    if ($subnetSiteBox.Text) { $params['Site'] = $subnetSiteBox.Text }
+                    if ($subnetGatewayBox.Text) { $params['GatewayAddress'] = $subnetGatewayBox.Text }
+                    $subnet = IPAMModule\New-Subnet @params
+                    IPAMModule\Add-Subnet -Subnet $subnet -Database $db | Out-Null
+                    if ($statusText) { $statusText.Text = "Created subnet $($subnetAddressBox.Text)/$prefix" }
+                } else {
+                    $oldSubnet = $View.Tag.SelectedSubnet
+                    IPAMModule\Remove-Subnet -SubnetID $oldSubnet.SubnetID -Database $db | Out-Null
+                    $params = @{ NetworkAddress = $subnetAddressBox.Text; PrefixLength = $prefix; Purpose = $purpose; Status = $status }
+                    if ($subnetVlanBox.Text) { $params['VlanNumber'] = [int]$subnetVlanBox.Text }
+                    if ($subnetSiteBox.Text) { $params['Site'] = $subnetSiteBox.Text }
+                    if ($subnetGatewayBox.Text) { $params['GatewayAddress'] = $subnetGatewayBox.Text }
+                    $subnet = IPAMModule\New-Subnet @params
+                    IPAMModule\Add-Subnet -Subnet $subnet -Database $db | Out-Null
+                    if ($statusText) { $statusText.Text = "Updated subnet $($subnetAddressBox.Text)/$prefix" }
+                }
+                & $saveDatabase; & $refreshAll
+            } catch { if ($statusText) { $statusText.Text = "Error: $($_.Exception.Message)" } }
+        }.GetNewClosure())
+    }
+
+    if ($deleteSubnetButton) {
+        $deleteSubnetButton.Add_Click({
+            $subnet = $View.Tag.SelectedSubnet
+            if (-not $subnet) { if ($statusText) { $statusText.Text = 'Select a subnet to delete' }; return }
+            $result = [System.Windows.MessageBox]::Show("Delete subnet $($subnet.NetworkAddress)/$($subnet.PrefixLength)?", "Confirm Delete", 'YesNo', 'Warning')
+            if ($result -eq 'Yes') { $db = $View.Tag.Database; IPAMModule\Remove-Subnet -SubnetID $subnet.SubnetID -Database $db | Out-Null; & $clearSubnetDetails; if ($statusText) { $statusText.Text = "Deleted subnet" }; & $saveDatabase; & $refreshAll }
+        }.GetNewClosure())
+    }
+
+    if ($saveIPButton) {
+        $saveIPButton.Add_Click({
+            $db = $View.Tag.Database
+            if ([string]::IsNullOrWhiteSpace($ipAddressBox.Text)) { if ($statusText) { $statusText.Text = 'Enter an IP address' }; return }
+            try {
+                $addressType = & $getComboValue $ipTypeCombo
+                if ($View.Tag.IsNewIP) {
+                    $params = @{ IPAddress = $ipAddressBox.Text; AddressType = $addressType }
+                    if ($ipDeviceBox.Text) { $params['DeviceName'] = $ipDeviceBox.Text }
+                    if ($ipInterfaceBox.Text) { $params['InterfaceName'] = $ipInterfaceBox.Text }
+                    if ($ipDescriptionBox.Text) { $params['Description'] = $ipDescriptionBox.Text }
+                    $ip = IPAMModule\New-IPAddressRecord @params
+                    IPAMModule\Add-IPAddressRecord -IPRecord $ip -Database $db | Out-Null
+                    if ($statusText) { $statusText.Text = "Created IP record $($ipAddressBox.Text)" }
+                } else {
+                    $oldIP = $View.Tag.SelectedIP
+                    IPAMModule\Remove-IPAddressRecord -AddressID $oldIP.AddressID -Database $db | Out-Null
+                    $params = @{ IPAddress = $ipAddressBox.Text; AddressType = $addressType }
+                    if ($ipDeviceBox.Text) { $params['DeviceName'] = $ipDeviceBox.Text }
+                    if ($ipInterfaceBox.Text) { $params['InterfaceName'] = $ipInterfaceBox.Text }
+                    if ($ipDescriptionBox.Text) { $params['Description'] = $ipDescriptionBox.Text }
+                    $ip = IPAMModule\New-IPAddressRecord @params
+                    IPAMModule\Add-IPAddressRecord -IPRecord $ip -Database $db | Out-Null
+                    if ($statusText) { $statusText.Text = "Updated IP record $($ipAddressBox.Text)" }
+                }
+                & $saveDatabase; & $refreshAll
+            } catch { if ($statusText) { $statusText.Text = "Error: $($_.Exception.Message)" } }
+        }.GetNewClosure())
+    }
+
+    if ($deleteIPButton) {
+        $deleteIPButton.Add_Click({
+            $ip = $View.Tag.SelectedIP
+            if (-not $ip) { if ($statusText) { $statusText.Text = 'Select an IP to delete' }; return }
+            $result = [System.Windows.MessageBox]::Show("Delete IP record $($ip.IPAddress)?", "Confirm Delete", 'YesNo', 'Warning')
+            if ($result -eq 'Yes') { $db = $View.Tag.Database; IPAMModule\Remove-IPAddressRecord -AddressID $ip.AddressID -Database $db | Out-Null; & $clearIPDetails; if ($statusText) { $statusText.Text = "Deleted IP record" }; & $saveDatabase; & $refreshAll }
+        }.GetNewClosure())
+    }
+
+    if ($siteFilterCombo) { $siteFilterCombo.Add_SelectionChanged({ & $refreshVlanGrid; & $refreshSubnetGrid }.GetNewClosure()) }
+
+    if ($checkConflictsButton) {
+        $checkConflictsButton.Add_Click({
+            $db = $View.Tag.Database
+            $conflicts = @(IPAMModule\Find-IPAMConflicts -Database $db)
+            if ($conflictsGrid) { $conflictsGrid.ItemsSource = $conflicts }
+            $critical = @($conflicts | Where-Object { $_.Severity -eq 'Critical' }).Count
+            $warning = @($conflicts | Where-Object { $_.Severity -eq 'Warning' }).Count
+            if ($conflictSummaryText) { $conflictSummaryText.Text = "Found $($conflicts.Count) conflicts ($critical critical, $warning warnings)" }
+            if ($mainTabControl) { $mainTabControl.SelectedIndex = 3 }
+        }.GetNewClosure())
+    }
+
+    if ($importButton) {
+        $importButton.Add_Click({
+            try {
+                $dialog = New-Object Microsoft.Win32.OpenFileDialog
+                $dialog.Title = 'Import IPAM Database'
+                $dialog.Filter = 'JSON files (*.json)|*.json'
+                if ($dialog.ShowDialog() -eq $true) {
+                    $db = $View.Tag.Database
+                    $result = IPAMModule\Import-IPAMDatabase -Path $dialog.FileName -Database $db -Merge
+                    if ($statusText) { $statusText.Text = "Imported $($result.VLANsImported) VLANs, $($result.SubnetsImported) subnets" }
+                    & $saveDatabase; & $refreshAll
+                }
+            } catch { if ($statusText) { $statusText.Text = "Import error: $($_.Exception.Message)" } }
+        }.GetNewClosure())
+    }
+
+    if ($exportButton) {
+        $exportButton.Add_Click({
+            try {
+                $dialog = New-Object Microsoft.Win32.SaveFileDialog
+                $dialog.Title = 'Export IPAM Database'
+                $dialog.Filter = 'JSON files (*.json)|*.json'
+                $dialog.DefaultExt = '.json'
+                if ($dialog.ShowDialog() -eq $true) {
+                    $db = $View.Tag.Database
+                    IPAMModule\Export-IPAMDatabase -Path $dialog.FileName -Database $db
+                    if ($statusText) { $statusText.Text = "Exported database to $($dialog.FileName)" }
+                }
+            } catch { if ($statusText) { $statusText.Text = "Export error: $($_.Exception.Message)" } }
+        }.GetNewClosure())
+    }
+
+    # Initial load
+    & $refreshAll
+    if ($statusText) { $statusText.Text = 'Ready' }
+}
+
+Export-ModuleMember -Function New-IPAMView, Initialize-IPAMView

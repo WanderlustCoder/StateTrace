@@ -928,6 +928,45 @@ function Export-WarrantyReportToFile {
     }
 }
 
+function Initialize-InventoryView {
+    <#
+    .SYNOPSIS
+        Initializes the Inventory view into a Host ContentControl.
+        Used for nested tab scenarios where the view is loaded into a container.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [System.Windows.Controls.ContentControl]$Host
+    )
+
+    try {
+        $viewPath = Join-Path $PSScriptRoot '..\Views\InventoryView.xaml'
+        if (-not (Test-Path $viewPath)) {
+            Write-Warning "InventoryView.xaml not found at $viewPath"
+            return
+        }
+
+        $xamlContent = Get-Content -Path $viewPath -Raw
+        $xamlContent = $xamlContent -replace 'x:Class="[^"]*"', ''
+        $xamlContent = $xamlContent -replace 'mc:Ignorable="d"', ''
+
+        $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
+        $view = [System.Windows.Markup.XamlReader]::Load($reader)
+        $Host.Content = $view
+
+        # Initialize controls and wire up event handlers
+        Initialize-InventoryControls -View $view
+        Register-InventoryEventHandlers -View $view
+        Update-InventoryView -View $view
+
+        return $view
+    }
+    catch {
+        Write-Warning "Failed to initialize Inventory view: $($_.Exception.Message)"
+    }
+}
+
 # Export functions
 Export-ModuleMember -Function @(
     'New-InventoryView'
@@ -937,4 +976,5 @@ Export-ModuleMember -Function @(
     'Update-WarrantyAlerts'
     'Update-FirmwareTab'
     'Update-LifecycleTab'
+    'Initialize-InventoryView'
 )

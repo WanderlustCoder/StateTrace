@@ -662,4 +662,441 @@ function New-CableDocumentationView {
     }
 }
 
-Export-ModuleMember -Function New-CableDocumentationView
+function Initialize-CableDocumentationView {
+    <#
+    .SYNOPSIS
+        Initializes the Cable Documentation view for nested tab container use.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [System.Windows.Controls.ContentControl]$Host
+    )
+
+    try {
+        $viewPath = Join-Path $PSScriptRoot '..\Views\CableDocumentationView.xaml'
+        if (-not (Test-Path $viewPath)) {
+            Write-Warning "CableDocumentationView.xaml not found at: $viewPath"
+            return
+        }
+
+        $xamlContent = Get-Content -Path $viewPath -Raw
+        $xamlContent = $xamlContent -replace 'x:Class="[^"]*"', ''
+        $xamlContent = $xamlContent -replace 'mc:Ignorable="d"', ''
+
+        $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
+        $view = [System.Windows.Markup.XamlReader]::Load($reader)
+        $Host.Content = $view
+
+        # Initialize the view with event handlers
+        Initialize-CableDocumentationControls -View $view
+
+        return $view
+    }
+    catch {
+        Write-Warning "Failed to initialize CableDocumentation view: $($_.Exception.Message)"
+    }
+}
+
+function Initialize-CableDocumentationControls {
+    <#
+    .SYNOPSIS
+        Wires up controls and event handlers for the Cable Documentation view.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        $View
+    )
+
+    # Get controls from the view
+    $addCableButton = $View.FindName('AddCableButton')
+    $addPanelButton = $View.FindName('AddPanelButton')
+    $importButton = $View.FindName('ImportButton')
+    $exportButton = $View.FindName('ExportButton')
+    $importCsvButton = $View.FindName('ImportCsvButton')
+    $generateLabelsButton = $View.FindName('GenerateLabelsButton')
+    $filterBox = $View.FindName('FilterBox')
+    $clearFilterButton = $View.FindName('ClearFilterButton')
+
+    $cableListBox = $View.FindName('CableListBox')
+    $panelListBox = $View.FindName('PanelListBox')
+    $cableCountLabel = $View.FindName('CableCountLabel')
+    $panelCountLabel = $View.FindName('PanelCountLabel')
+
+    $detailsTitleLabel = $View.FindName('DetailsTitleLabel')
+    $detailsTabControl = $View.FindName('DetailsTabControl')
+    $cableDetailsTab = $View.FindName('CableDetailsTab')
+    $panelDetailsTab = $View.FindName('PanelDetailsTab')
+    $cableDetailsGrid = $View.FindName('CableDetailsGrid')
+    $panelDetailsGrid = $View.FindName('PanelDetailsGrid')
+
+    # Cable detail controls
+    $cableIdBox = $View.FindName('CableIdBox')
+    $sourceTypeCombo = $View.FindName('SourceTypeCombo')
+    $sourceDeviceBox = $View.FindName('SourceDeviceBox')
+    $sourcePortBox = $View.FindName('SourcePortBox')
+    $destTypeCombo = $View.FindName('DestTypeCombo')
+    $destDeviceBox = $View.FindName('DestDeviceBox')
+    $destPortBox = $View.FindName('DestPortBox')
+    $cableTypeCombo = $View.FindName('CableTypeCombo')
+    $lengthBox = $View.FindName('LengthBox')
+    $colorBox = $View.FindName('ColorBox')
+    $statusCombo = $View.FindName('StatusCombo')
+    $notesBox = $View.FindName('NotesBox')
+    $saveCableButton = $View.FindName('SaveCableButton')
+    $deleteCableButton = $View.FindName('DeleteCableButton')
+    $cableLabelButton = $View.FindName('CableLabelButton')
+    $cableCreatedText = $View.FindName('CableCreatedText')
+    $cableModifiedText = $View.FindName('CableModifiedText')
+
+    # Panel detail controls
+    $panelIdBox = $View.FindName('PanelIdBox')
+    $panelNameBox = $View.FindName('PanelNameBox')
+    $panelLocationBox = $View.FindName('PanelLocationBox')
+    $panelRackIdBox = $View.FindName('PanelRackIdBox')
+    $panelRackUBox = $View.FindName('PanelRackUBox')
+    $panelPortCountText = $View.FindName('PanelPortCountText')
+    $savePanelButton = $View.FindName('SavePanelButton')
+    $deletePanelButton = $View.FindName('DeletePanelButton')
+    $panelLabelsButton = $View.FindName('PanelLabelsButton')
+    $portGrid = $View.FindName('PortGrid')
+    $portUtilizationLabel = $View.FindName('PortUtilizationLabel')
+
+    # Stats controls
+    $totalCablesText = $View.FindName('TotalCablesText')
+    $activeCablesText = $View.FindName('ActiveCablesText')
+    $reservedCablesText = $View.FindName('ReservedCablesText')
+    $faultyCablesText = $View.FindName('FaultyCablesText')
+    $plannedCablesText = $View.FindName('PlannedCablesText')
+    $totalPanelsText = $View.FindName('TotalPanelsText')
+    $totalPortsText = $View.FindName('TotalPortsText')
+    $usedPortsText = $View.FindName('UsedPortsText')
+    $availablePortsText = $View.FindName('AvailablePortsText')
+    $cableTypesItemsControl = $View.FindName('CableTypesItemsControl')
+
+    $statusText = $View.FindName('StatusText')
+
+    # Initialize database
+    $scriptDir = Split-Path $PSScriptRoot -Parent
+    $dataPath = Join-Path $scriptDir 'Data\CableDatabase.json'
+    $cableDb = CableDocumentationModule\New-CableDatabase
+
+    if (Test-Path $dataPath) {
+        try {
+            CableDocumentationModule\Import-CableDatabase -Path $dataPath -Database $cableDb | Out-Null
+            if ($statusText) { $statusText.Text = "Loaded database from $dataPath" }
+        } catch {
+            if ($statusText) { $statusText.Text = "Error loading database: $($_.Exception.Message)" }
+        }
+    }
+
+    # Store state in view's Tag
+    $View.Tag = @{
+        Database = $cableDb
+        DataPath = $dataPath
+        IsNewCable = $false
+        IsNewPanel = $false
+        SelectedCable = $null
+        SelectedPanel = $null
+    }
+
+    # Helper functions as scriptblocks
+    $selectComboItem = {
+        param($Combo, $Value)
+        foreach ($item in $Combo.Items) {
+            if ($item.Content -eq $Value) {
+                $Combo.SelectedItem = $item
+                return
+            }
+        }
+    }
+
+    $getComboValue = {
+        param($Combo)
+        if ($Combo.SelectedItem) { return $Combo.SelectedItem.Content }
+        return $null
+    }
+
+    $updateStats = {
+        $db = $View.Tag.Database
+        $stats = CableDocumentationModule\Get-CableDatabaseStats -Database $db
+        if ($totalCablesText) { $totalCablesText.Text = "Total Cables: $($stats.TotalCables)" }
+        $active = if ($stats.CablesByStatus['Active']) { $stats.CablesByStatus['Active'] } else { 0 }
+        $reserved = if ($stats.CablesByStatus['Reserved']) { $stats.CablesByStatus['Reserved'] } else { 0 }
+        $faulty = if ($stats.CablesByStatus['Faulty']) { $stats.CablesByStatus['Faulty'] } else { 0 }
+        $planned = if ($stats.CablesByStatus['Planned']) { $stats.CablesByStatus['Planned'] } else { 0 }
+        if ($activeCablesText) { $activeCablesText.Text = "Active: $active" }
+        if ($reservedCablesText) { $reservedCablesText.Text = "Reserved: $reserved" }
+        if ($faultyCablesText) { $faultyCablesText.Text = "Faulty: $faulty" }
+        if ($plannedCablesText) { $plannedCablesText.Text = "Planned: $planned" }
+        if ($totalPanelsText) { $totalPanelsText.Text = "Total Panels: $($stats.TotalPatchPanels)" }
+        if ($totalPortsText) { $totalPortsText.Text = "Total Ports: $($stats.TotalPanelPorts)" }
+        if ($usedPortsText) { $usedPortsText.Text = "Used Ports: $($stats.UsedPanelPorts)" }
+        if ($availablePortsText) { $availablePortsText.Text = "Available: $($stats.AvailablePorts)" }
+        $typesList = @()
+        foreach ($key in $stats.CablesByType.Keys) {
+            $typesList += [PSCustomObject]@{ Key = $key; Value = $stats.CablesByType[$key] }
+        }
+        if ($cableTypesItemsControl) { $cableTypesItemsControl.ItemsSource = $typesList }
+    }
+
+    $saveDatabase = {
+        $dataPath = $View.Tag.DataPath
+        $db = $View.Tag.Database
+        try {
+            $dataDir = Split-Path $dataPath -Parent
+            if (-not (Test-Path $dataDir)) { New-Item -ItemType Directory -Path $dataDir -Force | Out-Null }
+            CableDocumentationModule\Export-CableDatabase -Path $dataPath -Database $db
+            if ($statusText) { $statusText.Text = "Saved to $dataPath" }
+        } catch {
+            if ($statusText) { $statusText.Text = "Error saving: $($_.Exception.Message)" }
+        }
+    }
+
+    $refreshLists = {
+        $filter = $filterBox.Text
+        $db = $View.Tag.Database
+        $cables = @(CableDocumentationModule\Get-CableRun -Database $db)
+        $panels = @(CableDocumentationModule\Get-PatchPanel -Database $db)
+        if (-not [string]::IsNullOrWhiteSpace($filter)) {
+            $cables = @($cables | Where-Object {
+                $_.CableID -like "*$filter*" -or $_.SourceDevice -like "*$filter*" -or
+                $_.DestDevice -like "*$filter*" -or $_.Notes -like "*$filter*"
+            })
+            $panels = @($panels | Where-Object {
+                $_.PanelID -like "*$filter*" -or $_.PanelName -like "*$filter*" -or $_.Location -like "*$filter*"
+            })
+        }
+        if ($cableListBox) { $cableListBox.ItemsSource = $cables }
+        if ($panelListBox) { $panelListBox.ItemsSource = $panels }
+        if ($cableCountLabel) { $cableCountLabel.Content = "($($cables.Count))" }
+        if ($panelCountLabel) { $panelCountLabel.Content = "($($panels.Count))" }
+        & $updateStats
+    }
+
+    $showCableDetails = {
+        param($Cable)
+        $View.Tag.SelectedCable = $Cable
+        $View.Tag.IsNewCable = ($Cable -eq $null)
+        if ($cableDetailsGrid) { $cableDetailsGrid.Visibility = 'Visible' }
+        if ($panelDetailsGrid) { $panelDetailsGrid.Visibility = 'Collapsed' }
+        if ($detailsTabControl) { $detailsTabControl.SelectedItem = $cableDetailsTab }
+        if ($Cable) {
+            if ($detailsTitleLabel) { $detailsTitleLabel.Content = "Cable: $($Cable.CableID)" }
+            if ($cableIdBox) { $cableIdBox.Text = $Cable.CableID }
+            & $selectComboItem $sourceTypeCombo $Cable.SourceType
+            if ($sourceDeviceBox) { $sourceDeviceBox.Text = $Cable.SourceDevice }
+            if ($sourcePortBox) { $sourcePortBox.Text = $Cable.SourcePort }
+            & $selectComboItem $destTypeCombo $Cable.DestType
+            if ($destDeviceBox) { $destDeviceBox.Text = $Cable.DestDevice }
+            if ($destPortBox) { $destPortBox.Text = $Cable.DestPort }
+            & $selectComboItem $cableTypeCombo $Cable.CableType
+            if ($lengthBox) { $lengthBox.Text = $Cable.Length }
+            if ($colorBox) { $colorBox.Text = $Cable.Color }
+            & $selectComboItem $statusCombo $Cable.Status
+            if ($notesBox) { $notesBox.Text = $Cable.Notes }
+            if ($Cable.CreatedDate -and $cableCreatedText) { $cableCreatedText.Text = $Cable.CreatedDate.ToString('yyyy-MM-dd HH:mm') }
+            if ($Cable.ModifiedDate -and $cableModifiedText) { $cableModifiedText.Text = $Cable.ModifiedDate.ToString('yyyy-MM-dd HH:mm') }
+        } else {
+            if ($detailsTitleLabel) { $detailsTitleLabel.Content = "New Cable" }
+            if ($cableIdBox) { $cableIdBox.Text = '' }
+            if ($sourceTypeCombo) { $sourceTypeCombo.SelectedIndex = 0 }
+            if ($sourceDeviceBox) { $sourceDeviceBox.Text = '' }
+            if ($sourcePortBox) { $sourcePortBox.Text = '' }
+            if ($destTypeCombo) { $destTypeCombo.SelectedIndex = 0 }
+            if ($destDeviceBox) { $destDeviceBox.Text = '' }
+            if ($destPortBox) { $destPortBox.Text = '' }
+            if ($cableTypeCombo) { $cableTypeCombo.SelectedIndex = 1 }
+            if ($lengthBox) { $lengthBox.Text = '' }
+            if ($colorBox) { $colorBox.Text = '' }
+            if ($statusCombo) { $statusCombo.SelectedIndex = 0 }
+            if ($notesBox) { $notesBox.Text = '' }
+            if ($cableCreatedText) { $cableCreatedText.Text = '' }
+            if ($cableModifiedText) { $cableModifiedText.Text = '' }
+        }
+    }
+
+    $showPanelDetails = {
+        param($Panel)
+        $View.Tag.SelectedPanel = $Panel
+        $View.Tag.IsNewPanel = ($Panel -eq $null)
+        if ($cableDetailsGrid) { $cableDetailsGrid.Visibility = 'Collapsed' }
+        if ($panelDetailsGrid) { $panelDetailsGrid.Visibility = 'Visible' }
+        if ($detailsTabControl) { $detailsTabControl.SelectedItem = $panelDetailsTab }
+        if ($Panel) {
+            if ($detailsTitleLabel) { $detailsTitleLabel.Content = "Panel: $($Panel.PanelName)" }
+            if ($panelIdBox) { $panelIdBox.Text = $Panel.PanelID }
+            if ($panelNameBox) { $panelNameBox.Text = $Panel.PanelName }
+            if ($panelLocationBox) { $panelLocationBox.Text = $Panel.Location }
+            if ($panelRackIdBox) { $panelRackIdBox.Text = $Panel.RackID }
+            if ($panelRackUBox) { $panelRackUBox.Text = $Panel.RackU }
+            if ($panelPortCountText) { $panelPortCountText.Text = "$($Panel.PortCount) ports" }
+            $portItems = @()
+            $usedCount = 0
+            foreach ($port in $Panel.Ports) {
+                $tooltip = "Port $($port.PortNumber)"
+                if ($port.Label) { $tooltip += ": $($port.Label)" }
+                if ($port.CableID) { $tooltip += " [Cable: $($port.CableID)]" }
+                $tooltip += " - $($port.Status)"
+                $portItems += [PSCustomObject]@{ PortNumber = $port.PortNumber; Label = $port.Label; Status = $port.Status; CableID = $port.CableID; ToolTip = $tooltip }
+                if ($port.Status -eq 'Connected' -or $port.CableID) { $usedCount++ }
+            }
+            if ($portGrid) { $portGrid.ItemsSource = $portItems }
+            if ($portUtilizationLabel) { $portUtilizationLabel.Content = "($usedCount/$($Panel.PortCount) used)" }
+        } else {
+            if ($detailsTitleLabel) { $detailsTitleLabel.Content = "New Patch Panel" }
+            if ($panelIdBox) { $panelIdBox.Text = '' }
+            if ($panelNameBox) { $panelNameBox.Text = '' }
+            if ($panelLocationBox) { $panelLocationBox.Text = '' }
+            if ($panelRackIdBox) { $panelRackIdBox.Text = '' }
+            if ($panelRackUBox) { $panelRackUBox.Text = '' }
+            if ($panelPortCountText) { $panelPortCountText.Text = '24 ports (default)' }
+            if ($portGrid) { $portGrid.ItemsSource = @() }
+            if ($portUtilizationLabel) { $portUtilizationLabel.Content = '(0/24 used)' }
+        }
+    }
+
+    # Register event handlers
+    if ($addCableButton) { $addCableButton.Add_Click({ & $showCableDetails $null; if ($cableListBox) { $cableListBox.SelectedItem = $null }; if ($panelListBox) { $panelListBox.SelectedItem = $null } }.GetNewClosure()) }
+    if ($addPanelButton) { $addPanelButton.Add_Click({ & $showPanelDetails $null; if ($cableListBox) { $cableListBox.SelectedItem = $null }; if ($panelListBox) { $panelListBox.SelectedItem = $null } }.GetNewClosure()) }
+    if ($cableListBox) { $cableListBox.Add_SelectionChanged({ param($s,$e); $sel = $s.SelectedItem; if ($sel) { if ($panelListBox) { $panelListBox.SelectedItem = $null }; & $showCableDetails $sel } }.GetNewClosure()) }
+    if ($panelListBox) { $panelListBox.Add_SelectionChanged({ param($s,$e); $sel = $s.SelectedItem; if ($sel) { if ($cableListBox) { $cableListBox.SelectedItem = $null }; & $showPanelDetails $sel } }.GetNewClosure()) }
+    if ($filterBox) { $filterBox.Add_TextChanged({ & $refreshLists }.GetNewClosure()) }
+    if ($clearFilterButton) { $clearFilterButton.Add_Click({ if ($filterBox) { $filterBox.Text = '' } }.GetNewClosure()) }
+
+    if ($saveCableButton) {
+        $saveCableButton.Add_Click({
+            $db = $View.Tag.Database
+            $sourceType = & $getComboValue $sourceTypeCombo
+            $destType = & $getComboValue $destTypeCombo
+            $cableType = & $getComboValue $cableTypeCombo
+            $status = & $getComboValue $statusCombo
+            if ([string]::IsNullOrWhiteSpace($sourceDeviceBox.Text) -or [string]::IsNullOrWhiteSpace($destDeviceBox.Text)) {
+                if ($statusText) { $statusText.Text = 'Please fill in required fields' }
+                return
+            }
+            try {
+                if ($View.Tag.IsNewCable) {
+                    $params = @{ SourceType=$sourceType; SourceDevice=$sourceDeviceBox.Text; SourcePort=$sourcePortBox.Text; DestType=$destType; DestDevice=$destDeviceBox.Text; DestPort=$destPortBox.Text; CableType=$cableType; Status=$status }
+                    if ($cableIdBox.Text) { $params['CableID'] = $cableIdBox.Text }
+                    if ($lengthBox.Text) { $params['Length'] = $lengthBox.Text }
+                    if ($colorBox.Text) { $params['Color'] = $colorBox.Text }
+                    if ($notesBox.Text) { $params['Notes'] = $notesBox.Text }
+                    $cable = CableDocumentationModule\New-CableRun @params
+                    CableDocumentationModule\Add-CableRun -Cable $cable -Database $db | Out-Null
+                    if ($statusText) { $statusText.Text = "Created cable $($cable.CableID)" }
+                } else {
+                    $props = @{ SourceType=$sourceType; SourceDevice=$sourceDeviceBox.Text; SourcePort=$sourcePortBox.Text; DestType=$destType; DestDevice=$destDeviceBox.Text; DestPort=$destPortBox.Text; CableType=$cableType; Length=$lengthBox.Text; Color=$colorBox.Text; Status=$status; Notes=$notesBox.Text }
+                    CableDocumentationModule\Update-CableRun -CableID $cableIdBox.Text -Properties $props -Database $db | Out-Null
+                    if ($statusText) { $statusText.Text = "Updated cable $($cableIdBox.Text)" }
+                }
+                & $saveDatabase
+                & $refreshLists
+            } catch { if ($statusText) { $statusText.Text = "Error: $($_.Exception.Message)" } }
+        }.GetNewClosure())
+    }
+
+    if ($deleteCableButton) {
+        $deleteCableButton.Add_Click({
+            $cable = $View.Tag.SelectedCable
+            if (-not $cable) { return }
+            $result = [System.Windows.MessageBox]::Show("Delete cable $($cable.CableID)?", "Confirm Delete", 'YesNo', 'Warning')
+            if ($result -eq 'Yes') {
+                $db = $View.Tag.Database
+                CableDocumentationModule\Remove-CableRun -CableID $cable.CableID -Database $db | Out-Null
+                if ($cableDetailsGrid) { $cableDetailsGrid.Visibility = 'Collapsed' }
+                if ($statusText) { $statusText.Text = "Deleted cable $($cable.CableID)" }
+                & $saveDatabase
+                & $refreshLists
+            }
+        }.GetNewClosure())
+    }
+
+    if ($savePanelButton) {
+        $savePanelButton.Add_Click({
+            $db = $View.Tag.Database
+            if ([string]::IsNullOrWhiteSpace($panelNameBox.Text)) {
+                if ($statusText) { $statusText.Text = 'Please enter a panel name' }
+                return
+            }
+            try {
+                if ($View.Tag.IsNewPanel) {
+                    $params = @{ PanelName = $panelNameBox.Text }
+                    if ($panelIdBox.Text) { $params['PanelID'] = $panelIdBox.Text }
+                    if ($panelLocationBox.Text) { $params['Location'] = $panelLocationBox.Text }
+                    if ($panelRackIdBox.Text) { $params['RackID'] = $panelRackIdBox.Text }
+                    if ($panelRackUBox.Text) { $params['RackU'] = $panelRackUBox.Text }
+                    $panel = CableDocumentationModule\New-PatchPanel @params
+                    CableDocumentationModule\Add-PatchPanel -Panel $panel -Database $db | Out-Null
+                    if ($statusText) { $statusText.Text = "Created panel $($panel.PanelName)" }
+                } else {
+                    $panel = $View.Tag.SelectedPanel
+                    $panel.PanelName = $panelNameBox.Text
+                    $panel.Location = $panelLocationBox.Text
+                    $panel.RackID = $panelRackIdBox.Text
+                    $panel.RackU = $panelRackUBox.Text
+                    $panel.ModifiedDate = Get-Date
+                    if ($statusText) { $statusText.Text = "Updated panel $($panel.PanelName)" }
+                }
+                & $saveDatabase
+                & $refreshLists
+            } catch { if ($statusText) { $statusText.Text = "Error: $($_.Exception.Message)" } }
+        }.GetNewClosure())
+    }
+
+    if ($deletePanelButton) {
+        $deletePanelButton.Add_Click({
+            $panel = $View.Tag.SelectedPanel
+            if (-not $panel) { return }
+            $result = [System.Windows.MessageBox]::Show("Delete panel $($panel.PanelName)?", "Confirm Delete", 'YesNo', 'Warning')
+            if ($result -eq 'Yes') {
+                $db = $View.Tag.Database
+                CableDocumentationModule\Remove-PatchPanel -PanelID $panel.PanelID -Database $db | Out-Null
+                if ($panelDetailsGrid) { $panelDetailsGrid.Visibility = 'Collapsed' }
+                if ($statusText) { $statusText.Text = "Deleted panel $($panel.PanelName)" }
+                & $saveDatabase
+                & $refreshLists
+            }
+        }.GetNewClosure())
+    }
+
+    if ($importButton) {
+        $importButton.Add_Click({
+            try {
+                $dialog = New-Object Microsoft.Win32.OpenFileDialog
+                $dialog.Title = 'Import Cable Database'
+                $dialog.Filter = 'JSON files (*.json)|*.json'
+                if ($dialog.ShowDialog() -eq $true) {
+                    $db = $View.Tag.Database
+                    $result = CableDocumentationModule\Import-CableDatabase -Path $dialog.FileName -Database $db -Merge
+                    if ($statusText) { $statusText.Text = "Imported $($result.CablesImported) cables, $($result.PanelsImported) panels" }
+                    & $saveDatabase
+                    & $refreshLists
+                }
+            } catch { if ($statusText) { $statusText.Text = "Import error: $($_.Exception.Message)" } }
+        }.GetNewClosure())
+    }
+
+    if ($exportButton) {
+        $exportButton.Add_Click({
+            try {
+                $dialog = New-Object Microsoft.Win32.SaveFileDialog
+                $dialog.Title = 'Export Cable Database'
+                $dialog.Filter = 'JSON files (*.json)|*.json'
+                $dialog.DefaultExt = '.json'
+                if ($dialog.ShowDialog() -eq $true) {
+                    $db = $View.Tag.Database
+                    CableDocumentationModule\Export-CableDatabase -Path $dialog.FileName -Database $db
+                    if ($statusText) { $statusText.Text = "Exported database to $($dialog.FileName)" }
+                }
+            } catch { if ($statusText) { $statusText.Text = "Export error: $($_.Exception.Message)" } }
+        }.GetNewClosure())
+    }
+
+    # Initial load
+    & $refreshLists
+    if ($statusText) { $statusText.Text = 'Ready' }
+}
+
+Export-ModuleMember -Function New-CableDocumentationView, Initialize-CableDocumentationView

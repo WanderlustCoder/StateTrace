@@ -682,4 +682,271 @@ Total Hosts: $($info.TotalHosts)
     }
 }
 
-Export-ModuleMember -Function New-NetworkCalculatorView
+function Initialize-NetworkCalculatorView {
+    <#
+    .SYNOPSIS
+        Initializes the Network Calculator view for nested tab container use.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [System.Windows.Controls.ContentControl]$Host
+    )
+
+    try {
+        $viewPath = Join-Path $PSScriptRoot '..\Views\NetworkCalculatorView.xaml'
+        if (-not (Test-Path $viewPath)) {
+            Write-Warning "NetworkCalculatorView.xaml not found at: $viewPath"
+            return
+        }
+
+        $xamlContent = Get-Content -Path $viewPath -Raw
+        $xamlContent = $xamlContent -replace 'x:Class="[^"]*"', ''
+        $xamlContent = $xamlContent -replace 'mc:Ignorable="d"', ''
+
+        $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
+        $view = [System.Windows.Markup.XamlReader]::Load($reader)
+        $Host.Content = $view
+
+        # Initialize controls and event handlers
+        Initialize-NetworkCalculatorControls -View $view
+
+        return $view
+    }
+    catch {
+        Write-Warning "Failed to initialize NetworkCalculator view: $($_.Exception.Message)"
+    }
+}
+
+function Initialize-NetworkCalculatorControls {
+    <#
+    .SYNOPSIS
+        Wires up controls and event handlers for the Network Calculator view.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        $View
+    )
+
+    # Get Subnet Calculator controls
+    $subnetNetworkBox = $View.FindName('SubnetNetworkBox')
+    $subnetCIDRDropdown = $View.FindName('SubnetCIDRDropdown')
+    $subnetCalculateButton = $View.FindName('SubnetCalculateButton')
+    $subnetNetworkResult = $View.FindName('SubnetNetworkResult')
+    $subnetBroadcastResult = $View.FindName('SubnetBroadcastResult')
+    $subnetMaskResult = $View.FindName('SubnetMaskResult')
+    $subnetWildcardResult = $View.FindName('SubnetWildcardResult')
+    $subnetFirstResult = $View.FindName('SubnetFirstResult')
+    $subnetLastResult = $View.FindName('SubnetLastResult')
+    $subnetHostsResult = $View.FindName('SubnetHostsResult')
+    $subnetSplitDropdown = $View.FindName('SubnetSplitDropdown')
+    $subnetSplitButton = $View.FindName('SubnetSplitButton')
+    $subnetSplitGrid = $View.FindName('SubnetSplitGrid')
+    $subnetCopyButton = $View.FindName('SubnetCopyButton')
+
+    # Get VLAN Calculator controls
+    $vlanExpandInput = $View.FindName('VLANExpandInput')
+    $vlanExpandButton = $View.FindName('VLANExpandButton')
+    $vlanExpandResult = $View.FindName('VLANExpandResult')
+    $vlanCompressInput = $View.FindName('VLANCompressInput')
+    $vlanCompressButton = $View.FindName('VLANCompressButton')
+    $vlanCompressResult = $View.FindName('VLANCompressResult')
+
+    # Get Bandwidth Calculator controls
+    $bandwidthSizeBox = $View.FindName('BandwidthSizeBox')
+    $bandwidthSizeUnit = $View.FindName('BandwidthSizeUnit')
+    $bandwidthSpeedBox = $View.FindName('BandwidthSpeedBox')
+    $bandwidthSpeedUnit = $View.FindName('BandwidthSpeedUnit')
+    $bandwidthCalcButton = $View.FindName('BandwidthCalcButton')
+    $bandwidthResult = $View.FindName('BandwidthResult')
+    $convertValueBox = $View.FindName('ConvertValueBox')
+    $convertFromUnit = $View.FindName('ConvertFromUnit')
+    $convertToUnit = $View.FindName('ConvertToUnit')
+    $convertButton = $View.FindName('ConvertButton')
+    $convertResult = $View.FindName('ConvertResult')
+
+    # Get IP Tools controls
+    $ipValidateBox = $View.FindName('IPValidateBox')
+    $ipValidateButton = $View.FindName('IPValidateButton')
+    $ipValidateResult = $View.FindName('IPValidateResult')
+    $ipCheckBox = $View.FindName('IPCheckBox')
+    $subnetCheckBox = $View.FindName('SubnetCheckBox')
+    $ipCheckButton = $View.FindName('IPCheckButton')
+    $ipCheckResult = $View.FindName('IPCheckResult')
+
+    # Get Ports Reference controls
+    $portSearchBox = $View.FindName('PortSearchBox')
+    $portSearchButton = $View.FindName('PortSearchButton')
+    $portShowAllButton = $View.FindName('PortShowAllButton')
+    $portsGrid = $View.FindName('PortsGrid')
+
+    # Store state in view's Tag
+    $View.Tag = @{ CurrentSubnetInfo = $null }
+
+    # Populate CIDR dropdown (8-30)
+    if ($subnetCIDRDropdown) {
+        for ($i = 8; $i -le 30; $i++) { $item = New-Object System.Windows.Controls.ComboBoxItem; $item.Content = $i; $subnetCIDRDropdown.Items.Add($item) | Out-Null }
+        $subnetCIDRDropdown.SelectedIndex = 16
+    }
+
+    # Populate split dropdown
+    if ($subnetSplitDropdown) {
+        for ($i = 9; $i -le 30; $i++) { $item = New-Object System.Windows.Controls.ComboBoxItem; $item.Content = "/$i"; $subnetSplitDropdown.Items.Add($item) | Out-Null }
+        $subnetSplitDropdown.SelectedIndex = 0
+    }
+
+    # Subnet Calculate button
+    if ($subnetCalculateButton) {
+        $subnetCalculateButton.Add_Click({
+            param($s,$e)
+            $network = if ($subnetNetworkBox) { $subnetNetworkBox.Text } else { '' }
+            $cidr = if ($subnetCIDRDropdown -and $subnetCIDRDropdown.SelectedItem) { [int]$subnetCIDRDropdown.SelectedItem.Content } else { 24 }
+            if ([string]::IsNullOrWhiteSpace($network)) { return }
+            try {
+                $info = NetworkCalculatorModule\Get-SubnetInfo -Network $network -CIDR $cidr
+                $View.Tag.CurrentSubnetInfo = $info
+                if ($subnetNetworkResult) { $subnetNetworkResult.Text = $info.NetworkAddress }
+                if ($subnetBroadcastResult) { $subnetBroadcastResult.Text = $info.BroadcastAddress }
+                if ($subnetMaskResult) { $subnetMaskResult.Text = $info.SubnetMask }
+                if ($subnetWildcardResult) { $subnetWildcardResult.Text = $info.WildcardMask }
+                if ($subnetFirstResult) { $subnetFirstResult.Text = $info.FirstUsable }
+                if ($subnetLastResult) { $subnetLastResult.Text = $info.LastUsable }
+                if ($subnetHostsResult) { $subnetHostsResult.Text = $info.TotalHosts.ToString() }
+                if ($subnetSplitDropdown) { $subnetSplitDropdown.Items.Clear(); for ($i = $cidr + 1; $i -le 30; $i++) { $item = New-Object System.Windows.Controls.ComboBoxItem; $item.Content = "/$i"; $subnetSplitDropdown.Items.Add($item) | Out-Null }; if ($subnetSplitDropdown.Items.Count -gt 0) { $subnetSplitDropdown.SelectedIndex = 0 } }
+                if ($subnetSplitGrid) { $subnetSplitGrid.ItemsSource = $null }
+            } catch {
+                if ($subnetNetworkResult) { $subnetNetworkResult.Text = "Error" }
+                if ($subnetHostsResult) { $subnetHostsResult.Text = $_.Exception.Message }
+            }
+        }.GetNewClosure())
+    }
+
+    if ($subnetNetworkBox) { $subnetNetworkBox.Add_KeyDown({ param($s,$e); if ($e.Key -eq 'Return' -and $subnetCalculateButton) { $subnetCalculateButton.RaiseEvent((New-Object System.Windows.RoutedEventArgs([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent))) } }.GetNewClosure()) }
+
+    # Subnet Split button
+    if ($subnetSplitButton) {
+        $subnetSplitButton.Add_Click({
+            param($s,$e)
+            $info = $View.Tag.CurrentSubnetInfo
+            if ($null -eq $info) { return }
+            $targetPrefix = if ($subnetSplitDropdown -and $subnetSplitDropdown.SelectedItem) { [int]($subnetSplitDropdown.SelectedItem.Content -replace '^/', '') } else { return }
+            try { $subnets = NetworkCalculatorModule\Split-Subnet -NetworkAddress $info.NetworkAddress -CurrentPrefix $info.CIDR -TargetPrefix $targetPrefix; if ($subnetSplitGrid) { $subnetSplitGrid.ItemsSource = $subnets } } catch { if ($subnetSplitGrid) { $subnetSplitGrid.ItemsSource = $null } }
+        }.GetNewClosure())
+    }
+
+    # Subnet Copy button
+    if ($subnetCopyButton) {
+        $subnetCopyButton.Add_Click({
+            param($s,$e)
+            $info = $View.Tag.CurrentSubnetInfo
+            if ($null -eq $info) { return }
+            $text = "Network: $($info.NetworkAddress)/$($info.CIDR)`nSubnet Mask: $($info.SubnetMask)`nWildcard: $($info.WildcardMask)`nBroadcast: $($info.BroadcastAddress)`nFirst Usable: $($info.FirstUsable)`nLast Usable: $($info.LastUsable)`nTotal Hosts: $($info.TotalHosts)"
+            [System.Windows.Clipboard]::SetText($text)
+        }.GetNewClosure())
+    }
+
+    # VLAN Expand button
+    if ($vlanExpandButton) {
+        $vlanExpandButton.Add_Click({
+            param($s,$e)
+            $range = if ($vlanExpandInput) { $vlanExpandInput.Text } else { '' }
+            if ([string]::IsNullOrWhiteSpace($range)) { if ($vlanExpandResult) { $vlanExpandResult.Text = '' }; return }
+            try { $vlans = NetworkCalculatorModule\Expand-VLANRange -Range $range; if ($vlanExpandResult) { $vlanExpandResult.Text = ($vlans -join ', ') } } catch { if ($vlanExpandResult) { $vlanExpandResult.Text = "Error: $($_.Exception.Message)" } }
+        }.GetNewClosure())
+    }
+    if ($vlanExpandInput) { $vlanExpandInput.Add_KeyDown({ param($s,$e); if ($e.Key -eq 'Return' -and $vlanExpandButton) { $vlanExpandButton.RaiseEvent((New-Object System.Windows.RoutedEventArgs([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent))) } }.GetNewClosure()) }
+
+    # VLAN Compress button
+    if ($vlanCompressButton) {
+        $vlanCompressButton.Add_Click({
+            param($s,$e)
+            $input = if ($vlanCompressInput) { $vlanCompressInput.Text } else { '' }
+            if ([string]::IsNullOrWhiteSpace($input)) { if ($vlanCompressResult) { $vlanCompressResult.Text = '' }; return }
+            try { $vlans = @($input -split '\s*,\s*' | ForEach-Object { [int]$_ }); $result = NetworkCalculatorModule\Compress-VLANList -VLANs $vlans; if ($vlanCompressResult) { $vlanCompressResult.Text = $result } } catch { if ($vlanCompressResult) { $vlanCompressResult.Text = "Error: $($_.Exception.Message)" } }
+        }.GetNewClosure())
+    }
+    if ($vlanCompressInput) { $vlanCompressInput.Add_KeyDown({ param($s,$e); if ($e.Key -eq 'Return' -and $vlanCompressButton) { $vlanCompressButton.RaiseEvent((New-Object System.Windows.RoutedEventArgs([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent))) } }.GetNewClosure()) }
+
+    # Bandwidth Calculate button
+    if ($bandwidthCalcButton) {
+        $bandwidthCalcButton.Add_Click({
+            param($s,$e)
+            $sizeText = if ($bandwidthSizeBox) { $bandwidthSizeBox.Text } else { '' }
+            $sizeUnit = if ($bandwidthSizeUnit -and $bandwidthSizeUnit.SelectedItem) { $bandwidthSizeUnit.SelectedItem.Content } else { 'MB' }
+            $speedText = if ($bandwidthSpeedBox) { $bandwidthSpeedBox.Text } else { '' }
+            $speedUnit = if ($bandwidthSpeedUnit -and $bandwidthSpeedUnit.SelectedItem) { $bandwidthSpeedUnit.SelectedItem.Content } else { 'Mbps' }
+            if ([string]::IsNullOrWhiteSpace($sizeText) -or [string]::IsNullOrWhiteSpace($speedText)) { if ($bandwidthResult) { $bandwidthResult.Text = '' }; return }
+            try {
+                $size = [double]$sizeText; $speed = [double]$speedText
+                $sizeBytes = switch ($sizeUnit) { 'MB' { $size * 1024 * 1024 }; 'GB' { $size * 1024 * 1024 * 1024 }; 'TB' { $size * 1024 * 1024 * 1024 * 1024 }; default { $size * 1024 * 1024 } }
+                $speedBps = switch ($speedUnit) { 'Mbps' { $speed * 1000000 }; 'Gbps' { $speed * 1000000000 }; default { $speed * 1000000 } }
+                $result = NetworkCalculatorModule\Get-TransferTime -SizeBytes $sizeBytes -BandwidthBps $speedBps
+                if ($bandwidthResult) { $bandwidthResult.Text = $result.FormattedTime }
+            } catch { if ($bandwidthResult) { $bandwidthResult.Text = "Error: $($_.Exception.Message)" } }
+        }.GetNewClosure())
+    }
+    if ($bandwidthSizeBox) { $bandwidthSizeBox.Add_KeyDown({ param($s,$e); if ($e.Key -eq 'Return' -and $bandwidthCalcButton) { $bandwidthCalcButton.RaiseEvent((New-Object System.Windows.RoutedEventArgs([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent))) } }.GetNewClosure()) }
+    if ($bandwidthSpeedBox) { $bandwidthSpeedBox.Add_KeyDown({ param($s,$e); if ($e.Key -eq 'Return' -and $bandwidthCalcButton) { $bandwidthCalcButton.RaiseEvent((New-Object System.Windows.RoutedEventArgs([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent))) } }.GetNewClosure()) }
+
+    # Unit Convert button
+    if ($convertButton) {
+        $convertButton.Add_Click({
+            param($s,$e)
+            $valueText = if ($convertValueBox) { $convertValueBox.Text } else { '' }
+            $fromUnit = if ($convertFromUnit -and $convertFromUnit.SelectedItem) { $convertFromUnit.SelectedItem.Content } else { 'Mbps' }
+            $toUnit = if ($convertToUnit -and $convertToUnit.SelectedItem) { $convertToUnit.SelectedItem.Content } else { 'Gbps' }
+            if ([string]::IsNullOrWhiteSpace($valueText)) { if ($convertResult) { $convertResult.Text = '' }; return }
+            try { $value = [double]$valueText; $result = NetworkCalculatorModule\Convert-BandwidthUnit -Value $value -FromUnit $fromUnit -ToUnit $toUnit; if ($convertResult) { $convertResult.Text = [math]::Round($result, 4).ToString() } } catch { if ($convertResult) { $convertResult.Text = "Error" } }
+        }.GetNewClosure())
+    }
+    if ($convertValueBox) { $convertValueBox.Add_KeyDown({ param($s,$e); if ($e.Key -eq 'Return' -and $convertButton) { $convertButton.RaiseEvent((New-Object System.Windows.RoutedEventArgs([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent))) } }.GetNewClosure()) }
+
+    # IP Validate button
+    if ($ipValidateButton) {
+        $ipValidateButton.Add_Click({
+            param($s,$e)
+            $ip = if ($ipValidateBox) { $ipValidateBox.Text } else { '' }
+            if ([string]::IsNullOrWhiteSpace($ip)) { if ($ipValidateResult) { $ipValidateResult.Text = '' }; return }
+            try { $info = NetworkCalculatorModule\Get-IPAddressInfo -IPAddress $ip; $lines = @("Valid: $($info.IsValid)"); if ($info.IsValid) { $lines += "Type: $($info.AddressType)"; $lines += "Class: $($info.Class)"; $lines += "Binary: $($info.Binary)" }; if ($ipValidateResult) { $ipValidateResult.Text = $lines -join "`r`n" } } catch { if ($ipValidateResult) { $ipValidateResult.Text = "Error: $($_.Exception.Message)" } }
+        }.GetNewClosure())
+    }
+    if ($ipValidateBox) { $ipValidateBox.Add_KeyDown({ param($s,$e); if ($e.Key -eq 'Return' -and $ipValidateButton) { $ipValidateButton.RaiseEvent((New-Object System.Windows.RoutedEventArgs([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent))) } }.GetNewClosure()) }
+
+    # IP Check button
+    if ($ipCheckButton) {
+        $ipCheckButton.Add_Click({
+            param($s,$e)
+            $ip = if ($ipCheckBox) { $ipCheckBox.Text } else { '' }
+            $subnet = if ($subnetCheckBox) { $subnetCheckBox.Text } else { '' }
+            if ([string]::IsNullOrWhiteSpace($ip) -or [string]::IsNullOrWhiteSpace($subnet)) { if ($ipCheckResult) { $ipCheckResult.Text = '' }; return }
+            try { $result = NetworkCalculatorModule\Test-IPInSubnet -IPAddress $ip -Subnet $subnet; if ($ipCheckResult) { $ipCheckResult.Text = if ($result) { "Yes" } else { "No" } } } catch { if ($ipCheckResult) { $ipCheckResult.Text = "Error" } }
+        }.GetNewClosure())
+    }
+    if ($ipCheckBox) { $ipCheckBox.Add_KeyDown({ param($s,$e); if ($e.Key -eq 'Return' -and $ipCheckButton) { $ipCheckButton.RaiseEvent((New-Object System.Windows.RoutedEventArgs([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent))) } }.GetNewClosure()) }
+    if ($subnetCheckBox) { $subnetCheckBox.Add_KeyDown({ param($s,$e); if ($e.Key -eq 'Return' -and $ipCheckButton) { $ipCheckButton.RaiseEvent((New-Object System.Windows.RoutedEventArgs([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent))) } }.GetNewClosure()) }
+
+    # Port Search button
+    if ($portSearchButton) {
+        $portSearchButton.Add_Click({
+            param($s,$e)
+            $query = if ($portSearchBox) { $portSearchBox.Text } else { '' }
+            if ([string]::IsNullOrWhiteSpace($query)) { if ($portsGrid) { $portsGrid.ItemsSource = $null }; return }
+            try { $results = NetworkCalculatorModule\Get-WellKnownPorts | Where-Object { $_.Port -eq $query -or $_.Service -like "*$query*" }; if ($portsGrid) { $portsGrid.ItemsSource = @($results) } } catch { if ($portsGrid) { $portsGrid.ItemsSource = $null } }
+        }.GetNewClosure())
+    }
+    if ($portSearchBox) { $portSearchBox.Add_KeyDown({ param($s,$e); if ($e.Key -eq 'Return' -and $portSearchButton) { $portSearchButton.RaiseEvent((New-Object System.Windows.RoutedEventArgs([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent))) } }.GetNewClosure()) }
+
+    # Port Show All button
+    if ($portShowAllButton) {
+        $portShowAllButton.Add_Click({
+            param($s,$e)
+            try { $ports = NetworkCalculatorModule\Get-WellKnownPorts; if ($portsGrid) { $portsGrid.ItemsSource = @($ports) } } catch { if ($portsGrid) { $portsGrid.ItemsSource = $null } }
+        }.GetNewClosure())
+    }
+
+    # Load initial ports list
+    try { $ports = NetworkCalculatorModule\Get-WellKnownPorts; if ($portsGrid) { $portsGrid.ItemsSource = @($ports) } } catch { }
+}
+
+Export-ModuleMember -Function New-NetworkCalculatorView, Initialize-NetworkCalculatorView
