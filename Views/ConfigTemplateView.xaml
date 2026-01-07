@@ -56,7 +56,24 @@
                        Foreground="{DynamicResource Theme.Text.Primary}"
                        DisplayMemberPath="Name"
                        VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
-                       ScrollViewer.CanContentScroll="True"/>
+                       ScrollViewer.CanContentScroll="True">
+                <ListBox.ItemContainerStyle>
+                  <Style TargetType="ListBoxItem">
+                    <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
+                    <Setter Property="Background" Value="Transparent"/>
+                    <Setter Property="Padding" Value="5,3"/>
+                    <Style.Triggers>
+                      <Trigger Property="IsSelected" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource Theme.Icon.Accent}"/>
+                        <Setter Property="Foreground" Value="{DynamicResource Theme.Button.Primary.Text}"/>
+                      </Trigger>
+                      <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource Theme.Surface.Secondary}"/>
+                      </Trigger>
+                    </Style.Triggers>
+                  </Style>
+                </ListBox.ItemContainerStyle>
+              </ListBox>
             </Grid>
           </Border>
 
@@ -182,7 +199,24 @@
                        Foreground="{DynamicResource Theme.Text.Primary}"
                        DisplayMemberPath="Name"
                        VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
-                       ScrollViewer.CanContentScroll="True"/>
+                       ScrollViewer.CanContentScroll="True">
+                <ListBox.ItemContainerStyle>
+                  <Style TargetType="ListBoxItem">
+                    <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
+                    <Setter Property="Background" Value="Transparent"/>
+                    <Setter Property="Padding" Value="5,3"/>
+                    <Style.Triggers>
+                      <Trigger Property="IsSelected" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource Theme.Icon.Accent}"/>
+                        <Setter Property="Foreground" Value="{DynamicResource Theme.Button.Primary.Text}"/>
+                      </Trigger>
+                      <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource Theme.Surface.Secondary}"/>
+                      </Trigger>
+                    </Style.Triggers>
+                  </Style>
+                </ListBox.ItemContainerStyle>
+              </ListBox>
               <StackPanel Grid.Row="2" Margin="0,5,0,0">
                 <TextBlock Name="StandardInfoText" TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource Theme.Text.Secondary}"/>
               </StackPanel>
