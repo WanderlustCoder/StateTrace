@@ -19,6 +19,7 @@ $script:SharedStylesPath         = Join-Path $PSScriptRoot '..\Resources\SharedS
 $script:SharedStylesDictionary   = $null
 $script:ThemeChangedHandlers     = [System.Collections.Generic.List[System.Action[string]]]::new()
 $script:PresentationFrameworkLoaded = $false
+$script:ConvertersRegistered     = $false
 
 function Ensure-PresentationFrameworkLoaded {
     if ($script:PresentationFrameworkLoaded) { return $true }
@@ -27,6 +28,89 @@ function Ensure-PresentationFrameworkLoaded {
     }
     $script:PresentationFrameworkLoaded = $true
     return $true
+}
+
+function Register-ValueConverters {
+    <#
+    .SYNOPSIS
+    Registers custom IValueConverter implementations for XAML binding.
+    #>
+    if ($script:ConvertersRegistered) { return }
+
+    $app = Get-WpfApplication
+    if (-not $app) { return }
+
+    # Define StatusToBrushConverter - converts status strings to theme brushes
+    try {
+        Add-Type -TypeDefinition @"
+using System;
+using System.Globalization;
+using System.Windows;
+using System.Windows.Data;
+using System.Windows.Media;
+
+namespace StateTrace.Converters
+{
+    public class StatusToBrushConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            string status = value as string;
+            if (string.IsNullOrEmpty(status))
+                return DependencyProperty.UnsetValue;
+
+            string resourceKey;
+            switch (status.ToLowerInvariant())
+            {
+                case "up":
+                case "connected":
+                    resourceKey = "Theme.Status.Success";
+                    break;
+                case "down":
+                case "err-disabled":
+                    resourceKey = "Theme.Status.Danger";
+                    break;
+                case "notconnect":
+                    resourceKey = "Theme.Status.Warning";
+                    break;
+                case "disabled":
+                default:
+                    resourceKey = "Theme.Status.Neutral";
+                    break;
+            }
+
+            var app = Application.Current;
+            if (app != null && app.Resources.Contains(resourceKey))
+                return app.Resources[resourceKey];
+
+            return DependencyProperty.UnsetValue;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
+        }
+    }
+}
+"@ -ReferencedAssemblies @('PresentationFramework', 'PresentationCore', 'WindowsBase', 'System.Xaml') -ErrorAction Stop
+    } catch {
+        # Type may already be defined from a previous load
+        if ($_.Exception.Message -notmatch 'already exists') {
+            Write-Warning "Failed to define StatusToBrushConverter: $($_.Exception.Message)"
+            return
+        }
+    }
+
+    # Register the converter as an application resource
+    try {
+        $converter = New-Object StateTrace.Converters.StatusToBrushConverter
+        if (-not $app.Resources.Contains('StatusToBrushConverter')) {
+            $app.Resources.Add('StatusToBrushConverter', $converter)
+        }
+        $script:ConvertersRegistered = $true
+    } catch {
+        Write-Warning "Failed to register StatusToBrushConverter: $($_.Exception.Message)"
+    }
 }
 
 function Get-WpfApplication {
@@ -190,6 +274,9 @@ function Ensure-SharedStylesDictionary {
     if ($script:SharedStylesDictionary -and -not $app.Resources.MergedDictionaries.Contains($script:SharedStylesDictionary)) {
         [void]$app.Resources.MergedDictionaries.Add($script:SharedStylesDictionary)
     }
+
+    # Register value converters for XAML bindings
+    Register-ValueConverters
 }
 
 function Update-ThemeResources {

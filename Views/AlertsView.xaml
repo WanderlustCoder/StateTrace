@@ -31,33 +31,8 @@
             <DataGridTemplateColumn.CellTemplate>
               <DataTemplate>
                 <StackPanel Orientation="Horizontal">
-                  <Ellipse Width="10" Height="10" Margin="0,0,5,0" VerticalAlignment="Center">
-                    <Ellipse.Style>
-                      <Style TargetType="Ellipse">
-                        <Setter Property="Fill" Value="{DynamicResource Theme.Status.Neutral}"/>
-                        <Style.Triggers>
-                          <DataTrigger Binding="{Binding Status}" Value="up">
-                            <Setter Property="Fill" Value="{DynamicResource Theme.Status.Success}"/>
-                          </DataTrigger>
-                          <DataTrigger Binding="{Binding Status}" Value="connected">
-                            <Setter Property="Fill" Value="{DynamicResource Theme.Status.Success}"/>
-                          </DataTrigger>
-                          <DataTrigger Binding="{Binding Status}" Value="down">
-                            <Setter Property="Fill" Value="{DynamicResource Theme.Status.Danger}"/>
-                          </DataTrigger>
-                          <DataTrigger Binding="{Binding Status}" Value="notconnect">
-                            <Setter Property="Fill" Value="{DynamicResource Theme.Status.Warning}"/>
-                          </DataTrigger>
-                          <DataTrigger Binding="{Binding Status}" Value="disabled">
-                            <Setter Property="Fill" Value="{DynamicResource Theme.Status.Neutral}"/>
-                          </DataTrigger>
-                          <DataTrigger Binding="{Binding Status}" Value="err-disabled">
-                            <Setter Property="Fill" Value="{DynamicResource Theme.Status.Danger}"/>
-                          </DataTrigger>
-                        </Style.Triggers>
-                      </Style>
-                    </Ellipse.Style>
-                  </Ellipse>
+                  <Ellipse Width="10" Height="10" Margin="0,0,5,0" VerticalAlignment="Center"
+                           Fill="{Binding Status, Converter={DynamicResource StatusToBrushConverter}}"/>
                   <TextBlock Text="{Binding Status}" VerticalAlignment="Center"/>
                 </StackPanel>
               </DataTemplate>
