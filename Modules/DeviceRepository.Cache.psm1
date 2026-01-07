@@ -1177,3 +1177,516 @@ Export-ModuleMember -Function `
     Export-MemoryMappedCacheToFile, `
     Sync-MemoryMappedCache, `
     Get-MemoryMappedCacheStats
+
+# ============================================================================
+# Data Lineage Tracking
+# ============================================================================
+
+$script:DataLineageStore = [System.Collections.Concurrent.ConcurrentDictionary[string, object]]::new([System.StringComparer]::OrdinalIgnoreCase)
+$script:CurrentParseSessionId = $null
+
+function New-DataLineageContext {
+    <#
+    .SYNOPSIS
+    Creates a new data lineage context for tracking record origins.
+    .DESCRIPTION
+    Creates a context object that tracks the source file, parse timestamp,
+    and session ID for records created during a parsing session.
+    .PARAMETER SourceFile
+    Path to the source file being parsed.
+    .PARAMETER SessionId
+    Optional session identifier. If not provided, a new GUID is generated.
+    .OUTPUTS
+    Returns a DataLineageContext object.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$SourceFile,
+        [string]$SessionId
+    )
+
+    if (-not $SessionId) {
+        $SessionId = [System.Guid]::NewGuid().ToString('N').Substring(0, 12)
+    }
+
+    $context = [PSCustomObject]@{
+        PSTypeName = 'StateTrace.DataLineageContext'
+        SessionId = $SessionId
+        SourceFile = $SourceFile
+        SourceFileName = [System.IO.Path]::GetFileName($SourceFile)
+        ParseTimestamp = [datetime]::UtcNow
+        RecordCount = 0
+        Hostname = $env:COMPUTERNAME
+        Username = $env:USERNAME
+    }
+
+    $script:CurrentParseSessionId = $SessionId
+
+    return $context
+}
+
+function Add-DataLineage {
+    <#
+    .SYNOPSIS
+    Adds lineage metadata to a record or collection of records.
+    .PARAMETER Record
+    The record or records to add lineage to.
+    .PARAMETER Context
+    The DataLineageContext from New-DataLineageContext.
+    .PARAMETER RecordType
+    Type of record (e.g., 'Interface', 'Device', 'SpanInfo').
+    .OUTPUTS
+    Returns the record with lineage properties added.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory, ValueFromPipeline)][object]$Record,
+        [Parameter(Mandatory)][object]$Context,
+        [string]$RecordType = 'Unknown'
+    )
+
+    process {
+        if (-not $Record) { return $null }
+
+        # Add lineage properties
+        $Record | Add-Member -NotePropertyName '_SourceFile' -NotePropertyValue $Context.SourceFile -Force
+        $Record | Add-Member -NotePropertyName '_ParseTimestamp' -NotePropertyValue $Context.ParseTimestamp -Force
+        $Record | Add-Member -NotePropertyName '_ParseSessionId' -NotePropertyValue $Context.SessionId -Force
+        $Record | Add-Member -NotePropertyName '_RecordType' -NotePropertyValue $RecordType -Force
+
+        # Store in lineage dictionary for later lookup
+        $recordKey = "{0}:{1}:{2}" -f $Context.SessionId, $RecordType, $Context.RecordCount
+        $script:DataLineageStore[$recordKey] = [PSCustomObject]@{
+            SourceFile = $Context.SourceFile
+            ParseTimestamp = $Context.ParseTimestamp
+            SessionId = $Context.SessionId
+            RecordType = $RecordType
+            RecordIndex = $Context.RecordCount
+        }
+
+        $Context.RecordCount++
+
+        return $Record
+    }
+}
+
+function Get-DataLineage {
+    <#
+    .SYNOPSIS
+    Retrieves lineage information for a record or session.
+    .PARAMETER Record
+    A record with lineage metadata.
+    .PARAMETER SessionId
+    Session ID to look up lineage for.
+    .OUTPUTS
+    Returns lineage information.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter()][object]$Record,
+        [Parameter()][string]$SessionId
+    )
+
+    if ($Record) {
+        # Extract lineage from record
+        $lineage = [PSCustomObject]@{
+            SourceFile = $null
+            ParseTimestamp = $null
+            ParseSessionId = $null
+            RecordType = $null
+        }
+
+        if ($Record.PSObject.Properties.Name -contains '_SourceFile') {
+            $lineage.SourceFile = $Record._SourceFile
+        }
+        if ($Record.PSObject.Properties.Name -contains '_ParseTimestamp') {
+            $lineage.ParseTimestamp = $Record._ParseTimestamp
+        }
+        if ($Record.PSObject.Properties.Name -contains '_ParseSessionId') {
+            $lineage.ParseSessionId = $Record._ParseSessionId
+        }
+        if ($Record.PSObject.Properties.Name -contains '_RecordType') {
+            $lineage.RecordType = $Record._RecordType
+        }
+
+        return $lineage
+    }
+
+    if ($SessionId) {
+        # Return all lineage entries for a session
+        $entries = @()
+        $prefix = "${SessionId}:"
+        foreach ($key in $script:DataLineageStore.Keys) {
+            if ($key.StartsWith($prefix)) {
+                $entries += $script:DataLineageStore[$key]
+            }
+        }
+        return $entries
+    }
+
+    # Return summary of all sessions
+    $sessions = @{}
+    foreach ($key in $script:DataLineageStore.Keys) {
+        $parts = $key.Split(':')
+        if ($parts.Count -ge 1) {
+            $sid = $parts[0]
+            if (-not $sessions.ContainsKey($sid)) {
+                $sessions[$sid] = 0
+            }
+            $sessions[$sid]++
+        }
+    }
+
+    return $sessions.GetEnumerator() | ForEach-Object {
+        [PSCustomObject]@{
+            SessionId = $_.Key
+            RecordCount = $_.Value
+        }
+    }
+}
+
+# =============================================================================
+# Cache TTL (Time-To-Live) Management - ST-AI-004
+# =============================================================================
+
+# Default TTL in minutes for cache entries
+if (-not (Get-Variable -Scope Script -Name CacheEntryTTLMinutes -ErrorAction SilentlyContinue)) {
+    $script:CacheEntryTTLMinutes = 30
+}
+
+# Store for tracking entry timestamps (site -> timestamp)
+if (-not (Get-Variable -Scope Script -Name CacheEntryTimestamps -ErrorAction SilentlyContinue)) {
+    $script:CacheEntryTimestamps = [System.Collections.Concurrent.ConcurrentDictionary[string, datetime]]::new([System.StringComparer]::OrdinalIgnoreCase)
+}
+
+# Store for tracking invalidation reasons
+if (-not (Get-Variable -Scope Script -Name CacheInvalidationLog -ErrorAction SilentlyContinue)) {
+    $script:CacheInvalidationLog = [System.Collections.Generic.List[object]]::new()
+}
+
+function Set-CacheEntryTTL {
+    <#
+    .SYNOPSIS
+    Sets the cache entry TTL (time-to-live) in minutes.
+    .PARAMETER Minutes
+    TTL in minutes. Set to 0 for no expiration.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][int]$Minutes
+    )
+
+    $script:CacheEntryTTLMinutes = [Math]::Max(0, $Minutes)
+    return $script:CacheEntryTTLMinutes
+}
+
+function Get-CacheEntryTTL {
+    <#
+    .SYNOPSIS
+    Gets the current cache entry TTL in minutes.
+    #>
+    [CmdletBinding()]
+    param()
+
+    return $script:CacheEntryTTLMinutes
+}
+
+function Update-CacheEntryTimestamp {
+    <#
+    .SYNOPSIS
+    Updates the timestamp for a cache entry.
+    .PARAMETER SiteKey
+    The site key to update.
+    .PARAMETER Timestamp
+    Optional timestamp. Defaults to current UTC time.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$SiteKey,
+        [datetime]$Timestamp
+    )
+
+    if ([string]::IsNullOrWhiteSpace($SiteKey)) { return }
+
+    $ts = if ($Timestamp) { $Timestamp.ToUniversalTime() } else { [datetime]::UtcNow }
+    $script:CacheEntryTimestamps[$SiteKey] = $ts
+}
+
+function Get-CacheEntryTimestamp {
+    <#
+    .SYNOPSIS
+    Gets the timestamp for a cache entry.
+    .PARAMETER SiteKey
+    The site key to query.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$SiteKey
+    )
+
+    if ([string]::IsNullOrWhiteSpace($SiteKey)) { return $null }
+
+    $ts = $null
+    if ($script:CacheEntryTimestamps.TryGetValue($SiteKey, [ref]$ts)) {
+        return $ts
+    }
+    return $null
+}
+
+function Test-CacheEntryExpired {
+    <#
+    .SYNOPSIS
+    Tests if a cache entry has expired based on TTL.
+    .PARAMETER SiteKey
+    The site key to test.
+    .PARAMETER TTLMinutes
+    Optional TTL override. Uses global setting if not specified.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$SiteKey,
+        [int]$TTLMinutes = -1
+    )
+
+    $ttl = if ($TTLMinutes -ge 0) { $TTLMinutes } else { $script:CacheEntryTTLMinutes }
+
+    # TTL of 0 means no expiration
+    if ($ttl -eq 0) { return $false }
+
+    $ts = Get-CacheEntryTimestamp -SiteKey $SiteKey
+    if (-not $ts) {
+        # No timestamp means entry was created before TTL tracking - treat as expired
+        return $true
+    }
+
+    $age = [datetime]::UtcNow - $ts
+    return ($age.TotalMinutes -gt $ttl)
+}
+
+function Get-CacheEntryAge {
+    <#
+    .SYNOPSIS
+    Gets the age of a cache entry in minutes.
+    .PARAMETER SiteKey
+    The site key to query.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$SiteKey
+    )
+
+    $ts = Get-CacheEntryTimestamp -SiteKey $SiteKey
+    if (-not $ts) { return -1 }
+
+    $age = [datetime]::UtcNow - $ts
+    return [int]$age.TotalMinutes
+}
+
+function Remove-ExpiredCacheEntries {
+    <#
+    .SYNOPSIS
+    Removes all expired cache entries.
+    .PARAMETER TTLMinutes
+    Optional TTL override. Uses global setting if not specified.
+    #>
+    [CmdletBinding()]
+    param(
+        [int]$TTLMinutes = -1
+    )
+
+    $ttl = if ($TTLMinutes -ge 0) { $TTLMinutes } else { $script:CacheEntryTTLMinutes }
+
+    # TTL of 0 means no expiration
+    if ($ttl -eq 0) { return 0 }
+
+    $store = Get-SharedSiteInterfaceCacheStore
+    $removed = 0
+    $expiredKeys = [System.Collections.Generic.List[string]]::new()
+
+    foreach ($key in @($script:CacheEntryTimestamps.Keys)) {
+        if (Test-CacheEntryExpired -SiteKey $key -TTLMinutes $ttl) {
+            [void]$expiredKeys.Add($key)
+        }
+    }
+
+    foreach ($key in $expiredKeys) {
+        try {
+            $removedValue = $null
+            if ($store.TryRemove($key, [ref]$removedValue)) {
+                $removed++
+                $removedTs = $null
+                [void]$script:CacheEntryTimestamps.TryRemove($key, [ref]$removedTs)
+
+                # Log invalidation
+                $logEntry = [PSCustomObject]@{
+                    SiteKey = $key
+                    Reason = 'TTL_Expired'
+                    ExpiredAt = [datetime]::UtcNow
+                    AgeMinutes = Get-CacheEntryAge -SiteKey $key
+                }
+                $script:CacheInvalidationLog.Add($logEntry)
+
+                Publish-SharedSiteInterfaceCacheEvent -SiteKey $key -Operation 'TTLExpired' -EntryCount $store.Count
+            }
+        } catch {
+            Write-Verbose "[Cache] Failed to remove expired entry '$key': $($_.Exception.Message)"
+        }
+    }
+
+    return $removed
+}
+
+function Invoke-CacheEntryTTLCheck {
+    <#
+    .SYNOPSIS
+    Checks if a cache entry is valid (not expired). Returns $true if valid.
+    .PARAMETER SiteKey
+    The site key to check.
+    .PARAMETER AutoInvalidate
+    If $true, automatically removes expired entries.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$SiteKey,
+        [switch]$AutoInvalidate
+    )
+
+    if (-not (Test-CacheEntryExpired -SiteKey $SiteKey)) {
+        return $true
+    }
+
+    if ($AutoInvalidate.IsPresent) {
+        $store = Get-SharedSiteInterfaceCacheStore
+        $removedValue = $null
+        if ($store.TryRemove($SiteKey, [ref]$removedValue)) {
+            $removedTs = $null
+            [void]$script:CacheEntryTimestamps.TryRemove($SiteKey, [ref]$removedTs)
+
+            $logEntry = [PSCustomObject]@{
+                SiteKey = $SiteKey
+                Reason = 'TTL_AutoInvalidated'
+                InvalidatedAt = [datetime]::UtcNow
+            }
+            $script:CacheInvalidationLog.Add($logEntry)
+
+            Publish-SharedSiteInterfaceCacheEvent -SiteKey $SiteKey -Operation 'TTLAutoInvalidated' -EntryCount $store.Count
+        }
+    }
+
+    return $false
+}
+
+function Get-CacheInvalidationLog {
+    <#
+    .SYNOPSIS
+    Gets the cache invalidation log.
+    .PARAMETER SiteKey
+    Optional filter by site key.
+    .PARAMETER Last
+    Number of recent entries to return.
+    #>
+    [CmdletBinding()]
+    param(
+        [string]$SiteKey,
+        [int]$Last = 100
+    )
+
+    $entries = @($script:CacheInvalidationLog)
+
+    if (-not [string]::IsNullOrWhiteSpace($SiteKey)) {
+        $entries = @($entries | Where-Object { $_.SiteKey -eq $SiteKey })
+    }
+
+    if ($Last -gt 0 -and $entries.Count -gt $Last) {
+        $entries = @($entries | Select-Object -Last $Last)
+    }
+
+    return $entries
+}
+
+function Clear-CacheInvalidationLog {
+    <#
+    .SYNOPSIS
+    Clears the cache invalidation log.
+    #>
+    [CmdletBinding()]
+    param()
+
+    $script:CacheInvalidationLog.Clear()
+}
+
+function Get-CacheTTLStats {
+    <#
+    .SYNOPSIS
+    Gets statistics about cache entries and TTL.
+    #>
+    [CmdletBinding()]
+    param()
+
+    $store = Get-SharedSiteInterfaceCacheStore
+    $totalEntries = $store.Count
+    $trackedEntries = $script:CacheEntryTimestamps.Count
+    $expiredCount = 0
+    $oldestAge = 0
+    $newestAge = [int]::MaxValue
+
+    foreach ($key in @($script:CacheEntryTimestamps.Keys)) {
+        $age = Get-CacheEntryAge -SiteKey $key
+        if ($age -ge 0) {
+            if ($age -gt $oldestAge) { $oldestAge = $age }
+            if ($age -lt $newestAge) { $newestAge = $age }
+        }
+        if (Test-CacheEntryExpired -SiteKey $key) {
+            $expiredCount++
+        }
+    }
+
+    if ($newestAge -eq [int]::MaxValue) { $newestAge = 0 }
+
+    return [PSCustomObject]@{
+        TotalEntries = $totalEntries
+        TrackedEntries = $trackedEntries
+        ExpiredEntries = $expiredCount
+        TTLMinutes = $script:CacheEntryTTLMinutes
+        OldestAgeMinutes = $oldestAge
+        NewestAgeMinutes = $newestAge
+        InvalidationLogCount = $script:CacheInvalidationLog.Count
+    }
+}
+
+Export-ModuleMember -Function `
+    Get-SharedSiteInterfaceCacheStore, `
+    Get-SharedSiteInterfaceCacheEntry, `
+    Get-SharedSiteInterfaceCacheSnapshotEntries, `
+    Export-SharedCacheSnapshot, `
+    Get-SharedSiteInterfaceCache, `
+    Set-SharedSiteInterfaceCacheEntry, `
+    Clear-SharedSiteInterfaceCache, `
+    Publish-SharedSiteInterfaceCacheStoreState, `
+    Publish-SharedSiteInterfaceCacheEvent, `
+    Publish-SharedSiteInterfaceCacheClearInvocation, `
+    Get-SharedSiteInterfaceCacheEntryStatistics, `
+    Initialize-SharedSiteInterfaceCacheStore, `
+    Import-SharedSiteInterfaceCacheSnapshotFromEnv, `
+    Import-SharedSiteInterfaceCacheSnapshot, `
+    ConvertTo-SharedCacheEntryArray, `
+    Write-SharedCacheSnapshotFileFallback, `
+    Initialize-MemoryMappedCache, `
+    Import-MemoryMappedCacheFromFile, `
+    Export-MemoryMappedCacheToFile, `
+    Sync-MemoryMappedCache, `
+    Get-MemoryMappedCacheStats, `
+    New-DataLineageContext, `
+    Add-DataLineage, `
+    Get-DataLineage, `
+    Set-CacheEntryTTL, `
+    Get-CacheEntryTTL, `
+    Update-CacheEntryTimestamp, `
+    Get-CacheEntryTimestamp, `
+    Test-CacheEntryExpired, `
+    Get-CacheEntryAge, `
+    Remove-ExpiredCacheEntries, `
+    Invoke-CacheEntryTTLCheck, `
+    Get-CacheInvalidationLog, `
+    Clear-CacheInvalidationLog, `
+    Get-CacheTTLStats

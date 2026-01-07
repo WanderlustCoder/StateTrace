@@ -510,7 +510,19 @@ CREATE TABLE InterfaceHistory (
             }
             throw "Failed to open Access database '$Path'. Tried providers: $candidateList.`n$detailText"
         }
+        # Schema versioning table for tracking migrations
+        $createSchemaVersionTable = @'
+CREATE TABLE SchemaVersion (
+    ID              COUNTER     PRIMARY KEY,
+    Version         INTEGER     NOT NULL,
+    MigrationName   TEXT(128),
+    AppliedAt       DATETIME,
+    AppliedBy       TEXT(64)
+);
+'@
+
         $schemaStatements = @(
+            @{ Label = 'Create SchemaVersion table'; Statement = $createSchemaVersionTable }
             @{ Label = 'Create DeviceSummary table'; Statement = $createSummaryTable }
             @{ Label = 'Create Interfaces table'; Statement = $createInterfacesTable }
             @{ Label = 'Create DeviceHistory table'; Statement = $createDeviceHistoryTable }
@@ -610,4 +622,204 @@ function Invoke-DbQuery {
     }
 }
 
-Export-ModuleMember -Function Get-SqlLiteral, ConvertTo-DbRowList, New-AccessDatabase, Invoke-DbQuery, Open-DbReadSession, Close-DbReadSession
+# ============================================================================
+# Schema Versioning System
+# ============================================================================
+
+$script:CurrentSchemaVersion = 1
+
+function Get-DatabaseSchemaVersion {
+    <#
+    .SYNOPSIS
+    Gets the current schema version of a database.
+    .PARAMETER DatabasePath
+    Path to the Access database file.
+    .OUTPUTS
+    Returns the current schema version number, or 0 if not versioned.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$DatabasePath
+    )
+
+    if (-not (Test-Path -LiteralPath $DatabasePath)) {
+        return 0
+    }
+
+    try {
+        $sql = "SELECT MAX(Version) AS CurrentVersion FROM SchemaVersion"
+        $result = Invoke-DbQuery -DatabasePath $DatabasePath -Sql $sql
+        if ($result -and $result.Rows.Count -gt 0) {
+            $version = $result.Rows[0]['CurrentVersion']
+            if ($null -ne $version -and $version -ne [System.DBNull]::Value) {
+                return [int]$version
+            }
+        }
+        return 0
+    } catch {
+        # Table may not exist yet
+        return 0
+    }
+}
+
+function Set-DatabaseSchemaVersion {
+    <#
+    .SYNOPSIS
+    Records a schema version in the database.
+    .PARAMETER DatabasePath
+    Path to the Access database file.
+    .PARAMETER Version
+    The schema version number to record.
+    .PARAMETER MigrationName
+    Name of the migration that was applied.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$DatabasePath,
+        [Parameter(Mandatory)][int]$Version,
+        [string]$MigrationName = ''
+    )
+
+    $escapedMigration = Get-SqlLiteral -Value $MigrationName
+    $appliedBy = $env:USERNAME
+    if (-not $appliedBy) { $appliedBy = 'System' }
+    $escapedAppliedBy = Get-SqlLiteral -Value $appliedBy
+
+    $sql = "INSERT INTO SchemaVersion (Version, MigrationName, AppliedAt, AppliedBy) VALUES ($Version, '$escapedMigration', Now(), '$escapedAppliedBy')"
+
+    try {
+        Invoke-DbQuery -DatabasePath $DatabasePath -Sql $sql | Out-Null
+        return $true
+    } catch {
+        Write-Warning ("Failed to record schema version: {0}" -f $_.Exception.Message)
+        return $false
+    }
+}
+
+function Get-PendingMigrations {
+    <#
+    .SYNOPSIS
+    Gets list of migrations that need to be applied.
+    .PARAMETER DatabasePath
+    Path to the Access database file.
+    .OUTPUTS
+    Returns array of pending migration definitions.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$DatabasePath
+    )
+
+    $currentVersion = Get-DatabaseSchemaVersion -DatabasePath $DatabasePath
+
+    # Define migrations in order
+    $migrations = @(
+        @{
+            Version = 1
+            Name = 'Initial schema with versioning'
+            Statements = @()  # Base schema already applied
+        }
+    )
+
+    return @($migrations | Where-Object { $_.Version -gt $currentVersion })
+}
+
+function Invoke-DatabaseMigration {
+    <#
+    .SYNOPSIS
+    Applies pending migrations to a database.
+    .PARAMETER DatabasePath
+    Path to the Access database file.
+    .PARAMETER Force
+    Apply migrations even if database appears up to date.
+    .OUTPUTS
+    Returns count of migrations applied.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$DatabasePath,
+        [switch]$Force
+    )
+
+    $pending = Get-PendingMigrations -DatabasePath $DatabasePath
+
+    if ($pending.Count -eq 0 -and -not $Force) {
+        Write-Verbose "Database is up to date."
+        return 0
+    }
+
+    $applied = 0
+    foreach ($migration in $pending) {
+        Write-Verbose ("Applying migration v{0}: {1}" -f $migration.Version, $migration.Name)
+
+        $success = $true
+        foreach ($stmt in $migration.Statements) {
+            try {
+                Invoke-DbQuery -DatabasePath $DatabasePath -Sql $stmt | Out-Null
+            } catch {
+                Write-Warning ("Migration v{0} failed: {1}" -f $migration.Version, $_.Exception.Message)
+                $success = $false
+                break
+            }
+        }
+
+        if ($success) {
+            Set-DatabaseSchemaVersion -DatabasePath $DatabasePath -Version $migration.Version -MigrationName $migration.Name | Out-Null
+            $applied++
+        }
+    }
+
+    return $applied
+}
+
+function Test-DatabaseSchemaHealth {
+    <#
+    .SYNOPSIS
+    Validates database schema integrity.
+    .PARAMETER DatabasePath
+    Path to the Access database file.
+    .OUTPUTS
+    Returns a health check result object.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$DatabasePath
+    )
+
+    $result = [PSCustomObject]@{
+        DatabasePath = $DatabasePath
+        Exists = (Test-Path -LiteralPath $DatabasePath)
+        SchemaVersion = 0
+        ExpectedVersion = $script:CurrentSchemaVersion
+        IsUpToDate = $false
+        MissingTables = @()
+        Errors = @()
+    }
+
+    if (-not $result.Exists) {
+        $result.Errors += "Database file not found"
+        return $result
+    }
+
+    try {
+        $result.SchemaVersion = Get-DatabaseSchemaVersion -DatabasePath $DatabasePath
+        $result.IsUpToDate = ($result.SchemaVersion -ge $result.ExpectedVersion)
+
+        # Check for required tables
+        $requiredTables = @('DeviceSummary', 'Interfaces', 'SpanInfo', 'SchemaVersion')
+        foreach ($table in $requiredTables) {
+            try {
+                $sql = "SELECT TOP 1 * FROM [$table]"
+                Invoke-DbQuery -DatabasePath $DatabasePath -Sql $sql | Out-Null
+            } catch {
+                $result.MissingTables += $table
+            }
+        }
+    } catch {
+        $result.Errors += $_.Exception.Message
+    }
+
+    return $result
+}
+
+Export-ModuleMember -Function Get-SqlLiteral, ConvertTo-DbRowList, New-AccessDatabase, Invoke-DbQuery, Open-DbReadSession, Close-DbReadSession, Get-DatabaseSchemaVersion, Set-DatabaseSchemaVersion, Get-PendingMigrations, Invoke-DatabaseMigration, Test-DatabaseSchemaHealth
