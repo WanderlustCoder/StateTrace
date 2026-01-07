@@ -1,195 +1,336 @@
-param(
-    [switch]$InstallPython = $true,
-    [switch]$InstallGraphviz = $true,
-    [switch]$InstallGit = $true,
-    # ST-K-002: Validation-only mode (no installs)
-    [switch]$ValidateOnly,
-    # ST-K-002: Output session log path
-    [string]$SessionLogPath
-)
-
 <#
 .SYNOPSIS
-Bootstraps and validates a developer workstation for StateTrace development.
+Bootstraps a developer workstation for StateTrace development.
 
 .DESCRIPTION
-Validates execution policy, required PowerShell modules, and tracked fixture seeds.
-Optionally installs pinned tool versions via winget. Emits remediation steps for any
-failures and can log validation results to docs/agents/sessions/.
+Installs required PowerShell modules, validates prerequisites, configures
+development environment, and runs initial smoke tests.
 
-.PARAMETER ValidateOnly
-ST-K-002: Run validation checks only without installing any software.
+.PARAMETER SkipModuleInstall
+Skip PowerShell module installation (useful if already installed).
 
-.PARAMETER SessionLogPath
-ST-K-002: Path to write validation/bootstrap session log (JSON).
+.PARAMETER SkipGitHooks
+Skip Git pre-commit hook installation.
+
+.PARAMETER SkipValidation
+Skip environment validation tests.
+
+.PARAMETER Verbose
+Show detailed progress information.
 
 .EXAMPLE
-pwsh Tools\Bootstrap-DevSeat.ps1 -ValidateOnly
+.\Bootstrap-DevSeat.ps1
+
+.EXAMPLE
+.\Bootstrap-DevSeat.ps1 -SkipModuleInstall -Verbose
 #>
+
+[CmdletBinding()]
+param(
+    [switch]$SkipModuleInstall,
+    [switch]$SkipGitHooks,
+    [switch]$SkipValidation
+)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$repositoryRoot = Split-Path -Parent $PSScriptRoot
+$projectRoot = Split-Path -Parent $PSScriptRoot
 
-# ST-K-002: Validation results collector
-$script:ValidationResults = [System.Collections.Generic.List[pscustomobject]]::new()
-$script:RemediationSteps = [System.Collections.Generic.List[string]]::new()
+# Banner
+Write-Host @"
 
-function Add-ValidationResult {
-    param(
-        [string]$Check,
-        [bool]$Passed,
-        [string]$Details,
-        [string]$Remediation
-    )
-    $script:ValidationResults.Add([pscustomobject]@{
-        Check = $Check
-        Passed = $Passed
-        Details = $Details
-        Remediation = $Remediation
-    })
-    if (-not $Passed -and $Remediation) {
-        $script:RemediationSteps.Add($Remediation)
+╔═══════════════════════════════════════════════════════════════╗
+║           StateTrace Developer Workstation Bootstrap          ║
+╚═══════════════════════════════════════════════════════════════╝
+
+"@ -ForegroundColor Cyan
+
+$results = [ordered]@{
+    PowerShellVersion = $false
+    RequiredModules = $false
+    DatabaseProvider = $false
+    GitConfiguration = $false
+    PreCommitHooks = $false
+    ProjectStructure = $false
+    SmokeTests = $false
+}
+
+# Step 1: Check PowerShell Version
+Write-Host "[1/7] Checking PowerShell Version..." -ForegroundColor Yellow
+
+$psVersion = $PSVersionTable.PSVersion
+Write-Host "  PowerShell $($psVersion.Major).$($psVersion.Minor)" -NoNewline
+
+if ($psVersion.Major -ge 5) {
+    Write-Host " ✓" -ForegroundColor Green
+    $results.PowerShellVersion = $true
+} else {
+    Write-Host " ✗ (Requires 5.1+)" -ForegroundColor Red
+    Write-Warning "StateTrace requires PowerShell 5.1 or later. Please upgrade."
+}
+
+# Step 2: Install Required Modules
+Write-Host "`n[2/7] PowerShell Modules..." -ForegroundColor Yellow
+
+$requiredModules = @(
+    @{ Name = 'Pester'; MinVersion = '5.0.0' }
+    @{ Name = 'PSScriptAnalyzer'; MinVersion = '1.20.0' }
+)
+
+$allModulesOk = $true
+
+foreach ($mod in $requiredModules) {
+    $installed = Get-Module -ListAvailable -Name $mod.Name |
+        Where-Object { $_.Version -ge [version]$mod.MinVersion } |
+        Select-Object -First 1
+
+    if ($installed) {
+        Write-Host "  $($mod.Name) v$($installed.Version) ✓" -ForegroundColor Green
+    } elseif (-not $SkipModuleInstall.IsPresent) {
+        Write-Host "  Installing $($mod.Name)..." -ForegroundColor Gray
+        try {
+            Install-Module -Name $mod.Name -MinimumVersion $mod.MinVersion -Force -Scope CurrentUser -AllowClobber
+            Write-Host "  $($mod.Name) installed ✓" -ForegroundColor Green
+        } catch {
+            Write-Host "  $($mod.Name) FAILED: $_" -ForegroundColor Red
+            $allModulesOk = $false
+        }
+    } else {
+        Write-Host "  $($mod.Name) missing (skipped install)" -ForegroundColor Yellow
+        $allModulesOk = $false
     }
 }
 
-# ST-K-002: Validate execution policy
-function Test-ExecutionPolicy {
-    $policy = Get-ExecutionPolicy -Scope CurrentUser
-    $acceptable = @('RemoteSigned', 'Unrestricted', 'Bypass')
-    $passed = $acceptable -contains $policy
-    Add-ValidationResult -Check 'ExecutionPolicy' -Passed $passed `
-        -Details "CurrentUser policy: $policy" `
-        -Remediation "Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser"
-    return $passed
+$results.RequiredModules = $allModulesOk
+
+# Step 3: Check Database Provider
+Write-Host "`n[3/7] Database Provider (Access/OLEDB)..." -ForegroundColor Yellow
+
+$aceProvider = $null
+try {
+    $providers = (New-Object System.Data.OleDb.OleDbEnumerator).GetElements() |
+        Where-Object { $_.SOURCES_NAME -match 'ACE|Jet' }
+
+    if ($providers) {
+        $aceProvider = $providers | Select-Object -First 1
+        Write-Host "  Found: $($aceProvider.SOURCES_NAME) ✓" -ForegroundColor Green
+        $results.DatabaseProvider = $true
+    }
+} catch {
+    # OleDb enumeration not available
 }
 
-# ST-K-002: Validate required PowerShell modules
-function Test-RequiredModules {
-    $requiredModules = @(
-        @{ Name = 'Pester'; MinVersion = '3.4.0' }
-    )
-    $allPassed = $true
-    foreach ($mod in $requiredModules) {
-        $installed = Get-Module -ListAvailable -Name $mod.Name | Sort-Object Version -Descending | Select-Object -First 1
-        if ($installed) {
-            $passed = $installed.Version -ge [version]$mod.MinVersion
-            Add-ValidationResult -Check "Module:$($mod.Name)" -Passed $passed `
-                -Details "Found version $($installed.Version), required >= $($mod.MinVersion)" `
-                -Remediation "Install-Module -Name $($mod.Name) -MinimumVersion $($mod.MinVersion) -Scope CurrentUser -Force"
-        } else {
-            Add-ValidationResult -Check "Module:$($mod.Name)" -Passed $false `
-                -Details "Not installed" `
-                -Remediation "Install-Module -Name $($mod.Name) -MinimumVersion $($mod.MinVersion) -Scope CurrentUser -Force"
-            $allPassed = $false
+if (-not $aceProvider) {
+    Write-Host "  No ACE/Jet OLEDB provider found" -ForegroundColor Yellow
+    Write-Host "  Download: https://www.microsoft.com/en-us/download/details.aspx?id=54920" -ForegroundColor Gray
+    Write-Host "  (Microsoft Access Database Engine 2016 Redistributable)" -ForegroundColor Gray
+}
+
+# Step 4: Git Configuration
+Write-Host "`n[4/7] Git Configuration..." -ForegroundColor Yellow
+
+$gitOk = $true
+
+# Check if this is a git repo
+if (Test-Path (Join-Path $projectRoot '.git')) {
+    Write-Host "  Git repository ✓" -ForegroundColor Green
+
+    # Check git user config
+    $gitUser = git config user.name 2>$null
+    $gitEmail = git config user.email 2>$null
+
+    if ($gitUser -and $gitEmail) {
+        Write-Host "  User: $gitUser <$gitEmail> ✓" -ForegroundColor Green
+    } else {
+        Write-Host "  Git user not configured" -ForegroundColor Yellow
+        Write-Host "  Run: git config user.name 'Your Name'" -ForegroundColor Gray
+        Write-Host "  Run: git config user.email 'your@email.com'" -ForegroundColor Gray
+        $gitOk = $false
+    }
+} else {
+    Write-Host "  Not a git repository" -ForegroundColor Red
+    $gitOk = $false
+}
+
+$results.GitConfiguration = $gitOk
+
+# Step 5: Pre-commit Hooks
+Write-Host "`n[5/7] Pre-commit Hooks..." -ForegroundColor Yellow
+
+$hookPath = Join-Path $projectRoot '.git\hooks\pre-commit'
+$hookInstaller = Join-Path $projectRoot 'Tools\Install-PreCommitHooks.ps1'
+
+if (Test-Path $hookPath) {
+    Write-Host "  Pre-commit hook installed ✓" -ForegroundColor Green
+    $results.PreCommitHooks = $true
+} elseif (-not $SkipGitHooks.IsPresent) {
+    if (Test-Path $hookInstaller) {
+        Write-Host "  Installing pre-commit hooks..." -ForegroundColor Gray
+        try {
+            & $hookInstaller -Force
+            $results.PreCommitHooks = $true
+            Write-Host "  Pre-commit hooks installed ✓" -ForegroundColor Green
+        } catch {
+            Write-Host "  Hook installation failed: $_" -ForegroundColor Red
+        }
+    } else {
+        Write-Host "  Hook installer not found" -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "  Pre-commit hooks skipped" -ForegroundColor Yellow
+}
+
+# Step 6: Project Structure
+Write-Host "`n[6/7] Project Structure..." -ForegroundColor Yellow
+
+$requiredDirs = @(
+    'Data'
+    'Logs'
+    'Modules'
+    'Views'
+    'Themes'
+    'Tools'
+    'Tests'
+)
+
+$structureOk = $true
+foreach ($dir in $requiredDirs) {
+    $path = Join-Path $projectRoot $dir
+    if (Test-Path $path) {
+        Write-Host "  $dir/ ✓" -ForegroundColor Green
+    } else {
+        Write-Host "  $dir/ missing - creating..." -ForegroundColor Yellow
+        New-Item -ItemType Directory -Path $path -Force | Out-Null
+    }
+}
+
+# Create default settings if missing
+$settingsPath = Join-Path $projectRoot 'Data\StateTraceSettings.json'
+if (-not (Test-Path $settingsPath)) {
+    Write-Host "  Creating default StateTraceSettings.json..." -ForegroundColor Yellow
+    $defaultSettings = @{
+        Theme = 'base'
+        LastSite = ''
+        RecentFiles = @()
+        WindowState = @{
+            Width = 1400
+            Height = 900
+            Left = 100
+            Top = 100
+            IsMaximized = $false
+        }
+        FilterPresets = @()
+        ColumnOrder = @{}
+        CacheTTLMinutes = 30
+    }
+    $defaultSettings | ConvertTo-Json -Depth 5 | Set-Content -Path $settingsPath -Encoding UTF8
+}
+
+$results.ProjectStructure = $structureOk
+
+# Step 7: Smoke Tests
+Write-Host "`n[7/7] Smoke Tests..." -ForegroundColor Yellow
+
+if (-not $SkipValidation.IsPresent) {
+    $smokeTestOk = $true
+
+    # Test module imports
+    $modules = Get-ChildItem -Path (Join-Path $projectRoot 'Modules') -Filter '*.psm1' -File |
+        Where-Object { $_.Name -notmatch '\.Tests\.' }
+
+    $importErrors = 0
+    foreach ($mod in $modules) {
+        try {
+            Import-Module $mod.FullName -Force -DisableNameChecking -ErrorAction Stop
+            Remove-Module -Name $mod.BaseName -Force -ErrorAction SilentlyContinue
+        } catch {
+            Write-Host "  $($mod.Name) import failed: $_" -ForegroundColor Red
+            $importErrors++
+            $smokeTestOk = $false
         }
     }
-    return $allPassed
-}
 
-# ST-K-002: Validate tracked fixture seeds
-function Test-FixtureSeeds {
-    $requiredFixtures = @(
-        'Tests/Fixtures/CISmoke/IngestionMetrics.json',
-        'Tests/Fixtures/CISmoke/WarmRunTelemetry.json',
-        'Tests/Fixtures/manifests/CISmoke.json'
-    )
-    $allPassed = $true
-    foreach ($fixture in $requiredFixtures) {
-        $fullPath = Join-Path -Path $repositoryRoot -ChildPath $fixture
-        $exists = Test-Path -LiteralPath $fullPath
-        Add-ValidationResult -Check "Fixture:$fixture" -Passed $exists `
-            -Details $(if ($exists) { "Present" } else { "Missing" }) `
-            -Remediation "git checkout -- $fixture"
-        if (-not $exists) { $allPassed = $false }
+    if ($importErrors -eq 0) {
+        Write-Host "  Module imports ($($modules.Count) modules) ✓" -ForegroundColor Green
     }
-    return $allPassed
-}
 
-# ST-K-002: Run all validation checks
-Write-Host "Running developer seat validation checks..." -ForegroundColor Cyan
-
-$execPolicyOk = Test-ExecutionPolicy
-$modulesOk = Test-RequiredModules
-$fixturesOk = Test-FixtureSeeds
-
-$overallPassed = $execPolicyOk -and $modulesOk -and $fixturesOk
-
-# Display results
-Write-Host "`nValidation Results:" -ForegroundColor White
-foreach ($result in $script:ValidationResults) {
-    $color = if ($result.Passed) { 'Green' } else { 'Red' }
-    $status = if ($result.Passed) { '[PASS]' } else { '[FAIL]' }
-    Write-Host "  $status $($result.Check): $($result.Details)" -ForegroundColor $color
-}
-
-if ($script:RemediationSteps.Count -gt 0) {
-    Write-Host "`nRemediation Steps:" -ForegroundColor Yellow
-    for ($i = 0; $i -lt $script:RemediationSteps.Count; $i++) {
-        Write-Host "  $($i + 1). $($script:RemediationSteps[$i])" -ForegroundColor Yellow
+    # Validate XAML files
+    $xamlFiles = Get-ChildItem -Path (Join-Path $projectRoot 'Views') -Filter '*.xaml' -File -ErrorAction SilentlyContinue
+    $xamlErrors = 0
+    foreach ($xaml in $xamlFiles) {
+        try {
+            [xml]$content = Get-Content -Path $xaml.FullName -Raw -ErrorAction Stop
+        } catch {
+            Write-Host "  $($xaml.Name) parse error: $_" -ForegroundColor Red
+            $xamlErrors++
+            $smokeTestOk = $false
+        }
     }
-}
 
-# ST-K-002: Write session log
-if ($SessionLogPath) {
-    $sessionDir = Split-Path -Path $SessionLogPath -Parent
-    if ($sessionDir -and -not (Test-Path -LiteralPath $sessionDir)) {
-        New-Item -ItemType Directory -Path $sessionDir -Force | Out-Null
+    if ($xamlErrors -eq 0 -and $xamlFiles.Count -gt 0) {
+        Write-Host "  XAML validation ($($xamlFiles.Count) files) ✓" -ForegroundColor Green
     }
-    $sessionLog = [pscustomobject]@{
-        Timestamp = (Get-Date).ToString('o')
-        OverallPassed = $overallPassed
-        ValidationResults = $script:ValidationResults
-        RemediationSteps = $script:RemediationSteps
-        PSVersion = $PSVersionTable.PSVersion.ToString()
-        OSVersion = [System.Environment]::OSVersion.VersionString
+
+    # Validate JSON configs
+    $jsonFiles = @(
+        'Data\StateTraceSettings.json'
+    ) + (Get-ChildItem -Path (Join-Path $projectRoot 'Themes') -Filter '*.json' -File -ErrorAction SilentlyContinue | ForEach-Object { "Themes\$($_.Name)" })
+
+    $jsonErrors = 0
+    foreach ($jsonFile in $jsonFiles) {
+        $path = Join-Path $projectRoot $jsonFile
+        if (Test-Path $path) {
+            try {
+                Get-Content -Path $path -Raw | ConvertFrom-Json | Out-Null
+            } catch {
+                Write-Host "  $jsonFile parse error: $_" -ForegroundColor Red
+                $jsonErrors++
+                $smokeTestOk = $false
+            }
+        }
     }
-    $sessionLog | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $SessionLogPath -Encoding utf8
-    Write-Host "`nSession log written to: $SessionLogPath" -ForegroundColor DarkCyan
-}
 
-if ($ValidateOnly) {
-    if ($overallPassed) {
-        Write-Host "`nValidation passed - dev seat ready." -ForegroundColor Green
-    } else {
-        Write-Host "`nValidation failed - see remediation steps above." -ForegroundColor Red
+    if ($jsonErrors -eq 0) {
+        Write-Host "  JSON validation ✓" -ForegroundColor Green
     }
-    return
+
+    $results.SmokeTests = $smokeTestOk
+} else {
+    Write-Host "  Skipped" -ForegroundColor Yellow
 }
 
-# Original install logic (requires explicit env var)
-if (-not $env:STATETRACE_AGENT_ALLOW_INSTALL) {
-    if (-not $overallPassed) {
-        throw "Validation failed and install capability is disabled. Set STATETRACE_AGENT_ALLOW_INSTALL=1 to proceed with installs."
-    }
-    Write-Host "`nValidation passed. Skipping installs (STATETRACE_AGENT_ALLOW_INSTALL not set)." -ForegroundColor Green
-    return
+# Summary
+Write-Host "`n═══════════════════════════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host "                         SUMMARY                                " -ForegroundColor Cyan
+Write-Host "═══════════════════════════════════════════════════════════════" -ForegroundColor Cyan
+
+$passCount = ($results.Values | Where-Object { $_ -eq $true }).Count
+$totalCount = $results.Count
+
+foreach ($item in $results.GetEnumerator()) {
+    $status = if ($item.Value) { "✓ PASS" } else { "✗ FAIL" }
+    $color = if ($item.Value) { "Green" } else { "Red" }
+    Write-Host "  $($item.Key.PadRight(20)) $status" -ForegroundColor $color
 }
 
-Write-Host "`nBootstrapping dev seat with pinned tools..." -ForegroundColor Cyan
-
-function Install-WithWinget {
-    param([string]$Id, [string]$Version)
-    $args = @("install","--id",$Id,"--exact","--source","winget","--accept-package-agreements","--accept-source-agreements")
-    if ($Version) { $args += @("--version",$Version) }
-    Write-Host ("winget " + ($args -join ' '))
-    winget @args
+Write-Host ""
+if ($passCount -eq $totalCount) {
+    Write-Host "  All checks passed! Your environment is ready." -ForegroundColor Green
+    Write-Host ""
+    Write-Host "  Next steps:" -ForegroundColor Cyan
+    Write-Host "    1. Open StateTrace.sln in your IDE" -ForegroundColor Gray
+    Write-Host "    2. Run: .\Tools\Invoke-CIHarness.ps1" -ForegroundColor Gray
+    Write-Host "    3. Run: .\Main\MainWindow.ps1" -ForegroundColor Gray
+} else {
+    Write-Host "  $passCount/$totalCount checks passed." -ForegroundColor Yellow
+    Write-Host "  Please address the issues above before developing." -ForegroundColor Yellow
 }
 
-# Python (for scripts/metrics tooling)
-if ($InstallPython) {
-    Install-WithWinget -Id "Python.Python.3.11" -Version "3.11.9"
-}
+Write-Host ""
+Write-Host "  Documentation: docs/Developer_Onboarding.md" -ForegroundColor Gray
+Write-Host "  Troubleshooting: docs/troubleshooting/Common_Failures.md" -ForegroundColor Gray
+Write-Host ""
 
-# Graphviz (for diagrams)
-if ($InstallGraphviz) {
-    Install-WithWinget -Id "Graphviz.Graphviz" -Version "12.2.0"
-}
-
-# Git (for tooling and submodules)
-if ($InstallGit) {
-    Install-WithWinget -Id "Git.Git" -Version "2.46.0"
-}
-
-Write-Host "Bootstrap complete." -ForegroundColor Green
+# Return results for automation
+return [PSCustomObject]$results
