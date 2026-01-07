@@ -281,4 +281,149 @@ function Export-StTextToFile {
     }
 }
 
-Export-ModuleMember -Function Set-StView, New-StDebounceTimer, Export-StRowsToCsv, Export-StTextToFile
+function Export-StRowsToJson {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][object]$Rows,
+        [string]$DefaultFileName = 'Export.json',
+        [string]$DialogFilter = 'JSON files (*.json)|*.json|All files (*.*)|*.*',
+        [string]$EmptyMessage = 'No rows to export.',
+        [string]$SuccessNoun = 'rows',
+        [string]$SuccessTitle = 'Export Complete',
+        [string]$FailureMessagePrefix = 'Failed to export',
+        [switch]$SuppressDialogs
+    )
+
+    $rowArray = @()
+    try {
+        $rowArray = @($Rows)
+    } catch {
+        $rowArray = @()
+    }
+
+    if (-not $rowArray -or $rowArray.Count -eq 0) {
+        try { Show-ViewCompositionMessage -Message $EmptyMessage -SuppressDialogs:$SuppressDialogs } catch { }
+        return
+    }
+
+    $suppressDialogsResolved = Test-ViewCompositionDialogSuppression -SuppressDialogs:$SuppressDialogs
+
+    $dlg = $null
+    try {
+        if (-not $suppressDialogsResolved) {
+            $dlg = New-Object Microsoft.Win32.SaveFileDialog
+            $dlg.Filter = $DialogFilter
+            $dlg.FileName = $DefaultFileName
+            $dlg.DefaultExt = '.json'
+            $dlg.AddExtension = $true
+        }
+    } catch {
+        try { Show-ViewCompositionMessage -Message ("Failed to open save dialog: {0}" -f $_.Exception.Message) -Severity Warning -SuppressDialogs:$SuppressDialogs } catch { }
+        return
+    }
+
+    if ($suppressDialogsResolved) {
+        if ([string]::IsNullOrWhiteSpace($DefaultFileName) -or -not ([System.IO.Path]::IsPathRooted($DefaultFileName))) {
+            Show-ViewCompositionMessage -Message 'Export dialog suppressed; provide an absolute -DefaultFileName to export.' -Severity Warning -SuppressDialogs:$SuppressDialogs
+            return
+        }
+        $path = $DefaultFileName
+    } else {
+        $confirmed = $false
+        try { $confirmed = ($dlg.ShowDialog() -eq $true) } catch { $confirmed = $false }
+        if (-not $confirmed) { return }
+        $path = $dlg.FileName
+    }
+    if ([string]::IsNullOrWhiteSpace($path)) { return }
+
+    try {
+        $json = $rowArray | ConvertTo-Json -Depth 10
+        $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+        [System.IO.File]::WriteAllText($path, $json, $utf8NoBom)
+        $msg = "Exported {0} {1} to {2}" -f $rowArray.Count, $SuccessNoun, $path
+        Show-ViewCompositionMessage -Message $msg -Title $SuccessTitle -SuppressDialogs:$SuppressDialogs
+    } catch {
+        $prefix = $FailureMessagePrefix
+        if ([string]::IsNullOrWhiteSpace($prefix)) { $prefix = 'Failed to export' }
+        try { Show-ViewCompositionMessage -Message ("{0}: {1}" -f $prefix, $_.Exception.Message) -Severity Warning -SuppressDialogs:$SuppressDialogs } catch { }
+    }
+}
+
+function Export-StRowsWithFormatChoice {
+    <#
+    .SYNOPSIS
+        Exports rows to a file with user choice of format (CSV or JSON).
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][object]$Rows,
+        [string]$DefaultBaseName = 'Export',
+        [string]$EmptyMessage = 'No rows to export.',
+        [string]$SuccessNoun = 'rows',
+        [string]$SuccessTitle = 'Export Complete',
+        [string]$FailureMessagePrefix = 'Failed to export',
+        [switch]$SuppressDialogs
+    )
+
+    $rowArray = @()
+    try {
+        $rowArray = @($Rows)
+    } catch {
+        $rowArray = @()
+    }
+
+    if (-not $rowArray -or $rowArray.Count -eq 0) {
+        try { Show-ViewCompositionMessage -Message $EmptyMessage -SuppressDialogs:$SuppressDialogs } catch { }
+        return
+    }
+
+    $suppressDialogsResolved = Test-ViewCompositionDialogSuppression -SuppressDialogs:$SuppressDialogs
+
+    $dlg = $null
+    try {
+        if (-not $suppressDialogsResolved) {
+            $dlg = New-Object Microsoft.Win32.SaveFileDialog
+            $dlg.Filter = 'CSV files (*.csv)|*.csv|JSON files (*.json)|*.json|All files (*.*)|*.*'
+            $dlg.FileName = "$DefaultBaseName.csv"
+            $dlg.DefaultExt = '.csv'
+            $dlg.AddExtension = $true
+        }
+    } catch {
+        try { Show-ViewCompositionMessage -Message ("Failed to open save dialog: {0}" -f $_.Exception.Message) -Severity Warning -SuppressDialogs:$SuppressDialogs } catch { }
+        return
+    }
+
+    if ($suppressDialogsResolved) {
+        # For suppressed dialogs, default to CSV
+        $path = "$DefaultBaseName.csv"
+        if (-not ([System.IO.Path]::IsPathRooted($path))) {
+            Show-ViewCompositionMessage -Message 'Export dialog suppressed; provide an absolute path.' -Severity Warning -SuppressDialogs:$SuppressDialogs
+            return
+        }
+    } else {
+        $confirmed = $false
+        try { $confirmed = ($dlg.ShowDialog() -eq $true) } catch { $confirmed = $false }
+        if (-not $confirmed) { return }
+        $path = $dlg.FileName
+    }
+    if ([string]::IsNullOrWhiteSpace($path)) { return }
+
+    try {
+        $ext = [System.IO.Path]::GetExtension($path).ToLower()
+        if ($ext -eq '.json') {
+            $json = $rowArray | ConvertTo-Json -Depth 10
+            $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+            [System.IO.File]::WriteAllText($path, $json, $utf8NoBom)
+        } else {
+            $rowArray | Export-Csv -Path $path -NoTypeInformation
+        }
+        $msg = "Exported {0} {1} to {2}" -f $rowArray.Count, $SuccessNoun, $path
+        Show-ViewCompositionMessage -Message $msg -Title $SuccessTitle -SuppressDialogs:$SuppressDialogs
+    } catch {
+        $prefix = $FailureMessagePrefix
+        if ([string]::IsNullOrWhiteSpace($prefix)) { $prefix = 'Failed to export' }
+        try { Show-ViewCompositionMessage -Message ("{0}: {1}" -f $prefix, $_.Exception.Message) -Severity Warning -SuppressDialogs:$SuppressDialogs } catch { }
+    }
+}
+
+Export-ModuleMember -Function Set-StView, New-StDebounceTimer, Export-StRowsToCsv, Export-StRowsToJson, Export-StRowsWithFormatChoice, Export-StTextToFile

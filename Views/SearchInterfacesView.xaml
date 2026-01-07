@@ -10,7 +10,11 @@
     </Grid.RowDefinitions>
 
     <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5">
-      <TextBox Name="SearchBox" MinWidth="200" Margin="0,0,5,0" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1" ToolTip="Enter description or MAC to search"/>
+      <ComboBox Name="SearchBox" MinWidth="200" Margin="0,0,5,0" IsEditable="True" IsTextSearchEnabled="False"
+                Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}"
+                BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"
+                ToolTip="Enter description or MAC to search (recent searches in dropdown)"
+                Style="{DynamicResource ToolbarComboBoxStyle}"/>
       <Button Name="SearchClearButton" Content="X" Width="25" Height="23" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Clear search" Margin="0,0,5,0"/>
 
       <CheckBox Name="RegexCheckbox" Content="Regex" VerticalAlignment="Center" Margin="0,0,5,0" Style="{DynamicResource ToolbarCheckBoxStyle}"/>
@@ -35,6 +39,15 @@
       </ComboBox>
 
       <Button Name="ExportSearchButton" Content="Export" Width="60" Height="23" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Export search results to CSV"/>
+
+      <Rectangle Width="1" Fill="{DynamicResource Theme.Border.Primary}" Margin="10,2,10,2"/>
+
+      <Label Content="Preset:" VerticalAlignment="Center" Margin="0,0,0,0" Style="{DynamicResource ToolbarLabelStyle}"/>
+      <ComboBox Name="FilterPresetDropdown" Style="{DynamicResource ToolbarComboBoxStyle}" Width="120" Margin="0,0,5,0" ToolTip="Load a saved filter preset">
+        <ComboBoxItem Content="(None)" IsSelected="True"/>
+      </ComboBox>
+      <Button Name="SavePresetButton" Content="Save" Width="45" Height="23" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Save current filters as a preset"/>
+      <Button Name="DeletePresetButton" Content="Del" Width="35" Height="23" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Delete selected preset"/>
     </StackPanel>
 
     <Grid Grid.Row="1">
