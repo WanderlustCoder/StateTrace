@@ -564,6 +564,70 @@
     <Setter Property="Foreground" Value="{DynamicResource Theme.Status.Neutral}"/>
   </Style>
 
+  <!-- Data-Triggered Status Styles - Use for automatic color-coding based on bound values -->
+  <Style x:Key="InterfaceStatusTextStyle" TargetType="TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
+    <Style.Triggers>
+      <DataTrigger Binding="{Binding Status}" Value="connected">
+        <Setter Property="Foreground" Value="{DynamicResource Theme.Status.Success}"/>
+      </DataTrigger>
+      <DataTrigger Binding="{Binding Status}" Value="notconnect">
+        <Setter Property="Foreground" Value="{DynamicResource Theme.Status.Danger}"/>
+      </DataTrigger>
+      <DataTrigger Binding="{Binding Status}" Value="Up">
+        <Setter Property="Foreground" Value="{DynamicResource Theme.Status.Success}"/>
+      </DataTrigger>
+      <DataTrigger Binding="{Binding Status}" Value="Down">
+        <Setter Property="Foreground" Value="{DynamicResource Theme.Status.Danger}"/>
+      </DataTrigger>
+    </Style.Triggers>
+  </Style>
+
+  <Style x:Key="AuthStateTextStyle" TargetType="TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
+    <Style.Triggers>
+      <DataTrigger Binding="{Binding AuthState}" Value="Authorized">
+        <Setter Property="Foreground" Value="{DynamicResource Theme.Status.Success}"/>
+      </DataTrigger>
+      <DataTrigger Binding="{Binding AuthState}" Value="Unauthorized">
+        <Setter Property="Foreground" Value="{DynamicResource Theme.Status.Danger}"/>
+      </DataTrigger>
+    </Style.Triggers>
+  </Style>
+
+  <Style x:Key="DuplexTextStyle" TargetType="TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
+    <Style.Triggers>
+      <DataTrigger Binding="{Binding Duplex}" Value="full">
+        <Setter Property="Foreground" Value="{DynamicResource Theme.Status.Success}"/>
+      </DataTrigger>
+      <DataTrigger Binding="{Binding Duplex}" Value="half">
+        <Setter Property="Foreground" Value="{DynamicResource Theme.Status.Warning}"/>
+      </DataTrigger>
+      <DataTrigger Binding="{Binding Duplex}" Value="a-full">
+        <Setter Property="Foreground" Value="{DynamicResource Theme.Status.Info}"/>
+      </DataTrigger>
+    </Style.Triggers>
+  </Style>
+
+  <Style x:Key="PortColorTextStyle" TargetType="TextBlock">
+    <Setter Property="Foreground" Value="{DynamicResource Theme.Status.Neutral}"/>
+    <Style.Triggers>
+      <DataTrigger Binding="{Binding PortColor}" Value="Green">
+        <Setter Property="Foreground" Value="{DynamicResource Theme.Template.Green}"/>
+      </DataTrigger>
+      <DataTrigger Binding="{Binding PortColor}" Value="Blue">
+        <Setter Property="Foreground" Value="{DynamicResource Theme.Template.Blue}"/>
+      </DataTrigger>
+      <DataTrigger Binding="{Binding PortColor}" Value="Purple">
+        <Setter Property="Foreground" Value="{DynamicResource Theme.Template.Purple}"/>
+      </DataTrigger>
+      <DataTrigger Binding="{Binding PortColor}" Value="Red">
+        <Setter Property="Foreground" Value="{DynamicResource Theme.Template.Red}"/>
+      </DataTrigger>
+    </Style.Triggers>
+  </Style>
+
   <!-- Empty State Panel Style -->
   <Style x:Key="EmptyStatePanelStyle" TargetType="Border">
     <Setter Property="Background" Value="{DynamicResource Theme.Surface.Secondary}"/>
