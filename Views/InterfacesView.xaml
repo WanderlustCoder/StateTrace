@@ -133,6 +133,7 @@
                   ToolTip="Clear filter"/>
             <Button Name="FilterUpButton" Content="Up" Width="35" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Show only Up ports" Margin="5,0,0,0"/>
             <Button Name="FilterDownButton" Content="Down" Width="45" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Show only Down ports" Margin="3,0,0,0"/>
+            <TextBlock Name="FilterMatchCount" Text="" Foreground="{DynamicResource Theme.Text.Muted}" VerticalAlignment="Center" FontSize="11" Margin="8,0,0,0"/>
 
             <Rectangle Width="1" Fill="{DynamicResource Theme.Border.Primary}" Margin="10,2,10,2"/>
 
@@ -160,6 +161,8 @@
             </ComboBox>
             <Button Name="SetVlanButton" Content="Set VLAN" Width="65" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Set VLAN for all selected interfaces" Margin="0,0,3,0"/>
             <Button Name="SetNameButton" Content="Set Name" Width="65" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Set name for all selected interfaces" Margin="0,0,3,0"/>
+            <Button Name="SelectPatternButton" Content="Select..." Width="55" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Select ports matching a pattern (e.g., Gi1/0/*, Te*)" Margin="0,0,3,0"/>
+            <Button Name="CompareInterfacesButton" Content="Compare" Width="60" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Compare two selected interfaces side by side" Margin="0,0,3,0"/>
             <Button Name="CopyTableButton" Content="Table" Width="45" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Copy selected rows as formatted table" Margin="0,0,3,0"/>
 
             <Rectangle Width="1" Fill="{DynamicResource Theme.Border.Primary}" Margin="10,2,10,2"/>
@@ -189,6 +192,7 @@
                 </ContextMenu>
               </Button.ContextMenu>
             </Button>
+            <Button Name="AutoFitColumnsButton" Content="Auto-fit" Width="55" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Auto-size columns to fit content" Margin="3,0,0,0"/>
             <ToggleButton Name="CompactModeToggle" Content="Compact" Width="60" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Toggle compact/comfortable row height" Margin="3,0,0,0"/>
         </StackPanel>
 

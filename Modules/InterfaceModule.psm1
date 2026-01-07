@@ -850,7 +850,10 @@ function New-InterfacesView {
     $exportFormatDropdown = $interfacesView.FindName('ExportFormatDropdown')
     $setVlanButton     = $interfacesView.FindName('SetVlanButton')
     $setNameButton     = $interfacesView.FindName('SetNameButton')
+    $selectPatternButton = $interfacesView.FindName('SelectPatternButton')
+    $compareButton     = $interfacesView.FindName('CompareInterfacesButton')
     $columnsButton     = $interfacesView.FindName('ColumnsButton')
+    $autoFitButton     = $interfacesView.FindName('AutoFitColumnsButton')
     $sortPresetDropdown = $interfacesView.FindName('SortPresetDropdown')
 
     #
@@ -1242,6 +1245,21 @@ Grid:
                     }
                     $view.Refresh()
 
+                    # Update filter match count indicator
+                    try {
+                        $filterMatchCount = $global:interfacesView.FindName('FilterMatchCount')
+                        if ($filterMatchCount) {
+                            $total = @($global:interfacesGrid.ItemsSource).Count
+                            $visible = @($view | ForEach-Object { $_ }).Count
+                            if ([string]::IsNullOrEmpty($txt)) {
+                                $filterMatchCount.Text = ''
+                            } else {
+                                $filterMatchCount.Text = "$visible of $total"
+                                $filterMatchCount.Foreground = if ($visible -eq 0) { [System.Windows.Media.Brushes]::OrangeRed } else { [System.Windows.Media.Brushes]::LimeGreen }
+                            }
+                        }
+                    } catch { }
+
                     # Save filter text to settings
                     try {
                         $settingsPath = Join-Path $PSScriptRoot '..\Data\StateTraceSettings.json'
@@ -1595,6 +1613,121 @@ Grid:
             }
             $grid.Items.Refresh()
             [System.Windows.MessageBox]::Show("Updated name to '$name' for $($selectedRows.Count) interface(s).", "Set Name", 'OK', 'Information')
+        })
+    }
+
+    # Select by pattern
+    if ($selectPatternButton -and $interfacesGrid) {
+        $selectPatternButton.Add_Click({
+            $grid = $global:interfacesGrid
+            if (-not $grid -or -not $grid.ItemsSource) {
+                [System.Windows.MessageBox]::Show("No interface data loaded.", "Select Pattern", 'OK', 'Warning')
+                return
+            }
+
+            Add-Type -AssemblyName Microsoft.VisualBasic
+            $pattern = [Microsoft.VisualBasic.Interaction]::InputBox(
+                "Enter pattern to match port names:`n`nExamples:`n  Gi1/0/*  - All GigabitEthernet 1/0 ports`n  Te*      - All TenGig ports`n  *1/0/1   - Port 1/0/1 on any module`n  Gi1/0/[1-12] - Ports 1-12",
+                "Select by Pattern",
+                "Gi1/0/*"
+            )
+
+            if ([string]::IsNullOrWhiteSpace($pattern)) { return }
+
+            # Convert wildcard pattern to regex
+            $regexPattern = '^' + [regex]::Escape($pattern).Replace('\*', '.*').Replace('\?', '.') + '$'
+            # Handle range patterns like [1-12]
+            $regexPattern = $regexPattern -replace '\\\[(\d+)-(\d+)\\\]', {
+                $start = [int]$_.Groups[1].Value
+                $end = [int]$_.Groups[2].Value
+                '(' + (($start..$end) -join '|') + ')'
+            }
+
+            $matchCount = 0
+            foreach ($row in $grid.ItemsSource) {
+                $port = '' + $row.Port
+                if ($port -match $regexPattern) {
+                    $row.IsSelected = $true
+                    $matchCount++
+                }
+            }
+            $grid.Items.Refresh()
+
+            if ($matchCount -eq 0) {
+                [System.Windows.MessageBox]::Show("No ports matched pattern '$pattern'", "Select Pattern", 'OK', 'Information')
+            } else {
+                [System.Windows.MessageBox]::Show("Selected $matchCount port(s) matching '$pattern'", "Select Pattern", 'OK', 'Information')
+            }
+        })
+    }
+
+    # Compare two interfaces
+    if ($compareButton -and $interfacesGrid) {
+        $compareButton.Add_Click({
+            $grid = $global:interfacesGrid
+            $rawSelected = Get-SelectedInterfaceRows -Grid $grid
+            $selectedRows = @($rawSelected)
+
+            if ($selectedRows.Count -ne 2) {
+                [System.Windows.MessageBox]::Show("Please select exactly 2 interfaces to compare.", "Compare Interfaces", 'OK', 'Warning')
+                return
+            }
+
+            $int1 = $selectedRows[0]
+            $int2 = $selectedRows[1]
+
+            # Build comparison table
+            $properties = @('Port', 'Name', 'Status', 'VLAN', 'Duplex', 'Speed', 'Type', 'LearnedMACs', 'AuthState', 'AuthMode', 'AuthClientMAC')
+            $comparisonLines = @()
+            $comparisonLines += "Interface Comparison"
+            $comparisonLines += "=" * 60
+            $comparisonLines += ""
+            $comparisonLines += "{0,-15} {1,-20} {2,-20}" -f "Property", $int1.Port, $int2.Port
+            $comparisonLines += "{0,-15} {1,-20} {2,-20}" -f ("-" * 15), ("-" * 20), ("-" * 20)
+
+            foreach ($prop in $properties) {
+                $val1 = '' + $int1.$prop
+                $val2 = '' + $int2.$prop
+                $marker = if ($val1 -ne $val2) { " *" } else { "" }
+                # Truncate long values
+                if ($val1.Length -gt 18) { $val1 = $val1.Substring(0, 15) + "..." }
+                if ($val2.Length -gt 18) { $val2 = $val2.Substring(0, 15) + "..." }
+                $comparisonLines += "{0,-15} {1,-20} {2,-20}{3}" -f $prop, $val1, $val2, $marker
+            }
+
+            $comparisonLines += ""
+            $comparisonLines += "* = values differ"
+
+            $comparisonText = $comparisonLines -join "`n"
+            [System.Windows.MessageBox]::Show($comparisonText, "Compare: $($int1.Port) vs $($int2.Port)", 'OK', 'Information')
+        })
+    }
+
+    # Auto-fit columns to content
+    if ($autoFitButton -and $interfacesGrid) {
+        $autoFitButton.Add_Click({
+            $grid = $global:interfacesGrid
+            if (-not $grid) { return }
+
+            foreach ($col in $grid.Columns) {
+                if ($col.Visibility -eq 'Visible') {
+                    # Set width to Auto to fit content, then back to explicit to allow user resize
+                    $col.Width = [System.Windows.Controls.DataGridLength]::Auto
+                }
+            }
+
+            # Update column widths after auto-fit completes
+            $grid.UpdateLayout()
+
+            # Convert Auto widths to explicit widths so users can still resize
+            foreach ($col in $grid.Columns) {
+                if ($col.Visibility -eq 'Visible') {
+                    $actualWidth = $col.ActualWidth
+                    if ($actualWidth -gt 0) {
+                        $col.Width = New-Object System.Windows.Controls.DataGridLength($actualWidth)
+                    }
+                }
+            }
         })
     }
 
