@@ -1,19 +1,17 @@
 # VendorModules.Tests.ps1
 # Tests for multi-vendor parser modules and vendor detection
 
-BeforeAll {
-    $modulesRoot = Split-Path -Parent $PSScriptRoot
-    $fixturesRoot = Join-Path (Split-Path -Parent $modulesRoot) 'Tests\Fixtures\Vendors'
+# Import modules at file scope for Pester 3.x compatibility
+$script:modulesRoot = Split-Path -Parent $PSScriptRoot
+$script:fixturesRoot = Join-Path (Split-Path -Parent $script:modulesRoot) 'Tests\Fixtures\Vendors'
 
-    # Import modules
-    Import-Module (Join-Path $modulesRoot 'DeviceLogParserModule.psm1') -Force -DisableNameChecking -ErrorAction SilentlyContinue
-    Import-Module (Join-Path $modulesRoot 'DeviceParsingCommon.psm1') -Force -DisableNameChecking -ErrorAction SilentlyContinue
-    Import-Module (Join-Path $modulesRoot 'JuniperModule.psm1') -Force -DisableNameChecking
-    Import-Module (Join-Path $modulesRoot 'ArubaModule.psm1') -Force -DisableNameChecking
-    Import-Module (Join-Path $modulesRoot 'PaloAltoModule.psm1') -Force -DisableNameChecking
-    Import-Module (Join-Path $modulesRoot 'VendorDetectionModule.psm1') -Force -DisableNameChecking
-    Import-Module (Join-Path $modulesRoot 'VendorCommandTemplates.psm1') -Force -DisableNameChecking
-}
+Import-Module (Join-Path $script:modulesRoot 'DeviceLogParserModule.psm1') -Force -DisableNameChecking -ErrorAction SilentlyContinue
+Import-Module (Join-Path $script:modulesRoot 'DeviceParsingCommon.psm1') -Force -DisableNameChecking -ErrorAction SilentlyContinue
+Import-Module (Join-Path $script:modulesRoot 'JuniperModule.psm1') -Force -DisableNameChecking
+Import-Module (Join-Path $script:modulesRoot 'ArubaModule.psm1') -Force -DisableNameChecking
+Import-Module (Join-Path $script:modulesRoot 'PaloAltoModule.psm1') -Force -DisableNameChecking
+Import-Module (Join-Path $script:modulesRoot 'VendorDetectionModule.psm1') -Force -DisableNameChecking
+Import-Module (Join-Path $script:modulesRoot 'VendorCommandTemplates.psm1') -Force -DisableNameChecking
 
 Describe 'VendorDetectionModule' {
     Context 'Get-VendorFromContent' {
@@ -25,8 +23,8 @@ Describe 'VendorDetectionModule' {
                 'Junos: 21.4R3-S2.3'
             )
             $result = Get-VendorFromContent -Lines $lines
-            $result.Vendor | Should -Be 'Juniper'
-            $result.Confidence | Should -BeGreaterThan 80
+            $result.Vendor | Should Be 'Juniper'
+            $result.Confidence | Should BeGreaterThan 80
         }
 
         It 'Detects Aruba from ArubaOS output' {
@@ -36,8 +34,8 @@ Describe 'VendorDetectionModule' {
                 'Product Name:      Aruba 6300M 48G'
             )
             $result = Get-VendorFromContent -Lines $lines
-            $result.Vendor | Should -Be 'Aruba'
-            $result.Confidence | Should -BeGreaterThan 80
+            $result.Vendor | Should Be 'Aruba'
+            $result.Confidence | Should BeGreaterThan 80
         }
 
         It 'Detects Palo Alto from PAN-OS output' {
@@ -48,8 +46,8 @@ Describe 'VendorDetectionModule' {
                 'sw-version: 10.2.3'
             )
             $result = Get-VendorFromContent -Lines $lines
-            $result.Vendor | Should -Be 'PaloAlto'
-            $result.Confidence | Should -BeGreaterThan 80
+            $result.Vendor | Should Be 'PaloAlto'
+            $result.Confidence | Should BeGreaterThan 80
         }
 
         It 'Detects Cisco from IOS output' {
@@ -59,26 +57,26 @@ Describe 'VendorDetectionModule' {
                 'Model Number: WS-C3850-48P'
             )
             $result = Get-VendorFromContent -Lines $lines
-            $result.Vendor | Should -Be 'Cisco'
-            $result.Confidence | Should -BeGreaterThan 80
+            $result.Vendor | Should Be 'Cisco'
+            $result.Confidence | Should BeGreaterThan 80
         }
 
         It 'Returns Unknown for empty input' {
             $result = Get-VendorFromContent -Lines @()
-            $result.Vendor | Should -Be 'Unknown'
-            $result.Confidence | Should -Be 0
+            $result.Vendor | Should Be 'Unknown'
+            $result.Confidence | Should Be 0
         }
     }
 
     Context 'Get-SupportedVendors' {
         It 'Returns list of supported vendors' {
             $vendors = Get-SupportedVendors
-            $vendors | Should -Contain 'Cisco'
-            $vendors | Should -Contain 'Juniper'
-            $vendors | Should -Contain 'Aruba'
-            $vendors | Should -Contain 'PaloAlto'
-            $vendors | Should -Contain 'Arista'
-            $vendors | Should -Contain 'Brocade'
+            ($vendors -contains 'Cisco') | Should Be $true
+            ($vendors -contains 'Juniper') | Should Be $true
+            ($vendors -contains 'Aruba') | Should Be $true
+            ($vendors -contains 'PaloAlto') | Should Be $true
+            ($vendors -contains 'Arista') | Should Be $true
+            ($vendors -contains 'Brocade') | Should Be $true
         }
     }
 }
@@ -86,7 +84,7 @@ Describe 'VendorDetectionModule' {
 Describe 'JuniperModule' {
     Context 'Get-JuniperDeviceFacts' {
         BeforeAll {
-            $fixtureDir = Join-Path $fixturesRoot 'Juniper'
+            $fixtureDir = Join-Path $script:fixturesRoot 'Juniper'
             if (Test-Path $fixtureDir) {
                 $versionFile = Join-Path $fixtureDir 'show_version.txt'
                 $intFile = Join-Path $fixtureDir 'show_interfaces_terse.txt'
@@ -102,23 +100,23 @@ Describe 'JuniperModule' {
         }
 
         It 'Parses hostname correctly' -Skip:(-not $script:juniperResult) {
-            $script:juniperResult.Hostname | Should -Be 'EX4300-CORE'
+            $script:juniperResult.Hostname | Should Be 'EX4300-CORE'
         }
 
         It 'Identifies vendor as Juniper' -Skip:(-not $script:juniperResult) {
-            $script:juniperResult.Make | Should -Be 'Juniper'
+            $script:juniperResult.Make | Should Be 'Juniper'
         }
 
         It 'Parses model correctly' -Skip:(-not $script:juniperResult) {
-            $script:juniperResult.Model | Should -Be 'EX4300-48T'
+            $script:juniperResult.Model | Should Be 'EX4300-48T'
         }
 
         It 'Parses version correctly' -Skip:(-not $script:juniperResult) {
-            $script:juniperResult.Version | Should -Match '21\.4R3'
+            $script:juniperResult.Version | Should Match '21\.4R3'
         }
 
         It 'Parses interfaces' -Skip:(-not $script:juniperResult) {
-            $script:juniperResult.InterfacesCombined.Count | Should -BeGreaterThan 0
+            $script:juniperResult.InterfacesCombined.Count | Should BeGreaterThan 0
         }
     }
 }
@@ -126,7 +124,7 @@ Describe 'JuniperModule' {
 Describe 'ArubaModule' {
     Context 'Get-ArubaDeviceFacts' {
         BeforeAll {
-            $fixtureDir = Join-Path $fixturesRoot 'Aruba'
+            $fixtureDir = Join-Path $script:fixturesRoot 'Aruba'
             if (Test-Path $fixtureDir) {
                 $versionFile = Join-Path $fixtureDir 'show_version.txt'
                 $intFile = Join-Path $fixtureDir 'show_interface_brief.txt'
@@ -142,19 +140,19 @@ Describe 'ArubaModule' {
         }
 
         It 'Parses hostname correctly' -Skip:(-not $script:arubaResult) {
-            $script:arubaResult.Hostname | Should -Be 'ARUBA-6300'
+            $script:arubaResult.Hostname | Should Be 'ARUBA-6300'
         }
 
         It 'Identifies vendor as Aruba' -Skip:(-not $script:arubaResult) {
-            $script:arubaResult.Make | Should -Be 'Aruba'
+            $script:arubaResult.Make | Should Be 'Aruba'
         }
 
         It 'Parses model correctly' -Skip:(-not $script:arubaResult) {
-            $script:arubaResult.Model | Should -Match 'Aruba 6300'
+            $script:arubaResult.Model | Should Match 'Aruba 6300'
         }
 
         It 'Parses VLANs' -Skip:(-not $script:arubaResult) {
-            $script:arubaResult.VLANs.Count | Should -BeGreaterThan 0
+            $script:arubaResult.VLANs.Count | Should BeGreaterThan 0
         }
     }
 }
@@ -162,7 +160,7 @@ Describe 'ArubaModule' {
 Describe 'PaloAltoModule' {
     Context 'Get-PaloAltoDeviceFacts' {
         BeforeAll {
-            $fixtureDir = Join-Path $fixturesRoot 'PaloAlto'
+            $fixtureDir = Join-Path $script:fixturesRoot 'PaloAlto'
             if (Test-Path $fixtureDir) {
                 $sysFile = Join-Path $fixtureDir 'show_system_info.txt'
                 $intFile = Join-Path $fixtureDir 'show_interface_all.txt'
@@ -178,27 +176,27 @@ Describe 'PaloAltoModule' {
         }
 
         It 'Parses hostname correctly' -Skip:(-not $script:paloResult) {
-            $script:paloResult.Hostname | Should -Be 'PA-3220'
+            $script:paloResult.Hostname | Should Be 'PA-3220'
         }
 
         It 'Identifies vendor as PaloAlto' -Skip:(-not $script:paloResult) {
-            $script:paloResult.Make | Should -Be 'PaloAlto'
+            $script:paloResult.Make | Should Be 'PaloAlto'
         }
 
         It 'Parses model correctly' -Skip:(-not $script:paloResult) {
-            $script:paloResult.Model | Should -Be 'PA-3220'
+            $script:paloResult.Model | Should Be 'PA-3220'
         }
 
         It 'Parses version correctly' -Skip:(-not $script:paloResult) {
-            $script:paloResult.Version | Should -Be '10.2.3'
+            $script:paloResult.Version | Should Be '10.2.3'
         }
 
         It 'Parses serial number' -Skip:(-not $script:paloResult) {
-            $script:paloResult.SerialNumber | Should -Not -BeNullOrEmpty
+            $script:paloResult.SerialNumber | Should Not BeNullOrEmpty
         }
 
         It 'Parses routes' -Skip:(-not $script:paloResult) {
-            $script:paloResult.Routes.Count | Should -BeGreaterThan 0
+            $script:paloResult.Routes.Count | Should BeGreaterThan 0
         }
     }
 }
@@ -207,26 +205,26 @@ Describe 'VendorCommandTemplates' {
     Context 'Get-VendorCommands' {
         It 'Returns commands for Cisco' {
             $cmds = Get-VendorCommands -Vendor Cisco -Category BasicInfo
-            $cmds | Should -Contain 'show version'
-            $cmds | Should -Contain 'show running-config'
+            ($cmds -contains 'show version') | Should Be $true
+            ($cmds -contains 'show running-config') | Should Be $true
         }
 
         It 'Returns commands for Juniper' {
             $cmds = Get-VendorCommands -Vendor Juniper -Category BasicInfo
-            $cmds | Should -Contain 'show version'
-            $cmds | Should -Contain 'show configuration | display set'
+            ($cmds -contains 'show version') | Should Be $true
+            ($cmds -contains 'show configuration | display set') | Should Be $true
         }
 
         It 'Returns commands for Aruba' {
             $cmds = Get-VendorCommands -Vendor Aruba -Category Layer2
-            $cmds | Should -Contain 'show mac-address-table'
-            $cmds | Should -Contain 'show vlans'
+            ($cmds -contains 'show mac-address-table') | Should Be $true
+            ($cmds -contains 'show vlans') | Should Be $true
         }
 
         It 'Returns commands for PaloAlto' {
             $cmds = Get-VendorCommands -Vendor PaloAlto -Category Security
-            $cmds | Should -Contain 'show session all'
-            $cmds | Should -Contain 'show zone'
+            ($cmds -contains 'show session all') | Should Be $true
+            ($cmds -contains 'show zone') | Should Be $true
         }
     }
 
@@ -234,7 +232,7 @@ Describe 'VendorCommandTemplates' {
         It 'Returns full capture script for each vendor' {
             foreach ($vendor in @('Cisco', 'Juniper', 'Aruba', 'PaloAlto', 'Brocade')) {
                 $script = Get-VendorFullCapture -Vendor $vendor -AsScript
-                $script | Should -Not -BeNullOrEmpty
+                $script | Should Not BeNullOrEmpty
             }
         }
     }
@@ -242,25 +240,17 @@ Describe 'VendorCommandTemplates' {
     Context 'Compare-VendorCommands' {
         It 'Returns comparison table for Layer2 commands' {
             $comparison = Compare-VendorCommands -Category Layer2
-            $comparison.Count | Should -BeGreaterThan 0
-            $comparison[0].PSObject.Properties.Name | Should -Contain 'Cisco'
-            $comparison[0].PSObject.Properties.Name | Should -Contain 'Juniper'
+            $comparison.Count | Should BeGreaterThan 0
+            ($comparison[0].PSObject.Properties.Name -contains 'Cisco') | Should Be $true
+            ($comparison[0].PSObject.Properties.Name -contains 'Juniper') | Should Be $true
         }
     }
 
     Context 'New-CaptureScript' {
         It 'Generates capture script with comments' {
             $script = New-CaptureScript -Vendor Cisco -Categories 'BasicInfo','Layer2' -IncludeComments
-            $script | Should -Match '# === BasicInfo ==='
-            $script | Should -Match 'show version'
+            $script | Should Match '# === BasicInfo ==='
+            $script | Should Match 'show version'
         }
     }
-}
-
-AfterAll {
-    Remove-Module JuniperModule -Force -ErrorAction SilentlyContinue
-    Remove-Module ArubaModule -Force -ErrorAction SilentlyContinue
-    Remove-Module PaloAltoModule -Force -ErrorAction SilentlyContinue
-    Remove-Module VendorDetectionModule -Force -ErrorAction SilentlyContinue
-    Remove-Module VendorCommandTemplates -Force -ErrorAction SilentlyContinue
 }

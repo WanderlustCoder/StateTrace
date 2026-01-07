@@ -575,6 +575,7 @@ namespace StateTrace.Models
         public string ToolTip { get; set; }
         public string CacheSignature { get; set; }
         public bool IsSelected { get; set; }
+        public bool HasChanged { get; set; }
     }
 
     public sealed class InterfaceTemplateHint

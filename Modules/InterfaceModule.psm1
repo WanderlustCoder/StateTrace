@@ -84,6 +84,7 @@ namespace StateTrace.Models
         public string ToolTip { get; set; }
         public string CacheSignature { get; set; }
         public bool IsSelected { get; set; }
+        public bool HasChanged { get; set; }
     }
 
     public sealed class InterfaceTemplateHint
@@ -2258,7 +2259,7 @@ function Set-InterfaceViewData {
             $changedCount = 0
             if ($previousState.Count -gt 0) {
                 foreach ($row in $itemsSource) {
-                    $row | Add-Member -NotePropertyName 'HasChanged' -NotePropertyValue $false -Force
+                    $row.HasChanged = $false
                     if ($row.Port -and $previousState.ContainsKey($row.Port)) {
                         $prev = $previousState[$row.Port]
                         if ($row.Status -ne $prev.Status -or $row.VLAN -ne $prev.VLAN -or $row.Name -ne $prev.Name -or $row.Speed -ne $prev.Speed) {
@@ -2284,8 +2285,10 @@ function Set-InterfaceViewData {
             $statusSummary = $interfacesView.FindName('PortStatusSummary')
             if ($statusSummary -and $itemsSource) {
                 $total = @($itemsSource).Count
-                $up = @($itemsSource | Where-Object { $_.Status -match '(?i)up' }).Count
-                $down = @($itemsSource | Where-Object { $_.Status -match '(?i)down' }).Count
+                # Match common up statuses: up, connected, Up, Connected
+                $up = @($itemsSource | Where-Object { $_.Status -match '(?i)^(up|connected)$' }).Count
+                # Match common down statuses: down, notconnect, notconnected, disabled, Down
+                $down = @($itemsSource | Where-Object { $_.Status -match '(?i)^(down|notconnect|notconnected|disabled)$' }).Count
                 $other = $total - $up - $down
 
                 # Count validation warnings

@@ -43,7 +43,7 @@
     "Theme.DataGrid.HoverBackground": "#E0E0E0",
     "Theme.Text.Primary": "#000000",
     "Theme.Text.Secondary": "#202020",
-    "Theme.Text.Inverse": "#FFFFFF",
+    "Theme.Text.Inverse": "#000000",
     "Theme.Text.Muted": "#404040",
     "Theme.Text.Success": "#006400",
     "Theme.Text.Warning": "#806000",
