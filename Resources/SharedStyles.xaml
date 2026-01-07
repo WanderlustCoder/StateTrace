@@ -278,6 +278,35 @@
     </Style.Triggers>
   </Style>
 
+  <Style x:Key="SecondaryToggleButtonStyle" TargetType="ToggleButton">
+    <Setter Property="Background" Value="{DynamicResource Theme.Button.Secondary.Background}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Theme.Button.Secondary.Text}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource Theme.Surface.Border}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="Padding" Value="6,2"/>
+    <Setter Property="Cursor" Value="Hand"/>
+    <Style.Triggers>
+      <Trigger Property="IsMouseOver" Value="True">
+        <Setter Property="Background" Value="{DynamicResource Theme.Button.Secondary.HoverBackground}"/>
+        <Setter Property="Foreground" Value="{DynamicResource Theme.Button.Secondary.HoverText}"/>
+      </Trigger>
+      <Trigger Property="IsPressed" Value="True">
+        <Setter Property="Background" Value="{DynamicResource Theme.Button.Secondary.PressedBackground}"/>
+        <Setter Property="Foreground" Value="{DynamicResource Theme.Button.Secondary.PressedText}"/>
+      </Trigger>
+      <Trigger Property="IsChecked" Value="True">
+        <Setter Property="Background" Value="{DynamicResource Theme.Button.Primary.Background}"/>
+        <Setter Property="Foreground" Value="{DynamicResource Theme.Button.Primary.Text}"/>
+      </Trigger>
+      <Trigger Property="IsEnabled" Value="False">
+        <Setter Property="Background" Value="{DynamicResource Theme.Button.Disabled.Background}"/>
+        <Setter Property="Foreground" Value="{DynamicResource Theme.Button.Disabled.Text}"/>
+        <Setter Property="BorderBrush" Value="{DynamicResource Theme.Button.Disabled.Background}"/>
+        <Setter Property="Cursor" Value="Arrow"/>
+      </Trigger>
+    </Style.Triggers>
+  </Style>
+
   <Style x:Key="IconButtonStyle" TargetType="Button">
     <Setter Property="Background" Value="{DynamicResource Theme.Button.Icon.Background}"/>
     <Setter Property="Foreground" Value="{DynamicResource Theme.Button.Icon.Foreground}"/>

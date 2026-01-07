@@ -207,7 +207,7 @@
               </Button.ContextMenu>
             </Button>
             <Button Name="AutoFitColumnsButton" Content="Auto-fit" Width="55" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Auto-size columns to fit content" Margin="3,0,0,0"/>
-            <ToggleButton Name="CompactModeToggle" Content="Compact" Width="60" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Toggle compact/comfortable row height" Margin="3,0,0,0"/>
+            <ToggleButton Name="CompactModeToggle" Content="Compact" Width="60" Height="23" Style="{DynamicResource SecondaryToggleButtonStyle}" ToolTip="Toggle compact/comfortable row height" Margin="3,0,0,0"/>
         </StackPanel>
 
         <Grid Grid.Row="2">
