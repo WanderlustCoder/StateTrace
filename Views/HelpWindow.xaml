@@ -1,249 +1,2239 @@
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Help" Height="520" Width="700"
-        WindowStartupLocation="CenterOwner" Background="{DynamicResource Theme.Window.Background}">
+        Title="StateTrace Help" Height="650" Width="900"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource Theme.Window.Background}">
 
-  <Grid Background="{DynamicResource Theme.Surface.Secondary}" TextElement.Foreground="{DynamicResource Theme.Text.Primary}">
-    <TabControl Margin="5">
+  <Window.Resources>
+    <!-- Sidebar Navigation Item Style -->
+    <Style x:Key="NavItemStyle" TargetType="ListBoxItem">
+      <Setter Property="Padding" Value="12,10"/>
+      <Setter Property="Margin" Value="0,1"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Background" Value="Transparent"/>
+      <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Inverse}"/>
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="ListBoxItem">
+            <Border Name="Bd" Background="{TemplateBinding Background}"
+                    Padding="{TemplateBinding Padding}" CornerRadius="4">
+              <ContentPresenter Name="Content" TextElement.Foreground="{DynamicResource Theme.Text.Inverse}"/>
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsSelected" Value="True">
+                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Theme.Icon.Accent}"/>
+                <Setter TargetName="Content" Property="TextElement.Foreground" Value="{DynamicResource Theme.Button.Primary.Text}"/>
+              </Trigger>
+              <MultiTrigger>
+                <MultiTrigger.Conditions>
+                  <Condition Property="IsMouseOver" Value="True"/>
+                  <Condition Property="IsSelected" Value="False"/>
+                </MultiTrigger.Conditions>
+                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource Theme.Surface.Secondary}"/>
+                <Setter TargetName="Content" Property="TextElement.Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
+              </MultiTrigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
 
-      <TabItem Header="Overview">
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
-          <TextBlock TextWrapping="Wrap" Margin="10" FontSize="12">
-            <Run Text="StateTrace Overview" FontWeight="Bold" FontSize="14"/>
-            <LineBreak/><LineBreak/>
-            <Run Text="StateTrace is an offline-first log analysis tool for network engineers. It parses pre-collected switch logs (no live device access) and presents a consolidated view of a site's network state."/>
-            <LineBreak/><LineBreak/>
-            <Run Text="Core workflows:" FontWeight="Bold"/>
-            <LineBreak/>
-            <Run Text="- Scan Logs to parse logs and refresh the database-backed views."/>
-            <LineBreak/>
-            <Run Text="- Load from DB to reuse existing ingested data without re-scanning logs."/>
-            <LineBreak/>
-            <Run Text="- Use Site/Zone/Building/Room filters to scope Summary, Interfaces, Search, and Alerts."/>
-            <LineBreak/>
-            <Run Text="- Generate configuration text using templates, then review before applying on devices."/>
-            <LineBreak/>
-            <Run Text="- Compare two port configs with diffs (Compare sidebar)."/>
-            <LineBreak/>
-            <Run Text="- Use Port Reorg to move labels/profiles between ports and generate change + rollback scripts."/>
-            <LineBreak/>
-            <Run Text="- Switch UI themes from the toolbar Theme selector (themes are JSON under Themes/)."/>
-            <LineBreak/><LineBreak/>
-            <Run Text="Tip:" FontWeight="Bold"/>
-            <Run Text=" the Help button also opens the Operators Runbook quickstart in your browser for the fastest “time to Interfaces” workflow."/>
-          </TextBlock>
-        </ScrollViewer>
-      </TabItem>
+    <!-- Help Section Card Style -->
+    <Style x:Key="HelpCardStyle" TargetType="Border">
+      <Setter Property="Background" Value="{DynamicResource Theme.Surface.Secondary}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource Theme.Surface.Border}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="6"/>
+      <Setter Property="Padding" Value="15"/>
+      <Setter Property="Margin" Value="0,0,0,12"/>
+    </Style>
 
-      <TabItem Header="Main Window">
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
-          <TextBlock TextWrapping="Wrap" Margin="10" FontSize="12">
-            <Run Text="Main Window &amp; Toolbar" FontWeight="Bold" FontSize="14"/>
-            <LineBreak/><LineBreak/>
-            <Run Text="Device selection:" FontWeight="Bold"/>
-            <LineBreak/>
-            <Run Text="- Device dropdown selects the active switch/host for Interfaces and SPAN."/>
-            <LineBreak/><LineBreak/>
-            <Run Text="Ingestion:" FontWeight="Bold"/>
-            <LineBreak/>
-            <Run Text="- Scan Logs parses logs and updates the per-site database."/>
-            <LineBreak/>
-            <Run Text="- Clear cache before scan clears cached ingestion history and interface snapshots so a scan starts clean."/>
-            <LineBreak/>
-            <Run Text="- Load from DB loads devices from existing databases without scanning logs."/>
-            <LineBreak/>
-            <Run Text="- Include archives / Include history expands where the parser looks for logs."/>
-            <LineBreak/><LineBreak/>
-            <Run Text="Show Commands:" FontWeight="Bold"/>
-            <LineBreak/>
-            <Run Text="- Cisco/Brocade buttons copy curated show-command sequences to the clipboard."/>
-            <LineBreak/>
-            <Run Text="- Brocade OS selector controls which command set is copied."/>
-            <LineBreak/><LineBreak/>
-            <Run Text="Status strip:" FontWeight="Bold"/>
-            <LineBreak/>
-            <Run Text="- Parser status shows scan progress; Freshness shows last ingest timestamp for the selected site (and cache/provider when available)."/>
-            <LineBreak/><LineBreak/>
-            <Run Text="Theme:" FontWeight="Bold"/>
-            <LineBreak/>
-            <Run Text="- Theme selector switches themes; restart after adding new theme JSON files."/>
-          </TextBlock>
-        </ScrollViewer>
-      </TabItem>
+    <!-- Keyboard Shortcut Badge Style -->
+    <Style x:Key="KeyBadgeStyle" TargetType="Border">
+      <Setter Property="Background" Value="{DynamicResource Theme.Surface.Secondary}"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource Theme.Border.Primary}"/>
+      <Setter Property="BorderThickness" Value="1"/>
+      <Setter Property="CornerRadius" Value="3"/>
+      <Setter Property="Padding" Value="6,3"/>
+      <Setter Property="Margin" Value="0,0,4,0"/>
+    </Style>
+  </Window.Resources>
 
-      <TabItem Header="Interfaces">
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
-          <TextBlock TextWrapping="Wrap" Margin="10" FontSize="12">
-            <Run Text="Interfaces View" FontWeight="Bold" FontSize="14"/>
-            <LineBreak/><LineBreak/>
-            <Run Text="The Interfaces tab displays details for the selected switch. You can:"/>
-            <LineBreak/>
-            <Run Text="- View status, VLAN, speed, and authentication state for each port."/>
-            <LineBreak/>
-            <Run Text="- Edit Name and VLAN directly in the grid (used by generated scripts/templates; does not push live changes)."/>
-            <LineBreak/>
-            <Run Text="- Filter the list using the filter box above the table."/>
-            <LineBreak/>
-            <Run Text="- Select ports and click Compare Configs to open the Compare sidebar."/>
-            <LineBreak/>
-            <Run Text="- Use Configure to generate a configuration using the selected template."/>
-            <LineBreak/>
-            <Run Text="- Use Port Reorg to open the interactive Port Reorg workflow for label-based moves and script generation."/>
-            <LineBreak/><LineBreak/>
-            <Run Text="Incremental loading:" FontWeight="Bold"/>
-            <LineBreak/>
-            <Run Text="- Large devices may stream ports in batches; watch the “Loading ports” indicator and progress bar at the bottom of the tab."/>
-          </TextBlock>
-        </ScrollViewer>
-      </TabItem>
+  <Grid>
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="200"/>
+      <ColumnDefinition Width="*"/>
+    </Grid.ColumnDefinitions>
 
-      <TabItem Header="Compare">
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
-          <TextBlock TextWrapping="Wrap" Margin="10" FontSize="12">
-            <Run Text="Compare Configs" FontWeight="Bold" FontSize="14"/>
-            <LineBreak/><LineBreak/>
-            <Run Text="Compare shows two ports side-by-side with config text and diffs."/>
-            <LineBreak/>
-            <Run Text="- Launch it from Interfaces by selecting ports and clicking Compare Configs."/>
-            <LineBreak/>
-            <Run Text="- Use the dropdowns to pick two switches/ports if you need to compare across hosts."/>
-            <LineBreak/>
-            <Run Text="- Copy buttons export raw configs or diffs to the clipboard."/>
-            <LineBreak/>
-            <Run Text="- Close the sidebar using the X button in the Compare header."/>
-          </TextBlock>
-        </ScrollViewer>
-      </TabItem>
+    <!-- Left Sidebar Navigation -->
+    <Border Grid.Column="0" Background="{DynamicResource Theme.Surface.Primary}"
+            BorderBrush="{DynamicResource Theme.Border.Primary}" BorderThickness="0,0,1,0">
+      <DockPanel>
+        <!-- Search Box -->
+        <Border DockPanel.Dock="Top" Margin="10,15,10,10">
+          <TextBox Name="HelpSearchBox" Padding="8,6"
+                   Background="{DynamicResource Theme.Input.Background}"
+                   Foreground="{DynamicResource Theme.Input.Text}"
+                   BorderBrush="{DynamicResource Theme.Input.Border}">
+            <TextBox.Style>
+              <Style TargetType="TextBox">
+                <Setter Property="Tag" Value="Search help topics..."/>
+              </Style>
+            </TextBox.Style>
+          </TextBox>
+        </Border>
 
-      <TabItem Header="Search">
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
-          <TextBlock TextWrapping="Wrap" Margin="10" FontSize="12">
-            <Run Text="Search Interfaces" FontWeight="Bold" FontSize="14"/>
-            <LineBreak/><LineBreak/>
-            <Run Text="Search across all switches and ports using the search box."/>
-            <LineBreak/>
-            <Run Text="- Enter a port name, description, label, or MAC address to find matching interfaces."/>
-            <LineBreak/>
-            <Run Text="- Enable Regex to treat the search term as a regular expression."/>
-            <LineBreak/>
-            <Run Text="- Filter by status (All, Up, Down) and authorization state (All, Authorized, Unauthorized)."/>
-            <LineBreak/>
-            <Run Text="- Export results to CSV using the Export button."/>
-            <LineBreak/>
-            <Run Text="- Search respects the Site/Zone/Building/Room filters in the main window."/>
-          </TextBlock>
-        </ScrollViewer>
-      </TabItem>
+        <!-- Navigation List -->
+        <ListBox Name="HelpNavList" DockPanel.Dock="Top"
+                 Background="Transparent" BorderThickness="0"
+                 Margin="8,0" Padding="0"
+                 ItemContainerStyle="{StaticResource NavItemStyle}"
+                 SelectedIndex="0">
+          <ListBoxItem Tag="quickstart">Quick Start</ListBoxItem>
+          <ListBoxItem Tag="overview">Overview</ListBoxItem>
+          <ListBoxItem Tag="mainwindow">Main Window</ListBoxItem>
+          <ListBoxItem Tag="interfaces">Interfaces</ListBoxItem>
+          <ListBoxItem Tag="compare">Compare Configs</ListBoxItem>
+          <ListBoxItem Tag="search">Search</ListBoxItem>
+          <ListBoxItem Tag="summary">Summary</ListBoxItem>
+          <ListBoxItem Tag="portreorg">Port Reorg</ListBoxItem>
+          <ListBoxItem Tag="alerts">Alerts</ListBoxItem>
+          <ListBoxItem Tag="span">SPAN</ListBoxItem>
+          <ListBoxItem Tag="documentation">Documentation</ListBoxItem>
+          <ListBoxItem Tag="infrastructure">Infrastructure</ListBoxItem>
+          <ListBoxItem Tag="operations">Operations</ListBoxItem>
+          <ListBoxItem Tag="tools">Tools</ListBoxItem>
+          <ListBoxItem Tag="themes">Themes</ListBoxItem>
+          <ListBoxItem Tag="shortcuts">Keyboard Shortcuts</ListBoxItem>
+          <ListBoxItem Tag="troubleshooting">Troubleshooting</ListBoxItem>
+          <ListBoxItem Tag="faq">FAQ</ListBoxItem>
+          <ListBoxItem Tag="glossary">Glossary</ListBoxItem>
+        </ListBox>
+      </DockPanel>
+    </Border>
 
-      <TabItem Header="Summary">
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
-          <TextBlock TextWrapping="Wrap" Margin="10" FontSize="12">
-            <Run Text="Summary" FontWeight="Bold" FontSize="14"/>
-            <LineBreak/><LineBreak/>
-            <Run Text="Provides a quick overview of the selected scope, including device/interface counts and other metrics."/>
-            <LineBreak/>
-            <Run Text="The summary respects the Site/Zone/Building/Room filters set in the main window."/>
-            <LineBreak/>
-            <Run Text="Use this tab to gauge overall health at a glance."/>
-          </TextBlock>
-        </ScrollViewer>
-      </TabItem>
+    <!-- Main Content Area -->
+    <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" Padding="20,15">
+      <StackPanel Name="HelpContentPanel">
 
-      <TabItem Header="Port Reorg">
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
-          <TextBlock TextWrapping="Wrap" Margin="10" FontSize="12">
-            <Run Text="Port Reorg Workflow" FontWeight="Bold" FontSize="14"/>
-            <LineBreak/><LineBreak/>
-            <Run Text="Port Reorg helps you move port labels/profiles between ports and generate vendor-safe change + rollback scripts."/>
-            <LineBreak/>
-            <Run Text="- Open Port Reorg from the Interfaces tab."/>
-            <LineBreak/>
-            <Run Text="- Drag labels between ports to swap/move assignments."/>
-            <LineBreak/>
-            <Run Text="- Drag a label into Parking to unassign it (useful for &quot;clear this port&quot; workflows)."/>
-            <LineBreak/>
-            <Run Text="- Optional: enable Paged view (12 ports) to work in 12-port blocks; use Parking for cross-page moves."/>
-            <LineBreak/>
-            <Run Text="- Edit target ports/labels directly if needed, then click Generate Scripts."/>
-            <LineBreak/>
-            <Run Text="- Review scripts before applying. Change + Rollback can be exported to files."/>
-            <LineBreak/><LineBreak/>
-            <Run Text="Vendor notes:" FontWeight="Bold"/>
-            <LineBreak/>
-            <Run Text="- Cisco scripts reset the destination interface using default interface before applying the moved profile."/>
-            <LineBreak/>
-            <Run Text="- Brocade scripts use best-effort &quot;no &lt;cmd&gt;&quot; resets (no default interface support) so stale profile commands do not linger."/>
-          </TextBlock>
-        </ScrollViewer>
-      </TabItem>
+        <!-- Quick Start Section -->
+        <StackPanel Name="QuickStartSection" Visibility="Visible">
+          <TextBlock Text="Quick Start Guide" FontSize="20" FontWeight="Bold"
+                     Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,15"/>
 
-      <TabItem Header="Templates">
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
-          <TextBlock TextWrapping="Wrap" Margin="10" FontSize="12">
-            <Run Text="Templates" FontWeight="Bold" FontSize="14"/>
-            <LineBreak/><LineBreak/>
-            <Run Text="Manage configuration templates for generating switch port configurations."/>
-            <LineBreak/>
-            <Run Text="- Select a template from the list to view and edit its JSON contents."/>
-            <LineBreak/>
-            <Run Text="- Use Reload to revert to the saved version or Save to persist changes."/>
-            <LineBreak/>
-            <Run Text="- Create new templates by entering a name, choosing an OS and clicking Add. A default skeleton will be generated."/>
-            <LineBreak/>
-            <Run Text="Templates are stored as JSON files in the Templates directory."/>
-            <LineBreak/><LineBreak/>
-            <Run Text="Show Commands:" FontWeight="Bold"/>
-            <LineBreak/>
-            <Run Text="- The toolbar Show Commands buttons are driven by Templates/ShowCommands.json (vendor + OS variants)."/>
-          </TextBlock>
-        </ScrollViewer>
-      </TabItem>
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Get up and running in 3 steps:" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,12"/>
 
-      <TabItem Header="Alerts">
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
-          <TextBlock TextWrapping="Wrap" Margin="10" FontSize="12">
-            <Run Text="Alerts" FontWeight="Bold" FontSize="14"/>
-            <LineBreak/><LineBreak/>
-            <Run Text="Lists potential issues detected in the current scope."/>
-            <LineBreak/>
-            <Run Text="- A port is flagged if it is Down or NotConnect, unauthorized, or half duplex."/>
-            <LineBreak/>
-            <Run Text="- Use the Export button to save the current list of alerts to CSV."/>
-            <LineBreak/>
-            <Run Text="The alerts list automatically updates when new logs are parsed or filters change."/>
-          </TextBlock>
-        </ScrollViewer>
-      </TabItem>
+              <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                <Border Background="{DynamicResource Theme.Icon.Accent}" CornerRadius="12"
+                        Width="24" Height="24" Margin="0,0,10,0">
+                  <TextBlock Text="1" Foreground="{DynamicResource Theme.Button.Primary.Text}"
+                             HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold"/>
+                </Border>
+                <StackPanel>
+                  <TextBlock Text="Load Device Data" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                  <TextBlock Text="Click 'Scan Logs' to parse log files, or 'Load from DB' to use existing data."
+                             Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap"/>
+                </StackPanel>
+              </StackPanel>
 
-      <TabItem Header="SPAN">
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
-          <TextBlock TextWrapping="Wrap" Margin="10" FontSize="12">
-            <Run Text="SPAN" FontWeight="Bold" FontSize="14"/>
-            <LineBreak/><LineBreak/>
-            <Run Text="Displays information about configured SPAN or port mirror sessions for the selected device."/>
-            <LineBreak/>
-            <Run Text="Use this tab to review SPAN source and destination ports."/>
-            <LineBreak/>
-            <Run Text="Select a device from the dropdowns to load its SPAN configuration."/>
-          </TextBlock>
-        </ScrollViewer>
-      </TabItem>
+              <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                <Border Background="{DynamicResource Theme.Icon.Accent}" CornerRadius="12"
+                        Width="24" Height="24" Margin="0,0,10,0">
+                  <TextBlock Text="2" Foreground="{DynamicResource Theme.Button.Primary.Text}"
+                             HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold"/>
+                </Border>
+                <StackPanel>
+                  <TextBlock Text="Select a Device" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                  <TextBlock Text="Use the Device dropdown in the toolbar to select a switch/host."
+                             Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap"/>
+                </StackPanel>
+              </StackPanel>
 
-      <TabItem Header="Themes">
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
-          <TextBlock TextWrapping="Wrap" Margin="10" FontSize="12">
-            <Run Text="Themes" FontWeight="Bold" FontSize="14"/>
-            <LineBreak/><LineBreak/>
-            <Run Text="StateTrace supports dynamic themes (colors/brushes) loaded from Themes/*.json."/>
-            <LineBreak/>
-            <Run Text="- Use the Theme selector in the toolbar to switch themes."/>
-            <LineBreak/>
-            <Run Text="- Themes can define window/surface/input/button/datagrid colors and can extend base.json."/>
-            <LineBreak/>
-            <Run Text="- If you add a new theme JSON file, restart StateTrace so it appears in the selector."/>
-          </TextBlock>
-        </ScrollViewer>
-      </TabItem>
-    </TabControl>
+              <StackPanel Orientation="Horizontal">
+                <Border Background="{DynamicResource Theme.Icon.Accent}" CornerRadius="12"
+                        Width="24" Height="24" Margin="0,0,10,0">
+                  <TextBlock Text="3" Foreground="{DynamicResource Theme.Button.Primary.Text}"
+                             HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold"/>
+                </Border>
+                <StackPanel>
+                  <TextBlock Text="Explore Interfaces" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                  <TextBlock Text="View port details, compare configs, search interfaces, and analyze alerts."
+                             Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap"/>
+                </StackPanel>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Common Tasks" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*"/>
+                  <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                  <RowDefinition/>
+                  <RowDefinition/>
+                  <RowDefinition/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,10,8" Foreground="{DynamicResource Theme.Text.Secondary}">
+                  <Run FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}">Compare ports:</Run> Select 2 ports, click Compare Configs
+                </TextBlock>
+                <TextBlock Grid.Row="0" Grid.Column="1" Margin="0,0,0,8" Foreground="{DynamicResource Theme.Text.Secondary}">
+                  <Run FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}">Search all:</Run> Use Search tab with regex support
+                </TextBlock>
+                <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,0,10,8" Foreground="{DynamicResource Theme.Text.Secondary}">
+                  <Run FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}">Move ports:</Run> Use Port Reorg to drag and generate scripts
+                </TextBlock>
+                <TextBlock Grid.Row="1" Grid.Column="1" Margin="0,0,0,8" Foreground="{DynamicResource Theme.Text.Secondary}">
+                  <Run FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}">Find issues:</Run> Check Alerts tab for flagged ports
+                </TextBlock>
+                <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,0,10,0" Foreground="{DynamicResource Theme.Text.Secondary}">
+                  <Run FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}">Filter scope:</Run> Use Site/Zone/Building/Room filters
+                </TextBlock>
+                <TextBlock Grid.Row="2" Grid.Column="1" Foreground="{DynamicResource Theme.Text.Secondary}">
+                  <Run FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}">Change theme:</Run> Use Theme dropdown in toolbar
+                </TextBlock>
+              </Grid>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+        <!-- Overview Section -->
+        <StackPanel Name="OverviewSection" Visibility="Collapsed">
+          <TextBlock Text="StateTrace Overview" FontSize="20" FontWeight="Bold"
+                     Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,15"/>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="What is StateTrace?" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,8"/>
+              <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource Theme.Text.Secondary}">
+                StateTrace is an offline-first log analysis tool for network engineers. It parses pre-collected
+                switch logs (no live device access required) and presents a consolidated view of a site's network state.
+              </TextBlock>
+            </StackPanel>
+          </Border>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Supported Vendors" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,8"/>
+              <WrapPanel>
+                <Border Background="{DynamicResource Theme.Status.Info}" CornerRadius="4"
+                        Padding="8,4" Margin="0,0,8,4">
+                  <TextBlock Text="Cisco" Foreground="White" FontWeight="SemiBold"/>
+                </Border>
+                <Border Background="{DynamicResource Theme.Status.Success}" CornerRadius="4"
+                        Padding="8,4" Margin="0,0,8,4">
+                  <TextBlock Text="Arista" Foreground="White" FontWeight="SemiBold"/>
+                </Border>
+                <Border Background="{DynamicResource Theme.Status.Warning}" CornerRadius="4"
+                        Padding="8,4" Margin="0,0,8,4">
+                  <TextBlock Text="Brocade" Foreground="White" FontWeight="SemiBold"/>
+                </Border>
+              </WrapPanel>
+            </StackPanel>
+          </Border>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Core Workflows" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
+              <StackPanel Margin="0,0,0,6">
+                <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}">Scan Logs</TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  Parse logs and refresh the database-backed views.
+                </TextBlock>
+              </StackPanel>
+              <StackPanel Margin="0,0,0,6">
+                <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}">Load from DB</TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  Reuse existing ingested data without re-scanning logs.
+                </TextBlock>
+              </StackPanel>
+              <StackPanel Margin="0,0,0,6">
+                <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}">Compare Configs</TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  Compare two port configurations with diff highlighting.
+                </TextBlock>
+              </StackPanel>
+              <StackPanel>
+                <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}">Port Reorg</TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  Move labels/profiles between ports and generate change + rollback scripts.
+                </TextBlock>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+        <!-- Main Window Section -->
+        <StackPanel Name="MainWindowSection" Visibility="Collapsed">
+          <TextBlock Text="Main Window &amp; Toolbar" FontSize="20" FontWeight="Bold"
+                     Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,15"/>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Device Selection" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,8"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                The Device dropdown selects the active switch/host for Interfaces and SPAN views.
+              </TextBlock>
+            </StackPanel>
+          </Border>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Ingestion Controls" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="120"/>
+                  <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                  <RowDefinition/>
+                  <RowDefinition/>
+                  <RowDefinition/>
+                  <RowDefinition/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Scan Logs" FontWeight="SemiBold"
+                           Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+                <TextBlock Grid.Row="0" Grid.Column="1" Foreground="{DynamicResource Theme.Text.Secondary}"
+                           TextWrapping="Wrap" Margin="0,0,0,6">
+                  Parses logs and updates the per-site database.
+                </TextBlock>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Clear cache" FontWeight="SemiBold"
+                           Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+                <TextBlock Grid.Row="1" Grid.Column="1" Foreground="{DynamicResource Theme.Text.Secondary}"
+                           TextWrapping="Wrap" Margin="0,0,0,6">
+                  Clears cached history and snapshots before scanning.
+                </TextBlock>
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Load from DB" FontWeight="SemiBold"
+                           Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+                <TextBlock Grid.Row="2" Grid.Column="1" Foreground="{DynamicResource Theme.Text.Secondary}"
+                           TextWrapping="Wrap" Margin="0,0,0,6">
+                  Loads devices from existing databases without scanning.
+                </TextBlock>
+
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="Include archives" FontWeight="SemiBold"
+                           Foreground="{DynamicResource Theme.Text.Primary}"/>
+                <TextBlock Grid.Row="3" Grid.Column="1" Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  Expands where the parser looks for logs.
+                </TextBlock>
+              </Grid>
+            </StackPanel>
+          </Border>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Show Commands" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,8"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                Cisco/Brocade buttons copy curated show-command sequences to the clipboard.
+                The Brocade OS selector controls which command set is copied.
+              </TextBlock>
+            </StackPanel>
+          </Border>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Status Strip" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,8"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                Parser status shows scan progress. Freshness shows the last ingest timestamp
+                for the selected site (and cache/provider when available).
+              </TextBlock>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+        <!-- Interfaces Section -->
+        <StackPanel Name="InterfacesSection" Visibility="Collapsed">
+          <TextBlock Text="Interfaces View" FontSize="20" FontWeight="Bold"
+                     Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,15"/>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Port Details" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,8"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap" Margin="0,0,0,10">
+                The Interfaces tab displays details for the selected switch including status, VLAN,
+                speed, and authentication state for each port.
+              </TextBlock>
+              <TextBlock Text="Available Actions:" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,0">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4">
+                  - Edit Name and VLAN directly in the grid (for script generation)
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4">
+                  - Filter the list using the filter box above the table
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4">
+                  - Select ports and click Compare Configs for side-by-side comparison
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4">
+                  - Use Configure to generate configuration from templates
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}">
+                  - Use Port Reorg for label-based moves and script generation
+                </TextBlock>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Incremental Loading" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,8"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                Large devices may stream ports in batches. Watch the "Loading ports" indicator
+                and progress bar at the bottom of the tab.
+              </TextBlock>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+        <!-- Compare Section -->
+        <StackPanel Name="CompareSection" Visibility="Collapsed">
+          <TextBlock Text="Compare Configs" FontSize="20" FontWeight="Bold"
+                     Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,15"/>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Side-by-Side Comparison" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,8"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap" Margin="0,0,0,10">
+                Compare shows two ports side-by-side with config text and diff highlighting.
+              </TextBlock>
+              <TextBlock Text="How to use:" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,0">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4">
+                  - Launch from Interfaces by selecting ports and clicking Compare Configs
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4">
+                  - Use dropdowns to compare across different hosts
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4">
+                  - Copy buttons export raw configs or diffs to clipboard
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}">
+                  - Close the sidebar using the X button in the Compare header
+                </TextBlock>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+        <!-- Search Section -->
+        <StackPanel Name="SearchSection" Visibility="Collapsed">
+          <TextBlock Text="Search Interfaces" FontSize="20" FontWeight="Bold"
+                     Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,15"/>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Search Capabilities" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,8"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap" Margin="0,0,0,10">
+                Search across all switches and ports using the search box.
+              </TextBlock>
+              <TextBlock Text="Search options:" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,0">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4">
+                  - Enter port name, description, label, or MAC address
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4">
+                  - Enable Regex to treat the search term as a regular expression
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4">
+                  - Filter by status (All, Up, Down) and authorization state
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4">
+                  - Export results to CSV using the Export button
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}">
+                  - Search respects Site/Zone/Building/Room filters
+                </TextBlock>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+        <!-- Summary Section -->
+        <StackPanel Name="SummarySection" Visibility="Collapsed">
+          <TextBlock Text="Summary" FontSize="20" FontWeight="Bold"
+                     Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,15"/>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Site Overview" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,8"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                Provides a quick overview of the selected scope, including device/interface counts
+                and other metrics. The summary respects the Site/Zone/Building/Room filters set
+                in the main window. Use this tab to gauge overall health at a glance.
+              </TextBlock>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+        <!-- Port Reorg Section -->
+        <StackPanel Name="PortReorgSection" Visibility="Collapsed">
+          <TextBlock Text="Port Reorg Workflow" FontSize="20" FontWeight="Bold"
+                     Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,15"/>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Move Port Labels &amp; Generate Scripts" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,8"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap" Margin="0,0,0,10">
+                Port Reorg helps you move port labels/profiles between ports and generate
+                vendor-safe change + rollback scripts.
+              </TextBlock>
+              <TextBlock Text="Workflow steps:" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,0">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4">
+                  1. Open Port Reorg from the Interfaces tab
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4">
+                  2. Drag labels between ports to swap/move assignments
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4">
+                  3. Drag a label into Parking to unassign it
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4">
+                  4. Optional: enable Paged view (12 ports) for cross-page moves
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4">
+                  5. Click Generate Scripts to create change + rollback
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}">
+                  6. Review scripts before applying
+                </TextBlock>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Vendor Notes" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,8"/>
+              <StackPanel Margin="0,0,0,6">
+                <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Theme.Status.Info}">Cisco</TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  Scripts reset the destination interface using "default interface" before applying the moved profile.
+                </TextBlock>
+              </StackPanel>
+              <StackPanel>
+                <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Theme.Status.Warning}">Brocade</TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  Scripts use best-effort "no &lt;cmd&gt;" resets (no default interface support).
+                </TextBlock>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+        <!-- Alerts Section -->
+        <StackPanel Name="AlertsSection" Visibility="Collapsed">
+          <TextBlock Text="Alerts" FontSize="20" FontWeight="Bold"
+                     Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,15"/>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Issue Detection" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,8"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap" Margin="0,0,0,10">
+                Lists potential issues detected in the current scope. A port is flagged if:
+              </TextBlock>
+              <StackPanel Margin="10,0,0,0">
+                <TextBlock Foreground="{DynamicResource Theme.Status.Danger}" Margin="0,0,0,4">
+                  - Down or NotConnect status
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Status.Warning}" Margin="0,0,0,4">
+                  - Unauthorized authentication state
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Status.Warning}">
+                  - Half duplex mode
+                </TextBlock>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Export" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,8"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                Use the Export button to save the current list of alerts to CSV.
+                The alerts list automatically updates when new logs are parsed or filters change.
+              </TextBlock>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+        <!-- SPAN Section -->
+        <StackPanel Name="SpanSection" Visibility="Collapsed">
+          <TextBlock Text="SPAN" FontSize="20" FontWeight="Bold"
+                     Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,15"/>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Port Mirroring Sessions" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,8"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                Displays information about configured SPAN or port mirror sessions for the selected device.
+                Use this tab to review SPAN source and destination ports.
+                Select a device from the dropdowns to load its SPAN configuration.
+              </TextBlock>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+        <!-- Documentation Section -->
+        <StackPanel Name="DocumentationSection" Visibility="Collapsed">
+          <TextBlock Text="Documentation" FontSize="20" FontWeight="Bold"
+                     Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,15"/>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Overview" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,8"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                The Documentation section provides tools for creating network documentation,
+                managing configuration templates, and looking up vendor-specific commands.
+                Access it via the Documentation tab in the main navigation.
+              </TextBlock>
+            </StackPanel>
+          </Border>
+
+          <!-- Generator Sub-View -->
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Generator" FontWeight="Bold" FontSize="14"
+                         Foreground="{DynamicResource Theme.Icon.Accent}" Margin="0,0,0,10"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap" Margin="0,0,0,12">
+                Create professional network documentation from templates. Supports multiple
+                output formats and scheduled generation.
+              </TextBlock>
+
+              <TextBlock Text="Templates Tab" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Browse and manage documentation templates by category
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Categories: As-Built, Device, Reference, Report, Physical, Custom
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Create new templates or copy/edit existing ones
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Validate templates before use
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Generate Tab" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Select a template and specify document title and scope
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Quick Generate buttons: Site As-Built, Device Summary, VLAN Report, Executive
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Preview generated content before saving
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Documents Tab" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - View all generated documents with metadata
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Filter by scope or template type
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Export, regenerate, or delete documents
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Schedules Tab" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Create scheduled document generation (Daily, Weekly, Monthly)
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Enable/disable schedules without deleting them
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Run Now button for immediate generation
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Export Tab" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,0">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Export formats: Markdown (.md), HTML, Plain Text (.txt), CSV
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Batch export all documents for a scope or template
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - View export history with timestamps
+                </TextBlock>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- Config Templates Sub-View -->
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Config Templates" FontWeight="Bold" FontSize="14"
+                         Foreground="{DynamicResource Theme.Icon.Accent}" Margin="0,0,0,10"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap" Margin="0,0,0,12">
+                Create and manage vendor-specific configuration templates with variable
+                substitution. Validate configurations against security and best-practice standards.
+              </TextBlock>
+
+              <TextBlock Text="Templates Tab" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Template Library: Browse all saved templates
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Supported vendors: Cisco IOS, Cisco IOS-XE, Arista EOS, Brocade, Generic
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Device types: Access, Distribution, Core, Router, Other
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Variables Panel: Define placeholder values (e.g., {{HOSTNAME}}, {{VLAN_ID}})
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Extract Vars: Automatically find variables in template content
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Validation Tab" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Validate configs against security and compliance standards
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Load config from file or paste directly
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Results show rule ID, name, status, and severity
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Remediation Panel: Get suggested fix commands
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Export validation reports for compliance audits
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Generated Output Tab" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - View generated configuration with variables replaced
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Copy to clipboard or save to file
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Validate Output button to check generated config
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Statistics Tab" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,0">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Template counts by vendor and device type
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Validation standards and rule counts
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Quick Actions: Load Built-in, Export All, Clear Libraries
+                </TextBlock>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- Cmd Reference Sub-View -->
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Cmd Reference" FontWeight="Bold" FontSize="14"
+                         Foreground="{DynamicResource Theme.Icon.Accent}" Margin="0,0,0,10"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap" Margin="0,0,0,12">
+                Cross-vendor command reference and translation tool. Find equivalent commands
+                across Cisco, Arista, Juniper, and HP platforms.
+              </TextBlock>
+
+              <TextBlock Text="Command Translation" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Select source vendor and enter a command
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Select target vendor and click Translate
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Get the equivalent command for the target platform
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Commands Tab" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Search commands by keyword
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Filter by category and vendor
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Copy Command button for quick clipboard access
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Compare Vendors Tab" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Enter a task (e.g., "show routing table")
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - See side-by-side comparison: Cisco, Arista, Juniper, HP columns
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Config Snippets Tab" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Pre-built configuration snippets by vendor
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Fill in variables (VLAN ID, IP address, etc.)
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Generate and copy ready-to-use configuration
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Quick Reference Tab" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,0">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Natural language search: "I want to check port status"
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Results show task with commands for each vendor
+                </TextBlock>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- Documentation Tips -->
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Tips &amp; Best Practices" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
+              <StackPanel Margin="0,0,0,6">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Use descriptive template names that indicate scope and purpose
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Schedule weekly As-Built documentation for critical sites
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Validate configurations before deploying to production
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Export to Markdown for version control (Git-friendly format)
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Use Quick Reference when switching between vendor platforms
+                </TextBlock>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+        <!-- Infrastructure Section -->
+        <StackPanel Name="InfrastructureSection" Visibility="Collapsed">
+          <TextBlock Text="Infrastructure" FontSize="20" FontWeight="Bold"
+                     Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,15"/>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Overview" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,8"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                The Infrastructure section provides tools for managing physical and logical
+                network infrastructure including topology visualization, cable tracking,
+                IP address management, and hardware inventory.
+              </TextBlock>
+            </StackPanel>
+          </Border>
+
+          <!-- Topology Sub-View -->
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Topology" FontWeight="Bold" FontSize="14"
+                         Foreground="{DynamicResource Theme.Icon.Accent}" Margin="0,0,0,10"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap" Margin="0,0,0,12">
+                Visual network topology with automatic discovery, multiple layout algorithms,
+                and failure impact analysis.
+              </TextBlock>
+
+              <TextBlock Text="View Modes" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - L2 Physical: Layer 2 switch interconnections
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - L3 Logical: Routed network topology
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Site Groups: Devices grouped by site/location
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Layout Algorithms" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Hierarchical: Core/Distribution/Access layers
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Force-Directed: Automatic spring-based positioning
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Circular: Devices arranged in a circle
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Grid: Regular grid alignment
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Sidebar Tabs" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Details: Selected device info and connected neighbors
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Impact: Failure impact analysis with critical/redundant counts
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Layouts: Save and load custom diagram layouts
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Export: SVG, PNG, JSON, Draw.io formats
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Legend: Color coding for device roles and link types
+                </TextBlock>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- Cables Sub-View -->
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Cables" FontWeight="Bold" FontSize="14"
+                         Foreground="{DynamicResource Theme.Icon.Accent}" Margin="0,0,0,10"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap" Margin="0,0,0,12">
+                Track cable runs and patch panel connections. Document physical layer
+                infrastructure with import/export capabilities.
+              </TextBlock>
+
+              <TextBlock Text="Features" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Add/edit cable runs with source/destination endpoints
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Manage patch panels with port assignments
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Generate printable cable labels
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Import/Export JSON or CSV formats
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Filter cables by keyword search
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Cable Properties" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,0">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Cable ID, Type (Cat6, Fiber, etc.), Length
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Source/Destination device and port
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Status (Active, Spare, Faulty)
+                </TextBlock>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- IPAM Sub-View -->
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="IPAM" FontWeight="Bold" FontSize="14"
+                         Foreground="{DynamicResource Theme.Icon.Accent}" Margin="0,0,0,10"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap" Margin="0,0,0,12">
+                IP Address Management for VLANs, subnets, and individual IP addresses.
+                Includes conflict detection and site planning wizard.
+              </TextBlock>
+
+              <TextBlock Text="VLANs Tab" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Create/edit VLANs with number, name, purpose
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Purpose types: Data, Voice, Management, Guest, IoT, Server
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Status tracking: Active, Reserved, Deprecated, Planned
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Subnets Tab" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Define subnets with network/prefix, gateway, VLAN association
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Auto-calculated: mask, host range, total hosts
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Split subnets into smaller ranges
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="IP Addresses Tab" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Track individual IP assignments to devices/interfaces
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Types: Static, DHCP, HSRP, VRRP, Loopback, Management
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Conflicts Tab" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Detect duplicate IP assignments and overlapping subnets
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Site Planning Wizard" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,0">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Plan addressing for new sites with supernet allocation
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Select required VLANs and expected host counts
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Auto-generates subnet plan with growth factor
+                </TextBlock>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- Inventory Sub-View -->
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Inventory" FontWeight="Bold" FontSize="14"
+                         Foreground="{DynamicResource Theme.Icon.Accent}" Margin="0,0,0,10"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap" Margin="0,0,0,12">
+                Hardware asset tracking with warranty monitoring, firmware compliance,
+                lifecycle management, and budget forecasting.
+              </TextBlock>
+
+              <TextBlock Text="Inventory Tab" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Track hostname, vendor, model, serial, asset tag
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Location: site, building, rack, rack unit
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Filter by vendor, site, status; search by hostname/serial
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Import/Export CSV, generate warranty reports
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Warranty Alerts Tab" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - View devices expiring within 30/60/90/180/365 days
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Separate lists for expiring soon vs already expired
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Firmware Tab" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Set minimum firmware requirements by vendor/platform
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Check compliance and find devices below minimum
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Track devices with known CVE vulnerabilities
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Lifecycle Tab" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Track End-of-Sale and End-of-Support dates
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - View replacement model recommendations
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Budget Forecast Tab" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,0">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Project refresh costs over 3-10 year periods
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Set annual budget and refresh cycle targets
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Export forecasts to Text, CSV, or HTML
+                </TextBlock>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+        <!-- Operations Section -->
+        <StackPanel Name="OperationsSection" Visibility="Collapsed">
+          <TextBlock Text="Operations" FontSize="20" FontWeight="Bold"
+                     Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,15"/>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Overview" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,8"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                The Operations section provides tools for day-to-day network operations
+                including change request tracking, capacity monitoring, and log analysis.
+              </TextBlock>
+            </StackPanel>
+          </Border>
+
+          <!-- Change Management Sub-View -->
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Change Management" FontWeight="Bold" FontSize="14"
+                         Foreground="{DynamicResource Theme.Icon.Accent}" Margin="0,0,0,10"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap" Margin="0,0,0,12">
+                Track change requests through the full lifecycle from creation to completion.
+                Includes approval workflows, maintenance windows, and rollback tracking.
+              </TextBlock>
+
+              <TextBlock Text="Dashboard Cards" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Total Changes, In Progress, Pending Approval
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Maintenance Windows count, Success Rate percentage
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Change Lifecycle" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  1. New Change - Create with title, description, type, risk level
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  2. Submit - Send for approval
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  3. Approve - Authorize execution
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  4. Start - Begin implementation
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  5. Complete - Mark as finished
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  6. Rollback (if needed) - Revert changes
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Tabs" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Changes: List all change requests with details panel
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Maintenance: Define maintenance windows (All Changes, Normal, Emergency)
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Calendar: Visual calendar view of scheduled changes
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - History: Audit trail of all change activities
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Change Types" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,0">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Standard: Pre-approved routine changes
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Normal: Standard approval workflow required
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Emergency: Expedited approval for urgent fixes
+                </TextBlock>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- Capacity Planning Sub-View -->
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Capacity Planning" FontWeight="Bold" FontSize="14"
+                         Foreground="{DynamicResource Theme.Icon.Accent}" Margin="0,0,0,10"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap" Margin="0,0,0,12">
+                Monitor port utilization, forecast capacity needs, set alert thresholds,
+                and model growth scenarios.
+              </TextBlock>
+
+              <TextBlock Text="Dashboard Tab" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Overall Utilization bar with percentage and port counts
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Site Utilization grid: used/total/available ports per site
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Capacity Alerts panel for threshold violations
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Quick Stats: snapshot count, thresholds, scenarios
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Forecast Tab" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Growth rate slider (1-25% per year)
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Forecast period selection (6 months to 5 years)
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Projected utilization table with warning indicators
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Thresholds Tab" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Define warning/critical thresholds per site or globally
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Default: 75% warning, 90% critical
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Scenarios Tab" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Model what-if scenarios: add devices, remove sites
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Compare impact on capacity across scenarios
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="History Tab" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,0">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Take snapshots to track utilization over time
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Compare snapshots to see growth trends
+                </TextBlock>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- Log Analysis Sub-View -->
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Log Analysis" FontWeight="Bold" FontSize="14"
+                         Foreground="{DynamicResource Theme.Icon.Accent}" Margin="0,0,0,10"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap" Margin="0,0,0,12">
+                Import and analyze device logs with pattern detection, severity classification,
+                and timeline visualization.
+              </TextBlock>
+
+              <TextBlock Text="Import Options" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Import File: Load log files from disk
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Paste Logs: Paste log entries from clipboard
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Format: Auto-detect, Cisco IOS, Arista EOS, RFC 5424/3164, Generic
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Summary Bar" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Total log count, time range
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Severity badges: Critical, Warning, Notice counts
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Left Panel: Patterns &amp; Search" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Detected Patterns: Auto-discovered event types with counts
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Search box with regex support
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Saved searches for quick filtering
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Analysis Features" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,0">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Analyze button: Run pattern detection on loaded logs
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Timeline view: Visual event distribution over time
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Export filtered results to CSV
+                </TextBlock>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+        <!-- Tools Section -->
+        <StackPanel Name="ToolsSection" Visibility="Collapsed">
+          <TextBlock Text="Tools" FontSize="20" FontWeight="Bold"
+                     Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,15"/>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Overview" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,8"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                The Tools section provides utility tools for network calculations and
+                guided troubleshooting decision trees.
+              </TextBlock>
+            </StackPanel>
+          </Border>
+
+          <!-- Decision Tree Sub-View -->
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Troubleshoot (Decision Tree)" FontWeight="Bold" FontSize="14"
+                         Foreground="{DynamicResource Theme.Icon.Accent}" Margin="0,0,0,10"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap" Margin="0,0,0,12">
+                Guided troubleshooting workflows that walk you through common network
+                issues step-by-step. Create custom trees or use built-in templates.
+              </TextBlock>
+
+              <TextBlock Text="Left Panel: Tree Selection" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Browse trees by category: All, Layer1-Layer2, Layer2, Layer3
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Each tree has a name and description
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Start Troubleshooting, Edit Tree, or New Tree buttons
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Right Panel: Execution" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Optional device/interface context for targeted troubleshooting
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Progress bar shows current step in the workflow
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Question cards with Yes/No or multiple choice answers
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Back and Restart buttons for navigation
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Built-in Trees" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Port Not Working: Physical layer diagnostics
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - No Network Access: Connectivity troubleshooting
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - VLAN Issues: Tagging and membership problems
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Spanning Tree: Loop and blocking issues
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Creating Custom Trees" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,0">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Click "New Tree" to create a custom workflow
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Add steps with questions, CLI commands to check, and decision points
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Trees are saved locally and can be shared as JSON
+                </TextBlock>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- Network Calculator Sub-View -->
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Network Calculator" FontWeight="Bold" FontSize="14"
+                         Foreground="{DynamicResource Theme.Icon.Accent}" Margin="0,0,0,10"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap" Margin="0,0,0,12">
+                IP addressing tools including subnet calculator, VLAN utilities,
+                and address format conversion.
+              </TextBlock>
+
+              <TextBlock Text="Subnet Tab" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Enter network address and CIDR prefix
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Results: network, broadcast, mask, wildcard, first/last usable, total hosts
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Subnet Division: Split to smaller prefixes with table of subnets
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Copy Results button for easy clipboard export
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="VLAN Tab" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - VLAN range calculator
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Generate VLAN configuration snippets
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Check for VLAN ID conflicts
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Converter Tab" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - IP address format conversion (decimal, binary, hex)
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - MAC address format conversion (Cisco, IEEE, hyphenated)
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Wildcard mask to subnet mask conversion
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Common Use Cases" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,0">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Planning new subnet allocations for sites
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Splitting a large subnet for VLANs
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Converting MAC addresses for ACL configuration
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Calculating wildcard masks for OSPF/ACLs
+                </TextBlock>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+        <!-- Themes Section -->
+        <StackPanel Name="ThemesSection" Visibility="Collapsed">
+          <TextBlock Text="Themes" FontSize="20" FontWeight="Bold"
+                     Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,15"/>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Dynamic Theming" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,8"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap" Margin="0,0,0,10">
+                StateTrace supports dynamic themes loaded from Themes/*.json files.
+              </TextBlock>
+              <TextBlock Text="How to use:" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,0">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4">
+                  - Use the Theme selector in the toolbar to switch themes
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4">
+                  - Themes define window/surface/input/button/datagrid colors
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4">
+                  - Custom themes can extend base.json
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}">
+                  - Restart StateTrace after adding new theme JSON files
+                </TextBlock>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+        <!-- Keyboard Shortcuts Section -->
+        <StackPanel Name="ShortcutsSection" Visibility="Collapsed">
+          <TextBlock Text="Keyboard Shortcuts" FontSize="20" FontWeight="Bold"
+                     Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,15"/>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Global Shortcuts" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,12"/>
+
+              <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto"/>
+                  <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" Grid.Column="0" Margin="0,0,15,0">
+                  <Border Style="{StaticResource KeyBadgeStyle}">
+                    <TextBlock Text="F1" FontFamily="Consolas" FontSize="11"
+                               Foreground="{DynamicResource Theme.Text.Primary}"/>
+                  </Border>
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="Open Help" VerticalAlignment="Center"
+                           Foreground="{DynamicResource Theme.Text.Secondary}"/>
+              </Grid>
+
+              <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto"/>
+                  <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" Grid.Column="0" Margin="0,0,15,0">
+                  <Border Style="{StaticResource KeyBadgeStyle}">
+                    <TextBlock Text="Ctrl" FontFamily="Consolas" FontSize="11"
+                               Foreground="{DynamicResource Theme.Text.Primary}"/>
+                  </Border>
+                  <TextBlock Text="+" Margin="2,0" VerticalAlignment="Center"
+                             Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                  <Border Style="{StaticResource KeyBadgeStyle}">
+                    <TextBlock Text="F" FontFamily="Consolas" FontSize="11"
+                               Foreground="{DynamicResource Theme.Text.Primary}"/>
+                  </Border>
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="Focus search/filter box" VerticalAlignment="Center"
+                           Foreground="{DynamicResource Theme.Text.Secondary}"/>
+              </Grid>
+
+              <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto"/>
+                  <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" Grid.Column="0" Margin="0,0,15,0">
+                  <Border Style="{StaticResource KeyBadgeStyle}">
+                    <TextBlock Text="Ctrl" FontFamily="Consolas" FontSize="11"
+                               Foreground="{DynamicResource Theme.Text.Primary}"/>
+                  </Border>
+                  <TextBlock Text="+" Margin="2,0" VerticalAlignment="Center"
+                             Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                  <Border Style="{StaticResource KeyBadgeStyle}">
+                    <TextBlock Text="C" FontFamily="Consolas" FontSize="11"
+                               Foreground="{DynamicResource Theme.Text.Primary}"/>
+                  </Border>
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="Copy selected items" VerticalAlignment="Center"
+                           Foreground="{DynamicResource Theme.Text.Secondary}"/>
+              </Grid>
+
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto"/>
+                  <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" Grid.Column="0" Margin="0,0,15,0">
+                  <Border Style="{StaticResource KeyBadgeStyle}">
+                    <TextBlock Text="Esc" FontFamily="Consolas" FontSize="11"
+                               Foreground="{DynamicResource Theme.Text.Primary}"/>
+                  </Border>
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="Close dialogs/sidebars" VerticalAlignment="Center"
+                           Foreground="{DynamicResource Theme.Text.Secondary}"/>
+              </Grid>
+            </StackPanel>
+          </Border>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="DataGrid Navigation" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,12"/>
+
+              <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto"/>
+                  <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" Grid.Column="0" Margin="0,0,15,0">
+                  <Border Style="{StaticResource KeyBadgeStyle}">
+                    <TextBlock Text="Up" FontFamily="Consolas" FontSize="11"
+                               Foreground="{DynamicResource Theme.Text.Primary}"/>
+                  </Border>
+                  <TextBlock Text="/" Margin="4,0" VerticalAlignment="Center"
+                             Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                  <Border Style="{StaticResource KeyBadgeStyle}">
+                    <TextBlock Text="Down" FontFamily="Consolas" FontSize="11"
+                               Foreground="{DynamicResource Theme.Text.Primary}"/>
+                  </Border>
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="Navigate rows" VerticalAlignment="Center"
+                           Foreground="{DynamicResource Theme.Text.Secondary}"/>
+              </Grid>
+
+              <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto"/>
+                  <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" Grid.Column="0" Margin="0,0,15,0">
+                  <Border Style="{StaticResource KeyBadgeStyle}">
+                    <TextBlock Text="Ctrl" FontFamily="Consolas" FontSize="11"
+                               Foreground="{DynamicResource Theme.Text.Primary}"/>
+                  </Border>
+                  <TextBlock Text="+" Margin="2,0" VerticalAlignment="Center"
+                             Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                  <Border Style="{StaticResource KeyBadgeStyle}">
+                    <TextBlock Text="A" FontFamily="Consolas" FontSize="11"
+                               Foreground="{DynamicResource Theme.Text.Primary}"/>
+                  </Border>
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="Select all rows" VerticalAlignment="Center"
+                           Foreground="{DynamicResource Theme.Text.Secondary}"/>
+              </Grid>
+
+              <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto"/>
+                  <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" Grid.Column="0" Margin="0,0,15,0">
+                  <Border Style="{StaticResource KeyBadgeStyle}">
+                    <TextBlock Text="Shift" FontFamily="Consolas" FontSize="11"
+                               Foreground="{DynamicResource Theme.Text.Primary}"/>
+                  </Border>
+                  <TextBlock Text="+" Margin="2,0" VerticalAlignment="Center"
+                             Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                  <Border Style="{StaticResource KeyBadgeStyle}">
+                    <TextBlock Text="Click" FontFamily="Consolas" FontSize="11"
+                               Foreground="{DynamicResource Theme.Text.Primary}"/>
+                  </Border>
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="Select range" VerticalAlignment="Center"
+                           Foreground="{DynamicResource Theme.Text.Secondary}"/>
+              </Grid>
+
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto"/>
+                  <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" Grid.Column="0" Margin="0,0,15,0">
+                  <Border Style="{StaticResource KeyBadgeStyle}">
+                    <TextBlock Text="Ctrl" FontFamily="Consolas" FontSize="11"
+                               Foreground="{DynamicResource Theme.Text.Primary}"/>
+                  </Border>
+                  <TextBlock Text="+" Margin="2,0" VerticalAlignment="Center"
+                             Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                  <Border Style="{StaticResource KeyBadgeStyle}">
+                    <TextBlock Text="Click" FontFamily="Consolas" FontSize="11"
+                               Foreground="{DynamicResource Theme.Text.Primary}"/>
+                  </Border>
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="Toggle selection" VerticalAlignment="Center"
+                           Foreground="{DynamicResource Theme.Text.Secondary}"/>
+              </Grid>
+            </StackPanel>
+          </Border>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Tab Navigation" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,12"/>
+
+              <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto"/>
+                  <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" Grid.Column="0" Margin="0,0,15,0">
+                  <Border Style="{StaticResource KeyBadgeStyle}">
+                    <TextBlock Text="Ctrl" FontFamily="Consolas" FontSize="11"
+                               Foreground="{DynamicResource Theme.Text.Primary}"/>
+                  </Border>
+                  <TextBlock Text="+" Margin="2,0" VerticalAlignment="Center"
+                             Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                  <Border Style="{StaticResource KeyBadgeStyle}">
+                    <TextBlock Text="Tab" FontFamily="Consolas" FontSize="11"
+                               Foreground="{DynamicResource Theme.Text.Primary}"/>
+                  </Border>
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="Next tab" VerticalAlignment="Center"
+                           Foreground="{DynamicResource Theme.Text.Secondary}"/>
+              </Grid>
+
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto"/>
+                  <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Orientation="Horizontal" Grid.Column="0" Margin="0,0,15,0">
+                  <Border Style="{StaticResource KeyBadgeStyle}">
+                    <TextBlock Text="Ctrl" FontFamily="Consolas" FontSize="11"
+                               Foreground="{DynamicResource Theme.Text.Primary}"/>
+                  </Border>
+                  <TextBlock Text="+" Margin="2,0" VerticalAlignment="Center"
+                             Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                  <Border Style="{StaticResource KeyBadgeStyle}">
+                    <TextBlock Text="Shift" FontFamily="Consolas" FontSize="11"
+                               Foreground="{DynamicResource Theme.Text.Primary}"/>
+                  </Border>
+                  <TextBlock Text="+" Margin="2,0" VerticalAlignment="Center"
+                             Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                  <Border Style="{StaticResource KeyBadgeStyle}">
+                    <TextBlock Text="Tab" FontFamily="Consolas" FontSize="11"
+                               Foreground="{DynamicResource Theme.Text.Primary}"/>
+                  </Border>
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="Previous tab" VerticalAlignment="Center"
+                           Foreground="{DynamicResource Theme.Text.Secondary}"/>
+              </Grid>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+        <!-- Troubleshooting Section -->
+        <StackPanel Name="TroubleshootingSection" Visibility="Collapsed">
+          <TextBlock Text="Troubleshooting" FontSize="20" FontWeight="Bold"
+                     Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,15"/>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Application Won't Start" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Status.Danger}" Margin="0,0,0,8"/>
+              <TextBlock Text="Symptoms:" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,4"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap" Margin="0,0,0,8">
+                Application crashes on startup, shows PowerShell errors, or window doesn't appear.
+              </TextBlock>
+              <TextBlock Text="Solutions:" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,4"/>
+              <StackPanel Margin="10,0,0,0">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  1. Ensure you're running with -STA flag: powershell -STA -File Main\MainWindow.ps1
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  2. Check execution policy: Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  3. Verify .NET Framework 4.8+ is installed (included with Windows 10/11)
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  4. Check for syntax errors in StateTraceSettings.json - delete it to reset to defaults
+                </TextBlock>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="No Devices After Scan" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Status.Warning}" Margin="0,0,0,8"/>
+              <TextBlock Text="Symptoms:" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,4"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap" Margin="0,0,0,8">
+                Scan completes but Device dropdown is empty or shows no devices.
+              </TextBlock>
+              <TextBlock Text="Solutions:" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,4"/>
+              <StackPanel Margin="10,0,0,0">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  1. Verify log files exist in the expected Data/[SiteName]/ directory structure
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  2. Check log file format matches supported vendors (Cisco, Arista, Brocade)
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  3. Enable "Include archives" checkbox if logs are in archive folders
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  4. Try "Clear cache before scan" to force a fresh parse
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  5. Check the Site filter - ensure "All Sites" is selected or the correct site
+                </TextBlock>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Database Errors" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Status.Warning}" Margin="0,0,0,8"/>
+              <TextBlock Text="Symptoms:" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,4"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap" Margin="0,0,0,8">
+                Errors mentioning ACE.OLEDB, Jet, or Access database connection failures.
+              </TextBlock>
+              <TextBlock Text="Solutions:" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,4"/>
+              <StackPanel Margin="10,0,0,0">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  1. Install Microsoft Access Database Engine (ACE OLEDB 12.0 provider)
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  2. Ensure 32-bit vs 64-bit version matches your PowerShell architecture
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  3. Check that .accdb files aren't locked by another application
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  4. Verify write permissions to the Data/ directory
+                </TextBlock>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Slow Performance" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Status.Info}" Margin="0,0,0,8"/>
+              <TextBlock Text="Symptoms:" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,4"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap" Margin="0,0,0,8">
+                UI is sluggish, scans take a long time, or interfaces load slowly.
+              </TextBlock>
+              <TextBlock Text="Solutions:" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,4"/>
+              <StackPanel Margin="10,0,0,0">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  1. Use "Load from DB" instead of "Scan Logs" for repeat analysis
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  2. Apply Site/Zone/Building filters to reduce data volume
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  3. Large devices stream ports incrementally - wait for loading to complete
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  4. Close other memory-intensive applications during scans
+                </TextBlock>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Missing Interface Data" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Status.Warning}" Margin="0,0,0,8"/>
+              <TextBlock Text="Symptoms:" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,4"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap" Margin="0,0,0,8">
+                Some fields show empty or "N/A", port counts don't match expected values.
+              </TextBlock>
+              <TextBlock Text="Solutions:" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,4"/>
+              <StackPanel Margin="10,0,0,0">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  1. Verify log files contain all required show commands for complete data
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  2. Use the toolbar "Show Commands" buttons to get the correct command list
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  3. Re-collect logs with all commands and re-scan
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  4. Check if the device vendor/OS is fully supported
+                </TextBlock>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+        <!-- FAQ Section -->
+        <StackPanel Name="FAQSection" Visibility="Collapsed">
+          <TextBlock Text="Frequently Asked Questions" FontSize="20" FontWeight="Bold"
+                     Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,15"/>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Q: Does StateTrace connect to live network devices?" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                A: No. StateTrace is an offline-first tool that analyzes pre-collected log files. It never
+                connects to live devices. You collect logs separately (via SSH, scripts, or network management
+                tools) and then import them into StateTrace for analysis.
+              </TextBlock>
+            </StackPanel>
+          </Border>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Q: What show commands do I need to collect?" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                A: Use the "Show Commands" buttons in the toolbar (Cisco or Brocade) to copy the recommended
+                command list to your clipboard. These commands capture interface status, VLAN assignments,
+                spanning-tree, authentication state, and running configuration.
+              </TextBlock>
+            </StackPanel>
+          </Border>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Q: How do I organize log files?" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap" Margin="0,0,0,8">
+                A: Place log files in the Data/[SiteName]/ directory structure. Each site should have its
+                own folder. Log files should be named to identify the device (hostname in filename helps).
+              </TextBlock>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap" FontFamily="Consolas" FontSize="11">
+                Data/
+                  SITE1/
+                    switch1.log
+                    switch2.log
+                  SITE2/
+                    core-sw.log
+                    access-sw.log
+              </TextBlock>
+            </StackPanel>
+          </Border>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Q: What's the difference between Scan Logs and Load from DB?" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                A: "Scan Logs" parses raw log files and updates the database - use this when you have new
+                logs to process. "Load from DB" loads previously parsed data from the database without
+                re-parsing - use this for faster startup when logs haven't changed.
+              </TextBlock>
+            </StackPanel>
+          </Border>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Q: Can I edit configurations in StateTrace?" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                A: StateTrace allows you to edit Name and VLAN fields in the Interfaces grid, but these
+                changes are only used for generating configuration scripts. StateTrace never pushes changes
+                to live devices. You must review generated scripts and apply them manually.
+              </TextBlock>
+            </StackPanel>
+          </Border>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Q: How do I compare ports across different switches?" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                A: Open the Compare sidebar (select ports and click "Compare Configs" or use the Compare tab).
+                Use the dropdown menus in the Compare panel to select different switches and ports for each
+                side of the comparison.
+              </TextBlock>
+            </StackPanel>
+          </Border>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Q: What do the alert flags mean?" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap" Margin="0,0,0,8">
+                A: The Alerts tab flags potential issues:
+              </TextBlock>
+              <StackPanel Margin="10,0,0,0">
+                <TextBlock Foreground="{DynamicResource Theme.Status.Danger}" Margin="0,0,0,4">
+                  Down/NotConnect - Port is administratively down or has no link
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Status.Warning}" Margin="0,0,0,4">
+                  Unauthorized - 802.1X authentication failed or pending
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Status.Warning}">
+                  Half Duplex - Potential duplex mismatch (performance issue)
+                </TextBlock>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Q: How do I export data?" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                A: Most views have an "Export" button that saves data to CSV format. Search results,
+                Alerts, and interface lists can all be exported. Generated scripts from Port Reorg
+                can be copied to clipboard or saved to files.
+              </TextBlock>
+            </StackPanel>
+          </Border>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Q: Can I customize themes?" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                A: Yes! Copy an existing theme JSON file from Themes/, rename it, and modify the color
+                values. Restart StateTrace and your new theme will appear in the Theme dropdown. Themes
+                can extend base.json to inherit default colors.
+              </TextBlock>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+        <!-- Glossary Section -->
+        <StackPanel Name="GlossarySection" Visibility="Collapsed">
+          <TextBlock Text="Glossary" FontSize="20" FontWeight="Bold"
+                     Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,15"/>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Network Terms" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,12"/>
+
+              <StackPanel Margin="0,0,0,10">
+                <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}">802.1X</TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  Port-based network access control protocol. Requires authentication before
+                  granting network access. States include Authorized, Unauthorized, and Force-Auth.
+                </TextBlock>
+              </StackPanel>
+
+              <StackPanel Margin="0,0,0,10">
+                <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}">Access Port</TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  A switch port configured to carry traffic for a single VLAN. Typically used
+                  for end-user devices like computers and printers.
+                </TextBlock>
+              </StackPanel>
+
+              <StackPanel Margin="0,0,0,10">
+                <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}">Duplex</TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  Communication mode: Full-duplex allows simultaneous send/receive, Half-duplex
+                  alternates. Mismatched duplex settings cause performance issues.
+                </TextBlock>
+              </StackPanel>
+
+              <StackPanel Margin="0,0,0,10">
+                <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}">MAC Address</TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  Media Access Control address - unique hardware identifier for network interfaces.
+                  Format: XX:XX:XX:XX:XX:XX or XXXX.XXXX.XXXX
+                </TextBlock>
+              </StackPanel>
+
+              <StackPanel Margin="0,0,0,10">
+                <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}">Port Channel / LAG</TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  Link Aggregation Group - multiple physical ports bundled into one logical link
+                  for increased bandwidth and redundancy.
+                </TextBlock>
+              </StackPanel>
+
+              <StackPanel Margin="0,0,0,10">
+                <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}">SPAN / Port Mirroring</TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  Switched Port Analyzer - copies traffic from source ports to a destination port
+                  for monitoring/analysis purposes.
+                </TextBlock>
+              </StackPanel>
+
+              <StackPanel Margin="0,0,0,10">
+                <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}">Spanning Tree (STP)</TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  Protocol that prevents network loops by blocking redundant paths. Port states
+                  include Forwarding, Blocking, Learning, and Listening.
+                </TextBlock>
+              </StackPanel>
+
+              <StackPanel Margin="0,0,0,10">
+                <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}">Trunk Port</TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  A switch port configured to carry traffic for multiple VLANs using 802.1Q tagging.
+                  Used for switch-to-switch connections.
+                </TextBlock>
+              </StackPanel>
+
+              <StackPanel>
+                <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}">VLAN</TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  Virtual Local Area Network - logical network segmentation. Ports in the same VLAN
+                  can communicate at Layer 2; different VLANs require routing.
+                </TextBlock>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="StateTrace Terms" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,12"/>
+
+              <StackPanel Margin="0,0,0,10">
+                <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}">Ingestion</TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  The process of parsing log files and storing the extracted data in the database.
+                  Triggered by "Scan Logs" button.
+                </TextBlock>
+              </StackPanel>
+
+              <StackPanel Margin="0,0,0,10">
+                <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}">Site</TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  Top-level organizational unit in StateTrace. Corresponds to a physical location
+                  or logical grouping of network devices.
+                </TextBlock>
+              </StackPanel>
+
+              <StackPanel Margin="0,0,0,10">
+                <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}">Zone / Building / Room</TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  Hierarchical filters for narrowing scope. Derived from device naming conventions
+                  or metadata in the parsed logs.
+                </TextBlock>
+              </StackPanel>
+
+              <StackPanel Margin="0,0,0,10">
+                <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}">Port Reorg</TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  StateTrace workflow for reorganizing port assignments by dragging labels between
+                  ports and generating vendor-specific change/rollback scripts.
+                </TextBlock>
+              </StackPanel>
+
+              <StackPanel>
+                <TextBlock FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}">Freshness</TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  Timestamp indicating when data was last ingested for the selected site. Shown
+                  in the status bar at the bottom of the main window.
+                </TextBlock>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Port Status Values" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,12"/>
+
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="120"/>
+                  <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                  <RowDefinition/>
+                  <RowDefinition/>
+                  <RowDefinition/>
+                  <RowDefinition/>
+                  <RowDefinition/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="connected" FontWeight="SemiBold"
+                           Foreground="{DynamicResource Theme.Status.Success}" Margin="0,0,0,6"/>
+                <TextBlock Grid.Row="0" Grid.Column="1" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,6">
+                  Port is up with active link
+                </TextBlock>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="notconnect" FontWeight="SemiBold"
+                           Foreground="{DynamicResource Theme.Status.Danger}" Margin="0,0,0,6"/>
+                <TextBlock Grid.Row="1" Grid.Column="1" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,6">
+                  Port is enabled but no link detected
+                </TextBlock>
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="disabled" FontWeight="SemiBold"
+                           Foreground="{DynamicResource Theme.Status.Neutral}" Margin="0,0,0,6"/>
+                <TextBlock Grid.Row="2" Grid.Column="1" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,6">
+                  Port is administratively shut down
+                </TextBlock>
+
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="err-disabled" FontWeight="SemiBold"
+                           Foreground="{DynamicResource Theme.Status.Danger}" Margin="0,0,0,6"/>
+                <TextBlock Grid.Row="3" Grid.Column="1" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,6">
+                  Port disabled due to error (security, STP, etc.)
+                </TextBlock>
+
+                <TextBlock Grid.Row="4" Grid.Column="0" Text="monitoring" FontWeight="SemiBold"
+                           Foreground="{DynamicResource Theme.Status.Info}"/>
+                <TextBlock Grid.Row="4" Grid.Column="1" Foreground="{DynamicResource Theme.Text.Secondary}">
+                  Port is a SPAN destination
+                </TextBlock>
+              </Grid>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+
+      </StackPanel>
+    </ScrollViewer>
   </Grid>
 </Window>
