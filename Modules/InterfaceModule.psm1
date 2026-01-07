@@ -425,17 +425,29 @@ function New-InterfaceObjectsFromDbRow {
         New-Object 'System.Collections.Generic.Dictionary[string,object]' ([System.StringComparer]::OrdinalIgnoreCase)
     }
     $templateHintCache = New-Object 'System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceTemplateHint]' ([System.StringComparer]::OrdinalIgnoreCase)
+
+    # OPTIMIZATION: Pre-compute which properties exist by checking the first row once
+    # This avoids repeated PSObject.Properties lookups for every row
+    $propExists = @{}
+    $sampleRow = $rows[0]
+    if ($sampleRow -and $sampleRow.PSObject) {
+        $propNames = @('Port','Name','Status','VLAN','Duplex','Speed','Type','LearnedMACs',
+                       'AuthState','AuthMode','AuthClientMAC','Site','Building','Room','Zone',
+                       'AuthTemplate','Config','ConfigStatus','PortColor','ToolTip')
+        foreach ($pn in $propNames) {
+            $propExists[$pn] = ($null -ne $sampleRow.PSObject.Properties[$pn])
+        }
+    }
+
     foreach ($row in $rows) {
         if (-not $row) { continue }
-        # Safely extract fields; some properties may not exist on all row types.
+        # OPTIMIZED: Use pre-computed property existence map instead of checking each time
         $authTemplate = $null
-        if ($row.PSObject.Properties['AuthTemplate']) { $authTemplate = '' + $row.AuthTemplate }
-        $cfg          = $null
-        if ($row.PSObject.Properties['Config'])       { $cfg = '' + $row.Config }
-        $existingTip  = ''
-        if ($row.PSObject.Properties['ToolTip'] -and $row.ToolTip) {
-            $existingTip = ('' + $row.ToolTip).TrimEnd()
-        }
+        if ($propExists['AuthTemplate']) { try { $authTemplate = '' + $row.AuthTemplate } catch { } }
+        $cfg = $null
+        if ($propExists['Config']) { try { $cfg = '' + $row.Config } catch { } }
+        $existingTip = ''
+        if ($propExists['ToolTip']) { try { if ($row.ToolTip) { $existingTip = ('' + $row.ToolTip).TrimEnd() } } catch { } }
         # Determine the base tooltip: use existing tooltip when present; otherwise synthesise from AuthTemplate and Config.
         $toolTipCore = $existingTip
         if (-not $toolTipCore) {
@@ -452,17 +464,23 @@ function New-InterfaceObjectsFromDbRow {
         $cfgStatusVal = $null
         $hasPortColor = $false
         $hasConfigStatus = $false
-        if ($row.PSObject.Properties['PortColor'] -and $row.PortColor) {
-            $portColorVal = '' + $row.PortColor
-            if (-not [string]::IsNullOrWhiteSpace($portColorVal)) {
-                $hasPortColor = $true
-            }
+        if ($propExists['PortColor']) {
+            try {
+                $pcVal = $row.PortColor
+                if ($pcVal) {
+                    $portColorVal = '' + $pcVal
+                    if (-not [string]::IsNullOrWhiteSpace($portColorVal)) { $hasPortColor = $true }
+                }
+            } catch { }
         }
-        if ($row.PSObject.Properties['ConfigStatus'] -and $row.ConfigStatus) {
-            $cfgStatusVal = '' + $row.ConfigStatus
-            if (-not [string]::IsNullOrWhiteSpace($cfgStatusVal)) {
-                $hasConfigStatus = $true
-            }
+        if ($propExists['ConfigStatus']) {
+            try {
+                $csVal = $row.ConfigStatus
+                if ($csVal) {
+                    $cfgStatusVal = '' + $csVal
+                    if (-not [string]::IsNullOrWhiteSpace($cfgStatusVal)) { $hasConfigStatus = $true }
+                }
+            } catch { }
         }
         # If no explicit values were provided, look up the template colour and status.
         if (-not $hasPortColor -or -not $hasConfigStatus) {
@@ -507,28 +525,31 @@ function New-InterfaceObjectsFromDbRow {
                 $finalTip = "! GLOBAL AUTH BLOCK`r`n" + ($authBlockLines -join "`r`n")
             }
         }
-        # Build the PSCustomObject for this interface.  Use the provided Hostname for all entries.
-        $portValue = if ($row.PSObject.Properties['Port']) { '' + $row.Port } else { $null }
+        # Build the InterfacePortRecord for this interface. OPTIMIZED: Use direct property access
+        # with pre-computed existence map instead of Get-PropertyStringValue function calls
+        $portValue = $null
+        if ($propExists['Port']) { try { $portValue = '' + $row.Port } catch { } }
         $portSortKey = if ($portValue) { Get-PortSortKey -Port $portValue } else { $script:PortSortFallbackKey }
 
         $record = [StateTrace.Models.InterfacePortRecord]::new()
         $record.Hostname = $Hostname
         $record.Port = $portValue
         $record.PortSort = $portSortKey
-        $record.Name = Get-PropertyStringValue -InputObject $row -PropertyNames @('Name')
-        $record.Status = Get-PropertyStringValue -InputObject $row -PropertyNames @('Status')
-        $record.VLAN = Get-PropertyStringValue -InputObject $row -PropertyNames @('VLAN')
-        $record.Duplex = Get-PropertyStringValue -InputObject $row -PropertyNames @('Duplex')
-        $record.Speed = Get-PropertyStringValue -InputObject $row -PropertyNames @('Speed')
-        $record.Type = Get-PropertyStringValue -InputObject $row -PropertyNames @('Type')
-        $record.LearnedMACs = Get-PropertyStringValue -InputObject $row -PropertyNames @('LearnedMACs')
-        $record.AuthState = Get-PropertyStringValue -InputObject $row -PropertyNames @('AuthState')
-        $record.AuthMode = Get-PropertyStringValue -InputObject $row -PropertyNames @('AuthMode')
-        $record.AuthClientMAC = Get-PropertyStringValue -InputObject $row -PropertyNames @('AuthClientMAC')
-        $record.Site = Get-PropertyStringValue -InputObject $row -PropertyNames @('Site')
-        $record.Building = Get-PropertyStringValue -InputObject $row -PropertyNames @('Building')
-        $record.Room = Get-PropertyStringValue -InputObject $row -PropertyNames @('Room')
-        $record.Zone = Get-PropertyStringValue -InputObject $row -PropertyNames @('Zone')
+        # OPTIMIZED: Direct property access with try/catch instead of Get-PropertyStringValue
+        if ($propExists['Name']) { try { $v = $row.Name; if ($v) { $record.Name = '' + $v } } catch { } }
+        if ($propExists['Status']) { try { $v = $row.Status; if ($v) { $record.Status = '' + $v } } catch { } }
+        if ($propExists['VLAN']) { try { $v = $row.VLAN; if ($v) { $record.VLAN = '' + $v } } catch { } }
+        if ($propExists['Duplex']) { try { $v = $row.Duplex; if ($v) { $record.Duplex = '' + $v } } catch { } }
+        if ($propExists['Speed']) { try { $v = $row.Speed; if ($v) { $record.Speed = '' + $v } } catch { } }
+        if ($propExists['Type']) { try { $v = $row.Type; if ($v) { $record.Type = '' + $v } } catch { } }
+        if ($propExists['LearnedMACs']) { try { $v = $row.LearnedMACs; if ($v) { $record.LearnedMACs = '' + $v } } catch { } }
+        if ($propExists['AuthState']) { try { $v = $row.AuthState; if ($v) { $record.AuthState = '' + $v } } catch { } }
+        if ($propExists['AuthMode']) { try { $v = $row.AuthMode; if ($v) { $record.AuthMode = '' + $v } } catch { } }
+        if ($propExists['AuthClientMAC']) { try { $v = $row.AuthClientMAC; if ($v) { $record.AuthClientMAC = '' + $v } } catch { } }
+        if ($propExists['Site']) { try { $v = $row.Site; if ($v) { $record.Site = '' + $v } } catch { } }
+        if ($propExists['Building']) { try { $v = $row.Building; if ($v) { $record.Building = '' + $v } } catch { } }
+        if ($propExists['Room']) { try { $v = $row.Room; if ($v) { $record.Room = '' + $v } } catch { } }
+        if ($propExists['Zone']) { try { $v = $row.Zone; if ($v) { $record.Zone = '' + $v } } catch { } }
         $record.AuthTemplate = $authTemplate
         $record.Config = $cfg
         $record.ConfigStatus = $cfgStatusVal
@@ -537,10 +558,13 @@ function New-InterfaceObjectsFromDbRow {
         $record.IsSelected = $false
         [void]$resultList.Add($record)
     }
+    # OPTIMIZED: Use direct PortSort property access since we know it exists on InterfacePortRecord
     $comparison = [System.Comparison[object]]{
         param($a, $b)
-        $keyA = if ($a -and $a.PSObject.Properties['PortSort']) { '' + $a.PortSort } else { $script:PortSortFallbackKey }
-        $keyB = if ($b -and $b.PSObject.Properties['PortSort']) { '' + $b.PortSort } else { $script:PortSortFallbackKey }
+        $keyA = if ($a) { $a.PortSort } else { $script:PortSortFallbackKey }
+        $keyB = if ($b) { $b.PortSort } else { $script:PortSortFallbackKey }
+        if (-not $keyA) { $keyA = $script:PortSortFallbackKey }
+        if (-not $keyB) { $keyB = $script:PortSortFallbackKey }
         return [System.StringComparer]::Ordinal.Compare($keyA, $keyB)
     }
     try { $resultList.Sort($comparison) } catch {}

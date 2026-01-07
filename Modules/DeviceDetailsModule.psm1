@@ -162,8 +162,6 @@ function Get-DatabaseDeviceSummary {
         if ($summaryRows.Count -gt 0) { $row = $summaryRows[0] }
     }
 
-    $fallback = Get-DeviceHistoryFallback -Hostname $Hostname -DatabasePath $DatabasePath
-
     $makeVal     = script:Get-RowValue -Row $row -Property 'Make'
     $modelVal    = script:Get-RowValue -Row $row -Property 'Model'
     $uptimeVal   = script:Get-RowValue -Row $row -Property 'Uptime'
@@ -172,13 +170,19 @@ function Get-DatabaseDeviceSummary {
     $buildingVal = script:Get-RowValue -Row $row -Property 'Building'
     $roomVal     = script:Get-RowValue -Row $row -Property 'Room'
 
-    if (-not $makeVal)     { $makeVal     = $fallback.Make }
-    if (-not $modelVal)    { $modelVal    = $fallback.Model }
-    if (-not $uptimeVal)   { $uptimeVal   = $fallback.Uptime }
-    if (-not $portsVal -or $portsVal -eq 0) { $portsVal = $fallback.Ports }
-    if (-not $authVal)     { $authVal     = $fallback.AuthDefaultVLAN }
-    if (-not $buildingVal) { $buildingVal = $fallback.Building }
-    if (-not $roomVal)     { $roomVal     = $fallback.Room }
+    # OPTIMIZATION: Only query DeviceHistory fallback if we're missing critical data
+    # This avoids 2 extra DB queries when DeviceSummary has all the data we need
+    $needFallback = (-not $makeVal) -or (-not $modelVal) -or (-not $portsVal -or $portsVal -eq 0)
+    if ($needFallback) {
+        $fallback = Get-DeviceHistoryFallback -Hostname $Hostname -DatabasePath $DatabasePath
+        if (-not $makeVal)     { $makeVal     = $fallback.Make }
+        if (-not $modelVal)    { $modelVal    = $fallback.Model }
+        if (-not $uptimeVal)   { $uptimeVal   = $fallback.Uptime }
+        if (-not $portsVal -or $portsVal -eq 0) { $portsVal = $fallback.Ports }
+        if (-not $authVal)     { $authVal     = $fallback.AuthDefaultVLAN }
+        if (-not $buildingVal) { $buildingVal = $fallback.Building }
+        if (-not $roomVal)     { $roomVal     = $fallback.Room }
+    }
 
     return [PSCustomObject]@{
         Hostname        = $Hostname
