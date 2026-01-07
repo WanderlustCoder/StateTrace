@@ -21,6 +21,7 @@
            and text search.  Users can start typing a switch name to quickly
            locate it. -->
       <ComboBox Name="HostnameDropdown" Width="180" Margin="5,0" IsEditable="True" IsTextSearchEnabled="True" Style="{DynamicResource ToolbarComboBoxStyle}"/>
+      <ToggleButton Name="PinDeviceButton" Content="📌" Width="28" Height="24" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Pin/unpin current device to top of list" Margin="0,0,5,0" FontSize="12"/>
       <Label Content="Recent:" VerticalAlignment="Center" Margin="10,0,0,0" Style="{DynamicResource ToolbarLabelStyle}"/>
       <ComboBox Name="RecentDevicesDropdown" Width="140" Margin="5,0" Style="{DynamicResource ToolbarComboBoxStyle}" ToolTip="Recently viewed devices - click to jump back"/>
       <Button Name="RefreshButton" Content="_Scan Logs" Margin="5,0" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Scan log files for device data (Alt+S)"/>

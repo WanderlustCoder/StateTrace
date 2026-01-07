@@ -1415,6 +1415,28 @@ function New-InterfacesView {
         })
     }
 
+    # Quick action: Copy as formatted table
+    $copyTableButton = $interfacesView.FindName('CopyTableButton')
+    if ($copyTableButton -and $interfacesGrid) {
+        $copyTableButton.Add_Click({
+            $grid = $global:interfacesGrid
+            $rawSelected = Get-SelectedInterfaceRows -Grid $grid
+            $selectedRows = @($rawSelected)
+            if ($selectedRows.Count -eq 0) {
+                [System.Windows.MessageBox]::Show("No interfaces selected.")
+                return
+            }
+            # Build tab-separated table
+            $header = "Port`tName`tStatus`tVLAN`tDuplex`tSpeed`tType`tLearnedMACs`tAuthState"
+            $rows = $selectedRows | ForEach-Object {
+                "$($_.Port)`t$($_.Name)`t$($_.Status)`t$($_.VLAN)`t$($_.Duplex)`t$($_.Speed)`t$($_.Type)`t$($_.LearnedMACs)`t$($_.AuthState)"
+            }
+            $table = @($header) + $rows
+            Set-Clipboard -Value ($table -join "`r`n")
+            [System.Windows.MessageBox]::Show("Copied $($selectedRows.Count) row(s) as table to clipboard.")
+        })
+    }
+
     # Quick action: Export selected rows
     if ($exportSelectedBtn -and $interfacesGrid) {
         $exportSelectedBtn.Add_Click({

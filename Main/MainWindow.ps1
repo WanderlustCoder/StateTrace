@@ -3328,6 +3328,96 @@ if ($recentDevicesDropdown -and -not $script:RecentDevicesHandlerAttached) {
     $script:RecentDevicesHandlerAttached = $true
 }
 
+# Pin device toggle
+$pinDeviceButton = $window.FindName('PinDeviceButton')
+if ($pinDeviceButton -and -not $script:PinDeviceHandlerAttached) {
+    # Load pinned devices from settings
+    if (-not $script:PinnedDevices) {
+        $script:PinnedDevices = @()
+        try {
+            $settingsPath = Join-Path $PSScriptRoot '..\Data\StateTraceSettings.json'
+            if (Test-Path $settingsPath) {
+                $settings = Get-Content $settingsPath -Raw | ConvertFrom-Json
+                if ($settings.PinnedDevices) {
+                    $script:PinnedDevices = @($settings.PinnedDevices)
+                }
+            }
+        } catch { }
+    }
+
+    $pinDeviceButton.Add_Click({
+        $hostDD = $window.FindName('HostnameDropdown')
+        $device = [string]$hostDD.SelectedItem
+        if (-not $device) { return }
+
+        if ($pinDeviceButton.IsChecked) {
+            # Add to pinned
+            if ($device -notin $script:PinnedDevices) {
+                $script:PinnedDevices = @($device) + @($script:PinnedDevices)
+            }
+        } else {
+            # Remove from pinned
+            $script:PinnedDevices = @($script:PinnedDevices | Where-Object { $_ -ne $device })
+        }
+
+        # Save pinned devices
+        try {
+            $settingsPath = Join-Path $PSScriptRoot '..\Data\StateTraceSettings.json'
+            $settings = @{}
+            if (Test-Path $settingsPath) {
+                $raw = Get-Content $settingsPath -Raw
+                if ($raw) {
+                    $parsed = $raw | ConvertFrom-Json
+                    $parsed.PSObject.Properties | ForEach-Object { $settings[$_.Name] = $_.Value }
+                }
+            }
+            $settings['PinnedDevices'] = $script:PinnedDevices
+            $settings | ConvertTo-Json -Depth 5 | Set-Content $settingsPath -Encoding UTF8
+        } catch { }
+
+        # Refresh dropdown to show pinned at top
+        try {
+            $allDevices = @($hostDD.Items | Where-Object { $_ })
+            $pinned = @($script:PinnedDevices | Where-Object { $_ -in $allDevices })
+            $unpinned = @($allDevices | Where-Object { $_ -notin $script:PinnedDevices })
+            $sorted = $pinned + $unpinned
+            $hostDD.Items.Clear()
+            foreach ($d in $sorted) { [void]$hostDD.Items.Add($d) }
+            $hostDD.SelectedItem = $device
+        } catch { }
+    }.GetNewClosure())
+
+    # Update pin button state when device changes
+    $hostnameDropdown.Add_SelectionChanged({
+        $device = [string]$hostnameDropdown.SelectedItem
+        $pinBtn = $window.FindName('PinDeviceButton')
+        if ($pinBtn -and $device) {
+            $pinBtn.IsChecked = ($device -in $script:PinnedDevices)
+        }
+    }.GetNewClosure())
+
+    $script:PinDeviceHandlerAttached = $true
+}
+
+# Main tab selection persistence
+$mainTabControl = $window.FindName('MainTabControl')
+if ($mainTabControl -and -not $script:MainTabHandlerAttached) {
+    $mainTabControl.Add_SelectionChanged({
+        param($sender,$e)
+        if (-not $global:ProgrammaticTabUpdate) {
+            $idx = $sender.SelectedIndex
+            if ($idx -ge 0) {
+                try {
+                    if (-not $script:StateTraceSettings) { $script:StateTraceSettings = @{} }
+                    $script:StateTraceSettings['LastTabIndex'] = $idx
+                    Save-StateTraceSettings -Settings $script:StateTraceSettings
+                } catch { }
+            }
+        }
+    })
+    $script:MainTabHandlerAttached = $true
+}
+
 # === END Main window control hooks (MainWindow.ps1) ===
 
 # === BEGIN Filter dropdown hooks (MainWindow.ps1) ===
@@ -3685,6 +3775,21 @@ $window.Add_Loaded({
                             } finally {
                                 $global:ProgrammaticHostnameUpdate = $false
                             }
+                        }
+                    }
+                }
+
+                # Restore last selected tab
+                $lastTabIndex = $script:StateTraceSettings['LastTabIndex']
+                if ($null -ne $lastTabIndex -and $lastTabIndex -ge 0) {
+                    $mainTab = $window.FindName('MainTabControl')
+                    if ($mainTab -and $lastTabIndex -lt $mainTab.Items.Count) {
+                        $global:ProgrammaticTabUpdate = $true
+                        try {
+                            $mainTab.SelectedIndex = $lastTabIndex
+                            Write-StartupDiag ("Restored tab selection: index {0}" -f $lastTabIndex)
+                        } finally {
+                            $global:ProgrammaticTabUpdate = $false
                         }
                     }
                 }
