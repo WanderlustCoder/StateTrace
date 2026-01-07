@@ -1,0 +1,10 @@
+ARUBA-6300# show vlan
+
+------------------------------------------------------------------------------
+VLAN  Name                              Status    Reason        Type      
+------------------------------------------------------------------------------
+1     DEFAULT_VLAN_1                    up        ok            static    
+100   SERVERS                           up        ok            static    
+200   USERS                             up        ok            static    
+300   VOICE                             up        ok            static    
+999   NATIVE                            up        ok            static    

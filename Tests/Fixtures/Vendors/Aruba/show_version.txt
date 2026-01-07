@@ -1,0 +1,14 @@
+ARUBA-6300# show version
+
+ArubaOS-CX
+(c) Copyright 2017-2024 Hewlett Packard Enterprise Development LP
+
+Product Name:      Aruba 6300M 48G CL6 PoE 4SFP56 Swch
+Part Number:       JL665A
+Serial Number:     SG12345678
+Software Version:  FL.10.10.1010
+
+Up Time:           45 days, 12:30:45
+
+CPU Type:          ARM Cortex-A53
+System Memory:     2048 MB

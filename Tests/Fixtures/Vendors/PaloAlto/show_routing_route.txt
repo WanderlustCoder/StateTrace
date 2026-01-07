@@ -1,0 +1,18 @@
+admin@PA-3220> show routing route
+
+flags: A:active, ?:loose, C:connect, H:host, S:static, ~:internal, R:rip, O:ospf, B:bgp, 
+       Oi:ospf intra-area, Oo:ospf inter-area, O1:ospf ext-type-1, O2:ospf ext-type-2, E:ecmp, M:multicast
+
+VIRTUAL ROUTER: default (id 1)
+==========
+destination                                 nexthop                                 metric     flags      interface      age
+0.0.0.0/0                                   203.0.113.254                           10         A S        ethernet1/2    45d
+10.1.1.0/24                                 0.0.0.0                                 0          A C        ethernet1/1    45d
+10.2.1.0/24                                 0.0.0.0                                 0          A C        ethernet1/3    45d
+10.3.1.0/24                                 0.0.0.0                                 0          A C        ethernet1/6    45d
+10.255.1.0/24                               0.0.0.0                                 0          A C        ethernet1/8    45d
+172.16.0.0/12                               172.16.1.2                              20         A S        tunnel.1       30d
+192.168.0.0/16                              10.1.1.254                              110        A Oi       ethernet1/1    15d
+203.0.113.0/24                              0.0.0.0                                 0          A C        ethernet1/2    45d
+
+total routes shown: 8

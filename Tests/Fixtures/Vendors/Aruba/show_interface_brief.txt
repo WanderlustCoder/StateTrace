@@ -1,0 +1,18 @@
+ARUBA-6300# show interface brief
+
+---------------------------------------------------------------
+Port       Native  Mode    Type      Enabled Status
+           VLAN
+---------------------------------------------------------------
+1/1/1      1       access  1GbT      yes     up
+1/1/2      1       access  1GbT      yes     up
+1/1/3      100     access  1GbT      yes     down
+1/1/4      100     access  1GbT      no      down
+1/1/5      200     trunk   1GbT      yes     up
+1/1/6      200     trunk   1GbT      yes     up
+1/1/47     --      routed  SFP+      yes     up
+1/1/48     --      routed  SFP+      yes     up
+lag1       100     trunk   LAG       yes     up
+vlan1      --      --      VLAN      yes     up
+vlan100    --      --      VLAN      yes     up
+vlan200    --      --      VLAN      yes     up

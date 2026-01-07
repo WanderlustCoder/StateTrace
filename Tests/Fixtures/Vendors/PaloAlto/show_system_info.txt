@@ -1,0 +1,32 @@
+admin@PA-3220> show system info
+
+hostname: PA-3220
+ip-address: 10.0.0.1
+netmask: 255.255.255.0
+default-gateway: 10.0.0.254
+mac-address: 00:1b:17:00:ab:cd
+time: Mon Dec 30 14:30:00 2024
+uptime: 45 days, 12:30:45
+family: 3000
+model: PA-3220
+serial: 012345678901234
+sw-version: 10.2.3
+app-version: 8765-4321
+app-release-date: 2024/12/15 12:00:00 PST
+av-version: 4321-5678
+av-release-date: 2024/12/28 12:00:00 PST
+threat-version: 8765-4321
+threat-release-date: 2024/12/15 12:00:00 PST
+wf-private-version: 0
+wf-private-release-date: unknown
+url-db: paloaltonetworks
+wildfire-version: 123456-789012
+wildfire-release-date: 2024/12/30 12:15:00 PST
+url-filtering-version: 20241230.12345
+global-protect-client-package-version: 6.2.0
+device-dictionary-version: 123-456
+logdb-version: 10.2.0
+device-dictionary-release-date: 2024/12/01 12:00:00 PST
+vpn-disable-mode: off
+multi-vsys: off
+operational-mode: normal

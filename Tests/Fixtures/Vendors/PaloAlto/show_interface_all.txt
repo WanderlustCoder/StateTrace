@@ -1,0 +1,31 @@
+admin@PA-3220> show interface all
+
+total configured hardware interfaces: 8
+
+name                    id    speed/duplex/state        mac address
+--------------------------------------------------------------------------------
+ethernet1/1             16    10000/full/up             00:1b:17:00:ab:01
+ethernet1/2             17    10000/full/up             00:1b:17:00:ab:02
+ethernet1/3             18    1000/full/up              00:1b:17:00:ab:03
+ethernet1/4             19    auto/auto/down            00:1b:17:00:ab:04
+ethernet1/5             20    auto/auto/down            00:1b:17:00:ab:05
+ethernet1/6             21    1000/full/up              00:1b:17:00:ab:06
+ethernet1/7             22    auto/auto/down            00:1b:17:00:ab:07
+ethernet1/8             23    1000/full/up              00:1b:17:00:ab:08
+
+aggregation groups: 0
+
+total configured logical interfaces: 8
+
+name                    id    zone                      vsys addr           
+--------------------------------------------------------------------------------
+ethernet1/1             16    trust                     1    10.1.1.1/24    
+ethernet1/2             17    untrust                   1    203.0.113.1/24 
+ethernet1/3             18    dmz                       1    10.2.1.1/24    
+ethernet1/4             19    N/A                       1    N/A            
+ethernet1/5             20    N/A                       1    N/A            
+ethernet1/6             21    servers                   1    10.3.1.1/24    
+ethernet1/7             22    N/A                       1    N/A            
+ethernet1/8             23    management                1    10.255.1.1/24  
+loopback.1              260   trust                     1    192.168.1.1/32 
+tunnel.1                261   vpn                       1    172.16.1.1/30  

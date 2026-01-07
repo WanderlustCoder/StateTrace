@@ -1,0 +1,10 @@
+user@EX4300-CORE> show version
+Hostname: EX4300-CORE
+Model: EX4300-48T
+Junos: 21.4R3-S2.3
+JUNOS EX  Software Suite [21.4R3-S2.3]
+JUNOS FIPS mode utilities [21.4R3-S2.3]
+JUNOS Online Documentation [21.4R3-S2.3]
+JUNOS EX 4300 Software Suite [21.4R3-S2.3]
+
+System booted: 2024-11-15 08:30:00 UTC (45 days, 6:15:30 ago)

@@ -1,0 +1,18 @@
+user@EX4300-CORE> show interfaces terse
+Interface               Admin Link Proto    Local                 Remote
+ge-0/0/0                up    up
+ge-0/0/0.0              up    up   eth-switch
+ge-0/0/1                up    up
+ge-0/0/1.0              up    up   eth-switch
+ge-0/0/2                up    down
+ge-0/0/2.0              up    down eth-switch
+ge-0/0/3                down  down
+ge-0/0/3.0              down  down eth-switch
+xe-0/1/0                up    up
+xe-0/1/0.0              up    up   inet     10.0.0.1/30
+xe-0/1/1                up    up
+xe-0/1/1.0              up    up   inet     10.0.0.5/30
+lo0                     up    up
+lo0.0                   up    up   inet     192.168.1.1/32
+me0                     up    up
+me0.0                   up    up   inet     10.255.0.10/24

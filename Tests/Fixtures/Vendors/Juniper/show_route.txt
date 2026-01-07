@@ -1,0 +1,19 @@
+user@EX4300-CORE> show route
+
+inet.0: 25 destinations, 28 routes (25 active, 0 holddown, 0 hidden)
++ = Active Route, - = Last Active, * = Both
+
+0.0.0.0/0          *[Static/5] 45d 06:15:30
+                    > to 10.0.0.2 via xe-0/1/0.0
+10.0.0.0/30        *[Direct/0] 45d 06:15:30
+                    > via xe-0/1/0.0
+10.0.0.1/32        *[Local/0] 45d 06:15:30
+                      Local via xe-0/1/0.0
+10.0.0.4/30        *[Direct/0] 45d 06:15:30
+                    > via xe-0/1/1.0
+10.0.0.5/32        *[Local/0] 45d 06:15:30
+                      Local via xe-0/1/1.0
+192.168.0.0/16     *[OSPF/10] 30d 12:00:00, metric 100
+                    > to 10.0.0.2 via xe-0/1/0.0
+192.168.1.1/32     *[Direct/0] 45d 06:15:30
+                    > via lo0.0
