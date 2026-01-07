@@ -123,7 +123,7 @@
                    Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}"
                    BorderBrush="{DynamicResource Theme.Input.Border}"
                    BorderThickness="1"
-                   ToolTip="Type to filter interfaces..."
+                   ToolTip="Type to filter interfaces (Escape to clear)"
                    Margin="0,0,5,0"/>
             <Button Name="ClearFilterButton"
                   Content="X"
@@ -131,6 +131,19 @@
                   Height="23"
                   VerticalAlignment="Center"
                   ToolTip="Clear filter"/>
+
+            <Rectangle Width="1" Fill="{DynamicResource Theme.Border.Primary}" Margin="10,2,10,2"/>
+
+            <TextBlock Text="Selection:" Foreground="{DynamicResource Theme.Text.Inverse}" VerticalAlignment="Center" Margin="0,0,5,0"/>
+            <Button Name="SelectAllButton" Content="All" Width="40" Height="23" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Select all visible rows" Margin="0,0,3,0"/>
+            <Button Name="SelectNoneButton" Content="None" Width="45" Height="23" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Clear selection" Margin="0,0,3,0"/>
+            <Button Name="InvertSelectionButton" Content="Invert" Width="50" Height="23" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Invert current selection" Margin="0,0,3,0"/>
+            <ComboBox Name="SelectByStatusDropdown" Width="90" Height="23" Style="{DynamicResource ToolbarComboBoxStyle}" ToolTip="Select by status">
+              <ComboBoxItem Content="By Status..." IsSelected="True"/>
+              <ComboBoxItem Content="All Up"/>
+              <ComboBoxItem Content="All Down"/>
+            </ComboBox>
+            <TextBlock Name="SelectionCountText" Text="" Foreground="{DynamicResource Theme.Text.Muted}" VerticalAlignment="Center" Margin="10,0,0,0" FontSize="11"/>
         </StackPanel>
 
         <Grid Grid.Row="2">

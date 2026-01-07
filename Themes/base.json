@@ -39,6 +39,7 @@
     "Theme.DataGrid.HeaderText": "#FFFFFF",
     "Theme.DataGrid.SelectionBackground": "#FFF4BA",
     "Theme.DataGrid.SelectionText": "#111827",
+    "Theme.DataGrid.HoverBackground": "#FFFADD",
     "Theme.Text.Primary": "#111827",
     "Theme.Text.Secondary": "#4B5563",
     "Theme.Text.Inverse": "#FFFFFF",

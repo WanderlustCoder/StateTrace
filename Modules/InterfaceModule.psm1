@@ -1006,6 +1006,105 @@ function New-InterfacesView {
                 $script:InterfacesFilterTimer.Start()
             }
         })
+        # Escape key clears filter
+        $filterBox.Add_PreviewKeyDown({
+            param($sender, $e)
+            if ($e.Key -eq 'Escape') {
+                $global:filterBox.Text = ''
+                $e.Handled = $true
+            }
+        })
+    }
+
+    # Selection toolbar handlers
+    $selectAllBtn = $interfacesView.FindName('SelectAllButton')
+    $selectNoneBtn = $interfacesView.FindName('SelectNoneButton')
+    $invertBtn = $interfacesView.FindName('InvertSelectionButton')
+    $selectByStatusDropdown = $interfacesView.FindName('SelectByStatusDropdown')
+    $selectionCountText = $interfacesView.FindName('SelectionCountText')
+
+    $updateSelectionCount = {
+        if ($selectionCountText -and $interfacesGrid) {
+            $items = $interfacesGrid.ItemsSource
+            if ($items) {
+                $selected = @($items | Where-Object { $_.IsSelected -eq $true })
+                $total = @($items).Count
+                $selectionCountText.Text = "$($selected.Count) of $total selected"
+            }
+        }
+    }.GetNewClosure()
+
+    if ($selectAllBtn -and $interfacesGrid) {
+        $selectAllBtn.Add_Click({
+            $items = $interfacesGrid.ItemsSource
+            if ($items) {
+                foreach ($item in $items) {
+                    if ($item.PSObject.Properties['IsSelected']) { $item.IsSelected = $true }
+                }
+                $interfacesGrid.Items.Refresh()
+                & $updateSelectionCount
+            }
+        }.GetNewClosure())
+    }
+
+    if ($selectNoneBtn -and $interfacesGrid) {
+        $selectNoneBtn.Add_Click({
+            $items = $interfacesGrid.ItemsSource
+            if ($items) {
+                foreach ($item in $items) {
+                    if ($item.PSObject.Properties['IsSelected']) { $item.IsSelected = $false }
+                }
+                $interfacesGrid.Items.Refresh()
+                & $updateSelectionCount
+            }
+        }.GetNewClosure())
+    }
+
+    if ($invertBtn -and $interfacesGrid) {
+        $invertBtn.Add_Click({
+            $items = $interfacesGrid.ItemsSource
+            if ($items) {
+                foreach ($item in $items) {
+                    if ($item.PSObject.Properties['IsSelected']) { $item.IsSelected = -not $item.IsSelected }
+                }
+                $interfacesGrid.Items.Refresh()
+                & $updateSelectionCount
+            }
+        }.GetNewClosure())
+    }
+
+    if ($selectByStatusDropdown -and $interfacesGrid) {
+        $selectByStatusDropdown.Add_SelectionChanged({
+            param($sender, $e)
+            $selected = $selectByStatusDropdown.SelectedItem
+            if (-not $selected) { return }
+            $content = if ($selected -is [System.Windows.Controls.ComboBoxItem]) { $selected.Content } else { $selected }
+            $items = $interfacesGrid.ItemsSource
+            if (-not $items) { return }
+
+            switch ($content) {
+                'All Up' {
+                    foreach ($item in $items) {
+                        if ($item.PSObject.Properties['IsSelected']) {
+                            $item.IsSelected = ($item.Status -eq 'Up')
+                        }
+                    }
+                    $interfacesGrid.Items.Refresh()
+                    & $updateSelectionCount
+                }
+                'All Down' {
+                    foreach ($item in $items) {
+                        if ($item.PSObject.Properties['IsSelected']) {
+                            $item.IsSelected = ($item.Status -eq 'Down')
+                        }
+                    }
+                    $interfacesGrid.Items.Refresh()
+                    & $updateSelectionCount
+                }
+            }
+            # Reset dropdown to placeholder
+            $selectByStatusDropdown.SelectedIndex = 0
+        }.GetNewClosure())
     }
 
     # ------------------------------

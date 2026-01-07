@@ -10,8 +10,15 @@
       </Grid.RowDefinitions>
 
       <!-- Header -->
-      <TextBlock Grid.Row="0" Text="Network Summary" FontSize="20" FontWeight="Bold"
-                 Foreground="{DynamicResource Theme.Text.Inverse}" Margin="0,0,0,15"/>
+      <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,15">
+        <TextBlock Text="Network Summary" FontSize="20" FontWeight="Bold"
+                   Foreground="{DynamicResource Theme.Text.Inverse}" VerticalAlignment="Center"/>
+        <Button Name="RefreshSummaryButton" Content="Refresh" Width="70" Height="24" Margin="15,0,0,0"
+                Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Refresh summary data (F5)"
+                VerticalAlignment="Center"/>
+        <TextBlock Name="SummaryLastUpdatedText" Text="" FontSize="11" Margin="10,0,0,0"
+                   Foreground="{DynamicResource Theme.Text.Muted}" VerticalAlignment="Center"/>
+      </StackPanel>
 
       <!-- Top Row: Overview, Port Status, Alerts -->
       <UniformGrid Grid.Row="1" Columns="3" Margin="0,0,0,10">

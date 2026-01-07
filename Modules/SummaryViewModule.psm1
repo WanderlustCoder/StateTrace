@@ -10,9 +10,34 @@ function New-SummaryView {
     $summaryView = ViewCompositionModule\Set-StView -Window $Window -ScriptDir $ScriptDir -ViewName 'SummaryView' -HostControlName 'SummaryHost' -GlobalVariableName 'summaryView'
     if (-not $summaryView) { return }
 
-    try { DeviceInsightsModule\Update-SummaryAsync } catch {
-        try { DeviceInsightsModule\Update-Summary } catch { }
+    $refreshBtn = $summaryView.FindName('RefreshSummaryButton')
+    $lastUpdatedText = $summaryView.FindName('SummaryLastUpdatedText')
+
+    $refreshAction = {
+        try { DeviceInsightsModule\Update-SummaryAsync } catch {
+            try { DeviceInsightsModule\Update-Summary } catch { }
+        }
+        if ($lastUpdatedText) {
+            $lastUpdatedText.Text = "Updated: $(Get-Date -Format 'HH:mm:ss')"
+        }
+    }.GetNewClosure()
+
+    # Refresh button click
+    if ($refreshBtn) {
+        $refreshBtn.Add_Click({ & $refreshAction }.GetNewClosure())
     }
+
+    # F5 key to refresh
+    $summaryView.Add_PreviewKeyDown({
+        param($sender, $e)
+        if ($e.Key -eq 'F5') {
+            & $refreshAction
+            $e.Handled = $true
+        }
+    }.GetNewClosure())
+
+    # Initial load
+    & $refreshAction
 }
 
 Export-ModuleMember -Function New-SummaryView

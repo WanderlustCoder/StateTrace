@@ -568,6 +568,16 @@ function New-SearchInterfacesView {
                 if ($exportBtn) { $exportBtn.RaiseEvent((New-Object System.Windows.RoutedEventArgs([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent))) }
                 $e.Handled = $true
             }
+            elseif ($e.Key -eq 'Escape') {
+                # Escape - Clear all filters
+                if ($searchBox) { $searchBox.Text = '' }
+                if ($statusFilter) { $statusFilter.SelectedIndex = 0 }
+                if ($authFilter) { $authFilter.SelectedIndex = 0 }
+                if ($vlanFilter) { $vlanFilter.SelectedIndex = 0 }
+                if ($presetDropdown) { $presetDropdown.SelectedIndex = 0 }
+                & $requestSearchUpdate
+                $e.Handled = $true
+            }
         }.GetNewClosure())
     }
 

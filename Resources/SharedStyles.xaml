@@ -569,6 +569,9 @@
   <Style x:Key="PrimaryDataGridRowStyle" TargetType="DataGridRow">
     <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
     <Style.Triggers>
+      <Trigger Property="IsMouseOver" Value="True">
+        <Setter Property="Background" Value="{DynamicResource Theme.DataGrid.HoverBackground}"/>
+      </Trigger>
       <Trigger Property="IsSelected" Value="True">
         <Setter Property="Background" Value="{DynamicResource Theme.DataGrid.SelectionBackground}"/>
         <Setter Property="Foreground" Value="{DynamicResource Theme.DataGrid.SelectionText}"/>
