@@ -30,6 +30,15 @@
       <CheckBox Name="IncludeArchiveCheckbox" Content="Include archives" VerticalAlignment="Center" Margin="10,0" Style="{DynamicResource ToolbarCheckBoxStyle}"/>
       <!-- Checkbox to include historical data from archives -->
       <CheckBox Name="IncludeHistoricalCheckbox" Content="Include history" VerticalAlignment="Center" Margin="5,0" Style="{DynamicResource ToolbarCheckBoxStyle}"/>
+      <!-- Auto-refresh toggle -->
+      <Rectangle Width="1" Fill="{DynamicResource Theme.Border.Primary}" Margin="10,2,10,2"/>
+      <CheckBox Name="AutoRefreshCheckbox" Content="Auto-refresh" VerticalAlignment="Center" Margin="0,0,5,0" Style="{DynamicResource ToolbarCheckBoxStyle}" ToolTip="Automatically reload data at the selected interval"/>
+      <ComboBox Name="AutoRefreshIntervalDropdown" Width="70" Style="{DynamicResource ToolbarComboBoxStyle}" ToolTip="Refresh interval" IsEnabled="False">
+        <ComboBoxItem Content="1 min" IsSelected="True"/>
+        <ComboBoxItem Content="2 min"/>
+        <ComboBoxItem Content="5 min"/>
+        <ComboBoxItem Content="10 min"/>
+      </ComboBox>
     </StackPanel>
 
     <!-- Location filter bar directly under the main toolbar -->

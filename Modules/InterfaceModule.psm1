@@ -847,6 +847,7 @@ function New-InterfacesView {
     $copyPortsButton   = $interfacesView.FindName('CopyPortsButton')
     $copyMacsButton    = $interfacesView.FindName('CopyMacsButton')
     $exportSelectedBtn = $interfacesView.FindName('ExportSelectedButton')
+    $setVlanButton     = $interfacesView.FindName('SetVlanButton')
     $columnsButton     = $interfacesView.FindName('ColumnsButton')
     $sortPresetDropdown = $interfacesView.FindName('SortPresetDropdown')
 
@@ -1236,6 +1237,42 @@ function New-InterfacesView {
         })
     }
 
+    # Batch VLAN edit
+    if ($setVlanButton -and $interfacesGrid) {
+        $setVlanButton.Add_Click({
+            $grid = $global:interfacesGrid
+            $rawSelected = Get-SelectedInterfaceRows -Grid $grid
+            $selectedRows = @($rawSelected)
+            if ($selectedRows.Count -eq 0) {
+                [System.Windows.MessageBox]::Show("No interfaces selected.", "Set VLAN", 'OK', 'Warning')
+                return
+            }
+
+            # Create simple input dialog
+            Add-Type -AssemblyName Microsoft.VisualBasic
+            $input = [Microsoft.VisualBasic.Interaction]::InputBox(
+                "Enter VLAN number (1-4094) for $($selectedRows.Count) interface(s):",
+                "Set VLAN",
+                ""
+            )
+
+            if ([string]::IsNullOrWhiteSpace($input)) { return }
+
+            $vlan = 0
+            if (-not [int]::TryParse($input.Trim(), [ref]$vlan) -or $vlan -lt 1 -or $vlan -gt 4094) {
+                [System.Windows.MessageBox]::Show("VLAN must be a number between 1 and 4094.", "Invalid VLAN", 'OK', 'Warning')
+                return
+            }
+
+            # Apply VLAN to all selected rows
+            foreach ($row in $selectedRows) {
+                $row.VLAN = $vlan.ToString()
+            }
+            $grid.Items.Refresh()
+            [System.Windows.MessageBox]::Show("Updated VLAN to $vlan for $($selectedRows.Count) interface(s).", "Set VLAN", 'OK', 'Information')
+        })
+    }
+
     # Column visibility menu
     if ($columnsButton -and $interfacesGrid) {
         # Open context menu on button click
@@ -1320,6 +1357,111 @@ function New-InterfacesView {
             # Reset dropdown to placeholder
             $sortPresetDropdown.SelectedIndex = 0
         }.GetNewClosure())
+    }
+
+    # Context menu for interfaces grid
+    if ($interfacesGrid -and $interfacesGrid.ContextMenu) {
+        $ctxMenu = $interfacesGrid.ContextMenu
+
+        # Copy Port
+        $ctxCopyPort = $ctxMenu.Items | Where-Object { $_.Name -eq 'CtxCopyPort' } | Select-Object -First 1
+        if ($ctxCopyPort) {
+            $ctxCopyPort.Add_Click({
+                $grid = $global:interfacesGrid
+                $item = $grid.CurrentItem
+                if ($item -and $item.Port) {
+                    Set-Clipboard -Value $item.Port
+                }
+            })
+        }
+
+        # Copy MAC
+        $ctxCopyMAC = $ctxMenu.Items | Where-Object { $_.Name -eq 'CtxCopyMAC' } | Select-Object -First 1
+        if ($ctxCopyMAC) {
+            $ctxCopyMAC.Add_Click({
+                $grid = $global:interfacesGrid
+                $item = $grid.CurrentItem
+                if ($item -and $item.LearnedMACs) {
+                    Set-Clipboard -Value $item.LearnedMACs
+                }
+            })
+        }
+
+        # Copy Details
+        $ctxCopyDetails = $ctxMenu.Items | Where-Object { $_.Name -eq 'CtxCopyDetails' } | Select-Object -First 1
+        if ($ctxCopyDetails) {
+            $ctxCopyDetails.Add_Click({
+                $grid = $global:interfacesGrid
+                $item = $grid.CurrentItem
+                if ($item) {
+                    $details = @(
+                        "Port:        $($item.Port)",
+                        "Name:        $($item.Name)",
+                        "Status:      $($item.Status)",
+                        "VLAN:        $($item.VLAN)",
+                        "Duplex:      $($item.Duplex)",
+                        "Speed:       $($item.Speed)",
+                        "Type:        $($item.Type)",
+                        "LearnedMACs: $($item.LearnedMACs)",
+                        "AuthState:   $($item.AuthState)",
+                        "AuthMode:    $($item.AuthMode)",
+                        "Client MAC:  $($item.AuthClientMAC)"
+                    ) -join "`r`n"
+                    Set-Clipboard -Value $details
+                }
+            })
+        }
+
+        # Export Selected
+        $ctxExport = $ctxMenu.Items | Where-Object { $_.Name -eq 'CtxExportSelected' } | Select-Object -First 1
+        if ($ctxExport) {
+            $ctxExport.Add_Click({
+                $grid = $global:interfacesGrid
+                $rawSelected = Get-SelectedInterfaceRows -Grid $grid
+                $selectedRows = @($rawSelected)
+                if ($selectedRows.Count -eq 0) {
+                    [System.Windows.MessageBox]::Show("No interfaces selected.")
+                    return
+                }
+                Export-StRowsWithFormatChoice -Rows $selectedRows -DefaultBaseName 'SelectedInterfaces' -SuccessNoun 'interfaces'
+            })
+        }
+
+        # Select Same Status
+        $ctxSelectStatus = $ctxMenu.Items | Where-Object { $_.Name -eq 'CtxSelectStatus' } | Select-Object -First 1
+        if ($ctxSelectStatus) {
+            $ctxSelectStatus.Add_Click({
+                $grid = $global:interfacesGrid
+                $item = $grid.CurrentItem
+                if ($item -and $item.Status) {
+                    $targetStatus = $item.Status
+                    foreach ($row in $grid.ItemsSource) {
+                        if ($row.Status -eq $targetStatus) {
+                            $row.IsSelected = $true
+                        }
+                    }
+                    $grid.Items.Refresh()
+                }
+            })
+        }
+
+        # Select Same VLAN
+        $ctxSelectVLAN = $ctxMenu.Items | Where-Object { $_.Name -eq 'CtxSelectVLAN' } | Select-Object -First 1
+        if ($ctxSelectVLAN) {
+            $ctxSelectVLAN.Add_Click({
+                $grid = $global:interfacesGrid
+                $item = $grid.CurrentItem
+                if ($item -and $item.VLAN) {
+                    $targetVLAN = $item.VLAN
+                    foreach ($row in $grid.ItemsSource) {
+                        if ($row.VLAN -eq $targetVLAN) {
+                            $row.IsSelected = $true
+                        }
+                    }
+                    $grid.Items.Refresh()
+                }
+            })
+        }
     }
 
     # ------------------------------

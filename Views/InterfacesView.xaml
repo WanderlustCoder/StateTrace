@@ -151,6 +151,7 @@
             <Button Name="CopyPortsButton" Content="Ports" Width="45" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Copy selected port names to clipboard" Margin="0,0,3,0"/>
             <Button Name="CopyMacsButton" Content="MACs" Width="50" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Copy selected MAC addresses to clipboard" Margin="0,0,3,0"/>
             <Button Name="ExportSelectedButton" Content="Export" Width="50" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Export selected rows to file" Margin="0,0,3,0"/>
+            <Button Name="SetVlanButton" Content="Set VLAN" Width="65" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Set VLAN for all selected interfaces" Margin="0,0,3,0"/>
 
             <Rectangle Width="1" Fill="{DynamicResource Theme.Border.Primary}" Margin="10,2,10,2"/>
 
@@ -202,6 +203,18 @@
             <DataGrid.RowStyle>
               <DynamicResource ResourceKey="PrimaryDataGridRowStyle"/>
             </DataGrid.RowStyle>
+            <DataGrid.ContextMenu>
+              <ContextMenu Name="InterfacesContextMenu">
+                <MenuItem Header="Copy Port" Name="CtxCopyPort"/>
+                <MenuItem Header="Copy MAC" Name="CtxCopyMAC"/>
+                <MenuItem Header="Copy Details" Name="CtxCopyDetails"/>
+                <Separator/>
+                <MenuItem Header="Export Selected..." Name="CtxExportSelected"/>
+                <Separator/>
+                <MenuItem Header="Select Same Status" Name="CtxSelectStatus"/>
+                <MenuItem Header="Select Same VLAN" Name="CtxSelectVLAN"/>
+              </ContextMenu>
+            </DataGrid.ContextMenu>
             <DataGrid.Columns>
 
               <DataGridCheckBoxColumn Width="30"

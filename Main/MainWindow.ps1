@@ -3222,6 +3222,56 @@ if ($refreshDbButton -and -not $script:RefreshDbHandlerAttached) {
     $script:RefreshDbHandlerAttached = $true
 }
 
+# Auto-refresh toggle
+$autoRefreshCheckbox = $window.FindName('AutoRefreshCheckbox')
+$autoRefreshInterval = $window.FindName('AutoRefreshIntervalDropdown')
+if ($autoRefreshCheckbox -and $autoRefreshInterval -and -not $script:AutoRefreshHandlerAttached) {
+    # Create timer for auto-refresh
+    $script:AutoRefreshTimer = New-Object System.Windows.Threading.DispatcherTimer
+
+    $script:AutoRefreshTimer.Add_Tick({
+        # Only refresh if a device is selected
+        $hdd = $window.FindName('HostnameDropdown')
+        if ($hdd -and $hdd.SelectedItem) {
+            Invoke-DatabaseImport -Window $window
+        }
+    }.GetNewClosure())
+
+    # Enable/disable interval dropdown based on checkbox
+    $autoRefreshCheckbox.Add_Checked({
+        $autoRefreshInterval.IsEnabled = $true
+        # Parse interval and start timer
+        $sel = $autoRefreshInterval.SelectedItem
+        $minutes = 1
+        if ($sel -and $sel.Content) {
+            $text = $sel.Content -replace ' min', ''
+            [int]::TryParse($text, [ref]$minutes) | Out-Null
+        }
+        $script:AutoRefreshTimer.Interval = [TimeSpan]::FromMinutes($minutes)
+        $script:AutoRefreshTimer.Start()
+    }.GetNewClosure())
+
+    $autoRefreshCheckbox.Add_Unchecked({
+        $autoRefreshInterval.IsEnabled = $false
+        $script:AutoRefreshTimer.Stop()
+    }.GetNewClosure())
+
+    # Update interval when selection changes
+    $autoRefreshInterval.Add_SelectionChanged({
+        if ($autoRefreshCheckbox.IsChecked -eq $true) {
+            $sel = $autoRefreshInterval.SelectedItem
+            $minutes = 1
+            if ($sel -and $sel.Content) {
+                $text = $sel.Content -replace ' min', ''
+                [int]::TryParse($text, [ref]$minutes) | Out-Null
+            }
+            $script:AutoRefreshTimer.Interval = [TimeSpan]::FromMinutes($minutes)
+        }
+    }.GetNewClosure())
+
+    $script:AutoRefreshHandlerAttached = $true
+}
+
 if ($hostnameDropdown -and -not $script:HostnameHandlerAttached) {
     $hostnameDropdown.Add_SelectionChanged({
         param($sender,$e)
