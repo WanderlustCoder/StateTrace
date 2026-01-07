@@ -3211,6 +3211,14 @@ if ($hostnameDropdown -and -not $script:HostnameHandlerAttached) {
         Get-HostnameChanged -Hostname $sel
         # Update freshness indicator to show device-specific timestamp
         try { Update-FreshnessIndicator -Window $window } catch { }
+        # Persist last selected hostname for session restore
+        if (-not $global:ProgrammaticHostnameUpdate -and $sel) {
+            try {
+                if (-not $script:StateTraceSettings) { $script:StateTraceSettings = @{} }
+                $script:StateTraceSettings['LastHostname'] = $sel
+                Save-StateTraceSettings -Settings $script:StateTraceSettings
+            } catch { }
+        }
     })
     $script:HostnameHandlerAttached = $true
 }
@@ -3289,6 +3297,26 @@ function Get-FilterDropdowns {
             $script:FilterHandlers[$name] = $true
         }
     }
+
+    # Add site persistence handler (separate from filter update to preserve session)
+    $siteDD = $Window.FindName('SiteDropdown')
+    if ($siteDD -and -not $script:FilterHandlers.ContainsKey('SiteDropdown_Persist')) {
+        $siteDD.Add_SelectionChanged({
+            param($sender,$e)
+            if (-not $global:ProgrammaticFilterUpdate) {
+                $sel = $null
+                try { $sel = [string]$sender.SelectedItem } catch { }
+                if ($sel) {
+                    try {
+                        if (-not $script:StateTraceSettings) { $script:StateTraceSettings = @{} }
+                        $script:StateTraceSettings['LastSite'] = $sel
+                        Save-StateTraceSettings -Settings $script:StateTraceSettings
+                    } catch { }
+                }
+            }
+        })
+        $script:FilterHandlers['SiteDropdown_Persist'] = $true
+    }
 }
 
 # Wire them now (safe to call multiple times; wiring is idempotent)
@@ -3353,20 +3381,91 @@ if ($helpBtn) {
             return
         }
         try {
-            $runbookPath = Join-Path $scriptDir '..\docs\StateTrace_Operators_Runbook.md'
-            if (Test-Path -LiteralPath $runbookPath) {
-                try {
-                    $runbookUri    = [Uri]::new((Resolve-Path -LiteralPath $runbookPath).ProviderPath)
-                    $quickstartUri = $runbookUri.AbsoluteUri + '#start-here-quickstart'
-                    Start-Process -FilePath $quickstartUri -ErrorAction SilentlyContinue | Out-Null
-                } catch {}
-            }
-            Publish-UserActionTelemetry -Action 'HelpQuickstart' -Site (Get-SelectedSiteFilterValue -Window $window) -Hostname (Get-SelectedHostname -Window $window) -Context 'MainWindow'
+            Publish-UserActionTelemetry -Action 'HelpOpened' -Site (Get-SelectedSiteFilterValue -Window $window) -Hostname (Get-SelectedHostname -Window $window) -Context 'MainWindow'
             $helpXaml   = Get-Content $helpXamlPath -Raw
             $helpReader = New-Object System.Xml.XmlTextReader (New-Object System.IO.StringReader($helpXaml))
             $helpWin    = [Windows.Markup.XamlReader]::Load($helpReader)
             # Set owner so the help window centres relative to main window
             $helpWin.Owner = $window
+
+            # Wire up navigation sidebar
+            $helpNavList = $helpWin.FindName('HelpNavList')
+            $helpContentPanel = $helpWin.FindName('HelpContentPanel')
+
+            # Map of section tags to section names
+            $sectionMap = @{
+                'quickstart'     = 'QuickStartSection'
+                'overview'       = 'OverviewSection'
+                'mainwindow'     = 'MainWindowSection'
+                'interfaces'     = 'InterfacesSection'
+                'compare'        = 'CompareSection'
+                'search'         = 'SearchSection'
+                'summary'        = 'SummarySection'
+                'portreorg'      = 'PortReorgSection'
+                'alerts'         = 'AlertsSection'
+                'span'           = 'SpanSection'
+                'documentation'  = 'DocumentationSection'
+                'infrastructure' = 'InfrastructureSection'
+                'operations'     = 'OperationsSection'
+                'tools'          = 'ToolsSection'
+                'themes'         = 'ThemesSection'
+                'shortcuts'      = 'ShortcutsSection'
+            }
+
+            # Function to show a specific section
+            $showSection = {
+                param($sectionTag)
+                foreach ($child in $helpContentPanel.Children) {
+                    if ($child -is [System.Windows.Controls.StackPanel] -and $child.Name) {
+                        $child.Visibility = [System.Windows.Visibility]::Collapsed
+                    }
+                }
+                $sectionName = $sectionMap[$sectionTag]
+                if ($sectionName) {
+                    $section = $helpWin.FindName($sectionName)
+                    if ($section) {
+                        $section.Visibility = [System.Windows.Visibility]::Visible
+                    }
+                }
+            }
+
+            # Handle navigation selection changes
+            if ($helpNavList) {
+                $helpNavList.Add_SelectionChanged({
+                    param($sender, $e)
+                    $selectedItem = $sender.SelectedItem
+                    if ($selectedItem -and $selectedItem.Tag) {
+                        & $showSection $selectedItem.Tag
+                    }
+                }.GetNewClosure())
+            }
+
+            # Wire up search functionality
+            $helpSearchBox = $helpWin.FindName('HelpSearchBox')
+            if ($helpSearchBox) {
+                $helpSearchBox.Add_TextChanged({
+                    param($sender, $e)
+                    $searchText = $sender.Text.ToLower().Trim()
+                    if ([string]::IsNullOrWhiteSpace($searchText)) {
+                        # Show all nav items when search is cleared
+                        foreach ($item in $helpNavList.Items) {
+                            $item.Visibility = [System.Windows.Visibility]::Visible
+                        }
+                        return
+                    }
+                    # Filter nav items based on search text
+                    foreach ($item in $helpNavList.Items) {
+                        $itemText = $item.Content.ToString().ToLower()
+                        $itemTag = $item.Tag.ToString().ToLower()
+                        if ($itemText.Contains($searchText) -or $itemTag.Contains($searchText)) {
+                            $item.Visibility = [System.Windows.Visibility]::Visible
+                        } else {
+                            $item.Visibility = [System.Windows.Visibility]::Collapsed
+                        }
+                    }
+                }.GetNewClosure())
+            }
+
             $helpWin.ShowDialog() | Out-Null
         } catch {
             [System.Windows.MessageBox]::Show("Failed to load help: $($_.Exception.Message)")
@@ -3442,6 +3541,48 @@ $window.Add_Loaded({
                 }
             } catch { Write-StartupDiag ("FilterSnapshot probe failed: {0}" -f $_.Exception.Message) }
         } catch { Write-StartupDiag ("Initialize-FilterMetadataAtStartup failed: {0}" -f $_.Exception.Message) }
+
+        # Restore last selected site and hostname from settings
+        try {
+            if ($script:StateTraceSettings) {
+                $lastSite = $script:StateTraceSettings['LastSite']
+                $lastHost = $script:StateTraceSettings['LastHostname']
+                Write-StartupDiag ("Restoring session: LastSite={0} LastHostname={1}" -f $lastSite, $lastHost)
+
+                if ($lastSite) {
+                    $siteDD = $window.FindName('SiteDropdown')
+                    if ($siteDD -and $siteDD.ItemsSource) {
+                        $items = @($siteDD.ItemsSource)
+                        if ($items -contains $lastSite) {
+                            $global:ProgrammaticFilterUpdate = $true
+                            try {
+                                $siteDD.SelectedItem = $lastSite
+                                Write-StartupDiag ("Restored site selection: {0}" -f $lastSite)
+                            } finally {
+                                $global:ProgrammaticFilterUpdate = $false
+                            }
+                        }
+                    }
+                }
+
+                if ($lastHost) {
+                    $hostDD = $window.FindName('HostnameDropdown')
+                    if ($hostDD -and $hostDD.ItemsSource) {
+                        $items = @($hostDD.ItemsSource)
+                        if ($items -contains $lastHost) {
+                            $global:ProgrammaticHostnameUpdate = $true
+                            try {
+                                $hostDD.SelectedItem = $lastHost
+                                Write-StartupDiag ("Restored hostname selection: {0}" -f $lastHost)
+                            } finally {
+                                $global:ProgrammaticHostnameUpdate = $false
+                            }
+                        }
+                    }
+                }
+            }
+        } catch { Write-StartupDiag ("Session restore failed: {0}" -f $_.Exception.Message) }
+
         Ensure-ParserStatusTimer -Window $window
         Update-ParserStatusIndicator -Window $window
         try { Update-FreshnessIndicator -Window $window } catch { }
@@ -3647,16 +3788,41 @@ function Show-QuickNavigationDialog {
     }
 }
 
-# 7d) Keyboard shortcuts - Ctrl+1-9 for tab switching, Ctrl+J for quick navigation
+# 7d) Keyboard shortcuts - Ctrl+1-9 for tab switching, Ctrl+J/F/T for navigation
 $window.Add_PreviewKeyDown({
     param($sender, $e)
 
-    # Only handle when Ctrl is pressed
+    $tabControl = $sender.FindName('MainTabControl')
+
+    # Handle Escape key (no modifier required)
+    if ($e.Key -eq 'Escape') {
+        # Clear filter boxes if they have focus or content
+        $filterBox = $global:filterBox
+        if ($filterBox -and $filterBox.Text) {
+            $filterBox.Text = ''
+            $e.Handled = $true
+            return
+        }
+        # Clear search box in SearchInterfacesView
+        try {
+            $searchHost = $sender.FindName('SearchInterfacesHost')
+            if ($searchHost -and $searchHost.Content) {
+                $searchBox = $searchHost.Content.FindName('SearchBox')
+                if ($searchBox -and $searchBox.Text) {
+                    $searchBox.Text = ''
+                    $e.Handled = $true
+                    return
+                }
+            }
+        } catch { }
+        return
+    }
+
+    # Only handle Ctrl shortcuts below this point
     if (-not [System.Windows.Input.Keyboard]::Modifiers.HasFlag([System.Windows.Input.ModifierKeys]::Control)) {
         return
     }
 
-    $tabControl = $sender.FindName('MainTabControl')
     if (-not $tabControl) { return }
 
     $tabIndex = -1
@@ -3673,6 +3839,42 @@ $window.Add_PreviewKeyDown({
         'J' {
             # Ctrl+J: Show quick navigation menu
             Show-QuickNavigationDialog -ParentWindow $sender
+            $e.Handled = $true
+            return
+        }
+        'F' {
+            # Ctrl+F: Switch to Search tab and focus search box
+            $tabControl.SelectedIndex = 3  # Search tab
+            try {
+                $searchHost = $sender.FindName('SearchInterfacesHost')
+                if ($searchHost -and $searchHost.Content) {
+                    $searchBox = $searchHost.Content.FindName('SearchBox')
+                    if ($searchBox) {
+                        $searchBox.Focus()
+                        $searchBox.SelectAll()
+                    }
+                }
+            } catch { }
+            $e.Handled = $true
+            return
+        }
+        'T' {
+            # Ctrl+T: Focus hostname dropdown for quick device selection
+            $hostDD = $sender.FindName('HostnameDropdown')
+            if ($hostDD) {
+                $hostDD.Focus()
+                $hostDD.IsDropDownOpen = $true
+            }
+            $e.Handled = $true
+            return
+        }
+        'G' {
+            # Ctrl+G: Focus filter box on current view (Interfaces tab)
+            $filterBox = $global:filterBox
+            if ($filterBox) {
+                $filterBox.Focus()
+                $filterBox.SelectAll()
+            }
             $e.Handled = $true
             return
         }
