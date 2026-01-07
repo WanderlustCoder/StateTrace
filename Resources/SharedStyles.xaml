@@ -68,6 +68,17 @@
     <Setter Property="Margin" Value="{StaticResource ToolbarMargin}"/>
   </Style>
 
+  <!-- Separator Styles -->
+  <Style x:Key="ToolbarSeparatorStyle" TargetType="Separator">
+    <Setter Property="Margin" Value="10,0"/>
+    <Setter Property="Background" Value="{DynamicResource Theme.Border.Primary}"/>
+  </Style>
+
+  <Style x:Key="SectionSeparatorStyle" TargetType="Separator">
+    <Setter Property="Margin" Value="0,10"/>
+    <Setter Property="Background" Value="{DynamicResource Theme.Border.Primary}"/>
+  </Style>
+
   <!-- Form Panel Style -->
   <Style x:Key="FormPanelStyle" TargetType="StackPanel">
     <Setter Property="Margin" Value="0"/>
