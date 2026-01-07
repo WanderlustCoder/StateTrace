@@ -224,7 +224,7 @@
                       BorderBrush="{DynamicResource Theme.Input.Border}"
                       BorderThickness="1"
                       Cursor="Hand"
-                      Background="{Binding LabelState, Converter={DynamicResource LabelStateToBrushConverter}}">
+                      Background="{Binding LabelState, Converter={StaticResource LabelStateToBrushConverter}}">
                 <TextBlock Text="{Binding NewLabel}"
                            TextTrimming="CharacterEllipsis"
                            Foreground="{DynamicResource Theme.DataGrid.HeaderText}">
