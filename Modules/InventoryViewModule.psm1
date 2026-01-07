@@ -142,6 +142,34 @@ function Register-InventoryEventHandlers {
         }.GetNewClosure())
     }
 
+    # Copy Details button
+    $copyDetailsBtn = $View.FindName('CopyDetailsButton')
+    if ($copyDetailsBtn) {
+        $copyDetailsBtn.Add_Click({
+            $grid = $View.FindName('InventoryGrid')
+            if (-not $grid -or -not $grid.SelectedItem) {
+                [System.Windows.MessageBox]::Show('No asset selected.', 'Copy Details', 'OK', 'Information')
+                return
+            }
+            $asset = $grid.SelectedItem
+            $details = @(
+                "Hostname: $($asset.Hostname)"
+                "Vendor: $($asset.Vendor)"
+                "Model: $($asset.Model)"
+                "Serial: $($asset.SerialNumber)"
+                "Asset Tag: $($asset.AssetTag)"
+                "Firmware: $($asset.FirmwareVersion)"
+                "Status: $($asset.Status)"
+                "Site: $($asset.Site)"
+                "Building: $($asset.Building)"
+                "Rack: $($asset.Rack)"
+                "Warranty Expires: $(if ($asset.WarrantyExpiration) { $asset.WarrantyExpiration.ToString('yyyy-MM-dd') } else { 'N/A' })"
+            ) -join "`r`n"
+            [System.Windows.Clipboard]::SetText($details)
+            Update-StatusText -View $View -Text "Details copied to clipboard"
+        }.GetNewClosure())
+    }
+
     # Delete Asset button
     $deleteButton = $View.FindName('DeleteAssetButton')
     if ($deleteButton) {

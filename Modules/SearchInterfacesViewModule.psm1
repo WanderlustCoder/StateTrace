@@ -279,6 +279,7 @@ function New-SearchInterfacesView {
     $searchBox      = $searchView.FindName('SearchBox')
     $searchClearBtn = $searchView.FindName('SearchClearButton')
     $searchGrid     = $searchView.FindName('SearchInterfacesGrid')
+    $resultsStatus  = $searchView.FindName('SearchResultsStatus')
     $regexCheckbox  = $searchView.FindName('RegexCheckbox')
     $exportBtn      = $searchView.FindName('ExportSearchButton')
     $statusFilter   = $searchView.FindName('StatusFilter')
@@ -293,6 +294,29 @@ function New-SearchInterfacesView {
     if ($searchBox) { $global:searchBox = $searchBox }
     # Initialise regex flag
     DeviceInsightsModule\Set-SearchRegexEnabled -Enabled:$false
+
+    # Helper to update row count display
+    $updateRowCount = {
+        if ($resultsStatus -and $searchGrid) {
+            $count = 0
+            if ($searchGrid.ItemsSource) {
+                $count = @($searchGrid.ItemsSource).Count
+            }
+            $resultsStatus.Text = "$count result$(if ($count -ne 1) { 's' })"
+        }
+    }.GetNewClosure()
+
+    # Wire up ItemsSource changes to update row count
+    if ($searchGrid) {
+        $dpd = [System.ComponentModel.DependencyPropertyDescriptor]::FromProperty(
+            [System.Windows.Controls.ItemsControl]::ItemsSourceProperty,
+            [System.Windows.Controls.DataGrid])
+        if ($dpd) {
+            $dpd.AddValueChanged($searchGrid, {
+                & $updateRowCount
+            }.GetNewClosure())
+        }
+    }
 
     # Populate search history dropdown
     if ($searchBox) {

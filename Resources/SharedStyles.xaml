@@ -310,8 +310,19 @@
     <Setter Property="Background" Value="{DynamicResource Theme.Input.Background}"/>
     <Setter Property="Foreground" Value="{DynamicResource Theme.Input.Text}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource Theme.Input.Border}"/>
+    <Setter Property="BorderThickness" Value="1"/>
     <Setter Property="SelectionBrush" Value="{DynamicResource Theme.Surface.Primary}"/>
     <Setter Property="SelectionTextBrush" Value="{DynamicResource Theme.Text.Inverse}"/>
+    <Style.Triggers>
+      <Trigger Property="IsFocused" Value="True">
+        <Setter Property="BorderBrush" Value="{DynamicResource Theme.Accent.Primary}"/>
+        <Setter Property="BorderThickness" Value="2"/>
+      </Trigger>
+      <Trigger Property="IsKeyboardFocused" Value="True">
+        <Setter Property="BorderBrush" Value="{DynamicResource Theme.Accent.Primary}"/>
+        <Setter Property="BorderThickness" Value="2"/>
+      </Trigger>
+    </Style.Triggers>
   </Style>
   <Style x:Key="ToolbarComboEditableTextBoxStyle" TargetType="TextBox">
     <Setter Property="Background" Value="{DynamicResource Theme.Input.Background}"/>

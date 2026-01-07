@@ -80,12 +80,53 @@ function New-AlertsView {
         if (-not $alertsView) { return }
 
         $alertsGrid = $alertsView.FindName('AlertsGrid')
+        $rowCountText = $alertsView.FindName('AlertsRowCountText')
+        $statusText = $alertsView.FindName('AlertsStatusText')
+
+        # Helper to update row count display
+        $updateRowCount = {
+            if ($rowCountText -and $alertsGrid) {
+                $count = 0
+                if ($alertsGrid.ItemsSource) {
+                    $count = @($alertsGrid.ItemsSource).Count
+                }
+                $rowCountText.Text = "$count alert$(if ($count -ne 1) { 's' })"
+            }
+        }.GetNewClosure()
+
+        # Helper to show timed status message (auto-clears after delay)
+        $showStatus = {
+            param([string]$Message, [int]$DurationMs = 3000)
+            if ($statusText) {
+                $statusText.Text = $Message
+                $timer = New-Object System.Windows.Threading.DispatcherTimer
+                $timer.Interval = [TimeSpan]::FromMilliseconds($DurationMs)
+                $timer.Add_Tick({
+                    $statusText.Text = ''
+                    $timer.Stop()
+                }.GetNewClosure())
+                $timer.Start()
+            }
+        }.GetNewClosure()
+
+        # Wire up ItemsSource changes to update row count
+        if ($alertsGrid) {
+            $dpd = [System.ComponentModel.DependencyPropertyDescriptor]::FromProperty(
+                [System.Windows.Controls.ItemsControl]::ItemsSourceProperty,
+                [System.Windows.Controls.DataGrid])
+            if ($dpd) {
+                $dpd.AddValueChanged($alertsGrid, {
+                    & $updateRowCount
+                }.GetNewClosure())
+            }
+        }
 
         try {
             DeviceInsightsModule\Update-AlertsAsync
         } catch [System.Management.Automation.CommandNotFoundException] {
             try { DeviceInsightsModule\Update-Alerts } catch [System.Management.Automation.CommandNotFoundException] { }
         }
+        & $updateRowCount
 
         $expAlertsBtn = $alertsView.FindName('ExportAlertsButton')
         if ($expAlertsBtn) {
@@ -129,6 +170,7 @@ function New-AlertsView {
                         "$($_.Hostname)`t$($_.Port)`t$($_.Name)`t$($_.Status)`t$($_.VLAN)`t$($_.Duplex)`t$($_.AuthState)`t$($_.Reason)"
                     }) -join "`r`n"
                     [System.Windows.Clipboard]::SetText($text)
+                    & $showStatus "Copied $($selected.Count) row$(if ($selected.Count -ne 1) { 's' })"
                 }.GetNewClosure())
             }
             if ($copyCellItem) {
@@ -138,7 +180,10 @@ function New-AlertsView {
                     $propName = $cell.Column.SortMemberPath
                     if (-not $propName) { $propName = $cell.Column.Header }
                     $value = $cell.Item.$propName
-                    if ($null -ne $value) { [System.Windows.Clipboard]::SetText([string]$value) }
+                    if ($null -ne $value) {
+                        [System.Windows.Clipboard]::SetText([string]$value)
+                        & $showStatus "Copied cell value"
+                    }
                 }.GetNewClosure())
             }
             if ($copyAllItem) {
@@ -150,6 +195,7 @@ function New-AlertsView {
                         "$($_.Hostname)`t$($_.Port)`t$($_.Name)`t$($_.Status)`t$($_.VLAN)`t$($_.Duplex)`t$($_.AuthState)`t$($_.Reason)"
                     })
                     [System.Windows.Clipboard]::SetText($lines -join "`r`n")
+                    & $showStatus "Copied all $(@($rows).Count) rows"
                 }.GetNewClosure())
             }
             if ($exportSelectedItem) {

@@ -5,6 +5,7 @@
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
     </Grid.RowDefinitions>
 
     <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5" Background="{DynamicResource Theme.Surface.Primary}">
@@ -90,5 +91,16 @@
         </StackPanel>
       </Border>
     </Grid>
+
+    <Border Grid.Row="2" Background="{DynamicResource Theme.Toolbar.Background}" Padding="5,3">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <TextBlock Name="AlertsRowCountText" Text="" Foreground="{DynamicResource Theme.Text.Muted}" FontSize="11" VerticalAlignment="Center"/>
+        <TextBlock Name="AlertsStatusText" Grid.Column="1" Text="" Foreground="{DynamicResource Theme.Text.Muted}" FontSize="11" VerticalAlignment="Center"/>
+      </Grid>
+    </Border>
   </Grid>
 </UserControl>
