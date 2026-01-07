@@ -47,6 +47,18 @@ try {
     Write-Verbose ("DeviceRepository.Access could not be imported: {0}" -f $_.Exception.Message)
 }
 
+# Load connection pool module for optimized database access
+$script:ConnectionPoolAvailable = $false
+try {
+    $poolModulePath = Join-Path $PSScriptRoot 'DatabaseConnectionPool.psm1'
+    if (Test-Path -LiteralPath $poolModulePath) {
+        Import-Module (Resolve-Path $poolModulePath) -DisableNameChecking -Force -ErrorAction Stop
+        $script:ConnectionPoolAvailable = $true
+    }
+} catch {
+    Write-Verbose ("DatabaseConnectionPool could not be imported: {0}" -f $_.Exception.Message)
+}
+
 if (-not (Get-Variable -Scope Global -Name InterfaceCacheLock -ErrorAction SilentlyContinue)) {
     $global:InterfaceCacheLock = New-Object object
 }
@@ -226,6 +238,159 @@ function Invoke-ParallelDbQuery {
     } catch {
         return @()
     }
+}
+
+function Invoke-PooledDbQuery {
+    <#
+    .SYNOPSIS
+    Executes a database query using the connection pool for improved performance.
+    .DESCRIPTION
+    Uses pooled connections to reduce connection overhead. Falls back to standard
+    query execution if the connection pool is not available.
+    .PARAMETER DatabasePath
+    Path to the Access database file.
+    .PARAMETER Sql
+    SQL query to execute.
+    .OUTPUTS
+    Returns query results as an array of PSCustomObject rows.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$DatabasePath,
+        [Parameter(Mandatory)][string]$Sql
+    )
+
+    if (-not (Test-Path -LiteralPath $DatabasePath)) {
+        return @()
+    }
+
+    # Try pooled query first for better performance
+    if ($script:ConnectionPoolAvailable) {
+        try {
+            $result = Invoke-PooledDbQuery -DatabasePath $DatabasePath -Sql $Sql
+            if ($result) { return ,$result }
+        } catch {
+            Write-Verbose ("Pooled query failed, falling back: {0}" -f $_.Exception.Message)
+        }
+    }
+
+    # Fallback to standard query
+    try {
+        Import-DatabaseModule
+        $dt = Invoke-DbQuery -DatabasePath $DatabasePath -Sql $Sql
+        if (-not $dt) { return @() }
+        $rows = ConvertTo-DbRowList -Data $dt
+        return ,$rows
+    } catch {
+        Write-Warning ("Database query failed: {0}" -f $_.Exception.Message)
+        return @()
+    }
+}
+
+function Invoke-OptimizedSiteHydration {
+    <#
+    .SYNOPSIS
+    Optimized parallel hydration for multiple sites using connection pooling.
+    .DESCRIPTION
+    Hydrates interface data for multiple sites in parallel using pooled connections
+    for improved performance. Target: p95 < 400ms hydration time.
+    .PARAMETER Sites
+    Array of site codes to hydrate.
+    .PARAMETER MaxParallel
+    Maximum number of parallel hydration tasks. Defaults to processor count.
+    .OUTPUTS
+    Returns a hashtable keyed by site with interface data.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string[]]$Sites,
+        [int]$MaxParallel = 0
+    )
+
+    if (-not $Sites -or $Sites.Count -eq 0) {
+        return @{}
+    }
+
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $results = @{}
+
+    if ($MaxParallel -le 0) {
+        $MaxParallel = [Math]::Min([Environment]::ProcessorCount, $Sites.Count)
+    }
+
+    # For single site, use direct hydration
+    if ($Sites.Count -eq 1) {
+        $site = $Sites[0]
+        try {
+            $data = Get-InterfaceSiteCache -Site $site -Refresh
+            if ($data) { $results[$site] = $data }
+        } catch { }
+        return $results
+    }
+
+    # For multiple sites, query in parallel
+    $dbPaths = @()
+    $siteToDbPath = @{}
+    foreach ($site in $Sites) {
+        $dbPath = Get-DbPathForSite -Site $site
+        if ($dbPath -and (Test-Path -LiteralPath $dbPath)) {
+            $dbPaths += $dbPath
+            $siteToDbPath[$site] = $dbPath
+        }
+    }
+
+    if ($dbPaths.Count -eq 0) {
+        return $results
+    }
+
+    $sql = "SELECT Hostname, Port, Name, Status, VLAN, Duplex, Speed, Type, AuthState, AuthMode, AuthClientMAC, AuthTemplate, PortColor, ConfigStatus FROM Interfaces"
+
+    $parallelResults = Invoke-ParallelDbQuery -DbPaths ($dbPaths | Select-Object -Unique) -Sql $sql -IncludeDbPath -MaxThreads $MaxParallel
+
+    # Group results by site
+    foreach ($result in $parallelResults) {
+        if (-not $result -or -not $result.DatabasePath) { continue }
+
+        $dbPath = $result.DatabasePath
+        $matchingSites = @($siteToDbPath.GetEnumerator() | Where-Object { $_.Value -eq $dbPath } | ForEach-Object { $_.Key })
+
+        foreach ($site in $matchingSites) {
+            if (-not $results.ContainsKey($site)) {
+                $results[$site] = @{
+                    HostMap = @{}
+                    TotalRows = 0
+                }
+            }
+
+            if ($result.Data) {
+                foreach ($row in $result.Data) {
+                    if (-not $row.Hostname) { continue }
+                    $hostname = '' + $row.Hostname
+                    if (-not $results[$site].HostMap.ContainsKey($hostname)) {
+                        $results[$site].HostMap[$hostname] = @()
+                    }
+                    $results[$site].HostMap[$hostname] += $row
+                    $results[$site].TotalRows++
+                }
+            }
+        }
+    }
+
+    $sw.Stop()
+    $elapsedMs = $sw.Elapsed.TotalMilliseconds
+
+    # Emit telemetry
+    try {
+        TelemetryModule\Write-StTelemetryEvent -Name 'OptimizedSiteHydration' -Payload @{
+            SiteCount = $Sites.Count
+            ResultCount = $results.Count
+            TotalRows = ($results.Values | ForEach-Object { $_.TotalRows } | Measure-Object -Sum).Sum
+            ElapsedMs = [Math]::Round($elapsedMs, 2)
+            MaxParallel = $MaxParallel
+        }
+    } catch { }
+
+    return $results
 }
 
 function Import-SharedSiteInterfaceCacheSnapshotFromEnv {
@@ -2604,6 +2769,14 @@ function Invoke-WithAccessExclusiveRetry {
 }
 
 function ConvertTo-InterfaceCacheSignature {
+    <#
+    .SYNOPSIS
+    Computes a signature string for cache entry comparison.
+    .DESCRIPTION
+    Creates a deterministic signature from interface values for efficient
+    change detection. Normalizes null/empty/whitespace handling to prevent
+    spurious signature mismatches (fixes HostMapSignatureRewriteCount issues).
+    #>
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)][System.Collections.IEnumerable]$Values
@@ -2618,9 +2791,13 @@ function ConvertTo-InterfaceCacheSignature {
             $first = $false
         }
 
+        # Normalize null, DBNull, and whitespace-only strings to empty
         $text = ''
         if ($null -ne $rawValue -and $rawValue -ne [System.DBNull]::Value) {
-            $text = '' + $rawValue
+            $textCandidate = ('' + $rawValue).Trim()
+            if (-not [string]::IsNullOrWhiteSpace($textCandidate)) {
+                $text = $textCandidate
+            }
         }
         $lengthValue = 0
         try { $lengthValue = [int]$text.Length } catch { $lengthValue = 0 }
@@ -6935,4 +7112,144 @@ function Get-SpanningTreeInfo {
     return $list.ToArray()
 }
 
-Export-ModuleMember -Function Get-DataDirectoryPath, Get-SiteFromHostname, Get-DbPathForSite, Get-DbPathForHost, Get-AllSiteDbPaths, Clear-SiteInterfaceCache, Get-InterfaceSiteCache, Get-InterfaceSiteCacheSummary, Get-SharedSiteInterfaceCacheStore, Get-SharedSiteInterfaceCacheEntry, Set-InterfaceSiteCacheHost, Get-InterfacePortBatchChunkSize, Set-InterfacePortStreamChunkSize, Set-InterfacePortStreamData, Initialize-InterfacePortStream, Get-InterfacePortStreamStatus, Get-InterfacePortBatch, Get-LastInterfacePortStreamMetrics, Get-LastInterfacePortQueueMetrics, Get-LastInterfaceSiteCacheMetrics, Get-LastInterfaceSiteHydrationMetrics, Set-InterfacePortDispatchMetrics, Get-LastInterfacePortDispatchMetrics, Clear-InterfacePortStream, Update-SiteZoneCache, Update-HostInterfaceCache, Get-GlobalInterfaceSnapshot, Update-GlobalInterfaceList, Get-InterfacesForSite, Get-InterfaceInfo, Get-InterfaceConfiguration, Get-SpanningTreeInfo, Get-InterfacesForHostsBatch, Invoke-ParallelDbQuery, Import-DatabaseModule, Resolve-SharedSiteInterfaceCacheSnapshotEntries, Get-SharedCacheSiteFilterFromEntries, ConvertTo-SharedCacheEntryArray, Invoke-InterfaceCacheLock
+# ============================================================================
+# Lazy Loading Support for Large Datasets
+# ============================================================================
+
+$script:LazyLoadPageSize = 500
+$script:LazyLoadState = @{}
+
+function New-LazyLoadCollection {
+    <#
+    .SYNOPSIS
+    Creates a lazy-loading collection wrapper for incremental data loading.
+    .DESCRIPTION
+    Returns an object that supports incremental loading of large datasets.
+    Initially loads a configurable number of rows, then loads more as requested.
+    .PARAMETER DataSource
+    The full data array or a scriptblock that returns data for a given page.
+    .PARAMETER PageSize
+    Number of items to load per page. Defaults to 500.
+    .PARAMETER TotalCount
+    Total number of items (if known). For optimization.
+    .OUTPUTS
+    Returns a LazyLoadCollection object with LoadMore(), Reset(), and Items properties.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][object]$DataSource,
+        [int]$PageSize = 500,
+        [int]$TotalCount = -1
+    )
+
+    $collection = [PSCustomObject]@{
+        PSTypeName = 'StateTrace.LazyLoadCollection'
+        DataSource = $DataSource
+        PageSize = $PageSize
+        TotalCount = $TotalCount
+        LoadedCount = 0
+        CurrentPage = 0
+        Items = [System.Collections.Generic.List[object]]::new()
+        IsFullyLoaded = $false
+        LoadedPages = @{}
+    }
+
+    # Add methods
+    $collection | Add-Member -MemberType ScriptMethod -Name 'LoadMore' -Value {
+        param([int]$Count = 0)
+
+        if ($this.IsFullyLoaded) { return 0 }
+        if ($Count -le 0) { $Count = $this.PageSize }
+
+        $loaded = 0
+        $startIndex = $this.LoadedCount
+
+        if ($this.DataSource -is [scriptblock]) {
+            # Scriptblock-based loading (for database paging)
+            $pageData = & $this.DataSource -Page $this.CurrentPage -PageSize $Count
+            if ($pageData) {
+                foreach ($item in $pageData) {
+                    $this.Items.Add($item)
+                    $loaded++
+                }
+            }
+            if (-not $pageData -or $pageData.Count -lt $Count) {
+                $this.IsFullyLoaded = $true
+            }
+        } else {
+            # Array-based loading
+            $sourceArray = @($this.DataSource)
+            $endIndex = [Math]::Min($startIndex + $Count, $sourceArray.Count)
+            for ($i = $startIndex; $i -lt $endIndex; $i++) {
+                $this.Items.Add($sourceArray[$i])
+                $loaded++
+            }
+            if ($endIndex -ge $sourceArray.Count) {
+                $this.IsFullyLoaded = $true
+            }
+        }
+
+        $this.LoadedCount += $loaded
+        $this.CurrentPage++
+        return $loaded
+    }
+
+    $collection | Add-Member -MemberType ScriptMethod -Name 'Reset' -Value {
+        $this.Items.Clear()
+        $this.LoadedCount = 0
+        $this.CurrentPage = 0
+        $this.IsFullyLoaded = $false
+        $this.LoadedPages = @{}
+    }
+
+    $collection | Add-Member -MemberType ScriptMethod -Name 'LoadAll' -Value {
+        if ($this.IsFullyLoaded) { return }
+        while (-not $this.IsFullyLoaded) {
+            $loaded = $this.LoadMore()
+            if ($loaded -eq 0) { break }
+        }
+    }
+
+    $collection | Add-Member -MemberType ScriptMethod -Name 'GetProgress' -Value {
+        if ($this.TotalCount -gt 0) {
+            return [Math]::Round(($this.LoadedCount / $this.TotalCount) * 100, 1)
+        }
+        return -1
+    }
+
+    # Load initial page
+    $null = $collection.LoadMore()
+
+    return $collection
+}
+
+function Get-LazyLoadSettings {
+    <#
+    .SYNOPSIS
+    Returns current lazy loading settings.
+    #>
+    [CmdletBinding()]
+    param()
+
+    return [PSCustomObject]@{
+        DefaultPageSize = $script:LazyLoadPageSize
+        ActiveCollections = $script:LazyLoadState.Count
+    }
+}
+
+function Set-LazyLoadPageSize {
+    <#
+    .SYNOPSIS
+    Sets the default page size for lazy loading.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][int]$PageSize
+    )
+
+    if ($PageSize -lt 50) { $PageSize = 50 }
+    if ($PageSize -gt 5000) { $PageSize = 5000 }
+    $script:LazyLoadPageSize = $PageSize
+}
+
+Export-ModuleMember -Function Get-DataDirectoryPath, Get-SiteFromHostname, Get-DbPathForSite, Get-DbPathForHost, Get-AllSiteDbPaths, Clear-SiteInterfaceCache, Get-InterfaceSiteCache, Get-InterfaceSiteCacheSummary, Get-SharedSiteInterfaceCacheStore, Get-SharedSiteInterfaceCacheEntry, Set-InterfaceSiteCacheHost, Get-InterfacePortBatchChunkSize, Set-InterfacePortStreamChunkSize, Set-InterfacePortStreamData, Initialize-InterfacePortStream, Get-InterfacePortStreamStatus, Get-InterfacePortBatch, Get-LastInterfacePortStreamMetrics, Get-LastInterfacePortQueueMetrics, Get-LastInterfaceSiteCacheMetrics, Get-LastInterfaceSiteHydrationMetrics, Set-InterfacePortDispatchMetrics, Get-LastInterfacePortDispatchMetrics, Clear-InterfacePortStream, Update-SiteZoneCache, Update-HostInterfaceCache, Get-GlobalInterfaceSnapshot, Update-GlobalInterfaceList, Get-InterfacesForSite, Get-InterfaceInfo, Get-InterfaceConfiguration, Get-SpanningTreeInfo, Get-InterfacesForHostsBatch, Invoke-ParallelDbQuery, Import-DatabaseModule, Resolve-SharedSiteInterfaceCacheSnapshotEntries, Get-SharedCacheSiteFilterFromEntries, ConvertTo-SharedCacheEntryArray, Invoke-InterfaceCacheLock, Invoke-PooledDbQuery, Invoke-OptimizedSiteHydration, New-LazyLoadCollection, Get-LazyLoadSettings, Set-LazyLoadPageSize

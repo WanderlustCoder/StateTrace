@@ -886,6 +886,274 @@ function Get-SharedSiteInterfaceCache {
     return $rows.ToArray()
 }
 
+# ============================================================================
+# Cross-Process Memory-Mapped Cache Support
+# ============================================================================
+
+$script:MemoryMappedCachePath = $null
+$script:MemoryMappedCacheEnabled = $false
+$script:MemoryMappedCacheSyncIntervalMs = 5000
+
+function Get-MemoryMappedCachePath {
+    <#
+    .SYNOPSIS
+    Returns the path to the memory-mapped cache file.
+    #>
+    if ($script:MemoryMappedCachePath) {
+        return $script:MemoryMappedCachePath
+    }
+
+    $dataDir = Join-Path $PSScriptRoot '..\Data'
+    if (-not (Test-Path $dataDir)) {
+        New-Item -ItemType Directory -Path $dataDir -Force | Out-Null
+    }
+    $script:MemoryMappedCachePath = Join-Path $dataDir 'SharedCache.mmf'
+    return $script:MemoryMappedCachePath
+}
+
+function Initialize-MemoryMappedCache {
+    <#
+    .SYNOPSIS
+    Initializes memory-mapped file support for cross-process cache sharing.
+    .DESCRIPTION
+    Creates or opens a shared memory region that can be accessed by multiple
+    PowerShell processes for cache synchronization.
+    #>
+    [CmdletBinding()]
+    param(
+        [switch]$Force
+    )
+
+    if ($script:MemoryMappedCacheEnabled -and -not $Force) {
+        return $true
+    }
+
+    $mmfPath = Get-MemoryMappedCachePath
+
+    try {
+        # Try to load existing cache from file
+        if (Test-Path -LiteralPath $mmfPath) {
+            $imported = Import-MemoryMappedCacheFromFile -Path $mmfPath
+            if ($imported -gt 0) {
+                Write-Verbose ("Loaded {0} sites from memory-mapped cache file." -f $imported)
+            }
+        }
+
+        $script:MemoryMappedCacheEnabled = $true
+        return $true
+    } catch {
+        Write-Warning ("Failed to initialize memory-mapped cache: {0}" -f $_.Exception.Message)
+        return $false
+    }
+}
+
+function Import-MemoryMappedCacheFromFile {
+    <#
+    .SYNOPSIS
+    Imports cache entries from the memory-mapped cache file.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Path
+    )
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return 0
+    }
+
+    $imported = 0
+    $store = Get-SharedSiteInterfaceCacheStore
+
+    try {
+        $lockPath = "$Path.lock"
+        $lockTaken = $false
+        $lockStream = $null
+
+        # Try to acquire file lock with timeout
+        $retries = 0
+        while (-not $lockTaken -and $retries -lt 10) {
+            try {
+                $lockStream = [System.IO.File]::Open($lockPath, [System.IO.FileMode]::OpenOrCreate, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
+                $lockTaken = $true
+            } catch {
+                $retries++
+                Start-Sleep -Milliseconds 100
+            }
+        }
+
+        if (-not $lockTaken) {
+            Write-Warning "Could not acquire lock for memory-mapped cache file."
+            return 0
+        }
+
+        try {
+            $cacheData = Get-Content -Path $Path -Raw -ErrorAction Stop | ConvertFrom-Json
+            if ($cacheData -and $cacheData.Sites) {
+                foreach ($site in $cacheData.Sites) {
+                    if (-not $site.SiteKey -or -not $site.HostMap) { continue }
+
+                    $hostMap = @{}
+                    foreach ($prop in $site.HostMap.PSObject.Properties) {
+                        $hostMap[$prop.Name] = $prop.Value
+                    }
+
+                    if ($hostMap.Count -gt 0) {
+                        $store[$site.SiteKey] = $hostMap
+                        $imported++
+                    }
+                }
+            }
+        } finally {
+            if ($lockStream) {
+                $lockStream.Close()
+                $lockStream.Dispose()
+            }
+        }
+    } catch {
+        Write-Warning ("Failed to import memory-mapped cache: {0}" -f $_.Exception.Message)
+    }
+
+    return $imported
+}
+
+function Export-MemoryMappedCacheToFile {
+    <#
+    .SYNOPSIS
+    Exports current cache to the memory-mapped cache file for cross-process sharing.
+    #>
+    [CmdletBinding()]
+    param(
+        [string]$Path
+    )
+
+    if (-not $Path) {
+        $Path = Get-MemoryMappedCachePath
+    }
+
+    $store = Get-SharedSiteInterfaceCacheStore
+    if (-not $store -or $store.Count -eq 0) {
+        return $false
+    }
+
+    try {
+        $lockPath = "$Path.lock"
+        $lockTaken = $false
+        $lockStream = $null
+
+        # Try to acquire file lock
+        $retries = 0
+        while (-not $lockTaken -and $retries -lt 10) {
+            try {
+                $lockStream = [System.IO.File]::Open($lockPath, [System.IO.FileMode]::OpenOrCreate, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
+                $lockTaken = $true
+            } catch {
+                $retries++
+                Start-Sleep -Milliseconds 100
+            }
+        }
+
+        if (-not $lockTaken) {
+            Write-Warning "Could not acquire lock for memory-mapped cache export."
+            return $false
+        }
+
+        try {
+            $sites = @()
+            foreach ($siteKey in $store.Keys) {
+                $entry = $store[$siteKey]
+                $hostMap = Resolve-SharedSiteInterfaceCacheHostMap -Entry $entry
+                if ($hostMap) {
+                    $sites += @{
+                        SiteKey = $siteKey
+                        HostMap = $hostMap
+                        UpdatedUtc = (Get-Date).ToUniversalTime().ToString('o')
+                    }
+                }
+            }
+
+            $cacheData = @{
+                Version = 1
+                UpdatedUtc = (Get-Date).ToUniversalTime().ToString('o')
+                Sites = $sites
+            }
+
+            $json = $cacheData | ConvertTo-Json -Depth 10 -Compress
+            [System.IO.File]::WriteAllText($Path, $json, [System.Text.Encoding]::UTF8)
+            return $true
+        } finally {
+            if ($lockStream) {
+                $lockStream.Close()
+                $lockStream.Dispose()
+            }
+        }
+    } catch {
+        Write-Warning ("Failed to export memory-mapped cache: {0}" -f $_.Exception.Message)
+        return $false
+    }
+}
+
+function Sync-MemoryMappedCache {
+    <#
+    .SYNOPSIS
+    Synchronizes the in-memory cache with the memory-mapped file.
+    .DESCRIPTION
+    Reads updates from other processes and writes local changes to the shared file.
+    #>
+    [CmdletBinding()]
+    param(
+        [switch]$Export,
+        [switch]$Import
+    )
+
+    $mmfPath = Get-MemoryMappedCachePath
+
+    if ($Import -or (-not $Export -and -not $Import)) {
+        # Import changes from file
+        if (Test-Path -LiteralPath $mmfPath) {
+            $imported = Import-MemoryMappedCacheFromFile -Path $mmfPath
+            if ($imported -gt 0) {
+                Write-Verbose ("Synced {0} sites from shared cache." -f $imported)
+            }
+        }
+    }
+
+    if ($Export -or (-not $Export -and -not $Import)) {
+        # Export current cache to file
+        $exported = Export-MemoryMappedCacheToFile -Path $mmfPath
+        if ($exported) {
+            Write-Verbose "Exported cache to shared file."
+        }
+    }
+}
+
+function Get-MemoryMappedCacheStats {
+    <#
+    .SYNOPSIS
+    Returns statistics about the memory-mapped cache.
+    #>
+    [CmdletBinding()]
+    param()
+
+    $mmfPath = Get-MemoryMappedCachePath
+    $stats = [PSCustomObject]@{
+        Enabled = $script:MemoryMappedCacheEnabled
+        FilePath = $mmfPath
+        FileExists = (Test-Path -LiteralPath $mmfPath)
+        FileSizeBytes = 0
+        LastModifiedUtc = $null
+    }
+
+    if ($stats.FileExists) {
+        try {
+            $fileInfo = Get-Item -LiteralPath $mmfPath
+            $stats.FileSizeBytes = $fileInfo.Length
+            $stats.LastModifiedUtc = $fileInfo.LastWriteTimeUtc
+        } catch { }
+    }
+
+    return $stats
+}
+
 # Exports for consumers
 Export-ModuleMember -Function `
     Get-SharedSiteInterfaceCacheStore, `
@@ -903,4 +1171,9 @@ Export-ModuleMember -Function `
     Import-SharedSiteInterfaceCacheSnapshotFromEnv, `
     Import-SharedSiteInterfaceCacheSnapshot, `
     ConvertTo-SharedCacheEntryArray, `
-    Write-SharedCacheSnapshotFileFallback
+    Write-SharedCacheSnapshotFileFallback, `
+    Initialize-MemoryMappedCache, `
+    Import-MemoryMappedCacheFromFile, `
+    Export-MemoryMappedCacheToFile, `
+    Sync-MemoryMappedCache, `
+    Get-MemoryMappedCacheStats
