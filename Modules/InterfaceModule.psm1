@@ -848,6 +848,7 @@ function New-InterfacesView {
     $copyMacsButton    = $interfacesView.FindName('CopyMacsButton')
     $exportSelectedBtn = $interfacesView.FindName('ExportSelectedButton')
     $setVlanButton     = $interfacesView.FindName('SetVlanButton')
+    $setNameButton     = $interfacesView.FindName('SetNameButton')
     $columnsButton     = $interfacesView.FindName('ColumnsButton')
     $sortPresetDropdown = $interfacesView.FindName('SortPresetDropdown')
 
@@ -855,6 +856,19 @@ function New-InterfacesView {
     if ($interfacesGrid)    { $global:interfacesGrid   = $interfacesGrid }
     if ($templateDropdown)  { $global:templateDropdown = $templateDropdown }
     if ($filterBox)         { $global:filterBox        = $filterBox }
+
+    # Load saved filter text
+    if ($filterBox) {
+        try {
+            $settingsPath = Join-Path $PSScriptRoot '..\Data\StateTraceSettings.json'
+            if (Test-Path $settingsPath) {
+                $settings = Get-Content $settingsPath -Raw | ConvertFrom-Json
+                if ($settings.LastInterfaceFilter) {
+                    $filterBox.Text = $settings.LastInterfaceFilter
+                }
+            }
+        } catch { }
+    }
 
     # Cell edit validation for VLAN and Name columns
     if ($interfacesGrid) {
@@ -885,6 +899,134 @@ function New-InterfacesView {
                 }
             }
         })
+
+        # Keyboard shortcuts for grid
+        $interfacesGrid.Add_PreviewKeyDown({
+            param($sender, $e)
+            $grid = $sender
+
+            # Ctrl+A - Select all
+            if ($e.Key -eq 'A' -and [System.Windows.Input.Keyboard]::Modifiers -eq 'Control') {
+                foreach ($row in $grid.ItemsSource) {
+                    $row.IsSelected = $true
+                }
+                $grid.Items.Refresh()
+                $e.Handled = $true
+                return
+            }
+
+            # Ctrl+C - Copy selected ports
+            if ($e.Key -eq 'C' -and [System.Windows.Input.Keyboard]::Modifiers -eq 'Control') {
+                $selectedRows = @($grid.ItemsSource | Where-Object { $_.IsSelected -eq $true })
+                if ($selectedRows.Count -gt 0) {
+                    $ports = $selectedRows | ForEach-Object { $_.Port } | Where-Object { $_ }
+                    Set-Clipboard -Value ($ports -join "`r`n")
+                }
+                $e.Handled = $true
+                return
+            }
+
+            # Delete - Clear selection
+            if ($e.Key -eq 'Delete') {
+                foreach ($row in $grid.ItemsSource) {
+                    $row.IsSelected = $false
+                }
+                $grid.Items.Refresh()
+                $e.Handled = $true
+                return
+            }
+        })
+
+        # Double-click to copy cell value
+        $interfacesGrid.Add_MouseDoubleClick({
+            param($sender, $e)
+            $grid = $sender
+            $cell = $grid.CurrentCell
+            if ($cell -and $cell.Column -and $cell.Item) {
+                $columnHeader = $cell.Column.Header
+                $item = $cell.Item
+                $value = $null
+
+                # Get value based on column header
+                switch ($columnHeader) {
+                    'Port'          { $value = $item.Port }
+                    'Name'          { $value = $item.Name }
+                    'Status'        { $value = $item.Status }
+                    'VLAN'          { $value = $item.VLAN }
+                    'Duplex'        { $value = $item.Duplex }
+                    'Speed'         { $value = $item.Speed }
+                    'Type'          { $value = $item.Type }
+                    'LearnedMACs'   { $value = $item.LearnedMACs }
+                    'AuthState'     { $value = $item.AuthState }
+                    'AuthMode'      { $value = $item.AuthMode }
+                    'AuthClientMAC' { $value = $item.AuthClientMAC }
+                }
+
+                if ($value) {
+                    Set-Clipboard -Value $value
+                }
+            }
+        })
+
+        # Load saved column widths
+        try {
+            $settingsPath = Join-Path $PSScriptRoot '..\Data\StateTraceSettings.json'
+            if (Test-Path $settingsPath) {
+                $settings = Get-Content $settingsPath -Raw | ConvertFrom-Json
+                if ($settings.InterfaceColumnWidths) {
+                    $widths = $settings.InterfaceColumnWidths
+                    foreach ($col in $interfacesGrid.Columns) {
+                        $header = $col.Header
+                        if ($header -and $widths.$header) {
+                            $col.Width = [System.Windows.Controls.DataGridLength]::new($widths.$header)
+                        }
+                    }
+                }
+            }
+        } catch { }
+
+        # Save column widths when changed
+        $interfacesGrid.Add_ColumnReordered({
+            # Also triggers width save
+        })
+
+        # Use a script to save widths on layout updated (debounced)
+        if (-not $script:ColumnWidthSaveTimer) {
+            $script:ColumnWidthSaveTimer = New-Object System.Windows.Threading.DispatcherTimer
+            $script:ColumnWidthSaveTimer.Interval = [TimeSpan]::FromSeconds(2)
+            $script:ColumnWidthSaveTimer.Add_Tick({
+                $script:ColumnWidthSaveTimer.Stop()
+                try {
+                    $grid = $global:interfacesGrid
+                    if (-not $grid) { return }
+                    $widths = @{}
+                    foreach ($col in $grid.Columns) {
+                        $header = $col.Header
+                        if ($header) {
+                            $widths[$header] = $col.ActualWidth
+                        }
+                    }
+                    $settingsPath = Join-Path $PSScriptRoot '..\Data\StateTraceSettings.json'
+                    $settings = @{}
+                    if (Test-Path $settingsPath) {
+                        $raw = Get-Content $settingsPath -Raw
+                        if ($raw) {
+                            $parsed = $raw | ConvertFrom-Json
+                            $parsed.PSObject.Properties | ForEach-Object { $settings[$_.Name] = $_.Value }
+                        }
+                    }
+                    $settings['InterfaceColumnWidths'] = $widths
+                    $settings | ConvertTo-Json -Depth 5 | Set-Content $settingsPath -Encoding UTF8
+                } catch { }
+            }.GetNewClosure())
+        }
+
+        $interfacesGrid.Add_LayoutUpdated({
+            if ($script:ColumnWidthSaveTimer) {
+                $script:ColumnWidthSaveTimer.Stop()
+                $script:ColumnWidthSaveTimer.Start()
+            }
+        }.GetNewClosure())
     }
 
     # ------------------------------
@@ -1010,6 +1152,21 @@ function New-InterfacesView {
             $global:filterBox.Focus()
         })
     }
+
+    # Quick filter buttons
+    $filterUpBtn = $interfacesView.FindName('FilterUpButton')
+    $filterDownBtn = $interfacesView.FindName('FilterDownButton')
+    if ($filterUpBtn -and $filterBox) {
+        $filterUpBtn.Add_Click({
+            $global:filterBox.Text = 'up'
+        })
+    }
+    if ($filterDownBtn -and $filterBox) {
+        $filterDownBtn.Add_Click({
+            $global:filterBox.Text = 'down'
+        })
+    }
+
     if ($filterBox -and $interfacesGrid) {
         # Initialise a debounce timer for the filter box if it does not exist.  This
         if (-not $script:InterfacesFilterTimer) {
@@ -1031,6 +1188,21 @@ function New-InterfacesView {
                         )
                     }
                     $view.Refresh()
+
+                    # Save filter text to settings
+                    try {
+                        $settingsPath = Join-Path $PSScriptRoot '..\Data\StateTraceSettings.json'
+                        $settings = @{}
+                        if (Test-Path $settingsPath) {
+                            $raw = Get-Content $settingsPath -Raw
+                            if ($raw) {
+                                $parsed = $raw | ConvertFrom-Json
+                                $parsed.PSObject.Properties | ForEach-Object { $settings[$_.Name] = $_.Value }
+                            }
+                        }
+                        $settings['LastInterfaceFilter'] = $txt
+                        $settings | ConvertTo-Json -Depth 5 | Set-Content $settingsPath -Encoding UTF8
+                    } catch { }
                 } catch {
                     # Swallow exceptions to avoid crashing the UI on bad filter values
                 }
@@ -1270,6 +1442,42 @@ function New-InterfacesView {
             }
             $grid.Items.Refresh()
             [System.Windows.MessageBox]::Show("Updated VLAN to $vlan for $($selectedRows.Count) interface(s).", "Set VLAN", 'OK', 'Information')
+        })
+    }
+
+    # Batch Name edit
+    if ($setNameButton -and $interfacesGrid) {
+        $setNameButton.Add_Click({
+            $grid = $global:interfacesGrid
+            $rawSelected = Get-SelectedInterfaceRows -Grid $grid
+            $selectedRows = @($rawSelected)
+            if ($selectedRows.Count -eq 0) {
+                [System.Windows.MessageBox]::Show("No interfaces selected.", "Set Name", 'OK', 'Warning')
+                return
+            }
+
+            # Create simple input dialog
+            Add-Type -AssemblyName Microsoft.VisualBasic
+            $input = [Microsoft.VisualBasic.Interaction]::InputBox(
+                "Enter name for $($selectedRows.Count) interface(s) (max 64 chars):",
+                "Set Name",
+                ""
+            )
+
+            if ([string]::IsNullOrWhiteSpace($input)) { return }
+
+            $name = $input.Trim()
+            if ($name.Length -gt 64) {
+                [System.Windows.MessageBox]::Show("Name cannot exceed 64 characters.", "Invalid Name", 'OK', 'Warning')
+                return
+            }
+
+            # Apply name to all selected rows
+            foreach ($row in $selectedRows) {
+                $row.Name = $name
+            }
+            $grid.Items.Refresh()
+            [System.Windows.MessageBox]::Show("Updated name to '$name' for $($selectedRows.Count) interface(s).", "Set Name", 'OK', 'Information')
         })
     }
 
@@ -1600,6 +1808,18 @@ function Set-InterfaceViewData {
             $lastUpdatedText = $interfacesView.FindName('InterfacesLastUpdatedText')
             if ($lastUpdatedText) {
                 $lastUpdatedText.Text = "Updated: $(Get-Date -Format 'h:mm tt')"
+            }
+
+            # Update port status summary
+            $statusSummary = $interfacesView.FindName('PortStatusSummary')
+            if ($statusSummary -and $itemsSource) {
+                $total = @($itemsSource).Count
+                $up = @($itemsSource | Where-Object { $_.Status -match '(?i)up' }).Count
+                $down = @($itemsSource | Where-Object { $_.Status -match '(?i)down' }).Count
+                $other = $total - $up - $down
+                $summaryText = "$total ports: $up up, $down down"
+                if ($other -gt 0) { $summaryText += ", $other other" }
+                $statusSummary.Text = $summaryText
             }
         }
     } catch {}

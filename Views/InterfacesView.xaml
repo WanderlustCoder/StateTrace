@@ -131,6 +131,8 @@
                   Height="23"
                   VerticalAlignment="Center"
                   ToolTip="Clear filter"/>
+            <Button Name="FilterUpButton" Content="Up" Width="35" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Show only Up ports" Margin="5,0,0,0"/>
+            <Button Name="FilterDownButton" Content="Down" Width="45" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Show only Down ports" Margin="3,0,0,0"/>
 
             <Rectangle Width="1" Fill="{DynamicResource Theme.Border.Primary}" Margin="10,2,10,2"/>
 
@@ -152,6 +154,7 @@
             <Button Name="CopyMacsButton" Content="MACs" Width="50" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Copy selected MAC addresses to clipboard" Margin="0,0,3,0"/>
             <Button Name="ExportSelectedButton" Content="Export" Width="50" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Export selected rows to file" Margin="0,0,3,0"/>
             <Button Name="SetVlanButton" Content="Set VLAN" Width="65" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Set VLAN for all selected interfaces" Margin="0,0,3,0"/>
+            <Button Name="SetNameButton" Content="Set Name" Width="65" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Set name for all selected interfaces" Margin="0,0,3,0"/>
 
             <Rectangle Width="1" Fill="{DynamicResource Theme.Border.Primary}" Margin="10,2,10,2"/>
 
@@ -327,12 +330,20 @@
             <ColumnDefinition Width="Auto"/>
             <ColumnDefinition Width="Auto"/>
           </Grid.ColumnDefinitions>
-          <TextBlock Name="HostLoadingIndicator"
-                     Text="Loading host..."
-                     Foreground="{DynamicResource Theme.Text.Inverse}"
-                     FontSize="12"
-                     Visibility="Collapsed"
-                     VerticalAlignment="Center"/>
+          <StackPanel Orientation="Horizontal">
+            <TextBlock Name="PortStatusSummary"
+                       Text=""
+                       Foreground="{DynamicResource Theme.Text.Muted}"
+                       FontSize="11"
+                       VerticalAlignment="Center"
+                       Margin="0,0,15,0"/>
+            <TextBlock Name="HostLoadingIndicator"
+                       Text="Loading host..."
+                       Foreground="{DynamicResource Theme.Text.Inverse}"
+                       FontSize="12"
+                       Visibility="Collapsed"
+                       VerticalAlignment="Center"/>
+          </StackPanel>
           <TextBlock Name="PortLoadingIndicator"
                      Grid.Row="1"
                      Text="Loading ports..."
