@@ -121,15 +121,19 @@ function Initialize-TopologySubView {
     )
 
     try {
-        $viewPath = Join-Path $ScriptDir '..\Views\TopologyView.xaml'
-        if (Test-Path $viewPath) {
-            $xamlContent = Get-Content -Path $viewPath -Raw
-            $xamlContent = $xamlContent -replace 'x:Class="[^"]*"', ''
-            $xamlContent = $xamlContent -replace 'mc:Ignorable="d"', ''
+        if (Get-Command -Name 'Initialize-TopologyView' -ErrorAction SilentlyContinue) {
+            TopologyViewModule\Initialize-TopologyView -Host $Host
+        } else {
+            $viewPath = Join-Path $ScriptDir '..\Views\TopologyView.xaml'
+            if (Test-Path $viewPath) {
+                $xamlContent = Get-Content -Path $viewPath -Raw
+                $xamlContent = $xamlContent -replace 'x:Class="[^"]*"', ''
+                $xamlContent = $xamlContent -replace 'mc:Ignorable="d"', ''
 
-            $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
-            $view = [System.Windows.Markup.XamlReader]::Load($reader)
-            $Host.Content = $view
+                $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
+                $view = [System.Windows.Markup.XamlReader]::Load($reader)
+                $Host.Content = $view
+            }
         }
     }
     catch {
@@ -144,15 +148,19 @@ function Initialize-CablesSubView {
     )
 
     try {
-        $viewPath = Join-Path $ScriptDir '..\Views\CableDocumentationView.xaml'
-        if (Test-Path $viewPath) {
-            $xamlContent = Get-Content -Path $viewPath -Raw
-            $xamlContent = $xamlContent -replace 'x:Class="[^"]*"', ''
-            $xamlContent = $xamlContent -replace 'mc:Ignorable="d"', ''
+        if (Get-Command -Name 'Initialize-CableDocumentationView' -ErrorAction SilentlyContinue) {
+            CableDocumentationViewModule\Initialize-CableDocumentationView -Host $Host
+        } else {
+            $viewPath = Join-Path $ScriptDir '..\Views\CableDocumentationView.xaml'
+            if (Test-Path $viewPath) {
+                $xamlContent = Get-Content -Path $viewPath -Raw
+                $xamlContent = $xamlContent -replace 'x:Class="[^"]*"', ''
+                $xamlContent = $xamlContent -replace 'mc:Ignorable="d"', ''
 
-            $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
-            $view = [System.Windows.Markup.XamlReader]::Load($reader)
-            $Host.Content = $view
+                $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
+                $view = [System.Windows.Markup.XamlReader]::Load($reader)
+                $Host.Content = $view
+            }
         }
     }
     catch {
@@ -167,15 +175,19 @@ function Initialize-IPAMSubView {
     )
 
     try {
-        $viewPath = Join-Path $ScriptDir '..\Views\IPAMView.xaml'
-        if (Test-Path $viewPath) {
-            $xamlContent = Get-Content -Path $viewPath -Raw
-            $xamlContent = $xamlContent -replace 'x:Class="[^"]*"', ''
-            $xamlContent = $xamlContent -replace 'mc:Ignorable="d"', ''
+        if (Get-Command -Name 'Initialize-IPAMView' -ErrorAction SilentlyContinue) {
+            IPAMViewModule\Initialize-IPAMView -Host $Host
+        } else {
+            $viewPath = Join-Path $ScriptDir '..\Views\IPAMView.xaml'
+            if (Test-Path $viewPath) {
+                $xamlContent = Get-Content -Path $viewPath -Raw
+                $xamlContent = $xamlContent -replace 'x:Class="[^"]*"', ''
+                $xamlContent = $xamlContent -replace 'mc:Ignorable="d"', ''
 
-            $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
-            $view = [System.Windows.Markup.XamlReader]::Load($reader)
-            $Host.Content = $view
+                $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
+                $view = [System.Windows.Markup.XamlReader]::Load($reader)
+                $Host.Content = $view
+            }
         }
     }
     catch {
@@ -190,15 +202,19 @@ function Initialize-InventorySubView {
     )
 
     try {
-        $viewPath = Join-Path $ScriptDir '..\Views\InventoryView.xaml'
-        if (Test-Path $viewPath) {
-            $xamlContent = Get-Content -Path $viewPath -Raw
-            $xamlContent = $xamlContent -replace 'x:Class="[^"]*"', ''
-            $xamlContent = $xamlContent -replace 'mc:Ignorable="d"', ''
+        if (Get-Command -Name 'Initialize-InventoryView' -ErrorAction SilentlyContinue) {
+            InventoryViewModule\Initialize-InventoryView -Host $Host
+        } else {
+            $viewPath = Join-Path $ScriptDir '..\Views\InventoryView.xaml'
+            if (Test-Path $viewPath) {
+                $xamlContent = Get-Content -Path $viewPath -Raw
+                $xamlContent = $xamlContent -replace 'x:Class="[^"]*"', ''
+                $xamlContent = $xamlContent -replace 'mc:Ignorable="d"', ''
 
-            $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
-            $view = [System.Windows.Markup.XamlReader]::Load($reader)
-            $Host.Content = $view
+                $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
+                $view = [System.Windows.Markup.XamlReader]::Load($reader)
+                $Host.Content = $view
+            }
         }
     }
     catch {
