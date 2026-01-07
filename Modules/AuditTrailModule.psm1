@@ -396,11 +396,11 @@ function Export-AuditReport {
         </div>
         <div class="card $(if ($summary.BySeverity['Critical'] -gt 0) { 'critical' })">
             <h3>Critical</h3>
-            <div class="value">$($summary.BySeverity['Critical'] ?? 0)</div>
+            <div class="value">$(if ($null -eq $summary.BySeverity['Critical']) { 0 } else { $summary.BySeverity['Critical'] })</div>
         </div>
         <div class="card $(if ($summary.ByResult['Failure'] -gt 0) { 'warning' })">
             <h3>Failures</h3>
-            <div class="value">$($summary.ByResult['Failure'] ?? 0)</div>
+            <div class="value">$(if ($null -eq $summary.ByResult['Failure']) { 0 } else { $summary.ByResult['Failure'] })</div>
         </div>
         <div class="card">
             <h3>Users</h3>

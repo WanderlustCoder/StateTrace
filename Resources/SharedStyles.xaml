@@ -695,6 +695,14 @@
     <Setter Property="SelectionMode" Value="Extended"/>
   </Style>
 
+  <Style x:Key="PrimaryListBoxStyle" TargetType="ListBox">
+    <Setter Property="Background" Value="{DynamicResource Theme.Surface.Primary}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource Theme.Border.Primary}"/>
+    <Setter Property="BorderThickness" Value="1"/>
+    <Setter Property="Padding" Value="2"/>
+  </Style>
+
   <Style x:Key="PrimaryDataGridRowStyle" TargetType="DataGridRow">
     <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
     <Style.Triggers>

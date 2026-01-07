@@ -219,12 +219,8 @@ function script:Wire-ColumnWidthPersistence {
     )
     if (-not $DataGrid) { return }
 
-    # Debounce timer for saving (avoid saving on every pixel change)
-    $saveTimer = New-Object System.Windows.Threading.DispatcherTimer
-    $saveTimer.Interval = [TimeSpan]::FromMilliseconds(500)
-
+    # Save action to persist column widths
     $saveAction = {
-        $saveTimer.Stop()
         $widths = @{}
         foreach ($col in $DataGrid.Columns) {
             $header = $col.Header
@@ -235,18 +231,17 @@ function script:Wire-ColumnWidthPersistence {
         script:Save-ColumnWidths -GridName $GridName -Widths $widths
     }.GetNewClosure()
 
-    $saveTimer.Add_Tick($saveAction)
+    # Save column widths when user finishes resizing a column
+    $DataGrid.Add_ColumnHeaderDragCompleted({
+        param($sender, $e)
+        & $saveAction
+    })
 
-    # Wire up column width change event
-    foreach ($col in $DataGrid.Columns) {
-        $col.Add_PropertyChanged({
-            param($sender, $e)
-            if ($e.PropertyName -eq 'ActualWidth' -or $e.PropertyName -eq 'Width') {
-                $saveTimer.Stop()
-                $saveTimer.Start()
-            }
-        })
-    }
+    # Also save when columns are reordered
+    $DataGrid.Add_ColumnReordered({
+        param($sender, $e)
+        & $saveAction
+    })
 }
 
 function New-SearchInterfacesView {
@@ -337,11 +332,19 @@ function New-SearchInterfacesView {
         if (-not $script:SearchUpdateTimer) {
             $script:SearchUpdateTimer = ViewCompositionModule\New-StDebounceTimer -DelayMs 300 -Action $requestSearchUpdateWithHistory
         }
-        $searchBox.Add_TextChanged({
-            # Each keystroke resets the debounce timer.  Use script scope
-            if ($script:SearchUpdateTimer) {
-                $script:SearchUpdateTimer.Stop()
-                $script:SearchUpdateTimer.Start()
+        # For editable ComboBox, we need to find the internal TextBox and subscribe to its TextChanged event
+        # The TextBox is named PART_EditableTextBox in the ComboBox template
+        $searchBox.Add_Loaded({
+            param($sender, $e)
+            $editableTextBox = $sender.Template.FindName('PART_EditableTextBox', $sender)
+            if ($editableTextBox) {
+                $editableTextBox.Add_TextChanged({
+                    # Each keystroke resets the debounce timer.  Use script scope
+                    if ($script:SearchUpdateTimer) {
+                        $script:SearchUpdateTimer.Stop()
+                        $script:SearchUpdateTimer.Start()
+                    }
+                })
             }
         })
         # Handle dropdown selection - apply the selected history item
