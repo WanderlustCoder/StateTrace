@@ -53,19 +53,20 @@
               <TextBlock Grid.Row="0" Text="Template Library" FontWeight="Bold" Margin="0,0,0,5" Foreground="{DynamicResource Theme.Text.Primary}"/>
               <ListBox Grid.Row="1" Name="TemplateListBox"
                        Background="{DynamicResource Theme.Surface.Primary}"
-                       Foreground="{DynamicResource Theme.Text.Primary}"
-                       DisplayMemberPath="Name"
                        VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
                        ScrollViewer.CanContentScroll="True">
+                <ListBox.ItemTemplate>
+                  <DataTemplate>
+                    <TextBlock Text="{Binding Name}" Foreground="{DynamicResource Theme.Toolbar.Text}"/>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
                 <ListBox.ItemContainerStyle>
                   <Style TargetType="ListBoxItem">
-                    <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
                     <Setter Property="Background" Value="Transparent"/>
                     <Setter Property="Padding" Value="5,3"/>
                     <Style.Triggers>
                       <Trigger Property="IsSelected" Value="True">
                         <Setter Property="Background" Value="{DynamicResource Theme.Icon.Accent}"/>
-                        <Setter Property="Foreground" Value="{DynamicResource Theme.Button.Primary.Text}"/>
                       </Trigger>
                       <Trigger Property="IsMouseOver" Value="True">
                         <Setter Property="Background" Value="{DynamicResource Theme.Surface.Secondary}"/>
@@ -196,19 +197,20 @@
               <TextBlock Grid.Row="0" Text="Validation Standards" FontWeight="Bold" Margin="0,0,0,5" Foreground="{DynamicResource Theme.Text.Primary}"/>
               <ListBox Grid.Row="1" Name="StandardsListBox"
                        Background="{DynamicResource Theme.Surface.Primary}"
-                       Foreground="{DynamicResource Theme.Text.Primary}"
-                       DisplayMemberPath="Name"
                        VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
                        ScrollViewer.CanContentScroll="True">
+                <ListBox.ItemTemplate>
+                  <DataTemplate>
+                    <TextBlock Text="{Binding Name}" Foreground="{DynamicResource Theme.Toolbar.Text}"/>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
                 <ListBox.ItemContainerStyle>
                   <Style TargetType="ListBoxItem">
-                    <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
                     <Setter Property="Background" Value="Transparent"/>
                     <Setter Property="Padding" Value="5,3"/>
                     <Style.Triggers>
                       <Trigger Property="IsSelected" Value="True">
                         <Setter Property="Background" Value="{DynamicResource Theme.Icon.Accent}"/>
-                        <Setter Property="Foreground" Value="{DynamicResource Theme.Button.Primary.Text}"/>
                       </Trigger>
                       <Trigger Property="IsMouseOver" Value="True">
                         <Setter Property="Background" Value="{DynamicResource Theme.Surface.Secondary}"/>
