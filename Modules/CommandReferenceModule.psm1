@@ -633,6 +633,885 @@ $script:CommandDatabase = @{
             }
         }
     }
+
+    # Security commands
+    'show-access-lists' = @{
+        Task = 'Show access control lists'
+        Category = 'Security'
+        Commands = @{
+            'Cisco' = @{
+                Command = 'show access-lists'
+                Syntax = 'show access-lists [<acl-name>]'
+                Description = 'Displays all access lists or specific ACL'
+            }
+            'Arista' = @{
+                Command = 'show ip access-lists'
+                Syntax = 'show ip access-lists [<acl-name>]'
+                Description = 'Displays IP access lists'
+            }
+            'Juniper' = @{
+                Command = 'show firewall filter'
+                Syntax = 'show firewall filter <filter-name>'
+                Description = 'Displays firewall filter configuration'
+            }
+            'HP' = @{
+                Command = 'show access-list'
+                Syntax = 'show access-list <acl-id>'
+                Description = 'Displays access list'
+            }
+        }
+    }
+    'show-port-security' = @{
+        Task = 'Show port security status'
+        Category = 'Security'
+        Commands = @{
+            'Cisco' = @{
+                Command = 'show port-security'
+                Syntax = 'show port-security [interface <interface>] [address]'
+                Description = 'Displays port security settings and violations'
+            }
+            'Arista' = @{
+                Command = 'show port-security'
+                Syntax = 'show port-security [interface <interface>]'
+                Description = 'Displays port security configuration'
+            }
+            'Juniper' = @{
+                Command = 'show ethernet-switching port-security'
+                Syntax = 'show ethernet-switching port-security'
+                Description = 'Displays port security information'
+            }
+            'HP' = @{
+                Command = 'show port-security'
+                Syntax = 'show port-security [<port>]'
+                Description = 'Displays port security status'
+            }
+        }
+    }
+    'show-aaa' = @{
+        Task = 'Show AAA configuration'
+        Category = 'Security'
+        Commands = @{
+            'Cisco' = @{
+                Command = 'show aaa servers'
+                Syntax = 'show aaa servers'
+                Description = 'Displays AAA server statistics'
+            }
+            'Arista' = @{
+                Command = 'show aaa'
+                Syntax = 'show aaa'
+                Description = 'Displays AAA configuration'
+            }
+            'Juniper' = @{
+                Command = 'show system aaa'
+                Syntax = 'show system aaa'
+                Description = 'Displays AAA information'
+            }
+            'HP' = @{
+                Command = 'show authentication'
+                Syntax = 'show authentication'
+                Description = 'Displays authentication configuration'
+            }
+        }
+    }
+    'show-dot1x' = @{
+        Task = 'Show 802.1X status'
+        Category = 'Security'
+        Commands = @{
+            'Cisco' = @{
+                Command = 'show dot1x all'
+                Syntax = 'show dot1x all [details]'
+                Description = 'Displays 802.1X authentication status'
+            }
+            'Arista' = @{
+                Command = 'show dot1x'
+                Syntax = 'show dot1x [interface <interface>]'
+                Description = 'Displays 802.1X status'
+            }
+            'Juniper' = @{
+                Command = 'show dot1x interface'
+                Syntax = 'show dot1x interface'
+                Description = 'Displays 802.1X interface status'
+            }
+            'HP' = @{
+                Command = 'show port-access authenticator'
+                Syntax = 'show port-access authenticator [<port>]'
+                Description = 'Displays 802.1X authenticator status'
+            }
+        }
+    }
+    'show-users' = @{
+        Task = 'Show logged in users'
+        Category = 'Security'
+        Commands = @{
+            'Cisco' = @{
+                Command = 'show users'
+                Syntax = 'show users'
+                Description = 'Displays users logged into the device'
+            }
+            'Arista' = @{
+                Command = 'show users'
+                Syntax = 'show users'
+                Description = 'Displays logged in users'
+            }
+            'Juniper' = @{
+                Command = 'show system users'
+                Syntax = 'show system users'
+                Description = 'Displays logged in users'
+            }
+            'HP' = @{
+                Command = 'show users'
+                Syntax = 'show users'
+                Description = 'Displays active sessions'
+            }
+        }
+    }
+
+    # Management commands
+    'show-ntp' = @{
+        Task = 'Show NTP status'
+        Category = 'System'
+        Commands = @{
+            'Cisco' = @{
+                Command = 'show ntp status'
+                Syntax = 'show ntp status'
+                Description = 'Displays NTP synchronization status'
+            }
+            'Arista' = @{
+                Command = 'show ntp status'
+                Syntax = 'show ntp status'
+                Description = 'Displays NTP status'
+            }
+            'Juniper' = @{
+                Command = 'show ntp status'
+                Syntax = 'show ntp status'
+                Description = 'Displays NTP status'
+            }
+            'HP' = @{
+                Command = 'show ntp status'
+                Syntax = 'show ntp status'
+                Description = 'Displays NTP status'
+            }
+        }
+    }
+    'show-ntp-associations' = @{
+        Task = 'Show NTP peers/associations'
+        Category = 'System'
+        Commands = @{
+            'Cisco' = @{
+                Command = 'show ntp associations'
+                Syntax = 'show ntp associations [detail]'
+                Description = 'Displays NTP peer associations'
+            }
+            'Arista' = @{
+                Command = 'show ntp associations'
+                Syntax = 'show ntp associations'
+                Description = 'Displays NTP associations'
+            }
+            'Juniper' = @{
+                Command = 'show ntp associations'
+                Syntax = 'show ntp associations'
+                Description = 'Displays NTP associations'
+            }
+            'HP' = @{
+                Command = 'show ntp associations'
+                Syntax = 'show ntp associations'
+                Description = 'Displays NTP associations'
+            }
+        }
+    }
+    'show-snmp' = @{
+        Task = 'Show SNMP configuration'
+        Category = 'System'
+        Commands = @{
+            'Cisco' = @{
+                Command = 'show snmp'
+                Syntax = 'show snmp [community | host | user]'
+                Description = 'Displays SNMP configuration'
+            }
+            'Arista' = @{
+                Command = 'show snmp'
+                Syntax = 'show snmp [community | host]'
+                Description = 'Displays SNMP settings'
+            }
+            'Juniper' = @{
+                Command = 'show snmp statistics'
+                Syntax = 'show snmp statistics'
+                Description = 'Displays SNMP statistics'
+            }
+            'HP' = @{
+                Command = 'show snmp-server'
+                Syntax = 'show snmp-server'
+                Description = 'Displays SNMP configuration'
+            }
+        }
+    }
+    'show-clock' = @{
+        Task = 'Show system clock'
+        Category = 'System'
+        Commands = @{
+            'Cisco' = @{
+                Command = 'show clock'
+                Syntax = 'show clock [detail]'
+                Description = 'Displays current system time'
+            }
+            'Arista' = @{
+                Command = 'show clock'
+                Syntax = 'show clock'
+                Description = 'Displays system time'
+            }
+            'Juniper' = @{
+                Command = 'show system uptime'
+                Syntax = 'show system uptime'
+                Description = 'Displays system time and uptime'
+            }
+            'HP' = @{
+                Command = 'show time'
+                Syntax = 'show time'
+                Description = 'Displays current time'
+            }
+        }
+    }
+    'show-boot' = @{
+        Task = 'Show boot configuration'
+        Category = 'System'
+        Commands = @{
+            'Cisco' = @{
+                Command = 'show boot'
+                Syntax = 'show boot'
+                Description = 'Displays boot variable settings'
+            }
+            'Arista' = @{
+                Command = 'show boot-config'
+                Syntax = 'show boot-config'
+                Description = 'Displays boot configuration'
+            }
+            'Juniper' = @{
+                Command = 'show system boot-messages'
+                Syntax = 'show system boot-messages'
+                Description = 'Displays boot messages'
+            }
+            'HP' = @{
+                Command = 'show flash'
+                Syntax = 'show flash'
+                Description = 'Displays flash contents and boot image'
+            }
+        }
+    }
+    'show-environment' = @{
+        Task = 'Show environmental status (fans, power, temp)'
+        Category = 'System'
+        Commands = @{
+            'Cisco' = @{
+                Command = 'show environment'
+                Syntax = 'show environment [all | fan | power | temperature]'
+                Description = 'Displays environmental status'
+            }
+            'Arista' = @{
+                Command = 'show environment all'
+                Syntax = 'show environment [all | cooling | power | temperature]'
+                Description = 'Displays environmental information'
+            }
+            'Juniper' = @{
+                Command = 'show chassis environment'
+                Syntax = 'show chassis environment'
+                Description = 'Displays chassis environmental status'
+            }
+            'HP' = @{
+                Command = 'show system fans'
+                Syntax = 'show system [fans | power-supply | temperature]'
+                Description = 'Displays system environmental data'
+            }
+        }
+    }
+
+    # High Availability commands
+    'show-hsrp' = @{
+        Task = 'Show HSRP/standby status'
+        Category = 'Routing'
+        Commands = @{
+            'Cisco' = @{
+                Command = 'show standby'
+                Syntax = 'show standby [brief] [<interface>]'
+                Description = 'Displays HSRP status'
+            }
+            'Arista' = @{
+                Command = 'show vrrp'
+                Syntax = 'show vrrp [brief]'
+                Description = 'Arista uses VRRP instead of HSRP'
+                Notes = 'Arista does not support HSRP, use VRRP'
+            }
+            'Juniper' = @{
+                Command = 'show vrrp'
+                Syntax = 'show vrrp [brief]'
+                Description = 'Displays VRRP status'
+            }
+            'HP' = @{
+                Command = 'show vrrp'
+                Syntax = 'show vrrp [<vrid>]'
+                Description = 'Displays VRRP status'
+            }
+        }
+    }
+    'show-vrrp' = @{
+        Task = 'Show VRRP status'
+        Category = 'Routing'
+        Commands = @{
+            'Cisco' = @{
+                Command = 'show vrrp'
+                Syntax = 'show vrrp [brief] [<interface>]'
+                Description = 'Displays VRRP status'
+            }
+            'Arista' = @{
+                Command = 'show vrrp'
+                Syntax = 'show vrrp [brief]'
+                Description = 'Displays VRRP status'
+            }
+            'Juniper' = @{
+                Command = 'show vrrp'
+                Syntax = 'show vrrp [brief | detail]'
+                Description = 'Displays VRRP information'
+            }
+            'HP' = @{
+                Command = 'show vrrp'
+                Syntax = 'show vrrp [<vrid>]'
+                Description = 'Displays VRRP status'
+            }
+        }
+    }
+
+    # More interface commands
+    'show-interface-description' = @{
+        Task = 'Show interface descriptions'
+        Category = 'Interface'
+        Commands = @{
+            'Cisco' = @{
+                Command = 'show interface description'
+                Syntax = 'show interface description'
+                Description = 'Displays interface descriptions'
+            }
+            'Arista' = @{
+                Command = 'show interfaces description'
+                Syntax = 'show interfaces description'
+                Description = 'Displays interface descriptions'
+            }
+            'Juniper' = @{
+                Command = 'show interfaces descriptions'
+                Syntax = 'show interfaces descriptions'
+                Description = 'Displays interface descriptions'
+            }
+            'HP' = @{
+                Command = 'show name'
+                Syntax = 'show name'
+                Description = 'Displays port names'
+            }
+        }
+    }
+    'show-interface-trunk' = @{
+        Task = 'Show trunk port information'
+        Category = 'Switching'
+        Commands = @{
+            'Cisco' = @{
+                Command = 'show interface trunk'
+                Syntax = 'show interface trunk'
+                Description = 'Displays trunk port status and VLANs'
+            }
+            'Arista' = @{
+                Command = 'show interfaces trunk'
+                Syntax = 'show interfaces trunk'
+                Description = 'Displays trunk information'
+            }
+            'Juniper' = @{
+                Command = 'show vlans extensive'
+                Syntax = 'show vlans extensive'
+                Description = 'Displays VLAN trunk information'
+            }
+            'HP' = @{
+                Command = 'show trunks'
+                Syntax = 'show trunks'
+                Description = 'Displays trunk groups'
+            }
+        }
+    }
+    'show-interface-switchport' = @{
+        Task = 'Show switchport configuration'
+        Category = 'Switching'
+        Commands = @{
+            'Cisco' = @{
+                Command = 'show interface switchport'
+                Syntax = 'show interface <interface> switchport'
+                Description = 'Displays switchport configuration details'
+            }
+            'Arista' = @{
+                Command = 'show interfaces switchport'
+                Syntax = 'show interfaces <interface> switchport'
+                Description = 'Displays switchport settings'
+            }
+            'Juniper' = @{
+                Command = 'show ethernet-switching interface'
+                Syntax = 'show ethernet-switching interface <interface>'
+                Description = 'Displays ethernet switching interface'
+            }
+            'HP' = @{
+                Command = 'show vlans ports'
+                Syntax = 'show vlans ports <port>'
+                Description = 'Displays port VLAN membership'
+            }
+        }
+    }
+    'show-interface-transceiver' = @{
+        Task = 'Show transceiver/SFP information'
+        Category = 'Interface'
+        Commands = @{
+            'Cisco' = @{
+                Command = 'show interface transceiver'
+                Syntax = 'show interface transceiver [<interface>]'
+                Description = 'Displays transceiver DOM information'
+            }
+            'Arista' = @{
+                Command = 'show interfaces transceiver'
+                Syntax = 'show interfaces <interface> transceiver'
+                Description = 'Displays transceiver details'
+            }
+            'Juniper' = @{
+                Command = 'show interfaces diagnostics optics'
+                Syntax = 'show interfaces diagnostics optics <interface>'
+                Description = 'Displays optical diagnostics'
+            }
+            'HP' = @{
+                Command = 'show interfaces transceiver'
+                Syntax = 'show interfaces transceiver [<port>]'
+                Description = 'Displays transceiver information'
+            }
+        }
+    }
+
+    # More routing commands
+    'show-ip-protocols' = @{
+        Task = 'Show routing protocols'
+        Category = 'Routing'
+        Commands = @{
+            'Cisco' = @{
+                Command = 'show ip protocols'
+                Syntax = 'show ip protocols'
+                Description = 'Displays routing protocol information'
+            }
+            'Arista' = @{
+                Command = 'show ip protocols'
+                Syntax = 'show ip protocols'
+                Description = 'Displays routing protocol settings'
+            }
+            'Juniper' = @{
+                Command = 'show route protocol'
+                Syntax = 'show route protocol <protocol>'
+                Description = 'Displays routes by protocol'
+            }
+            'HP' = @{
+                Command = 'show ip'
+                Syntax = 'show ip'
+                Description = 'Displays IP configuration'
+            }
+        }
+    }
+    'show-ip-ospf' = @{
+        Task = 'Show OSPF configuration'
+        Category = 'Routing'
+        Commands = @{
+            'Cisco' = @{
+                Command = 'show ip ospf'
+                Syntax = 'show ip ospf [<process-id>]'
+                Description = 'Displays OSPF process information'
+            }
+            'Arista' = @{
+                Command = 'show ip ospf'
+                Syntax = 'show ip ospf'
+                Description = 'Displays OSPF configuration'
+            }
+            'Juniper' = @{
+                Command = 'show ospf overview'
+                Syntax = 'show ospf overview'
+                Description = 'Displays OSPF overview'
+            }
+            'HP' = @{
+                Command = 'show ip ospf'
+                Syntax = 'show ip ospf'
+                Description = 'Displays OSPF settings'
+            }
+        }
+    }
+    'show-ip-ospf-interface' = @{
+        Task = 'Show OSPF interface details'
+        Category = 'Routing'
+        Commands = @{
+            'Cisco' = @{
+                Command = 'show ip ospf interface'
+                Syntax = 'show ip ospf interface [<interface>]'
+                Description = 'Displays OSPF interface information'
+            }
+            'Arista' = @{
+                Command = 'show ip ospf interface'
+                Syntax = 'show ip ospf interface [<interface>]'
+                Description = 'Displays OSPF interface details'
+            }
+            'Juniper' = @{
+                Command = 'show ospf interface'
+                Syntax = 'show ospf interface [<interface>]'
+                Description = 'Displays OSPF interface info'
+            }
+            'HP' = @{
+                Command = 'show ip ospf interface'
+                Syntax = 'show ip ospf interface'
+                Description = 'Displays OSPF interfaces'
+            }
+        }
+    }
+    'show-ip-ospf-database' = @{
+        Task = 'Show OSPF link-state database'
+        Category = 'Routing'
+        Commands = @{
+            'Cisco' = @{
+                Command = 'show ip ospf database'
+                Syntax = 'show ip ospf database [router | network | summary | external]'
+                Description = 'Displays OSPF LSDB'
+            }
+            'Arista' = @{
+                Command = 'show ip ospf database'
+                Syntax = 'show ip ospf database'
+                Description = 'Displays OSPF database'
+            }
+            'Juniper' = @{
+                Command = 'show ospf database'
+                Syntax = 'show ospf database [brief | detail | extensive]'
+                Description = 'Displays OSPF database'
+            }
+            'HP' = @{
+                Command = 'show ip ospf link-state'
+                Syntax = 'show ip ospf link-state'
+                Description = 'Displays OSPF LSAs'
+            }
+        }
+    }
+    'show-ip-bgp' = @{
+        Task = 'Show BGP table'
+        Category = 'Routing'
+        Commands = @{
+            'Cisco' = @{
+                Command = 'show ip bgp'
+                Syntax = 'show ip bgp [<prefix>] [neighbors]'
+                Description = 'Displays BGP routing table'
+            }
+            'Arista' = @{
+                Command = 'show ip bgp'
+                Syntax = 'show ip bgp [<prefix>]'
+                Description = 'Displays BGP table'
+            }
+            'Juniper' = @{
+                Command = 'show route protocol bgp'
+                Syntax = 'show route protocol bgp [table inet.0]'
+                Description = 'Displays BGP routes'
+            }
+            'HP' = @{
+                Command = 'show ip bgp'
+                Syntax = 'show ip bgp'
+                Description = 'Displays BGP routes'
+            }
+        }
+    }
+    'show-ip-bgp-neighbors' = @{
+        Task = 'Show BGP neighbor details'
+        Category = 'Routing'
+        Commands = @{
+            'Cisco' = @{
+                Command = 'show ip bgp neighbors'
+                Syntax = 'show ip bgp neighbors [<neighbor-ip>]'
+                Description = 'Displays BGP neighbor details'
+            }
+            'Arista' = @{
+                Command = 'show ip bgp neighbors'
+                Syntax = 'show ip bgp neighbors [<neighbor-ip>]'
+                Description = 'Displays BGP peer information'
+            }
+            'Juniper' = @{
+                Command = 'show bgp neighbor'
+                Syntax = 'show bgp neighbor [<neighbor-ip>]'
+                Description = 'Displays BGP neighbor details'
+            }
+            'HP' = @{
+                Command = 'show ip bgp neighbors'
+                Syntax = 'show ip bgp neighbors'
+                Description = 'Displays BGP neighbors'
+            }
+        }
+    }
+    'show-ip-eigrp-neighbors' = @{
+        Task = 'Show EIGRP neighbors'
+        Category = 'Routing'
+        Commands = @{
+            'Cisco' = @{
+                Command = 'show ip eigrp neighbors'
+                Syntax = 'show ip eigrp neighbors [<interface>]'
+                Description = 'Displays EIGRP neighbor adjacencies'
+            }
+            'Arista' = @{
+                Command = 'N/A'
+                Description = 'Arista does not support EIGRP'
+                Notes = 'Use OSPF or BGP instead'
+            }
+            'Juniper' = @{
+                Command = 'N/A'
+                Description = 'Juniper does not support EIGRP'
+                Notes = 'Use OSPF or IS-IS instead'
+            }
+            'HP' = @{
+                Command = 'N/A'
+                Description = 'HP does not support EIGRP'
+                Notes = 'Use OSPF instead'
+            }
+        }
+    }
+    'show-ip-static-route' = @{
+        Task = 'Show static routes'
+        Category = 'Routing'
+        Commands = @{
+            'Cisco' = @{
+                Command = 'show ip route static'
+                Syntax = 'show ip route static'
+                Description = 'Displays static routes'
+            }
+            'Arista' = @{
+                Command = 'show ip route static'
+                Syntax = 'show ip route static'
+                Description = 'Displays static routes'
+            }
+            'Juniper' = @{
+                Command = 'show route protocol static'
+                Syntax = 'show route protocol static'
+                Description = 'Displays static routes'
+            }
+            'HP' = @{
+                Command = 'show ip route static'
+                Syntax = 'show ip route static'
+                Description = 'Displays static routes'
+            }
+        }
+    }
+
+    # Multicast commands
+    'show-ip-igmp-groups' = @{
+        Task = 'Show IGMP groups'
+        Category = 'Routing'
+        Commands = @{
+            'Cisco' = @{
+                Command = 'show ip igmp groups'
+                Syntax = 'show ip igmp groups [<interface>]'
+                Description = 'Displays IGMP group membership'
+            }
+            'Arista' = @{
+                Command = 'show ip igmp groups'
+                Syntax = 'show ip igmp groups'
+                Description = 'Displays IGMP groups'
+            }
+            'Juniper' = @{
+                Command = 'show igmp group'
+                Syntax = 'show igmp group'
+                Description = 'Displays IGMP group information'
+            }
+            'HP' = @{
+                Command = 'show ip igmp'
+                Syntax = 'show ip igmp [groups]'
+                Description = 'Displays IGMP information'
+            }
+        }
+    }
+    'show-ip-mroute' = @{
+        Task = 'Show multicast routing table'
+        Category = 'Routing'
+        Commands = @{
+            'Cisco' = @{
+                Command = 'show ip mroute'
+                Syntax = 'show ip mroute [<group>]'
+                Description = 'Displays multicast routing table'
+            }
+            'Arista' = @{
+                Command = 'show ip mroute'
+                Syntax = 'show ip mroute'
+                Description = 'Displays multicast routes'
+            }
+            'Juniper' = @{
+                Command = 'show multicast route'
+                Syntax = 'show multicast route'
+                Description = 'Displays multicast routing'
+            }
+            'HP' = @{
+                Command = 'show ip mroute'
+                Syntax = 'show ip mroute'
+                Description = 'Displays multicast routes'
+            }
+        }
+    }
+
+    # Power over Ethernet
+    'show-power-inline' = @{
+        Task = 'Show PoE status'
+        Category = 'Interface'
+        Commands = @{
+            'Cisco' = @{
+                Command = 'show power inline'
+                Syntax = 'show power inline [<interface>]'
+                Description = 'Displays PoE status and power consumption'
+            }
+            'Arista' = @{
+                Command = 'show poe status'
+                Syntax = 'show poe status [interface <interface>]'
+                Description = 'Displays PoE status'
+            }
+            'Juniper' = @{
+                Command = 'show poe interface'
+                Syntax = 'show poe interface'
+                Description = 'Displays PoE interface status'
+            }
+            'HP' = @{
+                Command = 'show power-over-ethernet'
+                Syntax = 'show power-over-ethernet [<port>]'
+                Description = 'Displays PoE information'
+            }
+        }
+    }
+
+    # DHCP
+    'show-ip-dhcp-binding' = @{
+        Task = 'Show DHCP bindings/leases'
+        Category = 'Routing'
+        Commands = @{
+            'Cisco' = @{
+                Command = 'show ip dhcp binding'
+                Syntax = 'show ip dhcp binding'
+                Description = 'Displays DHCP server bindings'
+            }
+            'Arista' = @{
+                Command = 'show ip dhcp binding'
+                Syntax = 'show ip dhcp binding'
+                Description = 'Displays DHCP bindings'
+            }
+            'Juniper' = @{
+                Command = 'show dhcp server binding'
+                Syntax = 'show dhcp server binding'
+                Description = 'Displays DHCP server bindings'
+            }
+            'HP' = @{
+                Command = 'show dhcp-server binding'
+                Syntax = 'show dhcp-server binding'
+                Description = 'Displays DHCP bindings'
+            }
+        }
+    }
+    'show-ip-dhcp-snooping' = @{
+        Task = 'Show DHCP snooping bindings'
+        Category = 'Security'
+        Commands = @{
+            'Cisco' = @{
+                Command = 'show ip dhcp snooping binding'
+                Syntax = 'show ip dhcp snooping binding'
+                Description = 'Displays DHCP snooping binding table'
+            }
+            'Arista' = @{
+                Command = 'show ip dhcp snooping binding'
+                Syntax = 'show ip dhcp snooping binding'
+                Description = 'Displays DHCP snooping bindings'
+            }
+            'Juniper' = @{
+                Command = 'show dhcp-security binding'
+                Syntax = 'show dhcp-security binding'
+                Description = 'Displays DHCP security bindings'
+            }
+            'HP' = @{
+                Command = 'show dhcp-snooping binding'
+                Syntax = 'show dhcp-snooping binding'
+                Description = 'Displays DHCP snooping table'
+            }
+        }
+    }
+
+    # Hardware/stack commands
+    'show-switch' = @{
+        Task = 'Show switch stack status'
+        Category = 'System'
+        Commands = @{
+            'Cisco' = @{
+                Command = 'show switch'
+                Syntax = 'show switch [detail]'
+                Description = 'Displays switch stack members and status'
+            }
+            'Arista' = @{
+                Command = 'show mlag'
+                Syntax = 'show mlag [detail]'
+                Description = 'Displays MLAG status (Arista uses MLAG instead of stacking)'
+            }
+            'Juniper' = @{
+                Command = 'show virtual-chassis'
+                Syntax = 'show virtual-chassis'
+                Description = 'Displays virtual chassis members'
+            }
+            'HP' = @{
+                Command = 'show stacking'
+                Syntax = 'show stacking'
+                Description = 'Displays stacking information'
+            }
+        }
+    }
+    'show-module' = @{
+        Task = 'Show module/linecard status'
+        Category = 'System'
+        Commands = @{
+            'Cisco' = @{
+                Command = 'show module'
+                Syntax = 'show module [<slot>]'
+                Description = 'Displays module status in modular switches'
+            }
+            'Arista' = @{
+                Command = 'show module'
+                Syntax = 'show module [<slot>]'
+                Description = 'Displays module information'
+            }
+            'Juniper' = @{
+                Command = 'show chassis fpc'
+                Syntax = 'show chassis fpc'
+                Description = 'Displays FPC (line card) status'
+            }
+            'HP' = @{
+                Command = 'show modules'
+                Syntax = 'show modules'
+                Description = 'Displays installed modules'
+            }
+        }
+    }
+
+    # VRF commands
+    'show-ip-vrf' = @{
+        Task = 'Show VRF information'
+        Category = 'Routing'
+        Commands = @{
+            'Cisco' = @{
+                Command = 'show ip vrf'
+                Syntax = 'show ip vrf [<vrf-name>]'
+                Description = 'Displays VRF information'
+            }
+            'Arista' = @{
+                Command = 'show vrf'
+                Syntax = 'show vrf [<vrf-name>]'
+                Description = 'Displays VRF details'
+            }
+            'Juniper' = @{
+                Command = 'show route instance'
+                Syntax = 'show route instance [<instance-name>]'
+                Description = 'Displays routing instances'
+            }
+            'HP' = @{
+                Command = 'show ip vrf'
+                Syntax = 'show ip vrf'
+                Description = 'Displays VRF information'
+            }
+        }
+    }
 }
 
 # Configuration snippets
@@ -721,6 +1600,449 @@ interface {{interface}}
  name "{{description}}"
  tagged vlan {{allowed_vlans}}
  untagged vlan {{native_vlan}}
+'@
+        }
+    }
+    'static-route' = @{
+        Task = 'Configure static route'
+        Category = 'Routing'
+        Variables = @('network', 'mask', 'next_hop', 'admin_distance')
+        Snippets = @{
+            'Cisco' = @'
+ip route {{network}} {{mask}} {{next_hop}} {{admin_distance}}
+'@
+            'Arista' = @'
+ip route {{network}}/{{mask}} {{next_hop}} {{admin_distance}}
+'@
+            'Juniper' = @'
+set routing-options static route {{network}}/{{mask}} next-hop {{next_hop}} preference {{admin_distance}}
+'@
+            'HP' = @'
+ip route {{network}} {{mask}} {{next_hop}} distance {{admin_distance}}
+'@
+        }
+    }
+    'svi-interface' = @{
+        Task = 'Configure SVI (VLAN interface)'
+        Category = 'Routing'
+        Variables = @('vlan_id', 'ip_address', 'subnet_mask', 'description')
+        Snippets = @{
+            'Cisco' = @'
+interface Vlan{{vlan_id}}
+ description {{description}}
+ ip address {{ip_address}} {{subnet_mask}}
+ no shutdown
+'@
+            'Arista' = @'
+interface Vlan{{vlan_id}}
+   description {{description}}
+   ip address {{ip_address}}/{{subnet_mask}}
+   no shutdown
+'@
+            'Juniper' = @'
+set interfaces irb unit {{vlan_id}} description "{{description}}"
+set interfaces irb unit {{vlan_id}} family inet address {{ip_address}}/{{subnet_mask}}
+'@
+            'HP' = @'
+vlan {{vlan_id}}
+ ip address {{ip_address}} {{subnet_mask}}
+ name "{{description}}"
+'@
+        }
+    }
+    'port-security' = @{
+        Task = 'Configure port security'
+        Category = 'Security'
+        Variables = @('interface', 'max_macs', 'violation_action')
+        Snippets = @{
+            'Cisco' = @'
+interface {{interface}}
+ switchport port-security
+ switchport port-security maximum {{max_macs}}
+ switchport port-security violation {{violation_action}}
+ switchport port-security mac-address sticky
+'@
+            'Arista' = @'
+interface {{interface}}
+   switchport port-security
+   switchport port-security maximum {{max_macs}}
+   switchport port-security violation {{violation_action}}
+'@
+            'Juniper' = @'
+set ethernet-switching-options secure-access-port interface {{interface}} mac-limit {{max_macs}} action {{violation_action}}
+'@
+            'HP' = @'
+interface {{interface}}
+ port-security
+ port-security mac-address sticky
+ port-security maximum {{max_macs}}
+ port-security violation {{violation_action}}
+'@
+        }
+    }
+    'acl-standard' = @{
+        Task = 'Configure standard ACL'
+        Category = 'Security'
+        Variables = @('acl_name', 'action', 'source_network', 'source_wildcard')
+        Snippets = @{
+            'Cisco' = @'
+ip access-list standard {{acl_name}}
+ {{action}} {{source_network}} {{source_wildcard}}
+'@
+            'Arista' = @'
+ip access-list standard {{acl_name}}
+   {{action}} {{source_network}}/{{source_wildcard}}
+'@
+            'Juniper' = @'
+set firewall family inet filter {{acl_name}} term 1 from source-address {{source_network}}/{{source_wildcard}}
+set firewall family inet filter {{acl_name}} term 1 then {{action}}
+'@
+            'HP' = @'
+ip access-list standard {{acl_name}}
+ {{action}} {{source_network}} {{source_wildcard}}
+'@
+        }
+    }
+    'acl-extended' = @{
+        Task = 'Configure extended ACL'
+        Category = 'Security'
+        Variables = @('acl_name', 'action', 'protocol', 'src_network', 'src_wildcard', 'dst_network', 'dst_wildcard', 'dst_port')
+        Snippets = @{
+            'Cisco' = @'
+ip access-list extended {{acl_name}}
+ {{action}} {{protocol}} {{src_network}} {{src_wildcard}} {{dst_network}} {{dst_wildcard}} eq {{dst_port}}
+'@
+            'Arista' = @'
+ip access-list {{acl_name}}
+   {{action}} {{protocol}} {{src_network}}/{{src_wildcard}} {{dst_network}}/{{dst_wildcard}} eq {{dst_port}}
+'@
+            'Juniper' = @'
+set firewall family inet filter {{acl_name}} term 1 from protocol {{protocol}}
+set firewall family inet filter {{acl_name}} term 1 from source-address {{src_network}}/{{src_wildcard}}
+set firewall family inet filter {{acl_name}} term 1 from destination-address {{dst_network}}/{{dst_wildcard}}
+set firewall family inet filter {{acl_name}} term 1 from destination-port {{dst_port}}
+set firewall family inet filter {{acl_name}} term 1 then {{action}}
+'@
+            'HP' = @'
+ip access-list extended {{acl_name}}
+ {{action}} {{protocol}} {{src_network}} {{src_wildcard}} {{dst_network}} {{dst_wildcard}} eq {{dst_port}}
+'@
+        }
+    }
+    'ntp-server' = @{
+        Task = 'Configure NTP server'
+        Category = 'System'
+        Variables = @('ntp_server', 'prefer')
+        Snippets = @{
+            'Cisco' = @'
+ntp server {{ntp_server}} {{prefer}}
+'@
+            'Arista' = @'
+ntp server {{ntp_server}} {{prefer}}
+'@
+            'Juniper' = @'
+set system ntp server {{ntp_server}} {{prefer}}
+'@
+            'HP' = @'
+timesync ntp
+ntp server {{ntp_server}}
+'@
+        }
+    }
+    'snmp-community' = @{
+        Task = 'Configure SNMP community'
+        Category = 'System'
+        Variables = @('community', 'access_mode', 'acl_name')
+        Snippets = @{
+            'Cisco' = @'
+snmp-server community {{community}} {{access_mode}} {{acl_name}}
+'@
+            'Arista' = @'
+snmp-server community {{community}} {{access_mode}} {{acl_name}}
+'@
+            'Juniper' = @'
+set snmp community {{community}} authorization {{access_mode}}
+set snmp community {{community}} clients {{acl_name}}
+'@
+            'HP' = @'
+snmp-server community {{community}} {{access_mode}}
+'@
+        }
+    }
+    'syslog-server' = @{
+        Task = 'Configure syslog server'
+        Category = 'System'
+        Variables = @('syslog_server', 'severity')
+        Snippets = @{
+            'Cisco' = @'
+logging host {{syslog_server}}
+logging trap {{severity}}
+'@
+            'Arista' = @'
+logging host {{syslog_server}}
+logging trap {{severity}}
+'@
+            'Juniper' = @'
+set system syslog host {{syslog_server}} any {{severity}}
+'@
+            'HP' = @'
+logging {{syslog_server}}
+logging severity {{severity}}
+'@
+        }
+    }
+    'hsrp-config' = @{
+        Task = 'Configure HSRP'
+        Category = 'Routing'
+        Variables = @('interface', 'group_id', 'virtual_ip', 'priority', 'preempt')
+        Snippets = @{
+            'Cisco' = @'
+interface {{interface}}
+ standby {{group_id}} ip {{virtual_ip}}
+ standby {{group_id}} priority {{priority}}
+ standby {{group_id}} preempt
+'@
+            'Arista' = @'
+! Arista uses VRRP instead of HSRP
+interface {{interface}}
+   vrrp {{group_id}} ipv4 {{virtual_ip}}
+   vrrp {{group_id}} priority {{priority}}
+   vrrp {{group_id}} preempt
+'@
+            'Juniper' = @'
+set interfaces {{interface}} unit 0 family inet address {{virtual_ip}}/24 vrrp-group {{group_id}} virtual-address {{virtual_ip}}
+set interfaces {{interface}} unit 0 family inet address {{virtual_ip}}/24 vrrp-group {{group_id}} priority {{priority}}
+set interfaces {{interface}} unit 0 family inet address {{virtual_ip}}/24 vrrp-group {{group_id}} preempt
+'@
+            'HP' = @'
+interface {{interface}}
+ vrrp vrid {{group_id}}
+  ip address {{virtual_ip}}
+  priority {{priority}}
+  preempt
+'@
+        }
+    }
+    'ospf-basic' = @{
+        Task = 'Configure OSPF basic'
+        Category = 'Routing'
+        Variables = @('process_id', 'router_id', 'network', 'wildcard', 'area')
+        Snippets = @{
+            'Cisco' = @'
+router ospf {{process_id}}
+ router-id {{router_id}}
+ network {{network}} {{wildcard}} area {{area}}
+'@
+            'Arista' = @'
+router ospf {{process_id}}
+   router-id {{router_id}}
+   network {{network}}/{{wildcard}} area {{area}}
+'@
+            'Juniper' = @'
+set protocols ospf area {{area}} interface {{network}}.0
+set routing-options router-id {{router_id}}
+'@
+            'HP' = @'
+router ospf
+ router-id {{router_id}}
+ area {{area}}
+ enable
+'@
+        }
+    }
+    'bgp-neighbor' = @{
+        Task = 'Configure BGP neighbor'
+        Category = 'Routing'
+        Variables = @('local_as', 'neighbor_ip', 'remote_as', 'description')
+        Snippets = @{
+            'Cisco' = @'
+router bgp {{local_as}}
+ neighbor {{neighbor_ip}} remote-as {{remote_as}}
+ neighbor {{neighbor_ip}} description {{description}}
+'@
+            'Arista' = @'
+router bgp {{local_as}}
+   neighbor {{neighbor_ip}} remote-as {{remote_as}}
+   neighbor {{neighbor_ip}} description {{description}}
+'@
+            'Juniper' = @'
+set protocols bgp group external neighbor {{neighbor_ip}} description "{{description}}"
+set protocols bgp group external neighbor {{neighbor_ip}} peer-as {{remote_as}}
+set routing-options autonomous-system {{local_as}}
+'@
+            'HP' = @'
+router bgp {{local_as}}
+ neighbor {{neighbor_ip}} remote-as {{remote_as}}
+'@
+        }
+    }
+    'interface-shutdown' = @{
+        Task = 'Shutdown interface'
+        Category = 'Interface'
+        Variables = @('interface')
+        Snippets = @{
+            'Cisco' = @'
+interface {{interface}}
+ shutdown
+'@
+            'Arista' = @'
+interface {{interface}}
+   shutdown
+'@
+            'Juniper' = @'
+set interfaces {{interface}} disable
+'@
+            'HP' = @'
+interface {{interface}}
+ disable
+'@
+        }
+    }
+    'interface-no-shutdown' = @{
+        Task = 'Enable interface'
+        Category = 'Interface'
+        Variables = @('interface')
+        Snippets = @{
+            'Cisco' = @'
+interface {{interface}}
+ no shutdown
+'@
+            'Arista' = @'
+interface {{interface}}
+   no shutdown
+'@
+            'Juniper' = @'
+delete interfaces {{interface}} disable
+'@
+            'HP' = @'
+interface {{interface}}
+ enable
+'@
+        }
+    }
+    'interface-description' = @{
+        Task = 'Set interface description'
+        Category = 'Interface'
+        Variables = @('interface', 'description')
+        Snippets = @{
+            'Cisco' = @'
+interface {{interface}}
+ description {{description}}
+'@
+            'Arista' = @'
+interface {{interface}}
+   description {{description}}
+'@
+            'Juniper' = @'
+set interfaces {{interface}} description "{{description}}"
+'@
+            'HP' = @'
+interface {{interface}}
+ name "{{description}}"
+'@
+        }
+    }
+    'spanning-tree-portfast' = @{
+        Task = 'Configure STP portfast'
+        Category = 'Switching'
+        Variables = @('interface')
+        Snippets = @{
+            'Cisco' = @'
+interface {{interface}}
+ spanning-tree portfast
+ spanning-tree bpduguard enable
+'@
+            'Arista' = @'
+interface {{interface}}
+   spanning-tree portfast
+   spanning-tree bpduguard enable
+'@
+            'Juniper' = @'
+set protocols rstp interface {{interface}} edge
+set ethernet-switching-options bpdu-block interface {{interface}}
+'@
+            'HP' = @'
+interface {{interface}}
+ spanning-tree admin-edge-port
+ spanning-tree bpdu-guard
+'@
+        }
+    }
+    'dhcp-snooping' = @{
+        Task = 'Configure DHCP snooping'
+        Category = 'Security'
+        Variables = @('vlan_id', 'trusted_interface')
+        Snippets = @{
+            'Cisco' = @'
+ip dhcp snooping
+ip dhcp snooping vlan {{vlan_id}}
+interface {{trusted_interface}}
+ ip dhcp snooping trust
+'@
+            'Arista' = @'
+ip dhcp snooping
+ip dhcp snooping vlan {{vlan_id}}
+interface {{trusted_interface}}
+   ip dhcp snooping trust
+'@
+            'Juniper' = @'
+set ethernet-switching-options secure-access-port vlan {{vlan_id}} dhcp-snooping
+set ethernet-switching-options secure-access-port interface {{trusted_interface}} dhcp-trusted
+'@
+            'HP' = @'
+dhcp-snooping
+dhcp-snooping vlan {{vlan_id}}
+interface {{trusted_interface}}
+ dhcp-snooping trust
+'@
+        }
+    }
+    'banner-login' = @{
+        Task = 'Configure login banner'
+        Category = 'System'
+        Variables = @('banner_text')
+        Snippets = @{
+            'Cisco' = @'
+banner login ^
+{{banner_text}}
+^
+'@
+            'Arista' = @'
+banner login
+{{banner_text}}
+EOF
+'@
+            'Juniper' = @'
+set system login message "{{banner_text}}"
+'@
+            'HP' = @'
+banner motd "{{banner_text}}"
+'@
+        }
+    }
+    'aaa-tacacs' = @{
+        Task = 'Configure TACACS+ server'
+        Category = 'Security'
+        Variables = @('server_ip', 'shared_key')
+        Snippets = @{
+            'Cisco' = @'
+tacacs-server host {{server_ip}} key {{shared_key}}
+aaa new-model
+aaa authentication login default group tacacs+ local
+aaa authorization exec default group tacacs+ local
+'@
+            'Arista' = @'
+tacacs-server host {{server_ip}} key {{shared_key}}
+aaa authentication login default group tacacs+ local
+aaa authorization exec default group tacacs+ local
+'@
+            'Juniper' = @'
+set system tacplus-server {{server_ip}} secret {{shared_key}}
+set system authentication-order [tacplus password]
+'@
+            'HP' = @'
+tacacs-server host {{server_ip}} key {{shared_key}}
+aaa authentication login default group tacacs local
 '@
         }
     }
