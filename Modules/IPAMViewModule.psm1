@@ -180,6 +180,38 @@ function New-IPAMView {
             }
         }
 
+        # Helper: Validate IPv4 address format
+        function Test-IPv4Address {
+            param([string]$Address)
+            if ([string]::IsNullOrWhiteSpace($Address)) { return $false }
+            $parts = $Address.Trim() -split '\.'
+            if ($parts.Count -ne 4) { return $false }
+            foreach ($part in $parts) {
+                $octet = 0
+                if (-not [int]::TryParse($part, [ref]$octet)) { return $false }
+                if ($octet -lt 0 -or $octet -gt 255) { return $false }
+            }
+            return $true
+        }
+
+        # Helper: Validate VLAN number (1-4094)
+        function Test-VlanNumber {
+            param([string]$VlanText)
+            if ([string]::IsNullOrWhiteSpace($VlanText)) { return $false }
+            $vlan = 0
+            if (-not [int]::TryParse($VlanText.Trim(), [ref]$vlan)) { return $false }
+            return ($vlan -ge 1 -and $vlan -le 4094)
+        }
+
+        # Helper: Validate subnet prefix (0-32)
+        function Test-SubnetPrefix {
+            param([string]$PrefixText)
+            if ([string]::IsNullOrWhiteSpace($PrefixText)) { return $false }
+            $prefix = 0
+            if (-not [int]::TryParse($PrefixText.Trim(), [ref]$prefix)) { return $false }
+            return ($prefix -ge 0 -and $prefix -le 32)
+        }
+
         # Helper: Save database (scriptblock for closure capture)
         $saveDatabase = {
             $dataPath = $view.Tag.DataPath
@@ -446,12 +478,30 @@ function New-IPAMView {
             }
         }.GetNewClosure())
 
+        # Double-click to focus first editable field
+        $vlanGrid.Add_MouseDoubleClick({
+            param($sender, $e)
+            if ($sender.SelectedItem -and $vlanNameBox) {
+                $vlanNameBox.Focus()
+                $vlanNameBox.SelectAll()
+            }
+        }.GetNewClosure())
+
         # Event: Subnet grid selection
         $subnetGrid.Add_SelectionChanged({
             param($sender, $e)
             $selected = $sender.SelectedItem
             if ($selected) {
                 & $showSubnetDetails $selected
+            }
+        }.GetNewClosure())
+
+        # Double-click to focus first editable field
+        $subnetGrid.Add_MouseDoubleClick({
+            param($sender, $e)
+            if ($sender.SelectedItem -and $subnetAddressBox) {
+                $subnetAddressBox.Focus()
+                $subnetAddressBox.SelectAll()
             }
         }.GetNewClosure())
 
@@ -464,6 +514,15 @@ function New-IPAMView {
             }
         }.GetNewClosure())
 
+        # Double-click to focus first editable field
+        $ipGrid.Add_MouseDoubleClick({
+            param($sender, $e)
+            if ($sender.SelectedItem -and $ipAddressBox) {
+                $ipAddressBox.Focus()
+                $ipAddressBox.SelectAll()
+            }
+        }.GetNewClosure())
+
         # Event: Save VLAN
         $saveVlanButton.Add_Click({
             param($sender, $e)
@@ -473,6 +532,20 @@ function New-IPAMView {
             if ([string]::IsNullOrWhiteSpace($vlanNumText) -or [string]::IsNullOrWhiteSpace($vlanNameBox.Text)) {
                 $statusText.Text = 'Please enter VLAN number and name'
                 return
+            }
+
+            # Validate VLAN number
+            if (-not (Test-VlanNumber -VlanText $vlanNumText)) {
+                [System.Windows.MessageBox]::Show('VLAN number must be between 1 and 4094.', 'Invalid VLAN', 'OK', 'Warning')
+                return
+            }
+
+            # Validate SVI address if provided
+            if (-not [string]::IsNullOrWhiteSpace($vlanSVIBox.Text)) {
+                if (-not (Test-IPv4Address -Address $vlanSVIBox.Text)) {
+                    [System.Windows.MessageBox]::Show('SVI address must be a valid IPv4 address (e.g., 10.1.10.1).', 'Invalid SVI Address', 'OK', 'Warning')
+                    return
+                }
             }
 
             try {
@@ -566,6 +639,34 @@ function New-IPAMView {
             if ([string]::IsNullOrWhiteSpace($subnetAddressBox.Text) -or [string]::IsNullOrWhiteSpace($subnetPrefixBox.Text)) {
                 $statusText.Text = 'Please enter network address and prefix length'
                 return
+            }
+
+            # Validate network address
+            if (-not (Test-IPv4Address -Address $subnetAddressBox.Text)) {
+                [System.Windows.MessageBox]::Show('Network address must be a valid IPv4 address (e.g., 10.1.10.0).', 'Invalid Network Address', 'OK', 'Warning')
+                return
+            }
+
+            # Validate prefix length
+            if (-not (Test-SubnetPrefix -PrefixText $subnetPrefixBox.Text)) {
+                [System.Windows.MessageBox]::Show('Prefix length must be between 0 and 32.', 'Invalid Prefix', 'OK', 'Warning')
+                return
+            }
+
+            # Validate gateway address if provided
+            if (-not [string]::IsNullOrWhiteSpace($subnetGatewayBox.Text)) {
+                if (-not (Test-IPv4Address -Address $subnetGatewayBox.Text)) {
+                    [System.Windows.MessageBox]::Show('Gateway address must be a valid IPv4 address.', 'Invalid Gateway', 'OK', 'Warning')
+                    return
+                }
+            }
+
+            # Validate VLAN number if provided
+            if (-not [string]::IsNullOrWhiteSpace($subnetVlanBox.Text)) {
+                if (-not (Test-VlanNumber -VlanText $subnetVlanBox.Text)) {
+                    [System.Windows.MessageBox]::Show('VLAN number must be between 1 and 4094.', 'Invalid VLAN', 'OK', 'Warning')
+                    return
+                }
             }
 
             try {
@@ -702,6 +803,12 @@ function New-IPAMView {
 
             if ([string]::IsNullOrWhiteSpace($ipAddressBox.Text)) {
                 $statusText.Text = 'Please enter an IP address'
+                return
+            }
+
+            # Validate IP address format
+            if (-not (Test-IPv4Address -Address $ipAddressBox.Text)) {
+                [System.Windows.MessageBox]::Show('IP address must be a valid IPv4 address (e.g., 10.1.10.5).', 'Invalid IP Address', 'OK', 'Warning')
                 return
             }
 

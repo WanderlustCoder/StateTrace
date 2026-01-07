@@ -850,6 +850,37 @@ function New-InterfacesView {
     if ($templateDropdown)  { $global:templateDropdown = $templateDropdown }
     if ($filterBox)         { $global:filterBox        = $filterBox }
 
+    # Cell edit validation for VLAN and Name columns
+    if ($interfacesGrid) {
+        $interfacesGrid.Add_CellEditEnding({
+            param($sender, $e)
+            if ($e.EditAction -ne 'Commit') { return }
+
+            $column = $e.Column.Header
+            $editingElement = $e.EditingElement
+
+            if ($column -eq 'VLAN' -and $editingElement -is [System.Windows.Controls.TextBox]) {
+                $text = $editingElement.Text.Trim()
+                if ($text -ne '') {
+                    $vlan = 0
+                    if (-not [int]::TryParse($text, [ref]$vlan) -or $vlan -lt 1 -or $vlan -gt 4094) {
+                        [System.Windows.MessageBox]::Show("VLAN must be a number between 1 and 4094.", 'Invalid VLAN', 'OK', 'Warning')
+                        $e.Cancel = $true
+                        return
+                    }
+                }
+            }
+            elseif ($column -eq 'Name' -and $editingElement -is [System.Windows.Controls.TextBox]) {
+                $text = $editingElement.Text
+                if ($text.Length -gt 64) {
+                    [System.Windows.MessageBox]::Show("Port name cannot exceed 64 characters.", 'Name Too Long', 'OK', 'Warning')
+                    $e.Cancel = $true
+                    return
+                }
+            }
+        })
+    }
+
     # ------------------------------
     if ($compareButton) {
         $compareButton.Add_Click({

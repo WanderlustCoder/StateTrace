@@ -137,6 +137,17 @@ function Register-ChangeManagementEventHandlers {
         }.GetNewClosure())
     }
 
+    # Double-click on grid row to edit
+    $changesGrid = $View.FindName('ChangesGrid')
+    if ($changesGrid) {
+        $changesGrid.Add_MouseDoubleClick({
+            param($sender, $e)
+            if ($sender.SelectedItem) {
+                Show-EditChangeDialog -View $View -Change $sender.SelectedItem
+            }
+        }.GetNewClosure())
+    }
+
     # Submit Change button
     $submitButton = $View.FindName('SubmitChangeButton')
     if ($submitButton) {

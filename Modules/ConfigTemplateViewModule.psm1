@@ -85,6 +85,7 @@ function New-ConfigTemplateView {
 
         $mainTabControl = $view.FindName('MainTabControl')
         $statusText = $view.FindName('StatusText')
+        $dirtyIndicator = $view.FindName('DirtyIndicator')
 
         # Initialize libraries
         $dataPath = Join-Path $ScriptDir 'Data'
@@ -95,6 +96,8 @@ function New-ConfigTemplateView {
         $script:standardsLib = ConfigValidationModule\New-StandardsLibrary
         $script:currentVariables = @()
         $script:lastComplianceResult = $null
+        $script:isDirty = $false
+        $script:isLoadingTemplate = $false  # Suppress dirty tracking during template load
 
         # Try to load existing data
         if (Test-Path $templatesPath) {
@@ -123,15 +126,16 @@ function New-ConfigTemplateView {
             SelectedStandard = $null
         }
 
-        # Helper: Get combo content
-        function Get-ComboValue {
+        # Helper scriptblocks (each must call .GetNewClosure() to capture referenced variables)
+        # Using scriptblocks with closures ensures they are accessible in WPF event handlers
+
+        $GetComboValue = {
             param($Combo)
             if ($Combo.SelectedItem) { return $Combo.SelectedItem.Content }
             return $null
-        }
+        }.GetNewClosure()
 
-        # Helper: Select combo by content
-        function Select-ComboItem {
+        $SelectComboItem = {
             param($Combo, $Value)
             foreach ($item in $Combo.Items) {
                 if ($item.Content -eq $Value) {
@@ -139,10 +143,36 @@ function New-ConfigTemplateView {
                     return
                 }
             }
-        }
+        }.GetNewClosure()
 
-        # Helper: Save libraries
-        function Save-Libraries {
+        $SetDirty = {
+            param([bool]$IsDirty)
+            $script:isDirty = $IsDirty
+            if ($dirtyIndicator) {
+                $dirtyIndicator.Visibility = if ($IsDirty) { 'Visible' } else { 'Collapsed' }
+            }
+        }.GetNewClosure()
+
+        $MarkDirty = {
+            if (-not $script:isLoadingTemplate) {
+                & $SetDirty -IsDirty $true
+            }
+        }.GetNewClosure()
+
+        $CheckDirtyBeforeAction = {
+            param([string]$ActionDescription)
+            if ($script:isDirty) {
+                $result = [System.Windows.MessageBox]::Show(
+                    "You have unsaved changes. $ActionDescription anyway?",
+                    "Unsaved Changes",
+                    [System.Windows.MessageBoxButton]::YesNo,
+                    [System.Windows.MessageBoxImage]::Warning)
+                return ($result -eq [System.Windows.MessageBoxResult]::Yes)
+            }
+            return $true
+        }.GetNewClosure()
+
+        $SaveLibraries = {
             try {
                 $dataPath = $view.Tag.DataPath
                 if (-not (Test-Path $dataPath)) {
@@ -154,27 +184,24 @@ function New-ConfigTemplateView {
             catch {
                 $statusText.Text = "Error saving: $($_.Exception.Message)"
             }
-        }
+        }.GetNewClosure()
 
-        # Helper: Refresh template list
-        function Refresh-TemplateList {
+        $RefreshTemplateList = {
             $lib = $view.Tag.TemplateLibrary
-            $vendor = Get-ComboValue -Combo $vendorFilterCombo
+            $vendor = & $GetComboValue -Combo $vendorFilterCombo
             if ($vendor -eq 'All') { $vendor = $null }
 
             $templates = @(ConfigTemplateModule\Get-ConfigTemplate -Library $lib -Vendor $vendor)
             $templateListBox.ItemsSource = $templates
-        }
+        }.GetNewClosure()
 
-        # Helper: Refresh standards list
-        function Refresh-StandardsList {
+        $RefreshStandardsList = {
             $lib = $view.Tag.StandardsLibrary
             $standards = @(ConfigValidationModule\Get-ValidationStandard -Library $lib)
             $standardsListBox.ItemsSource = $standards
-        }
+        }.GetNewClosure()
 
-        # Helper: Refresh statistics
-        function Refresh-Stats {
+        $RefreshStats = {
             $tLib = $view.Tag.TemplateLibrary
             $sLib = $view.Tag.StandardsLibrary
 
@@ -203,10 +230,10 @@ function New-ConfigTemplateView {
                 $statsList += [PSCustomObject]@{ Name = $s.Name; RuleCount = $s.Rules.Count }
             }
             $standardsListStats.ItemsSource = $statsList
-        }
+        }.GetNewClosure()
 
-        # Helper: Clear template form
-        function Clear-TemplateForm {
+        $ClearTemplateForm = {
+            $script:isLoadingTemplate = $true
             $templateNameBox.Text = ''
             $templateVendorCombo.SelectedIndex = 0
             $templateTypeCombo.SelectedIndex = 0
@@ -215,26 +242,11 @@ function New-ConfigTemplateView {
             $variablesItemsControl.ItemsSource = $null
             $view.Tag.IsNewTemplate = $true
             $view.Tag.SelectedTemplate = $null
-        }
+            $script:isLoadingTemplate = $false
+            & $SetDirty -IsDirty $false
+        }.GetNewClosure()
 
-        # Helper: Show template
-        function Show-Template {
-            param($Template)
-            if ($Template) {
-                $view.Tag.IsNewTemplate = $false
-                $view.Tag.SelectedTemplate = $Template
-                $templateNameBox.Text = $Template.Name
-                Select-ComboItem -Combo $templateVendorCombo -Value $Template.Vendor
-                Select-ComboItem -Combo $templateTypeCombo -Value $Template.DeviceType
-                $templateContentBox.Text = $Template.Content
-
-                # Extract and show variables
-                Extract-Variables
-            }
-        }
-
-        # Helper: Extract variables from template
-        function Extract-Variables {
+        $ExtractVariables = {
             $content = $templateContentBox.Text
             if ([string]::IsNullOrWhiteSpace($content)) {
                 $script:currentVariables = @()
@@ -257,12 +269,33 @@ function New-ConfigTemplateView {
             }
 
             $variablesItemsControl.ItemsSource = $script:currentVariables
-        }
+        }.GetNewClosure()
+
+        $ShowTemplate = {
+            param($Template)
+            if ($Template) {
+                $script:isLoadingTemplate = $true
+                $view.Tag.IsNewTemplate = $false
+                $view.Tag.SelectedTemplate = $Template
+                $templateNameBox.Text = $Template.Name
+                & $SelectComboItem -Combo $templateVendorCombo -Value $Template.Vendor
+                & $SelectComboItem -Combo $templateTypeCombo -Value $Template.DeviceType
+                $templateContentBox.Text = $Template.Content
+
+                # Extract and show variables
+                & $ExtractVariables
+                $script:isLoadingTemplate = $false
+                & $SetDirty -IsDirty $false
+            }
+        }.GetNewClosure()
 
         # Event: New Template
         $newTemplateButton.Add_Click({
             param($sender, $e)
-            Clear-TemplateForm
+            if (-not (& $CheckDirtyBeforeAction -ActionDescription "Create new template")) {
+                return
+            }
+            & $ClearTemplateForm
             $templateListBox.SelectedItem = $null
             $statusText.Text = "New template - fill in details and click Save"
         }.GetNewClosure())
@@ -270,21 +303,27 @@ function New-ConfigTemplateView {
         # Event: Save Template
         $saveTemplateButton.Add_Click({
             param($sender, $e)
+            Write-Host "[ConfigTemplate] Save button clicked"
             $lib = $view.Tag.TemplateLibrary
 
             if ([string]::IsNullOrWhiteSpace($templateNameBox.Text)) {
                 $statusText.Text = "Please enter a template name"
+                Write-Host "[ConfigTemplate] No template name entered"
                 return
             }
 
             try {
-                $vendor = Get-ComboValue -Combo $templateVendorCombo
-                $deviceType = Get-ComboValue -Combo $templateTypeCombo
+                Write-Host "[ConfigTemplate] Getting vendor and device type..."
+                $vendor = & $GetComboValue -Combo $templateVendorCombo
+                $deviceType = & $GetComboValue -Combo $templateTypeCombo
+                Write-Host "[ConfigTemplate] Vendor=$vendor, DeviceType=$deviceType, IsNew=$($view.Tag.IsNewTemplate)"
 
                 if ($view.Tag.IsNewTemplate) {
+                    Write-Host "[ConfigTemplate] Creating new template: $($templateNameBox.Text)"
                     $template = ConfigTemplateModule\New-ConfigTemplate -Name $templateNameBox.Text `
                         -Content $templateContentBox.Text -Vendor $vendor -DeviceType $deviceType
                     $result = ConfigTemplateModule\Add-ConfigTemplate -Template $template -Library $lib
+                    Write-Host "[ConfigTemplate] Add result: $result"
                     if ($result) {
                         $statusText.Text = "Created template: $($templateNameBox.Text)"
                     } else {
@@ -303,11 +342,17 @@ function New-ConfigTemplateView {
                     $statusText.Text = "Updated template: $($templateNameBox.Text)"
                 }
 
-                Save-Libraries
-                Refresh-TemplateList
-                Refresh-Stats
+                Write-Host "[ConfigTemplate] Calling SaveLibraries..."
+                & $SaveLibraries
+                Write-Host "[ConfigTemplate] Calling RefreshTemplateList..."
+                & $RefreshTemplateList
+                Write-Host "[ConfigTemplate] Calling RefreshStats..."
+                & $RefreshStats
+                & $SetDirty -IsDirty $false
+                Write-Host "[ConfigTemplate] Save complete"
             }
             catch {
+                Write-Host "[ConfigTemplate] Error: $($_.Exception.Message)"
                 $statusText.Text = "Error: $($_.Exception.Message)"
             }
         }.GetNewClosure())
@@ -316,15 +361,24 @@ function New-ConfigTemplateView {
         $templateListBox.Add_SelectionChanged({
             param($sender, $e)
             $selected = $sender.SelectedItem
-            if ($selected) {
-                Show-Template -Template $selected
+            if ($selected -and ($selected -ne $view.Tag.SelectedTemplate)) {
+                if (-not (& $CheckDirtyBeforeAction -ActionDescription "Switch to another template")) {
+                    # Restore previous selection
+                    $script:isLoadingTemplate = $true
+                    if ($view.Tag.SelectedTemplate) {
+                        $sender.SelectedItem = $view.Tag.SelectedTemplate
+                    }
+                    $script:isLoadingTemplate = $false
+                    return
+                }
+                & $ShowTemplate -Template $selected
             }
         }.GetNewClosure())
 
         # Event: Extract Variables
         $extractVarsButton.Add_Click({
             param($sender, $e)
-            Extract-Variables
+            & $ExtractVariables
             $statusText.Text = "Extracted $($script:currentVariables.Count) variables"
         }.GetNewClosure())
 
@@ -366,7 +420,7 @@ function New-ConfigTemplateView {
         # Event: Vendor filter changed
         $vendorFilterCombo.Add_SelectionChanged({
             param($sender, $e)
-            Refresh-TemplateList
+            & $RefreshTemplateList
         }.GetNewClosure())
 
         # Event: Standards selection
@@ -538,10 +592,10 @@ function New-ConfigTemplateView {
             try {
                 $tResult = ConfigTemplateModule\Import-BuiltInTemplates -Library $view.Tag.TemplateLibrary
                 $sResult = ConfigValidationModule\Import-BuiltInStandards -Library $view.Tag.StandardsLibrary
-                Save-Libraries
-                Refresh-TemplateList
-                Refresh-StandardsList
-                Refresh-Stats
+                & $SaveLibraries
+                & $RefreshTemplateList
+                & $RefreshStandardsList
+                & $RefreshStats
                 $statusText.Text = "Loaded $($tResult.Imported) templates, $($sResult.Imported) standards"
             }
             catch {
@@ -571,10 +625,10 @@ function New-ConfigTemplateView {
                     if ($content.Standards) {
                         ConfigValidationModule\Import-StandardsLibrary -Path $dialog.FileName -Library $view.Tag.StandardsLibrary -Merge | Out-Null
                     }
-                    Save-Libraries
-                    Refresh-TemplateList
-                    Refresh-StandardsList
-                    Refresh-Stats
+                    & $SaveLibraries
+                    & $RefreshTemplateList
+                    & $RefreshStandardsList
+                    & $RefreshStats
                     $statusText.Text = "Imported from: $($dialog.FileName)"
                 }
             }
@@ -620,19 +674,40 @@ function New-ConfigTemplateView {
             if ($result -eq [System.Windows.MessageBoxResult]::Yes) {
                 ConfigTemplateModule\Clear-TemplateLibrary -Library $view.Tag.TemplateLibrary
                 ConfigValidationModule\Clear-StandardsLibrary -Library $view.Tag.StandardsLibrary
-                Save-Libraries
-                Refresh-TemplateList
-                Refresh-StandardsList
-                Refresh-Stats
-                Clear-TemplateForm
+                & $SaveLibraries
+                & $RefreshTemplateList
+                & $RefreshStandardsList
+                & $RefreshStats
+                & $ClearTemplateForm
                 $statusText.Text = "Libraries cleared"
             }
         }.GetNewClosure())
 
+        # Track edits for dirty state
+        $templateNameBox.Add_TextChanged({
+            param($sender, $e)
+            & $MarkDirty
+        }.GetNewClosure())
+
+        $templateContentBox.Add_TextChanged({
+            param($sender, $e)
+            & $MarkDirty
+        }.GetNewClosure())
+
+        $templateVendorCombo.Add_SelectionChanged({
+            param($sender, $e)
+            & $MarkDirty
+        }.GetNewClosure())
+
+        $templateTypeCombo.Add_SelectionChanged({
+            param($sender, $e)
+            & $MarkDirty
+        }.GetNewClosure())
+
         # Initial load
-        Refresh-TemplateList
-        Refresh-StandardsList
-        Refresh-Stats
+        & $RefreshTemplateList
+        & $RefreshStandardsList
+        & $RefreshStats
         $statusText.Text = 'Ready'
 
         return $view
