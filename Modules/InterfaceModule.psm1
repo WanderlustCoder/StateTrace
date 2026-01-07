@@ -847,6 +847,7 @@ function New-InterfacesView {
     $copyPortsButton   = $interfacesView.FindName('CopyPortsButton')
     $copyMacsButton    = $interfacesView.FindName('CopyMacsButton')
     $exportSelectedBtn = $interfacesView.FindName('ExportSelectedButton')
+    $exportFormatDropdown = $interfacesView.FindName('ExportFormatDropdown')
     $setVlanButton     = $interfacesView.FindName('SetVlanButton')
     $setNameButton     = $interfacesView.FindName('SetNameButton')
     $columnsButton     = $interfacesView.FindName('ColumnsButton')
@@ -932,6 +933,38 @@ function New-InterfacesView {
                     $row.IsSelected = $false
                 }
                 $grid.Items.Refresh()
+                $e.Handled = $true
+                return
+            }
+
+            # F1 or ? - Show keyboard shortcuts overlay
+            if ($e.Key -eq 'F1' -or ($e.Key -eq 'Oem2' -and [System.Windows.Input.Keyboard]::Modifiers -eq 'Shift')) {
+                $shortcutsText = @"
+Keyboard Shortcuts - Interfaces View
+
+Navigation:
+  Ctrl+1-9      Switch tabs
+  PageUp/Down   Scroll grid
+  Home/End      Jump to first/last row
+
+Selection:
+  Ctrl+A        Select all rows
+  Delete        Clear selection
+  Click         Toggle row selection
+
+Clipboard:
+  Ctrl+C        Copy selected port names
+  Double-click  Copy cell value
+
+Filtering:
+  Type in filter box to search
+  Up/Down quick filters
+
+Grid:
+  Click column header to sort
+  Drag column edges to resize
+"@
+                [System.Windows.MessageBox]::Show($shortcutsText, "Keyboard Shortcuts", "OK", "Information")
                 $e.Handled = $true
                 return
             }
@@ -1437,7 +1470,7 @@ function New-InterfacesView {
         })
     }
 
-    # Quick action: Export selected rows
+    # Quick action: Export selected rows with format selection
     if ($exportSelectedBtn -and $interfacesGrid) {
         $exportSelectedBtn.Add_Click({
             $grid = $global:interfacesGrid
@@ -1447,8 +1480,50 @@ function New-InterfacesView {
                 [System.Windows.MessageBox]::Show("No interfaces selected.")
                 return
             }
-            Export-StRowsWithFormatChoice -Rows $selectedRows -DefaultBaseName 'SelectedInterfaces' -SuccessNoun 'interfaces'
-        })
+
+            # Get format from dropdown
+            $format = 'CSV'
+            if ($exportFormatDropdown -and $exportFormatDropdown.SelectedItem) {
+                $format = $exportFormatDropdown.SelectedItem.Content
+            }
+
+            switch ($format) {
+                'Clipboard' {
+                    # Copy as tab-separated table to clipboard
+                    $header = "Port`tName`tStatus`tVLAN`tDuplex`tSpeed`tType`tLearnedMACs`tAuthState"
+                    $rows = $selectedRows | ForEach-Object {
+                        "$($_.Port)`t$($_.Name)`t$($_.Status)`t$($_.VLAN)`t$($_.Duplex)`t$($_.Speed)`t$($_.Type)`t$($_.LearnedMACs)`t$($_.AuthState)"
+                    }
+                    $table = @($header) + $rows
+                    Set-Clipboard -Value ($table -join "`r`n")
+                    [System.Windows.MessageBox]::Show("Copied $($selectedRows.Count) row(s) to clipboard.", "Export", "OK", "Information")
+                }
+                'JSON' {
+                    # Export to JSON file
+                    $dlg = New-Object Microsoft.Win32.SaveFileDialog
+                    $dlg.Filter = 'JSON files (*.json)|*.json'
+                    $dlg.FileName = 'SelectedInterfaces.json'
+                    $dlg.DefaultExt = '.json'
+                    if ($dlg.ShowDialog() -eq $true) {
+                        $json = $selectedRows | ConvertTo-Json -Depth 10
+                        $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+                        [System.IO.File]::WriteAllText($dlg.FileName, $json, $utf8NoBom)
+                        [System.Windows.MessageBox]::Show("Exported $($selectedRows.Count) interfaces to $($dlg.FileName)", "Export", "OK", "Information")
+                    }
+                }
+                default {
+                    # CSV (default)
+                    $dlg = New-Object Microsoft.Win32.SaveFileDialog
+                    $dlg.Filter = 'CSV files (*.csv)|*.csv'
+                    $dlg.FileName = 'SelectedInterfaces.csv'
+                    $dlg.DefaultExt = '.csv'
+                    if ($dlg.ShowDialog() -eq $true) {
+                        $selectedRows | Export-Csv -Path $dlg.FileName -NoTypeInformation
+                        [System.Windows.MessageBox]::Show("Exported $($selectedRows.Count) interfaces to $($dlg.FileName)", "Export", "OK", "Information")
+                    }
+                }
+            }
+        }.GetNewClosure())
     }
 
     # Batch VLAN edit
@@ -1856,14 +1931,46 @@ function Set-InterfaceViewData {
     try {
         $grid = $interfacesView.FindName('InterfacesGrid')
         if ($grid) {
+            # Capture previous state for change detection
+            $previousState = @{}
+            if ($grid.ItemsSource) {
+                foreach ($row in $grid.ItemsSource) {
+                    if ($row.Port) {
+                        $previousState[$row.Port] = @{
+                            Status = $row.Status
+                            VLAN   = $row.VLAN
+                            Name   = $row.Name
+                            Speed  = $row.Speed
+                        }
+                    }
+                }
+            }
+
             $itemsSource = $DeviceDetails.Interfaces
             if (-not $itemsSource) {
                 $itemsSource = New-Object 'System.Collections.ObjectModel.ObservableCollection[object]'
                 $DeviceDetails.Interfaces = $itemsSource
             }
+
+            # Mark changed rows
+            $changedCount = 0
+            if ($previousState.Count -gt 0) {
+                foreach ($row in $itemsSource) {
+                    $row | Add-Member -NotePropertyName 'HasChanged' -NotePropertyValue $false -Force
+                    if ($row.Port -and $previousState.ContainsKey($row.Port)) {
+                        $prev = $previousState[$row.Port]
+                        if ($row.Status -ne $prev.Status -or $row.VLAN -ne $prev.VLAN -or $row.Name -ne $prev.Name -or $row.Speed -ne $prev.Speed) {
+                            $row.HasChanged = $true
+                            $changedCount++
+                        }
+                    }
+                }
+            }
+
             $grid.ItemsSource = $itemsSource
             try { $global:interfacesGrid = $grid } catch {}
             try { $global:CurrentInterfaceCollection = $itemsSource } catch { $global:CurrentInterfaceCollection = $null }
+            try { $global:InterfaceChangedCount = $changedCount } catch {}
 
             # Update last updated timestamp
             $lastUpdatedText = $interfacesView.FindName('InterfacesLastUpdatedText')
@@ -1886,9 +1993,12 @@ function Set-InterfaceViewData {
 
                 $summaryText = "$total ports: $up up, $down down"
                 if ($other -gt 0) { $summaryText += ", $other other" }
+                if ($changedCount -gt 0) { $summaryText += " | $changedCount changed" }
                 if ($warnings -gt 0) {
                     $summaryText += " | $warnings warnings"
                     $statusSummary.Foreground = [System.Windows.Media.Brushes]::Orange
+                } elseif ($changedCount -gt 0) {
+                    $statusSummary.Foreground = [System.Windows.Media.Brushes]::DodgerBlue
                 } else {
                     $statusSummary.Foreground = $interfacesView.FindResource('Theme.Text.Muted')
                 }

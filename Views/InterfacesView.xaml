@@ -152,7 +152,12 @@
             <TextBlock Text="Quick:" Foreground="{DynamicResource Theme.Text.Inverse}" VerticalAlignment="Center" Margin="0,0,5,0"/>
             <Button Name="CopyPortsButton" Content="Ports" Width="45" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Copy selected port names to clipboard" Margin="0,0,3,0"/>
             <Button Name="CopyMacsButton" Content="MACs" Width="50" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Copy selected MAC addresses to clipboard" Margin="0,0,3,0"/>
-            <Button Name="ExportSelectedButton" Content="Export" Width="50" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Export selected rows to file" Margin="0,0,3,0"/>
+            <Button Name="ExportSelectedButton" Content="Export" Width="50" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Export selected rows to file" Margin="0,0,0,0"/>
+            <ComboBox Name="ExportFormatDropdown" Width="55" Height="23" Style="{DynamicResource ToolbarComboBoxStyle}" ToolTip="Export format" Margin="0,0,3,0">
+              <ComboBoxItem Content="CSV" IsSelected="True"/>
+              <ComboBoxItem Content="JSON"/>
+              <ComboBoxItem Content="Clipboard"/>
+            </ComboBox>
             <Button Name="SetVlanButton" Content="Set VLAN" Width="65" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Set VLAN for all selected interfaces" Margin="0,0,3,0"/>
             <Button Name="SetNameButton" Content="Set Name" Width="65" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Set name for all selected interfaces" Margin="0,0,3,0"/>
             <Button Name="CopyTableButton" Content="Table" Width="45" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Copy selected rows as formatted table" Margin="0,0,3,0"/>
@@ -206,7 +211,15 @@
                     ScrollViewer.CanContentScroll="True"
                     VirtualizingPanel.ScrollUnit="Pixel">
             <DataGrid.RowStyle>
-              <DynamicResource ResourceKey="PrimaryDataGridRowStyle"/>
+              <Style TargetType="DataGridRow" BasedOn="{StaticResource PrimaryDataGridRowStyle}">
+                <Style.Triggers>
+                  <DataTrigger Binding="{Binding HasChanged}" Value="True">
+                    <Setter Property="Background" Value="#3DFFA500"/>
+                    <Setter Property="BorderBrush" Value="#FFA500"/>
+                    <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                  </DataTrigger>
+                </Style.Triggers>
+              </Style>
             </DataGrid.RowStyle>
             <DataGrid.ContextMenu>
               <ContextMenu Name="InterfacesContextMenu">
@@ -360,6 +373,17 @@
                        FontSize="11"
                        VerticalAlignment="Center"
                        Margin="0,0,15,0"/>
+            <!-- Status color legend -->
+            <StackPanel Name="StatusLegend" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,15,0">
+              <Ellipse Width="8" Height="8" Fill="#4CAF50" Margin="0,0,3,0" VerticalAlignment="Center"/>
+              <TextBlock Text="Up" Foreground="{DynamicResource Theme.Text.Muted}" FontSize="10" VerticalAlignment="Center" Margin="0,0,8,0"/>
+              <Ellipse Width="8" Height="8" Fill="#F44336" Margin="0,0,3,0" VerticalAlignment="Center"/>
+              <TextBlock Text="Down" Foreground="{DynamicResource Theme.Text.Muted}" FontSize="10" VerticalAlignment="Center" Margin="0,0,8,0"/>
+              <Ellipse Width="8" Height="8" Fill="#FFA500" Margin="0,0,3,0" VerticalAlignment="Center"/>
+              <TextBlock Text="Changed" Foreground="{DynamicResource Theme.Text.Muted}" FontSize="10" VerticalAlignment="Center" Margin="0,0,8,0"/>
+              <Ellipse Width="8" Height="8" Fill="#9E9E9E" Margin="0,0,3,0" VerticalAlignment="Center"/>
+              <TextBlock Text="Other" Foreground="{DynamicResource Theme.Text.Muted}" FontSize="10" VerticalAlignment="Center"/>
+            </StackPanel>
             <TextBlock Name="HostLoadingIndicator"
                        Text="Loading host..."
                        Foreground="{DynamicResource Theme.Text.Inverse}"
