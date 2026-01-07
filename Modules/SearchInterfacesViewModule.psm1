@@ -343,7 +343,23 @@ function New-SearchInterfacesView {
     if ($exportBtn) {
         $exportBtn.Add_Click({
             if (-not $searchGrid) { return }
-            $rows = $searchGrid.ItemsSource
+            $rows = @($searchGrid.ItemsSource)
+            if ($rows.Count -eq 0) {
+                if (-not $SuppressDialogs) {
+                    [System.Windows.MessageBox]::Show('No results to export.', 'Export', 'OK', 'Information') | Out-Null
+                }
+                return
+            }
+            # Confirm large exports
+            if ($rows.Count -gt 500 -and -not $SuppressDialogs) {
+                $result = [System.Windows.MessageBox]::Show(
+                    "Export $($rows.Count) rows?",
+                    'Confirm Export',
+                    [System.Windows.MessageBoxButton]::YesNo,
+                    [System.Windows.MessageBoxImage]::Question
+                )
+                if ($result -ne [System.Windows.MessageBoxResult]::Yes) { return }
+            }
             ViewCompositionModule\Export-StRowsWithFormatChoice -Rows $rows -DefaultBaseName 'SearchResults' -EmptyMessage 'No results to export.' -SuccessNoun 'rows' -FailureMessagePrefix 'Failed to export' -SuppressDialogs:$SuppressDialogs
         }.GetNewClosure())
     }
@@ -472,6 +488,85 @@ function New-SearchInterfacesView {
             if ($result -eq 'Yes') {
                 script:Delete-FilterPreset -Name $presetName
                 script:Update-PresetDropdown -Dropdown $presetDropdown
+            }
+        }.GetNewClosure())
+    }
+
+    # Context menu handlers
+    if ($searchGrid -and $searchGrid.ContextMenu) {
+        $contextMenu = $searchGrid.ContextMenu
+        $copyRowItem = $contextMenu.Items | Where-Object { $_.Name -eq 'CopyRowMenuItem' } | Select-Object -First 1
+        $copyCellItem = $contextMenu.Items | Where-Object { $_.Name -eq 'CopyCellMenuItem' } | Select-Object -First 1
+        $copyAllItem = $contextMenu.Items | Where-Object { $_.Name -eq 'CopyAllMenuItem' } | Select-Object -First 1
+        $exportSelectedItem = $contextMenu.Items | Where-Object { $_.Name -eq 'ExportSelectedMenuItem' } | Select-Object -First 1
+
+        if ($copyRowItem) {
+            $copyRowItem.Add_Click({
+                $selected = $searchGrid.SelectedItems
+                if ($selected.Count -eq 0) { return }
+                $text = ($selected | ForEach-Object {
+                    "$($_.Hostname)`t$($_.Port)`t$($_.Name)`t$($_.Status)`t$($_.VLAN)`t$($_.Duplex)`t$($_.Speed)`t$($_.Type)`t$($_.LearnedMACs)`t$($_.AuthState)`t$($_.AuthMode)`t$($_.AuthClientMAC)"
+                }) -join "`r`n"
+                [System.Windows.Clipboard]::SetText($text)
+            }.GetNewClosure())
+        }
+        if ($copyCellItem) {
+            $copyCellItem.Add_Click({
+                $cell = $searchGrid.CurrentCell
+                if ($null -eq $cell -or $null -eq $cell.Item) { return }
+                $propName = $cell.Column.SortMemberPath
+                if (-not $propName) { $propName = $cell.Column.Header }
+                $value = $cell.Item.$propName
+                if ($null -ne $value) { [System.Windows.Clipboard]::SetText([string]$value) }
+            }.GetNewClosure())
+        }
+        if ($copyAllItem) {
+            $copyAllItem.Add_Click({
+                $rows = $searchGrid.ItemsSource
+                if (-not $rows -or $rows.Count -eq 0) { return }
+                $header = "Switch`tPort`tName`tStatus`tVLAN`tDuplex`tSpeed`tType`tLearnedMACs`tAuthState`tAuthMode`tClient MAC"
+                $lines = @($header) + ($rows | ForEach-Object {
+                    "$($_.Hostname)`t$($_.Port)`t$($_.Name)`t$($_.Status)`t$($_.VLAN)`t$($_.Duplex)`t$($_.Speed)`t$($_.Type)`t$($_.LearnedMACs)`t$($_.AuthState)`t$($_.AuthMode)`t$($_.AuthClientMAC)"
+                })
+                [System.Windows.Clipboard]::SetText($lines -join "`r`n")
+            }.GetNewClosure())
+        }
+        if ($exportSelectedItem) {
+            $exportSelectedItem.Add_Click({
+                $selected = @($searchGrid.SelectedItems)
+                if ($selected.Count -eq 0) {
+                    [System.Windows.MessageBox]::Show('No rows selected.', 'Export', 'OK', 'Information') | Out-Null
+                    return
+                }
+                ViewCompositionModule\Export-StRowsWithFormatChoice -Rows $selected -DefaultBaseName 'SearchResults_Selected' -EmptyMessage 'No rows selected.' -SuccessNoun 'rows' -FailureMessagePrefix 'Failed to export' -SuppressDialogs:$SuppressDialogs
+            }.GetNewClosure())
+        }
+    }
+
+    # Keyboard shortcuts
+    if ($searchView) {
+        $searchView.Add_PreviewKeyDown({
+            param($sender, $e)
+            if ($e.Key -eq 'F' -and [System.Windows.Input.Keyboard]::Modifiers -eq 'Control') {
+                # Ctrl+F - Focus search box
+                if ($searchBox) { $searchBox.Focus() }
+                $e.Handled = $true
+            }
+            elseif ($e.Key -eq 'C' -and [System.Windows.Input.Keyboard]::Modifiers -eq 'Control') {
+                # Ctrl+C - Copy selected rows
+                $selected = $searchGrid.SelectedItems
+                if ($selected.Count -gt 0) {
+                    $text = ($selected | ForEach-Object {
+                        "$($_.Hostname)`t$($_.Port)`t$($_.Name)`t$($_.Status)`t$($_.VLAN)"
+                    }) -join "`r`n"
+                    [System.Windows.Clipboard]::SetText($text)
+                    $e.Handled = $true
+                }
+            }
+            elseif ($e.Key -eq 'E' -and [System.Windows.Input.Keyboard]::Modifiers -eq 'Control') {
+                # Ctrl+E - Export
+                if ($exportBtn) { $exportBtn.RaiseEvent((New-Object System.Windows.RoutedEventArgs([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent))) }
+                $e.Handled = $true
             }
         }.GetNewClosure())
     }

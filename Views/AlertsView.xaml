@@ -14,20 +14,37 @@
 
     <Grid Grid.Row="1">
       <DataGrid Name="AlertsGrid" Margin="5" AutoGenerateColumns="False" CanUserAddRows="False" IsReadOnly="True"
+                SelectionMode="Extended"
                 Style="{DynamicResource PrimaryDataGridStyle}"
                 ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Auto"
                 ScrollViewer.IsDeferredScrollingEnabled="True"
                 VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
                 EnableRowVirtualization="True" EnableColumnVirtualization="True"
                 ScrollViewer.CanContentScroll="True" VirtualizingPanel.ScrollUnit="Pixel">
+        <DataGrid.ContextMenu>
+          <ContextMenu>
+            <MenuItem Name="CopyRowMenuItem" Header="Copy Row" InputGestureText="Ctrl+C"/>
+            <MenuItem Name="CopyCellMenuItem" Header="Copy Cell"/>
+            <MenuItem Name="CopyAllMenuItem" Header="Copy All Rows"/>
+            <Separator/>
+            <MenuItem Name="ExportSelectedMenuItem" Header="Export Selected..."/>
+          </ContextMenu>
+        </DataGrid.ContextMenu>
         <DataGrid.RowStyle>
           <DynamicResource ResourceKey="PrimaryDataGridRowStyle"/>
         </DataGrid.RowStyle>
         <DataGrid.Columns>
-          <DataGridTextColumn Header="Switch" Binding="{Binding Hostname}" Width="120"/>
-          <DataGridTextColumn Header="Port" Binding="{Binding Port}" Width="80"/>
-          <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="150"/>
+          <DataGridTextColumn Header="Switch" Binding="{Binding Hostname}" Width="120">
+            <DataGridTextColumn.HeaderStyle><Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"><Setter Property="ToolTip" Value="Device hostname"/></Style></DataGridTextColumn.HeaderStyle>
+          </DataGridTextColumn>
+          <DataGridTextColumn Header="Port" Binding="{Binding Port}" Width="80">
+            <DataGridTextColumn.HeaderStyle><Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"><Setter Property="ToolTip" Value="Interface name"/></Style></DataGridTextColumn.HeaderStyle>
+          </DataGridTextColumn>
+          <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="150">
+            <DataGridTextColumn.HeaderStyle><Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"><Setter Property="ToolTip" Value="Port description/label"/></Style></DataGridTextColumn.HeaderStyle>
+          </DataGridTextColumn>
           <DataGridTemplateColumn Header="Status" Width="80">
+            <DataGridTemplateColumn.HeaderStyle><Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"><Setter Property="ToolTip" Value="Link status (Up/Down)"/></Style></DataGridTemplateColumn.HeaderStyle>
             <DataGridTemplateColumn.CellTemplate>
               <DataTemplate>
                 <StackPanel Orientation="Horizontal">
@@ -38,10 +55,18 @@
               </DataTemplate>
             </DataGridTemplateColumn.CellTemplate>
           </DataGridTemplateColumn>
-          <DataGridTextColumn Header="VLAN" Binding="{Binding VLAN}" Width="60"/>
-          <DataGridTextColumn Header="Duplex" Binding="{Binding Duplex}" Width="60"/>
-          <DataGridTextColumn Header="AuthState" Binding="{Binding AuthState}" Width="100"/>
-          <DataGridTextColumn Header="Reason" Binding="{Binding Reason}" Width="250"/>
+          <DataGridTextColumn Header="VLAN" Binding="{Binding VLAN}" Width="60">
+            <DataGridTextColumn.HeaderStyle><Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"><Setter Property="ToolTip" Value="Access VLAN assignment"/></Style></DataGridTextColumn.HeaderStyle>
+          </DataGridTextColumn>
+          <DataGridTextColumn Header="Duplex" Binding="{Binding Duplex}" Width="60">
+            <DataGridTextColumn.HeaderStyle><Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"><Setter Property="ToolTip" Value="Duplex mode (Full/Half/Auto)"/></Style></DataGridTextColumn.HeaderStyle>
+          </DataGridTextColumn>
+          <DataGridTextColumn Header="AuthState" Binding="{Binding AuthState}" Width="100">
+            <DataGridTextColumn.HeaderStyle><Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"><Setter Property="ToolTip" Value="802.1X authentication state"/></Style></DataGridTextColumn.HeaderStyle>
+          </DataGridTextColumn>
+          <DataGridTextColumn Header="Reason" Binding="{Binding Reason}" Width="250">
+            <DataGridTextColumn.HeaderStyle><Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"><Setter Property="ToolTip" Value="Why this interface triggered an alert"/></Style></DataGridTextColumn.HeaderStyle>
+          </DataGridTextColumn>
         </DataGrid.Columns>
       </DataGrid>
 
