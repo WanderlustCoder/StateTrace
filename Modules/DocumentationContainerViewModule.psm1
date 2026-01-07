@@ -131,15 +131,20 @@ function Initialize-ConfigSubView {
     )
 
     try {
-        $viewPath = Join-Path $ScriptDir '..\Views\ConfigTemplateView.xaml'
-        if (Test-Path $viewPath) {
-            $xamlContent = Get-Content -Path $viewPath -Raw
-            $xamlContent = $xamlContent -replace 'x:Class="[^"]*"', ''
-            $xamlContent = $xamlContent -replace 'mc:Ignorable="d"', ''
-
-            $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
-            $view = [System.Windows.Markup.XamlReader]::Load($reader)
-            $Host.Content = $view
+        # Use the ConfigTemplateViewModule to properly initialize with event handlers
+        if (Get-Command -Name 'Initialize-ConfigTemplateView' -ErrorAction SilentlyContinue) {
+            ConfigTemplateViewModule\Initialize-ConfigTemplateView -Host $Host
+        } else {
+            Write-Warning "Initialize-ConfigTemplateView not found - loading XAML only"
+            $viewPath = Join-Path $ScriptDir '..\Views\ConfigTemplateView.xaml'
+            if (Test-Path $viewPath) {
+                $xamlContent = Get-Content -Path $viewPath -Raw
+                $xamlContent = $xamlContent -replace 'x:Class="[^"]*"', ''
+                $xamlContent = $xamlContent -replace 'mc:Ignorable="d"', ''
+                $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
+                $view = [System.Windows.Markup.XamlReader]::Load($reader)
+                $Host.Content = $view
+            }
         }
     }
     catch {
