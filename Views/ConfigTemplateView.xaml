@@ -119,7 +119,16 @@
               <TextBlock Grid.Row="0" Text="Variables" FontWeight="Bold" Margin="0,0,0,10" Foreground="{DynamicResource Theme.Text.Primary}"/>
 
               <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                <ItemsControl Name="VariablesItemsControl">
+                <ItemsControl Name="VariablesItemsControl"
+                              VirtualizingPanel.IsVirtualizing="True"
+                              VirtualizingPanel.VirtualizationMode="Recycling"
+                              VirtualizingPanel.ScrollUnit="Pixel"
+                              ScrollViewer.CanContentScroll="True">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <VirtualizingStackPanel/>
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
                   <ItemsControl.ItemTemplate>
                     <DataTemplate>
                       <StackPanel Margin="0,2">
@@ -305,6 +314,7 @@
                 <ItemsControl Name="TemplatesByVendorList"
                               VirtualizingPanel.IsVirtualizing="True"
                               VirtualizingPanel.VirtualizationMode="Recycling"
+                              VirtualizingPanel.ScrollUnit="Pixel"
                               ScrollViewer.CanContentScroll="True">
                   <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
@@ -324,6 +334,7 @@
                 <ItemsControl Name="TemplatesByTypeList"
                               VirtualizingPanel.IsVirtualizing="True"
                               VirtualizingPanel.VirtualizationMode="Recycling"
+                              VirtualizingPanel.ScrollUnit="Pixel"
                               ScrollViewer.CanContentScroll="True">
                   <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
@@ -352,6 +363,7 @@
                 <ItemsControl Name="StandardsListStats"
                               VirtualizingPanel.IsVirtualizing="True"
                               VirtualizingPanel.VirtualizationMode="Recycling"
+                              VirtualizingPanel.ScrollUnit="Pixel"
                               ScrollViewer.CanContentScroll="True">
                   <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>

@@ -382,6 +382,7 @@
                 <ItemsControl Name="VlansByPurposeList"
                               VirtualizingPanel.IsVirtualizing="True"
                               VirtualizingPanel.VirtualizationMode="Recycling"
+                              VirtualizingPanel.ScrollUnit="Pixel"
                               ScrollViewer.CanContentScroll="True">
                   <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
@@ -410,6 +411,7 @@
                 <ItemsControl Name="SubnetsByPurposeList"
                               VirtualizingPanel.IsVirtualizing="True"
                               VirtualizingPanel.VirtualizationMode="Recycling"
+                              VirtualizingPanel.ScrollUnit="Pixel"
                               ScrollViewer.CanContentScroll="True">
                   <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
