@@ -844,6 +844,11 @@ function New-InterfacesView {
     $filterBox         = $interfacesView.FindName('FilterBox')
     $clearBtn          = $interfacesView.FindName('ClearFilterButton')
     $copyDetailsButton = $interfacesView.FindName('CopyDetailsButton')
+    $copyPortsButton   = $interfacesView.FindName('CopyPortsButton')
+    $copyMacsButton    = $interfacesView.FindName('CopyMacsButton')
+    $exportSelectedBtn = $interfacesView.FindName('ExportSelectedButton')
+    $columnsButton     = $interfacesView.FindName('ColumnsButton')
+    $sortPresetDropdown = $interfacesView.FindName('SortPresetDropdown')
 
     #
     if ($interfacesGrid)    { $global:interfacesGrid   = $interfacesGrid }
@@ -1181,8 +1186,141 @@ function New-InterfacesView {
         })
     }
 
-    # ------------------------------
+    # Quick action: Copy port names only
+    if ($copyPortsButton -and $interfacesGrid) {
+        $copyPortsButton.Add_Click({
+            $grid = $global:interfacesGrid
+            $rawSelected = Get-SelectedInterfaceRows -Grid $grid
+            $selectedRows = @($rawSelected)
+            if ($selectedRows.Count -eq 0) {
+                [System.Windows.MessageBox]::Show("No interfaces selected.")
+                return
+            }
+            $ports = $selectedRows | ForEach-Object { $_.Port } | Where-Object { $_ }
+            Set-Clipboard -Value ($ports -join "`r`n")
+            [System.Windows.MessageBox]::Show("Copied $($ports.Count) port name(s) to clipboard.")
+        })
+    }
 
+    # Quick action: Copy MAC addresses only
+    if ($copyMacsButton -and $interfacesGrid) {
+        $copyMacsButton.Add_Click({
+            $grid = $global:interfacesGrid
+            $rawSelected = Get-SelectedInterfaceRows -Grid $grid
+            $selectedRows = @($rawSelected)
+            if ($selectedRows.Count -eq 0) {
+                [System.Windows.MessageBox]::Show("No interfaces selected.")
+                return
+            }
+            $macs = $selectedRows | ForEach-Object { $_.LearnedMACs } | Where-Object { $_ -and $_ -ne '' }
+            if ($macs.Count -eq 0) {
+                [System.Windows.MessageBox]::Show("No MAC addresses found on selected interfaces.")
+                return
+            }
+            Set-Clipboard -Value ($macs -join "`r`n")
+            [System.Windows.MessageBox]::Show("Copied $($macs.Count) MAC address(es) to clipboard.")
+        })
+    }
+
+    # Quick action: Export selected rows
+    if ($exportSelectedBtn -and $interfacesGrid) {
+        $exportSelectedBtn.Add_Click({
+            $grid = $global:interfacesGrid
+            $rawSelected = Get-SelectedInterfaceRows -Grid $grid
+            $selectedRows = @($rawSelected)
+            if ($selectedRows.Count -eq 0) {
+                [System.Windows.MessageBox]::Show("No interfaces selected.")
+                return
+            }
+            Export-StRowsWithFormatChoice -Rows $selectedRows -DefaultBaseName 'SelectedInterfaces' -SuccessNoun 'interfaces'
+        })
+    }
+
+    # Column visibility menu
+    if ($columnsButton -and $interfacesGrid) {
+        # Open context menu on button click
+        $columnsButton.Add_Click({
+            $btn = $columnsButton
+            if ($btn.ContextMenu) {
+                $btn.ContextMenu.PlacementTarget = $btn
+                $btn.ContextMenu.IsOpen = $true
+            }
+        }.GetNewClosure())
+
+        # Map menu item names to column headers (skip checkbox column at index 0)
+        $columnMap = @{
+            'ColPort'      = 'Port'
+            'ColName'      = 'Name'
+            'ColStatus'    = 'Status'
+            'ColVLAN'      = 'VLAN'
+            'ColDuplex'    = 'Duplex'
+            'ColSpeed'     = 'Speed'
+            'ColType'      = 'Type'
+            'ColMACs'      = 'LearnedMACs'
+            'ColAuthState' = 'AuthState'
+            'ColAuthMode'  = 'AuthMode'
+            'ColAuthMAC'   = 'AuthClientMAC'
+        }
+
+        # Wire up each menu item
+        foreach ($itemName in $columnMap.Keys) {
+            $headerName = $columnMap[$itemName]
+            $menuItem = $columnsButton.ContextMenu.Items | Where-Object { $_.Name -eq $itemName } | Select-Object -First 1
+            if ($menuItem) {
+                $menuItem.Add_Checked({
+                    param($sender, $e)
+                    $header = $sender.Header
+                    $col = $global:interfacesGrid.Columns | Where-Object { $_.Header -eq $header } | Select-Object -First 1
+                    if ($col) { $col.Visibility = [System.Windows.Visibility]::Visible }
+                })
+                $menuItem.Add_Unchecked({
+                    param($sender, $e)
+                    $header = $sender.Header
+                    $col = $global:interfacesGrid.Columns | Where-Object { $_.Header -eq $header } | Select-Object -First 1
+                    if ($col) { $col.Visibility = [System.Windows.Visibility]::Collapsed }
+                })
+            }
+        }
+    }
+
+    # Sort presets dropdown
+    if ($sortPresetDropdown -and $interfacesGrid) {
+        $sortPresetDropdown.Add_SelectionChanged({
+            $sel = $sortPresetDropdown.SelectedItem
+            if (-not $sel) { return }
+            $text = $sel.Content
+            if ($text -eq 'Sort by...') { return }
+
+            $grid = $global:interfacesGrid
+            $view = [System.Windows.Data.CollectionViewSource]::GetDefaultView($grid.ItemsSource)
+            if (-not $view) { return }
+
+            $view.SortDescriptions.Clear()
+
+            switch ($text) {
+                'Port' {
+                    $view.SortDescriptions.Add([System.ComponentModel.SortDescription]::new('Port', 'Ascending'))
+                }
+                'Name' {
+                    $view.SortDescriptions.Add([System.ComponentModel.SortDescription]::new('Name', 'Ascending'))
+                }
+                'Status' {
+                    $view.SortDescriptions.Add([System.ComponentModel.SortDescription]::new('Status', 'Ascending'))
+                }
+                'VLAN' {
+                    $view.SortDescriptions.Add([System.ComponentModel.SortDescription]::new('VLAN', 'Ascending'))
+                }
+                'Issues First' {
+                    # Sort by Status descending to put "down" before "up"
+                    $view.SortDescriptions.Add([System.ComponentModel.SortDescription]::new('Status', 'Descending'))
+                    $view.SortDescriptions.Add([System.ComponentModel.SortDescription]::new('Port', 'Ascending'))
+                }
+            }
+
+            # Reset dropdown to placeholder
+            $sortPresetDropdown.SelectedIndex = 0
+        }.GetNewClosure())
+    }
 
     # ------------------------------
     if ($templateDropdown) {

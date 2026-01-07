@@ -144,6 +144,41 @@
               <ComboBoxItem Content="All Down"/>
             </ComboBox>
             <TextBlock Name="SelectionCountText" Text="" Foreground="{DynamicResource Theme.Text.Muted}" VerticalAlignment="Center" Margin="10,0,0,0" FontSize="11"/>
+
+            <Rectangle Width="1" Fill="{DynamicResource Theme.Border.Primary}" Margin="10,2,10,2"/>
+
+            <TextBlock Text="Quick:" Foreground="{DynamicResource Theme.Text.Inverse}" VerticalAlignment="Center" Margin="0,0,5,0"/>
+            <Button Name="CopyPortsButton" Content="Ports" Width="45" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Copy selected port names to clipboard" Margin="0,0,3,0"/>
+            <Button Name="CopyMacsButton" Content="MACs" Width="50" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Copy selected MAC addresses to clipboard" Margin="0,0,3,0"/>
+            <Button Name="ExportSelectedButton" Content="Export" Width="50" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Export selected rows to file" Margin="0,0,3,0"/>
+
+            <Rectangle Width="1" Fill="{DynamicResource Theme.Border.Primary}" Margin="10,2,10,2"/>
+
+            <ComboBox Name="SortPresetDropdown" Width="100" Height="23" Style="{DynamicResource ToolbarComboBoxStyle}" ToolTip="Apply sort preset">
+              <ComboBoxItem Content="Sort by..." IsSelected="True"/>
+              <ComboBoxItem Content="Port"/>
+              <ComboBoxItem Content="Name"/>
+              <ComboBoxItem Content="Status"/>
+              <ComboBoxItem Content="VLAN"/>
+              <ComboBoxItem Content="Issues First"/>
+            </ComboBox>
+            <Button Name="ColumnsButton" Content="Columns ▼" Width="75" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Show/hide columns">
+              <Button.ContextMenu>
+                <ContextMenu Name="ColumnsContextMenu">
+                  <MenuItem Header="Port" IsCheckable="True" IsChecked="True" Name="ColPort"/>
+                  <MenuItem Header="Name" IsCheckable="True" IsChecked="True" Name="ColName"/>
+                  <MenuItem Header="Status" IsCheckable="True" IsChecked="True" Name="ColStatus"/>
+                  <MenuItem Header="VLAN" IsCheckable="True" IsChecked="True" Name="ColVLAN"/>
+                  <MenuItem Header="Duplex" IsCheckable="True" IsChecked="True" Name="ColDuplex"/>
+                  <MenuItem Header="Speed" IsCheckable="True" IsChecked="True" Name="ColSpeed"/>
+                  <MenuItem Header="Type" IsCheckable="True" IsChecked="True" Name="ColType"/>
+                  <MenuItem Header="LearnedMACs" IsCheckable="True" IsChecked="True" Name="ColMACs"/>
+                  <MenuItem Header="AuthState" IsCheckable="True" IsChecked="True" Name="ColAuthState"/>
+                  <MenuItem Header="AuthMode" IsCheckable="True" IsChecked="True" Name="ColAuthMode"/>
+                  <MenuItem Header="AuthClientMAC" IsCheckable="True" IsChecked="True" Name="ColAuthMAC"/>
+                </ContextMenu>
+              </Button.ContextMenu>
+            </Button>
         </StackPanel>
 
         <Grid Grid.Row="2">

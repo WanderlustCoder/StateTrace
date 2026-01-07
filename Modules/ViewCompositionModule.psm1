@@ -384,8 +384,27 @@ function Export-StRowsWithFormatChoice {
         if (-not $suppressDialogsResolved) {
             $dlg = New-Object Microsoft.Win32.SaveFileDialog
             $dlg.Filter = 'CSV files (*.csv)|*.csv|JSON files (*.json)|*.json|All files (*.*)|*.*'
-            $dlg.FileName = "$DefaultBaseName.csv"
-            $dlg.DefaultExt = '.csv'
+
+            # Load last export format preference
+            $lastFormat = 'csv'
+            try {
+                $settingsPath = Join-Path $PSScriptRoot '..\Data\StateTraceSettings.json'
+                if (Test-Path $settingsPath) {
+                    $settings = Get-Content $settingsPath -Raw | ConvertFrom-Json
+                    if ($settings.LastExportFormat) { $lastFormat = $settings.LastExportFormat }
+                }
+            } catch { }
+
+            # Set dialog defaults based on last format
+            if ($lastFormat -eq 'json') {
+                $dlg.FilterIndex = 2
+                $dlg.FileName = "$DefaultBaseName.json"
+                $dlg.DefaultExt = '.json'
+            } else {
+                $dlg.FilterIndex = 1
+                $dlg.FileName = "$DefaultBaseName.csv"
+                $dlg.DefaultExt = '.csv'
+            }
             $dlg.AddExtension = $true
         }
     } catch {
@@ -417,6 +436,23 @@ function Export-StRowsWithFormatChoice {
         } else {
             $rowArray | Export-Csv -Path $path -NoTypeInformation
         }
+
+        # Save export format preference
+        try {
+            $chosenFormat = if ($ext -eq '.json') { 'json' } else { 'csv' }
+            $settingsPath = Join-Path $PSScriptRoot '..\Data\StateTraceSettings.json'
+            $settings = @{}
+            if (Test-Path $settingsPath) {
+                $raw = Get-Content $settingsPath -Raw
+                if ($raw) {
+                    $parsed = $raw | ConvertFrom-Json
+                    $parsed.PSObject.Properties | ForEach-Object { $settings[$_.Name] = $_.Value }
+                }
+            }
+            $settings['LastExportFormat'] = $chosenFormat
+            $settings | ConvertTo-Json -Depth 5 | Set-Content $settingsPath -Encoding UTF8
+        } catch { }
+
         $msg = "Exported {0} {1} to {2}" -f $rowArray.Count, $SuccessNoun, $path
         Show-ViewCompositionMessage -Message $msg -Title $SuccessTitle -SuppressDialogs:$SuppressDialogs
     } catch {
