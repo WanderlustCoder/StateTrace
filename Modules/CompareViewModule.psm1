@@ -208,7 +208,7 @@ function Get-HostsFromMain {
 
             $name = ('' + $candidate).Trim()
 
-            if ($name -and $hostSet.Add($name)) { [void]$hostList.Add($name) }
+            if ($name.Length -gt 0 -and $hostSet.Add($name)) { [void]$hostList.Add($name) }
 
         }
 

@@ -1171,7 +1171,7 @@ function Invoke-StateTraceParsing {
         $entries = @()
         if ($DeviceRepoModule) {
             try { $entries = @($DeviceRepoModule.Invoke({ Get-SharedSiteInterfaceCacheSnapshotEntries })) } catch { $entries = @() }
-            if ($entries -and $entries.Count -gt 0) { return ,$entries }
+            if ($entries -and $entries.Count -gt 0) { return @($entries) }
         }
 
         $cacheSnapshotCmd = Get-DeviceRepositoryCacheCommand -Name 'Get-SharedSiteInterfaceCacheSnapshotEntries'
@@ -1182,11 +1182,11 @@ function Invoke-StateTraceParsing {
         if ($entries -and $entries.Count -gt 0) {
             $cacheHelper = Get-DeviceRepositoryCacheCommand -Name 'ConvertTo-SharedCacheEntryArray'
             if ($cacheHelper) {
-                try { $entries = @(& $cacheHelper -Entries $entries) } catch { }
+                try { $entries = @(& $cacheHelper -Entries $entries) } catch { Write-Verbose ("Failed to convert shared cache entries: {0}" -f $_.Exception.Message) }
             }
         }
 
-        return ,$entries
+        return @($entries)
     }
 
 

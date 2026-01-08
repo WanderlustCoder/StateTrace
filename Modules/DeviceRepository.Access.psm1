@@ -194,7 +194,7 @@ function Invoke-ParallelDbQuery {
     [CmdletBinding()]
     param(
         [string[]]$DbPaths,
-        [string]$Sql,
+        [Parameter(Mandatory)][ValidateNotNullOrEmpty()][string]$Sql,
         [switch]$IncludeDbPath,
         [int]$MaxThreads = 0
     )

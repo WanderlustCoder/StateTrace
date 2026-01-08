@@ -384,7 +384,7 @@ function Update-DeviceFilter {
             }
         }
         $hasMetadata = $false
-        try { $hasMetadata = $metadata -ne $null -and ($metadata.Count -ge 0 -or $metadata.Keys) } catch { $hasMetadata = $false }
+        try { $hasMetadata = $null -ne $metadata -and $metadata.Count -gt 0 } catch { $hasMetadata = $false }
         $hasLocations = $false
         try { $hasLocations = (ViewStateService\Get-SequenceCount -Value $locationEntries) -ge 0 } catch { $hasLocations = $false }
         if (-not $hasMetadata -and -not $hasLocations) {

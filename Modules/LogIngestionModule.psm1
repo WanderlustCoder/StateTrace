@@ -25,8 +25,8 @@ function Split-RawLogs {
             Write-Host ("Skipping helper artifact '{0}'." -f $f.FullName)
             continue
         }
-        # Match .log or .txt extensions (case-insensitive) using a compiled regex
-        if ($f.Extension -match '^(?i)\.(log|txt)$') {
+        # Match .log or .txt extensions (case-insensitive)
+        if ($f.Extension -imatch '^\.(log|txt)$') {
             [void]$rawFiles.Add($f)
         }
     }
