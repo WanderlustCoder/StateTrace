@@ -84,7 +84,7 @@ function Get-SelectedLocation {
             if ($roomCtrl){ $roomSel = $roomCtrl.SelectedItem }
         }
     } catch {
-        # ignore lookup errors
+        Write-Verbose "[FilterState] Location control lookup failed: $($_.Exception.Message)"
     }
     return @{ Site = $siteSel; Zone = $zoneSel; Building = $bldSel; Room = $roomSel }
 }

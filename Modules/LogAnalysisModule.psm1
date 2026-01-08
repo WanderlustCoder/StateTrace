@@ -865,7 +865,7 @@ function Search-LogEntries {
     }
 
     if ($Device) {
-        $results = @($results | Where-Object { $_.Hostname -eq $Device })
+        $results = @($results | Where-Object { [string]::Equals($_.Hostname, $Device, [System.StringComparison]::OrdinalIgnoreCase) })
     }
 
     if ($PSBoundParameters.ContainsKey('MaxSeverity')) {

@@ -603,8 +603,8 @@ function Trace-RoutePath {
         }
 
         if (-not $currentDevice) {
-            # Try to find device by hostname
-            $currentDevice = $devices | Where-Object { $_.Hostname -eq $SourceIP } | Select-Object -First 1
+            # Try to find device by hostname (case-insensitive)
+            $currentDevice = $devices | Where-Object { [string]::Equals($_.Hostname, $SourceIP, [System.StringComparison]::OrdinalIgnoreCase) } | Select-Object -First 1
         }
 
         $hopCount = 0

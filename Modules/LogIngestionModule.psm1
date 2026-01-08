@@ -64,7 +64,7 @@ function Split-RawLogs {
                 }
 
                 if ($detected) {
-                    if (-not $currentHost -or $detected -ne $currentHost) {
+                    if (-not $currentHost -or -not [string]::Equals($detected, $currentHost, [System.StringComparison]::OrdinalIgnoreCase)) {
                         if ($null -ne $writer) {
                             try { $writer.Flush() } catch { }
                             $writer.Dispose()

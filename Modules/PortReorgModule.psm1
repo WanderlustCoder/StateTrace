@@ -73,6 +73,7 @@ function script:Get-PortReorgVendorFromDb {
             }
         }
     } catch {
+        Write-Verbose "[PortReorg] Database query failed for hostname '$Hostname': $($_.Exception.Message)"
     }
 
     return 'Cisco'
