@@ -106,8 +106,8 @@ Network teams struggle with:
 | ID | Title | Owner | Status | Notes |
 |----|-------|-------|--------|-------|
 | ST-X-001 | Asset registry module | Data | Done | InventoryModule.psm1 with New/Get/Update/Remove-Asset |
-| ST-X-002 | Firmware version database | Data | Done | Parse-FirmwareVersion, Set-MinimumFirmware, CVE tracking |
-| ST-X-003 | Device info import | Tools | Done | Parse-ShowVersion, Import-AssetInventory from CSV |
+| ST-X-002 | Firmware version database | Data | Done | ConvertFrom-FirmwareVersionString, Set-MinimumFirmware, CVE tracking |
+| ST-X-003 | Device info import | Tools | Done | ConvertFrom-ShowVersionOutput, Import-AssetInventory from CSV |
 | ST-X-004 | Warranty tracking UI | UI | Done | InventoryView.xaml Warranty Alerts tab with expiring/expired grids |
 | ST-X-005 | Inventory reports | Tools | Done | Get-InventoryAnalytics, Get-AssetAgeDistribution, Get-AssetCostAnalysis, Export-RefreshPlanReport (Text/CSV/HTML) |
 | ST-X-006 | Lifecycle planning view | UI | Done | Budget Forecast tab with Get-RefreshRecommendations, Get-BudgetForecast, New-RefreshPlan |
@@ -217,7 +217,7 @@ Describe 'Warranty Tracking' -Tag 'Inventory' {
 
 Describe 'Firmware Version Management' -Tag 'Inventory' {
     It 'parses Cisco IOS version string correctly' {
-        $version = Parse-FirmwareVersion -VersionString '17.06.05' -Vendor 'Cisco'
+        $version = ConvertFrom-FirmwareVersionString -VersionString '17.06.05' -Vendor 'Cisco'
         $version.Major | Should -Be 17
         $version.Minor | Should -Be 6
         $version.Patch | Should -Be 5
@@ -258,7 +258,7 @@ Cisco IOS Software, C9300 Software (C9300-UNIVERSALK9-M), Version 17.06.05
 System serial number: FCW12345678
 Model number: C9300-48P
 "@
-        $info = Parse-ShowVersion -Content $showVersion -Vendor 'Cisco'
+        $info = ConvertFrom-ShowVersionOutput -Content $showVersion -Vendor 'Cisco'
         $info.SerialNumber | Should -Be 'FCW12345678'
         $info.Model | Should -Be 'C9300-48P'
         $info.Version | Should -Be '17.06.05'

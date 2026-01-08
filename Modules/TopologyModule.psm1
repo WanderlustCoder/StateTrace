@@ -458,7 +458,7 @@ function Find-LinksFromDescription {
     return $null
 }
 
-function Build-TopologyFromInterfaces {
+function New-TopologyFromInterfaces {
     <#
     .SYNOPSIS
         Builds topology graph from interface data.
@@ -1817,7 +1817,7 @@ Export-ModuleMember -Function @(
 
     # Discovery
     'Find-LinksFromDescription',
-    'Build-TopologyFromInterfaces',
+    'New-TopologyFromInterfaces',
     'Clear-Topology',
 
     # Layout

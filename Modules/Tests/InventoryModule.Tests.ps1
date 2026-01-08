@@ -224,14 +224,14 @@ Describe 'InventoryModule' {
 
     Context 'Firmware Version Management' {
         It 'parses Cisco IOS-XE version string correctly' {
-            $version = Parse-FirmwareVersion -VersionString '17.06.05' -Vendor 'Cisco'
+            $version = ConvertFrom-FirmwareVersionString -VersionString '17.06.05' -Vendor 'Cisco'
             $version.Major | Should Be 17
             $version.Minor | Should Be 6
             $version.Patch | Should Be 5
         }
 
         It 'parses Cisco IOS classic version string' {
-            $version = Parse-FirmwareVersion -VersionString '15.2(7)E4' -Vendor 'Cisco'
+            $version = ConvertFrom-FirmwareVersionString -VersionString '15.2(7)E4' -Vendor 'Cisco'
             $version.Major | Should Be 15
             $version.Minor | Should Be 2
             $version.Patch | Should Be 7
@@ -239,7 +239,7 @@ Describe 'InventoryModule' {
         }
 
         It 'parses Arista EOS version string' {
-            $version = Parse-FirmwareVersion -VersionString '4.28.3M' -Vendor 'Arista'
+            $version = ConvertFrom-FirmwareVersionString -VersionString '4.28.3M' -Vendor 'Arista'
             $version.Major | Should Be 4
             $version.Minor | Should Be 28
             $version.Patch | Should Be 3
@@ -247,14 +247,14 @@ Describe 'InventoryModule' {
         }
 
         It 'parses Ruckus/Brocade version string' {
-            $version = Parse-FirmwareVersion -VersionString '08.0.95' -Vendor 'Ruckus'
+            $version = ConvertFrom-FirmwareVersionString -VersionString '08.0.95' -Vendor 'Ruckus'
             $version.Major | Should Be 8
             $version.Minor | Should Be 0
             $version.Patch | Should Be 95
         }
 
         It 'parses Juniper Junos version string' {
-            $version = Parse-FirmwareVersion -VersionString '21.4R3-S2' -Vendor 'Juniper'
+            $version = ConvertFrom-FirmwareVersionString -VersionString '21.4R3-S2' -Vendor 'Juniper'
             $version.Major | Should Be 21
             $version.Minor | Should Be 4
             $version.Patch | Should Be 3
@@ -449,7 +449,7 @@ System serial number: FCW12345678
 Model number: C9300-48P
 SW-TEST-01 uptime is 45 days
 "@
-            $info = Parse-ShowVersion -Content $showVersion -Vendor 'Cisco'
+            $info = ConvertFrom-ShowVersionOutput -Content $showVersion -Vendor 'Cisco'
             $info.SerialNumber | Should Be 'FCW12345678'
             $info.Model | Should Be 'C9300-48P'
             $info.Version | Should Be '17.06.05'
@@ -463,7 +463,7 @@ Software image version: 4.28.3M
 Serial number: JPE12345678
 Hostname: SW-ARISTA-01
 "@
-            $info = Parse-ShowVersion -Content $showVersion -Vendor 'Arista'
+            $info = ConvertFrom-ShowVersionOutput -Content $showVersion -Vendor 'Arista'
             $info.SerialNumber | Should Be 'JPE12345678'
             $info.Model | Should Be 'DCS-7050SX-64'
             $info.Version | Should Be '4.28.3M'
@@ -475,7 +475,7 @@ System: ICX7450-48P
 SW: Version 08.0.95
 System Serial #: CYR3456789
 "@
-            $info = Parse-ShowVersion -Content $showVersion -Vendor 'Ruckus'
+            $info = ConvertFrom-ShowVersionOutput -Content $showVersion -Vendor 'Ruckus'
             $info.SerialNumber | Should Be 'CYR3456789'
             $info.Model | Should Be 'ICX7450-48P'
             $info.Version | Should Be '08.0.95'

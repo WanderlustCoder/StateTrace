@@ -159,7 +159,7 @@ Describe 'ChangeManagementModule' {
             Update-ChangeRequest -ChangeID $change.ChangeID -Status 'Approved'
             Start-Change -ChangeID $change.ChangeID -ImplementedBy 'engineer1'
 
-            Fail-Change -ChangeID $change.ChangeID -FailureReason 'Configuration conflict'
+            Stop-Change -ChangeID $change.ChangeID -FailureReason 'Configuration conflict'
 
             $updated = Get-ChangeRequest -ChangeID $change.ChangeID
             $updated.Status | Should Be 'Failed'

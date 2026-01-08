@@ -316,7 +316,7 @@ Describe 'DecisionTreeModule - Execution' {
         }
     }
 
-    Context 'Continue-TreeExecution' {
+    Context 'Step-TreeExecution' {
         It 'advances from action node' {
             $json = @'
 {
@@ -329,7 +329,7 @@ Describe 'DecisionTreeModule - Execution' {
 '@
             $tree = Import-DecisionTree -Json $json
             $execution = Start-TreeExecution -Tree $tree
-            $execution = Continue-TreeExecution -Execution $execution
+            $execution = Step-TreeExecution -Execution $execution
 
             $execution.CurrentNode.Id | Should Be 'result1'
             $execution.IsComplete | Should Be $true

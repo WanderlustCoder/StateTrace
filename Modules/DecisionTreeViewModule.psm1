@@ -379,7 +379,7 @@ function New-DecisionTreeView {
             try {
                 $exec = $view.Tag.CurrentExecution
                 $notes = $notesBox.Text
-                $exec = DecisionTreeModule\Continue-TreeExecution -Execution $exec -Notes $notes
+                $exec = DecisionTreeModule\Step-TreeExecution -Execution $exec -Notes $notes
                 $view.Tag.CurrentExecution = $exec
 
                 if ($exec.IsComplete) {
@@ -1246,7 +1246,7 @@ function Initialize-DecisionTreeControls {
     if ($continueButton) {
         $continueButton.Add_Click({
             param($s,$e)
-            try { $exec = $View.Tag.CurrentExecution; $notes = if ($notesBox) { $notesBox.Text } else { '' }; $exec = DecisionTreeModule\Continue-TreeExecution -Execution $exec -Notes $notes; $View.Tag.CurrentExecution = $exec; if ($exec.IsComplete) { & $showResultPanel } else { & $updateStepDisplay } } catch { Write-Warning "Error: $_" }
+            try { $exec = $View.Tag.CurrentExecution; $notes = if ($notesBox) { $notesBox.Text } else { '' }; $exec = DecisionTreeModule\Step-TreeExecution -Execution $exec -Notes $notes; $View.Tag.CurrentExecution = $exec; if ($exec.IsComplete) { & $showResultPanel } else { & $updateStepDisplay } } catch { Write-Warning "Error: $_" }
         }.GetNewClosure())
     }
 

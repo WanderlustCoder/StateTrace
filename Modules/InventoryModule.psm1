@@ -774,7 +774,7 @@ function Get-FirmwareVersion {
     return $results
 }
 
-function Parse-FirmwareVersion {
+function ConvertFrom-FirmwareVersionString {
     <#
     .SYNOPSIS
         Parses a firmware version string into components.
@@ -927,7 +927,7 @@ function Get-DevicesBelowMinimumFirmware {
     $belowMinimum = New-Object System.Collections.ArrayList
 
     foreach ($req in $requirements) {
-        $minParsed = Parse-FirmwareVersion -VersionString $req.MinVersion -Vendor $req.Vendor
+        $minParsed = ConvertFrom-FirmwareVersionString -VersionString $req.MinVersion -Vendor $req.Vendor
 
         $devices = $script:AssetDatabase | Where-Object {
             $_.Vendor -eq $req.Vendor -and
@@ -936,7 +936,7 @@ function Get-DevicesBelowMinimumFirmware {
         }
 
         foreach ($device in $devices) {
-            $deviceParsed = Parse-FirmwareVersion -VersionString $device.FirmwareVersion -Vendor $device.Vendor
+            $deviceParsed = ConvertFrom-FirmwareVersionString -VersionString $device.FirmwareVersion -Vendor $device.Vendor
 
             $isBelow = $false
             if ($deviceParsed.Major -lt $minParsed.Major) {
@@ -1340,7 +1340,7 @@ function Export-AssetInventory {
     }
 }
 
-function Parse-ShowVersion {
+function ConvertFrom-ShowVersionOutput {
     <#
     .SYNOPSIS
         Parses 'show version' output to extract hardware information.
@@ -2508,7 +2508,7 @@ Export-ModuleMember -Function @(
     # Firmware Management
     'New-FirmwareVersion'
     'Get-FirmwareVersion'
-    'Parse-FirmwareVersion'
+    'ConvertFrom-FirmwareVersionString'
     'Set-MinimumFirmware'
     'Get-DevicesBelowMinimumFirmware'
     'Get-VulnerableDevices'
@@ -2526,7 +2526,7 @@ Export-ModuleMember -Function @(
     # Import / Export
     'Import-AssetInventory'
     'Export-AssetInventory'
-    'Parse-ShowVersion'
+    'ConvertFrom-ShowVersionOutput'
     'Import-InventoryDatabase'
     'Export-InventoryDatabase'
 

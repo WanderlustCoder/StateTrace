@@ -558,7 +558,7 @@ function Submit-TreeInput {
 .SYNOPSIS
     Continues execution for action/check nodes.
 #>
-function Continue-TreeExecution {
+function Step-TreeExecution {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory=$true)]
@@ -1842,7 +1842,7 @@ Export-ModuleMember -Function @(
     'Start-TreeExecution',
     'Submit-TreeAnswer',
     'Submit-TreeInput',
-    'Continue-TreeExecution',
+    'Step-TreeExecution',
     'Undo-TreeStep',
     'Export-DecisionTree',
     'Get-BuiltInTree',

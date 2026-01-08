@@ -319,7 +319,7 @@ function Start-TopologyDiscovery {
         }
 
         # Build topology from interfaces
-        $result = Build-TopologyFromInterfaces -Interfaces $interfaces -ClearExisting
+        $result = New-TopologyFromInterfaces -Interfaces $interfaces -ClearExisting
 
         # Apply layout
         Apply-SelectedLayout

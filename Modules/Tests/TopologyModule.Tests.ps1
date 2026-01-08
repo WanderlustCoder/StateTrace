@@ -245,7 +245,7 @@ Describe 'TopologyModule' -Tag 'Topology' {
                 @{ Hostname = 'SW-02'; PortName = 'Gi1/0/1'; Description = '' }
             )
 
-            $result = Build-TopologyFromInterfaces -Interfaces $interfaces
+            $result = New-TopologyFromInterfaces -Interfaces $interfaces
 
             $result.NodesCreated | Should Be 2
             $nodes = Get-TopologyNode
@@ -258,7 +258,7 @@ Describe 'TopologyModule' -Tag 'Topology' {
                 @{ Hostname = 'CORE-01'; PortName = 'Gi1/0/1'; Description = 'To SW-01 Gi1/0/48' }
             )
 
-            $result = Build-TopologyFromInterfaces -Interfaces $interfaces
+            $result = New-TopologyFromInterfaces -Interfaces $interfaces
 
             $result.LinksDiscovered | Should BeGreaterThan 0
             $links = @(Get-TopologyLink)
@@ -271,7 +271,7 @@ Describe 'TopologyModule' -Tag 'Topology' {
             $interfaces = @(
                 @{ Hostname = 'NEW-SW'; PortName = 'Gi1/0/1'; Description = '' }
             )
-            Build-TopologyFromInterfaces -Interfaces $interfaces -ClearExisting
+            New-TopologyFromInterfaces -Interfaces $interfaces -ClearExisting
 
             $nodes = Get-TopologyNode
             ($nodes | Where-Object { $_.DeviceID -eq 'OLD-SW' }) | Should BeNullOrEmpty
@@ -282,7 +282,7 @@ Describe 'TopologyModule' -Tag 'Topology' {
                 @{ Hostname = 'SW-01'; PortName = 'Gi1/0/1'; Description = '' }
             )
 
-            Build-TopologyFromInterfaces -Interfaces $interfaces -SiteID 'CAMPUS-A'
+            New-TopologyFromInterfaces -Interfaces $interfaces -SiteID 'CAMPUS-A'
 
             $node = Get-TopologyNode -DeviceID 'SW-01'
             $node.SiteID | Should Be 'CAMPUS-A'

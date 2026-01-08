@@ -709,7 +709,7 @@ function Complete-Change {
     return $change
 }
 
-function Fail-Change {
+function Stop-Change {
     <#
     .SYNOPSIS
         Marks a change request as failed.
@@ -2181,7 +2181,7 @@ Export-ModuleMember -Function @(
     # Change Execution
     'Start-Change'
     'Complete-Change'
-    'Fail-Change'
+    'Stop-Change'
     'Get-ChangeDuration'
     'Get-ChangeProgress'
 
