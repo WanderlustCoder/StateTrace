@@ -110,7 +110,7 @@ Compress-Archive -Path (Join-Path $buildDir '*') -DestinationPath $zipPath
 # Compute hash
 $hash = Get-FileHash -Algorithm SHA256 -Path $zipPath
 $hashFile = "$zipPath.sha256"
-$hash.Hash | Set-Content -Path $hashFile -Encoding ASCII
+$hash.Hash | Set-Content -Path $hashFile -Encoding UTF8
 
 # ST-P-001: Generate package manifest with file hashes
 Write-Host "Generating package manifest ..."

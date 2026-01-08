@@ -1296,9 +1296,9 @@ function Invoke-InterfaceSiteCacheWarmup {
                 }
 
                 $null = $summaryProbe.AddScript($summaryScript).AddArgument($resolvedSite)
-                $summaryResult = $summaryProbe.Invoke()
-                if ($summaryResult -and $summaryResult.Count -gt 0) {
-                    $postSummary = $summaryResult[$summaryResult.Count - 1]
+                $summaryResult = @($summaryProbe.Invoke())
+                if ($summaryResult.Count -gt 0) {
+                    $postSummary = $summaryResult[-1]
                 }
             } catch {
                 $postSummary = $null

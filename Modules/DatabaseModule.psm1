@@ -115,7 +115,7 @@ try {
 "@
 
     $tempFile = [System.IO.Path]::ChangeExtension([System.IO.Path]::GetTempFileName(), '.ps1')
-    Set-Content -Path $tempFile -Value $scriptContent -Encoding ASCII
+    Set-Content -Path $tempFile -Value $scriptContent -Encoding UTF8
 
     $process = $null
     try {

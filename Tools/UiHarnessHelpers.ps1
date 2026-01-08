@@ -130,7 +130,7 @@ function New-StateTraceUiSmokeReport {
     if (-not (Test-Path -LiteralPath $reportDir)) {
         New-Item -ItemType Directory -Force -Path $reportDir | Out-Null
     }
-    $reportLines | Set-Content -LiteralPath $OutputPath -Encoding ASCII
+    $reportLines | Set-Content -LiteralPath $OutputPath -Encoding UTF8
 
     return [pscustomobject]@{
         OutputPath               = $OutputPath

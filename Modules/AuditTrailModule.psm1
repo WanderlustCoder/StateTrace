@@ -183,7 +183,7 @@ function Get-AuditEvents {
     foreach ($file in $logFiles) {
         # Check date range from filename
         if ($file.Name -match 'AuditTrail-(\d{4}-\d{2}-\d{2})\.jsonl') {
-            $fileDate = [datetime]::ParseExact($Matches[1], 'yyyy-MM-dd', $null)
+            $fileDate = [datetime]::ParseExact($Matches[1], 'yyyy-MM-dd', [System.Globalization.CultureInfo]::InvariantCulture)
             if ($StartDate -and $fileDate -lt $StartDate.Date) { continue }
             if ($EndDate -and $fileDate -gt $EndDate.Date) { continue }
         }
@@ -481,7 +481,7 @@ function Clear-AuditTrail {
 
     foreach ($file in $logFiles) {
         if ($file.Name -match 'AuditTrail-(\d{4}-\d{2}-\d{2})\.jsonl') {
-            $fileDate = [datetime]::ParseExact($Matches[1], 'yyyy-MM-dd', $null)
+            $fileDate = [datetime]::ParseExact($Matches[1], 'yyyy-MM-dd', [System.Globalization.CultureInfo]::InvariantCulture)
             if ($fileDate -lt $cutoffDate) {
                 # Archive before deletion
                 $archivePath = Join-Path $script:AuditLogPath 'Archive'

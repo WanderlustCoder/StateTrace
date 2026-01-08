@@ -916,8 +916,8 @@ function Show-NewMaintenanceWindowDialog {
     $endStr = Read-Host "Enter end time (yyyy-MM-dd HH:mm)"
 
     try {
-        $startTime = [DateTime]::ParseExact($startStr, 'yyyy-MM-dd HH:mm', $null)
-        $endTime = [DateTime]::ParseExact($endStr, 'yyyy-MM-dd HH:mm', $null)
+        $startTime = [DateTime]::ParseExact($startStr, 'yyyy-MM-dd HH:mm', [System.Globalization.CultureInfo]::InvariantCulture)
+        $endTime = [DateTime]::ParseExact($endStr, 'yyyy-MM-dd HH:mm', [System.Globalization.CultureInfo]::InvariantCulture)
 
         $window = New-MaintenanceWindow -Title $title -StartTime $startTime -EndTime $endTime -CreatedBy $env:USERNAME
         Update-MaintenanceWindowsGrid -View $View

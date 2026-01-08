@@ -479,7 +479,7 @@ function Clear-AuditLog {
     foreach ($file in $logFiles) {
         $dateStr = $file.BaseName -replace 'audit-', ''
         try {
-            $fileDate = [datetime]::ParseExact($dateStr, 'yyyy-MM-dd', $null)
+            $fileDate = [datetime]::ParseExact($dateStr, 'yyyy-MM-dd', [System.Globalization.CultureInfo]::InvariantCulture)
             if ($fileDate -lt $cutoffDate) {
                 Remove-Item $file.FullName -Force
                 $deleted++

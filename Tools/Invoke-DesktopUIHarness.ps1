@@ -51,7 +51,7 @@ if ($preflight.Status -ne 'Ready') {
             [pscustomobject]@{ HarnessName = 'SearchAlerts'; Status = $preflight.Status; Reason = $preflight.Reason }
         )
     }
-    $blockedSummary | ConvertTo-Json -Depth 6 | Set-Content -Path $summaryPath -Encoding ASCII
+    $blockedSummary | ConvertTo-Json -Depth 6 | Set-Content -Path $summaryPath -Encoding UTF8
     Write-Host ("UI harness blocked ({0}). Summary: {1}" -f $preflight.Reason, $summaryPath) -ForegroundColor Yellow
     exit 2
 }
@@ -76,7 +76,7 @@ $spanArgs = @(
 $spanJson = & $spanExePath @spanArgs
 $spanExit = $LASTEXITCODE
 $spanJsonText = if ($spanJson) { ($spanJson -join [Environment]::NewLine) } else { '' }
-Set-Content -Path $spanLog -Value $spanJsonText -Encoding ASCII
+Set-Content -Path $spanLog -Value $spanJsonText -Encoding UTF8
 $spanResult = $null
 if ($spanJsonText) {
     try { $spanResult = $spanJsonText | ConvertFrom-Json -ErrorAction Stop } catch { $spanResult = $null }
@@ -119,7 +119,7 @@ if ($SearchAlertsRequireAlerts) {
 $searchJson = & pwsh.exe @searchArgs
 $searchExit = $LASTEXITCODE
 $searchJsonText = if ($searchJson) { ($searchJson -join [Environment]::NewLine) } else { '' }
-Set-Content -Path $searchLog -Value $searchJsonText -Encoding ASCII
+Set-Content -Path $searchLog -Value $searchJsonText -Encoding UTF8
 $searchResult = $null
 if ($searchJsonText) {
     try { $searchResult = $searchJsonText | ConvertFrom-Json -ErrorAction Stop } catch { $searchResult = $null }
@@ -143,7 +143,7 @@ $summary = [pscustomobject]@{
     SummaryPath = $summaryPath
 }
 
-$summary | ConvertTo-Json -Depth 6 | Set-Content -Path $summaryPath -Encoding ASCII
+$summary | ConvertTo-Json -Depth 6 | Set-Content -Path $summaryPath -Encoding UTF8
 Write-Host ("UI harness summary: {0}" -f $summaryPath) -ForegroundColor Green
 
 if ($overallStatus -ne 'Pass') {

@@ -175,7 +175,7 @@ if (-not (Test-Path -LiteralPath $mainWindowXaml)) {
 
 Add-Log ('Smoke test completed with {0} error(s).' -f $errors.Count)
 
-Set-Content -LiteralPath $logPath -Value $logEntries -Encoding ASCII
+Set-Content -LiteralPath $logPath -Value $logEntries -Encoding UTF8
 
 $summary = [pscustomobject]@{
     Status = if ($errors.Count -eq 0) { 'Passed' } else { 'Failed' }
