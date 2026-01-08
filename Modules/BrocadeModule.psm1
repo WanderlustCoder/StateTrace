@@ -232,7 +232,7 @@ function Get-BrocadeDeviceFacts {
             if ($line -match '^(\d+/\d+/\d+)\s+([0-9a-f]{4}\.[0-9a-f]{4}\.[0-9a-f]{4}).*(AUTHENTICATED|AUTHENTICATING)$') {
                 $port = ConvertTo-StandardPortName $matches[1]
                 $mac = $matches[2]
-                $state = if ($matches[3] -eq 'AUTHENTICATED') { 'Authorized' } else { 'Authenticating' }
+                $state = if ([string]::Equals($matches[3], 'AUTHENTICATED', [System.StringComparison]::OrdinalIgnoreCase)) { 'Authorized' } else { 'Authenticating' }
                 $dot1x[$port] = [PSCustomObject]@{ Port = $port; MAC = $mac; State = $state; Mode = 'dot1x' }
             }
         }
@@ -276,8 +276,8 @@ function Get-BrocadeDeviceFacts {
                 $method = $matches[3]
                 $auth = $matches[4]
                 $pae  = $matches[5]
-                $mode = if ($method -eq 'MAUTH') { 'macauth' } else { 'dot1x' }
-                $state = if ($pae -match 'AUTHENTICATED') { 'Authorized' } elseif ($auth -eq 'Yes') { 'Authorized' } else { 'Unauthorized' }
+                $mode = if ([string]::Equals($method, 'MAUTH', [System.StringComparison]::OrdinalIgnoreCase)) { 'macauth' } else { 'dot1x' }
+                $state = if ($pae -match '(?i)AUTHENTICATED') { 'Authorized' } elseif ([string]::Equals($auth, 'Yes', [System.StringComparison]::OrdinalIgnoreCase)) { 'Authorized' } else { 'Unauthorized' }
                 [void]$results.Add([PSCustomObject]@{
                     Port  = $port
                     MAC   = $mac

@@ -50,7 +50,7 @@ function Get-CapacityDeviceData {
                 $totalPorts = $interfaces.Count
                 $usedPorts = @($interfaces | Where-Object {
                     $status = if ($_ -is [hashtable]) { $_['Status'] } else { $_.Status }
-                    $status -eq 'connected' -or $status -eq 'up'
+                    [string]::Equals($status, 'connected', [System.StringComparison]::OrdinalIgnoreCase) -or [string]::Equals($status, 'up', [System.StringComparison]::OrdinalIgnoreCase)
                 }).Count
 
                 $devices += [PSCustomObject]@{

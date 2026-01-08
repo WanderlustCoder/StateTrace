@@ -155,7 +155,7 @@ function Get-JuniperDeviceFacts {
                 }
                 # Physical link is Up/Down
                 if ($line -match '(?i)Physical link is\s+(Up|Down)') {
-                    $currentInterface.Status = if ($matches[1] -eq 'Up') { 'connected' } else { 'notconnect' }
+                    $currentInterface.Status = if ([string]::Equals($matches[1], 'Up', [System.StringComparison]::OrdinalIgnoreCase)) { 'connected' } else { 'notconnect' }
                 }
                 # Enabled/Disabled
                 if ($line -match '(?i)(Enabled|Disabled),') {

@@ -968,7 +968,7 @@ function New-DeviceDocumentation {
     $totalPorts = if ($Interfaces) { $Interfaces.Count } else { 0 }
     $connectedPorts = 0
     if ($Interfaces) {
-        $connectedPorts = @($Interfaces | Where-Object { $_.status -eq 'connected' -or $_.status -eq 'up' }).Count
+        $connectedPorts = @($Interfaces | Where-Object { [string]::Equals($_.status, 'connected', [System.StringComparison]::OrdinalIgnoreCase) -or [string]::Equals($_.status, 'up', [System.StringComparison]::OrdinalIgnoreCase) }).Count
     }
     $availablePorts = $totalPorts - $connectedPorts
     $utilizationPercent = if ($totalPorts -gt 0) { [Math]::Round(($connectedPorts / $totalPorts) * 100, 1) } else { 0 }

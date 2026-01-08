@@ -1493,7 +1493,7 @@ function Get-CableDatabaseStats {
     $usedPorts = 0
     foreach ($panel in $panels) {
         $totalPorts += $panel.PortCount
-        $usedPorts += @($panel.Ports | Where-Object { $_.Status -eq 'Connected' -or $_.CableID }).Count
+        $usedPorts += @($panel.Ports | Where-Object { [string]::Equals($_.Status, 'Connected', [System.StringComparison]::OrdinalIgnoreCase) -or $_.CableID }).Count
     }
 
     [PSCustomObject]@{
