@@ -15,6 +15,7 @@ try { TelemetryModule\Import-InterfaceCommon | Out-Null } catch { }
 $script:lastTemplateVendor = 'default'
 $script:TemplateThemeHandlerRegistered = $false
 $script:InterfaceStringPropertyValueCmd = $null
+$script:ColumnWidthSaveTimer = $null
 
 if (-not (Get-Variable -Scope Script -Name PortNormalizationAvailable -ErrorAction SilentlyContinue)) {
     $script:PortNormalizationAvailable = $false

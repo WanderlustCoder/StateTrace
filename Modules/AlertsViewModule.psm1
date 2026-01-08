@@ -45,10 +45,8 @@ function script:Apply-ColumnWidths {
 function script:Wire-ColumnWidthPersistence {
     param($DataGrid, [string]$GridName)
     if (-not $DataGrid) { return }
-    $saveTimer = New-Object System.Windows.Threading.DispatcherTimer
-    $saveTimer.Interval = [TimeSpan]::FromMilliseconds(500)
+
     $saveAction = {
-        $saveTimer.Stop()
         $widths = @{}
         foreach ($col in $DataGrid.Columns) {
             $header = $col.Header
@@ -56,16 +54,17 @@ function script:Wire-ColumnWidthPersistence {
         }
         script:Save-ColumnWidths -GridName $GridName -Widths $widths
     }.GetNewClosure()
-    $saveTimer.Add_Tick($saveAction)
-    foreach ($col in $DataGrid.Columns) {
-        $col.Add_PropertyChanged({
-            param($sender, $e)
-            if ($e.PropertyName -eq 'ActualWidth' -or $e.PropertyName -eq 'Width') {
-                $saveTimer.Stop()
-                $saveTimer.Start()
-            }
-        })
-    }
+
+    # Use ColumnHeaderDragCompleted which fires after column resize
+    $DataGrid.Add_ColumnHeaderDragCompleted({
+        param($sender, $e)
+        & $saveAction
+    })
+    # Also save on column reorder
+    $DataGrid.Add_ColumnReordered({
+        param($sender, $e)
+        & $saveAction
+    })
 }
 
 function New-AlertsView {
