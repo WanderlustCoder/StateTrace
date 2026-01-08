@@ -19,6 +19,26 @@ $script:ToolsSubHosts = $null
 $script:ToolsInitializedViews = $null
 $script:ToolsScriptDir = $null
 
+# Helper: Load XAML for fallback view loading
+# Note: DynamicResource bindings resolve from Application.Resources when view is in visual tree
+function Load-ThemedXamlView {
+    param(
+        [string]$ViewPath,
+        [string]$ScriptDir
+    )
+
+    if (-not (Test-Path $ViewPath)) { return $null }
+
+    $xamlContent = Get-Content -Path $ViewPath -Raw
+    $xamlContent = $xamlContent -replace 'x:Class="[^"]*"', ''
+    $xamlContent = $xamlContent -replace 'mc:Ignorable="d"', ''
+
+    $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
+    $view = [System.Windows.Markup.XamlReader]::Load($reader)
+
+    return $view
+}
+
 function New-ToolsContainerView {
     <#
     .SYNOPSIS
@@ -109,15 +129,8 @@ function Initialize-TroubleshootSubView {
             DecisionTreeViewModule\Initialize-DecisionTreeView -Host $Host
         } else {
             $viewPath = Join-Path $ScriptDir '..\Views\DecisionTreeView.xaml'
-            if (Test-Path $viewPath) {
-                $xamlContent = Get-Content -Path $viewPath -Raw
-                $xamlContent = $xamlContent -replace 'x:Class="[^"]*"', ''
-                $xamlContent = $xamlContent -replace 'mc:Ignorable="d"', ''
-
-                $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
-                $view = [System.Windows.Markup.XamlReader]::Load($reader)
-                $Host.Content = $view
-            }
+            $view = Load-ThemedXamlView -ViewPath $viewPath -ScriptDir $ScriptDir
+            if ($view) { $Host.Content = $view }
         }
     }
     catch {
@@ -136,15 +149,8 @@ function Initialize-CalculatorSubView {
             NetworkCalculatorViewModule\Initialize-NetworkCalculatorView -Host $Host
         } else {
             $viewPath = Join-Path $ScriptDir '..\Views\NetworkCalculatorView.xaml'
-            if (Test-Path $viewPath) {
-                $xamlContent = Get-Content -Path $viewPath -Raw
-                $xamlContent = $xamlContent -replace 'x:Class="[^"]*"', ''
-                $xamlContent = $xamlContent -replace 'mc:Ignorable="d"', ''
-
-                $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
-                $view = [System.Windows.Markup.XamlReader]::Load($reader)
-                $Host.Content = $view
-            }
+            $view = Load-ThemedXamlView -ViewPath $viewPath -ScriptDir $ScriptDir
+            if ($view) { $Host.Content = $view }
         }
     }
     catch {

@@ -20,6 +20,26 @@ $script:OpsSubHosts = $null
 $script:OpsInitializedViews = $null
 $script:OpsScriptDir = $null
 
+# Helper: Load XAML for fallback view loading
+# Note: DynamicResource bindings resolve from Application.Resources when view is in visual tree
+function Load-ThemedXamlView {
+    param(
+        [string]$ViewPath,
+        [string]$ScriptDir
+    )
+
+    if (-not (Test-Path $ViewPath)) { return $null }
+
+    $xamlContent = Get-Content -Path $ViewPath -Raw
+    $xamlContent = $xamlContent -replace 'x:Class="[^"]*"', ''
+    $xamlContent = $xamlContent -replace 'mc:Ignorable="d"', ''
+
+    $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
+    $view = [System.Windows.Markup.XamlReader]::Load($reader)
+
+    return $view
+}
+
 function New-OperationsContainerView {
     <#
     .SYNOPSIS
@@ -117,15 +137,8 @@ function Initialize-ChangesSubView {
             ChangeManagementViewModule\Initialize-ChangeManagementView -Host $Host
         } else {
             $viewPath = Join-Path $ScriptDir '..\Views\ChangeManagementView.xaml'
-            if (Test-Path $viewPath) {
-                $xamlContent = Get-Content -Path $viewPath -Raw
-                $xamlContent = $xamlContent -replace 'x:Class="[^"]*"', ''
-                $xamlContent = $xamlContent -replace 'mc:Ignorable="d"', ''
-
-                $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
-                $view = [System.Windows.Markup.XamlReader]::Load($reader)
-                $Host.Content = $view
-            }
+            $view = Load-ThemedXamlView -ViewPath $viewPath -ScriptDir $ScriptDir
+            if ($view) { $Host.Content = $view }
         }
     }
     catch {
@@ -144,15 +157,8 @@ function Initialize-CapacitySubView {
             CapacityPlanningViewModule\Initialize-CapacityPlanningView -Host $Host
         } else {
             $viewPath = Join-Path $ScriptDir '..\Views\CapacityPlanningView.xaml'
-            if (Test-Path $viewPath) {
-                $xamlContent = Get-Content -Path $viewPath -Raw
-                $xamlContent = $xamlContent -replace 'x:Class="[^"]*"', ''
-                $xamlContent = $xamlContent -replace 'mc:Ignorable="d"', ''
-
-                $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
-                $view = [System.Windows.Markup.XamlReader]::Load($reader)
-                $Host.Content = $view
-            }
+            $view = Load-ThemedXamlView -ViewPath $viewPath -ScriptDir $ScriptDir
+            if ($view) { $Host.Content = $view }
         }
     }
     catch {
@@ -171,15 +177,8 @@ function Initialize-LogAnalysisSubView {
             LogAnalysisViewModule\Initialize-LogAnalysisView -Host $Host
         } else {
             $viewPath = Join-Path $ScriptDir '..\Views\LogAnalysisView.xaml'
-            if (Test-Path $viewPath) {
-                $xamlContent = Get-Content -Path $viewPath -Raw
-                $xamlContent = $xamlContent -replace 'x:Class="[^"]*"', ''
-                $xamlContent = $xamlContent -replace 'mc:Ignorable="d"', ''
-
-                $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
-                $view = [System.Windows.Markup.XamlReader]::Load($reader)
-                $Host.Content = $view
-            }
+            $view = Load-ThemedXamlView -ViewPath $viewPath -ScriptDir $ScriptDir
+            if ($view) { $Host.Content = $view }
         }
     }
     catch {

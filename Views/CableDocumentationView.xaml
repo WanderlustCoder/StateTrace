@@ -12,12 +12,12 @@
     <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5" Background="{DynamicResource Theme.Toolbar.Background}">
       <Button Name="AddPanelButton" Content="Add Panel" Margin="5,2" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Add a new patch panel"/>
       <Separator Margin="5,2"/>
-      <ToggleButton Name="QuickConnectToggle" Content="Quick Connect" Margin="5,2" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Toggle quick connect mode: click source port then destination port to create cable"/>
+      <ToggleButton Name="QuickConnectToggle" Content="Quick Connect" Margin="5,2" Padding="8,4" Background="{DynamicResource Theme.Surface.Secondary}" Foreground="{DynamicResource Theme.Text.Primary}" BorderBrush="{DynamicResource Theme.Border.Primary}" ToolTip="Toggle quick connect mode: click source port then destination port to create cable"/>
       <Separator Margin="5,2"/>
       <Button Name="ImportButton" Content="Import" Margin="5,2" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Import cable database from JSON"/>
       <Button Name="ExportButton" Content="Export" Margin="5,2" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Export cable database to JSON"/>
       <Separator Margin="5,2"/>
-      <Label Content="Filter:" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
+      <Label Content="Filter:" VerticalAlignment="Center" Foreground="{DynamicResource Theme.Text.Primary}"/>
       <TextBox Name="FilterBox" Width="150" Margin="5,2" VerticalAlignment="Center" ToolTip="Filter panels by name or location"/>
       <Button Name="ClearFilterButton" Content="X" Width="24" Margin="2" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Clear filter"/>
     </StackPanel>
@@ -40,13 +40,13 @@
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Orientation="Horizontal" Background="{DynamicResource Theme.Surface.Secondary}" Margin="0,0,0,2">
-          <Label Content="Panels" FontWeight="Bold" Style="{DynamicResource ToolbarLabelStyle}"/>
-          <Label Name="PanelCountLabel" Content="(0)" Style="{DynamicResource ToolbarLabelStyle}"/>
+          <Label Content="Panels" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}"/>
+          <Label Name="PanelCountLabel" Content="(0)" Foreground="{DynamicResource Theme.Text.Primary}"/>
         </StackPanel>
 
         <ListBox Name="PanelListBox" Grid.Row="1"
                  Background="{DynamicResource Theme.Surface.Primary}"
-                 Foreground="{DynamicResource Theme.Text.Primary}"
+                 Foreground="{DynamicResource Theme.Text.Inverse}"
                  SelectionMode="Single"
                  VirtualizingPanel.IsVirtualizing="True"
                  VirtualizingPanel.VirtualizationMode="Recycling"
@@ -54,10 +54,10 @@
           <ListBox.ItemTemplate>
             <DataTemplate>
               <StackPanel Margin="2">
-                <TextBlock Text="{Binding PanelName}" FontWeight="Bold"/>
+                <TextBlock Text="{Binding PanelName}" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Inverse}"/>
                 <StackPanel Orientation="Horizontal">
-                  <TextBlock Text="{Binding PortCount}" Foreground="{DynamicResource Theme.Text.Secondary}" FontSize="11"/>
-                  <TextBlock Text=" ports" Foreground="{DynamicResource Theme.Text.Secondary}" FontSize="11"/>
+                  <TextBlock Text="{Binding PortCount}" Foreground="{DynamicResource Theme.Text.Inverse}" FontSize="11" Opacity="0.8"/>
+                  <TextBlock Text=" ports" Foreground="{DynamicResource Theme.Text.Inverse}" FontSize="11" Opacity="0.8"/>
                 </StackPanel>
               </StackPanel>
             </DataTemplate>

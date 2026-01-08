@@ -10,57 +10,101 @@ Set-StrictMode -Version Latest
     Part of Plan T - Cable & Port Documentation.
 #>
 
+# Import required dependency module globally so closures can access it
+$cableDocModulePath = Join-Path $PSScriptRoot 'CableDocumentationModule.psm1'
+if (Test-Path $cableDocModulePath) {
+    Import-Module $cableDocModulePath -Force -Global -ErrorAction Stop
+}
+
+# Note: ThemeModule should already be loaded by the main application
+# Don't reimport with -Force as it resets module state including current theme
+
 # Script-level brush cache for performance
 $script:PortStatusBrushes = $null
 $script:CableTypeBrushes = $null
 
+function Get-ThemedBrush {
+    <#
+    .SYNOPSIS
+        Gets a brush from theme or falls back to a default color.
+    #>
+    param(
+        [string]$ThemeKey,
+        [string]$FallbackColor
+    )
+
+    $brush = $null
+    if (Get-Command -Name 'Get-ThemeBrush' -Module 'ThemeModule' -ErrorAction SilentlyContinue) {
+        $brush = ThemeModule\Get-ThemeBrush -Key $ThemeKey
+    }
+
+    if (-not $brush) {
+        $converter = New-Object System.Windows.Media.BrushConverter
+        $brush = $converter.ConvertFromString($FallbackColor)
+    }
+
+    if ($brush -and $brush.CanFreeze) { $brush.Freeze() }
+    return $brush
+}
+
 function Initialize-BrushCache {
     <#
     .SYNOPSIS
-        Creates and freezes brushes for port status colors.
+        Creates and freezes brushes using theme tokens with fallbacks.
     #>
-    if ($script:PortStatusBrushes) { return }
-
+    # Always reinitialize to pick up theme changes
     $converter = New-Object System.Windows.Media.BrushConverter
 
+    # Port status brushes - use semantic colors
     $script:PortStatusBrushes = @{
-        'Empty'     = $converter.ConvertFromString('#555555')  # Dark gray
-        'Connected' = $converter.ConvertFromString('#27AE60')  # Green
-        'Reserved'  = $converter.ConvertFromString('#3498DB')  # Blue
-        'Faulty'    = $converter.ConvertFromString('#E74C3C')  # Red
+        'Empty'     = Get-ThemedBrush -ThemeKey 'Theme.Status.Neutral' -FallbackColor '#555555'
+        'Connected' = Get-ThemedBrush -ThemeKey 'Theme.Status.Success' -FallbackColor '#27AE60'
+        'Reserved'  = Get-ThemedBrush -ThemeKey 'Theme.Status.Info' -FallbackColor '#3498DB'
+        'Faulty'    = Get-ThemedBrush -ThemeKey 'Theme.Status.Danger' -FallbackColor '#E74C3C'
     }
 
+    # Cable type brushes - these are more semantic, keep distinct colors
     $script:CableTypeBrushes = @{
-        'Cat5e'    = $converter.ConvertFromString('#888888')  # Gray
-        'Cat6'     = $converter.ConvertFromString('#3498DB')  # Blue
-        'Cat6a'    = $converter.ConvertFromString('#2980B9')  # Dark blue
-        'FiberOM3' = $converter.ConvertFromString('#F39C12')  # Orange
-        'FiberOM4' = $converter.ConvertFromString('#E67E22')  # Dark orange
-        'FiberOS2' = $converter.ConvertFromString('#27AE60')  # Green
-        'Coax'     = $converter.ConvertFromString('#9B59B6')  # Purple
-        'Other'    = $converter.ConvertFromString('#95A5A6')  # Light gray
+        'Cat5e'    = $converter.ConvertFromString('#888888')
+        'Cat6'     = $converter.ConvertFromString('#3498DB')
+        'Cat6a'    = $converter.ConvertFromString('#2980B9')
+        'FiberOM3' = $converter.ConvertFromString('#F39C12')
+        'FiberOM4' = $converter.ConvertFromString('#E67E22')
+        'FiberOS2' = $converter.ConvertFromString('#27AE60')
+        'Coax'     = $converter.ConvertFromString('#9B59B6')
+        'Other'    = $converter.ConvertFromString('#95A5A6')
     }
 
-    $script:SelectionBrush = $converter.ConvertFromString('#F39C12')  # Accent color
-    $script:PanelBackgroundBrush = $converter.ConvertFromString('#2D2D30')
-    $script:PanelHeaderBrush = $converter.ConvertFromString('#3E3E42')
-    $script:TextBrush = $converter.ConvertFromString('#FFFFFF')
-    $script:TextSecondaryBrush = $converter.ConvertFromString('#AAAAAA')
-    $script:BorderBrush = $converter.ConvertFromString('#555555')
+    # UI brushes - use theme tokens for proper light/dark theme support
+    $script:SelectionBrush = Get-ThemedBrush -ThemeKey 'Theme.Button.Primary.Background' -FallbackColor '#F39C12'
+    $script:PanelBackgroundBrush = Get-ThemedBrush -ThemeKey 'Theme.Surface.Secondary' -FallbackColor '#2D2D30'
+    $script:PanelHeaderBrush = Get-ThemedBrush -ThemeKey 'Theme.Toolbar.Background' -FallbackColor '#3E3E42'
+    # Use Toolbar.Text for text on colored surfaces (panel headers, port numbers)
+    $script:TextBrush = Get-ThemedBrush -ThemeKey 'Theme.Toolbar.Text' -FallbackColor '#FFFFFF'
+    $script:TextSecondaryBrush = Get-ThemedBrush -ThemeKey 'Theme.Text.Inverse' -FallbackColor '#AAAAAA'
+    $script:BorderBrush = Get-ThemedBrush -ThemeKey 'Theme.Border.Primary' -FallbackColor '#555555'
 
-    # Freeze all brushes for performance
-    foreach ($brush in $script:PortStatusBrushes.Values) {
-        if ($brush.CanFreeze) { $brush.Freeze() }
-    }
+    # Freeze cable type brushes
     foreach ($brush in $script:CableTypeBrushes.Values) {
-        if ($brush.CanFreeze) { $brush.Freeze() }
+        if ($brush -and $brush.CanFreeze) { $brush.Freeze() }
     }
-    if ($script:SelectionBrush.CanFreeze) { $script:SelectionBrush.Freeze() }
-    if ($script:PanelBackgroundBrush.CanFreeze) { $script:PanelBackgroundBrush.Freeze() }
-    if ($script:PanelHeaderBrush.CanFreeze) { $script:PanelHeaderBrush.Freeze() }
-    if ($script:TextBrush.CanFreeze) { $script:TextBrush.Freeze() }
-    if ($script:TextSecondaryBrush.CanFreeze) { $script:TextSecondaryBrush.Freeze() }
-    if ($script:BorderBrush.CanFreeze) { $script:BorderBrush.Freeze() }
+}
+
+function Get-CurrentBrushes {
+    <#
+    .SYNOPSIS
+        Returns current brush cache for use in closures/theme change handlers.
+    #>
+    return @{
+        PortStatus = $script:PortStatusBrushes
+        CableType = $script:CableTypeBrushes
+        Selection = $script:SelectionBrush
+        PanelBackground = $script:PanelBackgroundBrush
+        PanelHeader = $script:PanelHeaderBrush
+        Text = $script:TextBrush
+        TextSecondary = $script:TextSecondaryBrush
+        Border = $script:BorderBrush
+    }
 }
 
 function New-CableDocumentationView {
@@ -111,6 +155,8 @@ function Initialize-CableDocumentationView {
 
         $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
         $view = [System.Windows.Markup.XamlReader]::Load($reader)
+
+        # Note: DynamicResource bindings resolve from Application.Resources when view is in visual tree
         $Host.Content = $view
 
         Initialize-CableDocumentationControls -View $view
@@ -133,6 +179,17 @@ function Initialize-CableDocumentationControls {
     )
 
     Initialize-BrushCache
+
+    # Capture brush caches in local variables for closure capture
+    # ($script: variables aren't captured by .GetNewClosure())
+    $portStatusBrushes = $script:PortStatusBrushes
+    $cableTypeBrushes = $script:CableTypeBrushes
+    $selectionBrush = $script:SelectionBrush
+    $panelBackgroundBrush = $script:PanelBackgroundBrush
+    $panelHeaderBrush = $script:PanelHeaderBrush
+    $textBrush = $script:TextBrush
+    $textSecondaryBrush = $script:TextSecondaryBrush
+    $borderBrush = $script:BorderBrush
 
     # Get controls from the new XAML layout
     $addPanelButton = $View.FindName('AddPanelButton')
@@ -220,6 +277,17 @@ function Initialize-CableDocumentationControls {
         IsNewPanel = $false
         PortElements = @{}  # Maps "PanelID:PortNum" to Border element
         PanelElements = @{} # Maps PanelID to panel Border element
+        Callbacks = @{}     # Scriptblock callbacks for nested closures
+        Brushes = @{        # Brush references for nested closures
+            PortStatus = $portStatusBrushes
+            CableType = $cableTypeBrushes
+            Selection = $selectionBrush
+            PanelBackground = $panelBackgroundBrush
+            PanelHeader = $panelHeaderBrush
+            Text = $textBrush
+            TextSecondary = $textSecondaryBrush
+            Border = $borderBrush
+        }
     }
 
     # Helper: Save database
@@ -378,7 +446,7 @@ function Initialize-CableDocumentationControls {
                 if ($cancelQuickConnectButton) { $cancelQuickConnectButton.Visibility = 'Visible' }
 
                 # Highlight source port
-                $PortElement.BorderBrush = $script:SelectionBrush
+                $PortElement.BorderBrush = $selectionBrush
                 $PortElement.BorderThickness = New-Object System.Windows.Thickness(2)
             }
         }
@@ -388,12 +456,12 @@ function Initialize-CableDocumentationControls {
 
             # Clear previous selection highlight
             foreach ($elem in $View.Tag.PortElements.Values) {
-                $elem.BorderBrush = $script:BorderBrush
+                $elem.BorderBrush = $borderBrush
                 $elem.BorderThickness = New-Object System.Windows.Thickness(1)
             }
 
             # Highlight selected port
-            $PortElement.BorderBrush = $script:SelectionBrush
+            $PortElement.BorderBrush = $selectionBrush
             $PortElement.BorderThickness = New-Object System.Windows.Thickness(2)
         }
     }.GetNewClosure()
@@ -402,6 +470,7 @@ function Initialize-CableDocumentationControls {
     $renderHardwarePanel = {
         param($Panel, [int]$YPosition)
 
+        try {
         $portWidth = 28
         $portHeight = 24
         $portMargin = 2
@@ -417,8 +486,8 @@ function Initialize-CableDocumentationControls {
         $panelBorder = New-Object System.Windows.Controls.Border
         $panelBorder.Width = $panelWidth
         $panelBorder.Height = $panelHeight
-        $panelBorder.Background = $script:PanelBackgroundBrush
-        $panelBorder.BorderBrush = $script:BorderBrush
+        $panelBorder.Background = $panelBackgroundBrush
+        $panelBorder.BorderBrush = $borderBrush
         $panelBorder.BorderThickness = New-Object System.Windows.Thickness(1)
         $panelBorder.CornerRadius = New-Object System.Windows.CornerRadius(4)
         $panelBorder.Tag = $Panel
@@ -429,7 +498,7 @@ function Initialize-CableDocumentationControls {
 
         # Header
         $headerBorder = New-Object System.Windows.Controls.Border
-        $headerBorder.Background = $script:PanelHeaderBrush
+        $headerBorder.Background = $panelHeaderBrush
         $headerBorder.Padding = New-Object System.Windows.Thickness(8, 4, 8, 4)
         [System.Windows.Controls.Grid]::SetRow($headerBorder, 0)
 
@@ -439,12 +508,12 @@ function Initialize-CableDocumentationControls {
         $nameText = New-Object System.Windows.Controls.TextBlock
         $nameText.Text = $Panel.PanelName
         $nameText.FontWeight = 'Bold'
-        $nameText.Foreground = $script:TextBrush
+        $nameText.Foreground = $textBrush
         $nameText.VerticalAlignment = 'Center'
 
         $portCountText = New-Object System.Windows.Controls.TextBlock
         $portCountText.Text = "  [$($Panel.PortCount)-Port]"
-        $portCountText.Foreground = $script:TextSecondaryBrush
+        $portCountText.Foreground = $textSecondaryBrush
         $portCountText.VerticalAlignment = 'Center'
         $portCountText.FontSize = 11
 
@@ -470,13 +539,13 @@ function Initialize-CableDocumentationControls {
             $portBorder.Width = $portWidth
             $portBorder.Height = $portHeight
             $portBorder.CornerRadius = New-Object System.Windows.CornerRadius(2)
-            $portBorder.BorderBrush = $script:BorderBrush
+            $portBorder.BorderBrush = $borderBrush
             $portBorder.BorderThickness = New-Object System.Windows.Thickness(1)
             $portBorder.Cursor = [System.Windows.Input.Cursors]::Hand
 
             # Status color
-            $statusBrush = $script:PortStatusBrushes[$port.Status]
-            if (-not $statusBrush) { $statusBrush = $script:PortStatusBrushes['Empty'] }
+            $statusBrush = $portStatusBrushes[$port.Status]
+            if (-not $statusBrush) { $statusBrush = $portStatusBrushes['Empty'] }
             $portBorder.Background = $statusBrush
 
             # Port number text
@@ -484,7 +553,7 @@ function Initialize-CableDocumentationControls {
             $portText.Text = $port.PortNumber.ToString()
             $portText.FontSize = 9
             $portText.FontWeight = 'Bold'
-            $portText.Foreground = $script:TextBrush
+            $portText.Foreground = $textBrush
             $portText.HorizontalAlignment = 'Center'
             $portText.VerticalAlignment = 'Center'
 
@@ -502,12 +571,14 @@ function Initialize-CableDocumentationControls {
             $View.Tag.PortElements[$portKey] = $portBorder
 
             # Click handler - need to capture current values
+            $clickView = $View
             $clickPanel = $Panel
             $clickPort = $port
             $clickElement = $portBorder
             $portBorder.Add_MouseLeftButtonDown({
                 param($sender, $e)
-                & $handlePortClick $clickPanel $clickPort $clickElement
+                $handler = $clickView.Tag.Callbacks.HandlePortClick
+                if ($handler) { & $handler $clickPanel $clickPort $clickElement }
             }.GetNewClosure())
 
             [System.Windows.Controls.Canvas]::SetLeft($portBorder, $x)
@@ -531,6 +602,10 @@ function Initialize-CableDocumentationControls {
         return @{
             Element = $panelBorder
             Height = $panelHeight
+        }
+        } catch {
+            Write-Warning "renderHardwarePanel error: $($_.Exception.Message)"
+            return $null
         }
     }.GetNewClosure()
 
@@ -617,8 +692,8 @@ function Initialize-CableDocumentationControls {
             $path.Tag = $cable
 
             # Cable type color
-            $cableBrush = $script:CableTypeBrushes[$cable.CableType]
-            if (-not $cableBrush) { $cableBrush = $script:CableTypeBrushes['Other'] }
+            $cableBrush = $cableTypeBrushes[$cable.CableType]
+            if (-not $cableBrush) { $cableBrush = $cableTypeBrushes['Other'] }
             $path.Stroke = $cableBrush
 
             # Status opacity
@@ -635,15 +710,17 @@ function Initialize-CableDocumentationControls {
             $path.ToolTip = "Cable: $($cable.CableID)`n$($cable.SourceDevice):$($cable.SourcePort) -> $($cable.DestDevice):$($cable.DestPort)`nType: $($cable.CableType)`nStatus: $($cable.Status)"
 
             # Click handler to show cable details
+            $clickView = $View
             $clickCable = $cable
             $path.Add_MouseLeftButtonDown({
                 param($sender, $e)
                 # Find a port with this cable and show its details
-                $panels = @(CableDocumentationModule\Get-PatchPanel -Database $View.Tag.Database)
+                $panels = @(CableDocumentationModule\Get-PatchPanel -Database $clickView.Tag.Database)
                 foreach ($panel in $panels) {
                     foreach ($port in $panel.Ports) {
                         if ($port.CableID -eq $clickCable.CableID) {
-                            & $showPortDetails $panel $port
+                            $handler = $clickView.Tag.Callbacks.ShowPortDetails
+                            if ($handler) { & $handler $panel $port }
                             $e.Handled = $true
                             return
                         }
@@ -682,12 +759,14 @@ function Initialize-CableDocumentationControls {
 
         foreach ($panel in $panels) {
             $result = & $renderHardwarePanel $panel $yPos
-            $hardwareCanvas.Children.Add($result.Element) | Out-Null
-            $yPos += $result.Height + 20
+            if ($result -and $result.Element) {
+                $hardwareCanvas.Children.Add($result.Element) | Out-Null
+                $yPos += $result.Height + 20
 
-            # Update canvas size
-            $elementRight = 20 + $result.Element.Width + 40
-            if ($elementRight -gt $maxWidth) { $maxWidth = $elementRight }
+                # Update canvas size
+                $elementRight = 20 + $result.Element.Width + 40
+                if ($elementRight -gt $maxWidth) { $maxWidth = $elementRight }
+            }
         }
 
         # Resize canvas to fit content
@@ -708,10 +787,27 @@ function Initialize-CableDocumentationControls {
         }
     }.GetNewClosure()
 
+    # Store callbacks in View.Tag for access by nested closures
+    $View.Tag.Callbacks = @{
+        HandlePortClick = $handlePortClick
+        ShowPortDetails = $showPortDetails
+        ShowPanelEdit = $showPanelEdit
+        HideAllSections = $hideAllSections
+        SaveDatabase = $saveDatabase
+        RenderHardwareCanvas = $renderHardwareCanvas
+        RenderHardwarePanel = $renderHardwarePanel
+        RenderCables = $renderCables
+    }
+
     # Event: Add Panel button
     if ($addPanelButton) {
         $addPanelButton.Add_Click({
-            & $showPanelEdit $null $true
+            try {
+                & $showPanelEdit $null $true
+            }
+            catch {
+                if ($statusText) { $statusText.Text = "Error: $($_.Exception.Message)" }
+            }
         }.GetNewClosure())
     }
 
@@ -741,7 +837,7 @@ function Initialize-CableDocumentationControls {
 
             # Clear any selection highlights
             foreach ($elem in $View.Tag.PortElements.Values) {
-                $elem.BorderBrush = $script:BorderBrush
+                $elem.BorderBrush = $borderBrush
                 $elem.BorderThickness = New-Object System.Windows.Thickness(1)
             }
         }.GetNewClosure())
@@ -757,7 +853,7 @@ function Initialize-CableDocumentationControls {
 
             # Clear highlight
             foreach ($elem in $View.Tag.PortElements.Values) {
-                $elem.BorderBrush = $script:BorderBrush
+                $elem.BorderBrush = $borderBrush
                 $elem.BorderThickness = New-Object System.Windows.Thickness(1)
             }
         }.GetNewClosure())
@@ -848,6 +944,84 @@ function Initialize-CableDocumentationControls {
         }.GetNewClosure())
     }
 
+    # Event: Edit Cable
+    if ($editCableButton) {
+        $editCableButton.Add_Click({
+            $cable = $View.Tag.SelectedCable
+            if (-not $cable) {
+                if ($statusText) { $statusText.Text = 'No cable selected' }
+                return
+            }
+
+            Add-Type -AssemblyName Microsoft.VisualBasic
+            $newType = [Microsoft.VisualBasic.Interaction]::InputBox(
+                "Enter cable type (e.g., Cat6, Fiber, Coax):",
+                "Edit Cable Type",
+                $cable.CableType
+            )
+            if ([string]::IsNullOrWhiteSpace($newType)) { return }
+
+            $newLength = [Microsoft.VisualBasic.Interaction]::InputBox(
+                "Enter cable length (e.g., 10ft, 3m):",
+                "Edit Cable Length",
+                $cable.Length
+            )
+
+            try {
+                CableDocumentationModule\Set-CableRun `
+                    -CableID $cable.CableID `
+                    -CableType $newType `
+                    -Length $newLength `
+                    -Database $View.Tag.Database | Out-Null
+
+                & $saveDatabase
+                & $renderHardwareCanvas
+
+                # Update displayed info
+                if ($cableTypeText) { $cableTypeText.Text = $newType }
+                if ($cableLengthText) { $cableLengthText.Text = $newLength }
+
+                if ($statusText) { $statusText.Text = "Updated cable $($cable.CableID)" }
+            }
+            catch {
+                if ($statusText) { $statusText.Text = "Error: $($_.Exception.Message)" }
+            }
+        }.GetNewClosure())
+    }
+
+    # Event: Trace Cable
+    if ($traceCableButton) {
+        $traceCableButton.Add_Click({
+            $cable = $View.Tag.SelectedCable
+            if (-not $cable) {
+                if ($statusText) { $statusText.Text = 'No cable selected' }
+                return
+            }
+
+            # Build trace information
+            $traceInfo = @(
+                "Cable Trace: $($cable.CableID)",
+                "=" * 40,
+                "",
+                "Source: $($cable.SourcePanel) Port $($cable.SourcePort)",
+                "Destination: $($cable.DestPanel) Port $($cable.DestPort)",
+                "",
+                "Type: $($cable.CableType)",
+                "Length: $($cable.Length)",
+                "Status: $($cable.Status)"
+            ) -join "`r`n"
+
+            [System.Windows.MessageBox]::Show(
+                $traceInfo,
+                "Cable Trace",
+                [System.Windows.MessageBoxButton]::OK,
+                [System.Windows.MessageBoxImage]::Information
+            )
+
+            if ($statusText) { $statusText.Text = "Traced cable $($cable.CableID)" }
+        }.GetNewClosure())
+    }
+
     # Event: Save Panel
     if ($savePanelButton) {
         $savePanelButton.Add_Click({
@@ -860,10 +1034,11 @@ function Initialize-CableDocumentationControls {
 
             try {
                 if ($View.Tag.IsNewPanel) {
+
                     $params = @{ PanelName = $panelNameBox.Text }
-                    if ($panelLocationBox.Text) { $params['Location'] = $panelLocationBox.Text }
-                    if ($panelRackIdBox.Text) { $params['RackID'] = $panelRackIdBox.Text }
-                    if ($panelRackUBox.Text) { $params['RackU'] = $panelRackUBox.Text }
+                    if ($panelLocationBox -and $panelLocationBox.Text) { $params['Location'] = $panelLocationBox.Text }
+                    if ($panelRackIdBox -and $panelRackIdBox.Text) { $params['RackID'] = $panelRackIdBox.Text }
+                    if ($panelRackUBox -and $panelRackUBox.Text) { $params['RackU'] = $panelRackUBox.Text }
 
                     $panel = CableDocumentationModule\New-PatchPanel @params
                     CableDocumentationModule\Add-PatchPanel -Panel $panel -Database $db | Out-Null
@@ -1003,4 +1178,4 @@ function Initialize-CableDocumentationControls {
     if ($statusText) { $statusText.Text = 'Ready' }
 }
 
-Export-ModuleMember -Function New-CableDocumentationView, Initialize-CableDocumentationView
+Export-ModuleMember -Function New-CableDocumentationView, Initialize-CableDocumentationView, Initialize-BrushCache, Get-CurrentBrushes
