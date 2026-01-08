@@ -1376,7 +1376,7 @@ function Invoke-DeviceLogParsing {
         return
     }
 
-    if ($make -eq 'Brocade') {
+    if ([string]::Equals($make, 'Brocade', [System.StringComparison]::OrdinalIgnoreCase)) {
         # Determine whether the AuthenticationBlock property is missing or empty
         $needBlock = $true
         if ($facts -and ($facts.PSObject.Properties.Name -contains 'AuthenticationBlock')) {

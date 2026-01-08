@@ -355,7 +355,7 @@ function New-InterfaceObjectsFromDbRow {
         }
     } catch {}
     # Fallback to query DeviceSummary if vendor still Cisco
-    if ($vendor -eq 'Cisco') {
+    if ([string]::Equals($vendor, 'Cisco', [System.StringComparison]::OrdinalIgnoreCase)) {
         try {
             $mkDt = DatabaseModule\Invoke-DbQuery -DatabasePath $dbPath -Sql "SELECT Make FROM DeviceSummary WHERE Hostname = '$escHost'"
             if ($mkDt) {
@@ -368,7 +368,7 @@ function New-InterfaceObjectsFromDbRow {
         } catch {}
     }
     # For Brocade devices, try to fetch the AuthBlock from the joined column; fallback to DB
-    if ($vendor -eq 'Brocade') {
+    if ([string]::Equals($vendor, 'Brocade', [System.StringComparison]::OrdinalIgnoreCase)) {
         $abText = $null
         try {
             # Check if the first row exposes an 'AuthBlock' property without constraining MemberType
@@ -520,7 +520,7 @@ function New-InterfaceObjectsFromDbRow {
         }
         # Append global authentication block lines to the tooltip for Brocade devices.
         $finalTip = $toolTipCore
-        if ($vendor -eq 'Brocade' -and $authBlockLines.Count -gt 0 -and ($finalTip -notmatch '(?i)GLOBAL AUTH BLOCK')) {
+        if ([string]::Equals($vendor, 'Brocade', [System.StringComparison]::OrdinalIgnoreCase) -and $authBlockLines.Count -gt 0 -and ($finalTip -notmatch '(?i)GLOBAL AUTH BLOCK')) {
             if ($finalTip -and $finalTip.Trim() -ne '') {
                 $finalTip = $finalTip.TrimEnd() + "`r`n`r`n! GLOBAL AUTH BLOCK`r`n" + ($authBlockLines -join "`r`n")
             } else {

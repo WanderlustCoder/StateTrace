@@ -144,7 +144,7 @@ function script:Get-ConfigLinesForApply {
         if ($t.Equals('exit', [System.StringComparison]::OrdinalIgnoreCase)) { continue }
         if ($t.StartsWith('interface ', [System.StringComparison]::OrdinalIgnoreCase)) { continue }
 
-        if ($Vendor -eq 'Cisco') {
+        if ([string]::Equals($Vendor, 'Cisco', [System.StringComparison]::OrdinalIgnoreCase)) {
             if ($t.StartsWith('description', [System.StringComparison]::OrdinalIgnoreCase)) { continue }
             if ($t.StartsWith('no description', [System.StringComparison]::OrdinalIgnoreCase)) { continue }
             if ($t.Equals('shutdown', [System.StringComparison]::OrdinalIgnoreCase)) { continue }
@@ -465,7 +465,7 @@ function New-PortReorgScripts {
                 $dstCfgLinesRaw = @()
                 try { $dstCfgLinesRaw = script:Split-ConfigLines -ConfigText ('' + $dstBaseline.Config) } catch { $dstCfgLinesRaw = @() }
 
-                if ($vendorKey -eq 'Cisco') {
+                if ([string]::Equals($vendorKey, 'Cisco', [System.StringComparison]::OrdinalIgnoreCase)) {
                     $changeLines.Add(("! Clear {0}" -f $dst)) | Out-Null
                     $changeLines.Add(("default interface {0}" -f $dst)) | Out-Null
                     $changeLines.Add(("interface {0}" -f $dst)) | Out-Null
@@ -489,7 +489,7 @@ function New-PortReorgScripts {
                 $dstApplyLines = script:Get-ConfigLinesForApply -ConfigLines $dstCfgLinesRaw -Vendor $vendorKey
 
                 $dstEnableAtEnd = $true
-                if ($vendorKey -eq 'Cisco') {
+                if ([string]::Equals($vendorKey, 'Cisco', [System.StringComparison]::OrdinalIgnoreCase)) {
                     $dstEnableAtEnd = script:Get-CiscoAdminEnabled -ConfigLines $dstCfgLinesRaw
                 } else {
                     $dstStatusText = ''
@@ -497,7 +497,7 @@ function New-PortReorgScripts {
                     $dstEnableAtEnd = script:Get-BrocadeAdminEnabled -Status $dstStatusText
                 }
 
-                if ($vendorKey -eq 'Cisco') {
+                if ([string]::Equals($vendorKey, 'Cisco', [System.StringComparison]::OrdinalIgnoreCase)) {
                     $rollbackLines.Add(("! Restore {0}" -f $dst)) | Out-Null
                     $rollbackLines.Add(("default interface {0}" -f $dst)) | Out-Null
                     $rollbackLines.Add(("interface {0}" -f $dst)) | Out-Null
@@ -528,7 +528,7 @@ function New-PortReorgScripts {
             $srcBaseline = $baselineByPort[$src]
             $isMove = -not $src.Equals($dst, [System.StringComparison]::OrdinalIgnoreCase)
             if (-not $isMove) {
-                if ($vendorKey -eq 'Cisco') {
+                if ([string]::Equals($vendorKey, 'Cisco', [System.StringComparison]::OrdinalIgnoreCase)) {
                     $changeLines.Add(("! Rename {0}" -f $dst)) | Out-Null
                     $changeLines.Add(("interface {0}" -f $dst)) | Out-Null
                     $changeLines.Add((' ' + (script:Get-CiscoDescriptionCommand -Label $newLabel))) | Out-Null
@@ -566,7 +566,7 @@ function New-PortReorgScripts {
             $applyLines = script:Get-ConfigLinesForApply -ConfigLines $srcCfgLinesRaw -Vendor $vendorKey
 
             $enableAtEnd = $true
-            if ($vendorKey -eq 'Cisco') {
+            if ([string]::Equals($vendorKey, 'Cisco', [System.StringComparison]::OrdinalIgnoreCase)) {
                 $enableAtEnd = script:Get-CiscoAdminEnabled -ConfigLines $srcCfgLinesRaw
             } else {
                 $statusText = ''
@@ -574,7 +574,7 @@ function New-PortReorgScripts {
                 $enableAtEnd = script:Get-BrocadeAdminEnabled -Status $statusText
             }
 
-            if ($vendorKey -eq 'Cisco') {
+            if ([string]::Equals($vendorKey, 'Cisco', [System.StringComparison]::OrdinalIgnoreCase)) {
                 $changeLines.Add(("! Move {0} -> {1}" -f $src, $dst)) | Out-Null
                 $changeLines.Add(("default interface {0}" -f $dst)) | Out-Null
                 $changeLines.Add(("interface {0}" -f $dst)) | Out-Null
@@ -603,7 +603,7 @@ function New-PortReorgScripts {
             $dstApplyLines = script:Get-ConfigLinesForApply -ConfigLines $dstCfgLinesRaw -Vendor $vendorKey
 
             $dstEnableAtEnd = $true
-            if ($vendorKey -eq 'Cisco') {
+            if ([string]::Equals($vendorKey, 'Cisco', [System.StringComparison]::OrdinalIgnoreCase)) {
                 $dstEnableAtEnd = script:Get-CiscoAdminEnabled -ConfigLines $dstCfgLinesRaw
             } else {
                 $dstStatusText = ''
@@ -611,7 +611,7 @@ function New-PortReorgScripts {
                 $dstEnableAtEnd = script:Get-BrocadeAdminEnabled -Status $dstStatusText
             }
 
-            if ($vendorKey -eq 'Cisco') {
+            if ([string]::Equals($vendorKey, 'Cisco', [System.StringComparison]::OrdinalIgnoreCase)) {
                 $rollbackLines.Add(("! Restore {0}" -f $dst)) | Out-Null
                 $rollbackLines.Add(("default interface {0}" -f $dst)) | Out-Null
                 $rollbackLines.Add(("interface {0}" -f $dst)) | Out-Null

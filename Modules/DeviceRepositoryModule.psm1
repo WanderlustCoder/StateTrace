@@ -6867,11 +6867,11 @@ function Get-InterfaceConfiguration {
             $nameOverride = if ($NewNames.ContainsKey($port)) { $NewNames[$port] } else { $null }
             $vlanOverride = if ($NewVlans.ContainsKey($port)) { $NewVlans[$port] } else { $null }
             if ($nameOverride) {
-                $val = if ($vendor -eq 'Cisco') { "description $nameOverride" } else { "port-name $nameOverride" }
+                $val = if ([string]::Equals($vendor, 'Cisco', [System.StringComparison]::OrdinalIgnoreCase)) { "description $nameOverride" } else { "port-name $nameOverride" }
                 [void]$pending.Add($val)
             }
             if ($vlanOverride) {
-                $val2 = if ($vendor -eq 'Cisco') { "switchport access vlan $vlanOverride" } else { "auth-default-vlan $vlanOverride" }
+                $val2 = if ([string]::Equals($vendor, 'Cisco', [System.StringComparison]::OrdinalIgnoreCase)) { "switchport access vlan $vlanOverride" } else { "auth-default-vlan $vlanOverride" }
                 [void]$pending.Add($val2)
             }
             foreach ($cmd in $tmpl.required_commands) { [void]$pending.Add($cmd.Trim()) }
@@ -6889,7 +6889,7 @@ function Get-InterfaceConfiguration {
                         if ($trimOld.StartsWith($cmdTrim, [System.StringComparison]::OrdinalIgnoreCase)) { $existsInNew = $true; break }
                     }
                     if ($existsInNew) { continue }
-                    if ($vendor -eq 'Cisco') {
+                    if ([string]::Equals($vendor, 'Cisco', [System.StringComparison]::OrdinalIgnoreCase)) {
                         # Remove legacy authentication commands.  Compare prefixes
                         if ($trimOld.StartsWith('authentication', [System.StringComparison]::OrdinalIgnoreCase) -or
                             $trimOld.StartsWith('dot1x',        [System.StringComparison]::OrdinalIgnoreCase) -or
@@ -6907,10 +6907,10 @@ function Get-InterfaceConfiguration {
                  }
              }
             if ($nameOverride) {
-                $(if ($vendor -eq 'Cisco') { " description $nameOverride" } else { " port-name $nameOverride" })
+                $(if ([string]::Equals($vendor, 'Cisco', [System.StringComparison]::OrdinalIgnoreCase)) { " description $nameOverride" } else { " port-name $nameOverride" })
             }
             if ($vlanOverride) {
-                $(if ($vendor -eq 'Cisco') { " switchport access vlan $vlanOverride" } else { " auth-default-vlan $vlanOverride" })
+                $(if ([string]::Equals($vendor, 'Cisco', [System.StringComparison]::OrdinalIgnoreCase)) { " switchport access vlan $vlanOverride" } else { " auth-default-vlan $vlanOverride" })
             }
             foreach ($cmd in $tmpl.required_commands) { $cmd }
             'exit'

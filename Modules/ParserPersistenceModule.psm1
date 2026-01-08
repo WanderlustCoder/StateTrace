@@ -2716,7 +2716,7 @@ $siteCacheTemplateDurationMs = 0.0
             $configText = ''
             if ($iface.PSObject.Properties.Name -contains 'Config') { $configText = '' + $iface.Config }
             if (-not $configText -or ($configText -is [string] -and $configText.Trim() -eq '')) {
-                if ($Facts -and $Facts.Make -eq 'Brocade') {
+                if ($Facts -and [string]::Equals($Facts.Make, 'Brocade', [System.StringComparison]::OrdinalIgnoreCase)) {
                     if ($Facts.PSObject.Properties.Name -contains 'AuthenticationBlock' -and $Facts.AuthenticationBlock) {
                         $configText = "AUTH BLOCK (GLOBAL)`r`n" + ($Facts.AuthenticationBlock -join "`r`n")
             }
