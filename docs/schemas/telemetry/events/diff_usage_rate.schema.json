@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://statetrace.local/schemas/telemetry/events/diff_usage_rate.schema.json",
+  "title": "DiffUsageRate Event",
+  "description": "Emitted when diff comparison is executed",
+  "type": "object",
+  "required": ["EventName", "Timestamp", "Site", "Hostname"],
+  "properties": {
+    "EventName": {
+      "const": "DiffUsageRate",
+      "description": "Event type identifier"
+    },
+    "Timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when event was emitted"
+    },
+    "Site": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Site code"
+    },
+    "Hostname": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Device hostname"
+    },
+    "UsageNumerator": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Numerator for usage calculation"
+    },
+    "UsageDenominator": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Denominator for usage calculation"
+    },
+    "Status": {
+      "type": "string",
+      "enum": ["Executed", "Skipped", "Failed"],
+      "description": "Execution status"
+    }
+  },
+  "additionalProperties": true
+}

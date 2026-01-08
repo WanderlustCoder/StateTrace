@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://statetrace.local/schemas/telemetry/events/handle_check.schema.json",
+  "title": "HandleCheck Event",
+  "description": "Emitted during stability tests for handle monitoring",
+  "type": "object",
+  "required": ["EventName", "Timestamp", "HandleCount"],
+  "properties": {
+    "EventName": {
+      "const": "HandleCheck",
+      "description": "Event type identifier"
+    },
+    "Timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when event was emitted"
+    },
+    "ProcessId": {
+      "type": "integer",
+      "description": "Process ID being monitored"
+    },
+    "HandleCount": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Current handle count"
+    },
+    "ThreadCount": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Current thread count"
+    }
+  },
+  "additionalProperties": true
+}

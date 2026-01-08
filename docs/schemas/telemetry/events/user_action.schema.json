@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://statetrace.local/schemas/telemetry/events/user_action.schema.json",
+  "title": "UserAction Event",
+  "description": "Emitted when user performs an action in the UI",
+  "type": "object",
+  "required": ["EventName", "Timestamp", "Action"],
+  "properties": {
+    "EventName": {
+      "const": "UserAction",
+      "description": "Event type identifier"
+    },
+    "Timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when event was emitted"
+    },
+    "Action": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Action performed (e.g., ViewChange, FilterApply, Export)"
+    },
+    "View": {
+      "type": "string",
+      "description": "Current view name"
+    },
+    "Details": {
+      "type": "object",
+      "description": "Additional action-specific details"
+    }
+  },
+  "additionalProperties": true
+}

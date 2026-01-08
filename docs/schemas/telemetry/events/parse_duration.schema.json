@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://statetrace.local/schemas/telemetry/events/parse_duration.schema.json",
+  "title": "ParseDuration Event",
+  "description": "Emitted after parsing completes for a batch of hosts",
+  "type": "object",
+  "required": ["EventName", "Timestamp", "DurationMs"],
+  "properties": {
+    "EventName": {
+      "const": "ParseDuration",
+      "description": "Event type identifier"
+    },
+    "Timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when event was emitted"
+    },
+    "DurationMs": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Total parse duration in milliseconds"
+    },
+    "HostCount": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of hosts parsed"
+    },
+    "SiteCount": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of sites processed"
+    },
+    "Site": {
+      "type": "string",
+      "description": "Site code (e.g., WLLS, BOYO)"
+    },
+    "Provider": {
+      "type": "string",
+      "description": "Parser provider name"
+    }
+  },
+  "additionalProperties": true
+}

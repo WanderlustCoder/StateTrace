@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://statetrace.local/schemas/telemetry/events/warm_run_comparison.schema.json",
+  "title": "WarmRunComparison Event",
+  "description": "Emitted when warm run cache comparison completes",
+  "type": "object",
+  "required": ["EventName", "Timestamp", "Site", "Hostname"],
+  "properties": {
+    "EventName": {
+      "const": "WarmRunComparison",
+      "description": "Event type identifier"
+    },
+    "Timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when event was emitted"
+    },
+    "Site": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Site code"
+    },
+    "Hostname": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Device hostname"
+    },
+    "CacheHit": {
+      "type": "boolean",
+      "description": "Whether cache was hit"
+    },
+    "DeltaCount": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of changes detected"
+    },
+    "CompareMs": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Comparison duration in milliseconds"
+    }
+  },
+  "additionalProperties": true
+}

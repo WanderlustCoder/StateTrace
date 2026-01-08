@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://statetrace.local/schemas/telemetry/events/interface_sync_timing.schema.json",
+  "title": "InterfaceSyncTiming Event",
+  "description": "Emitted when interface data is synchronized to the database",
+  "type": "object",
+  "required": ["EventName", "Timestamp", "Site", "DurationMs"],
+  "properties": {
+    "EventName": {
+      "const": "InterfaceSyncTiming",
+      "description": "Event type identifier"
+    },
+    "Timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when event was emitted"
+    },
+    "Site": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Site code (e.g., WLLS, BOYO)"
+    },
+    "DurationMs": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Sync duration in milliseconds"
+    },
+    "RowCount": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of rows synchronized"
+    },
+    "InsertCount": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of new rows inserted"
+    },
+    "UpdateCount": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of rows updated"
+    }
+  },
+  "additionalProperties": true
+}

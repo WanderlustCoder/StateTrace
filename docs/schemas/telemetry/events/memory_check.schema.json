@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://statetrace.local/schemas/telemetry/events/memory_check.schema.json",
+  "title": "MemoryCheck Event",
+  "description": "Emitted during stability tests for memory monitoring",
+  "type": "object",
+  "required": ["EventName", "Timestamp", "WorkingSetMB"],
+  "properties": {
+    "EventName": {
+      "const": "MemoryCheck",
+      "description": "Event type identifier"
+    },
+    "Timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when event was emitted"
+    },
+    "ProcessId": {
+      "type": "integer",
+      "description": "Process ID being monitored"
+    },
+    "WorkingSetMB": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Working set memory in megabytes"
+    },
+    "PrivateMemoryMB": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Private memory in megabytes"
+    },
+    "VirtualMemoryMB": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Virtual memory in megabytes"
+    },
+    "GCTotalMemoryMB": {
+      "type": "number",
+      "minimum": 0,
+      "description": "GC total memory in megabytes"
+    }
+  },
+  "additionalProperties": true
+}
