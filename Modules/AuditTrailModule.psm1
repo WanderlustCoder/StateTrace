@@ -263,23 +263,26 @@ function Get-AuditSummary {
     }
 
     foreach ($event in $events) {
-        # Count by type
-        if (-not $summary.ByEventType.ContainsKey($event.EventType)) {
-            $summary.ByEventType[$event.EventType] = 0
+        # Count by type (normalize to lowercase for consistent aggregation)
+        $eventTypeKey = if ($event.EventType) { $event.EventType.ToLowerInvariant() } else { '(unknown)' }
+        if (-not $summary.ByEventType.ContainsKey($eventTypeKey)) {
+            $summary.ByEventType[$eventTypeKey] = 0
         }
-        $summary.ByEventType[$event.EventType]++
+        $summary.ByEventType[$eventTypeKey]++
 
-        # Count by category
-        if (-not $summary.ByCategory.ContainsKey($event.Category)) {
-            $summary.ByCategory[$event.Category] = 0
+        # Count by category (normalize to lowercase for consistent aggregation)
+        $categoryKey = if ($event.Category) { $event.Category.ToLowerInvariant() } else { '(unknown)' }
+        if (-not $summary.ByCategory.ContainsKey($categoryKey)) {
+            $summary.ByCategory[$categoryKey] = 0
         }
-        $summary.ByCategory[$event.Category]++
+        $summary.ByCategory[$categoryKey]++
 
-        # Count by result
-        if (-not $summary.ByResult.ContainsKey($event.Result)) {
-            $summary.ByResult[$event.Result] = 0
+        # Count by result (normalize to lowercase for consistent aggregation)
+        $resultKey = if ($event.Result) { $event.Result.ToLowerInvariant() } else { '(unknown)' }
+        if (-not $summary.ByResult.ContainsKey($resultKey)) {
+            $summary.ByResult[$resultKey] = 0
         }
-        $summary.ByResult[$event.Result]++
+        $summary.ByResult[$resultKey]++
 
         # Count by severity
         if (-not $summary.BySeverity.ContainsKey($event.Severity)) {

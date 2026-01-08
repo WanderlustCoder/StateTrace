@@ -1403,7 +1403,7 @@ Grid:
                 'All Up' {
                     foreach ($item in $items) {
                         if ($item.PSObject.Properties['IsSelected']) {
-                            $item.IsSelected = ($item.Status -eq 'Up')
+                            $item.IsSelected = [string]::Equals($item.Status, 'Up', [System.StringComparison]::OrdinalIgnoreCase)
                         }
                     }
                     $interfacesGrid.Items.Refresh()
@@ -1412,7 +1412,7 @@ Grid:
                 'All Down' {
                     foreach ($item in $items) {
                         if ($item.PSObject.Properties['IsSelected']) {
-                            $item.IsSelected = ($item.Status -eq 'Down')
+                            $item.IsSelected = [string]::Equals($item.Status, 'Down', [System.StringComparison]::OrdinalIgnoreCase)
                         }
                     }
                     $interfacesGrid.Items.Refresh()

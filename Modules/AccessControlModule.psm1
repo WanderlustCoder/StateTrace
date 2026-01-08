@@ -79,8 +79,10 @@ function Get-RoleDefinitions {
     )
 
     if ($RoleName) {
-        if ($script:Roles.ContainsKey($RoleName)) {
-            return [PSCustomObject]$script:Roles[$RoleName]
+        # Case-insensitive role lookup
+        $matchedKey = $script:Roles.Keys | Where-Object { [string]::Equals($_, $RoleName, [System.StringComparison]::OrdinalIgnoreCase) } | Select-Object -First 1
+        if ($matchedKey) {
+            return [PSCustomObject]$script:Roles[$matchedKey]
         }
         return $null
     }

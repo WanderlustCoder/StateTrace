@@ -421,11 +421,11 @@ function Initialize-DefaultAlertRules {
         -Severity Critical -Category Connectivity -AutoResolve
 
     New-AlertRule -Name 'PortDown' -Description 'Interface is in down state' `
-        -Condition { $Context.Status -eq 'notconnect' -or $Context.Status -eq 'down' } `
+        -Condition { $Context.Status -and ($Context.Status.ToLowerInvariant() -eq 'notconnect' -or $Context.Status.ToLowerInvariant() -eq 'down') } `
         -Severity High -Category Connectivity -AutoResolve
 
     New-AlertRule -Name 'PortErrorDisabled' -Description 'Interface is error-disabled' `
-        -Condition { $Context.Status -eq 'err-disabled' -or $Context.Status -eq 'errdisabled' } `
+        -Condition { $Context.Status -and ($Context.Status.ToLowerInvariant() -eq 'err-disabled' -or $Context.Status.ToLowerInvariant() -eq 'errdisabled') } `
         -Severity Critical -Category Connectivity
 
     # Performance rules
