@@ -117,7 +117,7 @@ function Get-PaloAltoDeviceFacts {
                         $iface.IPAddress = $p
                     }
                     if ($p -match '^(up|down)$') {
-                        $iface.Status = if ($p -eq 'up') { 'connected' } else { 'notconnect' }
+                        $iface.Status = if ([string]::Equals($p, 'up', [System.StringComparison]::OrdinalIgnoreCase)) { 'connected' } else { 'notconnect' }
                     }
                     if ($p -match '^\d+$' -and [int]$p -gt 100) {
                         $iface.Speed = $p
@@ -152,7 +152,7 @@ function Get-PaloAltoDeviceFacts {
                     $currentInterface.Name = $matches[1].Trim()
                 }
                 if ($line -match '(?i)Link status:\s*(up|down)') {
-                    $currentInterface.Status = if ($matches[1] -eq 'up') { 'connected' } else { 'notconnect' }
+                    $currentInterface.Status = if ([string]::Equals($matches[1], 'up', [System.StringComparison]::OrdinalIgnoreCase)) { 'connected' } else { 'notconnect' }
                 }
                 if ($line -match '(?i)Zone:\s*(\S+)') {
                     $currentInterface.Zone = $matches[1]

@@ -566,8 +566,8 @@ function New-InventoryReport {
             Uptime = $_.Uptime
             Location = $_.Location
             InterfaceCount = $_.InterfaceCount
-            UpPorts = @($_.InterfacesCombined | Where-Object { $_.Status -eq 'up' }).Count
-            DownPorts = @($_.InterfacesCombined | Where-Object { $_.Status -eq 'down' }).Count
+            UpPorts = @($_.InterfacesCombined | Where-Object { [string]::Equals($_.Status, 'up', [System.StringComparison]::OrdinalIgnoreCase) -or [string]::Equals($_.Status, 'connected', [System.StringComparison]::OrdinalIgnoreCase) }).Count
+            DownPorts = @($_.InterfacesCombined | Where-Object { [string]::Equals($_.Status, 'down', [System.StringComparison]::OrdinalIgnoreCase) -or [string]::Equals($_.Status, 'notconnect', [System.StringComparison]::OrdinalIgnoreCase) }).Count
         }
     }
 

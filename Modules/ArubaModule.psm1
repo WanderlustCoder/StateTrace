@@ -137,7 +137,7 @@ function Get-ArubaDeviceFacts {
                 $iface = [PSCustomObject]@{
                     Port = $parts[0]
                     Name = ''
-                    Status = if ($parts[2] -eq 'up') { 'connected' } else { 'notconnect' }
+                    Status = if ([string]::Equals($parts[2], 'up', [System.StringComparison]::OrdinalIgnoreCase)) { 'connected' } else { 'notconnect' }
                     AdminStatus = $parts[1]
                     VLAN = if ($parts.Length -gt 7) { $parts[7] } else { '' }
                     Duplex = ''

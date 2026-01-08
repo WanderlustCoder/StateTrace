@@ -106,7 +106,7 @@ function Get-JuniperDeviceFacts {
                 $iface = [PSCustomObject]@{
                     Port = $matches[1]
                     Name = ''
-                    Status = if ($matches[3] -eq 'up') { 'connected' } else { 'notconnect' }
+                    Status = if ([string]::Equals($matches[3], 'up', [System.StringComparison]::OrdinalIgnoreCase)) { 'connected' } else { 'notconnect' }
                     AdminStatus = $matches[2]
                     VLAN = ''
                     Duplex = ''
