@@ -133,16 +133,17 @@ function Get-ArubaDeviceFacts {
 
             # ArubaOS-CX format: 1/1/1  up  up  --  1G  1G  native  vlan1
             if ($inTable -and $line -match '^\s*([\d/]+)\s+(up|down)\s+(up|down)\s+') {
-                $parts = $line -split '\s+'
+                # Use regex captures for Port/Admin/Status; filter empty strings from split for remaining fields
+                $parts = @($line.Trim() -split '\s+' | Where-Object { $_ -ne '' })
                 $iface = [PSCustomObject]@{
-                    Port = $parts[0]
+                    Port = $matches[1]
                     Name = ''
-                    Status = if ([string]::Equals($parts[2], 'up', [System.StringComparison]::OrdinalIgnoreCase)) { 'connected' } else { 'notconnect' }
-                    AdminStatus = $parts[1]
+                    Status = if ([string]::Equals($matches[3], 'up', [System.StringComparison]::OrdinalIgnoreCase)) { 'connected' } else { 'notconnect' }
+                    AdminStatus = $matches[2]
                     VLAN = if ($parts.Length -gt 7) { $parts[7] } else { '' }
                     Duplex = ''
-                    Speed = if ($parts.Length -gt 5) { $parts[5] } else { '' }
-                    Type = if ($parts.Length -gt 6) { $parts[6] } else { '' }
+                    Speed = if ($parts.Length -gt 4) { $parts[4] } else { '' }
+                    Type = if ($parts.Length -gt 5) { $parts[5] } else { '' }
                     Config = ''
                 }
                 [void]$interfaces.Add($iface)

@@ -97,9 +97,10 @@ function Get-PaloAltoDeviceFacts {
         foreach ($line in $Lines) {
             # Interface line: ethernet1/1  192.168.1.1/24  up  10000
             if ($line -match '^\s*(ethernet\d+/\d+|ae\d+|loopback\.\d+|tunnel\.\d+|vlan\.\d+)\s+') {
-                $parts = $line -split '\s+'
+                # Use regex capture for Port; filter empty strings from split for remaining fields
+                $parts = @($line.Trim() -split '\s+' | Where-Object { $_ -ne '' })
                 $iface = [PSCustomObject]@{
-                    Port = $parts[0]
+                    Port = $matches[1]
                     Name = ''
                     IPAddress = ''
                     Status = 'Unknown'
@@ -110,7 +111,7 @@ function Get-PaloAltoDeviceFacts {
                     Config = ''
                 }
 
-                # Parse remaining columns
+                # Parse remaining columns (start from index 1 since Port is at 0)
                 for ($i = 1; $i -lt $parts.Length; $i++) {
                     $p = $parts[$i]
                     if ($p -match '^\d+\.\d+\.\d+\.\d+') {
