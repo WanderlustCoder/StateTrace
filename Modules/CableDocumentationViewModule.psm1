@@ -227,7 +227,7 @@ function New-CableDocumentationView {
             return $null
         }
 
-        # Helper: Show cable details (as scriptblock for closure capture)
+        # Helper: Show cable details (as scriptblock with closure to capture UI elements)
         $showCableDetails = {
             param($Cable)
             $view.Tag.SelectedCable = $Cable
@@ -276,9 +276,9 @@ function New-CableDocumentationView {
                 $cableCreatedText.Text = ''
                 $cableModifiedText.Text = ''
             }
-        }
+        }.GetNewClosure()
 
-        # Helper: Show panel details (as scriptblock for closure capture)
+        # Helper: Show panel details (as scriptblock with closure to capture UI elements)
         $showPanelDetails = {
             param($Panel)
             $view.Tag.SelectedPanel = $Panel
@@ -330,7 +330,7 @@ function New-CableDocumentationView {
                 $portGrid.ItemsSource = @()
                 $portUtilizationLabel.Content = '(0/24 used)'
             }
-        }
+        }.GetNewClosure()
 
         # Event: Add Cable button
         $addCableButton.Add_Click({
@@ -839,7 +839,7 @@ function Initialize-CableDocumentationControls {
             $typesList += [PSCustomObject]@{ Key = $key; Value = $stats.CablesByType[$key] }
         }
         if ($cableTypesItemsControl) { $cableTypesItemsControl.ItemsSource = $typesList }
-    }
+    }.GetNewClosure()
 
     $saveDatabase = {
         $dataPath = $View.Tag.DataPath
@@ -852,7 +852,7 @@ function Initialize-CableDocumentationControls {
         } catch {
             if ($statusText) { $statusText.Text = "Error saving: $($_.Exception.Message)" }
         }
-    }
+    }.GetNewClosure()
 
     $refreshLists = {
         $filter = $filterBox.Text
@@ -873,7 +873,7 @@ function Initialize-CableDocumentationControls {
         if ($cableCountLabel) { $cableCountLabel.Content = "($($cables.Count))" }
         if ($panelCountLabel) { $panelCountLabel.Content = "($($panels.Count))" }
         & $updateStats
-    }
+    }.GetNewClosure()
 
     $showCableDetails = {
         param($Cable)
@@ -915,7 +915,7 @@ function Initialize-CableDocumentationControls {
             if ($cableCreatedText) { $cableCreatedText.Text = '' }
             if ($cableModifiedText) { $cableModifiedText.Text = '' }
         }
-    }
+    }.GetNewClosure()
 
     $showPanelDetails = {
         param($Panel)
@@ -955,7 +955,7 @@ function Initialize-CableDocumentationControls {
             if ($portGrid) { $portGrid.ItemsSource = @() }
             if ($portUtilizationLabel) { $portUtilizationLabel.Content = '(0/24 used)' }
         }
-    }
+    }.GetNewClosure()
 
     # Register event handlers
     if ($addCableButton) { $addCableButton.Add_Click({ & $showCableDetails $null; if ($cableListBox) { $cableListBox.SelectedItem = $null }; if ($panelListBox) { $panelListBox.SelectedItem = $null } }.GetNewClosure()) }
