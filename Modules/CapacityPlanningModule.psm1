@@ -582,6 +582,15 @@ function Get-ThresholdBreachDate {
         [double]$Threshold = 0.80
     )
 
+    if ($TotalCapacity -le 0) {
+        return [PSCustomObject]@{
+            ProjectedDate = $null
+            DaysUntilBreach = -1
+            WillBreach = $false
+            Message = 'Invalid total capacity (must be > 0)'
+        }
+    }
+
     $forecast = Get-LinearForecast -History $History
 
     if ($forecast.Slope -le 0) {

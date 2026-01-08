@@ -546,7 +546,7 @@ function Get-OperationProgress {
         }
         $progress.ElapsedTime = $elapsed.ToString('hh\:mm\:ss')
 
-        if ($operation.CompletedCount -gt 0 -and $operation.Status -eq 'Running') {
+        if ($operation.CompletedCount -gt 0 -and $operation.Status -eq 'Running' -and $elapsed.TotalSeconds -gt 0) {
             $ratePerSecond = $operation.CompletedCount / $elapsed.TotalSeconds
             $progress.CurrentRate = [math]::Round($ratePerSecond, 2)
 

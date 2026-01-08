@@ -793,6 +793,12 @@ function Run-CapacityScenario {
 
         $totalPorts = ($current | Measure-Object -Property TotalPorts -Sum).Sum
         $usedPorts = ($current | Measure-Object -Property UsedPorts -Sum).Sum
+
+        if ($totalPorts -le 0) {
+            [System.Windows.MessageBox]::Show('Total port capacity is zero - cannot calculate utilization.', 'Invalid Data', 'OK', 'Warning')
+            return
+        }
+
         $currentPercent = [math]::Round(($usedPorts / $totalPorts) * 100, 1)
 
         # Calculate scenario impact based on type
