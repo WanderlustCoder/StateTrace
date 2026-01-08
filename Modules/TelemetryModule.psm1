@@ -149,7 +149,9 @@ function Get-TelemetryWriteMutexName {
         if ([string]::IsNullOrWhiteSpace($hex)) {
             return 'StateTrace.Telemetry.Write'
         }
-        return ('StateTrace.Telemetry.Write.{0}' -f $hex.Substring(0, 24))
+        # SHA256 produces 64 hex chars; take first 24 for shorter mutex name
+        $hexPart = if ($hex.Length -ge 24) { $hex.Substring(0, 24) } else { $hex }
+        return ('StateTrace.Telemetry.Write.{0}' -f $hexPart)
     } catch {
         return 'StateTrace.Telemetry.Write'
     } finally {

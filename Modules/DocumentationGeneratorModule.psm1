@@ -1586,9 +1586,11 @@ function ConvertTo-WordML {
 
         # Process bold text
         while ($text -match '\*\*(.+?)\*\*') {
-            $beforeBold = $text.Substring(0, $text.IndexOf('**'))
+            $boldIndex = $text.IndexOf('**')
+            if ($boldIndex -lt 0) { break }  # Safety check
+            $beforeBold = $text.Substring(0, $boldIndex)
             $boldText = $Matches[1]
-            $afterIndex = $text.IndexOf('**') + 2 + $boldText.Length + 2
+            $afterIndex = $boldIndex + 2 + $boldText.Length + 2
             $afterBold = if ($afterIndex -lt $text.Length) { $text.Substring($afterIndex) } else { '' }
 
             if ($beforeBold) {

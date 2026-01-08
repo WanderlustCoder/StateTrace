@@ -639,8 +639,8 @@ function Set-CompareFromRows {
         if ($auth1 -and $parts1.Count -gt 0) {
             $firstLine = ($parts1[0]).Trim()
             if ($firstLine -match '(?im)^(?:auth(?:entication)?\s*template|authtemplate|template)\s*:?' ) {
-                $cfgLines = $parts1[1..($parts1.Length-1)]
-                while ($cfgLines.Count -gt 0 -and ($cfgLines[0]).Trim() -eq '') { $cfgLines = $cfgLines[1..($cfgLines.Length-1)] }
+                $cfgLines = @($parts1 | Select-Object -Skip 1)
+                while ($cfgLines.Count -gt 0 -and ($cfgLines[0]).Trim() -eq '') { $cfgLines = @($cfgLines | Select-Object -Skip 1) }
                 $clean1 = $cfgLines -join "`r`n"
             }
         }
@@ -652,8 +652,8 @@ function Set-CompareFromRows {
         if ($auth2 -and $parts2.Count -gt 0) {
             $firstLine2 = ($parts2[0]).Trim()
             if ($firstLine2 -match '(?im)^(?:auth(?:entication)?\s*template|authtemplate|template)\s*:?' ) {
-                $cfg2Lines = $parts2[1..($parts2.Length-1)]
-                while ($cfg2Lines.Count -gt 0 -and ($cfg2Lines[0]).Trim() -eq '') { $cfg2Lines = $cfg2Lines[1..($cfg2Lines.Length-1)] }
+                $cfg2Lines = @($parts2 | Select-Object -Skip 1)
+                while ($cfg2Lines.Count -gt 0 -and ($cfg2Lines[0]).Trim() -eq '') { $cfg2Lines = @($cfg2Lines | Select-Object -Skip 1) }
                 $clean2 = $cfg2Lines -join "`r`n"
             }
         }
@@ -751,9 +751,9 @@ function Get-CompareLineDiffCounts {
         if ($auth1 -and $parts1.Count -gt 0) {
             $firstLine = ($parts1[0]).Trim()
             if ($firstLine -match '(?im)^(?:auth(?:entication)?\s*template|authtemplate|template)\s*:?' ) {
-                $cfgLines = $parts1[1..($parts1.Length-1)]
+                $cfgLines = @($parts1 | Select-Object -Skip 1)
                 while ($cfgLines.Count -gt 0 -and ($cfgLines[0]).Trim() -eq '') {
-                    $cfgLines = $cfgLines[1..($cfgLines.Length-1)]
+                    $cfgLines = @($cfgLines | Select-Object -Skip 1)
                 }
                 $clean1 = $cfgLines -join "`r`n"
             }
@@ -766,9 +766,9 @@ function Get-CompareLineDiffCounts {
         if ($auth2 -and $parts2.Count -gt 0) {
             $firstLine2 = ($parts2[0]).Trim()
             if ($firstLine2 -match '(?im)^(?:auth(?:entication)?\s*template|authtemplate|template)\s*:?' ) {
-                $cfg2Lines = $parts2[1..($parts2.Length-1)]
+                $cfg2Lines = @($parts2 | Select-Object -Skip 1)
                 while ($cfg2Lines.Count -gt 0 -and ($cfg2Lines[0]).Trim() -eq '') {
-                    $cfg2Lines = $cfg2Lines[1..($cfg2Lines.Length-1)]
+                    $cfg2Lines = @($cfg2Lines | Select-Object -Skip 1)
                 }
                 $clean2 = $cfg2Lines -join "`r`n"
             }
