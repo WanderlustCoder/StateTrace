@@ -252,6 +252,10 @@ function Publish-SettingsChangedEvent {
         }
 
         # Use a global variable for cross-module communication
+        # Initialize if not exists to avoid stale reference issues on module reload
+        if (-not (Get-Variable -Name 'StateTraceLastSettingsChange' -Scope Global -ErrorAction SilentlyContinue)) {
+            $global:StateTraceLastSettingsChange = $null
+        }
         $global:StateTraceLastSettingsChange = $eventArgs
 
         # Try to invoke telemetry if available
@@ -277,10 +281,15 @@ function Stop-SettingsWatcher {
     param()
 
     try {
-        # Unregister event
-        Get-EventSubscriber -SourceIdentifier 'StateTraceSettingsChanged' -ErrorAction SilentlyContinue |
-            Unregister-Event -ErrorAction SilentlyContinue
-    } catch { }
+        # Unregister event - use explicit error handling to ensure cleanup
+        $subscriber = Get-EventSubscriber -SourceIdentifier 'StateTraceSettingsChanged' -ErrorAction SilentlyContinue
+        if ($subscriber) {
+            Unregister-Event -SourceIdentifier 'StateTraceSettingsChanged' -Force -ErrorAction SilentlyContinue
+            Write-Verbose "[SettingsWatcher] Unregistered event subscriber"
+        }
+    } catch {
+        Write-Verbose "[SettingsWatcher] Event unregistration warning: $($_.Exception.Message)"
+    }
 
     if ($script:SettingsWatcher) {
         try {

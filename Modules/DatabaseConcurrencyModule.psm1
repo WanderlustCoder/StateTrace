@@ -500,7 +500,9 @@ function Repair-AccessDatabase {
         $result.RepairSuccessful = $true
         $result.FinalSize = (Get-Item $DatabasePath).Length
         $result.SizeReduction = $result.OriginalSize - $result.FinalSize
-        $result.SizeReductionPercent = [math]::Round($result.SizeReduction / $result.OriginalSize * 100, 2)
+        $result.SizeReductionPercent = if ($result.OriginalSize -gt 0) {
+            [math]::Round($result.SizeReduction / $result.OriginalSize * 100, 2)
+        } else { 0 }
 
         Write-Verbose "[Repair] Compact successful. Size reduced by $($result.SizeReductionPercent)%"
 

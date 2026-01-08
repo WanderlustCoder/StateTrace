@@ -191,8 +191,8 @@ function Invoke-AlertEvaluation {
                 Severity = $rule.Severity
                 SeverityLevel = $rule.SeverityLevel
                 Category = $rule.Category
-                Message = if ($Context.Message) { $Context.Message } else { $rule.Description }
-                Context = $Context.Clone()
+                Message = if ($Context -and $Context.Message) { $Context.Message } else { $rule.Description }
+                Context = if ($Context) { $Context.Clone() } else { @{} }
                 FiredAt = $now
                 ResolvedAt = $null
                 State = 'Active'
