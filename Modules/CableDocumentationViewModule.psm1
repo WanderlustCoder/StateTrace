@@ -227,8 +227,8 @@ function New-CableDocumentationView {
             return $null
         }
 
-        # Helper: Show cable details
-        function Show-CableDetails {
+        # Helper: Show cable details (as scriptblock for closure capture)
+        $showCableDetails = {
             param($Cable)
             $view.Tag.SelectedCable = $Cable
             $view.Tag.IsNewCable = ($Cable -eq $null)
@@ -278,8 +278,8 @@ function New-CableDocumentationView {
             }
         }
 
-        # Helper: Show panel details
-        function Show-PanelDetails {
+        # Helper: Show panel details (as scriptblock for closure capture)
+        $showPanelDetails = {
             param($Panel)
             $view.Tag.SelectedPanel = $Panel
             $view.Tag.IsNewPanel = ($Panel -eq $null)
@@ -335,7 +335,7 @@ function New-CableDocumentationView {
         # Event: Add Cable button
         $addCableButton.Add_Click({
             param($sender, $e)
-            Show-CableDetails -Cable $null
+            & $showCableDetails $null
             $cableListBox.SelectedItem = $null
             $panelListBox.SelectedItem = $null
         }.GetNewClosure())
@@ -343,7 +343,7 @@ function New-CableDocumentationView {
         # Event: Add Panel button
         $addPanelButton.Add_Click({
             param($sender, $e)
-            Show-PanelDetails -Panel $null
+            & $showPanelDetails $null
             $cableListBox.SelectedItem = $null
             $panelListBox.SelectedItem = $null
         }.GetNewClosure())
@@ -354,7 +354,7 @@ function New-CableDocumentationView {
             $selected = $sender.SelectedItem
             if ($selected) {
                 $panelListBox.SelectedItem = $null
-                Show-CableDetails -Cable $selected
+                & $showCableDetails $selected
             }
         }.GetNewClosure())
 
@@ -364,7 +364,7 @@ function New-CableDocumentationView {
             $selected = $sender.SelectedItem
             if ($selected) {
                 $cableListBox.SelectedItem = $null
-                Show-PanelDetails -Panel $selected
+                & $showPanelDetails $selected
             }
         }.GetNewClosure())
 
