@@ -451,7 +451,7 @@ function Get-AuditLog {
 
                 $entries.Add($entry)
                 if ($entries.Count -ge $Last) { break }
-            } catch { }
+            } catch { Write-Verbose "[AccessControl] Failed to parse audit entry: $_" }
         }
     }
 
@@ -476,7 +476,7 @@ function Clear-AuditLog {
     $cutoffDate = [datetime]::UtcNow.AddDays(-$OlderThanDays)
     $deleted = 0
 
-    $logFiles = Get-ChildItem -Path $script:AuditLogPath -Filter 'audit-*.json'
+    $logFiles = @(Get-ChildItem -Path $script:AuditLogPath -Filter 'audit-*.json' -ErrorAction SilentlyContinue)
 
     foreach ($file in $logFiles) {
         $dateStr = $file.BaseName -replace 'audit-', ''
@@ -486,7 +486,7 @@ function Clear-AuditLog {
                 Remove-Item $file.FullName -Force
                 $deleted++
             }
-        } catch { }
+        } catch { Write-Verbose "[AccessControl] Failed to delete audit log file: $_" }
     }
 
     Write-AuditLog -Action 'AuditLog.Clear' -Details "Deleted $deleted log files older than $OlderThanDays days" -Severity 'Warning'
@@ -606,7 +606,7 @@ function Get-ADGroupMembership {
             $whoamiOutput = whoami /groups /fo csv 2>$null | ConvertFrom-Csv
             $groups = $whoamiOutput | Where-Object { $_.'Type' -eq 'Group' } |
                 ForEach-Object { $_.'Group Name'.Split('\')[-1] }
-        } catch { }
+        } catch { Write-Verbose "[AccessControl] Failed to get user groups: $_" }
     }
 
     return $groups

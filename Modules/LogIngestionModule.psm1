@@ -66,7 +66,7 @@ function Split-RawLogs {
                 if ($detected) {
                     if (-not $currentHost -or -not [string]::Equals($detected, $currentHost, [System.StringComparison]::OrdinalIgnoreCase)) {
                         if ($null -ne $writer) {
-                            try { $writer.Flush() } catch { }
+                            try { $writer.Flush() } catch { Write-Verbose "[LogIngestion] Writer flush failed: $_" }
                             $writer.Dispose()
                         }
 
@@ -119,7 +119,7 @@ function Split-RawLogs {
                     $uw = New-Object System.IO.StreamWriter($ufs)
                     $uw.AutoFlush = $false
                     foreach ($b in $buffer) { $uw.WriteLine($b) }
-                    try { $uw.Flush() } catch { }
+                    try { $uw.Flush() } catch { Write-Verbose "[LogIngestion] Unknown host writer flush failed: $_" }
                     $uw.Dispose()
                     Write-Host "Completed file without detecting a host; wrote buffered content to $uPath"
                 } else {
@@ -173,7 +173,7 @@ function Clear-ExtractedLogs {
     try {
         Get-ChildItem -LiteralPath $ExtractedPath -File -ErrorAction SilentlyContinue |
             Remove-Item -Force -ErrorAction SilentlyContinue
-    } catch { }
+    } catch { Write-Verbose "[LogIngestion] Clear extracted logs failed: $_" }
 }
 
 Export-ModuleMember -Function Split-RawLogs, Clear-ExtractedLogs

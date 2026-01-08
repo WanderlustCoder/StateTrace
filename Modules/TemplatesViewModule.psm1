@@ -35,7 +35,7 @@ function New-TemplatesView {
                 return
             }
 
-            $files = Get-ChildItem -LiteralPath $script:TemplatesDir -Filter '*.json' -File | Sort-Object Name
+            $files = @(Get-ChildItem -LiteralPath $script:TemplatesDir -Filter '*.json' -File -ErrorAction SilentlyContinue | Sort-Object Name)
             $items = [System.Collections.Generic.List[string]]::new()
             foreach ($f in $files) {
                 if ($f -and $f.Name) { [void]$items.Add($f.Name) }
