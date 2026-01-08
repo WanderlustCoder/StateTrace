@@ -534,6 +534,128 @@ function Initialize-CableDocumentationControls {
         }
     }.GetNewClosure()
 
+    # Helper: Get port center position on canvas
+    $getPortCenter = {
+        param($PanelID, $PortNumber)
+
+        $portKey = "$($PanelID):$($PortNumber)"
+        $portElement = $View.Tag.PortElements[$portKey]
+        $panelElement = $View.Tag.PanelElements[$PanelID]
+
+        if (-not $portElement -or -not $panelElement) { return $null }
+
+        # Get panel position
+        $panelLeft = [System.Windows.Controls.Canvas]::GetLeft($panelElement)
+        $panelTop = [System.Windows.Controls.Canvas]::GetTop($panelElement)
+
+        # Get port position within panel (need to traverse visual tree)
+        $portLeft = [System.Windows.Controls.Canvas]::GetLeft($portElement)
+        $portTop = [System.Windows.Controls.Canvas]::GetTop($portElement)
+
+        # Header height + padding
+        $headerOffset = 28 + 8
+
+        # Calculate center
+        $centerX = $panelLeft + 8 + $portLeft + ($portElement.Width / 2)
+        $centerY = $panelTop + $headerOffset + $portTop + ($portElement.Height / 2)
+
+        return [System.Windows.Point]::new($centerX, $centerY)
+    }.GetNewClosure()
+
+    # Helper: Render cable lines between connected ports
+    $renderCables = {
+        $db = $View.Tag.Database
+        $cables = @(CableDocumentationModule\Get-CableRun -Database $db)
+        $panels = @(CableDocumentationModule\Get-PatchPanel -Database $db)
+
+        # Build panel name to ID lookup
+        $panelLookup = @{}
+        foreach ($panel in $panels) {
+            $panelLookup[$panel.PanelName] = $panel.PanelID
+        }
+
+        foreach ($cable in $cables) {
+            # Only draw cables between patch panels (that we're displaying)
+            if ($cable.SourceType -ne 'PatchPanel' -or $cable.DestType -ne 'PatchPanel') { continue }
+
+            $sourcePanelID = $panelLookup[$cable.SourceDevice]
+            $destPanelID = $panelLookup[$cable.DestDevice]
+
+            if (-not $sourcePanelID -or -not $destPanelID) { continue }
+
+            # Get port centers
+            $sourcePort = [int]$cable.SourcePort
+            $destPort = [int]$cable.DestPort
+
+            $startPoint = & $getPortCenter $sourcePanelID $sourcePort
+            $endPoint = & $getPortCenter $destPanelID $destPort
+
+            if (-not $startPoint -or -not $endPoint) { continue }
+
+            # Create bezier curve path
+            $pathFigure = New-Object System.Windows.Media.PathFigure
+            $pathFigure.StartPoint = $startPoint
+
+            # Calculate control points for smooth curve
+            $midY = ($startPoint.Y + $endPoint.Y) / 2
+            $controlOffset = [Math]::Max(50, [Math]::Abs($endPoint.Y - $startPoint.Y) * 0.5)
+
+            $bezier = New-Object System.Windows.Media.BezierSegment
+            $bezier.Point1 = [System.Windows.Point]::new($startPoint.X + $controlOffset, $startPoint.Y)
+            $bezier.Point2 = [System.Windows.Point]::new($endPoint.X - $controlOffset, $endPoint.Y)
+            $bezier.Point3 = $endPoint
+
+            $pathFigure.Segments.Add($bezier) | Out-Null
+
+            $pathGeometry = New-Object System.Windows.Media.PathGeometry
+            $pathGeometry.Figures.Add($pathFigure) | Out-Null
+
+            $path = New-Object System.Windows.Shapes.Path
+            $path.Data = $pathGeometry
+            $path.StrokeThickness = 2
+            $path.Cursor = [System.Windows.Input.Cursors]::Hand
+            $path.Tag = $cable
+
+            # Cable type color
+            $cableBrush = $script:CableTypeBrushes[$cable.CableType]
+            if (-not $cableBrush) { $cableBrush = $script:CableTypeBrushes['Other'] }
+            $path.Stroke = $cableBrush
+
+            # Status opacity
+            $path.Opacity = switch ($cable.Status) {
+                'Active' { 1.0 }
+                'Reserved' { 0.7 }
+                'Planned' { 0.5 }
+                'Abandoned' { 0.3 }
+                'Faulty' { 0.8 }
+                default { 1.0 }
+            }
+
+            # Tooltip
+            $path.ToolTip = "Cable: $($cable.CableID)`n$($cable.SourceDevice):$($cable.SourcePort) -> $($cable.DestDevice):$($cable.DestPort)`nType: $($cable.CableType)`nStatus: $($cable.Status)"
+
+            # Click handler to show cable details
+            $clickCable = $cable
+            $path.Add_MouseLeftButtonDown({
+                param($sender, $e)
+                # Find a port with this cable and show its details
+                $panels = @(CableDocumentationModule\Get-PatchPanel -Database $View.Tag.Database)
+                foreach ($panel in $panels) {
+                    foreach ($port in $panel.Ports) {
+                        if ($port.CableID -eq $clickCable.CableID) {
+                            & $showPortDetails $panel $port
+                            $e.Handled = $true
+                            return
+                        }
+                    }
+                }
+            }.GetNewClosure())
+
+            # Add to canvas (cables drawn first, panels on top)
+            $hardwareCanvas.Children.Insert(0, $path) | Out-Null
+        }
+    }.GetNewClosure()
+
     # Helper: Render all hardware panels
     $renderHardwareCanvas = {
         if (-not $hardwareCanvas) { return }
@@ -571,6 +693,9 @@ function Initialize-CableDocumentationControls {
         # Resize canvas to fit content
         $hardwareCanvas.Width = $maxWidth
         $hardwareCanvas.Height = [Math]::Max(600, $yPos + 20)
+
+        # Render cable lines between connected ports
+        & $renderCables
 
         # Update panel list
         if ($panelListBox) { $panelListBox.ItemsSource = $panels }
