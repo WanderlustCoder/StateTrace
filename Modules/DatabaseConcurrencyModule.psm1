@@ -260,15 +260,18 @@ GROUP BY ThreadId, OperationId
 HAVING COUNT(*) > 1
 "@
         $reader = $cmd.ExecuteReader()
-        $duplicates = @()
-        while ($reader.Read()) {
-            $duplicates += @{
-                ThreadId = $reader['ThreadId']
-                OperationId = $reader['OperationId']
-                Count = $reader['cnt']
+        try {
+            $duplicates = @()
+            while ($reader.Read()) {
+                $duplicates += @{
+                    ThreadId = $reader['ThreadId']
+                    OperationId = $reader['OperationId']
+                    Count = $reader['cnt']
+                }
             }
+        } finally {
+            if ($reader) { $reader.Dispose() }
         }
-        $reader.Close()
 
         if ($duplicates.Count -gt 0) {
             $result.DuplicateCheck = $false
@@ -930,8 +933,11 @@ function Test-DatabaseIntegrity {
                     } else {
                         $cmd.CommandText = "SELECT TOP 1 * FROM [$tableName]"
                         $reader = $cmd.ExecuteReader()
-                        $reader.Close()
-                        $tableCheck.Details = "Queryable"
+                        try {
+                            $tableCheck.Details = "Queryable"
+                        } finally {
+                            if ($reader) { $reader.Dispose() }
+                        }
                     }
                     $tableCheck.Status = 'Pass'
                 } catch {
