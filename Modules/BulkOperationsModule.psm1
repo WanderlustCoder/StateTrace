@@ -38,7 +38,7 @@ function Select-DevicesByFilter {
     $selected = $Devices
 
     if ($Site) {
-        $selected = $selected | Where-Object { $_.Site -eq $Site }
+        $selected = $selected | Where-Object { [string]::Equals($_.Site, $Site, [System.StringComparison]::OrdinalIgnoreCase) }
     }
 
     if ($Status) {

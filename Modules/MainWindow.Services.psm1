@@ -296,7 +296,7 @@ function Get-SiteCacheProviderFromMetrics {
 
     $candidateEvents = @($telemetry | Where-Object {
         $_.EventName -in @('DatabaseWriteBreakdown', 'InterfaceSiteCacheMetrics', 'InterfaceSyncTiming', 'InterfaceSiteCacheRunspaceState') -and
-        $_.Site -eq $Site
+        [string]::Equals($_.Site, $Site, [System.StringComparison]::OrdinalIgnoreCase)
     })
 
     if ($candidateEvents.Count -eq 0) { return $null }

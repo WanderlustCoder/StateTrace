@@ -336,7 +336,7 @@ function Get-Asset {
         'ByHostname' { $results = $results | Where-Object { $_.Hostname -like "*$Hostname*" } }
         'BySerial' { $results = $results | Where-Object { $_.SerialNumber -eq $SerialNumber } }
         'ByVendor' { $results = $results | Where-Object { $_.Vendor -eq $Vendor } }
-        'BySite' { $results = $results | Where-Object { $_.Site -eq $Site } }
+        'BySite' { $results = $results | Where-Object { [string]::Equals($_.Site, $Site, [System.StringComparison]::OrdinalIgnoreCase) } }
         'ByStatus' { $results = $results | Where-Object { $_.Status -eq $Status } }
     }
 
@@ -1315,7 +1315,7 @@ function Export-AssetInventory {
     $assets = @($script:AssetDatabase)
 
     if ($Site) {
-        $assets = @($assets | Where-Object { $_.Site -eq $Site })
+        $assets = @($assets | Where-Object { [string]::Equals($_.Site, $Site, [System.StringComparison]::OrdinalIgnoreCase) })
     }
     if ($Vendor) {
         $assets = @($assets | Where-Object { $_.Vendor -eq $Vendor })
@@ -1891,7 +1891,7 @@ function Get-AssetAgeDistribution {
         $assets = @($assets | Where-Object { $_.Vendor -eq $Vendor })
     }
     if ($Site) {
-        $assets = @($assets | Where-Object { $_.Site -eq $Site })
+        $assets = @($assets | Where-Object { [string]::Equals($_.Site, $Site, [System.StringComparison]::OrdinalIgnoreCase) })
     }
 
     $today = Get-Date

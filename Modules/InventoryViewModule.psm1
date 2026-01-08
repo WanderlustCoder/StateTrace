@@ -461,7 +461,8 @@ function Update-InventoryGrid {
 
     $siteDropdown = $View.FindName('SiteFilterDropdown')
     if ($siteDropdown -and $siteDropdown.SelectedItem -and $siteDropdown.SelectedItem -ne 'All Sites') {
-        $assets = $assets | Where-Object { $_.Site -eq $siteDropdown.SelectedItem }
+        $siteFilter = $siteDropdown.SelectedItem
+        $assets = $assets | Where-Object { [string]::Equals($_.Site, $siteFilter, [System.StringComparison]::OrdinalIgnoreCase) }
     }
 
     $statusDropdown = $View.FindName('StatusFilterDropdown')

@@ -414,7 +414,7 @@ function Add-VLAN {
 
         # Check for duplicate VLAN number at same site
         $existing = $db.VLANs | Where-Object {
-            $_.VlanNumber -eq $VLAN.VlanNumber -and $_.Site -eq $VLAN.Site
+            $_.VlanNumber -eq $VLAN.VlanNumber -and [string]::Equals($_.Site, $VLAN.Site, [System.StringComparison]::OrdinalIgnoreCase)
         }
         if ($existing) {
             Write-Warning "VLAN $($VLAN.VlanNumber) already exists at site '$($VLAN.Site)'"
@@ -901,7 +901,7 @@ function Find-AvailableVLANs {
     $db = if ($Database) { $Database } else { $script:IPAMDatabase }
 
     $usedVlans = @($db.VLANs | Where-Object {
-        (-not $Site) -or ($_.Site -eq $Site)
+        (-not $Site) -or [string]::Equals($_.Site, $Site, [System.StringComparison]::OrdinalIgnoreCase)
     } | Select-Object -ExpandProperty VlanNumber)
 
     $available = @()
