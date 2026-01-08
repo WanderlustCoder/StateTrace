@@ -761,7 +761,7 @@ function Update-Summary {
         # Collect buildings (from hostname - typically chars 5-7)
         if ($row.PSObject.Properties['Hostname']) {
             $hostname = '' + $row.Hostname
-            if ($hostname.Length -ge 7 -and $hostname[4] -eq '-') {
+            if ($hostname.Length -ge 8 -and $hostname[4] -eq '-') {
                 $buildingCode = $hostname.Substring(5, 3).ToUpper()
                 [void]$buildingSet.Add($buildingCode)
             }
