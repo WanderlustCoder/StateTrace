@@ -153,36 +153,12 @@ Describe "Module decomposition shims" -Tag 'Decomposition' {
         }
     }
 
-    Context "ParserPersistence decomposition exports" {
+    # Note: ParserPersistence.Core and ParserPersistence.Diff wrapper modules were removed
+    # as part of module consolidation. Tests for those modules have been removed.
+    Context "WarmRun and Cache decomposition exports" {
         BeforeAll {
-            $corePath = Join-Path (Split-Path $PSCommandPath) "..\ParserPersistence.Core.psm1"
-            $diffPath = Join-Path (Split-Path $PSCommandPath) "..\ParserPersistence.Diff.psm1"
             $warmPath = Join-Path (Split-Path $PSCommandPath) "..\WarmRun.Telemetry.psm1"
-            Import-Module (Resolve-Path $corePath) -Force
-            Import-Module (Resolve-Path $diffPath) -Force
             Import-Module (Resolve-Path $warmPath) -Force
-        }
-
-        It "exports core persistence helpers" {
-            $module = Get-Module -Name 'ParserPersistence.Core'
-            $module | Should Not BeNullOrEmpty
-            ($module.ExportedFunctions.Count) -gt 0 | Should Be $true
-            ($module.ExportedFunctions.Keys -contains 'Set-InterfaceBulkChunkSize') | Should Be $true
-            ($module.ExportedFunctions.Keys -contains 'Update-DeviceSummaryInDb') | Should Be $true
-            ($module.ExportedFunctions.Keys -contains 'Update-InterfacesInDb') | Should Be $true
-            ($module.ExportedFunctions.Keys -contains 'Update-SpanInfoInDb') | Should Be $true
-            ($module.ExportedFunctions.Keys -contains 'Write-InterfacePersistenceFailure') | Should Be $true
-            ($module.ExportedFunctions.Keys -contains 'Get-LastInterfaceSyncTelemetry') | Should Be $true
-        }
-
-        It "imports diff module" {
-            $module = Get-Module -Name 'ParserPersistence.Diff'
-            $module | Should Not BeNullOrEmpty
-            ($module.ExportedFunctions.Count) -gt 0 | Should Be $true
-            ($module.ExportedFunctions.Keys -contains 'Get-SiteExistingRowCacheSnapshot') | Should Be $true
-            ($module.ExportedFunctions.Keys -contains 'Set-SiteExistingRowCacheSnapshot') | Should Be $true
-            ($module.ExportedFunctions.Keys -contains 'Clear-SiteExistingRowCache') | Should Be $true
-            ($module.ExportedFunctions.Keys -contains 'Import-SiteExistingRowCacheSnapshotFromEnv') | Should Be $true
         }
 
         It "imports warm-run telemetry module" {

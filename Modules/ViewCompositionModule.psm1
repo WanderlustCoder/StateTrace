@@ -490,4 +490,34 @@ function Show-CopyFeedback {
     $timer.Start()
 }
 
-Export-ModuleMember -Function Set-StView, New-StDebounceTimer, Export-StRowsToCsv, Export-StRowsToJson, Export-StRowsWithFormatChoice, Export-StTextToFile, Show-CopyFeedback
+function Import-StXamlView {
+    <#
+    .SYNOPSIS
+        Loads a XAML view file and returns the parsed WPF element.
+    .DESCRIPTION
+        Reads XAML from file, strips designer attributes, and parses via XamlReader.
+        DynamicResource bindings resolve from Application.Resources when view is in visual tree.
+    .PARAMETER ViewPath
+        Absolute path to the XAML file.
+    .OUTPUTS
+        The loaded WPF element, or $null if loading fails.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$ViewPath
+    )
+
+    if (-not (Test-Path $ViewPath)) { return $null }
+
+    $xamlContent = Get-Content -Path $ViewPath -Raw
+    $xamlContent = $xamlContent -replace 'x:Class="[^"]*"', ''
+    $xamlContent = $xamlContent -replace 'mc:Ignorable="d"', ''
+
+    $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
+    $view = [System.Windows.Markup.XamlReader]::Load($reader)
+
+    return $view
+}
+
+Export-ModuleMember -Function Set-StView, New-StDebounceTimer, Export-StRowsToCsv, Export-StRowsToJson, Export-StRowsWithFormatChoice, Export-StTextToFile, Show-CopyFeedback, Import-StXamlView

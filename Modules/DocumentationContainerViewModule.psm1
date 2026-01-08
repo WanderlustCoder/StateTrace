@@ -21,26 +21,6 @@ $script:DocInitializedViews = $null
 $script:DocScriptDir = $null
 $script:DocWindow = $null
 
-# Helper: Load XAML for fallback view loading
-# Note: DynamicResource bindings resolve from Application.Resources when view is in visual tree
-function Load-ThemedXamlView {
-    param(
-        [string]$ViewPath,
-        [string]$ScriptDir
-    )
-
-    if (-not (Test-Path $ViewPath)) { return $null }
-
-    $xamlContent = Get-Content -Path $ViewPath -Raw
-    $xamlContent = $xamlContent -replace 'x:Class="[^"]*"', ''
-    $xamlContent = $xamlContent -replace 'mc:Ignorable="d"', ''
-
-    $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
-    $view = [System.Windows.Markup.XamlReader]::Load($reader)
-
-    return $view
-}
-
 function New-DocumentationContainerView {
     <#
     .SYNOPSIS
@@ -157,7 +137,7 @@ function Initialize-ConfigSubView {
         } else {
             Write-Warning "Initialize-ConfigTemplateView not found - loading XAML only"
             $viewPath = Join-Path $ScriptDir '..\Views\ConfigTemplateView.xaml'
-            $view = Load-ThemedXamlView -ViewPath $viewPath -ScriptDir $ScriptDir
+            $view = ViewCompositionModule\Import-StXamlView -ViewPath $viewPath
             if ($view) { $Host.Content = $view }
         }
     }
@@ -179,7 +159,7 @@ function Initialize-CmdRefSubView {
         } else {
             Write-Warning "Initialize-CommandReferenceView not found - loading XAML only"
             $viewPath = Join-Path $ScriptDir '..\Views\CommandReferenceView.xaml'
-            $view = Load-ThemedXamlView -ViewPath $viewPath -ScriptDir $ScriptDir
+            $view = ViewCompositionModule\Import-StXamlView -ViewPath $viewPath
             if ($view) { $Host.Content = $view }
         }
     }

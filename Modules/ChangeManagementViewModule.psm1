@@ -312,6 +312,28 @@ function Register-ChangeManagementEventHandlers {
         }.GetNewClosure())
     }
 
+    $editWindowButton = $View.FindName('EditMaintenanceWindowButton')
+    if ($editWindowButton) {
+        $editWindowButton.Add_Click({
+            $grid = $View.FindName('MaintenanceWindowsGrid')
+            if ($grid -and $grid.SelectedItem) {
+                [System.Windows.MessageBox]::Show(
+                    'Edit maintenance window feature is not yet implemented.',
+                    'Edit Window',
+                    'OK',
+                    'Information'
+                )
+            } else {
+                [System.Windows.MessageBox]::Show(
+                    'Please select a maintenance window to edit.',
+                    'Edit Window',
+                    'OK',
+                    'Information'
+                )
+            }
+        }.GetNewClosure())
+    }
+
     # Maintenance window checkboxes
     $showPastCheckbox = $View.FindName('ShowPastWindowsCheckbox')
     if ($showPastCheckbox) {

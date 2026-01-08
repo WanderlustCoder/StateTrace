@@ -6,8 +6,6 @@
         # Core parser and helper modules
         'LogIngestionModule.psm1',
         'ParserPersistenceModule.psm1',
-        'ParserPersistence.Core.psm1',
-        'ParserPersistence.Diff.psm1',
         'WarmRun.Telemetry.psm1',
         'ParserRunspaceModule.psm1',
         'DeviceLogParserModule.psm1',

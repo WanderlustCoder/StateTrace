@@ -19,26 +19,6 @@ $script:ToolsSubHosts = $null
 $script:ToolsInitializedViews = $null
 $script:ToolsScriptDir = $null
 
-# Helper: Load XAML for fallback view loading
-# Note: DynamicResource bindings resolve from Application.Resources when view is in visual tree
-function Load-ThemedXamlView {
-    param(
-        [string]$ViewPath,
-        [string]$ScriptDir
-    )
-
-    if (-not (Test-Path $ViewPath)) { return $null }
-
-    $xamlContent = Get-Content -Path $ViewPath -Raw
-    $xamlContent = $xamlContent -replace 'x:Class="[^"]*"', ''
-    $xamlContent = $xamlContent -replace 'mc:Ignorable="d"', ''
-
-    $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
-    $view = [System.Windows.Markup.XamlReader]::Load($reader)
-
-    return $view
-}
-
 function New-ToolsContainerView {
     <#
     .SYNOPSIS
@@ -129,7 +109,7 @@ function Initialize-TroubleshootSubView {
             DecisionTreeViewModule\Initialize-DecisionTreeView -Host $Host
         } else {
             $viewPath = Join-Path $ScriptDir '..\Views\DecisionTreeView.xaml'
-            $view = Load-ThemedXamlView -ViewPath $viewPath -ScriptDir $ScriptDir
+            $view = ViewCompositionModule\Import-StXamlView -ViewPath $viewPath
             if ($view) { $Host.Content = $view }
         }
     }
@@ -149,7 +129,7 @@ function Initialize-CalculatorSubView {
             NetworkCalculatorViewModule\Initialize-NetworkCalculatorView -Host $Host
         } else {
             $viewPath = Join-Path $ScriptDir '..\Views\NetworkCalculatorView.xaml'
-            $view = Load-ThemedXamlView -ViewPath $viewPath -ScriptDir $ScriptDir
+            $view = ViewCompositionModule\Import-StXamlView -ViewPath $viewPath
             if ($view) { $Host.Content = $view }
         }
     }

@@ -114,26 +114,6 @@ function New-InfrastructureContainerView {
     }
 }
 
-# Helper: Load XAML for fallback view loading
-# Note: DynamicResource bindings resolve from Application.Resources when view is in visual tree
-function Load-ThemedXamlView {
-    param(
-        [string]$ViewPath,
-        [string]$ScriptDir
-    )
-
-    if (-not (Test-Path $ViewPath)) { return $null }
-
-    $xamlContent = Get-Content -Path $ViewPath -Raw
-    $xamlContent = $xamlContent -replace 'x:Class="[^"]*"', ''
-    $xamlContent = $xamlContent -replace 'mc:Ignorable="d"', ''
-
-    $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($xamlContent))
-    $view = [System.Windows.Markup.XamlReader]::Load($reader)
-
-    return $view
-}
-
 function Initialize-TopologySubView {
     param(
         [System.Windows.Controls.ContentControl]$Host,
@@ -145,7 +125,7 @@ function Initialize-TopologySubView {
             TopologyViewModule\Initialize-TopologyView -Host $Host
         } else {
             $viewPath = Join-Path $ScriptDir '..\Views\TopologyView.xaml'
-            $view = Load-ThemedXamlView -ViewPath $viewPath -ScriptDir $ScriptDir
+            $view = ViewCompositionModule\Import-StXamlView -ViewPath $viewPath
             if ($view) { $Host.Content = $view }
         }
     }
@@ -176,7 +156,7 @@ function Initialize-CablesSubView {
             CableDocumentationViewModule\Initialize-CableDocumentationView -Host $Host
         } else {
             $viewPath = Join-Path $ScriptDir '..\Views\CableDocumentationView.xaml'
-            $view = Load-ThemedXamlView -ViewPath $viewPath -ScriptDir $ScriptDir
+            $view = ViewCompositionModule\Import-StXamlView -ViewPath $viewPath
             if ($view) { $Host.Content = $view }
         }
     }
@@ -196,7 +176,7 @@ function Initialize-IPAMSubView {
             IPAMViewModule\Initialize-IPAMView -Host $Host
         } else {
             $viewPath = Join-Path $ScriptDir '..\Views\IPAMView.xaml'
-            $view = Load-ThemedXamlView -ViewPath $viewPath -ScriptDir $ScriptDir
+            $view = ViewCompositionModule\Import-StXamlView -ViewPath $viewPath
             if ($view) { $Host.Content = $view }
         }
     }
@@ -216,7 +196,7 @@ function Initialize-InventorySubView {
             InventoryViewModule\Initialize-InventoryView -Host $Host
         } else {
             $viewPath = Join-Path $ScriptDir '..\Views\InventoryView.xaml'
-            $view = Load-ThemedXamlView -ViewPath $viewPath -ScriptDir $ScriptDir
+            $view = ViewCompositionModule\Import-StXamlView -ViewPath $viewPath
             if ($view) { $Host.Content = $view }
         }
     }
