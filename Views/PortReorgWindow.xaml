@@ -303,7 +303,7 @@
                  BorderThickness="1"/>
       </TabItem>
       <TabItem Header="Cable Info">
-        <Grid Margin="5">
+        <Grid Margin="5" Background="{DynamicResource Theme.Surface.Secondary}">
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*"/>
             <ColumnDefinition Width="Auto"/>

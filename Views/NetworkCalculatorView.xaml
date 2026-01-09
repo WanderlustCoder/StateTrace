@@ -6,7 +6,7 @@
 
       <!-- Subnet Calculator Tab -->
       <TabItem Header="Subnet">
-        <Grid Margin="10">
+        <Grid Margin="10" Background="{DynamicResource Theme.Surface.Secondary}">
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -120,7 +120,7 @@
 
       <!-- VLAN Calculator Tab -->
       <TabItem Header="VLAN">
-        <Grid Margin="10">
+        <Grid Margin="10" Background="{DynamicResource Theme.Surface.Secondary}">
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -174,7 +174,7 @@
 
       <!-- Bandwidth Calculator Tab -->
       <TabItem Header="Bandwidth">
-        <Grid Margin="10">
+        <Grid Margin="10" Background="{DynamicResource Theme.Surface.Secondary}">
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -254,7 +254,7 @@
 
       <!-- IP Tools Tab -->
       <TabItem Header="IP Tools">
-        <Grid Margin="10">
+        <Grid Margin="10" Background="{DynamicResource Theme.Surface.Secondary}">
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -311,7 +311,7 @@
 
       <!-- Port Reference Tab -->
       <TabItem Header="Ports">
-        <Grid Margin="10">
+        <Grid Margin="10" Background="{DynamicResource Theme.Surface.Secondary}">
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -343,7 +343,7 @@
 
       <!-- ACL Builder Tab -->
       <TabItem Header="ACL Builder">
-        <Grid Margin="10">
+        <Grid Margin="10" Background="{DynamicResource Theme.Surface.Secondary}">
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>

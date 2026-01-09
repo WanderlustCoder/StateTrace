@@ -69,7 +69,7 @@
 
       <!-- Command Lookup Tab -->
       <TabItem Header="Commands">
-        <Grid>
+        <Grid Background="{DynamicResource Theme.Surface.Secondary}">
           <Grid.RowDefinitions>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
@@ -106,7 +106,7 @@
 
       <!-- Side-by-Side Comparison Tab -->
       <TabItem Header="Compare Vendors">
-        <Grid>
+        <Grid Background="{DynamicResource Theme.Surface.Secondary}">
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -147,7 +147,7 @@
 
       <!-- Config Snippets Tab -->
       <TabItem Header="Config Snippets">
-        <Grid>
+        <Grid Background="{DynamicResource Theme.Surface.Secondary}">
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="250"/>
             <ColumnDefinition Width="*"/>
@@ -214,7 +214,7 @@
 
       <!-- Quick Reference Tab -->
       <TabItem Header="Quick Reference">
-        <Grid Margin="5">
+        <Grid Margin="5" Background="{DynamicResource Theme.Surface.Secondary}">
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>

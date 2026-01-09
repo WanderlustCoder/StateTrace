@@ -52,7 +52,7 @@
         <TabControl Grid.Row="1">
             <!-- Templates Tab -->
             <TabItem Header="Templates">
-                <Grid Margin="5">
+                <Grid Margin="5" Background="{DynamicResource Theme.Surface.Secondary}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
@@ -100,7 +100,7 @@
 
             <!-- Generate Tab -->
             <TabItem Header="Generate">
-                <Grid Margin="5">
+                <Grid Margin="5" Background="{DynamicResource Theme.Surface.Secondary}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="350"/>
                         <ColumnDefinition Width="*"/>
@@ -165,7 +165,7 @@
 
             <!-- Documents Tab -->
             <TabItem Header="Documents">
-                <Grid Margin="5">
+                <Grid Margin="5" Background="{DynamicResource Theme.Surface.Secondary}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
@@ -208,7 +208,7 @@
 
             <!-- Schedules Tab -->
             <TabItem Header="Schedules">
-                <Grid Margin="5">
+                <Grid Margin="5" Background="{DynamicResource Theme.Surface.Secondary}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
@@ -247,7 +247,7 @@
 
             <!-- Export Tab -->
             <TabItem Header="Export">
-                <Grid Margin="5">
+                <Grid Margin="5" Background="{DynamicResource Theme.Surface.Secondary}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="300"/>
                         <ColumnDefinition Width="*"/>
@@ -318,7 +318,7 @@
 
             <!-- History Tab -->
             <TabItem Header="History">
-                <Grid Margin="5">
+                <Grid Margin="5" Background="{DynamicResource Theme.Surface.Secondary}">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>

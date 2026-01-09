@@ -35,7 +35,7 @@
 
       <!-- Templates Tab -->
       <TabItem Header="Templates">
-        <Grid>
+        <Grid Background="{DynamicResource Theme.Surface.Secondary}">
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="250"/>
             <ColumnDefinition Width="*"/>
@@ -178,7 +178,7 @@
 
       <!-- Validation Tab -->
       <TabItem Header="Validation">
-        <Grid>
+        <Grid Background="{DynamicResource Theme.Surface.Secondary}">
           <Grid.ColumnDefinitions>
             <ColumnDefinition Width="250"/>
             <ColumnDefinition Width="*"/>
@@ -302,7 +302,7 @@
 
       <!-- Output Tab -->
       <TabItem Header="Generated Output">
-        <Grid Margin="5">
+        <Grid Margin="5" Background="{DynamicResource Theme.Surface.Secondary}">
           <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -331,7 +331,7 @@
 
       <!-- Statistics Tab -->
       <TabItem Header="Statistics">
-        <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Background="{DynamicResource Theme.Surface.Secondary}">
           <Grid Margin="10">
             <Grid.ColumnDefinitions>
               <ColumnDefinition Width="*"/>
