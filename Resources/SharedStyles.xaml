@@ -413,7 +413,7 @@
     </Setter>
   </Style>
 
-  <!-- Left TabControl style - for container views with TabStripPlacement="Left" -->
+  <!-- Left TabControl style - for container views with left-side tabs -->
   <Style x:Key="LeftTabControlStyle" TargetType="TabControl">
     <Setter Property="Background" Value="{DynamicResource Theme.Surface.Secondary}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource Theme.Border.Primary}"/>
@@ -427,8 +427,10 @@
               <ColumnDefinition Width="Auto"/>
               <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
-            <!-- Tab Header Panel (left side) -->
-            <TabPanel Grid.Column="0" IsItemsHost="True" Background="{DynamicResource Theme.Surface.Primary}"/>
+            <!-- Tab Header Panel (left side, vertical stack) -->
+            <Border Grid.Column="0" Background="{DynamicResource Theme.Surface.Primary}">
+              <StackPanel IsItemsHost="True" Orientation="Vertical"/>
+            </Border>
             <!-- Content Area with themed background -->
             <Border Grid.Column="1" Background="{TemplateBinding Background}"
                     BorderBrush="{TemplateBinding BorderBrush}"
