@@ -385,12 +385,60 @@
     <Setter Property="Margin" Value="0,0,0,10"/>
   </Style>
 
-  <!-- Default TabControl style - applies to ALL TabControls automatically -->
+  <!-- Default TabControl style - applies to ALL TabControls automatically (Top tabs) -->
   <Style TargetType="TabControl">
     <Setter Property="Background" Value="{DynamicResource Theme.Surface.Secondary}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource Theme.Border.Primary}"/>
     <Setter Property="BorderThickness" Value="0"/>
     <Setter Property="Padding" Value="0"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="TabControl">
+          <Grid KeyboardNavigation.TabNavigation="Local">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+            <!-- Tab Header Panel (top) -->
+            <TabPanel Grid.Row="0" IsItemsHost="True" Background="{DynamicResource Theme.Surface.Primary}"/>
+            <!-- Content Area with themed background -->
+            <Border Grid.Row="1" Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}">
+              <ContentPresenter ContentSource="SelectedContent" Margin="{TemplateBinding Padding}"/>
+            </Border>
+          </Grid>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
+  <!-- Left TabControl style - for container views with TabStripPlacement="Left" -->
+  <Style x:Key="LeftTabControlStyle" TargetType="TabControl">
+    <Setter Property="Background" Value="{DynamicResource Theme.Surface.Secondary}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource Theme.Border.Primary}"/>
+    <Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="Padding" Value="0"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="TabControl">
+          <Grid KeyboardNavigation.TabNavigation="Local">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <!-- Tab Header Panel (left side) -->
+            <TabPanel Grid.Column="0" IsItemsHost="True" Background="{DynamicResource Theme.Surface.Primary}"/>
+            <!-- Content Area with themed background -->
+            <Border Grid.Column="1" Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="{TemplateBinding BorderThickness}">
+              <ContentPresenter ContentSource="SelectedContent" Margin="{TemplateBinding Padding}"/>
+            </Border>
+          </Grid>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
   </Style>
 
   <Style x:Key="PrimaryTabControlStyle" TargetType="TabControl">

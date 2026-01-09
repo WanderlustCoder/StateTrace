@@ -1,8 +1,7 @@
 <UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-  <TabControl Name="InfrastructureTabControl" TabStripPlacement="Left"
-              Background="{DynamicResource Theme.Surface.Primary}"
+  <TabControl Name="InfrastructureTabControl" Style="{DynamicResource LeftTabControlStyle}"
               ItemContainerStyle="{DynamicResource LeftNavTabItemStyle}">
 
     <TabItem Header="Topology" ToolTip="Network topology visualization and link discovery&#x0a;Related: Interfaces tab for port details">
