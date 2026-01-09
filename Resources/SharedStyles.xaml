@@ -392,6 +392,49 @@
     <Setter Property="Padding" Value="5"/>
   </Style>
 
+  <!-- Default TabControl style - applies to ALL TabControls automatically -->
+  <Style TargetType="TabControl">
+    <Setter Property="Background" Value="{DynamicResource Theme.Surface.Primary}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource Theme.Border.Primary}"/>
+    <Setter Property="BorderThickness" Value="0"/>
+    <Setter Property="Padding" Value="0"/>
+  </Style>
+
+  <!-- Default TabItem style - applies to ALL TabItems automatically -->
+  <Style TargetType="TabItem">
+    <Setter Property="Background" Value="{DynamicResource Theme.Surface.Primary}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Secondary}"/>
+    <Setter Property="BorderBrush" Value="{DynamicResource Theme.Border.Primary}"/>
+    <Setter Property="Padding" Value="10,6"/>
+    <Setter Property="Margin" Value="0,0,2,0"/>
+    <Setter Property="Template">
+      <Setter.Value>
+        <ControlTemplate TargetType="TabItem">
+          <Border Name="Border" Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1,1,1,0"
+                  Padding="{TemplateBinding Padding}" CornerRadius="4,4,0,0">
+            <ContentPresenter ContentSource="Header" HorizontalAlignment="Center"/>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsSelected" Value="True">
+              <Setter TargetName="Border" Property="Background" Value="{DynamicResource Theme.Surface.Secondary}"/>
+              <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
+              <Setter Property="FontWeight" Value="SemiBold"/>
+            </Trigger>
+            <MultiTrigger>
+              <MultiTrigger.Conditions>
+                <Condition Property="IsMouseOver" Value="True"/>
+                <Condition Property="IsSelected" Value="False"/>
+              </MultiTrigger.Conditions>
+              <Setter TargetName="Border" Property="Background" Value="{DynamicResource Theme.Button.Secondary.HoverBackground}"/>
+              <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
+            </MultiTrigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value>
+    </Setter>
+  </Style>
+
   <Style TargetType="TextBox">
     <Setter Property="Background" Value="{DynamicResource Theme.Input.Background}"/>
     <Setter Property="Foreground" Value="{DynamicResource Theme.Input.Text}"/>
