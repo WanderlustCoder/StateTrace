@@ -588,6 +588,29 @@ function Get-ThemeBrush {
     return $brush
 }
 
+function Get-ThemeBrushWithFallback {
+    <#
+    .SYNOPSIS
+        Gets a theme brush with fallback to a default color if theme key not found.
+    .PARAMETER Key
+        The theme token key (e.g., 'Theme.Status.Success').
+    .PARAMETER Fallback
+        The fallback color if theme key not found (e.g., '#27AE60').
+    .OUTPUTS
+        A frozen SolidColorBrush.
+    #>
+    param(
+        [Parameter(Mandatory=$true)][string]$Key,
+        [Parameter(Mandatory=$true)][string]$Fallback
+    )
+
+    $brush = Get-ThemeBrush -Key $Key
+    if ($brush) { return $brush }
+
+    # Theme key not found, use fallback color
+    return New-FrozenBrush -Value $Fallback
+}
+
 function Get-AvailableStateTraceThemes {
     $themeDir = Get-ThemeDirectory
     $files = Get-ChildItem -Path $themeDir -Filter '*.json' -File | Sort-Object Name
@@ -686,4 +709,4 @@ function Set-AutoTheme {
     }
 }
 
-Export-ModuleMember -Function Get-StateTraceTheme, Get-StateTraceThemeMetadata, Set-StateTraceTheme, Get-ThemeToken, Get-ThemeBrush, Initialize-StateTraceTheme, Get-AvailableStateTraceThemes, Register-StateTraceThemeChanged, Update-StateTraceThemeResources, Get-WindowsThemePreference, Set-AutoTheme
+Export-ModuleMember -Function Get-StateTraceTheme, Get-StateTraceThemeMetadata, Set-StateTraceTheme, Get-ThemeToken, Get-ThemeBrush, Get-ThemeBrushWithFallback, Initialize-StateTraceTheme, Get-AvailableStateTraceThemes, Register-StateTraceThemeChanged, Update-StateTraceThemeResources, Get-WindowsThemePreference, Set-AutoTheme

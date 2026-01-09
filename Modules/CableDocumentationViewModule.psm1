@@ -23,30 +23,6 @@ if (Test-Path $cableDocModulePath) {
 $script:PortStatusBrushes = $null
 $script:CableTypeBrushes = $null
 
-function Get-ThemedBrush {
-    <#
-    .SYNOPSIS
-        Gets a brush from theme or falls back to a default color.
-    #>
-    param(
-        [string]$ThemeKey,
-        [string]$FallbackColor
-    )
-
-    $brush = $null
-    if (Get-Command -Name 'Get-ThemeBrush' -Module 'ThemeModule' -ErrorAction SilentlyContinue) {
-        $brush = ThemeModule\Get-ThemeBrush -Key $ThemeKey
-    }
-
-    if (-not $brush) {
-        $converter = New-Object System.Windows.Media.BrushConverter
-        $brush = $converter.ConvertFromString($FallbackColor)
-    }
-
-    if ($brush -and $brush.CanFreeze) { $brush.Freeze() }
-    return $brush
-}
-
 function Initialize-BrushCache {
     <#
     .SYNOPSIS
@@ -57,10 +33,10 @@ function Initialize-BrushCache {
 
     # Port status brushes - use semantic colors
     $script:PortStatusBrushes = @{
-        'Empty'     = Get-ThemedBrush -ThemeKey 'Theme.Status.Neutral' -FallbackColor '#555555'
-        'Connected' = Get-ThemedBrush -ThemeKey 'Theme.Status.Success' -FallbackColor '#27AE60'
-        'Reserved'  = Get-ThemedBrush -ThemeKey 'Theme.Status.Info' -FallbackColor '#3498DB'
-        'Faulty'    = Get-ThemedBrush -ThemeKey 'Theme.Status.Danger' -FallbackColor '#E74C3C'
+        'Empty'     = ThemeModule\Get-ThemeBrushWithFallback -Key 'Theme.Status.Neutral' -Fallback '#555555'
+        'Connected' = ThemeModule\Get-ThemeBrushWithFallback -Key 'Theme.Status.Success' -Fallback '#27AE60'
+        'Reserved'  = ThemeModule\Get-ThemeBrushWithFallback -Key 'Theme.Status.Info' -Fallback '#3498DB'
+        'Faulty'    = ThemeModule\Get-ThemeBrushWithFallback -Key 'Theme.Status.Danger' -Fallback '#E74C3C'
     }
 
     # Cable type brushes - these are more semantic, keep distinct colors
@@ -76,13 +52,13 @@ function Initialize-BrushCache {
     }
 
     # UI brushes - use theme tokens for proper light/dark theme support
-    $script:SelectionBrush = Get-ThemedBrush -ThemeKey 'Theme.Button.Primary.Background' -FallbackColor '#F39C12'
-    $script:PanelBackgroundBrush = Get-ThemedBrush -ThemeKey 'Theme.Surface.Secondary' -FallbackColor '#2D2D30'
-    $script:PanelHeaderBrush = Get-ThemedBrush -ThemeKey 'Theme.Toolbar.Background' -FallbackColor '#3E3E42'
+    $script:SelectionBrush = ThemeModule\Get-ThemeBrushWithFallback -Key 'Theme.Button.Primary.Background' -Fallback '#F39C12'
+    $script:PanelBackgroundBrush = ThemeModule\Get-ThemeBrushWithFallback -Key 'Theme.Surface.Secondary' -Fallback '#2D2D30'
+    $script:PanelHeaderBrush = ThemeModule\Get-ThemeBrushWithFallback -Key 'Theme.Toolbar.Background' -Fallback '#3E3E42'
     # Use Toolbar.Text for text on colored surfaces (panel headers, port numbers)
-    $script:TextBrush = Get-ThemedBrush -ThemeKey 'Theme.Toolbar.Text' -FallbackColor '#FFFFFF'
-    $script:TextSecondaryBrush = Get-ThemedBrush -ThemeKey 'Theme.Text.Inverse' -FallbackColor '#AAAAAA'
-    $script:BorderBrush = Get-ThemedBrush -ThemeKey 'Theme.Border.Primary' -FallbackColor '#555555'
+    $script:TextBrush = ThemeModule\Get-ThemeBrushWithFallback -Key 'Theme.Toolbar.Text' -Fallback '#FFFFFF'
+    $script:TextSecondaryBrush = ThemeModule\Get-ThemeBrushWithFallback -Key 'Theme.Text.Inverse' -Fallback '#AAAAAA'
+    $script:BorderBrush = ThemeModule\Get-ThemeBrushWithFallback -Key 'Theme.Border.Primary' -Fallback '#555555'
 
     # Freeze cable type brushes
     foreach ($brush in $script:CableTypeBrushes.Values) {
