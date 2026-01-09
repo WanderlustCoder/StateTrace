@@ -289,48 +289,6 @@ Publish-TelemetryEvent -EventType 'OperationComplete' -Data @{ Duration = 150 }
 
 Logs are written to `Logs/` directory.
 
-## Hot Reload
-
-StateTrace supports hot-reload for settings:
-
-1. Modify `Data/StateTraceSettings.json`
-2. Changes are automatically detected and applied
-3. No application restart required
-
-To use hot-reload in your code:
-
-```powershell
-Import-Module .\Modules\SettingsWatcherModule.psm1
-
-# Register a callback
-Register-SettingsChangeCallback -Callback {
-    param($settings)
-    Write-Host "Settings changed: $($settings | ConvertTo-Json -Compress)"
-}
-
-# Initialize watcher
-Initialize-SettingsWatcher -SettingsPath '.\Data\StateTraceSettings.json'
-```
-
-## Error Handling
-
-Use the ErrorHandlingModule for context-rich errors:
-
-```powershell
-Import-Module .\Modules\ErrorHandlingModule.psm1
-
-try {
-    # Your code
-} catch {
-    Write-EnhancedError -ErrorRecord $_ -IncludeStackTrace
-}
-
-# Or wrap operations
-Invoke-WithEnhancedErrorHandling -ScriptBlock {
-    # Your code here
-} -ErrorAction Throw
-```
-
 ## Troubleshooting
 
 ### Module Import Errors
