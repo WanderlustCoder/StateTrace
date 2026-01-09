@@ -387,29 +387,14 @@
 
   <!-- Default TabControl style - applies to ALL TabControls automatically -->
   <Style TargetType="TabControl">
-    <Setter Property="Background" Value="{DynamicResource Theme.Surface.Primary}"/>
+    <Setter Property="Background" Value="{DynamicResource Theme.Surface.Secondary}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource Theme.Border.Primary}"/>
     <Setter Property="BorderThickness" Value="0"/>
     <Setter Property="Padding" Value="0"/>
-    <Setter Property="Template">
-      <Setter.Value>
-        <ControlTemplate TargetType="TabControl">
-          <Grid KeyboardNavigation.TabNavigation="Local">
-            <Grid.RowDefinitions>
-              <RowDefinition Height="Auto"/>
-              <RowDefinition Height="*"/>
-            </Grid.RowDefinitions>
-            <!-- Tab Header Panel -->
-            <TabPanel Grid.Row="0" IsItemsHost="True" Background="{DynamicResource Theme.Surface.Primary}"/>
-            <!-- Content Area - no border, direct content display -->
-            <ContentPresenter Grid.Row="1" ContentSource="SelectedContent" Margin="0"/>
-          </Grid>
-        </ControlTemplate>
-      </Setter.Value>
-    </Setter>
   </Style>
 
-  <Style x:Key="PrimaryTabControlStyle" TargetType="TabControl" BasedOn="{StaticResource {x:Type TabControl}}">
+  <Style x:Key="PrimaryTabControlStyle" TargetType="TabControl">
+    <Setter Property="Background" Value="{DynamicResource Theme.Surface.Primary}"/>
     <Setter Property="BorderBrush" Value="{DynamicResource Theme.Surface.Border}"/>
     <Setter Property="BorderThickness" Value="1"/>
     <Setter Property="Padding" Value="5"/>
