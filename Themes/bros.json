@@ -72,7 +72,14 @@
     "Theme.Template.Red": "#C81D1A",
     "Theme.Vendor.Cisco": "#049CD8",
     "Theme.Vendor.Brocade": "#FBD000",
-    "Theme.Vendor.Arista": "#2E7D32"
+    "Theme.Vendor.Arista": "#2E7D32",
+    "Theme.Tab.Background": "#FBD000",
+    "Theme.Tab.Text": "#1B1B1B",
+    "Theme.Tab.HoverBackground": "#FFE066",
+    "Theme.Tab.HoverText": "#1B1B1B",
+    "Theme.Tab.SelectedBackground": "#C81D1A",
+    "Theme.Tab.SelectedText": "#FFFFFF",
+    "Theme.Tab.Border": "#1B1B1B"
   }
 }
 

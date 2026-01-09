@@ -25,8 +25,7 @@
     </StackPanel>
 
     <!-- Main Content - Tab Control -->
-    <TabControl Grid.Row="1" Margin="5" Name="MainTabControl" Background="{DynamicResource Theme.Surface.Primary}"
-                ItemContainerStyle="{DynamicResource ThemedTabItemStyle}">
+    <TabControl Grid.Row="1" Margin="5" Name="MainTabControl">
 
       <!-- VLANs Tab -->
       <TabItem Header="VLANs">

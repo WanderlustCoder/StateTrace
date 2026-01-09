@@ -83,8 +83,7 @@
     </StackPanel>
 
     <!-- Main content tabs -->
-    <TabControl Grid.Row="2" Background="{DynamicResource Theme.Surface.Primary}"
-                ItemContainerStyle="{DynamicResource ThemedTabItemStyle}">
+    <TabControl Grid.Row="2">
       <!-- Inventory Tab -->
       <TabItem Header="Inventory">
         <Grid Background="{DynamicResource Theme.Surface.Secondary}">

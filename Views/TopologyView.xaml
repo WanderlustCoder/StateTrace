@@ -120,8 +120,7 @@
             </Border>
 
             <!-- Right sidebar with details and tools -->
-            <TabControl Grid.Column="1" Background="{DynamicResource Theme.Surface.Primary}"
-                        ItemContainerStyle="{DynamicResource ThemedTabItemStyle}">
+            <TabControl Grid.Column="1">
 
                 <!-- Details Tab -->
                 <TabItem Header="Details">

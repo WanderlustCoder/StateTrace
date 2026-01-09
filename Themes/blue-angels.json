@@ -27,6 +27,13 @@
     "Theme.DataGrid.HeaderText": "#FFFFFF",
     "Theme.Status.Info": "#1E90FF",
     "Theme.Template.Blue": "#1E90FF",
-    "Theme.Template.Purple": "#6A0DAD"
+    "Theme.Template.Purple": "#6A0DAD",
+    "Theme.Tab.Background": "#FFD700",
+    "Theme.Tab.Text": "#001F3F",
+    "Theme.Tab.HoverBackground": "#FFEA70",
+    "Theme.Tab.HoverText": "#001F3F",
+    "Theme.Tab.SelectedBackground": "#001F3F",
+    "Theme.Tab.SelectedText": "#FFD700",
+    "Theme.Tab.Border": "#FFD700"
   }
 }

@@ -37,8 +37,7 @@
         </Border>
 
         <!-- Main tabbed content -->
-        <TabControl Grid.Row="1" Background="{DynamicResource Theme.Surface.Primary}"
-                    ItemContainerStyle="{DynamicResource ThemedTabItemStyle}">
+        <TabControl Grid.Row="1">
             <!-- Dashboard Tab -->
             <TabItem Header="Dashboard">
                 <Grid Margin="5" Background="{DynamicResource Theme.Surface.Secondary}">
