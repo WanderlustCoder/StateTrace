@@ -781,6 +781,141 @@ function New-CapacityThreshold {
     return $threshold
 }
 
+function Add-CapacityThreshold {
+    <#
+    .SYNOPSIS
+        Adds a capacity threshold entry.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Scope,
+
+        [Parameter(Mandatory)]
+        [string]$MetricType,
+
+        [Parameter(Mandatory)]
+        [int]$WarningLevel,
+
+        [Parameter(Mandatory)]
+        [int]$CriticalLevel,
+
+        [Parameter()]
+        [string]$ScopeType = 'Site',
+
+        [Parameter()]
+        [switch]$IsEnabled,
+
+        [Parameter()]
+        [switch]$NotifyOnBreach
+    )
+
+    $resolvedScopeType = $ScopeType
+    $resolvedScopeId = $Scope
+    if ($Scope -match '^\s*(?<type>[^:]+)\s*:\s*(?<id>.+)$') {
+        $resolvedScopeType = $matches['type'].Trim()
+        $resolvedScopeId = $matches['id'].Trim()
+    }
+
+    $metricName = $MetricType
+    if ($MetricType -match '^(?i)port$') { $metricName = 'PortUtilization' }
+    elseif ($MetricType -match '^(?i)poe$') { $metricName = 'PoEUtilization' }
+
+    return New-CapacityThreshold -ScopeType $resolvedScopeType -ScopeID $resolvedScopeId -MetricName $metricName `
+        -WarningLevel $WarningLevel -CriticalLevel $CriticalLevel -IsEnabled:$IsEnabled.IsPresent -NotifyOnBreach:$NotifyOnBreach.IsPresent
+}
+
+function Set-CapacityThreshold {
+    <#
+    .SYNOPSIS
+        Updates a capacity threshold entry.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$ThresholdID,
+
+        [Parameter()]
+        [Nullable[bool]]$IsEnabled,
+
+        [Parameter()]
+        [Nullable[bool]]$NotifyOnBreach,
+
+        [Parameter()]
+        [int]$WarningLevel,
+
+        [Parameter()]
+        [int]$CriticalLevel,
+
+        [Parameter()]
+        [string]$Scope,
+
+        [Parameter()]
+        [string]$ScopeType,
+
+        [Parameter()]
+        [string]$MetricType
+    )
+
+    $threshold = $script:CapacityThresholds | Where-Object { $_.ThresholdID -eq $ThresholdID } | Select-Object -First 1
+    if (-not $threshold) {
+        throw "Threshold not found: $ThresholdID"
+    }
+
+    if ($PSBoundParameters.ContainsKey('WarningLevel')) { $threshold.WarningLevel = $WarningLevel }
+    if ($PSBoundParameters.ContainsKey('CriticalLevel')) { $threshold.CriticalLevel = $CriticalLevel }
+    if ($PSBoundParameters.ContainsKey('IsEnabled')) { $threshold.IsEnabled = [bool]$IsEnabled }
+    if ($PSBoundParameters.ContainsKey('NotifyOnBreach')) { $threshold.NotifyOnBreach = [bool]$NotifyOnBreach }
+
+    if ($PSBoundParameters.ContainsKey('Scope')) {
+        $resolvedScopeType = if ($ScopeType) { $ScopeType } else { $threshold.ScopeType }
+        $resolvedScopeId = $Scope
+        if ($Scope -match '^\s*(?<type>[^:]+)\s*:\s*(?<id>.+)$') {
+            $resolvedScopeType = $matches['type'].Trim()
+            $resolvedScopeId = $matches['id'].Trim()
+        }
+        $threshold.ScopeType = $resolvedScopeType
+        $threshold.ScopeID = $resolvedScopeId
+    } elseif ($PSBoundParameters.ContainsKey('ScopeType')) {
+        $threshold.ScopeType = $ScopeType
+    }
+
+    if ($PSBoundParameters.ContainsKey('MetricType')) {
+        $metricName = $MetricType
+        if ($MetricType -match '^(?i)port$') { $metricName = 'PortUtilization' }
+        elseif ($MetricType -match '^(?i)poe$') { $metricName = 'PoEUtilization' }
+        $threshold.MetricName = $metricName
+    }
+
+    return $threshold
+}
+
+function Remove-CapacityThreshold {
+    <#
+    .SYNOPSIS
+        Removes a capacity threshold entry.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$ThresholdID
+    )
+
+    $threshold = $script:CapacityThresholds | Where-Object { $_.ThresholdID -eq $ThresholdID } | Select-Object -First 1
+    if (-not $threshold) {
+        Write-Warning ("Threshold not found: {0}" -f $ThresholdID)
+        return $false
+    }
+
+    if ($threshold.ThresholdID -like 'DEFAULT-*') {
+        Write-Warning ("Default threshold '{0}' cannot be removed." -f $ThresholdID)
+        return $false
+    }
+
+    [void]$script:CapacityThresholds.Remove($threshold)
+    return $true
+}
+
 function Get-CapacityWarnings {
     <#
     .SYNOPSIS
@@ -2141,6 +2276,9 @@ Export-ModuleMember -Function @(
     # Threshold Management
     'Get-CapacityThreshold'
     'New-CapacityThreshold'
+    'Add-CapacityThreshold'
+    'Set-CapacityThreshold'
+    'Remove-CapacityThreshold'
     'Get-CapacityWarnings'
     'Get-CapacityStatus'
     'Get-ForecastAlert'

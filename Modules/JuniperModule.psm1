@@ -197,14 +197,33 @@ function Get-JuniperDeviceFacts {
         $currentIface = $null
         $configLines = [System.Collections.Generic.List[string]]::new()
         $braceDepth = 0
+        $inInterfaces = $false
+        $interfacesDepth = 0
 
         foreach ($line in $Lines) {
+            if (-not $inInterfaces) {
+                if ($line -match '^\s*interfaces\s*\{') {
+                    $inInterfaces = $true
+                    $interfacesDepth = 1
+                }
+                continue
+            }
+
+            $openCount = ([regex]::Matches($line, '\{')).Count
+            $closeCount = ([regex]::Matches($line, '\}')).Count
+            $interfacesDepth += $openCount
+            $interfacesDepth -= $closeCount
+
             # interfaces { ge-0/0/0 { ... } }
-            if ($line -match '^\s*(?:interface\s+)?(\S+)\s*\{') {
+            if (-not $currentIface -and $line -match '^\s*(?:inactive:\s*)?(?:interface\s+)?(\S+)\s*\{') {
+                $candidate = $matches[1]
+                if ([string]::Equals($candidate, 'unit', [System.StringComparison]::OrdinalIgnoreCase)) {
+                    continue
+                }
                 if ($currentIface -and $configLines.Count -gt 0) {
                     $configs[$currentIface] = [string]::Join("`r`n", $configLines)
                 }
-                $currentIface = $matches[1]
+                $currentIface = $candidate
                 $configLines = [System.Collections.Generic.List[string]]::new()
                 $braceDepth = 1
                 [void]$configLines.Add($line)
@@ -213,14 +232,16 @@ function Get-JuniperDeviceFacts {
 
             if ($currentIface) {
                 [void]$configLines.Add($line)
-                $braceDepth += ([regex]::Matches($line, '\{')).Count
-                $braceDepth -= ([regex]::Matches($line, '\}')).Count
+                $braceDepth += $openCount
+                $braceDepth -= $closeCount
                 if ($braceDepth -le 0) {
                     $configs[$currentIface] = [string]::Join("`r`n", $configLines)
                     $currentIface = $null
                     $configLines = [System.Collections.Generic.List[string]]::new()
                 }
             }
+
+            if ($interfacesDepth -le 0) { break }
         }
 
         return $configs

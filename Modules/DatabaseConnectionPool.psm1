@@ -54,7 +54,7 @@ function New-PooledConnection {
     $usedProvider = $null
 
     # Try preferred provider first if specified
-    $providers = @('Microsoft.ACE.OLEDB.12.0', 'Microsoft.Jet.OLEDB.4.0')
+    $providers = @('Microsoft.ACE.OLEDB.16.0', 'Microsoft.ACE.OLEDB.12.0', 'Microsoft.Jet.OLEDB.4.0')
     if ($PreferredProvider -and $PreferredProvider -in $providers) {
         $providers = @($PreferredProvider) + @($providers | Where-Object { $_ -ne $PreferredProvider })
     }

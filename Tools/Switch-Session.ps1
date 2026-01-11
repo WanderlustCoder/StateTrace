@@ -1,10 +1,15 @@
-# Switch-Session.ps1 - Interactive session with COM8 switch
+# Switch-Session.ps1 - Interactive session with serial switch
 param(
+    [string]$SerialPort = $env:STATETRACE_SERIAL_PORT,
     [string]$Command = "",
     [int]$WaitMs = 2000
 )
 
-$port = New-Object System.IO.Ports.SerialPort 'COM8', 9600, 'None', 8, 'One'
+if ([string]::IsNullOrWhiteSpace($SerialPort)) {
+    throw 'SerialPort is required. Provide -SerialPort or set STATETRACE_SERIAL_PORT.'
+}
+
+$port = New-Object System.IO.Ports.SerialPort $SerialPort, 9600, 'None', 8, 'One'
 $port.ReadTimeout = 5000
 $port.WriteTimeout = 3000
 
@@ -39,3 +44,4 @@ finally {
         $port.Close()
     }
 }
+

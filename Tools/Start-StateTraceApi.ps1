@@ -17,6 +17,8 @@ Enable CORS headers for cross-origin requests.
 
 .PARAMETER ApiKey
 Optional API key for authentication.
+.PARAMETER AllowAnonymous
+Allow unauthenticated access when no API key is provided.
 
 .EXAMPLE
 .\Start-StateTraceApi.ps1 -Port 8080
@@ -30,11 +32,19 @@ param(
     [int]$Port = 8080,
     [string]$Prefix = 'http://localhost',
     [switch]$EnableCors,
-    [string]$ApiKey
+    [string]$ApiKey,
+    [switch]$AllowAnonymous
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Continue'
+
+if (-not $ApiKey -and -not $AllowAnonymous.IsPresent) {
+    throw "ApiKey is required unless -AllowAnonymous is specified."
+}
+if (-not $ApiKey -and $AllowAnonymous.IsPresent) {
+    Write-Warning 'Starting API without authentication; -AllowAnonymous specified.'
+}
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
 

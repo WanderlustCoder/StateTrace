@@ -303,8 +303,19 @@ function Start-TopologyDiscovery {
     try {
         # Get interface data from global cache
         $interfaces = @()
-        if ($global:interfaceCache) {
-            $interfaces = @($global:interfaceCache.Values)
+        if ($global:DeviceInterfaceCache) {
+            foreach ($bucket in $global:DeviceInterfaceCache.Values) {
+                if ($null -eq $bucket) { continue }
+                if ($bucket -is [string]) {
+                    $interfaces += $bucket
+                } elseif ($bucket -is [System.Collections.IEnumerable]) {
+                    foreach ($entry in $bucket) {
+                        if ($null -ne $entry) { $interfaces += $entry }
+                    }
+                } else {
+                    $interfaces += $bucket
+                }
+            }
         }
 
         if ($interfaces.Count -eq 0) {
@@ -748,9 +759,12 @@ function Delete-SelectedLayout {
     )
 
     if ($result -eq 'Yes') {
-        # Remove from layouts (would need a Remove-TopologyLayout function)
-        Update-SavedLayoutsList
-        Set-Status "Layout '$layoutName' deleted"
+        if (Remove-TopologyLayout -LayoutName $layoutName) {
+            Update-SavedLayoutsList
+            Set-Status "Layout '$layoutName' deleted"
+        } else {
+            Set-Status "Layout '$layoutName' not found"
+        }
     }
 }
 

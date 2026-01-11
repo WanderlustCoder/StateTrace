@@ -157,7 +157,9 @@ $builder.Add("# PortBatch site mix summary")
 $builder.Add("")
 $builder.Add([string]::Format('> Metrics file: `{0}`', (Resolve-Path -LiteralPath $metricsFile)))
 if ($startUtc -or $endUtc) {
-    $builder.Add([string]::Format('> Filter (UTC): {0} -> {1}', ($startUtc ? $startUtc.ToString('o') : 'start'), ($endUtc ? $endUtc.ToString('o') : 'end')))
+    $startLabel = if ($startUtc) { $startUtc.ToString('o') } else { 'start' }
+    $endLabel = if ($endUtc) { $endUtc.ToString('o') } else { 'end' }
+    $builder.Add([string]::Format('> Filter (UTC): {0} -> {1}', $startLabel, $endLabel))
 }
 $builder.Add([string]::Format('> Window size: {0} minutes', $WindowMinutes))
 $builder.Add([string]::Format('> Generated {0}', (Get-Date -Format 'yyyy-MM-dd HH:mm:ss K')))

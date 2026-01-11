@@ -876,10 +876,10 @@ function Show-NewChangeDialog {
     )
 
     # Simple input dialog - in a real implementation this would be a proper WPF dialog
-    $title = Read-Host "Enter change title"
+    $title = Read-HostDialog -Title 'New Change' -Prompt 'Enter change title:'
     if (-not $title) { return }
 
-    $description = Read-Host "Enter change description"
+    $description = Read-HostDialog -Title 'New Change' -Prompt 'Enter change description:'
 
     $params = @{
         Title = $title
@@ -911,7 +911,7 @@ function Show-EditChangeDialog {
     )
 
     # Simple edit - in a real implementation this would be a proper WPF dialog
-    $newTitle = Read-Host "Edit title (current: $($Change.Title))"
+    $newTitle = Read-HostDialog -Title 'Edit Change' -Prompt "Edit title (current: $($Change.Title))" -Default $Change.Title
     if ($newTitle) {
         $null = Update-ChangeRequest -ChangeID $Change.ChangeID -Title $newTitle
         Update-ChangeManagementView -View $View
@@ -931,11 +931,11 @@ function Show-NewMaintenanceWindowDialog {
     )
 
     # Simple input dialog - in a real implementation this would be a proper WPF dialog
-    $title = Read-Host "Enter window title"
+    $title = Read-HostDialog -Title 'New Maintenance Window' -Prompt 'Enter window title:'
     if (-not $title) { return }
 
-    $startStr = Read-Host "Enter start time (yyyy-MM-dd HH:mm)"
-    $endStr = Read-Host "Enter end time (yyyy-MM-dd HH:mm)"
+    $startStr = Read-HostDialog -Title 'New Maintenance Window' -Prompt 'Enter start time (yyyy-MM-dd HH:mm)'
+    $endStr = Read-HostDialog -Title 'New Maintenance Window' -Prompt 'Enter end time (yyyy-MM-dd HH:mm)'
 
     try {
         $startTime = [DateTime]::ParseExact($startStr, 'yyyy-MM-dd HH:mm', [System.Globalization.CultureInfo]::InvariantCulture)
@@ -947,6 +947,31 @@ function Show-NewMaintenanceWindowDialog {
     }
     catch {
         Set-StatusText -View $View -Text "Error: Invalid date format"
+    }
+}
+
+function Read-HostDialog {
+    <#
+    .SYNOPSIS
+        Shows a simple input dialog for text entry.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter()]
+        [string]$Title = 'Input Required',
+
+        [Parameter()]
+        [string]$Prompt = 'Enter value:',
+
+        [Parameter()]
+        [string]$Default = ''
+    )
+
+    try {
+        return [Microsoft.VisualBasic.Interaction]::InputBox($Prompt, $Title, $Default)
+    } catch {
+        Write-Warning ("Failed to display input dialog: {0}" -f $_.Exception.Message)
+        return $null
     }
 }
 

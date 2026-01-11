@@ -116,7 +116,9 @@ $sortedCount = Get-Count $sorted
 $fileCount = Get-Count $files
 $thresholdCount = Get-Count $threshold
 if ($startUtc -or $endUtc) {
-    Write-Host ("Filtering events between {0} and {1} (UTC)." -f ($startUtc ? $startUtc.ToString('o') : 'start'), ($endUtc ? $endUtc.ToString('o') : 'end')) -ForegroundColor DarkGray
+    $startLabel = if ($startUtc) { $startUtc.ToString('o') } else { 'start' }
+    $endLabel = if ($endUtc) { $endUtc.ToString('o') } else { 'end' }
+    Write-Host ("Filtering events between {0} and {1} (UTC)." -f $startLabel, $endLabel) -ForegroundColor DarkGray
 }
 
 Write-Host ("Analyzed {0} PortBatchReady events across {1} file(s)." -f $sortedCount, $fileCount)

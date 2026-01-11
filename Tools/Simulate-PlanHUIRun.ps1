@@ -28,8 +28,26 @@ $ErrorActionPreference = 'Stop'
 
 Import-Module (Join-Path $PSScriptRoot '..\Modules\TelemetryModule.psm1') -Force
 
+$telemetryDirectory = Split-Path -Parent $TelemetryPath
+if (-not [string]::IsNullOrWhiteSpace($telemetryDirectory)) {
+    $env:STATETRACE_TELEMETRY_DIR = $telemetryDirectory
+}
+
+$normalizedSites = [System.Collections.Generic.List[string]]::new()
+foreach ($site in @($Sites)) {
+    if ([string]::IsNullOrWhiteSpace($site)) { continue }
+    foreach ($token in ($site -split ',')) {
+        $trimmed = $token.Trim()
+        if ($trimmed) { [void]$normalizedSites.Add($trimmed) }
+    }
+}
+$Sites = $normalizedSites.ToArray()
+if (-not $Sites -or $Sites.Count -lt 2) {
+    throw "Simulate-PlanHUIRun requires at least two site codes (e.g. -Sites WLLS,BOYO)."
+}
+
 $script:PlanHTimestampBase = Get-Date
-$script:PlanHTimestampStepMs = [Math]::Max(1, $TimestampStepMilliseconds)
+$script:PlanHTimestampStepMs = [Math]::Max(1, $TimestampStepMilliseconds)       
 $script:PlanHTimestampOffsetMs = 0
 function Get-PlanHTimestamp {
     $timestamp = $script:PlanHTimestampBase.AddMilliseconds($script:PlanHTimestampOffsetMs)
@@ -38,7 +56,7 @@ function Get-PlanHTimestamp {
 }
 
 function Emit-UserActions {
-    param([string]$Path, [string[]]$SiteList)
+    param([string[]]$SiteList)
     $actions = @(
         @{ Action='ScanLogs';      Site=$SiteList[0]; Hostname="$($SiteList[0])-SW01"; Context='Sim' },
         @{ Action='LoadFromDb';    Site=$SiteList[0]; Hostname="$($SiteList[0])-SW01"; Context='Sim' },
@@ -78,8 +96,9 @@ function Emit-FreshnessTelemetry {
 }
 
 # Emit telemetry
-Emit-UserActions -Path $TelemetryPath -SiteList $Sites
+Emit-UserActions -SiteList $Sites
 Emit-FreshnessTelemetry -SiteList $Sites
+TelemetryModule\Save-StTelemetryBuffer -Path $TelemetryPath | Out-Null
 
 # Generate screenshots (headless) from summaries
 & (Join-Path $PSScriptRoot 'Capture-PlanHScreenshots.ps1') -QuickstartSummaryPath 'Logs\Reports\InterfacesViewQuickstart-20251126-143359.json' -FreshnessSummaryPath 'Logs\Reports\FreshnessTelemetrySummary-20251126-run2.json' -OutputDirectory 'docs\performance\screenshots' -Prefix 'onboarding' -Timestamp $ScreenshotTimestamp | Out-Null

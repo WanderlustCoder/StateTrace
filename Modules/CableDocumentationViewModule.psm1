@@ -944,10 +944,9 @@ function Initialize-CableDocumentationControls {
             )
 
             try {
-                CableDocumentationModule\Set-CableRun `
+                CableDocumentationModule\Update-CableRun `
                     -CableID $cable.CableID `
-                    -CableType $newType `
-                    -Length $newLength `
+                    -Properties @{ CableType = $newType; Length = $newLength } `
                     -Database $View.Tag.Database | Out-Null
 
                 & $saveDatabase
@@ -979,8 +978,8 @@ function Initialize-CableDocumentationControls {
                 "Cable Trace: $($cable.CableID)",
                 "=" * 40,
                 "",
-                "Source: $($cable.SourcePanel) Port $($cable.SourcePort)",
-                "Destination: $($cable.DestPanel) Port $($cable.DestPort)",
+                "Source: $($cable.SourceDevice) Port $($cable.SourcePort)",
+                "Destination: $($cable.DestDevice) Port $($cable.DestPort)",
                 "",
                 "Type: $($cable.CableType)",
                 "Length: $($cable.Length)",

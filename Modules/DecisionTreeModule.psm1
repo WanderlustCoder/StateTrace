@@ -505,11 +505,7 @@ function Submit-TreeInput {
                 # Create a safe evaluation context
                 $evalResult = $false
                 try {
-                    $vars = $Execution.Variables
-                    foreach ($key in $vars.Keys) {
-                        Set-Variable -Name $key -Value $vars[$key] -Scope Local
-                    }
-                    $evalResult = Invoke-Expression $branch.Condition
+                    $evalResult = Test-DecisionTreeCondition -Condition $branch.Condition -Variables $Execution.Variables
                 } catch {
                     $evalResult = $false
                 }
@@ -552,6 +548,87 @@ function Submit-TreeInput {
     }
 
     return $Execution
+}
+
+function Test-DecisionTreeCondition {
+    [CmdletBinding()]
+    [OutputType([bool])]
+    param(
+        [Parameter(Mandatory)][string]$Condition,
+        [hashtable]$Variables
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Condition)) { return $false }
+
+    $tokens = $null
+    $errors = $null
+    $ast = [System.Management.Automation.Language.Parser]::ParseInput($Condition, [ref]$tokens, [ref]$errors)
+    if ($errors -and $errors.Count -gt 0) { return $false }
+    if (-not $ast.EndBlock -or $ast.EndBlock.Statements.Count -ne 1) { return $false }
+
+    $statement = $ast.EndBlock.Statements[0]
+    if (-not ($statement -is [System.Management.Automation.Language.PipelineAst])) { return $false }
+    if ($statement.PipelineElements.Count -ne 1) { return $false }
+
+    $element = $statement.PipelineElements[0]
+    if (-not ($element -is [System.Management.Automation.Language.CommandExpressionAst])) { return $false }
+
+    $expression = $element.Expression
+    if (-not $expression) { return $false }
+
+    $allowedNodeTypes = @(
+        [System.Management.Automation.Language.BinaryExpressionAst],
+        [System.Management.Automation.Language.UnaryExpressionAst],
+        [System.Management.Automation.Language.VariableExpressionAst],
+        [System.Management.Automation.Language.ConstantExpressionAst],
+        [System.Management.Automation.Language.StringConstantExpressionAst],
+        [System.Management.Automation.Language.ParenExpressionAst],
+        [System.Management.Automation.Language.MemberExpressionAst],
+        [System.Management.Automation.Language.IndexExpressionAst]
+    )
+
+    $invalidNodes = $expression.FindAll({
+        param($node)
+        foreach ($allowed in $allowedNodeTypes) {
+            if ($node -is $allowed) { return $false }
+        }
+        return $true
+    }, $true)
+    if ($invalidNodes.Count -gt 0) { return $false }
+
+    $allowedVars = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    if ($Variables) {
+        foreach ($key in $Variables.Keys) {
+            if (-not [string]::IsNullOrWhiteSpace($key)) { [void]$allowedVars.Add($key) }
+        }
+    }
+    [void]$allowedVars.Add('true')
+    [void]$allowedVars.Add('false')
+    [void]$allowedVars.Add('null')
+
+    $unknownVars = $expression.FindAll({
+        param($node)
+        if ($node -is [System.Management.Automation.Language.VariableExpressionAst]) {
+            $name = $node.VariablePath.UserPath
+            return -not $allowedVars.Contains($name)
+        }
+        return $false
+    }, $true)
+    if ($unknownVars.Count -gt 0) { return $false }
+
+    try {
+        if ($Variables) {
+            foreach ($key in $Variables.Keys) {
+                if (-not [string]::IsNullOrWhiteSpace($key)) {
+                    Set-Variable -Name $key -Value $Variables[$key] -Scope Local
+                }
+            }
+        }
+        $scriptBlock = [ScriptBlock]::Create($Condition)
+        return [bool](& $scriptBlock)
+    } catch {
+        return $false
+    }
 }
 
 <#

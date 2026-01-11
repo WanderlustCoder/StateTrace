@@ -133,7 +133,7 @@ else {
 if (-not $SkipQueueDelaySummary) {
     Write-Host "`n  Step 2: Generating queue delay summary..." -ForegroundColor Cyan
 
-    $queueSummaryScript = Join-Path $repoRoot 'Tools\Analyze-QueueDelaySummary.ps1'
+    $queueSummaryScript = Join-Path $repoRoot 'Tools\Generate-QueueDelaySummary.ps1'
     $queueSummaryOutput = Join-Path (Join-Path $repoRoot 'Logs\IngestionMetrics') ("QueueDelaySummary-{0}.json" -f $namePrefix)
 
     # Find latest telemetry
@@ -144,7 +144,7 @@ if (-not $SkipQueueDelaySummary) {
 
     if ($latestTelemetry -and (Test-Path -LiteralPath $queueSummaryScript)) {
         try {
-            & $queueSummaryScript -Path $latestTelemetry.FullName -OutputPath $queueSummaryOutput 2>&1 | Out-Null
+            & $queueSummaryScript -MetricsPath $latestTelemetry.FullName -OutputPath $queueSummaryOutput 2>&1 | Out-Null
             if (Test-Path -LiteralPath $queueSummaryOutput) {
                 $hash = (Get-FileHash -LiteralPath $queueSummaryOutput -Algorithm SHA256).Hash
                 $artifacts.Add([pscustomobject]@{
@@ -235,7 +235,7 @@ $manifest = [pscustomobject]@{
     Errors         = $errors
     Commands       = [pscustomobject]@{
         DispatcherHarness = "powershell.exe -STA -File Tools\Invoke-InterfaceDispatchHarness.ps1 -OutputPath Logs\DispatchHarness\RoutingQueueSweep-<timestamp>.json"
-        QueueDelaySummary = "Tools\Analyze-QueueDelaySummary.ps1 -Path Logs\IngestionMetrics\<date>.json -OutputPath Logs\IngestionMetrics\QueueDelaySummary-<timestamp>.json"
+        QueueDelaySummary = "Tools\Generate-QueueDelaySummary.ps1 -MetricsPath Logs\IngestionMetrics\<date>.json -OutputPath Logs\IngestionMetrics\QueueDelaySummary-<timestamp>.json"
         ThresholdCheck    = "Tools\Test-QueueDelayThreshold.ps1 -FailOnThresholdExceeded"
     }
 }

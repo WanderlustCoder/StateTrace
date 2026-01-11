@@ -168,7 +168,7 @@ function Open-OleDbConnectionWithFallback {
 
     $connection = New-Object System.Data.OleDb.OleDbConnection
     $providerErrors = [System.Collections.Generic.List[object]]::new()
-    foreach ($prov in @('Microsoft.ACE.OLEDB.12.0','Microsoft.Jet.OLEDB.4.0')) {
+    foreach ($prov in @('Microsoft.ACE.OLEDB.16.0','Microsoft.ACE.OLEDB.12.0','Microsoft.Jet.OLEDB.4.0')) {
         try {
             $connection.ConnectionString = "Provider=$prov;Data Source=$DatabasePath"
             $connection.Open()
@@ -197,7 +197,7 @@ function Open-OleDbConnectionWithFallback {
         Write-Warning ("Failed to dispose Access connection after provider failures: {0}" -f $disposeError)
     }
 
-    $candidateList = 'Microsoft.ACE.OLEDB.12.0, Microsoft.Jet.OLEDB.4.0'
+    $candidateList = 'Microsoft.ACE.OLEDB.16.0, Microsoft.ACE.OLEDB.12.0, Microsoft.Jet.OLEDB.4.0'
     $detailText = 'No provider-specific diagnostics were captured.'
     if ($providerErrors.Count -gt 0) {
         $detailLines = foreach ($entry in $providerErrors) {
@@ -475,7 +475,7 @@ CREATE TABLE InterfaceHistory (
         $opened = $false
         # Try the ACE provider first as it supports both .accdb and .mdb.  Fall
         $providerErrors = [System.Collections.Generic.List[object]]::new()
-        foreach ($prov in @('Microsoft.ACE.OLEDB.12.0','Microsoft.Jet.OLEDB.4.0')) {
+        foreach ($prov in @('Microsoft.ACE.OLEDB.16.0','Microsoft.ACE.OLEDB.12.0','Microsoft.Jet.OLEDB.4.0')) {
             try {
                 $connection.Open("Provider=$prov;Data Source=$Path")
                 $opened = $true
@@ -499,7 +499,7 @@ CREATE TABLE InterfaceHistory (
             }
         }
         if (-not $opened) {
-            $candidateList = 'Microsoft.ACE.OLEDB.12.0, Microsoft.Jet.OLEDB.4.0'
+            $candidateList = 'Microsoft.ACE.OLEDB.16.0, Microsoft.ACE.OLEDB.12.0, Microsoft.Jet.OLEDB.4.0'
             $detailText = 'No provider-specific diagnostics were captured.'
             if ($providerErrors.Count -gt 0) {
                 $detailLines = foreach ($entry in $providerErrors) {

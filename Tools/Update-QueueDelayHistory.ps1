@@ -24,6 +24,13 @@ entries (matching `SourceTelemetryPath`) are skipped unless `-Force` is passed.
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+$statsModulePath = Join-Path -Path $PSScriptRoot -ChildPath 'AnalyzerStats.psm1'
+if (Test-Path -LiteralPath $statsModulePath) {
+    Import-Module -Name $statsModulePath -Force
+} else {
+    throw "AnalyzerStats module not found at '$statsModulePath'."
+}
+
 if ($MinimumSampleCount -lt 1) { $MinimumSampleCount = 1 }
 
 if (-not $QueueSummaryPaths -or $QueueSummaryPaths.Count -eq 0) {

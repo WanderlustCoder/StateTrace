@@ -1876,6 +1876,10 @@ function Start-ParserBackgroundJob {
         return
     }
 
+    if ($ForceReload) {
+        Reset-ParserCachesForRefresh -SiteFilter $SiteFilter
+    }
+
     $repoRoot = (Resolve-Path (Join-Path $scriptDir '..')).Path
     $logDir = Join-Path $repoRoot 'Logs\UI'
     $null = Ensure-StateTraceDirectory -Path $logDir
@@ -2014,10 +2018,6 @@ function Invoke-StateTraceRefresh {
         if ($global:StateTraceDb) { $env:StateTraceDbPath = $global:StateTraceDb }
 
         $siteFilterValue = Get-SelectedSiteFilterValue -Window $Window
-
-        if ($forceReloadFlag) {
-            Reset-ParserCachesForRefresh -SiteFilter $siteFilterValue
-        }
 
         Start-ParserBackgroundJob -Window $Window -IncludeArchive $includeArchiveFlag -IncludeHistorical $includeHistoricalFlag -SiteFilter $siteFilterValue -ForceReload $forceReloadFlag
         Publish-UserActionTelemetry -Action 'ScanLogs' -Site $siteFilterValue -Hostname (Get-SelectedHostname -Window $Window) -Context 'MainWindow'

@@ -1200,9 +1200,9 @@ function ConvertTo-HTMLDocument {
     $html = $MarkdownContent
 
     # Convert headers
-    $html = $html -replace '^### (.+)$', '<h3>$1</h3>' -replace "`n", "`n"
-    $html = $html -replace '^## (.+)$', '<h2>$1</h2>' -replace "`n", "`n"
-    $html = $html -replace '^# (.+)$', '<h1>$1</h1>' -replace "`n", "`n"
+    $html = $html -replace '(?m)^### (.+)$', '<h3>$1</h3>' -replace "`n", "`n"
+    $html = $html -replace '(?m)^## (.+)$', '<h2>$1</h2>' -replace "`n", "`n"
+    $html = $html -replace '(?m)^# (.+)$', '<h1>$1</h1>' -replace "`n", "`n"
 
     # Convert bold
     $html = $html -replace '\*\*(.+?)\*\*', '<strong>$1</strong>'
@@ -1688,9 +1688,9 @@ function ConvertTo-PDFReadyHTML {
     $htmlContent = $MarkdownContent
 
     # Convert headers
-    $htmlContent = $htmlContent -replace '^### (.+)$', '<h3>$1</h3>'
-    $htmlContent = $htmlContent -replace '^## (.+)$', '<h2>$1</h2>'
-    $htmlContent = $htmlContent -replace '^# (.+)$', '<h1>$1</h1>'
+    $htmlContent = $htmlContent -replace '(?m)^### (.+)$', '<h3>$1</h3>'
+    $htmlContent = $htmlContent -replace '(?m)^## (.+)$', '<h2>$1</h2>'
+    $htmlContent = $htmlContent -replace '(?m)^# (.+)$', '<h1>$1</h1>'
 
     # Convert bold
     $htmlContent = $htmlContent -replace '\*\*(.+?)\*\*', '<strong>$1</strong>'

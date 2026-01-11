@@ -560,7 +560,7 @@ function Get-SwitchingBaseline {
         New-ValidationRule -RuleID 'SW-006' -Name 'Native VLAN' `
             -Description 'Native VLAN should not be VLAN 1' `
             -Severity 'Medium' -Category 'Security' `
-            -Pattern 'switchport trunk native vlan [2-9]|[1-9]\d' -Required `
+            -Pattern 'switchport trunk native vlan (?:[2-9]|[1-9]\d)' -Required `
             -Remediation 'switchport trunk native vlan 999'
     )
 

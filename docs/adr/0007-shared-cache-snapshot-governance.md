@@ -17,7 +17,7 @@
 - Extra validation overhead at startup
 
 ## References
-- [PlanQ](../plans/PlanQ.md)
+- [PlanQ](../plans/PlanQ_SharedCacheStrategy.md)
 - Task Board IDs: ST-Q-001, ST-Q-002
 
 ## Next Steps

@@ -143,7 +143,7 @@ function Test-AlertCondition {
     )
 
     try {
-        $result = & $Rule.Condition
+        $result = & $Rule.Condition $Context
         return [bool]$result
     } catch {
         Write-Verbose "[AlertRule] Condition evaluation failed for $($Rule.Name): $_"

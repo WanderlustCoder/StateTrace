@@ -1192,6 +1192,27 @@ function Restore-TopologyLayout {
     return $true
 }
 
+function Remove-TopologyLayout {
+    <#
+    .SYNOPSIS
+        Removes a saved topology layout.
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$LayoutName
+    )
+
+    $layout = $script:TopologyLayouts | Where-Object { $_.LayoutName -eq $LayoutName } | Select-Object -First 1
+    if (-not $layout) {
+        Write-Warning "Layout '$LayoutName' not found"
+        return $false
+    }
+
+    $script:TopologyLayouts.Remove($layout) | Out-Null
+    return $true
+}
+
 #endregion
 
 #region L3 Topology Functions
@@ -1841,6 +1862,7 @@ Export-ModuleMember -Function @(
     'Save-TopologyLayout',
     'Get-TopologyLayout',
     'Restore-TopologyLayout',
+    'Remove-TopologyLayout',
 
     # Statistics
     'Get-TopologyStatistics',

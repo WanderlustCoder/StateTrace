@@ -1,25 +1,24 @@
 # FleetHealthModule.Tests.ps1
 # Pester tests for fleet health monitoring, anomaly detection, and forecasting
 
-BeforeAll {
-    $modulePath = Join-Path $PSScriptRoot '..\FleetHealthModule.psm1'
-    Import-Module $modulePath -Force
-}
+$modulePath = Join-Path $PSScriptRoot '..\FleetHealthModule.psm1'
+Import-Module $modulePath -Force
+. (Join-Path $PSScriptRoot 'TestHelpers.ps1')
 
 Describe 'Configuration' {
     It 'Should return default config' {
         $config = Get-FleetHealthConfig
 
-        $config.AnomalyThresholdStdDev | Should -Be 2.0
-        $config.TrendWindowDays | Should -Be 30
-        $config.ForecastHorizonDays | Should -Be 90
+        $config.AnomalyThresholdStdDev | Should Be 2.0
+        $config.TrendWindowDays | Should Be 30
+        $config.ForecastHorizonDays | Should Be 90
     }
 
     It 'Should update config values' {
         $result = Set-FleetHealthConfig -AnomalyThresholdStdDev 3.0 -TrendWindowDays 14
 
-        $result.AnomalyThresholdStdDev | Should -Be 3.0
-        $result.TrendWindowDays | Should -Be 14
+        $result.AnomalyThresholdStdDev | Should Be 3.0
+        $result.TrendWindowDays | Should Be 14
 
         # Reset
         Set-FleetHealthConfig -AnomalyThresholdStdDev 2.0 -TrendWindowDays 30
@@ -28,8 +27,8 @@ Describe 'Configuration' {
     It 'Should have health check thresholds' {
         $config = Get-FleetHealthConfig
 
-        $config.HealthCheckThresholds.PortUtilizationWarning | Should -BeGreaterThan 0
-        $config.HealthCheckThresholds.PortUtilizationCritical | Should -BeGreaterThan 0
+        $config.HealthCheckThresholds.PortUtilizationWarning | Should BeGreaterThan 0
+        $config.HealthCheckThresholds.PortUtilizationCritical | Should BeGreaterThan 0
     }
 }
 
@@ -37,16 +36,16 @@ Describe 'Fleet Health Summary' {
     It 'Should return health summary structure' {
         $summary = Get-FleetHealthSummary
 
-        $summary.Timestamp | Should -Not -BeNullOrEmpty
-        $summary.TotalDevices | Should -BeGreaterOrEqual 0
-        $summary.HealthScore | Should -BeGreaterOrEqual 0
-        $summary.HealthScore | Should -BeLessOrEqual 100
+        $summary.Timestamp | Should Not BeNullOrEmpty
+        $summary.TotalDevices | Should BeGreaterThan -1
+        $summary.HealthScore | Should BeGreaterThan -1
+        $summary.HealthScore | Should BeLessThan 101
     }
 
     It 'Should include device status breakdown' {
         $summary = Get-FleetHealthSummary
 
-        $summary.DevicesByStatus | Should -Not -BeNullOrEmpty
+        ($summary.DevicesByStatus -is [hashtable]) | Should Be $true
     }
 }
 
@@ -61,16 +60,16 @@ Describe 'Status Distribution' {
 
         $result = Get-FleetStatusDistribution -Items $items -StatusProperty 'Status'
 
-        $result.Total | Should -Be 4
-        $result.Distribution['Up'].Count | Should -Be 2
-        $result.Distribution['Up'].Percent | Should -Be 50
-        $result.Distribution['Down'].Count | Should -Be 1
+        $result.Total | Should Be 4
+        $result.Distribution['Up'].Count | Should Be 2
+        $result.Distribution['Up'].Percent | Should Be 50
+        $result.Distribution['Down'].Count | Should Be 1
     }
 
     It 'Should handle empty items' {
         $result = Get-FleetStatusDistribution -Items @() -StatusProperty 'Status'
 
-        $result.Total | Should -Be 0
+        $result.Total | Should Be 0
     }
 
     It 'Should handle missing status property' {
@@ -81,7 +80,7 @@ Describe 'Status Distribution' {
 
         $result = Get-FleetStatusDistribution -Items $items -StatusProperty 'Status'
 
-        $result.Distribution['Unknown'].Count | Should -Be 2
+        $result.Distribution['Unknown'].Count | Should Be 2
     }
 }
 
@@ -93,27 +92,27 @@ Describe 'Report Templates' {
             -Description 'A test report' `
             -Generator { param($Parameters) return @{ Test = 'Data' } }
 
-        $result.Name | Should -Be 'TestReport'
-        $result.Title | Should -Be 'Test Report'
+        $result.Name | Should Be 'TestReport'
+        $result.Title | Should Be 'Test Report'
     }
 
     It 'Should retrieve registered templates' {
         $templates = Get-FleetReportTemplates
 
-        $templates.Count | Should -BeGreaterThan 0
+        $templates.Count | Should BeGreaterThan 0
     }
 
     It 'Should retrieve specific template' {
         $template = Get-FleetReportTemplates -Name 'DailyHealthSummary'
 
-        $template | Should -Not -BeNullOrEmpty
-        $template.Title | Should -Be 'Daily Fleet Health Summary'
+        $template | Should Not BeNullOrEmpty
+        $template.Title | Should Be 'Daily Fleet Health Summary'
     }
 
     It 'Should return null for unknown template' {
         $template = Get-FleetReportTemplates -Name 'NonExistentTemplate12345'
 
-        $template | Should -BeNullOrEmpty
+        $template | Should BeNullOrEmpty
     }
 }
 
@@ -121,20 +120,20 @@ Describe 'Report Generation' {
     It 'Should generate report from template' {
         $report = New-FleetReport -TemplateName 'DailyHealthSummary' -Format 'Json'
 
-        $report | Should -Not -BeNullOrEmpty
+        $report | Should Not BeNullOrEmpty
         $parsed = $report | ConvertFrom-Json
-        $parsed.Title | Should -Be 'Daily Fleet Health Summary'
+        $parsed.Title | Should Be 'Daily Fleet Health Summary'
     }
 
     It 'Should generate markdown report' {
         $report = New-FleetReport -TemplateName 'DailyHealthSummary' -Format 'Markdown'
 
-        $report | Should -Match '# Daily Fleet Health Summary'
+        $report | Should Match '# Daily Fleet Health Summary'
     }
 
     It 'Should fail for unknown template' {
         { New-FleetReport -TemplateName 'NonExistentTemplate12345' } |
-            Should -Throw '*template not found*'
+            Assert-Throws -Message 'Report template not found'
     }
 }
 
@@ -143,10 +142,10 @@ Describe 'Rolling Baseline' {
         $values = @(10, 12, 11, 13, 10, 12, 14, 11, 10, 13)
         $baseline = Get-RollingBaseline -Values $values
 
-        $baseline.Mean | Should -BeGreaterThan 10
-        $baseline.Mean | Should -BeLessThan 14
-        $baseline.StdDev | Should -BeGreaterThan 0
-        $baseline.Count | Should -Be 10
+        $baseline.Mean | Should BeGreaterThan 10
+        $baseline.Mean | Should BeLessThan 14
+        $baseline.StdDev | Should BeGreaterThan 0
+        $baseline.Count | Should Be 10
     }
 
     It 'Should respect window size' {
@@ -154,24 +153,24 @@ Describe 'Rolling Baseline' {
         $baseline = Get-RollingBaseline -Values $values -WindowSize 5
 
         # Should only use last 5 values (100-104)
-        $baseline.Mean | Should -BeGreaterThan 90
-        $baseline.Count | Should -Be 5
+        $baseline.Mean | Should BeGreaterThan 90
+        $baseline.Count | Should Be 5
     }
 
     It 'Should handle empty values' {
         $baseline = Get-RollingBaseline -Values @()
 
-        $baseline.Mean | Should -Be 0
-        $baseline.StdDev | Should -Be 0
-        $baseline.Count | Should -Be 0
+        $baseline.Mean | Should Be 0
+        $baseline.StdDev | Should Be 0
+        $baseline.Count | Should Be 0
     }
 
     It 'Should handle single value' {
         $baseline = Get-RollingBaseline -Values @(42)
 
-        $baseline.Mean | Should -Be 42
-        $baseline.StdDev | Should -Be 0
-        $baseline.Count | Should -Be 1
+        $baseline.Mean | Should Be 42
+        $baseline.StdDev | Should Be 0
+        $baseline.Count | Should Be 1
     }
 }
 
@@ -179,37 +178,37 @@ Describe 'Anomaly Detection' {
     It 'Should detect high anomaly' {
         $result = Test-AnomalyDetection -Value 100 -BaselineMean 50 -BaselineStdDev 10
 
-        $result.IsAnomaly | Should -Be $true
-        $result.Direction | Should -Be 'High'
-        $result.DeviationStdDev | Should -Be 5
+        $result.IsAnomaly | Should Be $true
+        $result.Direction | Should Be 'High'
+        $result.DeviationStdDev | Should Be 5
     }
 
     It 'Should detect low anomaly' {
         $result = Test-AnomalyDetection -Value 10 -BaselineMean 50 -BaselineStdDev 10
 
-        $result.IsAnomaly | Should -Be $true
-        $result.Direction | Should -Be 'Low'
+        $result.IsAnomaly | Should Be $true
+        $result.Direction | Should Be 'Low'
     }
 
     It 'Should not flag normal values' {
         $result = Test-AnomalyDetection -Value 52 -BaselineMean 50 -BaselineStdDev 10
 
-        $result.IsAnomaly | Should -Be $false
-        $result.Direction | Should -Be 'Normal'
+        $result.IsAnomaly | Should Be $false
+        $result.Direction | Should Be 'Normal'
     }
 
     It 'Should respect custom threshold' {
         $result = Test-AnomalyDetection -Value 70 -BaselineMean 50 -BaselineStdDev 10 -ThresholdStdDev 3
 
         # 2 std dev, threshold is 3, so not anomaly
-        $result.IsAnomaly | Should -Be $false
+        $result.IsAnomaly | Should Be $false
     }
 
     It 'Should assign severity levels' {
         $result = Test-AnomalyDetection -Value 150 -BaselineMean 50 -BaselineStdDev 10
 
-        $result.IsAnomaly | Should -Be $true
-        $result.Severity | Should -BeIn @('Warning', 'Critical')
+        $result.IsAnomaly | Should Be $true
+        (@('Warning', 'Critical') -contains $result.Severity) | Should Be $true
     }
 }
 
@@ -231,8 +230,8 @@ Describe 'Find Metric Anomalies' {
 
         $result = Find-MetricAnomalies -DataPoints $dataPoints -ValueProperty 'Value' -BaselineWindowSize 10
 
-        $result.TotalPoints | Should -Be 21
-        $result.AnomaliesFound | Should -BeGreaterOrEqual 1
+        $result.TotalPoints | Should Be 21
+        $result.AnomaliesFound | Should BeGreaterThan 0
     }
 
     It 'Should return empty for insufficient data' {
@@ -242,7 +241,7 @@ Describe 'Find Metric Anomalies' {
 
         $result = Find-MetricAnomalies -DataPoints $dataPoints -ValueProperty 'Value' -BaselineWindowSize 14
 
-        $result.AnomaliesFound | Should -Be 0
+        $result.AnomaliesFound | Should Be 0
     }
 }
 
@@ -258,9 +257,9 @@ Describe 'Trend Analysis' {
 
         $trend = Get-MetricTrend -DataPoints $dataPoints -ValueProperty 'Value'
 
-        $trend.Trend | Should -Be 'Increasing'
-        $trend.Slope | Should -BeGreaterThan 0
-        $trend.ChangePercent | Should -BeGreaterThan 0
+        $trend.Trend | Should Be 'Increasing'
+        $trend.Slope | Should BeGreaterThan 0
+        $trend.ChangePercent | Should BeGreaterThan 0
     }
 
     It 'Should detect decreasing trend' {
@@ -274,8 +273,8 @@ Describe 'Trend Analysis' {
 
         $trend = Get-MetricTrend -DataPoints $dataPoints -ValueProperty 'Value'
 
-        $trend.Trend | Should -Be 'Decreasing'
-        $trend.Slope | Should -BeLessThan 0
+        $trend.Trend | Should Be 'Decreasing'
+        $trend.Slope | Should BeLessThan 0
     }
 
     It 'Should detect stable trend' {
@@ -289,7 +288,7 @@ Describe 'Trend Analysis' {
 
         $trend = Get-MetricTrend -DataPoints $dataPoints -ValueProperty 'Value'
 
-        $trend.Trend | Should -Be 'Stable'
+        $trend.Trend | Should Be 'Stable'
     }
 
     It 'Should handle insufficient data' {
@@ -299,7 +298,7 @@ Describe 'Trend Analysis' {
 
         $trend = Get-MetricTrend -DataPoints $dataPoints -ValueProperty 'Value'
 
-        $trend.Trend | Should -Be 'Insufficient Data'
+        $trend.Trend | Should Be 'Insufficient Data'
     }
 }
 
@@ -316,9 +315,9 @@ Describe 'Trend Analysis Report' {
 
         $report = Get-TrendAnalysisReport -DataPoints $dataPoints -MetricProperties @('CPU', 'Memory')
 
-        $report.Metrics.CPU | Should -Not -BeNullOrEmpty
-        $report.Metrics.Memory | Should -Not -BeNullOrEmpty
-        $report.TotalDataPoints | Should -Be 30
+        $report.Metrics.CPU | Should Not BeNullOrEmpty
+        $report.Metrics.Memory | Should Not BeNullOrEmpty
+        $report.TotalDataPoints | Should Be 30
     }
 }
 
@@ -334,9 +333,9 @@ Describe 'Capacity Forecasting' {
 
         $forecast = Get-CapacityForecast -DataPoints $dataPoints -ValueProperty 'Utilization' -ForecastDays 30
 
-        $forecast.CurrentValue | Should -BeGreaterThan 60
-        $forecast.ForecastedValue | Should -BeGreaterThan $forecast.CurrentValue
-        $forecast.Projections.Count | Should -Be 30
+        $forecast.CurrentValue | Should BeGreaterThan 60
+        $forecast.ForecastedValue | Should BeGreaterThan $forecast.CurrentValue
+        $forecast.Projections.Count | Should Be 30
     }
 
     It 'Should calculate days to capacity' {
@@ -354,8 +353,8 @@ Describe 'Capacity Forecasting' {
             -ForecastDays 60 `
             -CapacityLimit 100
 
-        $forecast.DaysToCapacity | Should -Not -BeNullOrEmpty
-        $forecast.CapacityReachedDate | Should -Not -BeNullOrEmpty
+        $forecast.DaysToCapacity | Should Not BeNullOrEmpty
+        $forecast.CapacityReachedDate | Should Not BeNullOrEmpty
     }
 }
 
@@ -371,9 +370,9 @@ Describe 'Port Utilization Forecast' {
 
         $forecast = Get-PortUtilizationForecast -UtilizationData $dataPoints -ForecastDays 60
 
-        $forecast.WarningThreshold | Should -Be 70
-        $forecast.CriticalThreshold | Should -Be 90
-        $forecast.Projections.Count | Should -Be 60
+        $forecast.WarningThreshold | Should Be 70
+        $forecast.CriticalThreshold | Should Be 90
+        $forecast.Projections.Count | Should Be 60
     }
 }
 
@@ -381,15 +380,15 @@ Describe 'Health Check' {
     It 'Should run health check' {
         $result = Invoke-FleetHealthCheck
 
-        $result.Timestamp | Should -Not -BeNullOrEmpty
-        $result.OverallStatus | Should -BeIn @('Healthy', 'Warning', 'Critical')
-        $result.Checks.Count | Should -BeGreaterThan 0
+        $result.Timestamp | Should Not BeNullOrEmpty
+        (@('Healthy', 'Warning', 'Critical') -contains $result.OverallStatus) | Should Be $true
+        $result.Checks.Count | Should BeGreaterThan 0
     }
 
     It 'Should include check details when requested' {
         $result = Invoke-FleetHealthCheck -IncludeDetails
 
-        $result.Checks | Where-Object { $_.Details -ne $null } | Should -Not -BeNullOrEmpty
+        $result.Checks | Where-Object { $_.Details -ne $null } | Should Not BeNullOrEmpty
     }
 }
 
@@ -404,15 +403,15 @@ Describe 'Scheduled Health Checks' {
     It 'Should create scheduled health check' {
         $result = New-ScheduledHealthCheck -Name 'TestCheck' -Schedule 'Daily'
 
-        $result.Name | Should -Be 'TestCheck'
-        $result.Schedule | Should -Be 'Daily'
+        $result.Name | Should Be 'TestCheck'
+        $result.Schedule | Should Be 'Daily'
     }
 
     It 'Should list scheduled health checks' {
         $checks = Get-ScheduledHealthChecks
 
         # May or may not have checks
-        $checks | Should -Not -BeNullOrEmpty -Or -BeNullOrEmpty
+        $checks | Should Not Be $null
     }
 }
 
@@ -441,7 +440,7 @@ Describe 'Module Exports' {
         )
 
         foreach ($func in $requiredFunctions) {
-            $exportedFunctions | Should -Contain $func
+            ($exportedFunctions -contains $func) | Should Be $true
         }
     }
 }

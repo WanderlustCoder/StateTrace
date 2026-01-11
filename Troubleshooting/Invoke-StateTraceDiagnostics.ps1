@@ -280,7 +280,7 @@ function Invoke-SourceIntegrityPhase {
         }
     }
     if ($missingCommands.Count -gt 0) {
-        .Add((New-DiagnosticResult -Phase  -Check 'CommandExports' -Status 'Fail' -Evidence ( -join '; ') -Remediation 'Restore missing function exports.' -NextSteps 'Inspect ModulesManifest and Export-ModuleMember statements.'))
+        $phaseResults.Add((New-DiagnosticResult -Phase $phaseName -Check 'CommandExports' -Status 'Fail' -Evidence ($missingCommands -join '; ') -Remediation 'Restore missing function exports.' -NextSteps 'Inspect ModulesManifest and Export-ModuleMember statements.'))
     } else {
         $phaseResults.Add((New-DiagnosticResult -Phase $phaseName -Check 'CommandExports' -Status 'Pass' -Evidence 'All critical commands exported.' -Remediation $null -NextSteps $null))
     }

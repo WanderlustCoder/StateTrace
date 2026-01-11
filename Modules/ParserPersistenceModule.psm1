@@ -1014,10 +1014,27 @@ CREATE TABLE SpanHistory (
     $createSpanInfoIndex     = "CREATE INDEX idx_spaninfo_host_vlan ON SpanInfo (Hostname, Vlan)"
     $createSpanHistoryIndex  = "CREATE INDEX idx_spanhistory_host ON SpanHistory (Hostname)"
 
-    try { Invoke-AdodbNonQuery -Connection $Connection -CommandText $createSpanInfoTable | Out-Null } catch { }
-    try { Invoke-AdodbNonQuery -Connection $Connection -CommandText $createSpanHistoryTable | Out-Null } catch { }
-    try { Invoke-AdodbNonQuery -Connection $Connection -CommandText $createSpanInfoIndex | Out-Null } catch { }
-    try { Invoke-AdodbNonQuery -Connection $Connection -CommandText $createSpanHistoryIndex | Out-Null } catch { }
+    $alreadyExistsPattern = '(?i)already exists|duplicate|exists'
+    try { Invoke-AdodbNonQuery -Connection $Connection -CommandText $createSpanInfoTable | Out-Null } catch {
+        if ($_.Exception.Message -notmatch $alreadyExistsPattern) {
+            Write-Warning ("Failed to create SpanInfo table: {0}" -f $_.Exception.Message)
+        }
+    }
+    try { Invoke-AdodbNonQuery -Connection $Connection -CommandText $createSpanHistoryTable | Out-Null } catch {
+        if ($_.Exception.Message -notmatch $alreadyExistsPattern) {
+            Write-Warning ("Failed to create SpanHistory table: {0}" -f $_.Exception.Message)
+        }
+    }
+    try { Invoke-AdodbNonQuery -Connection $Connection -CommandText $createSpanInfoIndex | Out-Null } catch {
+        if ($_.Exception.Message -notmatch $alreadyExistsPattern) {
+            Write-Warning ("Failed to create SpanInfo index: {0}" -f $_.Exception.Message)
+        }
+    }
+    try { Invoke-AdodbNonQuery -Connection $Connection -CommandText $createSpanHistoryIndex | Out-Null } catch {
+        if ($_.Exception.Message -notmatch $alreadyExistsPattern) {
+            Write-Warning ("Failed to create SpanHistory index: {0}" -f $_.Exception.Message)
+        }
+    }
 
     $script:SpanTablesEnsured = $true
 }
@@ -1273,6 +1290,28 @@ function Update-InterfacesInDb {
         }
     } catch { }
     $skipSiteCacheUpdateSetting = ($skipSiteCacheUpdateFromParameter -or $skipSiteCacheUpdateFlag -or $skipSiteCacheUpdateFromEnvironment)
+
+    $forceSiteCacheRefresh = $false
+    try {
+        $envRefreshValue = [string]::Empty
+        if ($env:STATETRACE_FORCE_SITE_CACHE_REFRESH) {
+            $envRefreshValue = '' + $env:STATETRACE_FORCE_SITE_CACHE_REFRESH
+        }
+        if (-not [string]::IsNullOrWhiteSpace($envRefreshValue)) {
+            $envRefreshEnabled = $false
+            if ([string]::Equals($envRefreshValue, '1', [System.StringComparison]::OrdinalIgnoreCase)) {
+                $envRefreshEnabled = $true
+            } else {
+                $parsedEnvRefresh = $false
+                if ([bool]::TryParse($envRefreshValue, [ref]$parsedEnvRefresh) -and $parsedEnvRefresh) {
+                    $envRefreshEnabled = $true
+                }
+            }
+            if ($envRefreshEnabled) {
+                $forceSiteCacheRefresh = $true
+            }
+        }
+    } catch { }
 
     $existingRows = $null
     $normalizedHostname = ('' + $Hostname).Trim()
@@ -2063,11 +2102,11 @@ $siteCacheTemplateDurationMs = 0.0
     }
 
     if ($siteCodeValue) {
-        if (-not $cachedHostEntry) {
+        if (-not $cachedHostEntry -and -not $forceSiteCacheRefresh) {
             $cachedHostEntry = & $resolveSharedHostEntry 'Initial'
         }
 
-        if (-not $cachedHostEntry -and -not $skipSiteCacheHydration -and -not $skipAccessHydration) {
+        if (-not $cachedHostEntry -and -not $skipSiteCacheHydration -and -not $skipAccessHydration -and -not $forceSiteCacheRefresh) {
             $siteCacheFetchStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
             try {
                 try { $siteCacheEntry = DeviceRepositoryModule\Get-InterfaceSiteCache -Site $siteCodeValue -Connection $Connection } catch { $siteCacheEntry = $null }
@@ -2086,7 +2125,7 @@ $siteCacheTemplateDurationMs = 0.0
             }
         }
 
-        if (-not $cachedHostEntry) {
+        if (-not $cachedHostEntry -and -not $forceSiteCacheRefresh) {
             $cachedHostEntry = & $resolveSharedHostEntry 'Refresh'
         }
 

@@ -124,7 +124,11 @@ try {
     }
 }
 
-$snapshotDirectory = $pipelineParameters.ContainsKey('SharedCacheSnapshotDirectory') ? $pipelineParameters['SharedCacheSnapshotDirectory'] : (Join-Path -Path $repositoryRoot -ChildPath 'Logs\SharedCacheSnapshot')
+$snapshotDirectory = if ($pipelineParameters.ContainsKey('SharedCacheSnapshotDirectory')) {
+    $pipelineParameters['SharedCacheSnapshotDirectory']
+} else {
+    Join-Path -Path $repositoryRoot -ChildPath 'Logs\SharedCacheSnapshot'
+}
 $latestSummaryPath = Join-Path -Path $snapshotDirectory -ChildPath 'SharedCacheSnapshot-latest-summary.json'
 $summaryPath = $latestSummaryPath
 try {
@@ -194,7 +198,8 @@ if (-not $SkipCoverageValidation.IsPresent) {
 
     if ($coverageResult) {
         $statusColor = if ($coverageResult.Pass) { 'Green' } else { 'Red' }
-        Write-Host ("[SharedCacheWarmup] Coverage status: {0}" -f ($coverageResult.Pass ? 'Pass' : 'Fail')) -ForegroundColor $statusColor
+        $coverageStatus = if ($coverageResult.Pass) { 'Pass' } else { 'Fail' }
+        Write-Host ("[SharedCacheWarmup] Coverage status: {0}" -f $coverageStatus) -ForegroundColor $statusColor
         if (-not $coverageResult.Pass -and $coverageResult.Messages) {
             foreach ($msg in $coverageResult.Messages) {
                 Write-Warning ("[SharedCacheWarmup] {0}" -f $msg)

@@ -122,6 +122,7 @@ function Get-FleetStatusDistribution {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
         [object[]]$Items,
 
         [string]$StatusProperty = 'Status'
@@ -131,7 +132,19 @@ function Get-FleetStatusDistribution {
     $total = 0
 
     foreach ($item in $Items) {
-        $status = $item.$StatusProperty
+        $status = $null
+        if ($null -ne $item) {
+            if ($item -is [System.Collections.IDictionary]) {
+                if ($item.Contains($StatusProperty)) {
+                    $status = $item[$StatusProperty]
+                }
+            } else {
+                $prop = $item.PSObject.Properties[$StatusProperty]
+                if ($prop) {
+                    $status = $prop.Value
+                }
+            }
+        }
         if (-not $status) { $status = 'Unknown' }
 
         if (-not $distribution.ContainsKey($status)) {
@@ -378,13 +391,14 @@ function Get-RollingBaseline {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)]
+        [AllowEmptyCollection()]
         [double[]]$Values,
 
         [int]$WindowSize = 14
     )
 
     if ($Values.Count -eq 0) {
-        return @{
+        return [pscustomobject]@{
             Mean = 0
             StdDev = 0
             Min = 0
@@ -398,13 +412,14 @@ function Get-RollingBaseline {
     } else {
         $Values[($Values.Count - $WindowSize)..($Values.Count - 1)]
     }
+    $window = @($window)
 
     $mean = ($window | Measure-Object -Average).Average
     $sumSquares = ($window | ForEach-Object { [math]::Pow($_ - $mean, 2) } | Measure-Object -Sum).Sum
     $variance = if ($window.Count -gt 1) { $sumSquares / ($window.Count - 1) } else { 0 }
     $stdDev = [math]::Sqrt($variance)
 
-    return @{
+    return [pscustomobject]@{
         Mean = [math]::Round($mean, 4)
         StdDev = [math]::Round($stdDev, 4)
         Min = ($window | Measure-Object -Minimum).Minimum
@@ -456,10 +471,12 @@ function Test-AnomalyDetection {
         $result.Direction = if ($deviation -gt 0) { 'High' } else { 'Low' }
 
         $absDeviation = [math]::Abs($deviation)
-        $result.Severity = switch ($true) {
-            ($absDeviation -gt $ThresholdStdDev * 2) { 'Critical' }
-            ($absDeviation -gt $ThresholdStdDev * 1.5) { 'Warning' }
-            default { 'Info' }
+        if ($absDeviation -gt $ThresholdStdDev * 2) {
+            $result.Severity = 'Critical'
+        } elseif ($absDeviation -gt $ThresholdStdDev * 1.5) {
+            $result.Severity = 'Warning'
+        } else {
+            $result.Severity = 'Info'
         }
     }
 
@@ -793,9 +810,13 @@ function Invoke-FleetHealthCheck {
         $deviceCheck.Message = "Check failed: $($_.Exception.Message)"
     }
 
+    if ($IncludeDetails -and $null -eq $deviceCheck.Details) {
+        $deviceCheck.Details = [pscustomobject]@{}
+    }
     $result.Checks.Add($deviceCheck)
     $result.Summary.Total++
-    $result.Summary[$deviceCheck.Status -eq 'Pass' ? 'Passed' : $deviceCheck.Status]++
+    $deviceStatusKey = if ($deviceCheck.Status -eq 'Pass') { 'Passed' } else { $deviceCheck.Status }
+    $result.Summary[$deviceStatusKey]++
 
     # Check: Database Health
     $dbCheck = @{
@@ -834,9 +855,13 @@ function Invoke-FleetHealthCheck {
         $dbCheck.Message = 'DatabaseConcurrencyModule not loaded - skipped'
     }
 
+    if ($IncludeDetails -and $null -eq $dbCheck.Details) {
+        $dbCheck.Details = [pscustomobject]@{}
+    }
     $result.Checks.Add($dbCheck)
     $result.Summary.Total++
-    $result.Summary[$dbCheck.Status -eq 'Pass' ? 'Passed' : $dbCheck.Status]++
+    $dbStatusKey = if ($dbCheck.Status -eq 'Pass') { 'Passed' } else { $dbCheck.Status }
+    $result.Summary[$dbStatusKey]++
 
     # Check: Telemetry Health
     $telemetryCheck = @{
@@ -876,9 +901,13 @@ function Invoke-FleetHealthCheck {
         $telemetryCheck.Message = 'TelemetrySchemaModule not loaded - skipped'
     }
 
+    if ($IncludeDetails -and $null -eq $telemetryCheck.Details) {
+        $telemetryCheck.Details = [pscustomobject]@{}
+    }
     $result.Checks.Add($telemetryCheck)
     $result.Summary.Total++
-    $result.Summary[$telemetryCheck.Status -eq 'Pass' ? 'Passed' : $telemetryCheck.Status]++
+    $telemetryStatusKey = if ($telemetryCheck.Status -eq 'Pass') { 'Passed' } else { $telemetryCheck.Status }
+    $result.Summary[$telemetryStatusKey]++
 
     # Determine overall status
     if ($result.Summary.Critical -gt 0) {

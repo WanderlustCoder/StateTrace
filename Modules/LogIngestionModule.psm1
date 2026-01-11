@@ -22,7 +22,7 @@ function Split-RawLogs {
     foreach ($f in Get-ChildItem -Path $LogPath -File) {
         # Skip warm-run telemetry helper transcripts/logs; they are for regression output and can remain locked.
         if ($f.Name -like 'WarmRunTelemetry-*') {
-            Write-Host ("Skipping helper artifact '{0}'." -f $f.FullName)
+            Write-Verbose ("Skipping helper artifact '{0}'." -f $f.FullName)
             continue
         }
         # Match .log or .txt extensions (case-insensitive)
@@ -30,14 +30,14 @@ function Split-RawLogs {
             [void]$rawFiles.Add($f)
         }
     }
-    Write-Host "Split-RawLogs (streaming): found $($rawFiles.Count) file(s) in '$LogPath'."
+    Write-Verbose "Split-RawLogs (streaming): found $($rawFiles.Count) file(s) in '$LogPath'."
 
     $reHostname = [regex]::new('(?i)^\s*hostname\s+(\S+)\s*$', 'Compiled')
     # Detect host prompts even when commands follow and when config contexts are present
     $rePrompt   = [regex]::new('(?i)^\s*(?:SSH@)?([^(#>\s]+)(?:\([^)]*\))?\s*[#>]', 'Compiled')
 
     foreach ($file in $rawFiles) {
-        Write-Host "`n--- Streaming file: $($file.FullName) ---"
+        Write-Verbose ("--- Streaming file: {0} ---" -f $file.FullName)
 
         $sr = $null
         $writer = $null
@@ -79,7 +79,7 @@ function Split-RawLogs {
                         $writer = New-Object System.IO.StreamWriter($fs)
                         $writer.AutoFlush = $false
                         $currentHost = $detected
-                        Write-Host "Writing slice for host '$currentHost' -> $outPath"
+                        Write-Verbose ("Writing slice for host '{0}' -> {1}" -f $currentHost, $outPath)
 
                         if ($buffer.Count -gt 0) {
                             foreach ($b in $buffer) { $writer.WriteLine($b) }
@@ -102,7 +102,7 @@ function Split-RawLogs {
                                 [System.IO.FileShare]::Read)
                             $unknownWriter = New-Object System.IO.StreamWriter($ufs)
                             $unknownWriter.AutoFlush = $false
-                            Write-Host "No host detected yet; spilling overflow to $uPath"
+                            Write-Verbose ("No host detected yet; spilling overflow to {0}" -f $uPath)
                         }
                         $unknownWriter.WriteLine($line)
                     }
@@ -121,7 +121,7 @@ function Split-RawLogs {
                     foreach ($b in $buffer) { $uw.WriteLine($b) }
                     try { $uw.Flush() } catch { Write-Verbose "[LogIngestion] Unknown host writer flush failed: $_" }
                     $uw.Dispose()
-                    Write-Host "Completed file without detecting a host; wrote buffered content to $uPath"
+                    Write-Warning ("Completed file without detecting a host; wrote buffered content to {0}" -f $uPath)
                 } else {
                     foreach ($b in $buffer) { $writer.WriteLine($b) }
                 }
@@ -141,7 +141,7 @@ function Split-RawLogs {
         }
     }
 
-    Write-Host "Split-RawLogs (streaming): complete."
+    Write-Verbose "Split-RawLogs (streaming): complete."
 }
 
 function Clear-ExtractedLogs {

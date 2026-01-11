@@ -216,6 +216,129 @@ function Read-InterfacePortQueueEvents {
     return ,($events.ToArray())
 }
 
+# LANDMARK: Shared cache diagnostics window - scope telemetry to current run
+function Resolve-SharedCacheDiagnosticsWindow {
+    [CmdletBinding()]
+    param(
+        [string]$MetricsPath,
+        [datetime]$FallbackStartUtc,
+        [datetime]$FallbackEndUtc
+    )
+
+    $fallbackStart = $null
+    if ($FallbackStartUtc) { $fallbackStart = $FallbackStartUtc.ToUniversalTime() }
+    $fallbackEnd = $null
+    if ($FallbackEndUtc) { $fallbackEnd = $FallbackEndUtc.ToUniversalTime() }
+
+    if ([string]::IsNullOrWhiteSpace($MetricsPath) -or -not (Test-Path -LiteralPath $MetricsPath)) {
+        return [pscustomobject]@{
+            StartUtc = $fallbackStart
+            EndUtc   = $fallbackEnd
+            Source   = 'Fallback'
+        }
+    }
+
+    $startUtc = $null
+    $endUtc = $null
+    $foundEvents = $false
+    $eventNames = @('InterfaceSyncTiming', 'InterfaceSiteCacheSharedStoreState', 'InterfaceSiteCacheSharedStore')
+    try {
+        foreach ($line in [System.IO.File]::ReadLines($MetricsPath)) {
+            if ([string]::IsNullOrWhiteSpace($line)) { continue }
+            if ($line.IndexOf('InterfaceSyncTiming', [System.StringComparison]::OrdinalIgnoreCase) -lt 0 -and
+                $line.IndexOf('InterfaceSiteCacheSharedStore', [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
+                continue
+            }
+            $event = $null
+            try {
+                $event = $line | ConvertFrom-Json -ErrorAction Stop
+            } catch {
+                continue
+            }
+            if (-not $event -or -not $event.EventName -or -not $event.Timestamp) { continue }
+            if ($event.EventName -notin $eventNames) { continue }
+
+            $timestampUtc = $null
+            try { $timestampUtc = ([datetime]$event.Timestamp).ToUniversalTime() } catch { $timestampUtc = $null }
+            if (-not $timestampUtc) { continue }
+            if ($fallbackStart -and $timestampUtc -lt $fallbackStart) { continue }
+            if ($fallbackEnd -and $timestampUtc -gt $fallbackEnd) { continue }
+            $foundEvents = $true
+            if (-not $startUtc -or $timestampUtc -lt $startUtc) { $startUtc = $timestampUtc }
+            if (-not $endUtc -or $timestampUtc -gt $endUtc) { $endUtc = $timestampUtc }
+        }
+    } catch {
+        $startUtc = $null
+        $endUtc = $null
+    }
+
+    if (-not $startUtc) { $startUtc = $fallbackStart }
+    if (-not $endUtc) { $endUtc = $fallbackEnd }
+    $source = if ($foundEvents) { 'Telemetry' } else { 'Fallback' }
+
+    return [pscustomobject]@{
+        StartUtc = $startUtc
+        EndUtc   = $endUtc
+        Source   = $source
+    }
+}
+
+function Resolve-WarmRunPassWindow {
+    [CmdletBinding()]
+    param(
+        [string]$TelemetryPath,
+        [string]$PassLabel = 'WarmPass',
+        [int]$LeadSeconds = 30,
+        [int]$TrailSeconds = 10
+    )
+
+    if ([string]::IsNullOrWhiteSpace($TelemetryPath) -or -not (Test-Path -LiteralPath $TelemetryPath)) {
+        return $null
+    }
+
+    $events = $null
+    try {
+        $events = Read-ToolingJson -Path $TelemetryPath -Label 'Warm-run telemetry' -FilterScript {
+            param($obj)
+            $obj -and $obj.PassLabel -eq $PassLabel -and $obj.Timestamp
+        }
+    } catch {
+        return $null
+    }
+
+    if (-not $events -or $events.Count -eq 0) {
+        return $null
+    }
+
+    $startUtc = $null
+    $endUtc = $null
+    foreach ($event in @($events)) {
+        if (-not $event -or -not $event.Timestamp) { continue }
+        $timestampUtc = $null
+        try { $timestampUtc = ([datetime]$event.Timestamp).ToUniversalTime() } catch { $timestampUtc = $null }
+        if (-not $timestampUtc) { continue }
+        if (-not $startUtc -or $timestampUtc -lt $startUtc) { $startUtc = $timestampUtc }
+        if (-not $endUtc -or $timestampUtc -gt $endUtc) { $endUtc = $timestampUtc }
+    }
+
+    if (-not $startUtc -and -not $endUtc) {
+        return $null
+    }
+
+    if ($startUtc -and $LeadSeconds -gt 0) {
+        $startUtc = $startUtc.AddSeconds(-1 * $LeadSeconds)
+    }
+    if ($endUtc -and $TrailSeconds -gt 0) {
+        $endUtc = $endUtc.AddSeconds($TrailSeconds)
+    }
+
+    return [pscustomobject]@{
+        StartUtc = $startUtc
+        EndUtc   = $endUtc
+        Source   = ("WarmRun:{0}" -f $PassLabel)
+    }
+}
+
 function Resolve-QueueMetricsPath {
     param(
         [string]$ExplicitPath,
@@ -224,6 +347,14 @@ function Resolve-QueueMetricsPath {
 
     if (-not [string]::IsNullOrWhiteSpace($ExplicitPath)) {
         return Resolve-OptionalPath -PathValue $ExplicitPath
+    }
+
+    $telemetryDir = $env:STATETRACE_TELEMETRY_DIR
+    if (-not [string]::IsNullOrWhiteSpace($telemetryDir) -and (Test-Path -LiteralPath $telemetryDir)) {
+        $candidate = Get-LatestIngestionMetricsFile -Directory $telemetryDir
+        if ($candidate) {
+            return $candidate
+        }
     }
 
     if ([string]::IsNullOrWhiteSpace($RepositoryRoot)) {
@@ -354,6 +485,8 @@ $sharedCacheSummaryEvaluation = $null
 $queueMetricsPathUsed = $null
 $queueDelayEvaluation = $null
 $queueDelaySummaryPathUsed = $null
+$verificationStartUtc = $null
+$verificationEndUtc = $null
 $skipWarmRunForRawDiversity = $rawPortDiversityAutoConcurrency
 if ($skipWarmRunForRawDiversity -and -not $SkipWarmRunRegression.IsPresent) {
     # LANDMARK: Raw diversity auto concurrency - avoid warm-run regression overrides
@@ -415,6 +548,7 @@ if ($argumentPreview.Count -gt 0) {
 } else {
     Write-Host 'Pipeline arguments: (none)' -ForegroundColor DarkGray
 }
+$verificationStartUtc = (Get-Date).ToUniversalTime().AddSeconds(-2)
 Write-Host 'Starting StateTrace verification pipeline...' -ForegroundColor Cyan
 try {
     & $pipelineScript @pipelineParameters
@@ -424,6 +558,7 @@ try {
 }
 
 Write-Host 'StateTrace verification pipeline completed successfully.' -ForegroundColor Green
+$verificationEndUtc = (Get-Date).ToUniversalTime()
 if (-not [string]::IsNullOrWhiteSpace($sharedCacheSnapshotDirectoryUsed) -and (Test-Path -LiteralPath $sharedCacheSnapshotDirectoryUsed)) {
     $sharedCacheSummaryPath = Join-Path -Path $sharedCacheSnapshotDirectoryUsed -ChildPath 'SharedCacheSnapshot-latest-summary.json'
     try {
@@ -580,6 +715,9 @@ if (-not $SkipQueueDelayEvaluation.IsPresent) {
     Write-Host ("Queue delay evaluation metrics file: {0}" -f $queueMetricsPathUsed) -ForegroundColor DarkCyan
     $queueEvents = Read-InterfacePortQueueEvents -MetricsPath $queueMetricsPathUsed
     $queueEventCount = if ($queueEvents) { $queueEvents.Count } else { 0 }
+    if (-not $queueEvents -or $queueEventCount -eq 0) {
+        throw ("Queue delay evaluation found 0 InterfacePortQueueMetrics events in '{0}'." -f $queueMetricsPathUsed)
+    }
     Ensure-VerificationModuleLoaded -ModulePath $verificationModulePath
     $queueDelayEvaluation = Test-InterfacePortQueueDelay -Events $queueEvents `
         -MaximumP95Ms $QueueDelayP95Maximum `
@@ -640,6 +778,40 @@ if ($shouldGenerateSharedCacheDiagnostics) {
     if (-not $queueMetricsPathUsed -or -not (Test-Path -LiteralPath $queueMetricsPathUsed)) {
         Write-Warning 'Shared-cache diagnostics skipped because queue/ingestion metrics were not available.'
     } else {
+        $sharedCacheStoreWindow = Resolve-SharedCacheDiagnosticsWindow -MetricsPath $queueMetricsPathUsed `
+            -FallbackStartUtc $verificationStartUtc `
+            -FallbackEndUtc $verificationEndUtc
+        $sharedCacheProviderWindow = $null
+        if ($computedWarmRunPath) {
+            $sharedCacheProviderWindow = Resolve-WarmRunPassWindow -TelemetryPath $computedWarmRunPath -PassLabel 'WarmPass'
+        }
+        if (-not $sharedCacheProviderWindow) {
+            $sharedCacheProviderWindow = $sharedCacheStoreWindow
+        }
+        $sharedCacheStoreWindowStart = $null
+        $sharedCacheStoreWindowEnd = $null
+        if ($sharedCacheStoreWindow) {
+            $sharedCacheStoreWindowStart = $sharedCacheStoreWindow.StartUtc
+            $sharedCacheStoreWindowEnd = $sharedCacheStoreWindow.EndUtc
+            if ($sharedCacheStoreWindowStart -or $sharedCacheStoreWindowEnd) {
+                $storeWindowStartLabel = if ($sharedCacheStoreWindowStart) { $sharedCacheStoreWindowStart.ToString('o') } else { 'start' }
+                $storeWindowEndLabel = if ($sharedCacheStoreWindowEnd) { $sharedCacheStoreWindowEnd.ToString('o') } else { 'end' }
+                Write-Host ("Shared-cache store diagnostics window ({0}): start={1} end={2}" -f `
+                        $sharedCacheStoreWindow.Source, $storeWindowStartLabel, $storeWindowEndLabel) -ForegroundColor DarkCyan
+            }
+        }
+        $sharedCacheProviderWindowStart = $null
+        $sharedCacheProviderWindowEnd = $null
+        if ($sharedCacheProviderWindow) {
+            $sharedCacheProviderWindowStart = $sharedCacheProviderWindow.StartUtc
+            $sharedCacheProviderWindowEnd = $sharedCacheProviderWindow.EndUtc
+            if ($sharedCacheProviderWindowStart -or $sharedCacheProviderWindowEnd) {
+                $providerWindowStartLabel = if ($sharedCacheProviderWindowStart) { $sharedCacheProviderWindowStart.ToString('o') } else { 'start' }
+                $providerWindowEndLabel = if ($sharedCacheProviderWindowEnd) { $sharedCacheProviderWindowEnd.ToString('o') } else { 'end' }
+                Write-Host ("Shared-cache provider diagnostics window ({0}): start={1} end={2}" -f `
+                        $sharedCacheProviderWindow.Source, $providerWindowStartLabel, $providerWindowEndLabel) -ForegroundColor DarkCyan
+            }
+        }
         $sharedCacheDiagnosticsDirectoryResolved = $SharedCacheDiagnosticsDirectory
         if ([string]::IsNullOrWhiteSpace($sharedCacheDiagnosticsDirectoryResolved)) {
             $sharedCacheDiagnosticsDirectoryResolved = Join-Path -Path $repositoryRoot -ChildPath 'Logs\SharedCacheDiagnostics'
@@ -666,7 +838,13 @@ if ($shouldGenerateSharedCacheDiagnostics) {
         $storeSummary = $null
         $providerSummary = $null
         try {
-            $storeSummary = & $sharedCacheStoreScript -Path $queueMetricsPathUsed -IncludeSiteBreakdown
+            $storeArgs = @{
+                Path                 = $queueMetricsPathUsed
+                IncludeSiteBreakdown = $true
+            }
+            if ($sharedCacheStoreWindowStart) { $storeArgs['StartTimeUtc'] = $sharedCacheStoreWindowStart }
+            if ($sharedCacheStoreWindowEnd) { $storeArgs['EndTimeUtc'] = $sharedCacheStoreWindowEnd }
+            $storeSummary = & $sharedCacheStoreScript @storeArgs
             $sharedCacheStoreDiagnosticsPath = Join-Path -Path $sharedCacheDiagnosticsDirectoryResolved -ChildPath ("SharedCacheStoreState-{0}.json" -f $diagTimestamp)
             $storeSummary | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $sharedCacheStoreDiagnosticsPath -Encoding utf8
             if (-not $QuietSummary.IsPresent) {
@@ -677,7 +855,12 @@ if ($shouldGenerateSharedCacheDiagnostics) {
         }
 
         try {
-            $providerSummary = & $siteCacheProviderScript -Path $queueMetricsPathUsed
+            $providerArgs = @{
+                Path = $queueMetricsPathUsed
+            }
+            if ($sharedCacheProviderWindowStart) { $providerArgs['StartTimeUtc'] = $sharedCacheProviderWindowStart }
+            if ($sharedCacheProviderWindowEnd) { $providerArgs['EndTimeUtc'] = $sharedCacheProviderWindowEnd }
+            $providerSummary = & $siteCacheProviderScript @providerArgs
             $siteCacheProviderDiagnosticsPath = Join-Path -Path $sharedCacheDiagnosticsDirectoryResolved -ChildPath ("SiteCacheProviderReasons-{0}.json" -f $diagTimestamp)
             $providerSummary | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $siteCacheProviderDiagnosticsPath -Encoding utf8
             if (-not $QuietSummary.IsPresent) {

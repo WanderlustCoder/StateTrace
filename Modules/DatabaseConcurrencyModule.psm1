@@ -5,6 +5,48 @@ Set-StrictMode -Version Latest
 
 $script:LockMetrics = [System.Collections.Concurrent.ConcurrentDictionary[string, object]]::new()
 $script:ConnectionPool = @{}
+$script:AccessProviderCache = @{}
+
+function Get-AccessProvider {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$DatabasePath
+    )
+
+    $key = $DatabasePath.ToLowerInvariant()
+    if ($script:AccessProviderCache.ContainsKey($key)) {
+        return $script:AccessProviderCache[$key]
+    }
+
+    $providers = @('Microsoft.ACE.OLEDB.16.0', 'Microsoft.ACE.OLEDB.12.0', 'Microsoft.Jet.OLEDB.4.0')
+    foreach ($prov in $providers) {
+        $conn = $null
+        try {
+            $conn = [System.Data.OleDb.OleDbConnection]::new("Provider=$prov;Data Source=$DatabasePath;Persist Security Info=False;")
+            $conn.Open()
+            $conn.Close()
+            if ($conn) { $conn.Dispose() }
+            $script:AccessProviderCache[$key] = $prov
+            return $prov
+        } catch {
+            if ($conn) { $conn.Dispose() }
+        }
+    }
+
+    throw "Failed to open Access database '$DatabasePath' with ACE/Jet providers."
+}
+
+function Get-AccessConnectionString {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$DatabasePath
+    )
+
+    $provider = Get-AccessProvider -DatabasePath $DatabasePath
+    return "Provider=$provider;Data Source=$DatabasePath;Persist Security Info=False;"
+}
 
 #region Concurrent Write Testing
 
@@ -57,6 +99,7 @@ function Test-ConcurrentWrites {
 
     # Ensure test table exists
     Initialize-ConcurrencyTestTable -DatabasePath $DatabasePath -TableName $TableName
+    $provider = Get-AccessProvider -DatabasePath $DatabasePath
 
     # Create runspaces for parallel execution
     $runspacePool = [runspacefactory]::CreateRunspacePool(1, $ThreadCount)
@@ -65,7 +108,7 @@ function Test-ConcurrentWrites {
     $jobs = @()
 
     $scriptBlock = {
-        param($DbPath, $TableName, $ThreadId, $Operations)
+        param($DbPath, $TableName, $ThreadId, $Operations, $Provider, $TestId)
 
         $results = @{
             ThreadId = $ThreadId
@@ -76,7 +119,7 @@ function Test-ConcurrentWrites {
             StartTime = [datetime]::UtcNow
         }
 
-        $connString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=$DbPath;Persist Security Info=False;"
+        $connString = "Provider=$Provider;Data Source=$DbPath;Persist Security Info=False;"
 
         for ($i = 0; $i -lt $Operations; $i++) {
             $conn = $null
@@ -87,7 +130,7 @@ function Test-ConcurrentWrites {
                 $timestamp = [datetime]::UtcNow.ToString('o')
                 $value = "Thread${ThreadId}_Op${i}_$([guid]::NewGuid().ToString('N').Substring(0,8))"
 
-                $sql = "INSERT INTO [$TableName] (ThreadId, OperationId, Timestamp, TestValue) VALUES ($ThreadId, $i, '$timestamp', '$value')"
+                $sql = "INSERT INTO [$TableName] (TestId, ThreadId, OperationId, Timestamp, TestValue) VALUES ('$TestId', $ThreadId, $i, '$timestamp', '$value')"
                 
                 $cmd = $conn.CreateCommand()
                 $cmd.CommandText = $sql
@@ -137,6 +180,8 @@ function Test-ConcurrentWrites {
         [void]$powershell.AddArgument($TableName)
         [void]$powershell.AddArgument($t)
         [void]$powershell.AddArgument($OperationsPerThread)
+        [void]$powershell.AddArgument($provider)
+        [void]$powershell.AddArgument($testId)
 
         $jobs += @{
             PowerShell = $powershell
@@ -188,7 +233,7 @@ function Initialize-ConcurrencyTestTable {
         [string]$TableName
     )
 
-    $connString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=$DatabasePath;Persist Security Info=False;"
+    $connString = Get-AccessConnectionString -DatabasePath $DatabasePath
     $conn = $null
 
     try {
@@ -203,6 +248,7 @@ function Initialize-ConcurrencyTestTable {
             $sql = @"
 CREATE TABLE [$TableName] (
     Id AUTOINCREMENT PRIMARY KEY,
+    TestId TEXT(32),
     ThreadId INTEGER,
     OperationId INTEGER,
     Timestamp TEXT,
@@ -212,6 +258,14 @@ CREATE TABLE [$TableName] (
             $cmd = $conn.CreateCommand()
             $cmd.CommandText = $sql
             $cmd.ExecuteNonQuery() | Out-Null
+        } else {
+            $columns = $conn.GetSchema('Columns')
+            $hasTestId = $columns.Rows | Where-Object { $_['TABLE_NAME'] -eq $TableName -and $_['COLUMN_NAME'] -eq 'TestId' }
+            if (-not $hasTestId) {
+                $cmd = $conn.CreateCommand()
+                $cmd.CommandText = "ALTER TABLE [$TableName] ADD COLUMN TestId TEXT(32)"
+                $cmd.ExecuteNonQuery() | Out-Null
+            }
         }
 
     } finally {
@@ -240,7 +294,7 @@ function Test-ConcurrencyDataIntegrity {
         Errors = @()
     }
 
-    $connString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=$DatabasePath;Persist Security Info=False;"
+    $connString = Get-AccessConnectionString -DatabasePath $DatabasePath
     $conn = $null
 
     try {
@@ -249,14 +303,15 @@ function Test-ConcurrencyDataIntegrity {
 
         # Count records
         $cmd = $conn.CreateCommand()
-        $cmd.CommandText = "SELECT COUNT(*) FROM [$TableName]"
+        $cmd.CommandText = "SELECT COUNT(*) FROM [$TableName] WHERE TestId = '$TestId'"
         $result.ActualCount = [int]$cmd.ExecuteScalar()
 
         # Check for duplicates (same ThreadId + OperationId)
         $cmd.CommandText = @"
-SELECT ThreadId, OperationId, COUNT(*) as cnt 
-FROM [$TableName] 
-GROUP BY ThreadId, OperationId 
+SELECT ThreadId, OperationId, COUNT(*) as cnt
+FROM [$TableName]
+WHERE TestId = '$TestId'
+GROUP BY ThreadId, OperationId
 HAVING COUNT(*) > 1
 "@
         $reader = $cmd.ExecuteReader()
@@ -491,8 +546,9 @@ function Repair-AccessDatabase {
         # Use JRO (Jet Replication Objects) for compact/repair
         $jro = New-Object -ComObject JRO.JetEngine
 
-        $sourceConn = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=$DatabasePath"
-        $destConn = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=$tempPath"
+        $provider = Get-AccessProvider -DatabasePath $DatabasePath
+        $sourceConn = "Provider=$provider;Data Source=$DatabasePath"
+        $destConn = "Provider=$provider;Data Source=$tempPath"
 
         $jro.CompactDatabase($sourceConn, $destConn)
 
@@ -582,7 +638,7 @@ function Test-DatabaseHealth {
         Warnings = @()
     }
 
-    $connString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=$DatabasePath;Persist Security Info=False;"
+    $connString = Get-AccessConnectionString -DatabasePath $DatabasePath
     $conn = $null
 
     try {
@@ -877,7 +933,7 @@ function Test-DatabaseIntegrity {
         return [PSCustomObject]$result
     }
 
-    $connString = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=$DatabasePath;Persist Security Info=False;"
+    $connString = Get-AccessConnectionString -DatabasePath $DatabasePath
     $conn = $null
 
     try {
@@ -983,8 +1039,8 @@ function Test-DatabaseIntegrity {
     }
 
     # Determine overall status
-    $failedChecks = $result.Checks | Where-Object { $_.Status -eq 'Fail' }
-    $warningChecks = $result.Checks | Where-Object { $_.Status -eq 'Warning' }
+    $failedChecks = @($result.Checks | Where-Object { $_.Status -eq 'Fail' })     
+    $warningChecks = @($result.Checks | Where-Object { $_.Status -eq 'Warning' }) 
 
     if ($failedChecks.Count -gt 0) {
         $result.OverallStatus = 'Fail'
@@ -995,7 +1051,7 @@ function Test-DatabaseIntegrity {
     }
 
     $result.PassedChecks = @($result.Checks | Where-Object { $_.Status -eq 'Pass' }).Count
-    $result.TotalChecks = $result.Checks.Count
+    $result.TotalChecks = @($result.Checks).Count
 
     return [PSCustomObject]$result
 }

@@ -175,7 +175,9 @@ $builder.Add("")
 $resolvedMetrics = (Resolve-Path -LiteralPath $MetricsPath) | ForEach-Object { $_.Path }
 $builder.Add([string]::Format('> Metrics: `{0}`', ($resolvedMetrics -join '; ')))
 if ($startUtc -or $endUtc) {
-    $builder.Add([string]::Format('> Filter (UTC): {0} -> {1}', ($startUtc ? $startUtc.ToString('o') : 'start'), ($endUtc ? $endUtc.ToString('o') : 'end')))
+    $startLabel = if ($startUtc) { $startUtc.ToString('o') } else { 'start' }
+    $endLabel = if ($endUtc) { $endUtc.ToString('o') } else { 'end' }
+    $builder.Add([string]::Format('> Filter (UTC): {0} -> {1}', $startLabel, $endLabel))
 }
 $generatedStamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss K'
 $builder.Add("> Generated $generatedStamp")

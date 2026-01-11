@@ -10,7 +10,7 @@ Use this runbook to create a Windows Task Scheduler job that executes the wrappe
 ## Steps
 1. **Preview the task**
    ```powershell
-   pwsh Tools/Schedule-DailyRollupTask.ps1 -TaskName StateTraceDailyRollup \
+   pwsh Tools/Schedule-DailyRollupTask.ps1 -TaskName StateTraceDailyRollup `
        -StartTime 02:00 -DaysBack 1 -DryRun
    ```
    The command prints the underlying `schtasks.exe` invocation without registering anything.

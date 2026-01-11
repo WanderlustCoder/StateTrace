@@ -243,7 +243,7 @@ function Invoke-ParallelDbQuery {
                 try {
                     $connection = New-Object -ComObject ADODB.Connection
                     $opened = $false
-                    foreach ($prov in @('Microsoft.ACE.OLEDB.12.0','Microsoft.Jet.OLEDB.4.0')) {
+                    foreach ($prov in @('Microsoft.ACE.OLEDB.16.0','Microsoft.ACE.OLEDB.12.0','Microsoft.Jet.OLEDB.4.0')) {
                         try {
                             $connection.Open(("Provider={0};Data Source={1}" -f $prov, $dbPathArg))
                             $opened = $true
@@ -326,7 +326,7 @@ function Invoke-ParallelDbQuery {
                 }
                 return $payload
             }).AddArgument($dbPath).AddArgument($Sql).AddArgument($IncludeDbPath.IsPresent)
-        $job = [pscustomobject]@{ PS = $ps; AsyncResult = $ps.BeginInvoke() }
+        $job = [pscustomobject]@{ PS = $ps; AsyncResult = $ps.BeginInvoke(); DbPath = $dbPath }
         $jobs += $job
     }
 
@@ -339,7 +339,9 @@ function Invoke-ParallelDbQuery {
                     if ($item) { [void]$results.Add($item) }
                 }
             }
-        } catch { }
+        } catch {
+            Write-Warning ("[DeviceRepository.Access] Parallel query failed for '{0}': {1}" -f $job.DbPath, $_.Exception.Message)
+        }
         finally {
             $job.PS.Dispose()
         }

@@ -19,7 +19,9 @@ function New-Directories {
         if ([string]::IsNullOrWhiteSpace($path)) { continue }
         try {
             [System.IO.Directory]::CreateDirectory($path) | Out-Null
-        } catch { }
+        } catch {
+            Write-Warning ("Failed to create directory '{0}': {1}" -f $path, $_.Exception.Message)
+        }
     }
 }
 
@@ -611,7 +613,10 @@ function Invoke-StateTraceParsing {
 
             if (-not [string]::IsNullOrWhiteSpace($raw)) {
 
-                try { $settings = $raw | ConvertFrom-Json } catch { $settings = $null }
+                try { $settings = $raw | ConvertFrom-Json } catch {
+                    Write-Warning ("Failed to parse settings JSON '{0}': {1}" -f $settingsPath, $_.Exception.Message)
+                    $settings = $null
+                }
 
                 if ($settings) {
 
@@ -1280,8 +1285,8 @@ function Invoke-StateTraceParsing {
                         if ($exportCheck) {
                             try { $exportedCount = ($exportCheck | Measure-Object).Count } catch { $exportedCount = 0 }
                         }
-                        if ($exportedCount -le 0) {
-                            Write-Verbose ("Shared cache snapshot at '{0}' contained no entries after export; falling back to local writer." -f $SharedCacheSnapshotExportPath)
+                        if ($exportedCount -le 0 -or ($snapshotEntryCount -gt 0 -and $exportedCount -lt $snapshotEntryCount)) {
+                            Write-Verbose ("Shared cache snapshot at '{0}' contained {1} of {2} entries after export; falling back to local writer." -f $SharedCacheSnapshotExportPath, $exportedCount, $snapshotEntryCount)
                             $exported = $false
                         }
                     }

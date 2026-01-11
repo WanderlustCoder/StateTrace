@@ -1047,6 +1047,8 @@ function Invoke-DeviceParsingJobs {
     }
 
     $schedulerPollMs = [Math]::Max(5, $SchedulerIdlePollMilliseconds)
+    $maxSchedulerPollMs = [Math]::Max($schedulerPollMs, 250)
+    $currentPollMs = $schedulerPollMs
     $stallTimeoutMs = if ($SchedulerStallTimeoutSeconds -gt 0) { [Math]::Max(1000, ($SchedulerStallTimeoutSeconds * 1000)) } else { 0 }
     $schedulerWatch = [System.Diagnostics.Stopwatch]::StartNew()
     $lastProgressMs = $schedulerWatch.ElapsedMilliseconds
@@ -1096,6 +1098,7 @@ function Invoke-DeviceParsingJobs {
                     $active.Add([PSCustomObject]@{ Pipe = $ps; AsyncResult = $async; Site = $nextJob.Site })
                     [void]$activeSiteSet.Add($nextJob.Site)
                     $launched = $true
+                    $currentPollMs = $schedulerPollMs
 
                     $remainingQueued = 0
                     $remainingQueuedSites = 0
@@ -1133,6 +1136,7 @@ function Invoke-DeviceParsingJobs {
             if ($completed.Count -gt 0) {
                 $lastProgressMs = $schedulerWatch.ElapsedMilliseconds
                 foreach ($entry in $completed) { [void]$active.Remove($entry) }
+                $currentPollMs = $schedulerPollMs
                 continue
             }
 
@@ -1148,7 +1152,20 @@ function Invoke-DeviceParsingJobs {
             }
 
             if ($stallDetected) { break }
-            if (-not $launched) { Start-Sleep -Milliseconds $schedulerPollMs }
+            if (-not $launched) {
+                if ($active.Count -gt 0) {
+                    $waitHandles = @($active | Select-Object -First 64 | ForEach-Object { $_.AsyncResult.AsyncWaitHandle })
+                    if ($waitHandles.Count -gt 0) {
+                        [void][System.Threading.WaitHandle]::WaitAny($waitHandles, $currentPollMs)
+                    } else {
+                        Start-Sleep -Milliseconds $currentPollMs
+                    }
+                } else {
+                    Start-Sleep -Milliseconds $currentPollMs
+                }
+                # Exponential backoff reduces idle polling pressure.
+                $currentPollMs = [Math]::Min($maxSchedulerPollMs, [Math]::Max($schedulerPollMs, [int][Math]::Ceiling($currentPollMs * 1.5)))
+            }
         }
 
 

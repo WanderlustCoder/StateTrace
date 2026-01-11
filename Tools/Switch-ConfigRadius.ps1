@@ -1,5 +1,28 @@
 # Configure RADIUS for 802.1X/MAB testing
-$port = New-Object System.IO.Ports.SerialPort 'COM8', 9600, 'None', 8, 'One'
+[CmdletBinding()]
+param(
+    [string]$SerialPort = $env:STATETRACE_SERIAL_PORT,
+    [Parameter(Mandatory)]
+    [string]$RadiusServer,
+    [int]$AuthPort = 1812,
+    [int]$AcctPort = 1813,
+    [Parameter(Mandatory)]
+    [string]$SharedSecret,
+    [string]$TestUsername,
+    [string]$TestPassword,
+    [string]$TestPort = 'GigabitEthernet1/0/2',
+    [int]$TestVlan = 100,
+    [switch]$SkipTest
+)
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+
+if ([string]::IsNullOrWhiteSpace($SerialPort)) {
+    throw 'SerialPort is required. Provide -SerialPort or set STATETRACE_SERIAL_PORT.'
+}
+
+$port = New-Object System.IO.Ports.SerialPort $SerialPort, 9600, 'None', 8, 'One'
 $port.DtrEnable = $true
 $port.RtsEnable = $true
 $port.ReadTimeout = 1000
@@ -32,8 +55,8 @@ try {
 
     Write-Host "`n=== Configuring RADIUS Server ===" -ForegroundColor Cyan
     Send-Command "radius server FREERADIUS" 500
-    Send-Command "address ipv4 192.168.1.100 auth-port 1812 acct-port 1813" 500
-    Send-Command "key RadiusTest123!" 500
+    Send-Command "address ipv4 $RadiusServer auth-port $AuthPort acct-port $AcctPort" 500
+    Send-Command "key $SharedSecret" 500
     Send-Command "exit" 300
 
     Send-Command "radius-server attribute 6 on-for-login-auth" 500
@@ -43,11 +66,11 @@ try {
     Write-Host "`n=== Enabling 802.1X Globally ===" -ForegroundColor Cyan
     Send-Command "dot1x system-auth-control" 500
 
-    Write-Host "`n=== Configuring Test Port (Gi1/0/2) ===" -ForegroundColor Cyan
-    Send-Command "interface GigabitEthernet1/0/2" 500
+    Write-Host "`n=== Configuring Test Port ($TestPort) ===" -ForegroundColor Cyan
+    Send-Command "interface $TestPort" 500
     Send-Command "description DOT1X-TEST-PORT" 300
     Send-Command "switchport mode access" 300
-    Send-Command "switchport access vlan 100" 300
+    Send-Command "switchport access vlan $TestVlan" 300
     Send-Command "authentication port-control auto" 500
     Send-Command "authentication order mab dot1x" 300
     Send-Command "authentication priority dot1x mab" 300
@@ -66,14 +89,19 @@ try {
     Write-Host "`n=== Saving Configuration ===" -ForegroundColor Cyan
     Send-Command "write memory" 5000
 
-    Write-Host "`n=== Testing RADIUS Connectivity ===" -ForegroundColor Cyan
-    Send-Command "test aaa group radius testuser1 password123 legacy" 5000
+    if (-not $SkipTest) {
+        Write-Host "`n=== Testing RADIUS Connectivity ===" -ForegroundColor Cyan
+        if ([string]::IsNullOrWhiteSpace($TestUsername) -or [string]::IsNullOrWhiteSpace($TestPassword)) {
+            Write-Warning 'Skipping RADIUS test; provide -TestUsername and -TestPassword or use -SkipTest.'
+        } else {
+            Send-Command "test aaa group radius $TestUsername $TestPassword legacy" 5000
+        }
+    }
 }
 finally {
     $port.Close()
 }
 
 Write-Host "`n=== Configuration Complete ===" -ForegroundColor Green
-Write-Host "RADIUS Server: 192.168.1.100:1812" -ForegroundColor White
-Write-Host "Shared Secret: RadiusTest123!" -ForegroundColor White
-Write-Host "802.1X Test Port: Gi1/0/2" -ForegroundColor White
+Write-Host "RADIUS Server: $RadiusServer:$AuthPort" -ForegroundColor White
+Write-Host "802.1X Test Port: $TestPort (VLAN $TestVlan)" -ForegroundColor White

@@ -215,7 +215,7 @@ function New-CommandReferenceView {
             }
 
             $view.Tag.CurrentSnippet = $snippet
-            $snippetTitleText.Text = $snippet.TaskName
+            $snippetTitleText.Text = $snippet.Task
             $view.Tag.VariableInputs = @{}
 
             # Build variable input controls
@@ -363,7 +363,7 @@ function Update-SnippetsList {
 
     $snippets = CommandReferenceModule\Get-ConfigSnippets -Vendor $Vendor
     foreach ($snippet in $snippets) {
-        $ListBox.Items.Add($snippet.TaskName) | Out-Null
+        $ListBox.Items.Add($snippet.Task) | Out-Null
     }
 }
 
