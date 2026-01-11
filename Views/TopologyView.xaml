@@ -63,7 +63,7 @@
                     <!-- Toolbar for canvas -->
                     <Border Background="{DynamicResource Theme.Toolbar.Background}" VerticalAlignment="Top" Padding="5">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="Layout:" Foreground="{DynamicResource Theme.Text.Primary}" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                            <TextBlock Text="Layout:" Foreground="{DynamicResource Theme.Toolbar.Text}" VerticalAlignment="Center" Margin="0,0,5,0"/>
                             <ComboBox Name="LayoutCombo" Width="120" SelectedIndex="0" Style="{DynamicResource ToolbarComboBoxStyle}">
                                 <ComboBoxItem Content="Hierarchical"/>
                                 <ComboBoxItem Content="Force-Directed"/>
@@ -71,12 +71,12 @@
                                 <ComboBoxItem Content="Grid"/>
                             </ComboBox>
                             <Separator Style="{DynamicResource ToolbarSeparatorStyle}" Margin="10,0"/>
-                            <TextBlock Text="Zoom:" Foreground="{DynamicResource Theme.Text.Primary}" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                            <TextBlock Text="Zoom:" Foreground="{DynamicResource Theme.Toolbar.Text}" VerticalAlignment="Center" Margin="0,0,5,0"/>
                             <Slider Name="ZoomSlider" Width="100" Minimum="0.25" Maximum="3" Value="1" VerticalAlignment="Center"/>
-                            <TextBlock Name="ZoomLabel" Text="100%" Foreground="{DynamicResource Theme.Text.Primary}" VerticalAlignment="Center" Margin="5,0,0,0" Width="40"/>
+                            <TextBlock Name="ZoomLabel" Text="100%" Foreground="{DynamicResource Theme.Toolbar.Text}" VerticalAlignment="Center" Margin="5,0,0,0" Width="40"/>
                             <Button Name="ZoomFitButton" Content="Fit" Style="{DynamicResource SecondaryButtonStyle}" Margin="10,0,0,0" Width="40"/>
                             <Separator Style="{DynamicResource ToolbarSeparatorStyle}" Margin="10,0"/>
-                            <TextBlock Text="Filter:" Foreground="{DynamicResource Theme.Text.Primary}" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                            <TextBlock Text="Filter:" Foreground="{DynamicResource Theme.Toolbar.Text}" VerticalAlignment="Center" Margin="0,0,5,0"/>
                             <ComboBox Name="RoleFilterCombo" Width="100" SelectedIndex="0" Style="{DynamicResource ToolbarComboBoxStyle}">
                                 <ComboBoxItem Content="All Roles"/>
                                 <ComboBoxItem Content="Core"/>
@@ -356,11 +356,11 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <TextBlock Name="StatusLabel" Text="Ready" Foreground="{DynamicResource Theme.Text.Secondary}" VerticalAlignment="Center"/>
+                <TextBlock Name="StatusLabel" Text="Ready" Foreground="{DynamicResource Theme.Toolbar.Text}" VerticalAlignment="Center"/>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal">
-                    <TextBlock Text="Last Discovery:" Foreground="{DynamicResource Theme.Text.Secondary}" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                    <TextBlock Name="LastDiscoveryLabel" Text="Never" Foreground="{DynamicResource Theme.Text.Primary}" VerticalAlignment="Center"/>
+                    <TextBlock Text="Last Discovery:" Foreground="{DynamicResource Theme.Toolbar.Text}" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                    <TextBlock Name="LastDiscoveryLabel" Text="Never" Foreground="{DynamicResource Theme.Toolbar.Text}" VerticalAlignment="Center"/>
                 </StackPanel>
             </Grid>
         </Border>

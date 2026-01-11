@@ -82,6 +82,8 @@ $sharedCacheSnapshotEnvOriginal = $null
 $sharedCacheSnapshotEnvApplied = $false
 $sharedCacheDisableEnvOriginal = $null
 $sharedCacheDisableEnvApplied = $false
+$forceSiteCacheRefreshEnvOriginal = $null
+$forceSiteCacheRefreshEnvApplied = $false
 
 $script:PassInterfaceAnalysis = @{}
 $script:PassSummaries = @{}
@@ -1448,9 +1450,16 @@ function Measure-InterfaceCallDurationMetrics {
         [System.Collections.IEnumerable]$Events
     )
 
+    if (-not (Get-Module -Name 'StatisticsModule' -ErrorAction SilentlyContinue)) {
+        if (-not (Test-Path -LiteralPath $statisticsModulePath)) {
+            throw "StatisticsModule not found at $statisticsModulePath"
+        }
+        Import-Module -Name $statisticsModulePath -Force -ErrorAction Stop
+    }
+
     $durations = [System.Collections.Generic.List[double]]::new()
     $providerCounts = @{}
-    $capturedEvents = [System.Collections.Generic.List[psobject]]::new()
+    $capturedEvents = [System.Collections.Generic.List[psobject]]::new()        
 
     foreach ($event in @($Events)) {
         if (-not $event) {
@@ -3078,6 +3087,15 @@ try {
             $sharedCacheDisableEnvApplied = $false
         }
     }
+    if (-not $forceSiteCacheRefreshEnvApplied) {
+        try { $forceSiteCacheRefreshEnvOriginal = $env:STATETRACE_FORCE_SITE_CACHE_REFRESH } catch { $forceSiteCacheRefreshEnvOriginal = $null }
+        try {
+            $env:STATETRACE_FORCE_SITE_CACHE_REFRESH = '1'
+            $forceSiteCacheRefreshEnvApplied = $true
+        } catch {
+            $forceSiteCacheRefreshEnvApplied = $false
+        }
+    }
     if ($sharedCacheDisableEnvApplied) {
         $cacheClearCommand = Get-DeviceRepositoryCacheCommand -Name 'Clear-SharedSiteInterfaceCache'
         if (-not $cacheClearCommand) {
@@ -3092,6 +3110,22 @@ try {
         if ($cacheClearCommand) {
             try { & $cacheClearCommand -Reason 'WarmRunTelemetryColdPass' } catch { }
         }
+    }
+
+    $deviceRepoModule = Get-DeviceRepositoryModule
+    if ($deviceRepoModule) {
+        try { DeviceRepositoryModule\Clear-SiteInterfaceCache -Reason 'WarmRunTelemetryColdPass' } catch { }
+    }
+
+    $parserModule = Get-Module -Name 'ParserRunspaceModule'
+    if (-not $parserModule) {
+        $parserModulePath = Join-Path -Path $repositoryRoot -ChildPath 'Modules\ParserRunspaceModule.psm1'
+        if (Test-Path -LiteralPath $parserModulePath) {
+            try { $parserModule = Import-Module -Name $parserModulePath -PassThru -Force -ErrorAction SilentlyContinue } catch { $parserModule = $null }
+        }
+    }
+    if ($parserModule) {
+        try { ParserRunspaceModule\Reset-DeviceParseRunspacePool } catch { }
     }
     Set-IngestionHistoryForPass -SeedMode $ColdHistorySeed -Snapshot $ingestionHistorySnapshot -PassLabel 'ColdPass'
     $results.AddRange([psobject[]]@(Invoke-PipelinePass -Label 'ColdPass' -HistorySeedMode $ColdHistorySeed))
@@ -3111,6 +3145,16 @@ try {
             }
         } catch { }
         $sharedCacheDisableEnvApplied = $false
+    }
+    if ($forceSiteCacheRefreshEnvApplied) {
+        try {
+            if ($null -ne $forceSiteCacheRefreshEnvOriginal) {
+                $env:STATETRACE_FORCE_SITE_CACHE_REFRESH = $forceSiteCacheRefreshEnvOriginal
+            } else {
+                Remove-Item Env:STATETRACE_FORCE_SITE_CACHE_REFRESH -ErrorAction SilentlyContinue
+            }
+        } catch { }
+        $forceSiteCacheRefreshEnvApplied = $false
     }
     Write-SharedCacheSnapshot -Label 'PostColdPass'
     $postColdSummary = Get-SharedCacheSummary -Label 'SharedCacheState:PostColdPass'
@@ -3523,6 +3567,16 @@ try {
             }
         } catch { }
         $sharedCacheDisableEnvApplied = $false
+    }
+    if ($forceSiteCacheRefreshEnvApplied) {
+        try {
+            if ($null -ne $forceSiteCacheRefreshEnvOriginal) {
+                $env:STATETRACE_FORCE_SITE_CACHE_REFRESH = $forceSiteCacheRefreshEnvOriginal
+            } else {
+                Remove-Item Env:STATETRACE_FORCE_SITE_CACHE_REFRESH -ErrorAction SilentlyContinue
+            }
+        } catch { }
+        $forceSiteCacheRefreshEnvApplied = $false
     }
     $cleanupPath = $sharedCacheSnapshotCleanupPath
     if (-not $cleanupPath -and $sharedCacheSnapshotPath -and

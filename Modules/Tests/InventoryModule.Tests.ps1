@@ -3,6 +3,7 @@
 
 $modulePath = Join-Path $PSScriptRoot '..\InventoryModule.psm1'
 Import-Module $modulePath -Force
+. (Join-Path $PSScriptRoot 'TestHelpers.ps1')
 
 Describe 'InventoryModule' {
     BeforeAll {
@@ -63,12 +64,12 @@ Describe 'InventoryModule' {
         }
 
         It 'validates serial number cannot be empty' {
-            { New-Asset -Hostname 'SW-01' -SerialNumber '' } | Should Throw
+            Assert-Throws { New-Asset -Hostname 'SW-01' -SerialNumber '' }
         }
 
         It 'prevents duplicate serial numbers' {
             New-Asset -Hostname 'SW-01' -SerialNumber 'DUP001'
-            { New-Asset -Hostname 'SW-02' -SerialNumber 'DUP001' } | Should Throw
+            Assert-Throws { New-Asset -Hostname 'SW-02' -SerialNumber 'DUP001' }
         }
     }
 
@@ -169,7 +170,7 @@ Describe 'InventoryModule' {
         }
 
         It 'throws when adding module to non-existent asset' {
-            { New-AssetModule -AssetID 'FAKE-ID' -ModuleType 'SFP' } | Should Throw
+            Assert-Throws { New-AssetModule -AssetID 'FAKE-ID' -ModuleType 'SFP' }
         }
     }
 

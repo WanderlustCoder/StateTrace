@@ -1,12 +1,17 @@
 # Switch-Interact.ps1 - Send commands to switch and capture output
 param(
+    [string]$SerialPort = $env:STATETRACE_SERIAL_PORT,
     [Parameter(Mandatory=$true)]
     [string[]]$Commands,
     [int]$DelayMs = 2000,
     [switch]$Raw
 )
 
-$port = New-Object System.IO.Ports.SerialPort 'COM8', 9600, 'None', 8, 'One'
+if ([string]::IsNullOrWhiteSpace($SerialPort)) {
+    throw 'SerialPort is required. Provide -SerialPort or set STATETRACE_SERIAL_PORT.'
+}
+
+$port = New-Object System.IO.Ports.SerialPort $SerialPort, 9600, 'None', 8, 'One'
 $port.DtrEnable = $true
 $port.RtsEnable = $true
 $port.ReadTimeout = 5000
@@ -58,3 +63,4 @@ finally {
 }
 
 return $allOutput
+

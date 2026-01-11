@@ -99,11 +99,18 @@ function Get-RequiredString {
         Add-Error -Errors $Errors -Message "InvalidType:$label expected=string actual=$($Value.GetType().Name)"
         return $null
     }
-    if ([string]::IsNullOrWhiteSpace([string]$Value)) {
+    $stringValue = if ($Value -is [DateTime]) {
+        $Value.ToString('o', [System.Globalization.CultureInfo]::InvariantCulture)
+    } elseif ($Value -is [DateTimeOffset]) {
+        $Value.ToString('o', [System.Globalization.CultureInfo]::InvariantCulture)
+    } else {
+        [string]$Value
+    }
+    if ([string]::IsNullOrWhiteSpace($stringValue)) {
         Add-Error -Errors $Errors -Message "EmptyRequiredField:$label"
         return $null
     }
-    return [string]$Value
+    return $stringValue
 }
 
 function Get-DeterministicSnapshotId {

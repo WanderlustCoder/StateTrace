@@ -1,5 +1,12 @@
 # Fix VLAN 1 IP address
-$port = New-Object System.IO.Ports.SerialPort 'COM8', 9600, 'None', 8, 'One'
+param(
+    [string]$SerialPort = $env:STATETRACE_SERIAL_PORT
+)
+
+if ([string]::IsNullOrWhiteSpace($SerialPort)) {
+    throw 'SerialPort is required. Provide -SerialPort or set STATETRACE_SERIAL_PORT.'
+}
+$port = New-Object System.IO.Ports.SerialPort $SerialPort, 9600, 'None', 8, 'One'
 $port.DtrEnable = $true
 $port.RtsEnable = $true
 $port.ReadTimeout = 1000
@@ -38,3 +45,7 @@ try {
 finally {
     $port.Close()
 }
+
+
+
+

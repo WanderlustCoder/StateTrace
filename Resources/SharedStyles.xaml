@@ -328,11 +328,11 @@
   </Style>
 
   <Style x:Key="ToolbarLabelStyle" TargetType="Label">
-    <Setter Property="Foreground" Value="{DynamicResource Theme.Toolbar.Text}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
   </Style>
 
   <Style x:Key="ToolbarCheckBoxStyle" TargetType="CheckBox">
-    <Setter Property="Foreground" Value="{DynamicResource Theme.Toolbar.Text}"/>
+    <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
   </Style>
 
   <Style x:Key="ToolbarTextBoxStyle" TargetType="TextBox">

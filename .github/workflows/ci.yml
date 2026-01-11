@@ -1,0 +1,172 @@
+name: StateTrace CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  POWERSHELL_TELEMETRY_OPTOUT: 1
+
+jobs:
+  lint:
+    name: PSScriptAnalyzer Lint
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          Set-PSRepository PSGallery -InstallationPolicy Trusted
+          Install-Module -Name PSScriptAnalyzer -Force -Scope CurrentUser
+
+      - name: Run PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          $results = Invoke-ScriptAnalyzer -Path . -Recurse -ExcludeRule PSAvoidUsingWriteHost -Severity Warning,Error
+          if ($results) {
+            $results | Format-Table -AutoSize
+            Write-Host "::warning::PSScriptAnalyzer found $($results.Count) issue(s)"
+          }
+          $errors = $results | Where-Object { $_.Severity -eq 'Error' }
+          if ($errors) {
+            Write-Host "::error::PSScriptAnalyzer found $($errors.Count) error(s)"
+            exit 1
+          }
+
+  test:
+    name: Pester Tests
+    runs-on: windows-latest
+    needs: lint
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Pester
+        shell: pwsh
+        run: |
+          Set-PSRepository PSGallery -InstallationPolicy Trusted
+          Install-Module -Name Pester -Force -Scope CurrentUser -MinimumVersion 5.0.0
+
+      - name: Run Pester Tests
+        shell: pwsh
+        run: |
+          $config = New-PesterConfiguration
+          $config.Run.Path = './Modules/Tests'
+          $config.Run.PassThru = $true
+          $config.Output.Verbosity = 'Detailed'
+          $config.TestResult.Enabled = $true
+          $config.TestResult.OutputPath = './test-results.xml'
+          $config.TestResult.OutputFormat = 'NUnitXml'
+
+          $results = Invoke-Pester -Configuration $config
+
+          if ($results.FailedCount -gt 0) {
+            Write-Host "::error::$($results.FailedCount) test(s) failed"
+            exit 1
+          }
+
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: test-results.xml
+
+  syntax-check:
+    name: PowerShell Syntax Check
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check PowerShell Syntax
+        shell: pwsh
+        run: |
+          $errors = @()
+          $files = Get-ChildItem -Path . -Include *.ps1,*.psm1 -Recurse -File
+
+          foreach ($file in $files) {
+            $tokens = $null
+            $parseErrors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref]$tokens, [ref]$parseErrors) | Out-Null
+
+            if ($parseErrors.Count -gt 0) {
+              foreach ($err in $parseErrors) {
+                $errors += "$($file.FullName):$($err.Extent.StartLineNumber): $($err.Message)"
+                Write-Host "::error file=$($file.FullName),line=$($err.Extent.StartLineNumber)::$($err.Message)"
+              }
+            }
+          }
+
+          if ($errors.Count -gt 0) {
+            Write-Host "Found $($errors.Count) syntax error(s)"
+            exit 1
+          }
+
+          Write-Host "All $($files.Count) files passed syntax check"
+
+  accessibility:
+    name: Accessibility Validation
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Accessibility Tests
+        shell: pwsh
+        run: |
+          & ./Tests/Test-Accessibility.ps1 -OutputPath ./accessibility-report.json
+
+      - name: Upload Accessibility Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: accessibility-report
+          path: accessibility-report.json
+
+  schema-validation:
+    name: Schema Validation
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate JSON Schemas
+        shell: pwsh
+        run: |
+          $schemaFiles = Get-ChildItem -Path './docs/schemas' -Filter '*.schema.json' -Recurse -ErrorAction SilentlyContinue
+
+          foreach ($schema in $schemaFiles) {
+            Write-Host "Validating schema: $($schema.Name)"
+            try {
+              $content = Get-Content -Path $schema.FullName -Raw | ConvertFrom-Json
+              Write-Host "  OK - Valid JSON"
+            } catch {
+              Write-Host "::error file=$($schema.FullName)::Invalid JSON: $_"
+              exit 1
+            }
+          }
+
+          Write-Host "All schema files validated"
+
+  build-summary:
+    name: CI Summary
+    runs-on: ubuntu-latest
+    needs: [lint, test, syntax-check, accessibility]
+    if: always()
+    steps:
+      - name: Generate Summary
+        run: |
+          echo "## CI Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Lint | ${{ needs.lint.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Tests | ${{ needs.test.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Syntax | ${{ needs.syntax-check.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Accessibility | ${{ needs.accessibility.result }} |" >> $GITHUB_STEP_SUMMARY

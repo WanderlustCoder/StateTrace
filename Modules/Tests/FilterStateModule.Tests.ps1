@@ -272,7 +272,7 @@ Describe "FilterStateModule Update-DeviceFilter" {
 
         $locations = DeviceCatalogModule\Get-DeviceLocationEntries
         if (-not $locations -or $locations.Count -eq 0) {
-            Set-ItResult -Skipped -Because "No location entries available from Get-DeviceLocationEntries"
+            Set-TestInconclusive -Message "No location entries available from Get-DeviceLocationEntries"
             return
         }
 

@@ -2,6 +2,7 @@ Set-StrictMode -Version Latest
 
 $modulePath = Join-Path $PSScriptRoot '..\DecisionTreeModule.psm1'
 Import-Module $modulePath -Force
+. (Join-Path $PSScriptRoot 'TestHelpers.ps1')
 
 Describe 'DecisionTreeModule - Tree Creation' {
 
@@ -281,7 +282,7 @@ Describe 'DecisionTreeModule - Execution' {
             $tree = Import-DecisionTree -Json ($script:simpleTree | ConvertTo-Json -Depth 10)
             $execution = Start-TreeExecution -Tree $tree
 
-            { Submit-TreeAnswer -Execution $execution -Answer 'Maybe' } | Should Throw
+            Assert-Throws { Submit-TreeAnswer -Execution $execution -Answer 'Maybe' }
         }
     }
 

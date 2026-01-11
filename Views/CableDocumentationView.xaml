@@ -257,7 +257,7 @@
     <!-- Status Bar -->
     <Border Grid.Row="2" Background="{DynamicResource Theme.Toolbar.Background}" Padding="5">
       <StackPanel Orientation="Horizontal">
-        <TextBlock Name="StatusText" Text="Ready" Foreground="{DynamicResource Theme.Text.Primary}"/>
+        <TextBlock Name="StatusText" Text="Ready" Foreground="{DynamicResource Theme.Toolbar.Text}"/>
       </StackPanel>
     </Border>
   </Grid>

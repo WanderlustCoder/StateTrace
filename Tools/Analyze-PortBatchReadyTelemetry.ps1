@@ -125,13 +125,14 @@ foreach ($file in $files) {
                     }
                 }
                 'InterfaceSyncTiming' {
-                    if ($evt.UiCloneDurationMs -ne $null) {
+                    $evtProps = $evt.PSObject.Properties.Name
+                    if ($evtProps -contains 'UiCloneDurationMs' -and $evt.UiCloneDurationMs -ne $null) {
                         $uiCloneDurations.Add([double]$evt.UiCloneDurationMs) | Out-Null
                     }
-                    if ($evt.StreamDispatchDurationMs -ne $null) {
+                    if ($evtProps -contains 'StreamDispatchDurationMs' -and $evt.StreamDispatchDurationMs -ne $null) {
                         $streamDispatchDurations.Add([double]$evt.StreamDispatchDurationMs) | Out-Null
                     }
-                    if ($evt.DiffDurationMs -ne $null) {
+                    if ($evtProps -contains 'DiffDurationMs' -and $evt.DiffDurationMs -ne $null) {
                         $diffDurations.Add([double]$evt.DiffDurationMs) | Out-Null
                     }
                 }

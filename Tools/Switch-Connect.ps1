@@ -1,5 +1,12 @@
 # Switch-Connect.ps1 - Connect to switch and handle initial config dialog
-$port = New-Object System.IO.Ports.SerialPort 'COM8', 9600, 'None', 8, 'One'
+param(
+    [string]$SerialPort = $env:STATETRACE_SERIAL_PORT
+)
+
+if ([string]::IsNullOrWhiteSpace($SerialPort)) {
+    throw 'SerialPort is required. Provide -SerialPort or set STATETRACE_SERIAL_PORT.'
+}
+$port = New-Object System.IO.Ports.SerialPort $SerialPort, 9600, 'None', 8, 'One'
 $port.ReadTimeout = 10000
 $port.WriteTimeout = 3000
 $port.DtrEnable = $true
@@ -67,3 +74,7 @@ catch {
 finally {
     if ($port.IsOpen) { $port.Close() }
 }
+
+
+
+

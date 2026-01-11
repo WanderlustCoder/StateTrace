@@ -1,9 +1,18 @@
 # Switch-Capture.ps1 - Capture switch logs for StateTrace
 param(
-    [string]$OutputDir = "C:\Users\Werem\Projects\StateTrace\Tests\Fixtures\LiveSwitch"
+    [string]$SerialPort = $env:STATETRACE_SERIAL_PORT,
+    [string]$OutputDir
 )
 
-$port = New-Object System.IO.Ports.SerialPort 'COM8', 9600, 'None', 8, 'One'
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+if ([string]::IsNullOrWhiteSpace($OutputDir)) {
+    $OutputDir = Join-Path $repoRoot 'Tests\Fixtures\LiveSwitch'
+}
+if ([string]::IsNullOrWhiteSpace($SerialPort)) {
+    throw 'SerialPort is required. Provide -SerialPort or set STATETRACE_SERIAL_PORT.'
+}
+
+$port = New-Object System.IO.Ports.SerialPort $SerialPort, 9600, 'None', 8, 'One'
 $port.DtrEnable = $true
 $port.RtsEnable = $true
 $port.ReadTimeout = 10000
@@ -75,3 +84,4 @@ try {
 finally {
     $port.Close()
 }
+

@@ -1,7 +1,7 @@
 <UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-  <Grid Background="{DynamicResource Theme.Surface.Primary}">
+  <Grid Background="{DynamicResource Theme.Window.Background}">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="Auto"/>
@@ -291,12 +291,12 @@
         </Grid.ColumnDefinitions>
 
         <TextBlock Name="StatusText" Grid.Column="0" Text="Ready"
-                   Foreground="{DynamicResource Theme.Text.Secondary}" VerticalAlignment="Center"/>
+                   Foreground="{DynamicResource Theme.Toolbar.Text}" VerticalAlignment="Center"/>
 
         <StackPanel Grid.Column="1" Orientation="Horizontal">
-          <TextBlock Name="TimeRangeText" Text="" Foreground="{DynamicResource Theme.Text.Secondary}"
+          <TextBlock Name="TimeRangeText" Text="" Foreground="{DynamicResource Theme.Toolbar.Text}"
                      VerticalAlignment="Center" Margin="0,0,10,0"/>
-          <TextBlock Name="FormatText" Text="" Foreground="{DynamicResource Theme.Text.Secondary}"
+          <TextBlock Name="FormatText" Text="" Foreground="{DynamicResource Theme.Toolbar.Text}"
                      VerticalAlignment="Center"/>
         </StackPanel>
       </Grid>

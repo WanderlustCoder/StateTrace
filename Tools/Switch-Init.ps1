@@ -1,5 +1,12 @@
 # Switch-Init.ps1 - Initialize switch and get to enabled mode
-$port = New-Object System.IO.Ports.SerialPort 'COM8', 9600, 'None', 8, 'One'
+param(
+    [string]$SerialPort = $env:STATETRACE_SERIAL_PORT
+)
+
+if ([string]::IsNullOrWhiteSpace($SerialPort)) {
+    throw 'SerialPort is required. Provide -SerialPort or set STATETRACE_SERIAL_PORT.'
+}
+$port = New-Object System.IO.Ports.SerialPort $SerialPort, 9600, 'None', 8, 'One'
 $port.ReadTimeout = 5000
 $port.WriteTimeout = 3000
 
@@ -76,3 +83,7 @@ finally {
         $port.Close()
     }
 }
+
+
+
+

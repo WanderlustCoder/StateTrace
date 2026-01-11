@@ -118,6 +118,10 @@ $modulesPath = Join-Path -Path $repositoryRoot -ChildPath 'Modules'
 $testsPath = Join-Path -Path $modulesPath -ChildPath 'Tests'
 $parserWorkerModule = Join-Path -Path $modulesPath -ChildPath 'ParserWorker.psm1'
 $ingestionMetricsDirectory = Join-Path -Path $repositoryRoot -ChildPath 'Logs\IngestionMetrics'
+$telemetryDirOverride = $env:STATETRACE_TELEMETRY_DIR
+if ($telemetryDirOverride -and (Test-Path -LiteralPath $telemetryDirOverride)) {
+    $ingestionMetricsDirectory = (Resolve-Path -LiteralPath $telemetryDirOverride).ProviderPath
+}
 $reportsDirectory = Join-Path -Path $repositoryRoot -ChildPath 'Logs\Reports'
 $settingsPath = Join-Path -Path $repositoryRoot -ChildPath 'Data\StateTraceSettings.json'
 $rawPortDiversitySnapshot = $null
@@ -1398,8 +1402,13 @@ if (-not $QuickMode) {
                  $portDiversityEndUtc = $ingestionEndUtc
                  if ($latestIngestionMetricsEntry) {
                     # LANDMARK: Port diversity window - refresh end timestamp once telemetry is flushed
-                    $resolvedEndUtc = Get-TelemetryEventLatestTimestamp -MetricsPath $latestIngestionMetricsEntry.FullName -EventName 'PortBatchReady' -SinceTimestamp $ingestionStartUtc
-                    if ($resolvedEndUtc -and (-not $portDiversityEndUtc -or $resolvedEndUtc -gt $portDiversityEndUtc)) {
+                    if ($ForcePortBatchReadySynthesis.IsPresent) {
+                        # Allow synthesized PortBatchReady events beyond the initial ingestion end.
+                        $resolvedEndUtc = Get-TelemetryEventLatestTimestamp -MetricsPath $latestIngestionMetricsEntry.FullName -EventName 'PortBatchReady' -SinceTimestamp $ingestionStartUtc
+                    } else {
+                        $resolvedEndUtc = Get-TelemetryEventLatestTimestamp -MetricsPath $latestIngestionMetricsEntry.FullName -EventName 'PortBatchReady' -SinceTimestamp $ingestionStartUtc -UntilTimestamp $ingestionEndUtc
+                    }
+                    if ($resolvedEndUtc -and (-not $portDiversityEndUtc -or $ingestionEndFallbackUsed -or $resolvedEndUtc -gt $portDiversityEndUtc)) {
                         $portDiversityEndUtc = $resolvedEndUtc
                         if ($ingestionEndFallbackUsed) {
                             Write-Host ("Port batch diversity end resolved from telemetry: {0}" -f $portDiversityEndUtc.ToString('o')) -ForegroundColor DarkCyan
@@ -1693,13 +1702,30 @@ if (-not [string]::IsNullOrWhiteSpace($snapshotSummaryPath) -and (Test-Path -Lit
 }
 
 if ($usingAutoSnapshotExport -and -not [string]::IsNullOrWhiteSpace($autoSnapshotLatestPath)) {
-    if ($autoSnapshotTimestampPath -and (Test-Path -LiteralPath $autoSnapshotTimestampPath)) {
+    $latestSnapshotSource = $autoSnapshotTimestampPath
+    if ($RunWarmRunRegression -and -not [string]::IsNullOrWhiteSpace($autoSnapshotDirectory)) {
+        $latestSnapshotCandidate = Get-ChildItem -LiteralPath $autoSnapshotDirectory -Filter 'SharedCacheSnapshot-*.clixml' -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match '^SharedCacheSnapshot-\d{8}-\d{6}\.clixml$' } |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+        if ($latestSnapshotCandidate) {
+            $latestSnapshotSource = $latestSnapshotCandidate.FullName
+        }
+    }
+    if ($latestSnapshotSource -and (Test-Path -LiteralPath $latestSnapshotSource)) {
         try {
-            Copy-Item -LiteralPath $autoSnapshotTimestampPath -Destination $autoSnapshotLatestPath -Force
+            Copy-Item -LiteralPath $latestSnapshotSource -Destination $autoSnapshotLatestPath -Force
             if ($VerboseParsing) {
                 Write-Host ("Latest shared cache snapshot updated at '{0}'." -f $autoSnapshotLatestPath) -ForegroundColor DarkGray
             }
-            $snapshotSummaryPath = $autoSnapshotLatestPath
+            $snapshotSummaryPath = $latestSnapshotSource
+            if ($latestSummaryPath) {
+                $timestampSummaryPath = $latestSnapshotSource -replace '\.clixml$', '-summary.json'
+                if (-not (Test-Path -LiteralPath $timestampSummaryPath)) {
+                    $timestampSummaryPath = $null
+                }
+                Write-SharedCacheSnapshotSummaryFiles -SnapshotPath $latestSnapshotSource -TimestampSummaryPath $timestampSummaryPath -LatestSummaryPath $latestSummaryPath
+            }
         } catch {
             Write-Warning ("Failed to update shared cache snapshot pointer '{0}': {1}" -f $autoSnapshotLatestPath, $_.Exception.Message)
         }
@@ -1716,7 +1742,8 @@ if ($ShowSharedCacheSummary.IsPresent) {
     } else {
         $summaryData = @()
         try {
-            $summaryData = Get-SharedCacheSnapshotSummary -SnapshotPath $snapshotSummaryPath
+            # Ensure collection semantics for single-entry summaries under strict mode.
+            $summaryData = @(Get-SharedCacheSnapshotSummary -SnapshotPath $snapshotSummaryPath)
         } catch {
             Write-Warning ("Failed to gather shared cache snapshot summary: {0}" -f $_.Exception.Message)
         }
@@ -1741,6 +1768,7 @@ if ($RequireTelemetryIntegrity) {
         New-Item -ItemType Directory -Path $reportsDirectory -Force | Out-Null
     }
     $latestIngestionMetricsEntry = Get-ChildItem -Path $ingestionMetricsDirectory -Filter '*.json' -File -ErrorAction Stop |
+        Where-Object { $_.Name -match '^\d{4}-\d{2}-\d{2}\.json$' } |
         Sort-Object LastWriteTime -Descending |
         Select-Object -First 1
     if (-not $latestIngestionMetricsEntry) {

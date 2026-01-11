@@ -1,5 +1,14 @@
 # Test-LogParser.ps1 - Test StateTrace parser on the live switch log
+[CmdletBinding()]
+param(
+    [string]$LogPath = (Join-Path (Split-Path -Parent $PSScriptRoot) 'Tests\Fixtures\LiveSwitch\LAB-C9200L-AS-01.log')
+)
+
 $ErrorActionPreference = 'Stop'
+
+if (-not (Test-Path -LiteralPath $LogPath)) {
+    throw ("Log file not found: {0}" -f $LogPath)
+}
 
 # Import modules
 $modulesPath = Split-Path $PSScriptRoot -Parent | Join-Path -ChildPath 'Modules'
@@ -7,7 +16,7 @@ Import-Module (Join-Path $modulesPath 'DeviceParsingCommon.psm1') -Force
 Import-Module (Join-Path $modulesPath 'DeviceLogParserModule.psm1') -Force
 Import-Module (Join-Path $modulesPath 'CiscoModule.psm1') -Force
 
-$logPath = 'C:\Users\Werem\Projects\StateTrace\Tests\Fixtures\LiveSwitch\LAB-C9200L-AS-01.log'
+$logPath = $LogPath
 $lines = Get-Content -Path $logPath
 
 Write-Host 'Parsing log file...' -ForegroundColor Cyan

@@ -686,8 +686,8 @@
           <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
 
-        <TextBlock Name="StatusText" Text="Ready" VerticalAlignment="Center" Foreground="{DynamicResource Theme.Text.Secondary}"/>
-        <TextBlock Grid.Column="1" Name="LastUpdateText" Text="" VerticalAlignment="Center" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+        <TextBlock Name="StatusText" Text="Ready" VerticalAlignment="Center" Foreground="{DynamicResource Theme.Toolbar.Text}"/>
+        <TextBlock Grid.Column="1" Name="LastUpdateText" Text="" VerticalAlignment="Center" Foreground="{DynamicResource Theme.Toolbar.Text}"/>
       </Grid>
     </Border>
   </Grid>

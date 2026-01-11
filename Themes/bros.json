@@ -53,7 +53,7 @@
     "Theme.DataGrid.RowAlt": "#FFF5E6",
     "Theme.DataGrid.Border": "#1B1B1B",
     "Theme.DataGrid.HeaderBackground": "#005BBB",
-    "Theme.DataGrid.HeaderText": "#FBD000",
+    "Theme.DataGrid.HeaderText": "#FFFFFF",
     "Theme.DataGrid.SelectionBackground": "#FBD000",
     "Theme.DataGrid.SelectionText": "#1B1B1B",
     "Theme.DataGrid.HoverBackground": "#FFEDC2",
@@ -83,4 +83,3 @@
     "Theme.Tab.Border": "#1B1B1B"
   }
 }
-

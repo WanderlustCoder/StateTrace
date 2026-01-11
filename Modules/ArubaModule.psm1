@@ -24,8 +24,8 @@ function Get-ArubaDeviceFacts {
     function Get-Hostname {
         param([string[]]$Lines)
         foreach ($line in $Lines) {
-            # ArubaOS-CX prompt: switch#
-            if ($line -match '^(\S+)[#>]\s*$') {
+            # ArubaOS-CX prompt: switch# or switch# show version
+            if ($line -match '^(\S+)[#>]\s*') {
                 return $matches[1]
             }
             # hostname in config
@@ -175,12 +175,12 @@ function Get-ArubaDeviceFacts {
         $vlans = [System.Collections.Generic.List[object]]::new()
 
         foreach ($line in $Lines) {
-            # VLAN ID format: 100  Production   Port-based  1/1/1-1/1/10
-            if ($line -match '^\s*(\d+)\s+(\S+)\s+(Port-based|Static|Dynamic)') {
+            # VLAN ID format: 100  Production   up  ok  static
+            if ($line -match '(?i)^\s*(\d+)\s+(.+?)\s+(up|down)\s+\S+\s+(Port-based|Static|Dynamic)\b') {
                 $vlan = [PSCustomObject]@{
                     ID = $matches[1]
-                    Name = $matches[2]
-                    Type = $matches[3]
+                    Name = $matches[2].Trim()
+                    Type = $matches[4]
                 }
                 [void]$vlans.Add($vlan)
             }

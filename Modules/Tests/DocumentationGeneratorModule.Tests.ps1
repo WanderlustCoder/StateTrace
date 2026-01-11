@@ -14,6 +14,7 @@ $modulePath = Join-Path $PSScriptRoot '..\DocumentationGeneratorModule.psm1'
 if (Test-Path $modulePath) {
     Import-Module $modulePath -Force
 }
+. (Join-Path $PSScriptRoot 'TestHelpers.ps1')
 
 Describe 'DocumentationGeneratorModule' {
 
@@ -219,7 +220,7 @@ Describe 'DocumentationGeneratorModule' {
         }
 
         It 'throws when updating built-in template' {
-            { Update-DocumentTemplate -TemplateID 'Site-AsBuilt' -Name 'Renamed' } | Should Throw 'Cannot modify built-in'
+            { Update-DocumentTemplate -TemplateID 'Site-AsBuilt' -Name 'Renamed' } | Assert-Throws -Message 'Cannot modify built-in'
         }
     }
 
@@ -232,7 +233,7 @@ Describe 'DocumentationGeneratorModule' {
         }
 
         It 'throws when removing built-in template' {
-            { Remove-DocumentTemplate -TemplateID 'Site-AsBuilt' } | Should Throw 'Cannot remove built-in'
+            { Remove-DocumentTemplate -TemplateID 'Site-AsBuilt' } | Assert-Throws -Message 'Cannot remove built-in'
         }
     }
 
@@ -289,7 +290,7 @@ Describe 'DocumentationGeneratorModule' {
         }
 
         It 'throws for non-existent template' {
-            { New-Document -TemplateID 'NonExistent' -Title 'Test' } | Should Throw 'not found'
+            { New-Document -TemplateID 'NonExistent' -Title 'Test' } | Assert-Throws -Message 'not found'
         }
     }
 
@@ -497,7 +498,7 @@ Describe 'DocumentationGeneratorModule' {
         }
 
         It 'throws for non-existent template' {
-            { New-DocumentSchedule -TemplateID 'NonExistent' -Frequency 'Daily' } | Should Throw 'not found'
+            { New-DocumentSchedule -TemplateID 'NonExistent' -Frequency 'Daily' } | Assert-Throws -Message 'not found'
         }
     }
 
@@ -589,7 +590,7 @@ Describe 'DocumentationGeneratorModule' {
         }
 
         It 'throws for non-existent document' {
-            { Remove-GeneratedDocument -DocumentID 'DOC-00000000-0000' } | Should Throw 'not found'
+            { Remove-GeneratedDocument -DocumentID 'DOC-00000000-0000' } | Assert-Throws -Message 'not found'
         }
     }
 

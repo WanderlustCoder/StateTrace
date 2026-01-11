@@ -57,7 +57,7 @@
                        ScrollViewer.CanContentScroll="True">
                 <ListBox.ItemTemplate>
                   <DataTemplate>
-                    <TextBlock Text="{Binding Name}" Foreground="{DynamicResource Theme.Toolbar.Text}"/>
+                    <TextBlock Text="{Binding Name}" Foreground="{DynamicResource Theme.Text.Inverse}"/>
                   </DataTemplate>
                 </ListBox.ItemTemplate>
                 <ListBox.ItemContainerStyle>
@@ -201,7 +201,7 @@
                        ScrollViewer.CanContentScroll="True">
                 <ListBox.ItemTemplate>
                   <DataTemplate>
-                    <TextBlock Text="{Binding Name}" Foreground="{DynamicResource Theme.Toolbar.Text}"/>
+                    <TextBlock Text="{Binding Name}" Foreground="{DynamicResource Theme.Text.Inverse}"/>
                   </DataTemplate>
                 </ListBox.ItemTemplate>
                 <ListBox.ItemContainerStyle>
@@ -440,7 +440,7 @@
 
     <!-- Status Bar -->
     <Border Grid.Row="2" Background="{DynamicResource Theme.Toolbar.Background}" Padding="5">
-      <TextBlock Name="StatusText" Text="Ready" Foreground="{DynamicResource Theme.Text.Primary}"/>
+      <TextBlock Name="StatusText" Text="Ready" Foreground="{DynamicResource Theme.Toolbar.Text}"/>
     </Border>
   </Grid>
 </UserControl>

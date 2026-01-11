@@ -2514,24 +2514,48 @@ function Get-ConfigSnippet {
         return $null
     }
 
-    $taskLower = $Task.ToLower()
+    $taskLower = $Task.ToLowerInvariant()
+    $matches = @()
     foreach ($key in $script:ConfigSnippets.Keys) {
         $snippet = $script:ConfigSnippets[$key]
-        if ($snippet.Task.ToLower().Contains($taskLower) -or $key.Contains($taskLower)) {
-            if ($snippet.Snippets.ContainsKey($resolvedVendor)) {
-                return [PSCustomObject]@{
-                    TaskKey = $key
-                    Task = $snippet.Task
-                    Category = $snippet.Category
-                    Vendor = $resolvedVendor
-                    Variables = $snippet.Variables
-                    Template = $snippet.Snippets[$resolvedVendor]
-                }
-            }
+        if (-not $snippet.Snippets.ContainsKey($resolvedVendor)) {
+            continue
+        }
+        $taskNameLower = $snippet.Task.ToLowerInvariant()
+        $keyLower = $key.ToLowerInvariant()
+        if (-not ($taskNameLower.Contains($taskLower) -or $keyLower.Contains($taskLower))) {
+            continue
+        }
+
+        $score = 0
+        if ($taskNameLower -eq $taskLower) { $score = 100 }
+        elseif ($keyLower -eq $taskLower) { $score = 90 }
+        elseif ($keyLower.StartsWith($taskLower)) { $score = 80 }
+        elseif ($taskNameLower.StartsWith($taskLower)) { $score = 70 }
+        elseif ($keyLower.Contains($taskLower)) { $score = 60 }
+        elseif ($taskNameLower.Contains($taskLower)) { $score = 50 }
+
+        $matches += [PSCustomObject]@{
+            Score = $score
+            Key = $key
+            Snippet = $snippet
         }
     }
 
-    return $null
+    if ($matches.Count -eq 0) {
+        return $null
+    }
+
+    $best = $matches | Sort-Object -Property @{ Expression = 'Score'; Descending = $true }, @{ Expression = { $_.Snippet.Task.Length }; Ascending = $true }, @{ Expression = { $_.Key.Length }; Ascending = $true } | Select-Object -First 1
+    $snippet = $best.Snippet
+    return [PSCustomObject]@{
+        TaskKey = $best.Key
+        Task = $snippet.Task
+        Category = $snippet.Category
+        Vendor = $resolvedVendor
+        Variables = $snippet.Variables
+        Template = $snippet.Snippets[$resolvedVendor]
+    }
 }
 
 function Expand-ConfigSnippet {

@@ -584,7 +584,7 @@ function Get-CachedDbConnection {
 
         [Parameter(Mandatory)][string]$DatabasePath,
 
-        [string[]]$ProviderCandidates = @('Microsoft.ACE.OLEDB.12.0','Microsoft.Jet.OLEDB.4.0')
+        [string[]]$ProviderCandidates = @('Microsoft.ACE.OLEDB.16.0','Microsoft.ACE.OLEDB.12.0','Microsoft.Jet.OLEDB.4.0')
 
     )
 
@@ -1248,23 +1248,25 @@ function Invoke-DeviceLogParsing {
     if ($skipProcessing) {
         # Ensure we do not skip when the per-site database is missing.
         $expectedDbPath = $null
-        $dbPathCmd = script:Get-QualifiedOrFallbackCommand -QualifiedName 'DeviceRepositoryModule\Get-DbPathForSite' -FallbackName 'Get-DbPathForSite'
-        if ($dbPathCmd) {
-            $siteForDb = $null
-            if ($matchedHistoryRecord -and $matchedHistoryRecord.PSObject.Properties.Name -contains 'Site' -and -not [string]::IsNullOrWhiteSpace($matchedHistoryRecord.Site)) {
-                $siteForDb = '' + $matchedHistoryRecord.Site
-            } elseif (-not [string]::IsNullOrWhiteSpace($historyContext.SiteKey)) {
-                $siteForDb = '' + $historyContext.SiteKey
-            }
-            if (-not [string]::IsNullOrWhiteSpace($siteForDb)) {
-                try {
-                    $candidatePath = & $dbPathCmd -Site $siteForDb
-                    if ($candidatePath) { $expectedDbPath = $candidatePath }
-                } catch { }
-            }
-        }
-        if (-not $expectedDbPath -and $DatabasePath) {
+        if ($DatabasePath) {
             try { $expectedDbPath = [System.IO.Path]::GetFullPath($DatabasePath) } catch { $expectedDbPath = $DatabasePath }
+        }
+        if (-not $expectedDbPath) {
+            $dbPathCmd = script:Get-QualifiedOrFallbackCommand -QualifiedName 'DeviceRepositoryModule\Get-DbPathForSite' -FallbackName 'Get-DbPathForSite'
+            if ($dbPathCmd) {
+                $siteForDb = $null
+                if ($matchedHistoryRecord -and $matchedHistoryRecord.PSObject.Properties.Name -contains 'Site' -and -not [string]::IsNullOrWhiteSpace($matchedHistoryRecord.Site)) {
+                    $siteForDb = '' + $matchedHistoryRecord.Site
+                } elseif (-not [string]::IsNullOrWhiteSpace($historyContext.SiteKey)) {
+                    $siteForDb = '' + $historyContext.SiteKey
+                }
+                if (-not [string]::IsNullOrWhiteSpace($siteForDb)) {
+                    try {
+                        $candidatePath = & $dbPathCmd -Site $siteForDb
+                        if ($candidatePath) { $expectedDbPath = $candidatePath }
+                    } catch { }
+                }
+            }
         }
         $shouldReprocess = $false
         if ($expectedDbPath) {
@@ -1621,7 +1623,7 @@ function Invoke-DeviceLogParsing {
 
                 try {
 
-                    $providerCandidates = @('Microsoft.ACE.OLEDB.12.0','Microsoft.Jet.OLEDB.4.0')
+                    $providerCandidates = @('Microsoft.ACE.OLEDB.16.0','Microsoft.ACE.OLEDB.12.0','Microsoft.Jet.OLEDB.4.0')
 
                     if ($Global:StateTraceDebug) {
 

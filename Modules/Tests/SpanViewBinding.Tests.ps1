@@ -4,7 +4,7 @@ Describe 'Test-SpanViewBinding diagnostics' {
     # LANDMARK: Span view binding tests - validate simulated init failure details
     It 'emits failure diagnostics when SpanView init is simulated to fail' {
         if (-not [Environment]::UserInteractive) {
-            Set-ItResult -Skipped -Because 'Requires interactive desktop session.'
+            Set-TestInconclusive -Message 'Requires interactive desktop session.'
             return
         }
 
@@ -12,7 +12,7 @@ Describe 'Test-SpanViewBinding diagnostics' {
         $scriptPath = Join-Path -Path $repoRoot -ChildPath 'Tools\Test-SpanViewBinding.ps1'
         $powershell = Get-Command -Name 'powershell.exe' -ErrorAction SilentlyContinue
         if (-not $powershell) {
-            Set-ItResult -Skipped -Because 'powershell.exe not available.'
+            Set-TestInconclusive -Message 'powershell.exe not available.'
             return
         }
 

@@ -1,7 +1,7 @@
 <UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-  <Grid Background="{DynamicResource Theme.Surface.Primary}">
+  <Grid Background="{DynamicResource Theme.Window.Background}">
     <Grid.RowDefinitions>
       <RowDefinition Height="Auto"/>
       <RowDefinition Height="*"/>
@@ -98,8 +98,8 @@
           <ColumnDefinition Width="*"/>
           <ColumnDefinition Width="Auto"/>
         </Grid.ColumnDefinitions>
-        <TextBlock Name="AlertsRowCountText" Text="" Foreground="{DynamicResource Theme.Text.Muted}" FontSize="11" VerticalAlignment="Center"/>
-        <TextBlock Name="AlertsStatusText" Grid.Column="1" Text="" Foreground="{DynamicResource Theme.Text.Muted}" FontSize="11" VerticalAlignment="Center"/>
+        <TextBlock Name="AlertsRowCountText" Text="" Foreground="{DynamicResource Theme.Toolbar.Text}" FontSize="11" VerticalAlignment="Center"/>
+        <TextBlock Name="AlertsStatusText" Grid.Column="1" Text="" Foreground="{DynamicResource Theme.Toolbar.Text}" FontSize="11" VerticalAlignment="Center"/>
       </Grid>
     </Border>
   </Grid>

@@ -126,9 +126,13 @@ Describe 'Rollup-IngestionMetrics.ps1' {
 
     # LANDMARK: Rollup ingestion metrics tests - diff/compare telemetry fixture coverage
     Context 'Diff/compare telemetry fixture coverage' {
-        It 'rolls up diff/compare telemetry from the DiffPrototype fixture' {
+        It 'rolls up diff/compare telemetry from the DiffPrototype fixture' {   
             $repoRoot = Split-Path -Path $PSScriptRoot -Parent | Split-Path -Parent
             $fixturePath = Join-Path -Path $repoRoot -ChildPath 'Data\Samples\DiffPrototype\TelemetrySample.json'
+            if (-not (Test-Path -LiteralPath $fixturePath)) {
+                Set-TestInconclusive -Message "DiffPrototype telemetry fixture not found at $fixturePath"
+                return
+            }
             $outputPath = Join-Path -Path $TestDrive -ChildPath 'fixture-summary.csv'
             $rows = & $script:RollupScriptPath -MetricFile $fixturePath -OutputPath $outputPath -IncludePerSite -PassThru
 

@@ -1,8 +1,8 @@
 <UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-  <Grid Background="{DynamicResource Theme.Surface.Primary}">
-    <TabControl Margin="5" Background="{DynamicResource Theme.Surface.Primary}">
+  <Grid Background="{DynamicResource Theme.Window.Background}">
+    <TabControl Margin="5" Background="{DynamicResource Theme.Window.Background}">
 
       <!-- Subnet Calculator Tab -->
       <TabItem Header="Subnet">

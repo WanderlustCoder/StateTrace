@@ -1,11 +1,18 @@
 # Switch-Detect.ps1 - Try different baud rates to find the switch
+param(
+    [string]$SerialPort = $env:STATETRACE_SERIAL_PORT
+)
+
+if ([string]::IsNullOrWhiteSpace($SerialPort)) {
+    throw 'SerialPort is required. Provide -SerialPort or set STATETRACE_SERIAL_PORT.'
+}
 $baudRates = @(9600, 115200, 38400, 19200, 57600)
 
 foreach ($baud in $baudRates) {
     Write-Host "`n=== Trying baud rate: $baud ==="
 
     try {
-        $port = New-Object System.IO.Ports.SerialPort 'COM8', $baud, 'None', 8, 'One'
+        $port = New-Object System.IO.Ports.SerialPort $SerialPort, $baud, 'None', 8, 'One'
         $port.ReadTimeout = 2000
         $port.WriteTimeout = 2000
         $port.DtrEnable = $true
@@ -46,3 +53,4 @@ foreach ($baud in $baudRates) {
 }
 
 Write-Host "`nDone testing baud rates"
+

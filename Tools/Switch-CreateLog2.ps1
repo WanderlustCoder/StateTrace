@@ -1,9 +1,23 @@
 # Switch-CreateLog2.ps1 - Create StateTrace-compatible log with proper prompts
 param(
-    [string]$OutputFile = "C:\Users\Werem\Projects\StateTrace\Tests\Fixtures\LiveSwitch\LAB-C9200L-AS-01.log"
+    [string]$SerialPort = $env:STATETRACE_SERIAL_PORT,
+    [string]$OutputFile
 )
 
-$port = New-Object System.IO.Ports.SerialPort 'COM8', 9600, 'None', 8, 'One'
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+if ([string]::IsNullOrWhiteSpace($OutputFile)) {
+    $OutputFile = Join-Path $repoRoot 'Tests\Fixtures\LiveSwitch\LAB-C9200L-AS-01.log'
+}
+if ([string]::IsNullOrWhiteSpace($SerialPort)) {
+    throw 'SerialPort is required. Provide -SerialPort or set STATETRACE_SERIAL_PORT.'
+}
+
+$outputDir = Split-Path -Parent $OutputFile
+if ($outputDir -and -not (Test-Path -LiteralPath $outputDir)) {
+    New-Item -ItemType Directory -Path $outputDir -Force | Out-Null
+}
+
+$port = New-Object System.IO.Ports.SerialPort $SerialPort, 9600, 'None', 8, 'One'
 $port.DtrEnable = $true
 $port.RtsEnable = $true
 $port.ReadTimeout = 15000
@@ -76,3 +90,4 @@ try {
 finally {
     $port.Close()
 }
+

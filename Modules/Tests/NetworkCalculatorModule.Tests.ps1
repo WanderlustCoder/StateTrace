@@ -2,6 +2,7 @@ Set-StrictMode -Version Latest
 
 $modulePath = Join-Path $PSScriptRoot '..\NetworkCalculatorModule.psm1'
 Import-Module $modulePath -Force -ErrorAction Stop
+. (Join-Path $PSScriptRoot 'TestHelpers.ps1')
 
 Describe 'NetworkCalculatorModule - CIDR Conversion' -Tag 'Calculator', 'Unit' {
 
@@ -35,11 +36,11 @@ Describe 'NetworkCalculatorModule - CIDR Conversion' -Tag 'Calculator', 'Unit' {
         }
 
         It 'rejects negative CIDR' {
-            { Convert-CIDRToMask -CIDR -1 } | Should Throw
+            { Convert-CIDRToMask -CIDR -1 } | Assert-Throws
         }
 
         It 'rejects CIDR > 32' {
-            { Convert-CIDRToMask -CIDR 33 } | Should Throw
+            { Convert-CIDRToMask -CIDR 33 } | Assert-Throws
         }
     }
 
@@ -61,11 +62,11 @@ Describe 'NetworkCalculatorModule - CIDR Conversion' -Tag 'Calculator', 'Unit' {
         }
 
         It 'rejects non-contiguous mask 255.255.255.1' {
-            { Convert-MaskToCIDR -Mask '255.255.255.1' } | Should Throw
+            { Convert-MaskToCIDR -Mask '255.255.255.1' } | Assert-Throws
         }
 
         It 'rejects non-contiguous mask 255.0.255.0' {
-            { Convert-MaskToCIDR -Mask '255.0.255.0' } | Should Throw
+            { Convert-MaskToCIDR -Mask '255.0.255.0' } | Assert-Throws
         }
     }
 }
@@ -168,7 +169,7 @@ Describe 'NetworkCalculatorModule - Subnet Calculation' -Tag 'Calculator', 'Unit
         }
 
         It 'rejects invalid split (smaller to larger)' {
-            { Split-Subnet -Network '192.168.1.0/24' -NewPrefix 16 } | Should Throw
+            { Split-Subnet -Network '192.168.1.0/24' -NewPrefix 16 } | Assert-Throws
         }
     }
 
@@ -191,7 +192,7 @@ Describe 'NetworkCalculatorModule - Subnet Calculation' -Tag 'Calculator', 'Unit
 
         It 'throws for non-contiguous subnets' {
             $subnets = @('192.168.0.0/24', '192.168.2.0/24')
-            { Merge-Subnets -Subnets $subnets } | Should Throw
+            { Merge-Subnets -Subnets $subnets } | Assert-Throws
         }
     }
 }
@@ -338,11 +339,11 @@ Describe 'NetworkCalculatorModule - VLAN Calculator' -Tag 'Calculator', 'Unit' {
         }
 
         It 'rejects VLAN 0' {
-            { Expand-VLANRange -Range '0-10' } | Should Throw
+            { Expand-VLANRange -Range '0-10' } | Assert-Throws
         }
 
         It 'rejects VLAN > 4094' {
-            { Expand-VLANRange -Range '4090-4096' } | Should Throw
+            { Expand-VLANRange -Range '4090-4096' } | Assert-Throws
         }
     }
 
@@ -559,20 +560,20 @@ Describe 'NetworkCalculatorModule - ACL Builder' -Tag 'Calculator', 'Unit' {
 
         It 'rejects ports for IP protocol' {
             { New-ACLEntry -Action 'deny' -Protocol 'ip' -SourceNetwork 'any' -DestinationNetwork 'any' `
-                -DestinationPort '80' } | Should Throw
+                -DestinationPort '80' } | Assert-Throws
         }
 
         It 'rejects ports for ICMP protocol' {
             { New-ACLEntry -Action 'permit' -Protocol 'icmp' -SourceNetwork 'any' -DestinationNetwork 'any' `
-                -DestinationPort '8' } | Should Throw
+                -DestinationPort '8' } | Assert-Throws
         }
 
         It 'rejects invalid source IP' {
-            { New-ACLEntry -Action 'deny' -Protocol 'ip' -SourceNetwork '999.0.0.0/24' -DestinationNetwork 'any' } | Should Throw
+            { New-ACLEntry -Action 'deny' -Protocol 'ip' -SourceNetwork '999.0.0.0/24' -DestinationNetwork 'any' } | Assert-Throws
         }
 
         It 'rejects invalid destination IP' {
-            { New-ACLEntry -Action 'deny' -Protocol 'ip' -SourceNetwork 'any' -DestinationNetwork '10.0.0.0' } | Should Throw
+            { New-ACLEntry -Action 'deny' -Protocol 'ip' -SourceNetwork 'any' -DestinationNetwork '10.0.0.0' } | Assert-Throws
         }
     }
 

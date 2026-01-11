@@ -2,7 +2,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
   <TabControl Name="InfrastructureTabControl" Style="{DynamicResource LeftTabControlStyle}"
-              ItemContainerStyle="{DynamicResource LeftNavTabItemStyle}">
+              ItemContainerStyle="{DynamicResource LeftNavTabItemStyle}"
+              TabStripPlacement="Left">
 
     <TabItem Header="Topology" ToolTip="Network topology visualization and link discovery&#x0a;Related: Interfaces tab for port details">
       <ContentControl Name="TopologySubHost"/>

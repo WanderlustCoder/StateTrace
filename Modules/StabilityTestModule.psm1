@@ -337,7 +337,7 @@ function Get-MemoryMetrics {
     #>
     $process = Get-Process -Id $PID
 
-    return @{
+    return [PSCustomObject]@{
         Timestamp = [datetime]::UtcNow.ToString('o')
         ProcessId = $PID
         WorkingSetMB = [math]::Round($process.WorkingSet64 / 1MB, 2)

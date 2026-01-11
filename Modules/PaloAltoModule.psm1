@@ -190,6 +190,31 @@ function Get-PaloAltoDeviceFacts {
         $routes = [System.Collections.Generic.List[object]]::new()
 
         foreach ($line in $Lines) {
+            # Table format: destination nexthop metric flags interface age
+            if ($line -match '^\s*[\d\.]+/\d+') {
+                $parts = @($line.Trim() -split '\s+' | Where-Object { $_ -ne '' })
+                if ($parts.Length -ge 5) {
+                    $prefix = $parts[0]
+                    $nextHop = $parts[1]
+                    $metric = $parts[2]
+                    $interface = $parts[-2]
+                    $flags = if ($parts.Length -gt 5) {
+                        ($parts[3..($parts.Length - 3)] -join ' ')
+                    } else {
+                        $parts[3]
+                    }
+
+                    $route = [PSCustomObject]@{
+                        Prefix = $prefix
+                        Interface = $interface
+                        NextHop = $nextHop
+                        Protocol = $flags
+                        Metric = $metric
+                    }
+                    [void]$routes.Add($route)
+                    continue
+                }
+            }
             # Format: 0.0.0.0/0  ethernet1/1  10.0.0.1  S  10
             if ($line -match '^\s*([\d\.]+/\d+)\s+(\S+)\s+([\d\.]+)\s+(\S+)\s+(\d+)') {
                 $route = [PSCustomObject]@{

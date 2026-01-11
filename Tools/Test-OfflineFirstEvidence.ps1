@@ -58,6 +58,7 @@ $results = [pscustomobject]@{
     AccessDatabaseCheck  = [pscustomobject]@{
         Status           = 'NotChecked'
         StagedAccdbFiles = @()
+        TrackedAccdbFiles = @()
         Message          = ''
     }
     OnlineModeCheck      = [pscustomobject]@{
@@ -92,18 +93,39 @@ try {
         }
     }
 
+    $trackedAccdb = @()
+    try {
+        $trackedAccdb = @(git ls-files -- '*.accdb' 2>$null | Where-Object { $_ })
+    } catch {
+        $trackedAccdb = @()
+    }
+
+    $results.AccessDatabaseCheck.StagedAccdbFiles = $stagedAccdb
+    $results.AccessDatabaseCheck.TrackedAccdbFiles = $trackedAccdb
+
+    $accdbIssues = [System.Collections.Generic.List[string]]::new()
     if ($stagedAccdb.Count -gt 0) {
-        $results.AccessDatabaseCheck.Status = 'Fail'
-        $results.AccessDatabaseCheck.StagedAccdbFiles = $stagedAccdb
-        $results.AccessDatabaseCheck.Message = "Found $($stagedAccdb.Count) .accdb file(s) in git status - these should not be committed"
-        $results.Errors += $results.AccessDatabaseCheck.Message
-        Write-Host "  FAIL: $($results.AccessDatabaseCheck.Message)" -ForegroundColor Red
+        $accdbIssues.Add("Found $($stagedAccdb.Count) .accdb file(s) in git status")
+        Write-Host "  FAIL: .accdb files found in git status" -ForegroundColor Red
         foreach ($file in $stagedAccdb) {
             Write-Host "    - $file" -ForegroundColor Red
         }
+    }
+    if ($trackedAccdb.Count -gt 0) {
+        $accdbIssues.Add("Found $($trackedAccdb.Count) tracked .accdb file(s) in repository")
+        Write-Host "  FAIL: .accdb files tracked in repository" -ForegroundColor Red
+        foreach ($file in $trackedAccdb) {
+            Write-Host "    - $file" -ForegroundColor Red
+        }
+    }
+
+    if ($accdbIssues.Count -gt 0) {
+        $results.AccessDatabaseCheck.Status = 'Fail'
+        $results.AccessDatabaseCheck.Message = ($accdbIssues -join '; ') + ' - these should not be committed'
+        $results.Errors += $results.AccessDatabaseCheck.Message
     } else {
         $results.AccessDatabaseCheck.Status = 'Pass'
-        $results.AccessDatabaseCheck.Message = 'No .accdb files staged for commit'
+        $results.AccessDatabaseCheck.Message = 'No .accdb files staged or tracked for commit'
         Write-Host "  PASS: $($results.AccessDatabaseCheck.Message)" -ForegroundColor Green
     }
 } catch {

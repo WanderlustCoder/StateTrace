@@ -37,6 +37,34 @@ if (Test-Path -LiteralPath $statsModulePath) {
     throw "AnalyzerStats module not found at '$statsModulePath'."
 }
 
+function Get-OptionalPropertyValue {
+    param(
+        [object]$InputObject,
+        [string[]]$Names
+    )
+
+    if (-not $InputObject -or -not $InputObject.PSObject) { return $null }
+
+    foreach ($name in $Names) {
+        $prop = $InputObject.PSObject.Properties[$name]
+        if ($prop) { return $prop.Value }
+    }
+
+    return $null
+}
+
+function Get-OptionalDoubleValue {
+    param(
+        [object]$InputObject,
+        [string[]]$Names
+    )
+
+    $value = Get-OptionalPropertyValue -InputObject $InputObject -Names $Names
+    if ($null -eq $value) { return $null }
+
+    try { return [double]$value } catch { return $null }
+}
+
 function Resolve-InputFiles {
     param([string]$InputPath)
     if (-not (Test-Path -LiteralPath $InputPath)) {
@@ -68,12 +96,12 @@ foreach ($file in $files) {
             if ($obj.EventName -ne 'InterfaceSyncTiming') { continue }
 
             $events.Add([pscustomobject]@{
-                Host         = $obj.Hostname
-                Site         = $obj.Site
-                UiClone      = [double]($obj.UiCloneDurationMs)
-                StreamDispatch = [double]($obj.StreamDispatchDurationMs)
-                DiffDuration = [double]($obj.DiffDurationMs)
-                SiteCacheUpdate = if ($obj.SiteCacheUpdateDurationMs -ne $null) { [double]$obj.SiteCacheUpdateDurationMs } else { $null }
+                Host            = Get-OptionalPropertyValue -InputObject $obj -Names @('Hostname','HostName','Host')
+                Site            = Get-OptionalPropertyValue -InputObject $obj -Names @('Site')
+                UiClone         = Get-OptionalDoubleValue -InputObject $obj -Names @('UiCloneDurationMs')
+                StreamDispatch  = Get-OptionalDoubleValue -InputObject $obj -Names @('StreamDispatchDurationMs')
+                DiffDuration    = Get-OptionalDoubleValue -InputObject $obj -Names @('DiffDurationMs')
+                SiteCacheUpdate = Get-OptionalDoubleValue -InputObject $obj -Names @('SiteCacheUpdateDurationMs')
             }) | Out-Null
         }
     }

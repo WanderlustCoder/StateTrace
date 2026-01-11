@@ -644,18 +644,18 @@ function Export-SharedCacheSnapshot {
     $store = Get-SharedSiteInterfaceCacheStore
 
     $snapshot = [System.Collections.Generic.List[object]]::new()
+    $seenSites = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
 
-    foreach ($siteKey in $store.Keys) {
+    $appendEntry = {
+        param($siteKey, $entryValue)
+
+        if ([string]::IsNullOrWhiteSpace($siteKey)) { return }
         if ($SiteFilter -and $SiteFilter.Count -gt 0 -and ($SiteFilter -notcontains $siteKey)) {
-            continue
+            return
         }
 
-        $hostMapSource = $null
-        try { $hostMapSource = $store[$siteKey] } catch { $hostMapSource = $null }
-        if ($hostMapSource -and -not ($hostMapSource -is [System.Collections.IDictionary]) -and ($hostMapSource.PSObject.Properties.Name -contains 'HostMap')) {
-            try { $hostMapSource = $hostMapSource.HostMap } catch { }
-        }
-        if (-not $hostMapSource) { continue }
+        $hostMapSource = Resolve-SharedSiteInterfaceCacheHostMap -Entry $entryValue
+        if (-not ($hostMapSource -is [System.Collections.IDictionary])) { return }
 
         $hostMap = $hostMapSource
         if (-not ($hostMap -is [System.Collections.Generic.IDictionary[string, object]])) {
@@ -674,6 +674,26 @@ function Export-SharedCacheSnapshot {
         $entry.SiteKey = $siteKey
         $entry.HostMap = $hostMap
         $snapshot.Add($entry) | Out-Null
+        $null = $seenSites.Add($siteKey)
+    }
+
+    if ($store -is [System.Collections.IDictionary]) {
+        foreach ($siteKey in @($store.Keys)) {
+            $entryValue = $store[$siteKey]
+            if (-not $entryValue) { continue }
+            & $appendEntry $siteKey $entryValue
+        }
+    }
+
+    $snapshotStore = $null
+    try { $snapshotStore = [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::GetSnapshot() } catch { $snapshotStore = $null }
+    if ($snapshotStore -is [System.Collections.IDictionary]) {
+        foreach ($siteKey in @($snapshotStore.Keys)) {
+            if ($seenSites.Contains($siteKey)) { continue }
+            $entryValue = $snapshotStore[$siteKey]
+            if (-not $entryValue) { continue }
+            & $appendEntry $siteKey $entryValue
+        }
     }
 
     try {
@@ -686,11 +706,35 @@ function Export-SharedCacheSnapshot {
 
 function Get-SharedSiteInterfaceCacheSnapshotEntries {
     $entries = [System.Collections.Generic.List[object]]::new()
+    $seenSites = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
 
     $store = Get-SharedSiteInterfaceCacheStore
     if ($store -is [System.Collections.IDictionary]) {
         foreach ($siteKey in @($store.Keys | Sort-Object)) {
             $entry = $store[$siteKey]
+            if (-not $entry) { continue }
+            $hostMap = Resolve-SharedSiteInterfaceCacheHostMap -Entry $entry    
+            if (-not ($hostMap -is [System.Collections.IDictionary])) { continue }
+            $stats = Get-SharedSiteInterfaceCacheEntryStatistics -Entry $hostMap
+            $entries.Add([pscustomobject]@{
+                    SiteKey   = $siteKey
+                    HostCount = $stats.HostCount
+                    TotalRows = $stats.TotalRows
+                    HostMap   = $hostMap
+                }) | Out-Null
+            if (-not [string]::IsNullOrWhiteSpace($siteKey)) {
+                $null = $seenSites.Add($siteKey)
+            }
+        }
+    }
+
+    $snapshotStore = $null
+    try { $snapshotStore = [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::GetSnapshot() } catch { $snapshotStore = $null }
+    if ($snapshotStore -is [System.Collections.IDictionary]) {
+        foreach ($siteKey in @($snapshotStore.Keys | Sort-Object)) {
+            if ([string]::IsNullOrWhiteSpace($siteKey)) { continue }
+            if ($seenSites.Contains($siteKey)) { continue }
+            $entry = $snapshotStore[$siteKey]
             if (-not $entry) { continue }
             $hostMap = Resolve-SharedSiteInterfaceCacheHostMap -Entry $entry
             if (-not ($hostMap -is [System.Collections.IDictionary])) { continue }
@@ -701,27 +745,7 @@ function Get-SharedSiteInterfaceCacheSnapshotEntries {
                     TotalRows = $stats.TotalRows
                     HostMap   = $hostMap
                 }) | Out-Null
-        }
-    }
-
-    if ($entries.Count -eq 0) {
-        $snapshotStore = $null
-        try { $snapshotStore = [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::GetSnapshot() } catch { $snapshotStore = $null }
-        if ($snapshotStore -is [System.Collections.IDictionary]) {
-            foreach ($siteKey in @($snapshotStore.Keys | Sort-Object)) {
-                if ([string]::IsNullOrWhiteSpace($siteKey)) { continue }
-                $entry = $snapshotStore[$siteKey]
-                if (-not $entry) { continue }
-                $hostMap = Resolve-SharedSiteInterfaceCacheHostMap -Entry $entry
-                if (-not ($hostMap -is [System.Collections.IDictionary])) { continue }
-                $stats = Get-SharedSiteInterfaceCacheEntryStatistics -Entry $hostMap
-                $entries.Add([pscustomobject]@{
-                        SiteKey   = $siteKey
-                        HostCount = $stats.HostCount
-                        TotalRows = $stats.TotalRows
-                        HostMap   = $hostMap
-                    }) | Out-Null
-            }
+            $null = $seenSites.Add($siteKey)
         }
     }
 

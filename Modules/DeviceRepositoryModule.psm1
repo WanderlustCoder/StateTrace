@@ -393,10 +393,23 @@ function Invoke-OptimizedSiteHydration {
     return $results
 }
 
+function Test-SharedCacheDisabled {
+    $disabled = $false
+    try {
+        $disabled = [string]::Equals($env:STATETRACE_DISABLE_SHARED_CACHE, '1', [System.StringComparison]::OrdinalIgnoreCase)
+    } catch {
+        $disabled = $false
+    }
+    return $disabled
+}
+
 function Import-SharedSiteInterfaceCacheSnapshotFromEnv {
     param([System.Collections.Concurrent.ConcurrentDictionary[string, object]]$TargetStore)
 
     if (-not ($TargetStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]])) {
+        return 0
+    }
+    if (Test-SharedCacheDisabled) {
         return 0
     }
 
@@ -1373,13 +1386,17 @@ function Get-SharedSiteInterfaceCacheEntry {
     if ($store) {
         try { $storeHashCode = [System.Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($store) } catch { $storeHashCode = 0 }
     }
+    $entryCount = 0
+    try { $entryCount = [int]$store.Count } catch { $entryCount = 0 }
+    if (Test-SharedCacheDisabled) {
+        Publish-SharedSiteInterfaceCacheEvent -SiteKey $key -Operation 'GetMiss' -EntryCount $entryCount -StoreHashCode $storeHashCode
+        return $null
+    }
     if (-not ($store -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]])) {
         Publish-SharedSiteInterfaceCacheEvent -SiteKey $key -Operation 'GetMiss' -EntryCount 0 -StoreHashCode $storeHashCode
         return $null
     }
     $stored = $null
-    $entryCount = 0
-    try { $entryCount = [int]$store.Count } catch { $entryCount = 0 }
     if ($store.TryGetValue($key, [ref]$stored) -and $stored) {
         $clone = $null
         $stats = $null
@@ -1852,6 +1869,7 @@ function Set-SharedSiteInterfaceCacheEntry {
 
     $key = ('' + $SiteKey).Trim()
     if ([string]::IsNullOrWhiteSpace($key)) { return }
+    if (Test-SharedCacheDisabled) { return }
 
     $store = Get-SharedSiteInterfaceCacheStore
     if (-not ($store -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]])) { return }
