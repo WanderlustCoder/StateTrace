@@ -1,1 +1,60 @@
-{"AreaName":"Telemetry","Version":"1.0.0","CreatedAt":"2025-01-01T12:00:00Z","Description":"Sample telemetry bundle for test fixtures"}
+{
+  "BundleName": "Sample-ReleaseBundle",
+  "AreaName": "Telemetry",
+  "CreatedAt": "2025-01-01T00:00:00Z",
+  "Hostname": "SAMPLE-SEAT",
+  "OutputRoot": "C:\\Users\\Werem\\Projects\\StateTrace\\Data\\Samples\\TelemetryBundles\\Sample-ReleaseBundle",
+  "BundlePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Data\\Samples\\TelemetryBundles\\Sample-ReleaseBundle\\Telemetry",
+  "PlanReferences": [
+    "PlanE",
+    "PlanG"
+  ],
+  "TaskBoardIds": [
+    "ST-G-007"
+  ],
+  "Notes": "Static sample bundle fixture for readiness tests.",
+  "Artifacts": [
+    {
+      "Category": "RollupCsv",
+      "TargetFile": "IngestionMetricsSummary-20250101.csv",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Data\\Samples\\TelemetryBundles\\Sample-ReleaseBundle\\Telemetry\\IngestionMetricsSummary-20250101.csv",
+      "Hash": "E0FB48E26F4597840B9007C09103B425640EF2F23368E8820F7D0BF4D7E3D794",
+      "SizeBytes": 178
+    },
+    {
+      "Category": "SharedCacheAnalyzer",
+      "TargetFile": "SharedCacheStoreState-20250101.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Data\\Samples\\TelemetryBundles\\Sample-ReleaseBundle\\Telemetry\\SharedCacheStoreState-20250101.json",
+      "Hash": "C1CD1DB7D04ED77AC1F9451B0AD91947442E7CFE240DB04B9A42D0958C7CE5ED",
+      "SizeBytes": 48
+    },
+    {
+      "Category": "SharedCacheAnalyzer",
+      "TargetFile": "SiteCacheProviderReasons-20250101.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Data\\Samples\\TelemetryBundles\\Sample-ReleaseBundle\\Telemetry\\SiteCacheProviderReasons-20250101.json",
+      "Hash": "8355418C6956B3601DE891698D1975EF7DB1C68C2AF9B467874A073103ADECD3",
+      "SizeBytes": 43
+    },
+    {
+      "Category": "WarmTelemetry",
+      "TargetFile": "WarmRunTelemetry-20250101.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Data\\Samples\\TelemetryBundles\\Sample-ReleaseBundle\\Telemetry\\WarmRunTelemetry-20250101.json",
+      "Hash": "28C91F94876CA6100CDDC605FC5B76C0FC18C3F01420CF8BB05E88A375AFF5D5",
+      "SizeBytes": 61
+    },
+    {
+      "Category": "DiffHotspots",
+      "TargetFile": "WarmRunDiffHotspots-20250101.csv",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Data\\Samples\\TelemetryBundles\\Sample-ReleaseBundle\\Telemetry\\WarmRunDiffHotspots-20250101.csv",
+      "Hash": "29CE572A3B1328F11979295ED6E71EC78EB50416AFC4BCCDD3360652AFBB896B",
+      "SizeBytes": 41
+    },
+    {
+      "Category": "DocSync",
+      "TargetFile": "DocSync\\DocSyncChecklist.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Data\\Samples\\TelemetryBundles\\Sample-ReleaseBundle\\Telemetry\\DocSync\\DocSyncChecklist.json",
+      "Hash": "61F642A264B6B59D32B9A668E051FC928B32297C7AE5C2EDA5C2FF67242BA126",
+      "SizeBytes": 41
+    }
+  ]
+}

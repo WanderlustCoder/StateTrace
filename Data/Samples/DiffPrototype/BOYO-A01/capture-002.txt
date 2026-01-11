@@ -1,4 +1,0 @@
-Port      Name          Status    Vlan   Duplex Speed Type
-Gi1/0/1   Phone-101     connected 10     full   1000  10/100/1000BaseTX
-Gi1/0/2   AP-201        connected 20     full   1000  10/100/1000BaseTX
-Gi1/0/3   Camera-301    notconnect 30     full   100   10/100/1000BaseTX

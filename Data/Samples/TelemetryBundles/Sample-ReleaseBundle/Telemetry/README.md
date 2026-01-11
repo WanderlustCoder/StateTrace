@@ -1,11 +1,13 @@
-# Sample Telemetry Bundle
+# Telemetry Bundle - Sample-ReleaseBundle
+**Area:** Telemetry
+- Created: 2025-01-01T00:00:00Z
+- Host: SAMPLE-SEAT
+- Notes: Static sample bundle fixture for readiness tests.
 
-This is a sample telemetry bundle fixture for testing purposes.
-
-## Contents
-
-- Ingestion metrics summary
-- Shared cache analyzer output
-- Site cache provider reasons
-- Warm-run telemetry
-- Diff hotspot export
+## Artifacts
+- IngestionMetricsSummary-20250101.csv
+- SharedCacheStoreState-20250101.json
+- SiteCacheProviderReasons-20250101.json
+- WarmRunTelemetry-20250101.json
+- WarmRunDiffHotspots-20250101.csv
+- DocSync/DocSyncChecklist.json

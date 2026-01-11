@@ -1,3 +1,2 @@
-Date,Metric,Scope,Count,Average,P95,Max,Total,SecondaryTotal,Notes
-2025-01-01,ParseDurationSeconds,All,10,1.5,2.5,3.0,15.0,0,Failures=0
-2025-01-01,DatabaseWriteLatencyMs,All,10,500,700,800,5000,0,UniqueHosts=2
+"Date","Scope","Metric","Count","Average","P95","Max","Total","SecondaryTotal","Notes"
+"2025-01-01","All","ParseDurationSeconds","1","1.0","1.0","1.0","1.0","","Sample rollup"

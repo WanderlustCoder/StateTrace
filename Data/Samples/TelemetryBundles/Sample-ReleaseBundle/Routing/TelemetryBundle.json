@@ -1,1 +1,60 @@
-{"AreaName":"Routing","Version":"1.0.0","CreatedAt":"2025-01-01T12:00:00Z","Description":"Sample routing bundle for test fixtures"}
+{
+  "BundleName": "Sample-ReleaseBundle",
+  "AreaName": "Routing",
+  "CreatedAt": "2025-01-01T00:00:00Z",
+  "Hostname": "SAMPLE-SEAT",
+  "OutputRoot": "C:\\Users\\Werem\\Projects\\StateTrace\\Data\\Samples\\TelemetryBundles\\Sample-ReleaseBundle",
+  "BundlePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Data\\Samples\\TelemetryBundles\\Sample-ReleaseBundle\\Routing",
+  "PlanReferences": [
+    "PlanE",
+    "PlanG"
+  ],
+  "TaskBoardIds": [
+    "ST-G-007"
+  ],
+  "Notes": "Static sample bundle fixture for readiness tests.",
+  "Artifacts": [
+    {
+      "Category": "RoutingTelemetry",
+      "TargetFile": "RoutingTelemetry-20250101.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Data\\Samples\\TelemetryBundles\\Sample-ReleaseBundle\\Routing\\RoutingTelemetry-20250101.json",
+      "Hash": "3493FFD94ADFB0557981F4558BF2BFAE04602DD612D8EF11D1CA38C9F09A684A",
+      "SizeBytes": 80
+    },
+    {
+      "Category": "QueueDelaySummary",
+      "TargetFile": "QueueDelaySummary-20250101.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Data\\Samples\\TelemetryBundles\\Sample-ReleaseBundle\\Routing\\QueueDelaySummary-20250101.json",
+      "Hash": "2D68FA2BF9033FF0F2D3CAF4046093B8DE5BBAD1156B3B52AC83FDCC526589B3",
+      "SizeBytes": 47
+    },
+    {
+      "Category": "QueueDelaySummary",
+      "TargetFile": "QueueDelaySummary-latest.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Data\\Samples\\TelemetryBundles\\Sample-ReleaseBundle\\Routing\\QueueDelaySummary-latest.json",
+      "Hash": "2491264316B4BE6A0C0D5BD18C8F29C536001CF24512DD834A9FB1FB57411CEA",
+      "SizeBytes": 46
+    },
+    {
+      "Category": "DispatcherLogs",
+      "TargetFile": "DispatcherLogs\\BOYO-Dispatcher.log",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Data\\Samples\\TelemetryBundles\\Sample-ReleaseBundle\\Routing\\DispatcherLogs\\BOYO-Dispatcher.log",
+      "Hash": "97780A840A7FA39C4346DDCB3BFCA1228D1D341976225937231F0FC2A4594D03",
+      "SizeBytes": 32
+    },
+    {
+      "Category": "DispatcherLogs",
+      "TargetFile": "DispatcherLogs\\WLLS-Dispatcher.log",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Data\\Samples\\TelemetryBundles\\Sample-ReleaseBundle\\Routing\\DispatcherLogs\\WLLS-Dispatcher.log",
+      "Hash": "EDBB5BD9FDF387A2F49242EDD5F895046B5A200CB8AFC153D8C35F9CD08855D4",
+      "SizeBytes": 32
+    },
+    {
+      "Category": "DocSync",
+      "TargetFile": "DocSync\\DocSyncChecklist.json",
+      "SourcePath": "C:\\Users\\Werem\\Projects\\StateTrace\\Data\\Samples\\TelemetryBundles\\Sample-ReleaseBundle\\Routing\\DocSync\\DocSyncChecklist.json",
+      "Hash": "61F642A264B6B59D32B9A668E051FC928B32297C7AE5C2EDA5C2FF67242BA126",
+      "SizeBytes": 41
+    }
+  ]
+}

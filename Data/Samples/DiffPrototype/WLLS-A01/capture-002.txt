@@ -1,4 +1,0 @@
-Port      Name          Status    Vlan   Duplex Speed Type
-Gi1/0/1   Phone-501     connected 50     full   1000  10/100/1000BaseTX
-Gi1/0/2   Printer-601   notconnect 60     full   100   10/100/1000BaseTX
-Gi1/0/3   Workstation   connected 70     full   1000  10/100/1000BaseTX

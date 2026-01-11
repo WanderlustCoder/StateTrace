@@ -15,10 +15,12 @@ param(
 
     [datetime]$UntilTimestamp,
 
+    [Alias('SummaryOutputPath')]
     [string]$OutputPath,
     [Nullable[bool]]$ManualOverridesApplied,
     [psobject]$ConcurrencyProfile,
-    [switch]$RawAutoConcurrencyMode
+    [switch]$RawAutoConcurrencyMode,
+    [switch]$PassThru
 )
 
 <#

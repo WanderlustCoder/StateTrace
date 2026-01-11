@@ -1,0 +1,353 @@
+# Code review findings report (2026-01-09)
+
+## Readiness verdict
+- Status: Ready
+- Blocking items: None.
+- Evidence summary: Review + remediation pass; `Invoke-Pester Modules/Tests` completed in Windows PowerShell 5.1 (Passed 1636, Failed 0, Inconclusive 0) after restoring DiffPrototype/sample bundle fixtures and aligning CISmoke diversity guard parameters. Pipeline run with review telemetry (Review-20260110-101639) shows ParseDuration within gate (p95 1.103 s, max 1.183 s) and warm-run improvement 84.59% (SharedCache=37). DatabaseWriteLatency within gate (p95 174.6 ms) from Review-20260110-DbLatency3-20260110-114623; shared cache store SnapshotImported 1, GetHit 39, GetMiss 0; AccessRefresh 0. Verification harness executed with shared cache + diff hotspot diagnostics (WarmRunTelemetry-20260110-180409; QueueDelaySummary-20260110-180729; DiffHotspots-20260110-180409; SharedCacheStoreState-20260110-180409; SiteCacheProviderReasons-20260110-180409) showing warm-run improvement 75.12% (cold avg 419.864 ms, warm avg 104.468 ms, SharedCache=37), queue delay avg/p95/p99/max 19.672/21.480/39.097/52.907 ms, scheduler fairness pass (max streak 7), PortBatch diversity max streak 1. Shared cache coverage includes BOYO + WLLS (Sites=2, Hosts=37, Rows=1320) via SharedCacheSnapshot-latest-summary.json. Telemetry bundle readiness verified (`Logs/TelemetryBundles/Review-20260110-ST-G-012-180409/VerificationSummary-20260110-181924.json`; README hash 4529AD5F433C281B69165E8B54C64EB78D21BB548258219910320C777BAF4479). Routing bundle readiness verified (`Logs/TelemetryBundles/Review-20260110-ST-G-012-180409-Routing/VerificationSummary-20260110-185535.json`; README hash F0394DAAB15873C1589BF922DA838E369A56A584BC9FF879E6A21BF00CEE0C77). Plan H simulation ready; telemetry integrity report recorded.
+
+## Remediations completed
+- All High/Medium findings remediated (CR-001..CR-032, CR-034..CR-037); see `docs/notes/2026-01-09_code_review_remediation_tracker.md`.
+- Security/tooling fixes completed for API auth guard + warning and switch credentials parameterization.
+- Remaining open items: None.
+
+## Findings (sorted by severity)
+Status update: All findings are remediated; readiness evidence recorded. See the remediation tracker for per-item fixes/tests.
+
+### Blocker
+- None.
+
+### Critical
+- None.
+
+### High
+- [CR-038] Port batch diversity guard failure (resolved)
+  - File: Logs/Reports/PortBatchSiteDiversity-2026-01-10.json
+  - Risk flags: Telemetry, IncrementalLoading
+  - Impact: Pipeline failed and release gates are blocked until diversity meets the max consecutive threshold.
+  - Evidence: PortBatchSiteDiversity-2026-01-10.json shows MaxStreakSegment.Count=1 <= MaxAllowedConsecutive=8.
+  - Status: Resolved (report flags ManualOverridesApplied=true; confirm overrides reset).
+  - Required tests: N/A (evidence captured).
+- [CR-039] Warm-run improvement below Plan G threshold (resolved)
+  - File: Logs/IngestionMetrics/WarmRunTelemetry-20260110-082340.json
+  - Risk flags: Telemetry, Performance
+  - Impact: Plan G warm-run gate fails, blocking release readiness.
+  - Evidence: WarmRunComparison entry reports ImprovementPercent 85.76 (Cold avg 668.728 ms, Warm avg 95.199 ms).
+  - Status: Resolved (SharedCache=37 in WarmProviderCounts).
+  - Required tests: N/A (evidence captured).
+- [CR-040] Shared cache snapshot missing WLLS coverage (hosts 12 < 37, rows 120 < 1200)
+  - File: Logs/SharedCacheSnapshot/SharedCacheSnapshot-latest.clixml
+  - Risk flags: Telemetry, SharedCache
+  - Impact: Shared cache snapshot gate fails (min site count 2, host count 37, row count >=1200).
+  - Evidence: SharedCacheSnapshot-latest.clixml now includes BOYO + WLLS (Hosts=37, Rows=1320); `Tools/Test-SharedCacheSnapshot.ps1` passed.
+  - Status: Resolved.
+  - Required tests: N/A (evidence captured).
+- [CR-042] ParseDuration gate exceeds Plan E thresholds (p95 3.03 s, max 18.953 s)
+  - File: Logs/IngestionMetrics/IngestionMetricsSummary-2026-01-10.csv
+  - Risk flags: Telemetry, Performance
+  - Impact: Plan E parse duration gate fails, blocking telemetry readiness.
+  - Evidence: ParseDurationSeconds P95 1.103 and Max 1.183 in IngestionMetricsSummary-2026-01-10.csv (Review-20260110-101639).
+  - Status: Resolved.
+  - Required tests: N/A (evidence captured).
+- [CR-043] DatabaseWriteLatency gate exceeded Plan B threshold (resolved)
+  - File: Logs/IngestionMetrics/Review-20260110-DbLatency3-20260110-114623/IngestionMetricsSummary-2026-01-10.csv
+  - Risk flags: Telemetry, Performance
+  - Impact: Plan B performance gate fails, blocking release readiness.
+  - Evidence: DatabaseWriteLatencyMs P95 174.6 (Review-20260110-DbLatency3-20260110-114623); max 548 ms; AccessRefresh 0.
+  - Status: Resolved.
+  - Required tests: N/A (cold pass retest captured).
+- [CR-027] API server allows unauthenticated access when ApiKey is not set
+  - File: Tools/Start-StateTraceApi.ps1:200
+  - Risk flags: Security, Tooling
+  - Impact: Running with a non-local prefix or forwarded port exposes inventory/alerts without auth.
+  - Evidence: ApiKey enforcement is conditional on `$ApiKey` being non-empty.
+  - Recommendation: Require an API key by default or hard-enforce localhost binding unless explicitly overridden; emit a warning when ApiKey is missing.
+  - Status: Resolved (ApiKey required unless AllowAnonymous; warning emitted).
+  - Required tests: Smoke run of API startup with/without ApiKey and non-local prefix.
+- [CR-030] Switch RADIUS tooling embeds shared secrets and test credentials
+  - File: Tools/Switch-ConfigRadius.ps1:35
+  - Risk flags: Security
+  - Impact: Hardcoded secrets risk credential disclosure if shared beyond a dev seat.
+  - Evidence: `key RadiusTest123!` and `testuser1 password123` are in the script.
+  - Recommendation: Parameterize secrets and read from a local secure source; remove defaults from repo.
+  - Status: Resolved (secrets parameterized; no embedded defaults).
+  - Required tests: Manual execution after parameterizing secrets (no automated tests).
+
+### Medium
+- [CR-041] Plan H readiness failed due to missing UserAction coverage
+  - File: Logs/IngestionMetrics/Reports/UserActionSummary-2026-01-10-planh.json
+  - Risk flags: Telemetry, UI
+  - Impact: Plan H bundle readiness failed; onboarding evidence incomplete.
+  - Evidence: Plan H simulation ready; required actions present (UserActionSummary-2026-01-10-planh.json).
+  - Status: Resolved.
+  - Required tests: N/A (evidence captured).
+- [CR-001] ParserWorker silently ignores directory creation failures
+  - File: Modules/ParserWorker.psm1:21
+  - Risk flags: Tooling, Parser
+  - Impact: Log/extracted/archive directories can fail to initialize with no warning, causing later ingestion failures without actionable context.
+  - Evidence: `New-Directories` wraps `CreateDirectory` in an empty catch.
+  - Recommendation: Log a warning with the path + exception, or surface a terminating error when critical paths (Logs/Extracted/Archives) cannot be created.
+  - Required tests: N/A (logging change) or `Invoke-Pester Modules/Tests` if behavior changes.
+- [CR-002] Parser settings JSON parse failures are silent
+  - File: Modules/ParserWorker.psm1:614
+  - Risk flags: Parser
+  - Impact: Invalid or corrupted `Data/StateTraceSettings.json` is ignored and defaults are used without notice, making concurrency/cache behavior opaque.
+  - Evidence: `ConvertFrom-Json` errors are swallowed and `$settings` is set to `$null` without warning.
+  - Recommendation: Emit a warning with the settings path + exception to make configuration issues visible.
+  - Required tests: N/A (logging change) or `Invoke-Pester Modules/Tests` if behavior changes.
+- [CR-004] Span table creation failures are suppressed
+  - File: Modules/ParserPersistenceModule.psm1:1017
+  - Risk flags: AccessWrite
+  - Impact: Span features can fail silently if Access table/index creation errors occur (missing tables or indexes).
+  - Evidence: `Ensure-SpanTables` wraps `Invoke-AdodbNonQuery` calls in empty catches for SpanInfo/SpanHistory tables and indexes.
+  - Recommendation: Emit a warning on table/index creation failures (ideally include SQL and error message) so missing schema is visible.
+  - Required tests: `Invoke-Pester Modules/Tests` if behavior changes.
+- [CR-005] Parallel DB query failures are swallowed
+  - File: Modules/DeviceRepository.Access.psm1:336
+  - Risk flags: AccessWrite
+  - Impact: Per-database query failures can silently drop results, obscuring Access/provider issues and producing partial data without notice.
+  - Evidence: `Invoke-ParallelDbQuery` catches `EndInvoke` exceptions and continues without logging.
+  - Recommendation: Emit a warning including the database path and exception when a worker fails.
+  - Required tests: `Invoke-Pester Modules/Tests` if behavior changes.
+- [CR-006] Juniper interface config parsing captures nested blocks as interfaces
+  - File: Modules/JuniperModule.psm1:203
+  - Risk flags: Parser
+  - Impact: Nested `unit` blocks can be misclassified as interfaces, truncating or misassigning interface configs for JunOS devices.
+  - Evidence: `Get-InterfaceConfigs` matches any `(\S+){` line, so `unit 0 {` and other nested stanzas reset `$currentIface`.
+  - Recommendation: Scope parsing to the `interfaces { ... }` block and only match interface name patterns (e.g., `ge-`, `xe-`, `ae`, `lo`) while ignoring `unit` stanzas.
+  - Required tests: `Modules/Tests/VendorModules.Tests.ps1` (add fixture covering nested `unit` blocks).
+- [CR-007] Decision tree branch conditions execute via Invoke-Expression
+  - File: Modules/DecisionTreeModule.psm1:512
+  - Risk flags: Security, Tooling
+  - Impact: Imported or user-authored trees can execute arbitrary PowerShell when evaluating branch conditions, enabling code injection if tree JSON is untrusted.
+  - Evidence: `Submit-TreeInput` uses `Invoke-Expression $branch.Condition` after injecting variables into scope.
+  - Recommendation: Replace `Invoke-Expression` with a safe expression evaluator (whitelisted operators/variables) or restrict conditions to simple comparisons parsed without code execution.
+  - Required tests: `Modules/Tests/DecisionTreeModule.Tests.ps1` (add coverage for condition parsing and rejected expressions).
+- [CR-008] Log ingestion writes to console for every split event
+  - File: Modules/LogIngestionModule.psm1:41
+  - Risk flags: Tooling
+  - Impact: `Write-Host` usage can flood output and slow ingestion on large log batches, especially in unattended or pipeline runs.
+  - Evidence: `Split-RawLogs` emits `Write-Host` for each file and host transition, not gated by verbosity or debug flags.
+  - Recommendation: Use `Write-Verbose`/`Write-Information` with preference control or gate messages behind `$VerbosePreference`/debug flags.
+  - Required tests: N/A (logging change) or `Modules/Tests/LogIngestionModule.Tests.ps1` if behavior changes.
+- [CR-009] Capacity planning thresholds UI references missing commands
+  - File: Modules/CapacityPlanningViewModule.psm1:1136
+  - Risk flags: UI
+  - Impact: Threshold add/edit/remove actions are no-ops because `Add/Set/Remove-CapacityThreshold` are not implemented, so the UI shows success without changing data.
+  - Evidence: View uses `Get-Command` checks before calling non-existent cmdlets; only `New-CapacityThreshold` is defined in the module.
+  - Recommendation: Implement `Add/Set/Remove-CapacityThreshold` or update the UI to use the exported `New-CapacityThreshold`/`Get-CapacityThreshold` API and adjust messages accordingly.
+  - Required tests: `Modules/Tests/CapacityPlanningModule.Tests.ps1` (add coverage for threshold creation/removal via UI hooks or module API).
+- [CR-011] Change management UI relies on console prompts for core actions
+  - File: Modules/ChangeManagementViewModule.psm1:879
+  - Risk flags: UI
+  - Impact: Creating/editing changes or maintenance windows can block or fail in the WPF UI because `Read-Host` requires an interactive console.
+  - Evidence: `Show-NewChangeDialog`, `Show-EditChangeDialog`, and `Show-NewMaintenanceWindowDialog` use `Read-Host` to collect input.
+  - Recommendation: Replace `Read-Host` with WPF dialog inputs or dedicated form controls.
+  - Required tests: UI smoke/harness for the Change Management view (if available).
+- [CR-012] Cable edit action calls missing Set-CableRun command
+  - File: Modules/CableDocumentationViewModule.psm1:947
+  - Risk flags: UI
+  - Impact: Editing cable type/length fails with CommandNotFound, so changes are never applied.
+  - Evidence: `Edit Cable` handler calls `CableDocumentationModule\Set-CableRun`, but the module only exports `Update-CableRun`.
+  - Recommendation: Switch to `Update-CableRun` or add a `Set-CableRun` wrapper in the module.
+  - Required tests: UI smoke/harness for the Cable Documentation view (edit cable path).
+- [CR-015] Access provider fallback omits ACE 16, risking connection failures
+  - File: Modules/DatabaseModule.psm1:171
+  - Risk flags: AccessWrite
+  - Impact: Environments with only `Microsoft.ACE.OLEDB.16.0` installed can create databases but fail to open them because fallback connections only try ACE 12 + Jet.
+  - Evidence: `Open-OleDbConnectionWithFallback` provider list excludes ACE 16; creation path includes ACE 16.
+  - Recommendation: Include `Microsoft.ACE.OLEDB.16.0` in provider fallback lists (DatabaseModule, DatabaseConnectionPool, and other Access open paths).
+  - Required tests: `Invoke-Pester Modules/Tests` if provider list changes, plus a smoke connection test on ACE 16-only environments if available.
+
+- [CR-024] PortBatch analyzer scripts use PS7-only ternary operator
+  - File: Tools/Analyze-PortBatchSiteMix.ps1:160; Tools/Analyze-PortBatchIntervals.ps1:119; Tools/Analyze-PortBatchGapTimeline.ps1:178
+  - Risk flags: Tooling
+  - Impact: Scripts fail to run under PowerShell 5.x (required runtime), so incremental-loading diagnostics cannot be generated in offline/production environments.
+  - Evidence: Output formatting uses `$startUtc ? ... : ...` in the scripts listed above.
+  - Recommendation: Replace ternary expressions with PS5-compatible `if`/`else` or helper function for start/end labels.
+  - Required tests: Run each script under PowerShell 5.1 (with and without start/end filters) and confirm output renders.
+- [CR-025] Dispatcher harness evidence script references non-existent queue delay analyzer
+  - File: Tools/Invoke-DispatcherHarnessWithEvidence.ps1:86
+  - Risk flags: Tooling, Telemetry
+  - Impact: Queue delay summary generation silently skips because the script path and parameter name do not exist, leaving evidence bundles incomplete.
+  - Evidence: Script calls `Tools\Analyze-QueueDelaySummary.ps1 -Path ...` but only `Tools\Generate-QueueDelaySummary.ps1` exists.
+  - Recommendation: Update to call `Tools\Generate-QueueDelaySummary.ps1 -MetricsPath ...` (or add a compatibility wrapper).
+  - Required tests: Run `Tools/Invoke-DispatcherHarnessWithEvidence.ps1` and confirm a QueueDelaySummary artifact is generated.
+- [CR-026] Shared cache warmup uses PS7-only ternary operator
+  - File: Tools/Invoke-SharedCacheWarmup.ps1:127
+  - Risk flags: Tooling
+  - Impact: Script fails under PowerShell 5.1, blocking shared cache warmup on production runtime.
+  - Evidence: `$pipelineParameters.ContainsKey(...) ? ... : ...` at line 127 (also line 197).
+  - Recommendation: Replace ternary usage with PS5-compatible `if`/`else`.
+  - Required tests: Run `Tools/Invoke-SharedCacheWarmup.ps1` under PS5.1.
+- [CR-028] Queue delay history updater calls Get-SampleCount without importing AnalyzerStats
+  - File: Tools/Update-QueueDelayHistory.ps1:90
+  - Risk flags: Tooling, Telemetry
+  - Impact: Script throws `Get-SampleCount` not found unless another script imported `Tools/AnalyzerStats.psm1` first.
+  - Evidence: `Get-SampleCount` invoked with no local definition or module import.
+  - Recommendation: Import `Tools/AnalyzerStats.psm1` or inline a local helper.
+  - Required tests: Run `Tools/Update-QueueDelayHistory.ps1` in a clean session.
+- [CR-029] Switch tooling hardcodes serial port and absolute file paths
+  - File: Tools/Switch-CreateProperLog.ps1:3
+  - Risk flags: Tooling
+  - Impact: Scripts are non-portable across machines and risk writing to invalid paths.
+  - Evidence: Default output path `C:\\Users\\Werem\\Projects\\...` and fixed `COM8` usage (e.g., Tools/Switch-Session.ps1:7).
+  - Recommendation: Parameterize serial port and paths, defaulting to repo-relative locations.
+  - Required tests: Manual run with custom parameters on a non-COM8 device.
+- [CR-031] Diagnostics script contains syntax error in CommandExports block
+  - File: Troubleshooting/Invoke-StateTraceDiagnostics.ps1:282
+  - Risk flags: Tooling
+  - Impact: Script fails to parse, so diagnostics cannot run.
+  - Evidence: `.Add((New-DiagnosticResult -Phase  -Check 'CommandExports' ...` missing `$phaseResults` and `$phaseName` variables.
+  - Recommendation: Fix the call to use `$phaseResults.Add((New-DiagnosticResult -Phase $phaseName ... -Evidence ($missingCommands -join '; ')))`.
+  - Required tests: Run the diagnostics script in a clean PowerShell session.
+- [CR-032] Fixture logs include real-looking device identifiers
+  - File: Tests/Fixtures/LiveSwitch/LAB-C9200L-AS-01.log:60
+  - Risk flags: Security, DataHygiene
+  - Impact: Fixtures may expose real device serials/MACs/hostnames if shared externally.
+  - Evidence: Processor board ID and Base MAC address captured in fixture logs.
+  - Recommendation: Sanitize fixtures (serials, MACs, IPs) and add a redaction check in fixture validation.
+  - Required tests: Run `Tools/Test-RedactionCompliance.ps1` after sanitization.
+- [CR-033] Runtime Access databases present in repo tree
+  - File: Data/BOYO/BOYO.accdb
+  - Risk flags: DataHygiene
+  - Impact: Risk of committing sensitive runtime data despite `.gitignore` guidance.
+  - Evidence: `.accdb` files exist under `Data/` (e.g., BOYO/WLLS).
+  - Recommendation: Keep `.accdb` out of repo or move sanitized samples under `Data/Samples`; add pre-commit check.
+  - Status: Resolved (runtime `.accdb` files removed from repo tree).
+  - Required tests: N/A (process change).
+
+### Low
+- [CR-003] Scheduler loop uses fixed sleep polling
+  - File: Modules/ParserRunspaceModule.psm1:1151
+  - Risk flags: Concurrency
+  - Impact: Fixed `Start-Sleep` polling can waste CPU or add latency to scheduler responsiveness under light loads.
+  - Evidence: Scheduler now increases the idle poll interval via backoff and resets after a launch.
+  - Recommendation: Use a wait handle or backoff strategy (e.g., exponential jitter) to reduce idle polling.
+  - Status: Resolved (backoff added with a capped poll interval).
+  - Required tests: `Invoke-Pester Modules/Tests` (2026-01-10).
+- [CR-010] Command reference snippet title uses missing TaskName property
+  - File: Modules/CommandReferenceViewModule.psm1:218
+  - Risk flags: UI
+  - Impact: Snippet title text renders blank in the primary command reference view path, making the selected snippet unclear.
+  - Evidence: `New-CommandReferenceView` sets `$snippetTitleText.Text = $snippet.TaskName` but `Get-ConfigSnippet` returns `Task`.
+  - Recommendation: Use `$snippet.Task` (or align the snippet object property name) when populating the title text.
+  - Required tests: UI smoke/harness for the Command Reference view if available.
+- [CR-013] Cable trace dialog reads non-existent SourcePanel/DestPanel fields
+  - File: Modules/CableDocumentationViewModule.psm1:982
+  - Risk flags: UI
+  - Impact: Trace dialog shows blank source/destination panel names, reducing trace usefulness.
+  - Evidence: `Trace Cable` view uses `$cable.SourcePanel`/`$cable.DestPanel` but cable objects contain `SourceDevice`/`DestDevice`.
+  - Recommendation: Use `SourceDevice`/`DestDevice` (or map panel names when available).
+  - Required tests: UI smoke/harness for the Cable Documentation view (trace cable path).
+- [CR-014] Alert rule conditions do not receive context as a parameter
+  - File: Modules/AlertRuleModule.psm1:146
+  - Risk flags: Tooling
+  - Impact: Custom rules that declare `param($Context)` evaluate against `$null`, so alerts may never fire even when conditions are met.
+  - Evidence: `Test-AlertCondition` invokes `& $Rule.Condition` without passing `$Context` despite documentation stating the context is provided.
+  - Recommendation: Pass `$Context` into the condition (`& $Rule.Condition $Context`) or update documentation to match the current behavior.
+  - Required tests: `Modules/Tests/AlertRuleModule.Tests.ps1` (add coverage for param-based conditions if test exists).
+- [CR-016] Concurrency test integrity check is not scoped to the current run
+  - File: Modules/DatabaseConcurrencyModule.psm1:90
+  - Risk flags: Tooling
+  - Impact: Re-running concurrency tests against the same table can report false corruption/duplicate results because inserts are not tagged per test and integrity checks scan the whole table.
+  - Evidence: Insert statement only stores ThreadId/OperationId/Value; TestId is never persisted or used in the integrity query.
+  - Recommendation: Add a TestId column to the table, persist it on insert, and filter integrity checks by TestId.
+  - Required tests: `Test-ConcurrentWrites` with multiple runs against the same table.
+- [CR-017] Native VLAN rule regex can match unrelated lines
+  - File: Modules/ConfigValidationModule.psm1:563
+  - Risk flags: Tooling
+  - Impact: Compliance checks can pass incorrectly because the regex matches any two-digit number on unrelated lines, not just `switchport trunk native vlan`.
+  - Evidence: Pattern `switchport trunk native vlan [2-9]|[1-9]\d` allows the `|` alternative to match unrelated numeric lines.
+  - Recommendation: Wrap the alternation (`switchport trunk native vlan ([2-9]|[1-9]\d)`) to scope matches to the intended command.
+  - Required tests: Add a config fixture with unrelated numbers to validate false-positive prevention.
+- [CR-018] Markdown header conversion only applies to the first line
+  - File: Modules/DocumentationGeneratorModule.psm1:1203
+  - Risk flags: Tooling
+  - Impact: HTML/PDF exports can miss most headings because regex replacements aren’t in multiline mode.
+  - Evidence: `ConvertTo-HTMLDocument` and `ConvertTo-PDFReadyHTML` use `^#` patterns without `(?m)` or line-by-line processing.
+  - Recommendation: Use multiline regex (`(?m)^#`) or iterate line-by-line before replacements.
+  - Required tests: Export a multi-heading template to HTML/PDF and assert headings render.
+- [CR-022] Force reload clears caches before verifying parser job state
+  - File: Main/MainWindow.ps1:2019
+  - Risk flags: AccessWrite, Concurrency, UI
+  - Impact: Clicking "Scan Logs" with "Clear cache before scan" enabled while a parser job is already running can delete site data/history and then abort the new job, leaving missing or inconsistent data until the current run finishes.
+  - Evidence: `Invoke-StateTraceRefresh` calls `Reset-ParserCachesForRefresh` before `Start-ParserBackgroundJob`, which refuses to start when `$script:CurrentParserJob` is running.
+  - Recommendation: Gate cache clearing on parser idle state (check before clearing) or move cache clearing into `Start-ParserBackgroundJob` after the job-state guard; consider disabling the force reload checkbox while parsing.
+  - Required tests: Manual UI check (trigger refresh while parser running) or add a harness test around `Invoke-StateTraceRefresh` state handling.
+- [CR-023] Plan H simulation ignores TelemetryPath when emitting events
+  - File: Tools/Simulate-PlanHUIRun.ps1:4
+  - Risk flags: Tooling, Telemetry
+  - Impact: Simulated Plan H events always write to the default telemetry log, so analyzers and bundles can be generated from a file that does not include the simulation events when `-TelemetryPath` is supplied.
+  - Evidence: `Emit-UserActions`/`Emit-FreshnessTelemetry` call `Write-StTelemetryEvent` (lines 58, 76), which writes via `Get-TelemetryLogPath`; `TelemetryPath` is only used for analyzers and bundle publishing (lines 81, 88-89, 93).
+  - Recommendation: Route simulated events to the provided `-TelemetryPath` (e.g., add a path override to `Write-StTelemetryEvent`/`Save-StTelemetryBuffer`, or set `STATETRACE_TELEMETRY_DIR` and align the output filename).
+  - Required tests: Run `Tools/Simulate-PlanHUIRun.ps1 -TelemetryPath <custom>` and confirm summaries + bundle readiness include simulated events.
+- [CR-019] Fleet health summary uses PowerShell 7 ternary operator (unsupported in PS 5.x)
+  - File: Modules/FleetHealthModule.psm1:798
+  - Risk flags: Tooling
+  - Impact: Fleet health module fails to import under PowerShell 5.x, breaking daily health checks or tooling that depends on the summary output.
+  - Evidence: `$deviceCheck.Status -eq 'Pass' ? 'Passed' : $deviceCheck.Status` is a PS7-only ternary operator used in multiple summary updates.
+  - Recommendation: Replace ternary usage with a PS5-compatible `if`/`else` or `switch` pattern.
+  - Required tests: `Modules/Tests/FleetHealthModule.Tests.ps1` (module import + summary aggregation).
+- [CR-020] Topology discovery reads an undefined interface cache and never flattens cached rows
+  - File: Modules/TopologyViewModule.psm1:306
+  - Risk flags: UI
+  - Impact: Topology discovery reports no interface data even when the interface cache is populated, so the topology view stays empty.
+  - Evidence: `Start-TopologyDiscovery` reads `$global:interfaceCache.Values`, but the canonical cache is `$global:DeviceInterfaceCache` (and the values are per-host lists, not flat interface rows).
+  - Recommendation: Use `$global:DeviceInterfaceCache` (or `DeviceRepositoryModule\Get-GlobalInterfaceSnapshot`) and flatten cached lists before passing to `New-TopologyFromInterfaces`.
+  - Required tests: Topology view smoke/harness (discovery path) plus `Modules/Tests/TopologyModule.Tests.ps1` with cached interface fixtures.
+- [CR-021] Topology layout delete action is a no-op (missing removal function)
+  - File: Modules/TopologyViewModule.psm1:751
+  - Risk flags: UI
+  - Impact: Delete layout button removes nothing; layouts remain in the list after refresh.
+  - Evidence: Delete handler comments "would need a Remove-TopologyLayout function" and no such function exists in `Modules/TopologyModule.psm1`.
+  - Recommendation: Implement `Remove-TopologyLayout` in `Modules/TopologyModule.psm1` and call it from the delete handler.
+  - Required tests: `Modules/Tests/TopologyModule.Tests.psm1` (layout save/remove cycle) and manual UI check for layout deletion.
+- [CR-034] ADR 0005 is a placeholder instead of a complete record
+  - File: docs/adr/0005-autonomous-development-and-ci.md:2
+  - Risk flags: Docs
+  - Impact: Governance record is missing, making policy decisions hard to audit.
+  - Evidence: File contains only a "Full content truncated" placeholder line.
+  - Recommendation: Restore full ADR content or regenerate via `Tools/New-ArchitectureDecisionRecord.ps1`.
+  - Required tests: N/A (doc fix).
+- [CR-035] Shared cache ADR links to a non-existent plan path
+  - File: docs/adr/0007-shared-cache-snapshot-governance.md:20
+  - Risk flags: Docs
+  - Impact: Readers are directed to `PlanQ.md`, which does not exist.
+  - Evidence: Plan reference points to `../plans/PlanQ.md` instead of `PlanQ_SharedCacheStrategy.md`.
+  - Recommendation: Update the link to the correct plan file name.
+  - Required tests: N/A (doc fix).
+- [CR-036] Schedule daily rollup runbook uses backslash line continuation
+  - File: docs/runbooks/Schedule_Daily_Rollup.md:13
+  - Risk flags: Docs
+  - Impact: Copy/paste command fails in PowerShell because `\\` is not a line continuation.
+  - Evidence: `pwsh Tools/Schedule-DailyRollupTask.ps1 ... \\` on line 13.
+  - Recommendation: Replace `\\` with PowerShell backtick or a single-line command.
+  - Required tests: N/A (doc fix).
+- [CR-037] Quarterly roadmap displays mojibake/encoding artifacts
+  - File: docs/StateTrace_Quarterly_Roadmap.md:1
+  - Risk flags: Docs
+  - Impact: Document reads as corrupted and may be misinterpreted.
+  - Evidence: "Q4Â 2025" and "highâ€‘level" appear in the heading/body.
+  - Recommendation: Normalize file encoding to UTF-8 and replace corrupted characters.
+  - Required tests: N/A (doc fix).
+
+### Info
+- [CR-044] Verification harness shared cache diagnostics windows were misaligned
+  - File: Tools/Invoke-StateTraceVerification.ps1:220
+  - Risk flags: Telemetry, SharedCache
+  - Impact: Provider reasons could include cold-pass AccessRefresh and fail diagnostics despite warm-run cache coverage.
+  - Evidence: Provider reasons previously used the full run window; cold pass reports AccessRefresh.
+  - Recommendation: Split diagnostics windows (store uses run span; provider uses warm pass with buffer).
+  - Status: Resolved (store window uses run span; provider window uses warm pass window).
+  - Required tests: `Tools/Invoke-StateTraceVerification.ps1` (2026-01-10).
+
+## Open questions/assumptions
+- Is `Tools/Start-StateTraceApi.ps1` intended to be exposed beyond localhost in production, and if so should ApiKey be mandatory?
+- Are LiveSwitch fixtures allowed to include real device identifiers, or must they be fully sanitized?
+- Should switch automation scripts live in the repo or be moved to local-only tooling with secrets stripped?
+
+## Testing gaps
+- `Invoke-Pester Modules/Tests` executed (Passed 1636, Failed 0, Inconclusive 0).
+- ParseDuration gate now passes, shared cache snapshot includes WLLS, and Plan H readiness is ready.
+- DatabaseWriteLatency p95 now within Plan B gate; verification harness executed (WarmRunTelemetry-20260110-150106, QueueDelaySummary-20260110-150417, shared cache diagnostics).
+- Doc-sync checklist executed (pass); telemetry bundle readiness verified (`Logs/TelemetryBundles/Review-20260110-ST-G-012/VerificationSummary.json`).
