@@ -457,6 +457,7 @@ if ($pipelineParameters.ContainsKey('SharedCacheSnapshotDirectory')) {
 if ($ShowSharedCacheSummary.IsPresent) {
     $pipelineParameters['ShowSharedCacheSummary'] = $true
 }
+$guardSummaryPath = $null
 if ($RequireSharedCacheSnapshotGuard.IsPresent) {
     $pipelineParameters['ShowSharedCacheSummary'] = $true
 }

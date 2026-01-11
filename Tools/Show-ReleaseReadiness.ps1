@@ -179,24 +179,39 @@ Write-Host ""
 Write-Host "--- Shared Cache Coverage ---" -ForegroundColor Yellow
 if ($SharedCacheDirectory -and (Test-Path -LiteralPath $SharedCacheDirectory)) {
     try {
-        $summaryFiles = Get-ChildItem -Path $SharedCacheDirectory -Filter '*-summary.json' -File -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -notlike '*-latest-*' } |
-            Sort-Object LastWriteTime -Descending
+        $summaryPath = Join-Path -Path $SharedCacheDirectory -ChildPath 'SharedCacheSnapshot-latest-summary.json'
+        if (-not (Test-Path -LiteralPath $summaryPath)) {
+            $summaryPath = Get-ChildItem -Path $SharedCacheDirectory -Filter '*-summary.json' -File -ErrorAction SilentlyContinue |
+                Sort-Object LastWriteTime -Descending |
+                Select-Object -First 1 |
+                ForEach-Object { $_.FullName }
+        }
 
         $siteCount = 0
         $hostCount = 0
         $totalRows = 0
 
-        foreach ($file in $summaryFiles) {
+        if ($summaryPath) {
             try {
-                $data = Get-Content -Raw -LiteralPath $file.FullName | ConvertFrom-Json
-                if ($data.Site) {
-                    $siteCount++
-                    $hostCount += [int](if ($data.Hosts) { $data.Hosts } else { 0 })
-                    $totalRows += [int](if ($data.TotalRows) { $data.TotalRows } else { 0 })
+                $data = Get-Content -Raw -LiteralPath $summaryPath | ConvertFrom-Json
+                $entries = if ($null -eq $data) { @() } elseif ($data -is [System.Array]) { $data } else { @($data) }
+                foreach ($entry in $entries) {
+                    if ($entry.Site) {
+                        $siteCount++
+                        $hostValue = 0
+                        if ($entry.PSObject.Properties['Hosts'] -and $null -ne $entry.Hosts) {
+                            $hostValue = [int]$entry.Hosts
+                        }
+                        $totalRowsValue = 0
+                        if ($entry.PSObject.Properties['TotalRows'] -and $null -ne $entry.TotalRows) {
+                            $totalRowsValue = [int]$entry.TotalRows
+                        }
+                        $hostCount += $hostValue
+                        $totalRows += $totalRowsValue
+                    }
                 }
             } catch {
-                # Skip malformed files
+                # Skip malformed summary data
             }
         }
 

@@ -215,20 +215,40 @@ Start-Transcript -Path $transcriptPath -Force | Out-Null
 try {
     Write-Host ("[{0}] Starting scheduled verification run..." -f (Get-Date).ToString('u')) -ForegroundColor Cyan
     $result = & $verificationScript @verificationParameters
+    $verificationResult = $result
+    if ($result -is [System.Collections.IEnumerable] -and -not ($result -is [string])) {
+        $verificationResult = $result | Where-Object {
+            $_ -and $_.PSObject.Properties.Match('WarmRunTelemetryPath').Count -gt 0
+        } | Select-Object -First 1
+        if (-not $verificationResult) {
+            $verificationResult = $result | Where-Object { $_ -and $_.PSObject.Properties.Count -gt 0 } | Select-Object -First 1
+        }
+    }
+    if ($verificationResult) {
+        $result = $verificationResult
+    }
     Write-Host ("[{0}] Verification run completed successfully." -f (Get-Date).ToString('u')) -ForegroundColor Green
 
     if (-not $QuietSummary.IsPresent -and $null -ne $result) {
-        $summary = $result.WarmRunSummary
-        if ($null -ne $summary) {
-            Write-Host 'Warm-run regression summary:' -ForegroundColor Yellow
-            Write-Host ("  Telemetry Path          : {0}" -f $summary.TelemetryPath) -ForegroundColor Yellow
-            Write-Host ("  Cold Avg / P95 / Max Ms : {0} / {1} / {2}" -f $summary.ColdInterfaceCallAvgMs, $summary.ColdInterfaceCallP95Ms, $summary.ColdInterfaceCallMaxMs) -ForegroundColor Yellow
-            Write-Host ("  Warm Avg / P95 / Max Ms : {0} / {1} / {2}" -f $summary.WarmInterfaceCallAvgMs, $summary.WarmInterfaceCallP95Ms, $summary.WarmInterfaceCallMaxMs) -ForegroundColor Yellow
-            Write-Host ("  Improvement (ms / %)    : {0} / {1}" -f $summary.ImprovementAverageMs, $summary.ImprovementPercent) -ForegroundColor Yellow
-            Write-Host ("  Warm Cache Hits / Miss  : {0} / {1}" -f $summary.WarmCacheProviderHitCount, $summary.WarmCacheProviderMissCount) -ForegroundColor Yellow
-            Write-Host ("  Warm Sig Miss / Rewrite : {0} / {1}" -f $summary.WarmSignatureMatchMissCount, $summary.WarmSignatureRewriteTotal) -ForegroundColor Yellow
-            if ($result.WarmRunEvaluation) {
-                $thresholds = $result.WarmRunEvaluation.Thresholds
+        $warmRunSummary = $null
+        $warmRunEvaluation = $null
+        if ($result.PSObject.Properties.Match('WarmRunSummary').Count -gt 0) {
+            $warmRunSummary = $result.WarmRunSummary
+        }
+        if ($result.PSObject.Properties.Match('WarmRunEvaluation').Count -gt 0) {
+            $warmRunEvaluation = $result.WarmRunEvaluation
+        }
+
+        if ($null -ne $warmRunSummary) {
+            Write-Host 'Warm-run regression summary:' -ForegroundColor Yellow   
+            Write-Host ("  Telemetry Path          : {0}" -f $warmRunSummary.TelemetryPath) -ForegroundColor Yellow
+            Write-Host ("  Cold Avg / P95 / Max Ms : {0} / {1} / {2}" -f $warmRunSummary.ColdInterfaceCallAvgMs, $warmRunSummary.ColdInterfaceCallP95Ms, $warmRunSummary.ColdInterfaceCallMaxMs) -ForegroundColor Yellow
+            Write-Host ("  Warm Avg / P95 / Max Ms : {0} / {1} / {2}" -f $warmRunSummary.WarmInterfaceCallAvgMs, $warmRunSummary.WarmInterfaceCallP95Ms, $warmRunSummary.WarmInterfaceCallMaxMs) -ForegroundColor Yellow
+            Write-Host ("  Improvement (ms / %)    : {0} / {1}" -f $warmRunSummary.ImprovementAverageMs, $warmRunSummary.ImprovementPercent) -ForegroundColor Yellow
+            Write-Host ("  Warm Cache Hits / Miss  : {0} / {1}" -f $warmRunSummary.WarmCacheProviderHitCount, $warmRunSummary.WarmCacheProviderMissCount) -ForegroundColor Yellow
+            Write-Host ("  Warm Sig Miss / Rewrite : {0} / {1}" -f $warmRunSummary.WarmSignatureMatchMissCount, $warmRunSummary.WarmSignatureRewriteTotal) -ForegroundColor Yellow
+            if ($warmRunEvaluation) {
+                $thresholds = $warmRunEvaluation.Thresholds
                 $improvementThreshold = if ($thresholds -and $thresholds.MinimumImprovementPercent -ne $null) { $thresholds.MinimumImprovementPercent } else { $WarmRunMinimumImprovementPercent }
                 if ($improvementThreshold -eq $null) { $improvementThreshold = 25 }
                 $hitThreshold = if ($thresholds -and $thresholds.MinimumCacheHitRatioPercent -ne $null) { $thresholds.MinimumCacheHitRatioPercent } else { $WarmRunMinimumCacheHitRatioPercent }
@@ -240,12 +260,19 @@ try {
             Write-Warning 'Warm-run summary information was not returned; consult WarmRunTelemetry-latest-summary.json.'
         }
 
-        $sharedCacheEvaluation = $result.SharedCacheSummaryEvaluation
+        $sharedCacheEvaluation = $null
+        if ($result.PSObject.Properties.Match('SharedCacheSummaryEvaluation').Count -gt 0) {
+            $sharedCacheEvaluation = $result.SharedCacheSummaryEvaluation
+        }
         if ($sharedCacheEvaluation) {
             $stats = $sharedCacheEvaluation.Statistics
             $statusColor = if ($sharedCacheEvaluation.Pass) { 'Green' } else { 'Red' }
             Write-Host 'Shared-cache summary evaluation:' -ForegroundColor Yellow
-            Write-Host ("  Summary Path            : {0}" -f $result.SharedCacheSummaryPath) -ForegroundColor Yellow
+            $sharedCacheSummaryPath = $null
+            if ($result.PSObject.Properties.Match('SharedCacheSummaryPath').Count -gt 0) {
+                $sharedCacheSummaryPath = $result.SharedCacheSummaryPath
+            }
+            Write-Host ("  Summary Path            : {0}" -f $sharedCacheSummaryPath) -ForegroundColor Yellow
             if ($stats) {
                 Write-Host ("  Site Count / Hosts / Rows : {0} / {1} / {2}" -f $stats.SiteCount, $stats.TotalHostCount, $stats.TotalRowCount) -ForegroundColor Yellow
             }
