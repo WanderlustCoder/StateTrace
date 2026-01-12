@@ -120,7 +120,7 @@ function Get-AllSiteDbPaths {
             }
             [void]$paths.Add(('' + $f.FullName))
         }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in DeviceRepository.Access.psm1: $($_.Exception.Message)" }
 
     # Preferred layout: Data\<Site>\<Site>.accdb (site DBs live directly under the site directory).
     try {
@@ -133,7 +133,7 @@ function Get-AllSiteDbPaths {
                 if ($f -and $f.FullName) { [void]$paths.Add(('' + $f.FullName)) }
             }
         }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in DeviceRepository.Access.psm1: $($_.Exception.Message)" }
 
     # Rare fallback: deep nested DBs (avoid unless the common layouts yielded nothing).
     if ($paths.Count -eq 0) {
@@ -150,7 +150,7 @@ function Get-AllSiteDbPaths {
                 }
                 [void]$paths.Add(('' + $f.FullName))
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in DeviceRepository.Access.psm1: $($_.Exception.Message)" }
     }
 
     return @($paths)
@@ -226,7 +226,7 @@ function Invoke-ParallelDbQuery {
     $sessionState.LanguageMode = [System.Management.Automation.PSLanguageMode]::FullLanguage
 
     $pool = [runspacefactory]::CreateRunspacePool(1, $requestedThreads, $sessionState, $Host)
-    try { $pool.ApartmentState = [System.Threading.ApartmentState]::STA } catch { }
+    try { $pool.ApartmentState = [System.Threading.ApartmentState]::STA } catch { Write-Verbose "Caught exception in DeviceRepository.Access.psm1: $($_.Exception.Message)" }
     $pool.Open()
 
     $jobs = @()
@@ -306,7 +306,7 @@ function Invoke-ParallelDbQuery {
                             Write-Warning ("Failed to close ADODB recordset for '{0}': {1}" -f $dbPathArg, $_.Exception.Message)
                         }
                         if ($recordset -is [System.__ComObject]) {
-                            try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($recordset) } catch { }
+                            try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($recordset) } catch { Write-Verbose "Caught exception in DeviceRepository.Access.psm1: $($_.Exception.Message)" }
                         }
                     }
                     if ($connection) {
@@ -314,7 +314,7 @@ function Invoke-ParallelDbQuery {
                             Write-Warning ("Failed to close ADODB connection for '{0}': {1}" -f $dbPathArg, $_.Exception.Message)
                         }
                         if ($connection -is [System.__ComObject]) {
-                            try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($connection) } catch { }
+                            try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($connection) } catch { Write-Verbose "Caught exception in DeviceRepository.Access.psm1: $($_.Exception.Message)" }
                         }
                     }
                 }

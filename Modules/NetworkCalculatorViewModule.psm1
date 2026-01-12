@@ -946,7 +946,7 @@ function Initialize-NetworkCalculatorControls {
     }
 
     # Load initial ports list
-    try { $ports = NetworkCalculatorModule\Get-WellKnownPorts; if ($portsGrid) { $portsGrid.ItemsSource = @($ports) } } catch { }
+    try { $ports = NetworkCalculatorModule\Get-WellKnownPorts; if ($portsGrid) { $portsGrid.ItemsSource = @($ports) } } catch { Write-Verbose "Caught exception in NetworkCalculatorViewModule.psm1: $($_.Exception.Message)" }
 }
 
 Export-ModuleMember -Function New-NetworkCalculatorView, Initialize-NetworkCalculatorView

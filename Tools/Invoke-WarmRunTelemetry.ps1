@@ -797,7 +797,7 @@ function Add-PassLabelToEvents {
                 try { $target = $evt.PSObject.Copy() } catch { $target = $evt }
             }
             $added = $false
-            try { Add-Member -InputObject $target -NotePropertyName 'PassLabel' -NotePropertyValue $PassLabel -Force -ErrorAction Stop; $added = $true } catch { }
+            try { Add-Member -InputObject $target -NotePropertyName 'PassLabel' -NotePropertyValue $PassLabel -Force -ErrorAction Stop; $added = $true } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
             if ($added) {
                 $evt = $target
             } elseif (-not ($evt -is [pscustomobject])) {
@@ -808,7 +808,7 @@ function Add-PassLabelToEvents {
                     }
                     $copyTable['PassLabel'] = $PassLabel
                     $evt = [pscustomobject]$copyTable
-                } catch { }
+                } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
             }
         }
         [void]$labeled.Add($evt)
@@ -838,10 +838,10 @@ function Get-TelemetryLogFiles {
         if ($telemetryPathCmd) {
             $telemetryLogPath = & $telemetryPathCmd
         }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
 
     if (-not [string]::IsNullOrWhiteSpace($telemetryLogPath) -and (Test-Path -LiteralPath $telemetryLogPath)) {
-        try { return ,(Get-Item -LiteralPath $telemetryLogPath -ErrorAction Stop) } catch { }
+        try { return ,(Get-Item -LiteralPath $telemetryLogPath -ErrorAction Stop) } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
     }
 
     if (-not (Test-Path -LiteralPath $DirectoryPath)) {
@@ -1487,7 +1487,7 @@ function Measure-InterfaceCallDurationMetrics {
         if ($durationProp) {
             $durationValue = $durationProp.Value
             if ($null -ne $durationValue) {
-                try { [void]$durations.Add([double]$durationValue) } catch { }
+                try { [void]$durations.Add([double]$durationValue) } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
             }
         }
     }
@@ -2120,7 +2120,7 @@ function Invoke-SiteCacheRefresh {
     # LANDMARK: Telemetry buffer rename - resolve approved-verb command
     $flushCmd = Get-TelemetryModuleCommand -Name 'Save-StTelemetryBuffer'
     if ($flushCmd) {
-        try { & $flushCmd | Out-Null } catch { }
+        try { & $flushCmd | Out-Null } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
     }
     $telemetry = Get-AppendedTelemetry -DirectoryPath $metricsDirectory -Baseline $metricsBaseline -ExcludePaths @($OutputPath)
     $siteSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
@@ -2188,7 +2188,7 @@ function Invoke-SiteCacheProbe {
     # LANDMARK: Telemetry buffer rename - resolve approved-verb command
     $flushCmd = Get-TelemetryModuleCommand -Name 'Save-StTelemetryBuffer'
     if ($flushCmd) {
-        try { & $flushCmd | Out-Null } catch { }
+        try { & $flushCmd | Out-Null } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
     }
     $telemetry = Get-AppendedTelemetry -DirectoryPath $metricsDirectory -Baseline $metricsBaseline -ExcludePaths @($OutputPath)
     $cacheMetrics = [System.Collections.Generic.List[psobject]]::new()
@@ -2350,7 +2350,7 @@ function ConvertTo-SharedCacheEntryArray {
         try {
             return @(DeviceRepositoryModule\ConvertTo-SharedCacheEntryArray -Entries $Entries)
         } catch [System.Management.Automation.CommandNotFoundException] {
-        } catch { }
+        } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
     }
 
     # Minimal fallback to keep shape stable when module helper is unavailable.
@@ -2538,7 +2538,7 @@ function Get-SharedCacheEntriesSnapshot {
                         if ($domainCount -gt $scriptCount) {
                             $store = $domainStore
                             $script:SiteInterfaceSignatureCache = $domainStore
-                            try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($domainStore) } catch { }
+                            try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($domainStore) } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
                         }
                     }
                 }
@@ -2559,7 +2559,7 @@ function Get-SharedCacheEntriesSnapshot {
                                         }
                                     }
                                 }
-                            } catch { }
+                            } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
                             [void]$storeSummary.Add([pscustomobject]@{ Site = $key; HostCount = $hostCount; TotalRows = $rowSum })
                         }
                     }
@@ -2666,7 +2666,7 @@ function Get-SharedCacheEntriesSnapshot {
                             try { $hostCount = [int]$hostMap.Count } catch { $hostCount = 0 }
                             foreach ($map in $hostMap.Values) {
                                 if ($map -is [System.Collections.IDictionary]) {
-                                    try { $totalRows += $map.Count } catch { }
+                                    try { $totalRows += $map.Count } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
                                 }
                             }
                         }
@@ -2691,7 +2691,7 @@ function Get-SharedCacheEntriesSnapshot {
         $siteList = '(none)'
         try {
             if ($FallbackSites) { $siteList = [string]::Join(', ', @($FallbackSites)) }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
         $errDetails = $null
         try { $errDetails = $err.ToString() } catch { $errDetails = $err.Exception.Message }
         Write-Warning ("Failed to capture shared cache entries snapshot (sites: {0}): {1}" -f $siteList, $errDetails)
@@ -2724,7 +2724,7 @@ function Write-SharedCacheSnapshotFile {
             if (Test-Path -LiteralPath $cachePath) {
                 $cacheModule = Import-Module -Name $cachePath -PassThru -ErrorAction SilentlyContinue
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
     }
     if ($cacheModule) {
         $cacheExport = Get-DeviceRepositoryCacheCommand -Name 'Export-SharedCacheSnapshot'
@@ -2774,7 +2774,7 @@ function Write-SharedCacheSnapshotFile {
                 if ($hostCountProp) {
                     try {
                         if ([int]$hostCountProp.Value -le 0) { $shouldRefresh = $true }
-                    } catch { }
+                    } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
                 }
             }
             if ($shouldRefresh) {
@@ -3027,7 +3027,7 @@ if ($IncludeTests) {
         $pesterDisableEnvHadValue = $false
     }
 
-    try { Remove-Item Env:STATETRACE_DISABLE_SHARED_CACHE -ErrorAction SilentlyContinue } catch { }
+    try { Remove-Item Env:STATETRACE_DISABLE_SHARED_CACHE -ErrorAction SilentlyContinue } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
     $pesterResult = Invoke-Pester Modules/Tests -PassThru
     try {
         if ($pesterDisableEnvHadValue) {
@@ -3035,7 +3035,7 @@ if ($IncludeTests) {
         } else {
             Remove-Item Env:STATETRACE_DISABLE_SHARED_CACHE -ErrorAction SilentlyContinue
         }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
 
     if ($pesterResult.FailedCount -gt 0) {
         throw "Pester reported $($pesterResult.FailedCount) failing tests."
@@ -3104,17 +3104,17 @@ try {
                 if (Test-Path -LiteralPath $cacheModulePath) {
                     Import-Module -Name $cacheModulePath -Force -ErrorAction SilentlyContinue | Out-Null
                 }
-            } catch { }
+            } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
             $cacheClearCommand = Get-DeviceRepositoryCacheCommand -Name 'Clear-SharedSiteInterfaceCache'
         }
         if ($cacheClearCommand) {
-            try { & $cacheClearCommand -Reason 'WarmRunTelemetryColdPass' } catch { }
+            try { & $cacheClearCommand -Reason 'WarmRunTelemetryColdPass' } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
         }
     }
 
     $deviceRepoModule = Get-DeviceRepositoryModule
     if ($deviceRepoModule) {
-        try { DeviceRepositoryModule\Clear-SiteInterfaceCache -Reason 'WarmRunTelemetryColdPass' } catch { }
+        try { DeviceRepositoryModule\Clear-SiteInterfaceCache -Reason 'WarmRunTelemetryColdPass' } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
     }
 
     $parserModule = Get-Module -Name 'ParserRunspaceModule'
@@ -3125,7 +3125,7 @@ try {
         }
     }
     if ($parserModule) {
-        try { ParserRunspaceModule\Reset-DeviceParseRunspacePool } catch { }
+        try { ParserRunspaceModule\Reset-DeviceParseRunspacePool } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
     }
     Set-IngestionHistoryForPass -SeedMode $ColdHistorySeed -Snapshot $ingestionHistorySnapshot -PassLabel 'ColdPass'
     $results.AddRange([psobject[]]@(Invoke-PipelinePass -Label 'ColdPass' -HistorySeedMode $ColdHistorySeed))
@@ -3143,7 +3143,7 @@ try {
             } else {
                 Remove-Item Env:STATETRACE_DISABLE_SHARED_CACHE -ErrorAction SilentlyContinue
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
         $sharedCacheDisableEnvApplied = $false
     }
     if ($forceSiteCacheRefreshEnvApplied) {
@@ -3153,7 +3153,7 @@ try {
             } else {
                 Remove-Item Env:STATETRACE_FORCE_SITE_CACHE_REFRESH -ErrorAction SilentlyContinue
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
         $forceSiteCacheRefreshEnvApplied = $false
     }
     Write-SharedCacheSnapshot -Label 'PostColdPass'
@@ -3163,7 +3163,7 @@ try {
     }
     if ($SiteExistingRowCacheSnapshotPath) {
         Save-SiteExistingRowCacheSnapshot -SnapshotPath $SiteExistingRowCacheSnapshotPath
-        try { $env:STATETRACE_SITE_EXISTING_ROW_CACHE_SNAPSHOT = $SiteExistingRowCacheSnapshotPath } catch { }
+        try { $env:STATETRACE_SITE_EXISTING_ROW_CACHE_SNAPSHOT = $SiteExistingRowCacheSnapshotPath } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
     }
     $initialSiteCandidates = @()
     try { $initialSiteCandidates = Get-SitesFromSnapshot -Snapshot $ingestionHistorySnapshot } catch { $initialSiteCandidates = @() }
@@ -3239,7 +3239,7 @@ try {
                 Write-Warning ("Shared cache snapshot '{0}' was not created; falling back to '{1}'." -f $sharedCacheSnapshotPath, $sharedCacheSnapshotLatestPath)
                 $sharedCacheSnapshotPath = $sharedCacheSnapshotLatestPath
                 if ($sharedCacheSnapshotEnvApplied) {
-                    try { $env:STATETRACE_SHARED_CACHE_SNAPSHOT = $sharedCacheSnapshotPath } catch { }
+                    try { $env:STATETRACE_SHARED_CACHE_SNAPSHOT = $sharedCacheSnapshotPath } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
                 }
             } else {
                 Write-Warning ("Shared cache snapshot '{0}' was not created and no fallback snapshot was found." -f $sharedCacheSnapshotPath)
@@ -3251,7 +3251,7 @@ try {
     } else {
         Write-Warning 'Shared cache snapshot after cold pass contained no entries.'
     }
-    try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::ClearSnapshot() } catch { }
+    try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::ClearSnapshot() } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
     [void]$results.Add([pscustomobject]@{
         PassLabel   = 'SharedCacheSnapshot:PostColdPass'
         Timestamp   = Get-Date
@@ -3329,7 +3329,7 @@ try {
         } catch {
             $err = $_
             $details = $err
-            try { $details = $err.ToString() } catch { }
+            try { $details = $err.ToString() } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
             Write-Warning ("Site cache refresh step failed: {0}`n{1}" -f $err.Exception.Message, $details)
         }
         $capturedAfterRefresh = Get-NonNullItemCount -Items $sharedCacheEntries
@@ -3512,11 +3512,11 @@ try {
                         $payloadProp = $entry.PSObject.Properties['Entry']
                         if ($payloadProp) { $payload = $payloadProp.Value }
                         if (-not $payload) { continue }
-                        try { DeviceRepositoryModule\Set-SharedSiteInterfaceCacheEntry -SiteKey $siteKey -Entry $payload } catch { }
+                        try { DeviceRepositoryModule\Set-SharedSiteInterfaceCacheEntry -SiteKey $siteKey -Entry $payload } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
                     }
-                    try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($store) } catch { }
+                    try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($store) } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
                 }
-            } catch { }
+            } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
 
             ParserRunspaceModule\Set-RunspaceSharedCacheEntries -Entries $sharedCacheEntries
             Write-Host ("Seeded preserved runspace shared cache with {0} entr{1}." -f $sharedCacheEntries.Count, $(if ($sharedCacheEntries.Count -eq 1) { 'y' } else { 'ies' })) -ForegroundColor DarkCyan
@@ -3544,7 +3544,7 @@ try {
     Write-Host ("[Diag] Restoring ingestion history to original snapshot... ({0:o})" -f $restoreStart) -ForegroundColor Yellow
     Restore-IngestionHistory -Snapshot $ingestionHistorySnapshot
     Write-Host ("[Diag] Ingestion history restore completed in {0:N0} ms" -f ((Get-Date) - $restoreStart).TotalMilliseconds) -ForegroundColor Magenta
-    try { ParserRunspaceModule\Reset-DeviceParseRunspacePool } catch { }
+    try { ParserRunspaceModule\Reset-DeviceParseRunspacePool } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
     if ($pipelineArguments.ContainsKey('SharedCacheSnapshotPath')) {
         $pipelineArguments.Remove('SharedCacheSnapshotPath')
     }
@@ -3555,7 +3555,7 @@ try {
             } else {
                 Remove-Item Env:STATETRACE_SHARED_CACHE_SNAPSHOT -ErrorAction SilentlyContinue
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
         $sharedCacheSnapshotEnvApplied = $false
     }
     if ($sharedCacheDisableEnvApplied) {
@@ -3565,7 +3565,7 @@ try {
             } else {
                 Remove-Item Env:STATETRACE_DISABLE_SHARED_CACHE -ErrorAction SilentlyContinue
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
         $sharedCacheDisableEnvApplied = $false
     }
     if ($forceSiteCacheRefreshEnvApplied) {
@@ -3575,7 +3575,7 @@ try {
             } else {
                 Remove-Item Env:STATETRACE_FORCE_SITE_CACHE_REFRESH -ErrorAction SilentlyContinue
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
         $forceSiteCacheRefreshEnvApplied = $false
     }
     $cleanupPath = $sharedCacheSnapshotCleanupPath
@@ -3584,12 +3584,12 @@ try {
         $cleanupPath = $sharedCacheSnapshotPath
     }
     if (-not $PreserveSharedCacheSnapshot.IsPresent -and $cleanupPath -and (Test-Path -LiteralPath $cleanupPath)) {
-        try { Remove-Item -LiteralPath $cleanupPath -Force } catch { }
+        try { Remove-Item -LiteralPath $cleanupPath -Force } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
     } elseif ($PreserveSharedCacheSnapshot.IsPresent -and $sharedCacheSnapshotPath) {
         Write-Host ("Preserved shared cache snapshot at '{0}' for inspection." -f $sharedCacheSnapshotPath) -ForegroundColor DarkCyan
     }
     if ($coldSharedCacheSnapshotCleanupPath -and (Test-Path -LiteralPath $coldSharedCacheSnapshotCleanupPath)) {
-        try { Remove-Item -LiteralPath $coldSharedCacheSnapshotCleanupPath -Force } catch { }
+        try { Remove-Item -LiteralPath $coldSharedCacheSnapshotCleanupPath -Force } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
     }
     if (-not $PreserveSkipSiteCacheSetting.IsPresent -and $skipSiteCacheGuard) {
         Restore-SkipSiteCacheUpdateSetting -Guard $skipSiteCacheGuard
@@ -3719,7 +3719,7 @@ if (($coldMetrics -or $coldSummaries) -and ($warmMetrics -or $warmSummaries)) {
 
             $rewriteCountProp = $event.PSObject.Properties['SiteCacheHostMapSignatureRewriteCount']
             if ($rewriteCountProp) {
-                try { $warmSignatureRewriteTotal += [int]$rewriteCountProp.Value } catch { }
+                try { $warmSignatureRewriteTotal += [int]$rewriteCountProp.Value } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
             }
         }
     } elseif ($warmSummaries) {
@@ -3734,7 +3734,7 @@ if (($coldMetrics -or $coldSummaries) -and ($warmMetrics -or $warmSummaries)) {
 
             $rewriteProp = $summary.PSObject.Properties['HostMapSignatureRewriteCount']
             if ($rewriteProp) {
-                try { $warmSignatureRewriteTotal += [int]$rewriteProp.Value } catch { }
+                try { $warmSignatureRewriteTotal += [int]$rewriteProp.Value } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
             }
         }
     }
@@ -3983,7 +3983,7 @@ function Update-ComparisonSummaryFromResults {
 
             $durationProp = $evt.PSObject.Properties['InterfaceCallDurationMs']
             if ($durationProp -and $durationProp.Value -ne $null) {
-                try { [void]$durations.Add([double]$durationProp.Value) } catch { }
+                try { [void]$durations.Add([double]$durationProp.Value) } catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
             }
 
             $matchCountProp = $evt.PSObject.Properties['SiteCacheHostMapSignatureMatchCount']
@@ -4299,6 +4299,6 @@ try {
     } else {
         Remove-Item Env:STATETRACE_SITE_EXISTING_ROW_CACHE_SNAPSHOT -ErrorAction SilentlyContinue
     }
-} catch { }
+} catch { Write-Verbose "Caught exception in Invoke-WarmRunTelemetry.ps1: $($_.Exception.Message)" }
 
 $results

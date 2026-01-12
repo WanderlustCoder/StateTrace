@@ -46,7 +46,7 @@ function Resolve-HostToTest {
                 }
             }
         }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in Invoke-InterfacesViewSmokeTest.ps1: $($_.Exception.Message)" }
 
     $dbPaths = DeviceRepositoryModule\Get-AllSiteDbPaths
     foreach ($dbPath in $dbPaths) {
@@ -56,7 +56,7 @@ function Resolve-HostToTest {
             if ($rows -and $rows.Count -gt 0) {
                 return $hostname
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in Invoke-InterfacesViewSmokeTest.ps1: $($_.Exception.Message)" }
     }
 
     throw "Unable to locate a host with interface data. Provide -Hostname explicitly."
@@ -137,7 +137,7 @@ try {
         }
     }
 } finally {
-    try { DeviceRepositoryModule\Clear-InterfacePortStream -Hostname $targetHost } catch { }
+    try { DeviceRepositoryModule\Clear-InterfacePortStream -Hostname $targetHost } catch { Write-Verbose "Caught exception in Invoke-InterfacesViewSmokeTest.ps1: $($_.Exception.Message)" }
 }
 
 $grid = $global:interfacesGrid

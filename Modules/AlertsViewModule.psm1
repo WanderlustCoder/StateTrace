@@ -12,7 +12,7 @@ function script:Get-ColumnWidths {
             $widths = $settings['ColumnWidths'][$GridName]
             if (-not $widths) { $widths = @{} }
         }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in AlertsViewModule.psm1: $($_.Exception.Message)" }
     return $widths
 }
 
@@ -26,7 +26,7 @@ function script:Save-ColumnWidths {
         if (-not $settings.ContainsKey('ColumnWidths')) { $settings['ColumnWidths'] = @{} }
         $settings['ColumnWidths'][$GridName] = $Widths
         MainWindow.Services\Save-StateTraceSettings -Settings $settings
-    } catch { }
+    } catch { Write-Verbose "Caught exception in AlertsViewModule.psm1: $($_.Exception.Message)" }
 }
 
 function script:Apply-ColumnWidths {
@@ -37,7 +37,7 @@ function script:Apply-ColumnWidths {
     foreach ($col in $DataGrid.Columns) {
         $header = $col.Header
         if ($header -and $widths.ContainsKey($header)) {
-            try { $col.Width = [double]$widths[$header] } catch { }
+            try { $col.Width = [double]$widths[$header] } catch { Write-Verbose "Caught exception in AlertsViewModule.psm1: $($_.Exception.Message)" }
         }
     }
 }

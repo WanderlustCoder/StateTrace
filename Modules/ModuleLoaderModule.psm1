@@ -67,7 +67,7 @@ function Import-StateTraceModulesFromManifest {
     try { $resolvedRepoRoot = (Resolve-Path -LiteralPath $RepositoryRoot).Path } catch { $resolvedRepoRoot = $RepositoryRoot }
 
     $modulesRoot = Join-Path $resolvedRepoRoot 'Modules'
-    try { $modulesRoot = [System.IO.Path]::GetFullPath($modulesRoot) } catch { }
+    try { $modulesRoot = [System.IO.Path]::GetFullPath($modulesRoot) } catch { Write-Verbose "Caught exception in ModuleLoaderModule.psm1: $($_.Exception.Message)" }
 
     $manifestPath = Join-Path $modulesRoot 'ModulesManifest.psd1'
     $modulesToImport = Get-StateTraceModulesFromManifest -ManifestPath $manifestPath
@@ -76,7 +76,7 @@ function Import-StateTraceModulesFromManifest {
     foreach ($excludeEntry in @($Exclude)) {
         if ([string]::IsNullOrWhiteSpace($excludeEntry)) { continue }
         $excludeSet.Add(($excludeEntry.Trim())) | Out-Null
-        try { $excludeSet.Add(([System.IO.Path]::GetFileName($excludeEntry.Trim()))) | Out-Null } catch { }
+        try { $excludeSet.Add(([System.IO.Path]::GetFileName($excludeEntry.Trim()))) | Out-Null } catch { Write-Verbose "Caught exception in ModuleLoaderModule.psm1: $($_.Exception.Message)" }
     }
 
     $imported = [System.Collections.Generic.List[string]]::new()

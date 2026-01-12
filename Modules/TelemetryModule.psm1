@@ -16,7 +16,7 @@ function Initialize-StateTraceDebug {
             $current = $false
         }
     } catch {
-        try { Set-Variable -Scope Global -Name StateTraceDebug -Value $false -Option None } catch { }
+        try { Set-Variable -Scope Global -Name StateTraceDebug -Value $false -Option None } catch { Write-Verbose "Caught exception in TelemetryModule.psm1: $($_.Exception.Message)" }
         $current = $false
     }
 
@@ -36,7 +36,7 @@ function Import-InterfaceCommon {
 
     $rootPath = $ModulesRoot
     if ([string]::IsNullOrWhiteSpace($rootPath)) { $rootPath = $PSScriptRoot }
-    try { $rootPath = [System.IO.Path]::GetFullPath($rootPath) } catch { }
+    try { $rootPath = [System.IO.Path]::GetFullPath($rootPath) } catch { Write-Verbose "Caught exception in TelemetryModule.psm1: $($_.Exception.Message)" }
 
     $modulePath = Join-Path $rootPath 'InterfaceCommon.psm1'
     if (-not (Test-Path -LiteralPath $modulePath)) { return $false }
@@ -74,7 +74,7 @@ function Get-SpanDebugLogPath {
         if (-not (Test-Path -LiteralPath $debugDir)) {
             New-Item -ItemType Directory -Path $debugDir -Force | Out-Null
         }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in TelemetryModule.psm1: $($_.Exception.Message)" }
 
     return (Join-Path $debugDir 'SpanDebug.log')
 }
@@ -104,7 +104,7 @@ function Write-SpanDebugLog {
             New-Item -ItemType Directory -Path $parent -Force | Out-Null
         }
         Add-Content -LiteralPath $targetPath -Value $line -Encoding UTF8
-    } catch { }
+    } catch { Write-Verbose "Caught exception in TelemetryModule.psm1: $($_.Exception.Message)" }
 }
 
 function Get-TelemetryLogDirectory {
@@ -136,7 +136,7 @@ function Get-TelemetryWriteMutexName {
     )
 
     $normalized = $Path
-    try { $normalized = [System.IO.Path]::GetFullPath($Path) } catch { }
+    try { $normalized = [System.IO.Path]::GetFullPath($Path) } catch { Write-Verbose "Caught exception in TelemetryModule.psm1: $($_.Exception.Message)" }
 
     $bytes = $null
     try { $bytes = [System.Text.Encoding]::UTF8.GetBytes($normalized.ToLowerInvariant()) } catch { $bytes = [byte[]]@() }
@@ -216,7 +216,7 @@ function Save-TelemetryBuffer {
 
         if (-not $script:TelemetryWriteMutex -or -not $script:TelemetryWriteMutexPath -or -not [string]::Equals($script:TelemetryWriteMutexPath, $Path, [System.StringComparison]::OrdinalIgnoreCase)) {
             if ($script:TelemetryWriteMutex) {
-                try { $script:TelemetryWriteMutex.Dispose() } catch { }
+                try { $script:TelemetryWriteMutex.Dispose() } catch { Write-Verbose "Caught exception in TelemetryModule.psm1: $($_.Exception.Message)" }
                 $script:TelemetryWriteMutex = $null
             }
             $script:TelemetryWriteMutexPath = $Path
@@ -240,7 +240,7 @@ function Save-TelemetryBuffer {
         }
         if ($mutex) {
             if ($lockAcquired) {
-                try { $mutex.ReleaseMutex() } catch { }
+                try { $mutex.ReleaseMutex() } catch { Write-Verbose "Caught exception in TelemetryModule.psm1: $($_.Exception.Message)" }
             }
         }
     }
@@ -317,7 +317,7 @@ function Remove-ComObjectSafe {
 
     if ($null -eq $ComObject) { return }
     if ($ComObject -is [System.__ComObject]) {
-        try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($ComObject) } catch { }
+        try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($ComObject) } catch { Write-Verbose "Caught exception in TelemetryModule.psm1: $($_.Exception.Message)" }
     }
 }
 

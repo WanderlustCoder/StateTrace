@@ -142,7 +142,7 @@ function New-TemplatesView {
                     if ($newOsCombo -and $newOsCombo.SelectedItem) {
                         $osType = $newOsCombo.SelectedItem.Content
                     }
-                } catch {}
+                } catch { Write-Verbose "Caught exception in TemplatesViewModule.psm1: $($_.Exception.Message)" }
 
                 # Create a default vendor template file structure compatible with TemplatesModule.
                 # Note: This creates a new JSON file; existing vendor files like Cisco.json/Brocade.json

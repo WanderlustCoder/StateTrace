@@ -18,7 +18,7 @@ function Ensure-StateTraceDirectory {
     $resolvedPath = $Path
     try { $resolvedPath = [System.IO.Path]::GetFullPath($Path) } catch { $resolvedPath = $Path }
 
-    try { [System.IO.Directory]::CreateDirectory($resolvedPath) | Out-Null } catch { }
+    try { [System.IO.Directory]::CreateDirectory($resolvedPath) | Out-Null } catch { <# silently handled #> }
 
     return $resolvedPath
 }
@@ -34,7 +34,7 @@ function Write-StartupDiag {
     try {
         $ts = (Get-Date).ToString('o')
         Add-Content -LiteralPath $startupLogPath -Value ("[$ts] {0}" -f $Message) -ErrorAction SilentlyContinue
-    } catch { }
+    } catch { <# silently handled #> }
 }
 
 if (-not (Get-Variable -Name ModulesDirectory -Scope Script -ErrorAction SilentlyContinue)) {
@@ -138,7 +138,7 @@ function Save-StateTraceSettings {
         $settingsDir = Split-Path -Parent $script:StateTraceSettingsPath
         $null = Ensure-StateTraceDirectory -Path $settingsDir
         $json | Out-File -LiteralPath $script:StateTraceSettingsPath -Encoding utf8
-    } catch { }
+    } catch { <# silently handled #> }
 }
 
 $script:StateTraceSettings = Load-StateTraceSettings
@@ -197,7 +197,7 @@ namespace StateTrace.Diagnostics
             if (string.IsNullOrEmpty(line)) { return; }
 
             _queue.Enqueue(line);
-            try { _signal.Set(); } catch { }
+            try { _signal.Set(); } catch { <# silently handled #> }
         }
 
         private void WriterLoop()
@@ -207,7 +207,7 @@ namespace StateTrace.Diagnostics
 
             while (!_disposed)
             {
-                try { _signal.WaitOne(250); } catch { }
+                try { _signal.WaitOne(250); } catch { <# silently handled #> }
 
                 try
                 {
@@ -239,8 +239,8 @@ namespace StateTrace.Diagnostics
         public void Dispose()
         {
             _disposed = true;
-            try { _signal.Set(); } catch { }
-            try { _signal.Dispose(); } catch { }
+            try { _signal.Set(); } catch { <# silently handled #> }
+            try { _signal.Dispose(); } catch { <# silently handled #> }
         }
     }
 }
@@ -283,9 +283,9 @@ function Write-Diag {
                     $script:DiagWriterFallbackNotified = $true
                     Write-Verbose "[Write-Diag] AsyncDiagWriter unavailable; skipping file diagnostics."
                 }
-            } catch { }
+            } catch { <# silently handled #> }
         }
-    } catch { }
+    } catch { <# silently handled #> }
 }
 
 if ($Global:StateTraceDebug) {
@@ -298,7 +298,7 @@ if ($Global:StateTraceDebug) {
         '--- StateTrace diagnostic log ---' | Out-File -LiteralPath $script:DiagLogPath -Encoding utf8 -Force
         $null = Get-DiagWriter
         Write-Diag ("Logging to: $script:DiagLogPath")
-    } catch { }
+    } catch { <# silently handled #> }
 }
 
 try {
@@ -326,7 +326,7 @@ try {
     $HostKeywordOK = $false
     try { if ($true) { $HostKeywordOK = $true } } catch { $HostKeywordOK = $false }
     Write-Diag ("Host keyword 'if' ok: {0}" -f $HostKeywordOK)
-} catch { }
+} catch { <# silently handled #> }
 
 if (-not ('StateTrace.Threading.PowerShellThreadStartFactory' -as [type])) {
     Add-Type -Language CSharp -TypeDefinition @'
@@ -470,12 +470,12 @@ namespace StateTrace.Threading
                 }
                 finally
                 {
-                    try { ps.Commands.Clear(); } catch { }
-                    try { ps.Dispose(); } catch { }
+                    try { ps.Commands.Clear(); } catch { <# silently handled #> }
+                    try { ps.Dispose(); } catch { <# silently handled #> }
 
                     if (heldLock && semaphore != null)
                     {
-                        try { semaphore.Release(); } catch { }
+                        try { semaphore.Release(); } catch { <# silently handled #> }
                     }
                 }
             };
@@ -552,12 +552,12 @@ function Get-DeviceDetailsRunspace {
                 $langMode = $null
                 try { $langMode = $script:DeviceDetailsRunspace.SessionStateProxy.LanguageMode } catch { $langMode = $null }
                 if ($langMode -ne [System.Management.Automation.PSLanguageMode]::FullLanguage) {
-                    try { Write-Diag ("Device loader runspace language mode mismatch | Mode={0}" -f $langMode) } catch {}
-                    try { $script:DeviceDetailsRunspace.SessionStateProxy.LanguageMode = [System.Management.Automation.PSLanguageMode]::FullLanguage } catch {}
+                    try { Write-Diag ("Device loader runspace language mode mismatch | Mode={0}" -f $langMode) } catch { <# silently handled #> }
+                    try { $script:DeviceDetailsRunspace.SessionStateProxy.LanguageMode = [System.Management.Automation.PSLanguageMode]::FullLanguage } catch { <# silently handled #> }
                     try { $langMode = $script:DeviceDetailsRunspace.SessionStateProxy.LanguageMode } catch { $langMode = $null }
                     if ($langMode -ne [System.Management.Automation.PSLanguageMode]::FullLanguage) {
-                        try { Write-Diag ("Device loader runspace discarded due to language mode reset failure | Mode={0}" -f $langMode) } catch {}
-                        try { $script:DeviceDetailsRunspace.Dispose() } catch {}
+                        try { Write-Diag ("Device loader runspace discarded due to language mode reset failure | Mode={0}" -f $langMode) } catch { <# silently handled #> }
+                        try { $script:DeviceDetailsRunspace.Dispose() } catch { <# silently handled #> }
                         $script:DeviceDetailsRunspace = $null
                     }
                 }
@@ -571,8 +571,8 @@ function Get-DeviceDetailsRunspace {
                 return $script:DeviceDetailsRunspace
             }
         } catch {
-            try { Write-Diag ("Device loader runspace state check failed | Error={0}" -f $_.Exception.Message) } catch {}
-            try { $script:DeviceDetailsRunspace.Dispose() } catch {}
+            try { Write-Diag ("Device loader runspace state check failed | Error={0}" -f $_.Exception.Message) } catch { <# silently handled #> }
+            try { $script:DeviceDetailsRunspace.Dispose() } catch { <# silently handled #> }
             $script:DeviceDetailsRunspace = $null
         }
     }
@@ -584,14 +584,14 @@ function Get-DeviceDetailsRunspace {
         $rs.ApartmentState = [System.Threading.ApartmentState]::STA
         $rs.ThreadOptions  = [System.Management.Automation.Runspaces.PSThreadOptions]::ReuseThread
         $rs.Open()
-        try { $rs.SessionStateProxy.LanguageMode = [System.Management.Automation.PSLanguageMode]::FullLanguage } catch {}
+        try { $rs.SessionStateProxy.LanguageMode = [System.Management.Automation.PSLanguageMode]::FullLanguage } catch { <# silently handled #> }
         $script:DeviceDetailsRunspace = $rs
         try {
             Write-Diag ("Device loader runspace created | Id={0} | LangMode={1}" -f $rs.Id, $rs.SessionStateProxy.LanguageMode)
-        } catch {}
+        } catch { <# silently handled #> }
         return $script:DeviceDetailsRunspace
     } catch {
-        try { Write-Diag ("Device loader runspace creation failed | Error={0}" -f $_.Exception.Message) } catch {}
+        try { Write-Diag ("Device loader runspace creation failed | Error={0}" -f $_.Exception.Message) } catch { <# silently handled #> }
         return $null
     }
 }
@@ -604,12 +604,12 @@ function Get-DatabaseImportRunspace {
                 $langMode = $null
                 try { $langMode = $script:DatabaseImportRunspace.SessionStateProxy.LanguageMode } catch { $langMode = $null }
                 if ($langMode -ne [System.Management.Automation.PSLanguageMode]::FullLanguage) {
-                    try { Write-Diag ("DB import runspace language mode mismatch | Mode={0}" -f $langMode) } catch {}
-                    try { $script:DatabaseImportRunspace.SessionStateProxy.LanguageMode = [System.Management.Automation.PSLanguageMode]::FullLanguage } catch {}
+                    try { Write-Diag ("DB import runspace language mode mismatch | Mode={0}" -f $langMode) } catch { <# silently handled #> }
+                    try { $script:DatabaseImportRunspace.SessionStateProxy.LanguageMode = [System.Management.Automation.PSLanguageMode]::FullLanguage } catch { <# silently handled #> }
                     try { $langMode = $script:DatabaseImportRunspace.SessionStateProxy.LanguageMode } catch { $langMode = $null }
                     if ($langMode -ne [System.Management.Automation.PSLanguageMode]::FullLanguage) {
-                        try { Write-Diag ("DB import runspace discarded due to language mode reset failure | Mode={0}" -f $langMode) } catch {}
-                        try { $script:DatabaseImportRunspace.Dispose() } catch {}
+                        try { Write-Diag ("DB import runspace discarded due to language mode reset failure | Mode={0}" -f $langMode) } catch { <# silently handled #> }
+                        try { $script:DatabaseImportRunspace.Dispose() } catch { <# silently handled #> }
                         $script:DatabaseImportRunspace = $null
                     }
                 }
@@ -623,8 +623,8 @@ function Get-DatabaseImportRunspace {
                 return $script:DatabaseImportRunspace
             }
         } catch {
-            try { Write-Diag ("DB import runspace state check failed | Error={0}" -f $_.Exception.Message) } catch {}
-            try { $script:DatabaseImportRunspace.Dispose() } catch {}
+            try { Write-Diag ("DB import runspace state check failed | Error={0}" -f $_.Exception.Message) } catch { <# silently handled #> }
+            try { $script:DatabaseImportRunspace.Dispose() } catch { <# silently handled #> }
             $script:DatabaseImportRunspace = $null
         }
     }
@@ -636,14 +636,14 @@ function Get-DatabaseImportRunspace {
         $rs.ApartmentState = [System.Threading.ApartmentState]::STA
         $rs.ThreadOptions  = [System.Management.Automation.Runspaces.PSThreadOptions]::ReuseThread
         $rs.Open()
-        try { $rs.SessionStateProxy.LanguageMode = [System.Management.Automation.PSLanguageMode]::FullLanguage } catch {}
+        try { $rs.SessionStateProxy.LanguageMode = [System.Management.Automation.PSLanguageMode]::FullLanguage } catch { <# silently handled #> }
         $script:DatabaseImportRunspace = $rs
         try {
             Write-Diag ("DB import runspace created | Id={0} | LangMode={1}" -f $rs.Id, $rs.SessionStateProxy.LanguageMode)
-        } catch {}
+        } catch { <# silently handled #> }
         return $script:DatabaseImportRunspace
     } catch {
-        try { Write-Diag ("DB import runspace creation failed | Error={0}" -f $_.Exception.Message) } catch {}
+        try { Write-Diag ("DB import runspace creation failed | Error={0}" -f $_.Exception.Message) } catch { <# silently handled #> }
         return $null
     }
 }
@@ -693,9 +693,9 @@ if (-not $script:DeviceLoaderModulesLoaded) {
             } finally {
                 if ($psWarm) { $psWarm.Dispose() }
             }
-            try { Write-Diag ("Device loader warmup completed") } catch {}
+            try { Write-Diag ("Device loader warmup completed") } catch { <# silently handled #> }
         } catch {
-            try { Write-Diag ("Device loader warmup failed | Error={0}" -f $_.Exception.Message) } catch {}
+            try { Write-Diag ("Device loader warmup failed | Error={0}" -f $_.Exception.Message) } catch { <# silently handled #> }
             $script:DeviceDetailsWarmupQueued = $false
         }
     }.GetNewClosure()
@@ -709,13 +709,13 @@ if (-not $script:DeviceLoaderModulesLoaded) {
                         $null = $warmupAction.Invoke($modulesDirLocal, $moduleListLocal)
                     }
                 } catch {
-                    try { Write-Diag ("Device loader warmup execution failed | Error={0}" -f $_.Exception.Message) } catch {}
+                    try { Write-Diag ("Device loader warmup execution failed | Error={0}" -f $_.Exception.Message) } catch { <# silently handled #> }
                     $script:DeviceDetailsWarmupQueued = $false
                 }
             }
         ) | Out-Null
     } catch {
-        try { Write-Diag ("Device loader warmup scheduling failed | Error={0}" -f $_.Exception.Message) } catch {}
+        try { Write-Diag ("Device loader warmup scheduling failed | Error={0}" -f $_.Exception.Message) } catch { <# silently handled #> }
         $script:DeviceDetailsWarmupQueued = $false
     }
 }
@@ -1043,10 +1043,10 @@ function Register-TabVisibilityRefreshHandlers {
             if (-not $sender -or -not $sender.IsVisible) { return }
             if (-not $global:InterfacesLoadAllowed) { return }
 
-            try { & $OnVisible } catch { }
+            try { & $OnVisible } catch { <# silently handled #> }
         }.GetNewClosure()
 
-        try { $hostControl.Add_IsVisibleChanged($handler) } catch { }
+        try { $hostControl.Add_IsVisibleChanged($handler) } catch { <# silently handled #> }
     }
 
     & $wire 'SummaryHost'          {
@@ -1077,7 +1077,7 @@ function Register-TabVisibilityRefreshHandlers {
     }
 }
 
-try { Register-TabVisibilityRefreshHandlers -Window $window } catch { }
+try { Register-TabVisibilityRefreshHandlers -Window $window } catch { <# silently handled #> }
 
 # === BEGIN Main window control hooks (MainWindow.ps1) ===
 
@@ -1111,7 +1111,7 @@ function Get-AvailableSiteNames {
             $dbPath = Join-Path $dir.FullName ("{0}.accdb" -f $siteName)
             if (Test-Path -LiteralPath $dbPath) { [void]$siteNames.Add($siteName) }
         }
-    } catch { }
+    } catch { <# silently handled #> }
 
     # Legacy layout: Data\<Site>.accdb (no recursion needed).
     try {
@@ -1122,7 +1122,7 @@ function Get-AvailableSiteNames {
             if ($leaf -like 'PerfPipeline-*' -or [System.StringComparer]::OrdinalIgnoreCase.Equals($leaf, 'PerfPipeline')) { continue }
             [void]$siteNames.Add($leaf)
         }
-    } catch { }
+    } catch { <# silently handled #> }
 
     # Rare fallback: deep nested .accdb files (avoid unless the common paths yielded nothing).
     if ($siteNames.Count -eq 0) {
@@ -1134,7 +1134,7 @@ function Get-AvailableSiteNames {
                 if ($leaf -like 'PerfPipeline-*' -or [System.StringComparer]::OrdinalIgnoreCase.Equals($leaf, 'PerfPipeline')) { continue }
                 [void]$siteNames.Add($leaf)
             }
-        } catch { }
+        } catch { <# silently handled #> }
     }
 
     return (@($siteNames) | Sort-Object -Unique)
@@ -1203,8 +1203,8 @@ function Populate-SiteDropdownWithAvailableSites {
         $global:ProgrammaticFilterUpdate = $previousProgrammaticFilterUpdate
     }
 
-    try { Update-FreshnessIndicator -Window $Window } catch { }
-    try { Update-PipelineHealthIndicator -Window $Window } catch { }
+    try { Update-FreshnessIndicator -Window $Window } catch { <# silently handled #> }
+    try { Update-PipelineHealthIndicator -Window $Window } catch { <# silently handled #> }
 }
 
 function Set-StateTraceDbPath {
@@ -1288,7 +1288,7 @@ function ConvertTo-PortPsObjectLocal {
                 $clone | Add-Member -NotePropertyName $key -NotePropertyValue $Row[$key] -Force
             }
         }
-    } catch { }
+    } catch { <# silently handled #> }
 
     $hostnameProp = $clone.PSObject.Properties['Hostname']
     if ($hostnameProp) {
@@ -1348,7 +1348,7 @@ function Initialize-FilterMetadataAtStartup {
                 Import-Module DeviceCatalogModule -ErrorAction SilentlyContinue
             }
         }
-    } catch {}
+    } catch { <# silently handled #> }
 
     $locationEntries = @()
     try {
@@ -1359,7 +1359,7 @@ function Initialize-FilterMetadataAtStartup {
     if (-not $locationEntries -or $locationEntries.Count -eq 0) {
         try { $locationEntries = DeviceCatalogModule\Get-DeviceLocationEntries } catch { $locationEntries = @() }
     }
-    try { $global:DeviceLocationEntries = $locationEntries } catch { }
+    try { $global:DeviceLocationEntries = $locationEntries } catch { <# silently handled #> }
 
     try {
         FilterStateModule\Initialize-DeviceFilters -Window $Window -Hostnames @() -LocationEntries $locationEntries
@@ -1373,8 +1373,8 @@ function Initialize-FilterMetadataAtStartup {
                 $global:ProgrammaticHostnameUpdate = $false
             }
         }
-    } catch {}
-    try { Update-DeviceFilter } catch {}
+    } catch { <# silently handled #> }
+    try { Update-DeviceFilter } catch { <# silently handled #> }
 }
 
 function Get-ParserStatusControl {
@@ -1394,7 +1394,7 @@ function Ensure-ParserStatusTimer {
             if ($target) {
                 Update-ParserStatusIndicator -Window $target
             }
-        } catch { }
+        } catch { <# silently handled #> }
     })
     $script:ParserStatusTimer = $timer
 }
@@ -1432,7 +1432,7 @@ function Update-ParserStatusIndicator {
     $state = $script:CurrentParserJob.State
     if ($state -eq 'Running' -or $state -eq 'NotStarted') {
         $started = $null
-        try { if ($script:ParserJobStartedAt) { $started = $script:ParserJobStartedAt.ToString('HH:mm:ss') } } catch { }
+        try { if ($script:ParserJobStartedAt) { $started = $script:ParserJobStartedAt.ToString('HH:mm:ss') } } catch { <# silently handled #> }
         if ($started) {
             Set-ParserStatusWithColor -Indicator $indicator -Text "Parsing in progress (started $started)" -State Running
         } else {
@@ -1448,8 +1448,8 @@ function Update-ParserStatusIndicator {
     }
 
     $logPath = $script:ParserJobLogPath
-    try { Receive-Job $script:CurrentParserJob | Out-Null } catch { }
-    try { Remove-Job $script:CurrentParserJob -Force -ErrorAction SilentlyContinue } catch { }
+    try { Receive-Job $script:CurrentParserJob | Out-Null } catch { <# silently handled #> }
+    try { Remove-Job $script:CurrentParserJob -Force -ErrorAction SilentlyContinue } catch { <# silently handled #> }
     $script:CurrentParserJob = $null
     if ($state -eq 'Completed') {
         $stamp = (Get-Date).ToString('HH:mm:ss')
@@ -1460,7 +1460,7 @@ function Update-ParserStatusIndicator {
         }
         $refreshFilter = $script:ParserPendingSiteFilter
         $script:ParserPendingSiteFilter = $null
-        try { Invoke-DatabaseImport -Window $Window -SiteFilterOverride $refreshFilter -SkipTelemetry } catch { }
+        try { Invoke-DatabaseImport -Window $Window -SiteFilterOverride $refreshFilter -SkipTelemetry } catch { <# silently handled #> }
     } else {
         if ($logPath) {
             Set-ParserStatusWithColor -Indicator $indicator -Text ("Parsing {0}. See {1}" -f $state.ToLower(), $logPath) -State Error
@@ -1529,7 +1529,7 @@ function Get-SiteCacheProviderFromMetrics {
         $parsed = [System.Collections.Generic.List[object]]::new()
         foreach ($line in $lines) {
             if ([string]::IsNullOrWhiteSpace($line)) { continue }
-            try { [void]$parsed.Add(($line | ConvertFrom-Json -ErrorAction Stop)) } catch { }
+            try { [void]$parsed.Add(($line | ConvertFrom-Json -ErrorAction Stop)) } catch { <# silently handled #> }
         }
         if ($parsed.Count -gt 0) { $telemetry = $parsed }
     }
@@ -1810,7 +1810,7 @@ function Reset-ParserCachesForRefresh {
     [CmdletBinding()]
     param([string]$SiteFilter)
 
-    try { Write-Diag ("Parser refresh: clearing caches | SiteFilter={0}" -f $SiteFilter) } catch {}
+    try { Write-Diag ("Parser refresh: clearing caches | SiteFilter={0}" -f $SiteFilter) } catch { <# silently handled #> }
 
     $repoRoot = (Resolve-Path (Join-Path $scriptDir '..')).Path
 
@@ -1819,9 +1819,9 @@ function Reset-ParserCachesForRefresh {
         $historyTargets = @()
         try { $historyTargets = Get-ChildItem -LiteralPath $historyDir -File -ErrorAction SilentlyContinue } catch { $historyTargets = @() }
         foreach ($item in @($historyTargets)) {
-            try { Remove-Item -LiteralPath $item.FullName -Force -ErrorAction SilentlyContinue } catch {}
+            try { Remove-Item -LiteralPath $item.FullName -Force -ErrorAction SilentlyContinue } catch { <# silently handled #> }
         }
-        try { Write-Diag ("Parser refresh: cleared ingestion history files ({0})" -f $historyTargets.Count) } catch {}
+        try { Write-Diag ("Parser refresh: cleared ingestion history files ({0})" -f $historyTargets.Count) } catch { <# silently handled #> }
     }
 
     # Clear site databases so subsequent scans rebuild from logs when force reload is requested.
@@ -1841,21 +1841,21 @@ function Reset-ParserCachesForRefresh {
         if ([string]::IsNullOrWhiteSpace($site)) { continue }
         $siteDir = Join-Path $repoRoot ("Data\\{0}" -f $site)
         if (Test-Path -LiteralPath $siteDir) {
-            try { Remove-Item -LiteralPath $siteDir -Recurse -Force -ErrorAction SilentlyContinue } catch {}
+            try { Remove-Item -LiteralPath $siteDir -Recurse -Force -ErrorAction SilentlyContinue } catch { <# silently handled #> }
         }
     }
-    try { Write-Diag ("Parser refresh: cleared site directories for {0}" -f ([string]::Join(',', $sitesToClear))) } catch {}
+    try { Write-Diag ("Parser refresh: cleared site directories for {0}" -f ([string]::Join(',', $sitesToClear))) } catch { <# silently handled #> }
 
     $cacheModulePath = Join-Path $script:ModulesDirectory 'DeviceRepository.Cache.psm1'
     if (Test-Path -LiteralPath $cacheModulePath) {
-        try { Import-Module -Name $cacheModulePath -Global -ErrorAction SilentlyContinue } catch { }
+        try { Import-Module -Name $cacheModulePath -Global -ErrorAction SilentlyContinue } catch { <# silently handled #> }
     }
 
-    try { DeviceRepository.Cache\Clear-SharedSiteInterfaceCache -Reason 'UIForceReparse' } catch { }
-    try { DeviceRepositoryModule\Clear-SiteInterfaceCache -Reason 'UIForceReparse' } catch { }
-    try { ParserPersistenceModule\Clear-SiteExistingRowCache } catch { }
+    try { DeviceRepository.Cache\Clear-SharedSiteInterfaceCache -Reason 'UIForceReparse' } catch { <# silently handled #> }
+    try { DeviceRepositoryModule\Clear-SiteInterfaceCache -Reason 'UIForceReparse' } catch { <# silently handled #> }
+    try { ParserPersistenceModule\Clear-SiteExistingRowCache } catch { <# silently handled #> }
 
-    try { Write-Diag "Parser refresh: caches cleared" } catch {}
+    try { Write-Diag "Parser refresh: caches cleared" } catch { <# silently handled #> }
     $global:InterfacesLoadAllowed = $false
 }
 
@@ -1885,12 +1885,12 @@ function Start-ParserBackgroundJob {
     $null = Ensure-StateTraceDirectory -Path $logDir
     $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
     $logPath = Join-Path $logDir ("ParserJob-{0}.log" -f $timestamp)
-    try { Write-StartupDiag ("Starting parser job (RepoRoot={0}, LogPath={1})" -f $repoRoot, $logPath) } catch { }
+    try { Write-StartupDiag ("Starting parser job (RepoRoot={0}, LogPath={1})" -f $repoRoot, $logPath) } catch { <# silently handled #> }
     try {
         $queuedHeader = "Parser job queued at {0:o} (IncludeArchive={1}, IncludeHistorical={2}, ForceReload={3})" -f (Get-Date), $IncludeArchive, $IncludeHistorical, $ForceReload
         Set-Content -LiteralPath $logPath -Value $queuedHeader -Encoding UTF8 -ErrorAction Stop
     } catch {
-        try { Write-StartupDiag ("Failed to initialize parser job log at {0}: {1}" -f $logPath, $_.Exception.Message) } catch { }
+        try { Write-StartupDiag ("Failed to initialize parser job log at {0}: {1}" -f $logPath, $_.Exception.Message) } catch { <# silently handled #> }
     }
 
     $job = $null
@@ -1907,7 +1907,7 @@ function Start-ParserBackgroundJob {
         try {
             $logParent = Split-Path -Parent $LogPath
             if ($logParent) {
-                try { [System.IO.Directory]::CreateDirectory($logParent) | Out-Null } catch { }
+                try { [System.IO.Directory]::CreateDirectory($logParent) | Out-Null } catch { <# silently handled #> }
             }
             $pipeline = Join-Path $RepoRoot 'Tools\Invoke-StateTracePipeline.ps1'
             $env:IncludeArchive    = if ($IncludeArchive)    { '1' } else { '0' }
@@ -1942,8 +1942,8 @@ function Start-ParserBackgroundJob {
                         ModuleLoaderModule\Import-StateTraceModulesFromManifest -RepositoryRoot $RepoRoot -Exclude @('ParserWorker.psm1') -Force | Out-Null
                     } catch {
                         $msg = "Failed to import module manifest modules: {0}" -f $_.Exception.Message
-                        try { Add-Content -LiteralPath $LogPath -Value $msg -Encoding UTF8 } catch { }
-                        try { Write-Warning $msg } catch { }
+                        try { Add-Content -LiteralPath $LogPath -Value $msg -Encoding UTF8 } catch { <# silently handled #> }
+                        try { Write-Warning $msg } catch { <# silently handled #> }
 
                         $fallbackModules = @(
                             (Join-Path $RepoRoot 'Modules\LogIngestionModule.psm1'),
@@ -1955,8 +1955,8 @@ function Start-ParserBackgroundJob {
                                 Import-Module -Name $fallbackModulePath -Force -Global -ErrorAction Stop | Out-Null
                             } catch {
                                 $fallbackMsg = "Failed to import fallback module at {0}: {1}" -f $fallbackModulePath, $_.Exception.Message
-                                try { Add-Content -LiteralPath $LogPath -Value $fallbackMsg -Encoding UTF8 } catch { }
-                                try { Write-Warning $fallbackMsg } catch { }
+                                try { Add-Content -LiteralPath $LogPath -Value $fallbackMsg -Encoding UTF8 } catch { <# silently handled #> }
+                                try { Write-Warning $fallbackMsg } catch { <# silently handled #> }
                             }
                         }
                     }
@@ -2037,7 +2037,7 @@ function Initialize-DeviceViewFromCatalog {
 
     $initStopwatch = $null
     try { $initStopwatch = [System.Diagnostics.Stopwatch]::StartNew() } catch { $initStopwatch = $null }
-    try { Write-Diag ("Initialize-DeviceViewFromCatalog start | SiteFilter={0} | HasCatalog={1}" -f $SiteFilter, [bool]$CatalogData) } catch { }
+    try { Write-Diag ("Initialize-DeviceViewFromCatalog start | SiteFilter={0} | HasCatalog={1}" -f $SiteFilter, [bool]$CatalogData) } catch { <# silently handled #> }
 
     $previousProgrammaticHostnameUpdate = $false
     try { $previousProgrammaticHostnameUpdate = [bool]$global:ProgrammaticHostnameUpdate } catch { $previousProgrammaticHostnameUpdate = $false }
@@ -2058,7 +2058,7 @@ function Initialize-DeviceViewFromCatalog {
             } elseif ($catalog.PSObject.Properties['Hostnames']) {
                 $global:DeviceHostnameOrder = @($catalog.Hostnames)
             }
-        } catch { }
+        } catch { <# silently handled #> }
     } else {
         try {
             if ([string]::IsNullOrWhiteSpace($SiteFilter)) {
@@ -2112,13 +2112,13 @@ function Initialize-DeviceViewFromCatalog {
             Initialize-DeviceFilters -Window $Window
             $null = Invoke-OptionalCommandSafe -Name 'InterfaceModule\Set-HostLoadingIndicator' -Parameters @{ State = 'Hidden' }
         }
-    } catch {}
+    } catch { <# silently handled #> }
 
     try {
         if ($initStopwatch) {
             Write-Diag ("Initialize-DeviceViewFromCatalog after Initialize-DeviceFilters | HostCount={0} | ElapsedMs={1}" -f @($hostList).Count, [Math]::Round($initStopwatch.Elapsed.TotalMilliseconds, 3))
         }
-    } catch { }
+    } catch { <# silently handled #> }
 
     # Ensure the site dropdown reflects the chosen SiteFilter when loading from DB
     try {
@@ -2142,7 +2142,7 @@ function Initialize-DeviceViewFromCatalog {
                 $global:ProgrammaticFilterUpdate = $false
             }
         }
-    } catch {}
+    } catch { <# silently handled #> }
 
     try {
         $siteTarget = $SiteFilter
@@ -2156,15 +2156,15 @@ function Initialize-DeviceViewFromCatalog {
             }
         }
         Set-StateTraceDbPath -Site $siteTarget
-    } catch {}
+    } catch { <# silently handled #> }
 
-    try { Update-DeviceFilter } catch {}
+    try { Update-DeviceFilter } catch { <# silently handled #> }
 
     try {
         if ($initStopwatch) {
             Write-Diag ("Initialize-DeviceViewFromCatalog after Update-DeviceFilter | ElapsedMs={0}" -f [Math]::Round($initStopwatch.Elapsed.TotalMilliseconds, 3))
         }
-    } catch { }
+    } catch { <# silently handled #> }
 
     if ((Test-OptionalCommandAvailable -Name 'Update-CompareView') -and (Test-CompareSidebarVisible -Window $Window)) {
         try { Update-CompareView -Window $Window | Out-Null }
@@ -2183,10 +2183,10 @@ function Initialize-DeviceViewFromCatalog {
 
             # Avoid auto-loading device details when loading All Sites (often very large).
             if ($isAllSites) {
-                try { $hostDD.SelectedIndex = -1 } catch { }
+                try { $hostDD.SelectedIndex = -1 } catch { <# silently handled #> }
             } else {
                 if ($hostCount -gt 0 -and ($hostDD.SelectedIndex -lt 0)) {
-                    try { $hostDD.SelectedIndex = 0 } catch { }
+                    try { $hostDD.SelectedIndex = 0 } catch { <# silently handled #> }
                 }
 
                 # Auto-load the selected hostname when a site scope is selected.  Device details are
@@ -2203,7 +2203,7 @@ function Initialize-DeviceViewFromCatalog {
             }
         }
         $null = Invoke-OptionalCommandSafe -Name 'InterfaceModule\Set-HostLoadingIndicator' -Parameters @{ State = 'Hidden' }
-    } catch {}
+    } catch { <# silently handled #> }
     } finally {
         $global:ProgrammaticHostnameUpdate = $previousProgrammaticHostnameUpdate
     }
@@ -2212,7 +2212,7 @@ function Initialize-DeviceViewFromCatalog {
         try {
             $hostToLoadLocal = '' + $targetHostnameToLoad
             $invokeHostnameChanged = {
-                try { Get-HostnameChanged -Hostname $hostToLoadLocal } catch { }
+                try { Get-HostnameChanged -Hostname $hostToLoadLocal } catch { <# silently handled #> }
             }.GetNewClosure()
 
             $dispatcher = $null
@@ -2227,7 +2227,7 @@ function Initialize-DeviceViewFromCatalog {
                     [System.Action]$invokeHostnameChanged
                 )
             }
-        } catch { }
+        } catch { <# silently handled #> }
     }
 
     try {
@@ -2235,7 +2235,7 @@ function Initialize-DeviceViewFromCatalog {
             $initStopwatch.Stop()
             Write-Diag ("Initialize-DeviceViewFromCatalog end | ElapsedMs={0}" -f [Math]::Round($initStopwatch.Elapsed.TotalMilliseconds, 3))
         }
-    } catch { }
+    } catch { <# silently handled #> }
 }
 
 function Test-CompareSidebarVisible {
@@ -2249,9 +2249,9 @@ function Test-CompareSidebarVisible {
         if ($compareCol -is [System.Windows.Controls.ColumnDefinition]) {
             try {
                 if ($compareCol.Width.Value -gt 0) { return $true }
-            } catch { }
+            } catch { <# silently handled #> }
         }
-    } catch { }
+    } catch { <# silently handled #> }
 
     return $false
 }
@@ -2266,7 +2266,7 @@ function Invoke-DatabaseImport {
 
     try {
         if ($global:DatabaseImportInProgress) {
-            try { Write-Diag ("Database import already in progress; ignoring request. CurrentRequestId={0}" -f $global:DatabaseImportRequestId) } catch {}
+            try { Write-Diag ("Database import already in progress; ignoring request. CurrentRequestId={0}" -f $global:DatabaseImportRequestId) } catch { <# silently handled #> }
             return
         }
 
@@ -2277,7 +2277,7 @@ function Invoke-DatabaseImport {
             $requestId = [int]$global:DatabaseImportRequestId
         } catch {
             $requestId = [int][Environment]::TickCount
-            try { $global:DatabaseImportRequestId = $requestId } catch { }
+            try { $global:DatabaseImportRequestId = $requestId } catch { <# silently handled #> }
         }
 
         $global:InterfacesLoadAllowed = $true
@@ -2307,7 +2307,7 @@ function Invoke-DatabaseImport {
                     Room     = if ($loc.PSObject.Properties['Room']) { '' + $loc.Room } else { '' }
                 }
             }
-        } catch {}
+        } catch { <# silently handled #> }
 
         $siteFilterValue = $null
         if ($PSBoundParameters.ContainsKey('SiteFilterOverride')) {
@@ -2323,7 +2323,7 @@ function Invoke-DatabaseImport {
         try {
             $loadBtn = $Window.FindName('LoadDatabaseButton')
             if ($loadBtn) { $loadBtn.IsEnabled = $false }
-        } catch { }
+        } catch { <# silently handled #> }
 
         $modulesDir = $script:ModulesDirectory
         if (-not $modulesDir) {
@@ -2399,7 +2399,7 @@ return [pscustomobject]@{
 
             $diagRequestId = $requestId
             $diagSite = $siteFilterValue
-            try { Write-Diag ("Invoke-DatabaseImport async dispatch | RequestId={0} | SiteFilter={1}" -f $diagRequestId, $diagSite) } catch {}
+            try { Write-Diag ("Invoke-DatabaseImport async dispatch | RequestId={0} | SiteFilter={1}" -f $diagRequestId, $diagSite) } catch { <# silently handled #> }
 
             $applyRequestId = $diagRequestId
             $applySiteFilterValue = $siteFilterValue
@@ -2426,10 +2426,10 @@ return [pscustomobject]@{
 
                     try {
                         Write-Diag ("Invoke-DatabaseImport UI apply start | RequestId={0} | GlobalCurrent={1} | ScriptCurrent={2} | ThreadId={3} | DefaultRunspaceId={4}" -f $applyRequestId, $globalRequestId, $scriptRequestId, $threadId, $defaultRunspaceId)
-                    } catch {}
+                    } catch { <# silently handled #> }
 
                     if ($null -ne $globalRequestId -and ($applyRequestId -ne $globalRequestId)) {
-                        try { Write-Diag ("Invoke-DatabaseImport stale completion ignored | RequestId={0} | GlobalCurrent={1}" -f $applyRequestId, $globalRequestId) } catch {}
+                        try { Write-Diag ("Invoke-DatabaseImport stale completion ignored | RequestId={0} | GlobalCurrent={1}" -f $applyRequestId, $globalRequestId) } catch { <# silently handled #> }
                         return
                     }
 
@@ -2467,7 +2467,7 @@ return [pscustomobject]@{
                         try {
                             $loadBtn = $applyWindow.FindName('LoadDatabaseButton')
                             if ($loadBtn) { $loadBtn.IsEnabled = $true }
-                        } catch { }
+                        } catch { <# silently handled #> }
                         $global:DatabaseImportInProgress = $false
                     }
                 }
@@ -2500,15 +2500,15 @@ return [pscustomobject]@{
             $workerThread.ApartmentState = [System.Threading.ApartmentState]::STA
             $workerThread.Start()
         } catch {
-            try { if ($ps) { $ps.Dispose() } } catch {}
+            try { if ($ps) { $ps.Dispose() } } catch { <# silently handled #> }
             throw
         }
     } catch {
-        try { $global:PendingFilterRestore = $null } catch {}
+        try { $global:PendingFilterRestore = $null } catch { <# silently handled #> }
         try {
             $loadBtn = $Window.FindName('LoadDatabaseButton')
             if ($loadBtn) { $loadBtn.IsEnabled = $true }
-        } catch { }
+        } catch { <# silently handled #> }
         $global:DatabaseImportInProgress = $false
         Write-Warning ("Database import failed: {0}" -f $_.Exception.Message)
     }
@@ -2554,14 +2554,14 @@ function Get-HostnameChanged {
             if ($hostIndicatorCmd) {
                 try {
                     InterfaceModule\Set-HostLoadingIndicator -Hostname $Hostname -CurrentIndex $currentIndex -TotalHosts $totalHosts -State 'Loading'
-                } catch {}
+                } catch { <# silently handled #> }
             }
             try {
                 Import-DeviceDetailsAsync -Hostname $Hostname
             } catch {
                 Write-Warning ("Hostname change handler failed to queue async device load for {0}: {1}" -f $Hostname, $_.Exception.Message)
                 if ($hostIndicatorCmd) {
-                    try { InterfaceModule\Set-HostLoadingIndicator -State 'Hidden' } catch {}
+                    try { InterfaceModule\Set-HostLoadingIndicator -State 'Hidden' } catch { <# silently handled #> }
                 }
             }
 
@@ -2576,7 +2576,7 @@ function Get-HostnameChanged {
             }
         } else {
             if ($hostIndicatorCmd) {
-                try { InterfaceModule\Set-HostLoadingIndicator -State 'Hidden' } catch {}
+                try { InterfaceModule\Set-HostLoadingIndicator -State 'Hidden' } catch { <# silently handled #> }
             }
             # Clear span info when hostname is empty
             $spanVisible = $false
@@ -2603,16 +2603,16 @@ function Import-DeviceDetailsAsync {
     $debug = ($Global:StateTraceDebug -eq $true)
     $hostTrim = ('' + $Hostname).Trim()
     if (-not $global:StateTraceDb) {
-        try { Set-StateTraceDbPath } catch {}
+        try { Set-StateTraceDbPath } catch { <# silently handled #> }
     }
     if ($debug) {
         Write-Verbose ("Import-DeviceDetailsAsync: called with Hostname='{0}'" -f $hostTrim)
     }
-    try { Write-Diag ("Import-DeviceDetailsAsync start | Host={0}" -f $hostTrim) } catch {}
+    try { Write-Diag ("Import-DeviceDetailsAsync start | Host={0}" -f $hostTrim) } catch { <# silently handled #> }
     # If no host is provided, clear span info and return
     if ([string]::IsNullOrWhiteSpace($hostTrim)) {
         $null = Invoke-OptionalCommandSafe -Name 'InterfaceModule\Set-HostLoadingIndicator' -Parameters @{ State = 'Hidden' }
-        try { [System.Windows.Application]::Current.Dispatcher.Invoke([System.Action]{ Invoke-OptionalCommandSafe -Name 'Get-SpanInfo' -ArgumentList @('') | Out-Null }) } catch {}
+        try { [System.Windows.Application]::Current.Dispatcher.Invoke([System.Action]{ Invoke-OptionalCommandSafe -Name 'Get-SpanInfo' -ArgumentList @('') | Out-Null }) } catch { <# silently handled #> }
         return
     }
 
@@ -2653,7 +2653,7 @@ $diagStamp = {
     try {
         $timestamp = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss.fff')
         Add-Content -LiteralPath $diagPath -Value ("[{0}] {1}" -f $timestamp, $text) -ErrorAction SilentlyContinue
-    } catch {}
+    } catch { <# silently handled #> }
 }
 $ErrorActionPreference = 'Stop'
 if (-not [string]::IsNullOrWhiteSpace($dbPath)) {
@@ -2696,7 +2696,7 @@ return $res
         if ($Global:StateTraceDebug -eq $true) {
             Write-Verbose ("Import-DeviceDetailsAsync: starting background thread for '{0}'" -f $hostTrim)
         }
-        try { Write-Diag ("Import-DeviceDetailsAsync thread launching | Host={0}" -f $hostTrim) } catch {}
+        try { Write-Diag ("Import-DeviceDetailsAsync thread launching | Host={0}" -f $hostTrim) } catch { <# silently handled #> }
 
         $uiContext = $null
         try { $uiContext = [System.Threading.SynchronizationContext]::Current } catch { $uiContext = $null }
@@ -2718,7 +2718,7 @@ return $res
                 if (-not $dto -or ($dto -is [System.Management.Automation.ErrorRecord])) {
                     if ($dto -and $dto.Exception) {
                         Write-Warning ("Import-DeviceDetailsAsync error: {0}" -f $dto.Exception.Message)
-                        try { Write-Diag ("Import-DeviceDetailsAsync error detail | Host={0} | Error={1}" -f $deviceHostForUi, $dto.Exception.ToString()) } catch {}
+                        try { Write-Diag ("Import-DeviceDetailsAsync error detail | Host={0} | Error={1}" -f $deviceHostForUi, $dto.Exception.ToString()) } catch { <# silently handled #> }
                     }
 
                     try {
@@ -2727,7 +2727,7 @@ return $res
                             $grid = $view.FindName('InterfacesGrid')
                             if ($grid) { $grid.ItemsSource = $null }
                         }
-                    } catch { }
+                    } catch { <# silently handled #> }
 
                     $null = Invoke-OptionalCommandSafe -Name 'InterfaceModule\Hide-PortLoadingIndicator'
                     $null = Invoke-OptionalCommandSafe -Name 'InterfaceModule\Set-HostLoadingIndicator' -Parameters @{ State = 'Hidden' }
@@ -2745,7 +2745,7 @@ return $res
                 try {
                     InterfaceModule\Set-InterfaceViewData -DeviceDetails $dto -DefaultHostname $defaultHost
                 } catch {
-                    try { Write-Diag ("InterfaceViewData failed | Host={0} | Error={1}" -f $defaultHost, $_.Exception.Message) } catch {}
+                    try { Write-Diag ("InterfaceViewData failed | Host={0} | Error={1}" -f $defaultHost, $_.Exception.Message) } catch { <# silently handled #> }
                 }
 
                 try {
@@ -2757,11 +2757,11 @@ return $res
                         }
                         $global:DeviceInterfaceCache[$deviceHostForUi] = $interfaces
                     }
-                } catch { }
+                } catch { <# silently handled #> }
 
                 $null = Invoke-OptionalCommandSafe -Name 'InterfaceModule\Hide-PortLoadingIndicator'
                 $null = Invoke-OptionalCommandSafe -Name 'InterfaceModule\Set-HostLoadingIndicator' -Parameters @{ Hostname = $deviceHostForUi; State = 'Loaded' }
-                try { Request-DeviceFilterUpdate } catch { }
+                try { Request-DeviceFilterUpdate } catch { <# silently handled #> }
             } catch {
             }
         }
@@ -2789,7 +2789,7 @@ return $res
                 try {
                     $stamp = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss.fff')
                     Add-Content -LiteralPath $diagPathLocal -Value ("[{0}] {1}" -f $stamp, $message) -ErrorAction SilentlyContinue
-                } catch {}
+                } catch { <# silently handled #> }
             }
             $semaphore = $script:DeviceDetailsRunspaceLock
             $heldLock = $false
@@ -2824,7 +2824,7 @@ return $res
                     try {
                         $typeName = if ($null -ne $data) { $data.GetType().FullName } else { 'null' }
                         Write-Verbose ("Import-DeviceDetailsAsync: thread received result of type '{0}'" -f $typeName)
-                    } catch {}
+                    } catch { <# silently handled #> }
                 }
                 # Marshal UI updates back to the dispatcher thread.  Passing the result as
                 $uiAction = {
@@ -2834,7 +2834,7 @@ return $res
                         if (-not $dto -or ($dto -is [System.Management.Automation.ErrorRecord])) {
                             if ($dto -and $dto.Exception) {
                                 Write-Warning ("Import-DeviceDetailsAsync error: {0}" -f $dto.Exception.Message)
-                                try { Write-Diag ("Import-DeviceDetailsAsync error detail | Host={0} | Error={1}" -f $deviceHost, $dto.Exception.ToString()) } catch {}
+                                try { Write-Diag ("Import-DeviceDetailsAsync error detail | Host={0} | Error={1}" -f $deviceHost, $dto.Exception.ToString()) } catch { <# silently handled #> }
                             }
                             # Clear the interfaces grid on failure
                             if ($global:interfacesView) {
@@ -2851,14 +2851,14 @@ return $res
                         if ($summary -and $summary.PSObject.Properties['Hostname']) {
                             $defaultHost = [string]$summary.Hostname
                         }
-                        try { Write-Diag ("InterfaceViewData scheduling | Host={0}" -f $defaultHost) } catch {}
+                        try { Write-Diag ("InterfaceViewData scheduling | Host={0}" -f $defaultHost) } catch { <# silently handled #> }
                         try {
                             InterfaceModule\Set-InterfaceViewData -DeviceDetails $dto -DefaultHostname $defaultHost
                             $ifaceCount = 0
                             try { $ifaceCount = @($dto.Interfaces).Count } catch { $ifaceCount = 0 }
-                            try { Write-Diag ("InterfaceViewData applied | Host={0} | Interfaces={1}" -f $defaultHost, $ifaceCount) } catch {}
+                            try { Write-Diag ("InterfaceViewData applied | Host={0} | Interfaces={1}" -f $defaultHost, $ifaceCount) } catch { <# silently handled #> }
                         } catch {
-                            try { Write-Diag ("InterfaceViewData failed | Host={0} | Error={1}" -f $defaultHost, $_.Exception.Message) } catch {}
+                            try { Write-Diag ("InterfaceViewData failed | Host={0} | Error={1}" -f $defaultHost, $_.Exception.Message) } catch { <# silently handled #> }
                             if ($debug) {
                                 Write-Verbose ("Import-DeviceDetailsAsync: failed to apply device details: {0}" -f $_.Exception.Message)
                             }
@@ -2884,9 +2884,9 @@ return $res
                     } catch { $collection = $null }
 
                     $collection = Convert-InterfaceCollectionForHost -Collection $collection -Hostname $deviceHost
-                    try { $data.Interfaces = $collection } catch { }
+                    try { $data.Interfaces = $collection } catch { <# silently handled #> }
 
-                    try { DeviceRepositoryModule\Initialize-InterfacePortStream -Hostname $deviceHost } catch { }
+                    try { DeviceRepositoryModule\Initialize-InterfacePortStream -Hostname $deviceHost } catch { <# silently handled #> }
                     & $logAsync ("Async stream initialized for host {0}" -f $deviceHost)
 
                     $streamStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
@@ -2920,7 +2920,7 @@ return $res
                                     $global:DeviceInterfaceCache = @{}
                                 }
                                 $global:DeviceInterfaceCache[$deviceHost] = $collection
-                            } catch {}
+                            } catch { <# silently handled #> }
                         }
 
                         $collectionCount = 0
@@ -2952,14 +2952,14 @@ return $res
                                     $convertedList = New-Object 'System.Collections.ObjectModel.ObservableCollection[object]'
                                     foreach ($item in $collection) {
                                         $clone = $item
-                                        try { $clone = DeviceRepositoryModule\ConvertTo-PortPsObject -Row $item -Hostname $deviceHost } catch { }
+                                        try { $clone = DeviceRepositoryModule\ConvertTo-PortPsObject -Row $item -Hostname $deviceHost } catch { <# silently handled #> }
                                         if ($null -ne $clone) { $convertedList.Add($clone) | Out-Null }
                                     }
                                     if ($convertedList) {
                                         $converted = $convertedList
-                                        try { $data.Interfaces = $converted } catch { }
+                                        try { $data.Interfaces = $converted } catch { <# silently handled #> }
                                     }
-                                } catch { }
+                                } catch { <# silently handled #> }
                             }
                             $collection = $converted
 
@@ -2970,7 +2970,7 @@ return $res
                                             $global:DeviceInterfaceCache = @{}
                                         }
                                         $global:DeviceInterfaceCache[$deviceHost] = $collection
-                                    } catch { }
+                                    } catch { <# silently handled #> }
                                     try {
                                         $grid = $null
                                         try { $grid = $global:interfacesGrid } catch { $grid = $null }
@@ -2978,12 +2978,12 @@ return $res
                                             try { $grid = $global:interfacesView.FindName('InterfacesGrid') } catch { $grid = $null }
                                         }
                                         if ($grid) { $grid.ItemsSource = $collection }
-                                    } catch { }
+                                    } catch { <# silently handled #> }
 
-                                    try { InterfaceModule\Set-PortLoadingIndicator -Loaded $collectionCount -Total $collectionCount -BatchesRemaining 0 } catch {}
+                                    try { InterfaceModule\Set-PortLoadingIndicator -Loaded $collectionCount -Total $collectionCount -BatchesRemaining 0 } catch { <# silently handled #> }
                                 })
-                            } catch { }
-                            try { Write-Diag ("Port stream skipped | Host={0} | ExistingCount={1}" -f $deviceHost, $collectionCount) } catch {}
+                            } catch { <# silently handled #> }
+                            try { Write-Diag ("Port stream skipped | Host={0} | ExistingCount={1}" -f $deviceHost, $collectionCount) } catch { <# silently handled #> }
                         }
 
                         if ($streamingRequired) {
@@ -3041,7 +3041,7 @@ return $res
                                     $dispatcherDurationMs = [Math]::Round($dispatcherStopwatch.Elapsed.TotalMilliseconds, 3)
                                     $collectionCount = 0
                                     try { $collectionCount = @($collection).Count } catch { $collectionCount = 0 }
-                                    try { Write-Diag ("Interface batch appended | Host={0} | BatchSize={1} | CollectionCount={2}" -f $deviceHost, $batchSize, $collectionCount) } catch {}
+                                    try { Write-Diag ("Interface batch appended | Host={0} | BatchSize={1} | CollectionCount={2}" -f $deviceHost, $batchSize, $collectionCount) } catch { <# silently handled #> }
 
                                     if ($uiMetrics) {
                                         if ($uiMetrics.PSObject.Properties['AppendDurationMs']) {
@@ -3054,14 +3054,14 @@ return $res
 
                                     try {
                                         DeviceRepositoryModule\Set-InterfacePortDispatchMetrics -Hostname $deviceHost -BatchId $batch.BatchId -BatchOrdinal $batch.BatchOrdinal -BatchCount $batch.BatchCount -BatchSize $batchSize -PortsDelivered $batch.PortsDelivered -TotalPorts $batch.TotalPorts -DispatcherDurationMs $dispatcherDurationMs -AppendDurationMs $appendDurationMs -IndicatorDurationMs $indicatorDurationMs
-                                    } catch { }
+                                    } catch { <# silently handled #> }
 
                                     $batchesProcessed++
                                     try {
                                         $totalDispatcherMs += $dispatcherDurationMs
                                         $totalAppendMs += $appendDurationMs
                                         $totalIndicatorMs += $indicatorDurationMs
-                                    } catch { }
+                                    } catch { <# silently handled #> }
                                     if ($firstBatchDelayMs -eq $null -and $firstBatchTimer) {
                                         try { $firstBatchDelayMs = [Math]::Round($firstBatchTimer.Elapsed.TotalMilliseconds, 3) } catch { $firstBatchDelayMs = 0.0 }
                                     }
@@ -3102,9 +3102,9 @@ return $res
                 if ($collection) {
                     try {
                         [System.Windows.Application]::Current.Dispatcher.Invoke([System.Action]{
-                            try { Update-DeviceInterfaceCacheSnapshot -Hostname $deviceHost -Collection $collection } catch {}
+                            try { Update-DeviceInterfaceCacheSnapshot -Hostname $deviceHost -Collection $collection } catch { <# silently handled #> }
                         })
-                    } catch {}
+                    } catch { <# silently handled #> }
                 }
 
                 $finalCollectionCount = 0
@@ -3115,7 +3115,7 @@ return $res
 
                 try {
                     Write-Diag ("Device load metrics | Host={0} | InvokeMs={1} | StreamMs={2} | FirstBatchMs={3} | Batches={4} | Interfaces={5}" -f $deviceHost, $invokeDurationMs, $streamDurationMs, $firstBatchDelayMs, $batchesProcessed, $finalCollectionCount)
-                } catch {}
+                } catch { <# silently handled #> }
 
                 $telemetryPayload = @{
                     Hostname          = $deviceHost
@@ -3134,14 +3134,14 @@ return $res
                         if ($queueMetrics.PSObject.Properties['ChunkSource']) { $telemetryPayload.ChunkSource = '' + $queueMetrics.ChunkSource }
                         if ($queueMetrics.PSObject.Properties['BatchCount']) { $telemetryPayload.PlannedBatchCount = [int]$queueMetrics.BatchCount }
                         if ($queueMetrics.PSObject.Properties['TotalPorts']) { $telemetryPayload.QueuePorts = [int]$queueMetrics.TotalPorts }
-                    } catch { }
+                    } catch { <# silently handled #> }
                 }
                 $null = Invoke-OptionalCommandSafe -Name 'TelemetryModule\Write-StTelemetryEvent' -Parameters @{
                     Name    = 'DeviceDetailsLoadMetrics'
                     Payload = $telemetryPayload
                 } | Out-Null
 
-                try { DeviceRepositoryModule\Clear-InterfacePortStream -Hostname $deviceHost } catch { }
+                try { DeviceRepositoryModule\Clear-InterfacePortStream -Hostname $deviceHost } catch { <# silently handled #> }
                 & $logAsync ("Async cleared port stream for host {0}" -f $deviceHost)
                 $hostIndicatorAvailable = $false
                 $deviceHostLocal = $deviceHost
@@ -3152,7 +3152,7 @@ return $res
                 [System.Windows.Application]::Current.Dispatcher.Invoke([System.Action]{
                     InterfaceModule\Hide-PortLoadingIndicator
                     if ($hostIndicatorAvailableLocal) {
-                        try { InterfaceModule\Set-HostLoadingIndicator -Hostname $deviceHostLocal -State 'Loaded' } catch {}
+                        try { InterfaceModule\Set-HostLoadingIndicator -Hostname $deviceHostLocal -State 'Loaded' } catch { <# silently handled #> }
                     }
                 })
             } catch {
@@ -3160,20 +3160,20 @@ return $res
                 Write-Warning ("Import-DeviceDetailsAsync thread encountered an exception: {0}" -f $_.Exception.Message)
                 try {
                     $null = Invoke-OptionalCommandSafe -Name 'InterfaceModule\Set-HostLoadingIndicator' -Parameters @{ State = 'Hidden' }
-                } catch {}
+                } catch { <# silently handled #> }
                 try {
                     if ($script:DeviceDetailsRunspace -and
                         $script:DeviceDetailsRunspace.RunspaceStateInfo.State -eq [System.Management.Automation.Runspaces.RunspaceState]::Broken) {
                         $script:DeviceDetailsRunspace.Dispose()
                         $script:DeviceDetailsRunspace = $null
                     }
-                } catch { }
+                } catch { <# silently handled #> }
             } finally {
                 # Clean up the PowerShell instance and release the pooled runspace lock
-                try { $psCmd.Commands.Clear() } catch {}
+                try { $psCmd.Commands.Clear() } catch { <# silently handled #> }
                 $psCmd.Dispose()
                 if ($heldLock -and $semaphore) {
-                    try { $semaphore.Release() } catch {}
+                    try { $semaphore.Release() } catch { <# silently handled #> }
                 }
             }
         }
@@ -3184,7 +3184,7 @@ return $res
         $workerThread.Start()
     } catch {
         Write-Warning ("Import-DeviceDetailsAsync failed to dispatch background load: {0}" -f $_.Exception.Message)
-        try { if ($ps) { $ps.Dispose() } } catch {}
+        try { if ($ps) { $ps.Dispose() } } catch { <# silently handled #> }
     }
 }
 
@@ -3292,14 +3292,14 @@ if ($hostnameDropdown -and -not $script:HostnameHandlerAttached) {
         $sel = [string]$sender.SelectedItem
         Get-HostnameChanged -Hostname $sel
         # Update freshness indicator to show device-specific timestamp
-        try { Update-FreshnessIndicator -Window $window } catch { }
+        try { Update-FreshnessIndicator -Window $window } catch { <# silently handled #> }
         # Persist last selected hostname for session restore
         if (-not $global:ProgrammaticHostnameUpdate -and $sel) {
             try {
                 if (-not $script:StateTraceSettings) { $script:StateTraceSettings = @{} }
                 $script:StateTraceSettings['LastHostname'] = $sel
                 Save-StateTraceSettings -Settings $script:StateTraceSettings
-            } catch { }
+            } catch { <# silently handled #> }
             # Add to recent devices list
             try {
                 if (-not $script:RecentDevices) { $script:RecentDevices = @() }
@@ -3313,7 +3313,7 @@ if ($hostnameDropdown -and -not $script:HostnameHandlerAttached) {
                         [void]$recentDD.Items.Add($device)
                     }
                 }
-            } catch { }
+            } catch { <# silently handled #> }
         }
     })
     $script:HostnameHandlerAttached = $true
@@ -3356,7 +3356,7 @@ if ($pinDeviceButton -and -not $script:PinDeviceHandlerAttached) {
                     $script:PinnedDevices = @($settings.PinnedDevices)
                 }
             }
-        } catch { }
+        } catch { <# silently handled #> }
     }
 
     $pinDeviceButton.Add_Click({
@@ -3387,7 +3387,7 @@ if ($pinDeviceButton -and -not $script:PinDeviceHandlerAttached) {
             }
             $settings['PinnedDevices'] = $script:PinnedDevices
             $settings | ConvertTo-Json -Depth 5 | Set-Content $settingsPath -Encoding UTF8
-        } catch { }
+        } catch { <# silently handled #> }
 
         # Refresh dropdown to show pinned at top
         try {
@@ -3398,7 +3398,7 @@ if ($pinDeviceButton -and -not $script:PinDeviceHandlerAttached) {
             $hostDD.Items.Clear()
             foreach ($d in $sorted) { [void]$hostDD.Items.Add($d) }
             $hostDD.SelectedItem = $device
-        } catch { }
+        } catch { <# silently handled #> }
     }.GetNewClosure())
 
     # Update pin button state when device changes
@@ -3425,7 +3425,7 @@ if ($mainTabControl -and -not $script:MainTabHandlerAttached) {
                     if (-not $script:StateTraceSettings) { $script:StateTraceSettings = @{} }
                     $script:StateTraceSettings['LastTabIndex'] = $idx
                     Save-StateTraceSettings -Settings $script:StateTraceSettings
-                } catch { }
+                } catch { <# silently handled #> }
             }
         }
     })
@@ -3449,14 +3449,14 @@ if (-not $script:FilterUpdateTimer) {
 
             # Keep Compare in sync with current filters/hosts
             if ($global:InterfacesLoadAllowed -and (Test-OptionalCommandAvailable -Name 'Update-CompareView') -and (Test-CompareSidebarVisible -Window $window)) {
-                try { Update-CompareView -Window $window | Out-Null } catch {}
+                try { Update-CompareView -Window $window | Out-Null } catch { <# silently handled #> }
             }
         } catch {
             $emsg = $_.Exception.Message
             $pos  = ''
-            try { $pos = $_.InvocationInfo.PositionMessage } catch { }
+            try { $pos = $_.InvocationInfo.PositionMessage } catch { <# silently handled #> }
             $stk  = ''
-            try { $stk = $_.ScriptStackTrace } catch { }
+            try { $stk = $_.ScriptStackTrace } catch { <# silently handled #> }
             # Log to UI and diagnostics log
             Write-Warning ("Device filter update failed: {0}" -f $emsg)
             Write-Diag ("Filter fail | LangMode={0} | FQEID={1} | Cat={2}" -f $ExecutionContext.SessionState.LanguageMode, $_.FullyQualifiedErrorId, $_.CategoryInfo)
@@ -3485,7 +3485,7 @@ function Request-DeviceFilterUpdate {
     $script:FilterUpdateTimer.Stop()
     $script:FilterUpdateTimer.Start()
     if ($window) {
-        try { Update-FreshnessIndicator -Window $window } catch { }
+        try { Update-FreshnessIndicator -Window $window } catch { <# silently handled #> }
     }
 }
 
@@ -3514,13 +3514,13 @@ function Get-FilterDropdowns {
             param($sender,$e)
             if (-not $global:ProgrammaticFilterUpdate) {
                 $sel = $null
-                try { $sel = [string]$sender.SelectedItem } catch { }
+                try { $sel = [string]$sender.SelectedItem } catch { <# silently handled #> }
                 if ($sel) {
                     try {
                         if (-not $script:StateTraceSettings) { $script:StateTraceSettings = @{} }
                         $script:StateTraceSettings['LastSite'] = $sel
                         Save-StateTraceSettings -Settings $script:StateTraceSettings
-                    } catch { }
+                    } catch { <# silently handled #> }
                 }
             }
         })
@@ -3701,7 +3701,7 @@ if ($debugNextToggle) {
             $script:StateTraceSettings['DebugOnNextLaunch'] = $checked
             Save-StateTraceSettings -Settings $script:StateTraceSettings
             $Global:StateTraceDebug = $checked
-        } catch { }
+        } catch { <# silently handled #> }
     }
 
     $debugNextToggle.Add_Checked($updateDebugPreference)
@@ -3736,7 +3736,7 @@ $window.Add_Loaded({
             }
             try {
                 $locCount = 0
-                try { $locCount = $global:DeviceLocationEntries.Count } catch { }
+                try { $locCount = $global:DeviceLocationEntries.Count } catch { <# silently handled #> }
                 Write-StartupDiag ("Global DeviceLocationEntries count={0}" -f $locCount)
                 $snap = Invoke-OptionalCommandSafe -Name 'ViewStateService\Get-FilterSnapshot' -Parameters @{
                     DeviceMetadata  = $global:DeviceMetadata
@@ -3812,11 +3812,11 @@ $window.Add_Loaded({
 
         Ensure-ParserStatusTimer -Window $window
         Update-ParserStatusIndicator -Window $window
-        try { Update-FreshnessIndicator -Window $window } catch { }
-        try { Update-PipelineHealthIndicator -Window $window } catch { }
+        try { Update-FreshnessIndicator -Window $window } catch { <# silently handled #> }
+        try { Update-PipelineHealthIndicator -Window $window } catch { <# silently handled #> }
         try {
             $null = Invoke-OptionalCommandSafe -Name 'InterfaceModule\Set-HostLoadingIndicator' -Parameters @{ State = 'Hidden' }
-        } catch {}
+        } catch { <# silently handled #> }
     } catch {
         Write-Warning ("Initialization failed: {0}" -f $_.Exception.Message)
     }
@@ -3828,25 +3828,25 @@ $window.Add_Closing({
     param($sender, $e)
     try {
         # Stop timers
-        if ($script:ParserStatusTimer) { try { $script:ParserStatusTimer.Stop() } catch {} }
-        if ($script:FilterUpdateTimer) { try { $script:FilterUpdateTimer.Stop() } catch {} }
+        if ($script:ParserStatusTimer) { try { $script:ParserStatusTimer.Stop() } catch { <# silently handled #> } }
+        if ($script:FilterUpdateTimer) { try { $script:FilterUpdateTimer.Stop() } catch { <# silently handled #> } }
 
         # Dispose runspaces
         if ($script:DeviceDetailsRunspace) {
-            try { $script:DeviceDetailsRunspace.Close() } catch {}
-            try { $script:DeviceDetailsRunspace.Dispose() } catch {}
+            try { $script:DeviceDetailsRunspace.Close() } catch { <# silently handled #> }
+            try { $script:DeviceDetailsRunspace.Dispose() } catch { <# silently handled #> }
         }
         if ($script:DatabaseImportRunspace) {
-            try { $script:DatabaseImportRunspace.Close() } catch {}
-            try { $script:DatabaseImportRunspace.Dispose() } catch {}
+            try { $script:DatabaseImportRunspace.Close() } catch { <# silently handled #> }
+            try { $script:DatabaseImportRunspace.Dispose() } catch { <# silently handled #> }
         }
 
         # Stop any module-level timers
         try {
             $searchTimer = Get-Variable -Name 'SearchUpdateTimer' -Scope Script -ErrorAction SilentlyContinue
             if ($searchTimer -and $searchTimer.Value) { $searchTimer.Value.Stop() }
-        } catch {}
-    } catch {}
+        } catch { <# silently handled #> }
+    } catch { <# silently handled #> }
 })
 
 # 7c) Quick Navigation Dialog helper
@@ -4041,7 +4041,7 @@ $window.Add_PreviewKeyDown({
                     return
                 }
             }
-        } catch { }
+        } catch { <# silently handled #> }
         return
     }
 
@@ -4081,7 +4081,7 @@ $window.Add_PreviewKeyDown({
                         $searchBox.SelectAll()
                     }
                 }
-            } catch { }
+            } catch { <# silently handled #> }
             $e.Handled = $true
             return
         }

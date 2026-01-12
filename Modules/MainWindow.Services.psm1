@@ -287,7 +287,7 @@ function Get-SiteCacheProviderFromMetrics {
             try {
                 [void]$parsed.Add(($line | ConvertFrom-Json -ErrorAction Stop))
             }
-            catch { }
+            catch { Write-Verbose "Caught exception in MainWindow.Services.psm1: $($_.Exception.Message)" }
         }
         if ($parsed.Count -gt 0) { $telemetry = $parsed }
     }
@@ -325,7 +325,7 @@ function Get-SiteCacheProviderFromMetrics {
             try {
                 $timestamp = [datetime]::Parse($entry.Timestamp).ToLocalTime()
             }
-            catch { }
+            catch { Write-Verbose "Caught exception in MainWindow.Services.psm1: $($_.Exception.Message)" }
         }
 
         $candidate = [pscustomobject]@{

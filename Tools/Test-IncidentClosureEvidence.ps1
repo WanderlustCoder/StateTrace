@@ -138,7 +138,7 @@ if ($RequireNetOpsEvidence -or $onlineModeActive) {
             $resetPayload = Get-Content -LiteralPath $latestReset.FullName -Raw | ConvertFrom-Json -ErrorAction Stop
             $resetReason = if ($resetPayload.Reason) { $resetPayload.Reason.ToString().Trim() } else { $null }
         }
-        catch { }
+        catch { Write-Verbose "Caught exception in Test-IncidentClosureEvidence.ps1: $($_.Exception.Message)" }
     }
 
     $netOpsCheck.Details = [pscustomobject]@{

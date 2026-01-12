@@ -28,7 +28,7 @@ if (-not (Get-Variable -Scope Global -Name DeviceLocationEntries -ErrorAction Si
     $global:DeviceLocationEntries = @()
 }
 
-try { TelemetryModule\Import-InterfaceCommon | Out-Null } catch { }
+try { TelemetryModule\Import-InterfaceCommon | Out-Null } catch { Write-Verbose "Caught exception in FilterStateModule.psm1: $($_.Exception.Message)" }
 
 function script:Set-GlobalInterfaces {
     [CmdletBinding()]
@@ -179,7 +179,7 @@ function script:Get-LocationEntriesFromMetadata {
                 $parts = $hostname -split '-', 3
                 if ([string]::IsNullOrWhiteSpace($siteVal) -and $parts.Length -ge 1) { $siteVal = $parts[0] }
                 if ([string]::IsNullOrWhiteSpace($zoneVal) -and $parts.Length -ge 2) { $zoneVal = $parts[1] }
-            } catch { }
+            } catch { Write-Verbose "Caught exception in FilterStateModule.psm1: $($_.Exception.Message)" }
         }
 
         $key = "{0}|{1}|{2}|{3}" -f $siteVal, $zoneVal, $buildingVal, $roomVal
@@ -267,10 +267,10 @@ function Initialize-DeviceFilters {
                         $leaf = [System.IO.Path]::GetFileNameWithoutExtension($p)
                         if ([string]::IsNullOrWhiteSpace($leaf)) { continue }
                         if (-not $siteItems.Contains($leaf)) { [void]$siteItems.Add($leaf) }
-                    } catch {}
+                    } catch { Write-Verbose "Caught exception in FilterStateModule.psm1: $($_.Exception.Message)" }
                 }
             } catch [System.Management.Automation.CommandNotFoundException] {
-            } catch {}
+            } catch { Write-Verbose "Caught exception in FilterStateModule.psm1: $($_.Exception.Message)" }
         }
         $siteDD.ItemsSource = $siteItems
         if (-not $global:InterfacesLoadAllowed) {
@@ -337,7 +337,7 @@ function Initialize-DeviceFilters {
                 if ($searchGrid) { $searchGrid.ItemsSource = $global:AllInterfaces }
             }
         }
-    } catch {}
+    } catch { Write-Verbose "Caught exception in FilterStateModule.psm1: $($_.Exception.Message)" }
     } finally {
         $global:ProgrammaticFilterUpdate = $previousProgrammaticFilterUpdate
     }
@@ -430,9 +430,9 @@ function Update-DeviceFilter {
                     try { Write-Diag $diagMsg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $diagMsg } catch {
                         Write-Verbose ("Failed to emit diagnostics: {0}" -f $_.Exception.Message)
                     }
-                } catch { }
-            } catch { }
-            try { $global:PendingFilterRestore = $null } catch { }
+                } catch { Write-Verbose "Caught exception in FilterStateModule.psm1: $($_.Exception.Message)" }
+            } catch { Write-Verbose "Caught exception in FilterStateModule.psm1: $($_.Exception.Message)" }
+            try { $global:PendingFilterRestore = $null } catch { Write-Verbose "Caught exception in FilterStateModule.psm1: $($_.Exception.Message)" }
         }
 
         $siteChangedCompared = ([System.StringComparer]::OrdinalIgnoreCase.Compare($siteInput, '' + $script:LastSiteSel) -ne 0)
@@ -446,7 +446,7 @@ function Update-DeviceFilter {
             try { Write-Diag $diagMsg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $diagMsg } catch {
                 Write-Verbose ("Failed to emit diagnostics: {0}" -f $_.Exception.Message)
             }
-        } catch {}
+        } catch { Write-Verbose "Caught exception in FilterStateModule.psm1: $($_.Exception.Message)" }
 
         $siteDD     = $window.FindName('SiteDropdown')
         $zoneDD     = $window.FindName('ZoneDropdown')
@@ -644,7 +644,7 @@ function Update-DeviceFilter {
             try { Write-Diag $diagMsgHosts } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $diagMsgHosts } catch {
                 Write-Verbose ("Failed to emit diagnostics: {0}" -f $_.Exception.Message)
             }
-        } catch {}
+        } catch { Write-Verbose "Caught exception in FilterStateModule.psm1: $($_.Exception.Message)" }
 
         $finalSite      = $siteSelection
         $finalZone      = $zoneSelection
@@ -673,21 +673,21 @@ function Update-DeviceFilter {
                 $visibilityProbeSucceeded = $true
                 if ($summaryHost.IsVisible) { $summaryVisible = $true }
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in FilterStateModule.psm1: $($_.Exception.Message)" }
         try {
             $searchHost = $window.FindName('SearchInterfacesHost')
             if ($searchHost) {
                 $visibilityProbeSucceeded = $true
                 if ($searchHost.IsVisible) { $searchVisible = $true }
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in FilterStateModule.psm1: $($_.Exception.Message)" }
         try {
             $alertsHost = $window.FindName('AlertsHost')
             if ($alertsHost) {
                 $visibilityProbeSucceeded = $true
                 if ($alertsHost.IsVisible) { $alertsVisible = $true }
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in FilterStateModule.psm1: $($_.Exception.Message)" }
 
         $filtersChanged = ($siteChanged -or $zoneChanged -or $buildingChanged -or $roomChanged)
         $refreshInterfacesForViews = $true
@@ -711,7 +711,7 @@ function Update-DeviceFilter {
                     try { Write-Diag $diagDefer } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $diagDefer } catch {
                         Write-Verbose ("Failed to emit diagnostics: {0}" -f $_.Exception.Message)
                     }
-                } catch { }
+                } catch { Write-Verbose "Caught exception in FilterStateModule.psm1: $($_.Exception.Message)" }
             } else {
                 try {
                     $refreshStopwatch = $null
@@ -743,7 +743,7 @@ function Update-DeviceFilter {
                     }
 
                     # Populate VLAN dropdown with distinct values from loaded interfaces
-                    try { DeviceInsightsModule\Update-VlanFilterDropdown -Interfaces $global:AllInterfaces } catch { }
+                    try { DeviceInsightsModule\Update-VlanFilterDropdown -Interfaces $global:AllInterfaces } catch { Write-Verbose "Caught exception in FilterStateModule.psm1: $($_.Exception.Message)" }
 
                     try {
                         $ifaceCount = 0
@@ -752,7 +752,7 @@ function Update-DeviceFilter {
                         try { Write-Diag $diagRefresh } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $diagRefresh } catch {
                             Write-Verbose ("Failed to emit diagnostics: {0}" -f $_.Exception.Message)
                         }  
-                    } catch { }
+                    } catch { Write-Verbose "Caught exception in FilterStateModule.psm1: $($_.Exception.Message)" }
                 } catch {
                     script:Set-GlobalInterfaces -Interfaces ([System.Collections.Generic.List[object]]::new())
                 }
@@ -784,7 +784,7 @@ function Update-DeviceFilter {
                         try { Write-Diag $diagInsights } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $diagInsights } catch {
                             Write-Verbose ("Failed to emit diagnostics: {0}" -f $_.Exception.Message)
                         }
-                    } catch { }
+                    } catch { Write-Verbose "Caught exception in FilterStateModule.psm1: $($_.Exception.Message)" }
                     $insightsStopwatch = $null
                     try { $insightsStopwatch = [System.Diagnostics.Stopwatch]::StartNew() } catch { $insightsStopwatch = $null }
                     Update-InsightsAsync -Interfaces $global:AllInterfaces -IncludeSearch:$needSearchRefresh -IncludeSummary:$needSummaryRefresh -IncludeAlerts:$needAlertsRefresh
@@ -801,9 +801,9 @@ function Update-DeviceFilter {
                                     Write-Verbose ("Failed to emit diagnostics: {0}" -f $_.Exception.Message)
                                 }
                             }
-                        } catch { }
+                        } catch { Write-Verbose "Caught exception in FilterStateModule.psm1: $($_.Exception.Message)" }
                     }
-                } catch { }
+                } catch { Write-Verbose "Caught exception in FilterStateModule.psm1: $($_.Exception.Message)" }
             }
         } else {
             # Only refresh views that are currently visible. This avoids reprocessing large interface
@@ -825,14 +825,14 @@ function Update-DeviceFilter {
             $hostnameChangeCmd = $null
             try { $hostnameChangeCmd = Get-Command -Name 'Get-HostnameChanged' -ErrorAction SilentlyContinue } catch { $hostnameChangeCmd = $null }
             if ($hostnameChangeCmd) {
-                try { & $hostnameChangeCmd -Hostname $targetHostnameSelection } catch { }
+                try { & $hostnameChangeCmd -Hostname $targetHostnameSelection } catch { Write-Verbose "Caught exception in FilterStateModule.psm1: $($_.Exception.Message)" }
             }
         }
 
         $script:LastSiteSel     = $finalSite
         $script:LastZoneSel     = $finalZone
         $script:LastBuildingSel = $finalBuilding
-        try { $script:LastRoomSel = $finalRoom } catch {}
+        try { $script:LastRoomSel = $finalRoom } catch { Write-Verbose "Caught exception in FilterStateModule.psm1: $($_.Exception.Message)" }
     } catch {
         Set-FilterFaulted -Faulted $true
         throw

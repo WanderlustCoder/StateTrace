@@ -241,7 +241,7 @@ if ($TelemetryPath -and (Test-Path -LiteralPath $TelemetryPath)) {
                 elseif ($event.Operation -eq 'Set') { $set += if ($event.Count) { $event.Count } else { 1 } }
                 elseif ($event.Operation -eq 'Remove') { $remove += if ($event.Count) { $event.Count } else { 1 } }
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in Test-SharedCacheEviction.ps1: $($_.Exception.Message)" }
     }
 
     $totalOps = $getHit + $getMiss + $set + $remove

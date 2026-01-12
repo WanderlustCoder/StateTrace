@@ -223,7 +223,7 @@ function Import-SharedSiteInterfaceCacheSnapshotFromEnv {
 
     if ([string]::IsNullOrWhiteSpace($env:STATETRACE_SHARED_CACHE_SNAPSHOT)) { return 0 }
     $snapshotPath = $env:STATETRACE_SHARED_CACHE_SNAPSHOT
-    try { $snapshotPath = [System.IO.Path]::GetFullPath($snapshotPath) } catch { }
+    try { $snapshotPath = [System.IO.Path]::GetFullPath($snapshotPath) } catch { Write-Verbose "Caught exception in DeviceRepository.Cache.psm1: $($_.Exception.Message)" }
     if (-not (Test-Path -LiteralPath $snapshotPath)) {
         Write-Warning ("Shared cache snapshot '{0}' not found." -f $snapshotPath)
         return 0
@@ -305,7 +305,7 @@ function Write-SharedCacheSnapshotFileFallback {
     $directory = $null
     try { $directory = Split-Path -Parent $Path } catch { $directory = $null }
     if (-not [string]::IsNullOrWhiteSpace($directory)) {
-        try { $directory = [System.IO.Path]::GetFullPath($directory) } catch { }
+        try { $directory = [System.IO.Path]::GetFullPath($directory) } catch { Write-Verbose "Caught exception in DeviceRepository.Cache.psm1: $($_.Exception.Message)" }
     }
     $targetPath = $Path
     try { $targetPath = [System.IO.Path]::GetFullPath($Path) } catch { $targetPath = $Path }
@@ -391,7 +391,7 @@ function Initialize-SharedSiteInterfaceCacheStore {
                 $store = $holderStore
             }
         }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in DeviceRepository.Cache.psm1: $($_.Exception.Message)" }
 
     if (-not ($store -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]])) {
         $store = New-Object 'System.Collections.Concurrent.ConcurrentDictionary[string, object]' ([System.StringComparer]::OrdinalIgnoreCase)
@@ -469,7 +469,7 @@ function Resolve-SharedSiteInterfaceCacheHostMap {
             if ($Entry.ContainsKey -and $Entry.ContainsKey('HostMap')) {
                 return $Entry['HostMap']
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in DeviceRepository.Cache.psm1: $($_.Exception.Message)" }
         return $Entry
     }
 
@@ -477,7 +477,7 @@ function Resolve-SharedSiteInterfaceCacheHostMap {
         if ($Entry.PSObject.Properties.Name -contains 'HostMap') {
             return $Entry.HostMap
         }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in DeviceRepository.Cache.psm1: $($_.Exception.Message)" }
 
     return $null
 }
@@ -631,7 +631,7 @@ function Set-SharedSiteInterfaceCacheEntry {
         }
         $snapshotStore[$SiteKey].SiteKey = $SiteKey
         $snapshotStore[$SiteKey].HostMap = $mergedHostMap
-        try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetSnapshot($snapshotStore) } catch { }
+        try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetSnapshot($snapshotStore) } catch { Write-Verbose "Caught exception in DeviceRepository.Cache.psm1: $($_.Exception.Message)" }
     }
 }
 
@@ -794,11 +794,11 @@ function Clear-SharedSiteInterfaceCache {
         try { [System.AppDomain]::CurrentDomain.SetData($script:SharedSiteInterfaceCacheKey, $null) } catch {
             Write-Warning ("Failed to clear shared cache AppDomain store ({0}): {1}" -f $script:SharedSiteInterfaceCacheKey, $_.Exception.Message)
         }
-        try { $store.Clear() } catch { }
-        try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::ClearStore() } catch { }
+        try { $store.Clear() } catch { Write-Verbose "Caught exception in DeviceRepository.Cache.psm1: $($_.Exception.Message)" }
+        try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::ClearStore() } catch { Write-Verbose "Caught exception in DeviceRepository.Cache.psm1: $($_.Exception.Message)" }
     }
 
-    try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::ClearSnapshot() } catch { }
+    try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::ClearSnapshot() } catch { Write-Verbose "Caught exception in DeviceRepository.Cache.psm1: $($_.Exception.Message)" }
 
     $postClearHash = [System.Runtime.CompilerServices.RuntimeHelpers]::GetHashCode($store)
     $postClearCount = [int]$store.Count
@@ -1172,7 +1172,7 @@ function Get-MemoryMappedCacheStats {
             $fileInfo = Get-Item -LiteralPath $mmfPath
             $stats.FileSizeBytes = $fileInfo.Length
             $stats.LastModifiedUtc = $fileInfo.LastWriteTimeUtc
-        } catch { }
+        } catch { Write-Verbose "Caught exception in DeviceRepository.Cache.psm1: $($_.Exception.Message)" }
     }
 
     return $stats

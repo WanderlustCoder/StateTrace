@@ -12,7 +12,7 @@ if (-not (Get-Variable -Scope Global -Name InterfacesLoadAllowed -ErrorAction Si
     $global:InterfacesLoadAllowed = $false
 }
 
-try { TelemetryModule\Import-InterfaceCommon | Out-Null } catch { }
+try { TelemetryModule\Import-InterfaceCommon | Out-Null } catch { Write-Verbose "Caught exception in ViewStateService.psm1: $($_.Exception.Message)" }
 
 $script:InterfaceStringPropertyValueCmd = $null
 
@@ -63,7 +63,7 @@ function Get-SequenceCount {
         }
     }
     elseif ($Value.PSObject -and $Value.PSObject.Properties["Count"]) {
-        try { return [int]$Value.Count } catch { }
+        try { return [int]$Value.Count } catch { Write-Verbose "Caught exception in ViewStateService.psm1: $($_.Exception.Message)" }
     }
     elseif ($Value -is [System.Collections.IEnumerable]) {
         $count = 0
@@ -285,7 +285,7 @@ function Get-InterfacesForContext {
             if (($missingHosts -and $missingHosts.Count -gt 0) -or -not $cacheChecked) {
                 try {
                     DeviceRepositoryModule\Update-HostInterfaceCache -Site $siteFilter -Zone $zoneHostFilter -Hostnames $hostCandidates
-                } catch { }
+                } catch { Write-Verbose "Caught exception in ViewStateService.psm1: $($_.Exception.Message)" }
             }
 
             $cacheComplete = $false
@@ -430,7 +430,7 @@ function Get-InterfacesForContext {
                 try {
                     if (-not $rowMetadata) { $rowMetadata = $metadataLookup[$hostnameValue] }
                     if ($rowMetadata -and $rowMetadata.PSObject.Properties['Site']) { $siteValue = '' + $rowMetadata.Site }
-                } catch { }
+                } catch { Write-Verbose "Caught exception in ViewStateService.psm1: $($_.Exception.Message)" }
             }
             if ([string]::IsNullOrWhiteSpace($siteValue) -and $hostnameValue) {
                 try { $siteValue = DeviceRepositoryModule\Get-SiteFromHostname -Hostname $hostnameValue } catch { $siteValue = '' }
@@ -446,7 +446,7 @@ function Get-InterfacesForContext {
                     } else {
                         $row | Add-Member -NotePropertyName Site -NotePropertyValue $siteValue -Force
                     }
-                } catch {}
+                } catch { Write-Verbose "Caught exception in ViewStateService.psm1: $($_.Exception.Message)" }
             }
             if (-not [string]::Equals($siteValue, $siteFilter, [System.StringComparison]::OrdinalIgnoreCase)) { continue }
         }
@@ -458,7 +458,7 @@ function Get-InterfacesForContext {
                 try {
                     if (-not $rowMetadata) { $rowMetadata = $metadataLookup[$hostnameValue] }
                     if ($rowMetadata -and $rowMetadata.PSObject.Properties['Zone']) { $zoneValue = '' + $rowMetadata.Zone }
-                } catch { }
+                } catch { Write-Verbose "Caught exception in ViewStateService.psm1: $($_.Exception.Message)" }
             }
             if ([string]::IsNullOrWhiteSpace($zoneValue) -and $hostnameValue) {
                 try {
@@ -471,7 +471,7 @@ function Get-InterfacesForContext {
                     } else {
                         $row | Add-Member -NotePropertyName Zone -NotePropertyValue $zoneValue -Force
                     }
-                } catch {}
+                } catch { Write-Verbose "Caught exception in ViewStateService.psm1: $($_.Exception.Message)" }
             }
             if (-not [string]::Equals($zoneValue, $zoneFilter, [System.StringComparison]::OrdinalIgnoreCase)) { continue }
         }
@@ -483,7 +483,7 @@ function Get-InterfacesForContext {
                 try {
                     if (-not $rowMetadata) { $rowMetadata = $metadataLookup[$hostnameValue] }
                     if ($rowMetadata -and $rowMetadata.PSObject.Properties['Building']) { $bldValue = '' + $rowMetadata.Building }
-                } catch { }
+                } catch { Write-Verbose "Caught exception in ViewStateService.psm1: $($_.Exception.Message)" }
             }
             if (-not [string]::Equals($bldValue, $buildingFilter, [System.StringComparison]::OrdinalIgnoreCase)) { continue }
         }
@@ -495,7 +495,7 @@ function Get-InterfacesForContext {
                 try {
                     if (-not $rowMetadata) { $rowMetadata = $metadataLookup[$hostnameValue] }
                     if ($rowMetadata -and $rowMetadata.PSObject.Properties['Room']) { $roomValue = '' + $rowMetadata.Room }
-                } catch { }
+                } catch { Write-Verbose "Caught exception in ViewStateService.psm1: $($_.Exception.Message)" }
             }
             if (-not [string]::Equals($roomValue, $roomFilter, [System.StringComparison]::OrdinalIgnoreCase)) { continue }
         }

@@ -277,7 +277,7 @@ try {
                     UpPercent = $upPercent
                 }
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in Start-ConnectivityMonitor.ps1: $($_.Exception.Message)" }
 
         # Wait for next interval
         $elapsed = ([datetime]::UtcNow - $pollStart).TotalSeconds

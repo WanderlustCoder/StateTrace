@@ -135,7 +135,7 @@ function Get-CollectionCount {
     if ($null -eq $Items) { return 0 }
     try {
         if ($Items -is [System.Collections.ICollection]) { return [int]$Items.Count }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in Invoke-SearchAlertsSmokeTest.ps1: $($_.Exception.Message)" }
     try {
         return @($Items).Count
     } catch { return 0 }
@@ -401,7 +401,7 @@ try {
                 Write-Warning ("Failed to shutdown application: {0}" -f $_.Exception.Message)
             }
         }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in Invoke-SearchAlertsSmokeTest.ps1: $($_.Exception.Message)" }
 }
 
 if ($failure) {

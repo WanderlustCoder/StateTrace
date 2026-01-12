@@ -69,7 +69,7 @@ function Compact-Database {
         if (Test-Path -LiteralPath $tmpPath) { Remove-Item -LiteralPath $tmpPath -Force }
     } finally {
         if ($jetEngine -is [System.__ComObject]) {
-            try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($jetEngine) } catch { }
+            try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($jetEngine) } catch { Write-Verbose "Caught exception in Maintain-AccessDatabases.ps1: $($_.Exception.Message)" }
         }
     }
 }
@@ -87,7 +87,7 @@ function Audit-Indexes {
             break
         } catch {
             if ($catalog) {
-                try { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($catalog) | Out-Null } catch { }
+                try { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($catalog) | Out-Null } catch { Write-Verbose "Caught exception in Maintain-AccessDatabases.ps1: $($_.Exception.Message)" }
                 $catalog = $null
             }
             continue
@@ -120,7 +120,7 @@ function Audit-Indexes {
         }
     } catch {
         Write-Log "Index audit failed for '$DbPath': $_"
-        try { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($catalog) | Out-Null } catch { }
+        try { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($catalog) | Out-Null } catch { Write-Verbose "Caught exception in Maintain-AccessDatabases.ps1: $($_.Exception.Message)" }
         return
     }
 
@@ -150,7 +150,7 @@ function Audit-Indexes {
         }
     }
 
-    try { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($catalog) | Out-Null } catch { }
+    try { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($catalog) | Out-Null } catch { Write-Verbose "Caught exception in Maintain-AccessDatabases.ps1: $($_.Exception.Message)" }
 }
 
 Get-ChildItem -Path $DataRoot -Filter '*.accdb' -Recurse | ForEach-Object {

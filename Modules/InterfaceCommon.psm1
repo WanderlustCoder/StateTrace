@@ -36,13 +36,13 @@ function Ensure-PortRowDefaults {
         if (-not $Row.PSObject.Properties['Hostname']) {
             $Row | Add-Member -NotePropertyName Hostname -NotePropertyValue $Hostname -ErrorAction SilentlyContinue
         }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in InterfaceCommon.psm1: $($_.Exception.Message)" }
 
     try {
         if (-not $Row.PSObject.Properties['IsSelected']) {
             $Row | Add-Member -NotePropertyName IsSelected -NotePropertyValue $false -ErrorAction SilentlyContinue
         }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in InterfaceCommon.psm1: $($_.Exception.Message)" }
 }
 
 function Set-PortRowDefaults {

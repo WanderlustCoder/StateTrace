@@ -122,7 +122,7 @@ function Get-EntrySummary {
         if ($rowCount -le 0 -and $hostMap -is [System.Collections.IDictionary]) {
             foreach ($value in $hostMap.Values) {
                 if ($value -is [System.Collections.IDictionary] -or $value -is [System.Collections.ICollection]) {
-                    try { $rowCount += [int]$value.Count } catch { }
+                    try { $rowCount += [int]$value.Count } catch { Write-Verbose "Caught exception in Inspect-SharedCacheSnapshot.ps1: $($_.Exception.Message)" }
                 } elseif ($null -ne $value) {
                     $rowCount++
                 }

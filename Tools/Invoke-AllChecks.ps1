@@ -130,7 +130,7 @@ try {
         }
 
         $lintReport = $null
-        try { $lintReport = Get-Content -LiteralPath $reportPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop } catch {}
+        try { $lintReport = Get-Content -LiteralPath $reportPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop } catch { Write-Verbose "Caught exception in Invoke-AllChecks.ps1: $($_.Exception.Message)" }
         $unusedCount = if ($lintReport) { (@($lintReport | Where-Object { -not $_.Allowlisted -and $_.ReferenceCount -le 0 })).Count } else { 0 }
 
         $results.Add([pscustomobject]@{

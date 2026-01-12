@@ -9,7 +9,7 @@ function script:Ensure-LocalStateTraceModule {
 
     try {
         if (Get-Module -Name $ModuleName -ErrorAction SilentlyContinue) { return $true }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in DeviceDetailsModule.psm1: $($_.Exception.Message)" }
 
     $modulePath = Join-Path $PSScriptRoot $ModuleFileName
     $imported = $false
@@ -103,7 +103,7 @@ function Get-DeviceDetailsData {
     $dto.Interfaces = New-Object 'System.Collections.ObjectModel.ObservableCollection[object]'
     try {
         $escHost = $hostTrim -replace "'", "''"
-        try { $escHost = DatabaseModule\Get-SqlLiteral -Value $hostTrim } catch { }
+        try { $escHost = DatabaseModule\Get-SqlLiteral -Value $hostTrim } catch { Write-Verbose "Caught exception in DeviceDetailsModule.psm1: $($_.Exception.Message)" }
         $portsSql = "SELECT Hostname, Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, ConfigStatus, PortColor, ToolTip FROM Interfaces WHERE Hostname = '$escHost' ORDER BY Port"
         $dtPorts = DatabaseModule\Invoke-DbQuery -DatabasePath $dbPath -Sql $portsSql
         if ($dtPorts) {
@@ -149,7 +149,7 @@ function Get-DatabaseDeviceSummary {
     )
 
     $escHost = $Hostname -replace "'", "''"
-    try { $escHost = DatabaseModule\Get-SqlLiteral -Value $Hostname } catch { }
+    try { $escHost = DatabaseModule\Get-SqlLiteral -Value $Hostname } catch { Write-Verbose "Caught exception in DeviceDetailsModule.psm1: $($_.Exception.Message)" }
     $summarySql = "SELECT Hostname, Make, Model, Uptime, Ports, AuthDefaultVLAN, Building, Room FROM DeviceSummary WHERE Hostname = '$escHost' OR Hostname LIKE '*$escHost*'"
     $dtSummary = $null
     try { $dtSummary = DatabaseModule\Invoke-DbQuery -DatabasePath $DatabasePath -Sql $summarySql } catch {
@@ -213,7 +213,7 @@ function Get-DeviceHistoryFallback {
     }
 
     $escHost = $Hostname -replace "'", "''"
-    try { $escHost = DatabaseModule\Get-SqlLiteral -Value $Hostname } catch { }
+    try { $escHost = DatabaseModule\Get-SqlLiteral -Value $Hostname } catch { Write-Verbose "Caught exception in DeviceDetailsModule.psm1: $($_.Exception.Message)" }
     try {
         $hist = DatabaseModule\Invoke-DbQuery -DatabasePath $DatabasePath -Sql "SELECT TOP 1 Make, Model, Uptime, AuthDefaultVLAN, Building, Room FROM DeviceHistory WHERE Trim(Hostname) = '$escHost' ORDER BY RunDate DESC"
         $row = $null
@@ -235,7 +235,7 @@ function Get-DeviceHistoryFallback {
             if ($bd) { $fallback.Building = '' + $bd }
             if ($rm) { $fallback.Room = '' + $rm }
         }
-    } catch {}
+    } catch { Write-Verbose "Caught exception in DeviceDetailsModule.psm1: $($_.Exception.Message)" }
 
     try {
         $cnt = DatabaseModule\Invoke-DbQuery -DatabasePath $DatabasePath -Sql "SELECT COUNT(*) AS PortCount FROM Interfaces WHERE Trim(Hostname) = '$escHost'"
@@ -248,7 +248,7 @@ function Get-DeviceHistoryFallback {
             $pc = script:Get-RowValue -Row $cntRow -Property 'PortCount'
             if ($pc -ne $null) { $fallback.Ports = '' + $pc }
         }
-    } catch {}
+    } catch { Write-Verbose "Caught exception in DeviceDetailsModule.psm1: $($_.Exception.Message)" }
 
     return $fallback
 }

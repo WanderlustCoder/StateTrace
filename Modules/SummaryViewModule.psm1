@@ -15,7 +15,7 @@ function New-SummaryView {
 
     $refreshAction = {
         try { DeviceInsightsModule\Update-SummaryAsync } catch {
-            try { DeviceInsightsModule\Update-Summary } catch { }
+            try { DeviceInsightsModule\Update-Summary } catch { Write-Verbose "Caught exception in SummaryViewModule.psm1: $($_.Exception.Message)" }
         }
         if ($lastUpdatedText) {
             $lastUpdatedText.Text = "Updated: $(Get-Date -Format 'HH:mm:ss')"

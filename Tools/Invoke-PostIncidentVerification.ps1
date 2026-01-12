@@ -202,7 +202,7 @@ if (-not $SkipSharedCacheDiagnostics) {
                 $artifacts.Add($storeStatePath)
                 $results.StoreState = $storeStatePath
             }
-            catch { }
+            catch { Write-Verbose "Caught exception in Invoke-PostIncidentVerification.ps1: $($_.Exception.Message)" }
         }
 
         # Run provider reasons analysis
@@ -212,7 +212,7 @@ if (-not $SkipSharedCacheDiagnostics) {
                 $artifacts.Add($providerPath)
                 $results.ProviderReasons = $providerPath
             }
-            catch { }
+            catch { Write-Verbose "Caught exception in Invoke-PostIncidentVerification.ps1: $($_.Exception.Message)" }
         }
 
         return $results

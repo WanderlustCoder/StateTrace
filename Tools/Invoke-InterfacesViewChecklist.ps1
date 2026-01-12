@@ -255,7 +255,7 @@ function Invoke-InterfacesViewForHost {
     if ($interfaceRows.Count -gt 0) {
         try {
             DeviceRepositoryModule\Set-InterfacePortStreamData -Hostname $Hostname -RunDate (Get-Date) -InterfaceRows $interfaceRows -BatchId ([guid]::NewGuid().ToString()) | Out-Null
-        } catch { }
+        } catch { Write-Verbose "Caught exception in Invoke-InterfacesViewChecklist.ps1: $($_.Exception.Message)" }
     }
 
     try {
@@ -321,18 +321,18 @@ function Invoke-InterfacesViewForHost {
 
             try {
                 DeviceRepositoryModule\Set-InterfacePortDispatchMetrics -Hostname $Hostname -BatchId $batch.BatchId -BatchOrdinal $batch.BatchOrdinal -BatchCount $batch.BatchCount -BatchSize $batchSize -PortsDelivered $batch.PortsDelivered -TotalPorts $batch.TotalPorts -DispatcherDurationMs $dispatcherDurationMs -AppendDurationMs $appendDurationMs -IndicatorDurationMs $indicatorDurationMs
-            } catch { }
+            } catch { Write-Verbose "Caught exception in Invoke-InterfacesViewChecklist.ps1: $($_.Exception.Message)" }
             $portsAppended += $rows.Count
             $batches++
             if ($batch.Completed) { break }
         }
     } finally {
-        try { DeviceRepositoryModule\Clear-InterfacePortStream -Hostname $Hostname } catch {}
+        try { DeviceRepositoryModule\Clear-InterfacePortStream -Hostname $Hostname } catch { Write-Verbose "Caught exception in Invoke-InterfacesViewChecklist.ps1: $($_.Exception.Message)" }
     }
     $watch.Stop()
 
     $interfaceCount = 0
-    try { $interfaceCount = [int]$collection.Count } catch {}
+    try { $interfaceCount = [int]$collection.Count } catch { Write-Verbose "Caught exception in Invoke-InterfacesViewChecklist.ps1: $($_.Exception.Message)" }
     $queueMetrics = $null
     try { $queueMetrics = DeviceRepositoryModule\Get-LastInterfacePortQueueMetrics } catch { $queueMetrics = $null }
     $dispatchMetrics = $null
@@ -435,7 +435,7 @@ try {
     if (Get-Command -Name Save-StTelemetryBuffer -ErrorAction SilentlyContinue) {
         Save-StTelemetryBuffer | Out-Null
     }
-} catch { }
+} catch { Write-Verbose "Caught exception in Invoke-InterfacesViewChecklist.ps1: $($_.Exception.Message)" }
 
 if ($SynthesizePortBatchReady.IsPresent) {
     $telemetryPath = $null
@@ -471,6 +471,6 @@ if ($SynthesizePortBatchReady.IsPresent) {
 
 try {
     [System.Windows.Application]::Current.Shutdown()
-} catch { }
+} catch { Write-Verbose "Caught exception in Invoke-InterfacesViewChecklist.ps1: $($_.Exception.Message)" }
 
 Write-Host "[InterfacesChecklist] Completed headless Interfaces view run." -ForegroundColor Green

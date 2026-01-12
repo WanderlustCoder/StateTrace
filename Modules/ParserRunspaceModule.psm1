@@ -123,7 +123,7 @@ function Publish-RunspaceCacheTelemetry {
 
     try {
         TelemetryModule\Write-StTelemetryEvent -Name 'InterfaceSiteCacheRunspaceState' -Payload $payload
-    } catch { }
+    } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
 }
 
 function Publish-RunspacePoolEvent {
@@ -182,7 +182,7 @@ function Publish-RunspacePoolEvent {
             MaxWorkersPerSite = $maxWorkersPerSite
             MaxActiveSites    = $maxActiveSites
         }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
 }
 
 function Publish-SchedulerLaunchTelemetry {
@@ -209,11 +209,11 @@ function Publish-SchedulerLaunchTelemetry {
     if ($writer) {
         try {
             & $writer -Name 'ParserSchedulerLaunch' -Payload $payload
-        } catch { }
+        } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
     } else {
         try {
             TelemetryModule\Write-StTelemetryEvent -Name 'ParserSchedulerLaunch' -Payload $payload
-        } catch { }
+        } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
     }
 }
 
@@ -246,7 +246,7 @@ function Get-RunspaceModuleImportList {
     foreach ($path in (Get-ParserModulePaths -ModulesPath $ModulesPath)) { [void]$set.Add($path) }
 
     $selfPath = Join-Path $ModulesPath 'ParserRunspaceModule.psm1'
-    try { $selfPath = [System.IO.Path]::GetFullPath($selfPath) } catch { }
+    try { $selfPath = [System.IO.Path]::GetFullPath($selfPath) } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
     if (Test-Path -LiteralPath $selfPath) { [void]$set.Add($selfPath) }
     return [string[]]$set
 }
@@ -626,7 +626,7 @@ function Invoke-DeviceParseWorker {
         if (-not (Test-Path $logDir)) {
             New-Item -ItemType Directory -Path $logDir -Force | Out-Null
         }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
     $logPath  = Join-Path $logDir ('StateTrace_Worker_{0}.log' -f (Get-Date -Format 'yyyyMMdd'))
     $logToFile = $EnableVerbose
 
@@ -666,7 +666,7 @@ function Invoke-DeviceParseWorker {
                         $resolvedSiteKey = ('' + $candidateSite).Trim()
                     }
                 } catch [System.Management.Automation.CommandNotFoundException] {
-                } catch { }
+                } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
             }
         } catch {
             $resolvedSiteKey = ''
@@ -689,9 +689,9 @@ function Invoke-DeviceParseWorker {
     } catch {
         $message = $_.Exception.Message
         $position = ''
-        try { $position = $_.InvocationInfo.PositionMessage } catch { }
+        try { $position = $_.InvocationInfo.PositionMessage } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
         $stack = ''
-        try { $stack = $_.ScriptStackTrace } catch { }
+        try { $stack = $_.ScriptStackTrace } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
 
         $builder = [System.Text.StringBuilder]::new()
         [void]$builder.Append("Log parsing failed in worker: $message")
@@ -839,7 +839,7 @@ function Invoke-DeviceParsingJobs {
             $site = DeviceRepositoryModule\Get-SiteFromHostname -Hostname $Hostname
             if (-not [string]::IsNullOrWhiteSpace($site)) { return $site }
         } catch [System.Management.Automation.CommandNotFoundException] {
-        } catch { }
+        } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
         return $Hostname
     }
 
@@ -1017,7 +1017,7 @@ function Invoke-DeviceParsingJobs {
         )
         if ($importList.Length -gt 0) { $null = $sessionState.ImportPSModule($importList) }
         $pool = [runspacefactory]::CreateRunspacePool(1, $MaxThreads, $sessionState, $Host)
-        try { $pool.ApartmentState = [System.Threading.ApartmentState]::STA } catch { }
+        try { $pool.ApartmentState = [System.Threading.ApartmentState]::STA } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
         $pool.Open()
         if ($PreserveRunspacePool) {
             $script:PreservedRunspacePool = $pool
@@ -1129,7 +1129,7 @@ function Invoke-DeviceParsingJobs {
             $completed = [System.Collections.Generic.List[object]]::new()
             foreach ($entry in $active.ToArray()) {
                 if ($entry.AsyncResult.IsCompleted) {
-                    try { $entry.Pipe.EndInvoke($entry.AsyncResult) } catch { } finally { $entry.Pipe.Dispose() }
+                    try { $entry.Pipe.EndInvoke($entry.AsyncResult) } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" } finally { $entry.Pipe.Dispose() }
                     $completed.Add($entry)
                 }
             }
@@ -1146,7 +1146,7 @@ function Invoke-DeviceParsingJobs {
                     $stallDetected = $true
                     Write-Warning ("Parser scheduler stalled for {0} seconds (QueuedJobs={1}, ActiveWorkers={2}); stopping active workers." -f $SchedulerStallTimeoutSeconds, $totalQueued, $active.Count)
                     foreach ($entry in $active.ToArray()) {
-                        try { $entry.Pipe.Stop() } catch { }
+                        try { $entry.Pipe.Stop() } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
                     }
                 }
             }
@@ -1175,16 +1175,16 @@ function Invoke-DeviceParsingJobs {
 
     } finally {
         foreach ($entry in $active.ToArray()) {
-            try { $entry.Pipe.EndInvoke($entry.AsyncResult) } catch { }
+            try { $entry.Pipe.EndInvoke($entry.AsyncResult) } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
             $entry.Pipe.Dispose()
         }
 
         if ($PreserveRunspacePool) {
             if ($pool -ne $script:PreservedRunspacePool) {
-                try { $pool.Dispose() } catch { }
+                try { $pool.Dispose() } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
             }
         } else {
-            try { $pool.Dispose() } catch { }
+            try { $pool.Dispose() } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
             if ($script:PreservedRunspacePool -eq $pool) {
                 $script:PreservedRunspacePool = $null
                 $script:PreservedRunspaceConfig = $null
@@ -1195,7 +1195,7 @@ function Invoke-DeviceParsingJobs {
             Finalize-SchedulerMetricsContext -Context $metricsContext
         }
         # LANDMARK: Telemetry buffer rename - use approved verb export
-        try { TelemetryModule\Save-StTelemetryBuffer | Out-Null } catch { }
+        try { TelemetryModule\Save-StTelemetryBuffer | Out-Null } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
     }
 }
 
@@ -1205,8 +1205,8 @@ function Reset-DeviceParseRunspacePool {
 
     if ($script:PreservedRunspacePool) {
         Publish-RunspacePoolEvent -Operation 'Dispose' -Reason 'ResetDeviceParseRunspacePool' -Pool $script:PreservedRunspacePool -PoolConfig $script:PreservedRunspaceConfig
-        try { $script:PreservedRunspacePool.Close() } catch { }
-        try { $script:PreservedRunspacePool.Dispose() } catch { }
+        try { $script:PreservedRunspacePool.Close() } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
+        try { $script:PreservedRunspacePool.Dispose() } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
     }
 
     $script:PreservedRunspacePool = $null
@@ -1224,7 +1224,7 @@ function Invoke-InterfaceSiteCacheWarmup {
     if (-not $Sites -or $Sites.Count -eq 0) {
         try {
             Publish-RunspaceCacheTelemetry -Stage 'Warmup:SkippedNoSites' -Summary ([pscustomobject]@{ SiteCount = 0 })
-        } catch { }
+        } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
         return
     }
 
@@ -1234,7 +1234,7 @@ function Invoke-InterfaceSiteCacheWarmup {
             SiteCount = [int]$Sites.Count
             Reason    = 'MissingPreservedRunspacePool'
         }
-        try { Publish-RunspaceCacheTelemetry -Stage 'Warmup:SkippedNoPool' -Summary $siteCountSummary } catch { }
+        try { Publish-RunspaceCacheTelemetry -Stage 'Warmup:SkippedNoPool' -Summary $siteCountSummary } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
         return
     }
 
@@ -1263,10 +1263,10 @@ function Invoke-InterfaceSiteCacheWarmup {
 
             $beforeSummary = $null
             try { $beforeSummary = DeviceRepositoryModule\Get-InterfaceSiteCacheSummary -Site $resolvedSite } catch { $beforeSummary = $null }
-            try { ParserRunspaceModule\Publish-RunspaceCacheTelemetry -Stage ($stageRoot + ':Before') -Site $resolvedSite -Summary $beforeSummary } catch { }
+            try { ParserRunspaceModule\Publish-RunspaceCacheTelemetry -Stage ($stageRoot + ':Before') -Site $resolvedSite -Summary $beforeSummary } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
 
             if ($entryPayload) {
-                try { DeviceRepositoryModule\Set-SharedSiteInterfaceCacheEntry -SiteKey $resolvedSite -Entry $entryPayload } catch { }
+                try { DeviceRepositoryModule\Set-SharedSiteInterfaceCacheEntry -SiteKey $resolvedSite -Entry $entryPayload } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
             }
 
             if ($refreshFlag) {
@@ -1277,7 +1277,7 @@ function Invoke-InterfaceSiteCacheWarmup {
 
             $afterSummary = $null
             try { $afterSummary = DeviceRepositoryModule\Get-InterfaceSiteCacheSummary -Site $resolvedSite } catch { $afterSummary = $null }
-            try { ParserRunspaceModule\Publish-RunspaceCacheTelemetry -Stage ($stageRoot + ':After') -Site $resolvedSite -Summary $afterSummary } catch { }
+            try { ParserRunspaceModule\Publish-RunspaceCacheTelemetry -Stage ($stageRoot + ':After') -Site $resolvedSite -Summary $afterSummary } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
         }
         $scriptText = $scriptBlock.ToString()
         # Use AddScript with explicit script text to avoid PowerShell treating tokens like "-join" as remaining scripts.
@@ -1287,7 +1287,7 @@ function Invoke-InterfaceSiteCacheWarmup {
     }
 
     foreach ($job in $jobs) {
-        try { $job.Pipe.EndInvoke($job.Async) } catch { }
+        try { $job.Pipe.EndInvoke($job.Async) } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
         $job.Pipe.Dispose()
     }
 
@@ -1320,10 +1320,10 @@ function Invoke-InterfaceSiteCacheWarmup {
             } catch {
                 $postSummary = $null
             } finally {
-                if ($summaryProbe) { try { $summaryProbe.Dispose() } catch { } }
+                if ($summaryProbe) { try { $summaryProbe.Dispose() } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" } }
             }
 
-            try { Publish-RunspaceCacheTelemetry -Stage 'Warmup:PostJobs' -Site $resolvedSite -Summary $postSummary } catch { }
+            try { Publish-RunspaceCacheTelemetry -Stage 'Warmup:PostJobs' -Site $resolvedSite -Summary $postSummary } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
         }
     }
 }
@@ -1354,15 +1354,15 @@ function Get-RunspaceSharedCacheSummary {
                             try { $hostCount = [int]$entry.HostMap.Count } catch { $hostCount = 0 }
                             foreach ($map in @($entry.HostMap.Values)) {
                                 if ($map -is [System.Collections.IDictionary]) {
-                                    try { $totalRows += [int]$map.Count } catch { }
+                                    try { $totalRows += [int]$map.Count } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
                                 }
                             }
                         }
                         if ($hostCount -le 0 -and $entry.PSObject.Properties.Name -contains 'HostCount') {
-                            try { $hostCount = [int]$entry.HostCount } catch { }
+                            try { $hostCount = [int]$entry.HostCount } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
                         }
                         if ($totalRows -le 0 -and $entry.PSObject.Properties.Name -contains 'TotalRows') {
-                            try { $totalRows = [int]$entry.TotalRows } catch { }
+                            try { $totalRows = [int]$entry.TotalRows } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
                         }
                         if ($entry.PSObject.Properties.Name -contains 'CacheStatus') {
                             try { $cacheStatus = '' + $entry.CacheStatus } catch { $cacheStatus = '' }
@@ -1384,7 +1384,7 @@ function Get-RunspaceSharedCacheSummary {
     } catch {
         return @()
     } finally {
-        if ($ps) { try { $ps.Dispose() } catch { } }
+        if ($ps) { try { $ps.Dispose() } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" } }
     }
 }
 
@@ -1408,11 +1408,11 @@ function Initialize-RunspaceSharedCacheStore {
                 $store = New-Object 'System.Collections.Concurrent.ConcurrentDictionary[string, object]' ([System.StringComparer]::OrdinalIgnoreCase)
             }
 
-            try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($store) } catch { }
+            try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($store) } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
             if ($storeKey) {
-                try { [System.AppDomain]::CurrentDomain.SetData($storeKey, $store) } catch { }
+                try { [System.AppDomain]::CurrentDomain.SetData($storeKey, $store) } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
             }
-            try { $script:SharedSiteInterfaceCache = $store } catch { }
+            try { $script:SharedSiteInterfaceCache = $store } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
 
             return @{
                 EntryCount = if ($store -is [System.Collections.IDictionary]) { $store.Count } else { 0 }
@@ -1427,7 +1427,7 @@ function Initialize-RunspaceSharedCacheStore {
     } catch {
         return @()
     } finally {
-        if ($ps) { try { $ps.Dispose() } catch { } }
+        if ($ps) { try { $ps.Dispose() } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" } }
     }
 }
 
@@ -1477,25 +1477,25 @@ function Set-RunspaceSharedCacheEntries {
                 if ($store -isnot [System.Collections.IDictionary]) {
                     $store = New-Object 'System.Collections.Concurrent.ConcurrentDictionary[string, object]' ([System.StringComparer]::OrdinalIgnoreCase)
                 }
-                try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($store) } catch { }
+                try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($store) } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
                 if ($storeKey) {
-                    try { [System.AppDomain]::CurrentDomain.SetData($storeKey, $store) } catch { }
+                    try { [System.AppDomain]::CurrentDomain.SetData($storeKey, $store) } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
                 }
-                try { $script:SharedSiteInterfaceCache = $store } catch { }
+                try { $script:SharedSiteInterfaceCache = $store } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
 
                 DeviceRepositoryModule\Set-SharedSiteInterfaceCacheEntry -SiteKey $normalizedSite -Entry $entryArg | Out-Null
-            } catch { }
+            } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
 
             try {
                 # Ensure the shared store is promoted to the current AppDomain holder.
                 $store = DeviceRepositoryModule\Get-SharedSiteInterfaceCacheStore
                 if ($store -is [System.Collections.IDictionary]) {
-                    try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($store) } catch { }
+                    try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($store) } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
                     if ($storeKey) {
-                        try { [System.AppDomain]::CurrentDomain.SetData($storeKey, $store) } catch { }
+                        try { [System.AppDomain]::CurrentDomain.SetData($storeKey, $store) } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
                     }
                 }
-            } catch { }
+            } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
         }
         $null = $ps.AddScript($scriptBlock, $true).AddArgument($siteKey).AddArgument($payload).AddArgument($storeKeyValue)
         $async = $ps.BeginInvoke()
@@ -1503,7 +1503,7 @@ function Set-RunspaceSharedCacheEntries {
     }
 
     foreach ($job in $jobs) {
-        try { $job.Pipe.EndInvoke($job.Async) } catch { }
+        try { $job.Pipe.EndInvoke($job.Async) } catch { Write-Verbose "Caught exception in ParserRunspaceModule.psm1: $($_.Exception.Message)" }
         $job.Pipe.Dispose()
     }
 }

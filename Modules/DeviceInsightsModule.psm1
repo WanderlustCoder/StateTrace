@@ -148,9 +148,9 @@ function Write-InsightsDebug {
     if (-not $emit) { return }
 
     try { Write-Diag $Message } catch [System.Management.Automation.CommandNotFoundException] {
-        try { Write-Verbose $Message } catch { }
+        try { Write-Verbose $Message } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
     } catch {
-        try { Write-Verbose $Message } catch { }
+        try { Write-Verbose $Message } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
     }
 }
 
@@ -220,7 +220,7 @@ function script:Get-InsightsPortSortKey {
 
     $cmd = script:Get-InsightsPortSortKeyCommand
     if ($cmd) {
-        try { return (& $cmd -Port $portValue) } catch { }
+        try { return (& $cmd -Port $portValue) } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
     }
 
     return $script:InsightsPortSortFallbackKey
@@ -352,7 +352,7 @@ function script:Update-DeviceInsightsSiteZoneCache {
     if ([string]::IsNullOrWhiteSpace($Site)) { return }
     if ([System.StringComparer]::OrdinalIgnoreCase.Equals($Site, 'All Sites')) { return }
 
-    try { DeviceRepositoryModule\Update-SiteZoneCache -Site $Site -Zone $ZoneToLoad | Out-Null } catch {}
+    try { DeviceRepositoryModule\Update-SiteZoneCache -Site $Site -Zone $ZoneToLoad | Out-Null } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
 }
 
 function Get-SearchRegexEnabled {
@@ -412,7 +412,7 @@ function Update-SearchResults {
                 }
             }
         }
-    } catch {}
+    } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
 
     $termEmpty = [string]::IsNullOrWhiteSpace($Term)
 
@@ -475,7 +475,7 @@ function Update-SearchResults {
                          ('' + $row.AuthClientMAC) -match $Term ) {
                         $matched = $true
                     }
-                } catch {}
+                } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
                 if (-not $matched) {
                     $q = $Term
                     if (-not ((('' + $row.Port).IndexOf($q, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
@@ -660,7 +660,7 @@ function Update-Summary {
         $locText = ("Site={0};Zone={1};Building={2};Room={3}" -f $locSite, $locZone, $locBuilding, $locRoom)
         $ifaceCount = ViewStateService\Get-SequenceCount -Value $interfaces
         Write-Diag ("Update-Summary context | Location={0} | InterfaceCount={1}" -f $locText, $ifaceCount)
-    } catch {}
+    } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
     if (-not $interfaces) { $interfaces = @() }
 
     $stringPropertyCmd = script:Get-InterfaceStringPropertyValueCommand
@@ -701,7 +701,7 @@ function Update-Summary {
                     $row | Add-Member -NotePropertyName IsSelected -NotePropertyValue $false -ErrorAction SilentlyContinue
                 }
             }
-        } catch {}
+        } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
     }
 
     script:Set-InsightsInterfacesSnapshot -Interfaces $interfaces
@@ -877,7 +877,7 @@ function Update-Summary {
                     }
                 }
             }
-        } catch {}
+        } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
     }
 
     # Build filter text
@@ -892,7 +892,7 @@ function Update-Summary {
     try {
         $summaryVar = Get-Variable -Name summaryView -Scope Global -ErrorAction Stop
     } catch {
-        try { Write-Diag ("Update-Summary skipped | Reason=SummaryViewMissing") } catch {}
+        try { Write-Diag ("Update-Summary skipped | Reason=SummaryViewMissing") } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
         return
     }
 
@@ -905,7 +905,7 @@ function Update-Summary {
         try {
             $ctrl = $sv.FindName($name)
             if ($ctrl) { $ctrl.Text = $value }
-        } catch {}
+        } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
     }
 
     try {
@@ -962,8 +962,8 @@ function Update-Summary {
         & $updateText 'SummaryCacheHosts' $cacheHosts.ToString()
         & $updateText 'SummaryCurrentFilter' $currentFilter
 
-        try { Write-Diag ("Update-Summary metrics | Devices={0} | Interfaces={1} | Up={2} | Down={3} | Disabled={4} | Auth={5} | Unauth={6} | NoAuth={7} | UniqueVlans={8} | Alerts={9}" -f $devCount, $intCount, $upCount, $downCount, $disabledCount, $authCount, $unauthCount, $noAuthCount, $uniqueVlans, $totalAlerts) } catch {}
-    } catch {}
+        try { Write-Diag ("Update-Summary metrics | Devices={0} | Interfaces={1} | Up={2} | Down={3} | Disabled={4} | Auth={5} | Unauth={6} | NoAuth={7} | UniqueVlans={8} | Alerts={9}" -f $devCount, $intCount, $upCount, $downCount, $disabledCount, $authCount, $unauthCount, $noAuthCount, $uniqueVlans, $totalAlerts) } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
+    } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
 }
 
 function Update-Alerts {
@@ -1044,7 +1044,7 @@ function Update-Alerts {
         try {
             $grid = $global:alertsView.FindName('AlertsGrid')
             if ($grid) { $grid.ItemsSource = $global:AlertsList }
-        } catch {}
+        } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
     }
 
 }
@@ -1064,14 +1064,14 @@ function Update-VlanFilterDropdown {
         if (Get-Variable -Name vlanFilter -Scope Global -ErrorAction SilentlyContinue) {
             $vlanCtrl = $global:vlanFilter
         }
-    } catch {}
+    } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
     if (-not $vlanCtrl) {
         try {
             $searchHostCtrl = $global:window.FindName('SearchInterfacesHost')
             if ($searchHostCtrl -and $searchHostCtrl.Content) {
                 $vlanCtrl = $searchHostCtrl.Content.FindName('VlanFilter')
             }
-        } catch {}
+        } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
     }
     if (-not $vlanCtrl) { return }
 
@@ -1081,7 +1081,7 @@ function Update-VlanFilterDropdown {
         if ($vlanCtrl.SelectedItem) {
             $currentSelection = '' + $vlanCtrl.SelectedItem.Content
         }
-    } catch {}
+    } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
 
     # Get interfaces from snapshot if not provided, fall back to ViewStateService
     $ifaces = $Interfaces
@@ -1092,7 +1092,7 @@ function Update-VlanFilterDropdown {
         # Try ViewStateService as fallback
         try {
             $ifaces = ViewStateService\Get-AllInterfaces
-        } catch {}
+        } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
     }
     if (-not $ifaces -or @($ifaces).Count -eq 0) { return }
 
@@ -1264,21 +1264,21 @@ function script:Get-InsightsWorkerRunspace {
                 $state -eq [System.Management.Automation.Runspaces.RunspaceState]::Connecting) {
                 return $script:InsightsWorkerRunspace
             }
-        } catch { }
-        try { $script:InsightsWorkerRunspace.Dispose() } catch { }
+        } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
+        try { $script:InsightsWorkerRunspace.Dispose() } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
         $script:InsightsWorkerRunspace = $null
     }
 
     $iss = [System.Management.Automation.Runspaces.InitialSessionState]::CreateDefault()
-    try { $iss.LanguageMode = [System.Management.Automation.PSLanguageMode]::FullLanguage } catch { }
+    try { $iss.LanguageMode = [System.Management.Automation.PSLanguageMode]::FullLanguage } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
     $rs = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspace($iss)
     $rs.ThreadOptions  = [System.Management.Automation.Runspaces.PSThreadOptions]::ReuseThread
     $rs.ApartmentState = [System.Threading.ApartmentState]::STA
 
     try {
         $msg = "[DeviceInsights] Insights worker runspace created (deferred open) | Id={0} | LangMode={1}" -f $rs.Id, $iss.LanguageMode
-        try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { }
-    } catch { }
+        try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
+    } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
 
     $script:InsightsWorkerRunspace = $rs
     return $script:InsightsWorkerRunspace
@@ -1293,18 +1293,18 @@ function script:Ensure-InsightsWorker {
     if ($emitInitVerbose) {
         try {
             Write-Verbose ("[DeviceInsights] Ensure-InsightsWorker stage=Enter | ThreadId={0}" -f [System.Threading.Thread]::CurrentThread.ManagedThreadId)
-        } catch { }
+        } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
     }
 
     if ($script:InsightsWorkerInitialized -and $script:InsightsWorkerThread) {
         try {
             if ($script:InsightsWorkerThread.IsAlive) { return $true }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
 
         try {
             $msg = "[DeviceInsights] Insights worker thread not alive; resetting initialization."
-            try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { }
-        } catch { }
+            try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
+        } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
 
         $script:InsightsWorkerInitialized = $false
         $script:InsightsWorkerThread = $null
@@ -1316,13 +1316,13 @@ function script:Ensure-InsightsWorker {
     if ($emitInitVerbose) {
         try {
             Write-Verbose ("[DeviceInsights] Ensure-InsightsWorker stage=GotRunspace | RunspaceId={0} | State={1}" -f $rs.Id, $rs.RunspaceStateInfo.State)
-        } catch { }
+        } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
     }
 
     if (-not (script:Ensure-PowerShellInvokeThreadStartFactory)) { return $false }
 
     if ($emitInitVerbose) {
-        try { Write-Verbose "[DeviceInsights] Ensure-InsightsWorker stage=ThreadStartFactoryReady" } catch { }
+        try { Write-Verbose "[DeviceInsights] Ensure-InsightsWorker stage=ThreadStartFactoryReady" } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
     }
 
     if (-not $script:InsightsWorkerQueue) {
@@ -1333,7 +1333,7 @@ function script:Ensure-InsightsWorker {
     }
 
     if ($emitInitVerbose) {
-        try { Write-Verbose "[DeviceInsights] Ensure-InsightsWorker stage=QueueReady" } catch { }
+        try { Write-Verbose "[DeviceInsights] Ensure-InsightsWorker stage=QueueReady" } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
     }
 
     $modulesRoot = $PSScriptRoot
@@ -1347,7 +1347,7 @@ function script:Ensure-InsightsWorker {
     $signalRef = $script:InsightsWorkerSignal
 
     if ($emitInitVerbose) {
-        try { Write-Verbose "[DeviceInsights] Ensure-InsightsWorker stage=BeforeThreadScript" } catch { }
+        try { Write-Verbose "[DeviceInsights] Ensure-InsightsWorker stage=BeforeThreadScript" } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
     }
 
     $threadScript = {
@@ -1403,7 +1403,7 @@ function script:Ensure-InsightsWorker {
 
             $request = $latestRequest
             if (-not $request) {
-                try { $null = $signalLocal.WaitOne() } catch { }
+                try { $null = $signalLocal.WaitOne() } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
                 continue
             }
 
@@ -1433,19 +1433,19 @@ function script:Ensure-InsightsWorker {
                     if (-not $modulesLoaded) {
                         try {
                             if (Test-Path -LiteralPath $telemetryModulePath) { Import-Module -Name $telemetryModulePath -Global -Force -ErrorAction Stop | Out-Null }
-                        } catch { }
+                        } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
                         try {
                             if (Test-Path -LiteralPath $databaseModulePath) { Import-Module -Name $databaseModulePath -Global -Force -ErrorAction Stop | Out-Null }
-                        } catch { }
+                        } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
                         try {
                             if (Test-Path -LiteralPath $repoModulePath) { Import-Module -Name $repoModulePath -Global -Force -ErrorAction Stop | Out-Null }
-                        } catch { }
+                        } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
                         try {
                             if (Test-Path -LiteralPath $templatesModulePath) { Import-Module -Name $templatesModulePath -Global -Force -ErrorAction Stop | Out-Null }
-                        } catch { }
+                        } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
                         try {
                             if (Test-Path -LiteralPath $interfaceModulePath) { Import-Module -Name $interfaceModulePath -Global -Force -ErrorAction Stop | Out-Null }
-                        } catch { }
+                        } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
                         $modulesLoaded = $true
                     }
 
@@ -1514,12 +1514,12 @@ function script:Ensure-InsightsWorker {
                                     } else {
                                         DeviceRepositoryModule\Update-HostInterfaceCache -Site $siteKey -Hostnames $slice
                                     }
-                                } catch { }
+                                } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
                             }
                         }
 
                         if ($loadStopwatch) {
-                            try { $loadStopwatch.Stop() } catch { }
+                            try { $loadStopwatch.Stop() } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
                             try { $interfaceLoadMs = [Math]::Round($loadStopwatch.Elapsed.TotalMilliseconds, 3) } catch { $interfaceLoadMs = $null }
                         }
 
@@ -1562,7 +1562,7 @@ function script:Ensure-InsightsWorker {
                             $siteInterfaces = $null
                         }
                         if ($loadStopwatch) {
-                            try { $loadStopwatch.Stop() } catch { }
+                            try { $loadStopwatch.Stop() } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
                             try { $interfaceLoadMs = [Math]::Round($loadStopwatch.Elapsed.TotalMilliseconds, 3) } catch { $interfaceLoadMs = $null }
                         }
 
@@ -1823,12 +1823,12 @@ function script:Ensure-InsightsWorker {
 
             try {
                 $null = $dispatcher.BeginInvoke($applyDelegate, $payload)
-            } catch { }
+            } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
         }
     }
 
     if ($emitInitVerbose) {
-        try { Write-Verbose "[DeviceInsights] Ensure-InsightsWorker stage=ThreadScriptReady" } catch { }
+        try { Write-Verbose "[DeviceInsights] Ensure-InsightsWorker stage=ThreadScriptReady" } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
     }
 
     $ps = [System.Management.Automation.PowerShell]::Create()
@@ -1844,12 +1844,12 @@ function script:Ensure-InsightsWorker {
     }
 
     if ($emitInitVerbose) {
-        try { Write-Verbose "[DeviceInsights] Ensure-InsightsWorker stage=PowerShellReady" } catch { }
+        try { Write-Verbose "[DeviceInsights] Ensure-InsightsWorker stage=PowerShellReady" } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
     }
 
     $threadStart = [StateTrace.Threading.PowerShellInvokeThreadStartFactory]::Create($ps, 'InsightsWorker')
     if ($emitInitVerbose) {
-        try { Write-Verbose "[DeviceInsights] Ensure-InsightsWorker stage=ThreadStartCreated" } catch { }
+        try { Write-Verbose "[DeviceInsights] Ensure-InsightsWorker stage=ThreadStartCreated" } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
     }
 
     $workerThread = [System.Threading.Thread]::new($threadStart)
@@ -1857,11 +1857,11 @@ function script:Ensure-InsightsWorker {
     $workerThread.ApartmentState = [System.Threading.ApartmentState]::STA
 
     if ($emitInitVerbose) {
-        try { Write-Verbose "[DeviceInsights] Ensure-InsightsWorker stage=ThreadStarting" } catch { }
+        try { Write-Verbose "[DeviceInsights] Ensure-InsightsWorker stage=ThreadStarting" } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
     }
     $workerThread.Start()
     if ($emitInitVerbose) {
-        try { Write-Verbose ("[DeviceInsights] Ensure-InsightsWorker stage=ThreadStarted | ThreadId={0}" -f $workerThread.ManagedThreadId) } catch { }
+        try { Write-Verbose ("[DeviceInsights] Ensure-InsightsWorker stage=ThreadStarted | ThreadId={0}" -f $workerThread.ManagedThreadId) } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
     }
 
     $script:InsightsWorkerThread = $workerThread
@@ -1869,11 +1869,11 @@ function script:Ensure-InsightsWorker {
 
     try {
         $msg = "[DeviceInsights] Insights worker started | ThreadId={0}" -f $workerThread.ManagedThreadId
-        try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { }
-    } catch { }
+        try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
+    } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
 
     if ($emitInitVerbose) {
-        try { Write-Verbose "[DeviceInsights] Ensure-InsightsWorker stage=ReturnTrue" } catch { }
+        try { Write-Verbose "[DeviceInsights] Ensure-InsightsWorker stage=ReturnTrue" } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
     }
 
     return $true
@@ -1984,8 +1984,8 @@ function Update-InsightsAsync {
                 try { $buildingValue = '' + $context.Building } catch { $buildingValue = '' }
                 try { $roomValue = '' + $context.Room } catch { $roomValue = '' }
                 $msg = "[DeviceInsights] Interface snapshot not scheduled | Reason=NoHostnames | Site={0} | Zone={1} | Building={2} | Room={3}" -f $siteToLoad, $zoneValue, $buildingValue, $roomValue
-                try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { }
-            } catch { }
+                try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
+            } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
         }
     }
 
@@ -2012,7 +2012,7 @@ function Update-InsightsAsync {
                     }
                 }
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
     }
 
     $emitStageVerbose = $false
@@ -2031,7 +2031,7 @@ function Update-InsightsAsync {
             $emitInsightsDiag = $false
             try { $emitInsightsDiag = [bool]$global:StateTraceDebug } catch { $emitInsightsDiag = $false }
 
-            try { $script:InsightsApplyCounter++ } catch { }
+            try { $script:InsightsApplyCounter++ } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
 
             $stateId = 0
             try { $stateId = [int]$state.RequestId } catch { $stateId = 0 }
@@ -2110,7 +2110,7 @@ function Update-InsightsAsync {
             $loadedInterfaces = $null
             try { if ($state.PSObject.Properties['Interfaces']) { $loadedInterfaces = $state.Interfaces } } catch { $loadedInterfaces = $null }
             if ($loadedInterfaces -and $applyDerived) {
-                try { script:Set-InsightsInterfacesSnapshot -Interfaces $loadedInterfaces } catch { }
+                try { script:Set-InsightsInterfacesSnapshot -Interfaces $loadedInterfaces } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
                 try {
                     $loadMs = $null
                     $loadSite = ''
@@ -2118,9 +2118,9 @@ function Update-InsightsAsync {
                     try { $loadSite = '' + $state.InterfaceLoadSite } catch { $loadSite = '' }
                     if ($null -ne $loadMs) {
                         $msg = "[DeviceInsights] Interface snapshot loaded | Site={0} | Interfaces={1} | LoadMs={2}" -f $loadSite, (ViewStateService\Get-SequenceCount -Value $loadedInterfaces), $loadMs
-                        try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { }
+                        try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
                     }
-                } catch { }
+                } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
             }
 
             if ($applyDerived -and $state.IncludeSummary -and $state.Summary) {
@@ -2136,7 +2136,7 @@ function Update-InsightsAsync {
                         ($sv.FindName("SummaryUnauthorizedCount")).Text = ('' + $state.Summary.Unauthorized)
                         ($sv.FindName("SummaryUniqueVlansCount")).Text  = ('' + $state.Summary.UniqueVlans)
                         ($sv.FindName("SummaryExtra")).Text             = ("Up %: {0}%" -f $state.Summary.UpPct)
-                    } catch { }
+                    } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
                 }
             }
 
@@ -2159,7 +2159,7 @@ function Update-InsightsAsync {
                             $gridFound = [bool]$grid
                             if ($diagWriter) { & $diagWriter ("[DeviceInsights] ApplyAlerts | GridFound={0} | Count={1}" -f $gridFound, $alertCount) }
                         }
-                    } catch { }
+                    } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
                 } elseif ($emitInsightsDiag) {
                     if ($diagWriter) { & $diagWriter "[DeviceInsights] ApplyAlerts | AlertsViewMissing" }
                 }
@@ -2202,7 +2202,7 @@ function Update-InsightsAsync {
                             $gridCtrl = $view.FindName('SearchInterfacesGrid')
                         }
                     }
-                } catch { }
+                } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
 
                 if ($gridCtrl) {
                     $termMatches = $false
@@ -2222,9 +2222,9 @@ function Update-InsightsAsync {
 
                     if ($termMatches -and $statusMatches -and $authMatches -and $regexMatches) {
                         if ($sortedListCmd) {
-                            try { $gridCtrl.ItemsSource = & $sortedListCmd -Rows $state.SearchResults } catch { }
+                            try { $gridCtrl.ItemsSource = & $sortedListCmd -Rows $state.SearchResults } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
                         } else {
-                            try { $gridCtrl.ItemsSource = $state.SearchResults } catch { }
+                            try { $gridCtrl.ItemsSource = $state.SearchResults } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
                         }
                         if ($emitInsightsDiag) {
                             $searchCount = 0
@@ -2244,7 +2244,7 @@ function Update-InsightsAsync {
 
     if (-not $applyUiDelegate) { return }
     if ($emitStageVerbose) {
-        try { Write-Verbose ("[DeviceInsights] Update-InsightsAsync stage=ApplyDelegateReady | ThreadId={0}" -f [System.Threading.Thread]::CurrentThread.ManagedThreadId) } catch { }
+        try { Write-Verbose ("[DeviceInsights] Update-InsightsAsync stage=ApplyDelegateReady | ThreadId={0}" -f [System.Threading.Thread]::CurrentThread.ManagedThreadId) } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
     }
 
     $workerEnsureOk = $false
@@ -2254,21 +2254,21 @@ function Update-InsightsAsync {
     try { $workerEnsureOk = [bool](script:Ensure-InsightsWorker) } catch { $workerEnsureOk = $false }
     try {
         if ($ensureStopwatch) {
-            try { $ensureStopwatch.Stop() } catch { }
+            try { $ensureStopwatch.Stop() } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
             try { $workerEnsureMs = [math]::Round($ensureStopwatch.Elapsed.TotalMilliseconds, 3) } catch { $workerEnsureMs = $null }
         }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
 
     if (-not $workerEnsureOk) {
         try {
             $msg = "[DeviceInsights] Insights worker unavailable; skipping async refresh."
-            try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { }
-        } catch { }
+            try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
+        } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
         return
     }
 
     if ($emitStageVerbose) {
-        try { Write-Verbose ("[DeviceInsights] Update-InsightsAsync stage=WorkerReady | ThreadId={0}" -f [System.Threading.Thread]::CurrentThread.ManagedThreadId) } catch { }
+        try { Write-Verbose ("[DeviceInsights] Update-InsightsAsync stage=WorkerReady | ThreadId={0}" -f [System.Threading.Thread]::CurrentThread.ManagedThreadId) } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
     }
 
     if ($null -ne $workerEnsureMs) {
@@ -2281,8 +2281,8 @@ function Update-InsightsAsync {
         if ($emitEnsureDiag) {
             try {
                 $msg = "[DeviceInsights] Ensure-InsightsWorker completed | DurationMs={0}" -f $workerEnsureMs
-                try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { }
-            } catch { }
+                try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
+            } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
         }
     }
 
@@ -2299,16 +2299,16 @@ function Update-InsightsAsync {
         $hostCount = 0
         try { $hostCount = @($hostnamesToLoad).Count } catch { $hostCount = 0 }
         $msg = "[DeviceInsights] Insights request building | RequestId={0} | LoadInterfaces={1} | Hosts={2} | Interfaces={3}" -f $requestId, $loadInterfaces, $hostCount, $ifaceCount
-        try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { }
-    } catch { }
+        try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
+    } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
 
     if ($loadInterfaces) {
         try {
             $hostCount = 0
             try { $hostCount = @($hostnamesToLoad).Count } catch { $hostCount = 0 }
             $msg = "[DeviceInsights] Interface snapshot scheduled | RequestId={0} | Site={1} | Hosts={2}" -f $requestId, $siteToLoad, $hostCount
-            try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { }
-        } catch { }
+            try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
+        } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
     }
 
     $request = [PSCustomObject]@{
@@ -2330,15 +2330,15 @@ function Update-InsightsAsync {
     }
 
     try { $script:InsightsWorkerQueue.Enqueue($request) } catch { return }
-    try { $null = $script:InsightsWorkerSignal.Set() } catch { }
+    try { $null = $script:InsightsWorkerSignal.Set() } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
 
     try {
         $msg = "[DeviceInsights] Insights request enqueued | RequestId={0}" -f $requestId
-        try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { }
-    } catch { }
+        try { Write-Diag $msg } catch [System.Management.Automation.CommandNotFoundException] { Write-Verbose $msg } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
+    } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
 
     if ($emitStageVerbose) {
-        try { Write-Verbose ("[DeviceInsights] Update-InsightsAsync stage=Enqueued | RequestId={0}" -f $requestId) } catch { }
+        try { Write-Verbose ("[DeviceInsights] Update-InsightsAsync stage=Enqueued | RequestId={0}" -f $requestId) } catch { Write-Verbose "Caught exception in DeviceInsightsModule.psm1: $($_.Exception.Message)" }
     }
 }
 

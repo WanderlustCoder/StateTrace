@@ -918,37 +918,37 @@ function New-IPAMView {
 
             # Data
             if ($wizardDataCheck.IsChecked) {
-                $hosts = 100; try { $hosts = [int]$wizardDataHostsBox.Text } catch {}
+                $hosts = 100; try { $hosts = [int]$wizardDataHostsBox.Text } catch { Write-Verbose "Caught exception in IPAMViewModule.psm1: $($_.Exception.Message)" }
                 $wizardDataSubnetText.Text = "/$(Get-RecommendedPrefix -HostCount $hosts -GrowthFactor $growth)"
             }
 
             # Voice
             if ($wizardVoiceCheck.IsChecked) {
-                $hosts = 50; try { $hosts = [int]$wizardVoiceHostsBox.Text } catch {}
+                $hosts = 50; try { $hosts = [int]$wizardVoiceHostsBox.Text } catch { Write-Verbose "Caught exception in IPAMViewModule.psm1: $($_.Exception.Message)" }
                 $wizardVoiceSubnetText.Text = "/$(Get-RecommendedPrefix -HostCount $hosts -GrowthFactor $growth)"
             }
 
             # Management
             if ($wizardMgmtCheck.IsChecked) {
-                $hosts = 20; try { $hosts = [int]$wizardMgmtHostsBox.Text } catch {}
+                $hosts = 20; try { $hosts = [int]$wizardMgmtHostsBox.Text } catch { Write-Verbose "Caught exception in IPAMViewModule.psm1: $($_.Exception.Message)" }
                 $wizardMgmtSubnetText.Text = "/$(Get-RecommendedPrefix -HostCount $hosts -GrowthFactor $growth)"
             }
 
             # Guest
             if ($wizardGuestCheck.IsChecked) {
-                $hosts = 50; try { $hosts = [int]$wizardGuestHostsBox.Text } catch {}
+                $hosts = 50; try { $hosts = [int]$wizardGuestHostsBox.Text } catch { Write-Verbose "Caught exception in IPAMViewModule.psm1: $($_.Exception.Message)" }
                 $wizardGuestSubnetText.Text = "/$(Get-RecommendedPrefix -HostCount $hosts -GrowthFactor $growth)"
             }
 
             # IoT
             if ($wizardIoTCheck.IsChecked) {
-                $hosts = 30; try { $hosts = [int]$wizardIoTHostsBox.Text } catch {}
+                $hosts = 30; try { $hosts = [int]$wizardIoTHostsBox.Text } catch { Write-Verbose "Caught exception in IPAMViewModule.psm1: $($_.Exception.Message)" }
                 $wizardIoTSubnetText.Text = "/$(Get-RecommendedPrefix -HostCount $hosts -GrowthFactor $growth)"
             }
 
             # Server
             if ($wizardServerCheck.IsChecked) {
-                $hosts = 20; try { $hosts = [int]$wizardServerHostsBox.Text } catch {}
+                $hosts = 20; try { $hosts = [int]$wizardServerHostsBox.Text } catch { Write-Verbose "Caught exception in IPAMViewModule.psm1: $($_.Exception.Message)" }
                 $wizardServerSubnetText.Text = "/$(Get-RecommendedPrefix -HostCount $hosts -GrowthFactor $growth)"
             }
         }
@@ -1028,27 +1028,27 @@ function New-IPAMView {
                 $vlanReqs = @{}
 
                 if ($wizardDataCheck.IsChecked) {
-                    $hosts = 100; try { $hosts = [int]$wizardDataHostsBox.Text } catch {}
+                    $hosts = 100; try { $hosts = [int]$wizardDataHostsBox.Text } catch { Write-Verbose "Caught exception in IPAMViewModule.psm1: $($_.Exception.Message)" }
                     $vlanReqs['Data'] = @{ Hosts = $hosts; VlanNumber = 10 }
                 }
                 if ($wizardVoiceCheck.IsChecked) {
-                    $hosts = 50; try { $hosts = [int]$wizardVoiceHostsBox.Text } catch {}
+                    $hosts = 50; try { $hosts = [int]$wizardVoiceHostsBox.Text } catch { Write-Verbose "Caught exception in IPAMViewModule.psm1: $($_.Exception.Message)" }
                     $vlanReqs['Voice'] = @{ Hosts = $hosts; VlanNumber = 20 }
                 }
                 if ($wizardMgmtCheck.IsChecked) {
-                    $hosts = 20; try { $hosts = [int]$wizardMgmtHostsBox.Text } catch {}
+                    $hosts = 20; try { $hosts = [int]$wizardMgmtHostsBox.Text } catch { Write-Verbose "Caught exception in IPAMViewModule.psm1: $($_.Exception.Message)" }
                     $vlanReqs['Management'] = @{ Hosts = $hosts; VlanNumber = 100 }
                 }
                 if ($wizardGuestCheck.IsChecked) {
-                    $hosts = 50; try { $hosts = [int]$wizardGuestHostsBox.Text } catch {}
+                    $hosts = 50; try { $hosts = [int]$wizardGuestHostsBox.Text } catch { Write-Verbose "Caught exception in IPAMViewModule.psm1: $($_.Exception.Message)" }
                     $vlanReqs['Guest'] = @{ Hosts = $hosts; VlanNumber = 40 }
                 }
                 if ($wizardIoTCheck.IsChecked) {
-                    $hosts = 30; try { $hosts = [int]$wizardIoTHostsBox.Text } catch {}
+                    $hosts = 30; try { $hosts = [int]$wizardIoTHostsBox.Text } catch { Write-Verbose "Caught exception in IPAMViewModule.psm1: $($_.Exception.Message)" }
                     $vlanReqs['IoT'] = @{ Hosts = $hosts; VlanNumber = 50 }
                 }
                 if ($wizardServerCheck.IsChecked) {
-                    $hosts = 20; try { $hosts = [int]$wizardServerHostsBox.Text } catch {}
+                    $hosts = 20; try { $hosts = [int]$wizardServerHostsBox.Text } catch { Write-Verbose "Caught exception in IPAMViewModule.psm1: $($_.Exception.Message)" }
                     $vlanReqs['Server'] = @{ Hosts = $hosts; VlanNumber = 30 }
                 }
 

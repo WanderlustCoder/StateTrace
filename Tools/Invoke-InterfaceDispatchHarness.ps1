@@ -61,7 +61,7 @@ Import-Module (Join-Path $PSScriptRoot '..\Modules\TelemetryModule.psm1') -Error
 Import-Module (Join-Path $PSScriptRoot '..\Modules\DeviceRepositoryModule.psm1') -ErrorAction Stop
 Import-Module (Join-Path $PSScriptRoot '..\Modules\InterfaceModule.psm1') -ErrorAction Stop
 
-try { Add-Type -AssemblyName PresentationFramework -ErrorAction Stop } catch {}
+try { Add-Type -AssemblyName PresentationFramework -ErrorAction Stop } catch { Write-Verbose "Caught exception in Invoke-InterfaceDispatchHarness.ps1: $($_.Exception.Message)" }
 
 $cleanHost = ('' + $Hostname).Trim()
 if ([string]::IsNullOrWhiteSpace($cleanHost)) {
@@ -191,5 +191,5 @@ if (-not $SkipQueueDelayCheck.IsPresent) {
 }
 
 # LANDMARK: Telemetry buffer rename - use approved verb export
-try { TelemetryModule\Save-StTelemetryBuffer | Out-Null } catch { }
+try { TelemetryModule\Save-StTelemetryBuffer | Out-Null } catch { Write-Verbose "Caught exception in Invoke-InterfaceDispatchHarness.ps1: $($_.Exception.Message)" }
 Write-HarnessVerbose ("[Harness] Completed dispatcher simulation for '{0}'." -f $cleanHost)

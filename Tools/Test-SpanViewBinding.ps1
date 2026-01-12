@@ -40,13 +40,13 @@ function Convert-SpanExceptionDetail {
             StackTrace = $current.StackTrace
         }
         if ($detail.Type -eq 'System.Windows.Markup.XamlParseException') {
-            try { $detail.LineNumber = $current.LineNumber } catch { }
-            try { $detail.LinePosition = $current.LinePosition } catch { }
-            try { $detail.BaseUri = if ($current.BaseUri) { $current.BaseUri.ToString() } else { '' } } catch { }
+            try { $detail.LineNumber = $current.LineNumber } catch { Write-Verbose "Caught exception in Test-SpanViewBinding.ps1: $($_.Exception.Message)" }
+            try { $detail.LinePosition = $current.LinePosition } catch { Write-Verbose "Caught exception in Test-SpanViewBinding.ps1: $($_.Exception.Message)" }
+            try { $detail.BaseUri = if ($current.BaseUri) { $current.BaseUri.ToString() } else { '' } } catch { Write-Verbose "Caught exception in Test-SpanViewBinding.ps1: $($_.Exception.Message)" }
         }
         if ($detail.Type -in @('System.IO.FileNotFoundException','System.IO.FileLoadException')) {
-            try { $detail.FileName = $current.FileName } catch { }
-            try { $detail.FusionLog = $current.FusionLog } catch { }
+            try { $detail.FileName = $current.FileName } catch { Write-Verbose "Caught exception in Test-SpanViewBinding.ps1: $($_.Exception.Message)" }
+            try { $detail.FusionLog = $current.FusionLog } catch { Write-Verbose "Caught exception in Test-SpanViewBinding.ps1: $($_.Exception.Message)" }
         }
         $items.Add([pscustomobject]$detail)
         $current = $current.InnerException
@@ -77,9 +77,9 @@ function Get-SpanHarnessEnvironment {
     )
 
     $osVersion = ''
-    try { $osVersion = [Environment]::OSVersion.VersionString } catch { }
+    try { $osVersion = [Environment]::OSVersion.VersionString } catch { Write-Verbose "Caught exception in Test-SpanViewBinding.ps1: $($_.Exception.Message)" }
     $apartmentState = ''
-    try { $apartmentState = [System.Threading.Thread]::CurrentThread.ApartmentState.ToString() } catch { }
+    try { $apartmentState = [System.Threading.Thread]::CurrentThread.ApartmentState.ToString() } catch { Write-Verbose "Caught exception in Test-SpanViewBinding.ps1: $($_.Exception.Message)" }
     $userInteractive = $null
     try { $userInteractive = [Environment]::UserInteractive } catch { $userInteractive = $false }
 
@@ -255,7 +255,7 @@ function Resolve-SpanHost {
                 }
             }
         }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in Test-SpanViewBinding.ps1: $($_.Exception.Message)" }
 
     $dbPaths = DeviceRepositoryModule\Get-AllSiteDbPaths
     foreach ($dbPath in $dbPaths) {
@@ -266,7 +266,7 @@ function Resolve-SpanHost {
             if ($rows -and @($rows).Count -gt 0) {
                 return $hostname
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in Test-SpanViewBinding.ps1: $($_.Exception.Message)" }
     }
 
     throw "Unable to locate a host with spanning-tree data. Provide -Hostname explicitly."
@@ -330,7 +330,7 @@ $spanViewSeed = $null
 try {
     $seedVar = Get-Variable -Name spanView -Scope Global -ErrorAction SilentlyContinue
     if ($seedVar) { $spanViewSeed = $seedVar.Value }
-} catch { }
+} catch { Write-Verbose "Caught exception in Test-SpanViewBinding.ps1: $($_.Exception.Message)" }
 if ($null -eq $spanViewSeed) {
     $spanViewSeed = Get-SpanModuleViewControl
 }
@@ -439,7 +439,7 @@ Invoke-DispatcherPump -Milliseconds 50
 $gridRowCount = 0
 $gridPreview = @()
 if ($null -ne $grid) {
-    try { $grid.UpdateLayout() } catch {}
+    try { $grid.UpdateLayout() } catch { Write-Verbose "Caught exception in Test-SpanViewBinding.ps1: $($_.Exception.Message)" }
     $gridRows = [System.Collections.Generic.List[object]]::new()
     if ($grid.ItemsSource) {
         foreach ($item in $grid.ItemsSource) { $gridRows.Add($item) }
@@ -510,7 +510,7 @@ if (-not $failureReason -and $result.GridRowCount -le 0 -and $snapshot.RowCount 
     try {
         $logTail = Get-Content (Join-Path $repoRoot 'Logs\Debug\SpanDebug.log') -Tail 40 -ErrorAction Stop
         Write-Warning ("SpanDebug.log tail:`n{0}" -f ($logTail -join [Environment]::NewLine))
-    } catch {}
+    } catch { Write-Verbose "Caught exception in Test-SpanViewBinding.ps1: $($_.Exception.Message)" }
 }
 
 $exitCode = if ($result.Status -eq 'Pass') { 0 } else { 1 }
@@ -519,7 +519,7 @@ try {
     Write-SpanHarnessOutput -Result $result -AsJson:$AsJson -PassThru:$PassThru
 } finally {
     if ($script:harnessApp) {
-        try { $script:harnessApp.Shutdown() } catch {}
+        try { $script:harnessApp.Shutdown() } catch { Write-Verbose "Caught exception in Test-SpanViewBinding.ps1: $($_.Exception.Message)" }
     }
 }
 

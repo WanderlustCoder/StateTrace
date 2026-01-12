@@ -104,14 +104,14 @@ function New-ConfigTemplateView {
             try {
                 ConfigTemplateModule\Import-TemplateLibrary -Path $templatesPath -Library $script:templateLib | Out-Null
             }
-            catch { }
+            catch { Write-Verbose "Caught exception in ConfigTemplateViewModule.psm1: $($_.Exception.Message)" }
         }
 
         if (Test-Path $standardsPath) {
             try {
                 ConfigValidationModule\Import-StandardsLibrary -Path $standardsPath -Library $script:standardsLib | Out-Null
             }
-            catch { }
+            catch { Write-Verbose "Caught exception in ConfigTemplateViewModule.psm1: $($_.Exception.Message)" }
         }
 
         # Store state in view's Tag
@@ -864,14 +864,14 @@ function Initialize-ConfigTemplateEventHandlers {
         try {
             ConfigTemplateModule\Import-TemplateLibrary -Path $templatesPath -Library $script:templateLib | Out-Null
         }
-        catch { }
+        catch { Write-Verbose "Caught exception in ConfigTemplateViewModule.psm1: $($_.Exception.Message)" }
     }
 
     if (Test-Path $standardsPath) {
         try {
             ConfigValidationModule\Import-StandardsLibrary -Path $standardsPath -Library $script:standardsLib | Out-Null
         }
-        catch { }
+        catch { Write-Verbose "Caught exception in ConfigTemplateViewModule.psm1: $($_.Exception.Message)" }
     }
 
     # Store state in view's Tag

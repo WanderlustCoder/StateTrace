@@ -130,11 +130,11 @@ function Split-RawLogs {
         }
         finally {
             if ($writer) {
-                try { $writer.Flush() } catch { }
+                try { $writer.Flush() } catch { Write-Verbose "Caught exception in LogIngestionModule.psm1: $($_.Exception.Message)" }
                 $writer.Dispose()
             }
             if ($unknownWriter) {
-                try { $unknownWriter.Flush() } catch { }
+                try { $unknownWriter.Flush() } catch { Write-Verbose "Caught exception in LogIngestionModule.psm1: $($_.Exception.Message)" }
                 $unknownWriter.Dispose()
             }
             if ($sr) { $sr.Dispose() }

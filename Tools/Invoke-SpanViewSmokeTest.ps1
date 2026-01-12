@@ -43,7 +43,7 @@ function Resolve-SpanHost {
                 }
             }
         }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in Invoke-SpanViewSmokeTest.ps1: $($_.Exception.Message)" }
 
     $dbPaths = DeviceRepositoryModule\Get-AllSiteDbPaths
     foreach ($dbPath in $dbPaths) {
@@ -54,7 +54,7 @@ function Resolve-SpanHost {
             if ($rows -and @($rows).Count -gt 0) {
                 return $hostname
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in Invoke-SpanViewSmokeTest.ps1: $($_.Exception.Message)" }
     }
 
     throw "Unable to locate a host with spanning-tree data. Provide -Hostname explicitly."
@@ -144,7 +144,7 @@ try {
     }
     TelemetryModule\Save-StTelemetryBuffer | Out-Null
 } catch [System.Management.Automation.CommandNotFoundException] {
-} catch { }
+} catch { Write-Verbose "Caught exception in Invoke-SpanViewSmokeTest.ps1: $($_.Exception.Message)" }
 
 if ($PassThru) {
     $result

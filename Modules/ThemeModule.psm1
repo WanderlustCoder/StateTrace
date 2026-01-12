@@ -441,7 +441,7 @@ function Update-ThemeResources {
 function Invoke-ThemeChanged {
     param([string]$Name)
     foreach ($handler in $script:ThemeChangedHandlers) {
-        try { $handler.Invoke($Name) } catch { }
+        try { $handler.Invoke($Name) } catch { Write-Verbose "Caught exception in ThemeModule.psm1: $($_.Exception.Message)" }
     }
 }
 
@@ -532,7 +532,7 @@ function Initialize-StateTraceTheme {
             Set-StateTraceTheme -Name $candidate -Silent | Out-Null
             $initialized = $true
             break
-        } catch { }
+        } catch { Write-Verbose "Caught exception in ThemeModule.psm1: $($_.Exception.Message)" }
     }
 
     if (-not $initialized) {
@@ -625,7 +625,7 @@ function Get-AvailableStateTraceThemes {
                 if ($nameProp -and -not [string]::IsNullOrWhiteSpace(('' + $nameProp.Value))) {
                     $display = '' + $nameProp.Value
                 }
-            } catch { }
+            } catch { Write-Verbose "Caught exception in ThemeModule.psm1: $($_.Exception.Message)" }
             $inspiration = if ($def.PSObject.Properties['inspiration']) { $def.inspiration } else { $null }
             $contrastTargets = if ($def.PSObject.Properties['contrastTargets']) { $def.contrastTargets } else { $null }
             $extends = $null
@@ -634,7 +634,7 @@ function Get-AvailableStateTraceThemes {
                 if ($extendsProp) {
                     $extends = '' + $extendsProp.Value
                 }
-            } catch { }
+            } catch { Write-Verbose "Caught exception in ThemeModule.psm1: $($_.Exception.Message)" }
             $themes += [PSCustomObject]@{
                 Name            = $file.BaseName
                 Display         = $display

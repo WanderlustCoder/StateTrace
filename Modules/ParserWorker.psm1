@@ -5,7 +5,7 @@ if (-not (Get-Variable -Name StateTraceDebug -Scope Global -ErrorAction Silently
 }
 try {
     TelemetryModule\Initialize-StateTraceDebug
-} catch { }
+} catch { Write-Verbose "Caught exception in ParserWorker.psm1: $($_.Exception.Message)" }
 
 
 
@@ -208,7 +208,7 @@ function Write-SharedCacheSnapshotFileInternal {
     $directory = $null
     try { $directory = Split-Path -Parent $Path } catch { $directory = $null }
     if (-not [string]::IsNullOrWhiteSpace($directory)) {
-        try { $directory = [System.IO.Path]::GetFullPath($directory) } catch { }
+        try { $directory = [System.IO.Path]::GetFullPath($directory) } catch { Write-Verbose "Caught exception in ParserWorker.psm1: $($_.Exception.Message)" }
     }
     $targetPath = $Path
     try { $targetPath = [System.IO.Path]::GetFullPath($Path) } catch { $targetPath = $Path }
@@ -501,7 +501,7 @@ function Invoke-StateTraceParsing {
             if ($parts.Count -gt 0 -and -not [string]::IsNullOrWhiteSpace($parts[0])) {
                 return $parts[0]
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in ParserWorker.psm1: $($_.Exception.Message)" }
         return 'Unknown'
     }
 
@@ -636,7 +636,7 @@ function Invoke-StateTraceParsing {
 
         }
 
-    } catch { }
+    } catch { Write-Verbose "Caught exception in ParserWorker.psm1: $($_.Exception.Message)" }
 
 
 
@@ -668,7 +668,7 @@ function Invoke-StateTraceParsing {
 
                 $hasMaxWorkersSetting = $true
 
-            } catch { }
+            } catch { Write-Verbose "Caught exception in ParserWorker.psm1: $($_.Exception.Message)" }
 
         }
 
@@ -684,7 +684,7 @@ function Invoke-StateTraceParsing {
 
                 $hasMaxActiveSitesSetting = $true
 
-            } catch { }
+            } catch { Write-Verbose "Caught exception in ParserWorker.psm1: $($_.Exception.Message)" }
 
         }
 
@@ -700,7 +700,7 @@ function Invoke-StateTraceParsing {
                     $maxConsecutiveSiteLaunches = 0
                 }
 
-            } catch { }
+            } catch { Write-Verbose "Caught exception in ParserWorker.psm1: $($_.Exception.Message)" }
 
         }
 
@@ -714,7 +714,7 @@ function Invoke-StateTraceParsing {
 
                 $hasThreadCeilingSetting = $true
 
-            } catch { }
+            } catch { Write-Verbose "Caught exception in ParserWorker.psm1: $($_.Exception.Message)" }
 
         }
 
@@ -728,7 +728,7 @@ function Invoke-StateTraceParsing {
 
                 $hasMinRunspacesSetting = $true
 
-            } catch { }
+            } catch { Write-Verbose "Caught exception in ParserWorker.psm1: $($_.Exception.Message)" }
 
         }
 
@@ -744,7 +744,7 @@ function Invoke-StateTraceParsing {
 
                 $hasJobsPerThreadSetting = $true
 
-            } catch { }
+            } catch { Write-Verbose "Caught exception in ParserWorker.psm1: $($_.Exception.Message)" }
 
         }
 
@@ -756,7 +756,7 @@ function Invoke-StateTraceParsing {
 
                 $enableAdaptiveThreads = $flag
 
-            } catch { }
+            } catch { Write-Verbose "Caught exception in ParserWorker.psm1: $($_.Exception.Message)" }
 
         }
 
@@ -1121,7 +1121,7 @@ function Invoke-StateTraceParsing {
 
         TelemetryModule\Write-StTelemetryEvent -Name 'ConcurrencyProfileResolved' -Payload $telemetryPayload
 
-    } catch { }
+    } catch { Write-Verbose "Caught exception in ParserWorker.psm1: $($_.Exception.Message)" }
 
 
 
@@ -1246,7 +1246,7 @@ function Invoke-StateTraceParsing {
                     if (Test-Path -LiteralPath $cacheModulePath) {
                         $cacheModule = Import-Module -Name $cacheModulePath -ErrorAction SilentlyContinue -PassThru
                     }
-                } catch { }
+                } catch { Write-Verbose "Caught exception in ParserWorker.psm1: $($_.Exception.Message)" }
             }
             $cacheExportCmd = Get-DeviceRepositoryCacheCommand -Name 'Export-SharedCacheSnapshot'
             if ($cacheExportCmd -and $snapshotEntryCount -gt 0) {
@@ -1311,7 +1311,7 @@ function Invoke-StateTraceParsing {
         } catch {
             Write-Warning ("Failed to export shared cache snapshot to '{0}': {1}" -f $SharedCacheSnapshotExportPath, $_.Exception.Message)
         }
-        try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::ClearSnapshot() } catch { }
+        try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::ClearSnapshot() } catch { Write-Verbose "Caught exception in ParserWorker.psm1: $($_.Exception.Message)" }
     }
 
     Write-Host "Processing complete." -ForegroundColor Yellow

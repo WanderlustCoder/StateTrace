@@ -174,7 +174,7 @@ function Test-SingleDatabaseConsistency {
                 $opened = $true
                 break
             } catch {
-                try { $connection.Close() } catch { }
+                try { $connection.Close() } catch { Write-Verbose "Caught exception in Test-DatabaseConsistency.ps1: $($_.Exception.Message)" }
             }
         }
 
@@ -219,7 +219,7 @@ function Test-SingleDatabaseConsistency {
         $result.Errors += "Error: $($_.Exception.Message)"
     } finally {
         if ($connection) {
-            try { $connection.Close() } catch { }
+            try { $connection.Close() } catch { Write-Verbose "Caught exception in Test-DatabaseConsistency.ps1: $($_.Exception.Message)" }
             if ($connection -is [System.__ComObject]) {
                 [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($connection)
             }

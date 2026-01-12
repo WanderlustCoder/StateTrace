@@ -281,7 +281,7 @@ function Get-PortReorgSuggestedPlan {
     $i = 0
     foreach ($row in $sorted) {
         if ($i -ge $portList.Count) { break }
-        try { $row.TargetPort = $portList[$i] } catch { }
+        try { $row.TargetPort = $portList[$i] } catch { Write-Verbose "Caught exception in PortReorgModule.psm1: $($_.Exception.Message)" }
         $i++
     }
 

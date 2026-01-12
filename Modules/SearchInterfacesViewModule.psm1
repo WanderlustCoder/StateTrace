@@ -13,7 +13,7 @@ function script:Get-SearchHistory {
         if ($settings -and $settings.ContainsKey('SearchHistory')) {
             $history = @($settings['SearchHistory'])
         }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in SearchInterfacesViewModule.psm1: $($_.Exception.Message)" }
     return $history
 }
 
@@ -46,7 +46,7 @@ function script:Add-SearchHistoryItem {
 
         $settings['SearchHistory'] = $history
         MainWindow.Services\Save-StateTraceSettings -Settings $settings
-    } catch { }
+    } catch { Write-Verbose "Caught exception in SearchInterfacesViewModule.psm1: $($_.Exception.Message)" }
 }
 
 function script:Update-SearchHistoryDropdown {
@@ -76,7 +76,7 @@ function script:Get-FilterPresets {
             $presets = $settings['FilterPresets']
             if (-not $presets) { $presets = @{} }
         }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in SearchInterfacesViewModule.psm1: $($_.Exception.Message)" }
     return $presets
 }
 
@@ -112,7 +112,7 @@ function script:Save-FilterPreset {
 
         $settings['FilterPresets'] = $presets
         MainWindow.Services\Save-StateTraceSettings -Settings $settings
-    } catch { }
+    } catch { Write-Verbose "Caught exception in SearchInterfacesViewModule.psm1: $($_.Exception.Message)" }
 }
 
 function script:Delete-FilterPreset {
@@ -132,7 +132,7 @@ function script:Delete-FilterPreset {
                 MainWindow.Services\Save-StateTraceSettings -Settings $settings
             }
         }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in SearchInterfacesViewModule.psm1: $($_.Exception.Message)" }
 }
 
 function script:Update-PresetDropdown {
@@ -167,7 +167,7 @@ function script:Get-ColumnWidths {
             $widths = $settings['ColumnWidths'][$GridName]
             if (-not $widths) { $widths = @{} }
         }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in SearchInterfacesViewModule.psm1: $($_.Exception.Message)" }
     return $widths
 }
 
@@ -189,7 +189,7 @@ function script:Save-ColumnWidths {
 
         $settings['ColumnWidths'][$GridName] = $Widths
         MainWindow.Services\Save-StateTraceSettings -Settings $settings
-    } catch { }
+    } catch { Write-Verbose "Caught exception in SearchInterfacesViewModule.psm1: $($_.Exception.Message)" }
 }
 
 function script:Apply-ColumnWidths {
@@ -207,7 +207,7 @@ function script:Apply-ColumnWidths {
         if ($header -and $widths.ContainsKey($header)) {
             try {
                 $col.Width = [double]$widths[$header]
-            } catch { }
+            } catch { Write-Verbose "Caught exception in SearchInterfacesViewModule.psm1: $($_.Exception.Message)" }
         }
     }
 }
@@ -254,7 +254,7 @@ function New-SearchInterfacesView {
 
     $requestSearchUpdate = {
         try { DeviceInsightsModule\Update-SearchGridAsync } catch {
-            try { DeviceInsightsModule\Update-SearchGrid } catch { }
+            try { DeviceInsightsModule\Update-SearchGrid } catch { Write-Verbose "Caught exception in SearchInterfacesViewModule.psm1: $($_.Exception.Message)" }
         }
     }
 

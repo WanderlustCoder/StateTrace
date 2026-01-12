@@ -974,7 +974,7 @@ function Get-ScheduledHealthChecks {
     $configs = Get-ChildItem -Path $configPath -Filter '*.json' | ForEach-Object {
         try {
             Get-Content $_.FullName -Raw | ConvertFrom-Json
-        } catch { }
+        } catch { Write-Verbose "Caught exception in FleetHealthModule.psm1: $($_.Exception.Message)" }
     }
 
     if ($Name) {

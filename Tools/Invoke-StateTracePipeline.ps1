@@ -346,9 +346,9 @@ function Get-TelemetryEventCount {
                 if ($obj -and $obj.EventName -eq $EventName) {
                     $count++
                 }
-            } catch { }
+            } catch { Write-Verbose "Caught exception in Invoke-StateTracePipeline.ps1: $($_.Exception.Message)" }
         }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in Invoke-StateTracePipeline.ps1: $($_.Exception.Message)" }
 
     return $count
 }
@@ -390,9 +390,9 @@ function Get-TelemetryEventLatestTimestamp {
                         $latest = $stamp
                     }
                 }
-            } catch { }
+            } catch { Write-Verbose "Caught exception in Invoke-StateTracePipeline.ps1: $($_.Exception.Message)" }
         }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in Invoke-StateTracePipeline.ps1: $($_.Exception.Message)" }
 
     return $latest
 }
@@ -483,10 +483,10 @@ function Restore-SharedCacheEntries {
                 try {
                     $store = DeviceRepositoryModule\Get-SharedSiteInterfaceCacheStore
                     if ($store -is [System.Collections.IDictionary]) {
-                        try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($store) } catch { }
-                        try { [System.AppDomain]::CurrentDomain.SetData('StateTrace.Repository.SharedSiteInterfaceCache', $store) } catch { }
+                        try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($store) } catch { Write-Verbose "Caught exception in Invoke-StateTracePipeline.ps1: $($_.Exception.Message)" }
+                        try { [System.AppDomain]::CurrentDomain.SetData('StateTrace.Repository.SharedSiteInterfaceCache', $store) } catch { Write-Verbose "Caught exception in Invoke-StateTracePipeline.ps1: $($_.Exception.Message)" }
                     }
-                } catch { }
+                } catch { Write-Verbose "Caught exception in Invoke-StateTracePipeline.ps1: $($_.Exception.Message)" }
                 Set-SharedSiteInterfaceCacheEntry -SiteKey $siteKey -Entry $normalizedEntry
                 $restored++
             }
@@ -634,9 +634,9 @@ function Get-ConcurrencyProfileSummaryFromMetrics {
                 if ($event -and $event.EventName -eq 'ConcurrencyProfileResolved') {
                     $lastEvent = $event
                 }
-            } catch { }
+            } catch { Write-Verbose "Caught exception in Invoke-StateTracePipeline.ps1: $($_.Exception.Message)" }
         }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in Invoke-StateTracePipeline.ps1: $($_.Exception.Message)" }
 
     if (-not $lastEvent) { return $null }
 
@@ -711,12 +711,12 @@ function Write-ConcurrencyOverrideTelemetry {
 
     try {
         & $telemetryCmd -Name 'ConcurrencyOverrideSummary' -Payload $payload
-    } catch { }
+    } catch { Write-Verbose "Caught exception in Invoke-StateTracePipeline.ps1: $($_.Exception.Message)" }
 
     # LANDMARK: Telemetry buffer rename - resolve approved-verb command
     $flushCmd = Get-TelemetryModuleCommand -Name 'Save-StTelemetryBuffer'
     if ($flushCmd) {
-        try { & $flushCmd | Out-Null } catch { }
+        try { & $flushCmd | Out-Null } catch { Write-Verbose "Caught exception in Invoke-StateTracePipeline.ps1: $($_.Exception.Message)" }
     }
 }
 
@@ -747,7 +747,7 @@ function Get-SharedCacheSnapshotSummary {
         }
     }
     if ($deviceRepoModule) {
-        try { $entries = @($deviceRepoModule.Invoke({ param($e) Resolve-SharedSiteInterfaceCacheSnapshotEntries -Entries $e }, @($entries))) } catch { }
+        try { $entries = @($deviceRepoModule.Invoke({ param($e) Resolve-SharedSiteInterfaceCacheSnapshotEntries -Entries $e }, @($entries))) } catch { Write-Verbose "Caught exception in Invoke-StateTracePipeline.ps1: $($_.Exception.Message)" }
     }
 
     $summaries = [System.Collections.Generic.List[psobject]]::new()
@@ -1095,7 +1095,7 @@ try {
             } else {
                 Remove-Item Env:STATETRACE_SHARED_CACHE_SNAPSHOT -ErrorAction SilentlyContinue
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in Invoke-StateTracePipeline.ps1: $($_.Exception.Message)" }
         $sharedCacheSnapshotEnvApplied = $false
     }
 }
@@ -1110,13 +1110,13 @@ try {
     if ($flushCmd) {
         & $flushCmd | Out-Null
     }
-} catch { }
+} catch { Write-Verbose "Caught exception in Invoke-StateTracePipeline.ps1: $($_.Exception.Message)" }
 try {
     $telemetryPathCmd = Get-TelemetryModuleCommand -Name 'Get-TelemetryLogPath'
     if ($telemetryPathCmd) {
         $ingestionMetricsPath = & $telemetryPathCmd
     }
-} catch { }
+} catch { Write-Verbose "Caught exception in Invoke-StateTracePipeline.ps1: $($_.Exception.Message)" }
 if (-not [string]::IsNullOrWhiteSpace($ingestionMetricsPath) -and (Test-Path -LiteralPath $ingestionMetricsPath)) {
     for ($attempt = 0; $attempt -lt 5 -and -not $ingestionEndUtc; $attempt++) {
         try {
@@ -1124,7 +1124,7 @@ if (-not [string]::IsNullOrWhiteSpace($ingestionMetricsPath) -and (Test-Path -Li
             if ($flushCmd) {
                 & $flushCmd | Out-Null
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in Invoke-StateTracePipeline.ps1: $($_.Exception.Message)" }
         $ingestionEndUtc = Get-TelemetryEventLatestTimestamp -MetricsPath $ingestionMetricsPath -EventName 'PortBatchReady' -SinceTimestamp $ingestionStartUtc
         if (-not $ingestionEndUtc) {
             Start-Sleep -Milliseconds 200
@@ -1164,7 +1164,7 @@ $latestIngestionMetricsEntry = $null
             if ($telemetryPathCmd) {
                 $telemetryLogPath = & $telemetryPathCmd
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in Invoke-StateTracePipeline.ps1: $($_.Exception.Message)" }
 
     if (-not [string]::IsNullOrWhiteSpace($telemetryLogPath) -and (Test-Path -LiteralPath $telemetryLogPath)) {
         $latestIngestionMetricsEntry = Get-Item -LiteralPath $telemetryLogPath -ErrorAction Stop
@@ -1794,7 +1794,7 @@ if ($RequireTelemetryIntegrity) {
     }
     try {
         Write-ConcurrencyOverrideTelemetry -ParameterOverrides $parameterOverrides -ResetResult $overrideReset -Label 'StateTracePipeline'
-    } catch { }
+    } catch { Write-Verbose "Caught exception in Invoke-StateTracePipeline.ps1: $($_.Exception.Message)" }
     if ($rawPortDiversityAutoConcurrency -and $rawPortDiversitySnapshot) {
         # LANDMARK: Raw diversity auto concurrency - restore original settings after run
         try {

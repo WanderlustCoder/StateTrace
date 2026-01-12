@@ -16,7 +16,7 @@ $script:WriteSpanDiagAction    = {
     param([string]$Message)
     try {
         TelemetryModule\Write-SpanDebugLog -Message $Message -Prefix 'Diag'
-    } catch { }
+    } catch { Write-Verbose "Caught exception in SpanViewModule.psm1: $($_.Exception.Message)" }
 }
 
 if (-not (Get-Variable -Scope Script -Name SpanRepositoryImportWarned -ErrorAction SilentlyContinue)) {
@@ -119,8 +119,8 @@ function Import-SpanRepositoryModule {
 
     $lastError = $null
     $candidatePaths = [System.Collections.Generic.List[string]]::new()
-    try { [void]$candidatePaths.Add((Join-Path -Path $PSScriptRoot -ChildPath 'DeviceRepositoryModule.psm1')) } catch { }
-    try { [void]$candidatePaths.Add((Join-Path -Path (Split-Path -Parent $PSScriptRoot) -ChildPath 'Modules\DeviceRepositoryModule.psm1')) } catch { }
+    try { [void]$candidatePaths.Add((Join-Path -Path $PSScriptRoot -ChildPath 'DeviceRepositoryModule.psm1')) } catch { Write-Verbose "Caught exception in SpanViewModule.psm1: $($_.Exception.Message)" }
+    try { [void]$candidatePaths.Add((Join-Path -Path (Split-Path -Parent $PSScriptRoot) -ChildPath 'Modules\DeviceRepositoryModule.psm1')) } catch { Write-Verbose "Caught exception in SpanViewModule.psm1: $($_.Exception.Message)" }
 
     foreach ($candidate in $candidatePaths) {
         if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
@@ -159,8 +159,8 @@ function Reset-SpanViewState {
             $gridRef.Tag = $null
         }
         if ($dropdownRef) {
-            try { FilterStateModule\Set-DropdownItems -Control $dropdownRef -Items @('') } catch { }
-            try { $dropdownRef.SelectedIndex = 0 } catch { }
+            try { FilterStateModule\Set-DropdownItems -Control $dropdownRef -Items @('') } catch { Write-Verbose "Caught exception in SpanViewModule.psm1: $($_.Exception.Message)" }
+            try { $dropdownRef.SelectedIndex = 0 } catch { Write-Verbose "Caught exception in SpanViewModule.psm1: $($_.Exception.Message)" }
         }
         if ($statusLabelRef) {
             $statusLabelRef.Text = 'No spanning-tree data loaded.'
@@ -230,7 +230,7 @@ function New-SpanView {
                         Initialize-DeviceFilters -Window $Window
                     }
                 } catch [System.Management.Automation.CommandNotFoundException] {
-                } catch {}
+                } catch { Write-Verbose "Caught exception in SpanViewModule.psm1: $($_.Exception.Message)" }
                 try { Update-DeviceFilter } catch [System.Management.Automation.CommandNotFoundException] { }
                 $currentHost = $Window.FindName('HostnameDropdown').SelectedItem
                 if ($currentHost) { Get-SpanInfo $currentHost }
@@ -283,7 +283,7 @@ function Get-SpanInfo {
     try {
         $entryCount = @($data).Count
         TelemetryModule\Write-SpanDebugLog -Message ("Host={0} Rows={1}" -f $targetHost, $entryCount) -UseTemp -Prefix 'Fetch'
-    } catch { }
+    } catch { Write-Verbose "Caught exception in SpanViewModule.psm1: $($_.Exception.Message)" }
 
     $rowsCopy = @($data)
     $script:SpanLastRows = $rowsCopy
@@ -308,7 +308,7 @@ function Get-SpanInfo {
             Timestamp = (Get-Date).ToString('o')
         }
     } catch [System.Management.Automation.CommandNotFoundException] {
-    } catch { }
+    } catch { Write-Verbose "Caught exception in SpanViewModule.psm1: $($_.Exception.Message)" }
 
     # LANDMARK: ST-D-007 span usage telemetry
     try {
@@ -321,7 +321,7 @@ function Get-SpanInfo {
             Timestamp = (Get-Date).ToString('o')
         }
     } catch [System.Management.Automation.CommandNotFoundException] {
-    } catch { }
+    } catch { Write-Verbose "Caught exception in SpanViewModule.psm1: $($_.Exception.Message)" }
 
     $gridRef = $script:SpanGridControl
     $dropdownRef = $script:SpanVlanDropdown
@@ -347,7 +347,7 @@ function Get-SpanInfo {
             $instances.Sort([System.StringComparer]::OrdinalIgnoreCase)
             try {
                 FilterStateModule\Set-DropdownItems -Control $dropdownRef -Items (@('') + $instances)
-            } catch { }
+            } catch { Write-Verbose "Caught exception in SpanViewModule.psm1: $($_.Exception.Message)" }
         }
         if ($statusLabelRef) {
             $timestamp = (Get-Date).ToString('HH:mm:ss')
@@ -377,7 +377,7 @@ function Get-SpanInfo {
     try {
         $count = $rowsCopy.Count
         TelemetryModule\Write-SpanDebugLog -Message ("Host={0} Rows={1}" -f $targetHost, $count) -Prefix 'UI'
-    } catch { }
+    } catch { Write-Verbose "Caught exception in SpanViewModule.psm1: $($_.Exception.Message)" }
 
     $script:SpanLastHostname = $targetHost
     $script:SpanLastRefresh = Get-Date
@@ -413,7 +413,7 @@ function Get-SpanViewSnapshot {
                 $snapshot.Site = $siteText
             }
         }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in SpanViewModule.psm1: $($_.Exception.Message)" }
 
     if (-not (Ensure-SpanViewControls)) {
         Write-SpanDiag "Get-SpanViewSnapshot: controls unavailable."
@@ -478,7 +478,7 @@ function Get-SpanViewSnapshot {
             Timestamp = (Get-Date).ToString('o')
         }
     } catch [System.Management.Automation.CommandNotFoundException] {
-    } catch { }
+    } catch { Write-Verbose "Caught exception in SpanViewModule.psm1: $($_.Exception.Message)" }
 
     return [pscustomobject]$snapshot
 }
@@ -510,7 +510,7 @@ function Show-SpanDiagnostics {
         if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Path $logDir -Force | Out-Null }
         $diagPath = Join-Path $logDir 'SpanDiag.log'
         Add-Content -Path $diagPath -Value ("{0}`t{1}" -f (Get-Date).ToString('s'), $message)
-    } catch { }
+    } catch { Write-Verbose "Caught exception in SpanViewModule.psm1: $($_.Exception.Message)" }
 
     $app = [System.Windows.Application]::Current
     if ($app -and $app.MainWindow) {

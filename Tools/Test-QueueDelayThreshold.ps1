@@ -179,7 +179,7 @@ if (-not $metrics.FromSummary -or $metrics.FromSummary.SampleCount -lt $MinimumS
                     $queueDelays.Add([double]$event.QueueDelayMs)
                 }
             }
-            catch { }
+            catch { Write-Verbose "Caught exception in Test-QueueDelayThreshold.ps1: $($_.Exception.Message)" }
         }
 
         if ($queueDelays.Count -gt 0) {

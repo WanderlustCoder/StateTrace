@@ -598,7 +598,7 @@ function Repair-AccessDatabase {
         $auditResult = if ($result.RepairSuccessful) { 'Success' } else { 'Failure' }
         Write-AuditEvent -EventType 'SystemAction' -Category 'Database' -Action 'Execute' `
             -Target $DatabasePath -Details "Compact/Repair" -Result $auditResult
-    } catch { }
+    } catch { Write-Verbose "Audit logging skipped for compact/repair: $_" }
 
     return [PSCustomObject]$result
 }
@@ -869,7 +869,7 @@ function Restore-DatabaseBackup {
             Import-Module (Join-Path $projectRoot 'Modules\AuditTrailModule.psm1') -Force -DisableNameChecking -ErrorAction SilentlyContinue
             Write-AuditEvent -EventType 'SystemAction' -Category 'Database' -Action 'Execute' `
                 -Target $TargetPath -Details "Restored from $BackupPath" -Result 'Success'
-        } catch { }
+        } catch { Write-Verbose "Audit logging skipped for restore: $_" }
 
     } catch {
         $result.Error = $_.Exception.Message

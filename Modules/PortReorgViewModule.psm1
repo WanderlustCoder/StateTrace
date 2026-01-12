@@ -184,7 +184,7 @@ function Show-PortReorgWindow {
         $globalSetting = $null
         try { $globalSetting = Get-Variable -Name StateTraceSuppressDialogs -Scope Global -ErrorAction SilentlyContinue } catch { $globalSetting = $null }
         if ($globalSetting -and $null -ne $globalSetting.Value) {
-            try { if ([bool]$globalSetting.Value) { $suppressDialogsResolved = $true } } catch { }
+            try { if ([bool]$globalSetting.Value) { $suppressDialogsResolved = $true } } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
         }
         if (-not $suppressDialogsResolved) {
             $envValue = $env:STATETRACE_SUPPRESS_DIALOGS
@@ -193,7 +193,7 @@ function Show-PortReorgWindow {
             }
         }
         if (-not $suppressDialogsResolved) {
-            try { if (-not [System.Environment]::UserInteractive) { $suppressDialogsResolved = $true } } catch { }
+            try { if (-not [System.Environment]::UserInteractive) { $suppressDialogsResolved = $true } } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
         }
     }
     if ([string]::IsNullOrWhiteSpace($hostTrim)) {
@@ -299,7 +299,7 @@ function Show-PortReorgWindow {
 
     $parkingLabels = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
     if ($parkingList) {
-        try { $parkingList.ItemsSource = $parkingLabels } catch { }
+        try { $parkingList.ItemsSource = $parkingLabels } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
     }
 
     $newParkingItem = {
@@ -429,7 +429,7 @@ function Show-PortReorgWindow {
     } catch {
         try {
             foreach ($r in $rows) { $orderedRowsList.Add($r) | Out-Null }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
     }
     # Keep $orderedRows as reference for backward compatibility
     $orderedRows = $orderedRowsList
@@ -446,7 +446,7 @@ function Show-PortReorgWindow {
         }
     }.GetNewClosure()
 
-    try { & $updateModuleBoundaries } catch { }
+    try { & $updateModuleBoundaries } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
 
     $visibleRows = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
     $pageChoices = [System.Collections.ObjectModel.ObservableCollection[object]]::new()
@@ -462,9 +462,9 @@ function Show-PortReorgWindow {
     }
 
     if ($pagingIsAvailable) {
-        try { $pageComboBox.ItemsSource = $pageChoices } catch { }
-        try { $pageComboBox.DisplayMemberPath = 'Label' } catch { }
-        try { $pageComboBox.SelectedValuePath = 'Page' } catch { }
+        try { $pageComboBox.ItemsSource = $pageChoices } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+        try { $pageComboBox.DisplayMemberPath = 'Label' } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+        try { $pageComboBox.SelectedValuePath = 'Page' } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
     }
 
     $setPagingControlsVisible = {
@@ -474,7 +474,7 @@ function Show-PortReorgWindow {
         $vis = if ($Enabled) { [System.Windows.Visibility]::Visible } else { [System.Windows.Visibility]::Collapsed }
         foreach ($ctrl in @($pagePrevButton, $pageComboBox, $pageNextButton, $pageInfoText)) {
             if ($ctrl) {
-                try { $ctrl.Visibility = $vis } catch { }
+                try { $ctrl.Visibility = $vis } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
             }
         }
     }.GetNewClosure()
@@ -496,7 +496,7 @@ function Show-PortReorgWindow {
         if ($pageCount -lt 1) { $pageCount = 1 }
         $pagingState.PageCount = $pageCount
 
-        try { $pageChoices.Clear() } catch { }
+        try { $pageChoices.Clear() } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
         for ($page = 1; $page -le $pageCount; $page++) {
             $startIndex = ($page - 1) * $pageSize
             $endIndex = [Math]::Min($total - 1, $startIndex + $pageSize - 1)
@@ -519,7 +519,7 @@ function Show-PortReorgWindow {
                     if ($state -eq 'Changed') { $changeCount++ }
                     elseif ($state -eq 'Parked') { $parkedCount++ }
                 }
-            } catch { }
+            } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
 
             # ST-D-012: Build label with change indicator
             $indicator = ''
@@ -544,7 +544,7 @@ function Show-PortReorgWindow {
                     EndIndex   = $endIndex
                     Label      = $label
                 }) | Out-Null
-            } catch { }
+            } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
         }
 
         if ($pagingState.PageNumber -lt 1) { $pagingState.PageNumber = 1 }
@@ -583,9 +583,9 @@ function Show-PortReorgWindow {
         $pagingState.PageNumber = $slice.PageNumber
         $pagingState.PageCount = $slice.PageCount
 
-        try { $visibleRows.Clear() } catch { }
+        try { $visibleRows.Clear() } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
         foreach ($row in $slice.VisibleRows) {
-            try { $visibleRows.Add($row) | Out-Null } catch { }
+            try { $visibleRows.Add($row) | Out-Null } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
         }
     }.GetNewClosure()
 
@@ -610,7 +610,7 @@ function Show-PortReorgWindow {
             if ($total -gt 0 -and $endIndex -ge 0 -and $endIndex -lt $total) {
                 $endPort = ('' + $orderedRows[$endIndex].TargetPort).Trim()
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
 
         $range = if (-not [string]::IsNullOrWhiteSpace($startPort) -and -not [string]::IsNullOrWhiteSpace($endPort)) {
             ("{0} - {1}" -f $startPort, $endPort)
@@ -618,16 +618,16 @@ function Show-PortReorgWindow {
             'No ports'
         }
 
-        try { if ($pageInfoText) { $pageInfoText.Text = ("Page {0}/{1} ({2})" -f $pageNumber, $pageCount, $range) } } catch { }
-        try { if ($pagePrevButton) { $pagePrevButton.IsEnabled = ($pageNumber -gt 1) } } catch { }
-        try { if ($pageNextButton) { $pageNextButton.IsEnabled = ($pageNumber -lt $pageCount) } } catch { }
-        try { if ($pageComboBox) { $pageComboBox.IsEnabled = ($pageCount -gt 1) } } catch { }
+        try { if ($pageInfoText) { $pageInfoText.Text = ("Page {0}/{1} ({2})" -f $pageNumber, $pageCount, $range) } } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+        try { if ($pagePrevButton) { $pagePrevButton.IsEnabled = ($pageNumber -gt 1) } } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+        try { if ($pageNextButton) { $pageNextButton.IsEnabled = ($pageNumber -lt $pageCount) } } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+        try { if ($pageComboBox) { $pageComboBox.IsEnabled = ($pageCount -gt 1) } } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
 
         if ($pageComboBox) {
             try {
                 $pagingState.SuppressPageEvent = $true
                 $pageComboBox.SelectedValue = $pageNumber
-            } catch { } finally {
+            } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" } finally {
                 $pagingState.SuppressPageEvent = $false
             }
         }
@@ -645,7 +645,7 @@ function Show-PortReorgWindow {
         catch {
             # Fallback to global variable
             if (Get-Variable -Name StateTracePortReorgPagingEnabled -Scope Global -ErrorAction SilentlyContinue) {
-                try { $initialPagingEnabled = [bool]$global:StateTracePortReorgPagingEnabled } catch { }
+                try { $initialPagingEnabled = [bool]$global:StateTracePortReorgPagingEnabled } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
             }
         }
 
@@ -655,7 +655,7 @@ function Show-PortReorgWindow {
             $size = [int]$portReorgSettings.PageSize
             if ($size -ge 1 -and $size -le 96) { $initialPageSize = $size }
         }
-        catch { }
+        catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
         $pagingState.PageSize = $initialPageSize
 
         # Load last page for this host
@@ -665,16 +665,16 @@ function Show-PortReorgWindow {
                 $pagingState.PageNumber = [int]$lastPages[$hostTrim]
             }
         }
-        catch { }
+        catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
 
         if ($pagedViewCheckBox) {
-            try { $pagedViewCheckBox.IsChecked = $initialPagingEnabled } catch { }
+            try { $pagedViewCheckBox.IsChecked = $initialPagingEnabled } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
         }
 
         $pagingState.Enabled = ($initialPagingEnabled -eq $true)
 
-        try { & $rebuildPageChoices } catch { }
-        try { & $setPagingControlsVisible -Enabled ($pagingState.Enabled -eq $true) } catch { }
+        try { & $rebuildPageChoices } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+        try { & $setPagingControlsVisible -Enabled ($pagingState.Enabled -eq $true) } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
         if ($pagingState.Enabled -eq $true) {
             # Inline slice calculation to avoid any function call or closure issues
             try {
@@ -704,13 +704,13 @@ function Show-PortReorgWindow {
                         $dstRows.Add($srcRows[$idx]) | Out-Null
                     }
                 }
-            } catch { }
-            try { & $updatePagingControls } catch { }
+            } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+            try { & $updatePagingControls } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
             # ST-D-012: Update grid to use visibleRows when paging is initially enabled
             try {
                 $grid.ItemsSource = $null
                 $grid.ItemsSource = $pagingState.VisibleRows
-            } catch { }
+            } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
         }
     }
 
@@ -722,7 +722,7 @@ function Show-PortReorgWindow {
             try {
                 $rt = ('' + $r.TargetPort).Trim()
                 if ($rt.Equals($t, [System.StringComparison]::OrdinalIgnoreCase)) { return $r }
-            } catch { }
+            } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
         }
         return $null
     }.GetNewClosure()
@@ -750,7 +750,7 @@ function Show-PortReorgWindow {
 
     $updateLabelStates = {
         foreach ($r in $rows) {
-            try { $r.LabelState = & $getLabelStateForRow $r } catch { }
+            try { $r.LabelState = & $getLabelStateForRow $r } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
         }
     }.GetNewClosure()
 
@@ -782,7 +782,7 @@ function Show-PortReorgWindow {
                     'Assign profiles to ports (FromPort unique) and leave labels blank when FromPort is empty.'
                 }
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
 
         $hasChange = $false
         $hasRollback = $false
@@ -791,17 +791,17 @@ function Show-PortReorgWindow {
 
         $scriptsCurrent = $false
         try { $scriptsCurrent = ($uiState.ScriptsAreCurrent -eq $true) } catch { $scriptsCurrent = $false }
-        try { if ($copyChangeBtn) { $copyChangeBtn.IsEnabled = ($scriptsCurrent -and $hasChange) } } catch { }
-        try { if ($saveChangeBtn) { $saveChangeBtn.IsEnabled = ($scriptsCurrent -and $hasChange) } } catch { }
-        try { if ($copyRollbackBtn) { $copyRollbackBtn.IsEnabled = ($scriptsCurrent -and $hasRollback) } } catch { }
-        try { if ($saveRollbackBtn) { $saveRollbackBtn.IsEnabled = ($scriptsCurrent -and $hasRollback) } } catch { }
+        try { if ($copyChangeBtn) { $copyChangeBtn.IsEnabled = ($scriptsCurrent -and $hasChange) } } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+        try { if ($saveChangeBtn) { $saveChangeBtn.IsEnabled = ($scriptsCurrent -and $hasChange) } } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+        try { if ($copyRollbackBtn) { $copyRollbackBtn.IsEnabled = ($scriptsCurrent -and $hasRollback) } } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+        try { if ($saveRollbackBtn) { $saveRollbackBtn.IsEnabled = ($scriptsCurrent -and $hasRollback) } } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
     }.GetNewClosure()
 
     $markScriptsDirty = {
-        try { $uiState.ScriptsAreCurrent = $false } catch { }
-        try { if ($changeBox) { $changeBox.Text = '' } } catch { }
-        try { if ($rollbackBox) { $rollbackBox.Text = '' } } catch { }
-        try { & $updateScriptControls } catch { }
+        try { $uiState.ScriptsAreCurrent = $false } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+        try { if ($changeBox) { $changeBox.Text = '' } } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+        try { if ($rollbackBox) { $rollbackBox.Text = '' } } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+        try { & $updateScriptControls } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
     }.GetNewClosure()
 
     # ST-D-012: Status text helper (must be defined before refreshGrid uses it)
@@ -814,12 +814,12 @@ function Show-PortReorgWindow {
             if ($ColorKey -and $win.Resources.Contains($ColorKey)) {
                 $statusText.Foreground = $win.Resources[$ColorKey]
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
     }.GetNewClosure()
 
     $refreshGrid = {
         if (-not $grid) { return }
-        try { & $updateLabelStates } catch { }
+        try { & $updateLabelStates } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
 
         # PSCustomObject rows do not notify property changes; force a rebind so
         # drag/drop updates immediately reflect in the DataGrid visuals.
@@ -858,10 +858,10 @@ function Show-PortReorgWindow {
                         }
                     }
                 } catch {
-                    try { & $setStatus ("Paging error: {0}" -f $_.Exception.Message) '' } catch { }
+                    try { & $setStatus ("Paging error: {0}" -f $_.Exception.Message) '' } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
                 }
                 $itemsSource = $pagingState.VisibleRows
-                try { & $setStatus ("Page {0}/{1} ({2} of {3} ports)" -f $pagingState.PageNumber, $pagingState.PageCount, $pagingState.VisibleRows.Count, $pagingState.OrderedRows.Count) '' } catch { }
+                try { & $setStatus ("Page {0}/{1} ({2} of {3} ports)" -f $pagingState.PageNumber, $pagingState.PageCount, $pagingState.VisibleRows.Count, $pagingState.OrderedRows.Count) '' } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
             }
 
             $grid.ItemsSource = $null
@@ -881,16 +881,16 @@ function Show-PortReorgWindow {
             }
 
             if ($selectedItem) {
-                try { $grid.SelectedItem = $selectedItem } catch { }
-                try { $grid.ScrollIntoView($selectedItem) } catch { }
+                try { $grid.SelectedItem = $selectedItem } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+                try { $grid.ScrollIntoView($selectedItem) } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
 
-        try { if ($gridView) { $gridView.Refresh() } } catch { }
-        try { $grid.Items.Refresh() } catch { }
-        try { $grid.UpdateLayout() } catch { }
-        try { & $updateScriptControls } catch { }
-        try { & $updatePagingControls } catch { }
+        try { if ($gridView) { $gridView.Refresh() } } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+        try { $grid.Items.Refresh() } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+        try { $grid.UpdateLayout() } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+        try { & $updateScriptControls } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+        try { & $updatePagingControls } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
     }.GetNewClosure()
 
     # ST-D-012: Save settings helper
@@ -913,9 +913,9 @@ function Show-PortReorgWindow {
             $settings.LastPageByHost[$hostTrim] = [int]$pagingState.PageNumber
             script:Save-PortReorgSettings -Settings $settings | Out-Null
         }
-        catch { }
+        catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
         # Keep global variable in sync for backward compatibility
-        try { $global:StateTracePortReorgPagingEnabled = ($pagingState.Enabled -eq $true) } catch { }
+        try { $global:StateTracePortReorgPagingEnabled = ($pagingState.Enabled -eq $true) } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
     }.GetNewClosure()
 
     $setPagingEnabled = {
@@ -940,8 +940,8 @@ function Show-PortReorgWindow {
             }
         }
 
-        try { & $rebuildPageChoices } catch { }
-        try { & $setPagingControlsVisible -Enabled ($pagingState.Enabled -eq $true) } catch { }
+        try { & $rebuildPageChoices } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+        try { & $setPagingControlsVisible -Enabled ($pagingState.Enabled -eq $true) } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
 
         if ($pagingState.Enabled -eq $true) {
             if ($selectedRow) {
@@ -950,11 +950,11 @@ function Show-PortReorgWindow {
             # Note: refreshGrid now calculates the slice directly, no need to call updateVisibleRowsForCurrentPage here
         }
 
-        try { & $refreshGrid } catch { }
-        try { & $updatePagingControls } catch { }
+        try { & $refreshGrid } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+        try { & $updatePagingControls } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
 
         # ST-D-012: Save to settings file
-        try { & $saveCurrentSettings } catch { }
+        try { & $saveCurrentSettings } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
     }.GetNewClosure()
 
     #region ST-D-012: Undo/Redo History
@@ -1049,7 +1049,7 @@ function Show-PortReorgWindow {
             $searchState.MatchingPorts = @()
             # Clear all search match flags
             foreach ($row in $rows) {
-                try { $row.IsSearchMatch = $false } catch { }
+                try { $row.IsSearchMatch = $false } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
             }
             & $refreshGrid
             & $setStatus '' ''
@@ -1061,7 +1061,7 @@ function Show-PortReorgWindow {
             $label = ''
             try { $label = '' + $row.NewLabel } catch { $label = '' }
             $isMatch = ($label.IndexOf($filter, [System.StringComparison]::OrdinalIgnoreCase) -ge 0)
-            try { $row.IsSearchMatch = $isMatch } catch { }
+            try { $row.IsSearchMatch = $isMatch } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
             if ($isMatch) {
                 $matches.Add(('' + $row.TargetPort).Trim()) | Out-Null
             }
@@ -1100,7 +1100,7 @@ function Show-PortReorgWindow {
                     $matchedRow = $orderedRows[$i]
                     $grid.SelectedItem = $matchedRow
                     $grid.ScrollIntoView($matchedRow)
-                } catch { }
+                } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
                 & $setStatus ("Jumped to {0}." -f $rowPort) ''
                 return
             }
@@ -1123,7 +1123,7 @@ function Show-PortReorgWindow {
             }
             & $refreshGrid
             & $updatePagingControls
-            try { & $saveCurrentSettings } catch { }
+            try { & $saveCurrentSettings } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
             & $setStatus ("Page size set to {0}." -f $size) ''
         } else {
             & $setStatus ("Page size unchanged ({0})." -f $size) ''
@@ -1143,10 +1143,11 @@ function Show-PortReorgWindow {
                 try { $row = $e.Row.Item } catch { $row = $null }
                 if (-not $row) { return }
 
-                try { $row.LabelState = & $getLabelStateForRow $row } catch { }
-                try { & $markScriptsDirty } catch { }
-                try { & $refreshGrid } catch { }
+                try { $row.LabelState = & $getLabelStateForRow $row } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+                try { & $markScriptsDirty } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+                try { & $refreshGrid } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
             } catch {
+                Write-Verbose "Label edit handler failed: $_"
             }
         }.GetNewClosure())
 
@@ -1192,11 +1193,11 @@ function Show-PortReorgWindow {
             $bg = $win.TryFindResource('Theme.Surface.Primary')
             if (-not $bg) { $bg = $win.TryFindResource('Theme.Template.Blue') }
             if ($bg) { $dragBorder.Background = $bg }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
         try {
             $bb = $win.TryFindResource('Theme.Input.Border')
             if ($bb) { $dragBorder.BorderBrush = $bb }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
         try {
             $shadow = New-Object System.Windows.Media.Effects.DropShadowEffect
             $shadow.Color = [System.Windows.Media.Colors]::Black
@@ -1204,14 +1205,14 @@ function Show-PortReorgWindow {
             $shadow.BlurRadius = 14
             $shadow.ShadowDepth = 2
             $dragBorder.Effect = $shadow
-        } catch { }
+        } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
 
         $dragText = New-Object System.Windows.Controls.TextBlock
         $dragText.FontWeight = [System.Windows.FontWeights]::SemiBold
         try {
             $fg = $win.TryFindResource('Theme.DataGrid.HeaderText')
             if ($fg) { $dragText.Foreground = $fg }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
         $dragBorder.Child = $dragText
         $dragPopup.Child = $dragBorder
 
@@ -1226,14 +1227,14 @@ function Show-PortReorgWindow {
             # ST-D-012: Clean up cross-page drag timer
             $dragState.HoverTarget = ''
             if ($dragState.HoverTimer) {
-                try { $dragState.HoverTimer.Stop() } catch { }
+                try { $dragState.HoverTimer.Stop() } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
                 $dragState.HoverTimer = $null
             }
         }.GetNewClosure()
 
         $completeDrag = {
-            try { $dragPopup.IsOpen = $false } catch { }
-            try { [void][System.Windows.Input.Mouse]::Capture($null) } catch { }
+            try { $dragPopup.IsOpen = $false } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+            try { [void][System.Windows.Input.Mouse]::Capture($null) } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
             & $resetDrag
         }.GetNewClosure()
 
@@ -1266,7 +1267,7 @@ function Show-PortReorgWindow {
                 try {
                     $idx = $parkingList.ItemContainerGenerator.IndexFromContainer($container)
                     if ($idx -ge 0) { return [int]$idx }
-                } catch { }
+                } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
             }
 
             $list = $null
@@ -1289,7 +1290,7 @@ function Show-PortReorgWindow {
             $idx = [int]$Index
             if ($idx -lt 0) { $idx = 0 }
             if ($idx -gt $parkingLabels.Count) { $idx = $parkingLabels.Count }
-            try { $parkingLabels.Insert($idx, $Item) } catch { }
+            try { $parkingLabels.Insert($idx, $Item) } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
         }.GetNewClosure()
 
         $insertParkingProfile = {
@@ -1321,7 +1322,7 @@ function Show-PortReorgWindow {
 
                     $cell = & $getVisualAncestor -Start $hit.VisualHit -AncestorType ([System.Windows.Controls.DataGridCell])
                     if (-not $cell) { return }
-                    try { if ($cell.IsEditing) { return } } catch { }
+                    try { if ($cell.IsEditing) { return } } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
 
                     $headerText = ''
                     try { $headerText = '' + $cell.Column.Header } catch { $headerText = '' }
@@ -1334,15 +1335,15 @@ function Show-PortReorgWindow {
                     try {
                         $resolvedRow = & $getRowByTargetPort ('' + $dragRow.TargetPort)
                         if ($resolvedRow) { $dragRow = $resolvedRow }
-                    } catch { }
+                    } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
 
                     $clicks = 1
                     try { $clicks = [int]$e.ClickCount } catch { $clicks = 1 }
                     if ($clicks -ge 2) {
-                        try { $sender.SelectedItem = $dragRow } catch { }
-                        try { $sender.CurrentCell = (New-Object System.Windows.Controls.DataGridCellInfo -ArgumentList $dragRow, $cell.Column) } catch { }
-                        try { [void]$sender.BeginEdit() } catch { }
-                        try { $e.Handled = $true } catch { }
+                        try { $sender.SelectedItem = $dragRow } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+                        try { $sender.CurrentCell = (New-Object System.Windows.Controls.DataGridCellInfo -ArgumentList $dragRow, $cell.Column) } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+                        try { [void]$sender.BeginEdit() } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+                        try { $e.Handled = $true } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
                         return
                     }
 
@@ -1362,9 +1363,10 @@ function Show-PortReorgWindow {
                     $dragState.SourceParkingItem = $null
                     $dragState.LabelText = ("{0} ({1})" -f $labelDisplay, $srcPort)
 
-                    try { $sender.SelectedItem = $dragRow } catch { }
-                    try { $e.Handled = $true } catch { }
+                    try { $sender.SelectedItem = $dragRow } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+                    try { $e.Handled = $true } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
                 } catch {
+                    Write-Verbose "Grid mouse down handler failed: $_"
                 }
             }.GetNewClosure()
         $gridMouseDown = [System.Windows.Input.MouseButtonEventHandler]$gridMouseDownAction
@@ -1412,9 +1414,10 @@ function Show-PortReorgWindow {
                         $dragState.SourceParkingItem = $parkItem
                         $dragState.LabelText = ("{0} ({1})" -f $labelDisplay, $srcPort)
 
-                        try { $sender.SelectedIndex = $idx } catch { }
-                        try { $e.Handled = $true } catch { }
+                        try { $sender.SelectedIndex = $idx } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+                        try { $e.Handled = $true } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
                     } catch {
+                        Write-Verbose "Parking mouse down handler failed: $_"
                     }
                 }.GetNewClosure()
             $parkingMouseDown = [System.Windows.Input.MouseButtonEventHandler]$parkingMouseDownAction
@@ -1438,7 +1441,7 @@ function Show-PortReorgWindow {
         $startCrossPageTimer = {
             param([string]$Direction)
             if ($dragState.HoverTimer) {
-                try { $dragState.HoverTimer.Stop() } catch { }
+                try { $dragState.HoverTimer.Stop() } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
             }
             $dragState.HoverTarget = $Direction
             $timer = New-Object System.Windows.Threading.DispatcherTimer
@@ -1456,7 +1459,7 @@ function Show-PortReorgWindow {
                         $pagingState.PageNumber = [int]$pagingState.PageNumber + 1
                         & $refreshGrid
                     }
-                } catch { }
+                } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
             }.GetNewClosure())
             $timer.Start()
             $dragState.HoverTimer = $timer
@@ -1465,7 +1468,7 @@ function Show-PortReorgWindow {
         $stopCrossPageTimer = {
             $dragState.HoverTarget = ''
             if ($dragState.HoverTimer) {
-                try { $dragState.HoverTimer.Stop() } catch { }
+                try { $dragState.HoverTimer.Stop() } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
                 $dragState.HoverTimer = $null
             }
         }.GetNewClosure()
@@ -1488,13 +1491,13 @@ function Show-PortReorgWindow {
                         }
 
                         $dragState.IsDragging = $true
-                        try { [void][System.Windows.Input.Mouse]::Capture($win) } catch { }
+                        try { [void][System.Windows.Input.Mouse]::Capture($win) } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
 
                         $dragText.Text = $dragState.LabelText
                         $dragPopup.HorizontalOffset = $pos.X + 12
                         $dragPopup.VerticalOffset = $pos.Y + 12
                         $dragPopup.IsOpen = $true
-                        try { $e.Handled = $true } catch { }
+                        try { $e.Handled = $true } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
                         return
                     }
 
@@ -1521,8 +1524,9 @@ function Show-PortReorgWindow {
                         }
                     }
 
-                    try { $e.Handled = $true } catch { }
+                    try { $e.Handled = $true } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
                 } catch {
+                    Write-Verbose "Mouse move handler failed: $_"
                 }
             }.GetNewClosure()
         $winMouseMove = [System.Windows.Input.MouseEventHandler]$winMouseMoveAction
@@ -1566,10 +1570,10 @@ function Show-PortReorgWindow {
                                 try { $tmpSource = '' + $dragged.SourcePort } catch { $tmpSource = '' }
                                 try { $tmpLabel = '' + $dragged.NewLabel } catch { $tmpLabel = '' }
 
-                                try { $dragged.SourcePort = '' + $dropped.SourcePort } catch { }
-                                try { $dragged.NewLabel = '' + $dropped.NewLabel } catch { }
-                                try { $dropped.SourcePort = $tmpSource } catch { }
-                                try { $dropped.NewLabel = $tmpLabel } catch { }
+                                try { $dragged.SourcePort = '' + $dropped.SourcePort } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+                                try { $dragged.NewLabel = '' + $dropped.NewLabel } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+                                try { $dropped.SourcePort = $tmpSource } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+                                try { $dropped.NewLabel = $tmpLabel } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
 
                                 & $markScriptsDirty
                                 & $refreshGrid
@@ -1652,27 +1656,27 @@ function Show-PortReorgWindow {
                                         $parkingLabels.RemoveAt($srcIdx)
                                         $removed = $true
                                     }
-                                } catch { }
+                                } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
                             }
                             if (-not $removed -and $parkItem) {
                                 try {
                                     for ($i = 0; $i -lt $parkingLabels.Count; $i++) {
                                         if ($parkingLabels[$i] -eq $parkItem) { $parkingLabels.RemoveAt($i); break }
                                     }
-                                } catch { }
+                                } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
                             }
                         } elseif ($dragState.SourceKind -eq 'Grid') {
                             $srcRow = $dragState.SourceRow
-                            try { $srcRow.SourcePort = '' } catch { }
-                            try { $srcRow.NewLabel = '' } catch { }
+                            try { $srcRow.SourcePort = '' } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+                            try { $srcRow.NewLabel = '' } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
                         }
 
                         if ($parkedIndex -ge 0 -and -not [string]::IsNullOrWhiteSpace($destProfilePort)) {
                             & $insertParkingProfile -SourcePort $destProfilePort -Label $destProfileLabel -Index $parkedIndex
                         }
 
-                        try { $dropRow.SourcePort = $draggedProfilePort } catch { }
-                        try { $dropRow.NewLabel = '' + $draggedProfileLabel } catch { }
+                        try { $dropRow.SourcePort = $draggedProfilePort } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+                        try { $dropRow.NewLabel = '' + $draggedProfileLabel } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
                         & $markScriptsDirty
                         & $refreshGrid
 
@@ -1703,7 +1707,7 @@ function Show-PortReorgWindow {
                                 $item = $null
                                 try { $item = $parkingLabels[$srcIdx] } catch { $item = $null }
                                 if ($item) {
-                                    try { $parkingLabels.RemoveAt($srcIdx) } catch { }
+                                    try { $parkingLabels.RemoveAt($srcIdx) } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
                                     $insertAt = [int]$parkIndex
                                     if ($insertAt -gt $srcIdx) { $insertAt-- }
                                     & $insertParkingItem -Item $item -Index $insertAt
@@ -1722,8 +1726,8 @@ function Show-PortReorgWindow {
                                 try { $srcProfileLabel = '' + $srcRow.NewLabel } catch { $srcProfileLabel = '' }
 
                                 if (-not [string]::IsNullOrWhiteSpace($srcProfilePort)) {
-                                    try { $srcRow.SourcePort = '' } catch { }
-                                    try { $srcRow.NewLabel = '' } catch { }
+                                    try { $srcRow.SourcePort = '' } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+                                    try { $srcRow.NewLabel = '' } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
                                     & $insertParkingProfile -SourcePort $srcProfilePort -Label $srcProfileLabel -Index ([int]$parkIndex)
                                     & $markScriptsDirty
                                     & $refreshGrid
@@ -1747,7 +1751,7 @@ function Show-PortReorgWindow {
                 param($sender, $e)
                 try {
                     if ($dragState.SourceKind) { & $completeDrag }
-                } catch { }
+                } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
             }.GetNewClosure()
         $winLostCapture = [System.Windows.Input.MouseEventHandler]$winLostCaptureAction
         $win.AddHandler([System.Windows.UIElement]::LostMouseCaptureEvent, $winLostCapture, $true)
@@ -1797,7 +1801,7 @@ function Show-PortReorgWindow {
                 $r.NewLabel = '' + $p.NewLabel
             }
 
-            try { if ($parkingLabels) { $parkingLabels.Clear() } } catch { }
+            try { if ($parkingLabels) { $parkingLabels.Clear() } } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
             & $markScriptsDirty
             & $refreshGrid
             & $setStatus '' ''
@@ -1820,7 +1824,7 @@ function Show-PortReorgWindow {
                     $r.CurrentLabel = $b.CurrentLabel
                 }
             }
-            try { if ($parkingLabels) { $parkingLabels.Clear() } } catch { }
+            try { if ($parkingLabels) { $parkingLabels.Clear() } } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
             & $markScriptsDirty
             & $refreshGrid
             & $setStatus '' ''
@@ -1856,12 +1860,12 @@ function Show-PortReorgWindow {
             }
             if ($changeBox) { $changeBox.Text = $change }
             if ($rollbackBox) { $rollbackBox.Text = $rollback }
-            try { $uiState.ScriptsAreCurrent = $true } catch { }
-            try { & $updateScriptControls } catch { }
+            try { $uiState.ScriptsAreCurrent = $true } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+            try { & $updateScriptControls } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
             & $setStatus 'Scripts generated.' ''
         } catch {
-            try { $uiState.ScriptsAreCurrent = $false } catch { }
-            try { & $updateScriptControls } catch { }
+            try { $uiState.ScriptsAreCurrent = $false } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+            try { & $updateScriptControls } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
             & $setStatus ("Generate failed: {0}" -f $_.Exception.Message) ''
         }
     }.GetNewClosure()
@@ -1876,7 +1880,7 @@ function Show-PortReorgWindow {
                 $checked = $pagedViewCheckBox.IsChecked
                 $enabled = ($null -ne $checked -and $checked -eq $true)
                 & $setPagingEnabled $enabled
-            } catch { }
+            } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
         }.GetNewClosure())
     }
 
@@ -1890,7 +1894,7 @@ function Show-PortReorgWindow {
                 if ($page -lt 1) { $page = 1 }
                 $pagingState.PageNumber = $page
                 & $refreshGrid
-            } catch { }
+            } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
         }.GetNewClosure())
     }
 
@@ -1907,7 +1911,7 @@ function Show-PortReorgWindow {
                 if ($page -lt 1) { $page = 1 }
                 $pagingState.PageNumber = $page
                 & $refreshGrid
-            } catch { }
+            } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
         }.GetNewClosure())
     }
 
@@ -1927,7 +1931,7 @@ function Show-PortReorgWindow {
 
                 $pagingState.PageNumber = $page
                 & $refreshGrid
-            } catch { }
+            } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
         }.GetNewClosure())
     }
 
@@ -1956,7 +1960,7 @@ function Show-PortReorgWindow {
         }.GetNewClosure())
     }
 
-    try { script:Import-LocalStateTraceModule -ModuleName 'ViewCompositionModule' -ModuleFileName 'ViewCompositionModule.psm1' -Optional | Out-Null } catch { }
+    try { script:Import-LocalStateTraceModule -ModuleName 'ViewCompositionModule' -ModuleFileName 'ViewCompositionModule.psm1' -Optional | Out-Null } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
 
     if ($saveChangeBtn) {
         $saveChangeBtn.Add_Click({
@@ -1997,7 +2001,7 @@ function Show-PortReorgWindow {
         }.GetNewClosure())
     }
 
-    if ($closeBtn) { $closeBtn.Add_Click({ try { $win.Close() } catch { } }.GetNewClosure()) }
+    if ($closeBtn) { $closeBtn.Add_Click({ try { $win.Close() } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" } }.GetNewClosure()) }
 
     #region ST-D-012: Event handlers for new controls
 
@@ -2006,7 +2010,7 @@ function Show-PortReorgWindow {
         $undoBtn.Add_Click({
             try {
                 & $undoAction
-            } catch { }
+            } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
         }.GetNewClosure())
     }
 
@@ -2014,7 +2018,7 @@ function Show-PortReorgWindow {
         $redoBtn.Add_Click({
             try {
                 & $redoAction
-            } catch { }
+            } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
         }.GetNewClosure())
     }
 
@@ -2029,7 +2033,7 @@ function Show-PortReorgWindow {
                     $sender.Text = ('' + $pagingState.PageSize)
                     $e.Handled = $true
                 }
-            } catch { }
+            } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
         }.GetNewClosure())
     }
 
@@ -2043,7 +2047,7 @@ function Show-PortReorgWindow {
                     $sender.SelectAll()
                     $e.Handled = $true
                 }
-            } catch { }
+            } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
         }.GetNewClosure())
     }
 
@@ -2053,7 +2057,7 @@ function Show-PortReorgWindow {
             param($sender, $e)
             try {
                 & $applySearchFilter $sender.Text
-            } catch { }
+            } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
         }.GetNewClosure())
     }
 
@@ -2063,7 +2067,7 @@ function Show-PortReorgWindow {
             try {
                 if ($searchBox) { $searchBox.Text = '' }
                 & $applySearchFilter ''
-            } catch { }
+            } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
         }.GetNewClosure())
     }
 
@@ -2077,7 +2081,7 @@ function Show-PortReorgWindow {
                 } else {
                     $grid.SelectAll()
                 }
-            } catch { }
+            } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
         }.GetNewClosure())
     }
 
@@ -2103,8 +2107,8 @@ function Show-PortReorgWindow {
 
                     if (-not [string]::IsNullOrWhiteSpace($srcPort)) {
                         & $insertParkingProfile -SourcePort $srcPort -Label $label -Index ([int]$parkingLabels.Count)
-                        try { $row.SourcePort = '' } catch { }
-                        try { $row.NewLabel = '' } catch { }
+                        try { $row.SourcePort = '' } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+                        try { $row.NewLabel = '' } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
                     }
                 }
 
@@ -2138,15 +2142,15 @@ function Show-PortReorgWindow {
 
                     if (-not [string]::IsNullOrWhiteSpace($srcPort)) {
                         & $insertParkingProfile -SourcePort $srcPort -Label $label -Index ([int]$parkingLabels.Count)
-                        try { $row.SourcePort = '' } catch { }
-                        try { $row.NewLabel = '' } catch { }
+                        try { $row.SourcePort = '' } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+                        try { $row.NewLabel = '' } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
                     }
                 }
 
                 & $markScriptsDirty
                 & $refreshGrid
                 & $setStatus 'Label(s) cleared.' ''
-            } catch { }
+            } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
         }.GetNewClosure())
     }
 
@@ -2178,7 +2182,7 @@ function Show-PortReorgWindow {
                 & $markScriptsDirty
                 & $refreshGrid
                 & $setStatus 'Labels swapped.' ''
-            } catch { }
+            } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
         }.GetNewClosure())
     }
 
@@ -2205,7 +2209,7 @@ function Show-PortReorgWindow {
                 $inputWin.Height = 120
                 $inputWin.WindowStartupLocation = 'CenterOwner'
                 $inputWin.Owner = $win
-                try { $inputWin.Background = $win.TryFindResource('Theme.Window.Background') } catch { }
+                try { $inputWin.Background = $win.TryFindResource('Theme.Window.Background') } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
 
                 $inputPanel = New-Object System.Windows.Controls.StackPanel
                 $inputPanel.Margin = '10'
@@ -2213,12 +2217,12 @@ function Show-PortReorgWindow {
                 $inputLabel = New-Object System.Windows.Controls.TextBlock
                 $inputLabel.Text = 'Enter target port name:'
                 $inputLabel.Margin = '0,0,0,5'
-                try { $inputLabel.Foreground = $win.TryFindResource('Theme.Text.Primary') } catch { }
+                try { $inputLabel.Foreground = $win.TryFindResource('Theme.Text.Primary') } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
 
                 $inputBox = New-Object System.Windows.Controls.TextBox
                 $inputBox.Margin = '0,0,0,10'
-                try { $inputBox.Background = $win.TryFindResource('Theme.Input.Background') } catch { }
-                try { $inputBox.Foreground = $win.TryFindResource('Theme.Input.Text') } catch { }
+                try { $inputBox.Background = $win.TryFindResource('Theme.Input.Background') } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+                try { $inputBox.Foreground = $win.TryFindResource('Theme.Input.Text') } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
 
                 $inputBtnPanel = New-Object System.Windows.Controls.StackPanel
                 $inputBtnPanel.Orientation = 'Horizontal'
@@ -2356,7 +2360,7 @@ function Show-PortReorgWindow {
                 $e.Handled = $true
                 return
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
     }.GetNewClosure())
 
     # Set initial visibility for new paging controls based on paging state
@@ -2365,7 +2369,7 @@ function Show-PortReorgWindow {
         if ($ctrl) {
             try {
                 # These controls are always visible; paging controls visibility controlled by setPagingControlsVisible
-            } catch { }
+            } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
         }
     }
 
@@ -2433,14 +2437,14 @@ function Show-PortReorgWindow {
     # Wire up selection change to update cable info
     if ($grid) {
         $grid.Add_SelectionChanged({
-            try { & $updateCableInfoTab } catch { }
+            try { & $updateCableInfoTab } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
         }.GetNewClosure())
     }
 
     # Refresh button
     if ($cableRefreshBtn) {
         $cableRefreshBtn.Add_Click({
-            try { & $updateCableInfoTab } catch { }
+            try { & $updateCableInfoTab } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
         }.GetNewClosure())
     }
 
@@ -2491,7 +2495,7 @@ function Show-PortReorgWindow {
                 $linkWin.Height = 200
                 $linkWin.WindowStartupLocation = 'CenterOwner'
                 $linkWin.Owner = $win
-                try { $linkWin.Background = $win.TryFindResource('Theme.Window.Background') } catch { }
+                try { $linkWin.Background = $win.TryFindResource('Theme.Window.Background') } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
 
                 $linkPanel = New-Object System.Windows.Controls.StackPanel
                 $linkPanel.Margin = 10
@@ -2502,8 +2506,8 @@ function Show-PortReorgWindow {
 
                 $destDeviceBox = New-Object System.Windows.Controls.TextBox
                 $destDeviceBox.Margin = '0,0,0,10'
-                try { $destDeviceBox.Background = $win.TryFindResource('Theme.Input.Background') } catch { }
-                try { $destDeviceBox.Foreground = $win.TryFindResource('Theme.Input.Text') } catch { }
+                try { $destDeviceBox.Background = $win.TryFindResource('Theme.Input.Background') } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+                try { $destDeviceBox.Foreground = $win.TryFindResource('Theme.Input.Text') } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
 
                 $destPortLabel = New-Object System.Windows.Controls.TextBlock
                 $destPortLabel.Text = 'Port / Position:'
@@ -2511,8 +2515,8 @@ function Show-PortReorgWindow {
 
                 $destPortBox = New-Object System.Windows.Controls.TextBox
                 $destPortBox.Margin = '0,0,0,10'
-                try { $destPortBox.Background = $win.TryFindResource('Theme.Input.Background') } catch { }
-                try { $destPortBox.Foreground = $win.TryFindResource('Theme.Input.Text') } catch { }
+                try { $destPortBox.Background = $win.TryFindResource('Theme.Input.Background') } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
+                try { $destPortBox.Foreground = $win.TryFindResource('Theme.Input.Text') } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
 
                 $linkBtnPanel = New-Object System.Windows.Controls.StackPanel
                 $linkBtnPanel.Orientation = 'Horizontal'
@@ -2583,7 +2587,7 @@ function Show-PortReorgWindow {
 
     #endregion ST-T-005
 
-    try { & $refreshGrid } catch { }
+    try { & $refreshGrid } catch { Write-Verbose "Caught exception in PortReorgViewModule.psm1: $($_.Exception.Message)" }
     $win.Show() | Out-Null
 }
 

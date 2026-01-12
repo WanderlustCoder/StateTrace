@@ -66,13 +66,13 @@ function New-PooledConnection {
             $usedProvider = $prov
             break
         } catch {
-            try { $connection.Close() } catch { }
+            try { $connection.Close() } catch { Write-Verbose "Failed to close connection during provider fallback: $_" }
         }
     }
 
     if (-not $opened) {
         if ($connection -is [System.__ComObject]) {
-            try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($connection) } catch { }
+            try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($connection) } catch { Write-Verbose "Failed to release COM connection object: $_" }
         }
         throw "Failed to open connection to '$DatabasePath' with any available provider."
     }
@@ -150,7 +150,7 @@ function Get-PooledDbConnection {
                             [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($conn.Connection)
                         }
                     }
-                } catch { }
+                } catch { Write-Verbose "Failed to cleanup expired pooled connection: $_" }
                 $pool.Remove($conn) | Out-Null
             }
 
@@ -169,7 +169,7 @@ function Get-PooledDbConnection {
                             if ($conn.Connection -is [System.__ComObject]) {
                                 [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($conn.Connection)
                             }
-                        } catch { }
+                        } catch { Write-Verbose "Failed to cleanup invalid connection during pool scan: $_" }
                         $pool.Remove($conn) | Out-Null
                     }
                 }
@@ -266,7 +266,7 @@ function Close-AllPooledConnections {
                             [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($conn.Connection)
                         }
                     }
-                } catch { }
+                } catch { Write-Verbose "Failed to close pooled connection during pool shutdown: $_" }
             }
             $pool.Clear()
         }
@@ -369,9 +369,9 @@ function Invoke-PooledDbQuery {
         }
 
         if ($recordset) {
-            try { $recordset.Close() } catch { }
+            try { $recordset.Close() } catch { Write-Verbose "Failed to close recordset: $_" }
             if ($recordset -is [System.__ComObject]) {
-                try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($recordset) } catch { }
+                try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($recordset) } catch { Write-Verbose "Failed to release recordset COM object: $_" }
             }
         }
 

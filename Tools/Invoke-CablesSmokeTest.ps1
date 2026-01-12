@@ -81,7 +81,7 @@ function Get-CollectionCount {
     if ($null -eq $Items) { return 0 }
     try {
         if ($Items -is [System.Collections.ICollection]) { return [int]$Items.Count }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in Invoke-CablesSmokeTest.ps1: $($_.Exception.Message)" }
     try { return @($Items).Count } catch { return 0 }
 }
 
@@ -306,7 +306,7 @@ try {
 } finally {
     # Cleanup test database file
     if (-not $SkipCleanup -and $testDbPath -and (Test-Path -LiteralPath $testDbPath)) {
-        try { Remove-Item -Path $testDbPath -Force -ErrorAction SilentlyContinue } catch { }
+        try { Remove-Item -Path $testDbPath -Force -ErrorAction SilentlyContinue } catch { Write-Verbose "Caught exception in Invoke-CablesSmokeTest.ps1: $($_.Exception.Message)" }
     }
 
     try {
@@ -316,10 +316,10 @@ try {
             }
         }
         if ([System.Windows.Application]::Current) {
-            try { [System.Windows.Application]::Current.Dispatcher.InvokeShutdown() } catch { }
-            try { [System.Windows.Application]::Current.Shutdown() } catch { }
+            try { [System.Windows.Application]::Current.Dispatcher.InvokeShutdown() } catch { Write-Verbose "Caught exception in Invoke-CablesSmokeTest.ps1: $($_.Exception.Message)" }
+            try { [System.Windows.Application]::Current.Shutdown() } catch { Write-Verbose "Caught exception in Invoke-CablesSmokeTest.ps1: $($_.Exception.Message)" }
         }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in Invoke-CablesSmokeTest.ps1: $($_.Exception.Message)" }
 }
 
 if ($failure) {

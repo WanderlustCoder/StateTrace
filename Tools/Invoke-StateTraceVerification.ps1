@@ -893,7 +893,7 @@ if (-not [string]::IsNullOrWhiteSpace($SharedCacheCoverageOutputPath)) {
         if (-not [string]::IsNullOrWhiteSpace($summaryDir)) {
             $sharedCacheCoverageOutputPathResolved = Join-Path -Path $summaryDir -ChildPath 'SharedCacheCoverage-latest.json'
         }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in Invoke-StateTraceVerification.ps1: $($_.Exception.Message)" }
 }
 
 if ($RequireSharedCacheSnapshotGuard.IsPresent) {

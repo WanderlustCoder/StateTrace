@@ -1,6 +1,6 @@
 Set-StrictMode -Version Latest
 
-try { TelemetryModule\Import-InterfaceCommon | Out-Null } catch { }
+try { TelemetryModule\Import-InterfaceCommon | Out-Null } catch { Write-Verbose "Caught exception in PortNormalization.psm1: $($_.Exception.Message)" }
 
 if (-not (Get-Variable -Scope Script -Name PortSortKeyCache -ErrorAction SilentlyContinue)) {
     try {

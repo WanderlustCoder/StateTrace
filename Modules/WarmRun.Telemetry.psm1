@@ -130,7 +130,7 @@ function Measure-ProviderMetricsFromSummaries {
                 if ($hostWeight -gt 0) {
                     $weight = $hostWeight
                 }
-            } catch { }
+            } catch { Write-Verbose "Caught exception in WarmRun.Telemetry.psm1: $($_.Exception.Message)" }
         }
 
         if ($providerCounts.ContainsKey($providerValue)) {

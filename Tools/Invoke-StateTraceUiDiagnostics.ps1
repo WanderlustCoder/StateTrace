@@ -62,7 +62,7 @@ if ($EnableDebug) {
         $settingsDir = Split-Path -Parent $settingsPath
         if ($settingsDir) { [System.IO.Directory]::CreateDirectory($settingsDir) | Out-Null }
         $settingsJson | Out-File -LiteralPath $settingsPath -Encoding utf8
-    } catch { }
+    } catch { Write-Verbose "Caught exception in Invoke-StateTraceUiDiagnostics.ps1: $($_.Exception.Message)" }
 }
 
 $transcriptStarted = $false
@@ -79,7 +79,7 @@ try {
     & $mainScriptPath
 } finally {
     if ($transcriptStarted) {
-        try { Stop-Transcript | Out-Null } catch { }
+        try { Stop-Transcript | Out-Null } catch { Write-Verbose "Caught exception in Invoke-StateTraceUiDiagnostics.ps1: $($_.Exception.Message)" }
     }
 
     if ($EnableDebug -and -not $LeaveDebugEnabled) {
@@ -93,7 +93,7 @@ try {
 
             $settingsJson = $settings | ConvertTo-Json -Depth 5
             $settingsJson | Out-File -LiteralPath $settingsPath -Encoding utf8
-        } catch { }
+        } catch { Write-Verbose "Caught exception in Invoke-StateTraceUiDiagnostics.ps1: $($_.Exception.Message)" }
     }
 }
 

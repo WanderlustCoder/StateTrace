@@ -241,10 +241,10 @@ function Test-SharedCacheSummaryCoverage {
         }
 
         if ($entry.PSObject.Properties.Name -contains 'Hosts') {
-            try { $totalHostCount += [int]$entry.Hosts } catch { }
+            try { $totalHostCount += [int]$entry.Hosts } catch { Write-Verbose "Caught exception in VerificationModule.psm1: $($_.Exception.Message)" }
         }
         if ($entry.PSObject.Properties.Name -contains 'TotalRows') {
-            try { $totalRowCount += [int]$entry.TotalRows } catch { }
+            try { $totalRowCount += [int]$entry.TotalRows } catch { Write-Verbose "Caught exception in VerificationModule.psm1: $($_.Exception.Message)" }
         }
     }
 
@@ -334,7 +334,7 @@ function Test-SharedCacheDiagnostics {
         foreach ($entry in $storeEntries) {
             if (-not $entry) { continue }
             if ($entry.PSObject.Properties.Name -contains 'SnapshotImported') {
-                try { $snapshotImportedTotal += [int]$entry.SnapshotImported } catch { }
+                try { $snapshotImportedTotal += [int]$entry.SnapshotImported } catch { Write-Verbose "Caught exception in VerificationModule.psm1: $($_.Exception.Message)" }
             }
         }
         if ($snapshotImportedTotal -le 0) {
@@ -360,7 +360,7 @@ function Test-SharedCacheDiagnostics {
         foreach ($entry in $providerEntries) {
             if (-not $entry) { continue }
             if ($entry.PSObject.Properties.Name -contains 'AccessRefresh') {
-                try { $accessRefreshTotal += [int]$entry.AccessRefresh } catch { }
+                try { $accessRefreshTotal += [int]$entry.AccessRefresh } catch { Write-Verbose "Caught exception in VerificationModule.psm1: $($_.Exception.Message)" }
             }
         }
         if ($accessRefreshTotal -gt $MaximumAccessRefreshCount) {

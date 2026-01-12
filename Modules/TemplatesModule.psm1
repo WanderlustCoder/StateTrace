@@ -235,6 +235,7 @@ function script:Ensure-LocalStateTraceModule {
             Import-Module $modulePath -Force -Global -ErrorAction SilentlyContinue | Out-Null
         }
     } catch {
+        Write-Verbose "Module import failed for $ModuleFileName : $_"
     }
 }
 
@@ -271,6 +272,7 @@ function script:Get-DeviceVendorFromSummary {
             if ($makeText) { return (Get-TemplateVendorKeyFromMake -Make $makeText) }
         }
     } catch {
+        Write-Verbose "Vendor lookup failed: $_"
     }
     return $vendor
 }

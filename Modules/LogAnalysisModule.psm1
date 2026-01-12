@@ -118,7 +118,7 @@ function ConvertFrom-LogEntry {
                             'yyyy MMM d HH:mm:ss',
                             [System.Globalization.CultureInfo]::InvariantCulture
                         )
-                    } catch { }
+                    } catch { Write-Verbose "Caught exception in LogAnalysisModule.psm1: $($_.Exception.Message)" }
                 }
             }
             # Simpler pattern without facility
@@ -154,7 +154,7 @@ function ConvertFrom-LogEntry {
                             'yyyy MMM d HH:mm:ss',
                             [System.Globalization.CultureInfo]::InvariantCulture
                         )
-                    } catch { }
+                    } catch { Write-Verbose "Caught exception in LogAnalysisModule.psm1: $($_.Exception.Message)" }
                 }
             }
             # Without facility pattern
@@ -179,7 +179,7 @@ function ConvertFrom-LogEntry {
 
                 try {
                     $parsed.Timestamp = [datetime]::Parse($Matches[3])
-                } catch { }
+                } catch { Write-Verbose "Caught exception in LogAnalysisModule.psm1: $($_.Exception.Message)" }
             }
         }
 
@@ -200,7 +200,7 @@ function ConvertFrom-LogEntry {
                         'yyyy MMM  d HH:mm:ss',
                         [System.Globalization.CultureInfo]::InvariantCulture
                     )
-                } catch { }
+                } catch { Write-Verbose "Caught exception in LogAnalysisModule.psm1: $($_.Exception.Message)" }
             }
         }
 
@@ -211,7 +211,7 @@ function ConvertFrom-LogEntry {
                 $parsed.Message = $Matches[2]
                 try {
                     $parsed.Timestamp = [datetime]::Parse($Matches[1])
-                } catch { }
+                } catch { Write-Verbose "Caught exception in LogAnalysisModule.psm1: $($_.Exception.Message)" }
             }
         }
 
@@ -1135,7 +1135,7 @@ function Test-TimeOfDayAnomaly {
     if ($Event.PSObject.Properties['Timestamp'] -and $Event.Timestamp) {
         $timestamp = $Event.Timestamp
     } elseif ($Event.PSObject.Properties['TimestampString'] -and $Event.TimestampString) {
-        try { $timestamp = [datetime]::Parse($Event.TimestampString) } catch { }
+        try { $timestamp = [datetime]::Parse($Event.TimestampString) } catch { Write-Verbose "Caught exception in LogAnalysisModule.psm1: $($_.Exception.Message)" }
     }
 
     if (-not $timestamp) {

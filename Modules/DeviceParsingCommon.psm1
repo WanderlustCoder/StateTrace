@@ -193,7 +193,7 @@ function Get-UptimeFromLines {
         try {
             $re = script:Get-CachedRegex -Pattern $p
             if ($re) { [void]$regexes.Add($re) }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in DeviceParsingCommon.psm1: $($_.Exception.Message)" }
     }
     if ($regexes.Count -eq 0) { return $null }
 
@@ -273,7 +273,7 @@ function Get-InterfaceConfigBlocks {
         try {
             $re = script:Get-CachedRegex -Pattern $p -Options ([System.Text.RegularExpressions.RegexOptions]::IgnoreCase -bor [System.Text.RegularExpressions.RegexOptions]::Compiled)
             if ($re) { [void]$stopRegexes.Add($re) }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in DeviceParsingCommon.psm1: $($_.Exception.Message)" }
     }
 
     $blocks = [System.Collections.Generic.List[object]]::new()

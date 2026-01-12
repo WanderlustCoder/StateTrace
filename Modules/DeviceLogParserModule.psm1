@@ -1,11 +1,11 @@
-﻿Set-StrictMode -Version Latest
+Set-StrictMode -Version Latest
 
 if (-not (Get-Variable -Name StateTraceDebug -Scope Global -ErrorAction SilentlyContinue)) {
     Set-Variable -Scope Global -Name StateTraceDebug -Value $false -Option None
 }
 try {
     TelemetryModule\Initialize-StateTraceDebug
-} catch { }
+} catch { Write-Verbose "Caught exception in DeviceLogParserModule.psm1: $($_.Exception.Message)" }
 if (-not (Get-Variable -Name DbProviderCache -Scope Script -ErrorAction SilentlyContinue)) {
     $script:DbProviderCache = [System.Collections.Concurrent.ConcurrentDictionary[string,string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 }
@@ -252,7 +252,7 @@ function Get-ShowBlock {
             try {
                 $re = script:Get-CachedRegex -Pattern $pattern
                 if ($re) { [void]$compiledRegexPatterns.Add($re) }
-            } catch { }
+            } catch { Write-Verbose "Caught exception in DeviceLogParserModule.psm1: $($_.Exception.Message)" }
         }
     }
 
@@ -272,7 +272,7 @@ function Get-ShowBlock {
             try {
                 $re = script:Get-CachedRegex -Pattern $pattern
                 if ($re) { [void]$compiledCommandRegexes.Add($re) }
-            } catch { }
+            } catch { Write-Verbose "Caught exception in DeviceLogParserModule.psm1: $($_.Exception.Message)" }
         }
     }
 
@@ -500,7 +500,7 @@ if (-not $script:ConnectionCacheShutdownRegistered) {
             try {
                 $cleanup = Get-Command -Name 'DeviceLogParserModule\Clear-ConnectionCache' -ErrorAction SilentlyContinue
                 if ($cleanup) { & $cleanup -Force }
-            } catch { }
+            } catch { Write-Verbose "Caught exception in DeviceLogParserModule.psm1: $($_.Exception.Message)" }
         }
         $script:ConnectionCacheShutdownRegistered = $true
     } catch {
@@ -688,7 +688,7 @@ function Get-CachedDbConnection {
 
             if ($prop) { $prop.Value = 1 }
 
-        } catch { }
+        } catch { Write-Verbose "Caught exception in DeviceLogParserModule.psm1: $($_.Exception.Message)" }
 
         $entry.Provider = $provider
 
@@ -843,6 +843,7 @@ function Get-VendorTemplates {
             return $entry.Templates
         }
     } catch {
+        Write-Verbose "Template lookup failed: $_"
     }
 
     return @()
@@ -1173,7 +1174,7 @@ function Invoke-DeviceLogParsing {
     $siteKey = $historyKey
     try {
         $siteKey = DeviceRepositoryModule\Get-SiteFromHostname -Hostname $historyKey -FallbackLength 4
-    } catch { }
+    } catch { Write-Verbose "Caught exception in DeviceLogParserModule.psm1: $($_.Exception.Message)" }
     if ([string]::IsNullOrWhiteSpace($siteKey)) { $siteKey = 'Unknown' }
     $sanitizedSiteKey = ($siteKey -replace '[^A-Za-z0-9_-]', '_')
 
@@ -1264,7 +1265,7 @@ function Invoke-DeviceLogParsing {
                     try {
                         $candidatePath = & $dbPathCmd -Site $siteForDb
                         if ($candidatePath) { $expectedDbPath = $candidatePath }
-                    } catch { }
+                    } catch { Write-Verbose "Caught exception in DeviceLogParserModule.psm1: $($_.Exception.Message)" }
                 }
             }
         }
@@ -1313,7 +1314,7 @@ function Invoke-DeviceLogParsing {
                     $dupPayload['LastIngestedUtc'] = $duplicateMetadata['LastIngestedUtc']
                 }
                 TelemetryModule\Write-StTelemetryEvent -Name 'SkippedDuplicate' -Payload $dupPayload
-            } catch { }
+            } catch { Write-Verbose "Caught exception in DeviceLogParserModule.psm1: $($_.Exception.Message)" }
 
             return
         }
@@ -1764,7 +1765,7 @@ function Invoke-DeviceLogParsing {
                             $__stDbSw.Stop()
                             $databaseLatencyMs = [int][Math]::Round($__stDbSw.Elapsed.TotalMilliseconds, 0)
                             TelemetryModule\Write-StTelemetryEvent -Name 'DatabaseWriteLatency' -Payload @{ Hostname = $cleanHostname; Site = $siteCode; LatencyMs = $databaseLatencyMs }
-                        } catch { }
+                        } catch { Write-Verbose "Caught exception in DeviceLogParserModule.psm1: $($_.Exception.Message)" }
 
                         $refreshStopwatch = $null
                         $jet = $null
@@ -1775,7 +1776,7 @@ function Invoke-DeviceLogParsing {
                             if ($Global:StateTraceDebug) {
                                 Write-Host "[DEBUG] Refreshed Jet cache after commit for host '$cleanHostname'" -ForegroundColor Yellow
                             }
-                        } catch { }
+                        } catch { Write-Verbose "Caught exception in DeviceLogParserModule.psm1: $($_.Exception.Message)" }
                         finally {
                             if ($jet) {
                                 TelemetryModule\Remove-ComObjectSafe -ComObject $jet
@@ -2214,7 +2215,7 @@ function Invoke-DeviceLogParsing {
                             Resolve-DatabaseWriteBreakdownCacheProvider -Payload $breakdownPayload -ExistingRowSource $siteCacheExistingRowSourceValue -Telemetry $latestSyncTelemetry
 
                             TelemetryModule\Write-StTelemetryEvent -Name 'DatabaseWriteBreakdown' -Payload $breakdownPayload
-                        } catch { }
+                        } catch { Write-Verbose "Caught exception in DeviceLogParserModule.psm1: $($_.Exception.Message)" }
 
                         $ingestionSucceeded = $true
 
@@ -2358,7 +2359,7 @@ function Invoke-DeviceLogParsing {
 
                 TelemetryModule\Write-StTelemetryEvent -Name 'ParseDuration' -Payload $payload
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in DeviceLogParserModule.psm1: $($_.Exception.Message)" }
     }
 }
 

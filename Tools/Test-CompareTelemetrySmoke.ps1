@@ -130,7 +130,7 @@ try {
 
     try {
         $previousTelemetryOverride = Get-CompareModuleVar -Name 'CompareTelemetryCommandOverride'
-    } catch { }
+    } catch { Write-Verbose "Caught exception in Test-CompareTelemetrySmoke.ps1: $($_.Exception.Message)" }
 
     Set-CompareModuleVar windowRef $null
     Set-CompareModuleVar compareView ([pscustomobject]@{})
@@ -197,8 +197,8 @@ try {
         if ($originalThemeBrush -and $compareModule) {
             & $compareModule { Set-Item -Path Function:\Get-ThemeBrushForPortColor -Value $using:originalThemeBrush }
         }
-    } catch { }
-    try { Set-CompareModuleVar CompareTelemetryCommandOverride $previousTelemetryOverride } catch { }
+    } catch { Write-Verbose "Caught exception in Test-CompareTelemetrySmoke.ps1: $($_.Exception.Message)" }
+    try { Set-CompareModuleVar CompareTelemetryCommandOverride $previousTelemetryOverride } catch { Write-Verbose "Caught exception in Test-CompareTelemetrySmoke.ps1: $($_.Exception.Message)" }
 }
 
 $observedMetrics = [ordered]@{}

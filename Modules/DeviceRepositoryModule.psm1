@@ -25,7 +25,7 @@ try {
     Write-Verbose ("[DeviceRepositoryModule] PortNormalization not loaded: {0}" -f $_.Exception.Message)
 }
 
-try { TelemetryModule\Import-InterfaceCommon | Out-Null } catch { }
+try { TelemetryModule\Import-InterfaceCommon | Out-Null } catch { <# silently handled #> }
 
 # Load shared cache module (decomposition target) so downstream calls can delegate.
 if (-not (Get-Module -Name 'DeviceRepository.Cache')) {
@@ -74,7 +74,7 @@ function Invoke-InterfaceCacheLock {
     try { $lockObject = $global:InterfaceCacheLock } catch { $lockObject = $null }
     if (-not $lockObject) {
         $lockObject = New-Object object
-        try { $global:InterfaceCacheLock = $lockObject } catch { }
+        try { $global:InterfaceCacheLock = $lockObject } catch { <# silently handled #> }
     }
 
     try {
@@ -187,7 +187,7 @@ function Import-DatabaseModule {
         }
     }
 
-    try { DeviceRepository.Access\Import-DatabaseModule } catch { }
+    try { DeviceRepository.Access\Import-DatabaseModule } catch { <# silently handled #> }
 }
 
 function Invoke-ParallelDbQuery {
@@ -324,7 +324,7 @@ function Invoke-OptimizedSiteHydration {
         try {
             $data = Get-InterfaceSiteCache -Site $site -Refresh
             if ($data) { $results[$site] = $data }
-        } catch { }
+        } catch { <# silently handled #> }
         return $results
     }
 
@@ -388,7 +388,7 @@ function Invoke-OptimizedSiteHydration {
             ElapsedMs = [Math]::Round($elapsedMs, 2)
             MaxParallel = $MaxParallel
         }
-    } catch { }
+    } catch { <# silently handled #> }
 
     return $results
 }
@@ -636,7 +636,7 @@ function Publish-SharedSiteInterfaceCacheStoreState {
         [int]$StoreHashCode = 0
     )
 
-    try { DeviceRepository.Cache\Publish-SharedSiteInterfaceCacheStoreState @PSBoundParameters } catch { }
+    try { DeviceRepository.Cache\Publish-SharedSiteInterfaceCacheStoreState @PSBoundParameters } catch { <# silently handled #> }
 
     $runspaceId = ''
     try {
@@ -676,7 +676,7 @@ function Publish-SharedSiteInterfaceCacheStoreState {
             ProcessId     = $processId
             ThreadId      = $threadId
         }
-    } catch { }
+    } catch { <# silently handled #> }
 }
 
 function Publish-SharedSiteInterfaceCacheClearInvocation {
@@ -689,7 +689,7 @@ function Publish-SharedSiteInterfaceCacheClearInvocation {
         [int]$CallStackDepth
     )
 
-    try { DeviceRepository.Cache\Publish-SharedSiteInterfaceCacheClearInvocation @PSBoundParameters } catch { }
+    try { DeviceRepository.Cache\Publish-SharedSiteInterfaceCacheClearInvocation @PSBoundParameters } catch { <# silently handled #> }
 
     $runspaceId = ''
     try {
@@ -717,7 +717,7 @@ function Publish-SharedSiteInterfaceCacheClearInvocation {
             ProcessId      = $processId
             ThreadId       = $threadId
         }
-    } catch { }
+    } catch { <# silently handled #> }
 }
 
 if (-not ('StateTrace.Repository.SharedSiteInterfaceCacheHolder' -as [type])) {
@@ -794,21 +794,21 @@ function Initialize-SharedSiteInterfaceCacheStore {
     try { $cacheModule = Get-Module -Name 'DeviceRepository.Cache' -ErrorAction SilentlyContinue } catch { $cacheModule = $null }
 
     $candidates = @()
-    try { if ($script:SharedSiteInterfaceCache -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) { $candidates += $script:SharedSiteInterfaceCache } } catch { }
+    try { if ($script:SharedSiteInterfaceCache -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) { $candidates += $script:SharedSiteInterfaceCache } } catch { <# silently handled #> }
     try {
         if ($cacheModule) {
             $cacheStore = $cacheModule.SessionState.PSVariable.GetValue('SharedSiteInterfaceCache')
             if ($cacheStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) { $candidates += $cacheStore }
         }
-    } catch { }
+    } catch { <# silently handled #> }
     try {
         $domainStore = [System.AppDomain]::CurrentDomain.GetData($storeKey)
         if ($domainStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) { $candidates += $domainStore }
-    } catch { }
+    } catch { <# silently handled #> }
     try {
         $holderStore = [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::GetStore()
         if ($holderStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) { $candidates += $holderStore }
-    } catch { }
+    } catch { <# silently handled #> }
 
     $bestStore = $null
     $bestCount = -1
@@ -828,10 +828,10 @@ function Initialize-SharedSiteInterfaceCacheStore {
 
     $script:SharedSiteInterfaceCache = $bestStore
     if ($cacheModule) {
-        try { $cacheModule.SessionState.PSVariable.Set('SharedSiteInterfaceCache', $bestStore) } catch { }
+        try { $cacheModule.SessionState.PSVariable.Set('SharedSiteInterfaceCache', $bestStore) } catch { <# silently handled #> }
     }
-    try { [System.AppDomain]::CurrentDomain.SetData($storeKey, $bestStore) } catch { }
-    try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($bestStore) } catch { }
+    try { [System.AppDomain]::CurrentDomain.SetData($storeKey, $bestStore) } catch { <# silently handled #> }
+    try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($bestStore) } catch { <# silently handled #> }
 
     if ($bestStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
         [void](Import-SharedSiteInterfaceCacheSnapshot -Store $bestStore)
@@ -840,7 +840,7 @@ function Initialize-SharedSiteInterfaceCacheStore {
             $count = 0
             try { $count = [int]$bestStore.Count } catch { $count = 0 }
             Publish-SharedSiteInterfaceCacheStoreState -Operation 'InitDelegatedStore' -EntryCount $count -StoreHashCode $hash
-        } catch { }
+        } catch { <# silently handled #> }
     }
 
     return $bestStore
@@ -852,21 +852,21 @@ function Get-SharedSiteInterfaceCacheStore {
     try { $cacheModule = Get-Module -Name 'DeviceRepository.Cache' -ErrorAction SilentlyContinue } catch { $cacheModule = $null }
 
     $candidates = @()
-    try { if ($script:SharedSiteInterfaceCache -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) { $candidates += $script:SharedSiteInterfaceCache } } catch { }
+    try { if ($script:SharedSiteInterfaceCache -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) { $candidates += $script:SharedSiteInterfaceCache } } catch { <# silently handled #> }
     try {
         if ($cacheModule) {
             $cacheStore = $cacheModule.SessionState.PSVariable.GetValue('SharedSiteInterfaceCache')
             if ($cacheStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) { $candidates += $cacheStore }
         }
-    } catch { }
+    } catch { <# silently handled #> }
     try {
         $domainStore = [System.AppDomain]::CurrentDomain.GetData($storeKey)
         if ($domainStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) { $candidates += $domainStore }
-    } catch { }
+    } catch { <# silently handled #> }
     try {
         $holderStore = [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::GetStore()
         if ($holderStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) { $candidates += $holderStore }
-    } catch { }
+    } catch { <# silently handled #> }
 
     $bestStore = $null
     $bestCount = -1
@@ -885,10 +885,10 @@ function Get-SharedSiteInterfaceCacheStore {
     } else {
         $script:SharedSiteInterfaceCache = $bestStore
         if ($cacheModule) {
-            try { $cacheModule.SessionState.PSVariable.Set('SharedSiteInterfaceCache', $bestStore) } catch { }
+            try { $cacheModule.SessionState.PSVariable.Set('SharedSiteInterfaceCache', $bestStore) } catch { <# silently handled #> }
         }
-        try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($bestStore) } catch { }
-        try { [System.AppDomain]::CurrentDomain.SetData($storeKey, $bestStore) } catch { }
+        try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($bestStore) } catch { <# silently handled #> }
+        try { [System.AppDomain]::CurrentDomain.SetData($storeKey, $bestStore) } catch { <# silently handled #> }
         if ($bestStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
             [void](Import-SharedSiteInterfaceCacheSnapshot -Store $bestStore)
         }
@@ -1106,7 +1106,7 @@ function Normalize-InterfaceSiteCacheEntry {
                 if ([string]::IsNullOrWhiteSpace($name)) { continue }
                 try {
                     $converted | Add-Member -NotePropertyName $name -NotePropertyValue $Entry[$candidateKey] -Force
-                } catch { }
+                } catch { <# silently handled #> }
             }
             $entryCandidate = $converted
         } else {
@@ -1140,7 +1140,7 @@ function Normalize-InterfaceSiteCacheEntry {
         try { $hostCount = [int]$typedHostMap.Count } catch { $hostCount = 0 }
         foreach ($portCollection in $typedHostMap.Values) {
             if ($portCollection -is [System.Collections.IDictionary] -or $portCollection -is [System.Collections.ICollection]) {
-                try { $totalRows += [int]$portCollection.Count } catch { }
+                try { $totalRows += [int]$portCollection.Count } catch { <# silently handled #> }
             }
         }
     }
@@ -1218,7 +1218,7 @@ function Copy-NormalizedInterfaceSiteCacheEntryShallow {
     try { $hostCount = [int]$hostMapCopy.Count } catch { $hostCount = 0 }
     foreach ($portCollection in $hostMapCopy.Values) {
         if ($portCollection -is [System.Collections.IDictionary] -or $portCollection -is [System.Collections.ICollection]) {
-            try { $totalRows += [int]$portCollection.Count } catch { }
+            try { $totalRows += [int]$portCollection.Count } catch { <# silently handled #> }
         }
     }
     $result | Add-Member -NotePropertyName 'HostCount' -NotePropertyValue $hostCount -Force
@@ -1348,7 +1348,7 @@ function Merge-InterfaceSiteCacheEntry {
     try { $hostCount = [int]$mergedHostMap.Count } catch { $hostCount = 0 }
     foreach ($portCollection in $mergedHostMap.Values) {
         if ($portCollection -is [System.Collections.IDictionary] -or $portCollection -is [System.Collections.ICollection]) {
-            try { $totalRows += [int]$portCollection.Count } catch { }
+            try { $totalRows += [int]$portCollection.Count } catch { <# silently handled #> }
         }
     }
     $result | Add-Member -NotePropertyName 'HostCount' -NotePropertyValue $hostCount -Force
@@ -1588,7 +1588,7 @@ function Convert-SharedSiteCacheEntryToExportObject {
     $totalRows = 0
     foreach ($portCollection in $exportHostMap.Values) {
         if ($portCollection -is [System.Collections.IDictionary]) {
-            try { $totalRows += [int]$portCollection.Count } catch { }
+            try { $totalRows += [int]$portCollection.Count } catch { <# silently handled #> }
         }
     }
 
@@ -1919,12 +1919,12 @@ function Set-SharedSiteInterfaceCacheEntry {
                     }
                 )
             }
-        } catch { }
+        } catch { <# silently handled #> }
     } else {
         $removed = $null
-        try { $script:SiteInterfaceSignatureCache.Remove($key) | Out-Null } catch { }
+        try { $script:SiteInterfaceSignatureCache.Remove($key) | Out-Null } catch { <# silently handled #> }
         if ($store -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
-            try { $store.TryRemove($key, [ref]$removed) | Out-Null } catch { }
+            try { $store.TryRemove($key, [ref]$removed) | Out-Null } catch { <# silently handled #> }
         }
 
         $removedStats = $null
@@ -1943,7 +1943,7 @@ function Set-SharedSiteInterfaceCacheEntry {
             if ($snapshotStore -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
                 $null = $snapshotStore.TryRemove($key, [ref]([object]$null))
             }
-        } catch { }
+        } catch { <# silently handled #> }
     }
 }
 
@@ -2103,7 +2103,7 @@ function Publish-InterfaceSiteCacheTelemetry {
             HostCount                        = $HostCount
             TotalRows                        = $TotalRows
         }
-    } catch { }
+    } catch { <# silently handled #> }
 }
 
 function Get-SharedSiteInterfaceCacheEntryStatistics {
@@ -2111,7 +2111,7 @@ function Get-SharedSiteInterfaceCacheEntryStatistics {
 
     $cacheStatsCmd = Get-DeviceRepositoryCacheCommand -Name 'Get-SharedSiteInterfaceCacheEntryStatistics'
     if ($cacheStatsCmd) {
-        try { return & $cacheStatsCmd -Entry $Entry } catch { }
+        try { return & $cacheStatsCmd -Entry $Entry } catch { <# silently handled #> }
     }
 
     $hostCount = 0
@@ -2134,7 +2134,7 @@ function Get-SharedSiteInterfaceCacheEntryStatistics {
                     foreach ($hostEntry in @($hostMap.GetEnumerator())) {
                         $ports = $hostEntry.Value
                         if ($ports -is [System.Collections.IDictionary] -or $ports -is [System.Collections.ICollection]) {
-                            try { $totalRows += [int]$ports.Count } catch { }
+                            try { $totalRows += [int]$ports.Count } catch { <# silently handled #> }
                         }
                     }
                 }
@@ -2150,7 +2150,7 @@ function Get-SharedSiteInterfaceCacheEntryStatistics {
                     }
                     $enumeratedHosts++
                     if ($hostValue -is [System.Collections.IDictionary] -or $hostValue -is [System.Collections.ICollection]) {
-                        try { $enumeratedRows += [int]$hostValue.Count } catch { }
+                        try { $enumeratedRows += [int]$hostValue.Count } catch { <# silently handled #> }
                     }
                 }
                 if ($hostCount -le 0 -and $enumeratedHosts -gt 0) {
@@ -2181,7 +2181,7 @@ function Publish-SharedSiteInterfaceCacheEvent {
         [int]$StoreHashCode = 0
     )
 
-    try { DeviceRepository.Cache\Publish-SharedSiteInterfaceCacheEvent @PSBoundParameters } catch { }
+    try { DeviceRepository.Cache\Publish-SharedSiteInterfaceCacheEvent @PSBoundParameters } catch { <# silently handled #> }
 
     $runspaceId = ''
     try {
@@ -2224,7 +2224,7 @@ function Publish-SharedSiteInterfaceCacheEvent {
             ProcessId     = $processId
             ThreadId      = $threadId
         }
-    } catch { }
+    } catch { <# silently handled #> }
 }
 
 function Publish-InterfaceSiteCacheReuseState {
@@ -2261,7 +2261,7 @@ function Publish-InterfaceSiteCacheReuseState {
 
                     $portCollection = $hostMap[$key]
                     if ($portCollection -is [System.Collections.IDictionary] -or $portCollection -is [System.Collections.ICollection]) {
-                        try { $totalRows += [int]$portCollection.Count } catch { }
+                        try { $totalRows += [int]$portCollection.Count } catch { <# silently handled #> }
                     }
                 }
                 if ($sampleKeys.Count -gt 0) {
@@ -2273,7 +2273,7 @@ function Publish-InterfaceSiteCacheReuseState {
         }
 
         if (($Entry.PSObject.Properties.Name -contains 'TotalRows') -and (-not $totalRows -or $totalRows -le 0)) {
-            try { $totalRows = [int]$Entry.TotalRows } catch { }
+            try { $totalRows = [int]$Entry.TotalRows } catch { <# silently handled #> }
         }
     }
 
@@ -2286,7 +2286,7 @@ function Publish-InterfaceSiteCacheReuseState {
             KeysSample = $keysSample
             EntryType  = $entryType
         }
-    } catch { }
+    } catch { <# silently handled #> }
 }
 
 if (-not (Get-Variable -Scope Script -Name TemplateLookupCache -ErrorAction SilentlyContinue)) {
@@ -2306,7 +2306,7 @@ function Ensure-InterfaceModuleBridge {
     $commandName = 'InterfaceModule\New-InterfaceObjectsFromDbRow'
     try {
         if (Get-Command -Name $commandName -ErrorAction SilentlyContinue) { return $true }
-    } catch { }
+    } catch { <# silently handled #> }
 
     $candidatePath = $null
     try {
@@ -2333,7 +2333,7 @@ function Ensure-InterfaceModuleBridge {
 
     try {
         if (Get-Command -Name $commandName -ErrorAction SilentlyContinue) { return $true }
-    } catch { }
+    } catch { <# silently handled #> }
     return $false
 }
 
@@ -2408,7 +2408,7 @@ function ConvertTo-InterfacePortRecordsFallback {
                     $portSortKey = & $portSortKeyCmd -Port $portValue
                 }
             }
-        } catch { }
+        } catch { <# silently handled #> }
 
         $signatureValues = @(
             $Hostname,
@@ -2452,10 +2452,10 @@ function ConvertTo-InterfacePortRecordsFallback {
         $record.CacheSignature= $cacheSignature
         $record.IsSelected    = $false
 
-        try { $record.Site = '' } catch { }
-        try { $record.Building = '' } catch { }
-        try { $record.Room = '' } catch { }
-        try { $record.Zone = '' } catch { }
+        try { $record.Site = '' } catch { <# silently handled #> }
+        try { $record.Building = '' } catch { <# silently handled #> }
+        try { $record.Room = '' } catch { <# silently handled #> }
+        try { $record.Zone = '' } catch { <# silently handled #> }
 
         if (-not [string]::IsNullOrWhiteSpace($configValue) -and [string]::IsNullOrWhiteSpace($tooltipValue)) {
             $record.ToolTip = "AuthTemplate: $authTemplate`r`n`r`n$configValue"
@@ -2474,7 +2474,7 @@ function script:Get-TemplateLookupForVendor {
 
     $vendorKey = if ([string]::IsNullOrWhiteSpace($Vendor)) { 'Cisco' } else { $Vendor }
     $templatesRoot = $TemplatesPath
-    try { $templatesRoot = [System.IO.Path]::GetFullPath($TemplatesPath) } catch { }
+    try { $templatesRoot = [System.IO.Path]::GetFullPath($TemplatesPath) } catch { <# silently handled #> }
     $cacheKey = "{0}::{1}" -f $vendorKey, $templatesRoot
 
     if ($script:TemplateLookupCache.ContainsKey($cacheKey)) {
@@ -2503,7 +2503,7 @@ function script:Get-TemplateHintCacheForVendor {
 
     $vendorKey = if ([string]::IsNullOrWhiteSpace($Vendor)) { 'Cisco' } else { $Vendor }
     $templatesRoot = $TemplatesPath
-    try { $templatesRoot = [System.IO.Path]::GetFullPath($TemplatesPath) } catch { }
+    try { $templatesRoot = [System.IO.Path]::GetFullPath($TemplatesPath) } catch { <# silently handled #> }
     $cacheKey = "{0}::{1}" -f $vendorKey, $templatesRoot
 
     $hintDictionary = $null
@@ -2557,7 +2557,7 @@ function Clear-SiteInterfaceCache {
 
     Publish-SharedSiteInterfaceCacheClearInvocation -Reason $Reason -CallerFunction $callerFunction -CallerScript $callerScript -CallerLine $callerLine -InvocationName $invocationName -CallStackDepth $callStackDepth
 
-    try { DeviceRepository.Cache\Clear-SharedSiteInterfaceCache -Reason $Reason } catch { }
+    try { DeviceRepository.Cache\Clear-SharedSiteInterfaceCache -Reason $Reason } catch { <# silently handled #> }
 
     try {
         Invoke-InterfaceCacheLock {
@@ -2572,15 +2572,15 @@ function Clear-SiteInterfaceCache {
     }
     $script:LastInterfaceSiteCacheMetrics = $null
 
-    try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::ClearSnapshot() } catch { }
+    try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::ClearSnapshot() } catch { <# silently handled #> }
 
     $store = Get-SharedSiteInterfaceCacheStore
     if ($store -is [System.Collections.Concurrent.ConcurrentDictionary[string, object]]) {
         $script:SharedSiteInterfaceCache = $store
-        try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($store) } catch { }
-        try { [System.AppDomain]::CurrentDomain.SetData($script:SharedSiteInterfaceCacheKey, $store) } catch { }
+        try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::SetStore($store) } catch { <# silently handled #> }
+        try { [System.AppDomain]::CurrentDomain.SetData($script:SharedSiteInterfaceCacheKey, $store) } catch { <# silently handled #> }
     } else {
-        try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::ClearStore() } catch { }
+        try { [StateTrace.Repository.SharedSiteInterfaceCacheHolder]::ClearStore() } catch { <# silently handled #> }
     }
 }
 
@@ -2639,7 +2639,7 @@ function Get-InterfaceSiteCacheSummary {
             try {
                 $hostCount = [int]$entry.HostCount
                 $hostCountResolved = $true
-            } catch { }
+            } catch { <# silently handled #> }
         }
         if (-not $hostCountResolved -and $hostMap -is [System.Collections.IDictionary]) {
             $hostCount = $hostMap.Count
@@ -2650,14 +2650,14 @@ function Get-InterfaceSiteCacheSummary {
             try {
                 $totalRows = [int]$entry.TotalRows
                 $totalRowsResolved = $true
-            } catch { }
+            } catch { <# silently handled #> }
         }
         if (-not $totalRowsResolved -and $hostMap -is [System.Collections.IDictionary]) {
             $calculatedTotal = 0
             foreach ($hostEntry in $hostMap.GetEnumerator()) {
                 $portMap = $hostEntry.Value
                 if ($portMap -is [System.Collections.IDictionary] -or $portMap -is [System.Collections.ICollection]) {
-                    try { $calculatedTotal += $portMap.Count } catch { }
+                    try { $calculatedTotal += $portMap.Count } catch { <# silently handled #> }
                 }
             }
             $totalRows = $calculatedTotal
@@ -2686,7 +2686,7 @@ function Test-IsAdodbConnectionInternal {
         foreach ($name in $Connection.PSObject.TypeNames) {
             if ($name -eq 'ADODB.Connection') { return $true }
         }
-    } catch { }
+    } catch { <# silently handled #> }
     return $false
 }
 
@@ -2869,7 +2869,7 @@ function ConvertTo-InterfaceCacheEntryObject {
                 if ($propertyInfo -and $propertyInfo.CanRead) {
                     return $propertyInfo.GetValue($Source, $null)
                 }
-            } catch { }
+            } catch { <# silently handled #> }
         }
 
         return $null
@@ -3117,7 +3117,7 @@ function Get-InterfaceSiteCache {
         $currentRunspace = $null
         try { $currentRunspace = [System.Management.Automation.Runspaces.Runspace]::DefaultRunspace } catch { $currentRunspace = $null }
         if ($currentRunspace) {
-            try { $reusePayload.RunspaceId = $currentRunspace.InstanceId.ToString() } catch { }
+            try { $reusePayload.RunspaceId = $currentRunspace.InstanceId.ToString() } catch { <# silently handled #> }
         }
         if ($scriptCacheStats) {
             $reusePayload.ScriptCacheHostCount  = [int]$scriptCacheStats.HostCount
@@ -3128,7 +3128,7 @@ function Get-InterfaceSiteCache {
             $reusePayload.SharedStoreTotalRows  = [int]$sharedStoreStats.TotalRows
         }
         TelemetryModule\Write-StTelemetryEvent -Name 'InterfaceSiteCacheReuseAttempt' -Payload $reusePayload
-    } catch { }
+    } catch { <# silently handled #> }
 
     $previousSnapshotStatus = 'CacheEntryMissing'
     $previousSnapshotHostMapType = ''
@@ -3402,9 +3402,9 @@ function Get-InterfaceSiteCache {
                 $reuseHostCount++
                 $portEntries = $cachedHostMap[$hostKeyCandidate]
                 if ($portEntries -is [System.Collections.IDictionary]) {
-                    try { $reusePortCount += [int]$portEntries.Count } catch { }
+                    try { $reusePortCount += [int]$portEntries.Count } catch { <# silently handled #> }
                 } elseif ($portEntries -is [System.Collections.ICollection]) {
-                    try { $reusePortCount += [int]$portEntries.Count } catch { }
+                    try { $reusePortCount += [int]$portEntries.Count } catch { <# silently handled #> }
                 }
             }
         } elseif ($cachedHostMap -is [System.Collections.ICollection]) {
@@ -3417,7 +3417,7 @@ function Get-InterfaceSiteCache {
             try { $reusePortCount = [int][Math]::Max(0, $cachedEntry.TotalRows) } catch { $reusePortCount = 0 }
         }
         if ($reuseHostCount -le 0 -and $cachedEntry -and $cachedEntry.PSObject.Properties.Name -contains 'HostCount') {
-            try { $reuseHostCount = [int][Math]::Max(0, $cachedEntry.HostCount) } catch { }
+            try { $reuseHostCount = [int][Math]::Max(0, $cachedEntry.HostCount) } catch { <# silently handled #> }
         }
         if ($reuseHostCount -le 0 -and $metrics.HostCount -gt 0) {
             $reuseHostCount = [int][Math]::Max(0, $metrics.HostCount)
@@ -3586,11 +3586,11 @@ function Get-InterfaceSiteCache {
                     if ($existingPortMap -is [System.Collections.IDictionary]) {
                         try {
                             $previousSnapshotPortCount += [int]$existingPortMap.Count
-                        } catch { }
+                        } catch { <# silently handled #> }
                     } elseif ($existingPortMap -is [System.Collections.ICollection]) {
                         try {
                             $previousSnapshotPortCount += [int]$existingPortMap.Count
-                        } catch { }
+                        } catch { <# silently handled #> }
                     }
                     if ($existingPortMap -is [System.Collections.IDictionary]) {
                         $portEntries = New-Object 'System.Collections.Generic.Dictionary[string,StateTrace.Models.InterfaceCacheEntry]' ([System.StringComparer]::OrdinalIgnoreCase)
@@ -3632,7 +3632,7 @@ function Get-InterfaceSiteCache {
                         } elseif ($portEntries -is [System.Collections.ICollection]) {
                             $previousHostPortCount += $portEntries.Count
                         }
-                        try { $existingPortMap.Clear() } catch { }
+                        try { $existingPortMap.Clear() } catch { <# silently handled #> }
                         $hostDictionaryPool.Push($existingPortMap)
                     }
                 }
@@ -3645,7 +3645,7 @@ function Get-InterfaceSiteCache {
                 $previousSnapshotStatus = 'EnumerationFailed'
                 $previousSnapshotException = $_.Exception.Message
             }
-            try { $existingHostMap.Clear() } catch { }
+            try { $existingHostMap.Clear() } catch { <# silently handled #> }
             if ($existingHostMap -is [System.Collections.IDictionary]) {
                 $hostMap = $existingHostMap
             }
@@ -3896,7 +3896,7 @@ function Get-InterfaceSiteCache {
                 $hostPortsCandidate = $hostDictionaryPool.Pop()
             }
             if ($hostPortsCandidate -and $hostPortsCandidate -is [System.Collections.IDictionary]) {
-                    try { $hostPortsCandidate.Clear() } catch { }
+                    try { $hostPortsCandidate.Clear() } catch { <# silently handled #> }
                     $hostPorts = $hostPortsCandidate
                 }
             if (-not $hostPorts) {
@@ -4476,7 +4476,7 @@ function Set-InterfaceSiteCacheHost {
                 $previousHostPortCount = $existingPortMap.Count
             }
         }
-    } catch { }
+    } catch { <# silently handled #> }
 
     $typedHostMap[$hostKey] = $normalizedRows
     $entry.CachedAt = Get-Date
@@ -4522,7 +4522,7 @@ function Set-InterfaceSiteCacheHost {
             EntryTotalRowsDelta       = $portCountDelta
             SharedStoreUpdated        = $true
         }
-    } catch { }
+    } catch { <# silently handled #> }
 }
 
 function Get-InterfacePortBatchChunkSize {
@@ -4631,7 +4631,7 @@ function Ensure-PortRowDefaults {
         try {
             TelemetryModule\Import-InterfaceCommon | Out-Null
         } catch [System.Management.Automation.CommandNotFoundException] {
-        } catch { }
+        } catch { <# silently handled #> }
 
         try { $setDefaultsCmd = Get-Command -Name 'InterfaceCommon\Set-PortRowDefaults' -ErrorAction SilentlyContinue } catch { $setDefaultsCmd = $null }
 
@@ -4641,13 +4641,13 @@ function Ensure-PortRowDefaults {
                 if (Test-Path -LiteralPath $interfaceCommonPath) {
                     Import-Module -Name $interfaceCommonPath -Force -Global -ErrorAction Stop | Out-Null
                 }
-            } catch { }
+            } catch { <# silently handled #> }
             try { $setDefaultsCmd = Get-Command -Name 'InterfaceCommon\Set-PortRowDefaults' -ErrorAction SilentlyContinue } catch { $setDefaultsCmd = $null }
         }
     }
 
     if ($setDefaultsCmd) {
-        try { & $setDefaultsCmd -Row $Row -Hostname $Hostname | Out-Null } catch { }
+        try { & $setDefaultsCmd -Row $Row -Hostname $Hostname | Out-Null } catch { <# silently handled #> }
     }
 }
 
@@ -4723,7 +4723,7 @@ function Set-InterfacePortStreamData {
 
     try {
         TelemetryModule\Write-StTelemetryEvent -Name 'InterfacePortStreamMetrics' -Payload $streamMetricsPayload
-    } catch { }
+    } catch { <# silently handled #> }
 }
 
 function Initialize-InterfacePortStream {
@@ -4853,7 +4853,7 @@ function Initialize-InterfacePortStream {
         } else {
             $state | Add-Member -NotePropertyName QueueInitializedAt -NotePropertyValue $initializedAt -Force
         }
-    } catch { }
+    } catch { <# silently handled #> }
     $state.TotalPorts = $total
     $state.PortsDelivered = 0
     $state.Completed = ($queue.Count -eq 0)
@@ -4873,7 +4873,7 @@ function Initialize-InterfacePortStream {
 
     try {
         TelemetryModule\Write-StTelemetryEvent -Name 'InterfacePortQueueMetrics' -Payload $queueMetricsPayload
-    } catch { }
+    } catch { <# silently handled #> }
 }
 
 function Get-InterfacePortStreamStatus {
@@ -5017,7 +5017,7 @@ function Set-InterfacePortDispatchMetrics {
 
     try {
         TelemetryModule\Write-StTelemetryEvent -Name 'InterfacePortDispatchMetrics' -Payload $payload
-    } catch { }
+    } catch { <# silently handled #> }
 }
 
 function Get-LastInterfacePortDispatchMetrics {
@@ -5481,12 +5481,12 @@ function Get-GlobalInterfaceSnapshot {
                 if (-not $row.PSObject.Properties['Hostname']) {
                     $row | Add-Member -NotePropertyName Hostname -NotePropertyValue ($hostname) -ErrorAction SilentlyContinue
                 }
-            } catch {}
+            } catch { <# silently handled #> }
             try {
                 if (-not $row.PSObject.Properties['IsSelected']) {
                     $row | Add-Member -NotePropertyName IsSelected -NotePropertyValue $false -ErrorAction SilentlyContinue
                 }
-            } catch {}
+            } catch { <# silently handled #> }
             [void]$interfaces.Add($row)
         }
     }
@@ -5528,7 +5528,7 @@ function Get-GlobalInterfaceSnapshot {
         }
     } else {
         $loadArg = $zoneLoadValue
-        try { Update-SiteZoneCache -Site $siteValue -Zone $loadArg | Out-Null } catch {}
+        try { Update-SiteZoneCache -Site $siteValue -Zone $loadArg | Out-Null } catch { <# silently handled #> }
         & $populateCacheEntries
         foreach ($kv in $cacheEntries) {
             $hostname = $kv.Key
@@ -5570,15 +5570,15 @@ function Get-GlobalInterfaceSnapshot {
                     }
 
                     if (-not $row.PSObject.Properties['Hostname']) {
-                        try { $row | Add-Member -NotePropertyName Hostname -NotePropertyValue ($hostname) -ErrorAction SilentlyContinue } catch { }
+                        try { $row | Add-Member -NotePropertyName Hostname -NotePropertyValue ($hostname) -ErrorAction SilentlyContinue } catch { <# silently handled #> }
                     }
                     if (-not $row.PSObject.Properties['IsSelected']) {
-                        try { $row | Add-Member -NotePropertyName IsSelected -NotePropertyValue $false -ErrorAction SilentlyContinue } catch { }
+                        try { $row | Add-Member -NotePropertyName IsSelected -NotePropertyValue $false -ErrorAction SilentlyContinue } catch { <# silently handled #> }
                     }
                     [void]$interfaces.Add($row)
                 }
             }
-        } catch { }
+        } catch { <# silently handled #> }
     }
 
     # Aggregate fallback when no cache exists and no specific site was supplied: hydrate all sites from disk.
@@ -5597,15 +5597,15 @@ function Get-GlobalInterfaceSnapshot {
                     try { $hostname = if ($row.PSObject.Properties['Hostname']) { '' + $row.Hostname } else { '' } } catch { $hostname = '' }
                     if (-not $hostname) { continue }
                     if (-not $row.PSObject.Properties['Hostname']) {
-                        try { $row | Add-Member -NotePropertyName Hostname -NotePropertyValue ($hostname) -ErrorAction SilentlyContinue } catch { }
+                        try { $row | Add-Member -NotePropertyName Hostname -NotePropertyValue ($hostname) -ErrorAction SilentlyContinue } catch { <# silently handled #> }
                     }
                     if (-not $row.PSObject.Properties['IsSelected']) {
-                        try { $row | Add-Member -NotePropertyName IsSelected -NotePropertyValue $false -ErrorAction SilentlyContinue } catch { }
+                        try { $row | Add-Member -NotePropertyName IsSelected -NotePropertyValue $false -ErrorAction SilentlyContinue } catch { <# silently handled #> }
                     }
                     [void]$interfaces.Add($row)
                 }
             }
-        } catch { }
+        } catch { <# silently handled #> }
     }
 
     return ,($interfaces.ToArray())
@@ -5693,7 +5693,7 @@ function Get-InterfacesForSite {
             if ($hnc -ne 0) { return $hnc }
             return [System.StringComparer]::Ordinal.Compare($a.PortSort, $b.PortSort)
         }
-        try { $combined.Sort($comparison) } catch {}
+        try { $combined.Sort($comparison) } catch { <# silently handled #> }
 
         $script:LastInterfaceSiteHydrationMetrics = & $newHydrationMetrics $siteName 'Aggregate' ([int]$combined.Count) $true
 
@@ -5721,7 +5721,7 @@ function Get-InterfacesForSite {
         if ($entry -and $entry.PSObject.Properties['List'] -and $entry.PSObject.Properties['DbTime']) {
             $dbPath = Get-DbPathForSite -Site $siteCode
             $currentTime = $null
-            try { $currentTime = (Get-Item -LiteralPath $dbPath).LastWriteTime } catch {}
+            try { $currentTime = (Get-Item -LiteralPath $dbPath).LastWriteTime } catch { <# silently handled #> }
             if ($currentTime -and ($entry.DbTime -eq $currentTime)) {
                 $hydrationDetail.Provider = 'Cache'
                 $hydrationDetail.ResultRowCount = if ($entry.List) { [int]$entry.List.Count } else { 0 }
@@ -5730,7 +5730,7 @@ function Get-InterfacesForSite {
                 return $entry.List
             }
         }
-    } catch {}
+    } catch { <# silently handled #> }
 
     $dbFile = Get-DbPathForSite -Site $siteCode
     if (-not (Test-Path $dbFile)) {
@@ -5847,9 +5847,9 @@ ORDER BY i.Hostname, i.Port
             }
         } finally {
             if ($recordset) {
-                try { $recordset.Close() } catch {}
+                try { $recordset.Close() } catch { <# silently handled #> }
                 if ($recordset -is [System.__ComObject]) {
-                    try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($recordset) } catch { }
+                    try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($recordset) } catch { <# silently handled #> }
                 }
             }
         }
@@ -6134,7 +6134,7 @@ ORDER BY i.Hostname, i.Port
                     } elseif ($rows.Capacity -lt $estimatedRowTotal) {
                         $rows.Capacity = $estimatedRowTotal
                     }
-                } catch { }
+                } catch { <# silently handled #> }
             }
 
             $portSortCacheHitsBaseline = 0L
@@ -6155,7 +6155,7 @@ ORDER BY i.Hostname, i.Port
                         $materializePortSortCacheSize = [long][Math]::Max($materializePortSortCacheSize, [long]$portSortCacheStart.EntryCount)
                     }
                 }
-            } catch { }
+            } catch { <# silently handled #> }
 
             $templatesDir = Join-Path $PSScriptRoot '..\Templates'
             $templateLookups = New-Object 'System.Collections.Generic.Dictionary[string,object]' ([System.StringComparer]::OrdinalIgnoreCase)
@@ -6509,7 +6509,7 @@ ORDER BY i.Hostname, i.Port
                         $materializePortSortCacheSize = [long][Math]::Max(0, [long]$portSortCacheEnd.EntryCount)
                     }
                 }
-            } catch { }
+            } catch { <# silently handled #> }
 
             $materializeStopwatch.Stop()
             $hydrationDetail.MaterializeDurationMs = [Math]::Round($materializeStopwatch.Elapsed.TotalMilliseconds, 3)
@@ -6565,11 +6565,11 @@ ORDER BY i.Hostname, i.Port
     if ($hydrationDetail) {
         try {
             $hydrationDetail | Add-Member -NotePropertyName SortDurationMs -NotePropertyValue $sortDurationMs -Force
-        } catch {}
+        } catch { <# silently handled #> }
     }
 
     $dbTime = $null
-    try { $dbTime = (Get-Item -LiteralPath $dbFile).LastWriteTime } catch {}
+    try { $dbTime = (Get-Item -LiteralPath $dbFile).LastWriteTime } catch { <# silently handled #> }
     try {
         Invoke-InterfaceCacheLock {
             if (-not $script:SiteInterfaceCache) { $script:SiteInterfaceCache = [hashtable]::Synchronized(@{}) }
@@ -6578,7 +6578,7 @@ ORDER BY i.Hostname, i.Port
                 DbTime = $dbTime
             }
         }
-    } catch {}
+    } catch { <# silently handled #> }
     if ($hydrationDetail.QueryAttempts -le 0 -and -not [System.StringComparer]::OrdinalIgnoreCase.Equals($hydrationDetail.Provider, 'Cache')) {
         $hydrationDetail.QueryAttempts = 1
     }
@@ -6647,7 +6647,7 @@ function Get-InterfaceInfo {
                         foreach ($o in $cached) { Ensure-PortRowDefaults -Row $o -Hostname $Hostname }
                         try {
                             $script:InterfaceCacheHydrationTracker[$Hostname] = $true
-                        } catch {}
+                        } catch { <# silently handled #> }
                         return $cached
                     }
 
@@ -6664,7 +6664,7 @@ function Get-InterfaceInfo {
                     }
                 }
             }
-        } catch {}
+        } catch { <# silently handled #> }
     # Determine the per-site database path and return empty list if missing.
     $dbPath = Get-DbPathForHost $Hostname
     if (-not (Test-Path $dbPath)) {
@@ -6726,18 +6726,18 @@ function Get-InterfaceInfo {
                                 if ($global:DeviceMetadata -and $global:DeviceMetadata.ContainsKey($Hostname)) {
                                     $meta = $global:DeviceMetadata[$Hostname]
                                 }
-                            } catch {}
+                            } catch { <# silently handled #> }
                             $siteVal = ''
                             $zoneVal = ''
                             $bldVal  = ''
                             $roomVal = ''
                             if ($meta) {
-                                try { $siteVal = '' + $meta.Site } catch {}
-                                try { $bldVal  = '' + $meta.Building } catch {}
-                                try { $roomVal = '' + $meta.Room } catch {}
+                                try { $siteVal = '' + $meta.Site } catch { <# silently handled #> }
+                                try { $bldVal  = '' + $meta.Building } catch { <# silently handled #> }
+                                try { $roomVal = '' + $meta.Room } catch { <# silently handled #> }
                                 # Zone may be stored as a property or may need to be parsed
                                 if ($meta.PSObject.Properties['Zone']) {
-                                    try { $zoneVal = '' + $meta.Zone } catch {}
+                                    try { $zoneVal = '' + $meta.Zone } catch { <# silently handled #> }
                                 }
                             }
                             # Parse hostname to derive site and zone when not found in metadata
@@ -6752,7 +6752,7 @@ function Get-InterfaceInfo {
                             if ($needBld)     { $oo | Add-Member -NotePropertyName Building -NotePropertyValue $bldVal  -ErrorAction SilentlyContinue }
                             if ($needRoom)    { $oo | Add-Member -NotePropertyName Room     -NotePropertyValue $roomVal -ErrorAction SilentlyContinue }
                         }
-                    } catch {}
+                    } catch { <# silently handled #> }
                 }
             }
             # Update the global cache with the loaded objects for this host.
@@ -6776,7 +6776,7 @@ function Get-InterfaceInfo {
                         if ($hydrated) { $script:InterfaceCacheHydrationTracker[$Hostname] = $true }
                     }
                 }
-            } catch {}
+            } catch { <# silently handled #> }
             return $objs
     } catch {
         Write-Warning ("Failed to load interface information from database for {0}: {1}" -f $Hostname, $_.Exception.Message)
@@ -6819,7 +6819,7 @@ function Get-InterfaceConfiguration {
                     $vendor = TemplatesModule\Get-TemplateVendorKeyFromMake -Make $mk
                 }
             }
-        } catch {}
+        } catch { <# silently handled #> }
         $templateData = TemplatesModule\Get-ConfigurationTemplateData -Vendor $vendor -TemplatesPath $TemplatesPath
         if (-not $templateData.Exists) { throw "Template file missing: $($templateData.Path)" }
         $templates = $templateData.Templates
@@ -6855,7 +6855,7 @@ function Get-InterfaceConfiguration {
             $session = $null
             try {
                 if (Test-Path $dbPath) { $session = Open-DbReadSession -DatabasePath $dbPath }
-            } catch {}
+            } catch { <# silently handled #> }
             try {
                 $dtAll = if ($session) {
                     Invoke-DbQuery -DatabasePath $dbPath -Sql $sqlCfgAll -Session $session
@@ -7100,7 +7100,7 @@ function Get-SpanningTreeInfo {
                 if ($row.PSObject.Properties['Upstream']) { $upstream = '' + $row.Upstream }
                 if ($row.PSObject.Properties['LastUpdated']) { $lastUpdated = '' + $row.LastUpdated }
             }
-        } catch {}
+        } catch { <# silently handled #> }
 
         if ($lastUpdated) {
             $parsed = [datetime]::MinValue
@@ -7126,7 +7126,7 @@ function Get-SpanningTreeInfo {
     try {
         $rowCount = $list.Count
         TelemetryModule\Write-SpanDebugLog -Message ("Host={0} Rows={1}" -f $hostTrim, $rowCount) -Prefix 'Repo'
-    } catch { }
+    } catch { <# silently handled #> }
 
     return $list.ToArray()
 }

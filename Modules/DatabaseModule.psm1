@@ -36,7 +36,7 @@ function Invoke-DbSchemaStatement {
 
         $labelText = if ($Label) { $Label } else { $Statement }
         $hresultText = ''
-        try { $hresultText = ' (HRESULT=0x{0:X8})' -f $_.Exception.HResult } catch { }
+        try { $hresultText = ' (HRESULT=0x{0:X8})' -f $_.Exception.HResult } catch { Write-Verbose "Could not extract HRESULT from exception" }
         $detailText = if ($hresultText) { "$message$hresultText" } else { $message }
         $warningText = "Failed to apply schema change '$labelText': $detailText"
         if ($ContinueOnFailure) {
@@ -179,7 +179,7 @@ function Open-OleDbConnectionWithFallback {
         } catch {
             $errorMessage = $_.Exception.Message
             $hresult = $null
-            try { $hresult = ('0x{0:X8}' -f $_.Exception.HResult) } catch { }
+            try { $hresult = ('0x{0:X8}' -f $_.Exception.HResult) } catch { Write-Verbose "Caught exception in DatabaseModule.psm1: $($_.Exception.Message)" }
             $providerErrors.Add([PSCustomObject]@{
                 Provider = $prov
                 Message  = $errorMessage
@@ -230,9 +230,9 @@ function Open-DbReadSession {
                     if ($this.Connection -and $this.Connection.State -ne [System.Data.ConnectionState]::Closed) {
                         $this.Connection.Close()
                     }
-                } catch {}
+                } catch { Write-Verbose "DbReadSession Close encountered error: $_" }
                 if ($this.Connection) {
-                    try { $this.Connection.Dispose() } catch {}
+                    try { $this.Connection.Dispose() } catch { Write-Verbose "DbReadSession Dispose encountered error: $_" }
                 }
                 $this.Connection = $null
             }
@@ -240,7 +240,7 @@ function Open-DbReadSession {
         }
         return $session
     } catch {
-        if ($conn) { try { $conn.Dispose() } catch {} }
+        if ($conn) { try { $conn.Dispose() } catch { Write-Verbose "Failed to dispose connection during session creation error: $_" } }
         throw
     }
 }
@@ -252,7 +252,7 @@ function Close-DbReadSession {
         [Parameter(Mandatory)][object]$Session
     )
     if (Test-IsDbReadSession -Session $Session) {
-        try { $Session.Dispose() } catch {}
+        try { $Session.Dispose() } catch { Write-Verbose "DbReadSession disposal encountered error: $_" }
     }
 }
 
@@ -268,13 +268,13 @@ function Test-IsDbReadSession {
         if ($Session.PSObject -and $Session.PSObject.TypeNames -contains 'StateTrace.DbReadSession') {
             return $true
         }
-    } catch { }
+    } catch { Write-Verbose "Type check via PSObject.TypeNames failed: $_" }
 
     try {
         if ($Session.PSTypeName -eq 'StateTrace.DbReadSession') {
             return $true
         }
-    } catch { }
+    } catch { Write-Verbose "Type check via PSTypeName failed: $_" }
 
     return $false
 }
@@ -486,7 +486,7 @@ CREATE TABLE InterfaceHistory (
             } catch {
                 $errorMessage = $_.Exception.Message
                 $hresult = $null
-                try { $hresult = ('0x{0:X8}' -f $_.Exception.HResult) } catch { }
+                try { $hresult = ('0x{0:X8}' -f $_.Exception.HResult) } catch { Write-Verbose "Could not extract HRESULT from provider error" }
                 $providerErrors.Add([PSCustomObject]@{
                     Provider = $prov
                     Message  = $errorMessage
@@ -495,7 +495,7 @@ CREATE TABLE InterfaceHistory (
                 if ($Global:StateTraceDebug) {
                     Write-Host ("[DEBUG] Provider '{0}' failed to open '{1}': {2}" -f $prov, $Path, $errorMessage) -ForegroundColor Cyan
                 }
-                try { $connection.Close() } catch { }
+                try { $connection.Close() } catch { Write-Verbose "Failed to close connection after provider failure: $_" }
             }
         }
         if (-not $opened) {
@@ -607,7 +607,7 @@ function Invoke-DbQuery {
             [void]$adapter.Fill($dataTable)
         } finally {
             if ($adapter) {
-                try { $adapter.Dispose() } catch { }
+                try { $adapter.Dispose() } catch { Write-Verbose "Failed to dispose OleDbDataAdapter: $_" }
             }
         }
         return ,$dataTable
@@ -616,8 +616,8 @@ function Invoke-DbQuery {
         if ($mustClose -and $conn) {
             try {
                 if ($conn.State -ne [System.Data.ConnectionState]::Closed) { $conn.Close() }
-            } catch {}
-            try { $conn.Dispose() } catch {}
+            } catch { Write-Verbose "Failed to close ad-hoc connection: $_" }
+            try { $conn.Dispose() } catch { Write-Verbose "Failed to dispose ad-hoc connection: $_" }
         }
     }
 }

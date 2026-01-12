@@ -25,7 +25,7 @@ function script:Ensure-LocalStateTraceModule {
 
     try {
         if (Get-Module -Name $ModuleName -ErrorAction SilentlyContinue) { return }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in DeviceCatalogModule.psm1: $($_.Exception.Message)" }
 
     $alreadyWarned = $false
     try { $alreadyWarned = $script:DeviceCatalogImportWarnings.ContainsKey($ModuleName) } catch { $alreadyWarned = $false }
@@ -247,7 +247,7 @@ function Get-DeviceSummaries {
         }
     }
 
-    try { DeviceRepositoryModule\Import-DatabaseModule } catch {}
+    try { DeviceRepositoryModule\Import-DatabaseModule } catch { Write-Verbose "Caught exception in DeviceCatalogModule.psm1: $($_.Exception.Message)" }
 
     $deviceSummarySql = "SELECT Hostname, Site, Building, Room FROM DeviceSummary"
 
@@ -362,7 +362,7 @@ function Get-DeviceLocationEntries {
         return @()
     }
 
-    try { DeviceRepositoryModule\Import-DatabaseModule } catch {}
+    try { DeviceRepositoryModule\Import-DatabaseModule } catch { Write-Verbose "Caught exception in DeviceCatalogModule.psm1: $($_.Exception.Message)" }
     $deviceSummarySql = "SELECT Hostname, Site, Building, Room FROM DeviceSummary"
 
     if ($existingDbPaths.Count -gt 1) {

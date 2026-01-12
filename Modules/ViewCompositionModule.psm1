@@ -1,4 +1,4 @@
-﻿Set-StrictMode -Version Latest
+Set-StrictMode -Version Latest
 
 $script:LastSetStViewFailure = $null
 
@@ -54,9 +54,9 @@ function Set-StView {
             StackTrace    = $_.Exception.StackTrace
         }
         if ($_.Exception.GetType().FullName -eq 'System.Windows.Markup.XamlParseException') {
-            try { $failure.LineNumber = $_.Exception.LineNumber } catch { }
-            try { $failure.LinePosition = $_.Exception.LinePosition } catch { }
-            try { $failure.BaseUri = if ($_.Exception.BaseUri) { $_.Exception.BaseUri.ToString() } else { '' } } catch { }
+            try { $failure.LineNumber = $_.Exception.LineNumber } catch { Write-Verbose "Caught exception in ViewCompositionModule.psm1: $($_.Exception.Message)" }
+            try { $failure.LinePosition = $_.Exception.LinePosition } catch { Write-Verbose "Caught exception in ViewCompositionModule.psm1: $($_.Exception.Message)" }
+            try { $failure.BaseUri = if ($_.Exception.BaseUri) { $_.Exception.BaseUri.ToString() } else { '' } } catch { Write-Verbose "Caught exception in ViewCompositionModule.psm1: $($_.Exception.Message)" }
         }
         $script:LastSetStViewFailure = [pscustomobject]$failure
         Write-Warning ("Failed to load {0}.xaml: {1}" -f $ViewName, $_.Exception.Message)
@@ -96,8 +96,8 @@ function New-StDebounceTimer {
     $timer.Interval = [TimeSpan]::FromMilliseconds([Math]::Max(0, $DelayMs))
     $timer.add_Tick({
         param($sender, $args)
-        try { $sender.Stop() } catch { }
-        try { & $Action } catch { }
+        try { $sender.Stop() } catch { Write-Verbose "Caught exception in ViewCompositionModule.psm1: $($_.Exception.Message)" }
+        try { & $Action } catch { Write-Verbose "Caught exception in ViewCompositionModule.psm1: $($_.Exception.Message)" }
     }.GetNewClosure())
 
     return $timer
@@ -113,7 +113,7 @@ function Test-ViewCompositionDialogSuppression {
     $globalSetting = $null
     try { $globalSetting = Get-Variable -Name StateTraceSuppressDialogs -Scope Global -ErrorAction SilentlyContinue } catch { $globalSetting = $null }
     if ($globalSetting -and $null -ne $globalSetting.Value) {
-        try { if ([bool]$globalSetting.Value) { return $true } } catch { }
+        try { if ([bool]$globalSetting.Value) { return $true } } catch { Write-Verbose "Caught exception in ViewCompositionModule.psm1: $($_.Exception.Message)" }
     }
 
     $envValue = $env:STATETRACE_SUPPRESS_DIALOGS
@@ -121,7 +121,7 @@ function Test-ViewCompositionDialogSuppression {
         if ($envValue -match '^(1|true|yes)$') { return $true }
     }
 
-    try { if (-not [System.Environment]::UserInteractive) { return $true } } catch { }
+    try { if (-not [System.Environment]::UserInteractive) { return $true } } catch { Write-Verbose "Caught exception in ViewCompositionModule.psm1: $($_.Exception.Message)" }
 
     return $false
 }
@@ -175,7 +175,7 @@ function Export-StRowsToCsv {
     }
 
     if (-not $rowArray -or $rowArray.Count -eq 0) {
-        try { Show-ViewCompositionMessage -Message $EmptyMessage -SuppressDialogs:$SuppressDialogs } catch { }
+        try { Show-ViewCompositionMessage -Message $EmptyMessage -SuppressDialogs:$SuppressDialogs } catch { Write-Verbose "Caught exception in ViewCompositionModule.psm1: $($_.Exception.Message)" }
         return
     }
 
@@ -191,7 +191,7 @@ function Export-StRowsToCsv {
             $dlg.AddExtension = $true
         }
     } catch {
-        try { Show-ViewCompositionMessage -Message ("Failed to open save dialog: {0}" -f $_.Exception.Message) -Severity Warning -SuppressDialogs:$SuppressDialogs } catch { }
+        try { Show-ViewCompositionMessage -Message ("Failed to open save dialog: {0}" -f $_.Exception.Message) -Severity Warning -SuppressDialogs:$SuppressDialogs } catch { Write-Verbose "Caught exception in ViewCompositionModule.psm1: $($_.Exception.Message)" }
         return
     }
 
@@ -217,7 +217,7 @@ function Export-StRowsToCsv {
     } catch {
         $prefix = $FailureMessagePrefix
         if ([string]::IsNullOrWhiteSpace($prefix)) { $prefix = 'Failed to export' }
-        try { Show-ViewCompositionMessage -Message ("{0}: {1}" -f $prefix, $_.Exception.Message) -Severity Warning -SuppressDialogs:$SuppressDialogs } catch { }
+        try { Show-ViewCompositionMessage -Message ("{0}: {1}" -f $prefix, $_.Exception.Message) -Severity Warning -SuppressDialogs:$SuppressDialogs } catch { Write-Verbose "Caught exception in ViewCompositionModule.psm1: $($_.Exception.Message)" }
     }
 }
 
@@ -234,7 +234,7 @@ function Export-StTextToFile {
     )
 
     if ([string]::IsNullOrWhiteSpace($Text)) {
-        try { Show-ViewCompositionMessage -Message $EmptyMessage -SuppressDialogs:$SuppressDialogs } catch { }
+        try { Show-ViewCompositionMessage -Message $EmptyMessage -SuppressDialogs:$SuppressDialogs } catch { Write-Verbose "Caught exception in ViewCompositionModule.psm1: $($_.Exception.Message)" }
         return
     }
 
@@ -250,7 +250,7 @@ function Export-StTextToFile {
             $dlg.AddExtension = $true
         }
     } catch {
-        try { Show-ViewCompositionMessage -Message ("Failed to open save dialog: {0}" -f $_.Exception.Message) -Severity Warning -SuppressDialogs:$SuppressDialogs } catch { }
+        try { Show-ViewCompositionMessage -Message ("Failed to open save dialog: {0}" -f $_.Exception.Message) -Severity Warning -SuppressDialogs:$SuppressDialogs } catch { Write-Verbose "Caught exception in ViewCompositionModule.psm1: $($_.Exception.Message)" }
         return
     }
 
@@ -277,7 +277,7 @@ function Export-StTextToFile {
     } catch {
         $prefix = $FailureMessagePrefix
         if ([string]::IsNullOrWhiteSpace($prefix)) { $prefix = 'Failed to save' }
-        try { Show-ViewCompositionMessage -Message ("{0}: {1}" -f $prefix, $_.Exception.Message) -Severity Warning -SuppressDialogs:$SuppressDialogs } catch { }
+        try { Show-ViewCompositionMessage -Message ("{0}: {1}" -f $prefix, $_.Exception.Message) -Severity Warning -SuppressDialogs:$SuppressDialogs } catch { Write-Verbose "Caught exception in ViewCompositionModule.psm1: $($_.Exception.Message)" }
     }
 }
 
@@ -302,7 +302,7 @@ function Export-StRowsToJson {
     }
 
     if (-not $rowArray -or $rowArray.Count -eq 0) {
-        try { Show-ViewCompositionMessage -Message $EmptyMessage -SuppressDialogs:$SuppressDialogs } catch { }
+        try { Show-ViewCompositionMessage -Message $EmptyMessage -SuppressDialogs:$SuppressDialogs } catch { Write-Verbose "Caught exception in ViewCompositionModule.psm1: $($_.Exception.Message)" }
         return
     }
 
@@ -318,7 +318,7 @@ function Export-StRowsToJson {
             $dlg.AddExtension = $true
         }
     } catch {
-        try { Show-ViewCompositionMessage -Message ("Failed to open save dialog: {0}" -f $_.Exception.Message) -Severity Warning -SuppressDialogs:$SuppressDialogs } catch { }
+        try { Show-ViewCompositionMessage -Message ("Failed to open save dialog: {0}" -f $_.Exception.Message) -Severity Warning -SuppressDialogs:$SuppressDialogs } catch { Write-Verbose "Caught exception in ViewCompositionModule.psm1: $($_.Exception.Message)" }
         return
     }
 
@@ -345,7 +345,7 @@ function Export-StRowsToJson {
     } catch {
         $prefix = $FailureMessagePrefix
         if ([string]::IsNullOrWhiteSpace($prefix)) { $prefix = 'Failed to export' }
-        try { Show-ViewCompositionMessage -Message ("{0}: {1}" -f $prefix, $_.Exception.Message) -Severity Warning -SuppressDialogs:$SuppressDialogs } catch { }
+        try { Show-ViewCompositionMessage -Message ("{0}: {1}" -f $prefix, $_.Exception.Message) -Severity Warning -SuppressDialogs:$SuppressDialogs } catch { Write-Verbose "Caught exception in ViewCompositionModule.psm1: $($_.Exception.Message)" }
     }
 }
 
@@ -373,7 +373,7 @@ function Export-StRowsWithFormatChoice {
     }
 
     if (-not $rowArray -or $rowArray.Count -eq 0) {
-        try { Show-ViewCompositionMessage -Message $EmptyMessage -SuppressDialogs:$SuppressDialogs } catch { }
+        try { Show-ViewCompositionMessage -Message $EmptyMessage -SuppressDialogs:$SuppressDialogs } catch { Write-Verbose "Caught exception in ViewCompositionModule.psm1: $($_.Exception.Message)" }
         return
     }
 
@@ -393,7 +393,7 @@ function Export-StRowsWithFormatChoice {
                     $settings = Get-Content $settingsPath -Raw | ConvertFrom-Json
                     if ($settings.LastExportFormat) { $lastFormat = $settings.LastExportFormat }
                 }
-            } catch { }
+            } catch { Write-Verbose "Caught exception in ViewCompositionModule.psm1: $($_.Exception.Message)" }
 
             # Set dialog defaults based on last format
             if ($lastFormat -eq 'json') {
@@ -408,7 +408,7 @@ function Export-StRowsWithFormatChoice {
             $dlg.AddExtension = $true
         }
     } catch {
-        try { Show-ViewCompositionMessage -Message ("Failed to open save dialog: {0}" -f $_.Exception.Message) -Severity Warning -SuppressDialogs:$SuppressDialogs } catch { }
+        try { Show-ViewCompositionMessage -Message ("Failed to open save dialog: {0}" -f $_.Exception.Message) -Severity Warning -SuppressDialogs:$SuppressDialogs } catch { Write-Verbose "Caught exception in ViewCompositionModule.psm1: $($_.Exception.Message)" }
         return
     }
 
@@ -451,14 +451,14 @@ function Export-StRowsWithFormatChoice {
             }
             $settings['LastExportFormat'] = $chosenFormat
             $settings | ConvertTo-Json -Depth 5 | Set-Content $settingsPath -Encoding UTF8
-        } catch { }
+        } catch { Write-Verbose "Caught exception in ViewCompositionModule.psm1: $($_.Exception.Message)" }
 
         $msg = "Exported {0} {1} to {2}" -f $rowArray.Count, $SuccessNoun, $path
         Show-ViewCompositionMessage -Message $msg -Title $SuccessTitle -SuppressDialogs:$SuppressDialogs
     } catch {
         $prefix = $FailureMessagePrefix
         if ([string]::IsNullOrWhiteSpace($prefix)) { $prefix = 'Failed to export' }
-        try { Show-ViewCompositionMessage -Message ("{0}: {1}" -f $prefix, $_.Exception.Message) -Severity Warning -SuppressDialogs:$SuppressDialogs } catch { }
+        try { Show-ViewCompositionMessage -Message ("{0}: {1}" -f $prefix, $_.Exception.Message) -Severity Warning -SuppressDialogs:$SuppressDialogs } catch { Write-Verbose "Caught exception in ViewCompositionModule.psm1: $($_.Exception.Message)" }
     }
 }
 

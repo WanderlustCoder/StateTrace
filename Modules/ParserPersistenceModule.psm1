@@ -105,7 +105,7 @@ function Set-InterfaceBulkChunkSize {
 
     try {
         DeviceRepositoryModule\Set-InterfacePortStreamChunkSize -ChunkSize $targetSize | Out-Null
-    } catch { }
+    } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
 
     return $script:InterfaceBulkChunkSizeCurrent
 }
@@ -166,7 +166,7 @@ if ($script:SiteExistingRowCache -isnot [System.Collections.Concurrent.Concurren
     $script:SiteExistingRowCache = [System.Collections.Concurrent.ConcurrentDictionary[string, object]]::new([System.StringComparer]::OrdinalIgnoreCase)
 }
 
-try { [StateTrace.Parser.SiteExistingRowCacheHolder]::SetStore($script:SiteExistingRowCache) } catch { }
+try { [StateTrace.Parser.SiteExistingRowCacheHolder]::SetStore($script:SiteExistingRowCache) } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
 
 if (-not (Get-Variable -Name SiteExistingRowCacheSnapshotLoaded -Scope Script -ErrorAction SilentlyContinue)) {
     $script:SiteExistingRowCacheSnapshotLoaded = $false
@@ -185,7 +185,7 @@ function Clear-SiteExistingRowCache {
         $script:SiteExistingRowCache = [StateTrace.Parser.SiteExistingRowCacheHolder]::GetStore()
     } catch {
         $script:SiteExistingRowCache = [System.Collections.Concurrent.ConcurrentDictionary[string, object]]::new([System.StringComparer]::OrdinalIgnoreCase)
-        try { [StateTrace.Parser.SiteExistingRowCacheHolder]::SetStore($script:SiteExistingRowCache) } catch { }
+        try { [StateTrace.Parser.SiteExistingRowCacheHolder]::SetStore($script:SiteExistingRowCache) } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
     }
 
     $script:SiteExistingRowCacheSnapshotLoaded = $false
@@ -462,9 +462,9 @@ function Set-SiteExistingRowCacheSnapshot {
         if ($siteEntry.PSObject.Properties.Name -contains 'PrimedEntries') {
             $siteEntry.PrimedEntries[$normalizedHostname] = Copy-SiteExistingRowCacheHostEntry -Entry $hostSnapshot
         }
-        try { $siteEntry.Hydrated = $true } catch { }
-        try { $siteEntry.Source = 'Snapshot' } catch { }
-        try { $siteEntry.CachedAt = [DateTime]::UtcNow } catch { }
+        try { $siteEntry.Hydrated = $true } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
+        try { $siteEntry.Source = 'Snapshot' } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
+        try { $siteEntry.CachedAt = [DateTime]::UtcNow } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
     }
 
     $script:SiteExistingRowCacheSnapshotLoaded = $true
@@ -544,17 +544,17 @@ function Write-SiteExistingRowCacheTelemetry {
             foreach ($entryKeyCandidate in $Entries.Keys) {
                 if ($hostSamples.Count -ge 5) { break }
                 if ($null -eq $entryKeyCandidate) { continue }
-                try { $hostSamples.Add(('' + $entryKeyCandidate)) | Out-Null } catch { }
+                try { $hostSamples.Add(('' + $entryKeyCandidate)) | Out-Null } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
             }
             if ($hostSamples.Count -gt 0) {
                 $payload['SiteHostEntriesSample'] = $hostSamples.ToArray()
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
     }
 
     try {
         TelemetryModule\Write-StTelemetryEvent -Name 'SiteExistingRowCacheState' -Payload $payload
-    } catch { }
+    } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
 }
 
 function Get-InterfaceSignatureFromValues {
@@ -621,7 +621,7 @@ function Test-IsAdodbConnection {
         foreach ($name in $Connection.PSObject.TypeNames) {
             if ($name -eq 'ADODB.Connection') { return $true }
         }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
     return $false
 }
 
@@ -659,7 +659,7 @@ function Get-AdodbConnectionDatabaseKey {
         return $connectionString.Trim()
     }
 
-    try { $pathValue = [System.IO.Path]::GetFullPath($pathValue) } catch { }
+    try { $pathValue = [System.IO.Path]::GetFullPath($pathValue) } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
 
     if ([string]::IsNullOrWhiteSpace($pathValue)) {
         return $connectionString.Trim()
@@ -683,16 +683,16 @@ function Add-AdodbDisposeMethod {
                 Add-Member -InputObject $ComObject -MemberType ScriptMethod -Name Dispose -Value {
                     try {
                         if ($this.State -ne 0) { $this.Close() }
-                    } catch { }
-                    try { TelemetryModule\Remove-ComObjectSafe -ComObject $this } catch { }
+                    } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
+                    try { TelemetryModule\Remove-ComObjectSafe -ComObject $this } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
                 } -Force
             } else {
                 Add-Member -InputObject $ComObject -MemberType ScriptMethod -Name Dispose -Value {
-                    try { TelemetryModule\Remove-ComObjectSafe -ComObject $this } catch { }
+                    try { TelemetryModule\Remove-ComObjectSafe -ComObject $this } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
                 } -Force
             }
         }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
 }
 
 function Invoke-AdodbDispose {
@@ -713,7 +713,7 @@ function Invoke-AdodbDispose {
     } catch {
         $target = if ($Label) { $Label } else { 'ADODB object' }
         Write-Warning ("Failed to dispose {0}: {1}" -f $target, $_.Exception.Message)
-        try { TelemetryModule\Remove-ComObjectSafe -ComObject $ComObject } catch { }
+        try { TelemetryModule\Remove-ComObjectSafe -ComObject $ComObject } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
     }
 }
 
@@ -758,9 +758,9 @@ function New-AdodbInterfaceSeedRecordset {
 
     $opened = $false
     try {
-        try { $recordset.CursorLocation = $script:AdUseClient } catch { }
-        try { $recordset.CursorType = $script:AdOpenStatic } catch { }
-        try { $recordset.LockType = $script:AdLockBatchOptimistic } catch { }
+        try { $recordset.CursorLocation = $script:AdUseClient } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
+        try { $recordset.CursorType = $script:AdOpenStatic } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
+        try { $recordset.LockType = $script:AdLockBatchOptimistic } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
 
         $recordset.ActiveConnection = $Connection
         $recordset.Source = 'SELECT BatchId, Hostname, RunDateText, RunDate, Port, Name, Status, VLAN, Duplex, Speed, Type, LearnedMACs, AuthState, AuthMode, AuthClientMAC, AuthTemplate, Config, PortColor, ConfigStatus, ToolTip FROM InterfaceBulkSeed WHERE 1=0'
@@ -770,7 +770,7 @@ function New-AdodbInterfaceSeedRecordset {
         return $recordset
     } catch {
         if ($opened -and $recordset -and $recordset.State -ne 0) {
-            try { $recordset.Close() } catch { }
+            try { $recordset.Close() } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
         }
         Invoke-AdodbDispose -ComObject $recordset -Label 'interface seed recordset'
         return $null
@@ -1097,11 +1097,11 @@ function ConvertTo-DbDateTime {
     foreach ($fmt in $formats) {
         try {
             return [DateTime]::ParseExact($RunDateString, $fmt, [System.Globalization.CultureInfo]::InvariantCulture, [System.Globalization.DateTimeStyles]::AssumeLocal)
-        } catch { }
+        } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
     }
 
-    try { return [DateTime]::Parse($RunDateString, [System.Globalization.CultureInfo]::InvariantCulture) } catch { }
-    try { return [DateTime]::Parse($RunDateString) } catch { }
+    try { return [DateTime]::Parse($RunDateString, [System.Globalization.CultureInfo]::InvariantCulture) } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
+    try { return [DateTime]::Parse($RunDateString) } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
 
     return $null
 }
@@ -1209,7 +1209,7 @@ function Update-DeviceSummaryInDb {
     if ($runDateValue) {
         try {
             $runDateLiteral = "#$($runDateValue.ToString('yyyy-MM-dd HH:mm:ss', [System.Globalization.CultureInfo]::InvariantCulture))#"
-        } catch { }
+        } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
     }
     $histSql = "INSERT INTO DeviceHistory (Hostname, RunDate, Make, Model, Uptime, Site, Building, Room, Ports, AuthDefaultVLAN, AuthBlock) VALUES ('$escHostname', $runDateLiteral, '$escMake', '$escModel', '$escUptime', '$escSite', '$escBuilding', '$escRoom', $portCount, '$escAuthVlan', '$escAuthBlock')"
     try {
@@ -1288,7 +1288,7 @@ function Update-InterfacesInDb {
                 $skipSiteCacheUpdateFlag = $true
             }
         }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
     $skipSiteCacheUpdateSetting = ($skipSiteCacheUpdateFromParameter -or $skipSiteCacheUpdateFlag -or $skipSiteCacheUpdateFromEnvironment)
 
     $forceSiteCacheRefresh = $false
@@ -1311,7 +1311,7 @@ function Update-InterfacesInDb {
                 $forceSiteCacheRefresh = $true
             }
         }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
 
     $existingRows = $null
     $normalizedHostname = ('' + $Hostname).Trim()
@@ -1335,7 +1335,7 @@ function Update-InterfacesInDb {
             if ($siteCandidate) {
                 $siteCodeValue = ('' + $siteCandidate).Trim()
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
     }
 
     $siteExistingCacheEntry = $null
@@ -1352,7 +1352,7 @@ function Update-InterfacesInDb {
             $siteExistingCacheEntry = $null
         }
         if ($siteExistingCacheEntry) {
-            try { Import-SiteExistingRowCachePrimedHosts -SiteEntry $siteExistingCacheEntry | Out-Null } catch { }
+            try { Import-SiteExistingRowCachePrimedHosts -SiteEntry $siteExistingCacheEntry | Out-Null } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
             if ($siteExistingCacheEntry.PSObject.Properties.Name -contains 'Entries') {
                 $siteExistingCacheEntries = $siteExistingCacheEntry.Entries
             }
@@ -1367,9 +1367,9 @@ function Update-InterfacesInDb {
                 $siteExistingCacheEntries = $siteExistingCacheEntry.Entries
             }
             if ($siteExistingCacheEntry) {
-                try { Import-SiteExistingRowCachePrimedHosts -SiteEntry $siteExistingCacheEntry | Out-Null } catch { }
+                try { Import-SiteExistingRowCachePrimedHosts -SiteEntry $siteExistingCacheEntry | Out-Null } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
     }
 
     if ($siteExistingCacheEntries -and $siteExistingCacheEntries.ContainsKey($normalizedHostname)) {
@@ -1390,7 +1390,7 @@ function Update-InterfacesInDb {
                 } else {
                     try { $siteExistingCacheHostEntry = Import-SiteExistingRowCacheHostFromPrimedData -SiteEntry $siteExistingCacheEntry -Hostname $normalizedHostname } catch { $siteExistingCacheHostEntry = $null }
                 }
-            } catch { }
+            } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
         }
     }
 
@@ -1544,7 +1544,7 @@ $siteCacheTemplateDurationMs = 0.0
             LoadCacheMiss  = [bool]$LoadCacheMiss
         }
 
-        try { TelemetryModule\Write-StTelemetryEvent -Name 'SharedCacheDebug' -Payload $payload } catch { }
+        try { TelemetryModule\Write-StTelemetryEvent -Name 'SharedCacheDebug' -Payload $payload } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
     }
 
     $getSharedCacheDebugStats = {
@@ -1577,7 +1577,7 @@ $siteCacheTemplateDurationMs = 0.0
                 if ($debugTotalRows -le 0 -and $candidate.PSObject.Properties.Name -contains 'HostMap' -and $candidate.HostMap -is [System.Collections.IDictionary]) {
                     foreach ($hostEntry in @($candidate.HostMap.Values)) {
                         if ($hostEntry -is [System.Collections.IDictionary]) {
-                            try { $debugTotalRows += [int]$hostEntry.Count } catch { }
+                            try { $debugTotalRows += [int]$hostEntry.Count } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
                         }
                     }
                 }
@@ -1776,7 +1776,7 @@ $siteCacheTemplateDurationMs = 0.0
                 $context.CachedAtText = '' + $rawCachedAt
                 try {
                     $context.CachedAt = [datetime]$rawCachedAt
-                } catch { }
+                } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
             }
         }
 
@@ -1826,7 +1826,7 @@ $siteCacheTemplateDurationMs = 0.0
         $containsKeyMethod = $null
         try {
             $containsKeyMethod = $hostMap.PSObject.Methods['ContainsKey']
-        } catch { }
+        } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
 
         if ($containsKeyMethod) {
             try {
@@ -1899,7 +1899,7 @@ $siteCacheTemplateDurationMs = 0.0
             if ($siteCacheResolveContext.ContainsKey('Refresh')) {
                 $siteCacheResolveContext['Refresh']['Status'] = 'Disabled'
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
     }
 
     if ($siteCodeValue) {
@@ -1926,7 +1926,7 @@ $siteCacheTemplateDurationMs = 0.0
                             foreach ($sharedHostEntry in $sharedHostMap.GetEnumerator()) {
                                 $sharedPorts = $sharedHostEntry.Value
                                 if ($sharedPorts -is [System.Collections.IDictionary] -or $sharedPorts -is [System.Collections.ICollection]) {
-                                    try { $sharedTotalRows += [int]$sharedPorts.Count } catch { }
+                                    try { $sharedTotalRows += [int]$sharedPorts.Count } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
                                 }
                             }
                         }
@@ -1958,7 +1958,7 @@ $siteCacheTemplateDurationMs = 0.0
                             $siteCacheResolveContext['Refresh']['Status'] = 'SharedStoreSeed'
                             $siteCacheResolveContext['Refresh']['HostCount'] = $sharedHostCount
                         }
-                    } catch { }
+                    } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
                     if ($sharedCacheDebugEnabled) {
                         & $emitSharedCacheDebug 'Summary' 'SharedSummaryPrimed' $sharedHostCount $sharedTotalRows $sharedCacheStatus ''
                     }
@@ -1972,13 +1972,13 @@ $siteCacheTemplateDurationMs = 0.0
                         if ($siteCacheResolveContext.ContainsKey('Refresh')) {
                             $siteCacheResolveContext['Refresh']['Status'] = 'SkippedEmpty'
                         }
-                    } catch { }
+                    } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
                     if ($sharedCacheDebugEnabled) {
                         & $emitSharedCacheDebug 'Summary' 'SharedSummaryEmpty' $sharedHostCount $sharedTotalRows $sharedCacheStatus ''
                     }
                 }
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
     }
 
     $resolveSharedHostEntry = {
@@ -2015,14 +2015,14 @@ $siteCacheTemplateDurationMs = 0.0
                 if ($sharedSiteCacheEntry.PSObject.Properties.Name -contains 'TotalRows' -and $debugRowCount -eq 0) {
                     $debugRowCount = [int]$sharedSiteCacheEntry.TotalRows
                 }
-            } catch { }
+            } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
             Write-Host ("[SharedCacheDebug] Shared entry for site '{0}' -> hosts={1}, rows={2}, CacheStatus={3}" -f $siteCodeValue, $debugHostCount, $debugRowCount, $sharedSiteCacheEntry.CacheStatus) -ForegroundColor DarkCyan
             & $emitSharedCacheDebug $stage 'EntryAvailable' $debugHostCount $debugRowCount ('' + $sharedSiteCacheEntry.CacheStatus) $normalizedHostname
         }
 
         try {
             $sharedHostMap = $null
-            try { $sharedHostMap = $sharedSiteCacheEntry.HostMap } catch { }
+            try { $sharedHostMap = $sharedSiteCacheEntry.HostMap } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
             $sharedHostCount = 0
             $sharedTotalRows = 0
             if ($sharedHostMap -is [System.Collections.IDictionary]) {
@@ -2030,14 +2030,14 @@ $siteCacheTemplateDurationMs = 0.0
                 foreach ($sharedHostEntry in @($sharedHostMap.GetEnumerator())) {
                     $sharedPorts = $sharedHostEntry.Value
                     if ($sharedPorts -is [System.Collections.IDictionary]) {
-                        try { $sharedTotalRows += [int]$sharedPorts.Count } catch { }
+                        try { $sharedTotalRows += [int]$sharedPorts.Count } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
                     }
                 }
             } elseif ($sharedSiteCacheEntry.PSObject.Properties.Name -contains 'HostCount') {
                 try { $sharedHostCount = [int]$sharedSiteCacheEntry.HostCount } catch { $sharedHostCount = 0 }
             }
             if ($sharedSiteCacheEntry.PSObject.Properties.Name -contains 'TotalRows' -and $sharedTotalRows -eq 0) {
-                try { $sharedTotalRows = [int]$sharedSiteCacheEntry.TotalRows } catch { }
+                try { $sharedTotalRows = [int]$sharedSiteCacheEntry.TotalRows } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
             }
             if ($sharedHostCount -gt 0 -and $sharedTotalRows -gt 0) {
                 $skipSiteCacheHydration = $false
@@ -2045,7 +2045,7 @@ $siteCacheTemplateDurationMs = 0.0
                     $siteCacheFetchStatus = $sharedCacheHitStatus
                 }
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
 
         $sharedHostEntry = & $resolveCachedHost $sharedSiteCacheEntry $stage
         if (-not $sharedHostEntry) {
@@ -2096,7 +2096,7 @@ $siteCacheTemplateDurationMs = 0.0
                     }
                 }
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
 
         return $sharedHostEntry
     }
@@ -2404,7 +2404,7 @@ $siteCacheTemplateDurationMs = 0.0
                     $siteCacheResultRowCount = [int]$lastSiteCacheMetrics.ResultRowCount
                 }
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
     }
 
     if ($siteCacheHitSource -eq 'Shared') {
@@ -2503,7 +2503,7 @@ $siteCacheTemplateDurationMs = 0.0
             $result.Rows = @{}
         } finally {
             if ($recordsetLocal) {
-                try { $recordsetLocal.Close() } catch { }
+                try { $recordsetLocal.Close() } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
                 TelemetryModule\Remove-ComObjectSafe -ComObject $recordsetLocal
             }
         }
@@ -2553,9 +2553,9 @@ $siteCacheTemplateDurationMs = 0.0
                         Rows                    = $existingRows
                         LoadSignatureDurationMs = $queryResult.LoadSignatureDurationMs
                     })
-                try { $siteExistingCacheHostEntry.Hydrated = $true } catch { }
-                try { $siteExistingCacheHostEntry.CachedAt = [DateTime]::UtcNow } catch { }
-                try { $siteExistingCacheHostEntry.Source = 'DatabaseQuery' } catch { }
+                try { $siteExistingCacheHostEntry.Hydrated = $true } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
+                try { $siteExistingCacheHostEntry.CachedAt = [DateTime]::UtcNow } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
+                try { $siteExistingCacheHostEntry.Source = 'DatabaseQuery' } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
                 $siteExistingCacheEntries[$normalizedHostname] = $siteExistingCacheHostEntry
                 if ($siteExistingCacheEntry -and $siteExistingCacheEntry.PSObject.Properties.Name -contains 'PrimedEntries') {
                     $siteExistingCacheEntry.PrimedEntries[$normalizedHostname] = Copy-SiteExistingRowCacheHostEntry -Entry $siteExistingCacheHostEntry
@@ -2575,7 +2575,7 @@ $siteCacheTemplateDurationMs = 0.0
             foreach ($existingKeyCandidate in $existingRows.Keys) {
                 if ($existingKeySamples.Count -ge 5) { break }
                 if ($null -eq $existingKeyCandidate) { continue }
-                try { $existingKeySamples.Add(('' + $existingKeyCandidate)) | Out-Null } catch { }
+                try { $existingKeySamples.Add(('' + $existingKeyCandidate)) | Out-Null } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
             }
             if ($existingKeySamples.Count -gt 0) {
                 $siteCacheExistingRowKeysSample = [string]::Join('|', $existingKeySamples.ToArray())
@@ -2655,7 +2655,7 @@ $siteCacheTemplateDurationMs = 0.0
     if ($runDateValue) {
         try {
             $runDateLiteral = "#$($runDateValue.ToString('yyyy-MM-dd HH:mm:ss', [System.Globalization.CultureInfo]::InvariantCulture))#"
-        } catch { }
+        } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
     }
     $useAdodbParameters = $runDateValue -and (Test-IsAdodbConnection -Connection $Connection)
 
@@ -3196,7 +3196,7 @@ $siteCacheTemplateDurationMs = 0.0
             try {
                 $siteCandidate = DeviceRepositoryModule\Get-SiteFromHostname -Hostname $Hostname
                 if ($siteCandidate) { $siteCodeValue = ('' + $siteCandidate).Trim() }
-            } catch { }
+            } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
         }
         TelemetryModule\Write-StTelemetryEvent -Name 'RowsWritten' -Payload @{
             Hostname   = $Hostname
@@ -3238,7 +3238,7 @@ $siteCacheTemplateDurationMs = 0.0
 
         if ($shouldUpdateSiteCache) {
             $siteCacheStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
-            try { DeviceRepositoryModule\Set-InterfaceSiteCacheHost -Site $siteCodeValue -Hostname $normalizedHostname -RowsByPort $finalHostRows } catch { }
+            try { DeviceRepositoryModule\Set-InterfaceSiteCacheHost -Site $siteCodeValue -Hostname $normalizedHostname -RowsByPort $finalHostRows } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
             $siteCacheStopwatch.Stop()
             $siteCacheUpdateDurationMs = [Math]::Round($siteCacheStopwatch.Elapsed.TotalMilliseconds, 3)
         }
@@ -3410,7 +3410,7 @@ $siteCacheTemplateDurationMs = 0.0
                 try {
                     $initialAge = (Get-Date) - $initialContext.CachedAt
                     $siteCacheResolveInitialCacheAgeMs = [Math]::Round($initialAge.TotalMilliseconds, 3)
-                } catch { }
+                } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
             }
         }
     }
@@ -3445,7 +3445,7 @@ $siteCacheTemplateDurationMs = 0.0
                 try {
                     $refreshAge = (Get-Date) - $refreshContext.CachedAt
                     $siteCacheResolveRefreshCacheAgeMs = [Math]::Round($refreshAge.TotalMilliseconds, 3)
-                } catch { }
+                } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
             }
         }
     }
@@ -3464,7 +3464,7 @@ $siteCacheTemplateDurationMs = 0.0
             $targetPsObject = $null
             try { $targetPsObject = $targetSample.PSObject } catch { $targetPsObject = $null }
             if ($targetPsObject) {
-                try { Add-Member -InputObject $targetSample -MemberType NoteProperty -Name $propertyName -Value $propertyValue -Force } catch { }
+                try { Add-Member -InputObject $targetSample -MemberType NoteProperty -Name $propertyName -Value $propertyValue -Force } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
             }
         }
 
@@ -3645,7 +3645,7 @@ $siteCacheTemplateDurationMs = 0.0
 
     TelemetryModule\Write-StTelemetryEvent -Name 'InterfaceSyncTiming' -Payload $interfaceSyncTelemetryPayload
     $script:LastInterfaceSyncTelemetry = [pscustomobject]$interfaceSyncTelemetryPayload
-    } catch { }
+    } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
 }
 
 
@@ -3679,7 +3679,7 @@ function Ensure-InterfaceBulkSeedTable {
             $seedCheckRecordset = $Connection.Execute('SELECT TOP 1 BatchId FROM InterfaceBulkSeed')
         } finally {
             if ($seedCheckRecordset) {
-                try { $seedCheckRecordset.Close() } catch { }
+                try { $seedCheckRecordset.Close() } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
                 TelemetryModule\Remove-ComObjectSafe -ComObject $seedCheckRecordset
             }
         }
@@ -3691,14 +3691,14 @@ function Ensure-InterfaceBulkSeedTable {
                 $runDateCheckRecordset = $Connection.Execute('SELECT TOP 1 RunDate FROM InterfaceBulkSeed')
             } finally {
                 if ($runDateCheckRecordset) {
-                    try { $runDateCheckRecordset.Close() } catch { }
+                    try { $runDateCheckRecordset.Close() } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
                     TelemetryModule\Remove-ComObjectSafe -ComObject $runDateCheckRecordset
                 }
             }
         } catch {
             try {
                 Invoke-AdodbNonQuery -Connection $Connection -CommandText 'ALTER TABLE InterfaceBulkSeed ADD COLUMN RunDate DATETIME' | Out-Null
-            } catch { }
+            } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
         }
 
         if (-not [string]::IsNullOrWhiteSpace($databaseKey) -and $script:InterfaceBulkSeedTableEnsuredByDb) {
@@ -3760,7 +3760,7 @@ CREATE TABLE InterfaceBulkSeed (
 
             Invoke-AdodbNonQuery -Connection $Connection -CommandText $createSql | Out-Null
 
-            try { Invoke-AdodbNonQuery -Connection $Connection -CommandText 'CREATE INDEX IX_InterfaceBulkSeed_BatchId ON InterfaceBulkSeed (BatchId)' | Out-Null } catch { }
+            try { Invoke-AdodbNonQuery -Connection $Connection -CommandText 'CREATE INDEX IX_InterfaceBulkSeed_BatchId ON InterfaceBulkSeed (BatchId)' | Out-Null } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
 
             if (-not [string]::IsNullOrWhiteSpace($databaseKey) -and $script:InterfaceBulkSeedTableEnsuredByDb) {
                 $script:InterfaceBulkSeedTableEnsuredByDb[$databaseKey] = $true
@@ -3800,7 +3800,7 @@ function Invoke-InterfaceBulkInsertInternal {
         $importInterfaceCommonCmd = $null
         try { $importInterfaceCommonCmd = Get-Command -Name 'TelemetryModule\Import-InterfaceCommon' -ErrorAction SilentlyContinue } catch { $importInterfaceCommonCmd = $null }
         if ($importInterfaceCommonCmd) {
-            try { TelemetryModule\Import-InterfaceCommon | Out-Null } catch { }
+            try { TelemetryModule\Import-InterfaceCommon | Out-Null } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
         }
 
         try { $setPortRowDefaultsCmd = Get-Command -Name 'InterfaceCommon\Set-PortRowDefaults' -ErrorAction SilentlyContinue } catch { $setPortRowDefaultsCmd = $null }
@@ -3811,7 +3811,7 @@ function Invoke-InterfaceBulkInsertInternal {
                 if (Test-Path -LiteralPath $interfaceCommonPath) {
                     Import-Module -Name $interfaceCommonPath -Force -Global -ErrorAction Stop | Out-Null
                 }
-            } catch { }
+            } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
             try { $setPortRowDefaultsCmd = Get-Command -Name 'InterfaceCommon\Set-PortRowDefaults' -ErrorAction SilentlyContinue } catch { $setPortRowDefaultsCmd = $null }
         }
     }
@@ -3914,7 +3914,7 @@ function Invoke-InterfaceBulkInsertInternal {
         if ($null -eq $row) { return $null }
 
         if ($convertToPortPsObjectCmd) {
-            try { return DeviceRepositoryModule\ConvertTo-PortPsObject -Row $row -Hostname $Hostname -EnsureHostname -EnsureIsSelected } catch { }
+            try { return DeviceRepositoryModule\ConvertTo-PortPsObject -Row $row -Hostname $Hostname -EnsureHostname -EnsureIsSelected } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
         }
 
         $clone = $null
@@ -3937,7 +3937,7 @@ function Invoke-InterfaceBulkInsertInternal {
         }
 
         if ($setPortRowDefaultsCmd) {
-            try { & $setPortRowDefaultsCmd -Row $clone -Hostname $Hostname | Out-Null } catch { }
+            try { & $setPortRowDefaultsCmd -Row $clone -Hostname $Hostname | Out-Null } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
         }
         return $clone
     }
@@ -4011,7 +4011,7 @@ function Invoke-InterfaceBulkInsertInternal {
         try {
             $clone = & $convertUiRow $row
             if ($clone) { $uiRows.Add($clone) | Out-Null }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
     }
     $uiCloneStopwatch.Stop()
     $uiCloneDurationMs = [Math]::Round($uiCloneStopwatch.Elapsed.TotalMilliseconds, 3)
@@ -4042,7 +4042,7 @@ function Invoke-InterfaceBulkInsertInternal {
             $cleanupStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         }
 
-        try { Invoke-AdodbNonQuery -Connection $Connection -CommandText $cleanupSql | Out-Null } catch { }
+        try { Invoke-AdodbNonQuery -Connection $Connection -CommandText $cleanupSql | Out-Null } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
 
         if ($cleanupStopwatch) {
             $cleanupStopwatch.Stop()
@@ -4094,7 +4094,7 @@ function Invoke-InterfaceBulkInsertInternal {
             $stagedCount = 0
             $parameterBindDurationMs = 0.0
             $commandExecuteDurationMs = 0.0
-            try { $seedRecordset.CancelUpdate() } catch { }
+            try { $seedRecordset.CancelUpdate() } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
             & $invokeCleanup
         } finally {
             $stageStopwatch.Stop()
@@ -4103,7 +4103,7 @@ function Invoke-InterfaceBulkInsertInternal {
             }
             try {
                 if ($seedRecordset.State -ne 0) { $seedRecordset.Close() }      
-            } catch { }
+            } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
             Invoke-AdodbDispose -ComObject $seedRecordset -Label 'interface seed recordset'
         }
     }
@@ -4323,7 +4323,7 @@ WHERE Seed.BatchId = '$escBatch' AND Seed.Hostname = '$escHostname'"
         try {
             $streamStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
             DeviceRepositoryModule\Set-InterfacePortStreamData -Hostname $Hostname -RunDate $RunDate -InterfaceRows $uiRows -BatchId $batchId
-        } catch { }
+        } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
         finally {
             if ($streamStopwatch) {
                 $streamStopwatch.Stop()
@@ -4373,9 +4373,9 @@ WHERE Seed.BatchId = '$escBatch' AND Seed.Hostname = '$escHostname'"
                 ChunkSize            = $chunkSize
                 EstimatedBatchCount  = $estimatedBatchCount
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
     } else {
-        try { DeviceRepositoryModule\Clear-InterfacePortStream -Hostname $Hostname } catch { }
+        try { DeviceRepositoryModule\Clear-InterfacePortStream -Hostname $Hostname } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
     }
 
     $bulkResult = (& $setLastBulkMetrics $success)
@@ -4391,7 +4391,7 @@ WHERE Seed.BatchId = '$escBatch' AND Seed.Hostname = '$escHostname'"
 
         try {
             TelemetryModule\Write-StTelemetryEvent -Name 'InterfaceBulkInsertTiming' -Payload $timingPayload
-        } catch { }
+        } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
 
         try {
             TelemetryModule\Write-StTelemetryEvent -Name 'InterfaceBulkInsert' -Payload @{
@@ -4401,7 +4401,7 @@ WHERE Seed.BatchId = '$escBatch' AND Seed.Hostname = '$escHostname'"
                 RunDate  = $bulkMetrics.RunDate
                 Success  = [bool]$bulkMetrics.Success
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
     }
 
     return $bulkResult
@@ -4460,7 +4460,7 @@ function Invoke-DeviceSummaryParameterized {
         $parameterValues = $commonValues + @($Hostname)
         if (-not (Set-AdodbParameterValues -Parameters $parameters -Values $parameterValues)) { return $false }
 
-        try { $updateCmd.Execute() | Out-Null } catch { }
+        try { $updateCmd.Execute() | Out-Null } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
     } finally {
         Invoke-AdodbDispose -ComObject $updateCmd -Label 'device summary update command'
     }
@@ -4477,7 +4477,7 @@ function Invoke-DeviceSummaryParameterized {
         $parameterValues = @($Hostname) + $commonValues
         if (-not (Set-AdodbParameterValues -Parameters $parameters -Values $parameterValues)) { return $false }
 
-        try { $insertCmd.Execute() | Out-Null } catch { }
+        try { $insertCmd.Execute() | Out-Null } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
     } finally {
         Invoke-AdodbDispose -ComObject $insertCmd -Label 'device summary insert command'
     }
@@ -4701,7 +4701,7 @@ function Update-SpanInfoInDb {
     if ($runDateValue) {
         try {
             $runDateLiteral = "#$($runDateValue.ToString('yyyy-MM-dd HH:mm:ss', [System.Globalization.CultureInfo]::InvariantCulture))#"
-        } catch { }
+        } catch { Write-Verbose "Caught exception in ParserPersistenceModule.psm1: $($_.Exception.Message)" }
     }
 
     Ensure-SpanInfoTableExists -Connection $Connection

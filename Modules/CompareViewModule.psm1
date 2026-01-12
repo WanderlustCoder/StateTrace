@@ -27,9 +27,9 @@ $script:CompareThemeHandlerRegistered = $false
 $script:InterfaceStringPropertyValueCmd = $null
 try {
     TelemetryModule\Initialize-StateTraceDebug -EnableVerbosePreference
-} catch { }
+} catch { Write-Verbose "Caught exception in CompareViewModule.psm1: $($_.Exception.Message)" }
 
-try { TelemetryModule\Import-InterfaceCommon | Out-Null } catch { }
+try { TelemetryModule\Import-InterfaceCommon | Out-Null } catch { Write-Verbose "Caught exception in CompareViewModule.psm1: $($_.Exception.Message)" }
 if (-not (Get-Variable -Scope Global -Name InterfacesLoadAllowed -ErrorAction SilentlyContinue)) {
     $global:InterfacesLoadAllowed = $false
 }
@@ -51,7 +51,7 @@ function Invoke-InterfaceStringPropertyValue {
     if (-not $stringPropertyCmd) {
         try { $stringPropertyCmd = Get-Command -Name 'InterfaceCommon\Get-StringPropertyValue' -ErrorAction SilentlyContinue } catch { $stringPropertyCmd = $null }
         if (-not $stringPropertyCmd) {
-            try { TelemetryModule\Import-InterfaceCommon | Out-Null } catch { }
+            try { TelemetryModule\Import-InterfaceCommon | Out-Null } catch { Write-Verbose "Caught exception in CompareViewModule.psm1: $($_.Exception.Message)" }
             try { $stringPropertyCmd = Get-Command -Name 'InterfaceCommon\Get-StringPropertyValue' -ErrorAction SilentlyContinue } catch { $stringPropertyCmd = $null }
         }
         if ($stringPropertyCmd) { $script:InterfaceStringPropertyValueCmd = $stringPropertyCmd }
@@ -139,7 +139,7 @@ function Get-CompareFilterContext {
                 if ($locSel.Building) { $bldSel  = $locSel.Building }
                 if ($locSel.Room)     { $roomSel = $locSel.Room }
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in CompareViewModule.psm1: $($_.Exception.Message)" }
     }
 
     try {
@@ -319,9 +319,9 @@ function Get-HostsFromMain {
             Write-Diag $msg
         } catch [System.Management.Automation.CommandNotFoundException] {
             Write-Verbose $msg
-        } catch { }
+        } catch { Write-Verbose "Caught exception in CompareViewModule.psm1: $($_.Exception.Message)" }
 
-    } catch { }
+    } catch { Write-Verbose "Caught exception in CompareViewModule.psm1: $($_.Exception.Message)" }
 
     return ,$hostList.ToArray()
 
@@ -444,7 +444,7 @@ function Set-PortsForCombo {
     if ([string]::IsNullOrWhiteSpace($Hostname)) {
         # No host specified - clear the combo box
         $Combo.ItemsSource = @()
-        try { $Combo.Items.Refresh() } catch { }
+        try { $Combo.Items.Refresh() } catch { Write-Verbose "Caught exception in CompareViewModule.psm1: $($_.Exception.Message)" }
         $Combo.SelectedIndex = -1
         Write-Verbose "[CompareView] Cleared ports list because hostname was empty or null."
         return
@@ -455,12 +455,12 @@ function Set-PortsForCombo {
 
     # Update the ComboBox with the retrieved ports list
     [System.Windows.Controls.TextSearch]::SetTextPath($Combo, $null)    # ensure we treat items as plain strings
-    try { $Combo.ItemTemplate = $null } catch { }
-    try { $Combo.DisplayMemberPath = $null } catch { }
+    try { $Combo.ItemTemplate = $null } catch { Write-Verbose "Caught exception in CompareViewModule.psm1: $($_.Exception.Message)" }
+    try { $Combo.DisplayMemberPath = $null } catch { Write-Verbose "Caught exception in CompareViewModule.psm1: $($_.Exception.Message)" }
     $Combo.ItemsSource = $null
     $Combo.Items.Clear()
     $Combo.ItemsSource = $ports
-    try { $Combo.Items.Refresh() } catch { }
+    try { $Combo.Items.Refresh() } catch { Write-Verbose "Caught exception in CompareViewModule.psm1: $($_.Exception.Message)" }
 
     # Select the first port by default (or clear selection if none)
     if ($ports.Count -gt 0) {
@@ -498,7 +498,7 @@ function Get-GridRowFor {
                     elseif ($iface.PSObject.Properties['Interface']) { $pVal = '' + $iface.Interface }
                     elseif ($iface.PSObject.Properties['IfName'])    { $pVal = '' + $iface.IfName }
                     elseif ($iface.PSObject.Properties['Name'])      { $pVal = '' + $iface.Name }
-                } catch {}
+                } catch { Write-Verbose "Caught exception in CompareViewModule.psm1: $($_.Exception.Message)" }
                 if (-not $pVal) { $pVal = '' + $iface }
                 $p = ('' + $pVal).Trim().ToUpperInvariant()
                 if ($p -eq $tgt) {
@@ -611,7 +611,7 @@ function Set-CompareFromRows {
         if ($Row1.PSObject.Properties['AuthTemplate'] -and $Row1.AuthTemplate) {
             $auth1 = '' + $Row1.AuthTemplate
         }
-    } catch {}
+    } catch { Write-Verbose "Caught exception in CompareViewModule.psm1: $($_.Exception.Message)" }
     if (-not $auth1) { $auth1 = Get-AuthTemplateFromTooltip -Text $tooltip1 }
 
     $auth2 = ''
@@ -619,7 +619,7 @@ function Set-CompareFromRows {
         if ($Row2.PSObject.Properties['AuthTemplate'] -and $Row2.AuthTemplate) {
             $auth2 = '' + $Row2.AuthTemplate
         }
-    } catch {}
+    } catch { Write-Verbose "Caught exception in CompareViewModule.psm1: $($_.Exception.Message)" }
     if (-not $auth2) { $auth2 = Get-AuthTemplateFromTooltip -Text $tooltip2 }
 
     if ($script:auth1Text) {
@@ -733,7 +733,7 @@ function Get-CompareLineDiffCounts {
         if ($Row1.PSObject.Properties['AuthTemplate'] -and $Row1.AuthTemplate) {
             $auth1 = '' + $Row1.AuthTemplate
         }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in CompareViewModule.psm1: $($_.Exception.Message)" }
     if (-not $auth1) { $auth1 = Get-AuthTemplateFromTooltip -Text $tooltip1 }
 
     $auth2 = ''
@@ -741,7 +741,7 @@ function Get-CompareLineDiffCounts {
         if ($Row2.PSObject.Properties['AuthTemplate'] -and $Row2.AuthTemplate) {
             $auth2 = '' + $Row2.AuthTemplate
         }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in CompareViewModule.psm1: $($_.Exception.Message)" }
     if (-not $auth2) { $auth2 = Get-AuthTemplateFromTooltip -Text $tooltip2 }
 
     $clean1 = $tooltip1
@@ -864,7 +864,7 @@ function Write-CompareDiffUsageTelemetry {
     } catch [System.Management.Automation.CommandNotFoundException] {
         $parts = ('' + $Switch1).Split('-', 2, [System.StringSplitOptions]::RemoveEmptyEntries)
         if ($parts.Count -gt 0) { $sitePrefix = $parts[0] }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in CompareViewModule.psm1: $($_.Exception.Message)" }
     if (-not $sitePrefix) { $sitePrefix = '' + $Switch1 }
 
     $vrf = ''
@@ -880,7 +880,7 @@ function Write-CompareDiffUsageTelemetry {
                         $vrf = '' + $candidate.$name
                         break
                     }
-                } catch { }
+                } catch { Write-Verbose "Caught exception in CompareViewModule.psm1: $($_.Exception.Message)" }
             }
             if ($vrf) { break }
         }
@@ -916,7 +916,7 @@ function Write-CompareDiffUsageTelemetry {
         } else {
             & $telemetryName -Name 'DiffUsageRate' -Payload $payload
         }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in CompareViewModule.psm1: $($_.Exception.Message)" }
 }
 
 # LANDMARK: Compare view telemetry - DiffCompareDurationMs emission (guarded, offline-safe)
@@ -964,7 +964,7 @@ function Write-CompareDiffDurationTelemetry {
     } catch [System.Management.Automation.CommandNotFoundException] {
         $parts = ('' + $Switch1).Split('-', 2, [System.StringSplitOptions]::RemoveEmptyEntries)
         if ($parts.Count -gt 0) { $sitePrefix = $parts[0] }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in CompareViewModule.psm1: $($_.Exception.Message)" }
     if (-not $sitePrefix) { $sitePrefix = '' + $Switch1 }
 
     $vrf = ''
@@ -980,7 +980,7 @@ function Write-CompareDiffDurationTelemetry {
                         $vrf = '' + $candidate.$name
                         break
                     }
-                } catch { }
+                } catch { Write-Verbose "Caught exception in CompareViewModule.psm1: $($_.Exception.Message)" }
             }
             if ($vrf) { break }
         }
@@ -1015,7 +1015,7 @@ function Write-CompareDiffDurationTelemetry {
         } else {
             & $telemetryName -Name 'DiffCompareDurationMs' -Payload $payload
         }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in CompareViewModule.psm1: $($_.Exception.Message)" }
 }
 
 # LANDMARK: Compare view telemetry - DiffCompareResultCounts emission (guarded, offline-safe)
@@ -1063,7 +1063,7 @@ function Write-CompareDiffResultCountsTelemetry {
     } catch [System.Management.Automation.CommandNotFoundException] {
         $parts = ('' + $Switch1).Split('-', 2, [System.StringSplitOptions]::RemoveEmptyEntries)
         if ($parts.Count -gt 0) { $sitePrefix = $parts[0] }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in CompareViewModule.psm1: $($_.Exception.Message)" }
     if (-not $sitePrefix) { $sitePrefix = '' + $Switch1 }
 
     $vrf = ''
@@ -1079,7 +1079,7 @@ function Write-CompareDiffResultCountsTelemetry {
                         $vrf = '' + $candidate.$name
                         break
                     }
-                } catch { }
+                } catch { Write-Verbose "Caught exception in CompareViewModule.psm1: $($_.Exception.Message)" }
             }
             if ($vrf) { break }
         }
@@ -1132,7 +1132,7 @@ function Write-CompareDiffResultCountsTelemetry {
         } else {
             & $telemetryName -Name 'DiffCompareResultCounts' -Payload $payload
         }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in CompareViewModule.psm1: $($_.Exception.Message)" }
 }
 
 function Show-CurrentComparison {
@@ -1195,7 +1195,7 @@ function Show-CurrentComparison {
             } catch [System.Management.Automation.CommandNotFoundException] {
                 $parts = ('' + $s1).Split('-', 2, [System.StringSplitOptions]::RemoveEmptyEntries)
                 if ($parts.Count -gt 0) { $sitePrefix = $parts[0] }
-            } catch { }
+            } catch { Write-Verbose "Caught exception in CompareViewModule.psm1: $($_.Exception.Message)" }
             if (-not $sitePrefix) { $sitePrefix = $s1 }
 
             TelemetryModule\Write-StTelemetryEvent -Name 'UserAction' -Payload @{
@@ -1208,7 +1208,7 @@ function Show-CurrentComparison {
                 Timestamp = (Get-Date).ToString('o')
             }
         } catch [System.Management.Automation.CommandNotFoundException] {
-        } catch { }
+        } catch { Write-Verbose "Caught exception in CompareViewModule.psm1: $($_.Exception.Message)" }
     }
     catch {
         if ($compareStopwatch -and $compareStopwatch.IsRunning) { $compareStopwatch.Stop() }
@@ -1336,8 +1336,8 @@ function Update-CompareView {
         # Preserve currently selected switches before replacing the ItemsSource
         $prev1 = ''
         $prev2 = ''
-        try { if ($script:switch1Dropdown) { $prev1 = Get-HostString $script:switch1Dropdown.SelectedItem } } catch {}
-        try { if ($script:switch2Dropdown) { $prev2 = Get-HostString $script:switch2Dropdown.SelectedItem } } catch {}
+        try { if ($script:switch1Dropdown) { $prev1 = Get-HostString $script:switch1Dropdown.SelectedItem } } catch { Write-Verbose "Caught exception in CompareViewModule.psm1: $($_.Exception.Message)" }
+        try { if ($script:switch2Dropdown) { $prev2 = Get-HostString $script:switch2Dropdown.SelectedItem } } catch { Write-Verbose "Caught exception in CompareViewModule.psm1: $($_.Exception.Message)" }
         # Update the host dropdowns with the same list
         if ($script:switch1Dropdown) { $script:switch1Dropdown.ItemsSource = $hosts }
         if ($script:switch2Dropdown) { $script:switch2Dropdown.ItemsSource = $hosts }
@@ -1384,7 +1384,7 @@ function Update-CompareView {
                             $col.Width = [System.Windows.GridLength]::new(0)
                         }
                     }
-                } catch { }
+                } catch { Write-Verbose "Caught exception in CompareViewModule.psm1: $($_.Exception.Message)" }
             }
         })
         $script:closeWiredViewId = $viewCtrl.GetHashCode()
@@ -1448,7 +1448,7 @@ function Set-CompareSelection {
         }
 
         if ($windowRef) {
-            try { Update-CompareView -Window $windowRef | Out-Null } catch { }
+            try { Update-CompareView -Window $windowRef | Out-Null } catch { Write-Verbose "Caught exception in CompareViewModule.psm1: $($_.Exception.Message)" }
         }
 
         if (-not $script:compareView) {

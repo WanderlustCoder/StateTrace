@@ -53,7 +53,7 @@ function Get-MainWindow {
             try {
                 $pid = $w.GetCurrentPropertyValue([System.Windows.Automation.AutomationElement]::ProcessIdProperty)
                 if ($pid -eq $ProcessId) { return $w }
-            } catch {}
+            } catch { Write-Verbose "Caught exception in AutoCapture-PlanHUI.ps1: $($_.Exception.Message)" }
         }
         Start-Sleep -Milliseconds $PollMilliseconds
     }

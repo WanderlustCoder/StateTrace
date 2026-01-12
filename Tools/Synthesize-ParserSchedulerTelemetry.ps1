@@ -143,11 +143,11 @@ try {
         $writer.WriteLine(($syntheticEvent | ConvertTo-Json -Depth 3 -Compress))
     }
 } finally {
-    if ($writer) { try { $writer.Flush() } catch { } }
-    if ($writer) { try { $writer.Dispose() } catch { } }
-    if ($reader) { try { $reader.Dispose() } catch { } }
-    if ($outputStream) { try { $outputStream.Dispose() } catch { } }
-    if ($inputStream) { try { $inputStream.Dispose() } catch { } }
+    if ($writer) { try { $writer.Flush() } catch { Write-Verbose "Caught exception in Synthesize-ParserSchedulerTelemetry.ps1: $($_.Exception.Message)" } }
+    if ($writer) { try { $writer.Dispose() } catch { Write-Verbose "Caught exception in Synthesize-ParserSchedulerTelemetry.ps1: $($_.Exception.Message)" } }
+    if ($reader) { try { $reader.Dispose() } catch { Write-Verbose "Caught exception in Synthesize-ParserSchedulerTelemetry.ps1: $($_.Exception.Message)" } }
+    if ($outputStream) { try { $outputStream.Dispose() } catch { Write-Verbose "Caught exception in Synthesize-ParserSchedulerTelemetry.ps1: $($_.Exception.Message)" } }
+    if ($inputStream) { try { $inputStream.Dispose() } catch { Write-Verbose "Caught exception in Synthesize-ParserSchedulerTelemetry.ps1: $($_.Exception.Message)" } }
 }
 
 if ($InPlace) {

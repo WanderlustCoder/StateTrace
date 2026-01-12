@@ -10,7 +10,7 @@ try {
     Write-Verbose "[InterfaceModule] Failed to import ViewStateService: $($_.Exception.Message)"
 }
 
-try { TelemetryModule\Import-InterfaceCommon | Out-Null } catch { }
+try { TelemetryModule\Import-InterfaceCommon | Out-Null } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
 
 $script:lastTemplateVendor = 'default'
 $script:TemplateThemeHandlerRegistered = $false
@@ -174,7 +174,7 @@ function Ensure-LocalStateTraceModule {
 
     try {
         if (Get-Module -Name $ModuleName -ErrorAction SilentlyContinue) { return }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
 
     $alreadyWarned = $false
     try { $alreadyWarned = $script:InterfaceModuleImportWarnings.ContainsKey($ModuleName) } catch { $alreadyWarned = $false }
@@ -224,14 +224,14 @@ function Get-PropertyStringValue {
     if (-not $stringPropertyCmd) {
         try { $stringPropertyCmd = Get-Command -Name 'InterfaceCommon\Get-StringPropertyValue' -ErrorAction SilentlyContinue } catch { $stringPropertyCmd = $null }
         if (-not $stringPropertyCmd) {
-            try { TelemetryModule\Import-InterfaceCommon | Out-Null } catch { }
+            try { TelemetryModule\Import-InterfaceCommon | Out-Null } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
             try { $stringPropertyCmd = Get-Command -Name 'InterfaceCommon\Get-StringPropertyValue' -ErrorAction SilentlyContinue } catch { $stringPropertyCmd = $null }
         }
         if ($stringPropertyCmd) { $script:InterfaceStringPropertyValueCmd = $stringPropertyCmd }
     }
 
     if ($stringPropertyCmd) {
-        try { return (& $stringPropertyCmd @PSBoundParameters) } catch { }
+        try { return (& $stringPropertyCmd @PSBoundParameters) } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
     }
 
     foreach ($name in $PropertyNames) {
@@ -268,7 +268,7 @@ function Set-TemplateDropdownBrush {
     }
     if (-not $brush) { $brush = [System.Windows.Media.Brushes]::Black }
     if ($global:templateDropdown) {
-        try { $global:templateDropdown.Foreground = $brush } catch {}
+        try { $global:templateDropdown.Foreground = $brush } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
     }
 }
 
@@ -345,7 +345,7 @@ function New-InterfaceObjectsFromDbRow {
     try {
         $rows = DatabaseModule\ConvertTo-DbRowList -Data $Data
         if ($rows.Count -gt 0) { $firstRow = $rows[0] }
-    } catch {}
+    } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
     # Attempt to determine vendor from joined Make column
     try {
         # Check if the first row exposes a 'Make' property.  Avoid specifying
@@ -353,7 +353,7 @@ function New-InterfaceObjectsFromDbRow {
             $mk = '' + $firstRow.Make
             $vendor = TemplatesModule\Get-TemplateVendorKeyFromMake -Make $mk
         }
-    } catch {}
+    } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
     # Fallback to query DeviceSummary if vendor still Cisco
     if ([string]::Equals($vendor, 'Cisco', [System.StringComparison]::OrdinalIgnoreCase)) {
         try {
@@ -365,7 +365,7 @@ function New-InterfaceObjectsFromDbRow {
                     $vendor = TemplatesModule\Get-TemplateVendorKeyFromMake -Make $mk
                 }
             }
-        } catch {}
+        } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
     }
     # For Brocade devices, try to fetch the AuthBlock from the joined column; fallback to DB
     if ([string]::Equals($vendor, 'Brocade', [System.StringComparison]::OrdinalIgnoreCase)) {
@@ -375,17 +375,17 @@ function New-InterfaceObjectsFromDbRow {
             if ($firstRow -and ($firstRow | Get-Member -Name 'AuthBlock' -ErrorAction SilentlyContinue)) {
                 $abText = '' + $firstRow.AuthBlock
             }
-        } catch {}
+        } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
         if (-not $abText) {
             try {
                 $abDt = DatabaseModule\Invoke-DbQuery -DatabasePath $dbPath -Sql "SELECT AuthBlock FROM DeviceSummary WHERE Hostname = '$escHost'"
                 if ($abDt) {
                     $abRows = DatabaseModule\ConvertTo-DbRowList -Data $abDt
                     if ($abRows.Count -gt 0) {
-                        try { $abText = '' + $abRows[0].AuthBlock } catch { }
+                        try { $abText = '' + $abRows[0].AuthBlock } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
                     }
                 }
-            } catch {}
+            } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
         }
         if ($abText) {
             # Split into non-empty trimmed lines.  Use a typed list instead of ForEach-Object to
@@ -445,11 +445,11 @@ function New-InterfaceObjectsFromDbRow {
         if (-not $row) { continue }
         # OPTIMIZED: Use pre-computed property existence map instead of checking each time
         $authTemplate = $null
-        if ($propExists['AuthTemplate']) { try { $authTemplate = '' + $row.AuthTemplate } catch { } }
+        if ($propExists['AuthTemplate']) { try { $authTemplate = '' + $row.AuthTemplate } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" } }
         $cfg = $null
-        if ($propExists['Config']) { try { $cfg = '' + $row.Config } catch { } }
+        if ($propExists['Config']) { try { $cfg = '' + $row.Config } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" } }
         $existingTip = ''
-        if ($propExists['ToolTip']) { try { if ($row.ToolTip) { $existingTip = ('' + $row.ToolTip).TrimEnd() } } catch { } }
+        if ($propExists['ToolTip']) { try { if ($row.ToolTip) { $existingTip = ('' + $row.ToolTip).TrimEnd() } } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" } }
         # Determine the base tooltip: use existing tooltip when present; otherwise synthesise from AuthTemplate and Config.
         $toolTipCore = $existingTip
         if (-not $toolTipCore) {
@@ -473,7 +473,7 @@ function New-InterfaceObjectsFromDbRow {
                     $portColorVal = '' + $pcVal
                     if (-not [string]::IsNullOrWhiteSpace($portColorVal)) { $hasPortColor = $true }
                 }
-            } catch { }
+            } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
         }
         if ($propExists['ConfigStatus']) {
             try {
@@ -482,7 +482,7 @@ function New-InterfaceObjectsFromDbRow {
                     $cfgStatusVal = '' + $csVal
                     if (-not [string]::IsNullOrWhiteSpace($cfgStatusVal)) { $hasConfigStatus = $true }
                 }
-            } catch { }
+            } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
         }
         # If no explicit values were provided, look up the template colour and status.
         if (-not $hasPortColor -or -not $hasConfigStatus) {
@@ -530,7 +530,7 @@ function New-InterfaceObjectsFromDbRow {
         # Build the InterfacePortRecord for this interface. OPTIMIZED: Use direct property access
         # with pre-computed existence map instead of Get-PropertyStringValue function calls
         $portValue = $null
-        if ($propExists['Port']) { try { $portValue = '' + $row.Port } catch { } }
+        if ($propExists['Port']) { try { $portValue = '' + $row.Port } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" } }
         $portSortKey = if ($portValue) { Get-PortSortKey -Port $portValue } else { $script:PortSortFallbackKey }
 
         $record = [StateTrace.Models.InterfacePortRecord]::new()
@@ -538,20 +538,20 @@ function New-InterfaceObjectsFromDbRow {
         $record.Port = $portValue
         $record.PortSort = $portSortKey
         # OPTIMIZED: Direct property access with try/catch instead of Get-PropertyStringValue
-        if ($propExists['Name']) { try { $v = $row.Name; if ($v) { $record.Name = '' + $v } } catch { } }
-        if ($propExists['Status']) { try { $v = $row.Status; if ($v) { $record.Status = '' + $v } } catch { } }
-        if ($propExists['VLAN']) { try { $v = $row.VLAN; if ($v) { $record.VLAN = '' + $v } } catch { } }
-        if ($propExists['Duplex']) { try { $v = $row.Duplex; if ($v) { $record.Duplex = '' + $v } } catch { } }
-        if ($propExists['Speed']) { try { $v = $row.Speed; if ($v) { $record.Speed = '' + $v } } catch { } }
-        if ($propExists['Type']) { try { $v = $row.Type; if ($v) { $record.Type = '' + $v } } catch { } }
-        if ($propExists['LearnedMACs']) { try { $v = $row.LearnedMACs; if ($v) { $record.LearnedMACs = '' + $v } } catch { } }
-        if ($propExists['AuthState']) { try { $v = $row.AuthState; if ($v) { $record.AuthState = '' + $v } } catch { } }
-        if ($propExists['AuthMode']) { try { $v = $row.AuthMode; if ($v) { $record.AuthMode = '' + $v } } catch { } }
-        if ($propExists['AuthClientMAC']) { try { $v = $row.AuthClientMAC; if ($v) { $record.AuthClientMAC = '' + $v } } catch { } }
-        if ($propExists['Site']) { try { $v = $row.Site; if ($v) { $record.Site = '' + $v } } catch { } }
-        if ($propExists['Building']) { try { $v = $row.Building; if ($v) { $record.Building = '' + $v } } catch { } }
-        if ($propExists['Room']) { try { $v = $row.Room; if ($v) { $record.Room = '' + $v } } catch { } }
-        if ($propExists['Zone']) { try { $v = $row.Zone; if ($v) { $record.Zone = '' + $v } } catch { } }
+        if ($propExists['Name']) { try { $v = $row.Name; if ($v) { $record.Name = '' + $v } } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" } }
+        if ($propExists['Status']) { try { $v = $row.Status; if ($v) { $record.Status = '' + $v } } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" } }
+        if ($propExists['VLAN']) { try { $v = $row.VLAN; if ($v) { $record.VLAN = '' + $v } } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" } }
+        if ($propExists['Duplex']) { try { $v = $row.Duplex; if ($v) { $record.Duplex = '' + $v } } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" } }
+        if ($propExists['Speed']) { try { $v = $row.Speed; if ($v) { $record.Speed = '' + $v } } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" } }
+        if ($propExists['Type']) { try { $v = $row.Type; if ($v) { $record.Type = '' + $v } } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" } }
+        if ($propExists['LearnedMACs']) { try { $v = $row.LearnedMACs; if ($v) { $record.LearnedMACs = '' + $v } } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" } }
+        if ($propExists['AuthState']) { try { $v = $row.AuthState; if ($v) { $record.AuthState = '' + $v } } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" } }
+        if ($propExists['AuthMode']) { try { $v = $row.AuthMode; if ($v) { $record.AuthMode = '' + $v } } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" } }
+        if ($propExists['AuthClientMAC']) { try { $v = $row.AuthClientMAC; if ($v) { $record.AuthClientMAC = '' + $v } } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" } }
+        if ($propExists['Site']) { try { $v = $row.Site; if ($v) { $record.Site = '' + $v } } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" } }
+        if ($propExists['Building']) { try { $v = $row.Building; if ($v) { $record.Building = '' + $v } } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" } }
+        if ($propExists['Room']) { try { $v = $row.Room; if ($v) { $record.Room = '' + $v } } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" } }
+        if ($propExists['Zone']) { try { $v = $row.Zone; if ($v) { $record.Zone = '' + $v } } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" } }
         $record.AuthTemplate = $authTemplate
         $record.Config = $cfg
         $record.ConfigStatus = $cfgStatusVal
@@ -569,7 +569,7 @@ function New-InterfaceObjectsFromDbRow {
         if (-not $keyB) { $keyB = $script:PortSortFallbackKey }
         return [System.StringComparer]::Ordinal.Compare($keyA, $keyB)
     }
-    try { $resultList.Sort($comparison) } catch {}
+    try { $resultList.Sort($comparison) } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
     return $resultList
 }
 
@@ -717,7 +717,7 @@ function Get-InterfaceList {
             }
             return $plist.ToArray()
         }
-    } catch {}
+    } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
 
     Ensure-DeviceRepositoryModule
 
@@ -741,7 +741,7 @@ function Get-InterfaceList {
             } catch { $databasePath = $databasePath }
         }
         if ($databasePath -and (-not $stateTraceDbVar -or -not $stateTraceDbVar.Value)) {
-            try { Set-Variable -Name StateTraceDb -Scope Global -Value $databasePath -Force } catch { }
+            try { Set-Variable -Name StateTraceDb -Scope Global -Value $databasePath -Force } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
         }
     }
 
@@ -825,7 +825,7 @@ function New-InterfacesView {
         $interfacesView = [Windows.Markup.XamlReader]::Load($ifaceReader)
     } finally {
         if ($ifaceReader) {
-            try { $ifaceReader.Dispose() } catch { }
+            try { $ifaceReader.Dispose() } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
         }
     }
 
@@ -877,7 +877,7 @@ function New-InterfacesView {
                     $filterBox.Text = $settings.LastInterfaceFilter
                 }
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
     }
 
     # Cell edit validation for VLAN and Name columns
@@ -1035,7 +1035,7 @@ Grid:
                     }
                 }
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
 
         # Save column order when reordered
         $interfacesGrid.Add_ColumnReordered({
@@ -1060,7 +1060,7 @@ Grid:
                 }
                 $settings['InterfaceColumnOrder'] = $order
                 $settings | ConvertTo-Json -Depth 5 | Set-Content $settingsPath -Encoding UTF8
-            } catch { }
+            } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
         })
 
         # Use a script to save widths on layout updated (debounced)
@@ -1090,7 +1090,7 @@ Grid:
                     }
                     $settings['InterfaceColumnWidths'] = $widths
                     $settings | ConvertTo-Json -Depth 5 | Set-Content $settingsPath -Encoding UTF8
-                } catch { }
+                } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
             }.GetNewClosure())
         }
 
@@ -1295,7 +1295,7 @@ Grid:
                                 $filterMatchCount.Foreground = if ($visible -eq 0) { [System.Windows.Media.Brushes]::OrangeRed } else { [System.Windows.Media.Brushes]::LimeGreen }
                             }
                         }
-                    } catch { }
+                    } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
 
                     # Save filter text to settings
                     try {
@@ -1310,7 +1310,7 @@ Grid:
                         }
                         $settings['LastInterfaceFilter'] = $txt
                         $settings | ConvertTo-Json -Depth 5 | Set-Content $settingsPath -Encoding UTF8
-                    } catch { }
+                    } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
                 } catch {
                     # Swallow exceptions to avoid crashing the UI on bad filter values
                 }
@@ -1913,7 +1913,7 @@ Grid:
                     }
                 }
             }
-        } catch { }
+        } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
 
         # Load preset when selected
         $filterPresetsDropdown.Add_SelectionChanged({
@@ -1947,7 +1947,7 @@ Grid:
                         $parsed.PSObject.Properties | ForEach-Object { $settings[$_.Name] = $_.Value }
                     }
                 }
-            } catch { }
+            } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
 
             if (-not $settings.FilterPresets) {
                 $settings['FilterPresets'] = @()
@@ -1958,7 +1958,7 @@ Grid:
 
             try {
                 $settings | ConvertTo-Json -Depth 5 | Set-Content $settingsPath -Encoding UTF8
-            } catch { }
+            } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
 
             # Add to dropdown
             $item = [System.Windows.Controls.ComboBoxItem]::new()
@@ -1991,7 +1991,7 @@ Grid:
                         $parsed.PSObject.Properties | ForEach-Object { $settings[$_.Name] = $_.Value }
                     }
                 }
-            } catch { }
+            } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
 
             if ($settings.FilterPresets) {
                 $settings['FilterPresets'] = @($settings['FilterPresets'] | Where-Object { $_.Name -ne $name })
@@ -1999,7 +1999,7 @@ Grid:
 
             try {
                 $settings | ConvertTo-Json -Depth 5 | Set-Content $settingsPath -Encoding UTF8
-            } catch { }
+            } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
 
             # Remove from dropdown
             $filterPresetsDropdown.Items.Remove($sel)
@@ -2144,7 +2144,7 @@ Grid:
             }
             $script:lastTemplateVendor = $initialVendor
             Set-TemplateDropdownBrush -Vendor $initialVendor
-        } catch {}
+        } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
     }
 
     $global:interfacesView = $interfacesView
@@ -2171,7 +2171,7 @@ function Set-InterfaceViewData {
     }
     if (-not $interfacesView) { return }
 
-    try { $global:interfacesView = $interfacesView } catch {}
+    try { $global:interfacesView = $interfacesView } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
 
     $fallbackHostname = ''
     if ($PSBoundParameters.ContainsKey('DefaultHostname') -and $DefaultHostname) {
@@ -2219,7 +2219,7 @@ function Set-InterfaceViewData {
         try {
             $ctrl = $view.FindName($controlName)
             if ($ctrl) { $ctrl.Text = $value }
-        } catch {}
+        } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
     }
 
     $hostnameValue = & $getValue $summary 'Hostname' $fallbackHostname
@@ -2272,9 +2272,9 @@ function Set-InterfaceViewData {
             }
 
             $grid.ItemsSource = $itemsSource
-            try { $global:interfacesGrid = $grid } catch {}
+            try { $global:interfacesGrid = $grid } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
             try { $global:CurrentInterfaceCollection = $itemsSource } catch { $global:CurrentInterfaceCollection = $null }
-            try { $global:InterfaceChangedCount = $changedCount } catch {}
+            try { $global:InterfaceChangedCount = $changedCount } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
 
             # Update last updated timestamp
             $lastUpdatedText = $interfacesView.FindName('InterfacesLastUpdatedText')
@@ -2319,10 +2319,10 @@ function Set-InterfaceViewData {
                             $interfacesTab.Header = "Interfaces ($total)"
                         }
                     }
-                } catch { }
+                } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
             }
         }
-    } catch {}
+    } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
 
     try {
         $combo = $interfacesView.FindName('ConfigOptionsDropdown')
@@ -2334,9 +2334,9 @@ function Set-InterfaceViewData {
                 }
             }
             FilterStateModule\Set-DropdownItems -Control $combo -Items $items.ToArray()
-            try { $global:templateDropdown = $combo } catch {}
+            try { $global:templateDropdown = $combo } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
         }
-    } catch {}
+    } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
 
     try {
         $siteCode = $null
@@ -2351,7 +2351,7 @@ function Set-InterfaceViewData {
             Timestamp = (Get-Date).ToString('o')
         }
     } catch [System.Management.Automation.CommandNotFoundException] {
-    } catch { }
+    } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
 }
 
 function Set-PortLoadingIndicator {
@@ -2452,12 +2452,12 @@ function Hide-PortLoadingIndicator {
     try {
         $indicator = $view.FindName('PortLoadingIndicator')
         if ($indicator) { $indicator.Visibility = [System.Windows.Visibility]::Collapsed }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
 
     try {
         $progress = $view.FindName('PortLoadingProgress')
         if ($progress) { $progress.Visibility = [System.Windows.Visibility]::Collapsed }
-    } catch { }
+    } catch { Write-Verbose "Caught exception in InterfaceModule.psm1: $($_.Exception.Message)" }
 }
 
 Export-ModuleMember -Function Get-PortSortKey,Get-PortSortCacheStatistics,Reset-PortSortCache,Get-InterfaceInfo,Get-InterfaceList,New-InterfaceObjectsFromDbRow,Get-InterfaceConfiguration,Set-InterfaceViewData,Get-SpanningTreeInfo,New-InterfacesView,Set-PortLoadingIndicator,Hide-PortLoadingIndicator,Set-HostLoadingIndicator
