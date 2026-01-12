@@ -57,6 +57,69 @@
       <Setter Property="Padding" Value="6,3"/>
       <Setter Property="Margin" Value="0,0,4,0"/>
     </Style>
+
+    <!-- Tip Callout Style (Green) -->
+    <Style x:Key="TipCalloutStyle" TargetType="Border">
+      <Setter Property="Background" Value="#1A4CAF50"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource Theme.Status.Success}"/>
+      <Setter Property="BorderThickness" Value="0,0,0,3"/>
+      <Setter Property="CornerRadius" Value="4"/>
+      <Setter Property="Padding" Value="12,10"/>
+      <Setter Property="Margin" Value="0,10,0,10"/>
+    </Style>
+
+    <!-- Warning Callout Style (Orange) -->
+    <Style x:Key="WarningCalloutStyle" TargetType="Border">
+      <Setter Property="Background" Value="#1AFF9800"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource Theme.Status.Warning}"/>
+      <Setter Property="BorderThickness" Value="0,0,0,3"/>
+      <Setter Property="CornerRadius" Value="4"/>
+      <Setter Property="Padding" Value="12,10"/>
+      <Setter Property="Margin" Value="0,10,0,10"/>
+    </Style>
+
+    <!-- Info Callout Style (Blue) -->
+    <Style x:Key="InfoCalloutStyle" TargetType="Border">
+      <Setter Property="Background" Value="#1A2196F3"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource Theme.Status.Info}"/>
+      <Setter Property="BorderThickness" Value="0,0,0,3"/>
+      <Setter Property="CornerRadius" Value="4"/>
+      <Setter Property="Padding" Value="12,10"/>
+      <Setter Property="Margin" Value="0,10,0,10"/>
+    </Style>
+
+    <!-- Danger Callout Style (Red) -->
+    <Style x:Key="DangerCalloutStyle" TargetType="Border">
+      <Setter Property="Background" Value="#1AF44336"/>
+      <Setter Property="BorderBrush" Value="{DynamicResource Theme.Status.Danger}"/>
+      <Setter Property="BorderThickness" Value="0,0,0,3"/>
+      <Setter Property="CornerRadius" Value="4"/>
+      <Setter Property="Padding" Value="12,10"/>
+      <Setter Property="Margin" Value="0,10,0,10"/>
+    </Style>
+
+    <!-- Workflow Step Circle Style -->
+    <Style x:Key="StepCircleStyle" TargetType="Border">
+      <Setter Property="Background" Value="{DynamicResource Theme.Icon.Accent}"/>
+      <Setter Property="CornerRadius" Value="14"/>
+      <Setter Property="Width" Value="28"/>
+      <Setter Property="Height" Value="28"/>
+      <Setter Property="Margin" Value="0,0,12,0"/>
+    </Style>
+
+    <!-- Vendor Badge Style -->
+    <Style x:Key="VendorBadgeStyle" TargetType="Border">
+      <Setter Property="CornerRadius" Value="4"/>
+      <Setter Property="Padding" Value="8,4"/>
+      <Setter Property="Margin" Value="0,0,6,6"/>
+    </Style>
+
+    <!-- Feature Icon Style -->
+    <Style x:Key="FeatureIconStyle" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="20"/>
+      <Setter Property="Margin" Value="0,0,8,0"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
   </Window.Resources>
 
   <Grid>
@@ -201,6 +264,153 @@
                   <Run FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}">Change theme:</Run> Use Theme dropdown in toolbar
                 </TextBlock>
               </Grid>
+            </StackPanel>
+          </Border>
+
+          <!-- Visual Workflow Diagram -->
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Data Flow Overview" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,12"/>
+
+              <!-- Visual Flow Diagram -->
+              <Grid Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*"/>
+                  <ColumnDefinition Width="Auto"/>
+                  <ColumnDefinition Width="*"/>
+                  <ColumnDefinition Width="Auto"/>
+                  <ColumnDefinition Width="*"/>
+                  <ColumnDefinition Width="Auto"/>
+                  <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Log Files -->
+                <Border Grid.Column="0" Background="{DynamicResource Theme.Surface.Secondary}"
+                        BorderBrush="{DynamicResource Theme.Border.Primary}" BorderThickness="1"
+                        CornerRadius="6" Padding="10,8">
+                  <StackPanel HorizontalAlignment="Center">
+                    <TextBlock Text="📄" FontSize="24" HorizontalAlignment="Center"/>
+                    <TextBlock Text="Log Files" FontWeight="SemiBold" HorizontalAlignment="Center"
+                               Foreground="{DynamicResource Theme.Text.Primary}" FontSize="11"/>
+                    <TextBlock Text="Cisco/Arista/Brocade" FontSize="9" HorizontalAlignment="Center"
+                               Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                  </StackPanel>
+                </Border>
+
+                <!-- Arrow 1 -->
+                <TextBlock Grid.Column="1" Text="→" FontSize="20" VerticalAlignment="Center"
+                           Foreground="{DynamicResource Theme.Icon.Accent}" Margin="8,0"/>
+
+                <!-- Parser -->
+                <Border Grid.Column="2" Background="{DynamicResource Theme.Status.Info}"
+                        CornerRadius="6" Padding="10,8">
+                  <StackPanel HorizontalAlignment="Center">
+                    <TextBlock Text="⚙" FontSize="24" HorizontalAlignment="Center" Foreground="White"/>
+                    <TextBlock Text="Parser" FontWeight="SemiBold" HorizontalAlignment="Center"
+                               Foreground="White" FontSize="11"/>
+                    <TextBlock Text="Scan Logs" FontSize="9" HorizontalAlignment="Center"
+                               Foreground="#CCFFFFFF"/>
+                  </StackPanel>
+                </Border>
+
+                <!-- Arrow 2 -->
+                <TextBlock Grid.Column="3" Text="→" FontSize="20" VerticalAlignment="Center"
+                           Foreground="{DynamicResource Theme.Icon.Accent}" Margin="8,0"/>
+
+                <!-- Database -->
+                <Border Grid.Column="4" Background="{DynamicResource Theme.Surface.Secondary}"
+                        BorderBrush="{DynamicResource Theme.Border.Primary}" BorderThickness="1"
+                        CornerRadius="6" Padding="10,8">
+                  <StackPanel HorizontalAlignment="Center">
+                    <TextBlock Text="🗄" FontSize="24" HorizontalAlignment="Center"/>
+                    <TextBlock Text="Database" FontWeight="SemiBold" HorizontalAlignment="Center"
+                               Foreground="{DynamicResource Theme.Text.Primary}" FontSize="11"/>
+                    <TextBlock Text="Access .accdb" FontSize="9" HorizontalAlignment="Center"
+                               Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                  </StackPanel>
+                </Border>
+
+                <!-- Arrow 3 -->
+                <TextBlock Grid.Column="5" Text="→" FontSize="20" VerticalAlignment="Center"
+                           Foreground="{DynamicResource Theme.Icon.Accent}" Margin="8,0"/>
+
+                <!-- UI -->
+                <Border Grid.Column="6" Background="{DynamicResource Theme.Status.Success}"
+                        CornerRadius="6" Padding="10,8">
+                  <StackPanel HorizontalAlignment="Center">
+                    <TextBlock Text="📊" FontSize="24" HorizontalAlignment="Center" Foreground="White"/>
+                    <TextBlock Text="StateTrace UI" FontWeight="SemiBold" HorizontalAlignment="Center"
+                               Foreground="White" FontSize="11"/>
+                    <TextBlock Text="Analyze &amp; Compare" FontSize="9" HorizontalAlignment="Center"
+                               Foreground="#CCFFFFFF"/>
+                  </StackPanel>
+                </Border>
+              </Grid>
+            </StackPanel>
+          </Border>
+
+          <!-- Keyboard Shortcuts Quick Reference -->
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Essential Keyboard Shortcuts" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,12"/>
+              <WrapPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,0,20,8">
+                  <Border Style="{StaticResource KeyBadgeStyle}">
+                    <TextBlock Text="Alt+S" FontFamily="Consolas" FontSize="11"
+                               Foreground="{DynamicResource Theme.Text.Primary}"/>
+                  </Border>
+                  <TextBlock Text="Scan Logs" VerticalAlignment="Center"
+                             Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,0,20,8">
+                  <Border Style="{StaticResource KeyBadgeStyle}">
+                    <TextBlock Text="Alt+L" FontFamily="Consolas" FontSize="11"
+                               Foreground="{DynamicResource Theme.Text.Primary}"/>
+                  </Border>
+                  <TextBlock Text="Load from DB" VerticalAlignment="Center"
+                             Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,0,20,8">
+                  <Border Style="{StaticResource KeyBadgeStyle}">
+                    <TextBlock Text="Alt+H" FontFamily="Consolas" FontSize="11"
+                               Foreground="{DynamicResource Theme.Text.Primary}"/>
+                  </Border>
+                  <TextBlock Text="Help" VerticalAlignment="Center"
+                             Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,0,20,8">
+                  <Border Style="{StaticResource KeyBadgeStyle}">
+                    <TextBlock Text="Ctrl+F" FontFamily="Consolas" FontSize="11"
+                               Foreground="{DynamicResource Theme.Text.Primary}"/>
+                  </Border>
+                  <TextBlock Text="Find/Search" VerticalAlignment="Center"
+                             Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,0,20,8">
+                  <Border Style="{StaticResource KeyBadgeStyle}">
+                    <TextBlock Text="F1" FontFamily="Consolas" FontSize="11"
+                               Foreground="{DynamicResource Theme.Text.Primary}"/>
+                  </Border>
+                  <TextBlock Text="Help" VerticalAlignment="Center"
+                             Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                </StackPanel>
+              </WrapPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- Tip Callout -->
+          <Border Style="{StaticResource TipCalloutStyle}">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="💡" FontSize="16" Margin="0,0,10,0" VerticalAlignment="Top"/>
+              <StackPanel>
+                <TextBlock Text="Pro Tip" FontWeight="Bold" Foreground="{DynamicResource Theme.Status.Success}"/>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  Use "Load from DB" for fast access when logs haven't changed. Only run "Scan Logs"
+                  after collecting new show command outputs from your devices.
+                </TextBlock>
+              </StackPanel>
             </StackPanel>
           </Border>
         </StackPanel>
@@ -569,6 +779,95 @@
                 </TextBlock>
                 <TextBlock Foreground="{DynamicResource Theme.Status.Warning}">
                   - Half duplex mode
+                </TextBlock>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- Visual Port Status Legend -->
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Port Status Color Legend" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,12"/>
+
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto"/>
+                  <ColumnDefinition Width="100"/>
+                  <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <!-- Connected -->
+                <Border Grid.Row="0" Grid.Column="0" Background="{DynamicResource Theme.Status.Success}"
+                        Width="16" Height="16" CornerRadius="8" Margin="0,0,10,8"/>
+                <TextBlock Grid.Row="0" Grid.Column="1" Text="connected" FontWeight="SemiBold"
+                           Foreground="{DynamicResource Theme.Status.Success}" VerticalAlignment="Center" Margin="0,0,0,8"/>
+                <TextBlock Grid.Row="0" Grid.Column="2" Text="Port is up with active link - normal operation"
+                           Foreground="{DynamicResource Theme.Text.Secondary}" VerticalAlignment="Center" Margin="0,0,0,8"/>
+
+                <!-- NotConnect -->
+                <Border Grid.Row="1" Grid.Column="0" Background="{DynamicResource Theme.Status.Danger}"
+                        Width="16" Height="16" CornerRadius="8" Margin="0,0,10,8"/>
+                <TextBlock Grid.Row="1" Grid.Column="1" Text="notconnect" FontWeight="SemiBold"
+                           Foreground="{DynamicResource Theme.Status.Danger}" VerticalAlignment="Center" Margin="0,0,0,8"/>
+                <TextBlock Grid.Row="1" Grid.Column="2" Text="Port is enabled but no link detected - check cable/device"
+                           Foreground="{DynamicResource Theme.Text.Secondary}" VerticalAlignment="Center" Margin="0,0,0,8"/>
+
+                <!-- Disabled -->
+                <Border Grid.Row="2" Grid.Column="0" Background="{DynamicResource Theme.Status.Neutral}"
+                        Width="16" Height="16" CornerRadius="8" Margin="0,0,10,8"/>
+                <TextBlock Grid.Row="2" Grid.Column="1" Text="disabled" FontWeight="SemiBold"
+                           Foreground="{DynamicResource Theme.Status.Neutral}" VerticalAlignment="Center" Margin="0,0,0,8"/>
+                <TextBlock Grid.Row="2" Grid.Column="2" Text="Port is administratively shut down"
+                           Foreground="{DynamicResource Theme.Text.Secondary}" VerticalAlignment="Center" Margin="0,0,0,8"/>
+
+                <!-- Err-disabled -->
+                <Border Grid.Row="3" Grid.Column="0" Background="{DynamicResource Theme.Status.Danger}"
+                        Width="16" Height="16" CornerRadius="8" Margin="0,0,10,8">
+                  <TextBlock Text="!" Foreground="White" FontWeight="Bold" FontSize="10"
+                             HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <TextBlock Grid.Row="3" Grid.Column="1" Text="err-disabled" FontWeight="SemiBold"
+                           Foreground="{DynamicResource Theme.Status.Danger}" VerticalAlignment="Center" Margin="0,0,0,8"/>
+                <TextBlock Grid.Row="3" Grid.Column="2" Text="Port disabled due to error (security, STP, BPDU guard)"
+                           Foreground="{DynamicResource Theme.Text.Secondary}" VerticalAlignment="Center" Margin="0,0,0,8"/>
+
+                <!-- Unauthorized -->
+                <Border Grid.Row="4" Grid.Column="0" Background="{DynamicResource Theme.Status.Warning}"
+                        Width="16" Height="16" CornerRadius="8" Margin="0,0,10,8"/>
+                <TextBlock Grid.Row="4" Grid.Column="1" Text="unauthorized" FontWeight="SemiBold"
+                           Foreground="{DynamicResource Theme.Status.Warning}" VerticalAlignment="Center" Margin="0,0,0,8"/>
+                <TextBlock Grid.Row="4" Grid.Column="2" Text="802.1X authentication failed or pending"
+                           Foreground="{DynamicResource Theme.Text.Secondary}" VerticalAlignment="Center" Margin="0,0,0,8"/>
+
+                <!-- Monitoring -->
+                <Border Grid.Row="5" Grid.Column="0" Background="{DynamicResource Theme.Status.Info}"
+                        Width="16" Height="16" CornerRadius="8" Margin="0,0,10,0"/>
+                <TextBlock Grid.Row="5" Grid.Column="1" Text="monitoring" FontWeight="SemiBold"
+                           Foreground="{DynamicResource Theme.Status.Info}" VerticalAlignment="Center"/>
+                <TextBlock Grid.Row="5" Grid.Column="2" Text="Port is a SPAN destination for traffic capture"
+                           Foreground="{DynamicResource Theme.Text.Secondary}" VerticalAlignment="Center"/>
+              </Grid>
+            </StackPanel>
+          </Border>
+
+          <!-- Warning Callout for Common Issues -->
+          <Border Style="{StaticResource WarningCalloutStyle}">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="⚠" FontSize="16" Margin="0,0,10,0" VerticalAlignment="Top"/>
+              <StackPanel>
+                <TextBlock Text="Common Alert Causes" FontWeight="Bold" Foreground="{DynamicResource Theme.Status.Warning}"/>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  Many "notconnect" alerts are normal for unused ports. Focus on ports with descriptions
+                  (labeled ports) that show alerts - these likely indicate real issues.
                 </TextBlock>
               </StackPanel>
             </StackPanel>
@@ -1515,6 +1814,304 @@
               </StackPanel>
             </StackPanel>
           </Border>
+
+          <!-- Command Reference Sub-View -->
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Command Reference" FontWeight="Bold" FontSize="14"
+                         Foreground="{DynamicResource Theme.Icon.Accent}" Margin="0,0,0,10"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap" Margin="0,0,0,12">
+                Cross-vendor command lookup, translation, and configuration snippet generation.
+                Supports Cisco, Arista, Brocade (ICX/FCX), HP, and Juniper.
+              </TextBlock>
+
+              <TextBlock Text="Command Search" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Search by keyword across all vendors
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Filter by Category (Interface, Routing, Switching, Security, System)
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Filter by Vendor to see only commands for that platform
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Click any result to copy the command to clipboard
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Command Translation" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Select source vendor (From) and enter a command
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Select target vendor (To) and click Translate
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - See the equivalent command for the target platform
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Notes appear for commands with platform-specific differences
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Vendor Comparison" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Enter a task description (e.g., "show vlan")
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - See side-by-side comparison across all vendors
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Config Snippets" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Select a vendor and browse available snippets
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Fill in variables (VLAN ID, interface, IP address, etc.)
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Click Generate to create ready-to-paste configuration
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Available snippets: VLAN creation, access/trunk ports, static routes, SVI, ACLs, OSPF, BGP, NTP, SNMP, and more
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Supported Vendors" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
+
+              <!-- Visual Vendor Badges -->
+              <WrapPanel Margin="0,0,0,12">
+                <Border Background="#0076D6" CornerRadius="4" Padding="10,6" Margin="0,0,8,8">
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="📡" FontSize="14" Margin="0,0,6,0"/>
+                    <TextBlock Text="Cisco" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                  </StackPanel>
+                </Border>
+                <Border Background="#3D9970" CornerRadius="4" Padding="10,6" Margin="0,0,8,8">
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="🌿" FontSize="14" Margin="0,0,6,0"/>
+                    <TextBlock Text="Arista" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                  </StackPanel>
+                </Border>
+                <Border Background="#E67E22" CornerRadius="4" Padding="10,6" Margin="0,0,8,8">
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="🔶" FontSize="14" Margin="0,0,6,0"/>
+                    <TextBlock Text="Brocade" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                  </StackPanel>
+                </Border>
+                <Border Background="#00A4EF" CornerRadius="4" Padding="10,6" Margin="0,0,8,8">
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="🔷" FontSize="14" Margin="0,0,6,0"/>
+                    <TextBlock Text="HP/Aruba" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                  </StackPanel>
+                </Border>
+                <Border Background="#84BD00" CornerRadius="4" Padding="10,6" Margin="0,0,8,8">
+                  <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="🌲" FontSize="14" Margin="0,0,6,0"/>
+                    <TextBlock Text="Juniper" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                  </StackPanel>
+                </Border>
+              </WrapPanel>
+
+              <!-- Vendor Details -->
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="100"/>
+                  <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Cisco" FontWeight="SemiBold"
+                           Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+                <TextBlock Grid.Row="0" Grid.Column="1" Text="IOS, IOS-XE, NX-OS syntax"
+                           Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,6"/>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Arista" FontWeight="SemiBold"
+                           Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+                <TextBlock Grid.Row="1" Grid.Column="1" Text="EOS (very similar to Cisco IOS)"
+                           Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,6"/>
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Brocade" FontWeight="SemiBold"
+                           Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+                <TextBlock Grid.Row="2" Grid.Column="1" Text="ICX 7450, FCX 648 - FastIron 7.3x, 8.0.80, 8.0.95, 8.3"
+                           Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,6"/>
+
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="HP/Aruba" FontWeight="SemiBold"
+                           Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+                <TextBlock Grid.Row="3" Grid.Column="1" Text="ProCurve, ArubaOS-Switch syntax"
+                           Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,6"/>
+
+                <TextBlock Grid.Row="4" Grid.Column="0" Text="Juniper" FontWeight="SemiBold"
+                           Foreground="{DynamicResource Theme.Text.Primary}"/>
+                <TextBlock Grid.Row="4" Grid.Column="1" Text="JunOS hierarchical configuration"
+                           Foreground="{DynamicResource Theme.Text.Secondary}"/>
+              </Grid>
+            </StackPanel>
+          </Border>
+
+          <!-- Config Templates Sub-View -->
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Configuration Templates" FontWeight="Bold" FontSize="14"
+                         Foreground="{DynamicResource Theme.Icon.Accent}" Margin="0,0,0,10"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap" Margin="0,0,0,12">
+                Create, manage, and apply standardized configuration templates for consistent
+                device provisioning across your network.
+              </TextBlock>
+
+              <TextBlock Text="Template Categories" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Access Switch: Standard access layer configuration
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Distribution Switch: Aggregation layer with routing
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Port Templates: User, Phone, Printer, AP, Uplink
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Security: AAA, 802.1X, DHCP snooping baselines
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Using Templates" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  1. Select a template category from the dropdown
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  2. Choose a specific template from the list
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  3. Fill in the required variables in the form
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  4. Preview the generated configuration
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  5. Copy to clipboard or export to file
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Template Variables" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - {{hostname}}: Device hostname
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - {{mgmt_ip}}: Management IP address
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - {{vlan_id}}: VLAN identifier
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - {{interface}}: Interface name (e.g., Gi1/0/1)
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Custom variables defined per template
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Creating Custom Templates" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,0">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Click "New Template" to create a custom template
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Use {{variable_name}} syntax for substitution points
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Add descriptions and default values for variables
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Templates are saved locally in JSON format
+                </TextBlock>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <!-- Log Analysis Sub-View -->
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <TextBlock Text="Log Analysis" FontWeight="Bold" FontSize="14"
+                         Foreground="{DynamicResource Theme.Icon.Accent}" Margin="0,0,0,10"/>
+              <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap" Margin="0,0,0,12">
+                Analyze device logs with pattern detection, filtering, and timeline visualization
+                to quickly identify issues and trends.
+              </TextBlock>
+
+              <TextBlock Text="Loading Logs" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Click "Load Log" to open a log file for analysis
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Supports syslog, show logging output, and text logs
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Large files are loaded incrementally for performance
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Filtering" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Severity filter: Emergency, Alert, Critical, Error, Warning, Notice, Info, Debug
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Text search: Find specific patterns or keywords
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Time range: Filter to specific date/time windows
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Facility filter: Focus on specific subsystems
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Pattern Detection" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,10">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Click "Analyze" to run pattern detection
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Detects: Interface flaps, authentication failures, STP changes, config changes
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Results show pattern type, count, and affected resources
+                </TextBlock>
+              </StackPanel>
+
+              <TextBlock Text="Timeline View" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,6"/>
+              <StackPanel Margin="10,0,0,0">
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Visual distribution of events over time
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Color-coded by severity level
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,0,4" TextWrapping="Wrap">
+                  - Click on timeline segments to filter to that period
+                </TextBlock>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  - Identify burst patterns and correlations
+                </TextBlock>
+              </StackPanel>
+            </StackPanel>
+          </Border>
         </StackPanel>
 
         <!-- Themes Section -->
@@ -1785,10 +2382,105 @@
           <TextBlock Text="Troubleshooting" FontSize="20" FontWeight="Bold"
                      Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,15"/>
 
+          <!-- Visual Quick Diagnosis Flowchart -->
           <Border Style="{StaticResource HelpCardStyle}">
             <StackPanel>
-              <TextBlock Text="Application Won't Start" FontWeight="SemiBold"
-                         Foreground="{DynamicResource Theme.Status.Danger}" Margin="0,0,0,8"/>
+              <TextBlock Text="Quick Diagnosis Flowchart" FontWeight="SemiBold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,12"/>
+
+              <!-- Row 1: Start -->
+              <StackPanel HorizontalAlignment="Center" Margin="0,0,0,8">
+                <Border Background="{DynamicResource Theme.Icon.Accent}" CornerRadius="20"
+                        Padding="20,8" HorizontalAlignment="Center">
+                  <TextBlock Text="What's the problem?" FontWeight="SemiBold" Foreground="White"/>
+                </Border>
+                <TextBlock Text="↓" FontSize="16" HorizontalAlignment="Center"
+                           Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,4"/>
+              </StackPanel>
+
+              <!-- Row 2: Three branches -->
+              <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*"/>
+                  <ColumnDefinition Width="*"/>
+                  <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Branch 1: Won't start -->
+                <StackPanel Grid.Column="0" HorizontalAlignment="Center">
+                  <Border Background="{DynamicResource Theme.Status.Danger}" CornerRadius="6"
+                          Padding="10,6" HorizontalAlignment="Center">
+                    <TextBlock Text="App won't start" FontSize="11" Foreground="White" FontWeight="SemiBold"/>
+                  </Border>
+                  <TextBlock Text="↓" FontSize="14" HorizontalAlignment="Center"
+                             Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                  <Border Background="{DynamicResource Theme.Surface.Secondary}"
+                          BorderBrush="{DynamicResource Theme.Border.Primary}" BorderThickness="1"
+                          CornerRadius="4" Padding="8,4" HorizontalAlignment="Center">
+                    <TextBlock Text="Check -STA flag&#x0a;Check .NET 4.8" FontSize="10" TextAlignment="Center"
+                               Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                  </Border>
+                </StackPanel>
+
+                <!-- Branch 2: No devices -->
+                <StackPanel Grid.Column="1" HorizontalAlignment="Center">
+                  <Border Background="{DynamicResource Theme.Status.Warning}" CornerRadius="6"
+                          Padding="10,6" HorizontalAlignment="Center">
+                    <TextBlock Text="No devices shown" FontSize="11" Foreground="White" FontWeight="SemiBold"/>
+                  </Border>
+                  <TextBlock Text="↓" FontSize="14" HorizontalAlignment="Center"
+                             Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                  <Border Background="{DynamicResource Theme.Surface.Secondary}"
+                          BorderBrush="{DynamicResource Theme.Border.Primary}" BorderThickness="1"
+                          CornerRadius="4" Padding="8,4" HorizontalAlignment="Center">
+                    <TextBlock Text="Check log files&#x0a;Check Site filter" FontSize="10" TextAlignment="Center"
+                               Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                  </Border>
+                </StackPanel>
+
+                <!-- Branch 3: DB errors -->
+                <StackPanel Grid.Column="2" HorizontalAlignment="Center">
+                  <Border Background="{DynamicResource Theme.Status.Info}" CornerRadius="6"
+                          Padding="10,6" HorizontalAlignment="Center">
+                    <TextBlock Text="Database errors" FontSize="11" Foreground="White" FontWeight="SemiBold"/>
+                  </Border>
+                  <TextBlock Text="↓" FontSize="14" HorizontalAlignment="Center"
+                             Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                  <Border Background="{DynamicResource Theme.Surface.Secondary}"
+                          BorderBrush="{DynamicResource Theme.Border.Primary}" BorderThickness="1"
+                          CornerRadius="4" Padding="8,4" HorizontalAlignment="Center">
+                    <TextBlock Text="Install ACE OLEDB&#x0a;Check file locks" FontSize="10" TextAlignment="Center"
+                               Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                  </Border>
+                </StackPanel>
+              </Grid>
+
+              <TextBlock Text="See detailed solutions below ↓" FontStyle="Italic" HorizontalAlignment="Center"
+                         Foreground="{DynamicResource Theme.Text.Secondary}" FontSize="11"/>
+            </StackPanel>
+          </Border>
+
+          <!-- Info Callout -->
+          <Border Style="{StaticResource InfoCalloutStyle}">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Text="ℹ" FontSize="16" Margin="0,0,10,0" VerticalAlignment="Top"/>
+              <StackPanel>
+                <TextBlock Text="Before You Troubleshoot" FontWeight="Bold" Foreground="{DynamicResource Theme.Status.Info}"/>
+                <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
+                  Most issues are caused by missing prerequisites. Ensure you have: PowerShell 5.1,
+                  .NET Framework 4.8+, and Microsoft ACE OLEDB provider installed.
+                </TextBlock>
+              </StackPanel>
+            </StackPanel>
+          </Border>
+
+          <Border Style="{StaticResource HelpCardStyle}">
+            <StackPanel>
+              <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                <TextBlock Text="🔴" FontSize="14" Margin="0,0,8,0"/>
+                <TextBlock Text="Application Won't Start" FontWeight="SemiBold"
+                           Foreground="{DynamicResource Theme.Status.Danger}"/>
+              </StackPanel>
               <TextBlock Text="Symptoms:" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,4"/>
               <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap" Margin="0,0,0,8">
                 Application crashes on startup, shows PowerShell errors, or window doesn't appear.
