@@ -94,6 +94,10 @@ function New-CommandReferenceView {
             $categoryDropdown.Items.Add($item) | Out-Null
         }
 
+        # Capture function references for use in closures
+        $updateGridFunc = ${function:Update-CommandsGrid}
+        $updateSnippetsFunc = ${function:Update-SnippetsList}
+
         # Load initial command list
         Update-CommandsGrid -Grid $commandsGrid -CountText $commandCountText
 
@@ -111,7 +115,7 @@ function New-CommandReferenceView {
                 $category = $categoryDropdown.SelectedItem.Content
             }
 
-            Update-CommandsGrid -Grid $commandsGrid -CountText $commandCountText `
+            & $updateGridFunc -Grid $commandsGrid -CountText $commandCountText `
                 -Keyword $keyword -Vendor $vendor -Category $category
         }.GetNewClosure())
 
@@ -191,7 +195,7 @@ function New-CommandReferenceView {
         $snippetVendorDropdown.Add_SelectionChanged({
             param($sender, $e)
             $vendor = if ($snippetVendorDropdown.SelectedItem) { $snippetVendorDropdown.SelectedItem.Content } else { $null }
-            Update-SnippetsList -ListBox $snippetsList -Vendor $vendor
+            & $updateSnippetsFunc -ListBox $snippetsList -Vendor $vendor
         }.GetNewClosure())
 
         # Snippet selection change
@@ -481,6 +485,10 @@ function Initialize-CommandReferenceEventHandlers {
         }
     }
 
+    # Capture function references for use in closures
+    $updateGridFunc = ${function:Update-CommandsGrid}
+    $updateSnippetsFunc = ${function:Update-SnippetsList}
+
     # Load initial command list
     if ($commandsGrid -and $commandCountText) {
         Update-CommandsGrid -Grid $commandsGrid -CountText $commandCountText
@@ -501,7 +509,7 @@ function Initialize-CommandReferenceEventHandlers {
                 $category = $categoryDropdown.SelectedItem.Content
             }
 
-            Update-CommandsGrid -Grid $commandsGrid -CountText $commandCountText `
+            & $updateGridFunc -Grid $commandsGrid -CountText $commandCountText `
                 -Keyword $keyword -Vendor $vendor -Category $category
         }.GetNewClosure())
     }
@@ -594,7 +602,7 @@ function Initialize-CommandReferenceEventHandlers {
         $snippetVendorDropdown.Add_SelectionChanged({
             param($sender, $e)
             $vendor = if ($snippetVendorDropdown.SelectedItem) { $snippetVendorDropdown.SelectedItem.Content } else { $null }
-            Update-SnippetsList -ListBox $snippetsList -Vendor $vendor
+            & $updateSnippetsFunc -ListBox $snippetsList -Vendor $vendor
         }.GetNewClosure())
     }
 
