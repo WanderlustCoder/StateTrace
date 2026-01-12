@@ -10,18 +10,18 @@
 
     <!-- Row 0: Search and filter controls -->
     <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5" Background="{DynamicResource Theme.Toolbar.Background}">
-      <Label Content="Search:" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
+      <Label Content="Search:" VerticalAlignment="Center" Style="{DynamicResource DarkToolbarLabelStyle}"/>
       <TextBox Name="SearchBox" Width="200" Margin="5,0" VerticalAlignment="Center"
                Background="{DynamicResource Theme.Input.Background}"
                Foreground="{DynamicResource Theme.Input.Text}"
                BorderBrush="{DynamicResource Theme.Input.Border}"
                ToolTip="Search commands by keyword"/>
       <Button Name="SearchButton" Content="Search" Width="70" Margin="5,0" Style="{DynamicResource PrimaryButtonStyle}"/>
-      <Label Content="Category:" VerticalAlignment="Center" Margin="15,0,0,0" Style="{DynamicResource ToolbarLabelStyle}"/>
+      <Label Content="Category:" VerticalAlignment="Center" Margin="15,0,0,0" Style="{DynamicResource DarkToolbarLabelStyle}"/>
       <ComboBox Name="CategoryDropdown" Width="120" Margin="5,0" Style="{DynamicResource ToolbarComboBoxStyle}">
         <ComboBoxItem Content="All" IsSelected="True"/>
       </ComboBox>
-      <Label Content="Vendor:" VerticalAlignment="Center" Margin="10,0,0,0" Style="{DynamicResource ToolbarLabelStyle}"/>
+      <Label Content="Vendor:" VerticalAlignment="Center" Margin="10,0,0,0" Style="{DynamicResource DarkToolbarLabelStyle}"/>
       <ComboBox Name="VendorDropdown" Width="100" Margin="5,0" Style="{DynamicResource ToolbarComboBoxStyle}">
         <ComboBoxItem Content="All" IsSelected="True"/>
       </ComboBox>

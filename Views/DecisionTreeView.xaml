@@ -301,7 +301,7 @@
 
                   <StackPanel Grid.Row="0" Orientation="Horizontal" Background="{DynamicResource Theme.Surface.Primary}"
                               Margin="5">
-                    <Label Content="Nodes" Style="{DynamicResource ToolbarLabelStyle}" FontWeight="Bold"/>
+                    <Label Content="Nodes" Style="{DynamicResource SurfacePrimaryLabelStyle}" FontWeight="Bold"/>
                     <Button Name="AddDecisionNodeButton" Content="+ Decision" Width="70" Margin="10,0,3,0"
                             Style="{DynamicResource SecondaryButtonStyle}" FontSize="11"/>
                     <Button Name="AddActionNodeButton" Content="+ Action" Width="60" Margin="3,0"
@@ -367,14 +367,14 @@
               <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
                 <StackPanel Name="NodePropertiesPanel">
                   <!-- Node ID -->
-                  <Label Content="Node ID:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                  <Label Content="Node ID:" Style="{DynamicResource SurfacePrimaryLabelStyle}"/>
                   <TextBox Name="NodeIdBox" Margin="0,0,0,10"
                            Background="{DynamicResource Theme.Input.Background}"
                            Foreground="{DynamicResource Theme.Input.Text}"
                            BorderBrush="{DynamicResource Theme.Input.Border}"/>
 
                   <!-- Node Type -->
-                  <Label Content="Type:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                  <Label Content="Type:" Style="{DynamicResource SurfacePrimaryLabelStyle}"/>
                   <ComboBox Name="NodeTypeBox" Margin="0,0,0,10" Style="{DynamicResource ToolbarComboBoxStyle}">
                     <ComboBoxItem Content="decision"/>
                     <ComboBoxItem Content="action"/>
@@ -385,14 +385,14 @@
                   </ComboBox>
 
                   <!-- Node Title -->
-                  <Label Content="Title:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                  <Label Content="Title:" Style="{DynamicResource SurfacePrimaryLabelStyle}"/>
                   <TextBox Name="NodeTitleBox" TextWrapping="Wrap" Height="50" Margin="0,0,0,10"
                            Background="{DynamicResource Theme.Input.Background}"
                            Foreground="{DynamicResource Theme.Input.Text}"
                            BorderBrush="{DynamicResource Theme.Input.Border}"/>
 
                   <!-- Node Content -->
-                  <Label Content="Content:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                  <Label Content="Content:" Style="{DynamicResource SurfacePrimaryLabelStyle}"/>
                   <TextBox Name="NodeContentBox" TextWrapping="Wrap" Height="60" Margin="0,0,0,10"
                            AcceptsReturn="True" VerticalScrollBarVisibility="Auto"
                            Background="{DynamicResource Theme.Input.Background}"
@@ -400,12 +400,12 @@
                            BorderBrush="{DynamicResource Theme.Input.Border}"/>
 
                   <!-- Next Node (for non-decision nodes) -->
-                  <Label Name="NextNodeLabel" Content="Next Node:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                  <Label Name="NextNodeLabel" Content="Next Node:" Style="{DynamicResource SurfacePrimaryLabelStyle}"/>
                   <ComboBox Name="NextNodeBox" Margin="0,0,0,10" Style="{DynamicResource ToolbarComboBoxStyle}"/>
 
                   <!-- Branches Panel (for decision nodes) -->
                   <StackPanel Name="BranchesPanel" Visibility="Collapsed">
-                    <Label Content="Branches:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                    <Label Content="Branches:" Style="{DynamicResource SurfacePrimaryLabelStyle}"/>
                     <ListBox Name="BranchesListBox" Height="120" Margin="0,0,0,5"
                              Background="{DynamicResource Theme.Input.Background}"
                              Foreground="{DynamicResource Theme.Input.Text}"
@@ -432,7 +432,7 @@
 
                   <!-- Variable name (for input nodes) -->
                   <StackPanel Name="VariablePanel" Visibility="Collapsed">
-                    <Label Content="Variable Name:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                    <Label Content="Variable Name:" Style="{DynamicResource SurfacePrimaryLabelStyle}"/>
                     <TextBox Name="VariableNameBox" Margin="0,0,0,10"
                              Background="{DynamicResource Theme.Input.Background}"
                              Foreground="{DynamicResource Theme.Input.Text}"
@@ -441,7 +441,7 @@
 
                   <!-- Outcome (for result nodes) -->
                   <StackPanel Name="OutcomePanel" Visibility="Collapsed">
-                    <Label Content="Outcome:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                    <Label Content="Outcome:" Style="{DynamicResource SurfacePrimaryLabelStyle}"/>
                     <TextBox Name="OutcomeBox" Margin="0,0,0,10"
                              Background="{DynamicResource Theme.Input.Background}"
                              Foreground="{DynamicResource Theme.Input.Text}"

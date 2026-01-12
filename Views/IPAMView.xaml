@@ -20,7 +20,7 @@
       <Button Name="CheckConflictsButton" Content="Check Conflicts" Margin="5,2" Style="{DynamicResource SecondaryButtonStyle}"/>
       <Button Name="PlanSiteButton" Content="Plan Site" Margin="5,2" Style="{DynamicResource SecondaryButtonStyle}"/>
       <Separator Margin="5,2"/>
-      <Label Content="Site:" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
+      <Label Content="Site:" VerticalAlignment="Center" Style="{DynamicResource DarkToolbarLabelStyle}"/>
       <ComboBox Name="SiteFilterCombo" Width="120" Margin="5,2" Style="{DynamicResource ToolbarComboBoxStyle}"/>
     </StackPanel>
 

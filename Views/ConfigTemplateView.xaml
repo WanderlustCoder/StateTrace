@@ -19,7 +19,7 @@
       <Separator Margin="5,2"/>
       <Button Name="LoadBuiltInButton" Content="Load Built-in" Margin="5,2" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Load built-in templates and standards"/>
       <Separator Margin="5,2"/>
-      <Label Content="Vendor:" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
+      <Label Content="Vendor:" VerticalAlignment="Center" Style="{DynamicResource DarkToolbarLabelStyle}"/>
       <ComboBox Name="VendorFilterCombo" Width="120" Margin="5,2" Style="{DynamicResource ToolbarComboBoxStyle}">
         <ComboBoxItem Content="All" IsSelected="True"/>
         <ComboBoxItem Content="Cisco_IOS"/>
