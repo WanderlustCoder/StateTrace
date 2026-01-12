@@ -7,6 +7,7 @@
     "Theme.Toolbar.Background": "#000000",
     "Theme.Toolbar.Text": "#FFFFFF",
     "Theme.Surface.Primary": "#000000",
+    "Theme.Surface.Primary.Text": "#FFFFFF",
     "Theme.Surface.Secondary": "#1A1A1A",
     "Theme.Surface.Border": "#FFFFFF",
     "Theme.Border": "#FFFFFF",

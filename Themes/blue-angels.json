@@ -17,7 +17,9 @@
   },
   "tokens": {
     "Theme.Toolbar.Background": "#001F3F",
+    "Theme.Toolbar.Text": "#FFD700",
     "Theme.Surface.Primary": "#001F3F",
+    "Theme.Surface.Primary.Text": "#FFD700",
     "Theme.Button.Secondary.Background": "#001F3F",
     "Theme.Button.Secondary.HoverBackground": "#002B66",
     "Theme.Button.Secondary.PressedBackground": "#001433",

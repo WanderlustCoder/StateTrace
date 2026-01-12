@@ -22,6 +22,7 @@
     "Theme.Toolbar.Background": "#1B231D",
     "Theme.Toolbar.Text": "#F6F1E6",
     "Theme.Surface.Primary": "#181F1A",
+    "Theme.Surface.Primary.Text": "#F6F1E6",
     "Theme.Surface.Secondary": "#202A24",
     "Theme.Surface.Border": "#4A5B52",
     "Theme.Border": "#4A5B52",

@@ -40,11 +40,11 @@
             <DataGrid Name="VlanGrid" Margin="5"
                       AutoGenerateColumns="False" IsReadOnly="True"
                       SelectionMode="Single" SelectionUnit="FullRow"
-                      Background="{DynamicResource Theme.Surface.Primary}"
+                      Background="{DynamicResource Theme.DataGrid.Background}"
                       Foreground="{DynamicResource Theme.Text.Primary}"
                       GridLinesVisibility="Horizontal"
-                      RowBackground="{DynamicResource Theme.Surface.Primary}"
-                      AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
+                      RowBackground="{DynamicResource Theme.DataGrid.Row}"
+                      AlternatingRowBackground="{DynamicResource Theme.DataGrid.RowAlt}"
                       ScrollViewer.IsDeferredScrollingEnabled="True"
                       VirtualizingPanel.IsVirtualizing="True"
                       VirtualizingPanel.VirtualizationMode="Recycling"
@@ -61,7 +61,7 @@
             </DataGrid>
 
             <Border Name="VlanEmptyStatePanel" HorizontalAlignment="Center" VerticalAlignment="Center"
-                    Background="{DynamicResource Theme.Surface.Primary}" Padding="30,20" CornerRadius="8"
+                    Background="{DynamicResource Theme.Surface.Secondary}" Padding="30,20" CornerRadius="8"
                     Visibility="Collapsed">
               <StackPanel>
                 <TextBlock Text="No VLANs" FontSize="18" FontWeight="Bold"
@@ -136,11 +136,11 @@
             <DataGrid Name="SubnetGrid" Margin="5"
                       AutoGenerateColumns="False" IsReadOnly="True"
                       SelectionMode="Single" SelectionUnit="FullRow"
-                      Background="{DynamicResource Theme.Surface.Primary}"
+                      Background="{DynamicResource Theme.DataGrid.Background}"
                       Foreground="{DynamicResource Theme.Text.Primary}"
                       GridLinesVisibility="Horizontal"
-                      RowBackground="{DynamicResource Theme.Surface.Primary}"
-                      AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
+                      RowBackground="{DynamicResource Theme.DataGrid.Row}"
+                      AlternatingRowBackground="{DynamicResource Theme.DataGrid.RowAlt}"
                       ScrollViewer.IsDeferredScrollingEnabled="True"
                       VirtualizingPanel.IsVirtualizing="True"
                       VirtualizingPanel.VirtualizationMode="Recycling"
@@ -158,7 +158,7 @@
             </DataGrid>
 
             <Border Name="SubnetEmptyStatePanel" HorizontalAlignment="Center" VerticalAlignment="Center"
-                    Background="{DynamicResource Theme.Surface.Primary}" Padding="30,20" CornerRadius="8"
+                    Background="{DynamicResource Theme.Surface.Secondary}" Padding="30,20" CornerRadius="8"
                     Visibility="Collapsed">
               <StackPanel>
                 <TextBlock Text="No Subnets" FontSize="18" FontWeight="Bold"
@@ -212,10 +212,10 @@
 
                 <Border Background="{DynamicResource Theme.Surface.Primary}" Padding="5" Margin="0,5,0,10" CornerRadius="3">
                   <StackPanel Name="SubnetCalcPanel">
-                    <TextBlock Text="Calculated Values" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}"/>
-                    <TextBlock Name="SubnetMaskText" Foreground="{DynamicResource Theme.Text.Secondary}"/>
-                    <TextBlock Name="SubnetRangeText" Foreground="{DynamicResource Theme.Text.Secondary}"/>
-                    <TextBlock Name="SubnetHostsText" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                    <TextBlock Text="Calculated Values" FontWeight="Bold" Foreground="{DynamicResource Theme.Surface.Primary.Text}"/>
+                    <TextBlock Name="SubnetMaskText" Foreground="{DynamicResource Theme.Surface.Primary.Text}" Opacity="0.8"/>
+                    <TextBlock Name="SubnetRangeText" Foreground="{DynamicResource Theme.Surface.Primary.Text}" Opacity="0.8"/>
+                    <TextBlock Name="SubnetHostsText" Foreground="{DynamicResource Theme.Surface.Primary.Text}" Opacity="0.8"/>
                   </StackPanel>
                 </Border>
 
@@ -243,11 +243,11 @@
             <DataGrid Name="IPGrid" Margin="5"
                       AutoGenerateColumns="False" IsReadOnly="True"
                       SelectionMode="Single" SelectionUnit="FullRow"
-                      Background="{DynamicResource Theme.Surface.Primary}"
+                      Background="{DynamicResource Theme.DataGrid.Background}"
                       Foreground="{DynamicResource Theme.Text.Primary}"
                       GridLinesVisibility="Horizontal"
-                      RowBackground="{DynamicResource Theme.Surface.Primary}"
-                      AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
+                      RowBackground="{DynamicResource Theme.DataGrid.Row}"
+                      AlternatingRowBackground="{DynamicResource Theme.DataGrid.RowAlt}"
                       ScrollViewer.IsDeferredScrollingEnabled="True"
                       VirtualizingPanel.IsVirtualizing="True"
                       VirtualizingPanel.VirtualizationMode="Recycling"
@@ -263,7 +263,7 @@
             </DataGrid>
 
             <Border Name="IPEmptyStatePanel" HorizontalAlignment="Center" VerticalAlignment="Center"
-                    Background="{DynamicResource Theme.Surface.Primary}" Padding="30,20" CornerRadius="8"
+                    Background="{DynamicResource Theme.Surface.Secondary}" Padding="30,20" CornerRadius="8"
                     Visibility="Collapsed">
               <StackPanel>
                 <TextBlock Text="No IP Addresses" FontSize="18" FontWeight="Bold"
@@ -329,11 +329,11 @@
           <Grid Grid.Row="1">
             <DataGrid Name="ConflictsGrid"
                       AutoGenerateColumns="False" IsReadOnly="True"
-                      Background="{DynamicResource Theme.Surface.Primary}"
+                      Background="{DynamicResource Theme.DataGrid.Background}"
                       Foreground="{DynamicResource Theme.Text.Primary}"
                       GridLinesVisibility="Horizontal"
-                      RowBackground="{DynamicResource Theme.Surface.Primary}"
-                      AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
+                      RowBackground="{DynamicResource Theme.DataGrid.Row}"
+                      AlternatingRowBackground="{DynamicResource Theme.DataGrid.RowAlt}"
                       ScrollViewer.IsDeferredScrollingEnabled="True"
                       VirtualizingPanel.IsVirtualizing="True"
                       VirtualizingPanel.VirtualizationMode="Recycling"
@@ -346,7 +346,7 @@
             </DataGrid>
 
             <Border Name="ConflictsEmptyStatePanel" HorizontalAlignment="Center" VerticalAlignment="Center"
-                    Background="{DynamicResource Theme.Surface.Primary}" Padding="30,20" CornerRadius="8"
+                    Background="{DynamicResource Theme.Surface.Secondary}" Padding="30,20" CornerRadius="8"
                     Visibility="Collapsed">
               <StackPanel>
                 <TextBlock Text="No Conflicts" FontSize="18" FontWeight="Bold"
@@ -457,9 +457,9 @@
         <!-- Wizard Header -->
         <StackPanel Grid.Row="0" Margin="0,0,0,15">
           <TextBlock Text="New Site Address Planning Wizard" FontSize="18" FontWeight="Bold"
-                     Foreground="{DynamicResource Theme.Text.Primary}"/>
+                     Foreground="{DynamicResource Theme.Surface.Primary.Text}"/>
           <TextBlock Text="Configure addressing requirements for a new site" FontSize="12"
-                     Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,5,0,0"/>
+                     Foreground="{DynamicResource Theme.Surface.Primary.Text}" Opacity="0.8" Margin="0,5,0,0"/>
         </StackPanel>
 
         <!-- Wizard Content -->
@@ -635,8 +635,8 @@
                 <Border Background="{DynamicResource Theme.Surface.Primary}" Padding="10" CornerRadius="3" Margin="0,15,0,0">
                   <StackPanel>
                     <TextBlock Text="VLAN Number Assignments" FontWeight="SemiBold"
-                               Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,5"/>
-                    <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap" FontSize="11">
+                               Foreground="{DynamicResource Theme.Surface.Primary.Text}" Margin="0,0,0,5"/>
+                    <TextBlock Foreground="{DynamicResource Theme.Surface.Primary.Text}" Opacity="0.8" TextWrapping="Wrap" FontSize="11">
                       Data: 10 | Voice: 20 | Management: 100 | Guest: 40 | IoT: 50 | Server: 30
                     </TextBlock>
                   </StackPanel>

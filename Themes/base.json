@@ -6,6 +6,7 @@
     "Theme.Toolbar.Background": "#243B53",
     "Theme.Toolbar.Text": "#FFFFFF",
     "Theme.Surface.Primary": "#1F3B63",
+    "Theme.Surface.Primary.Text": "#FFFFFF",
     "Theme.Surface.Secondary": "#F7F9FC",
     "Theme.Surface.Border": "#C0C0C0",
     "Theme.Border": "#D0D7E0",
