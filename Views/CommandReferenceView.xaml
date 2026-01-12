@@ -29,7 +29,7 @@
 
     <!-- Row 1: Translation controls -->
     <GroupBox Grid.Row="1" Header="Command Translation" Margin="5,0,5,5"
-              Foreground="{DynamicResource Theme.Text.Inverse}"
+              Foreground="{DynamicResource Theme.Text.Primary}"
               BorderBrush="{DynamicResource Theme.Border.Primary}">
       <Grid Margin="5">
         <Grid.ColumnDefinitions>
@@ -99,7 +99,7 @@
 
           <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="5">
             <Button Name="CopyCommandButton" Content="Copy Command" Width="110" Margin="0,0,5,0" Style="{DynamicResource PrimaryButtonStyle}"/>
-            <TextBlock Name="CommandCountText" Text="0 commands" VerticalAlignment="Center" Margin="10,0" Foreground="{DynamicResource Theme.Text.Inverse}"/>
+            <TextBlock Name="CommandCountText" Text="0 commands" VerticalAlignment="Center" Margin="10,0" Foreground="{DynamicResource Theme.Text.Primary}"/>
           </StackPanel>
         </Grid>
       </TabItem>
@@ -183,18 +183,18 @@
             </Grid.RowDefinitions>
 
             <TextBlock Grid.Row="0" Name="SnippetTitleText" Text="Select a snippet" FontSize="14" FontWeight="Bold" Margin="0,0,0,5"
-                       Foreground="{DynamicResource Theme.Text.Inverse}"/>
+                       Foreground="{DynamicResource Theme.Text.Primary}"/>
 
             <!-- Variables input area -->
             <GroupBox Grid.Row="1" Header="Variables" Margin="0,0,0,5"
-                      Foreground="{DynamicResource Theme.Text.Inverse}"
+                      Foreground="{DynamicResource Theme.Text.Primary}"
                       BorderBrush="{DynamicResource Theme.Border.Primary}">
               <StackPanel Name="VariablesPanel" Margin="5"/>
             </GroupBox>
 
             <!-- Generated config preview -->
             <GroupBox Grid.Row="2" Header="Generated Configuration"
-                      Foreground="{DynamicResource Theme.Text.Inverse}"
+                      Foreground="{DynamicResource Theme.Text.Primary}"
                       BorderBrush="{DynamicResource Theme.Border.Primary}">
               <TextBox Name="GeneratedConfigBox" AcceptsReturn="True" IsReadOnly="True"
                        VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"

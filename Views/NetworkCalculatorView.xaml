@@ -16,7 +16,7 @@
 
           <!-- Input Section -->
           <GroupBox Grid.Row="0" Header="Input" Margin="0,0,0,10"
-                    Foreground="{DynamicResource Theme.Text.Inverse}"
+                    Foreground="{DynamicResource Theme.Text.Primary}"
                     BorderBrush="{DynamicResource Theme.Border.Primary}">
             <StackPanel Margin="5">
               <StackPanel Orientation="Horizontal" Margin="0,5">
@@ -35,7 +35,7 @@
 
           <!-- Results Section -->
           <GroupBox Grid.Row="1" Header="Results" Margin="0,0,0,10"
-                    Foreground="{DynamicResource Theme.Text.Inverse}"
+                    Foreground="{DynamicResource Theme.Text.Primary}"
                     BorderBrush="{DynamicResource Theme.Border.Primary}">
             <Grid Margin="5">
               <Grid.ColumnDefinitions>
@@ -83,7 +83,7 @@
 
           <!-- Subnet Split Section -->
           <GroupBox Grid.Row="2" Header="Subnet Division"
-                    Foreground="{DynamicResource Theme.Text.Inverse}"
+                    Foreground="{DynamicResource Theme.Text.Primary}"
                     BorderBrush="{DynamicResource Theme.Border.Primary}">
             <Grid Margin="5">
               <Grid.RowDefinitions>
@@ -129,7 +129,7 @@
 
           <!-- Expand Section -->
           <GroupBox Grid.Row="0" Header="Expand VLAN Range" Margin="0,0,0,10"
-                    Foreground="{DynamicResource Theme.Text.Inverse}"
+                    Foreground="{DynamicResource Theme.Text.Primary}"
                     BorderBrush="{DynamicResource Theme.Border.Primary}">
             <StackPanel Margin="5">
               <StackPanel Orientation="Horizontal" Margin="0,5">
@@ -151,7 +151,7 @@
 
           <!-- Compress Section -->
           <GroupBox Grid.Row="1" Header="Compress VLAN List" Margin="0,0,0,10"
-                    Foreground="{DynamicResource Theme.Text.Inverse}"
+                    Foreground="{DynamicResource Theme.Text.Primary}"
                     BorderBrush="{DynamicResource Theme.Border.Primary}">
             <StackPanel Margin="5">
               <StackPanel Orientation="Horizontal" Margin="0,5">
@@ -183,7 +183,7 @@
 
           <!-- Transfer Time Section -->
           <GroupBox Grid.Row="0" Header="Transfer Time Calculator" Margin="0,0,0,10"
-                    Foreground="{DynamicResource Theme.Text.Inverse}"
+                    Foreground="{DynamicResource Theme.Text.Primary}"
                     BorderBrush="{DynamicResource Theme.Border.Primary}">
             <StackPanel Margin="5">
               <StackPanel Orientation="Horizontal" Margin="0,5">
@@ -220,7 +220,7 @@
 
           <!-- Unit Conversion Section -->
           <GroupBox Grid.Row="1" Header="Bandwidth Unit Conversion" Margin="0,0,0,10"
-                    Foreground="{DynamicResource Theme.Text.Inverse}"
+                    Foreground="{DynamicResource Theme.Text.Primary}"
                     BorderBrush="{DynamicResource Theme.Border.Primary}">
             <StackPanel Margin="5">
               <StackPanel Orientation="Horizontal" Margin="0,5">
@@ -263,7 +263,7 @@
 
           <!-- IP Validation Section -->
           <GroupBox Grid.Row="0" Header="IP Address Validation" Margin="0,0,0,10"
-                    Foreground="{DynamicResource Theme.Text.Inverse}"
+                    Foreground="{DynamicResource Theme.Text.Primary}"
                     BorderBrush="{DynamicResource Theme.Border.Primary}">
             <StackPanel Margin="5">
               <StackPanel Orientation="Horizontal" Margin="0,5">
@@ -283,7 +283,7 @@
 
           <!-- IP Containment Check Section -->
           <GroupBox Grid.Row="1" Header="IP in Subnet Check" Margin="0,0,0,10"
-                    Foreground="{DynamicResource Theme.Text.Inverse}"
+                    Foreground="{DynamicResource Theme.Text.Primary}"
                     BorderBrush="{DynamicResource Theme.Border.Primary}">
             <StackPanel Margin="5">
               <StackPanel Orientation="Horizontal" Margin="0,5">
@@ -354,7 +354,7 @@
 
           <!-- ACL Name and Template Selection -->
           <GroupBox Grid.Row="0" Header="ACL Configuration" Margin="0,0,0,10"
-                    Foreground="{DynamicResource Theme.Text.Inverse}"
+                    Foreground="{DynamicResource Theme.Text.Primary}"
                     BorderBrush="{DynamicResource Theme.Border.Primary}">
             <Grid Margin="5">
               <Grid.ColumnDefinitions>
@@ -388,7 +388,7 @@
 
           <!-- Entry Input Section -->
           <GroupBox Grid.Row="1" Header="Add Entry" Margin="0,0,0,10"
-                    Foreground="{DynamicResource Theme.Text.Inverse}"
+                    Foreground="{DynamicResource Theme.Text.Primary}"
                     BorderBrush="{DynamicResource Theme.Border.Primary}">
             <Grid Margin="5">
               <Grid.RowDefinitions>
@@ -455,7 +455,7 @@
 
           <!-- Entries Grid -->
           <GroupBox Grid.Row="2" Header="ACL Entries"
-                    Foreground="{DynamicResource Theme.Text.Inverse}"
+                    Foreground="{DynamicResource Theme.Text.Primary}"
                     BorderBrush="{DynamicResource Theme.Border.Primary}">
             <Grid Margin="5">
               <Grid.RowDefinitions>
@@ -498,7 +498,7 @@
 
           <!-- Generated Config Output -->
           <GroupBox Grid.Row="4" Header="Generated Configuration"
-                    Foreground="{DynamicResource Theme.Text.Inverse}"
+                    Foreground="{DynamicResource Theme.Text.Primary}"
                     BorderBrush="{DynamicResource Theme.Border.Primary}">
             <TextBox Name="ACLOutputBox" IsReadOnly="True" TextWrapping="NoWrap"
                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"

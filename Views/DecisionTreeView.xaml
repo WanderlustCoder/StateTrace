@@ -461,7 +461,7 @@
 
       <!-- Notes section at bottom -->
       <GroupBox Grid.Row="3" Header="Notes" Margin="0,10,0,0"
-                Foreground="{DynamicResource Theme.Text.Inverse}"
+                Foreground="{DynamicResource Theme.Text.Primary}"
                 BorderBrush="{DynamicResource Theme.Border.Primary}" Visibility="Collapsed"
                 Name="NotesGroup">
         <TextBox Name="NotesBox" Height="60" TextWrapping="Wrap" AcceptsReturn="True"

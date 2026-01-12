@@ -71,37 +71,37 @@
 
             <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Margin="{DynamicResource ControlSpacingRight}">
               <StackPanel Margin="{DynamicResource StackItemMargin}">
-                <TextBlock Text="Hostname:" FontSize="12" Foreground="{DynamicResource Theme.Text.Inverse}"/>
+                <TextBlock Text="Hostname:" FontSize="12" Foreground="{DynamicResource Theme.Text.Primary}"/>
                 <TextBox Name="HostnameBox" IsReadOnly="True" MinWidth="130" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
               </StackPanel>
               <StackPanel Margin="{DynamicResource StackItemMargin}">
-                <TextBlock Text="Make:" FontSize="12" Foreground="{DynamicResource Theme.Text.Inverse}"/>
+                <TextBlock Text="Make:" FontSize="12" Foreground="{DynamicResource Theme.Text.Primary}"/>
                 <TextBox Name="MakeBox" IsReadOnly="True" MinWidth="90" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
               </StackPanel>
               <StackPanel Margin="{DynamicResource StackItemMargin}">
-                <TextBlock Text="Model:" FontSize="12" Foreground="{DynamicResource Theme.Text.Inverse}"/>
+                <TextBlock Text="Model:" FontSize="12" Foreground="{DynamicResource Theme.Text.Primary}"/>
                 <TextBox Name="ModelBox" IsReadOnly="True" MinWidth="100" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
               </StackPanel>
             </StackPanel>
             <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal">
               <StackPanel Margin="{DynamicResource StackItemMargin}">
-                <TextBlock Text="Uptime:" FontSize="12" Foreground="{DynamicResource Theme.Text.Inverse}"/>
+                <TextBlock Text="Uptime:" FontSize="12" Foreground="{DynamicResource Theme.Text.Primary}"/>
                 <TextBox Name="UptimeBox" IsReadOnly="True" MinWidth="140" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
               </StackPanel>
               <StackPanel Margin="{DynamicResource StackItemMargin}">
-                <TextBlock Text="Ports:" FontSize="12" Foreground="{DynamicResource Theme.Text.Inverse}"/>
+                <TextBlock Text="Ports:" FontSize="12" Foreground="{DynamicResource Theme.Text.Primary}"/>
                 <TextBox Name="PortCountBox" IsReadOnly="True" MinWidth="50" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
               </StackPanel>
               <StackPanel Margin="{DynamicResource StackItemMargin}">
-                <TextBlock Text="AuthDefaultVLAN:" FontSize="12" Foreground="{DynamicResource Theme.Text.Inverse}"/>
+                <TextBlock Text="AuthDefaultVLAN:" FontSize="12" Foreground="{DynamicResource Theme.Text.Primary}"/>
                 <TextBox Name="AuthDefaultVLANBox" IsReadOnly="True" MinWidth="130" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
               </StackPanel>
               <StackPanel Margin="{DynamicResource StackItemMargin}">
-                <TextBlock Text="Building:" FontSize="12" Foreground="{DynamicResource Theme.Text.Inverse}"/>
+                <TextBlock Text="Building:" FontSize="12" Foreground="{DynamicResource Theme.Text.Primary}"/>
                 <TextBox Name="BuildingBox" IsReadOnly="True" MinWidth="60" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
               </StackPanel>
               <StackPanel Margin="{DynamicResource StackItemMargin}">
-                <TextBlock Text="Room:" FontSize="12" Foreground="{DynamicResource Theme.Text.Inverse}"/>
+                <TextBlock Text="Room:" FontSize="12" Foreground="{DynamicResource Theme.Text.Primary}"/>
                 <TextBox Name="RoomBox" IsReadOnly="True" MinWidth="40" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
               </StackPanel>
             </StackPanel>
@@ -142,7 +142,7 @@
 
             <Rectangle Width="1" Fill="{DynamicResource Theme.Border.Primary}" Margin="10,2,10,2"/>
 
-            <TextBlock Text="Selection:" Foreground="{DynamicResource Theme.Text.Inverse}" VerticalAlignment="Center" Margin="0,0,5,0"/>
+            <TextBlock Text="Selection:" Foreground="{DynamicResource Theme.Text.Primary}" VerticalAlignment="Center" Margin="0,0,5,0"/>
             <Button Name="SelectAllButton" Content="All" Width="40" Height="23" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Select all visible rows" Margin="0,0,3,0"/>
             <Button Name="SelectNoneButton" Content="None" Width="45" Height="23" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Clear selection" Margin="0,0,3,0"/>
             <Button Name="InvertSelectionButton" Content="Invert" Width="50" Height="23" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Invert current selection" Margin="0,0,3,0"/>
@@ -155,7 +155,7 @@
 
             <Rectangle Width="1" Fill="{DynamicResource Theme.Border.Primary}" Margin="10,2,10,2"/>
 
-            <TextBlock Text="Quick:" Foreground="{DynamicResource Theme.Text.Inverse}" VerticalAlignment="Center" Margin="0,0,5,0"/>
+            <TextBlock Text="Quick:" Foreground="{DynamicResource Theme.Text.Primary}" VerticalAlignment="Center" Margin="0,0,5,0"/>
             <Button Name="CopyPortsButton" Content="Ports" Width="45" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Copy selected port names to clipboard" Margin="0,0,3,0"/>
             <Button Name="CopyMacsButton" Content="MACs" Width="50" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Copy selected MAC addresses to clipboard" Margin="0,0,3,0"/>
             <Button Name="ExportSelectedButton" Content="Export" Width="50" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Export selected rows to file" Margin="0,0,0,0"/>
@@ -438,7 +438,7 @@
             </StackPanel>
             <TextBlock Name="HostLoadingIndicator"
                        Text="Loading host..."
-                       Foreground="{DynamicResource Theme.Text.Inverse}"
+                       Foreground="{DynamicResource Theme.Text.Primary}"
                        FontSize="12"
                        Visibility="Collapsed"
                        VerticalAlignment="Center"/>
@@ -446,7 +446,7 @@
           <TextBlock Name="PortLoadingIndicator"
                      Grid.Row="1"
                      Text="Loading ports..."
-                     Foreground="{DynamicResource Theme.Text.Inverse}"
+                     Foreground="{DynamicResource Theme.Text.Primary}"
                      FontSize="12"
                      Visibility="Collapsed"
                      VerticalAlignment="Center"/>
