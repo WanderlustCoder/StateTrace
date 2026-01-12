@@ -363,7 +363,7 @@ function Update-SnippetsList {
 
     $snippets = CommandReferenceModule\Get-ConfigSnippets -Vendor $Vendor
     foreach ($snippet in $snippets) {
-        $ListBox.Items.Add($snippet.Task) | Out-Null
+        $ListBox.Items.Add($snippet.TaskName) | Out-Null
     }
 }
 

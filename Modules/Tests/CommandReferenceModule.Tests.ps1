@@ -11,6 +11,7 @@ Describe 'CommandReferenceModule - Vendor Functions' -Tag 'CommandReference', 'U
 
             $vendors -contains 'Cisco' | Should Be $true
             $vendors -contains 'Arista' | Should Be $true
+            $vendors -contains 'Brocade' | Should Be $true
             $vendors -contains 'Juniper' | Should Be $true
             $vendors -contains 'HP' | Should Be $true
         }
@@ -19,7 +20,8 @@ Describe 'CommandReferenceModule - Vendor Functions' -Tag 'CommandReference', 'U
             $vendors = Get-SupportedVendors
 
             $vendors[0] | Should Be 'Arista'
-            $vendors[1] | Should Be 'Cisco'
+            $vendors[1] | Should Be 'Brocade'
+            $vendors[2] | Should Be 'Cisco'
         }
     }
 

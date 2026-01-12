@@ -37,6 +37,14 @@ $script:Vendors = @{
         SyntaxStyle = 'ProCurve'
         OSFamily = 'ProCurve'
     }
+    'Brocade' = @{
+        Name = 'Brocade'
+        Aliases = @('Brocade ICX', 'Brocade FCX', 'Ruckus ICX', 'ICX', 'FCX', 'FastIron')
+        SyntaxStyle = 'IOS'
+        OSFamily = 'FastIron'
+        SupportedModels = @('ICX 7450', 'FCX 648')
+        SupportedVersions = @('7.3x', '8.0.80', '8.0.95', '8.3')
+    }
 }
 
 # Command categories
@@ -80,6 +88,12 @@ $script:CommandDatabase = @{
                 Syntax = 'show interface brief [<interface>]'
                 Description = 'Displays brief interface status'
             }
+            'Brocade' = @{
+                Command = 'show interface brief'
+                Syntax = 'show interface brief [ethernet <unit>/<slot>/<port>]'
+                Description = 'Displays brief interface status'
+                Notes = 'Uses "show interface brief" instead of "show ip interface brief"'
+            }
         }
     }
     'show-interface-status' = @{
@@ -108,6 +122,11 @@ $script:CommandDatabase = @{
                 Syntax = 'show interfaces brief'
                 Description = 'Displays brief interface status'
             }
+            'Brocade' = @{
+                Command = 'show interface brief'
+                Syntax = 'show interface brief'
+                Description = 'Displays interface status including VLAN, duplex, speed'
+            }
         }
     }
     'show-interface-detail' = @{
@@ -134,6 +153,11 @@ $script:CommandDatabase = @{
                 Syntax = 'show interface <interface>'
                 Description = 'Displays interface details'
             }
+            'Brocade' = @{
+                Command = 'show interface'
+                Syntax = 'show interface ethernet <unit>/<slot>/<port>'
+                Description = 'Displays detailed interface information including counters'
+            }
         }
     }
     'show-interface-counters' = @{
@@ -159,6 +183,11 @@ $script:CommandDatabase = @{
                 Command = 'show interface counters'
                 Syntax = 'show interface <interface> counters'
                 Description = 'Displays interface counters'
+            }
+            'Brocade' = @{
+                Command = 'show interface counters'
+                Syntax = 'show interface ethernet <unit>/<slot>/<port> counters'
+                Description = 'Displays interface packet counters'
             }
         }
     }
@@ -205,6 +234,18 @@ $script:CommandDatabase = @{
                 Syntax = 'show ip route [<prefix>]'
                 Description = 'Displays IP routing table'
             }
+            'Brocade' = @{
+                Command = 'show ip route'
+                Syntax = 'show ip route [<prefix>]'
+                Description = 'Displays IP routing table'
+                StatusCodes = @{
+                    'C' = 'Connected'
+                    'S' = 'Static'
+                    'O' = 'OSPF'
+                    'B' = 'BGP'
+                    'R' = 'RIP'
+                }
+            }
         }
     }
     'show-ip-route-summary' = @{
@@ -230,6 +271,11 @@ $script:CommandDatabase = @{
                 Command = 'show ip route summary'
                 Syntax = 'show ip route summary'
                 Description = 'Displays routing summary'
+            }
+            'Brocade' = @{
+                Command = 'show ip route summary'
+                Syntax = 'show ip route summary'
+                Description = 'Displays routing table summary by protocol'
             }
         }
     }
@@ -257,6 +303,11 @@ $script:CommandDatabase = @{
                 Syntax = 'show ip ospf neighbor'
                 Description = 'Displays OSPF neighbors'
             }
+            'Brocade' = @{
+                Command = 'show ip ospf neighbor'
+                Syntax = 'show ip ospf neighbor [<interface>]'
+                Description = 'Displays OSPF neighbor adjacencies'
+            }
         }
     }
     'show-bgp-summary' = @{
@@ -282,6 +333,11 @@ $script:CommandDatabase = @{
                 Command = 'show ip bgp summary'
                 Syntax = 'show ip bgp summary'
                 Description = 'Displays BGP summary'
+            }
+            'Brocade' = @{
+                Command = 'show ip bgp summary'
+                Syntax = 'show ip bgp summary'
+                Description = 'Displays BGP neighbor summary'
             }
         }
     }
@@ -311,6 +367,11 @@ $script:CommandDatabase = @{
                 Syntax = 'show vlans [<vlan-id>]'
                 Description = 'Displays VLAN information'
             }
+            'Brocade' = @{
+                Command = 'show vlan brief'
+                Syntax = 'show vlan [brief] [<vlan-id>]'
+                Description = 'Displays VLAN information'
+            }
         }
     }
     'show-mac-table' = @{
@@ -338,6 +399,12 @@ $script:CommandDatabase = @{
                 Syntax = 'show mac-address [vlan <vlan-id>]'
                 Description = 'Displays MAC addresses'
             }
+            'Brocade' = @{
+                Command = 'show mac-address'
+                Syntax = 'show mac-address [ethernet <unit>/<slot>/<port>] [vlan <vlan-id>]'
+                Description = 'Displays MAC address table'
+                Notes = 'Uses "show mac-address" not "show mac address-table"'
+            }
         }
     }
     'show-spanning-tree' = @{
@@ -364,6 +431,12 @@ $script:CommandDatabase = @{
                 Syntax = 'show spanning-tree [vlan <vlan-id>]'
                 Description = 'Displays spanning tree'
             }
+            'Brocade' = @{
+                Command = 'show spanning-tree'
+                Syntax = 'show spanning-tree [vlan <vlan-id>]'
+                Description = 'Displays spanning tree information'
+                Notes = 'Also: show span (short form)'
+            }
         }
     }
     'show-port-channel' = @{
@@ -389,6 +462,12 @@ $script:CommandDatabase = @{
                 Command = 'show trunks'
                 Syntax = 'show trunks'
                 Description = 'Displays trunk groups'
+            }
+            'Brocade' = @{
+                Command = 'show lag'
+                Syntax = 'show lag [<lag-id>]'
+                Description = 'Displays LAG (Link Aggregation Group) summary'
+                Notes = 'Also: show trunk for trunk information'
             }
         }
     }
@@ -418,6 +497,11 @@ $script:CommandDatabase = @{
                 Syntax = 'show version'
                 Description = 'Displays firmware version'
             }
+            'Brocade' = @{
+                Command = 'show version'
+                Syntax = 'show version'
+                Description = 'Displays system hardware and software version'
+            }
         }
     }
     'show-running-config' = @{
@@ -445,6 +529,12 @@ $script:CommandDatabase = @{
                 Syntax = 'show running-config'
                 Description = 'Displays running configuration'
             }
+            'Brocade' = @{
+                Command = 'show running-config'
+                Syntax = 'show running-config [interface <interface>]'
+                Description = 'Displays current running configuration'
+                Notes = 'Also: show config'
+            }
         }
     }
     'show-logging' = @{
@@ -470,6 +560,11 @@ $script:CommandDatabase = @{
                 Command = 'show logging'
                 Syntax = 'show logging'
                 Description = 'Displays event log'
+            }
+            'Brocade' = @{
+                Command = 'show log'
+                Syntax = 'show log [| include <pattern>]'
+                Description = 'Displays system log buffer'
             }
         }
     }
@@ -497,6 +592,12 @@ $script:CommandDatabase = @{
                 Syntax = 'show system information'
                 Description = 'Displays system information'
             }
+            'Brocade' = @{
+                Command = 'show flash'
+                Syntax = 'show flash'
+                Description = 'Displays flash contents and hardware inventory'
+                Notes = 'Also: show module for module details'
+            }
         }
     }
     'show-cpu' = @{
@@ -519,6 +620,11 @@ $script:CommandDatabase = @{
                 Description = 'Displays RE CPU and memory'
             }
             'HP' = @{
+                Command = 'show cpu'
+                Syntax = 'show cpu'
+                Description = 'Displays CPU utilization'
+            }
+            'Brocade' = @{
                 Command = 'show cpu'
                 Syntax = 'show cpu'
                 Description = 'Displays CPU utilization'
@@ -550,6 +656,11 @@ $script:CommandDatabase = @{
                 Syntax = 'show system information'
                 Description = 'Memory in system info'
             }
+            'Brocade' = @{
+                Command = 'show memory'
+                Syntax = 'show memory'
+                Description = 'Displays memory usage statistics'
+            }
         }
     }
 
@@ -578,6 +689,12 @@ $script:CommandDatabase = @{
                 Syntax = 'show arp [<ip-address>]'
                 Description = 'Displays ARP cache'
             }
+            'Brocade' = @{
+                Command = 'show arp'
+                Syntax = 'show arp [<ip-address>]'
+                Description = 'Displays ARP table'
+                Notes = 'Uses "show arp" not "show ip arp"'
+            }
         }
     }
     'show-lldp-neighbors' = @{
@@ -603,6 +720,11 @@ $script:CommandDatabase = @{
                 Command = 'show lldp info remote-device'
                 Syntax = 'show lldp info remote-device'
                 Description = 'Displays LLDP remote device info'
+            }
+            'Brocade' = @{
+                Command = 'show lldp neighbors'
+                Syntax = 'show lldp neighbors [detail]'
+                Description = 'Displays LLDP neighbor information'
             }
         }
     }
@@ -630,6 +752,12 @@ $script:CommandDatabase = @{
                 Command = 'show cdp neighbors'
                 Syntax = 'show cdp neighbors [detail]'
                 Description = 'Displays CDP neighbors'
+            }
+            'Brocade' = @{
+                Command = 'show fdp neighbors'
+                Syntax = 'show fdp neighbors [detail]'
+                Description = 'Displays FDP neighbor information'
+                Notes = 'Brocade uses FDP (Foundry Discovery Protocol) as CDP equivalent'
             }
         }
     }
@@ -659,6 +787,11 @@ $script:CommandDatabase = @{
                 Syntax = 'show access-list <acl-id>'
                 Description = 'Displays access list'
             }
+            'Brocade' = @{
+                Command = 'show access-list'
+                Syntax = 'show access-list [<acl-name>]'
+                Description = 'Displays all access lists or specific ACL'
+            }
         }
     }
     'show-port-security' = @{
@@ -684,6 +817,12 @@ $script:CommandDatabase = @{
                 Command = 'show port-security'
                 Syntax = 'show port-security [<port>]'
                 Description = 'Displays port security status'
+            }
+            'Brocade' = @{
+                Command = 'show mac-authentication sessions'
+                Syntax = 'show mac-authentication sessions'
+                Description = 'Displays MAC authentication sessions'
+                Notes = 'Brocade uses MAC authentication for port security'
             }
         }
     }
@@ -711,6 +850,11 @@ $script:CommandDatabase = @{
                 Syntax = 'show authentication'
                 Description = 'Displays authentication configuration'
             }
+            'Brocade' = @{
+                Command = 'show authentication'
+                Syntax = 'show authentication'
+                Description = 'Displays AAA/authentication configuration'
+            }
         }
     }
     'show-dot1x' = @{
@@ -737,6 +881,11 @@ $script:CommandDatabase = @{
                 Syntax = 'show port-access authenticator [<port>]'
                 Description = 'Displays 802.1X authenticator status'
             }
+            'Brocade' = @{
+                Command = 'show dot1x sessions all'
+                Syntax = 'show dot1x sessions all'
+                Description = 'Displays 802.1X authentication sessions'
+            }
         }
     }
     'show-users' = @{
@@ -762,6 +911,11 @@ $script:CommandDatabase = @{
                 Command = 'show users'
                 Syntax = 'show users'
                 Description = 'Displays active sessions'
+            }
+            'Brocade' = @{
+                Command = 'show users'
+                Syntax = 'show users'
+                Description = 'Displays users logged into the device'
             }
         }
     }
@@ -791,6 +945,11 @@ $script:CommandDatabase = @{
                 Syntax = 'show ntp status'
                 Description = 'Displays NTP status'
             }
+            'Brocade' = @{
+                Command = 'show ntp status'
+                Syntax = 'show ntp status'
+                Description = 'Displays NTP synchronization status'
+            }
         }
     }
     'show-ntp-associations' = @{
@@ -816,6 +975,11 @@ $script:CommandDatabase = @{
                 Command = 'show ntp associations'
                 Syntax = 'show ntp associations'
                 Description = 'Displays NTP associations'
+            }
+            'Brocade' = @{
+                Command = 'show ntp associations'
+                Syntax = 'show ntp associations'
+                Description = 'Displays NTP peer associations'
             }
         }
     }
@@ -843,6 +1007,11 @@ $script:CommandDatabase = @{
                 Syntax = 'show snmp-server'
                 Description = 'Displays SNMP configuration'
             }
+            'Brocade' = @{
+                Command = 'show snmp server'
+                Syntax = 'show snmp server'
+                Description = 'Displays SNMP server configuration'
+            }
         }
     }
     'show-clock' = @{
@@ -868,6 +1037,11 @@ $script:CommandDatabase = @{
                 Command = 'show time'
                 Syntax = 'show time'
                 Description = 'Displays current time'
+            }
+            'Brocade' = @{
+                Command = 'show clock'
+                Syntax = 'show clock'
+                Description = 'Displays current system time'
             }
         }
     }
@@ -895,6 +1069,11 @@ $script:CommandDatabase = @{
                 Syntax = 'show flash'
                 Description = 'Displays flash contents and boot image'
             }
+            'Brocade' = @{
+                Command = 'show flash'
+                Syntax = 'show flash'
+                Description = 'Displays flash contents and boot configuration'
+            }
         }
     }
     'show-environment' = @{
@@ -920,6 +1099,11 @@ $script:CommandDatabase = @{
                 Command = 'show system fans'
                 Syntax = 'show system [fans | power-supply | temperature]'
                 Description = 'Displays system environmental data'
+            }
+            'Brocade' = @{
+                Command = 'show chassis'
+                Syntax = 'show chassis'
+                Description = 'Displays chassis environmental status (fans, power, temp)'
             }
         }
     }
@@ -950,6 +1134,12 @@ $script:CommandDatabase = @{
                 Syntax = 'show vrrp [<vrid>]'
                 Description = 'Displays VRRP status'
             }
+            'Brocade' = @{
+                Command = 'show vrrp'
+                Syntax = 'show vrrp [brief]'
+                Description = 'Displays VRRP status'
+                Notes = 'Brocade uses VRRP for first-hop redundancy'
+            }
         }
     }
     'show-vrrp' = @{
@@ -975,6 +1165,11 @@ $script:CommandDatabase = @{
                 Command = 'show vrrp'
                 Syntax = 'show vrrp [<vrid>]'
                 Description = 'Displays VRRP status'
+            }
+            'Brocade' = @{
+                Command = 'show vrrp'
+                Syntax = 'show vrrp [brief | detail]'
+                Description = 'Displays VRRP information'
             }
         }
     }
@@ -1004,6 +1199,11 @@ $script:CommandDatabase = @{
                 Syntax = 'show name'
                 Description = 'Displays port names'
             }
+            'Brocade' = @{
+                Command = 'show interface brief'
+                Syntax = 'show interface brief'
+                Description = 'Displays interface descriptions in brief output'
+            }
         }
     }
     'show-interface-trunk' = @{
@@ -1029,6 +1229,11 @@ $script:CommandDatabase = @{
                 Command = 'show trunks'
                 Syntax = 'show trunks'
                 Description = 'Displays trunk groups'
+            }
+            'Brocade' = @{
+                Command = 'show trunk'
+                Syntax = 'show trunk'
+                Description = 'Displays trunk port status and VLANs'
             }
         }
     }
@@ -1056,6 +1261,11 @@ $script:CommandDatabase = @{
                 Syntax = 'show vlans ports <port>'
                 Description = 'Displays port VLAN membership'
             }
+            'Brocade' = @{
+                Command = 'show vlan ethernet'
+                Syntax = 'show vlan ethernet <unit>/<slot>/<port>'
+                Description = 'Displays VLAN membership for a port'
+            }
         }
     }
     'show-interface-transceiver' = @{
@@ -1081,6 +1291,11 @@ $script:CommandDatabase = @{
                 Command = 'show interfaces transceiver'
                 Syntax = 'show interfaces transceiver [<port>]'
                 Description = 'Displays transceiver information'
+            }
+            'Brocade' = @{
+                Command = 'show optic'
+                Syntax = 'show optic [ethernet <unit>/<slot>/<port>]'
+                Description = 'Displays transceiver/optic DOM information'
             }
         }
     }
@@ -1110,6 +1325,11 @@ $script:CommandDatabase = @{
                 Syntax = 'show ip'
                 Description = 'Displays IP configuration'
             }
+            'Brocade' = @{
+                Command = 'show ip protocols'
+                Syntax = 'show ip protocols'
+                Description = 'Displays routing protocol information'
+            }
         }
     }
     'show-ip-ospf' = @{
@@ -1135,6 +1355,11 @@ $script:CommandDatabase = @{
                 Command = 'show ip ospf'
                 Syntax = 'show ip ospf'
                 Description = 'Displays OSPF settings'
+            }
+            'Brocade' = @{
+                Command = 'show ip ospf'
+                Syntax = 'show ip ospf'
+                Description = 'Displays OSPF process information'
             }
         }
     }
@@ -1162,6 +1387,11 @@ $script:CommandDatabase = @{
                 Syntax = 'show ip ospf interface'
                 Description = 'Displays OSPF interfaces'
             }
+            'Brocade' = @{
+                Command = 'show ip ospf interface'
+                Syntax = 'show ip ospf interface [<interface>]'
+                Description = 'Displays OSPF interface information'
+            }
         }
     }
     'show-ip-ospf-database' = @{
@@ -1187,6 +1417,11 @@ $script:CommandDatabase = @{
                 Command = 'show ip ospf link-state'
                 Syntax = 'show ip ospf link-state'
                 Description = 'Displays OSPF LSAs'
+            }
+            'Brocade' = @{
+                Command = 'show ip ospf database'
+                Syntax = 'show ip ospf database [router | network | summary | external]'
+                Description = 'Displays OSPF LSDB'
             }
         }
     }
@@ -1214,6 +1449,11 @@ $script:CommandDatabase = @{
                 Syntax = 'show ip bgp'
                 Description = 'Displays BGP routes'
             }
+            'Brocade' = @{
+                Command = 'show ip bgp'
+                Syntax = 'show ip bgp [<prefix>]'
+                Description = 'Displays BGP routing table'
+            }
         }
     }
     'show-ip-bgp-neighbors' = @{
@@ -1239,6 +1479,11 @@ $script:CommandDatabase = @{
                 Command = 'show ip bgp neighbors'
                 Syntax = 'show ip bgp neighbors'
                 Description = 'Displays BGP neighbors'
+            }
+            'Brocade' = @{
+                Command = 'show ip bgp neighbors'
+                Syntax = 'show ip bgp neighbors [<neighbor-ip>]'
+                Description = 'Displays BGP neighbor details'
             }
         }
     }
@@ -1266,6 +1511,11 @@ $script:CommandDatabase = @{
                 Description = 'HP does not support EIGRP'
                 Notes = 'Use OSPF instead'
             }
+            'Brocade' = @{
+                Command = 'N/A'
+                Description = 'Brocade does not support EIGRP'
+                Notes = 'Use OSPF or BGP instead'
+            }
         }
     }
     'show-ip-static-route' = @{
@@ -1288,6 +1538,11 @@ $script:CommandDatabase = @{
                 Description = 'Displays static routes'
             }
             'HP' = @{
+                Command = 'show ip route static'
+                Syntax = 'show ip route static'
+                Description = 'Displays static routes'
+            }
+            'Brocade' = @{
                 Command = 'show ip route static'
                 Syntax = 'show ip route static'
                 Description = 'Displays static routes'
@@ -1320,6 +1575,11 @@ $script:CommandDatabase = @{
                 Syntax = 'show ip igmp [groups]'
                 Description = 'Displays IGMP information'
             }
+            'Brocade' = @{
+                Command = 'show ip igmp groups'
+                Syntax = 'show ip igmp groups [<interface>]'
+                Description = 'Displays IGMP group membership'
+            }
         }
     }
     'show-ip-mroute' = @{
@@ -1345,6 +1605,11 @@ $script:CommandDatabase = @{
                 Command = 'show ip mroute'
                 Syntax = 'show ip mroute'
                 Description = 'Displays multicast routes'
+            }
+            'Brocade' = @{
+                Command = 'show ip mroute'
+                Syntax = 'show ip mroute [<group>]'
+                Description = 'Displays multicast routing table'
             }
         }
     }
@@ -1374,6 +1639,11 @@ $script:CommandDatabase = @{
                 Syntax = 'show power-over-ethernet [<port>]'
                 Description = 'Displays PoE information'
             }
+            'Brocade' = @{
+                Command = 'show inline power'
+                Syntax = 'show inline power [ethernet <unit>/<slot>/<port>]'
+                Description = 'Displays PoE status and power consumption'
+            }
         }
     }
 
@@ -1402,6 +1672,11 @@ $script:CommandDatabase = @{
                 Syntax = 'show dhcp-server binding'
                 Description = 'Displays DHCP bindings'
             }
+            'Brocade' = @{
+                Command = 'show ip dhcp-server binding'
+                Syntax = 'show ip dhcp-server binding'
+                Description = 'Displays DHCP server bindings'
+            }
         }
     }
     'show-ip-dhcp-snooping' = @{
@@ -1427,6 +1702,11 @@ $script:CommandDatabase = @{
                 Command = 'show dhcp-snooping binding'
                 Syntax = 'show dhcp-snooping binding'
                 Description = 'Displays DHCP snooping table'
+            }
+            'Brocade' = @{
+                Command = 'show ip dhcp snooping binding'
+                Syntax = 'show ip dhcp snooping binding'
+                Description = 'Displays DHCP snooping binding table'
             }
         }
     }
@@ -1456,6 +1736,11 @@ $script:CommandDatabase = @{
                 Syntax = 'show stacking'
                 Description = 'Displays stacking information'
             }
+            'Brocade' = @{
+                Command = 'show stack'
+                Syntax = 'show stack [detail]'
+                Description = 'Displays switch stack members and status'
+            }
         }
     }
     'show-module' = @{
@@ -1481,6 +1766,11 @@ $script:CommandDatabase = @{
                 Command = 'show modules'
                 Syntax = 'show modules'
                 Description = 'Displays installed modules'
+            }
+            'Brocade' = @{
+                Command = 'show module'
+                Syntax = 'show module [<slot>]'
+                Description = 'Displays module status in modular switches'
             }
         }
     }
@@ -1510,6 +1800,11 @@ $script:CommandDatabase = @{
                 Syntax = 'show ip vrf'
                 Description = 'Displays VRF information'
             }
+            'Brocade' = @{
+                Command = 'show ip vrf'
+                Syntax = 'show ip vrf [<vrf-name>]'
+                Description = 'Displays VRF information'
+            }
         }
     }
 }
@@ -1535,6 +1830,9 @@ set vlans {{vlan_name}} vlan-id {{vlan_id}}
             'HP' = @'
 vlan {{vlan_id}}
  name "{{vlan_name}}"
+'@
+            'Brocade' = @'
+vlan {{vlan_id}} name {{vlan_name}}
 '@
         }
     }
@@ -1566,6 +1864,12 @@ interface {{interface}}
  name "{{description}}"
  untagged vlan {{vlan_id}}
  spanning-tree admin-edge-port
+'@
+            'Brocade' = @'
+interface ethernet {{interface}}
+ port-name {{description}}
+ untagged vlan {{vlan_id}}
+ spanning-tree portfast
 '@
         }
     }
@@ -1601,6 +1905,12 @@ interface {{interface}}
  tagged vlan {{allowed_vlans}}
  untagged vlan {{native_vlan}}
 '@
+            'Brocade' = @'
+interface ethernet {{interface}}
+ port-name {{description}}
+ dual-mode {{native_vlan}}
+ tagged vlan {{allowed_vlans}}
+'@
         }
     }
     'static-route' = @{
@@ -1618,6 +1928,9 @@ ip route {{network}}/{{mask}} {{next_hop}} {{admin_distance}}
 set routing-options static route {{network}}/{{mask}} next-hop {{next_hop}} preference {{admin_distance}}
 '@
             'HP' = @'
+ip route {{network}} {{mask}} {{next_hop}} distance {{admin_distance}}
+'@
+            'Brocade' = @'
 ip route {{network}} {{mask}} {{next_hop}} distance {{admin_distance}}
 '@
         }
@@ -1647,6 +1960,13 @@ set interfaces irb unit {{vlan_id}} family inet address {{ip_address}}/{{subnet_
 vlan {{vlan_id}}
  ip address {{ip_address}} {{subnet_mask}}
  name "{{description}}"
+'@
+            'Brocade' = @'
+vlan {{vlan_id}}
+ router-interface ve {{vlan_id}}
+interface ve {{vlan_id}}
+ port-name {{description}}
+ ip address {{ip_address}} {{subnet_mask}}
 '@
         }
     }
@@ -1678,6 +1998,12 @@ interface {{interface}}
  port-security maximum {{max_macs}}
  port-security violation {{violation_action}}
 '@
+            'Brocade' = @'
+mac-authentication enable
+interface ethernet {{interface}}
+ mac-authentication enable
+ mac-authentication max-mac {{max_macs}}
+'@
         }
     }
     'acl-standard' = @{
@@ -1698,6 +2024,10 @@ set firewall family inet filter {{acl_name}} term 1 from source-address {{source
 set firewall family inet filter {{acl_name}} term 1 then {{action}}
 '@
             'HP' = @'
+ip access-list standard {{acl_name}}
+ {{action}} {{source_network}} {{source_wildcard}}
+'@
+            'Brocade' = @'
 ip access-list standard {{acl_name}}
  {{action}} {{source_network}} {{source_wildcard}}
 '@
@@ -1727,6 +2057,10 @@ set firewall family inet filter {{acl_name}} term 1 then {{action}}
 ip access-list extended {{acl_name}}
  {{action}} {{protocol}} {{src_network}} {{src_wildcard}} {{dst_network}} {{dst_wildcard}} eq {{dst_port}}
 '@
+            'Brocade' = @'
+ip access-list extended {{acl_name}}
+ {{action}} {{protocol}} {{src_network}} {{src_wildcard}} {{dst_network}} {{dst_wildcard}} eq {{dst_port}}
+'@
         }
     }
     'ntp-server' = @{
@@ -1747,6 +2081,10 @@ set system ntp server {{ntp_server}} {{prefer}}
 timesync ntp
 ntp server {{ntp_server}}
 '@
+            'Brocade' = @'
+ntp
+ server {{ntp_server}}
+'@
         }
     }
     'snmp-community' = @{
@@ -1765,6 +2103,9 @@ set snmp community {{community}} authorization {{access_mode}}
 set snmp community {{community}} clients {{acl_name}}
 '@
             'HP' = @'
+snmp-server community {{community}} {{access_mode}}
+'@
+            'Brocade' = @'
 snmp-server community {{community}} {{access_mode}}
 '@
         }
@@ -1788,6 +2129,10 @@ set system syslog host {{syslog_server}} any {{severity}}
             'HP' = @'
 logging {{syslog_server}}
 logging severity {{severity}}
+'@
+            'Brocade' = @'
+logging host {{syslog_server}}
+logging console {{severity}}
 '@
         }
     }
@@ -1821,6 +2166,15 @@ interface {{interface}}
   priority {{priority}}
   preempt
 '@
+            'Brocade' = @'
+! Brocade uses VRRP instead of HSRP
+interface {{interface}}
+ ip vrrp vrid {{group_id}}
+  ip-address {{virtual_ip}}
+  priority {{priority}}
+  preempt
+  activate
+'@
         }
     }
     'ospf-basic' = @{
@@ -1848,6 +2202,12 @@ router ospf
  area {{area}}
  enable
 '@
+            'Brocade' = @'
+router ospf
+ router-id {{router_id}}
+ area {{area}}
+  network {{network}} {{wildcard}}
+'@
         }
     }
     'bgp-neighbor' = @{
@@ -1874,6 +2234,12 @@ set routing-options autonomous-system {{local_as}}
 router bgp {{local_as}}
  neighbor {{neighbor_ip}} remote-as {{remote_as}}
 '@
+            'Brocade' = @'
+router bgp
+ local-as {{local_as}}
+ neighbor {{neighbor_ip}} remote-as {{remote_as}}
+ neighbor {{neighbor_ip}} description {{description}}
+'@
         }
     }
     'interface-shutdown' = @{
@@ -1894,6 +2260,10 @@ set interfaces {{interface}} disable
 '@
             'HP' = @'
 interface {{interface}}
+ disable
+'@
+            'Brocade' = @'
+interface ethernet {{interface}}
  disable
 '@
         }
@@ -1918,6 +2288,10 @@ delete interfaces {{interface}} disable
 interface {{interface}}
  enable
 '@
+            'Brocade' = @'
+interface ethernet {{interface}}
+ enable
+'@
         }
     }
     'interface-description' = @{
@@ -1939,6 +2313,10 @@ set interfaces {{interface}} description "{{description}}"
             'HP' = @'
 interface {{interface}}
  name "{{description}}"
+'@
+            'Brocade' = @'
+interface ethernet {{interface}}
+ port-name {{description}}
 '@
         }
     }
@@ -1965,6 +2343,11 @@ set ethernet-switching-options bpdu-block interface {{interface}}
 interface {{interface}}
  spanning-tree admin-edge-port
  spanning-tree bpdu-guard
+'@
+            'Brocade' = @'
+interface ethernet {{interface}}
+ spanning-tree portfast
+ stp-bpdu-guard
 '@
         }
     }
@@ -1995,6 +2378,11 @@ dhcp-snooping vlan {{vlan_id}}
 interface {{trusted_interface}}
  dhcp-snooping trust
 '@
+            'Brocade' = @'
+ip dhcp snooping vlan {{vlan_id}}
+interface ethernet {{trusted_interface}}
+ ip dhcp snooping trust
+'@
         }
     }
     'banner-login' = @{
@@ -2017,6 +2405,11 @@ set system login message "{{banner_text}}"
 '@
             'HP' = @'
 banner motd "{{banner_text}}"
+'@
+            'Brocade' = @'
+banner motd ^
+{{banner_text}}
+^
 '@
         }
     }
@@ -2043,6 +2436,11 @@ set system authentication-order [tacplus password]
             'HP' = @'
 tacacs-server host {{server_ip}} key {{shared_key}}
 aaa authentication login default group tacacs local
+'@
+            'Brocade' = @'
+tacacs-server host {{server_ip}} key {{shared_key}}
+aaa authentication login default tacacs+ local
+aaa authorization exec default tacacs+ local
 '@
         }
     }
