@@ -197,7 +197,7 @@ namespace StateTrace.Diagnostics
             if (string.IsNullOrEmpty(line)) { return; }
 
             _queue.Enqueue(line);
-            try { _signal.Set(); } catch { <# silently handled #> }
+            try { _signal.Set(); } catch { }
         }
 
         private void WriterLoop()
@@ -207,7 +207,7 @@ namespace StateTrace.Diagnostics
 
             while (!_disposed)
             {
-                try { _signal.WaitOne(250); } catch { <# silently handled #> }
+                try { _signal.WaitOne(250); } catch { }
 
                 try
                 {
@@ -239,8 +239,8 @@ namespace StateTrace.Diagnostics
         public void Dispose()
         {
             _disposed = true;
-            try { _signal.Set(); } catch { <# silently handled #> }
-            try { _signal.Dispose(); } catch { <# silently handled #> }
+            try { _signal.Set(); } catch { }
+            try { _signal.Dispose(); } catch { }
         }
     }
 }
@@ -470,12 +470,12 @@ namespace StateTrace.Threading
                 }
                 finally
                 {
-                    try { ps.Commands.Clear(); } catch { <# silently handled #> }
-                    try { ps.Dispose(); } catch { <# silently handled #> }
+                    try { ps.Commands.Clear(); } catch { }
+                    try { ps.Dispose(); } catch { }
 
                     if (heldLock && semaphore != null)
                     {
-                        try { semaphore.Release(); } catch { <# silently handled #> }
+                        try { semaphore.Release(); } catch { }
                     }
                 }
             };
