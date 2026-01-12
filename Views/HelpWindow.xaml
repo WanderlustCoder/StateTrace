@@ -2403,7 +2403,7 @@
                         Padding="20,8" HorizontalAlignment="Center">
                   <TextBlock Text="What's the problem?" FontWeight="SemiBold" Foreground="White"/>
                 </Border>
-                <TextBlock Text="↓" FontSize="16" HorizontalAlignment="Center"
+                <TextBlock Text="|" FontSize="16" HorizontalAlignment="Center"
                            Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,4"/>
               </StackPanel>
 
@@ -2421,12 +2421,12 @@
                           Padding="10,6" HorizontalAlignment="Center">
                     <TextBlock Text="App won't start" FontSize="11" Foreground="White" FontWeight="SemiBold"/>
                   </Border>
-                  <TextBlock Text="↓" FontSize="14" HorizontalAlignment="Center"
+                  <TextBlock Text="|" FontSize="14" HorizontalAlignment="Center"
                              Foreground="{DynamicResource Theme.Text.Secondary}"/>
                   <Border Background="{DynamicResource Theme.Surface.Secondary}"
                           BorderBrush="{DynamicResource Theme.Border.Primary}" BorderThickness="1"
                           CornerRadius="4" Padding="8,4" HorizontalAlignment="Center">
-                    <TextBlock Text="Check -STA flag&#x0a;Check .NET 4.8" FontSize="10" TextAlignment="Center"
+                    <TextBlock Text="Check -STA flag / Check .NET 4.8" FontSize="10" TextAlignment="Center"
                                Foreground="{DynamicResource Theme.Text.Secondary}"/>
                   </Border>
                 </StackPanel>
@@ -2435,14 +2435,14 @@
                 <StackPanel Grid.Column="1" HorizontalAlignment="Center">
                   <Border Background="{DynamicResource Theme.Status.Warning}" CornerRadius="6"
                           Padding="10,6" HorizontalAlignment="Center">
-                    <TextBlock Text="No devices shown" FontSize="11" Foreground="White" FontWeight="SemiBold"/>
+                    <TextBlock Text="No devices shown" FontSize="11" Foreground="#333333" FontWeight="SemiBold"/>
                   </Border>
-                  <TextBlock Text="↓" FontSize="14" HorizontalAlignment="Center"
+                  <TextBlock Text="|" FontSize="14" HorizontalAlignment="Center"
                              Foreground="{DynamicResource Theme.Text.Secondary}"/>
                   <Border Background="{DynamicResource Theme.Surface.Secondary}"
                           BorderBrush="{DynamicResource Theme.Border.Primary}" BorderThickness="1"
                           CornerRadius="4" Padding="8,4" HorizontalAlignment="Center">
-                    <TextBlock Text="Check log files&#x0a;Check Site filter" FontSize="10" TextAlignment="Center"
+                    <TextBlock Text="Check log files / Check Site filter" FontSize="10" TextAlignment="Center"
                                Foreground="{DynamicResource Theme.Text.Secondary}"/>
                   </Border>
                 </StackPanel>
@@ -2453,18 +2453,18 @@
                           Padding="10,6" HorizontalAlignment="Center">
                     <TextBlock Text="Database errors" FontSize="11" Foreground="White" FontWeight="SemiBold"/>
                   </Border>
-                  <TextBlock Text="↓" FontSize="14" HorizontalAlignment="Center"
+                  <TextBlock Text="|" FontSize="14" HorizontalAlignment="Center"
                              Foreground="{DynamicResource Theme.Text.Secondary}"/>
                   <Border Background="{DynamicResource Theme.Surface.Secondary}"
                           BorderBrush="{DynamicResource Theme.Border.Primary}" BorderThickness="1"
                           CornerRadius="4" Padding="8,4" HorizontalAlignment="Center">
-                    <TextBlock Text="Install ACE OLEDB&#x0a;Check file locks" FontSize="10" TextAlignment="Center"
+                    <TextBlock Text="Install ACE OLEDB / Check file locks" FontSize="10" TextAlignment="Center"
                                Foreground="{DynamicResource Theme.Text.Secondary}"/>
                   </Border>
                 </StackPanel>
               </Grid>
 
-              <TextBlock Text="See detailed solutions below ↓" FontStyle="Italic" HorizontalAlignment="Center"
+              <TextBlock Text="See detailed solutions below" FontStyle="Italic" HorizontalAlignment="Center"
                          Foreground="{DynamicResource Theme.Text.Secondary}" FontSize="11"/>
             </StackPanel>
           </Border>
