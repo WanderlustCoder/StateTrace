@@ -290,7 +290,11 @@
                         BorderBrush="{DynamicResource Theme.Border.Primary}" BorderThickness="1"
                         CornerRadius="6" Padding="10,8">
                   <StackPanel HorizontalAlignment="Center">
-                    <TextBlock Text="📄" FontSize="24" HorizontalAlignment="Center"/>
+                    <Border Background="{DynamicResource Theme.Border.Primary}" CornerRadius="4"
+                            Width="32" Height="24" HorizontalAlignment="Center" Margin="0,0,0,4">
+                      <TextBlock Text=".txt" FontSize="10" FontWeight="Bold" HorizontalAlignment="Center"
+                                 VerticalAlignment="Center" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                    </Border>
                     <TextBlock Text="Log Files" FontWeight="SemiBold" HorizontalAlignment="Center"
                                Foreground="{DynamicResource Theme.Text.Primary}" FontSize="11"/>
                     <TextBlock Text="Cisco/Arista/Brocade" FontSize="9" HorizontalAlignment="Center"
@@ -299,14 +303,18 @@
                 </Border>
 
                 <!-- Arrow 1 -->
-                <TextBlock Grid.Column="1" Text="→" FontSize="20" VerticalAlignment="Center"
+                <TextBlock Grid.Column="1" Text="&#x2192;" FontSize="20" VerticalAlignment="Center"
                            Foreground="{DynamicResource Theme.Icon.Accent}" Margin="8,0"/>
 
                 <!-- Parser -->
                 <Border Grid.Column="2" Background="{DynamicResource Theme.Status.Info}"
                         CornerRadius="6" Padding="10,8">
                   <StackPanel HorizontalAlignment="Center">
-                    <TextBlock Text="⚙" FontSize="24" HorizontalAlignment="Center" Foreground="White"/>
+                    <Border Background="#FFFFFF33" CornerRadius="12"
+                            Width="24" Height="24" HorizontalAlignment="Center" Margin="0,0,0,4">
+                      <TextBlock Text="P" FontSize="12" FontWeight="Bold" HorizontalAlignment="Center"
+                                 VerticalAlignment="Center" Foreground="White"/>
+                    </Border>
                     <TextBlock Text="Parser" FontWeight="SemiBold" HorizontalAlignment="Center"
                                Foreground="White" FontSize="11"/>
                     <TextBlock Text="Scan Logs" FontSize="9" HorizontalAlignment="Center"
@@ -315,7 +323,7 @@
                 </Border>
 
                 <!-- Arrow 2 -->
-                <TextBlock Grid.Column="3" Text="→" FontSize="20" VerticalAlignment="Center"
+                <TextBlock Grid.Column="3" Text="&#x2192;" FontSize="20" VerticalAlignment="Center"
                            Foreground="{DynamicResource Theme.Icon.Accent}" Margin="8,0"/>
 
                 <!-- Database -->
@@ -323,7 +331,11 @@
                         BorderBrush="{DynamicResource Theme.Border.Primary}" BorderThickness="1"
                         CornerRadius="6" Padding="10,8">
                   <StackPanel HorizontalAlignment="Center">
-                    <TextBlock Text="🗄" FontSize="24" HorizontalAlignment="Center"/>
+                    <Border Background="{DynamicResource Theme.Border.Primary}" CornerRadius="4"
+                            Width="32" Height="24" HorizontalAlignment="Center" Margin="0,0,0,4">
+                      <TextBlock Text="DB" FontSize="10" FontWeight="Bold" HorizontalAlignment="Center"
+                                 VerticalAlignment="Center" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                    </Border>
                     <TextBlock Text="Database" FontWeight="SemiBold" HorizontalAlignment="Center"
                                Foreground="{DynamicResource Theme.Text.Primary}" FontSize="11"/>
                     <TextBlock Text="Access .accdb" FontSize="9" HorizontalAlignment="Center"
@@ -332,14 +344,18 @@
                 </Border>
 
                 <!-- Arrow 3 -->
-                <TextBlock Grid.Column="5" Text="→" FontSize="20" VerticalAlignment="Center"
+                <TextBlock Grid.Column="5" Text="&#x2192;" FontSize="20" VerticalAlignment="Center"
                            Foreground="{DynamicResource Theme.Icon.Accent}" Margin="8,0"/>
 
                 <!-- UI -->
                 <Border Grid.Column="6" Background="{DynamicResource Theme.Status.Success}"
                         CornerRadius="6" Padding="10,8">
                   <StackPanel HorizontalAlignment="Center">
-                    <TextBlock Text="📊" FontSize="24" HorizontalAlignment="Center" Foreground="White"/>
+                    <Border Background="#FFFFFF33" CornerRadius="12"
+                            Width="24" Height="24" HorizontalAlignment="Center" Margin="0,0,0,4">
+                      <TextBlock Text="UI" FontSize="10" FontWeight="Bold" HorizontalAlignment="Center"
+                                 VerticalAlignment="Center" Foreground="White"/>
+                    </Border>
                     <TextBlock Text="StateTrace UI" FontWeight="SemiBold" HorizontalAlignment="Center"
                                Foreground="White" FontSize="11"/>
                     <TextBlock Text="Analyze &amp; Compare" FontSize="9" HorizontalAlignment="Center"
@@ -403,7 +419,11 @@
           <!-- Tip Callout -->
           <Border Style="{StaticResource TipCalloutStyle}">
             <StackPanel Orientation="Horizontal">
-              <TextBlock Text="💡" FontSize="16" Margin="0,0,10,0" VerticalAlignment="Top"/>
+              <Border Background="{DynamicResource Theme.Status.Success}" CornerRadius="10"
+                      Width="20" Height="20" Margin="0,0,10,0" VerticalAlignment="Top">
+                <TextBlock Text="&#x2713;" FontSize="12" FontWeight="Bold" Foreground="White"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+              </Border>
               <StackPanel>
                 <TextBlock Text="Pro Tip" FontWeight="Bold" Foreground="{DynamicResource Theme.Status.Success}"/>
                 <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
@@ -862,7 +882,11 @@
           <!-- Warning Callout for Common Issues -->
           <Border Style="{StaticResource WarningCalloutStyle}">
             <StackPanel Orientation="Horizontal">
-              <TextBlock Text="⚠" FontSize="16" Margin="0,0,10,0" VerticalAlignment="Top"/>
+              <Border Background="{DynamicResource Theme.Status.Warning}" CornerRadius="10"
+                      Width="20" Height="20" Margin="0,0,10,0" VerticalAlignment="Top">
+                <TextBlock Text="!" FontSize="14" FontWeight="Bold" Foreground="White"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+              </Border>
               <StackPanel>
                 <TextBlock Text="Common Alert Causes" FontWeight="Bold" Foreground="{DynamicResource Theme.Status.Warning}"/>
                 <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
@@ -1887,35 +1911,20 @@
 
               <!-- Visual Vendor Badges -->
               <WrapPanel Margin="0,0,0,12">
-                <Border Background="#0076D6" CornerRadius="4" Padding="10,6" Margin="0,0,8,8">
-                  <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="📡" FontSize="14" Margin="0,0,6,0"/>
-                    <TextBlock Text="Cisco" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                  </StackPanel>
+                <Border Background="#0076D6" CornerRadius="4" Padding="12,6" Margin="0,0,8,8">
+                  <TextBlock Text="Cisco" Foreground="White" FontWeight="SemiBold"/>
                 </Border>
-                <Border Background="#3D9970" CornerRadius="4" Padding="10,6" Margin="0,0,8,8">
-                  <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="🌿" FontSize="14" Margin="0,0,6,0"/>
-                    <TextBlock Text="Arista" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                  </StackPanel>
+                <Border Background="#3D9970" CornerRadius="4" Padding="12,6" Margin="0,0,8,8">
+                  <TextBlock Text="Arista" Foreground="White" FontWeight="SemiBold"/>
                 </Border>
-                <Border Background="#E67E22" CornerRadius="4" Padding="10,6" Margin="0,0,8,8">
-                  <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="🔶" FontSize="14" Margin="0,0,6,0"/>
-                    <TextBlock Text="Brocade" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                  </StackPanel>
+                <Border Background="#E67E22" CornerRadius="4" Padding="12,6" Margin="0,0,8,8">
+                  <TextBlock Text="Brocade" Foreground="White" FontWeight="SemiBold"/>
                 </Border>
-                <Border Background="#00A4EF" CornerRadius="4" Padding="10,6" Margin="0,0,8,8">
-                  <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="🔷" FontSize="14" Margin="0,0,6,0"/>
-                    <TextBlock Text="HP/Aruba" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                  </StackPanel>
+                <Border Background="#00A4EF" CornerRadius="4" Padding="12,6" Margin="0,0,8,8">
+                  <TextBlock Text="HP/Aruba" Foreground="White" FontWeight="SemiBold"/>
                 </Border>
-                <Border Background="#84BD00" CornerRadius="4" Padding="10,6" Margin="0,0,8,8">
-                  <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="🌲" FontSize="14" Margin="0,0,6,0"/>
-                    <TextBlock Text="Juniper" Foreground="White" FontWeight="SemiBold" VerticalAlignment="Center"/>
-                  </StackPanel>
+                <Border Background="#84BD00" CornerRadius="4" Padding="12,6" Margin="0,0,8,8">
+                  <TextBlock Text="Juniper" Foreground="White" FontWeight="SemiBold"/>
                 </Border>
               </WrapPanel>
 
@@ -2463,7 +2472,11 @@
           <!-- Info Callout -->
           <Border Style="{StaticResource InfoCalloutStyle}">
             <StackPanel Orientation="Horizontal">
-              <TextBlock Text="ℹ" FontSize="16" Margin="0,0,10,0" VerticalAlignment="Top"/>
+              <Border Background="{DynamicResource Theme.Status.Info}" CornerRadius="10"
+                      Width="20" Height="20" Margin="0,0,10,0" VerticalAlignment="Top">
+                <TextBlock Text="i" FontSize="12" FontWeight="Bold" Foreground="White" FontStyle="Italic"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+              </Border>
               <StackPanel>
                 <TextBlock Text="Before You Troubleshoot" FontWeight="Bold" Foreground="{DynamicResource Theme.Status.Info}"/>
                 <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}" TextWrapping="Wrap">
@@ -2477,7 +2490,8 @@
           <Border Style="{StaticResource HelpCardStyle}">
             <StackPanel>
               <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                <TextBlock Text="🔴" FontSize="14" Margin="0,0,8,0"/>
+                <Border Background="{DynamicResource Theme.Status.Danger}" CornerRadius="7"
+                        Width="14" Height="14" Margin="0,2,8,0"/>
                 <TextBlock Text="Application Won't Start" FontWeight="SemiBold"
                            Foreground="{DynamicResource Theme.Status.Danger}"/>
               </StackPanel>
