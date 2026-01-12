@@ -301,6 +301,7 @@ if (Test-Timeout) {
         Add-PhaseResult -Name 'Pipeline' -Status 'Skip' -DurationSeconds 0 -Message 'Skipped by parameter'
     }
 }
+}
 
 if (-not (Test-Timeout) -and $result.OverallStatus -ne 'Timeout') {
 

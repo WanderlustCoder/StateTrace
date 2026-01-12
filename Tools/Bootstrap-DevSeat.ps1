@@ -63,10 +63,10 @@ $psVersion = $PSVersionTable.PSVersion
 Write-Host "  PowerShell $($psVersion.Major).$($psVersion.Minor)" -NoNewline
 
 if ($psVersion.Major -ge 5) {
-    Write-Host " ✓" -ForegroundColor Green
+    Write-Host " [OK]" -ForegroundColor Green
     $results.PowerShellVersion = $true
 } else {
-    Write-Host " ✗ (Requires 5.1+)" -ForegroundColor Red
+    Write-Host " [X] (Requires 5.1+)" -ForegroundColor Red
     Write-Warning "StateTrace requires PowerShell 5.1 or later. Please upgrade."
 }
 
@@ -86,12 +86,12 @@ foreach ($mod in $requiredModules) {
         Select-Object -First 1
 
     if ($installed) {
-        Write-Host "  $($mod.Name) v$($installed.Version) ✓" -ForegroundColor Green
+        Write-Host "  $($mod.Name) v$($installed.Version) [OK]" -ForegroundColor Green
     } elseif (-not $SkipModuleInstall.IsPresent) {
         Write-Host "  Installing $($mod.Name)..." -ForegroundColor Gray
         try {
             Install-Module -Name $mod.Name -MinimumVersion $mod.MinVersion -Force -Scope CurrentUser -AllowClobber
-            Write-Host "  $($mod.Name) installed ✓" -ForegroundColor Green
+            Write-Host "  $($mod.Name) installed [OK]" -ForegroundColor Green
         } catch {
             Write-Host "  $($mod.Name) FAILED: $_" -ForegroundColor Red
             $allModulesOk = $false
@@ -114,7 +114,7 @@ try {
 
     if ($providers) {
         $aceProvider = $providers | Select-Object -First 1
-        Write-Host "  Found: $($aceProvider.SOURCES_NAME) ✓" -ForegroundColor Green
+        Write-Host "  Found: $($aceProvider.SOURCES_NAME) [OK]" -ForegroundColor Green
         $results.DatabaseProvider = $true
     }
 } catch {
@@ -134,14 +134,14 @@ $gitOk = $true
 
 # Check if this is a git repo
 if (Test-Path (Join-Path $projectRoot '.git')) {
-    Write-Host "  Git repository ✓" -ForegroundColor Green
+    Write-Host "  Git repository [OK]" -ForegroundColor Green
 
     # Check git user config
     $gitUser = git config user.name 2>$null
     $gitEmail = git config user.email 2>$null
 
     if ($gitUser -and $gitEmail) {
-        Write-Host "  User: $gitUser <$gitEmail> ✓" -ForegroundColor Green
+        Write-Host "  User: $gitUser <$gitEmail> [OK]" -ForegroundColor Green
     } else {
         Write-Host "  Git user not configured" -ForegroundColor Yellow
         Write-Host "  Run: git config user.name 'Your Name'" -ForegroundColor Gray
@@ -162,7 +162,7 @@ $hookPath = Join-Path $projectRoot '.git\hooks\pre-commit'
 $hookInstaller = Join-Path $projectRoot 'Tools\Install-PreCommitHooks.ps1'
 
 if (Test-Path $hookPath) {
-    Write-Host "  Pre-commit hook installed ✓" -ForegroundColor Green
+    Write-Host "  Pre-commit hook installed [OK]" -ForegroundColor Green
     $results.PreCommitHooks = $true
 } elseif (-not $SkipGitHooks.IsPresent) {
     if (Test-Path $hookInstaller) {
@@ -170,7 +170,7 @@ if (Test-Path $hookPath) {
         try {
             & $hookInstaller -Force
             $results.PreCommitHooks = $true
-            Write-Host "  Pre-commit hooks installed ✓" -ForegroundColor Green
+            Write-Host "  Pre-commit hooks installed [OK]" -ForegroundColor Green
         } catch {
             Write-Host "  Hook installation failed: $_" -ForegroundColor Red
         }
@@ -198,7 +198,7 @@ $structureOk = $true
 foreach ($dir in $requiredDirs) {
     $path = Join-Path $projectRoot $dir
     if (Test-Path $path) {
-        Write-Host "  $dir/ ✓" -ForegroundColor Green
+        Write-Host "  $dir/ [OK]" -ForegroundColor Green
     } else {
         Write-Host "  $dir/ missing - creating..." -ForegroundColor Yellow
         New-Item -ItemType Directory -Path $path -Force | Out-Null
@@ -252,7 +252,7 @@ if (-not $SkipValidation.IsPresent) {
     }
 
     if ($importErrors -eq 0) {
-        Write-Host "  Module imports ($($modules.Count) modules) ✓" -ForegroundColor Green
+        Write-Host "  Module imports ($($modules.Count) modules) [OK]" -ForegroundColor Green
     }
 
     # Validate XAML files
@@ -269,7 +269,7 @@ if (-not $SkipValidation.IsPresent) {
     }
 
     if ($xamlErrors -eq 0 -and $xamlFiles.Count -gt 0) {
-        Write-Host "  XAML validation ($($xamlFiles.Count) files) ✓" -ForegroundColor Green
+        Write-Host "  XAML validation ($($xamlFiles.Count) files) [OK]" -ForegroundColor Green
     }
 
     # Validate JSON configs
@@ -292,7 +292,7 @@ if (-not $SkipValidation.IsPresent) {
     }
 
     if ($jsonErrors -eq 0) {
-        Write-Host "  JSON validation ✓" -ForegroundColor Green
+        Write-Host "  JSON validation [OK]" -ForegroundColor Green
     }
 
     $results.SmokeTests = $smokeTestOk
@@ -309,7 +309,7 @@ $passCount = ($results.Values | Where-Object { $_ -eq $true }).Count
 $totalCount = $results.Count
 
 foreach ($item in $results.GetEnumerator()) {
-    $status = if ($item.Value) { "✓ PASS" } else { "✗ FAIL" }
+    $status = if ($item.Value) { "[OK] PASS" } else { "[X] FAIL" }
     $color = if ($item.Value) { "Green" } else { "Red" }
     Write-Host "  $($item.Key.PadRight(20)) $status" -ForegroundColor $color
 }

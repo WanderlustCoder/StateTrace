@@ -103,5 +103,5 @@ finally {
 }
 
 Write-Host "`n=== Configuration Complete ===" -ForegroundColor Green
-Write-Host "RADIUS Server: $RadiusServer:$AuthPort" -ForegroundColor White
+Write-Host "RADIUS Server: ${RadiusServer}:${AuthPort}" -ForegroundColor White
 Write-Host "802.1X Test Port: $TestPort (VLAN $TestVlan)" -ForegroundColor White
