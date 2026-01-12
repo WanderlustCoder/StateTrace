@@ -466,7 +466,7 @@
                 </Border>
                 <Border Background="{DynamicResource Theme.Status.Warning}" CornerRadius="4"
                         Padding="8,4" Margin="0,0,8,4">
-                  <TextBlock Text="Brocade" Foreground="White" FontWeight="SemiBold"/>
+                  <TextBlock Text="Brocade" Foreground="#333333" FontWeight="SemiBold"/>
                 </Border>
               </WrapPanel>
             </StackPanel>
