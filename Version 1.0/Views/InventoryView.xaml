@@ -1,0 +1,694 @@
+<UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Name="InventoryViewControl"
+             Background="{DynamicResource Theme.Window.Background}">
+
+  <Grid Margin="10">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <!-- Header with summary cards -->
+    <Grid Grid.Row="0" Margin="0,0,0,10">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="*"/>
+      </Grid.ColumnDefinitions>
+
+      <!-- Total Devices Card -->
+      <Border Grid.Column="0" Background="{DynamicResource Theme.Surface.Secondary}" CornerRadius="5" Padding="10" Margin="0,0,5,0">
+        <StackPanel>
+          <TextBlock Text="Total Devices" Style="{DynamicResource SubtitleStyle}" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+          <TextBlock Name="TotalDevicesCount" Text="0" FontSize="28" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}"/>
+        </StackPanel>
+      </Border>
+
+      <!-- Active Warranties Card -->
+      <Border Grid.Column="1" Background="{DynamicResource Theme.Surface.Secondary}" CornerRadius="5" Padding="10" Margin="5,0">
+        <StackPanel>
+          <TextBlock Text="Active Warranties" Style="{DynamicResource SubtitleStyle}" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+          <TextBlock Name="ActiveWarrantiesCount" Text="0" FontSize="28" FontWeight="Bold" Foreground="{DynamicResource Theme.Status.Success}"/>
+        </StackPanel>
+      </Border>
+
+      <!-- Expiring Soon Card -->
+      <Border Grid.Column="2" Background="{DynamicResource Theme.Surface.Secondary}" CornerRadius="5" Padding="10" Margin="5,0">
+        <StackPanel>
+          <TextBlock Text="Expiring 90d" Style="{DynamicResource SubtitleStyle}" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+          <TextBlock Name="ExpiringCount" Text="0" FontSize="28" FontWeight="Bold" Foreground="{DynamicResource Theme.Status.Warning}"/>
+        </StackPanel>
+      </Border>
+
+      <!-- Expired Card -->
+      <Border Grid.Column="3" Background="{DynamicResource Theme.Surface.Secondary}" CornerRadius="5" Padding="10" Margin="5,0">
+        <StackPanel>
+          <TextBlock Text="Expired" Style="{DynamicResource SubtitleStyle}" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+          <TextBlock Name="ExpiredCount" Text="0" FontSize="28" FontWeight="Bold" Foreground="{DynamicResource Theme.Status.Danger}"/>
+        </StackPanel>
+      </Border>
+
+      <!-- Firmware Compliance Card -->
+      <Border Grid.Column="4" Background="{DynamicResource Theme.Surface.Secondary}" CornerRadius="5" Padding="10" Margin="5,0,0,0">
+        <StackPanel>
+          <TextBlock Text="FW Compliance" Style="{DynamicResource SubtitleStyle}" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+          <TextBlock Name="FirmwareComplianceStatus" Text="--%" FontSize="28" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}"/>
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <!-- Toolbar -->
+    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
+      <Button Name="AddAssetButton" Content="Add Asset" Style="{DynamicResource PrimaryButtonStyle}" Margin="0,0,5,0" Width="100"/>
+      <Button Name="EditAssetButton" Content="Edit" Style="{DynamicResource SecondaryButtonStyle}" Margin="0,0,5,0" Width="80"/>
+      <Button Name="DeleteAssetButton" Content="Delete" Style="{DynamicResource SecondaryButtonStyle}" Margin="0,0,15,0" Width="80" ToolTip="Delete this asset permanently"/>
+
+      <Label Content="Filter:" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
+      <ComboBox Name="VendorFilterDropdown" Width="100" Margin="5,0" Style="{DynamicResource ToolbarComboBoxStyle}"/>
+      <ComboBox Name="SiteFilterDropdown" Width="120" Margin="5,0" Style="{DynamicResource ToolbarComboBoxStyle}"/>
+      <ComboBox Name="StatusFilterDropdown" Width="100" Margin="5,0" Style="{DynamicResource ToolbarComboBoxStyle}"/>
+      <TextBox Name="SearchBox" Width="150" Margin="5,0" Style="{DynamicResource ToolbarTextBoxStyle}" ToolTip="Search by hostname or serial"/>
+      <Button Name="ClearFilterButton" Content="Clear" Style="{DynamicResource SecondaryButtonStyle}" Margin="5,0" Width="60"/>
+
+      <Separator Style="{DynamicResource ToolbarSeparatorStyle}"/>
+
+      <Button Name="ImportButton" Content="Import CSV" Style="{DynamicResource SecondaryButtonStyle}" Margin="0,0,5,0" Width="90"/>
+      <Button Name="ExportInventoryButton" Content="Export" Style="{DynamicResource SecondaryButtonStyle}" Margin="0,0,5,0" Width="70"/>
+      <Button Name="ExportWarrantyButton" Content="Warranty Report" Style="{DynamicResource SecondaryButtonStyle}" Width="110"/>
+    </StackPanel>
+
+    <!-- Main content tabs -->
+    <TabControl Grid.Row="2">
+      <!-- Inventory Tab -->
+      <TabItem Header="Inventory">
+        <Grid Background="{DynamicResource Theme.Surface.Secondary}">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="2*"/>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*"/>
+          </Grid.ColumnDefinitions>
+
+          <!-- Asset Grid -->
+          <Grid Grid.Column="0">
+            <DataGrid Name="InventoryGrid"
+                      AutoGenerateColumns="False"
+                      IsReadOnly="True"
+                      SelectionMode="Single"
+                      CanUserSortColumns="True"
+                      Background="{DynamicResource Theme.Surface.Primary}"
+                      Foreground="{DynamicResource Theme.Text.Primary}"
+                      RowBackground="{DynamicResource Theme.Surface.Primary}"
+                      AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
+                      GridLinesVisibility="Horizontal"
+                      HeadersVisibility="Column"
+                      ScrollViewer.IsDeferredScrollingEnabled="True"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling"
+                      EnableRowVirtualization="True">
+              <DataGrid.Columns>
+                <DataGridTextColumn Header="Hostname" Binding="{Binding Hostname}" Width="140"/>
+                <DataGridTextColumn Header="Vendor" Binding="{Binding Vendor}" Width="80"/>
+                <DataGridTextColumn Header="Model" Binding="{Binding Model}" Width="100"/>
+                <DataGridTextColumn Header="Serial Number" Binding="{Binding SerialNumber}" Width="120"/>
+                <DataGridTextColumn Header="Asset Tag" Binding="{Binding AssetTag}" Width="100"/>
+                <DataGridTextColumn Header="Site" Binding="{Binding Site}" Width="80"/>
+                <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="80"/>
+                <DataGridTextColumn Header="Firmware" Binding="{Binding FirmwareVersion}" Width="90"/>
+                <DataGridTextColumn Header="Warranty Exp" Binding="{Binding WarrantyExpiration, StringFormat=yyyy-MM-dd}" Width="100"/>
+                <DataGridTextColumn Header="Days Left" Binding="{Binding DaysUntilExpiration}" Width="70"/>
+              </DataGrid.Columns>
+            </DataGrid>
+
+            <Border Name="InventoryEmptyStatePanel" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="{DynamicResource Theme.Surface.Secondary}" Padding="30,20" CornerRadius="8"
+                    Visibility="Collapsed">
+              <StackPanel>
+                <TextBlock Text="No Assets" FontSize="18" FontWeight="Bold"
+                           Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Center"/>
+                <TextBlock Text="Click 'Add Asset' to add your first asset"
+                           Foreground="{DynamicResource Theme.Text.Muted}" HorizontalAlignment="Center" Margin="0,5,0,0"/>
+              </StackPanel>
+            </Border>
+
+            <Border Name="InventoryLoadingIndicator" Style="{DynamicResource LoadingIndicatorStyle}">
+              <StackPanel>
+                <TextBlock Text="Loading inventory..." Style="{DynamicResource LoadingTextStyle}"/>
+                <ProgressBar Style="{DynamicResource LoadingProgressStyle}"/>
+              </StackPanel>
+            </Border>
+          </Grid>
+
+          <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Center" VerticalAlignment="Stretch" Background="{DynamicResource Theme.Border}"/>
+
+          <!-- Asset Details Panel -->
+          <Border Grid.Column="2" Background="{DynamicResource Theme.Surface.Secondary}" Padding="10">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+              <StackPanel Name="AssetDetailsPanel">
+                <Grid Margin="0,0,0,10">
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                  </Grid.ColumnDefinitions>
+                  <TextBlock Text="Asset Details" Style="{DynamicResource HeadingStyle}"/>
+                  <Button Name="CopyDetailsButton" Grid.Column="1" Content="Copy" Width="50" Height="22"
+                          Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Copy all details to clipboard"
+                          FontSize="11" Padding="5,2"/>
+                </Grid>
+
+                <TextBlock Text="Device Information" FontWeight="Bold" Margin="0,0,0,5" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                  </Grid.ColumnDefinitions>
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                  </Grid.RowDefinitions>
+
+                  <TextBlock Grid.Row="0" Grid.Column="0" Text="Hostname:" Margin="0,2" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                  <TextBlock Grid.Row="0" Grid.Column="1" Name="DetailHostname" Margin="10,2" Foreground="{DynamicResource Theme.Text.Primary}"/>
+
+                  <TextBlock Grid.Row="1" Grid.Column="0" Text="Vendor:" Margin="0,2" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                  <TextBlock Grid.Row="1" Grid.Column="1" Name="DetailVendor" Margin="10,2" Foreground="{DynamicResource Theme.Text.Primary}"/>
+
+                  <TextBlock Grid.Row="2" Grid.Column="0" Text="Model:" Margin="0,2" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                  <TextBlock Grid.Row="2" Grid.Column="1" Name="DetailModel" Margin="10,2" Foreground="{DynamicResource Theme.Text.Primary}"/>
+
+                  <TextBlock Grid.Row="3" Grid.Column="0" Text="Serial:" Margin="0,2" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                  <TextBlock Grid.Row="3" Grid.Column="1" Name="DetailSerial" Margin="10,2" Foreground="{DynamicResource Theme.Text.Primary}"/>
+
+                  <TextBlock Grid.Row="4" Grid.Column="0" Text="Asset Tag:" Margin="0,2" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                  <TextBlock Grid.Row="4" Grid.Column="1" Name="DetailAssetTag" Margin="10,2" Foreground="{DynamicResource Theme.Text.Primary}"/>
+
+                  <TextBlock Grid.Row="5" Grid.Column="0" Text="Firmware:" Margin="0,2" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                  <TextBlock Grid.Row="5" Grid.Column="1" Name="DetailFirmware" Margin="10,2" Foreground="{DynamicResource Theme.Text.Primary}"/>
+
+                  <TextBlock Grid.Row="6" Grid.Column="0" Text="Status:" Margin="0,2" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                  <TextBlock Grid.Row="6" Grid.Column="1" Name="DetailStatus" Margin="10,2" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                </Grid>
+
+                <Separator Style="{DynamicResource SectionSeparatorStyle}"/>
+
+                <TextBlock Text="Location" FontWeight="Bold" Margin="0,0,0,5" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                  </Grid.ColumnDefinitions>
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                  </Grid.RowDefinitions>
+
+                  <TextBlock Grid.Row="0" Grid.Column="0" Text="Site:" Margin="0,2" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                  <TextBlock Grid.Row="0" Grid.Column="1" Name="DetailSite" Margin="10,2" Foreground="{DynamicResource Theme.Text.Primary}"/>
+
+                  <TextBlock Grid.Row="1" Grid.Column="0" Text="Building:" Margin="0,2" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                  <TextBlock Grid.Row="1" Grid.Column="1" Name="DetailBuilding" Margin="10,2" Foreground="{DynamicResource Theme.Text.Primary}"/>
+
+                  <TextBlock Grid.Row="2" Grid.Column="0" Text="Rack:" Margin="0,2" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                  <TextBlock Grid.Row="2" Grid.Column="1" Name="DetailRack" Margin="10,2" Foreground="{DynamicResource Theme.Text.Primary}"/>
+
+                  <TextBlock Grid.Row="3" Grid.Column="0" Text="Rack U:" Margin="0,2" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                  <TextBlock Grid.Row="3" Grid.Column="1" Name="DetailRackU" Margin="10,2" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                </Grid>
+
+                <Separator Style="{DynamicResource SectionSeparatorStyle}"/>
+
+                <TextBlock Text="Warranty &amp; Support" FontWeight="Bold" Margin="0,0,0,5" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                  </Grid.ColumnDefinitions>
+                  <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                  </Grid.RowDefinitions>
+
+                  <TextBlock Grid.Row="0" Grid.Column="0" Text="Expires:" Margin="0,2" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                  <TextBlock Grid.Row="0" Grid.Column="1" Name="DetailWarrantyExpires" Margin="10,2" Foreground="{DynamicResource Theme.Text.Primary}"/>
+
+                  <TextBlock Grid.Row="1" Grid.Column="0" Text="Days Left:" Margin="0,2" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                  <TextBlock Grid.Row="1" Grid.Column="1" Name="DetailDaysLeft" Margin="10,2" Foreground="{DynamicResource Theme.Text.Primary}"/>
+
+                  <TextBlock Grid.Row="2" Grid.Column="0" Text="Contract:" Margin="0,2" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                  <TextBlock Grid.Row="2" Grid.Column="1" Name="DetailContract" Margin="10,2" Foreground="{DynamicResource Theme.Text.Primary}"/>
+
+                  <TextBlock Grid.Row="3" Grid.Column="0" Text="Level:" Margin="0,2" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                  <TextBlock Grid.Row="3" Grid.Column="1" Name="DetailSupportLevel" Margin="10,2" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                </Grid>
+
+                <Separator Style="{DynamicResource SectionSeparatorStyle}"/>
+
+                <TextBlock Text="Modules" FontWeight="Bold" Margin="0,0,0,5" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                <ListBox Name="ModulesListBox" Height="80" Background="{DynamicResource Theme.Surface.Primary}" Foreground="{DynamicResource Theme.Text.Primary}"
+                              VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                              VirtualizingPanel.ScrollUnit="Pixel"
+                              ScrollViewer.CanContentScroll="True" ScrollViewer.IsDeferredScrollingEnabled="True"/>
+
+                <Separator Style="{DynamicResource SectionSeparatorStyle}"/>
+
+                <TextBlock Text="Notes" FontWeight="Bold" Margin="0,0,0,5" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                <TextBlock Name="DetailNotes" TextWrapping="Wrap" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+              </StackPanel>
+            </ScrollViewer>
+          </Border>
+        </Grid>
+      </TabItem>
+
+      <!-- Warranty Alerts Tab -->
+      <TabItem Header="Warranty Alerts">
+        <Grid Background="{DynamicResource Theme.Surface.Secondary}">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+
+          <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10" Name="WarrantyAlertsPanel">
+            <Label Content="Alert Period:" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
+            <ComboBox Name="AlertPeriodDropdown" Width="100" Margin="5,0" Style="{DynamicResource ToolbarComboBoxStyle}">
+              <ComboBoxItem Content="30 Days"/>
+              <ComboBoxItem Content="60 Days"/>
+              <ComboBoxItem Content="90 Days" IsSelected="True"/>
+              <ComboBoxItem Content="180 Days"/>
+              <ComboBoxItem Content="365 Days"/>
+            </ComboBox>
+            <Button Name="RefreshAlertsButton" Content="Refresh" Style="{DynamicResource SecondaryButtonStyle}" Margin="5,0" Width="70"/>
+          </StackPanel>
+
+          <!-- Expiring Soon Grid -->
+          <GroupBox Grid.Row="1" Header="Expiring Soon" Margin="0,0,0,5">
+            <DataGrid Name="ExpiringWarrantiesGrid"
+                      AutoGenerateColumns="False"
+                      IsReadOnly="True"
+                      CanUserSortColumns="True"
+                      Background="{DynamicResource Theme.Surface.Primary}"
+                      Foreground="{DynamicResource Theme.Text.Primary}"
+                      RowBackground="{DynamicResource Theme.Surface.Primary}"
+                      AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
+                      ScrollViewer.IsDeferredScrollingEnabled="True"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling"
+                      EnableRowVirtualization="True">
+              <DataGrid.Columns>
+                <DataGridTextColumn Header="Hostname" Binding="{Binding Hostname}" Width="150"/>
+                <DataGridTextColumn Header="Serial" Binding="{Binding SerialNumber}" Width="120"/>
+                <DataGridTextColumn Header="Vendor" Binding="{Binding Vendor}" Width="80"/>
+                <DataGridTextColumn Header="Model" Binding="{Binding Model}" Width="120"/>
+                <DataGridTextColumn Header="Expires" Binding="{Binding WarrantyExpiration, StringFormat=yyyy-MM-dd}" Width="100"/>
+                <DataGridTextColumn Header="Days Left" Binding="{Binding DaysUntilExpiration}" Width="80"/>
+                <DataGridTextColumn Header="Support Level" Binding="{Binding SupportLevel}" Width="100"/>
+              </DataGrid.Columns>
+            </DataGrid>
+          </GroupBox>
+
+          <!-- Expired Grid -->
+          <GroupBox Grid.Row="2" Header="Expired Warranties" Margin="0,5,0,0">
+            <DataGrid Name="ExpiredWarrantiesGrid"
+                      AutoGenerateColumns="False"
+                      IsReadOnly="True"
+                      CanUserSortColumns="True"
+                      Background="{DynamicResource Theme.Surface.Primary}"
+                      Foreground="{DynamicResource Theme.Text.Primary}"
+                      RowBackground="{DynamicResource Theme.Surface.Primary}"
+                      AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
+                      ScrollViewer.IsDeferredScrollingEnabled="True"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling"
+                      EnableRowVirtualization="True">
+              <DataGrid.Columns>
+                <DataGridTextColumn Header="Hostname" Binding="{Binding Hostname}" Width="150"/>
+                <DataGridTextColumn Header="Serial" Binding="{Binding SerialNumber}" Width="120"/>
+                <DataGridTextColumn Header="Vendor" Binding="{Binding Vendor}" Width="80"/>
+                <DataGridTextColumn Header="Model" Binding="{Binding Model}" Width="120"/>
+                <DataGridTextColumn Header="Expired" Binding="{Binding WarrantyExpiration, StringFormat=yyyy-MM-dd}" Width="100"/>
+                <DataGridTextColumn Header="Days Ago" Binding="{Binding DaysExpired}" Width="80"/>
+              </DataGrid.Columns>
+            </DataGrid>
+          </GroupBox>
+        </Grid>
+      </TabItem>
+
+      <!-- Firmware Tab -->
+      <TabItem Header="Firmware">
+        <Grid Background="{DynamicResource Theme.Surface.Secondary}">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+          </Grid.RowDefinitions>
+
+          <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+            <Button Name="SetMinFirmwareButton" Content="Set Minimum" Style="{DynamicResource SecondaryButtonStyle}" Margin="0,0,5,0" Width="100"/>
+            <Button Name="CheckComplianceButton" Content="Check Compliance" Style="{DynamicResource SecondaryButtonStyle}" Margin="0,0,5,0" Width="120"/>
+            <Button Name="AddFirmwareButton" Content="Register Version" Style="{DynamicResource SecondaryButtonStyle}" Width="110"/>
+          </StackPanel>
+
+          <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Devices Below Minimum -->
+            <GroupBox Grid.Column="0" Header="Devices Below Minimum Firmware" Margin="0,0,5,0">
+              <DataGrid Name="BelowMinimumGrid"
+                        AutoGenerateColumns="False"
+                        IsReadOnly="True"
+                        CanUserSortColumns="True"
+                        Background="{DynamicResource Theme.Surface.Primary}"
+                        Foreground="{DynamicResource Theme.Text.Primary}"
+                        RowBackground="{DynamicResource Theme.Surface.Primary}"
+                        AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
+                        ScrollViewer.IsDeferredScrollingEnabled="True"
+                        VirtualizingPanel.IsVirtualizing="True"
+                        VirtualizingPanel.VirtualizationMode="Recycling"
+                        EnableRowVirtualization="True">
+                <DataGrid.Columns>
+                  <DataGridTextColumn Header="Hostname" Binding="{Binding Hostname}" Width="140"/>
+                  <DataGridTextColumn Header="Model" Binding="{Binding Model}" Width="100"/>
+                  <DataGridTextColumn Header="Current" Binding="{Binding FirmwareVersion}" Width="90"/>
+                  <DataGridTextColumn Header="Required" Binding="{Binding MinimumRequired}" Width="90"/>
+                  <DataGridTextColumn Header="Reason" Binding="{Binding UpdateReason}" Width="*"/>
+                </DataGrid.Columns>
+              </DataGrid>
+            </GroupBox>
+
+            <!-- Vulnerable Devices -->
+            <GroupBox Grid.Column="1" Header="Devices with Known CVEs" Margin="5,0,0,0">
+              <DataGrid Name="VulnerableDevicesGrid"
+                        AutoGenerateColumns="False"
+                        IsReadOnly="True"
+                        CanUserSortColumns="True"
+                        Background="{DynamicResource Theme.Surface.Primary}"
+                        Foreground="{DynamicResource Theme.Text.Primary}"
+                        RowBackground="{DynamicResource Theme.Surface.Primary}"
+                        AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
+                        ScrollViewer.IsDeferredScrollingEnabled="True"
+                        VirtualizingPanel.IsVirtualizing="True"
+                        VirtualizingPanel.VirtualizationMode="Recycling"
+                        EnableRowVirtualization="True">
+                <DataGrid.Columns>
+                  <DataGridTextColumn Header="Hostname" Binding="{Binding Hostname}" Width="140"/>
+                  <DataGridTextColumn Header="Firmware" Binding="{Binding FirmwareVersion}" Width="100"/>
+                  <DataGridTextColumn Header="CVEs" Binding="{Binding CVEList}" Width="*"/>
+                </DataGrid.Columns>
+              </DataGrid>
+            </GroupBox>
+          </Grid>
+
+          <!-- Firmware Requirements -->
+          <GroupBox Grid.Row="2" Header="Minimum Firmware Requirements" Margin="0,10,0,0" Height="150">
+            <DataGrid Name="FirmwareRequirementsGrid"
+                      AutoGenerateColumns="False"
+                      IsReadOnly="True"
+                      CanUserSortColumns="True"
+                      Background="{DynamicResource Theme.Surface.Primary}"
+                      Foreground="{DynamicResource Theme.Text.Primary}"
+                      ScrollViewer.IsDeferredScrollingEnabled="True"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling"
+                      EnableRowVirtualization="True">
+              <DataGrid.Columns>
+                <DataGridTextColumn Header="Vendor" Binding="{Binding Vendor}" Width="100"/>
+                <DataGridTextColumn Header="Platform" Binding="{Binding Platform}" Width="150"/>
+                <DataGridTextColumn Header="Minimum Version" Binding="{Binding MinVersion}" Width="120"/>
+                <DataGridTextColumn Header="Reason" Binding="{Binding Reason}" Width="*"/>
+              </DataGrid.Columns>
+            </DataGrid>
+          </GroupBox>
+        </Grid>
+      </TabItem>
+
+      <!-- Lifecycle Tab -->
+      <TabItem Header="Lifecycle">
+        <Grid Background="{DynamicResource Theme.Surface.Secondary}">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+          </Grid.RowDefinitions>
+
+          <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+            <Label Content="EoL Within:" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
+            <ComboBox Name="EoLPeriodDropdown" Width="100" Margin="5,0" Style="{DynamicResource ToolbarComboBoxStyle}">
+              <ComboBoxItem Content="1 Year"/>
+              <ComboBoxItem Content="2 Years" IsSelected="True"/>
+              <ComboBoxItem Content="3 Years"/>
+              <ComboBoxItem Content="5 Years"/>
+            </ComboBox>
+            <Button Name="RefreshLifecycleButton" Content="Refresh" Style="{DynamicResource SecondaryButtonStyle}" Margin="5,0" Width="70"/>
+            <Button Name="ExportLifecycleButton" Content="Export Report" Style="{DynamicResource SecondaryButtonStyle}" Width="100"/>
+          </StackPanel>
+
+          <!-- Devices Approaching EoL -->
+          <GroupBox Grid.Row="1" Header="Devices Approaching End of Life">
+            <DataGrid Name="EoLDevicesGrid"
+                      AutoGenerateColumns="False"
+                      IsReadOnly="True"
+                      CanUserSortColumns="True"
+                      Background="{DynamicResource Theme.Surface.Primary}"
+                      Foreground="{DynamicResource Theme.Text.Primary}"
+                      RowBackground="{DynamicResource Theme.Surface.Primary}"
+                      AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
+                      ScrollViewer.IsDeferredScrollingEnabled="True"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling"
+                      EnableRowVirtualization="True">
+              <DataGrid.Columns>
+                <DataGridTextColumn Header="Hostname" Binding="{Binding Hostname}" Width="140"/>
+                <DataGridTextColumn Header="Vendor" Binding="{Binding Vendor}" Width="80"/>
+                <DataGridTextColumn Header="Model" Binding="{Binding Model}" Width="120"/>
+                <DataGridTextColumn Header="End of Sale" Binding="{Binding EndOfSaleDate, StringFormat=yyyy-MM-dd}" Width="100"/>
+                <DataGridTextColumn Header="End of Support" Binding="{Binding EndOfSupportDate, StringFormat=yyyy-MM-dd}" Width="110"/>
+                <DataGridTextColumn Header="Days Left" Binding="{Binding DaysToEndOfSupport}" Width="80"/>
+                <DataGridTextColumn Header="Replacement" Binding="{Binding ReplacementModel}" Width="*"/>
+              </DataGrid.Columns>
+            </DataGrid>
+          </GroupBox>
+
+          <!-- Lifecycle Database -->
+          <GroupBox Grid.Row="2" Header="Known Product Lifecycle Information" Margin="0,10,0,0" Height="180">
+            <DataGrid Name="LifecycleDatabaseGrid"
+                      AutoGenerateColumns="False"
+                      IsReadOnly="True"
+                      CanUserSortColumns="True"
+                      Background="{DynamicResource Theme.Surface.Primary}"
+                      Foreground="{DynamicResource Theme.Text.Primary}"
+                      ScrollViewer.IsDeferredScrollingEnabled="True"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling"
+                      EnableRowVirtualization="True">
+              <DataGrid.Columns>
+                <DataGridTextColumn Header="Product" Binding="{Binding ProductID}" Width="120"/>
+                <DataGridTextColumn Header="Vendor" Binding="{Binding Vendor}" Width="80"/>
+                <DataGridTextColumn Header="Model" Binding="{Binding Model}" Width="140"/>
+                <DataGridTextColumn Header="End of Sale" Binding="{Binding EndOfSaleDate, StringFormat=yyyy-MM-dd}" Width="100"/>
+                <DataGridTextColumn Header="End of Support" Binding="{Binding EndOfSupportDate, StringFormat=yyyy-MM-dd}" Width="110"/>
+                <DataGridTextColumn Header="Replacement" Binding="{Binding ReplacementModel}" Width="*"/>
+              </DataGrid.Columns>
+            </DataGrid>
+          </GroupBox>
+        </Grid>
+      </TabItem>
+
+      <!-- Budget Forecast Tab -->
+      <TabItem Header="Budget Forecast">
+        <Grid Background="{DynamicResource Theme.Surface.Secondary}">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+          </Grid.RowDefinitions>
+
+          <!-- Forecast Controls -->
+          <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+            <Label Content="Forecast Years:" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
+            <ComboBox Name="ForecastYearsDropdown" Width="80" Margin="5,0" Style="{DynamicResource ToolbarComboBoxStyle}">
+              <ComboBoxItem Content="3"/>
+              <ComboBoxItem Content="5" IsSelected="True"/>
+              <ComboBoxItem Content="7"/>
+              <ComboBoxItem Content="10"/>
+            </ComboBox>
+            <Label Content="Annual Budget:" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}" Margin="15,0,0,0"/>
+            <TextBox Name="AnnualBudgetBox" Width="100" Margin="5,0" Style="{DynamicResource ToolbarTextBoxStyle}" Text="50000"/>
+            <Label Content="Refresh Cycle:" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}" Margin="15,0,0,0"/>
+            <ComboBox Name="RefreshCycleDropdown" Width="80" Margin="5,0" Style="{DynamicResource ToolbarComboBoxStyle}">
+              <ComboBoxItem Content="3 years"/>
+              <ComboBoxItem Content="5 years" IsSelected="True"/>
+              <ComboBoxItem Content="7 years"/>
+            </ComboBox>
+            <Button Name="GenerateForecastButton" Content="Generate Forecast" Style="{DynamicResource PrimaryButtonStyle}" Margin="15,0,5,0" Width="130"/>
+            <Button Name="CreateRefreshPlanButton" Content="Create Plan" Style="{DynamicResource SecondaryButtonStyle}" Width="90"/>
+          </StackPanel>
+
+          <!-- Summary Cards -->
+          <Grid Grid.Row="1" Margin="0,0,0,10">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Background="{DynamicResource Theme.Surface.Primary}" CornerRadius="5" Padding="10" Margin="0,0,5,0">
+              <StackPanel>
+                <TextBlock Text="Total Projected Cost" Style="{DynamicResource SubtitleStyle}" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                <TextBlock Name="TotalProjectedCostText" Text="$0" FontSize="24" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}"/>
+              </StackPanel>
+            </Border>
+
+            <Border Grid.Column="1" Background="{DynamicResource Theme.Surface.Primary}" CornerRadius="5" Padding="10" Margin="5,0">
+              <StackPanel>
+                <TextBlock Text="Devices to Refresh" Style="{DynamicResource SubtitleStyle}" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                <TextBlock Name="TotalDevicesToRefreshText" Text="0" FontSize="24" FontWeight="Bold" Foreground="{DynamicResource Theme.Status.Warning}"/>
+              </StackPanel>
+            </Border>
+
+            <Border Grid.Column="2" Background="{DynamicResource Theme.Surface.Primary}" CornerRadius="5" Padding="10" Margin="5,0">
+              <StackPanel>
+                <TextBlock Text="Avg Annual Budget" Style="{DynamicResource SubtitleStyle}" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                <TextBlock Name="AvgAnnualBudgetText" Text="$0" FontSize="24" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}"/>
+              </StackPanel>
+            </Border>
+
+            <Border Grid.Column="3" Background="{DynamicResource Theme.Surface.Primary}" CornerRadius="5" Padding="10" Margin="5,0,0,0">
+              <StackPanel>
+                <TextBlock Text="Needs Refresh Now" Style="{DynamicResource SubtitleStyle}" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                <TextBlock Name="NeedsRefreshNowText" Text="0" FontSize="24" FontWeight="Bold" Foreground="{DynamicResource Theme.Status.Danger}"/>
+              </StackPanel>
+            </Border>
+          </Grid>
+
+          <!-- Main Content -->
+          <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Yearly Forecast -->
+            <GroupBox Grid.Column="0" Header="Yearly Budget Forecast" Margin="0,0,5,0">
+              <DataGrid Name="YearlyForecastGrid"
+                        AutoGenerateColumns="False"
+                        IsReadOnly="True"
+                        CanUserSortColumns="True"
+                        Background="{DynamicResource Theme.Surface.Primary}"
+                        Foreground="{DynamicResource Theme.Text.Primary}"
+                        RowBackground="{DynamicResource Theme.Surface.Primary}"
+                        AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
+                        ScrollViewer.IsDeferredScrollingEnabled="True"
+                        VirtualizingPanel.IsVirtualizing="True"
+                        VirtualizingPanel.VirtualizationMode="Recycling"
+                        EnableRowVirtualization="True">
+                <DataGrid.Columns>
+                  <DataGridTextColumn Header="Year" Binding="{Binding Year}" Width="80"/>
+                  <DataGridTextColumn Header="Devices" Binding="{Binding DeviceCount}" Width="70"/>
+                  <DataGridTextColumn Header="Budget Needed" Binding="{Binding TotalBudget, StringFormat=C0}" Width="120"/>
+                </DataGrid.Columns>
+              </DataGrid>
+            </GroupBox>
+
+            <!-- Refresh Recommendations -->
+            <GroupBox Grid.Column="1" Header="Refresh Recommendations" Margin="5,0,0,0">
+              <DataGrid Name="RefreshRecommendationsGrid"
+                        AutoGenerateColumns="False"
+                        IsReadOnly="True"
+                        CanUserSortColumns="True"
+                        Background="{DynamicResource Theme.Surface.Primary}"
+                        Foreground="{DynamicResource Theme.Text.Primary}"
+                        RowBackground="{DynamicResource Theme.Surface.Primary}"
+                        AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
+                        ScrollViewer.IsDeferredScrollingEnabled="True"
+                        VirtualizingPanel.IsVirtualizing="True"
+                        VirtualizingPanel.VirtualizationMode="Recycling"
+                        EnableRowVirtualization="True">
+                <DataGrid.Columns>
+                  <DataGridTextColumn Header="Hostname" Binding="{Binding Hostname}" Width="120"/>
+                  <DataGridTextColumn Header="Model" Binding="{Binding CurrentModel}" Width="100"/>
+                  <DataGridTextColumn Header="Priority" Binding="{Binding Priority}" Width="70"/>
+                  <DataGridTextColumn Header="Est. Cost" Binding="{Binding EstimatedCost, StringFormat=C0}" Width="80"/>
+                  <DataGridTextColumn Header="Replacement" Binding="{Binding ReplacementModel}" Width="*"/>
+                </DataGrid.Columns>
+              </DataGrid>
+            </GroupBox>
+          </Grid>
+
+          <!-- Export Controls -->
+          <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+            <Button Name="ExportForecastTextButton" Content="Export Text" Style="{DynamicResource SecondaryButtonStyle}" Margin="0,0,5,0" Width="90"/>
+            <Button Name="ExportForecastCsvButton" Content="Export CSV" Style="{DynamicResource SecondaryButtonStyle}" Margin="0,0,5,0" Width="90"/>
+            <Button Name="ExportForecastHtmlButton" Content="Export HTML" Style="{DynamicResource SecondaryButtonStyle}" Width="90"/>
+          </StackPanel>
+        </Grid>
+      </TabItem>
+
+      <!-- History Tab -->
+      <TabItem Header="History">
+        <Grid Background="{DynamicResource Theme.Surface.Secondary}">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+
+          <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+            <Label Content="Asset:" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
+            <ComboBox Name="HistoryAssetDropdown" Width="200" Margin="5,0" Style="{DynamicResource ToolbarComboBoxStyle}" IsEditable="True" IsTextSearchEnabled="True"/>
+            <Button Name="RefreshHistoryButton" Content="Show History" Style="{DynamicResource SecondaryButtonStyle}" Margin="5,0" Width="100"/>
+            <Button Name="ShowAllHistoryButton" Content="Show All" Style="{DynamicResource SecondaryButtonStyle}" Width="80"/>
+          </StackPanel>
+
+          <DataGrid Grid.Row="1" Name="HistoryGrid"
+                    AutoGenerateColumns="False"
+                    IsReadOnly="True"
+                    Background="{DynamicResource Theme.Surface.Primary}"
+                    Foreground="{DynamicResource Theme.Text.Primary}"
+                    RowBackground="{DynamicResource Theme.Surface.Primary}"
+                    AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
+                    ScrollViewer.IsDeferredScrollingEnabled="True"
+                    VirtualizingPanel.IsVirtualizing="True"
+                    VirtualizingPanel.VirtualizationMode="Recycling"
+                    EnableRowVirtualization="True">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Timestamp" Binding="{Binding Timestamp, StringFormat=yyyy-MM-dd HH:mm:ss}" Width="150"/>
+              <DataGridTextColumn Header="Change Type" Binding="{Binding ChangeType}" Width="100"/>
+              <DataGridTextColumn Header="Details" Binding="{Binding Details}" Width="*"/>
+              <DataGridTextColumn Header="User" Binding="{Binding User}" Width="100"/>
+            </DataGrid.Columns>
+          </DataGrid>
+        </Grid>
+      </TabItem>
+    </TabControl>
+
+    <!-- Status Bar -->
+    <Border Grid.Row="3" Background="{DynamicResource Theme.Toolbar.Background}" Padding="5" Margin="0,10,0,0">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+
+        <TextBlock Name="StatusText" Text="Ready" VerticalAlignment="Center" Foreground="{DynamicResource Theme.Toolbar.Text}"/>
+        <TextBlock Grid.Column="1" Name="LastUpdateText" Text="" VerticalAlignment="Center" Foreground="{DynamicResource Theme.Toolbar.Text}"/>
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>

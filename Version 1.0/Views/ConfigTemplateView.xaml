@@ -1,0 +1,446 @@
+<UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <!-- Toolbar -->
+    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5" Background="{DynamicResource Theme.Toolbar.Background}">
+      <Button Name="NewTemplateButton" Content="New Template" Margin="5,2" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Create new template (Ctrl+N)"/>
+      <Button Name="SaveTemplateButton" Content="Save" Margin="5,2" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Save current template (Ctrl+S)"/>
+      <TextBlock Name="DirtyIndicator" Text="*" FontSize="16" FontWeight="Bold" Foreground="#FF5722" VerticalAlignment="Center" Margin="0,0,5,0" Visibility="Collapsed" ToolTip="Unsaved changes"/>
+      <Separator Margin="5,2"/>
+      <Button Name="ImportButton" Content="Import" Margin="5,2" Style="{DynamicResource SecondaryButtonStyle}"/>
+      <Button Name="ExportButton" Content="Export" Margin="5,2" Style="{DynamicResource SecondaryButtonStyle}"/>
+      <Separator Margin="5,2"/>
+      <Button Name="LoadBuiltInButton" Content="Load Built-in" Margin="5,2" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Load built-in templates and standards"/>
+      <Separator Margin="5,2"/>
+      <Label Content="Vendor:" VerticalAlignment="Center" Style="{DynamicResource DarkToolbarLabelStyle}"/>
+      <ComboBox Name="VendorFilterCombo" Width="120" Margin="5,2" Style="{DynamicResource ToolbarComboBoxStyle}">
+        <ComboBoxItem Content="All" IsSelected="True"/>
+        <ComboBoxItem Content="Cisco_IOS"/>
+        <ComboBoxItem Content="Cisco_IOSXE"/>
+        <ComboBoxItem Content="Arista_EOS"/>
+        <ComboBoxItem Content="Brocade"/>
+        <ComboBoxItem Content="Generic"/>
+      </ComboBox>
+    </StackPanel>
+
+    <!-- Main Content - Tab Control -->
+    <TabControl Grid.Row="1" Margin="5" Name="MainTabControl" Background="{DynamicResource Theme.Surface.Primary}">
+
+      <!-- Templates Tab -->
+      <TabItem Header="Templates">
+        <Grid Background="{DynamicResource Theme.Surface.Secondary}">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="250"/>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="350"/>
+          </Grid.ColumnDefinitions>
+
+          <!-- Template List -->
+          <Border Grid.Column="0" Background="{DynamicResource Theme.Surface.Secondary}" Margin="5" Padding="5">
+            <Grid>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+              </Grid.RowDefinitions>
+
+              <TextBlock Grid.Row="0" Text="Template Library" FontWeight="Bold" Margin="0,0,0,5" Foreground="{DynamicResource Theme.Text.Primary}"/>
+              <ListBox Grid.Row="1" Name="TemplateListBox"
+                       Background="{DynamicResource Theme.Surface.Primary}"
+                       VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                       ScrollViewer.CanContentScroll="True">
+                <ListBox.ItemTemplate>
+                  <DataTemplate>
+                    <TextBlock Text="{Binding Name}" Foreground="{DynamicResource Theme.Text.Inverse}"/>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+                <ListBox.ItemContainerStyle>
+                  <Style TargetType="ListBoxItem">
+                    <Setter Property="Background" Value="Transparent"/>
+                    <Setter Property="Padding" Value="5,3"/>
+                    <Style.Triggers>
+                      <Trigger Property="IsSelected" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource Theme.Icon.Accent}"/>
+                      </Trigger>
+                      <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource Theme.Surface.Secondary}"/>
+                      </Trigger>
+                    </Style.Triggers>
+                  </Style>
+                </ListBox.ItemContainerStyle>
+              </ListBox>
+            </Grid>
+          </Border>
+
+          <!-- Template Editor -->
+          <Grid Grid.Column="1" Margin="5">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- Template Metadata -->
+            <Grid Grid.Row="0" Margin="0,0,0,5">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="120"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="100"/>
+              </Grid.ColumnDefinitions>
+
+              <Label Grid.Column="0" Content="Name:" Style="{DynamicResource ToolbarLabelStyle}"/>
+              <TextBox Grid.Column="1" Name="TemplateNameBox" Margin="5,0" Background="{DynamicResource Theme.Input.Background}"/>
+              <Label Grid.Column="2" Content="Vendor:" Style="{DynamicResource ToolbarLabelStyle}"/>
+              <ComboBox Grid.Column="3" Name="TemplateVendorCombo" Margin="5,0" Style="{DynamicResource ToolbarComboBoxStyle}">
+                <ComboBoxItem Content="Generic" IsSelected="True"/>
+                <ComboBoxItem Content="Cisco_IOS"/>
+                <ComboBoxItem Content="Cisco_IOSXE"/>
+                <ComboBoxItem Content="Arista_EOS"/>
+                <ComboBoxItem Content="Brocade"/>
+              </ComboBox>
+              <Label Grid.Column="4" Content="Type:" Style="{DynamicResource ToolbarLabelStyle}"/>
+              <ComboBox Grid.Column="5" Name="TemplateTypeCombo" Margin="5,0" Style="{DynamicResource ToolbarComboBoxStyle}">
+                <ComboBoxItem Content="Other" IsSelected="True"/>
+                <ComboBoxItem Content="Access"/>
+                <ComboBoxItem Content="Distribution"/>
+                <ComboBoxItem Content="Core"/>
+                <ComboBoxItem Content="Router"/>
+              </ComboBox>
+            </Grid>
+
+            <Label Grid.Row="1" Content="Template Content:" Style="{DynamicResource ToolbarLabelStyle}"/>
+            <TextBox Grid.Row="2" Name="TemplateContentBox"
+                     AcceptsReturn="True" AcceptsTab="True"
+                     VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                     FontFamily="Consolas" FontSize="12"
+                     Background="{DynamicResource Theme.Input.Background}"
+                     Foreground="{DynamicResource Theme.Text.Primary}"/>
+          </Grid>
+
+          <!-- Variables Panel -->
+          <Border Grid.Column="2" Background="{DynamicResource Theme.Surface.Secondary}" Margin="5" Padding="10">
+            <Grid>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+              </Grid.RowDefinitions>
+
+              <TextBlock Grid.Row="0" Text="Variables" FontWeight="Bold" Margin="0,0,0,10" Foreground="{DynamicResource Theme.Text.Primary}"/>
+
+              <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                <ItemsControl Name="VariablesItemsControl"
+                              VirtualizingPanel.IsVirtualizing="True"
+                              VirtualizingPanel.VirtualizationMode="Recycling"
+                              VirtualizingPanel.ScrollUnit="Pixel"
+                              ScrollViewer.CanContentScroll="True">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <VirtualizingStackPanel/>
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <StackPanel Margin="0,2">
+                        <Label Content="{Binding Name}" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Padding="0"/>
+                        <TextBox Text="{Binding Value, Mode=TwoWay}" Background="{DynamicResource Theme.Input.Background}" Margin="0,2"/>
+                      </StackPanel>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </ScrollViewer>
+
+              <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,10,0,0">
+                <Button Name="ExtractVarsButton" Content="Extract Vars" Margin="0,0,10,0" Style="{DynamicResource SecondaryButtonStyle}"/>
+                <Button Name="GenerateButton" Content="Generate Config" Style="{DynamicResource PrimaryButtonStyle}"/>
+              </StackPanel>
+            </Grid>
+          </Border>
+
+          <!-- Loading indicator -->
+          <Border Name="TemplatesLoadingIndicator" Style="{DynamicResource LoadingIndicatorStyle}">
+            <StackPanel>
+              <TextBlock Text="Loading templates..." Style="{DynamicResource LoadingTextStyle}"/>
+              <ProgressBar Style="{DynamicResource LoadingProgressStyle}"/>
+            </StackPanel>
+          </Border>
+        </Grid>
+      </TabItem>
+
+      <!-- Validation Tab -->
+      <TabItem Header="Validation">
+        <Grid Background="{DynamicResource Theme.Surface.Secondary}">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="250"/>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="300"/>
+          </Grid.ColumnDefinitions>
+
+          <!-- Standards List -->
+          <Border Grid.Column="0" Background="{DynamicResource Theme.Surface.Secondary}" Margin="5" Padding="5">
+            <Grid>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+              </Grid.RowDefinitions>
+
+              <TextBlock Grid.Row="0" Text="Validation Standards" FontWeight="Bold" Margin="0,0,0,5" Foreground="{DynamicResource Theme.Text.Primary}"/>
+              <ListBox Grid.Row="1" Name="StandardsListBox"
+                       Background="{DynamicResource Theme.Surface.Primary}"
+                       VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                       ScrollViewer.CanContentScroll="True">
+                <ListBox.ItemTemplate>
+                  <DataTemplate>
+                    <TextBlock Text="{Binding Name}" Foreground="{DynamicResource Theme.Text.Inverse}"/>
+                  </DataTemplate>
+                </ListBox.ItemTemplate>
+                <ListBox.ItemContainerStyle>
+                  <Style TargetType="ListBoxItem">
+                    <Setter Property="Background" Value="Transparent"/>
+                    <Setter Property="Padding" Value="5,3"/>
+                    <Style.Triggers>
+                      <Trigger Property="IsSelected" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource Theme.Icon.Accent}"/>
+                      </Trigger>
+                      <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource Theme.Surface.Secondary}"/>
+                      </Trigger>
+                    </Style.Triggers>
+                  </Style>
+                </ListBox.ItemContainerStyle>
+              </ListBox>
+              <StackPanel Grid.Row="2" Margin="0,5,0,0">
+                <TextBlock Name="StandardInfoText" TextWrapping="Wrap" FontSize="11" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+              </StackPanel>
+            </Grid>
+          </Border>
+
+          <!-- Config Input / Results -->
+          <Grid Grid.Column="1" Margin="5">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="*"/>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <StackPanel Grid.Row="0" Orientation="Horizontal">
+              <Label Content="Configuration to Validate:" Style="{DynamicResource ToolbarLabelStyle}"/>
+              <Button Name="LoadConfigButton" Content="Load File" Margin="10,0" Style="{DynamicResource SecondaryButtonStyle}"/>
+              <Button Name="PasteConfigButton" Content="Paste" Style="{DynamicResource SecondaryButtonStyle}"/>
+            </StackPanel>
+
+            <TextBox Grid.Row="1" Name="ConfigInputBox"
+                     AcceptsReturn="True" AcceptsTab="True"
+                     VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                     FontFamily="Consolas" FontSize="12"
+                     Background="{DynamicResource Theme.Input.Background}"
+                     Foreground="{DynamicResource Theme.Text.Primary}"/>
+
+            <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,5">
+              <Button Name="ValidateButton" Content="Validate" Margin="0,0,10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+              <TextBlock Name="ScoreText" VerticalAlignment="Center" FontSize="14" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}"/>
+            </StackPanel>
+
+            <DataGrid Grid.Row="3" Name="ResultsGrid"
+                      AutoGenerateColumns="False" IsReadOnly="True"
+                      Background="{DynamicResource Theme.Surface.Primary}"
+                      Foreground="{DynamicResource Theme.Text.Primary}"
+                      GridLinesVisibility="Horizontal"
+                      RowBackground="{DynamicResource Theme.Surface.Primary}"
+                      AlternatingRowBackground="{DynamicResource Theme.Surface.Secondary}"
+                      ScrollViewer.IsDeferredScrollingEnabled="True"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling"
+                      EnableRowVirtualization="True">
+              <DataGrid.Columns>
+                <DataGridTextColumn Header="Rule" Binding="{Binding RuleID}" Width="70"/>
+                <DataGridTextColumn Header="Name" Binding="{Binding RuleName}" Width="120"/>
+                <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="60"/>
+                <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" Width="70"/>
+                <DataGridTextColumn Header="Message" Binding="{Binding Message}" Width="*"/>
+              </DataGrid.Columns>
+            </DataGrid>
+          </Grid>
+
+          <!-- Remediation Panel -->
+          <Border Grid.Column="2" Background="{DynamicResource Theme.Surface.Secondary}" Margin="5" Padding="10">
+            <Grid>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+              </Grid.RowDefinitions>
+
+              <TextBlock Grid.Row="0" Text="Remediation Commands" FontWeight="Bold" Margin="0,0,0,10" Foreground="{DynamicResource Theme.Text.Primary}"/>
+
+              <TextBox Grid.Row="1" Name="RemediationBox"
+                       IsReadOnly="True" AcceptsReturn="True"
+                       VerticalScrollBarVisibility="Auto"
+                       FontFamily="Consolas" FontSize="11"
+                       Background="{DynamicResource Theme.Input.Background}"
+                       Foreground="{DynamicResource Theme.Text.Primary}"/>
+
+              <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,10,0,0">
+                <Button Name="CopyRemediationButton" Content="Copy" Margin="0,0,10,0" Style="{DynamicResource SecondaryButtonStyle}"/>
+                <Button Name="ExportReportButton" Content="Export Report" Style="{DynamicResource SecondaryButtonStyle}"/>
+              </StackPanel>
+            </Grid>
+          </Border>
+        </Grid>
+      </TabItem>
+
+      <!-- Output Tab -->
+      <TabItem Header="Generated Output">
+        <Grid Margin="5" Background="{DynamicResource Theme.Surface.Secondary}">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+          </Grid.RowDefinitions>
+
+          <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,5">
+            <Label Content="Generated Configuration:" Style="{DynamicResource ToolbarLabelStyle}"/>
+            <TextBlock Name="GeneratedInfoText" VerticalAlignment="Center" Margin="10,0" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+          </StackPanel>
+
+          <TextBox Grid.Row="1" Name="OutputBox"
+                   IsReadOnly="True" AcceptsReturn="True"
+                   VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                   FontFamily="Consolas" FontSize="12"
+                   Background="{DynamicResource Theme.Input.Background}"
+                   Foreground="{DynamicResource Theme.Text.Primary}"/>
+
+          <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,5,0,0">
+            <Button Name="CopyOutputButton" Content="Copy to Clipboard" Margin="0,0,10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+            <Button Name="SaveOutputButton" Content="Save to File" Margin="0,0,10,0" Style="{DynamicResource SecondaryButtonStyle}"/>
+            <Button Name="ValidateOutputButton" Content="Validate Output" Style="{DynamicResource SecondaryButtonStyle}"/>
+          </StackPanel>
+        </Grid>
+      </TabItem>
+
+      <!-- Statistics Tab -->
+      <TabItem Header="Statistics">
+        <ScrollViewer VerticalScrollBarVisibility="Auto" Background="{DynamicResource Theme.Surface.Secondary}">
+          <Grid Margin="10">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Template Stats -->
+            <Border Grid.Row="0" Grid.Column="0" Background="{DynamicResource Theme.Surface.Secondary}" Margin="5" Padding="15" CornerRadius="5">
+              <StackPanel>
+                <TextBlock Text="Template Library" FontWeight="Bold" FontSize="14" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                <TextBlock Name="TotalTemplatesText" Text="Total Templates: 0" Margin="0,10,0,0" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                <TextBlock Text="By Vendor:" FontWeight="SemiBold" Margin="0,10,0,5" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                <ItemsControl Name="TemplatesByVendorList"
+                              VirtualizingPanel.IsVirtualizing="True"
+                              VirtualizingPanel.VirtualizationMode="Recycling"
+                              VirtualizingPanel.ScrollUnit="Pixel"
+                              ScrollViewer.CanContentScroll="True">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <VirtualizingStackPanel/>
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}">
+                        <Run Text="  "/>
+                        <Run Text="{Binding Key}"/>: <Run Text="{Binding Value}"/>
+                      </TextBlock>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Text="By Device Type:" FontWeight="SemiBold" Margin="0,10,0,5" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                <ItemsControl Name="TemplatesByTypeList"
+                              VirtualizingPanel.IsVirtualizing="True"
+                              VirtualizingPanel.VirtualizationMode="Recycling"
+                              VirtualizingPanel.ScrollUnit="Pixel"
+                              ScrollViewer.CanContentScroll="True">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <VirtualizingStackPanel/>
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}">
+                        <Run Text="  "/>
+                        <Run Text="{Binding Key}"/>: <Run Text="{Binding Value}"/>
+                      </TextBlock>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+
+            <!-- Standards Stats -->
+            <Border Grid.Row="0" Grid.Column="1" Background="{DynamicResource Theme.Surface.Secondary}" Margin="5" Padding="15" CornerRadius="5">
+              <StackPanel>
+                <TextBlock Text="Validation Standards" FontWeight="Bold" FontSize="14" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                <TextBlock Name="TotalStandardsText" Text="Total Standards: 0" Margin="0,10,0,0" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                <TextBlock Name="TotalRulesText" Text="Total Rules: 0" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                <TextBlock Text="Standards:" FontWeight="SemiBold" Margin="0,10,0,5" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                <ItemsControl Name="StandardsListStats"
+                              VirtualizingPanel.IsVirtualizing="True"
+                              VirtualizingPanel.VirtualizationMode="Recycling"
+                              VirtualizingPanel.ScrollUnit="Pixel"
+                              ScrollViewer.CanContentScroll="True">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <VirtualizingStackPanel/>
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                      <TextBlock Foreground="{DynamicResource Theme.Text.Secondary}">
+                        <Run Text="  "/>
+                        <Run Text="{Binding Name}"/>
+                        <Run Text=" ("/>
+                        <Run Text="{Binding RuleCount}"/>
+                        <Run Text=" rules)"/>
+                      </TextBlock>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+
+            <!-- Quick Actions -->
+            <Border Grid.Row="1" Grid.ColumnSpan="2" Background="{DynamicResource Theme.Surface.Secondary}" Margin="5" Padding="15" CornerRadius="5">
+              <StackPanel>
+                <TextBlock Text="Quick Actions" FontWeight="Bold" FontSize="14" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
+                <WrapPanel>
+                  <Button Name="QuickLoadBuiltInButton" Content="Load All Built-in" Margin="5" Style="{DynamicResource PrimaryButtonStyle}"/>
+                  <Button Name="QuickExportAllButton" Content="Export All Templates" Margin="5" Style="{DynamicResource SecondaryButtonStyle}"/>
+                  <Button Name="QuickClearButton" Content="Clear Libraries" Margin="5" Style="{DynamicResource SecondaryButtonStyle}"/>
+                </WrapPanel>
+              </StackPanel>
+            </Border>
+          </Grid>
+        </ScrollViewer>
+      </TabItem>
+    </TabControl>
+
+    <!-- Status Bar -->
+    <Border Grid.Row="2" Background="{DynamicResource Theme.Toolbar.Background}" Padding="5">
+      <TextBlock Name="StatusText" Text="Ready" Foreground="{DynamicResource Theme.Toolbar.Text}"/>
+    </Border>
+  </Grid>
+</UserControl>

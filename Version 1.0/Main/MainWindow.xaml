@@ -1,0 +1,167 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="StateTrace"
+        Height="600"
+        Width="1350"
+        Background="{DynamicResource Theme.Window.Background}"
+        AutomationProperties.Name="StateTrace Network Telemetry Application">
+
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <!-- Top toolbar: device selector, refresh and filtering controls -->
+    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5" Background="{DynamicResource Theme.Toolbar.Background}" AutomationProperties.Name="Device Selection Toolbar">
+      <Label Content="Device:" VerticalAlignment="Center" Style="{DynamicResource DarkToolbarLabelStyle}" AutomationProperties.Name="Device selector label"/>
+      <!-- Allow the hostname dropdown to be searchable by enabling text editing
+           and text search.  Users can start typing a switch name to quickly
+           locate it. -->
+      <ComboBox Name="HostnameDropdown" Width="180" Margin="5,0" IsEditable="True" IsTextSearchEnabled="True" Style="{DynamicResource ToolbarComboBoxStyle}" AutomationProperties.Name="Select device hostname" AutomationProperties.HelpText="Type to search or select a network device"/>
+      <ToggleButton Name="PinDeviceButton" Content="📌" Width="28" Height="24" Style="{DynamicResource SecondaryToggleButtonStyle}" ToolTip="Pin/unpin current device to top of list" Margin="0,0,5,0" FontSize="12" AutomationProperties.Name="Pin device to favorites"/>
+      <Label Content="Recent:" VerticalAlignment="Center" Margin="10,0,0,0" Style="{DynamicResource DarkToolbarLabelStyle}" AutomationProperties.Name="Recent devices label"/>
+      <ComboBox Name="RecentDevicesDropdown" Width="140" Margin="5,0" Style="{DynamicResource ToolbarComboBoxStyle}" ToolTip="Recently viewed devices - click to jump back" AutomationProperties.Name="Recently viewed devices" AutomationProperties.HelpText="Select from recently viewed devices"/>
+      <Button Name="RefreshButton" Content="_Scan Logs" Margin="5,0" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Scan log files for device data (Alt+S)" AutomationProperties.Name="Scan Logs" AutomationProperties.AcceleratorKey="Alt+S"/>
+      <CheckBox Name="ForceReloadCheckbox" Content="Clear cache before scan" VerticalAlignment="Center" Margin="5,0" Style="{DynamicResource DarkToolbarCheckBoxStyle}" ToolTip="Clears cached interface data and ingestion history before scanning logs" AutomationProperties.Name="Clear cache before scan"/>
+      <Button Name="LoadDatabaseButton" Content="_Load from DB" Margin="5,0" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Load devices from the existing database without scanning logs (Alt+L)" AutomationProperties.Name="Load from Database" AutomationProperties.AcceleratorKey="Alt+L"/>
+      <!-- Checkbox to include archive data (most recent) -->
+      <CheckBox Name="IncludeArchiveCheckbox" Content="Include archives" VerticalAlignment="Center" Margin="10,0" Style="{DynamicResource DarkToolbarCheckBoxStyle}" AutomationProperties.Name="Include archived data"/>
+      <!-- Checkbox to include historical data from archives -->
+      <CheckBox Name="IncludeHistoricalCheckbox" Content="Include history" VerticalAlignment="Center" Margin="5,0" Style="{DynamicResource DarkToolbarCheckBoxStyle}" AutomationProperties.Name="Include historical data"/>
+      <!-- Auto-refresh toggle -->
+      <Rectangle Width="1" Fill="{DynamicResource Theme.Border.Primary}" Margin="10,2,10,2" AutomationProperties.Name="Separator"/>
+      <CheckBox Name="AutoRefreshCheckbox" Content="Auto-refresh" VerticalAlignment="Center" Margin="0,0,5,0" Style="{DynamicResource DarkToolbarCheckBoxStyle}" ToolTip="Automatically reload data at the selected interval" AutomationProperties.Name="Enable auto-refresh"/>
+      <ComboBox Name="AutoRefreshIntervalDropdown" Width="70" Style="{DynamicResource ToolbarComboBoxStyle}" ToolTip="Refresh interval" IsEnabled="False" AutomationProperties.Name="Auto-refresh interval" AutomationProperties.HelpText="Select how often to refresh data">
+        <ComboBoxItem Content="1 min" IsSelected="True"/>
+        <ComboBoxItem Content="2 min"/>
+        <ComboBoxItem Content="5 min"/>
+        <ComboBoxItem Content="10 min"/>
+      </ComboBox>
+    </StackPanel>
+
+    <!-- Location filter bar directly under the main toolbar -->
+    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="5" Background="{DynamicResource Theme.Toolbar.Background}" AutomationProperties.Name="Location Filter Toolbar">
+      <Label Content="Site:" VerticalAlignment="Center" Style="{DynamicResource DarkToolbarLabelStyle}" AutomationProperties.Name="Site filter label"/>
+      <!-- Make the site dropdown editable so users can type to filter sites. -->
+      <ComboBox Name="SiteDropdown" Width="100" Margin="5,0" IsEditable="True" IsTextSearchEnabled="True" Style="{DynamicResource ToolbarComboBoxStyle}" AutomationProperties.Name="Filter by site" AutomationProperties.HelpText="Type or select a site code"/>
+      <Label Content="Zone:" VerticalAlignment="Center" Style="{DynamicResource DarkToolbarLabelStyle}" AutomationProperties.Name="Zone filter label"/>
+      <!-- Zone dropdown with search capability -->
+      <ComboBox Name="ZoneDropdown" Width="100" Margin="5,0" IsEditable="True" IsTextSearchEnabled="True" Style="{DynamicResource ToolbarComboBoxStyle}" AutomationProperties.Name="Filter by zone" AutomationProperties.HelpText="Type or select a zone"/>
+      <Label Content="Building:" VerticalAlignment="Center" Style="{DynamicResource DarkToolbarLabelStyle}" AutomationProperties.Name="Building filter label"/>
+      <!-- Building dropdown with search capability -->
+      <ComboBox Name="BuildingDropdown" Width="120" Margin="5,0" IsEditable="True" IsTextSearchEnabled="True" Style="{DynamicResource ToolbarComboBoxStyle}" AutomationProperties.Name="Filter by building" AutomationProperties.HelpText="Type or select a building"/>
+      <Label Content="Room:" VerticalAlignment="Center" Style="{DynamicResource DarkToolbarLabelStyle}" AutomationProperties.Name="Room filter label"/>
+      <!-- Room dropdown with search capability -->
+      <ComboBox Name="RoomDropdown" Width="100" Margin="5,0" IsEditable="True" IsTextSearchEnabled="True" Style="{DynamicResource ToolbarComboBoxStyle}" AutomationProperties.Name="Filter by room" AutomationProperties.HelpText="Type or select a room"/>
+    </StackPanel>
+
+    <!-- Row 2: Show command controls -->
+    <Grid Grid.Row="2" Margin="5">
+      <!-- Use Margin instead of Padding on StackPanel. Padding is not supported on StackPanel in WPF.
+           The surrounding Grid already provides margin spacing. -->
+      <StackPanel Orientation="Horizontal" Background="{DynamicResource Theme.Toolbar.Background}" Margin="5,0,5,0" AutomationProperties.Name="Commands and Settings Toolbar">
+        <Label Content="Show Commands:" VerticalAlignment="Center" Style="{DynamicResource DarkToolbarLabelStyle}" Margin="0,0,10,0" AutomationProperties.Name="Show commands label"/>
+        <Button Name="ShowCiscoButton" Content="_Cisco" Width="90" Margin="0,0,5,0" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Copy Cisco show commands to clipboard (Alt+C)" AutomationProperties.Name="Copy Cisco commands" AutomationProperties.AcceleratorKey="Alt+C"/>
+        <Button Name="ShowBrocadeButton" Content="_Brocade" Width="100" Margin="0,0,5,0" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Copy Brocade show commands to clipboard (Alt+B)" AutomationProperties.Name="Copy Brocade commands" AutomationProperties.AcceleratorKey="Alt+B"/>
+        <!-- Dropdown to select the Brocade OS version.  Values are populated at runtime
+             from ShowCommands.json via Set-ShowCommandsOSVersions.  Provide a blank
+             ComboBox here so the code-behind can bind the list of versions. -->
+        <ComboBox Name="BrocadeOSDropdown" Width="110" Margin="0,0,5,0" Style="{DynamicResource ToolbarComboBoxStyle}" AutomationProperties.Name="Select Brocade OS version"/>
+        <!-- Help button opens a window containing documentation for each section of the GUI -->
+        <Button Name="HelpButton" Content="_Help" Width="60" Margin="0,0,0,0" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Open help documentation (Alt+H)" AutomationProperties.Name="Open Help" AutomationProperties.AcceleratorKey="Alt+H"/>
+        <Label Content="Theme:" VerticalAlignment="Center" Margin="15,0,0,0" Style="{DynamicResource DarkToolbarLabelStyle}" AutomationProperties.Name="Theme selector label"/>
+        <ComboBox Name="ThemeSelector" Width="170" Margin="5,0" IsEditable="False" Style="{DynamicResource ToolbarComboBoxStyle}" AutomationProperties.Name="Select color theme" AutomationProperties.HelpText="Choose a visual theme for the application"/>
+        <CheckBox Name="DebugNextLaunchCheckbox" Content="Enable debug next launch" Margin="10,0,0,0" VerticalAlignment="Center" Style="{DynamicResource DarkToolbarCheckBoxStyle}" ToolTip="Stores preference to enable verbose diagnostics on the next application start" AutomationProperties.Name="Enable debug mode on next launch"/>
+        <!-- Compare configs button removed; comparison is launched from the Interfaces tab -->
+      </StackPanel>
+    </Grid>
+
+    <!-- Main content area: primary tabs with a collapsible compare sidebar -->
+    <Grid Grid.Row="3" Margin="5">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*" />
+        <!-- CompareColumn's width is toggled in code-behind to show or hide the compare sidebar -->
+        <ColumnDefinition x:Name="CompareColumn" Width="0" />
+      </Grid.ColumnDefinitions>
+      <!-- Primary tabs occupy the first column -->
+      <TabControl Grid.Column="0" Name="MainTabControl" AutomationProperties.Name="Main navigation tabs">
+        <TabItem Header="Summary" ToolTip="Device overview and status summary (Ctrl+1)" AutomationProperties.Name="Summary tab" AutomationProperties.AcceleratorKey="Ctrl+1">
+          <ContentControl Name="SummaryHost" AutomationProperties.Name="Summary view content"/>
+        </TabItem>
+        <TabItem Name="InterfacesTab" Header="Interfaces" ToolTip="Interface details and port status (Ctrl+2)" AutomationProperties.Name="Interfaces tab" AutomationProperties.AcceleratorKey="Ctrl+2">
+          <ContentControl Name="InterfacesHost" AutomationProperties.Name="Interfaces view content"/>
+        </TabItem>
+        <TabItem Header="SPAN" ToolTip="Spanning tree protocol analysis (Ctrl+3)" AutomationProperties.Name="Spanning Tree tab" AutomationProperties.AcceleratorKey="Ctrl+3">
+          <ContentControl Name="SpanHost" AutomationProperties.Name="Spanning tree view content"/>
+        </TabItem>
+        <TabItem Header="Search" ToolTip="Cross-device interface search (Ctrl+4)" AutomationProperties.Name="Search tab" AutomationProperties.AcceleratorKey="Ctrl+4">
+          <ContentControl Name="SearchInterfacesHost" AutomationProperties.Name="Search view content"/>
+        </TabItem>
+        <!-- Alerts tab displays detected issues or anomalies across all interfaces -->
+        <TabItem Header="Alerts" ToolTip="Issue detection and anomaly alerts (Ctrl+5)" AutomationProperties.Name="Alerts tab" AutomationProperties.AcceleratorKey="Ctrl+5">
+          <ContentControl Name="AlertsHost" AutomationProperties.Name="Alerts view content"/>
+        </TabItem>
+        <!-- Documentation container: Generator, Config Templates, Templates, Cmd Reference -->
+        <TabItem Header="📄 Docs" ToolTip="Documentation (Ctrl+6)&#x0a;• Generator - Template-based documentation&#x0a;• Config Templates - Configuration validation&#x0a;• Templates - Show command templates&#x0a;• Cmd Reference - Cross-vendor commands" AutomationProperties.Name="Documentation tab" AutomationProperties.AcceleratorKey="Ctrl+6">
+          <ContentControl Name="DocumentationContainerHost" AutomationProperties.Name="Documentation view content"/>
+        </TabItem>
+        <!-- Infrastructure container: Topology, Cables, IPAM, Inventory -->
+        <TabItem Header="🏗 Infra" ToolTip="Infrastructure (Ctrl+7)&#x0a;• Topology - Network visualization&#x0a;• Cables - Patch panel tracking&#x0a;• IPAM - IP/VLAN management&#x0a;• Inventory - Asset tracking" AutomationProperties.Name="Infrastructure tab" AutomationProperties.AcceleratorKey="Ctrl+7">
+          <ContentControl Name="InfrastructureContainerHost" AutomationProperties.Name="Infrastructure view content"/>
+        </TabItem>
+        <!-- Operations container: Changes, Capacity, Log Analysis -->
+        <TabItem Header="📊 Ops" ToolTip="Operations (Ctrl+8)&#x0a;• Changes - Maintenance windows&#x0a;• Capacity - Utilization forecasting&#x0a;• Log Analysis - Pattern detection" AutomationProperties.Name="Operations tab" AutomationProperties.AcceleratorKey="Ctrl+8">
+          <ContentControl Name="OperationsContainerHost" AutomationProperties.Name="Operations view content"/>
+        </TabItem>
+        <!-- Tools container: Troubleshoot, Calculator -->
+        <TabItem Header="🛠 Tools" ToolTip="Tools (Ctrl+9)&#x0a;• Troubleshoot - Decision trees&#x0a;• Calculator - Subnet/VLAN/ACL" AutomationProperties.Name="Tools tab" AutomationProperties.AcceleratorKey="Ctrl+9">
+          <ContentControl Name="ToolsContainerHost" AutomationProperties.Name="Tools view content"/>
+        </TabItem>
+        <!-- Add more tabs here -->
+      </TabControl>
+      <!-- Compare sidebar occupies the second column and hosts the compare view.  It is hidden by default by setting the column width to zero. -->
+      <Border Grid.Column="1" Background="{DynamicResource Theme.Surface.Secondary}" Padding="5" AutomationProperties.Name="Configuration comparison sidebar">
+        <ContentControl Name="CompareHost" AutomationProperties.Name="Compare view content"/>
+      </Border>
+    </Grid>
+
+    <!-- Bottom status bar: parser status, pipeline health, and site freshness -->
+    <Grid Grid.Row="4" Margin="5,5" Background="{DynamicResource Theme.Toolbar.Background}" AutomationProperties.Name="Status bar">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="Auto"/>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="Auto"/>
+      </Grid.ColumnDefinitions>
+
+      <!-- Left: Parser status -->
+      <StackPanel Grid.Column="0" Orientation="Horizontal" Margin="5,0" AutomationProperties.Name="Parser status section">
+        <Label Name="ParserStatusText" Content="Parser idle" Margin="0,0,10,0" VerticalAlignment="Center" Style="{DynamicResource DarkToolbarLabelStyle}" AutomationProperties.Name="Parser status" AutomationProperties.LiveSetting="Polite"/>
+        <Label Name="ParserDetailText" Content="" Margin="0,0,10,0" VerticalAlignment="Center" Style="{DynamicResource DarkToolbarLabelStyle}" AutomationProperties.Name="Parser details" AutomationProperties.LiveSetting="Polite"/>
+        <Button Name="ViewPipelineLogButton" Content="View Log" Margin="0,0,5,0" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Open the latest pipeline log file" Visibility="Collapsed" AutomationProperties.Name="View pipeline log"/>
+      </StackPanel>
+
+      <!-- Center: Pipeline health summary -->
+      <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Center" Margin="5,0" AutomationProperties.Name="Pipeline health section">
+        <Label Name="PipelineHealthLabel" Content="" VerticalAlignment="Center" Style="{DynamicResource DarkToolbarLabelStyle}" ToolTip="Last pipeline run status" AutomationProperties.Name="Pipeline health status" AutomationProperties.LiveSetting="Polite"/>
+      </StackPanel>
+
+      <!-- Right: Freshness indicator with status circle -->
+      <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="5,0" AutomationProperties.Name="Data freshness section">
+        <Button Name="RefreshFromDbButton" Content="_Reload DB" Margin="0,0,10,0" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Reload interface data from the database without re-parsing logs (Alt+R)" AutomationProperties.Name="Reload from database" AutomationProperties.AcceleratorKey="Alt+R"/>
+        <Ellipse Name="FreshnessIndicator" Width="12" Height="12" Margin="0,0,5,0" VerticalAlignment="Center" Fill="Gray" ToolTip="Data freshness status" AutomationProperties.Name="Data freshness indicator"/>
+        <Label Name="FreshnessLabel" Content="Freshness: select a site" VerticalAlignment="Center" Style="{DynamicResource DarkToolbarLabelStyle}" ToolTip="Displays the last ingest timestamp for the selected site." AutomationProperties.Name="Data freshness timestamp" AutomationProperties.LiveSetting="Polite"/>
+      </StackPanel>
+    </Grid>
+  </Grid>
+</Window>
+
+
+
+
+
+
+

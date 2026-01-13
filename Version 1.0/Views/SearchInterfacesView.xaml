@@ -1,0 +1,154 @@
+<UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Name="SearchInterfacesControl">
+
+  <Grid Background="{DynamicResource Theme.Window.Background}">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5">
+      <ComboBox Name="SearchBox" MinWidth="200" Margin="0,0,5,0" IsEditable="True" IsTextSearchEnabled="False"
+                Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}"
+                BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"
+                ToolTip="Enter description or MAC to search (recent searches in dropdown)"
+                Style="{DynamicResource ToolbarComboBoxStyle}"/>
+      <Button Name="SearchClearButton" Content="X" Width="25" Height="23" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Clear search" Margin="0,0,5,0"/>
+
+      <CheckBox Name="RegexCheckbox" Content="Regex" VerticalAlignment="Center" Margin="0,0,5,0" Style="{DynamicResource ToolbarCheckBoxStyle}"/>
+
+      <Label Content="Status:" VerticalAlignment="Center" Margin="5,0,0,0" Style="{DynamicResource ToolbarLabelStyle}"/>
+      <ComboBox Name="StatusFilter" Style="{DynamicResource ToolbarComboBoxStyle}" Width="70" Margin="0,0,5,0" SelectedIndex="0">
+        <ComboBoxItem Content="All"/>
+        <ComboBoxItem Content="Up"/>
+        <ComboBoxItem Content="Down"/>
+      </ComboBox>
+
+      <Label Content="Auth:" VerticalAlignment="Center" Margin="0,0,0,0" Style="{DynamicResource ToolbarLabelStyle}"/>
+      <ComboBox Name="AuthFilter" Style="{DynamicResource ToolbarComboBoxStyle}" Width="100" Margin="0,0,5,0" SelectedIndex="0">
+        <ComboBoxItem Content="All"/>
+        <ComboBoxItem Content="Authorized"/>
+        <ComboBoxItem Content="Unauthorized"/>
+      </ComboBox>
+
+      <Label Content="VLAN:" VerticalAlignment="Center" Margin="0,0,0,0" Style="{DynamicResource ToolbarLabelStyle}"/>
+      <ComboBox Name="VlanFilter" Style="{DynamicResource ToolbarComboBoxStyle}" Width="80" Margin="0,0,5,0" SelectedIndex="0">
+        <ComboBoxItem Content="All"/>
+      </ComboBox>
+
+      <Button Name="ExportSearchButton" Content="Export" Width="60" Height="23" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Export search results to CSV"/>
+
+      <Rectangle Width="1" Fill="{DynamicResource Theme.Border.Primary}" Margin="10,2,10,2"/>
+
+      <Label Content="Preset:" VerticalAlignment="Center" Margin="0,0,0,0" Style="{DynamicResource ToolbarLabelStyle}"/>
+      <ComboBox Name="FilterPresetDropdown" Style="{DynamicResource ToolbarComboBoxStyle}" Width="120" Margin="0,0,5,0" ToolTip="Load a saved filter preset">
+        <ComboBoxItem Content="(None)" IsSelected="True"/>
+      </ComboBox>
+      <Button Name="SavePresetButton" Content="Save" Width="45" Height="23" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Save current filters as a preset"/>
+      <Button Name="DeletePresetButton" Content="Del" Width="35" Height="23" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Delete selected preset"/>
+    </StackPanel>
+
+    <Grid Grid.Row="1">
+      <DataGrid Name="SearchInterfacesGrid"
+                AutoGenerateColumns="False"
+                Margin="5"
+                CanUserAddRows="False"
+                IsReadOnly="True"
+                SelectionMode="Extended"
+                Style="{DynamicResource PrimaryDataGridStyle}"
+                ScrollViewer.VerticalScrollBarVisibility="Auto"
+                ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                ScrollViewer.IsDeferredScrollingEnabled="True"
+                VirtualizingPanel.IsVirtualizing="True"
+                VirtualizingPanel.VirtualizationMode="Recycling"
+                EnableRowVirtualization="True"
+                EnableColumnVirtualization="True"
+                ScrollViewer.CanContentScroll="True"
+                VirtualizingPanel.ScrollUnit="Pixel">
+        <DataGrid.ContextMenu>
+          <ContextMenu>
+            <MenuItem Name="CopyRowMenuItem" Header="Copy Row" InputGestureText="Ctrl+C"/>
+            <MenuItem Name="CopyCellMenuItem" Header="Copy Cell"/>
+            <MenuItem Name="CopyAllMenuItem" Header="Copy All Rows"/>
+            <Separator/>
+            <MenuItem Name="ExportSelectedMenuItem" Header="Export Selected..."/>
+          </ContextMenu>
+        </DataGrid.ContextMenu>
+        <DataGrid.RowStyle>
+          <DynamicResource ResourceKey="PrimaryDataGridRowStyle"/>
+        </DataGrid.RowStyle>
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="Switch" Binding="{Binding Hostname}" Width="120">
+            <DataGridTextColumn.HeaderStyle><Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"><Setter Property="ToolTip" Value="Device hostname"/></Style></DataGridTextColumn.HeaderStyle>
+          </DataGridTextColumn>
+          <DataGridTextColumn Header="Port" Binding="{Binding Port}" Width="80">
+            <DataGridTextColumn.HeaderStyle><Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"><Setter Property="ToolTip" Value="Interface name (e.g., Gi1/0/1)"/></Style></DataGridTextColumn.HeaderStyle>
+          </DataGridTextColumn>
+          <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="150">
+            <DataGridTextColumn.HeaderStyle><Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"><Setter Property="ToolTip" Value="Port description/label"/></Style></DataGridTextColumn.HeaderStyle>
+          </DataGridTextColumn>
+          <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="80">
+            <DataGridTextColumn.HeaderStyle><Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"><Setter Property="ToolTip" Value="Link status (Up/Down)"/></Style></DataGridTextColumn.HeaderStyle>
+          </DataGridTextColumn>
+          <DataGridTextColumn Header="VLAN" Binding="{Binding VLAN}" Width="60">
+            <DataGridTextColumn.HeaderStyle><Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"><Setter Property="ToolTip" Value="Access VLAN assignment"/></Style></DataGridTextColumn.HeaderStyle>
+          </DataGridTextColumn>
+          <DataGridTextColumn Header="Duplex" Binding="{Binding Duplex}" Width="60">
+            <DataGridTextColumn.HeaderStyle><Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"><Setter Property="ToolTip" Value="Duplex mode (Full/Half/Auto)"/></Style></DataGridTextColumn.HeaderStyle>
+          </DataGridTextColumn>
+          <DataGridTextColumn Header="Speed" Binding="{Binding Speed}" Width="60">
+            <DataGridTextColumn.HeaderStyle><Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"><Setter Property="ToolTip" Value="Negotiated link speed"/></Style></DataGridTextColumn.HeaderStyle>
+          </DataGridTextColumn>
+          <DataGridTextColumn Header="Type" Binding="{Binding Type}" Width="100">
+            <DataGridTextColumn.HeaderStyle><Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"><Setter Property="ToolTip" Value="Interface type (e.g., 10/100/1000BaseTX)"/></Style></DataGridTextColumn.HeaderStyle>
+          </DataGridTextColumn>
+          <DataGridTextColumn Header="LearnedMACs" Binding="{Binding LearnedMACs}" Width="160">
+            <DataGridTextColumn.HeaderStyle><Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"><Setter Property="ToolTip" Value="MAC addresses learned on this port"/></Style></DataGridTextColumn.HeaderStyle>
+            <DataGridTextColumn.ElementStyle>
+              <Style TargetType="TextBlock">
+                <Setter Property="TextWrapping" Value="NoWrap"/>
+                <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+              </Style>
+            </DataGridTextColumn.ElementStyle>
+          </DataGridTextColumn>
+          <DataGridTextColumn Header="AuthState" Binding="{Binding AuthState}" Width="100">
+            <DataGridTextColumn.HeaderStyle><Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"><Setter Property="ToolTip" Value="802.1X authentication state"/></Style></DataGridTextColumn.HeaderStyle>
+          </DataGridTextColumn>
+          <DataGridTextColumn Header="AuthMode" Binding="{Binding AuthMode}" Width="80">
+            <DataGridTextColumn.HeaderStyle><Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"><Setter Property="ToolTip" Value="Authentication mode (e.g., multi-auth, single-host)"/></Style></DataGridTextColumn.HeaderStyle>
+          </DataGridTextColumn>
+          <DataGridTextColumn Header="Client MAC" Binding="{Binding AuthClientMAC}" Width="120">
+            <DataGridTextColumn.HeaderStyle><Style TargetType="DataGridColumnHeader" BasedOn="{StaticResource {x:Type DataGridColumnHeader}}"><Setter Property="ToolTip" Value="Authenticated client MAC address"/></Style></DataGridTextColumn.HeaderStyle>
+          </DataGridTextColumn>
+        </DataGrid.Columns>
+      </DataGrid>
+
+      <Border Name="SearchEmptyStatePanel" HorizontalAlignment="Center" VerticalAlignment="Center"
+              Background="{DynamicResource Theme.Surface.Secondary}" Padding="30,20" CornerRadius="8"
+              Visibility="Collapsed">
+        <StackPanel>
+          <TextBlock Text="No Results" FontSize="18" FontWeight="Bold"
+                     Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Center"/>
+          <TextBlock Text="Enter a search term to find interfaces across all devices"
+                     Foreground="{DynamicResource Theme.Text.Muted}" HorizontalAlignment="Center" Margin="0,5,0,0"/>
+          <TextBlock Text="Tip: Use the dropdown to select from recent searches"
+                     Foreground="{DynamicResource Theme.Text.Muted}" HorizontalAlignment="Center" Margin="0,3,0,0" FontSize="11"/>
+        </StackPanel>
+      </Border>
+
+      <Border Name="SearchLoadingIndicator" Style="{DynamicResource LoadingIndicatorStyle}">
+        <StackPanel>
+          <TextBlock Text="Searching..." Style="{DynamicResource LoadingTextStyle}"/>
+          <ProgressBar Style="{DynamicResource LoadingProgressStyle}"/>
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="5" HorizontalAlignment="Left">
+      <TextBlock Name="SearchResultsStatus" Text="" VerticalAlignment="Center" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,0,10,0"/>
+      <Button Name="LoadMoreButton" Content="Load More" Width="80" Height="23" Style="{DynamicResource PrimaryButtonStyle}" Visibility="Collapsed" ToolTip="Load more results"/>
+    </StackPanel>
+  </Grid>
+</UserControl>

@@ -1,0 +1,264 @@
+<UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <Grid>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <!-- Toolbar -->
+    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5" Background="{DynamicResource Theme.Toolbar.Background}">
+      <Button Name="AddPanelButton" Content="Add Panel" Margin="5,2" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Add a new patch panel"/>
+      <Separator Margin="5,2"/>
+      <ToggleButton Name="QuickConnectToggle" Content="Quick Connect" Margin="5,2" Padding="8,4" Background="{DynamicResource Theme.Surface.Secondary}" Foreground="{DynamicResource Theme.Text.Primary}" BorderBrush="{DynamicResource Theme.Border.Primary}" ToolTip="Toggle quick connect mode: click source port then destination port to create cable"/>
+      <Separator Margin="5,2"/>
+      <Button Name="ImportButton" Content="Import" Margin="5,2" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Import cable database from JSON"/>
+      <Button Name="ExportButton" Content="Export" Margin="5,2" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Export cable database to JSON"/>
+      <Separator Margin="5,2"/>
+      <Label Content="Filter:" VerticalAlignment="Center" Foreground="{DynamicResource Theme.Text.Primary}"/>
+      <TextBox Name="FilterBox" Width="150" Margin="5,2" VerticalAlignment="Center" ToolTip="Filter panels by name or location"/>
+      <Button Name="ClearFilterButton" Content="X" Width="24" Margin="2" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Clear filter"/>
+    </StackPanel>
+
+    <!-- Main Content - Three Column Layout -->
+    <Grid Grid.Row="1" Margin="5">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="200"/>
+        <ColumnDefinition Width="5"/>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="5"/>
+        <ColumnDefinition Width="280"/>
+      </Grid.ColumnDefinitions>
+
+      <!-- Left Panel: Panel List -->
+      <Grid Grid.Column="0">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Background="{DynamicResource Theme.Surface.Secondary}" Margin="0,0,0,2">
+          <Label Content="Panels" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}"/>
+          <Label Name="PanelCountLabel" Content="(0)" Foreground="{DynamicResource Theme.Text.Primary}"/>
+        </StackPanel>
+
+        <ListBox Name="PanelListBox" Grid.Row="1"
+                 Background="{DynamicResource Theme.Surface.Primary}"
+                 Foreground="{DynamicResource Theme.Text.Inverse}"
+                 SelectionMode="Single"
+                 VirtualizingPanel.IsVirtualizing="True"
+                 VirtualizingPanel.VirtualizationMode="Recycling"
+                 ScrollViewer.CanContentScroll="True">
+          <ListBox.ItemTemplate>
+            <DataTemplate>
+              <StackPanel Margin="2">
+                <TextBlock Text="{Binding PanelName}" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Inverse}"/>
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock Text="{Binding PortCount}" Foreground="{DynamicResource Theme.Text.Inverse}" FontSize="11" Opacity="0.8"/>
+                  <TextBlock Text=" ports" Foreground="{DynamicResource Theme.Text.Inverse}" FontSize="11" Opacity="0.8"/>
+                </StackPanel>
+              </StackPanel>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </Grid>
+
+      <!-- Left Splitter -->
+      <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" Background="{DynamicResource Theme.Border.Primary}"/>
+
+      <!-- Center Panel: Hardware Canvas -->
+      <Border Grid.Column="2" Background="{DynamicResource Theme.Surface.Primary}" BorderBrush="{DynamicResource Theme.Border.Primary}" BorderThickness="1">
+        <Grid>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+
+          <!-- Canvas Header -->
+          <Border Grid.Row="0" Background="{DynamicResource Theme.Surface.Secondary}" Padding="8,4">
+            <StackPanel Orientation="Horizontal">
+              <TextBlock Name="CanvasHeaderText" Text="Hardware View" FontWeight="Bold" VerticalAlignment="Center" Foreground="{DynamicResource Theme.Text.Primary}"/>
+              <TextBlock Name="ModeIndicator" Text="" Margin="20,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource Theme.Status.Info}" FontStyle="Italic"/>
+            </StackPanel>
+          </Border>
+
+          <!-- Scrollable Canvas for Hardware Templates -->
+          <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Background="{DynamicResource Theme.Surface.Primary}">
+            <Canvas Name="HardwareCanvas" Width="800" Height="600" Background="{DynamicResource Theme.Surface.Primary}">
+              <!-- Hardware panels will be rendered programmatically -->
+            </Canvas>
+          </ScrollViewer>
+        </Grid>
+      </Border>
+
+      <!-- Right Splitter -->
+      <GridSplitter Grid.Column="3" Width="5" HorizontalAlignment="Stretch" Background="{DynamicResource Theme.Border.Primary}"/>
+
+      <!-- Right Panel: Context-Sensitive Details -->
+      <Grid Grid.Column="4">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Details Header -->
+        <Border Grid.Row="0" Background="{DynamicResource Theme.Surface.Secondary}" Padding="8,4" Margin="0,0,0,2">
+          <TextBlock Name="DetailsTitleLabel" Text="Select a port" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}"/>
+        </Border>
+
+        <!-- Details Content -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Background="{DynamicResource Theme.Surface.Secondary}">
+          <StackPanel Name="DetailsPanel" Margin="8">
+
+            <!-- Port Details Section (shown when port selected) -->
+            <StackPanel Name="PortDetailsSection" Visibility="Collapsed">
+              <TextBlock Text="Port Information" FontWeight="Bold" FontSize="13" Margin="0,0,0,8" Foreground="{DynamicResource Theme.Text.Primary}"/>
+
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="80"/>
+                  <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Port:" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,2"/>
+                <TextBlock Grid.Row="0" Grid.Column="1" Name="PortNumberText" FontWeight="Bold" Margin="0,2" Foreground="{DynamicResource Theme.Text.Primary}"/>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Status:" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,2"/>
+                <TextBlock Grid.Row="1" Grid.Column="1" Name="PortStatusText" Margin="0,2" Foreground="{DynamicResource Theme.Text.Primary}"/>
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Label:" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,2"/>
+                <TextBox Grid.Row="2" Grid.Column="1" Name="PortLabelBox" Margin="0,2" Background="{DynamicResource Theme.Input.Background}" ToolTip="Enter a label for this port"/>
+
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="Panel:" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,2"/>
+                <TextBlock Grid.Row="3" Grid.Column="1" Name="PortPanelText" Margin="0,2" Foreground="{DynamicResource Theme.Text.Primary}"/>
+              </Grid>
+
+              <Button Name="SavePortLabelButton" Content="Save Label" Margin="0,10,0,0" Style="{DynamicResource SecondaryButtonStyle}" HorizontalAlignment="Left"/>
+            </StackPanel>
+
+            <!-- Cable Details Section (shown when port has cable) -->
+            <StackPanel Name="CableDetailsSection" Visibility="Collapsed" Margin="0,15,0,0">
+              <TextBlock Text="Cable Connection" FontWeight="Bold" FontSize="13" Margin="0,0,0,8" Foreground="{DynamicResource Theme.Text.Primary}"/>
+
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="80"/>
+                  <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Cable ID:" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,2"/>
+                <TextBlock Grid.Row="0" Grid.Column="1" Name="CableIdText" FontWeight="Bold" Margin="0,2" Foreground="{DynamicResource Theme.Text.Primary}"/>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Source:" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,2"/>
+                <TextBlock Grid.Row="1" Grid.Column="1" Name="CableSourceText" Margin="0,2" Foreground="{DynamicResource Theme.Text.Primary}"/>
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Dest:" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,2"/>
+                <TextBlock Grid.Row="2" Grid.Column="1" Name="CableDestText" Margin="0,2" Foreground="{DynamicResource Theme.Text.Primary}"/>
+
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="Type:" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,2"/>
+                <TextBlock Grid.Row="3" Grid.Column="1" Name="CableTypeText" Margin="0,2" Foreground="{DynamicResource Theme.Text.Primary}"/>
+
+                <TextBlock Grid.Row="4" Grid.Column="0" Text="Status:" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,2"/>
+                <TextBlock Grid.Row="4" Grid.Column="1" Name="CableStatusText" Margin="0,2" Foreground="{DynamicResource Theme.Text.Primary}"/>
+
+                <TextBlock Grid.Row="5" Grid.Column="0" Text="Length:" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,2"/>
+                <TextBlock Grid.Row="5" Grid.Column="1" Name="CableLengthText" Margin="0,2" Foreground="{DynamicResource Theme.Text.Primary}"/>
+              </Grid>
+
+              <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                <Button Name="EditCableButton" Content="Edit" Margin="0,0,5,0" Style="{DynamicResource SecondaryButtonStyle}"/>
+                <Button Name="TraceCableButton" Content="Trace" Margin="0,0,5,0" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Trace cable path"/>
+                <Button Name="DeleteCableButton" Content="Delete" Style="{DynamicResource SecondaryButtonStyle}"/>
+              </StackPanel>
+            </StackPanel>
+
+            <!-- No Cable Section (shown when port empty) -->
+            <StackPanel Name="NoCableSection" Visibility="Collapsed" Margin="0,15,0,0">
+              <TextBlock Text="No Cable Connected" FontWeight="Bold" FontSize="13" Margin="0,0,0,8" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+              <Button Name="CreateCableButton" Content="Create Cable" Style="{DynamicResource PrimaryButtonStyle}" HorizontalAlignment="Left"/>
+            </StackPanel>
+
+            <!-- Quick Connect Instructions -->
+            <StackPanel Name="QuickConnectSection" Visibility="Collapsed" Margin="0,15,0,0">
+              <TextBlock Text="Quick Connect Mode" FontWeight="Bold" FontSize="13" Margin="0,0,0,8" Foreground="{DynamicResource Theme.Status.Info}"/>
+              <TextBlock Name="QuickConnectInstructions" Text="Click a port to start" TextWrapping="Wrap" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+              <TextBlock Name="QuickConnectSourceText" Text="" Margin="0,8,0,0" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}"/>
+              <Button Name="CancelQuickConnectButton" Content="Cancel" Margin="0,10,0,0" Style="{DynamicResource SecondaryButtonStyle}" HorizontalAlignment="Left" Visibility="Collapsed"/>
+            </StackPanel>
+
+            <!-- Panel Edit Section (shown when editing panel properties) -->
+            <StackPanel Name="PanelEditSection" Visibility="Collapsed" Margin="0,15,0,0">
+              <TextBlock Text="Panel Properties" FontWeight="Bold" FontSize="13" Margin="0,0,0,8" Foreground="{DynamicResource Theme.Text.Primary}"/>
+
+              <Grid>
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="80"/>
+                  <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                  <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Name:" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,2"/>
+                <TextBox Grid.Row="0" Grid.Column="1" Name="PanelNameBox" Margin="0,2" Background="{DynamicResource Theme.Input.Background}"/>
+
+                <TextBlock Grid.Row="1" Grid.Column="0" Text="Location:" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,2"/>
+                <TextBox Grid.Row="1" Grid.Column="1" Name="PanelLocationBox" Margin="0,2" Background="{DynamicResource Theme.Input.Background}"/>
+
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Rack ID:" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,2"/>
+                <TextBox Grid.Row="2" Grid.Column="1" Name="PanelRackIdBox" Margin="0,2" Background="{DynamicResource Theme.Input.Background}"/>
+
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="Rack U:" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,2"/>
+                <TextBox Grid.Row="3" Grid.Column="1" Name="PanelRackUBox" Margin="0,2" Background="{DynamicResource Theme.Input.Background}"/>
+
+                <TextBlock Grid.Row="4" Grid.Column="0" Text="Ports:" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,2"/>
+                <TextBlock Grid.Row="4" Grid.Column="1" Name="PanelPortCountText" Margin="0,2" Foreground="{DynamicResource Theme.Text.Primary}"/>
+              </Grid>
+
+              <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                <Button Name="SavePanelButton" Content="Save" Margin="0,0,5,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+                <Button Name="DeletePanelButton" Content="Delete Panel" Style="{DynamicResource SecondaryButtonStyle}"/>
+              </StackPanel>
+            </StackPanel>
+
+            <!-- Empty State -->
+            <StackPanel Name="EmptyStateSection" Visibility="Visible">
+              <TextBlock Text="Getting Started" FontWeight="Bold" FontSize="13" Margin="0,0,0,8" Foreground="{DynamicResource Theme.Text.Primary}"/>
+              <TextBlock Text="1. Click 'Add Panel' to create a patch panel or switch" TextWrapping="Wrap" Margin="0,2" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+              <TextBlock Text="2. Click on ports in the hardware view to see details" TextWrapping="Wrap" Margin="0,2" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+              <TextBlock Text="3. Use 'Quick Connect' to link ports with cables" TextWrapping="Wrap" Margin="0,2" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+            </StackPanel>
+
+          </StackPanel>
+        </ScrollViewer>
+      </Grid>
+    </Grid>
+
+    <!-- Status Bar -->
+    <Border Grid.Row="2" Background="{DynamicResource Theme.Toolbar.Background}" Padding="5">
+      <StackPanel Orientation="Horizontal">
+        <TextBlock Name="StatusText" Text="Ready" Foreground="{DynamicResource Theme.Toolbar.Text}"/>
+      </StackPanel>
+    </Border>
+  </Grid>
+</UserControl>

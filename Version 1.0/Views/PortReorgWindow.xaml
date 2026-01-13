@@ -1,0 +1,382 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Port Reorg" Height="720" Width="1180"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource Theme.Window.Background}">
+
+  <Grid Background="{DynamicResource Theme.Surface.Secondary}" TextElement.Foreground="{DynamicResource Theme.Text.Primary}" Margin="10">
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="240"/>
+      <ColumnDefinition Width="*"/>
+    </Grid.ColumnDefinitions>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="280"/>
+    </Grid.RowDefinitions>
+
+    <!-- Row 1: Host info and script chunking -->
+    <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,0,0,4">
+      <TextBlock Text="Host:" Margin="0,0,4,0" VerticalAlignment="Center"/>
+      <TextBlock Name="ReorgHostnameText" FontWeight="Bold" Margin="0,0,12,0" VerticalAlignment="Center"/>
+      <TextBlock Text="Vendor:" Margin="0,0,4,0" VerticalAlignment="Center"/>
+      <TextBlock Name="ReorgVendorText" FontWeight="Bold" Margin="0,0,20,0" VerticalAlignment="Center"/>
+
+      <TextBlock Text="Search:" Margin="0,0,4,0" VerticalAlignment="Center"/>
+      <TextBox Name="ReorgSearchBox"
+               MinWidth="100"
+               Margin="0,0,2,0"
+               VerticalAlignment="Center"
+               ToolTip="Filter by label"
+               Background="{DynamicResource Theme.Input.Background}"
+               Foreground="{DynamicResource Theme.Input.Text}"
+               BorderBrush="{DynamicResource Theme.Input.Border}"
+               BorderThickness="1"/>
+      <Button Name="ReorgSearchClearButton"
+              Content="X"
+              Width="20"
+              Margin="0,0,20,0"
+              VerticalAlignment="Center"
+              ToolTip="Clear search"
+              Style="{DynamicResource SecondaryButtonStyle}"/>
+
+      <TextBlock Text="Jump:" Margin="0,0,4,0" VerticalAlignment="Center"/>
+      <TextBox Name="ReorgQuickJumpBox"
+               MinWidth="80"
+               Margin="0,0,0,0"
+               VerticalAlignment="Center"
+               ToolTip="Type port name, press Enter"
+               Background="{DynamicResource Theme.Input.Background}"
+               Foreground="{DynamicResource Theme.Input.Text}"
+               BorderBrush="{DynamicResource Theme.Input.Border}"
+               BorderThickness="1"/>
+    </StackPanel>
+
+    <!-- Row 2: Paging controls -->
+    <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,0,0,6">
+      <CheckBox Name="ReorgPagedViewCheckBox"
+                Content="Paged view"
+                IsChecked="False"
+                Margin="0,0,8,0"
+                VerticalAlignment="Center"
+                ToolTip="Show ports in pages"/>
+
+      <Button Name="ReorgPagePrevButton"
+              Content="&lt;"
+              Width="28"
+              Margin="0,0,2,0"
+              VerticalAlignment="Center"
+              Style="{DynamicResource SecondaryButtonStyle}"/>
+
+      <ComboBox Name="ReorgPageComboBox"
+                Width="180"
+                Margin="0,0,2,0"
+                VerticalAlignment="Center"
+                Style="{DynamicResource ToolbarComboBoxStyle}"/>
+
+      <Button Name="ReorgPageNextButton"
+              Content="&gt;"
+              Width="28"
+              Margin="0,0,8,0"
+              VerticalAlignment="Center"
+              Style="{DynamicResource SecondaryButtonStyle}"/>
+
+      <TextBlock Text="Size:" Margin="0,0,4,0" VerticalAlignment="Center"/>
+      <TextBox Name="ReorgPageSizeBox"
+               Width="35"
+               Text="12"
+               Margin="0,0,8,0"
+               VerticalAlignment="Center"
+               ToolTip="Page size (1-96), press Enter"
+               Background="{DynamicResource Theme.Input.Background}"
+               Foreground="{DynamicResource Theme.Input.Text}"
+               BorderBrush="{DynamicResource Theme.Input.Border}"
+               BorderThickness="1"/>
+
+      <TextBlock Name="ReorgPageInfoText" Margin="0,0,20,0" VerticalAlignment="Center" Opacity="0.8"/>
+
+      <TextBlock Name="ReorgStatusText" VerticalAlignment="Center" Foreground="{DynamicResource Theme.Status.Warning}"/>
+    </StackPanel>
+
+     <GroupBox Grid.Row="2" Grid.Column="0" Header="Parking" Margin="0,0,10,0">
+       <ListBox Name="ReorgParkingList"
+                AllowDrop="True"
+                Background="{DynamicResource Theme.DataGrid.Background}"
+                BorderBrush="Black"
+                BorderThickness="1"
+                HorizontalContentAlignment="Stretch"
+                ScrollViewer.VerticalScrollBarVisibility="Auto"
+                ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                ScrollViewer.CanContentScroll="True"
+                ToolTip="Drag labels here to park/unassign them (also useful for cross-page moves). Drag parked labels onto ports to assign.">
+       <ListBox.ItemTemplate>
+          <DataTemplate>
+             <Border Padding="6,2"
+                     Margin="0,1"
+                     CornerRadius="4"
+                     Background="{DynamicResource Theme.Template.Red}"
+                     BorderBrush="Black"
+                     BorderThickness="1"
+                     Cursor="Hand">
+               <Grid>
+                 <Grid.ColumnDefinitions>
+                   <ColumnDefinition Width="*"/>
+                   <ColumnDefinition Width="Auto"/>
+                 </Grid.ColumnDefinitions>
+                 <TextBlock Grid.Column="0"
+                            Text="{Binding Label}"
+                            TextTrimming="CharacterEllipsis"
+                            Foreground="{DynamicResource Theme.DataGrid.HeaderText}">
+                   <TextBlock.Style>
+                     <Style TargetType="TextBlock">
+                       <Style.Triggers>
+                         <DataTrigger Binding="{Binding Label}" Value="">
+                           <Setter Property="Text" Value="(blank)"/>
+                           <Setter Property="Opacity" Value="0.7"/>
+                         </DataTrigger>
+                       </Style.Triggers>
+                     </Style>
+                   </TextBlock.Style>
+                 </TextBlock>
+                 <TextBlock Grid.Column="1"
+                            Text="{Binding SourcePort}"
+                            Margin="10,0,0,0"
+                            Opacity="0.75"
+                            Foreground="{DynamicResource Theme.DataGrid.HeaderText}"/>
+               </Grid>
+             </Border>
+           </DataTemplate>
+         </ListBox.ItemTemplate>
+       </ListBox>
+     </GroupBox>
+
+     <DataGrid Name="ReorgGrid"
+               Grid.Row="2"
+               Grid.Column="1"
+               AutoGenerateColumns="False"
+               CanUserAddRows="False"
+               AllowDrop="True"
+               CanUserSortColumns="False"
+               CanUserReorderColumns="False"
+                SelectionMode="Extended"
+                SelectionUnit="FullRow"
+                ToolTip="Drag a label block onto another port to move it; the displaced label goes to Parking. Hold Shift to swap FromPort + label. When paging is enabled, use Parking for cross-page moves. Right-click for more options."
+                Style="{DynamicResource PrimaryDataGridStyle}"
+               ScrollViewer.VerticalScrollBarVisibility="Auto"
+               ScrollViewer.HorizontalScrollBarVisibility="Auto"
+              VirtualizingPanel.IsVirtualizing="True"
+              VirtualizingPanel.VirtualizationMode="Recycling"
+              EnableRowVirtualization="True"
+              EnableColumnVirtualization="True">
+      <DataGrid.ContextMenu>
+        <ContextMenu Name="ReorgGridContextMenu"
+                     Background="{DynamicResource Theme.Surface.Primary}"
+                     Foreground="{DynamicResource Theme.Text.Primary}">
+          <MenuItem Name="ReorgMoveToMenuItem" Header="Move To..."/>
+          <Separator/>
+          <MenuItem Name="ReorgClearLabelMenuItem" Header="Clear Label (Park)"/>
+          <MenuItem Name="ReorgSwapLabelsMenuItem" Header="Swap Labels"/>
+        </ContextMenu>
+      </DataGrid.ContextMenu>
+      <!-- ST-D-012: Row style for module boundaries and search highlights -->
+      <DataGrid.RowStyle>
+        <Style TargetType="DataGridRow" BasedOn="{StaticResource {x:Type DataGridRow}}">
+          <Setter Property="BorderThickness" Value="0"/>
+          <Setter Property="BorderBrush" Value="{DynamicResource Theme.Input.Border}"/>
+          <Style.Triggers>
+            <!-- Module boundary: thick top border -->
+            <DataTrigger Binding="{Binding IsModuleBoundary}" Value="True">
+              <Setter Property="BorderThickness" Value="0,2,0,0"/>
+              <Setter Property="BorderBrush" Value="{DynamicResource Theme.Text.Secondary}"/>
+            </DataTrigger>
+            <!-- Search match: highlight background -->
+            <DataTrigger Binding="{Binding IsSearchMatch}" Value="True">
+              <Setter Property="Background" Value="{DynamicResource Theme.Template.Yellow}"/>
+            </DataTrigger>
+          </Style.Triggers>
+        </Style>
+      </DataGrid.RowStyle>
+      <DataGrid.Columns>
+        <DataGridTextColumn Header="Port" IsReadOnly="True" Width="100" Binding="{Binding TargetPort}"/>
+        <DataGridTextColumn Header="Cable" IsReadOnly="True" Width="180" Binding="{Binding CableInfo}"
+                            ToolTipService.ToolTip="{Binding CableTooltip}">
+          <DataGridTextColumn.ElementStyle>
+            <Style TargetType="TextBlock">
+              <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Secondary}"/>
+              <Setter Property="FontSize" Value="11"/>
+              <Style.Triggers>
+                <DataTrigger Binding="{Binding CableInfo}" Value="">
+                  <Setter Property="Opacity" Value="0.5"/>
+                </DataTrigger>
+              </Style.Triggers>
+            </Style>
+          </DataGridTextColumn.ElementStyle>
+        </DataGridTextColumn>
+        <DataGridTemplateColumn Header="Label" Width="240">
+          <DataGridTemplateColumn.CellTemplate>
+            <DataTemplate>
+              <Border Padding="6,2"
+                      Margin="0,1"
+                      CornerRadius="4"
+                      BorderBrush="{DynamicResource Theme.Input.Border}"
+                      BorderThickness="1"
+                      Cursor="Hand"
+                      Background="{Binding LabelState, Converter={StaticResource LabelStateToBrushConverter}}">
+                <TextBlock Text="{Binding NewLabel}"
+                           TextTrimming="CharacterEllipsis"
+                           Foreground="{DynamicResource Theme.DataGrid.HeaderText}">
+                  <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                      <Style.Triggers>
+                        <DataTrigger Binding="{Binding NewLabel}" Value="">
+                          <Setter Property="Text" Value="(blank)"/>
+                          <Setter Property="Opacity" Value="0.7"/>
+                        </DataTrigger>
+                      </Style.Triggers>
+                    </Style>
+                  </TextBlock.Style>
+                </TextBlock>
+              </Border>
+            </DataTemplate>
+          </DataGridTemplateColumn.CellTemplate>
+          <DataGridTemplateColumn.CellEditingTemplate>
+            <DataTemplate>
+              <TextBox Text="{Binding NewLabel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                       Background="{DynamicResource Theme.Input.Background}"
+                       Foreground="{DynamicResource Theme.Input.Text}"
+                       BorderBrush="{DynamicResource Theme.Input.Border}"
+                       BorderThickness="1"/>
+            </DataTemplate>
+          </DataGridTemplateColumn.CellEditingTemplate>
+        </DataGridTemplateColumn>
+        <DataGridTextColumn Header="FromPort" IsReadOnly="True" Width="120" Binding="{Binding SourcePort}"/>
+        <DataGridTextColumn Header="OriginalLabel" IsReadOnly="True" Width="240" Binding="{Binding CurrentLabel}"/>
+      </DataGrid.Columns>
+    </DataGrid>
+
+    <StackPanel Grid.Row="3" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,10,0,10">
+      <Button Name="ReorgUndoButton" Content="Undo" Width="70" Margin="0,0,5,0" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Undo last change (Ctrl+Z)"/>
+      <Button Name="ReorgRedoButton" Content="Redo" Width="70" Margin="0,0,10,0" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Redo last undone change (Ctrl+Y)"/>
+
+      <Button Name="ReorgSuggestButton" Content="Suggest" Width="90" Margin="0,0,10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+      <Button Name="ReorgResetButton" Content="Reset" Width="70" Margin="0,0,10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+      <Button Name="ReorgGenerateButton" Content="Generate" Width="90" Margin="0,0,10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+
+      <Button Name="ReorgSelectPageButton" Content="Select Page" Width="90" Margin="0,0,5,0" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Select all ports on current page"/>
+      <Button Name="ReorgClearPageButton" Content="Clear Page" Width="90" Margin="0,0,10,0" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Park all labels on current page"/>
+
+      <Button Name="ReorgCopyChangeButton" Content="Copy Change" Width="100" Margin="0,0,5,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+      <Button Name="ReorgCopyRollbackButton" Content="Copy Rollback" Width="110" Margin="0,0,10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+
+      <Button Name="ReorgSaveChangeButton" Content="Save..." Width="70" Margin="0,0,5,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+      <Button Name="ReorgSaveRollbackButton" Content="Save RB..." Width="80" Margin="0,0,10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+
+      <Button Name="ReorgCloseButton" Content="Close" Width="70" Style="{DynamicResource PrimaryButtonStyle}"/>
+    </StackPanel>
+
+    <TabControl Grid.Row="4" Grid.ColumnSpan="2">
+      <TabItem Header="Change Script">
+        <TextBox Name="ReorgChangeScriptBox"
+                 Margin="5"
+                 IsReadOnly="True"
+                 TextWrapping="NoWrap"
+                 VerticalScrollBarVisibility="Auto"
+                 HorizontalScrollBarVisibility="Auto"
+                 Background="{DynamicResource Theme.Input.Background}"
+                 Foreground="{DynamicResource Theme.Input.Text}"
+                 BorderBrush="{DynamicResource Theme.Input.Border}"
+                 BorderThickness="1"/>
+      </TabItem>
+      <TabItem Header="Rollback Script">
+        <TextBox Name="ReorgRollbackScriptBox"
+                 Margin="5"
+                 IsReadOnly="True"
+                 TextWrapping="NoWrap"
+                 VerticalScrollBarVisibility="Auto"
+                 HorizontalScrollBarVisibility="Auto"
+                 Background="{DynamicResource Theme.Input.Background}"
+                 Foreground="{DynamicResource Theme.Input.Text}"
+                 BorderBrush="{DynamicResource Theme.Input.Border}"
+                 BorderThickness="1"/>
+      </TabItem>
+      <TabItem Header="Cable Info">
+        <Grid Margin="5" Background="{DynamicResource Theme.Surface.Secondary}">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+          </Grid.ColumnDefinitions>
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+
+          <!-- Cable details for selected port -->
+          <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Margin="0,0,0,5">
+            <TextBlock Text="Selected Port:" Margin="0,0,5,0" VerticalAlignment="Center" FontWeight="Bold"/>
+            <TextBlock Name="CableSelectedPortText" Margin="0,0,20,0" VerticalAlignment="Center"/>
+            <TextBlock Text="Cable ID:" Margin="0,0,5,0" VerticalAlignment="Center" FontWeight="Bold"/>
+            <TextBlock Name="CableCableIdText" Margin="0,0,20,0" VerticalAlignment="Center"/>
+            <TextBlock Text="Status:" Margin="0,0,5,0" VerticalAlignment="Center" FontWeight="Bold"/>
+            <TextBlock Name="CableStatusText" VerticalAlignment="Center"/>
+          </StackPanel>
+
+          <!-- Cable properties grid -->
+          <Border Grid.Row="1" Grid.Column="0" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1" Margin="0,0,5,0">
+            <Grid Margin="10">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="120"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+              </Grid.RowDefinitions>
+
+              <TextBlock Grid.Row="0" Grid.Column="0" Text="Remote Device:" FontWeight="Bold" Margin="0,2"/>
+              <TextBlock Grid.Row="0" Grid.Column="1" Name="CableRemoteDeviceText" Margin="5,2"/>
+
+              <TextBlock Grid.Row="1" Grid.Column="0" Text="Remote Port:" FontWeight="Bold" Margin="0,2"/>
+              <TextBlock Grid.Row="1" Grid.Column="1" Name="CableRemotePortText" Margin="5,2"/>
+
+              <TextBlock Grid.Row="2" Grid.Column="0" Text="Cable Type:" FontWeight="Bold" Margin="0,2"/>
+              <TextBlock Grid.Row="2" Grid.Column="1" Name="CableCableTypeText" Margin="5,2"/>
+
+              <TextBlock Grid.Row="3" Grid.Column="0" Text="Length:" FontWeight="Bold" Margin="0,2"/>
+              <TextBlock Grid.Row="3" Grid.Column="1" Name="CableLengthText" Margin="5,2"/>
+
+              <TextBlock Grid.Row="4" Grid.Column="0" Text="Color:" FontWeight="Bold" Margin="0,2"/>
+              <TextBlock Grid.Row="4" Grid.Column="1" Name="CableColorText" Margin="5,2"/>
+
+              <TextBlock Grid.Row="5" Grid.Column="0" Text="Install Date:" FontWeight="Bold" Margin="0,2"/>
+              <TextBlock Grid.Row="5" Grid.Column="1" Name="CableInstallDateText" Margin="5,2"/>
+
+              <TextBlock Grid.Row="6" Grid.Column="0" Text="Notes:" FontWeight="Bold" Margin="0,2"/>
+              <TextBlock Grid.Row="6" Grid.Column="1" Name="CableNotesText" TextWrapping="Wrap" Margin="5,2"/>
+            </Grid>
+          </Border>
+
+          <!-- Action buttons -->
+          <StackPanel Grid.Row="0" Grid.RowSpan="2" Grid.Column="1" Orientation="Vertical" Width="120">
+            <Button Name="CableViewInCablesButton" Content="View in Cables" Margin="0,0,0,5" Style="{DynamicResource SecondaryButtonStyle}"
+                    ToolTip="Open the selected cable in the Cables tab"/>
+            <Button Name="CableLinkNewButton" Content="Link Cable..." Margin="0,0,0,5" Style="{DynamicResource SecondaryButtonStyle}"
+                    ToolTip="Create or link a cable to this port"/>
+            <Button Name="CableUnlinkButton" Content="Unlink Cable" Margin="0,0,0,5" Style="{DynamicResource SecondaryButtonStyle}"
+                    ToolTip="Remove cable link from this port"/>
+            <Button Name="CableRefreshButton" Content="Refresh" Style="{DynamicResource SecondaryButtonStyle}"
+                    ToolTip="Refresh cable information"/>
+          </StackPanel>
+        </Grid>
+      </TabItem>
+    </TabControl>
+  </Grid>
+</Window>

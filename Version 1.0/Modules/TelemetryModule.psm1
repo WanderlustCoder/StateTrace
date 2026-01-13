@@ -1,0 +1,324 @@
+Set-StrictMode -Version Latest
+
+function Initialize-StateTraceDebug {
+    [CmdletBinding()]
+    param(
+        [switch]$EnableVerbosePreference
+    )
+
+    $current = $false
+    try {
+        if (Get-Variable -Name StateTraceDebug -Scope Global -ErrorAction SilentlyContinue) {
+            $current = [bool]$Global:StateTraceDebug
+            Set-Variable -Scope Global -Name StateTraceDebug -Value $current -Option None
+        } else {
+            Set-Variable -Scope Global -Name StateTraceDebug -Value $false -Option None
+            $current = $false
+        }
+    } catch {
+        try { Set-Variable -Scope Global -Name StateTraceDebug -Value $false -Option None } catch { Write-Verbose "Caught exception in TelemetryModule.psm1: $($_.Exception.Message)" }
+        $current = $false
+    }
+
+    if ($EnableVerbosePreference -and $current) {
+        Set-Variable -Name VerbosePreference -Scope 1 -Value 'Continue' -ErrorAction SilentlyContinue
+        Set-Variable -Name VerbosePreference -Scope Global -Value 'Continue' -ErrorAction SilentlyContinue
+    }
+}
+
+function Import-InterfaceCommon {
+    [CmdletBinding()]
+    param(
+        [string]$ModulesRoot
+    )
+
+    if (Get-Module -Name 'InterfaceCommon' -ErrorAction SilentlyContinue) { return $true }
+
+    $rootPath = $ModulesRoot
+    if ([string]::IsNullOrWhiteSpace($rootPath)) { $rootPath = $PSScriptRoot }
+    try { $rootPath = [System.IO.Path]::GetFullPath($rootPath) } catch { Write-Verbose "Caught exception in TelemetryModule.psm1: $($_.Exception.Message)" }
+
+    $modulePath = Join-Path $rootPath 'InterfaceCommon.psm1'
+    if (-not (Test-Path -LiteralPath $modulePath)) { return $false }
+
+    try {
+        Import-Module -Name $modulePath -Force -Global -ErrorAction Stop | Out-Null
+        return $true
+    } catch {
+        Write-Verbose ("[Telemetry] Failed to load InterfaceCommon from '{0}': {1}" -f $modulePath, $_.Exception.Message)
+        return $false
+    }
+}
+
+function Get-SpanDebugLogPath {
+    [CmdletBinding()]
+    param(
+        [string]$Path,
+        [switch]$UseTemp
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($Path)) { return $Path }
+
+    if ($UseTemp) {
+        try { return Join-Path ([System.IO.Path]::GetTempPath()) 'StateTrace_SpanDebug.log' } catch { return $null }
+    }
+
+    try {
+        $projectRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+    } catch {
+        $projectRoot = (Split-Path -Parent $PSScriptRoot)
+    }
+
+    $debugDir = Join-Path $projectRoot 'Logs\Debug'
+    try {
+        if (-not (Test-Path -LiteralPath $debugDir)) {
+            New-Item -ItemType Directory -Path $debugDir -Force | Out-Null
+        }
+    } catch { Write-Verbose "Caught exception in TelemetryModule.psm1: $($_.Exception.Message)" }
+
+    return (Join-Path $debugDir 'SpanDebug.log')
+}
+
+function Write-SpanDebugLog {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Message,
+        [string]$Path,
+        [switch]$UseTemp,
+        [string]$Prefix
+    )
+
+    $targetPath = Get-SpanDebugLogPath -Path $Path -UseTemp:$UseTemp
+    if (-not $targetPath) { return }
+
+    $linePrefix = ''
+    if (-not [string]::IsNullOrWhiteSpace($Prefix)) {
+        $linePrefix = ($Prefix.Trim() + ' ')
+    }
+
+    $line = ('{0} {1}{2}' -f (Get-Date).ToString('yyyy-MM-ddTHH:mm:ss'), $linePrefix, $Message)
+
+    try {
+        $parent = Split-Path -Parent $targetPath
+        if ($parent -and -not (Test-Path -LiteralPath $parent) -and -not $UseTemp) {
+            New-Item -ItemType Directory -Path $parent -Force | Out-Null
+        }
+        Add-Content -LiteralPath $targetPath -Value $line -Encoding UTF8
+    } catch { Write-Verbose "Caught exception in TelemetryModule.psm1: $($_.Exception.Message)" }
+}
+
+function Get-TelemetryLogDirectory {
+    # Allow tests to override output directory via env var
+    $override = $env:STATETRACE_TELEMETRY_DIR
+    if ($override -and (Test-Path -LiteralPath $override)) {
+        return (Resolve-Path $override).ProviderPath
+    }
+    try {
+        $projectRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+    } catch {
+        $projectRoot = (Split-Path -Parent $PSScriptRoot)
+    }
+    $dir = Join-Path $projectRoot 'Logs/IngestionMetrics'
+    if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+    return $dir
+}
+
+function Get-TelemetryLogPath {
+    $dir = Get-TelemetryLogDirectory
+    $name = (Get-Date).ToString('yyyy-MM-dd') + '.json'
+    return (Join-Path $dir $name)
+}
+
+function Get-TelemetryWriteMutexName {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Path
+    )
+
+    $normalized = $Path
+    try { $normalized = [System.IO.Path]::GetFullPath($Path) } catch { Write-Verbose "Caught exception in TelemetryModule.psm1: $($_.Exception.Message)" }
+
+    $bytes = $null
+    try { $bytes = [System.Text.Encoding]::UTF8.GetBytes($normalized.ToLowerInvariant()) } catch { $bytes = [byte[]]@() }
+
+    $sha = $null
+    try {
+        $sha = [System.Security.Cryptography.SHA256]::Create()
+        $hash = $sha.ComputeHash($bytes)
+        $hex = ($hash | ForEach-Object { $_.ToString('x2') }) -join ''
+        if ([string]::IsNullOrWhiteSpace($hex)) {
+            return 'StateTrace.Telemetry.Write'
+        }
+        # SHA256 produces 64 hex chars; take first 24 for shorter mutex name
+        $hexPart = if ($hex.Length -ge 24) { $hex.Substring(0, 24) } else { $hex }
+        return ('StateTrace.Telemetry.Write.{0}' -f $hexPart)
+    } catch {
+        return 'StateTrace.Telemetry.Write'
+    } finally {
+        if ($sha) { $sha.Dispose() }
+    }
+}
+
+if (-not (Get-Variable -Scope Script -Name TelemetryBuffer -ErrorAction SilentlyContinue)) {
+    $script:TelemetryBuffer = [System.Collections.Generic.List[string]]::new()
+}
+if (-not (Get-Variable -Scope Script -Name TelemetryBufferFlushThreshold -ErrorAction SilentlyContinue)) {
+    $script:TelemetryBufferFlushThreshold = 50
+}
+if (-not (Get-Variable -Scope Script -Name TelemetryBufferLastFlushUtc -ErrorAction SilentlyContinue)) {
+    $script:TelemetryBufferLastFlushUtc = [DateTime]::UtcNow
+}
+if (-not (Get-Variable -Scope Script -Name TelemetryWriteMutex -ErrorAction SilentlyContinue)) {
+    $script:TelemetryWriteMutex = $null
+}
+if (-not (Get-Variable -Scope Script -Name TelemetryWriteMutexPath -ErrorAction SilentlyContinue)) {
+    $script:TelemetryWriteMutexPath = $null
+}
+if (-not (Get-Variable -Scope Script -Name TelemetryBufferLock -ErrorAction SilentlyContinue)) {
+    $script:TelemetryBufferLock = New-Object object
+}
+
+function Invoke-TelemetryBufferLock {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][ScriptBlock]$ScriptBlock
+    )
+
+    $lockTaken = $false
+    try {
+        [System.Threading.Monitor]::Enter($script:TelemetryBufferLock, [ref]$lockTaken)
+        & $ScriptBlock
+    } finally {
+        if ($lockTaken) {
+            [System.Threading.Monitor]::Exit($script:TelemetryBufferLock)
+        }
+    }
+}
+
+# LANDMARK: Telemetry buffer rename - approved verb for buffer persistence
+function Save-TelemetryBuffer {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$Path
+    )
+
+    $lines = $null
+
+    $mutex = $null
+    $lockAcquired = $false
+    $bufferLockTaken = $false
+    try {
+        [System.Threading.Monitor]::Enter($script:TelemetryBufferLock, [ref]$bufferLockTaken)
+        if (-not $script:TelemetryBuffer -or $script:TelemetryBuffer.Count -le 0) { return }
+
+        $lines = $script:TelemetryBuffer.ToArray()
+        if (-not $lines -or $lines.Count -le 0) { return }
+
+        if (-not $script:TelemetryWriteMutex -or -not $script:TelemetryWriteMutexPath -or -not [string]::Equals($script:TelemetryWriteMutexPath, $Path, [System.StringComparison]::OrdinalIgnoreCase)) {
+            if ($script:TelemetryWriteMutex) {
+                try { $script:TelemetryWriteMutex.Dispose() } catch { Write-Verbose "Caught exception in TelemetryModule.psm1: $($_.Exception.Message)" }
+                $script:TelemetryWriteMutex = $null
+            }
+            $script:TelemetryWriteMutexPath = $Path
+            $mutexName = Get-TelemetryWriteMutexName -Path $Path
+            $script:TelemetryWriteMutex = New-Object 'System.Threading.Mutex' $false, $mutexName
+        }
+
+        $mutex = $script:TelemetryWriteMutex
+        try {
+            $lockAcquired = $mutex.WaitOne()
+        } catch [System.Threading.AbandonedMutexException] {
+            $lockAcquired = $true
+        }
+
+        Add-Content -LiteralPath $Path -Value $lines
+        $script:TelemetryBuffer.Clear()
+        $script:TelemetryBufferLastFlushUtc = [DateTime]::UtcNow
+    } finally {
+        if ($bufferLockTaken) {
+            [System.Threading.Monitor]::Exit($script:TelemetryBufferLock)
+        }
+        if ($mutex) {
+            if ($lockAcquired) {
+                try { $mutex.ReleaseMutex() } catch { Write-Verbose "Caught exception in TelemetryModule.psm1: $($_.Exception.Message)" }
+            }
+        }
+    }
+}
+
+function Write-StTelemetryEvent {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$Name,
+        [Parameter(Mandatory=$true)][hashtable]$Payload
+    )
+    $evt = [ordered]@{
+        EventName = $Name
+        Timestamp = (Get-Date).ToString('o')
+    }
+    foreach ($k in $Payload.Keys) {
+        $evt[$k] = $Payload[$k]
+    }
+    $json = ($evt | ConvertTo-Json -Depth 6 -Compress)
+    $path = Get-TelemetryLogPath
+
+    $bufferCount = 0
+    $elapsedSeconds = $null
+    Invoke-TelemetryBufferLock {
+        if (-not $script:TelemetryBuffer) {
+            $script:TelemetryBuffer = [System.Collections.Generic.List[string]]::new()
+        }
+        $script:TelemetryBuffer.Add($json) | Out-Null
+        try { $bufferCount = $script:TelemetryBuffer.Count } catch { $bufferCount = 0 }
+        try { $elapsedSeconds = ([DateTime]::UtcNow - $script:TelemetryBufferLastFlushUtc).TotalSeconds } catch { $elapsedSeconds = $null }
+    }
+
+    $flushNow = $false
+    $pesterLoaded = $false
+    try { $pesterLoaded = ($null -ne (Get-Module -Name 'Pester' -ErrorAction SilentlyContinue)) } catch { $pesterLoaded = $false }
+
+    if ($pesterLoaded) {
+        $flushNow = $true
+    } elseif ($bufferCount -ge $script:TelemetryBufferFlushThreshold) {
+        $flushNow = $true
+    } elseif ($Name -eq 'ParseDuration' -or $Name -eq 'SkippedDuplicate') {
+        $flushNow = $true
+    } else {
+        if ($elapsedSeconds -ge 5) {
+            $flushNow = $true
+        }
+    }
+
+    if ($flushNow) {
+        Save-TelemetryBuffer -Path $path
+    }
+}
+
+# LANDMARK: Telemetry buffer rename - public save helper + legacy alias
+function Save-StTelemetryBuffer {
+    [CmdletBinding()]
+    param(
+        [string]$Path
+    )
+
+    $targetPath = if (-not [string]::IsNullOrWhiteSpace($Path)) { $Path } else { Get-TelemetryLogPath }
+    Save-TelemetryBuffer -Path $targetPath
+    return $targetPath
+}
+
+# LANDMARK: Telemetry buffer rename - legacy alias for backwards compatibility
+Set-Alias -Name Flush-StTelemetryBuffer -Value Save-StTelemetryBuffer -Scope Local
+
+function Remove-ComObjectSafe {
+    [CmdletBinding()]
+    param(
+        [Parameter()][object]$ComObject
+    )
+
+    if ($null -eq $ComObject) { return }
+    if ($ComObject -is [System.__ComObject]) {
+        try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($ComObject) } catch { Write-Verbose "Caught exception in TelemetryModule.psm1: $($_.Exception.Message)" }
+    }
+}
+
+Export-ModuleMember -Function Initialize-StateTraceDebug, Import-InterfaceCommon, Get-SpanDebugLogPath, Write-SpanDebugLog, Get-TelemetryLogDirectory, Get-TelemetryLogPath, Write-StTelemetryEvent, Save-StTelemetryBuffer, Remove-ComObjectSafe -Alias Flush-StTelemetryBuffer

@@ -1,0 +1,18 @@
+<UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <TabControl Name="DocumentationTabControl" Style="{DynamicResource LeftTabControlStyle}"
+              ItemContainerStyle="{DynamicResource LeftNavTabItemStyle}"
+              TabStripPlacement="Left">
+
+    <TabItem Header="Generator" ToolTip="Generate network documentation from templates&#x0a;Related: Summary tab for device data">
+      <ContentControl Name="DocsSubHost"/>
+    </TabItem>
+    <TabItem Header="Config Templates" ToolTip="Configuration templates and validation&#x0a;Related: Interfaces tab for port configs">
+      <ContentControl Name="ConfigSubHost"/>
+    </TabItem>
+    <TabItem Header="Cmd Reference" ToolTip="Cross-vendor command reference and translation&#x0a;Related: Config Templates for port configs">
+      <ContentControl Name="CmdReferenceSubHost"/>
+    </TabItem>
+  </TabControl>
+</UserControl>

@@ -1,0 +1,515 @@
+<UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <Grid Background="{DynamicResource Theme.Window.Background}">
+    <TabControl Margin="5" Background="{DynamicResource Theme.Window.Background}">
+
+      <!-- Subnet Calculator Tab -->
+      <TabItem Header="Subnet">
+        <Grid Margin="10" Background="{DynamicResource Theme.Surface.Secondary}">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+          </Grid.RowDefinitions>
+
+          <!-- Input Section -->
+          <GroupBox Grid.Row="0" Header="Input" Margin="0,0,0,10"
+                    Foreground="{DynamicResource Theme.Text.Primary}"
+                    BorderBrush="{DynamicResource Theme.Border.Primary}">
+            <StackPanel Margin="5">
+              <StackPanel Orientation="Horizontal" Margin="0,5">
+                <Label Content="Network:" Width="100" Style="{DynamicResource ToolbarLabelStyle}"/>
+                <TextBox Name="SubnetNetworkBox" Width="150" Margin="5,0"
+                         Background="{DynamicResource Theme.Input.Background}"
+                         Foreground="{DynamicResource Theme.Input.Text}"
+                         BorderBrush="{DynamicResource Theme.Input.Border}"
+                         ToolTip="Enter IP address (e.g., 192.168.1.0)"/>
+                <Label Content="/" Width="15" Style="{DynamicResource ToolbarLabelStyle}"/>
+                <ComboBox Name="SubnetCIDRDropdown" Width="60" Style="{DynamicResource ToolbarComboBoxStyle}"/>
+                <Button Name="SubnetCalculateButton" Content="Calculate" Width="80" Margin="10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+              </StackPanel>
+            </StackPanel>
+          </GroupBox>
+
+          <!-- Results Section -->
+          <GroupBox Grid.Row="1" Header="Results" Margin="0,0,0,10"
+                    Foreground="{DynamicResource Theme.Text.Primary}"
+                    BorderBrush="{DynamicResource Theme.Border.Primary}">
+            <Grid Margin="5">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+              </Grid.RowDefinitions>
+
+              <Label Grid.Row="0" Grid.Column="0" Content="Network:" Style="{DynamicResource ToolbarLabelStyle}"/>
+              <TextBox Grid.Row="0" Grid.Column="1" Name="SubnetNetworkResult" IsReadOnly="True" Margin="5,2"
+                       Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}"/>
+
+              <Label Grid.Row="0" Grid.Column="2" Content="Broadcast:" Style="{DynamicResource ToolbarLabelStyle}" Margin="10,0,0,0"/>
+              <TextBox Grid.Row="0" Grid.Column="3" Name="SubnetBroadcastResult" IsReadOnly="True" Margin="5,2"
+                       Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}"/>
+
+              <Label Grid.Row="1" Grid.Column="0" Content="Subnet Mask:" Style="{DynamicResource ToolbarLabelStyle}"/>
+              <TextBox Grid.Row="1" Grid.Column="1" Name="SubnetMaskResult" IsReadOnly="True" Margin="5,2"
+                       Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}"/>
+
+              <Label Grid.Row="1" Grid.Column="2" Content="Wildcard:" Style="{DynamicResource ToolbarLabelStyle}" Margin="10,0,0,0"/>
+              <TextBox Grid.Row="1" Grid.Column="3" Name="SubnetWildcardResult" IsReadOnly="True" Margin="5,2"
+                       Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}"/>
+
+              <Label Grid.Row="2" Grid.Column="0" Content="First Usable:" Style="{DynamicResource ToolbarLabelStyle}"/>
+              <TextBox Grid.Row="2" Grid.Column="1" Name="SubnetFirstResult" IsReadOnly="True" Margin="5,2"
+                       Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}"/>
+
+              <Label Grid.Row="2" Grid.Column="2" Content="Last Usable:" Style="{DynamicResource ToolbarLabelStyle}" Margin="10,0,0,0"/>
+              <TextBox Grid.Row="2" Grid.Column="3" Name="SubnetLastResult" IsReadOnly="True" Margin="5,2"
+                       Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}"/>
+
+              <Label Grid.Row="3" Grid.Column="0" Content="Total Hosts:" Style="{DynamicResource ToolbarLabelStyle}"/>
+              <TextBox Grid.Row="3" Grid.Column="1" Name="SubnetHostsResult" IsReadOnly="True" Margin="5,2"
+                       Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}"/>
+            </Grid>
+          </GroupBox>
+
+          <!-- Subnet Split Section -->
+          <GroupBox Grid.Row="2" Header="Subnet Division"
+                    Foreground="{DynamicResource Theme.Text.Primary}"
+                    BorderBrush="{DynamicResource Theme.Border.Primary}">
+            <Grid Margin="5">
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+              </Grid.RowDefinitions>
+
+              <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,5">
+                <Label Content="Split to:" Style="{DynamicResource ToolbarLabelStyle}"/>
+                <ComboBox Name="SubnetSplitDropdown" Width="60" Margin="5,0" Style="{DynamicResource ToolbarComboBoxStyle}"/>
+                <Button Name="SubnetSplitButton" Content="Split" Width="60" Margin="5,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+              </StackPanel>
+
+              <DataGrid Grid.Row="1" Name="SubnetSplitGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                        Background="{DynamicResource Theme.Input.Background}"
+                        Foreground="{DynamicResource Theme.Input.Text}"
+                        BorderBrush="{DynamicResource Theme.Input.Border}">
+                <DataGrid.Columns>
+                  <DataGridTextColumn Header="Network" Binding="{Binding NetworkAddress}" Width="120"/>
+                  <DataGridTextColumn Header="Broadcast" Binding="{Binding BroadcastAddress}" Width="120"/>
+                  <DataGridTextColumn Header="First" Binding="{Binding FirstUsable}" Width="120"/>
+                  <DataGridTextColumn Header="Last" Binding="{Binding LastUsable}" Width="120"/>
+                  <DataGridTextColumn Header="Hosts" Binding="{Binding TotalHosts}" Width="60"/>
+                </DataGrid.Columns>
+              </DataGrid>
+            </Grid>
+          </GroupBox>
+
+          <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,5,0,0">
+            <Button Name="SubnetCopyButton" Content="Copy Results" Width="100" Style="{DynamicResource PrimaryButtonStyle}"/>
+          </StackPanel>
+        </Grid>
+      </TabItem>
+
+      <!-- VLAN Calculator Tab -->
+      <TabItem Header="VLAN">
+        <Grid Margin="10" Background="{DynamicResource Theme.Surface.Secondary}">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+
+          <!-- Expand Section -->
+          <GroupBox Grid.Row="0" Header="Expand VLAN Range" Margin="0,0,0,10"
+                    Foreground="{DynamicResource Theme.Text.Primary}"
+                    BorderBrush="{DynamicResource Theme.Border.Primary}">
+            <StackPanel Margin="5">
+              <StackPanel Orientation="Horizontal" Margin="0,5">
+                <Label Content="Range:" Width="80" Style="{DynamicResource ToolbarLabelStyle}"/>
+                <TextBox Name="VLANExpandInput" Width="200" Margin="5,0"
+                         Background="{DynamicResource Theme.Input.Background}"
+                         Foreground="{DynamicResource Theme.Input.Text}"
+                         BorderBrush="{DynamicResource Theme.Input.Border}"
+                         ToolTip="Enter VLAN range (e.g., 10-20,25,30-35)"/>
+                <Button Name="VLANExpandButton" Content="Expand" Width="80" Margin="10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+              </StackPanel>
+              <TextBox Name="VLANExpandResult" Height="60" IsReadOnly="True" TextWrapping="Wrap"
+                       VerticalScrollBarVisibility="Auto" Margin="0,5"
+                       Background="{DynamicResource Theme.Input.Background}"
+                       Foreground="{DynamicResource Theme.Input.Text}"
+                       BorderBrush="{DynamicResource Theme.Input.Border}"/>
+            </StackPanel>
+          </GroupBox>
+
+          <!-- Compress Section -->
+          <GroupBox Grid.Row="1" Header="Compress VLAN List" Margin="0,0,0,10"
+                    Foreground="{DynamicResource Theme.Text.Primary}"
+                    BorderBrush="{DynamicResource Theme.Border.Primary}">
+            <StackPanel Margin="5">
+              <StackPanel Orientation="Horizontal" Margin="0,5">
+                <Label Content="VLANs:" Width="80" Style="{DynamicResource ToolbarLabelStyle}"/>
+                <TextBox Name="VLANCompressInput" Width="200" Margin="5,0"
+                         Background="{DynamicResource Theme.Input.Background}"
+                         Foreground="{DynamicResource Theme.Input.Text}"
+                         BorderBrush="{DynamicResource Theme.Input.Border}"
+                         ToolTip="Enter comma-separated VLAN IDs (e.g., 10,11,12,20,30,31,32)"/>
+                <Button Name="VLANCompressButton" Content="Compress" Width="80" Margin="10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+              </StackPanel>
+              <TextBox Name="VLANCompressResult" IsReadOnly="True" Margin="0,5"
+                       Background="{DynamicResource Theme.Input.Background}"
+                       Foreground="{DynamicResource Theme.Input.Text}"
+                       BorderBrush="{DynamicResource Theme.Input.Border}"/>
+            </StackPanel>
+          </GroupBox>
+        </Grid>
+      </TabItem>
+
+      <!-- Bandwidth Calculator Tab -->
+      <TabItem Header="Bandwidth">
+        <Grid Margin="10" Background="{DynamicResource Theme.Surface.Secondary}">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+
+          <!-- Transfer Time Section -->
+          <GroupBox Grid.Row="0" Header="Transfer Time Calculator" Margin="0,0,0,10"
+                    Foreground="{DynamicResource Theme.Text.Primary}"
+                    BorderBrush="{DynamicResource Theme.Border.Primary}">
+            <StackPanel Margin="5">
+              <StackPanel Orientation="Horizontal" Margin="0,5">
+                <Label Content="Size:" Width="80" Style="{DynamicResource ToolbarLabelStyle}"/>
+                <TextBox Name="BandwidthSizeBox" Width="80" Margin="5,0"
+                         Background="{DynamicResource Theme.Input.Background}"
+                         Foreground="{DynamicResource Theme.Input.Text}"
+                         BorderBrush="{DynamicResource Theme.Input.Border}"/>
+                <ComboBox Name="BandwidthSizeUnit" Width="60" Margin="5,0" Style="{DynamicResource ToolbarComboBoxStyle}">
+                  <ComboBoxItem Content="MB" IsSelected="True"/>
+                  <ComboBoxItem Content="GB"/>
+                  <ComboBoxItem Content="TB"/>
+                </ComboBox>
+                <Label Content="Speed:" Style="{DynamicResource ToolbarLabelStyle}" Margin="20,0,0,0"/>
+                <TextBox Name="BandwidthSpeedBox" Width="80" Margin="5,0"
+                         Background="{DynamicResource Theme.Input.Background}"
+                         Foreground="{DynamicResource Theme.Input.Text}"
+                         BorderBrush="{DynamicResource Theme.Input.Border}"/>
+                <ComboBox Name="BandwidthSpeedUnit" Width="70" Margin="5,0" Style="{DynamicResource ToolbarComboBoxStyle}">
+                  <ComboBoxItem Content="Mbps" IsSelected="True"/>
+                  <ComboBoxItem Content="Gbps"/>
+                </ComboBox>
+                <Button Name="BandwidthCalcButton" Content="Calculate" Width="80" Margin="10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+              </StackPanel>
+              <StackPanel Orientation="Horizontal" Margin="0,5">
+                <Label Content="Result:" Width="80" Style="{DynamicResource ToolbarLabelStyle}"/>
+                <TextBox Name="BandwidthResult" Width="300" IsReadOnly="True"
+                         Background="{DynamicResource Theme.Input.Background}"
+                         Foreground="{DynamicResource Theme.Input.Text}"
+                         BorderBrush="{DynamicResource Theme.Input.Border}"/>
+              </StackPanel>
+            </StackPanel>
+          </GroupBox>
+
+          <!-- Unit Conversion Section -->
+          <GroupBox Grid.Row="1" Header="Bandwidth Unit Conversion" Margin="0,0,0,10"
+                    Foreground="{DynamicResource Theme.Text.Primary}"
+                    BorderBrush="{DynamicResource Theme.Border.Primary}">
+            <StackPanel Margin="5">
+              <StackPanel Orientation="Horizontal" Margin="0,5">
+                <TextBox Name="ConvertValueBox" Width="100" Margin="5,0"
+                         Background="{DynamicResource Theme.Input.Background}"
+                         Foreground="{DynamicResource Theme.Input.Text}"
+                         BorderBrush="{DynamicResource Theme.Input.Border}"/>
+                <ComboBox Name="ConvertFromUnit" Width="70" Margin="5,0" Style="{DynamicResource ToolbarComboBoxStyle}">
+                  <ComboBoxItem Content="Mbps" IsSelected="True"/>
+                  <ComboBoxItem Content="Gbps"/>
+                  <ComboBoxItem Content="MBps"/>
+                  <ComboBoxItem Content="GBps"/>
+                </ComboBox>
+                <Label Content="to" Style="{DynamicResource ToolbarLabelStyle}"/>
+                <ComboBox Name="ConvertToUnit" Width="70" Margin="5,0" Style="{DynamicResource ToolbarComboBoxStyle}">
+                  <ComboBoxItem Content="Mbps"/>
+                  <ComboBoxItem Content="Gbps" IsSelected="True"/>
+                  <ComboBoxItem Content="MBps"/>
+                  <ComboBoxItem Content="GBps"/>
+                </ComboBox>
+                <Button Name="ConvertButton" Content="Convert" Width="70" Margin="10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+                <TextBox Name="ConvertResult" Width="120" IsReadOnly="True" Margin="5,0"
+                         Background="{DynamicResource Theme.Input.Background}"
+                         Foreground="{DynamicResource Theme.Input.Text}"
+                         BorderBrush="{DynamicResource Theme.Input.Border}"/>
+              </StackPanel>
+            </StackPanel>
+          </GroupBox>
+        </Grid>
+      </TabItem>
+
+      <!-- IP Tools Tab -->
+      <TabItem Header="IP Tools">
+        <Grid Margin="10" Background="{DynamicResource Theme.Surface.Secondary}">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+
+          <!-- IP Validation Section -->
+          <GroupBox Grid.Row="0" Header="IP Address Validation" Margin="0,0,0,10"
+                    Foreground="{DynamicResource Theme.Text.Primary}"
+                    BorderBrush="{DynamicResource Theme.Border.Primary}">
+            <StackPanel Margin="5">
+              <StackPanel Orientation="Horizontal" Margin="0,5">
+                <Label Content="IP Address:" Width="80" Style="{DynamicResource ToolbarLabelStyle}"/>
+                <TextBox Name="IPValidateBox" Width="150" Margin="5,0"
+                         Background="{DynamicResource Theme.Input.Background}"
+                         Foreground="{DynamicResource Theme.Input.Text}"
+                         BorderBrush="{DynamicResource Theme.Input.Border}"/>
+                <Button Name="IPValidateButton" Content="Validate" Width="80" Margin="10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+              </StackPanel>
+              <TextBox Name="IPValidateResult" Height="60" IsReadOnly="True" TextWrapping="Wrap" Margin="0,5"
+                       Background="{DynamicResource Theme.Input.Background}"
+                       Foreground="{DynamicResource Theme.Input.Text}"
+                       BorderBrush="{DynamicResource Theme.Input.Border}"/>
+            </StackPanel>
+          </GroupBox>
+
+          <!-- IP Containment Check Section -->
+          <GroupBox Grid.Row="1" Header="IP in Subnet Check" Margin="0,0,0,10"
+                    Foreground="{DynamicResource Theme.Text.Primary}"
+                    BorderBrush="{DynamicResource Theme.Border.Primary}">
+            <StackPanel Margin="5">
+              <StackPanel Orientation="Horizontal" Margin="0,5">
+                <Label Content="IP:" Width="50" Style="{DynamicResource ToolbarLabelStyle}"/>
+                <TextBox Name="IPCheckBox" Width="120" Margin="5,0"
+                         Background="{DynamicResource Theme.Input.Background}"
+                         Foreground="{DynamicResource Theme.Input.Text}"
+                         BorderBrush="{DynamicResource Theme.Input.Border}"/>
+                <Label Content="in Subnet:" Style="{DynamicResource ToolbarLabelStyle}" Margin="10,0,0,0"/>
+                <TextBox Name="SubnetCheckBox" Width="150" Margin="5,0"
+                         Background="{DynamicResource Theme.Input.Background}"
+                         Foreground="{DynamicResource Theme.Input.Text}"
+                         BorderBrush="{DynamicResource Theme.Input.Border}"
+                         ToolTip="Enter subnet in CIDR notation (e.g., 192.168.1.0/24)"/>
+                <Button Name="IPCheckButton" Content="Check" Width="60" Margin="10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+                <TextBox Name="IPCheckResult" Width="80" IsReadOnly="True" Margin="5,0"
+                         Background="{DynamicResource Theme.Input.Background}"
+                         Foreground="{DynamicResource Theme.Input.Text}"
+                         BorderBrush="{DynamicResource Theme.Input.Border}"/>
+              </StackPanel>
+            </StackPanel>
+          </GroupBox>
+        </Grid>
+      </TabItem>
+
+      <!-- Port Reference Tab -->
+      <TabItem Header="Ports">
+        <Grid Margin="10" Background="{DynamicResource Theme.Surface.Secondary}">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+
+          <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+            <Label Content="Search:" Style="{DynamicResource ToolbarLabelStyle}"/>
+            <TextBox Name="PortSearchBox" Width="200" Margin="5,0"
+                     Background="{DynamicResource Theme.Input.Background}"
+                     Foreground="{DynamicResource Theme.Input.Text}"
+                     BorderBrush="{DynamicResource Theme.Input.Border}"
+                     ToolTip="Search by port number or service name"/>
+            <Button Name="PortSearchButton" Content="Search" Width="70" Margin="5,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+            <Button Name="PortShowAllButton" Content="Show All" Width="80" Margin="5,0" Style="{DynamicResource SecondaryButtonStyle}"/>
+          </StackPanel>
+
+          <DataGrid Grid.Row="1" Name="PortsGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                    Background="{DynamicResource Theme.Input.Background}"
+                    Foreground="{DynamicResource Theme.Input.Text}"
+                    BorderBrush="{DynamicResource Theme.Input.Border}">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Port" Binding="{Binding Port}" Width="80"/>
+              <DataGridTextColumn Header="Protocol" Binding="{Binding Protocol}" Width="80"/>
+              <DataGridTextColumn Header="Service" Binding="{Binding Service}" Width="*"/>
+            </DataGrid.Columns>
+          </DataGrid>
+        </Grid>
+      </TabItem>
+
+      <!-- ACL Builder Tab -->
+      <TabItem Header="ACL Builder">
+        <Grid Margin="10" Background="{DynamicResource Theme.Surface.Secondary}">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="150"/>
+          </Grid.RowDefinitions>
+
+          <!-- ACL Name and Template Selection -->
+          <GroupBox Grid.Row="0" Header="ACL Configuration" Margin="0,0,0,10"
+                    Foreground="{DynamicResource Theme.Text.Primary}"
+                    BorderBrush="{DynamicResource Theme.Border.Primary}">
+            <Grid Margin="5">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="200"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="150"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="100"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+
+              <Label Grid.Column="0" Content="ACL Name:" Style="{DynamicResource ToolbarLabelStyle}"/>
+              <TextBox Grid.Column="1" Name="ACLNameBox" Margin="5,0"
+                       Background="{DynamicResource Theme.Input.Background}"
+                       Foreground="{DynamicResource Theme.Input.Text}"
+                       BorderBrush="{DynamicResource Theme.Input.Border}"
+                       ToolTip="Enter ACL name (e.g., BLOCK-GUEST)"/>
+
+              <Label Grid.Column="2" Content="Template:" Style="{DynamicResource ToolbarLabelStyle}" Margin="15,0,0,0"/>
+              <ComboBox Grid.Column="3" Name="ACLTemplateDropdown" Margin="5,0" Style="{DynamicResource ToolbarComboBoxStyle}"/>
+              <Button Grid.Column="4" Name="ACLLoadTemplateButton" Content="Load" Width="60" Margin="5,0" Style="{DynamicResource SecondaryButtonStyle}"/>
+
+              <Label Grid.Column="5" Content="Vendor:" Style="{DynamicResource ToolbarLabelStyle}" Margin="15,0,0,0"/>
+              <ComboBox Grid.Column="6" Name="ACLVendorDropdown" Width="80" Margin="5,0" Style="{DynamicResource ToolbarComboBoxStyle}">
+                <ComboBoxItem Content="Cisco" IsSelected="True"/>
+                <ComboBoxItem Content="Arista"/>
+              </ComboBox>
+            </Grid>
+          </GroupBox>
+
+          <!-- Entry Input Section -->
+          <GroupBox Grid.Row="1" Header="Add Entry" Margin="0,0,0,10"
+                    Foreground="{DynamicResource Theme.Text.Primary}"
+                    BorderBrush="{DynamicResource Theme.Border.Primary}">
+            <Grid Margin="5">
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+              </Grid.RowDefinitions>
+
+              <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,5">
+                <Label Content="Action:" Width="55" Style="{DynamicResource ToolbarLabelStyle}"/>
+                <ComboBox Name="ACLActionDropdown" Width="70" Margin="5,0" Style="{DynamicResource ToolbarComboBoxStyle}">
+                  <ComboBoxItem Content="permit"/>
+                  <ComboBoxItem Content="deny" IsSelected="True"/>
+                </ComboBox>
+
+                <Label Content="Protocol:" Style="{DynamicResource ToolbarLabelStyle}" Margin="10,0,0,0"/>
+                <ComboBox Name="ACLProtocolDropdown" Width="60" Margin="5,0" Style="{DynamicResource ToolbarComboBoxStyle}">
+                  <ComboBoxItem Content="ip" IsSelected="True"/>
+                  <ComboBoxItem Content="tcp"/>
+                  <ComboBoxItem Content="udp"/>
+                  <ComboBoxItem Content="icmp"/>
+                </ComboBox>
+
+                <Label Content="Source:" Style="{DynamicResource ToolbarLabelStyle}" Margin="10,0,0,0"/>
+                <TextBox Name="ACLSourceBox" Width="130" Margin="5,0"
+                         Background="{DynamicResource Theme.Input.Background}"
+                         Foreground="{DynamicResource Theme.Input.Text}"
+                         BorderBrush="{DynamicResource Theme.Input.Border}"
+                         ToolTip="any or CIDR (e.g., 10.0.0.0/24)"/>
+
+                <Label Content="Src Port:" Style="{DynamicResource ToolbarLabelStyle}" Margin="10,0,0,0"/>
+                <TextBox Name="ACLSourcePortBox" Width="60" Margin="5,0"
+                         Background="{DynamicResource Theme.Input.Background}"
+                         Foreground="{DynamicResource Theme.Input.Text}"
+                         BorderBrush="{DynamicResource Theme.Input.Border}"
+                         ToolTip="Port number (TCP/UDP only)"/>
+              </StackPanel>
+
+              <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,5">
+                <Label Content="Dest:" Width="55" Style="{DynamicResource ToolbarLabelStyle}"/>
+                <TextBox Name="ACLDestBox" Width="130" Margin="5,0"
+                         Background="{DynamicResource Theme.Input.Background}"
+                         Foreground="{DynamicResource Theme.Input.Text}"
+                         BorderBrush="{DynamicResource Theme.Input.Border}"
+                         ToolTip="any or CIDR (e.g., 10.0.0.0/24)"/>
+
+                <Label Content="Dst Port:" Style="{DynamicResource ToolbarLabelStyle}" Margin="10,0,0,0"/>
+                <TextBox Name="ACLDestPortBox" Width="60" Margin="5,0"
+                         Background="{DynamicResource Theme.Input.Background}"
+                         Foreground="{DynamicResource Theme.Input.Text}"
+                         BorderBrush="{DynamicResource Theme.Input.Border}"
+                         ToolTip="Port number (TCP/UDP only)"/>
+
+                <Label Content="Remark:" Style="{DynamicResource ToolbarLabelStyle}" Margin="10,0,0,0"/>
+                <TextBox Name="ACLRemarkBox" Width="200" Margin="5,0"
+                         Background="{DynamicResource Theme.Input.Background}"
+                         Foreground="{DynamicResource Theme.Input.Text}"
+                         BorderBrush="{DynamicResource Theme.Input.Border}"
+                         ToolTip="Optional comment for this entry"/>
+
+                <Button Name="ACLAddEntryButton" Content="Add Entry" Width="80" Margin="15,0,0,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+              </StackPanel>
+            </Grid>
+          </GroupBox>
+
+          <!-- Entries Grid -->
+          <GroupBox Grid.Row="2" Header="ACL Entries"
+                    Foreground="{DynamicResource Theme.Text.Primary}"
+                    BorderBrush="{DynamicResource Theme.Border.Primary}">
+            <Grid Margin="5">
+              <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+              </Grid.RowDefinitions>
+
+              <DataGrid Grid.Row="0" Name="ACLEntriesGrid" AutoGenerateColumns="False" IsReadOnly="True"
+                        Background="{DynamicResource Theme.Input.Background}"
+                        Foreground="{DynamicResource Theme.Input.Text}"
+                        BorderBrush="{DynamicResource Theme.Input.Border}"
+                        SelectionMode="Single">
+                <DataGrid.Columns>
+                  <DataGridTextColumn Header="#" Binding="{Binding Sequence}" Width="40"/>
+                  <DataGridTextColumn Header="Action" Binding="{Binding Action}" Width="60"/>
+                  <DataGridTextColumn Header="Protocol" Binding="{Binding Protocol}" Width="60"/>
+                  <DataGridTextColumn Header="Source" Binding="{Binding Source}" Width="130"/>
+                  <DataGridTextColumn Header="Src Port" Binding="{Binding SourcePort}" Width="70"/>
+                  <DataGridTextColumn Header="Destination" Binding="{Binding Destination}" Width="130"/>
+                  <DataGridTextColumn Header="Dst Port" Binding="{Binding DestinationPort}" Width="70"/>
+                  <DataGridTextColumn Header="Remark" Binding="{Binding Remark}" Width="*"/>
+                </DataGrid.Columns>
+              </DataGrid>
+
+              <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,5,0,0">
+                <Button Name="ACLMoveUpButton" Content="Move Up" Width="70" Margin="0,0,5,0" Style="{DynamicResource SecondaryButtonStyle}"/>
+                <Button Name="ACLMoveDownButton" Content="Move Down" Width="80" Margin="0,0,5,0" Style="{DynamicResource SecondaryButtonStyle}"/>
+                <Button Name="ACLDeleteEntryButton" Content="Delete" Width="60" Margin="0,0,5,0" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Delete the selected ACL entry"/>
+                <Button Name="ACLClearAllButton" Content="Clear All" Width="70" Margin="15,0,0,0" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Clear all ACL entries"/>
+              </StackPanel>
+            </Grid>
+          </GroupBox>
+
+          <!-- Generate Section -->
+          <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,10,0,5">
+            <Button Name="ACLGenerateButton" Content="Generate Config" Width="110" Style="{DynamicResource PrimaryButtonStyle}"/>
+            <Button Name="ACLCopyButton" Content="Copy to Clipboard" Width="120" Margin="10,0,0,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+            <Label Name="ACLStatusLabel" Content="" Margin="15,0,0,0" Style="{DynamicResource ToolbarLabelStyle}" VerticalAlignment="Center"/>
+          </StackPanel>
+
+          <!-- Generated Config Output -->
+          <GroupBox Grid.Row="4" Header="Generated Configuration"
+                    Foreground="{DynamicResource Theme.Text.Primary}"
+                    BorderBrush="{DynamicResource Theme.Border.Primary}">
+            <TextBox Name="ACLOutputBox" IsReadOnly="True" TextWrapping="NoWrap"
+                     VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                     FontFamily="Consolas" FontSize="12"
+                     Background="{DynamicResource Theme.Input.Background}"
+                     Foreground="{DynamicResource Theme.Input.Text}"
+                     BorderBrush="{DynamicResource Theme.Input.Border}"/>
+          </GroupBox>
+        </Grid>
+      </TabItem>
+
+    </TabControl>
+  </Grid>
+</UserControl>

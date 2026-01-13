@@ -1,0 +1,473 @@
+<UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <Grid Background="{DynamicResource Theme.Window.Background}">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="*"/>
+    </Grid.RowDefinitions>
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="*"/>
+    </Grid.ColumnDefinitions>
+
+    <Grid Grid.Row="0" Grid.Column="0" Margin="5">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0" Margin="0,0,0,5">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*"/>
+          </Grid.ColumnDefinitions>
+
+          <Grid Grid.Column="0" Margin="0,0,15,0">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <Button Name="CompareButton"
+                    Content="Compare Configs"
+                    Width="120"
+                    Margin="0,0,10,5"
+                    Style="{DynamicResource PrimaryButtonStyle}"
+                    ToolTip="Open side-by-side configuration comparison"
+                    Grid.Row="0" Grid.Column="0"/>
+            <Button Name="CopyDetailsButton"
+                    Content="Copy Details"
+                    Width="120"
+                    Margin="0,0,10,0"
+                    Style="{DynamicResource PrimaryButtonStyle}"
+                    ToolTip="Copy selected interfaces with all details"
+                    Grid.Row="1" Grid.Column="0"/>
+            <Button Name="ConfigureButton"
+                    Content="Configure"
+                    Width="120"
+                    Margin="0,0,0,5"
+                    Style="{DynamicResource PrimaryButtonStyle}"
+                    ToolTip="Generate configuration commands for selected interfaces"
+                    Grid.Row="0" Grid.Column="1"/>
+            <ComboBox Name="ConfigOptionsDropdown"
+                      Width="120"
+                      Margin="0"
+                      Grid.Row="1" Grid.Column="1" Style="{DynamicResource ToolbarComboBoxStyle}"/>
+          </Grid>
+
+          <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+              <RowDefinition Height="Auto"/>
+              <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Margin="{DynamicResource ControlSpacingRight}">
+              <StackPanel Margin="{DynamicResource StackItemMargin}">
+                <TextBlock Text="Hostname:" FontSize="12" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                <TextBox Name="HostnameBox" IsReadOnly="True" MinWidth="130" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
+              </StackPanel>
+              <StackPanel Margin="{DynamicResource StackItemMargin}">
+                <TextBlock Text="Make:" FontSize="12" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                <TextBox Name="MakeBox" IsReadOnly="True" MinWidth="90" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
+              </StackPanel>
+              <StackPanel Margin="{DynamicResource StackItemMargin}">
+                <TextBlock Text="Model:" FontSize="12" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                <TextBox Name="ModelBox" IsReadOnly="True" MinWidth="100" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
+              </StackPanel>
+            </StackPanel>
+            <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal">
+              <StackPanel Margin="{DynamicResource StackItemMargin}">
+                <TextBlock Text="Uptime:" FontSize="12" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                <TextBox Name="UptimeBox" IsReadOnly="True" MinWidth="140" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
+              </StackPanel>
+              <StackPanel Margin="{DynamicResource StackItemMargin}">
+                <TextBlock Text="Ports:" FontSize="12" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                <TextBox Name="PortCountBox" IsReadOnly="True" MinWidth="50" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
+              </StackPanel>
+              <StackPanel Margin="{DynamicResource StackItemMargin}">
+                <TextBlock Text="AuthDefaultVLAN:" FontSize="12" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                <TextBox Name="AuthDefaultVLANBox" IsReadOnly="True" MinWidth="130" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
+              </StackPanel>
+              <StackPanel Margin="{DynamicResource StackItemMargin}">
+                <TextBlock Text="Building:" FontSize="12" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                <TextBox Name="BuildingBox" IsReadOnly="True" MinWidth="60" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
+              </StackPanel>
+              <StackPanel Margin="{DynamicResource StackItemMargin}">
+                <TextBlock Text="Room:" FontSize="12" Foreground="{DynamicResource Theme.Text.Primary}"/>
+                <TextBox Name="RoomBox" IsReadOnly="True" MinWidth="40" Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}" BorderBrush="{DynamicResource Theme.Input.Border}" BorderThickness="1"/>
+              </StackPanel>
+            </StackPanel>
+
+            <Button Name="ReorgButton"
+                    Grid.Row="0" Grid.RowSpan="2" Grid.Column="1"
+                    Content="Port Reorg"
+                    Width="120"
+                    Margin="10,0,0,0"
+                    VerticalAlignment="Top"
+                    Style="{DynamicResource PrimaryButtonStyle}"
+                    ToolTip="Open port reorganization tool for label management"/>
+          </Grid>
+        </Grid>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,5">
+            <TextBox Name="FilterBox"
+                   Width="160"
+                   Background="{DynamicResource Theme.Input.Background}" Foreground="{DynamicResource Theme.Input.Text}"
+                   BorderBrush="{DynamicResource Theme.Input.Border}"
+                   BorderThickness="1"
+                   ToolTip="Type to filter interfaces (Escape to clear)"
+                   Margin="0,0,5,0"/>
+            <Button Name="ClearFilterButton"
+                  Content="X"
+                  Width="30"
+                  Height="23"
+                  VerticalAlignment="Center"
+                  ToolTip="Clear filter"/>
+            <Button Name="FilterUpButton" Content="Up" Width="35" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Show only Up ports" Margin="5,0,0,0"/>
+            <Button Name="FilterDownButton" Content="Down" Width="45" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Show only Down ports" Margin="3,0,0,0"/>
+            <TextBlock Name="FilterMatchCount" Text="" Foreground="{DynamicResource Theme.Text.Muted}" VerticalAlignment="Center" FontSize="11" Margin="8,0,0,0"/>
+            <ComboBox Name="FilterPresetsDropdown" Width="90" Height="23" Style="{DynamicResource ToolbarComboBoxStyle}" ToolTip="Load saved filter preset" Margin="5,0,0,0">
+              <ComboBoxItem Content="Presets..." IsSelected="True"/>
+            </ComboBox>
+            <Button Name="SavePresetButton" Content="Save" Width="40" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Save current filter as preset" Margin="2,0,0,0"/>
+            <Button Name="DeletePresetButton" Content="X" Width="22" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Delete selected preset" Margin="2,0,0,0"/>
+
+            <Rectangle Width="1" Fill="{DynamicResource Theme.Border.Primary}" Margin="10,2,10,2"/>
+
+            <TextBlock Text="Selection:" Foreground="{DynamicResource Theme.Text.Primary}" VerticalAlignment="Center" Margin="0,0,5,0"/>
+            <Button Name="SelectAllButton" Content="All" Width="40" Height="23" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Select all visible rows" Margin="0,0,3,0"/>
+            <Button Name="SelectNoneButton" Content="None" Width="45" Height="23" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Clear selection" Margin="0,0,3,0"/>
+            <Button Name="InvertSelectionButton" Content="Invert" Width="50" Height="23" Style="{DynamicResource PrimaryButtonStyle}" ToolTip="Invert current selection" Margin="0,0,3,0"/>
+            <ComboBox Name="SelectByStatusDropdown" Width="90" Height="23" Style="{DynamicResource ToolbarComboBoxStyle}" ToolTip="Select by status">
+              <ComboBoxItem Content="By Status..." IsSelected="True"/>
+              <ComboBoxItem Content="All Up"/>
+              <ComboBoxItem Content="All Down"/>
+            </ComboBox>
+            <TextBlock Name="SelectionCountText" Text="" Foreground="{DynamicResource Theme.Text.Muted}" VerticalAlignment="Center" Margin="10,0,0,0" FontSize="11"/>
+
+            <Rectangle Width="1" Fill="{DynamicResource Theme.Border.Primary}" Margin="10,2,10,2"/>
+
+            <TextBlock Text="Quick:" Foreground="{DynamicResource Theme.Text.Primary}" VerticalAlignment="Center" Margin="0,0,5,0"/>
+            <Button Name="CopyPortsButton" Content="Ports" Width="45" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Copy selected port names to clipboard" Margin="0,0,3,0"/>
+            <Button Name="CopyMacsButton" Content="MACs" Width="50" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Copy selected MAC addresses to clipboard" Margin="0,0,3,0"/>
+            <Button Name="ExportSelectedButton" Content="Export" Width="50" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Export selected rows to file" Margin="0,0,0,0"/>
+            <ComboBox Name="ExportFormatDropdown" Width="55" Height="23" Style="{DynamicResource ToolbarComboBoxStyle}" ToolTip="Export format" Margin="0,0,3,0">
+              <ComboBoxItem Content="CSV" IsSelected="True"/>
+              <ComboBoxItem Content="JSON"/>
+              <ComboBoxItem Content="Clipboard"/>
+            </ComboBox>
+            <Button Name="SetVlanButton" Content="Set VLAN" Width="65" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Set VLAN for all selected interfaces" Margin="0,0,3,0"/>
+            <Button Name="SetNameButton" Content="Set Name" Width="65" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Set name for all selected interfaces" Margin="0,0,3,0"/>
+            <Button Name="SelectPatternButton" Content="Select..." Width="55" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Select ports matching a pattern (e.g., Gi1/0/*, Te*)" Margin="0,0,3,0"/>
+            <Button Name="CompareInterfacesButton" Content="Compare" Width="60" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Compare two selected interfaces side by side" Margin="0,0,3,0"/>
+            <Button Name="CopyTableButton" Content="Table" Width="45" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Copy selected rows as formatted table" Margin="0,0,3,0"/>
+
+            <Rectangle Width="1" Fill="{DynamicResource Theme.Border.Primary}" Margin="10,2,10,2"/>
+
+            <ComboBox Name="SortPresetDropdown" Width="100" Height="23" Style="{DynamicResource ToolbarComboBoxStyle}" ToolTip="Apply sort preset">
+              <ComboBoxItem Content="Sort by..." IsSelected="True"/>
+              <ComboBoxItem Content="Port"/>
+              <ComboBoxItem Content="Name"/>
+              <ComboBoxItem Content="Status"/>
+              <ComboBoxItem Content="VLAN"/>
+              <ComboBoxItem Content="Issues First"/>
+            </ComboBox>
+            <ComboBox Name="GroupByDropdown" Width="95" Height="23" Style="{DynamicResource ToolbarComboBoxStyle}" ToolTip="Group rows by field" Margin="3,0,0,0">
+              <ComboBoxItem Content="Group by..." IsSelected="True"/>
+              <ComboBoxItem Content="None"/>
+              <ComboBoxItem Content="Status"/>
+              <ComboBoxItem Content="VLAN"/>
+              <ComboBoxItem Content="Type"/>
+              <ComboBoxItem Content="Speed"/>
+              <ComboBoxItem Content="AuthState"/>
+            </ComboBox>
+            <Button Name="ColumnsButton" Content="Columns ▼" Width="75" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Show/hide columns">
+              <Button.ContextMenu>
+                <ContextMenu Name="ColumnsContextMenu">
+                  <MenuItem Header="Port" IsCheckable="True" IsChecked="True" Name="ColPort"/>
+                  <MenuItem Header="Name" IsCheckable="True" IsChecked="True" Name="ColName"/>
+                  <MenuItem Header="Status" IsCheckable="True" IsChecked="True" Name="ColStatus"/>
+                  <MenuItem Header="VLAN" IsCheckable="True" IsChecked="True" Name="ColVLAN"/>
+                  <MenuItem Header="Duplex" IsCheckable="True" IsChecked="True" Name="ColDuplex"/>
+                  <MenuItem Header="Speed" IsCheckable="True" IsChecked="True" Name="ColSpeed"/>
+                  <MenuItem Header="Type" IsCheckable="True" IsChecked="True" Name="ColType"/>
+                  <MenuItem Header="LearnedMACs" IsCheckable="True" IsChecked="True" Name="ColMACs"/>
+                  <MenuItem Header="AuthState" IsCheckable="True" IsChecked="True" Name="ColAuthState"/>
+                  <MenuItem Header="AuthMode" IsCheckable="True" IsChecked="True" Name="ColAuthMode"/>
+                  <MenuItem Header="AuthClientMAC" IsCheckable="True" IsChecked="True" Name="ColAuthMAC"/>
+                </ContextMenu>
+              </Button.ContextMenu>
+            </Button>
+            <Button Name="AutoFitColumnsButton" Content="Auto-fit" Width="55" Height="23" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Auto-size columns to fit content" Margin="3,0,0,0"/>
+            <ToggleButton Name="CompactModeToggle" Content="Compact" Width="60" Height="23" Style="{DynamicResource SecondaryToggleButtonStyle}" ToolTip="Toggle compact/comfortable row height" Margin="3,0,0,0"/>
+        </StackPanel>
+
+        <Grid Grid.Row="2">
+          <DataGrid Name="InterfacesGrid"
+                    AutoGenerateColumns="False"
+                    SelectionMode="Extended"
+                    SelectionUnit="CellOrRowHeader"
+                    Margin="5,0,5,5"
+                    CanUserAddRows="False"
+                    CanUserReorderColumns="True"
+                    IsReadOnly="False"
+                    Style="{DynamicResource PrimaryDataGridStyle}"
+                    ScrollViewer.VerticalScrollBarVisibility="Auto"
+                    ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                    ScrollViewer.IsDeferredScrollingEnabled="True"
+                    VirtualizingPanel.IsVirtualizing="True"
+                    VirtualizingPanel.VirtualizationMode="Recycling"
+                    EnableRowVirtualization="True"
+                    EnableColumnVirtualization="True"
+                    ScrollViewer.CanContentScroll="True"
+                    VirtualizingPanel.ScrollUnit="Pixel">
+            <DataGrid.RowStyle>
+              <Style TargetType="DataGridRow">
+                <Setter Property="Foreground" Value="{DynamicResource Theme.Text.Primary}"/>
+                <Style.Triggers>
+                  <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource Theme.DataGrid.HoverBackground}"/>
+                  </Trigger>
+                  <Trigger Property="IsSelected" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource Theme.DataGrid.SelectionBackground}"/>
+                    <Setter Property="Foreground" Value="{DynamicResource Theme.DataGrid.SelectionText}"/>
+                  </Trigger>
+                  <DataTrigger Binding="{Binding HasChanged}" Value="True">
+                    <Setter Property="Background" Value="#3DFFA500"/>
+                    <Setter Property="BorderBrush" Value="#FFA500"/>
+                    <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                  </DataTrigger>
+                </Style.Triggers>
+              </Style>
+            </DataGrid.RowStyle>
+            <DataGrid.GroupStyle>
+              <GroupStyle>
+                <GroupStyle.ContainerStyle>
+                  <Style TargetType="{x:Type GroupItem}">
+                    <Setter Property="Template">
+                      <Setter.Value>
+                        <ControlTemplate TargetType="{x:Type GroupItem}">
+                          <Expander IsExpanded="True" Background="{DynamicResource Theme.Surface.Secondary}" BorderBrush="{DynamicResource Theme.Border.Primary}" BorderThickness="0,0,0,1">
+                            <Expander.Header>
+                              <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,8,0"/>
+                                <TextBlock Text="(" Foreground="{DynamicResource Theme.Text.Muted}"/>
+                                <TextBlock Text="{Binding ItemCount}" Foreground="{DynamicResource Theme.Text.Muted}"/>
+                                <TextBlock Text=" items)" Foreground="{DynamicResource Theme.Text.Muted}"/>
+                              </StackPanel>
+                            </Expander.Header>
+                            <ItemsPresenter/>
+                          </Expander>
+                        </ControlTemplate>
+                      </Setter.Value>
+                    </Setter>
+                  </Style>
+                </GroupStyle.ContainerStyle>
+              </GroupStyle>
+            </DataGrid.GroupStyle>
+            <DataGrid.ContextMenu>
+              <ContextMenu Name="InterfacesContextMenu">
+                <MenuItem Header="Copy Port" Name="CtxCopyPort"/>
+                <MenuItem Header="Copy MAC" Name="CtxCopyMAC"/>
+                <MenuItem Header="Copy Details" Name="CtxCopyDetails"/>
+                <Separator/>
+                <MenuItem Header="Export Selected..." Name="CtxExportSelected"/>
+                <Separator/>
+                <MenuItem Header="Select Same Status" Name="CtxSelectStatus"/>
+                <MenuItem Header="Select Same VLAN" Name="CtxSelectVLAN"/>
+              </ContextMenu>
+            </DataGrid.ContextMenu>
+            <DataGrid.Columns>
+
+              <DataGridCheckBoxColumn Width="30"
+                                      Header=""
+                                      IsThreeState="False">
+                <DataGridCheckBoxColumn.Binding>
+                  <Binding Path="IsSelected" Mode="TwoWay" UpdateSourceTrigger="PropertyChanged"/>
+                </DataGridCheckBoxColumn.Binding>
+                <DataGridCheckBoxColumn.ElementStyle>
+                  <Style TargetType="CheckBox">
+                    <Setter Property="HorizontalAlignment" Value="Center"/>
+                    <Setter Property="VerticalAlignment"   Value="Center"/>
+                    <Setter Property="Focusable"           Value="False"/>
+                  </Style>
+                </DataGridCheckBoxColumn.ElementStyle>
+                <DataGridCheckBoxColumn.EditingElementStyle>
+                  <Style TargetType="CheckBox">
+                    <Setter Property="HorizontalAlignment" Value="Center"/>
+                    <Setter Property="VerticalAlignment"   Value="Center"/>
+                    <Setter Property="Focusable"           Value="False"/>
+                  </Style>
+                </DataGridCheckBoxColumn.EditingElementStyle>
+              </DataGridCheckBoxColumn>
+
+              <DataGridTemplateColumn Header="Port">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate>
+                    <TextBlock Text="{Binding Port}"
+                               Style="{DynamicResource PortColorTextStyle}">
+                      <TextBlock.ToolTip>
+                        <ToolTip Content="{Binding ToolTip}"/>
+                      </TextBlock.ToolTip>
+                    </TextBlock>
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
+
+              <DataGridTextColumn Header="Name"
+                                   Binding="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=LostFocus}">
+                <DataGridTextColumn.ElementStyle>
+                  <Style TargetType="TextBlock">
+                    <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                    <Setter Property="ToolTip" Value="{Binding Name}"/>
+                  </Style>
+                </DataGridTextColumn.ElementStyle>
+              </DataGridTextColumn>
+
+              <DataGridTemplateColumn Header="Status">
+                <DataGridTemplateColumn.CellTemplate>
+                  <DataTemplate>
+                    <TextBlock Text="{Binding Status}"
+                               Style="{DynamicResource InterfaceStatusTextStyle}"/>
+                  </DataTemplate>
+                </DataGridTemplateColumn.CellTemplate>
+              </DataGridTemplateColumn>
+
+              <DataGridTextColumn Header="VLAN"
+                                   Binding="{Binding VLAN, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
+
+              <DataGridTextColumn Header="Duplex" Binding="{Binding Duplex}">
+                <DataGridTextColumn.ElementStyle>
+                  <DynamicResource ResourceKey="DuplexTextStyle"/>
+                </DataGridTextColumn.ElementStyle>
+              </DataGridTextColumn>
+
+              <DataGridTextColumn Header="Speed" Binding="{Binding Speed}"/>
+
+              <DataGridTextColumn Header="Type" Binding="{Binding Type}"/>
+
+              <DataGridTextColumn Header="LearnedMACs" Binding="{Binding LearnedMACs}" Width="160">
+                <DataGridTextColumn.ElementStyle>
+                  <Style TargetType="TextBlock">
+                    <Setter Property="TextWrapping" Value="NoWrap"/>
+                    <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                    <Setter Property="ToolTip" Value="{Binding LearnedMACs}"/>
+                  </Style>
+                </DataGridTextColumn.ElementStyle>
+              </DataGridTextColumn>
+
+              <DataGridTextColumn Header="AuthState" Binding="{Binding AuthState}">
+                <DataGridTextColumn.ElementStyle>
+                  <DynamicResource ResourceKey="AuthStateTextStyle"/>
+                </DataGridTextColumn.ElementStyle>
+              </DataGridTextColumn>
+
+              <DataGridTextColumn Header="AuthMode" Binding="{Binding AuthMode}"/>
+
+              <DataGridTextColumn Header="AuthClientMAC" Binding="{Binding AuthClientMAC}">
+                <DataGridTextColumn.ElementStyle>
+                  <Style TargetType="TextBlock">
+                    <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+                    <Setter Property="ToolTip" Value="{Binding AuthClientMAC}"/>
+                  </Style>
+                </DataGridTextColumn.ElementStyle>
+              </DataGridTextColumn>
+            </DataGrid.Columns>
+          </DataGrid>
+
+          <Border Name="InterfacesEmptyStatePanel" HorizontalAlignment="Center" VerticalAlignment="Center"
+                  Background="{DynamicResource Theme.Surface.Secondary}" Padding="30,20" CornerRadius="8"
+                  Visibility="Collapsed">
+            <StackPanel>
+              <TextBlock Text="No Interfaces" FontSize="18" FontWeight="Bold"
+                         Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Center"/>
+              <TextBlock Text="Select a device from the sidebar to view interfaces"
+                         Foreground="{DynamicResource Theme.Text.Muted}" HorizontalAlignment="Center" Margin="0,5,0,0"/>
+            </StackPanel>
+          </Border>
+
+          <Border Name="InterfacesLoadingIndicator" Style="{DynamicResource LoadingIndicatorStyle}">
+            <StackPanel>
+              <TextBlock Text="Loading interfaces..." Style="{DynamicResource LoadingTextStyle}"/>
+              <ProgressBar Style="{DynamicResource LoadingProgressStyle}"/>
+            </StackPanel>
+          </Border>
+
+          <!-- Scroll navigation buttons -->
+          <StackPanel HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,25,10" Orientation="Vertical">
+            <Button Name="ScrollTopButton" Content="▲" Width="28" Height="28" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Scroll to top" Margin="0,0,0,3" FontSize="10"/>
+            <Button Name="ScrollBottomButton" Content="▼" Width="28" Height="28" Style="{DynamicResource SecondaryButtonStyle}" ToolTip="Scroll to bottom" FontSize="10"/>
+          </StackPanel>
+        </Grid>
+
+        <Grid Grid.Row="3" Margin="5,4,5,0">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+          </Grid.RowDefinitions>
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="Auto"/>
+          </Grid.ColumnDefinitions>
+          <StackPanel Orientation="Horizontal">
+            <TextBlock Name="PortStatusSummary"
+                       Text=""
+                       Foreground="{DynamicResource Theme.Text.Muted}"
+                       FontSize="11"
+                       VerticalAlignment="Center"
+                       Margin="0,0,15,0"/>
+            <!-- Status color legend -->
+            <StackPanel Name="StatusLegend" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,15,0">
+              <Ellipse Width="8" Height="8" Fill="#4CAF50" Margin="0,0,3,0" VerticalAlignment="Center"/>
+              <TextBlock Text="Up" Foreground="{DynamicResource Theme.Text.Muted}" FontSize="10" VerticalAlignment="Center" Margin="0,0,8,0"/>
+              <Ellipse Width="8" Height="8" Fill="#F44336" Margin="0,0,3,0" VerticalAlignment="Center"/>
+              <TextBlock Text="Down" Foreground="{DynamicResource Theme.Text.Muted}" FontSize="10" VerticalAlignment="Center" Margin="0,0,8,0"/>
+              <Ellipse Width="8" Height="8" Fill="#FFA500" Margin="0,0,3,0" VerticalAlignment="Center"/>
+              <TextBlock Text="Changed" Foreground="{DynamicResource Theme.Text.Muted}" FontSize="10" VerticalAlignment="Center" Margin="0,0,8,0"/>
+              <Ellipse Width="8" Height="8" Fill="#9E9E9E" Margin="0,0,3,0" VerticalAlignment="Center"/>
+              <TextBlock Text="Other" Foreground="{DynamicResource Theme.Text.Muted}" FontSize="10" VerticalAlignment="Center"/>
+            </StackPanel>
+            <TextBlock Name="HostLoadingIndicator"
+                       Text="Loading host..."
+                       Foreground="{DynamicResource Theme.Text.Primary}"
+                       FontSize="12"
+                       Visibility="Collapsed"
+                       VerticalAlignment="Center"/>
+          </StackPanel>
+          <TextBlock Name="PortLoadingIndicator"
+                     Grid.Row="1"
+                     Text="Loading ports..."
+                     Foreground="{DynamicResource Theme.Text.Primary}"
+                     FontSize="12"
+                     Visibility="Collapsed"
+                     VerticalAlignment="Center"/>
+          <TextBlock Name="InterfacesLastUpdatedText"
+                     Grid.RowSpan="2"
+                     Grid.Column="1"
+                     Text=""
+                     Foreground="{DynamicResource Theme.Text.Muted}"
+                     FontSize="11"
+                     VerticalAlignment="Center"
+                     Margin="0,0,10,0"/>
+          <ProgressBar Name="PortLoadingProgress"
+                       Grid.RowSpan="2"
+                       Grid.Column="2"
+                       Width="140"
+                       Height="8"
+                       Margin="12,0,0,0"
+                       Minimum="0"
+                       Maximum="1"
+                       Visibility="Collapsed"/>
+        </Grid>
+    </Grid>
+  </Grid>
+</UserControl>

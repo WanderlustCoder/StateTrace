@@ -1,0 +1,248 @@
+Set-StrictMode -Version Latest
+
+# === Column Width Persistence (shared with SearchInterfacesViewModule pattern) ===
+
+function script:Get-ColumnWidths {
+    param([string]$GridName)
+    $widths = @{}
+    try {
+        $settings = $null
+        try { $settings = MainWindow.Services\Load-StateTraceSettings } catch { $settings = $null }
+        if ($settings -and $settings.ContainsKey('ColumnWidths') -and $settings['ColumnWidths'].ContainsKey($GridName)) {
+            $widths = $settings['ColumnWidths'][$GridName]
+            if (-not $widths) { $widths = @{} }
+        }
+    } catch { Write-Verbose "Caught exception in AlertsViewModule.psm1: $($_.Exception.Message)" }
+    return $widths
+}
+
+function script:Save-ColumnWidths {
+    param([string]$GridName, [hashtable]$Widths)
+    if ([string]::IsNullOrWhiteSpace($GridName)) { return }
+    try {
+        $settings = $null
+        try { $settings = MainWindow.Services\Load-StateTraceSettings } catch { $settings = @{} }
+        if (-not $settings) { $settings = @{} }
+        if (-not $settings.ContainsKey('ColumnWidths')) { $settings['ColumnWidths'] = @{} }
+        $settings['ColumnWidths'][$GridName] = $Widths
+        MainWindow.Services\Save-StateTraceSettings -Settings $settings
+    } catch { Write-Verbose "Caught exception in AlertsViewModule.psm1: $($_.Exception.Message)" }
+}
+
+function script:Apply-ColumnWidths {
+    param($DataGrid, [string]$GridName)
+    if (-not $DataGrid) { return }
+    $widths = script:Get-ColumnWidths -GridName $GridName
+    if (-not $widths -or $widths.Count -eq 0) { return }
+    foreach ($col in $DataGrid.Columns) {
+        $header = $col.Header
+        if ($header -and $widths.ContainsKey($header)) {
+            try { $col.Width = [double]$widths[$header] } catch { Write-Verbose "Caught exception in AlertsViewModule.psm1: $($_.Exception.Message)" }
+        }
+    }
+}
+
+function script:Wire-ColumnWidthPersistence {
+    param($DataGrid, [string]$GridName)
+    if (-not $DataGrid) { return }
+
+    $saveAction = {
+        $widths = @{}
+        foreach ($col in $DataGrid.Columns) {
+            $header = $col.Header
+            if ($header) { $widths[$header] = $col.ActualWidth }
+        }
+        script:Save-ColumnWidths -GridName $GridName -Widths $widths
+    }.GetNewClosure()
+
+    # Use ColumnHeaderDragCompleted which fires after column resize
+    $DataGrid.Add_ColumnHeaderDragCompleted({
+        param($sender, $e)
+        & $saveAction
+    })
+    # Also save on column reorder
+    $DataGrid.Add_ColumnReordered({
+        param($sender, $e)
+        & $saveAction
+    })
+}
+
+function New-AlertsView {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][System.Windows.Window]$Window,
+        [Parameter(Mandatory=$true)][string]$ScriptDir,
+        [switch]$SuppressDialogs
+    )
+    try {
+        $alertsView = ViewCompositionModule\Set-StView -Window $Window -ScriptDir $ScriptDir -ViewName 'AlertsView' -HostControlName 'AlertsHost' -GlobalVariableName 'alertsView'
+        if (-not $alertsView) { return }
+
+        $alertsGrid = $alertsView.FindName('AlertsGrid')
+        $rowCountText = $alertsView.FindName('AlertsRowCountText')
+        $statusText = $alertsView.FindName('AlertsStatusText')
+
+        # Helper to update row count display
+        $updateRowCount = {
+            if ($rowCountText -and $alertsGrid) {
+                $count = 0
+                if ($alertsGrid.ItemsSource) {
+                    $count = @($alertsGrid.ItemsSource).Count
+                }
+                $rowCountText.Text = "$count alert$(if ($count -ne 1) { 's' })"
+            }
+        }.GetNewClosure()
+
+        # Helper to show timed status message (auto-clears after delay)
+        $showStatus = {
+            param([string]$Message, [int]$DurationMs = 3000)
+            if ($statusText) {
+                $statusText.Text = $Message
+                $timer = New-Object System.Windows.Threading.DispatcherTimer
+                $timer.Interval = [TimeSpan]::FromMilliseconds($DurationMs)
+                $timer.Add_Tick({
+                    $statusText.Text = ''
+                    $timer.Stop()
+                }.GetNewClosure())
+                $timer.Start()
+            }
+        }.GetNewClosure()
+
+        # Wire up ItemsSource changes to update row count
+        if ($alertsGrid) {
+            $dpd = [System.ComponentModel.DependencyPropertyDescriptor]::FromProperty(
+                [System.Windows.Controls.ItemsControl]::ItemsSourceProperty,
+                [System.Windows.Controls.DataGrid])
+            if ($dpd) {
+                $dpd.AddValueChanged($alertsGrid, {
+                    & $updateRowCount
+                }.GetNewClosure())
+            }
+        }
+
+        try {
+            DeviceInsightsModule\Update-AlertsAsync
+        } catch [System.Management.Automation.CommandNotFoundException] {
+            try { DeviceInsightsModule\Update-Alerts } catch [System.Management.Automation.CommandNotFoundException] { }
+        }
+        & $updateRowCount
+
+        $expAlertsBtn = $alertsView.FindName('ExportAlertsButton')
+        if ($expAlertsBtn) {
+            $expAlertsBtn.Add_Click({
+                $grid = $alertsView.FindName('AlertsGrid')
+                if (-not $grid) { return }
+                $rows = @($grid.ItemsSource)
+                if ($rows.Count -eq 0) {
+                    if (-not $SuppressDialogs) {
+                        [System.Windows.MessageBox]::Show('No alerts to export.', 'Export', 'OK', 'Information') | Out-Null
+                    }
+                    return
+                }
+                # Confirm large exports
+                if ($rows.Count -gt 500 -and -not $SuppressDialogs) {
+                    $result = [System.Windows.MessageBox]::Show(
+                        "Export $($rows.Count) alerts?",
+                        'Confirm Export',
+                        [System.Windows.MessageBoxButton]::YesNo,
+                        [System.Windows.MessageBoxImage]::Question
+                    )
+                    if ($result -ne [System.Windows.MessageBoxResult]::Yes) { return }
+                }
+                ViewCompositionModule\Export-StRowsWithFormatChoice -Rows $rows -DefaultBaseName 'Alerts' -EmptyMessage 'No alerts to export.' -SuccessNoun 'alerts' -FailureMessagePrefix 'Failed to export alerts' -SuppressDialogs:$SuppressDialogs
+            })
+        }
+
+        # Context menu handlers
+        if ($alertsGrid -and $alertsGrid.ContextMenu) {
+            $contextMenu = $alertsGrid.ContextMenu
+            $copyRowItem = $contextMenu.Items | Where-Object { $_.Name -eq 'CopyRowMenuItem' } | Select-Object -First 1
+            $copyCellItem = $contextMenu.Items | Where-Object { $_.Name -eq 'CopyCellMenuItem' } | Select-Object -First 1
+            $copyAllItem = $contextMenu.Items | Where-Object { $_.Name -eq 'CopyAllMenuItem' } | Select-Object -First 1
+            $exportSelectedItem = $contextMenu.Items | Where-Object { $_.Name -eq 'ExportSelectedMenuItem' } | Select-Object -First 1
+
+            if ($copyRowItem) {
+                $copyRowItem.Add_Click({
+                    $selected = $alertsGrid.SelectedItems
+                    if ($selected.Count -eq 0) { return }
+                    $text = ($selected | ForEach-Object {
+                        "$($_.Hostname)`t$($_.Port)`t$($_.Name)`t$($_.Status)`t$($_.VLAN)`t$($_.Duplex)`t$($_.AuthState)`t$($_.Reason)"
+                    }) -join "`r`n"
+                    [System.Windows.Clipboard]::SetText($text)
+                    & $showStatus "Copied $($selected.Count) row$(if ($selected.Count -ne 1) { 's' })"
+                }.GetNewClosure())
+            }
+            if ($copyCellItem) {
+                $copyCellItem.Add_Click({
+                    $cell = $alertsGrid.CurrentCell
+                    if ($null -eq $cell -or $null -eq $cell.Item) { return }
+                    $propName = $cell.Column.SortMemberPath
+                    if (-not $propName) { $propName = $cell.Column.Header }
+                    $value = $cell.Item.$propName
+                    if ($null -ne $value) {
+                        [System.Windows.Clipboard]::SetText([string]$value)
+                        & $showStatus "Copied cell value"
+                    }
+                }.GetNewClosure())
+            }
+            if ($copyAllItem) {
+                $copyAllItem.Add_Click({
+                    $rows = $alertsGrid.ItemsSource
+                    if (-not $rows -or $rows.Count -eq 0) { return }
+                    $header = "Switch`tPort`tName`tStatus`tVLAN`tDuplex`tAuthState`tReason"
+                    $lines = @($header) + ($rows | ForEach-Object {
+                        "$($_.Hostname)`t$($_.Port)`t$($_.Name)`t$($_.Status)`t$($_.VLAN)`t$($_.Duplex)`t$($_.AuthState)`t$($_.Reason)"
+                    })
+                    [System.Windows.Clipboard]::SetText($lines -join "`r`n")
+                    & $showStatus "Copied all $(@($rows).Count) rows"
+                }.GetNewClosure())
+            }
+            if ($exportSelectedItem) {
+                $exportSelectedItem.Add_Click({
+                    $selected = @($alertsGrid.SelectedItems)
+                    if ($selected.Count -eq 0) {
+                        [System.Windows.MessageBox]::Show('No rows selected.', 'Export', 'OK', 'Information') | Out-Null
+                        return
+                    }
+                    ViewCompositionModule\Export-StRowsWithFormatChoice -Rows $selected -DefaultBaseName 'Alerts_Selected' -EmptyMessage 'No rows selected.' -SuccessNoun 'alerts' -FailureMessagePrefix 'Failed to export' -SuppressDialogs:$SuppressDialogs
+                }.GetNewClosure())
+            }
+        }
+
+        # Keyboard shortcuts
+        if ($alertsView) {
+            $alertsView.Add_PreviewKeyDown({
+                param($sender, $e)
+                if ($e.Key -eq 'C' -and [System.Windows.Input.Keyboard]::Modifiers -eq 'Control') {
+                    # Ctrl+C - Copy selected rows
+                    $selected = $alertsGrid.SelectedItems
+                    if ($selected.Count -gt 0) {
+                        $text = ($selected | ForEach-Object {
+                            "$($_.Hostname)`t$($_.Port)`t$($_.Name)`t$($_.Status)`t$($_.Reason)"
+                        }) -join "`r`n"
+                        [System.Windows.Clipboard]::SetText($text)
+                        $e.Handled = $true
+                    }
+                }
+                elseif ($e.Key -eq 'E' -and [System.Windows.Input.Keyboard]::Modifiers -eq 'Control') {
+                    # Ctrl+E - Export
+                    if ($expAlertsBtn) { $expAlertsBtn.RaiseEvent((New-Object System.Windows.RoutedEventArgs([System.Windows.Controls.Primitives.ButtonBase]::ClickEvent))) }
+                    $e.Handled = $true
+                }
+            }.GetNewClosure())
+        }
+
+        # Column width persistence
+        if ($alertsGrid) {
+            script:Apply-ColumnWidths -DataGrid $alertsGrid -GridName 'AlertsGrid'
+            script:Wire-ColumnWidthPersistence -DataGrid $alertsGrid -GridName 'AlertsGrid'
+        }
+    } catch {
+        Write-Warning "Failed to initialize Alerts view: $($_.Exception.Message)"
+    }
+}
+
+Export-ModuleMember -Function New-AlertsView
+
+
+

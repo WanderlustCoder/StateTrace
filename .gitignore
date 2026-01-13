@@ -23,6 +23,9 @@ Logs/
 !Logs/Research/DiffPrototype/
 !Logs/Research/DiffPrototype/metrics.csv
 
+# Screenshots
+Screenshots/
+
 # Backup files
 *.bak
 **/backup-*/

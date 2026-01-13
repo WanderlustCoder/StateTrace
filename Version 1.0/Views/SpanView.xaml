@@ -1,0 +1,89 @@
+<UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <Grid Background="{DynamicResource Theme.Window.Background}">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <StackPanel Orientation="Horizontal" Margin="5" Grid.Row="0" VerticalAlignment="Center" >
+      <Button Name="RefreshSpanButton"
+              Content="Refresh"
+              Width="80"
+              Margin="0,0,10,0" Style="{DynamicResource PrimaryButtonStyle}"/>
+
+      <Button Name="SpanDiagnosticsButton"
+              Content="Inspect"
+              Width="80"
+              Margin="0,0,10,0"
+              Style="{DynamicResource SecondaryButtonStyle}"/>
+
+      <Label Content="VLAN:" VerticalAlignment="Center" Margin="0,0,5,0" Foreground="{DynamicResource Theme.Text.Primary}"/>
+      <ComboBox Name="VlanDropdown" Width="100" Style="{DynamicResource ToolbarComboBoxStyle}"/>
+
+      <TextBlock Name="SpanStatusLabel"
+                 Margin="10,0,0,0"
+                 VerticalAlignment="Center"
+                 Foreground="{DynamicResource Theme.Text.Primary}"
+                 Text="No spanning-tree data loaded."/>
+    </StackPanel>
+
+    <Grid Grid.Row="1">
+      <DataGrid Name="SpanGrid"
+                AutoGenerateColumns="False"
+                CanUserAddRows="False"
+                IsReadOnly="True"
+                Margin="5"
+                Style="{DynamicResource PrimaryDataGridStyle}"
+                ScrollViewer.VerticalScrollBarVisibility="Auto"
+                ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                ScrollViewer.IsDeferredScrollingEnabled="True"
+                VirtualizingPanel.IsVirtualizing="True"
+                VirtualizingPanel.VirtualizationMode="Recycling"
+                EnableRowVirtualization="True"
+                EnableColumnVirtualization="True"
+                ScrollViewer.CanContentScroll="True"
+                VirtualizingPanel.ScrollUnit="Pixel">
+        <DataGrid.RowStyle>
+          <DynamicResource ResourceKey="PrimaryDataGridRowStyle"/>
+        </DataGrid.RowStyle>
+        <DataGrid.Columns>
+          <DataGridTextColumn Header="Instance" Binding="{Binding VLAN}" Width="80"/>
+          <DataGridTextColumn Header="Root Switch" Binding="{Binding RootSwitch}" Width="150"/>
+          <DataGridTextColumn Header="Root Port" Binding="{Binding RootPort}" Width="80"/>
+          <DataGridTextColumn Header="Role" Binding="{Binding Role}" Width="80"/>
+          <DataGridTextColumn Header="Upstream" Binding="{Binding Upstream}" Width="150"/>
+          <DataGridTextColumn Header="Last Updated" Binding="{Binding LastUpdated}" Width="140"/>
+        </DataGrid.Columns>
+      </DataGrid>
+
+      <Border Name="SpanEmptyStatePanel" HorizontalAlignment="Center" VerticalAlignment="Center"
+              Background="{DynamicResource Theme.Surface.Secondary}" Padding="30,20" CornerRadius="8"
+              Visibility="Collapsed">
+        <StackPanel>
+          <TextBlock Text="No Spanning Tree Data" FontSize="18" FontWeight="Bold"
+                     Foreground="{DynamicResource Theme.Text.Primary}" HorizontalAlignment="Center"/>
+          <TextBlock Text="Click Refresh to load spanning tree information"
+                     Foreground="{DynamicResource Theme.Text.Muted}" HorizontalAlignment="Center" Margin="0,5,0,0"/>
+        </StackPanel>
+      </Border>
+
+      <Border Name="SpanLoadingIndicator" Style="{DynamicResource LoadingIndicatorStyle}">
+        <StackPanel>
+          <TextBlock Text="Loading spanning tree data..." Style="{DynamicResource LoadingTextStyle}"/>
+          <ProgressBar Style="{DynamicResource LoadingProgressStyle}"/>
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <TextBlock Name="SpanSamplePreview"
+               Grid.Row="2"
+               Margin="5,0,5,5"
+               Foreground="{DynamicResource Theme.Text.Primary}"
+               TextWrapping="Wrap"
+               FontStyle="Italic"
+               Text="Sample preview not loaded."/>
+  </Grid>
+</UserControl>

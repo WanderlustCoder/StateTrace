@@ -1,0 +1,48 @@
+{
+  "name": "Blue Angels",
+  "extends": "base",
+  "inspiration": {
+    "group": "US Navy Flight Demonstration Squadron",
+    "palette": [
+      "#001F3F",
+      "#FFD700",
+      "#EAF0F8"
+    ],
+    "notes": "Deep navy hulls with gold trim; keep high contrast for cockpits and bright skies."
+  },
+  "contrastTargets": {
+    "Theme.Toolbar.Text|Theme.Toolbar.Background": 7.5,
+    "Theme.Button.Primary.Text|Theme.Button.Primary.Background": 4.5,
+    "Theme.Button.Secondary.Text|Theme.Button.Secondary.Background": 4.5
+  },
+  "tokens": {
+    "Theme.Toolbar.Background": "#001F3F",
+    "Theme.Toolbar.Text": "#FFD700",
+    "Theme.Surface.Primary": "#001F3F",
+    "Theme.Surface.Primary.Text": "#FFD700",
+    "Theme.Button.Secondary.Background": "#001F3F",
+    "Theme.Button.Secondary.HoverBackground": "#002B66",
+    "Theme.Button.Secondary.PressedBackground": "#001433",
+    "Theme.Button.Icon.Foreground": "#FFD700",
+    "Theme.Button.Icon.HoverForeground": "#FFEA70",
+    "Theme.DataGrid.Background": "#EAF0F8",
+    "Theme.DataGrid.Row": "#EAF0F8",
+    "Theme.DataGrid.RowAlt": "#D6E4F5",
+    "Theme.DataGrid.Border": "#001F3F",
+    "Theme.DataGrid.HeaderBackground": "#001F3F",
+    "Theme.DataGrid.HeaderText": "#FFD700",
+    "Theme.DataGrid.SelectionBackground": "#FFD700",
+    "Theme.DataGrid.SelectionText": "#001F3F",
+    "Theme.DataGrid.HoverBackground": "#C9DAF0",
+    "Theme.Status.Info": "#1E90FF",
+    "Theme.Template.Blue": "#1E90FF",
+    "Theme.Template.Purple": "#6A0DAD",
+    "Theme.Tab.Background": "#FFD700",
+    "Theme.Tab.Text": "#001F3F",
+    "Theme.Tab.HoverBackground": "#FFEA70",
+    "Theme.Tab.HoverText": "#001F3F",
+    "Theme.Tab.SelectedBackground": "#001F3F",
+    "Theme.Tab.SelectedText": "#FFD700",
+    "Theme.Tab.Border": "#FFD700"
+  }
+}

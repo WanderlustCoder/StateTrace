@@ -1,0 +1,477 @@
+<UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Name="ChangeManagementViewControl"
+             Background="{DynamicResource Theme.Window.Background}">
+
+  <Grid Margin="10">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/>
+      <RowDefinition Height="*"/>
+      <RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+
+    <!-- Header with summary cards -->
+    <Grid Grid.Row="0" Margin="0,0,0,10">
+      <Grid.ColumnDefinitions>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="*"/>
+        <ColumnDefinition Width="*"/>
+      </Grid.ColumnDefinitions>
+
+      <!-- Total Changes Card -->
+      <Border Grid.Column="0" Background="{DynamicResource Theme.Surface.Secondary}" CornerRadius="5" Padding="10" Margin="0,0,5,0">
+        <StackPanel>
+          <TextBlock Text="Total Changes" Style="{DynamicResource SubtitleStyle}" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+          <TextBlock Name="TotalChangesCount" Text="0" FontSize="28" FontWeight="Bold" Foreground="{DynamicResource Theme.Text.Primary}"/>
+        </StackPanel>
+      </Border>
+
+      <!-- In Progress Card -->
+      <Border Grid.Column="1" Background="{DynamicResource Theme.Surface.Secondary}" CornerRadius="5" Padding="10" Margin="5,0">
+        <StackPanel>
+          <TextBlock Text="In Progress" Style="{DynamicResource SubtitleStyle}" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+          <TextBlock Name="InProgressCount" Text="0" FontSize="28" FontWeight="Bold" Foreground="{DynamicResource Theme.Status.Info}"/>
+        </StackPanel>
+      </Border>
+
+      <!-- Pending Approval Card -->
+      <Border Grid.Column="2" Background="{DynamicResource Theme.Surface.Secondary}" CornerRadius="5" Padding="10" Margin="5,0">
+        <StackPanel>
+          <TextBlock Text="Pending Approval" Style="{DynamicResource SubtitleStyle}" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+          <TextBlock Name="PendingApprovalCount" Text="0" FontSize="28" FontWeight="Bold" Foreground="{DynamicResource Theme.Status.Warning}"/>
+        </StackPanel>
+      </Border>
+
+      <!-- Scheduled Windows Card -->
+      <Border Grid.Column="3" Background="{DynamicResource Theme.Surface.Secondary}" CornerRadius="5" Padding="10" Margin="5,0">
+        <StackPanel>
+          <TextBlock Text="Maint. Windows" Style="{DynamicResource SubtitleStyle}" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+          <TextBlock Name="MaintenanceWindowsCount" Text="0" FontSize="28" FontWeight="Bold" Foreground="{DynamicResource Theme.Template.Purple}"/>
+        </StackPanel>
+      </Border>
+
+      <!-- Success Rate Card -->
+      <Border Grid.Column="4" Background="{DynamicResource Theme.Surface.Secondary}" CornerRadius="5" Padding="10" Margin="5,0,0,0">
+        <StackPanel>
+          <TextBlock Text="Success Rate" Style="{DynamicResource SubtitleStyle}" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+          <TextBlock Name="SuccessRateText" Text="--%" FontSize="28" FontWeight="Bold" Foreground="{DynamicResource Theme.Status.Success}"/>
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <!-- Toolbar -->
+    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
+      <Button Name="NewChangeButton" Content="New Change" Style="{DynamicResource PrimaryButtonStyle}" Margin="0,0,5,0" Width="100"/>
+      <Button Name="EditChangeButton" Content="Edit" Style="{DynamicResource SecondaryButtonStyle}" Margin="0,0,5,0" Width="60"/>
+      <Button Name="SubmitChangeButton" Content="Submit" Style="{DynamicResource SecondaryButtonStyle}" Margin="0,0,5,0" Width="70"/>
+      <Button Name="ApproveChangeButton" Content="Approve" Style="{DynamicResource SecondaryButtonStyle}" Margin="0,0,5,0" Width="70"/>
+
+      <Separator Margin="10,0"/>
+
+      <Button Name="StartChangeButton" Content="Start" Style="{DynamicResource SecondaryButtonStyle}" Margin="0,0,5,0" Width="60"/>
+      <Button Name="CompleteChangeButton" Content="Complete" Style="{DynamicResource SecondaryButtonStyle}" Margin="0,0,5,0" Width="80"/>
+      <Button Name="RollbackChangeButton" Content="Rollback" Style="{DynamicResource SecondaryButtonStyle}" Margin="0,0,5,0" Width="80" Foreground="{DynamicResource Theme.Status.Danger}" ToolTip="Warning: This will attempt to revert the change. This action may not be fully reversible."/>
+
+      <Separator Margin="10,0"/>
+
+      <Label Content="Filter:" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
+      <ComboBox Name="StatusFilterDropdown" Width="110" Margin="5,0" Style="{DynamicResource ToolbarComboBoxStyle}"/>
+      <ComboBox Name="TypeFilterDropdown" Width="90" Margin="5,0" Style="{DynamicResource ToolbarComboBoxStyle}"/>
+      <TextBox Name="SearchBox" Width="150" Margin="5,0" Style="{DynamicResource ToolbarTextBoxStyle}" ToolTip="Search by title or ID"/>
+      <Button Name="ClearFilterButton" Content="Clear" Style="{DynamicResource SecondaryButtonStyle}" Margin="5,0" Width="60"/>
+
+      <Separator Margin="10,0"/>
+
+      <Button Name="RefreshButton" Content="Refresh" Style="{DynamicResource SecondaryButtonStyle}" Width="70"/>
+    </StackPanel>
+
+    <!-- Main content tabs -->
+    <TabControl Grid.Row="2">
+      <!-- Changes Tab -->
+      <TabItem Header="Changes">
+        <Grid Background="{DynamicResource Theme.Surface.Secondary}">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="2*"/>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*"/>
+          </Grid.ColumnDefinitions>
+
+          <!-- Change Request Grid -->
+          <DataGrid Name="ChangesGrid" Grid.Column="0"
+                    AutoGenerateColumns="False"
+                    IsReadOnly="True"
+                    SelectionMode="Single"
+                    SelectionUnit="FullRow"
+                    GridLinesVisibility="Horizontal"
+                    HeadersVisibility="Column"
+                    CanUserSortColumns="True"
+                    Style="{DynamicResource DataGridStyle}"
+                    ScrollViewer.IsDeferredScrollingEnabled="True"
+                    VirtualizingPanel.IsVirtualizing="True"
+                    VirtualizingPanel.VirtualizationMode="Recycling"
+                    EnableRowVirtualization="True">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Change ID" Binding="{Binding ChangeID}" Width="130"/>
+              <DataGridTextColumn Header="Title" Binding="{Binding Title}" Width="*" MinWidth="200"/>
+              <DataGridTextColumn Header="Type" Binding="{Binding ChangeType}" Width="80"/>
+              <DataGridTextColumn Header="Risk" Binding="{Binding RiskLevel}" Width="70"/>
+              <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="90"/>
+              <DataGridTextColumn Header="Requested By" Binding="{Binding RequestedBy}" Width="100"/>
+              <DataGridTextColumn Header="Planned Start" Binding="{Binding PlannedStart, StringFormat={}{0:yyyy-MM-dd HH:mm}}" Width="130"/>
+              <DataGridTextColumn Header="Created" Binding="{Binding CreatedDate, StringFormat={}{0:yyyy-MM-dd}}" Width="90"/>
+            </DataGrid.Columns>
+          </DataGrid>
+
+          <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Center" VerticalAlignment="Stretch"
+                        Background="{DynamicResource Theme.Surface.Secondary}"/>
+
+          <!-- Change Details Panel -->
+          <Border Grid.Column="2" Background="{DynamicResource Theme.Surface.Secondary}" CornerRadius="5" Padding="10" Margin="5,0,0,0">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+              <StackPanel Name="ChangeDetailsPanel">
+                <TextBlock Text="Change Details" FontWeight="Bold" FontSize="14" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
+
+                <TextBlock Text="Change ID:" Foreground="{DynamicResource Theme.Text.Secondary}" FontSize="11"/>
+                <TextBlock Name="DetailChangeID" Text="--" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,8"/>
+
+                <TextBlock Text="Title:" Foreground="{DynamicResource Theme.Text.Secondary}" FontSize="11"/>
+                <TextBlock Name="DetailTitle" Text="--" Foreground="{DynamicResource Theme.Text.Primary}" TextWrapping="Wrap" Margin="0,0,0,8"/>
+
+                <TextBlock Text="Description:" Foreground="{DynamicResource Theme.Text.Secondary}" FontSize="11"/>
+                <TextBlock Name="DetailDescription" Text="--" Foreground="{DynamicResource Theme.Text.Primary}" TextWrapping="Wrap" Margin="0,0,0,8"/>
+
+                <TextBlock Text="Status:" Foreground="{DynamicResource Theme.Text.Secondary}" FontSize="11"/>
+                <TextBlock Name="DetailStatus" Text="--" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,8"/>
+
+                <TextBlock Text="Type / Risk:" Foreground="{DynamicResource Theme.Text.Secondary}" FontSize="11"/>
+                <TextBlock Name="DetailTypeRisk" Text="--" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,8"/>
+
+                <TextBlock Text="Requested By:" Foreground="{DynamicResource Theme.Text.Secondary}" FontSize="11"/>
+                <TextBlock Name="DetailRequestedBy" Text="--" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,8"/>
+
+                <TextBlock Text="Approved By:" Foreground="{DynamicResource Theme.Text.Secondary}" FontSize="11"/>
+                <TextBlock Name="DetailApprovedBy" Text="--" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,8"/>
+
+                <TextBlock Text="Planned Window:" Foreground="{DynamicResource Theme.Text.Secondary}" FontSize="11"/>
+                <TextBlock Name="DetailPlannedWindow" Text="--" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,8"/>
+
+                <TextBlock Text="Affected Devices:" Foreground="{DynamicResource Theme.Text.Secondary}" FontSize="11"/>
+                <TextBlock Name="DetailAffectedDevices" Text="--" Foreground="{DynamicResource Theme.Text.Primary}" TextWrapping="Wrap" Margin="0,0,0,8"/>
+
+                <Separator Margin="0,5"/>
+
+                <TextBlock Text="Implementation Steps" FontWeight="Bold" FontSize="12" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,5,0,5"/>
+                <ListBox Name="StepsList" MaxHeight="150" Background="Transparent" BorderThickness="0"
+                         VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                         ScrollViewer.CanContentScroll="True"/>
+
+                <Separator Margin="0,5"/>
+
+                <TextBlock Text="Notes:" Foreground="{DynamicResource Theme.Text.Secondary}" FontSize="11"/>
+                <TextBlock Name="DetailNotes" Text="--" Foreground="{DynamicResource Theme.Text.Primary}" TextWrapping="Wrap"/>
+              </StackPanel>
+            </ScrollViewer>
+          </Border>
+
+          <!-- Loading indicator -->
+          <Border Name="ChangesLoadingIndicator" Style="{DynamicResource LoadingIndicatorStyle}">
+            <StackPanel>
+              <TextBlock Text="Loading changes..." Style="{DynamicResource LoadingTextStyle}"/>
+              <ProgressBar Style="{DynamicResource LoadingProgressStyle}"/>
+            </StackPanel>
+          </Border>
+        </Grid>
+      </TabItem>
+
+      <!-- Maintenance Windows Tab -->
+      <TabItem Header="Maintenance Windows">
+        <Grid Background="{DynamicResource Theme.Surface.Secondary}">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+
+          <!-- Maintenance Windows Toolbar -->
+          <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,5,0,10">
+            <Button Name="NewMaintenanceWindowButton" Content="New Window" Style="{DynamicResource PrimaryButtonStyle}" Margin="0,0,5,0" Width="100"/>
+            <Button Name="EditMaintenanceWindowButton" Content="Edit" Style="{DynamicResource SecondaryButtonStyle}" Margin="0,0,5,0" Width="60"/>
+            <Button Name="DeleteMaintenanceWindowButton" Content="Delete" Style="{DynamicResource SecondaryButtonStyle}" Margin="0,0,15,0" Width="60" ToolTip="Delete this maintenance window permanently"/>
+
+            <CheckBox Name="ShowPastWindowsCheckbox" Content="Show Past Windows" VerticalAlignment="Center" Margin="10,0"
+                      Foreground="{DynamicResource Theme.Text.Primary}"/>
+            <CheckBox Name="BlackoutOnlyCheckbox" Content="Blackouts Only" VerticalAlignment="Center" Margin="10,0"
+                      Foreground="{DynamicResource Theme.Text.Primary}"/>
+          </StackPanel>
+
+          <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="Auto"/>
+              <ColumnDefinition Width="300"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Maintenance Windows Grid -->
+            <DataGrid Name="MaintenanceWindowsGrid" Grid.Column="0"
+                      AutoGenerateColumns="False"
+                      IsReadOnly="True"
+                      SelectionMode="Single"
+                      SelectionUnit="FullRow"
+                      GridLinesVisibility="Horizontal"
+                      Style="{DynamicResource DataGridStyle}"
+                      ScrollViewer.IsDeferredScrollingEnabled="True"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling"
+                      EnableRowVirtualization="True">
+              <DataGrid.Columns>
+                <DataGridTextColumn Header="Title" Binding="{Binding Title}" Width="*" MinWidth="150"/>
+                <DataGridTextColumn Header="Start" Binding="{Binding StartTime, StringFormat={}{0:yyyy-MM-dd HH:mm}}" Width="130"/>
+                <DataGridTextColumn Header="End" Binding="{Binding EndTime, StringFormat={}{0:yyyy-MM-dd HH:mm}}" Width="130"/>
+                <DataGridTextColumn Header="Scope" Binding="{Binding Scope}" Width="100"/>
+                <DataGridCheckBoxColumn Header="Recurring" Binding="{Binding IsRecurring}" Width="70"/>
+                <DataGridCheckBoxColumn Header="Blackout" Binding="{Binding IsBlackout}" Width="70"/>
+                <DataGridTextColumn Header="Created By" Binding="{Binding CreatedBy}" Width="100"/>
+              </DataGrid.Columns>
+            </DataGrid>
+
+            <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Center" VerticalAlignment="Stretch"
+                          Background="{DynamicResource Theme.Surface.Secondary}"/>
+
+            <!-- Calendar View -->
+            <Border Grid.Column="2" Background="{DynamicResource Theme.Surface.Secondary}" CornerRadius="5" Padding="10" Margin="5,0,0,0">
+              <StackPanel>
+                <TextBlock Text="Upcoming Windows" FontWeight="Bold" FontSize="14" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
+                <Calendar Name="MaintenanceCalendar" HorizontalAlignment="Center"/>
+                <TextBlock Name="SelectedDateInfo" Text="" TextWrapping="Wrap" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,10,0,0"/>
+              </StackPanel>
+            </Border>
+          </Grid>
+        </Grid>
+      </TabItem>
+
+      <!-- Templates Tab -->
+      <TabItem Header="Templates">
+        <Grid Background="{DynamicResource Theme.Surface.Secondary}">
+          <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="*"/>
+          </Grid.ColumnDefinitions>
+
+          <!-- Templates List -->
+          <Border Grid.Column="0" Background="{DynamicResource Theme.Surface.Secondary}" CornerRadius="5" Padding="10" Margin="0,5,5,0">
+            <StackPanel>
+              <TextBlock Text="Available Templates" FontWeight="Bold" FontSize="14" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
+              <ListBox Name="TemplatesList" Height="400" Background="Transparent" BorderThickness="0"
+                       Foreground="{DynamicResource Theme.Text.Primary}"
+                       VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                       ScrollViewer.CanContentScroll="True"/>
+            </StackPanel>
+          </Border>
+
+          <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Center" VerticalAlignment="Stretch"
+                        Background="{DynamicResource Theme.Surface.Secondary}"/>
+
+          <!-- Template Details -->
+          <Border Grid.Column="2" Background="{DynamicResource Theme.Surface.Secondary}" CornerRadius="5" Padding="10" Margin="5,5,0,0">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+              <StackPanel Name="TemplateDetailsPanel">
+                <TextBlock Text="Template Details" FontWeight="Bold" FontSize="14" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,10"/>
+
+                <TextBlock Text="Name:" Foreground="{DynamicResource Theme.Text.Secondary}" FontSize="11"/>
+                <TextBlock Name="TemplateName" Text="--" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,8"/>
+
+                <TextBlock Text="Description:" Foreground="{DynamicResource Theme.Text.Secondary}" FontSize="11"/>
+                <TextBlock Name="TemplateDescription" Text="--" Foreground="{DynamicResource Theme.Text.Primary}" TextWrapping="Wrap" Margin="0,0,0,8"/>
+
+                <TextBlock Text="Type:" Foreground="{DynamicResource Theme.Text.Secondary}" FontSize="11"/>
+                <TextBlock Name="TemplateType" Text="--" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,8"/>
+
+                <TextBlock Text="Default Risk Level:" Foreground="{DynamicResource Theme.Text.Secondary}" FontSize="11"/>
+                <TextBlock Name="TemplateRisk" Text="--" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,8"/>
+
+                <TextBlock Text="Estimated Duration:" Foreground="{DynamicResource Theme.Text.Secondary}" FontSize="11"/>
+                <TextBlock Name="TemplateDuration" Text="--" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,8"/>
+
+                <Separator Margin="0,10"/>
+
+                <TextBlock Text="Steps:" FontWeight="Bold" FontSize="12" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,5"/>
+                <ListBox Name="TemplateStepsList" MaxHeight="200" Background="Transparent" BorderThickness="0"
+                         Foreground="{DynamicResource Theme.Text.Primary}"
+                         VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                         ScrollViewer.CanContentScroll="True"/>
+
+                <Separator Margin="0,10"/>
+
+                <TextBlock Text="Rollback Steps:" FontWeight="Bold" FontSize="12" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,5"/>
+                <ListBox Name="TemplateRollbackList" MaxHeight="100" Background="Transparent" BorderThickness="0"
+                         Foreground="{DynamicResource Theme.Text.Primary}"
+                         VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                         ScrollViewer.CanContentScroll="True"/>
+
+                <Button Name="UseTemplateButton" Content="Create Change from Template" Style="{DynamicResource PrimaryButtonStyle}" Margin="0,15,0,0" HorizontalAlignment="Center"/>
+              </StackPanel>
+            </ScrollViewer>
+          </Border>
+        </Grid>
+      </TabItem>
+
+      <!-- History Tab -->
+      <TabItem Header="History">
+        <Grid Background="{DynamicResource Theme.Surface.Secondary}">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+
+          <!-- History Toolbar -->
+          <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,5,0,10">
+            <Label Content="Change ID:" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
+            <TextBox Name="HistoryChangeIdFilter" Width="150" Margin="5,0" Style="{DynamicResource ToolbarTextBoxStyle}" ToolTip="Filter by Change ID"/>
+            <Button Name="FilterHistoryButton" Content="Filter" Style="{DynamicResource SecondaryButtonStyle}" Margin="5,0" Width="60"/>
+            <Button Name="ClearHistoryFilterButton" Content="Clear" Style="{DynamicResource SecondaryButtonStyle}" Margin="5,0" Width="60"/>
+
+            <Separator Margin="15,0"/>
+
+            <Label Content="Period:" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
+            <ComboBox Name="HistoryPeriodDropdown" Width="120" Margin="5,0" Style="{DynamicResource ToolbarComboBoxStyle}"/>
+          </StackPanel>
+
+          <!-- History Grid -->
+          <DataGrid Name="HistoryGrid" Grid.Row="1"
+                    AutoGenerateColumns="False"
+                    IsReadOnly="True"
+                    SelectionMode="Single"
+                    SelectionUnit="FullRow"
+                    GridLinesVisibility="Horizontal"
+                    Style="{DynamicResource DataGridStyle}"
+                    ScrollViewer.IsDeferredScrollingEnabled="True"
+                    VirtualizingPanel.IsVirtualizing="True"
+                    VirtualizingPanel.VirtualizationMode="Recycling"
+                    EnableRowVirtualization="True">
+            <DataGrid.Columns>
+              <DataGridTextColumn Header="Timestamp" Binding="{Binding Timestamp, StringFormat={}{0:yyyy-MM-dd HH:mm:ss}}" Width="150"/>
+              <DataGridTextColumn Header="Change ID" Binding="{Binding ChangeID}" Width="130"/>
+              <DataGridTextColumn Header="Action" Binding="{Binding Action}" Width="100"/>
+              <DataGridTextColumn Header="Details" Binding="{Binding Details}" Width="*"/>
+              <DataGridTextColumn Header="User" Binding="{Binding User}" Width="100"/>
+            </DataGrid.Columns>
+          </DataGrid>
+        </Grid>
+      </TabItem>
+
+      <!-- Statistics Tab -->
+      <TabItem Header="Statistics">
+        <Grid Background="{DynamicResource Theme.Surface.Secondary}">
+          <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+          </Grid.RowDefinitions>
+
+          <!-- Stats Period Selector -->
+          <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,5,0,10">
+            <Label Content="Period:" VerticalAlignment="Center" Style="{DynamicResource ToolbarLabelStyle}"/>
+            <ComboBox Name="StatsPeriodDropdown" Width="120" Margin="5,0" Style="{DynamicResource ToolbarComboBoxStyle}"/>
+            <Button Name="RefreshStatsButton" Content="Refresh" Style="{DynamicResource SecondaryButtonStyle}" Margin="10,0" Width="70"/>
+          </StackPanel>
+
+          <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <Grid Margin="0,0,0,10">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+              </Grid.RowDefinitions>
+
+              <!-- Summary Stats -->
+              <Border Grid.Column="0" Grid.Row="0" Background="{DynamicResource Theme.Surface.Secondary}" CornerRadius="5" Padding="15" Margin="0,0,5,10">
+                <StackPanel>
+                  <TextBlock Text="Summary Statistics" FontWeight="Bold" FontSize="14" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,15"/>
+
+                  <Grid>
+                    <Grid.ColumnDefinitions>
+                      <ColumnDefinition Width="*"/>
+                      <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                      <RowDefinition Height="Auto"/>
+                      <RowDefinition Height="Auto"/>
+                      <RowDefinition Height="Auto"/>
+                      <RowDefinition Height="Auto"/>
+                      <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Grid.Column="0" Text="Total Changes:" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+                    <TextBlock Name="StatsTotalChanges" Grid.Row="0" Grid.Column="1" Text="0" Foreground="{DynamicResource Theme.Text.Primary}" FontWeight="Bold"/>
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Completed:" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,5,0,0"/>
+                    <TextBlock Name="StatsCompleted" Grid.Row="1" Grid.Column="1" Text="0" Foreground="{DynamicResource Theme.Status.Success}" FontWeight="Bold" Margin="0,5,0,0"/>
+
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Failed:" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,5,0,0"/>
+                    <TextBlock Name="StatsFailed" Grid.Row="2" Grid.Column="1" Text="0" Foreground="{DynamicResource Theme.Status.Danger}" FontWeight="Bold" Margin="0,5,0,0"/>
+
+                    <TextBlock Grid.Row="3" Grid.Column="0" Text="Rolled Back:" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,5,0,0"/>
+                    <TextBlock Name="StatsRolledBack" Grid.Row="3" Grid.Column="1" Text="0" Foreground="{DynamicResource Theme.Status.Warning}" FontWeight="Bold" Margin="0,5,0,0"/>
+
+                    <TextBlock Grid.Row="4" Grid.Column="0" Text="Success Rate:" Foreground="{DynamicResource Theme.Text.Secondary}" Margin="0,5,0,0"/>
+                    <TextBlock Name="StatsSuccessRate" Grid.Row="4" Grid.Column="1" Text="--%" Foreground="{DynamicResource Theme.Status.Success}" FontWeight="Bold" Margin="0,5,0,0"/>
+                  </Grid>
+                </StackPanel>
+              </Border>
+
+              <!-- By Type -->
+              <Border Grid.Column="1" Grid.Row="0" Background="{DynamicResource Theme.Surface.Secondary}" CornerRadius="5" Padding="15" Margin="5,0,0,10">
+                <StackPanel>
+                  <TextBlock Text="By Change Type" FontWeight="Bold" FontSize="14" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,15"/>
+                  <ListBox Name="StatsByTypeList" Background="Transparent" BorderThickness="0" MaxHeight="150"
+                           Foreground="{DynamicResource Theme.Text.Primary}"
+                           VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                           ScrollViewer.CanContentScroll="True"/>
+                </StackPanel>
+              </Border>
+
+              <!-- By Risk Level -->
+              <Border Grid.Column="0" Grid.Row="1" Background="{DynamicResource Theme.Surface.Secondary}" CornerRadius="5" Padding="15" Margin="0,0,5,0">
+                <StackPanel>
+                  <TextBlock Text="By Risk Level" FontWeight="Bold" FontSize="14" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,15"/>
+                  <ListBox Name="StatsByRiskList" Background="Transparent" BorderThickness="0" MaxHeight="150"
+                           Foreground="{DynamicResource Theme.Text.Primary}"
+                           VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                           ScrollViewer.CanContentScroll="True"/>
+                </StackPanel>
+              </Border>
+
+              <!-- By Status -->
+              <Border Grid.Column="1" Grid.Row="1" Background="{DynamicResource Theme.Surface.Secondary}" CornerRadius="5" Padding="15" Margin="5,0,0,0">
+                <StackPanel>
+                  <TextBlock Text="By Status" FontWeight="Bold" FontSize="14" Foreground="{DynamicResource Theme.Text.Primary}" Margin="0,0,0,15"/>
+                  <ListBox Name="StatsByStatusList" Background="Transparent" BorderThickness="0" MaxHeight="150"
+                           Foreground="{DynamicResource Theme.Text.Primary}"
+                           VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling"
+                           ScrollViewer.CanContentScroll="True"/>
+                </StackPanel>
+              </Border>
+            </Grid>
+          </ScrollViewer>
+        </Grid>
+      </TabItem>
+    </TabControl>
+
+    <!-- Status Bar -->
+    <Border Grid.Row="3" Background="{DynamicResource Theme.Surface.Secondary}" Padding="5" Margin="0,10,0,0" CornerRadius="3">
+      <Grid>
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="*"/>
+          <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+        <TextBlock Name="StatusText" Grid.Column="0" Text="Ready" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+        <TextBlock Name="LastRefreshText" Grid.Column="1" Text="" Foreground="{DynamicResource Theme.Text.Secondary}"/>
+      </Grid>
+    </Border>
+  </Grid>
+</UserControl>

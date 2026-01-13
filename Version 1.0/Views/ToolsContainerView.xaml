@@ -1,0 +1,15 @@
+<UserControl xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <TabControl Name="ToolsTabControl" Style="{DynamicResource LeftTabControlStyle}"
+              ItemContainerStyle="{DynamicResource LeftNavTabItemStyle}"
+              TabStripPlacement="Left">
+
+    <TabItem Header="Troubleshoot" ToolTip="Guided troubleshooting decision trees&#x0a;Related: Alerts tab for issue context">
+      <ContentControl Name="TroubleshootSubHost"/>
+    </TabItem>
+    <TabItem Header="Calculator" ToolTip="Network calculators for subnets, VLANs, bandwidth&#x0a;Related: IPAM (Infra) for IP planning">
+      <ContentControl Name="CalculatorSubHost"/>
+    </TabItem>
+  </TabControl>
+</UserControl>
